@@ -3269,4 +3269,28 @@ ok('a test, a bench check or status with no ANANSI_DB is refused the default lib
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+// #76. THE UPDATE REPORT. A migration that rewrites a writer's text backs up first, once, and says per
+// tale what it moved; the tale's view carries the lines, so the report is behind the same ownership
+// gate as the book. Lines come back newest first, each naming the thread it was about.
+ok('the update report: one backup before the first rewrite, and lines per tale, newest first', () => {
+  const t = db.createStory(o, { title: 'Report', premise: 'p' });
+  const other = db.createStory(o, { title: 'Other', premise: 'p' });
+  const e = { id: 'e-report-halsey' };
+  db.upsertEntry(t.id, o, { id: e.id, title: 'Halsey', body: 'a singer', entryType: 'character' });
+  assert.deepStrictEqual(db.updatesOf(t.id), [], 'REPORT-EMPTY: nothing has moved in a new tale');
+  const first = db.beforeRewrite();
+  assert.ok(existsSync(first.file), 'REPORT-BACKUP: the backup exists before anything is rewritten');
+  assert.strictEqual(db.beforeRewrite().file, first.file, 'REPORT-ONCE: a second rewrite takes no second backup');
+  db.noteUpdate(t.id, 'Her Facts moved into Always true.', e.id);
+  db.noteUpdate(t.id, 'Nothing else moved.');
+  const lines = db.updatesOf(t.id);
+  assert.deepStrictEqual(lines.map((l: any) => l.line), ['Nothing else moved.', 'Her Facts moved into Always true.'],
+    'REPORT-ORDER: newest first');
+  assert.strictEqual(lines[1].entryId, e.id, 'REPORT-THREAD: a line names its thread');
+  assert.strictEqual(lines[1].entryTitle, 'Halsey', '  by its title too');
+  assert.strictEqual(lines[0].backup, first.file, 'REPORT-NAMES-BACKUP: each line says which backup came before it');
+  assert.deepStrictEqual(db.updatesOf(other.id), [], 'REPORT-PER-TALE: another tale sees none of it');
+  rmSync(first.file, { force: true });
+});
+
 console.log(`\n${n} checks passed`);

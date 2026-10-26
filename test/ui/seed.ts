@@ -38,6 +38,12 @@ if (db.listStories(me).some((s: any) => s.title === input.story.title)) {
   db.addArc(acts.id, { branchId: acts.branchId, fromChapter: 1, toChapter: 2, title: 'Short to Water',
     summary: 'Aldis borrows from Marek against the key, and learns the vault is below the waterline.' });
   sum(two.id, 'Aldis learns the vault floods at every tide.');
+  // #76. ONE LINE ON ITS UPDATE REPORT, as a migration writes one: the backup first, then the line,
+  // naming a thread. Here and not in The Silver Key, whose report the scenarios read as empty.
+  db.upsertEntry(acts.id, me, { id: 'e-report-aldis', title: 'Aldis Fen', body: '[Aldis Fen: a sergeant]',
+    entryType: 'character' });
+  db.beforeRewrite();
+  db.noteUpdate(acts.id, 'His Facts moved into Always true.', 'e-report-aldis');
 }
 
 // `persona` is a UI-level field the engine fixture does not carry — buildContext never reads a

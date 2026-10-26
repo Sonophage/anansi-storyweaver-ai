@@ -10,6 +10,14 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-26 · What an update moved
+
+### A page that says what an update moved
+Tale settings → Keep has a new page, What the update moved. When an update to Anansi moves
+something in a tale (for example, a thread's text into a new place), it says what moved, with a
+link to the thread. For the first week it also says when the backup was taken and how to put
+everything back. Until an update moves something, it says that nothing has moved.
+
 ## 2026-10-26 · The bar after you send
 
 ### Send folds the box

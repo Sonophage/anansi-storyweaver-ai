@@ -104,6 +104,8 @@ export function view(storyId: string, focusChapterId?: string) {
     return { ...r, title: ch?.title ?? null };
   };
   return {
+    // #76. What an update moved in this tale. In the view, so it is behind the book's own gate.
+    updates: db.updatesOf(storyId),
     // PLAN-08. The slot list travels with the view rather than being copied into the browser: the
     // database enforces exclusivity off `src/slots.ts` and the screen has to agree with it, and a
     // second copy in web/ is exactly the drift that module exists to stop. The browser cannot

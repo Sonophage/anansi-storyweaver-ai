@@ -440,6 +440,8 @@ TITLES.anansi = 'Anansi';
 TITLES.model = 'The model';
 // #51. Opened from the last row of the rail's model list. About the account, like the model panel.
 TITLES.findmodel = 'Find a model';
+// #76. Opened from Tale → Keep. What an update to Anansi moved in this tale.
+TITLES.updates = 'What the update moved';
 const WTITLES = {
   stories: () => [`Rack`, `${LIB.length} ${LIB.length === 1 ? 'tale' : 'tales'}`],
   create: () => ['New tale', 'Spark one from an idea, or start blank'],
@@ -2758,6 +2760,25 @@ async function findSearch(whole = false) {
 
 const PANELS = {
   entry: entryEditor,
+  /** #76. WHAT AN UPDATE MOVED IN THIS TALE, one line per thing, each naming its thread. Written by
+   *  the migrations only (db.noteUpdate); empty until one moves something. Inside the first week it
+   *  also says how to put the library back, from the backup taken before the move. */
+  updates() {
+    const u = V?.updates ?? [];
+    if (!u.length) return `<div class="hint" style="margin:0">Nothing has moved in this tale. When an
+      update to Anansi moves something in it, this page says what moved, and where to.</div>`;
+    const last = u.find((x) => x.backup);
+    const file = last ? String(last.backup).split('/').pop() : null;
+    const recent = last && Date.now() - last.at < 7 * 864e5;
+    return `${last ? `<div class="hint" style="margin:0 0 14px">The backup was taken ${esc(new Date(last.at)
+        .toLocaleString())}, before anything was moved.${recent ? ` To put the library back as it was,
+        the admin restores <code>${esc(file)}</code> from the backups folder. That puts back every
+        tale, and anything written since is lost.` : ''}</div>` : ''}
+      ${u.map((x) => `<div class="row" style="align-items:flex-start; gap:10px">
+        <span style="flex:1; color:var(--ink); line-height:1.5">${esc(x.line)}</span>
+        ${x.entryId && x.entryTitle ? `<button data-entry="${esc(x.entryId)}" class="tag" style="cursor:pointer"
+          >${esc(x.entryTitle)}</button>` : ''}</div>`).join('')}`;
+  },
   /** The chapter that just ENDED, as a report. Closing lands on `setup` now rather than here —
    *  the next chapter is what End was pressed for — so this is the screen that sits behind the
    *  one row at the top of setup, and behind the door on the Chapter panel. */
@@ -3664,6 +3685,8 @@ const PANELS = {
           style="flex:1; text-decoration:none">JSON</a>
       </div>
       <button class="btn ghost" data-exportdb="1" style="margin-top:7px">As a standalone database</button>
+      <!-- #76. Where an update to Anansi says what it moved in this tale. -->
+      <button class="btn ghost" data-panel="updates" style="margin-top:7px">What the update moved</button>
       ${tipCard('sForkThreads', 'A new tale from these threads', `<p>A COPY, and both tales
         keep their own from then on. For one set of threads across several tales, follow a world
         above instead &mdash; that is a link, not a copy.</p>`)}

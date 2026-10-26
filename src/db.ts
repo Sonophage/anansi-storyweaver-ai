@@ -102,6 +102,17 @@ export function repairStrandedChapters(): { storyId: string; idx: number }[] {
 // Migrations. `CREATE TABLE IF NOT EXISTS` cannot alter an existing table or replace an index,
 // so anything that changes shape has to be stated here and be safe to run twice. Without this
 // a fresh clone and a live database drift apart silently.
+/** #76. ONE BACKUP BEFORE A MIGRATION REWRITES A WRITER'S TEXT, at most once per boot. The column
+ *  drops below already took one before their first drop; this is that same backup, named, so a
+ *  rewrite can take it too and the update report can say which file it was. It THROWS when the
+ *  backup fails: a rewrite of somebody's novel with no way back is not a step to take anyway.
+ *  Above `migrate()` because it runs at load, before anything declared further down exists. */
+let REWRITE: { file: string; at: number } | null = null;
+export function beforeRewrite() {
+  if (!REWRITE) REWRITE = { file: backup().file, at: Date.now() };
+  return REWRITE;
+}
+
 function migrate() {
   const has = (table: string, col: string) =>
     (db.prepare(`PRAGMA table_info(${table})`).all() as any[]).some((c) => c.name === col);
@@ -124,7 +135,7 @@ function migrate() {
   let backedUp = false;
   const drop = (table: string, col: string, why: string) => {
     if (!has(table, col)) return;
-    if (!backedUp) { backedUp = true; try { backup(); } catch { /* keep going; the drop is safe */ } }
+    if (!backedUp) { backedUp = true; try { beforeRewrite(); } catch { /* keep going; the drop is safe */ } }
     try { db.exec(`ALTER TABLE ${table} DROP COLUMN ${col}`); console.log(`  dropped ${table}.${col} — ${why}`); }
     // A refusal is not a reason to stop opening the database. SQLite refuses a column an index,
     // view or trigger names; neither of these is named by one, checked in sqlite_master.
@@ -415,7 +426,7 @@ function migrate() {
   try {
     if ((db.prepare("SELECT count(*) AS c FROM sqlite_master WHERE type='table' AND name='release_notes'")
            .get() as any).c) {
-      if (!backedUp) { backedUp = true; try { backup(); } catch { /* the drop is safe either way */ } }
+      if (!backedUp) { backedUp = true; try { beforeRewrite(); } catch { /* the drop is safe either way */ } }
       db.exec('DROP TABLE release_notes');
       console.log('  dropped release_notes — #24: what changed is docs/WHATS-NEW.md now');
     }
@@ -451,7 +462,7 @@ function migrate() {
     // reach it, and dropping would take it with us — say so and leave the table alone.
     if (left) console.log(`  keeping outfits: ${left} row(s) never made it into addons`);
     else {
-      if (!backedUp) { backedUp = true; try { backup(); } catch { /* keep going; the drop is safe */ } }
+      if (!backedUp) { backedUp = true; try { beforeRewrite(); } catch { /* keep going; the drop is safe */ } }
       try { db.exec('DROP TABLE outfits'); console.log('  dropped table outfits — the wardrobe is an addon'); }
       catch (e: any) { console.log(`  could NOT drop outfits: ${e?.message}`); }
     }
@@ -603,6 +614,16 @@ CREATE TABLE IF NOT EXISTS entry_revisions (
   id TEXT PRIMARY KEY, entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
   field TEXT NOT NULL, previous_value TEXT, replaced_at INTEGER NOT NULL, replaced_by TEXT);
 CREATE INDEX IF NOT EXISTS entry_rev_e ON entry_revisions(entry_id, replaced_at);
+
+-- #76. WHAT AN UPDATE MOVED, per tale, in the writer's words: one line per thing moved, naming the
+-- thread it was about, and the backup taken before the rewrite that moved it. Written only by
+-- migrations; read through the tale's view, so it sits behind the same ownership gate as the book.
+-- A deleted thread keeps its line, without the link.
+CREATE TABLE IF NOT EXISTS update_lines (
+  id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  entry_id TEXT REFERENCES entries(id) ON DELETE SET NULL,
+  line TEXT NOT NULL, backup TEXT, at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS update_lines_s ON update_lines(story_id, at);
 
 CREATE TABLE IF NOT EXISTS strings (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
@@ -2814,6 +2835,20 @@ export function revertEntryField(storyId: string, entryId: string, revisionId: s
 }
 
 // ---- backup ----
+/** #76. A line on a tale's update report: what moved, and the thread it was about. */
+export function noteUpdate(storyId: string, line: string, entryId: string | null = null) {
+  q('INSERT INTO update_lines (id, story_id, entry_id, line, backup, at) VALUES (?,?,?,?,?,?)')
+    .run(uid('ul-'), storyId, entryId, line, REWRITE?.file ?? null, Date.now());
+}
+
+/** The tale's update report, newest first. Same-millisecond lines keep their order by rowid. */
+export function updatesOf(storyId: string) {
+  return (q(`SELECT u.line, u.entry_id, u.backup, u.at, e.title AS entry_title FROM update_lines u
+      LEFT JOIN entries e ON e.id = u.entry_id WHERE u.story_id = ? ORDER BY u.at DESC, u.rowid DESC`)
+    .all(storyId) as any[]).map((r) => ({ line: r.line, entryId: r.entry_id, entryTitle: r.entry_title ?? null,
+      backup: r.backup, at: r.at }));
+}
+
 /** A consistent copy of the whole database at one path.
  *
  *  **Never `cp` a database in WAL mode.** Recent writes live in the `-wal` file until a
