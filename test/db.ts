@@ -1165,6 +1165,44 @@ ok('forking copies the path so far and leaves the parent alone', () => {
   db.delStory(s7.id);
 });
 
+// DELETING A BRANCH (Seth, 2026-10-26: "there's no way for me to delete branches"). Everything on
+// it goes; the branch you are on, the other path and the canon stay.
+ok('deleting a branch takes its prose and leaves the rest of the tale', () => {
+  const s8 = db.createStory(o, { title: 'Prune' });
+  ['one', 'two', 'three'].forEach((b) => db.addPassage({ ...s8, storyId: s8.id, body: b }));
+  const fork = db.forkBranch(s8.id, s8.branchId, 2, 'the other way')!;
+  db.setActiveBranch(s8.id, fork);
+  const forkCh = db.chapters(s8.id)[0].id;
+  db.addPassage({ storyId: s8.id, branchId: fork, chapterId: forkCh, body: 'a different three' });
+  db.upsertEntry(s8.id, o, { title: 'Aldis', body: '[Aldis: owes money]', entryType: 'character',
+    activation: 'always_on', keys: [] });
+  const count = (sql: string, ...a: any[]) => { const r = new RawDb('/tmp/anansi-test.db', { readOnly: true });
+    try { return (r.prepare(sql).get(...a) as any).n; } finally { r.close(); } };
+
+  // THE ONE YOU ARE ON IS REFUSED, and says what to do instead.
+  const refused = db.delBranch(s8.id, fork);
+  assert.match(String(refused.error), /branch you are on/, 'the branch you are on cannot go');
+  assert.strictEqual(count('SELECT COUNT(*) n FROM branches WHERE id = ?', fork), 1, 'and it is still there');
+
+  db.setActiveBranch(s8.id, s8.branchId);
+  const r = db.delBranch(s8.id, fork);
+  assert.strictEqual(r.deleted, 1, r.error);
+  assert.strictEqual(count('SELECT COUNT(*) n FROM branches WHERE id = ?', fork), 0, 'the branch is gone');
+  assert.strictEqual(count('SELECT COUNT(*) n FROM chapters WHERE branch_id = ?', fork), 0, 'its scenes are gone');
+  assert.strictEqual(count('SELECT COUNT(*) n FROM passages WHERE branch_id = ?', fork), 0, 'and every passage on it');
+  assert.deepStrictEqual(db.passagesOf(s8.id).map((p: any) => p.body), ['one', 'two', 'three'],
+    'the branch you are on keeps all of its prose');
+  assert.ok(db.entriesOf(s8.id).some((e: any) => e.title === 'Aldis'), 'and the canon is the tale\'s, so it stays');
+
+  // THE MAIN BRANCH CAN GO TOO, from another one, and the one you are on becomes main.
+  const second = db.forkBranch(s8.id, s8.branchId, 3, 'second')!;
+  db.setActiveBranch(s8.id, second);
+  assert.strictEqual(db.delBranch(s8.id, s8.branchId).deleted, 1);
+  assert.strictEqual(count('SELECT is_primary n FROM branches WHERE id = ?', second), 1, 'the one you are on is main now');
+  assert.deepStrictEqual(db.passagesOf(s8.id).map((p: any) => p.body), ['one', 'two', 'three'], 'and still reads');
+  db.delStory(s8.id);
+});
+
 // A snapshot must include writes still sitting in the -wal. `cp` of the main file does not, and
 // silently: it cost an A/B run where one arm was seeded and the other cp-ed from it, so that arm
 // generated with no prose in context and the manifests differed by a whole block. Measured

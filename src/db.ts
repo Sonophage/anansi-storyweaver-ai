@@ -3299,6 +3299,46 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
       .get(made.id) as any).n };
 }
 
+/** DELETE A BRANCH, AND EVERYTHING ON IT. Seth, 2026-10-26: "there's no way for me to delete
+ *  branches."
+ *
+ *  Its chapters go, and the cascade takes their prose, every take, the edit history and the pins
+ *  (`delChapter` says why each of those is a real cascade). Written out, as there: the flags on its
+ *  passages and the proposals its chapters made, which carry no foreign key; and its acts, which
+ *  hang off the branch. Canon stays: a thread is the tale's, on every path. `generations` stays: it
+ *  is the log of what was asked, not the book.
+ *
+ *  NEVER THE ONE YOU ARE ON. Switch to another first; deleting the path the page is showing would
+ *  leave the tale with nothing to show. A branch forked from this one keeps its prose and its place;
+ *  it only loses the name of where it came from. If this was the main branch, the one you are on
+ *  becomes the main one, so a tale always has one. */
+export function delBranch(storyId: string, branchId: string): { deleted: number; error?: string } {
+  const b = q('SELECT id, is_primary FROM branches WHERE id = ? AND story_id = ?').get(branchId, storyId) as any;
+  if (!b) return { deleted: 0, error: 'That branch is gone already.' };
+  const active = activeBranchOf(storyId);
+  if (active === branchId) return { deleted: 0,
+    error: 'This is the branch you are on. Switch to another branch first, then this one can go.' };
+  db.exec('BEGIN');
+  try {
+    q(`DELETE FROM violations WHERE story_id = ? AND passage_id IN
+         (SELECT id FROM passages WHERE branch_id = ?)`).run(storyId, branchId);
+    q(`DELETE FROM proposals WHERE story_id = ? AND chapter_id IN
+         (SELECT id FROM chapters WHERE branch_id = ?)`).run(storyId, branchId);
+    q('DELETE FROM arcs WHERE story_id = ? AND branch_id = ?').run(storyId, branchId);
+    q('DELETE FROM chapters WHERE story_id = ? AND branch_id = ?').run(storyId, branchId);
+    q('DELETE FROM passages WHERE story_id = ? AND branch_id = ?').run(storyId, branchId);
+    q('UPDATE branches SET parent_id = NULL WHERE story_id = ? AND parent_id = ?').run(storyId, branchId);
+    q('DELETE FROM branches WHERE id = ? AND story_id = ?').run(branchId, storyId);
+    if (b.is_primary) {
+      q('UPDATE branches SET is_primary = 1 WHERE id = ? AND story_id = ?').run(active, storyId);
+      q('UPDATE stories SET active_branch = ? WHERE id = ?').run(active, storyId);
+    }
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  touch(storyId);
+  return { deleted: 1 };
+}
+
 export function setActiveBranch(storyId: string, branchId: string) {
   const b = q('SELECT 1 FROM branches WHERE id = ? AND story_id = ?').get(branchId, storyId);
   if (!b) return false;
