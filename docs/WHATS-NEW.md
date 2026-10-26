@@ -10,6 +10,18 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-26 · Over time
+
+### Info is now where it stands
+A thread's Info is now Where it stands now: what the model is told about where the thread is at
+the scene you are writing. When a later scene has changed it, that later version is the one shown
+and the one you edit, with the scene it is from beside it.
+
+### Over time, from scene 1
+Over time lists every version of where a thread stands, in scene order. The first one is where it
+stands from scene 1, and each later one shows the scene it is from, a few words for what changed,
+and the parts that are new since the one before.
+
 ## 2026-10-26 · Always true
 
 ### Facts is now Always true

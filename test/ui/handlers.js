@@ -449,7 +449,9 @@ const openFold = async (name) => {
   if ((await page.eval(`document.querySelector('[data-cardtab="${tab}"]')?.getAttribute('aria-pressed')`)) !== 'true')
     await page.click(`[data-cardtab="${tab}"]`);
   await wait(300);
-  if (!(await page.eval(`!!document.querySelector('[data-fold="${name}"]')?.parentElement?.open`)))
+  // #78. Over time is no longer a fold: its tab IS the list. A fold that is not there is not pressed.
+  if ((await page.eval(`!!document.querySelector('[data-fold="${name}"]')`))
+    && !(await page.eval(`!!document.querySelector('[data-fold="${name}"]')?.parentElement?.open`)))
     await page.click(`[data-fold="${name}"]`);
   await wait(300);
 };
@@ -466,7 +468,8 @@ ok(`a chapter override can be added (${sts.length} from chapter ${sts[0]?.fromCh
    sts.length === 1 && sts[0].fromChapter === 2);
 const stid = sts[0].id;
 await page.eval("(() => { document.querySelector('[data-stf=\"" + stid + "\"]').value = '3';"
-  + " document.querySelector('[data-stb=\"" + stid + "\"]').value = 'He says it out loud, once.';"
+  // #78. In force at this scene, so its text is The thread's box, where it stands now.
+  + " (document.querySelector('[data-stb=\"" + stid + "\"]') ?? document.querySelector('[data-nowstate=\"" + stid + "\"]')).value = 'He says it out loud, once.';"
   + " return 1; })()");
 await page.click('[data-savestate="' + stid + '"]');
 await wait(1000);

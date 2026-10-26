@@ -98,7 +98,7 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   ok("  and not Over time", !(await vis('[data-addstate]')) && !(await vis('[data-fold="states"]')));
   await page.click('[data-cardtab="time"]'); await wait(400);
   ok("Over time is still its own tab", (await page.eval(
-    "(() => { const f = document.querySelector('[data-fold=\"states\"]'); return !!f && f.offsetParent !== null; })()")));
+    "(() => { const f = document.querySelector('[data-otrow=\"1\"]'); return !!f && f.offsetParent !== null; })()")));
   await page.click('[data-cardtab="card"]'); await wait(300);
 
   // ---- The keyboard: the field being typed in stays on screen
@@ -246,7 +246,7 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
     const got = {}; for (const s of sels) got[s] = await vis(s); return got; };
   const have = {
     card: await onTab('card', ['#f-card-title', '[data-act="always_on"]', '#f-card-body', '#f-card-keys']),
-    time: await onTab('time', ['[data-fold="states"]']),
+    time: await onTab('time', ['[data-otrow="1"]', '[data-addstate]']),
     rooms: await onTab('rooms', ['[data-newroom]', '[data-ofn]', '[data-wear]', '[data-saveoutfit]', '[data-deloutfit]', '[data-goslot]']),
     more: await onTab('more', ['[data-picfind]', '[data-kind="lore"]', '[data-invent]', '#f-card-notes', '#f-card-json',
       '[data-cardcopy]', '[data-cardsave]', '[data-cardread]', '[data-fold="edges"]', '[data-retire]', '[data-scanstory]',
@@ -255,7 +255,7 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   const missing = Object.entries(have).flatMap(([t, m]) => Object.entries(m).filter(([, on]) => !on).map(([s]) => `${t}:${s}`));
   ok(`every control the form had is on its tab (${missing.length ? 'missing ' + missing.join(' ') : 'all there'})`, missing.length === 0);
   await page.click('[data-cardtab="time"]'); await wait(300);
-  await page.eval("(() => { const f = document.querySelector('[data-fold=\"states\"]'); if (!f.closest('details').open) f.click(); return 1; })()");
+  // #78. Over time is the tab's whole content now, not a fold inside it.
   await wait(400);
   ok("  and Over time still opens to its editor", await vis('[data-addstate]'));
   await leaveAlter();

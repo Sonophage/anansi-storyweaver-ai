@@ -35,13 +35,15 @@ export const HELP = {
       is let go.</p>`,
   },
   states: {
-    title: 'Threads over time',
+    title: 'Over time',
     body: `<p>People change, and a thread that cannot change is the wrong shape for a novel.</p>
-      <p>A state is a description that comes into force from a scene onward. The one in force
-      <strong>replaces</strong> the body rather than adding to it &mdash; so a state has to describe
-      the whole person as they now are, not only what changed. A state that says <em>her arm is
-      broken</em> and nothing else has quietly deleted her eyes.</p>
-      <p>Before it opens, a state is hidden. <strong>Hint</strong> tells the model something exists
+      <p>Over time is where a thread stands, scene by scene. The first entry is where it stands
+      from scene 1. Each later one is where it stands from its own scene on, and the model reads
+      only the one in force at the scene being written &mdash; so an entry describes the whole of
+      it as it now is, not only what changed. One that says <em>her arm is broken</em> and nothing
+      else has quietly deleted her debts. Who or what it is belongs in Always true, which never
+      changes.</p>
+      <p>Before it opens, an entry is hidden. <strong>Hint</strong> tells the model something exists
       without saying what, so foreshadowing has somewhere to come from.</p>`,
   },
   persona: {

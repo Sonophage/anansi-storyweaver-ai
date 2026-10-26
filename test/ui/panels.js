@@ -1050,8 +1050,9 @@ if (anyEntry) {
     const s2 = document.querySelector('[data-fold="' + n + '"]');
     return [n, s2 ? s2.parentElement.open : null]; }))) ()`);
   console.log("  tail folds: " + JSON.stringify(tails));
-  ok(`  and Over time, Brings in with it and Another book are folded shut (${JSON.stringify(tails)})`,
-     tails.states === false && tails.edges === false && tails.copy === false);
+  // #78. Over time is its tab's whole content, not a fold, so only the other two fold.
+  ok(`  and Brings in with it and Another book are folded shut, Over time is no fold (${JSON.stringify(tails)})`,
+     tails.states === null && tails.edges === false && tails.copy === false);
   // Back to Read by Cancel: nothing was typed, so it goes straight there (the old Read button is
   // the drawer header's Cancel since the v2 Alter screen).
   await page.click('#sideHead [data-cancelalter]');

@@ -2418,7 +2418,7 @@ function proposalCard(p) {
             <label style="font-size:11px; color:var(--faint)" for="pw-${p.id}">Goes in</label>
             <select class="field" id="pw-${p.id}" data-pwhere="${p.id}"
               style="margin:0; flex:1; min-width:130px; padding:6px 8px; font-size:11.5px">
-              <option value=""${p.field ? '' : ' selected'}>the thread's own Info</option>
+              <option value=""${p.field ? '' : ' selected'}>where it stands now</option>
               ${rooms.map((r) => `<option value="${r}"${p.field === r ? ' selected' : ''}
                 >${esc(r.replace(/_/g, ' '))}</option>`).join('')}</select>
             <input class="field" data-pkeys="${p.id}" value="${esc(keys.join(', '))}"
@@ -6054,8 +6054,15 @@ function cardFace(e, slots) {
       rooms.some((a) => a.slot === 'facts') ? `<div class="lbl" style="letter-spacing:.1em; margin:4px 0 4px">Always true</div>
     <button class="readbody" data-cardview="form" aria-label="Alter what is always true of ${esc(e.title)}">${
       esc(rooms.filter((a) => a.slot === 'facts').map((a) => unbracket(a.body, e.title)).join('\n'))}</button>` : ''}
-    <button class="readbody" data-cardview="form" aria-label="Alter what ${esc(e.title)} says">${
-      esc(unbracket(e.body, e.title) || 'Nothing written down yet.')}</button>
+    ${(() => {
+      // WHERE IT STANDS NOW (#78): the Over time entry in force at this scene, or the thread's own
+      // text when none has opened. Info was the base text alone, which a later entry replaces.
+      const st = standsNow(e);
+      return `<div class="lbl" style="letter-spacing:.1em; margin:8px 0 4px">Where it stands now${
+        st ? ` <span style="opacity:.6">&middot; from scene ${esc(String(st.fromChapter))}</span>` : ''}</div>
+    <button class="readbody" data-cardview="form" aria-label="Alter where ${esc(e.title)} stands now">${
+      esc(unbracket(st ? st.body : e.body, e.title) || 'Nothing written down yet.')}</button>`;
+    })()}
     <!-- #22 §6. WHAT IS ON, THEN WHAT IS NOT. Seth: "after the name comes the body, after the body
          comes what ever is turned on. all turned off option or non activated option live under a
          second section under all the activated ones." The card used to interleave them under one
@@ -6145,6 +6152,16 @@ function readMenu(e) {
  *  The help mark sits in the BODY and not in the summary for the same reason from the other side:
  *  a press on it inside the summary toggles the fold natively too, and the repaint would then
  *  disagree with what the DOM just did. */
+/** #78 · WHERE A THREAD STANDS AT THE SCENE BEING WRITTEN: the latest Over time entry that has
+ *  opened, or null when none has and the thread's own text (where it stands from scene 1) is in
+ *  force. The rule `context.resolveBody` sends to the model, read here so the screen shows the
+ *  text the model is sent. Hints are the model's business and are left out. */
+function standsNow(e) {
+  const at = V?.currentChapter?.index ?? 1;
+  return [...(e.states ?? [])].filter((s) => s.fromChapter <= at)
+    .sort((a, b) => a.fromChapter - b.fromChapter).at(-1) ?? null;
+}
+
 const foldSection = (name, label, body) => `<details class="fold" style="margin-top:16px"
   ${S.folds?.[name] ? 'open' : ''}>
   <summary data-fold="${esc(name)}" style="letter-spacing:.1em">${label}</summary>${body}</details>`;
@@ -6248,8 +6265,9 @@ function addTray(e, slots) {
 // Over time beside The thread, Seth 2026-10-25: "for threads, move over time next to the thread".
 const CARD_TABS = [['card', 'The thread'], ['time', 'Over time'], ['rooms', 'Pockets'], ['more', 'More']];
 
-/** Which tab a room's heading lives in. `facts` is pinned above Info because of what it IS, and
- *  `outfit` is the wardrobe — both are in their tabs for reasons older than the tabs, so this map
+/** Which tab a room's heading lives in. `facts` (Always true) is pinned above where it stands now
+ *  because of what it IS, and `outfit` is the wardrobe — both are in their tabs for reasons older
+ *  than the tabs, so this map
  *  states it rather than the jump handler guessing from the slot list. */
 const slotTab = (name) => (name === 'facts' ? 'card' : 'rooms');
 
@@ -6390,17 +6408,28 @@ function entryEditor() {
          The same roomSection every other room uses, so there is one renderer and not a second copy
          of the name/body/keys/on-off form for this slot. -->
     ${roomSection(e, slots.find((sl) => sl.name === 'facts'))}
-    <label class="lbl" for="f-card-body">Info${tipMark('cardBody', 'Info')}</label>
-    ${tipCard('cardBody', 'Info', `<p>This is what the model reads, and hemming a scene rewrites
-      it. Bracket form keeps it short: <em>[Name: trait, trait]</em>. What must survive a rewrite
-      goes in facts, above.</p>`)}
+    ${(() => {
+      // WHERE IT STANDS NOW (#78). With no later entry open it is the thread's own text, from
+      // scene 1; with one open it is that entry, edited here and saved with the rest, and the text
+      // from scene 1 is edited as the first row of Over time. One box for each, never two.
+      const st = standsNow(e);
+      const mark = tipMark('cardBody', 'Where it stands now');
+      return `${st ? `<label class="lbl" for="f-card-now">Where it stands now <span style="opacity:.6">&middot; from scene ${
+        esc(String(st.fromChapter))}</span>${mark}</label>` : `<label class="lbl" for="f-card-body">Where it stands now${mark}</label>`}
+    ${tipCard('cardBody', 'Where it stands now', `<p>What the model is sent about where this thread
+      is now, after Always true. Hemming a scene offers a new one when the scene changes it, dated
+      by the scene, and Over time keeps every one. Bracket form keeps it short:
+      <em>[Name: trait, trait]</em>.</p>`)}
+    ${st ? `<textarea class="field grow" id="f-card-now" data-f="now" data-nowstate="${esc(st.id)}"
+      style="min-height:150px; max-height:52vh">${esc(st.body ?? '')}</textarea>` : ''}`;
+    })()}
     <!-- GROWS. It was a fixed 96px box, and an invented thread's body went from 60-120 words to
          120-200 on 2026-08-27 — so two thirds of a body sat below the fold in a field that gave no
          sign there was more. Measured: 656 characters, 94px of box, 283px of content. Nothing was
          lost, it scrolled, and it read as cut off, which is what Seth reported. Capped so a very
          long one still leaves the buttons under it reachable. -->
-    <textarea class="field grow" id="f-card-body" data-f="body" style="min-height:150px; max-height:52vh"
-      >${esc(e.body ?? '')}</textarea>
+    ${standsNow(e) ? '' : `<textarea class="field grow" id="f-card-body" data-f="body" style="min-height:150px; max-height:52vh"
+      >${esc(e.body ?? '')}</textarea>`}
     <!-- NOT DISABLED ANY MORE (2026-08-28, PLAN-08 Phase 1). It was greyed out while an entry was
          always-on, on the reasoning that an always-on entry does not need keys. True, and it made
          the words the extractor proposed invisible AND uneditable — so the one screen that could
@@ -6445,8 +6474,8 @@ function entryEditor() {
          The EMPTY third is the pill row in the tray at the top. Drawing empty rooms again as a
          section down here is the eight-headings-and-six-blanks screen this pass just removed, so
          they stay up there where filling one is the press you are already making.
-         Facts is not in this grouping: it is pinned above Info because of what it IS, and moving
-         it to the bottom the moment it is switched off would undo that. Outfit is the wardrobe
+         Always true is not in this grouping: it is not a pocket, and it sits on The thread tab above
+         where the thread stands now (#77). Outfit is the wardrobe
          below, which has its own vocabulary and is one-at-a-time by construction. -->
     ${(() => {
       const rooms = slots.filter((sl) => sl.name !== 'outfit' && sl.name !== 'facts');
@@ -6566,25 +6595,53 @@ function entryEditor() {
     <button class="btn ghost" data-cardread="1" style="margin-top:7px">Read it and apply</button>
     </div>
     <div class="pane"${tab === 'time' ? '' : ' hidden'}>
-    ${foldSection('states', 'Over time', `${helpMark('states')}${tipCard('states', HELP.states.title,
-      `${helpText('states')}<p>A fact can open at a later scene. Before it opens it is hidden, or
-      hinted at without saying what it is. Earlier scenes keep the body above.</p>`)}
-    <!-- Editable for the same reason: upsertState has updated by id since it was written, and the
-         only way to correct a wrong chapter number was to delete the override and type it again. -->
-    ${(e.states ?? []).map((st) => `<div class="card" style="margin-bottom:8px; gap:7px">
-      <div style="display:flex; align-items:center; gap:7px">
-        <input class="field" data-stf="${st.id ?? ''}" type="number" min="1" value="${st.fromChapter}"
-          aria-label="From scene" style="margin:0; width:92px">
-        <select class="field" data-stm="${st.id ?? ''}" aria-label="Before that scene" style="margin:0">
-          <option value="hide" ${(st.beforeMode ?? 'hide') === 'hide' ? 'selected' : ''}>hidden before</option>
-          <option value="hint" ${st.beforeMode === 'hint' ? 'selected' : ''}>hinted before</option></select>
-        <button data-delstate="${st.id ?? ''}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
-      <textarea class="field grow" data-stb="${st.id ?? ''}" aria-label="What is true from that scene on"
-        style="margin:0; min-height:56px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(st.body)}</textarea>
-      <input class="field" data-stl="${st.id ?? ''}" aria-label="If hinted, what the reader may sense"
-        value="${esc(st.label ?? '')}"
-        placeholder="If hinted, what the reader may sense" style="margin:0">
-      <button class="btn ghost" data-savestate="${st.id ?? ''}">Save this change</button></div>`).join('')}
+    ${(() => {
+      /* #78 · OVER TIME, EVERY ENTRY IN SCENE ORDER, FROM SCENE 1. The first row is the thread's own
+       * text (shown as Info until now): where it stands from scene 1. Each later one is where it
+       * stands from its scene on, under the label hemming gave it, with the parts that are new since
+       * the row before marked. The one in force now is edited on The thread, so it is read here,
+       * and the scene-1 text is edited here while a later entry is in force: one box each. */
+      const now = standsNow(e);
+      const rows = [...(e.states ?? [])].sort((a, b) => a.fromChapter - b.fromChapter);
+      const parts = (t) => String(t ?? '').trim().replace(/^\[|\]$/g, '').replace(/^[^:;\[\]]{1,60}:\s*/, '')
+        .split(/[;\n]/).map((x) => x.trim()).filter(Boolean);
+      const fresh = (t, before) => { const was = new Set(parts(before).map((x) => x.toLowerCase()));
+        return parts(t).filter((x) => !was.has(x.toLowerCase())); };
+      const newLine = (t, before) => { const n = fresh(t, before);
+        return n.length ? `<div style="font-size:11.5px; line-height:1.45; color:var(--gold)">New: ${esc(n.join('; '))}</div>` : ''; };
+      const readOnly = (t) => `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(unbracket(t, e.title))}</div>
+        <div class="hint" style="margin:0">Where it stands now, so it is edited on The thread.</div>`;
+      const first = `<div class="card" data-otrow="1" style="margin-bottom:8px; gap:7px">
+        <div class="lbl" style="letter-spacing:.1em; margin:0">From scene 1${now ? '' : ' &middot; where it stands now'}</div>
+        ${now ? `<textarea class="field grow" id="f-card-body" data-f="body" aria-label="Where it stands from scene 1"
+          style="margin:0; min-height:56px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(e.body ?? '')}</textarea>`
+          : readOnly(e.body)}</div>`;
+      const later = rows.map((st, k) => {
+        const before = k ? rows[k - 1].body : e.body;
+        const head = `<div class="lbl" style="letter-spacing:.1em; margin:0">Scene ${esc(String(st.fromChapter))}${
+          st.label ? ` &middot; ${esc(st.label)}` : ''}${now?.id === st.id ? ' &middot; where it stands now' : ''}</div>`;
+        // THE ONE IN FORCE keeps every control but its text, which is The thread's box: its scene,
+        // its hint and its label are edited here, and Save here reads the text from there.
+        const mine = now?.id === st.id;
+        return `<div class="card" data-otrow="${st.fromChapter}" style="margin-bottom:8px; gap:7px">
+        ${head}${newLine(st.body, before)}
+        <div style="display:flex; align-items:center; gap:7px">
+          <input class="field" data-stf="${st.id ?? ''}" type="number" min="1" value="${st.fromChapter}"
+            aria-label="From scene" style="margin:0; width:92px">
+          <select class="field" data-stm="${st.id ?? ''}" aria-label="Before that scene" style="margin:0">
+            <option value="hide" ${(st.beforeMode ?? 'hide') === 'hide' ? 'selected' : ''}>hidden before</option>
+            <option value="hint" ${st.beforeMode === 'hint' ? 'selected' : ''}>hinted before</option></select>
+          <button data-delstate="${st.id ?? ''}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
+        ${mine ? readOnly(st.body) : `<textarea class="field grow" data-stb="${st.id ?? ''}" aria-label="Where it stands from that scene on"
+          style="margin:0; min-height:56px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(st.body)}</textarea>`}
+        <input class="field" data-stl="${st.id ?? ''}" aria-label="What changed, in a few words"
+          value="${esc(st.label ?? '')}"
+          placeholder="What changed, in a few words" style="margin:0">
+        <button class="btn ghost" data-savestate="${st.id ?? ''}">Save this change</button></div>`;
+      }).join('');
+      return `<div class="lbl" style="letter-spacing:.1em; margin-top:16px">Over time${helpMark('states')}</div>
+        ${tipCard('states', HELP.states.title, helpText('states'))}
+        ${first}${later}
     <div class="card" style="gap:7px">
       <div style="display:flex; gap:7px">
         <input class="field" data-st="fromChapter" type="number" min="1" aria-label="From scene"
@@ -6593,11 +6650,12 @@ function entryEditor() {
           <option value="hide">hidden before</option>
           <option value="hint">hinted before</option>
         </select></div>
-      <textarea class="field grow" data-st="body" aria-label="What is true from that scene on"
-        placeholder="What is true from that scene on" style="min-height:56px; max-height:40vh"></textarea>
-      <input class="field" data-st="label" aria-label="If hinted, what the reader may sense"
-        placeholder="If hinted, what the reader may sense">
-      <button class="btn ghost" data-addstate="1">Add a change over time</button></div>`)}
+      <textarea class="field grow" data-st="body" aria-label="Where it stands from that scene on"
+        placeholder="Where it stands from that scene on: the whole of it" style="min-height:56px; max-height:40vh"></textarea>
+      <input class="field" data-st="label" aria-label="What changed, in a few words"
+        placeholder="What changed, in a few words">
+      <button class="btn ghost" data-addstate="1">Add a change over time</button></div>`;
+    })()}
     </div>
     <div class="pane"${tab === 'more' ? '' : ' hidden'}>
     ${S.fieldHistory ? `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">Earlier versions</div>
@@ -10680,6 +10738,15 @@ document.addEventListener('click', async (e) => {
       body: get('body') ?? e.body, notes: get('notes') ?? e.notes, keys, allowNoKeys: true });
     // REFUSED IS SAID, and the form stays as it is: what was typed is still there to fix or keep.
     if (r.error) return toast(/not saved/i.test(r.error) ? r.error : `Not saved. ${r.error}`);
+    // WHERE IT STANDS NOW (#78), when a later Over time entry is the one in force: that entry, saved
+    // with the rest. Everything else about it is kept as it is; the box is only its text.
+    const nowBox = document.querySelector('[data-f="now"]');
+    const st = nowBox && (e.states ?? []).find((x) => x.id === nowBox.dataset.nowstate);
+    if (st && nowBox.value !== nowBox.defaultValue) {
+      const r2 = await api.saveState(S.storyId, e.id, { id: st.id, fromChapter: st.fromChapter,
+        body: nowBox.value, beforeMode: st.beforeMode, label: st.label ?? null });
+      if (r2.error) return toast(`Not saved. ${r2.error}`);
+    }
     // SAVED GOES BACK TO READ (v2 redesign): Cancel and Save are the two ways out of the form, and
     // the thread you just wrote is the thing to look at next.
     S.cardView = null; S.keyDraft = null;
@@ -10986,10 +11053,12 @@ document.addEventListener('click', async (e) => {
   if (d.savestate !== undefined) {
     if (!d.savestate) return toast('That change has no id to save.');
     const get = (a) => document.querySelector(`[data-${a}="${d.savestate}"]`)?.value;
+    // The entry in force has its text in The thread's box (#78), not here.
+    const body = get('stb') ?? get('nowstate');
     const from = Number(get('stf'));
-    if (!from || !String(get('stb') ?? '').trim()) return toast('A scene number and a body, at least.');
+    if (!from || !String(body ?? '').trim()) return toast('A scene number and a body, at least.');
     const r = await api.saveState(S.storyId, S.entryId, { id: d.savestate, fromChapter: from,
-      body: get('stb'), beforeMode: get('stm'), label: get('stl') || null });
+      body, beforeMode: get('stm'), label: get('stl') || null });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest(); toast('Saved.'); return;
   }

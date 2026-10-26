@@ -169,7 +169,7 @@ export function foldAlwaysTrue() {
     for (const e of P(`SELECT e.id, e.story_id, e.title, e.body, (SELECT body FROM addons a WHERE a.entry_id = e.id
         AND a.slot = 'facts' LIMIT 1) AS always FROM entries e ORDER BY e.title`).all() as any[]) {
       const always = String(e.always ?? '').trim(), info = String(e.body ?? '').trim();
-      if (always && info) noteUpdate(e.story_id, 'Its Always true and its Info are both written. Check that they agree: the model is sent both.', e.id);
+      if (always && info) noteUpdate(e.story_id, 'Its Always true and where it stands (shown as Info until now) are both written. Check that they agree: the model is sent both.', e.id);
       else if (!always && info) none.set(e.story_id, [...(none.get(e.story_id) ?? []), e.title]);
     }
     for (const [story, names] of none) noteUpdate(story, `${names.length === 1 ? 'One thread has' : `${names.length} threads have`} `
