@@ -44,8 +44,8 @@ const before = await page.eval("(async () => (await (await fetch('/api/story?sto
 // THROUGH THE TRAY, which is the only door since 2026-09-02 — Seth: "the buttons can all go away
 // and we can just keep the add thread since all the information for adding something and what type
 // is there. just make sure that any functionality that these buttons may have carry over."
-// This is that carry-over, driven: open the one door, pick the kind, press New character. The same
-// data-newentry the four buttons carried is what the tray presses at the end of it.
+// This is that carry-over, driven: open the one door, pick the kind, press Write it (New thread,
+// v2 redesign: the kind is a choice and Write it makes the thread).
 // SCOPED TO #sideHead: the composer's threads dial has a data-newlore OPTION, and an option has no
 // box for the driver to press. The list's door is the + in the drawer's header since the v2
 // redesign (2026-10-25).
@@ -53,7 +53,7 @@ await page.click('#sideHead [data-newlore]');
 await wait(400);
 await page.click('[data-lorekind="character"]');
 await wait(400);
-await page.click('[data-newentry="character"]');
+await page.click('[data-newthread="character"]');
 await wait(500);
 const after = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).entries.length)()");
 ok("New character creates an entry (" + before + " -> " + after + ")", after === before + 1);

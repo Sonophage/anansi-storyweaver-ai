@@ -485,7 +485,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  state. A name left here would match nothing and read as a live action.)
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home', 'owed',
   're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
-  'savestory', 'summarize', 'extract', 'decide', 'branch', 'newentry', 'entry',
+  'savestory', 'summarize', 'extract', 'decide', 'branch', 'newthread', 'entry',
   'carryon', 'readfrom',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
@@ -527,8 +527,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'spfollow',
   'applylib', 'savelib', 'dellib', 'setvoice', 'setanansi',
   'seedpick',
-  // The forge: open one prompt, copy it, and paste a forged thread back in.
-  'forgeopen', 'forgecopy', 'pastethread',
+  // The forge: open one prompt and copy it. A forged thread comes back in through New thread's box.
+  'forgeopen', 'forgecopy',
   // #30. A cast pasted into the wizard, and a whole book pasted before it opens.
   'pastecast', 'pastebook', 'forgehere', 'fromhere', 'startfrom', 'demo', 'holdback',
   // #56. The ways on from a weaving refusal, on the composer's row; #58 another model, for a
@@ -2201,6 +2201,12 @@ function drawSide() {
   // Close, because shutting the drawer from here would throw away what was typed without asking.
   // Cancel goes back to Read, asking first if anything has changed (alterDirty).
   if (isAltering()) $('sideHead').innerHTML = threadBar('alter');
+  // NEW THREAD: "‹ Threads" back to the list (the same data-newlore press that opened it), and Close.
+  else if (S.panel === 'threads' && S.lore && !S.entryId) $('sideHead').innerHTML = `
+    <button data-newlore="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
+      class="serif">Threads</span></button>
+    <span style="flex:1"></span>
+    <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
   else if (thRead) $('sideHead').innerHTML = `${threadBar('read')}
     <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
   else $('sideHead').innerHTML = `
@@ -2217,7 +2223,8 @@ function drawSide() {
       title="Add a thread, or read the scene"><span>${mark('create', 16)}</span></button>` : ''}
     <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
-  $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead && !isAltering() ? helpBody(PANEL_HELP[S.panel]) : '')
+  $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead && !isAltering() && !(S.panel === 'threads' && S.lore && !S.entryId)
+    ? helpBody(PANEL_HELP[S.panel]) : '')
     + (PANELS[S.panel] ?? (() => ''))();
   // After the markup, because a textarea has no scrollHeight until it is in the document.
   growFields($('sideBody'));
@@ -3148,124 +3155,68 @@ const PANELS = {
   // lists them across every story, which is a different question.
   threads() {
     if (S.entryId) return entryEditor();
-    // The + Lore tray. Two ways a fact gets into canon and they belong next to each other: write
-    // it yourself, or have the chapter read for what is already on the page. The second is the
-    // ritual's extraction step on its own — "scan what we have" — without ending the chapter.
+    // NEW THREAD (v2 redesign, 2026-10-25). One box takes a name or a pasted thread; "Write it as"
+    // picks the kind; Write it makes the thread and opens Alter on it. Under "Or let Anansi", three
+    // cards use the same box and the same kind: write one from what you typed, look the name up
+    // online, or read the scene for facts. Seth chose the kind as a choice and not a press that
+    // makes the thread, so the three cards have a kind to write.
+    //
+    // It replaces a tray of five sections: the kinds, then that kind's pockets; New <kind>; Anansi
+    // writing one; a look-it-up box; a paste box; and Scan the scene. Everything but the pockets is
+    // still here, in the one box. A pocket is added from its thread (the Pockets tab's +), which is
+    // where it hangs; Seth agreed to drop the second door to it here.
+    //
+    // The box keeps what is typed across a press on a kind (`S.lore.draft`), because the press
+    // repaints the drawer and a repaint empties a box drawn from nothing.
     if (S.lore) {
-      const KIND_LABEL = { character: 'a character', lore: 'a place or a fact',
-                           item: 'an object', rule: 'a rule of this tale', outfit: 'an outfit' };
-      // Outfits are NOT in KINDS and must not be: KINDS is the entry TYPE, and this same list
-      // draws the type buttons in the entry editor, where "outfit" is not a thing an entry can be.
-      // An outfit hangs off a character rather than standing beside one — which is also why this
-      // branch asks whose before it asks anything else. Seth: "a new costume and have it attached
-      // to a character from that screen would be phenomenal."
-      // #27, then Seth on 2026-08-29: "could we have the main types show only i.e. character lore
-      // item rule and the rooms show up after the main ones been selected and only for that type."
-      //
-      // Fourteen chips at once was every room of every kind in one row, most of them meaningless
-      // for whatever you were about to write — a place has no voice and a rule has no wardrobe.
-      // Two steps instead: the four kinds, and then that kind's own rooms. The room list comes from
-      // V.slots, the server's copy of src/slots.ts, so it cannot drift from what the database
-      // enforces — and per KIND, so the second row is only ever what this card can actually have.
-      const ROOMS = [...new Set(Object.values(V.slots ?? {}).flat().map((x) => x.name))];
-      const kindOf = S.lore.kind && !ROOMS.includes(S.lore.kind) ? S.lore.kind
-        : (S.lore.of ?? null);
-      const roomsHere = kindOf ? (V.slots?.[kindOf] ?? []).map((x) => x.name) : [];
-      const LORE_KINDS = kindOf ? [kindOf, ...roomsHere] : KINDS;
-      const cast = V.entries.filter((e) => e.entryType === 'character');
-      return `<div style="display:flex; flex-direction:column">
-        <!-- Back steps out of the ROOMS to the kinds first, and only closes the tray from there.
-             Two steps needs a way back up, or picking Character by mistake means closing the whole
-             tray and starting again. -->
-        ${kindOf
-          ? `<button class="btn ghost" data-lorekind="__kinds" style="margin-bottom:14px">&lsaquo; Back</button>`
-          : `<button class="btn ghost" data-newlore="1" style="margin-bottom:14px">&lsaquo; Back</button>`}
-        <div class="lbl" style="letter-spacing:.1em; margin-top:0">Write it down</div>
-        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px">
-          ${LORE_KINDS.map((k) => `<button data-lorekind="${k}" aria-pressed="${S.lore.kind === k}" style="flex:1 1 44%; text-align:center;
-            font-size:11.5px; padding:8px 0; border-radius:var(--r);
-            border:1px solid ${S.lore.kind === k ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
-            background:${S.lore.kind === k ? 'rgba(217,178,106,.12)' : 'transparent'};
-            color:${S.lore.kind === k ? 'var(--gold-lit)' : 'var(--mute)'}">${
-              esc(slotLabel(k)[0].toUpperCase() + slotLabel(k).slice(1))}</button>`).join('')}
+      const kind = S.lore.kind ?? 'character';
+      const chip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
+        background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
+      const searchable = V?.searchable !== false;
+      // The inside of one of Anansi's cards. The buttons are written out below, so each one's
+      // data- name is a literal that test/web.ts can match to its handler.
+      const card = (icon, title, sub) => `<span class="letmark" aria-hidden="true">${mark(icon, 18)}</span>
+          <span class="lettext"><span class="serif lettitle">${title}</span>
+          <span class="letsub">${sub}</span></span>`;
+      return `<div data-invtray class="newthread" style="display:flex; flex-direction:column">
+        <h2 class="serif newhead">New thread</h2>
+        <!-- data-webwho and data-invdir: the look-up and Anansi's writing read what is typed here, as
+             they read their own boxes before; Write it reads it as a name or a pasted thread. -->
+        <textarea class="field grow newname" id="newname" data-webwho data-invdir rows="1"
+          aria-label="Name it, or paste one in" placeholder="Name it, or paste one in"
+          autocomplete="off">${esc(S.lore.draft ?? '')}</textarea>
+        <div class="hint" style="margin:6px 0 0">A thread pasted from Prompts is read in as it is.</div>
+        <div class="lbl" style="letter-spacing:.1em; margin-top:22px">Write it as</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px">
+          ${KINDS.map((k) => `<button data-lorekind="${k}" aria-pressed="${kind === k}" style="flex:1 1 40%;
+            text-align:center; font-size:13px; min-height:46px; border-radius:var(--r-pill); ${chip(kind === k)}">${
+              esc(pocketTitle(k))}</button>`).join('')}
         </div>
-        ${!S.lore.kind ? `<div class="hint" style="margin:0">Pick what you are writing down. Or paste
-          one in below &mdash; a forged thread says what kind it is itself.</div>`
-        : ROOMS.includes(S.lore.kind) ? ((S.lore.kind === 'outfit' ? cast : V.entries).length ? `
-        <div style="display:flex; justify-content:flex-end">${
-          tipMark('thRoom', 'Writing a pocket')}</div>
-        ${tipCard('thRoom', 'Writing a pocket', `<p>A pocket is a named section inside a thread,
-          switched on or off. It hangs on them unworn, and what Anansi writes lands in the fields
-          rather than being basted &mdash; read it, then press Add an outfit.</p>
-          <p>Wearing one is a press on the list behind this tray: what she owns and what she has ON
-          are different questions.</p>`)}
-        ${roomForm(V.entries.filter((e) => (V.slots?.[e.entryType] ?? [])
-            .some((sl) => sl.name === S.lore.kind)), null, S.lore.kind)}`
-        : `<div class="hint" style="margin:0">No thread to hang it on yet. A pocket belongs to a
-          thread, so write one of those down first.</div>`) : `
-        ${tipCard('thNew', 'A new thread', `<p>Opens an empty thread for you to fill in. Nothing
-          reaches the model until it has a body.</p>`)}
-        <div style="display:flex; align-items:center; gap:2px">
-          <button class="btn" data-newentry="${esc(S.lore.kind)}" style="flex:1">New ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}</button>
-          ${tipMark('thNew', 'A new thread')}</div>
-        ${/* The mark cannot go inside the tray: its label IS a button's text, and a button inside
-              a button is not valid HTML — the outer one swallows it. So the mark and the card sit
-              above the tray, which is where every other explanation on this panel now is. */ ''}
-        <div style="display:flex; justify-content:flex-end; margin-top:10px">${
-          tipMark('thInvent', 'Having Anansi write one')}</div>
-        ${tipCard('thInvent', 'Having Anansi write one', `<p>It is basted under This scene, like
-          everything else Anansi offers. Nothing basted is in the tale until you sew it in.</p>`)}
-        ${inventTray(S.lore.kind, `Or have Anansi write ${esc(KIND_LABEL[S.lore.kind] ?? S.lore.kind)}`,
-                     'a rival cartographer, or nothing at all and let it choose')}`}
+        <button class="btn" data-newthread="${esc(kind)}" style="margin-top:12px">Write it</button>
 
-        <!-- #29 · A THREAD FORGED SOMEWHERE ELSE. Seth: "have the add a new thread allow the
-             import if its done correctly." The shape comes off the forge page; the route reads it
-             and writes the card WITH ITS ROOMS, which no other import path in this app can do.
-             Admin-only would be wrong here: the page that hands out the format is a workbench, but
-             a card in that format is just a card. -->
-        <!-- PULLED OFF THE WEB, IN ITS OWN CANON. Seth, 2026-09-02: he wants threads from an
-             intellectual property — Dune, Warhammer, Sunless Sea — or from a real person, "like
-             halsey the artist or an author", and "the ai needs to stay in cannon or I should be
-             able to create a card easily by searching the info".
-             NOT THE "Search before writing it" CHECKBOX ABOVE, which is a different job and was
-             measured doing it: asked for Halsey with that box ticked, the invent route proposed a
-             courier in this book's own fantasy-noir, because its prompt tells the model the results
-             are "not canon... material only" and that the card must belong to THIS story. This box
-             is the inverse — the subject's canon outranks the book's, and the book is not sent.
-             IT GOES TO THE PROPOSALS QUEUE, like everything else Anansi offers: "I would be able to
-             choose what and when it gets pulled." The URLs it read ride along on the proposal. -->
-        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or look one up online${
-          tipMark('thWeb', 'Looking one up online')}</div>
-        ${tipCard('thWeb', 'Looking one up online', `<p>Every fact comes from what the search
-          found, and a gap is left as a gap rather than filled in &mdash; written from inside its
-          own fiction, not as an encyclopedia article about it.</p>
-          <p>It looks for the pockets as well as the thread, and both arrive together, basted:
-          sew it in under This scene and the pockets the search could fill are written too. Nothing is in the
-          tale until you sew it in, and the pages it read ride along. Your own SearXNG does the
-          searching.</p>`)}
-        <input class="field" data-webwho aria-label="What to look up"
-          placeholder="Paul Atreides, a Warhammer primarch, an author"
-          style="margin:0">
-        <button class="btn ghost" data-fromweb="${esc(S.lore?.kind ?? 'character')}"
-          ${S.webPulling ? 'disabled' : ''} style="margin-top:7px">${
-          S.webPulling ? 'Looking it up&hellip;' : 'Look it up and write the thread'}</button>
-
-        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or paste one in${
-          tipMark('thPaste', 'Pasting one in')}</div>
-        ${tipCard('thPaste', 'Pasting one in', `<p>This lands straight in the tale with its pockets,
-          rather than being basted &mdash; you wrote it elsewhere, so it is yours already. The
-          prompt that produces this shape is in Prompts to take elsewhere.</p>`)}
-        <textarea class="field" data-pastebox aria-label="Paste a thread as JSON"
-          placeholder="Paste JSON from Prompts to take elsewhere &mdash; one thread, or a list of them"
-          style="min-height:74px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
-        <button class="btn ghost" data-pastethread="1">Read it and add</button>
-
-        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or read the scene${
-          tipMark('thRead', 'Reading the scene')}</div>
-        ${tipCard('thRead', 'Reading the scene', `<p>Reads what is already on the page and bastes
-          threads for it. Nothing is sewn in by itself &mdash; what is basted waits for you under
-          This scene. This is the facts step of hemming, on its own, without hemming the scene.</p>`)}
-        <button class="btn ghost" data-loreread="1">Scan ${esc(sceneName(V.currentChapter))} for facts</button>
+        <div class="lbl" style="letter-spacing:.1em; margin-top:26px">Or let Anansi${
+          tipMark('thInvent', 'What Anansi writes')}</div>
+        ${tipCard('thInvent', 'What Anansi writes', `<p>Everything Anansi writes here is basted under This
+          scene. Nothing basted is in the tale until you sew it in.</p>
+          <p>Looking it up keeps to what the search found: a gap is left as a gap, and it looks for the
+          pockets as well as the thread. Your own SearXNG does the searching, and the pages it read
+          ride along.</p>`)}
+        ${weaveFitRow(`invent:${kind}`)}
+        <div style="display:flex; flex-direction:column; gap:10px">
+          <button class="letcard" data-invent="${esc(kind)}">${
+            card('quill', 'Write one for me', 'From what you typed, or her own idea')}</button>
+          <button class="letcard" data-fromweb="${esc(kind)}" ${S.webPulling || !searchable ? 'disabled' : ''}>${
+            card('search', S.webPulling ? 'Looking it up&hellip;' : 'Look it up online',
+              searchable ? 'Uses the name you typed' : 'Searching the web is not switched on here')}</button>
+          <button class="letcard" data-loreread="1" ${V.currentChapter ? '' : 'disabled'}>${
+            card('book', 'Read the scene', `Pull facts from ${esc(sceneName(V.currentChapter))} into threads`)}</button>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12px; color:${
+          searchable ? 'var(--mute)' : 'var(--faint)'}">
+          <!-- The ask box's preference, the same words: it steers Write one for me. -->
+          <input type="checkbox" data-invsearch ${searchable ? '' : 'disabled'}
+            ${searchable && readWebSearch() ? 'checked' : ''}> Search before writing it
+        </label>
       </div>`;
     }
     const groups = [['character', 'Characters', 'character'], ['lore', 'Lore', 'lore'],
@@ -5113,7 +5064,7 @@ function sparkReview() {
 
        <button class="btn ghost" data-spadd="1" style="margin-top:6px">&#65291; Write one of your own</button>
 
-       <!-- #30 · FORGED SOMEWHERE ELSE. The same paste the story's own + Thread tray takes, except
+       <!-- #30 · FORGED SOMEWHERE ELSE. The same paste a tale's New thread box takes, except
             there is no story yet — so it lands in the wizard's cast and is written on Accept with
             everything else. Rooms ride along and reach the ledger through POST /api/stories. -->
        ${SRV.admin ? `<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:16px">
@@ -5672,15 +5623,14 @@ function ctxTabs() {
  *  the button is pressed, and the button reports its own progress in place — a paint() here would
  *  eat the sentence the writer had just typed into the box, which is COUNCIL-04's composer defect
  *  in a different panel. */
-/** WHOSE OUTFIT. Two screens can be asking: the entry editor, where the character is the page you
- *  are on, and the + Thread tray, where nothing is open and the writer picks from a list. Both
- *  reach `POST /api/outfit`, which needs an entryId either way — so the question is answered once,
- *  here, rather than at each of the three call sites that used to read `S.entryId` and get null. */
-const outfitOwner = () => S.entryId || document.querySelector('[data-loreowner]')?.value || null;
+/** WHOSE OUTFIT: the thread that is open. `POST /api/outfit` needs an entryId. The + Thread tray
+ *  once asked whose from a list, with nothing open; New thread (v2 redesign) adds no pockets, so the
+ *  open thread is the only answer left. */
+const outfitOwner = () => S.entryId || null;
 
-/** ONE OUTFIT FORM, TWO DOORS: the wardrobe on a character's own page, and the + Thread tray where
- *  nothing is open and the writer says whose. They were two copies of the same three fields and had
- *  already drifted on labels and placeholders.
+/** ONE POCKET FORM, on a thread's Pockets tab. It was one form for two doors, the wardrobe and the
+ *  + Thread tray, which had been two copies of the same three fields drifting apart; the tray's
+ *  door went with New thread.
  *
  *  ANANSI FIRST, and the fields folded behind her. Seth: "right now it looks like alot to fill
  *  out" — the two ways in were stacked with nothing between them, so the screen asked for a name
@@ -5715,17 +5665,13 @@ const SLOT_HINT = {
 const slotLabel = (slot) => String(slot).replace(/_/g, ' ');
 /** A pocket's name as a heading or a chip: capitalised, not the raw key (usability check). */
 const pocketTitle = (slot) => { const l = slotLabel(slot); return l.charAt(0).toUpperCase() + l.slice(1); };
-/*  openMine: whether the fields start unfolded. In the + Thread tray they do NOT — you land there
- *  having chosen nothing, and Seth's "right now it looks like alot to fill out" is about exactly
- *  that first sight. In the card's add tray you arrive having opened a fold and pressed a pill, so
- *  a THIRD press to reach a name box is the overwhelm this pass is removing, not an example of it. */
-function roomForm(cast, who, slot = 'outfit', openMine = false) {
+/*  openMine: whether the fields start unfolded. In the card's add tray you arrive having opened a
+ *  fold and pressed a pill, so a THIRD press to reach a name box is the overwhelm Seth named ("right
+ *  now it looks like alot to fill out"), not an answer to it. */
+function roomForm(who, slot = 'outfit', openMine = false) {
   const [namePh, bodyPh] = SLOT_HINT[slot] ?? ['[What it is called]', '[what the model reads]'];
   return `
-    ${who ? '' : `<label class="lbl" for="f-loreowner">Whose</label>
-    <select class="field" id="f-loreowner" data-loreowner>${cast.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}</select>`}
-    ${inventTray(slot, who ? `Have Anansi write ${esc(who.title)}'s ${esc(slotLabel(slot))}`
-                           : 'Have Anansi write one',
+    ${inventTray(slot, `Have Anansi write ${esc(who.title)}'s ${esc(slotLabel(slot))}`,
                  'mourning, or travelling light, or whatever you already had in mind')}
     <details class="fold outfitmine" ${openMine ? 'open' : ''}>
       <summary>Write it myself</summary>
@@ -6158,7 +6104,7 @@ function addTray(e, slots) {
           color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(pocketTitle(sl.name))}</button>`;
       }).join('')}
     </div>
-    ${S.newRoom ? `<div class="card" style="gap:7px; margin-top:10px">${roomForm(null, e, S.newRoom, true)}</div>`
+    ${S.newRoom ? `<div class="card" style="gap:7px; margin-top:10px">${roomForm(e, S.newRoom, true)}</div>`
       : `<div class="hint" style="margin:8px 0 0">Pick what you are adding. ${
           esc(e.title || 'This thread')} keeps everything it already has — a pocket is added beside
           them, not over them.</div>`}
@@ -7231,7 +7177,7 @@ const WPAGES = {
     if (!FORGE.length) return `<div class="hint">${esc(S.forgeError ?? 'No prompts here yet.')}</div>`;
     return `<div style="display:flex; flex-direction:column; gap:14px; max-width:760px">
       <div class="hint" style="margin:0">Patterns to hand to any model you like, then bring the
-        answer back. What the thread patterns give back goes straight into <strong>+ Thread</strong>,
+        answer back. What the thread patterns give back goes straight into <strong>New thread</strong>'s box,
         pockets and all; what the others give back you paste into the fields yourself. The pockets
         named below are the ones this app uses today.</div>
       ${FORGE.map((f) => {
@@ -7867,7 +7813,9 @@ window.addEventListener('popstate', () => { BACKING = false; closeLayersBack(); 
  *  Threads drawer. Without it, Back from Alter there shut the drawer and threw the typing away. */
 const threadTop = () => (S.panel === 'threads' ? 2 : 1);
 const threadDepth = () => (S.place === 'story' && (S.panel === 'threads' || S.panel === 'entry') && S.entryId
-  ? ((S.readMenu && isReading()) || isAltering() ? threadTop() : threadTop() - 1) : 0);
+  ? ((S.readMenu && isReading()) || isAltering() ? threadTop() : threadTop() - 1)
+  // New thread is a step above the list too, so Back goes back to the list.
+  : S.place === 'story' && S.panel === 'threads' && S.lore ? 1 : 0);
 function syncThread() {
   if (!ROUTED || ROUTING || BACKING || (S.panel !== 'threads' && S.panel !== 'entry')) return;
   const want = threadDepth(), have = history.state?.thread ?? 0;
@@ -7889,7 +7837,7 @@ function closeThreadBack() {
   }
   S.backArmed = 0;
   if (at < top) { S.readMenu = false; if (S.cardView === 'form') { S.cardView = null; S.keyDraft = null; } }
-  if (at < top - 1) { S.entryId = null; S.cardView = null; }
+  if (at < top - 1) { S.entryId = null; S.cardView = null; S.lore = null; }
   // drawSide and not paint: a Back that leaves the drawer altogether lands here before the
   // hashchange that shuts it, and paint's syncHash would push the drawer straight back.
   drawSide();
@@ -8850,6 +8798,24 @@ async function inventAgain(kind, dir, search, anyway = false,
   return invented(r, kind, dir, search);
 }
 
+/** A THREAD PASTED INTO NEW THREAD'S BOX, read in by the forge's own reader (`POST /api/thread/paste`),
+ *  which refuses an unknown kind and writes the pockets with it. It lands sewn in, not basted: it was
+ *  written elsewhere, so it is the writer's already. One thread opens on its Read screen. */
+async function pasteThreads(t, text) {
+  const r = await whileWorking(t, 'Reading\u2026', () => api.pasteThread(S.storyId, text));
+  if (!r) return;
+  if (r.error) return toast(r.error);
+  V = r.entries ? r : await api.story(S.storyId);
+  const made = r.made ?? [];
+  const rooms = made.reduce((n, m) => n + m.rooms, 0);
+  S.lore = null;
+  if (made.length === 1) { S.entryId = made[0].id; S.cardView = null; }
+  paint(); refreshManifest();
+  toast(`${plural(made.length, 'thread', 'threads')} sewn in${
+    rooms ? `, with ${plural(rooms, 'pocket', 'pockets')}` : ''}.${
+    (r.notes ?? []).length ? ` ${r.notes[0]}` : ''}`);
+}
+
 /** What a tray's invention came back with, put where the writer reads it. Its own function since
  *  #56, because the press and the same press sent again from a weaving refusal's row both land here. */
 async function invented(r, kind, dir, search) {
@@ -9779,7 +9745,7 @@ document.addEventListener('click', async (e) => {
     // OPENS AT STEP ONE. It used to open pre-set to `character`, which was harmless when the row
     // was four kinds and is not now that picking a kind reveals that kind's rooms: reopening the
     // tray landed you in the middle of a flow you had not started. Null kind means the four kinds.
-    S.lore = S.lore ? null : { kind: null, of: null };
+    S.lore = S.lore ? null : { kind: 'character', draft: '' };
     if (S.lore) { S.entryId = null; S.historyOf = null; S.panel = 'threads'; }
     syncHash(); paint();
     return;
@@ -10095,15 +10061,11 @@ document.addEventListener('click', async (e) => {
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest(); return;
   }
-  // Pressing a KIND remembers it as `of`, so the second row can be that kind's rooms and nothing
-  // else. Pressing a room leaves `of` where it is, which is what makes Back mean "back to the
-  // rooms of this kind" rather than all the way out.
+  // A KIND IS A CHOICE, not a press that makes the thread (Seth, 2026-10-25): Write it and the
+  // three cards all write the kind that is lit. What is typed is kept across the repaint.
   if (d.lorekind) {
-    // The sentinel from the Back button: step out of this kind's rooms, back to the four kinds.
-    if (d.lorekind === '__kinds') { S.lore = { kind: null, of: null }; paint(); return; }
-    const rooms = [...new Set(Object.values(V?.slots ?? {}).flat().map((x) => x.name))];
-    S.lore = { ...(S.lore ?? {}), kind: d.lorekind,
-               of: rooms.includes(d.lorekind) ? (S.lore?.of ?? null) : d.lorekind };
+    if (!S.lore || !KINDS.includes(d.lorekind)) return;
+    S.lore = { ...S.lore, kind: d.lorekind, draft: $('newname')?.value ?? S.lore.draft };
     paint(); return;
   }
   // #22. Redraws only #books, the way the filter chips do — repainting the page would destroy the
@@ -10445,17 +10407,23 @@ document.addEventListener('click', async (e) => {
   if (d.backentry) { S.entryId = null; S.historyOf = null; S.newRoom = null; S.readMenu = false;
     if (S.panel === 'entry' || S.panel === 'history') S.panel = 'threads';
     paint(); return; }
-  if (d.newentry) {
-    const r = await api.saveEntry(S.storyId, { id: '', title: 'Untitled',
-      body: '[Untitled: ]', entryType: d.newentry, activation: 'always_on', keys: [] });
+  // NEW THREAD'S Write it. A box with a brace, a bracket or a second line in it is a paste — a
+  // thread from Prompts, or a model's answer with its "Certainly! Here is…" still on top — and goes
+  // to the forge's own reader, which reads it in as it is, pockets and all, or says plainly why not.
+  // Anything else is a name: the thread is made with it and opens on Alter, where it is written.
+  if (d.newthread) {
+    const text = $('newname')?.value ?? '';
+    if (/[[{\n]/.test(text.trim())) return pasteThreads(t, text);
+    const name = text.trim().replace(/\s+/g, ' ').slice(0, 120) || 'Untitled';
+    const r = await api.saveEntry(S.storyId, { id: '', title: name,
+      body: `[${name}: ]`, entryType: d.newthread, activation: 'always_on', keys: [] });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId);
     // saveEntry does not report the new id, so take the newest row of that name.
-    S.entryId = V.entries.filter((x) => x.title === 'Untitled').at(-1)?.id ?? null;
-    // A new card is called Untitled and says "[Untitled: ]". There is nothing to read on its face,
-    // so it opens where it can be written. Same rule as the woven-in entry below.
-    S.cardView = 'form';
-    if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
+    S.entryId = V.entries.filter((x) => x.title === name).at(-1)?.id ?? null;
+    S.lore = null;
+    // A new thread has nothing on its face yet, so it opens where it can be written.
+    S.cardView = 'form'; S.cardTab = 'card';
     paint(); return;
   }
   if (d.onlyin !== undefined) { S.onlyIn = d.onlyin === '1'; paint(); return; }
@@ -12117,24 +12085,6 @@ document.addEventListener('click', async (e) => {
       ? `${made[0].title} is written back${made[0].rooms ? `, with ${plural(made[0].rooms, 'pocket', 'pockets')}` : ''}.`
       : `${plural(made.length, 'thread', 'threads')} read.`);
   }
-  if (d.pastethread) {
-    const box = document.querySelector('[data-pastebox]');
-    const text = box?.value ?? '';
-    if (!text.trim()) return toast('Paste the JSON first.');
-    const r = await whileWorking(t, 'Reading\u2026', () => api.pasteThread(S.storyId, text));
-    if (!r) return;
-    if (r.error) return toast(r.error);
-    V = r.entries ? r : await api.story(S.storyId);
-    const made = r.made ?? [];
-    const rooms = made.reduce((n, m) => n + m.rooms, 0);
-    S.lore = null; S.entryId = made.length === 1 ? made[0].id : S.entryId;
-    if (made.length === 1) { S.cardView = 'read'; S.panel = 'entry'; }
-    paint(); refreshManifest();
-    toast(`${plural(made.length, 'thread', 'threads')} sewn in${
-      rooms ? `, with ${plural(rooms, 'pocket', 'pockets')}` : ''}.${
-      (r.notes ?? []).length ? ` ${r.notes[0]}` : ''}`);
-    return;
-  }
   if (d.seedpick) {
     const into = S.blank ?? S.spark;
     if (!into) return;
@@ -12233,6 +12183,7 @@ document.addEventListener('keydown', (e) => {
       'You have changes that are not saved. Press Esc again to throw them away, or Save.')) return;
     S.cardView = null; S.keyDraft = null; paint(); return;
   }
+  if (e.key === 'Escape' && S.panel === 'threads' && S.lore && !S.entryId && overlay()) { S.lore = null; paint(); return; }
   if (e.key === 'Escape' && S.panel === 'threads' && S.entryId && overlay()) {
     S.entryId = null; S.cardView = null; S.readMenu = false; paint(); return; }
   // Last, Esc folds the box back to the three buttons (#71), once nothing above it is open: one Esc

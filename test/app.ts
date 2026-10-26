@@ -2116,33 +2116,37 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   ok('the writing record counts thirty days including the empty ones, and reports its denominators');
 }
 
-// #27. The add-a-thread tray offered four kinds and ONE room — the outfit — and every other room
-// existed only after the card did, from the edit form. They are all addons with a slot.
+// NEW THREAD (v2 redesign, 2026-10-25). One box for a name or a pasted thread, the four kinds as a
+// choice with Character lit, Write it, and Anansi's three cards. The pockets that #27 put in the old
+// tray are added from the thread itself now, so no pocket is offered here.
 {
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
   click({ panel: 'threads' }); click({ newlore: '1' });
-  // TWO STEPS. Fourteen chips at once was every room of every kind in one row, most of them
-  // meaningless for what you were about to write — a place has no voice, a rule has no wardrobe.
   const first = html('sideBody');
-  for (const k of ['character', 'lore', 'item', 'rule']) {
-    assert.match(first, new RegExp(`data-lorekind="${k}"`), `the kinds are offered first (${k})`);
-  }
-  assert.doesNotMatch(first, /data-lorekind="(interiority|voice|outfit)"/,
-    'and no rooms until a kind is picked');
+  assert.match(first, /New thread/, 'the screen is called New thread');
+  assert.match(first, /id="newname"[^>]*placeholder="Name it, or paste one in"/, 'one box, for a name or a paste');
+  for (const k of ['character', 'lore', 'item', 'rule'])
+    assert.match(first, new RegExp(`data-lorekind="${k}"`), `the kinds are offered (${k})`);
+  assert.match(first, /data-lorekind="character" aria-pressed="true"/, 'Character is lit until another is chosen');
+  assert.doesNotMatch(first, /data-lorekind="(facts|interiority|voice|outfit|who_is_here)"/, 'and no pocket is offered');
+  assert.match(first, /data-newthread="character"/, 'Write it writes the lit kind');
+  for (const [k, v] of [['invent', 'character'], ['fromweb', 'character'], ['loreread', '1']])
+    assert.match(first, new RegExp(`class="letcard" data-${k}="${v}"`), `Anansi's card: ${k}`);
+  assert.doesNotMatch(first, /data-pastebox|data-pastethread/, 'the paste box is gone into the one box');
 
-  click({ lorekind: 'character' });
+  click({ lorekind: 'rule' });
   const second = html('sideBody');
-  for (const slot of ['facts', 'role', 'interiority', 'relationships', 'voice', 'history', 'outfit']) {
-    assert.match(second, new RegExp(`data-lorekind="${slot}"`), `a character's rooms follow (${slot})`);
-  }
-  // ONLY THAT KIND'S. `who_is_here` is a place's room and must not be offered for a person, or the
-  // writer types one and the database refuses it after the fact.
-  assert.doesNotMatch(second, /data-lorekind="(who_is_here|scope|provenance)"/,
-    "and only the ones that kind can have");
-  // Read as words, not as column names.
-  assert.doesNotMatch(second, /"[^"]*">[A-Za-z ]*_/, 'labelled without underscores');
-  ok('the tray offers the four kinds, then that kind\'s own rooms, labelled as words');
+  assert.match(second, /data-lorekind="rule" aria-pressed="true"/, 'a kind pressed is lit');
+  assert.match(second, /data-newthread="rule"/, 'and Write it writes it');
+  assert.match(second, /data-invent="rule"/, 'and so does Write one for me');
+  assert.match(second, /data-fromweb="rule"/, 'and Look it up online');
+  assert.doesNotMatch(second, /data-lorekind="scope"/, 'a kind still offers no pockets');
+  click({ lorekind: 'outfit' });
+  assert.match(html('sideBody'), /data-lorekind="rule" aria-pressed="true"/, 'a word that is not a kind changes nothing');
+  click({ newlore: '1' });   // shut it again: the blocks below open it by the same toggle
+  assert.doesNotMatch(html('sideBody'), /id="newname"/, 'the same press shuts it');
+  ok('New thread offers one box, the four kinds as a choice, Write it, and three cards that write the lit kind');
 }
 
 // #22. The cross-shelf Threads page: one book open, the rest collapsed, and cards that do not

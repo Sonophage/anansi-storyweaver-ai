@@ -45,7 +45,7 @@ ok("  and not a place's",
 ok("  and carrying the app's own card register",
    /A ledger body is NOTES, not prose/.test(opened));
 
-// ---- 2. a forged thread, pasted into + Thread ----
+// ---- 2. a forged thread, pasted into New thread's box ----
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 await page.goto(B + "/#" + sid + "/threads");
 // SCOPED TO #sideHead: the composer's threads dial carries a data-newlore OPTION since 2026-09-02,
@@ -56,7 +56,7 @@ await page.click('#sideHead [data-newlore="1"]');
 await wait(400);
 await page.click('[data-lorekind="character"]');
 await wait(400);
-ok("+ Thread offers a paste box", await page.eval("!!document.querySelector('[data-pastebox]')"));
+ok("New thread's one box takes a paste", await page.eval("!!document.getElementById('newname')"));
 
 const CARD = JSON.stringify({
   kind: 'character', title: 'Ossian Rede',
@@ -68,8 +68,8 @@ const CARD = JSON.stringify({
     atmosphere: { name: 'Not his room', body: '[a character has no atmosphere]' },
   },
 });
-await page.eval(`(() => { document.querySelector('[data-pastebox]').value = ${JSON.stringify(CARD)}; return 1; })()`);
-await page.click('[data-pastethread="1"]');
+await page.eval(`(() => { document.getElementById('newname').value = ${JSON.stringify(CARD)}; return 1; })()`);
+await page.click('[data-newthread]');
 await wait(1600);
 
 const after = await page.eval(`(async () => { const v = await (await fetch('/api/story?story=${sid}')).json();
@@ -109,8 +109,9 @@ await wait(400);
 await page.click('[data-lorekind="character"]');
 await wait(400);
 const beforeN = await page.eval(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).entries.length)()`);
-await page.eval("(() => { document.querySelector('[data-pastebox]').value = 'Certainly! Here is your character:'; return 1; })()");
-await page.click('[data-pastethread="1"]');
+// A model's preamble on a line of its own, as it arrives: the second line makes it a paste, not a name.
+await page.eval("(() => { document.getElementById('newname').value = 'Certainly! Here is your character:\\n'; return 1; })()");
+await page.click('[data-newthread]');
 await wait(1200);
 const afterN = await page.eval(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).entries.length)()`);
 ok(`prose in the box is refused and writes nothing (${beforeN} -> ${afterN})`, beforeN === afterN);

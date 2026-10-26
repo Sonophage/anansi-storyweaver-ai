@@ -12,6 +12,16 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-25 · A new thread in one box
 
+### New thread
+The + at the top of your Threads opens New thread. Type a name, or paste in a thread from Prompts,
+in the one box at the top. Under Write it as, pick Character, Lore, Item or Rule (Character is
+picked until you choose another), then press Write it: the thread is made with that name and opens
+for you to write it. A pasted thread is read in as it is, pockets and all. Under Or let Anansi there
+are three cards: Write one for me, from what you typed or her own idea; Look it up online, for the
+name you typed; and Read the scene, for facts already on the page. All three use the kind you
+picked. Back or Esc goes back to the list. Pockets are added from the thread itself now, on its
+Pockets tab.
+
 ### Altering a thread, smaller fixes
 With the keyboard up, the box for wake words now sits a little above the keyboard instead of
 touching it. A thread you open from a passage now goes back to reading it when you press Back
