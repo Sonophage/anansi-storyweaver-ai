@@ -560,8 +560,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'readmenu', 'readgo',
   // Alter: leave it (asking first if anything changed), and take a wake word off.
   'cancelalter', 'keyx',
-  // #79. Over time: take a dated wardrobe or retirement event out.
-  'delevent',
+  // #79. Over time: take a dated wardrobe or retirement event out. #80: make a Lore thread a place.
+  'delevent', 'makeplace',
   // A card out as JSON and back in again: copy, save to a file, read one.
   'cardcopy', 'cardsave', 'cardread',
   // A thread pulled off the web, in the subject's own canon.
@@ -2779,6 +2779,15 @@ const PANELS = {
       update to Anansi moves something in it, this page says what moved, and where to.</div>`;
     const last = u.find((x) => x.backup);
     const file = last?.backup.split('/').pop();
+    // #80. PLACES ARE SORTED OUT OF LORE BY THE WRITER, never by guessing ("the Watch" is not a
+    // place): every Lore thread in the tale, each with one press that makes it a place.
+    const lore = (V.entries ?? []).filter((e) => e.entryType === 'lore' && !e.sharedFrom);
+    const sort = lore.length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:22px">Is any of these a place?</div>
+      <div class="hint" style="margin:0 0 6px">Places are their own kind of thread now. Anansi does not guess which
+        Lore threads are places, so they are listed here for you to sort.</div>
+      ${lore.map((e) => `<div class="row" style="align-items:center; gap:10px">
+        <span style="flex:1; color:var(--ink)">${esc(e.title)}</span>
+        <button data-makeplace="${esc(e.id)}" class="tag" style="cursor:pointer">This is a place</button></div>`).join('')}` : '';
     // The first week, as the page promises it: the pre-update copy is kept past that (it is never
     // pruned), but an update a week old has a week of writing on top of it to lose.
     const WEEK = 7 * 24 * 3600 * 1000;
@@ -2790,7 +2799,7 @@ const PANELS = {
       ${u.map((x) => `<div class="row" style="align-items:flex-start; gap:10px">
         <span style="flex:1; color:var(--ink); line-height:1.5">${esc(x.line)}</span>
         ${x.entryTitle ? `<button data-entry="${esc(x.entryId)}" class="tag" style="cursor:pointer"
-          >${esc(x.entryTitle)}</button>` : ''}</div>`).join('')}`;
+          >${esc(x.entryTitle)}</button>` : ''}</div>`).join('')}${sort}`;
   },
   /** The chapter that just ENDED, as a report. Closing lands on `setup` now rather than here —
    *  the next chapter is what End was pressed for — so this is the screen that sits behind the
@@ -3324,9 +3333,8 @@ const PANELS = {
         </label>
       </div>`;
     }
-    const groups = [['character', 'Characters', 'character'], ['lore', 'Lore', 'lore'],
-                    ['item', 'Items', 'item'], ['rule', 'Rules', 'rule']];
-    const shown = groups.filter(([k]) => V.entries.some((e) => e.entryType === k));
+    // #80. Whether the tale has any thread at all, of any kind the list draws (KINDS, Places among them).
+    const shown = KINDS.filter((k) => V.entries.some((e) => e.entryType === k));
     // ADD AT THE TOP, THE BOOK UNDERNEATH. Seth, 2026-08-28: "move the add to the top and the list
     // of whats in the book to the bottom." The list grows without limit and the Add door does not,
     // so it must never be the thing you scroll to. Since the v2 redesign (2026-10-25) the door is
@@ -3418,7 +3426,7 @@ const PANELS = {
     // Setting comes from the lore already written down and You-are from the cast, so neither is
     // free text drifting away from the ledger. A value the ledger does not hold is kept and
     // labelled rather than silently dropped.
-    const lore = V.entries.filter((e) => e.entryType === 'lore' || e.entryType === 'item');
+    const lore = V.entries.filter((e) => ['place', 'lore', 'item'].includes(e.entryType));
     const cast = V.entries.filter((e) => e.entryType === 'character');
     // EMITS ITS OWN LABEL, like the wizard's `row`, `area` and `pickOne`. It took the label from
     // the call site at first and the pairing then lived in two places, one of which was a template
@@ -5401,7 +5409,7 @@ function setupPanel() {
       color:var(--label); opacity:.7">${why(e)}</span></button>`;
 
   const cast = V.entries.filter((e) => e.entryType === 'character' && match(e));
-  const places = V.entries.filter((e) => (e.entryType === 'lore' || e.entryType === 'item') && match(e));
+  const places = V.entries.filter((e) => ['place', 'lore', 'item'].includes(e.entryType) && match(e));
   // Rendered from state, not from the DOM. Ticking a character repaints this panel, and reading
   // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
   // typed was gone. Same fault as the search boxes and the click delegation, in a third place.
@@ -11088,6 +11096,13 @@ document.addEventListener('click', async (e) => {
       body, beforeMode: get('stm'), label: get('stl') || null });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest(); toast('Saved.'); return;
+  }
+  if (d.makeplace) {
+    // #80. One Lore thread made a Place, from the update report. A place has every pocket Lore had.
+    const e = V.entries.find((x) => x.id === d.makeplace); if (!e) return;
+    const r = await api.saveEntry(S.storyId, { ...e, entryType: 'place', allowNoKeys: true });
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId); paint(); return toast(`${e.title} is a place now.`);
   }
   if (d.delevent) {
     // #79. A dated wardrobe or retirement event, out of Over time. Asked twice, like a change.

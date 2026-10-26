@@ -21,7 +21,7 @@
 // card is read on every call exactly like a written one, so it is held to the same rule, from the
 // same string.
 
-import { SLOTS, type EntryKind } from './slots.ts';
+import { SLOTS, KINDS, type EntryKind } from './slots.ts';
 import { LEDGER_REGISTER } from './prompts.ts';
 
 /** One line per room, in the second person, saying what belongs in it and what does not.
@@ -232,7 +232,7 @@ a book where everything is always on has no context budget left for the prose.
 
 THE ROOMS EACH KIND HAS — use these names exactly, leave out any you have nothing true for:
 
-${(['character', 'lore', 'item', 'rule'] as EntryKind[])
+${KINDS
   .map((k) => `${k}:\n${roomBlock(k)}`).join('\n\n')}
 
 ${LEDGER_REGISTER}

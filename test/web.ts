@@ -1112,8 +1112,11 @@ ok('the delegation refuses html and body outright');
     .matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
   const schemaKinds = [...(prompts.match(/type: \{ type: 'string', enum: \[[^\]]+\]/)?.[0] ?? '')
     .matchAll(/'([a-z]+)'/g)].map((m) => m[1]).filter((k) => k !== 'string');
-  assert.ok(engineKinds.length === 4 && schemaKinds.length === 4,
-    `parsed ${engineKinds.length} engine kinds and ${schemaKinds.length} schema kinds; both are 4`);
+  // #80: five kinds since Places split out of Lore.
+  assert.ok(engineKinds.length === 5 && schemaKinds.length === 5,
+    `parsed ${engineKinds.length} engine kinds and ${schemaKinds.length} schema kinds; both are 5`);
+  assert.deepStrictEqual([...schemaKinds].sort(), [...engineKinds].sort(),
+    'the extraction schema and the engine disagree about which kinds of thread exist');
   assert.deepStrictEqual([...(model as any).KINDS].sort(), [...engineKinds].sort(),
     "web/model.js KINDS and context.ts's Entry.entryType disagree — the editor would offer a type "
     + 'the engine does not know, or hide one it does');

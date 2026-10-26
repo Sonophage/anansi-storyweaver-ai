@@ -6,7 +6,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
-import { ALL_SLOTS, slotsFor, SLOTS, FOLDED, TO_OVER_TIME, foldLine } from './slots.ts';
+import { ALL_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultModePrompts, trimToSentence,
@@ -3209,7 +3209,7 @@ export const routes: Record<string, Handler> = {
     // and comes back as a form, not a proposal. Seth: "the option that we have for the ai to fill
     // the costume should also apply to the card type as a whole and the new fields we added."
     const isAddon = ALL_SLOTS.includes(kind);
-    if (!isAddon && !['character', 'lore', 'item', 'rule'].includes(kind))
+    if (!isAddon && !(KINDS as string[]).includes(kind))
       return { error: `there is nothing called a "${kind}" to invent` };
     const steer = String(c.body.direction ?? '').trim().slice(0, 600);
 
@@ -3245,8 +3245,8 @@ export const routes: Record<string, Handler> = {
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
     const about = isAddon ? `${kind.replace(/_/g, ' ')} for ${who!.title}`
-      : refill ? `${kind === 'lore' ? 'place or fact' : kind}, rewriting the card for ${who!.title}`
-      : kind === 'lore' ? 'place or fact' : kind;
+      : refill ? `${kind === 'lore' ? 'piece of lore' : kind}, rewriting the card for ${who!.title}`
+      : kind === 'lore' ? 'piece of lore' : kind;
     const t0 = Date.now();
     const r = await structuredRetry(INVENT(about, steer, sources.length > 0, isAddon),
       prompt.slice(SYSTEM.length), inventSchema(kind),

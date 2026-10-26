@@ -12,7 +12,7 @@ interface EntryState {
 }
 export interface Entry {
   id: string; title: string; body: string;
-  entryType: 'character' | 'lore' | 'item' | 'rule';
+  entryType: 'character' | 'place' | 'lore' | 'item' | 'rule';
   activation: 'always_on' | 'triggered';
   keys: string[];
   lastEditor: 'human' | 'model';   // decides arbitration (COUNCIL-03 S1)

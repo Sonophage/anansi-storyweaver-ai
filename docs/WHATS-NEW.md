@@ -17,6 +17,11 @@ A thread's Info is now Where it stands now: what the model is told about where t
 the scene you are writing. When a later scene has changed it, that later version is the one shown
 and the one you edit, with the scene it is from beside it.
 
+### Places
+Places are their own kind of thread now, beside Characters, Lore and Items, with their own
+pockets: how it looks, what it feels like, and who is there. Your Lore threads stay Lore: the
+update's page in Tale settings → Keep lists them with a press that makes any one of them a place.
+
 ### What they wear, and when they were retired, by scene
 Putting an outfit on or taking it off now counts from the scene the tale is open at, and so does
 retiring a thread or bringing it back. Going back to revise scene 2 no longer dresses her in the

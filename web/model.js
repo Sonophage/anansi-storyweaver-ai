@@ -37,7 +37,8 @@ export const MODES = [
                              : 'Your part of the scene, then it is their move…'],
 ];
 
-export const KINDS = ['character', 'lore', 'item', 'rule'];
+// #80. A copy of `slots.KINDS` (the browser cannot import the .ts); test/db.ts holds them equal.
+export const KINDS = ['character', 'place', 'lore', 'item', 'rule'];
 
 /** A THREAD'S WAKE WORDS FROM WHAT WAS TYPED, by the rules of `keysOf` in src/db.ts, which re-parses
  *  them on the way in and is the authority. The Alter screen's chips use this so a chip never shows
@@ -58,7 +59,7 @@ export const keysFrom = (k, cap = Infinity) => {
 /** The four kinds as GROUPS, which is how every row that offers them reads: you are filtering or
  *  asking for characters, not for character. #22 named them on the cross-shelf page and #21 needs
  *  the same words in the wizard — one map, because two would drift on the first rename. */
-export const KIND_PLURAL = { character: 'Characters', lore: 'Lore', item: 'Items', rule: 'Rules' };
+export const KIND_PLURAL = { character: 'Characters', place: 'Places', lore: 'Lore', item: 'Items', rule: 'Rules' };
 
 /** The shelf order: archived books last, everything else left where listStories put it.
  *

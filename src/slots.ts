@@ -15,7 +15,7 @@
 // of them: `interiority` does that work — and on 2026-08-29 he confirmed it does in practice, so
 // this is a settled decision rather than a deferral. #13 carries the exchange.
 
-export type EntryKind = 'character' | 'lore' | 'item' | 'rule';
+export type EntryKind = 'character' | 'place' | 'lore' | 'item' | 'rule';
 
 /** EXCLUSIVE means one at a time, the way an outfit already is — you have one appearance, one
  *  voice, one outfit on. The rest accumulate: three relationships are three rows, each firing on
@@ -32,6 +32,14 @@ export const SLOTS: Record<EntryKind, { name: string; exclusive: boolean }[]> = 
     { name: 'interiority',   exclusive: false },
     { name: 'relationships', exclusive: false },
     { name: 'voice',         exclusive: true  },
+  ],
+  // #80. A place is its own kind, sorted out of Lore by the writer (never by guessing: "the Watch"
+  // is not a place). The pockets are a place's half of what Lore had.
+  place: [
+    { name: 'facts',         exclusive: true  },
+    { name: 'appearance',    exclusive: true  },
+    { name: 'atmosphere',    exclusive: false },
+    { name: 'who_is_here',   exclusive: false },
   ],
   lore: [
     { name: 'facts',         exclusive: true  },
@@ -87,6 +95,10 @@ export const foldLine = (slot: string, name: string, body: string, title: string
 /** Every slot name in the app, deduplicated. The partial unique index that enforces exclusivity
  *  has to name its slots as a literal list, so `test/db.ts` asserts the index and this agree —
  *  two places holding one truth is the drift this module exists to stop. */
+/** #80 · THE KINDS OF THREAD, in the order the screens list them. The one list: every schema enum,
+ *  prompt and screen list of kinds is this, or is checked against it. */
+export const KINDS = Object.keys(SLOTS) as EntryKind[];
+
 export const ALL_SLOTS = [...new Set(Object.values(SLOTS).flatMap((s) => s.map((x) => x.name)))].sort();
 
 /** The slots that hold one at a time, in the order the index states them. */

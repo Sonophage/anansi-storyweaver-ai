@@ -64,7 +64,7 @@ export const EXTRACT_SCHEMA = {
         type: 'object',
         properties: {
           title: { type: 'string' },
-          type: { type: 'string', enum: ['character', 'lore', 'item', 'rule'] },
+          type: { type: 'string', enum: ['character', 'place', 'lore', 'item', 'rule'] },
           body: { type: 'string' },
           keys: { type: 'array', maxItems: 4, items: { type: 'string' } },
           // PLAN-08 Phase 2. Required, so the constrained decode always returns one rather than
@@ -478,7 +478,7 @@ export const REVIEW_SCHEMA = {
         type: 'object',
         properties: {
           name: { type: 'string' },
-          kind: { type: 'string', enum: ['character', 'lore', 'item', 'rule'] },
+          kind: { type: 'string', enum: ['character', 'place', 'lore', 'item', 'rule'] },
           body: { type: 'string' },
         },
         required: ['name', 'kind', 'body'],
@@ -916,7 +916,7 @@ export const EXTRACT =
 Propose only facts that are now permanently true. Skip anything that reads as temporary,
 or as one scene's mood. A character lying or being wrong is not a fact.
 
-For each: title, type (character | lore | item | rule), a body in the bracket format
+For each: title, type (character | place | lore | item | rule), a body in the bracket format
 [Name: attribute, attribute, relation], and up to 4 keywords.
 
 ${LEDGER_REGISTER}
@@ -1553,7 +1553,7 @@ export const TALK_SCHEMA = {
         type: 'object',
         properties: {
           title: { type: 'string', maxLength: 80 },
-          type: { type: 'string', enum: ['character', 'lore', 'item', 'rule'] },
+          type: { type: 'string', enum: ['character', 'place', 'lore', 'item', 'rule'] },
           body: { type: 'string', maxLength: 600 },
           keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
           // WHICH ROOM OF AN EXISTING CARD, or `none` for the card's own body. Added 2026-09-01,

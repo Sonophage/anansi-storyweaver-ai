@@ -2150,6 +2150,8 @@ ok('the extraction schema and src/slots.ts name the same slots', () => {
   assert.deepStrictEqual(enumOf(prompts.MEMORY_SCHEMA, ['properties', 'characters', 'items', 'properties', 'field']),
     slots.SLOTS.character.map((x: any) => x.name).filter((n: string) => n !== 'outfit').sort(),
     'the memory schema and the character pockets disagree');
+  // #80. The browser's copy of the kinds is the module's, in the same order.
+  assert.deepStrictEqual([...webModel.KINDS], [...slots.KINDS], 'web/model.js KINDS and slots.KINDS disagree');
   assert.deepStrictEqual(slots.FOLDED.filter((n: string) => slots.ALL_SLOTS.includes(n)), [],
     'a folded pocket is a pocket again, and a paste would fold it away silently');
 });
