@@ -17,6 +17,7 @@ Every writer can now find and add a Featherless model that takes three or all fo
 units, not only the admin. Find a model shows them, and the units filter goes up to 4. While one
 writer writes with a model like that, the other writer's passage waits, tries again for about
 twenty seconds, and then says Featherless is busy.
+
 ## 2026-10-25 · A new thread in one box
 
 ### New thread
