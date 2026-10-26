@@ -13,8 +13,8 @@ Everything below this line was written by that model call, before it was removed
 ## 2026-10-25 · Your tale, big, on the rack
 
 ### The tale you were last in
-The tale at the top of the rack now fills most of the screen, with the first row of your other
-tales showing under it. Its picture fills it; a tale with no picture gets your theme's colour, and
+The tale at the top of the rack now fills the screen, down to the words The rack at the bottom;
+scroll down for your other tales. Its picture fills it; a tale with no picture gets your theme's colour, and
 rings breathe slowly out behind the title either way. It says where you left off and how long ago,
 the title, the scene you are in, a bar for each scene, and your last line in a glass card with the
 genre and how many words. Carry on writing is the one button. It has a small gold dot when the

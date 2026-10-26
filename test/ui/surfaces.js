@@ -49,23 +49,26 @@ ok("   it says how long ago the tale was touched, over the title",
 ok("   and no hero card survives beside it",
    await page.eval("!document.querySelector('.storycard.hero')"));
 
-// THE PEEK. The hero is most of the screen since v3 (Seth, 2026-10-25: "most of the screen"), and
-// the first row of the rack must still show its top under it, or the rack reads as not there. On a
-// desk the hero is capped; on the iPhone it fills down to the peek.
+// THE RACK LINE AT THE BOTTOM. The hero is the whole screen but "The rack" since v3 (Seth,
+// 2026-10-25: "only the rack line is at the bottom as a prompt to scroll down"): the line shows at
+// the bottom edge, and the first row of cards waits under the fold.
 for (const [vw, vh, where] of [[1440, 900, 'a 1440x900 desk'], [390, 844, 'the iPhone']]) {
   await page.viewport(vw, vh);
   await wait(300);
   const f = JSON.parse(await page.eval(`(() => {
-    const cards = [...document.querySelectorAll('#page .shelfgrid .storycard')];
-    const band = document.querySelector('.resumeband').getBoundingClientRect();
-    return JSON.stringify({ cards: cards.length, innerH: innerHeight, bandH: Math.round(band.height),
-      top: cards[0] ? Math.round(cards[0].getBoundingClientRect().top) : null }); })()`));
+    const band = document.querySelector('.resumeband'), line = band.nextElementSibling;
+    const card = document.querySelector('#page .shelfgrid .storycard');
+    const r = (e) => e ? e.getBoundingClientRect() : null;
+    return JSON.stringify({ innerH: innerHeight, bandH: Math.round(r(band).height), rack: /the rack/i.test(line?.textContent ?? ''),
+      line: line ? Math.round(r(line).bottom) : null, card: card ? Math.round(r(card).top) : null }); })()`));
   console.log(`   ${where}: ` + JSON.stringify(f));
-  ok(`   on ${where} the hero is most of the screen (${f.bandH} of ${f.innerH})`,
-     f.bandH >= Math.min(440, f.innerH * 0.5));
-  ok(`   and the first row of the rack peeks in under it (top ${f.top} of ${f.innerH})`,
-     f.cards >= 2 && f.top !== null && f.top < f.innerH - 40);
+  ok(`   on ${where} the hero is most of the screen (${f.bandH} of ${f.innerH})`, f.bandH >= f.innerH * 0.6);
+  ok(`   with "The rack" showing at the bottom edge (line ends at ${f.line} of ${f.innerH})`,
+     f.rack && f.line !== null && f.line <= f.innerH && f.line >= f.innerH - 80);
+  ok(`   and the cards under the fold (first at ${f.card})`, f.card !== null && f.card >= f.innerH - 24);
 }
+await page.viewport(1440, 757);   // back to the driver's own size for everything after this
+
 // THE TITAN (360x360) has no room for most of the screen: the hero takes what its words need, and
 // nothing in it is cut off at the top, which the first build did to the label and the title.
 {

@@ -1790,24 +1790,28 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 /* THE RESUME BAND, AS THE HERO (v3 design, 2026-10-25). Structural only: what depends on which
    tale it draws stays inline in resumeBand().
 
-   MOST OF THE SCREEN, with the first row of the rack peeking in under it: Seth's call over the
-   design's 780 of 844. svh, so a phone's own address bar does not push the peek off the bottom.
-   On a wide screen it is the same hero with its height capped, not a second layout.
+   THE WHOLE SCREEN BUT THE RACK'S OWN LINE. Seth, 2026-10-25: the hero "a bit bigger up top",
+   and the cards lower "so only the rack line is at the bottom as a prompt to scroll down". So it
+   starts closer under the header (the negative margin takes back part of the page's top padding)
+   and ends where "The rack" still shows at the bottom edge, with the cards under the fold. svh, so
+   a phone's own address bar does not push the line off. The two subtractions are the header, the
+   page's padding and the line with its gap: measured, iPhone 71+24 above and 43 below, a desk
+   77+36 above. -16px and not more: further up, the strip under the header covers its top edge.
 
    ITS OWN DARK, ON EVERY THEME. The type over it is light, so the ground is always dark: the
    picture under a wash, or the theme's accent mixed into a fixed near-black. On parchment the hero
    is a dark plate on a light page, which is what a cover on a desk is. */
 .resumeband { position:relative; display:flex; flex-direction:column; overflow:hidden;
-  height:clamp(260px, calc(100svh - 230px), 640px); padding:22px 18px 18px; box-sizing:border-box;
+  height:max(260px, calc(100svh - 138px)); margin-top:-16px; padding:22px 18px 18px; box-sizing:border-box;
   border-radius:var(--r); border:1px solid var(--edge); color:#fff;
   background:linear-gradient(180deg, color-mix(in srgb, var(--gold) 62%, #0e0c10) 0%,
     color-mix(in srgb, var(--gold) 48%, #0e0c10) 55%, color-mix(in srgb, var(--gold) 30%, #0e0c10) 100%);
   box-shadow:0 26px 60px -20px rgba(0,0,0,.85); animation:rise var(--t-slow) var(--ease) both; }
-@media (min-width:720px) { .resumeband { height:440px; padding:28px 32px 24px; } }
+@media (min-width:720px) { .resumeband { height:max(380px, calc(100svh - 156px)); padding:28px 32px 24px; } }
 /* A SHORT SCREEN (the Titan's 360x360) has no room for "most of the screen": the hero takes the
    height its words need, the scene bars and the count come off, and the title comes down a size,
    so nothing is cut off its top. */
-@media (max-height:520px) { .resumeband { height:auto; padding:16px 14px 14px; }
+@media (max-height:520px) { .resumeband { height:auto; margin-top:0; padding:16px 14px 14px; }
   .resumeband > .herobody { gap:8px; } .resumeband .bandtitle { font-size:32px; }
   .resumeband .bandmeter, .resumeband .herocount { display:none; }
   .resumeband > .glass { margin-top:10px; padding:10px 12px; } .resumeband .quote { -webkit-line-clamp:2; }
