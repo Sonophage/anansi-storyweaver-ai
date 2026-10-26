@@ -9183,6 +9183,9 @@ document.addEventListener('dblclick', (e) => {
   }
   const blk = e.target.closest('#col .block');
   if (!blk || e.target.closest('.acts')) return;
+  // NOT WHILE THE PASSAGE IS BEING EDITED (Seth, 2026-10-26: "once in the edit window a double tap
+  // shouldn't bring back the menu"). There a double tap selects a word, which is all it should do.
+  if (blk.querySelector('[contenteditable]:not([contenteditable="false"]), .altbar')) return;
   openTray(blk);
 });
 
@@ -9200,6 +9203,8 @@ document.addEventListener('click', (e) => {
   if (!touchOnly()) return;
   const blk = e.target.closest?.('#col .block');
   if (!blk || e.target.closest('.acts, button, a, input, select, textarea, [contenteditable], .flag, .rerollbox')) return;
+  // Nor a tap anywhere else on a passage being edited: the edit is what that block is doing.
+  if (blk.querySelector('[contenteditable]:not([contenteditable="false"]), .altbar')) return;
   if (globalThis.getSelection?.()?.isCollapsed === false) return;
   openTray(blk);
   TRAY_AT = Date.now();
@@ -12885,11 +12890,39 @@ document.addEventListener('mousedown', (e) => {
  *  just into view within it. `nearest`, so a field already on screen does not move. */
 const keepFieldInView = () => {
   const el = document.activeElement;
-  if (!el || !el.closest?.('#sideBody') || !el.matches('input, textarea')) return;
+  if (!el) return;
+  // A PASSAGE BEING EDITED keeps its Save and Cancel above the keyboard, not only the caret
+  // (Seth, 2026-10-26: "check how the bar and edit bars sit with a virtual keyboard on iphone").
+  if (el.isContentEditable && el.closest?.('#col .block')) {
+    (el.parentElement?.querySelector('.altbar') ?? el).scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    return;
+  }
+  if (!el.closest?.('#sideBody') || !el.matches('input, textarea')) return;
   el.scrollIntoView({ block: 'nearest', behavior: 'instant' });
 };
-window.addEventListener('resize', keepFieldInView);
-window.visualViewport?.addEventListener('resize', keepFieldInView);
+
+/** THE PAGE STOPS AT THE TOP OF AN iPHONE'S KEYBOARD. Safari ignores `interactive-widget`: its
+ *  keyboard slides over a page that keeps its full height, so the composer, the bar and a
+ *  passage's Save and Cancel sat under it, and Safari panned the whole page up to show the caret,
+ *  header and all. So when the visible part of the page is a keyboard's height shorter than the
+ *  window, the page is made that tall (--kbh, app.html) and put back at the top; everything at the
+ *  bottom then sits on the keyboard. On Android the page has already shortened itself
+ *  (resizes-content), the two heights agree, and this does nothing; so it does with no keyboard,
+ *  with a hardware keyboard set (where the dock is meant to stay still), and while pinch-zoomed.
+ *  ponytail: built and checked in headless Chrome by faking the visual viewport, not on an
+ *  iPhone. Ceiling: Safari's exact panning on focus. Trigger: Seth's phone check. */
+const fitKeyboard = () => {
+  const vv = window.visualViewport;
+  const short = vv && !hwkb && vv.scale < 1.01 && innerHeight - vv.height > 120;
+  if (short) {
+    root.style.setProperty('--kbh', `${Math.round(vv.height)}px`);
+    if (vv.offsetTop || scrollY) scrollTo(0, 0);
+  } else root.style.removeProperty('--kbh');
+  keepFieldInView();
+};
+window.addEventListener('resize', fitKeyboard);
+window.visualViewport?.addEventListener('resize', fitKeyboard);
+window.visualViewport?.addEventListener('scroll', fitKeyboard);
 
 // A fresh focus starts a fresh measurement, so the pair in a report is one visit to the box
 // rather than the first keystroke of the session against the latest.

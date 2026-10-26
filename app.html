@@ -129,7 +129,9 @@ html[data-ui-scale="125"] body { zoom:1.25; }
 }
 
 * { box-sizing:border-box; }
-html, body { height:100%; }
+/* --kbh is the height left above an on-screen keyboard that does not shorten the page (iPhone);
+   unset everywhere else. See fitKeyboard in web/app.js. */
+html, body { height:var(--kbh, 100%); }
 body {
   margin:0; background:var(--doc-bg); color:var(--body);
   font-family:'IBM Plex Sans',system-ui,-apple-system,sans-serif; font-size:14px;
@@ -460,7 +462,8 @@ button:not(:disabled):active { transform:translateY(.5px); }
 .scroll::-webkit-scrollbar-thumb { background:var(--chip); border-radius:var(--r-tight); }
 
 /* --- shell ------------------------------------------------------------- */
-#shell { position:fixed; inset:0; display:flex; overflow:hidden; }
+/* The height is the window's, or what is left above an iPhone's keyboard (--kbh, fitKeyboard). */
+#shell { position:fixed; inset:0 0 auto 0; height:var(--kbh, 100%); display:flex; overflow:hidden; }
 
 #rail {
   background:var(--rail); display:flex; flex-direction:column; overflow:hidden;
@@ -1358,7 +1361,7 @@ html[data-work="ai"]       { --work:var(--gold); }
    a literal: 62% of Obsidian and 62% of Parchment are not the same colour and only one of them
    was ever chosen by eye. Declared after the shared rule above, which is what overrides its
    `transparent`; the blur stays shared so the two cannot drift on radius. */
-#dock.big { position:fixed; inset:0; z-index:41; padding-top:calc(14px + env(safe-area-inset-top, 0px));
+#dock.big { position:fixed; inset:0 0 auto 0; height:var(--kbh, 100%); z-index:41; padding-top:calc(14px + env(safe-area-inset-top, 0px));
   background:color-mix(in srgb, var(--doc-bg) 30%, transparent); }
 #dock.big #dockCol { flex:1; min-height:0; }
 #dock.big #inputRow { flex:1; min-height:0; align-items:stretch; }
@@ -1635,7 +1638,7 @@ textarea.field { resize:vertical; min-height:70px; }
 /* THE FULL-SCREEN BOX, as #dock.big draws it: the same blur and wash, the box flexed to the
    window, Cancel and Reweave flanking it the way Back and Send flank the composer's. */
 .block.rerolling .rerollbox {
-  position:fixed; inset:0; z-index:41; margin:0; display:flex; flex-direction:column; gap:14px;
+  position:fixed; inset:0 0 auto 0; height:var(--kbh, 100%); z-index:41; margin:0; display:flex; flex-direction:column; gap:14px;
   padding:calc(18px + env(safe-area-inset-top, 0px)) 18px 18px; box-sizing:border-box;
   background:color-mix(in srgb, var(--doc-bg) 30%, transparent);
   backdrop-filter:blur(3.5px) saturate(.95); -webkit-backdrop-filter:blur(3.5px) saturate(.95);

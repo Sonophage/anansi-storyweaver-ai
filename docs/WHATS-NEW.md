@@ -10,6 +10,17 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-26 · Editing a passage on a phone
+
+### A double tap while editing selects a word
+While you are editing a passage, a double tap selects a word and nothing else. It no longer
+brings back the passage's actions.
+
+### The keyboard on an iPhone
+With the keyboard up on an iPhone, the page now stops at the top of the keyboard: the header
+stays where it is, and the box, the bar and a passage's Save and Cancel sit just above the keyboard
+instead of under it.
+
 ## 2026-10-26 · A quieter header, and words out of a blur
 
 ### Her web is the menu
