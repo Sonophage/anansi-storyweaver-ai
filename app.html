@@ -221,10 +221,10 @@ input, textarea { font:inherit; color:inherit; }
 /* The passage being written, inline (WRITING_VEIL off): a block like the others, its words arriving
    in ink. The veil's styles below are all scoped to #ghost.veil and do not reach it. */
 #ghost.inlive .veiltext { white-space:pre-wrap; }
-/* Each word fades up as it scrambles in (scrambleIn). The glyphs paint in the prose's own ink. */
-@keyframes wordin { from { opacity:0; } to { opacity:1; } }
-#ghost.inlive .veiltext .w { animation:wordin .3s var(--ease) both; }
-#ghost .veiltext .w.decoding::after { color:var(--ink); }
+/* EACH WORD COMES UP OUT OF A BLUR, the veil's own `inkin` (below). Seth, 2026-10-26: "Make the
+   text cinematically fade in from a blur when the ai writes." It scrambled in for a day before
+   that (2026-10-25). */
+#ghost.inlive .veiltext .w { animation:inkin .75s var(--ease) both; }
 #ghost.inlive .veilweave { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-dim); }
 #ghost.inlive .veilweave:empty { display:none; }
 .block.rerolling-out { display:none; }
@@ -1042,6 +1042,10 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 #ctxread button { color:var(--gold-dim); font-size:11px; letter-spacing:.1em;
   text-transform:uppercase; }
 @media (max-width:719px) { #ctxread { padding:8px 18px; gap:13px; } }
+/* The ⌄ beside the scene's name that opens and shuts the reading. Small to the eye, 44px to the
+   finger by its padding and negative margin, so the header does not grow for it. */
+.ctxtoggle { flex:0 0 auto; min-width:44px; min-height:44px; margin:-14px -10px -14px -6px;
+  display:flex; align-items:center; justify-content:center; color:var(--label); font-size:13px; line-height:1; }
 
 /* NO GROUND UNDER THE DOCK. Seth: "remove the dark background. when its minimized that color
    should only be in the input box." The gradient was a slab the width of the window fading up
@@ -1296,8 +1300,8 @@ html[data-work="ai"]       { --work:var(--gold); }
   color:var(--gold); display:flex; align-items:center; justify-content:center; font-size:21px; flex:0 0 auto; }
 #nextrow > button:disabled { opacity:.45; }
 #nextrow > button:hover:not(:disabled) { border-color:var(--edge-lit); }
-#nextrow #cont.stopping { background:var(--edge-lit); border-color:var(--edge-lit); color:var(--ink-bright);
-  font-size:11px; letter-spacing:.12em; text-transform:uppercase; animation:breathe 1.6s var(--ease) infinite; }
+#nextrow #cont.stopping { background:var(--gold); border-color:var(--gold); color:var(--on-gold);
+  font-size:11px; letter-spacing:.12em; text-transform:uppercase; }
 /* THE QUILL, in its circle, in the middle, with the hold hint under it. */
 #nextrow .quillcell { display:flex; flex-direction:column; align-items:center; gap:4px; }
 /* NO SELECTION AND NO CALLOUT ON A LONG PRESS: holding the quill is a gesture here, and on an
@@ -1381,8 +1385,9 @@ html[data-work="ai"]       { --work:var(--gold); }
    "…" was a control you could look at and not use, which is what a Stop button is for. Not red:
    stopping your own generation is an ordinary move, not a destructive one, and the passage is
    discarded rather than anything of yours being lost. */
-#send.stopping { background:var(--edge-lit); color:var(--ink-bright); font-size:11px;
-  animation:breathe 1.6s var(--ease) infinite; }
+/* GOLD AND STILL. Seth, 2026-10-26: "The stop button should be gold and not animated." It is the
+   one thing to press while she writes, which is what gold means (ADR 0004). */
+#send.stopping { background:var(--gold); color:var(--on-gold); font-size:11px; }
 @keyframes breathe { 0%,100% { opacity:1 } 50% { opacity:.62 } }
 /* ISSUE #3 — "the send button and the expand input button are too small". They were: 30px for
    Send on a phone, and the expand button had no box at all — just a 13px glyph with 2px of

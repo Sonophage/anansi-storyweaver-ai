@@ -70,11 +70,16 @@ const home = await seen('#bar [data-home]');
 // A ‹ pill like the others since 2026-10-25 ("just make it the back button that matches the other buttons").
 ok(`a tale shows the way back to the rack, a ‹ pill like the others (${JSON.stringify(home)})`,
    home === '‹' && (await page.eval("document.querySelector('#bar [data-home]').classList.contains('pill')")));
-const more = await seen('#bar .pill[data-railview="story"]');
-ok(`  and a ⋯ for the tale's menu (${JSON.stringify(more)})`, more === '⋯');
+// HER WEB IS THE TALE'S MENU since 2026-10-26 (Seth: "make the web icon at the top open what the
+// three dots open and then remove the three dots").
+const more = await page.eval(`(() => { const b = document.querySelector('#bar .pill[data-railview="story"]');
+  return b ? JSON.stringify({ web: !!b.querySelector('svg'), dots: /⋯/.test(b.textContent) }) : null; })()`).then((x) => x && JSON.parse(x));
+ok(`  and her web for the tale's menu, with no ⋯ (${JSON.stringify(more)})`, !!more && more.web && !more.dots
+   && !(await page.eval("[...document.querySelectorAll('#bar button')].some((b) => b.textContent.trim() === '⋯')")));
 await page.click('#bar .pill[data-railview="story"]');
 await wait(500);
-ok("  and the ⋯ opens the menu", await railOpen());
+ok("  and the web opens the menu", await railOpen());
+ok("  which has a row for the Talk drawer", await page.eval("!!document.querySelector('[data-nav=\"anansi\"]')"));
 await page.eval("(() => { document.getElementById('scrim').click(); return 1; })()");
 await wait(500);
 
@@ -145,8 +150,8 @@ const fit = await page.eval("(() => { const b = document.getElementById('bar');"
   + " .filter((x) => x.getBoundingClientRect().right > innerWidth + 1).map((x) => x.getAttribute('aria-label') || x.textContent.trim()) }; })()");
 ok(`on a 360px square the header fits (${fit.over}px over, off screen: ${JSON.stringify(fit.doors)})`,
    fit.over <= 0 && fit.doors.length === 0);
-ok("  with the way back and the ⋯ both on it",
-   !!(await seen('#bar [data-home]')) && (await seen('#bar .pill[data-railview="story"]')) === '⋯');
+ok("  with the way back and her web both on it",
+   !!(await seen('#bar [data-home]')) && await page.eval("!!document.querySelector('#bar .pill[data-railview=\"story\"] svg')"));
 // A short screen keeps the prose: no stats band, and the mode row only while you are writing.
 const shown = (id) => page.eval(`(() => { const e = document.getElementById('${id}'); return !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().height > 0; })()`);
 ok("on the square the stats band is hidden", !(await shown('ctxread')));

@@ -259,7 +259,7 @@ if (cm.open) {
   // no marks — and passed with the stores merged, because the ask box was EMPTY after a reload and
   // an empty box has nothing to mark either way. Decorative. So: open the Anansi panel, put the
   // same name in ITS box, and assert the composer's pick did not light it up there.
-  await page.eval("(() => { document.querySelector('[data-panel=\"anansi\"]')?.click(); return 1; })()");
+  await page.eval("(() => { document.querySelector('#bar [data-railview=\"story\"]').click(); document.querySelector('[data-nav=\"anansi\"]').click(); return 1; })()");
   await wait(500);
   await page.eval(`(() => { const b = document.getElementById('askBox');
     if (!b) return 0; b.value = 'and what about @the Silver Key';

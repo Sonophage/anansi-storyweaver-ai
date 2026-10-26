@@ -1165,11 +1165,16 @@ ok('the header names the book, and carries no reading of its own');
   assert.ok(!/\d+ words|\d+% (full|used)/.test(html('bar')),
     'and the header carries neither the word count nor the percentage any more');
 
-  // ALWAYS OPEN, with no press at all — Seth, 2026-09-02: "have this always visible." It used to be
-  // shut until the bar was pressed, and the bar has no press any more, so a reading that still
-  // waited for one could not be opened by anybody.
+  // SHUT UNTIL ITS ⌄ IS PRESSED — Seth, 2026-10-26: "Have it hidden by default and toggable by a
+  // small down icon." It was always open from 2026-09-02. Drawn while shut, so the words are read.
   const read = html('ctxread');
-  assert.ok(!nodes.get('ctxread').hidden, 'the reading is open with nothing pressed');
+  assert.ok(nodes.get('ctxread').hidden, 'the reading is shut with nothing pressed');
+  assert.match(html('bar'), /data-ctxtoggle="1"[^>]*aria-expanded="false"/, 'and its ⌄ is in the header, saying so');
+  click({ ctxtoggle: '1' });
+  assert.ok(!nodes.get('ctxread').hidden, 'one press on the ⌄ opens it');
+  assert.match(html('bar'), /data-ctxtoggle="1"[^>]*aria-expanded="true"/, 'and the ⌄ says it is open');
+  click({ ctxtoggle: '1' });
+  assert.ok(nodes.get('ctxread').hidden, 'and a second shuts it');
   assert.match(read, /scene 2 of 2/, 'which says which scene you are on');
   assert.match(read, /words/, 'and how many words are in it');
   assert.match(read, new RegExp(`room ${pct}% used`), 'and how much of her room is used, in those words');

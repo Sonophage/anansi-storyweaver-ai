@@ -10,6 +10,21 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-26 · A quieter header, and words out of a blur
+
+### Her web is the menu
+In a tale, Anansi's web at the top right now opens the tale's menu, and the ⋯ beside it is gone.
+Talk to Anansi is the last row of that menu.
+
+### The numbers under the title are folded away
+The line under the header with the scene, the words and how much of her room is used is hidden
+now. Tap the small ⌄ beside the scene's name to show it, and again to hide it. Your device
+remembers which you chose.
+
+### Writing
+Each word Anansi writes comes up out of a blur. Stop is gold and holds still. A new version of a
+passage no longer shows a message saying so; the new version on the page says it.
+
 ## 2026-10-25 · Your tale, big, on the rack
 
 ### The tale you were last in

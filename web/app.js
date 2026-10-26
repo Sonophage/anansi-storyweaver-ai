@@ -100,6 +100,11 @@ const VEIL_KEY = 'anansi.veil';
 const VEIL_DEFAULT = false;
 let WRITING_VEIL = VEIL_DEFAULT;
 try { const v = localStorage.getItem(VEIL_KEY); if (v === '1' || v === '0') WRITING_VEIL = v === '1'; } catch { /* no storage */ }
+/** THE READING UNDER THE TITLE (scene, words, room used), shut unless this device opened it.
+ *  Seth, 2026-10-26: "Have it hidden by default and toggable by a small down icon." */
+const CTX_KEY = 'anansi.ctxread';
+let CTX_OPEN = false;
+try { CTX_OPEN = localStorage.getItem(CTX_KEY) === '1'; } catch { /* no storage */ }
 
 const HW = 'anansi.hwkb';
 let hwkb = false;
@@ -385,11 +390,10 @@ const SNAV = [
   ['threads', 'threads', 'Threads'], ['strings', 'strings', 'Strings'],
   ['context', 'context', 'What she reads'],
   ['teller', 'teller', 'Storyteller'],
+  // BACK ON THIS LIST, 2026-10-26. It came off on 2026-08-27 for a door on the composer row, which
+  // became her web in the header; the web opens this menu now, so the Talk drawer's door is here.
+  ['anansi', 'anansi', 'Talk to Anansi'],
 ];
-// Anansi came OFF this list on 2026-08-27. It is a button on the composer row, beside + Thread —
-// asking her something is a thing you do while writing, not a place you navigate to, and having
-// it in both put the same door in two rooms. The PANEL still exists and `data-panel="anansi"`
-// still opens it; only the nav row is gone.
 // Deep links and bookmarks still carry the old names, and so does a browser tab left open across
 // the change. Cheaper to map them than to serve a blank panel.
 const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queue: 'chapter', branches: 'chapter' };
@@ -482,7 +486,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // ('help' left this list on 2026-09-03. The webs are drawn by tipMark now, so a help icon
   //  carries `data-tip` like every other folded explanation — one mark, one handler, one
   //  state. A name left here would match nothing and read as a live action.)
-  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home',
+  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'ctxtoggle', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home',
   're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newthread', 'entry',
   'carryon',
@@ -980,11 +984,11 @@ function drawMeter() {
   bar.innerHTML = V.chapters.map((c, i) =>
     `<i class="${i === at ? 'at' : ''}"></i>`).join('');
 
-  /* ALWAYS OPEN. Seth, 2026-09-02: "have this always visible. since were changing the behavior of
-   * the bar above." It was shut until the bar was pressed, and the bar's press is what item 2 took
-   * away — so the reading would have had no door at all. It is one line of small caps under a
-   * three-pixel rule; it was behind a press because the bar was the door, not because it is loud. */
-  read.hidden = false;
+  /* SHUT UNTIL ITS ⌄ IS PRESSED. It was always open from 2026-09-02 ("have this always visible")
+   * until Seth, 2026-10-26: "Have it hidden by default and toggable by a small down icon." The ⌄ is
+   * beside the scene's name under the title (drawBar); this device remembers the choice. Drawn
+   * either way, so opening it is a flip and not a fetch. */
+  read.hidden = !CTX_OPEN;
   read.innerHTML = `
     <span>scene ${at + 1} of ${V.chapters.length}</span>
     <span class="tnum">${words.toLocaleString()} words</span>
@@ -1055,8 +1059,12 @@ function drawBar() {
       <span class="serif" style="font-size:23px; line-height:1; color:var(--chrome-ink);
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block">${esc(title)}</span>
       </button>
-      ${sub ? `<span class="up" style="font-size:11px; color:var(--label); white-space:nowrap;
-        overflow:hidden; text-overflow:ellipsis">${esc(sub)}</span>` : ''}
+      ${sub ? `<span style="display:flex; align-items:center; gap:2px; min-width:0">
+        <span class="up" style="font-size:11px; color:var(--label); white-space:nowrap;
+        overflow:hidden; text-overflow:ellipsis">${esc(sub)}</span>
+        ${inStory ? `<button data-ctxtoggle="1" class="ctxtoggle" aria-expanded="${CTX_OPEN}"
+          aria-label="${CTX_OPEN ? 'Hide' : 'Show'} the scene's numbers" title="${CTX_OPEN ? 'Hide' : 'Show'} the scene's numbers"
+          ><span aria-hidden="true">${CTX_OPEN ? '\u2303' : '\u2304'}</span></button>` : ''}</span>` : ''}
       <!-- decoded below, after the element exists -->
     </div>
     <div style="margin-left:auto; display:flex; align-items:center; gap:10px; flex:0 0 auto">
@@ -1107,11 +1115,12 @@ function drawBar() {
            IN A STORY ONLY, because there is no Anansi to ask without one — and the menu is not
            lost with it, which was the objection: the logo at the far left of this bar is the way
            in on every screen now. Same glyph size and padding as Reading mode beside it. -->
-      ${inStory ? `<button data-panel="anansi" class="pill phoneonly" aria-label="Ask Anansi"
+      ${/* HER WEB OPENS THE TALE'S MENU, and the ⋯ is gone. Seth, 2026-10-26: "make the web icon at
+            the top open what the three dots open and then remove the three dots". It opened the
+            Talk drawer; that is a row on the menu now (SNAV), and Talk is still the quill's hold. */ ''}
+      ${inStory ? `<button data-railview="story" class="pill" aria-label="This tale's menu" title="This tale's menu"
         style="display:flex; align-items:center; gap:7px; padding:6px 11px; color:var(--chrome-dim)"
-        >${mark('webfull', 17)}<span class="btnword">Ask</span></button>
-      <button data-railview="story" class="pill" aria-label="This tale's menu"
-        style="display:flex; align-items:center; padding:6px 11px; font-size:15px; line-height:1">⋯</button>` : ''}
+        >${mark('webfull', 17)}</button>` : ''}
     </div>`;
   // The title, and the line under it that names the chapter. Both are leaf spans holding nothing
   // but text, which is what decode() needs — it writes textContent.
@@ -8033,30 +8042,6 @@ async function openStory(id) {
 // text changes, and that is this function. STREAMING prose decodes at its frontier only — see
 // frontier() in model.js, which is where the glyphs are. Scrambling a live 300-word passage whole
 // would be unreadable, and the bureau only ever put this on short headers.
-/** ONE WORD, SCRAMBLING IN. Seth, 2026-10-25: "use the same scramble transition to fade in the
- *  text." The titles' decode, at word size and quicker: the letters turn for about a fifth of a
- *  second and settle left to right while the word fades up (`.w` in app.html). Only the newest
- *  word: the words behind it never move. The real word is in the text the whole time; the glyphs
- *  are painted over it from an attribute, as decode does, so a screen reader and a copy read the
- *  word and not the noise. Nothing under reduced motion, where the word simply appears. */
-function scrambleIn(span) {
-  const target = span?.textContent ?? '';
-  if (!target.trim() || still() || typeof requestAnimationFrame !== 'function') return;
-  const len = target.length, total = 12;
-  let frame = 0;
-  span.classList.add('decoding');
-  const tick = () => {
-    if (!span.isConnected) return;
-    const revealed = Math.floor((++frame / total) * len);
-    let out = '';
-    for (let i = 0; i < len; i++) out += /\s/.test(target[i]) ? target[i] : i < revealed ? target[i] : glyph();
-    span.dataset.glyphs = out;
-    if (frame < total) requestAnimationFrame(tick);
-    else { span.classList.remove('decoding'); delete span.dataset.glyphs; }
-  };
-  requestAnimationFrame(tick);
-}
-
 /** Titles already on screen, by slot, so a repaint that says the same thing does not re-run the
  *  animation. Every panel repaint replaces the element, so the memory cannot live on it. */
 const DECODED = {};
@@ -8361,7 +8346,6 @@ function drainVeil(now) {
       SEEN += cut;
       PEND = PEND.slice(cut);
       el.append(span);
-      scrambleIn(span);
       if (!WRITING_VEIL && SEEN === cut) anchorLive();
       /* THE GLOW GOES ON THE FIRST WORD — Seth, 2026-09-02: "Remove the border around the ghost as
        * soon as something starts streaming." The glow says something is happening, and once words
@@ -9073,14 +9057,13 @@ async function regenerateInto(id, steer, seed, again = null) {
   S.busy = false; working(null);
   if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
   V = await api.story(S.storyId, V.currentChapter.id);
-  // #9 first: a take that still contradicts the canon outranks a note about which instruction it
-  // re-ran. Both are toasts and only one is read.
-  const say = takeToast(r) ?? (r.reusedDirective
-    ? `New version of your instruction: ${String(r.reusedDirective).slice(0, 90)}`
-    : 'New version kept. Both are in Alterations, with the threads each was written against.');
+  // NO TOAST FOR A NEW VERSION (Seth, 2026-10-26: "we don't need the notification toast for
+  // regeneration"): the new take on the page says it. #9's stays, because a take that still
+  // contradicts the canon is something the page does not show.
+  const say = takeToast(r);
   const land = () => {
     foldDock();
-    paint(); refreshManifest(); refreshHistory(); toast(say);
+    paint(); refreshManifest(); refreshHistory(); if (say) toast(say);
     const now = V?.passages?.filter((p) => !p.isBreak).at(-1);
     announce(`New take, ${(String(now?.body ?? '').match(/\S+/g) ?? []).length} words.`);
   };
@@ -10151,6 +10134,11 @@ document.addEventListener('click', async (e) => {
   }
   // The attribute is written here rather than in applyLook: reading mode is not part of the look
   // and does not belong in the bag that gets persisted.
+  if (d.ctxtoggle) {
+    CTX_OPEN = !CTX_OPEN;
+    try { localStorage.setItem(CTX_KEY, CTX_OPEN ? '1' : '0'); } catch { /* no storage */ }
+    drawBar(); drawMeter(); return;
+  }
   if (d.readmode !== undefined) {
     S.reading = d.readmode === '1';
     root.dataset.reading = S.reading ? '1' : '0';

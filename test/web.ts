@@ -525,11 +525,10 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   // being where it is make it it's own panel." Chapter is the one you are IN and Chapters is all of
   // them, so they sit together and in that order.
   assert.deepStrictEqual(snav,
-    ['search', 'waiting', 'story', 'chapter', 'chapters', 'threads', 'strings', 'context', 'teller'],
-    'the panels in the order Seth asked for. Search went to the top on 2026-08-27 and Anansi came '
-    + 'off the list the same day — it is a button on the composer row, because asking her something '
-    + 'is a thing you do while writing rather than a place you navigate to. The PANEL is still '
-    + 'there and data-panel="anansi" still opens it; only the nav row went.');
+    ['search', 'waiting', 'story', 'chapter', 'chapters', 'threads', 'strings', 'context', 'teller', 'anansi'],
+    'the panels in the order Seth asked for. Search went to the top on 2026-08-27. Anansi came off '
+    + 'the list the same day for a door on the composer row, later her web in the header; since '
+    + '2026-10-26 the web opens this menu, so the Talk drawer is its last row.');
 
   // Opened by clicking a thing rather than by a nav row. Each is asserted to have a real opener,
   // so this list cannot become a dumping ground for panels nothing reaches.
@@ -549,11 +548,6 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   const byClick = { entry: /S\.panel = 'entry'/, history: /S\.panel = 'history'/,
                     setup: /<button class="btn ghost" data-panel="setup"/,
                     ritual: /S\.panel = 'ritual'/,
-                    // A BUTTON, not any occurrence. The first version of this was
-                    // /data-panel="anansi"/, which matched the COMMENT in app.js explaining that
-                    // the panel keeps its door — so the check passed while pointing that door
-                    // somewhere else. A check that matches its own documentation is decorative.
-                    anansi: /<button data-panel="anansi"/,
                     // #25. Its door is a row in the rail's model list, which is why the opener is
                     // `data-modelinfo` and not `data-panel`: the row has to say WHICH model, and a
                     // panel that opened on whatever was already selected would be the wrong one
