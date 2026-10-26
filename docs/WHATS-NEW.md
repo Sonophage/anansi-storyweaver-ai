@@ -16,10 +16,10 @@ Everything below this line was written by that model call, before it was removed
 In a tale, Anansi's web at the top right now opens the tale's menu, and the ⋯ beside it is gone.
 Talk to Anansi is the last row of that menu.
 
-### The numbers under the title are folded away
-The line under the header with the scene, the words and how much of her room is used is hidden
-now. Tap the small ⌄ beside the scene's name to show it, and again to hide it. Your device
-remembers which you chose.
+### The numbers under the header are folded away
+The row under the header with the scene, the words, how much of her room is used and What is in
+it is a small ⌄ now. Tap it to show the numbers, and tap again to hide them. What is in it still
+opens what she reads. Your device remembers which you chose.
 
 ### Writing
 Each word Anansi writes comes up out of a blur. Stop is gold and holds still. A new version of a
