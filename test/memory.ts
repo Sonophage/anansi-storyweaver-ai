@@ -267,6 +267,16 @@ let proposal: any;
   assert.ok(prop, 'a permanent fact aims at the facts room');
   assert.strictEqual(prop.target, null, 'and there is nothing there yet to replace');
   await routes['POST /api/proposal'](ctx({ storyId: story.id, id: prop.id, accept: true }));
+  // #77 · THE LOCK. Vel exists, so her Always true is the writer's: the accepted change is an Over
+  // time entry from the scene, and the facts room is not written by it.
+  assert.ok(!db.addonsOf(story.id).some((a: any) => a.slot === 'facts' && a.entry_id === vel),
+    'LOCK: accepting a chalked Always true change for a thread that exists does not write Always true');
+  const overTime: any[] = db.statesForStory(story.id).get(vel) ?? [];
+  assert.ok(overTime.some((x: any) => /Grey eyes/.test(x.body)), 'LOCK: it is an Over time entry instead');
+  for (const x of overTime) db.delState(story.id, x.id);
+  // The writer writes her Always true by hand, which the lock does not touch; the blocks below use it.
+  db.setAddonActive(story.id, db.upsertAddon(story.id, vel, { slot: 'facts', name: 'facts',
+    body: 'Thirty-four. Born on the Long Stair. Grey eyes.' })!, true);
   const facts = db.addonsOf(story.id).find((a: any) => a.slot === 'facts' && a.entry_id === vel) as any;
   assert.match(facts.body, /Grey eyes/);
 
@@ -284,25 +294,29 @@ let proposal: any;
 
 {
   // A ROOM THAT EXISTS IS AN OFFER, NOT AN OVERWRITE — and an identical one is not even an offer.
+  // A relationships room, written by hand first: these were Always true until #77, and Always true of a
+  // thread that exists is not a place a chalked change can land (the lock, above).
   const ch: any = db.chapters(story.id).at(-1);
-  found = [{ title: 'Vel', body: 'Thirty-four. Born on the Long Stair. Grey eyes.',
-             type: 'character', keys: [], activation: 'triggered', field: 'facts' }];
+  db.setAddonActive(story.id, db.upsertAddon(story.id, vel, { slot: 'relationships', name: 'Aldis',
+    body: 'Trusts Aldis without asking why.' })!, true);
+  found = [{ title: 'Vel', body: 'Trusts Aldis without asking why.',
+             type: 'character', keys: [], activation: 'triggered', field: 'relationships' }];
   const before = db.proposalsOf(story.id).length;
   await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
   assert.strictEqual(db.proposalsOf(story.id).length, before,
     'the same room said again is queue noise, and is not proposed at all');
 
-  found = [{ title: 'Vel', body: 'Thirty-five now. Born on the Long Stair. Grey eyes.',
-             type: 'character', keys: [], activation: 'triggered', field: 'facts' }];
+  found = [{ title: 'Vel', body: 'Trusts Aldis, and is frightened of what that costs.',
+             type: 'character', keys: [], activation: 'triggered', field: 'relationships' }];
   await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
-  const upd = db.proposalsOf(story.id).find((p: any) => p.field === 'facts' && /Thirty-five/.test(p.body));
+  const upd = db.proposalsOf(story.id).find((p: any) => p.field === 'relationships' && /frightened/.test(p.body));
   assert.ok(upd, 'a DIFFERENT one is proposed');
-  const existing = db.addonsOf(story.id).find((a: any) => a.slot === 'facts' && a.entry_id === vel) as any;
+  const existing = db.addonsOf(story.id).find((a: any) => a.slot === 'relationships' && a.entry_id === vel) as any;
   assert.strictEqual(upd.target, existing.id, 'carrying the room it would stand in for');
 
   // Accepting WITHOUT replace adds beside it; the writer chose "another", not "instead of".
   await routes['POST /api/proposal'](ctx({ storyId: story.id, id: upd.id, accept: true }));
-  assert.strictEqual(db.addonsOf(story.id).filter((a: any) => a.slot === 'facts' && a.entry_id === vel).length,
+  assert.strictEqual(db.addonsOf(story.id).filter((a: any) => a.slot === 'relationships' && a.entry_id === vel).length,
     2, 'accept adds a second room beside the first');
   ok('a room that already exists is offered rather than overwritten, and an identical one is not offered');
 }
@@ -310,17 +324,17 @@ let proposal: any;
 {
   // And REPLACE puts it in place of the one that is there, rather than beside it.
   const ch: any = db.chapters(story.id).at(-1);
-  const mine = db.addonsOf(story.id).filter((a: any) => a.slot === 'facts' && a.entry_id === vel);
+  const mine = db.addonsOf(story.id).filter((a: any) => a.slot === 'relationships' && a.entry_id === vel);
   for (const a of mine.slice(1)) db.delAddon(story.id, a.id);
-  found = [{ title: 'Vel', body: 'Forty. Born on the Long Stair.', type: 'character',
-             keys: [], activation: 'triggered', field: 'facts' }];
+  found = [{ title: 'Vel', body: 'Slow now to trust Aldis.', type: 'character',
+             keys: [], activation: 'triggered', field: 'relationships' }];
   await routes['POST /api/extract'](ctx({ storyId: story.id, chapterId: ch.id }));
-  const rep = db.proposalsOf(story.id).find((p: any) => p.field === 'facts' && /Forty/.test(p.body));
+  const rep = db.proposalsOf(story.id).find((p: any) => p.field === 'relationships' && /Slow now/.test(p.body));
   assert.ok(rep?.target, 'it knows which room it would stand in for');
   await routes['POST /api/proposal'](ctx({ storyId: story.id, id: rep.id, accept: true, replace: true }));
-  const after = db.addonsOf(story.id).filter((a: any) => a.slot === 'facts' && a.entry_id === vel);
+  const after = db.addonsOf(story.id).filter((a: any) => a.slot === 'relationships' && a.entry_id === vel);
   assert.strictEqual(after.length, 1, 'replace leaves one room, not two');
-  assert.match(after[0].body, /Forty/, 'and it is the new one');
+  assert.match(after[0].body, /Slow now/, 'and it is the new one');
   ok('  and replace stands in for it rather than beside it');
 }
 

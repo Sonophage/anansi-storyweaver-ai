@@ -1538,8 +1538,12 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   // EVERY ROOM THIS KIND HAS AND NO OTHER. Read from `V.slots` — the server's copy of
   // src/slots.ts — for the reason the card form reads them from there: a hand-written list on the
   // screen drifts from the one the database enforces.
-  for (const room of ['facts', 'role', 'interiority', 'voice', 'history'])
+  for (const room of ['interiority', 'voice', 'relationships'])
     assert.match(onlyChanged, new RegExp(`<option value="${room}"`), `no way to send it to ${room}`);
+  // #77. NOT ALWAYS TRUE, on a thread that exists: only the writer changes it, and a change aimed at
+  // it is sewn in as Over time. Nor the pockets that folded into it.
+  for (const room of ['facts', 'role', 'history'])
+    assert.doesNotMatch(onlyChanged, new RegExp(`<option value="${room}"`), `a change can be sent to ${room}`);
   assert.doesNotMatch(onlyChanged, /<option value="provenance"/,
     'a character is being offered an item\'s room');
   // The trigger words, editable. A room nobody keyed mostly never fires — the same rule the
@@ -2213,7 +2217,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.strictEqual(picked(rules), '',
     'and changing kind puts it back on Any room — a filter left on from a kind you are no longer '
     + 'looking at is a page that shows nothing for no visible reason');
-  assert.match(rules, /data-lslot="scope"/, 'while the new kind offers its own rooms');
+  assert.match(rules, /data-lslot="consequences"/, 'while the new kind offers its own rooms');
   click({ lkind: 'all' });
   ok('the cross-shelf page opens on one book, spans the shelf on a press, and filters by room');
 }
@@ -4272,7 +4276,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   endPasses = { summary: null, memory: null, facts: 'the model did not answer', finished: null };
   side = await closeChapter();
   assert.match(side, /One pass did not run/, 'a failed pass is reported, and counted');
-  assert.match(side, /the facts pass/, 'named as the writer knows it');
+  assert.match(side, /the threads pass/, 'named as the writer knows it (#77: not facts, which is Always true)');
   assert.match(side, /the model did not answer/, 'with the reason, verbatim');
   // NOT AS A LOST CHAPTER. The prose is committed before any of the four run, and a writer who
   // reads this box has to know that before they go looking for their words.
@@ -4285,7 +4289,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   side = await closeChapter();
   assert.match(side, /2 passes did not run/, 'two failures are counted as two');
   assert.match(side, /the summary/, 'both are named');
-  assert.match(side, /the facts pass/, 'both are named');
+  assert.match(side, /the threads pass/, 'both are named');
 
   // #46. A CLOSE THAT KEPT YOURS SAYS SO, and not as a pass that did not run. The route reports it
   // as `keptSummary`; the summary line of the closing report reads the author off the chapter, so

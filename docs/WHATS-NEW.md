@@ -10,6 +10,23 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-26 · Always true
+
+### Facts is now Always true
+What was called Facts on a thread is now Always true: who or what the thread is, for the whole
+tale. It is shown first on the thread, above where it stands now, and it is always sent with the
+thread, so it has no on or off switch. Anansi never changes it on a thread you already have; when
+she finds something permanent about one, she offers it as a change to where it stands instead.
+
+### Role, history, where it came from and what it covers moved too
+These were pockets. They are now part of Always true, each under its own name, so they are sent
+every time. A thread you paste in or look up online that has them gets them the same way.
+
+### What the update moved, per tale
+The update's page in Tale settings → Keep lists, for each tale, the Always true that were switched
+off, the pockets that moved, the threads whose Always true and Info both say something (check that
+they agree), and the threads that have no Always true yet.
+
 ## 2026-10-26 · What an update moved
 
 ### A page that says what an update moved

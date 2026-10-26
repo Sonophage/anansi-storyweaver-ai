@@ -2203,7 +2203,7 @@ ok('the extraction schema and src/slots.ts name the same slots', () => {
   });
 
   ok('a story-level addon needs no entry at all, which is where a string will live', () => {
-    const id = db.upsertAddon(sa.id, null, { slot: 'history', name: 'the debt', body: '[owed]' });
+    const id = db.upsertAddon(sa.id, null, { slot: 'atmosphere', name: 'the debt', body: '[owed]' });
     assert.ok(id, 'entry_id is nullable on purpose');
   });
 }
@@ -3306,6 +3306,56 @@ ok('the update report: one backup before the first rewrite, and lines per tale, 
   raw.close();
   assert.deepStrictEqual(db.updatesOf(other.id), [], 'REPORT-PER-TALE: another tale sees none of it');
   rmSync(first.file, { force: true });
+});
+
+// #77. ALWAYS TRUE ON UPDATE DAY. The library's threads in the shape they had: a facts pocket switched
+// off, role / provenance / scope / history pockets beside it, a thread with no facts at all, a thread
+// whose facts and Info are both written. Rows are written past the floor, as an old server wrote them.
+ok('update day: every facts text becomes Always true, switched on, with the folded pockets in it', () => {
+  const t = db.createStory(o, { title: 'Bedlam', premise: 'p' });
+  db.upsertEntry(t.id, o, { id: 'e-halsey', title: 'Halsey', body: '[Halsey: Grammy-nominated singer]', entryType: 'character' });
+  db.upsertEntry(t.id, o, { id: 'e-marek', title: 'Marek', body: '', entryType: 'character' });
+  db.upsertEntry(t.id, o, { id: 'e-bare', title: 'Bare', body: '[Bare: a clerk]', entryType: 'character' });
+  db.upsertEntry(t.id, o, { id: 'e-key', title: 'The key', body: '', entryType: 'item' });
+  const raw = new RawDb('/tmp/anansi-test.db');
+  const put = (id: string, entry: string, slot: string, name: string, body: string, active: number) =>
+    raw.prepare(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,created_at)
+      VALUES (?,?,?,?,?,?,'[]',?,1)`).run(id, t.id, entry, slot, name, body, active);
+  put('a-h-facts', 'e-halsey', 'facts', 'facts', '[Halsey: 26; secretary]', 0);
+  put('a-h-voice', 'e-halsey', 'voice', 'Speech', '[clipped]', 1);
+  put('a-m-facts', 'e-marek', 'facts', 'facts', '[Marek: moneylender]', 1);
+  put('a-m-role', 'e-marek', 'role', 'role', '[the one Aldis owes]', 1);
+  put('a-m-hist', 'e-marek', 'history', 'The war', '[lost a hand at Sallow]', 0);
+  put('a-k-prov', 'e-key', 'provenance', 'provenance', 'cut from the vault lock', 1);
+  raw.close();
+
+  db.foldAlwaysTrue();
+  const rooms = (e: string) => (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === e);
+  const facts = (e: string) => rooms(e).find((a) => a.slot === 'facts');
+  assert.strictEqual(facts('e-halsey').active, 1, 'FOLD-ON: a facts pocket that was off is Always true, and on');
+  assert.strictEqual(facts('e-halsey').body, '[Halsey: 26; secretary]', '  with its text unchanged');
+  assert.ok(rooms('e-halsey').some((a) => a.slot === 'voice'), '  and her other pockets stay pockets');
+  assert.strictEqual(facts('e-marek').body, '[Marek: moneylender]\n[Role: the one Aldis owes]\n[The war: lost a hand at Sallow]',
+    'FOLD-POCKETS: role and history are appended under their labels');
+  assert.deepStrictEqual(rooms('e-marek').map((a) => a.slot), ['facts'], '  and are pockets no more');
+  assert.strictEqual(facts('e-key')?.body, '[Provenance: cut from the vault lock]',
+    'FOLD-NEW: a thread with only a folded pocket gets an Always true made of it');
+  assert.strictEqual(facts('e-key')?.active, 1, '  switched on');
+  assert.strictEqual(facts('e-bare'), undefined, 'a thread with nothing to fold is given nothing');
+
+  const lines = db.updatesOf(t.id).map((l: any) => `${l.entryTitle}: ${l.line}`);
+  const has = (re: RegExp) => lines.some((l: string) => re.test(l));
+  assert.ok(has(/^Halsey: .*was switched off/i), `REPORT-ON: the switched-off one is named (${lines.join(' | ')})`);
+  assert.ok(has(/^Halsey: .*agree/i), 'REPORT-BOTH: a thread with Always true and Info both written is asked to check they agree');
+  assert.ok(has(/^Marek: .*Role.*The war/), 'REPORT-FOLD: the folded pockets are named on their thread');
+  assert.ok(has(/^null: One thread has no Always true yet: Bare\./), `REPORT-NONE: threads with no Always true are named, in one line for the tale (${lines.join(' | ')})`);
+  assert.ok(!has(/^Marek: .*agree/i), '  and a thread with no Info is not asked to compare');
+
+  const before = db.updatesOf(t.id).length;
+  db.foldAlwaysTrue();
+  assert.strictEqual(facts('e-marek').body, '[Marek: moneylender]\n[Role: the one Aldis owes]\n[The war: lost a hand at Sallow]',
+    'FOLD-ONCE: a second run changes nothing');
+  assert.strictEqual(db.updatesOf(t.id).length, before, '  and writes no second report');
 });
 
 console.log(`\n${n} checks passed`);

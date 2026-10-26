@@ -177,7 +177,7 @@ const paste = (text: string, o = me) => routes['POST /api/thread/paste'](ctx({ s
 {
   const r = paste(JSON.stringify([
     { kind: 'character', title: 'Kade Ashford', body: 'a creditor who is owed by everyone',
-      rooms: { role: '[the one the debt is owed to]' } },
+      rooms: { voice: '[short sentences]' } },
     { kind: 'lore', title: 'the Ambersand', body: '[the Ambersand: counting-house on the north bank]' },
   ]));
   assert.ok(!r.error, r.error);
@@ -187,7 +187,7 @@ const paste = (text: string, o = me) => routes['POST /api/thread/paste'](ctx({ s
   // plain prose is a formatting miss rather than a bad card — so it is wrapped, not refused.
   assert.match(kade.body, /^\[Kade Ashford: a creditor who is owed by everyone\]$/,
     'a bare body is wrapped into the bracket form rather than refused');
-  assert.ok(db.addonsOf(story.id).some((a: any) => a.entry_id === kade.id && a.slot === 'role'),
+  assert.ok(db.addonsOf(story.id).some((a: any) => a.entry_id === kade.id && a.slot === 'voice'),
     'and a room given as a bare string still lands');
   ok('a list of cards lands, and a loose shape is repaired rather than refused');
 }

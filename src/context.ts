@@ -269,20 +269,12 @@ const live = (a: Addon, at: number) =>
  *  relationship fires on a rule a character would not. */
 const rooms = (e: Entry, at: number, window: string): string[] =>
   (e.addons ?? [])
-    // FACTS FIRST. It is the room that holds what does not change — the half that used to live in
-    // the body and get overwritten by a chapter-end state — so it reads directly under the body it
-    // is protecting, before the rooms that describe a moment. Everything else keeps the order the
-    // view gave it, which is by slot and then by age.
-    .slice().sort((a, b) => Number(b.slot === 'facts') - Number(a.slot === 'facts'))
+    // ALWAYS TRUE IS NOT A POCKET (#77, ADR 0005). It is stored as the `facts` addon and read by
+    // `alwaysTrue` below, ahead of everything; every other room keeps the order the view gave it.
+    .filter((a) => a.slot !== 'facts')
     .filter((a) => live(a, at))
     .filter((a) => a.active || fires({ ...e, keys: a.keys ?? [] }, window).length)
     .map((a) => {
-      // FACTS READS BARE, AND IS THEREFORE FIRST — it is the one room that keeps its own brackets,
-      // because a facts body IS the card format (`[Seth: protagonist…]`, `[Location: gray
-      // apartment…]`). Every other room is wrapped by the branches below, so it is unwrapped once
-      // here rather than per branch.
-      if (a.slot === 'facts') return a.body.trim();
-
       const who = (e.title || '').trim();
       // ONE STRIP FOR EVERY WRAPPED ROOM. 43 of the live library's non-facts rooms are stored as
       // `[short sentences; …]` — that is the form `src/forge.ts` teaches a foreign model to write a
@@ -399,8 +391,15 @@ export function resolveBody(e: Entry, chapter: number): string {
  *
  *  With no window, only rooms that are switched ON are included; pass the chapter's text and rooms
  *  whose keys fire come too, which is what the prompt builder wants and a cast list does not. */
+/** #77 · WHO OR WHAT THE THREAD IS, which does not change through the tale (ADR 0005). Stored as the
+ *  `facts` addon, so this is the one reader of it as Always true. It reads BARE: a facts body IS the
+ *  card format (`[Seth: protagonist…]`), and wrapping it once produced `[You: [You: …]]`. Not
+ *  switched or woken like a pocket: a thread's Always true goes wherever the thread goes. */
+export const alwaysTrue = (e: Entry): string =>
+  ((e.addons ?? []).find((a) => a.slot === 'facts')?.body ?? '').trim();
+
 export const cardText = (e: Entry, at: number, window = '') =>
-  [resolveBody(e, at), ...rooms(e, at, window)].map((x) => x.trim()).filter(Boolean).join('\n');
+  [alwaysTrue(e), resolveBody(e, at), ...rooms(e, at, window)].map((x) => x.trim()).filter(Boolean).join('\n');
 
 // The proximity bound is BUILT (2026-08-25) — see `fires` below. The marker that stood here said
 // to build it "when a real ledger actually false-fires", and COUNCIL-04 recorded two, from a

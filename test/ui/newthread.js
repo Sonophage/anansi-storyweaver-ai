@@ -148,7 +148,8 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   const pasted = (await story(sid)).entries.find((e) => e.title === 'The Tide Book');
   ok(`a pasted thread is read in as it is, pocket and all (${JSON.stringify(pasted && [pasted.entryType, pasted.activation, (pasted.addons || []).map((a) => a.slot)])})`,
      !!pasted && pasted.entryType === 'item' && pasted.activation === 'triggered'
-       && (pasted.addons || []).some((a) => a.slot === 'provenance'));
+       // #77. Provenance is part of Always true now, under the pocket's own name.
+       && (pasted.addons || []).some((a) => a.slot === 'facts' && /\[Where it came from: bound in sailcloth\]/.test(a.body)));
   ok("  and opens on its Read screen", (await where()).read && !(await where()).add);
 
   // ---- A name with nothing typed is still a thread to write

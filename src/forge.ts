@@ -36,8 +36,6 @@ import { LEDGER_REGISTER } from './prompts.ts';
 export const ROOM_MEANING: Record<string, string> = {
   facts:         'What is true of them for the whole book and does not change: age, trade, the scar. '
                + 'This room exists because the body gets rewritten at chapter end and this does not.',
-  role:          'What they are IN THIS STORY, not who they are in general — the employer, the one '
-               + 'who pays late, the person the debt is owed to.',
   appearance:    'How they look NOW, at the point the book has reached. Not a portrait: the two or '
                + 'three things another character would notice across a room.',
   outfit:        'What they have on. One outfit at a time; give it a name a writer would recognise '
@@ -48,15 +46,11 @@ export const ROOM_MEANING: Record<string, string> = {
                + 'room per relationship; do not put three people in one.',
   voice:         'How they SOUND: sentence length, what they never do, how they answer a question '
                + 'they do not want. Not their accent written out phonetically.',
-  history:       'What has already happened to them, before the book opens or during it. The room '
-               + 'that holds a burned building or a lost year.',
   atmosphere:    'What the place is like right now — light, weather, sound, what it smells of. The '
                + 'room that changes when the season does.',
   who_is_here:   'Who you find there, and in what capacity. Names if you have them, roles if not.',
-  provenance:    'Where it came from and how it got here. Who made it, who owned it before.',
   what_it_does:  'What it does, exactly, and what it does not do. A key that opens one door says '
                + 'which door.',
-  scope:         'Who or what the rule covers, and where it stops. The edge is the useful half.',
   consequences:  'What breaking it costs, and who collects.',
 };
 
@@ -113,7 +107,6 @@ const CHARACTER_EXAMPLE = `{
   "activation": "always_on",
   "rooms": {
     "facts": { "name": "What is always true", "body": "[fifty-one; moneylender out of the Ambersand; left-handed; keeps the ledger himself and lets nobody else write in it]" },
-    "role": { "name": "The creditor", "body": "[the one the debt is owed to; the reason the book has a clock in it]" },
     "voice": { "name": "How he sounds", "body": "[short sentences; never raises it; answers a question with a question; says a debtor's full name every time]" },
     "relationships": { "name": "Him and Aldis Fen", "body": "[eleven crowns, three seasons overdue; knew his father; has not yet asked for the key and both of them know it]" }
   }
@@ -128,8 +121,7 @@ const LOCATION_EXAMPLE = `{
   "rooms": {
     "facts": { "name": "What is always true", "body": "[built on piles over the old dock; the lower archive floods twice a winter; one door, watched]" },
     "atmosphere": { "name": "What it is like now", "body": "[lamps out along the bank; wet stone; nobody about after the bell]" },
-    "who_is_here": { "name": "Who you find there", "body": "[the porter; Marek on the second floor; whoever is owed money that week]" },
-    "history": { "name": "What it has been through", "body": "[burned in the spring and rebuilt wrong; the new stair does not reach the top floor]" }
+    "who_is_here": { "name": "Who you find there", "body": "[the porter; Marek on the second floor; whoever is owed money that week]" }
   }
 }`;
 

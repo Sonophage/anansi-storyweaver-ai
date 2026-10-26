@@ -27,32 +27,43 @@ export type EntryKind = 'character' | 'lore' | 'item' | 'rule';
 export const SLOTS: Record<EntryKind, { name: string; exclusive: boolean }[]> = {
   character: [
     { name: 'facts',         exclusive: true  },
-    { name: 'role',          exclusive: true  },
     { name: 'appearance',    exclusive: true  },
     { name: 'outfit',        exclusive: true  },
     { name: 'interiority',   exclusive: false },
     { name: 'relationships', exclusive: false },
     { name: 'voice',         exclusive: true  },
-    { name: 'history',       exclusive: false },
   ],
   lore: [
     { name: 'facts',         exclusive: true  },
     { name: 'appearance',    exclusive: true  },
     { name: 'atmosphere',    exclusive: false },
     { name: 'who_is_here',   exclusive: false },
-    { name: 'history',       exclusive: false },
   ],
   item: [
     { name: 'facts',         exclusive: true  },
     { name: 'appearance',    exclusive: true  },
-    { name: 'provenance',    exclusive: false },
     { name: 'what_it_does',  exclusive: false },
   ],
   rule: [
     { name: 'facts',         exclusive: true  },
-    { name: 'scope',         exclusive: false },
     { name: 'consequences',  exclusive: false },
   ],
+};
+
+/** #77 · THE POCKETS THAT BECAME ALWAYS TRUE (ADR 0005, Seth 2026-10-26). Role, provenance and scope
+ *  are what a thread IS, and history is mostly what it was before the tale opens, so each is now
+ *  appended to Always true under its label and is no longer a pocket. Kept as a list because the
+ *  update and a pasted card both fold them, and the two must agree on which. */
+export const FOLDED = ['history', 'provenance', 'role', 'scope'];
+/** One folded pocket as a line of Always true: `[Role: the one Aldis owes]`. The writer's own name
+ *  for it wins over the slot's, unless it only repeats the slot or the thread's title. */
+export const foldLine = (slot: string, name: string, body: string, title = '') => {
+  const raw = String(body ?? '').trim();
+  const inner = raw.startsWith('[') && raw.indexOf(']') === raw.length - 1 ? raw.slice(1, -1).trim() : raw;
+  const own = String(name ?? '').trim();
+  const label = own && own.toLowerCase() !== slot && own.toLowerCase() !== String(title).trim().toLowerCase()
+    ? own : slot[0].toUpperCase() + slot.slice(1);
+  return `[${label}: ${inner}]`;
 };
 
 /** WHAT `facts` IS FOR, because it is the one slot whose reason is a defect rather than a subject.
@@ -68,10 +79,8 @@ export const SLOTS: Record<EntryKind, { name: string; exclusive: boolean }[]> = 
  *  missing was a room MEANT for the permanent half, so the facts stop being written into the one
  *  place that gets overwritten.
  *
- *  Exclusive on every kind: a card has one set of things that are true about it. `role` is the same
- *  shape and is a character's function in the story — protagonist, employer, handler — which 9% of
- *  the live library writes into the first clause of the body today. `history` reaches characters
- *  now as well as places: 10% of character bodies carry backstory, and only places had a room. */
+ *  Exclusive on every kind: a card has one set of things that are true about it. On screen it is
+ *  Always true (#77), and it is not a pocket: `context.alwaysTrue` reads it first and always. */
 
 /** Every slot name in the app, deduplicated. The partial unique index that enforces exclusivity
  *  has to name its slots as a literal list, so `test/db.ts` asserts the index and this agree —

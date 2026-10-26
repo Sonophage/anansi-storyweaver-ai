@@ -6,7 +6,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
-import { ALL_SLOTS, slotsFor, SLOTS } from './slots.ts';
+import { ALL_SLOTS, slotsFor, SLOTS, FOLDED, foldLine } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultModePrompts, trimToSentence,
@@ -1484,6 +1484,21 @@ function writeRooms(storyId: string, entryId: string, kind: string, rooms: any, 
   const notes: string[] = [];
   let made = 0;
   const here = slotsFor(kind).map((sl) => sl.name);
+  // #77. ROLE, PROVENANCE, SCOPE AND HISTORY ARE NOT POCKETS, but a pasted card or a pulled one may
+  // still carry them, and dropping them would lose text the writer chose. They are folded into
+  // Always true under their labels, as the update folded the library's own (`slots.FOLDED`).
+  const folded = Object.entries(rooms ?? {}).filter(([slot]) => FOLDED.includes(slot))
+    .map(([slot, val]: [string, any]) => {
+      const o: any = (val && typeof val === 'object') ? val : { body: String(val ?? '') };
+      return String(o.body ?? '').trim() ? foldLine(slot, String(o.name ?? ''), String(o.body), label) : '';
+    }).filter(Boolean);
+  if (folded.length) {
+    const facts: any = (rooms as any).facts;
+    const own = String((facts && typeof facts === 'object') ? facts.body ?? '' : facts ?? '').trim();
+    rooms = { ...rooms, facts: { ...(facts && typeof facts === 'object' ? facts : {}),
+      body: [own && (own.startsWith('[') ? own : `[${own}]`), ...folded].filter(Boolean).join('\n') } };
+    for (const slot of FOLDED) delete (rooms as any)[slot];
+  }
   for (const [slot, val] of Object.entries(rooms ?? {})) {
     if (!here.includes(slot)) {
       notes.push(`"${label}" offered a "${slot}" — a ${kind} has no such pocket, so it was left out.`);
@@ -3897,6 +3912,20 @@ export const routes: Record<string, Handler> = {
         // rides in `keys`, which is the only field on a proposal with room for it.
         db.upsertString(p.story_id, { title: p.title, body: c.body.body ?? p.body,
           fromChapter: Number(JSON.parse(p.keys || '[]')[0]) || null });
+      } else if (c.body.accept && target === 'room:facts') {
+        // #77 · THE LOCK (ADR 0005). Always true of a thread that exists is the writer's alone, so a
+        // chalked change aimed at it — the finder still calls permanent things "facts" — is sewn in
+        // as an Over time entry from its scene instead. The entry is WHOLE, as every Over time entry
+        // is: where the thread stood there, then the change, because the model reads only the one
+        // in force. A closed scene's change is in force from the next one, as the memory pass has it.
+        // Here, on accept, because every chalked thing reaches the tale through this one press.
+        const v = bookOf(p.story_id);
+        const e = v?.entries.find((x: any) => x.id === p.entry_id);
+        const ch = v?.chapters.find((x: any) => x.id === p.chapter_id);
+        const from = ch ? ch.index + (ch.status === 'closed' ? 1 : 0) : (v?.currentChapter?.index ?? 1);
+        if (e) db.upsertState(p.story_id, e.id, { fromChapter: from,
+          body: [resolveBody(e, from).trim(), String(c.body.body ?? p.body).trim()].filter(Boolean).join('\n'),
+          label: p.delta || null, beforeMode: 'hide' });
       } else if (c.body.accept && target.startsWith('room:')) {
         // PLAN-08 Phase 4. THE ROOM, NOT THE WHOLE CARD. `proposals.field` has been written since
         // Phase 2 and read by nothing, so every accepted change rewrote the entire body — which is

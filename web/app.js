@@ -2381,7 +2381,10 @@ function proposalCard(p) {
   // enforces. A kind with no slots yields no select.
   const onto = p.entryId ? (V.entries ?? []).find((x) => x.id === p.entryId) : null;
   const canMove = !!onto && !['retire', 'state', 'string'].includes(p.entryType);
-  const rooms = canMove ? (V.slots?.[onto.entryType] ?? []).map((sl) => sl.name) : [];
+  // NOT ALWAYS TRUE (#77): on a thread that exists only the writer changes it, and the server sews a
+  // change aimed at it in as an Over time entry, so offering it here would offer the one place it
+  // cannot land.
+  const rooms = canMove ? (V.slots?.[onto.entryType] ?? []).map((sl) => sl.name).filter((n) => n !== 'facts') : [];
   const where = p.entryType === 'retire'
     ? `Retired at scene ${esc(String(at))}: it stops reaching the model there. Every scene before it
        still has it, and it can be brought back.`
@@ -2496,7 +2499,7 @@ function ritualPanel() {
       closed ? ' &middot; hemmed' : ''}</div>
     <div style="font-size:12.5px; line-height:1.55; color:var(--mute); margin:6px 0 18px">${closed
       ? 'What hemming it found. All of it is basted: nothing is in the tale until you sew it in, on the Workbench.'
-      : `Hemming a scene summarises it, reads it for new facts, notes what it did to the people
+      : `Hemming a scene summarises it, reads it for new threads, notes what it did to the people
          in it, and asks which threads it is done with. Everything it finds is basted &mdash; tacked
          on loosely &mdash; and nothing is in the tale until you sew it in.`}</div>
 
@@ -2535,7 +2538,7 @@ function ritualPanel() {
         : 'Nothing changed anybody')}
 
     ${line(facts.length ? '--good' : '--chip',
-      facts.length ? `Read for facts — ${plural(facts.length, 'basted', 'basted')}`
+      facts.length ? `Read for threads — ${plural(facts.length, 'basted', 'basted')}`
         : 'No new threads came out of this scene')}
 
     ${line(of('retire').length ? '--warn' : '--chip',
@@ -2564,7 +2567,7 @@ function ritualPanel() {
     <div style="display:flex; flex-wrap:wrap; gap:6px">
       <button class="btn ghost" data-summarize="1" style="flex:1 1 40%">Summary</button>
       <button class="btn ghost" data-remember="1" style="flex:1 1 40%">Changes</button>
-      <button class="btn ghost" data-extract="1" style="flex:1 1 40%">Facts</button>
+      <button class="btn ghost" data-extract="1" style="flex:1 1 40%">Threads</button>
       <button class="btn ghost" data-refinished="1" style="flex:1 1 40%">Threads to retire</button>
     </div>` : ''}
 
@@ -3304,7 +3307,7 @@ const PANELS = {
             card('search', S.webPulling ? 'Looking it up&hellip;' : 'Look it up online',
               searchable ? 'Uses the name you typed' : 'Searching the web is not switched on here')}</button>
           <button class="letcard" data-loreread="1" ${V.currentChapter ? '' : 'disabled'}>${
-            card('book', 'Read the scene', `Pull facts from ${esc(sceneName(V.currentChapter))} into threads`)}</button>
+            card('book', 'Read the scene', `Find new threads in ${esc(sceneName(V.currentChapter))}`)}</button>
         </div>
         <label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12px; color:${
           searchable ? 'var(--mute)' : 'var(--faint)'}">
@@ -3996,13 +3999,13 @@ const PANELS = {
                style="flex:1; margin:0">Sew in all ${shown.length}</button>${
                tipMark('chAddAll', 'Sew in all of them')}</div>` : ''}
       ${shown.map(proposalCard).join('') || `<div class="hint" style="margin:0">${
-        ps.length ? 'Nothing of that kind.' : 'Nothing basted. Hemming a scene reads it for new facts and for what it did to the people in it.'}</div>`}
+        ps.length ? 'Nothing of that kind.' : 'Nothing basted. Hemming a scene reads it for new threads and for what it did to the people in it.'}</div>`}
       ${(V.proposals ?? []).some((p) => p.entryType === 'string')
         ? `<button class="btn ghost" data-panel="strings" style="margin-top:6px">${
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length} string${
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length === 1 ? '' : 's'
           } basted &mdash; they wait under Strings</button>` : ''}
-      <button class="btn ghost" data-extract="1" style="margin-top:6px">Read this scene for facts</button>
+      <button class="btn ghost" data-extract="1" style="margin-top:6px">Read this scene for threads</button>
       <!-- POST /api/remember was finished, tested, and reachable from nowhere until 2026-08-27.
            Closing a chapter runs it; this is the way back when the router was down at the time,
            which is the one case the route was written for. -->
@@ -5338,7 +5341,7 @@ const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next scene'], [
  *  for; one whose value is null ran; one with a string failed and the string is why.
  */
 const PASSES = [['summary', 'the summary'], ['memory', 'the character memory'],
-                ['facts', 'the facts pass'], ['finished', 'the scan for threads to retire']];
+                ['facts', 'the threads pass'], ['finished', 'the scan for threads to retire']];
 
 /** Which of them did not run, in the order they run in. Empty when everything ran, which is the
  *  normal case — so every caller can treat length as "is there anything to say". */
@@ -5750,7 +5753,6 @@ const outfitOwner = () => S.entryId || null;
  *  copy in here is the drift that module exists to stop. */
 const SLOT_HINT = {
   facts:         ['[What is always true]', '[Halloran: forty, a clerk, two fingers gone from the left hand]'],
-  role:          ['[What they are in this tale]', '[the employer, and the one who pays late]'],
   outfit:        ['[Borrowed Sleepwear]', '[wearing: oversized black sweatpants, faded white t-shirt]'],
   appearance:    ['[As she is now]', '[grey at the temple, the limp worse in the cold]'],
   interiority:   ['[What she will not say]', '[will not cross the bridge at night, and says so to nobody]'],
@@ -5758,13 +5760,11 @@ const SLOT_HINT = {
   voice:         ['[How she sounds]', '[short sentences, never raises it, answers a question with a question]'],
   atmosphere:    ['[What it is like now]', '[lamps out along the bank, wet stone, nobody about]'],
   who_is_here:   ['[Who you find there]', '[the porter, and whoever is owed money that week]'],
-  history:       ['[What it has been through]', '[burned in the spring and rebuilt wrong]'],
-  provenance:    ['[Where it came from]', '[cut from a saddle girth, and it shows]'],
   what_it_does:  ['[What it does]', '[opens the lower records vault and nothing else]'],
-  scope:         ['[What it covers]', '[everyone inside the walls, and nobody on the water]'],
   consequences:  ['[What breaking it costs]', '[the Watch cuts off a hand, or calls in the debt]'],
 };
-const slotLabel = (slot) => String(slot).replace(/_/g, ' ');
+// The `facts` slot is ALWAYS TRUE on every screen (#77, ADR 0005); the code keeps its name.
+const slotLabel = (slot) => (slot === 'facts' ? 'always true' : String(slot).replace(/_/g, ' '));
 /** A pocket's name as a heading or a chip: capitalised, not the raw key (usability check). */
 const pocketTitle = (slot) => { const l = slotLabel(slot); return l.charAt(0).toUpperCase() + l.slice(1); };
 /*  openMine: whether the fields start unfolded. In the card's add tray you arrive having opened a
@@ -6045,6 +6045,10 @@ function cardFace(e, slots) {
         the shared thread. Pockets written here stay here &mdash; send the whole thread across
         instead if they matter.</p>`)}
     </div>` : ''}
+    ${/* ALWAYS TRUE FIRST (#77): who or what it is, above where it stands. */
+      rooms.some((a) => a.slot === 'facts') ? `<div class="lbl" style="letter-spacing:.1em; margin:4px 0 4px">Always true</div>
+    <button class="readbody" data-cardview="form" aria-label="Alter what is always true of ${esc(e.title)}">${
+      esc(rooms.filter((a) => a.slot === 'facts').map((a) => unbracket(a.body, e.title)).join('\n'))}</button>` : ''}
     <button class="readbody" data-cardview="form" aria-label="Alter what ${esc(e.title)} says">${
       esc(unbracket(e.body, e.title) || 'Nothing written down yet.')}</button>
     <!-- #22 §6. WHAT IS ON, THEN WHAT IS NOT. Seth: "after the name comes the body, after the body
@@ -6056,7 +6060,7 @@ function cardFace(e, slots) {
          should land; a slot with nothing on carries it on its heading in the second section, so
          every jump still resolves. -->
     ${(() => {
-      const group = (live) => shown.map((sl) => {
+      const group = (live) => shown.filter((sl) => sl.name !== 'facts').map((sl) => {
         const mine = rooms.filter((a) => a.slot === sl.name && !!a.active === live);
         if (!mine.length) return '';
         const anchorHere = live || !rooms.some((a) => a.slot === sl.name && a.active);
@@ -6075,7 +6079,7 @@ function cardFace(e, slots) {
         <div class="hint" style="margin:0 0 4px">Written down, and not reaching the model &mdash;
           either switched off, or until one of its wake words appears.</div>${off}` : ''}`;
     })()}
-    ${shown.length ? '' : '<div class="hint" style="margin-top:18px">No pockets filled in yet. Add one, or have Anansi fill some in.</div>'}
+    ${pockets ? '' : '<div class="hint" style="margin-top:18px">No pockets filled in yet. Add one, or have Anansi fill some in.</div>'}
     <!-- ADDING ONE IS THE FORM'S POCKETS TAB, which holds the add tray and Anansi filling them. -->
     <button class="btn ghost" data-readgo="rooms" style="margin-top:18px">+ Add a pocket</button>
   </div>`;
@@ -6149,6 +6153,20 @@ function roomSection(e, sl, live = null, anchor = true) {
   const mine = (e.addons ?? []).filter((a) => a.slot === sl.name
     && (live === null || !!a.active === live));
   if (!mine.length) return '';
+  // ALWAYS TRUE IS NOT A POCKET (#77): no switch, no wake words and no name, because it is sent
+  // whenever the thread is. Only its text, which is the writer's and which Anansi never changes.
+  if (sl.name === 'facts') return `
+    <div ${anchor ? 'data-slotat="facts"' : ''} class="lbl" style="letter-spacing:.1em; margin-top:20px">Always true</div>
+    <div class="hint" style="margin:0 0 6px">Who or what it is, for the whole tale. Anansi never changes it.</div>
+    ${mine.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px">
+      <textarea class="field grow" data-ab="${esc(a.id)}" aria-label="What is always true of ${esc(e.title)}"
+        style="margin:0; min-height:52px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(a.body)}</textarea>
+      <div style="display:flex; gap:7px; justify-content:flex-end">
+        <button data-deladdon="${esc(a.id)}" style="color:var(--bad); font-size:12px; margin-right:auto"
+          aria-label="Remove what is always true">&#10005;</button>
+        <button class="btn ghost" data-saveaddon="${esc(a.id)}"
+          style="flex:0 0 auto; width:auto; padding:12px 20px">Save</button></div>
+    </div>`).join('')}`;
   return `
     <div ${anchor ? `data-slotat="${esc(sl.name)}"` : ''} class="lbl" style="letter-spacing:.1em; margin-top:20px">${
       esc(pocketTitle(sl.name))}${sl.exclusive ? ' <span style="opacity:.5">(one at a time)</span>' : ''}</div>
@@ -6197,7 +6215,8 @@ function addTray(e, slots) {
   return `<details class="fold" ${S.newRoom ? 'open' : ''} style="margin:0 0 6px">
     <summary>Add to this thread</summary>
     <div style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 0">
-      ${slots.map((sl) => {
+      ${/* One Always true per thread (#77): offered here only while the thread has none. */
+        slots.filter((sl) => sl.name !== 'facts' || !(e.addons ?? []).some((a) => a.slot === 'facts')).map((sl) => {
         const on = S.newRoom === sl.name;
         return `<button data-newroom="${esc(sl.name)}" style="flex:1 1 30%; text-align:center;
           font-size:11.5px; padding:8px 4px; border-radius:var(--r);
@@ -6922,8 +6941,9 @@ function inContext(e, pin, mani = manifestNow()) {
  *  ONE FUNCTION for both cards that show it, the cross-book page's and the tale's list. */
 function threadPreview(e) {
   const rooms = e.addons ?? [];
-  return (e.body ?? '').trim()
-    || rooms.find((a) => a.slot === 'facts')?.body?.trim()
+  // ALWAYS TRUE FIRST (#77): who or what the thread is, which is what a list of threads is read for.
+  return rooms.find((a) => a.slot === 'facts')?.body?.trim()
+    || (e.body ?? '').trim()
     || rooms.find((a) => a.active)?.body?.trim()
     || rooms[0]?.body?.trim() || '';
 }
@@ -10208,7 +10228,7 @@ document.addEventListener('click', async (e) => {
   if (d.loreread) {
     // The ritual's third step, reachable without ending the chapter — "scan what we have".
     working('reroll');
-    toast('Reading this scene for facts…');
+    toast('Reading this scene for threads…');
     const x = await api.extract(S.storyId, V.currentChapter.id);
     working(null);
     if (x.error) return toast(x.error);
@@ -11379,7 +11399,7 @@ document.addEventListener('click', async (e) => {
       S.confirmEnd = true;
       const lbl = t.querySelector('.lbl-txt'), was = lbl?.textContent;
       if (lbl) lbl.textContent = 'Press again';
-      toast('Press again to hem this scene — it summarises it, reads it for facts and opens the next.');
+      toast('Press again to hem this scene — it summarises it, reads it for new threads and opens the next.');
       setTimeout(() => { if (S.confirmEnd) { S.confirmEnd = false; if (lbl) lbl.textContent = was; } }, 4000);
       return;
     }

@@ -1798,6 +1798,21 @@ ok('a card with no body renders its facts bare, with no empty bracket left behin
   assert.doesNotMatch(out, /\n\n\n/, 'and no gap left by the missing body');
 });
 
+// #77. ALWAYS TRUE FIRST, AND ALWAYS. Who the thread is reads before where it stands, and it is not
+// a pocket that can be switched off: a thread whose Always true was off on update day still sends it.
+ok('Always true reads first, above the text in force, and is sent even when its switch was off', () => {
+  const b = base();
+  const out = render(buildContext({ ...b,
+    entries: [{ id: 'e1', title: 'Aldis Fen', body: '[Aldis Fen: owes Marek eleven crowns]', entryType: 'character',
+                activation: 'always_on', keys: [],
+                addons: [{ id: 'a1', slot: 'facts', name: 'facts', active: 0, keys: [],
+                           body: '[Aldis Fen: 34, ex-Watch sergeant]' }] }],
+  } as any, count));
+  const at = out.indexOf('34, ex-Watch sergeant'), now = out.indexOf('owes Marek eleven crowns');
+  assert.ok(at >= 0, 'ALWAYS-SENT: Always true reaches the model with its old switch off');
+  assert.ok(now > at, `ALWAYS-FIRST: and reads above the text in force (${at} / ${now})`);
+});
+
 /* #56 · WHEN WEAVING DOES NOT FIT. A weaving call reserves 5,000 more tokens for the plan, so its
  * budget is smaller, and the engine's ceilings then drop more of the book. The fit check compares the
  * two assemblies — the normal reserve and the weaving one — and refuses when a block the normal

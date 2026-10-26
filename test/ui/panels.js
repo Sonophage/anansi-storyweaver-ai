@@ -1246,35 +1246,42 @@ ok(`  named for the character it dresses`,
   // pill sitting in a hidden pane.
   for (let i = 0; i < 40 && !(await page.visible('[data-cardtab="rooms"]')); i++) await wait(250);
   await page.click('[data-cardtab="rooms"]');
-  for (let i = 0; i < 40 && !(await page.visible('[data-newroom="role"]')); i++) await wait(250);
-  const tray = await page.eval(`(() => { const b = document.querySelector('[data-newroom="role"]');
+  // #77. ROLE FOLDED INTO ALWAYS TRUE and is not a pocket, so the pill under test is the first
+  // pocket this thread has never filled, read off the view rather than written down here.
+  const view = await page.eval(`(async () => JSON.stringify((await (await fetch('/api/story?story=${sid3}')).json()).slots.character.map((x) => x.name)))()`).then(JSON.parse);
+  const have = new Set(await page.eval(`(async () => JSON.stringify((await (await fetch('/api/story?story=${sid3}')).json())
+    .entries.find((e) => e.id === ${JSON.stringify(who.id)}).addons.map((a) => a.slot)))()`).then(JSON.parse));
+  const empty = view.find((n) => !have.has(n) && n !== 'facts' && n !== 'outfit');
+  const expectPills = view.filter((n) => n !== 'facts' || !have.has('facts')).length;
+  for (let i = 0; i < 40 && !(await page.visible(`[data-newroom="${empty}"]`)); i++) await wait(250);
+  const tray = await page.eval(`(() => { const b = document.querySelector('[data-newroom="${empty}"]');
     const d = b && b.closest('details');
     return { pill: !!b, open: d ? d.open : null,
       says: (d?.querySelector('summary')?.textContent || '').trim(),
       pills: document.querySelectorAll('[data-newroom]').length }; })()`);
   console.log("  add tray: " + JSON.stringify(tray));
   ok(`the form offers one add tray with a pill per room (${tray.pills})`,
-     tray.pill === true && tray.pills === 8);
+     tray.pill === true && tray.pills === expectPills);
   ok(`  shut when the form opens, and it says what it is ("${tray.says}")`,
      tray.open === false && /add to this thread/i.test(tray.says));
   // Falsify by defaulting S.newRoom to a slot: the box appears with nothing pressed and this reds.
   const box = () => page.eval(`document.querySelectorAll('[data-of="name"]').length`);
   ok(`  and nothing is selected, so there is no box yet (${await box()})`, (await box()) === 0);
-  // An empty room draws NOTHING in the form now. `role` is a slot this character has never filled,
+  // An empty room draws NOTHING in the form now. `empty` is a slot this character has never filled,
   // so a heading for it is the eight-empty-headings problem still being there.
   ok('  an empty room draws no heading in the form at all',
-     (await page.eval(`!document.querySelector('[data-slotat="role"]')`)) === true);
+     (await page.eval(`!document.querySelector('[data-slotat="${empty}"]')`)) === true);
   // THE TRAY IS SHUT BY DEFAULT, so the pills are in the document and not reachable by a click
   // until it is opened — which is the two presses a writer makes and not a workaround for one.
   await page.eval(`(() => { const d = document.querySelector('[data-newroom]')?.closest('details');
     if (d) d.open = true; return 1; })()`);
   await wait(250);
-  await page.click('[data-newroom="role"]');
+  await page.click(`[data-newroom="${empty}"]`);
   await wait(400);
   ok(`  pressing a pill opens the one set of fields (${await box()})`, (await box()) === 1);
   ok('  and the tray is open around them',
-     (await page.eval(`document.querySelector('[data-newroom="role"]').closest('details').open`)) === true);
-  await page.click('[data-newroom="role"]');
+     (await page.eval(`document.querySelector('[data-newroom="${empty}"]').closest('details').open`)) === true);
+  await page.click(`[data-newroom="${empty}"]`);
   await wait(400);
   ok(`  pressing it again puts it away (${await box()})`, (await box()) === 0);
 }

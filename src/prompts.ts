@@ -80,9 +80,9 @@ export const EXTRACT_SCHEMA = {
           // read alongside a log of the calls — `src/routes.ts` checks the answer against
           // `slotsFor(kind)` anyway, so a slot this kind does not have is refused at the door.
           field: { type: 'string',
-                   enum: ['none', 'appearance', 'atmosphere', 'consequences', 'facts', 'history',
-                          'interiority', 'outfit', 'provenance', 'relationships', 'role',
-                          'scope', 'voice', 'what_it_does', 'who_is_here'] },
+                   enum: ['none', 'appearance', 'atmosphere', 'consequences', 'facts',
+                          'interiority', 'outfit', 'relationships',
+                          'voice', 'what_it_does', 'who_is_here'] },
         },
         required: ['title', 'type', 'body', 'keys', 'activation', 'field'],
       },
@@ -113,8 +113,6 @@ Most changes belong in one room of the card, and the field value names which:
   interiority    what they think, fear or want
   relationships  one relationship, and only that one
   voice          how they sound
-  history        what they have been through
-  role           their part in the story, if that is what changed
   facts          something permanent about them that is now established
 
 For those, the body is JUST THAT ROOM — that one thing and nothing else — and everything else
@@ -154,8 +152,8 @@ export const MEMORY_SCHEMA = {
           // done; a room name is the change landing in one part of the card and leaving the rest
           // alone. Required, so the model answers rather than letting the caller assume.
           field: { type: 'string',
-                   enum: ['none', 'appearance', 'facts', 'history', 'interiority',
-                          'relationships', 'role', 'voice'] },
+                   enum: ['none', 'appearance', 'facts', 'interiority',
+                          'relationships', 'voice'] },
         },
         required: ['name', 'body', 'label', 'field'],
       },
@@ -1399,11 +1397,8 @@ You may also offer, when the writer's message calls for it and not otherwise:
 
     appearance     how they look          interiority    what they think, fear or want
     voice          how they sound         relationships  one relationship, and only that one
-    history        what they have been through
-    role           their part in the story
     facts          something permanent and unchanging — a birth year, a handedness
-    atmosphere / who_is_here / scope / consequences / provenance / what_it_does — for places,
-    rules and objects
+    atmosphere / who_is_here / consequences / what_it_does — for places, rules and objects
 
   Then the body is JUST THAT ROOM: that one thing and nothing else.
 
@@ -1568,9 +1563,9 @@ export const TALK_SCHEMA = {
           // accepting one replaced the card's whole description. `roomAsked` in `src/routes.ts`
           // refuses a slot this card's kind does not have; the enum cannot say "per kind".
           field: { type: 'string',
-                   enum: ['none', 'appearance', 'atmosphere', 'consequences', 'facts', 'history',
-                          'interiority', 'outfit', 'provenance', 'relationships', 'role',
-                          'scope', 'voice', 'what_it_does', 'who_is_here'] },
+                   enum: ['none', 'appearance', 'atmosphere', 'consequences', 'facts',
+                          'interiority', 'outfit', 'relationships',
+                          'voice', 'what_it_does', 'who_is_here'] },
         },
         required: ['title', 'type', 'body', 'keys', 'field'],
       },

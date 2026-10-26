@@ -2050,8 +2050,11 @@ async function bootServer(port: number, env: Record<string, string>) {
   const card: any = db.entriesOf(st.id).find((e: any) => e.title === 'Ferrus Manus');
   assert.ok(card, 'accepting writes the card');
   const rooms = (db.addonsOf(st.id) as any[]).filter((a) => a.entry_id === card.id);
-  assert.deepStrictEqual(rooms.map((a) => a.slot).sort(), ['appearance', 'history'],
-    'and both rooms it arrived with, and only those');
+  // #77. HISTORY IS NOT A POCKET ANY MORE: it arrives folded into Always true, under its label.
+  assert.deepStrictEqual(rooms.map((a) => a.slot).sort(), ['appearance', 'facts'],
+    'and both rooms it arrived with, history folded into Always true');
+  assert.match(rooms.find((a) => a.slot === 'facts').body, /^\[History: Raised on Medusa, later known as the Headless\]$/,
+    'FOLD-PULLED: a pulled card\'s history lands in Always true under its label');
   assert.match(rooms.find((a) => a.slot === 'appearance').body, /living metal/,
     'with the text the pull found');
   // AND SWITCHED ON. A room with no trigger words that nobody pinned reaches no prompt at all —
@@ -2059,6 +2062,20 @@ async function bootServer(port: number, env: Record<string, string>) {
   // so without this it would sit on the card looking filled in and be invisible to every call.
   assert.deepStrictEqual(rooms.map((a) => !!a.active), [true, true],
     'and both are on, or the card looks filled in and reaches the model with none of it');
+  // #77 · THE LOCK. A chalked change to Always true of a thread that ALREADY EXISTS is sewn in as an
+  // Over time entry from its scene, carrying forward where the thread stood; Always true is not touched.
+  db.addProposal(st.id, { chapterId: chapter, kind: 'update', entryType: 'character', entry_id: card.id,
+    title: 'Ferrus Manus', body: '[left-handed]', field: 'facts', keys: [], delta: 'left-handed' });
+  const lock: any = db.proposalsOf(st.id).find((x: any) => x.field === 'facts' && x.status === 'open');
+  await routes['POST /api/proposal'](ctxI(alice, { storyId: st.id, id: lock.id, accept: true }));
+  const after = (db.addonsOf(st.id) as any[]).find((a) => a.entry_id === card.id && a.slot === 'facts');
+  assert.match(after.body, /^\[History: Raised on Medusa/, 'LOCK-UNTOUCHED: Always true is not rewritten by a chalked change');
+  assert.doesNotMatch(after.body, /left-handed/, '  and the change is not appended to it either');
+  const st8: any[] = db.statesForStory(st.id).get(card.id) ?? [];
+  assert.strictEqual(st8.length, 1, 'LOCK-OVER-TIME: it is an Over time entry instead');
+  assert.match(st8[0].body, /Primarch of the Iron Hands[\s\S]*left-handed/,
+    '  carrying forward where the thread stood, with the change after it');
+  assert.strictEqual(st8[0].label, 'left-handed', '  labelled with what changed');
   assert.strictEqual((db.proposal(st.id, pp.id) as any).status, 'accepted',
     'and the proposal is closed, which a mid-accept throw would have left open');
   db.delStory(st.id);
