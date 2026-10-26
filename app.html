@@ -1648,8 +1648,14 @@ textarea.field { resize:vertical; min-height:70px; }
 .rerollbox .rwquote { font-size:17px; font-style:italic; color:var(--narr); line-height:1.45; }
 .rerollbox .rwrow { flex:1; min-height:0; width:100%; max-width:var(--col); margin:0 auto;
   display:flex; align-items:stretch; gap:12px; }
-.rerollbox .rwrow textarea { flex:1; min-height:0; height:auto; margin:0; resize:none;
-  font-family:'Instrument Serif', var(--serif, serif); font-size:20px; line-height:1.5; }
+.rerollbox .rwrow textarea { flex:1; min-height:0; height:auto; margin:0; resize:none; }
+/* Reweave's instruction is an instruction, in the serif. Alter's text is the passage, set exactly
+   as the page sets it — narration or speech, in the tale's own reading font and size (Seth,
+   2026-10-26: "The font changes ... I think in edit mode"). The family comes from the .narr rules
+   for the chosen font; .field would otherwise win the size and colour. */
+.rerollbox textarea[data-rerollbox] { font-family:'Instrument Serif', var(--serif, serif); font-size:20px; line-height:1.5; }
+.rerollbox textarea.narr { font-size:var(--prose); line-height:1.7; color:var(--narr); }
+.rerollbox textarea.said { font-size:var(--bubble); line-height:1.65; color:var(--body); }
 .rerollbox .rwside { width:38px; border-radius:var(--r); display:flex; align-items:center;
   justify-content:center; flex:0 0 auto; border:1px solid var(--chip); color:var(--ink); }
 .rerollbox .rwgo { background:var(--gold); color:var(--on-gold); border-color:transparent; }

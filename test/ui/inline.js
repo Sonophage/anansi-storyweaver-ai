@@ -62,6 +62,8 @@ await page.eval(`(() => { const read = document.getElementById('read');
       // style to read: counted only while it is on the page.
       if (n.isConnected) { window.__w.live = (window.__w.live ?? 0) + 1;
         if (getComputedStyle(n).animationName === 'inkin') window.__w.blurred++; }
+      if (window.__w.words === 1) { const c = getComputedStyle(n);
+        window.__w.font = [c.fontFamily, c.fontSize, c.fontStyle].join(' | '); }
       if (window.__w.words === 1) requestAnimationFrame(() => { const g = document.getElementById('ghost');
         const p = [...document.querySelectorAll('#col .block')].filter((b) => b !== g && b.offsetParent !== null
           && (b.compareDocumentPosition(g) & Node.DOCUMENT_POSITION_FOLLOWING)).at(-1);
@@ -80,6 +82,11 @@ const writing = w.tops.slice(0, -1);
 ok(`  the page does not follow them down while she writes (scroll positions ${JSON.stringify([...new Set(writing)])})`,
    writing.length > 0 && new Set(writing).size === 1);
 ok(`  and at the first word the passage before is in view (${w.seam})`, w.seam !== null && w.seam >= 0);
+// THE SAME TYPE BEFORE AND AFTER IT LANDS (Seth, 2026-10-26: "The font changes after the transition
+// comes in"). The composer is on Speak, so this passage lands as speech, with a voice.
+const landedFont = await page.eval(`(() => { const b = [...document.querySelectorAll('#col .block')].at(-1);
+  const t = b.querySelector('.said, .narr'), c = getComputedStyle(t); return [c.fontFamily, c.fontSize, c.fontStyle].join(' | '); })()`);
+ok(`  and it is set in the same type while it arrives as when it has landed (${w.font} / ${landedFont})`, w.font === landedFont);
 
 // AND A READER WHO SCROLLED UP STAYS PUT WHEN IT LANDS (Seth, 2026-10-26: "a weird transition after
 // the text is finished that takes me back to the top or the bottom of the screen"). The repaint at

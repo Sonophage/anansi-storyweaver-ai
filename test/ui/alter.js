@@ -47,6 +47,10 @@ ok(`Alter opens the full-screen box (${JSON.stringify(box && { ...box, text: box
 ok("  with the passage's own text in it", !!box && box.text === start);
 ok("  the caret at the end, nothing selected", !!box && box.focus && box.caretAtEnd);
 ok("  Cancel on the left, Save on the right", !!box && box.order);
+// SET AS THE PAGE SETS IT (Seth, 2026-10-26: the font changes "in edit mode").
+const fonts = await page.eval(`(() => { const f = (e) => { const c = getComputedStyle(e); return [c.fontFamily, c.fontSize, c.fontStyle].join(' | '); };
+  return JSON.stringify([f(document.querySelector('[data-editbox]')), f(document.querySelector('[data-edit="${pid}"]'))]); })()`).then(JSON.parse);
+ok(`  in the same type as the passage on the page (${fonts.join(' / ')})`, fonts[0] === fonts[1]);
 
 // ---- a double tap in the box selects a word and opens nothing
 await page.eval("(() => { document.querySelector('[data-editbox]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return 1; })()");

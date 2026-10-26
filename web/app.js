@@ -1496,7 +1496,7 @@ function passageHTML(p, newest, opening) {
     <div class="rwrow">
       <button data-editx="1" class="rwside" aria-label="Cancel, and keep the passage as it is"
         >${mark('expand', 18)}<span class="btnword">Cancel</span></button>
-      <textarea class="field" data-editbox="1" aria-label="The passage">${esc(S.passEdit.text)}</textarea>
+      <textarea class="field ${spoken ? 'said' : 'narr'}" data-editbox="1" aria-label="The passage">${esc(S.passEdit.text)}</textarea>
       <button data-editsave="${esc(p.id)}" class="rwside rwgo" aria-label="Save"
         >${mark('send', 18)}<span class="btnword">Save</span></button>
     </div></div>` : '';
@@ -8194,8 +8194,13 @@ function ghost() {
     const col = $('col'); if (!col) return;
     const g = document.createElement('div');
     g.id = 'ghost'; g.className = 'block inlive';
+    // SET AS IT WILL LAND. A passage with a named voice lands as speech — sans, the bubble size, the
+    // name above it — and one that opens on a quote does too (`spoken`, passageHTML). It was always
+    // written as narration and changed font the moment it landed (Seth, 2026-10-26). The voice is
+    // the speaker the press sent (GHOST_VOICE); an opening quote is seen at the first word (liveDelta).
     g.innerHTML = `<div class="veilweave" aria-live="polite">${weavingAt('dock') ? weaveWords('dock') : ''}</div>
-      <div class="narr"><div class="veiltext" aria-live="polite"></div></div>`;
+      ${GHOST_VOICE ? `<div class="who">${esc(GHOST_VOICE)}</div>` : ''}
+      <div class="${GHOST_VOICE ? 'said' : 'narr'}"><div class="veiltext" aria-live="polite"></div></div>`;
     col.appendChild(g);
     INLINE = g;
     // At the bottom when she starts, the page will move once, at her first word; scrolled up to
@@ -8253,6 +8258,9 @@ function ghost() {
  *  token and never raised it if the model errored before then. The veil still goes up on the press;
  *  on success it holds, and on an abort or an error it comes down. */
 let PEND = '', DRAIN = null, VEIL_DONE = false, LAST_TICK = 0, TIP = [], SEEN = 0;
+/** The named voice of the passage about to be written, or null: the speaker the press sends. Set by
+ *  each caller just before ghost(), so the passage being written is set as it will land. */
+let GHOST_VOICE = null;
 /** The inline passage being written (INLINE), kept by reference: a repaint rebuilds #col and would drop it,
  *  so drawDoc puts it back. Null when nothing is being written inline. */
 let INLINE = null;
@@ -8380,6 +8388,14 @@ function liveDelta(d) {
   if (d) weaveStop('dock');
   const el = veilText();
   if (!el || !d) return;
+  // AN OPENING QUOTE MAKES IT SPEECH, as the page will set it (ghost(), SET AS IT WILL LAND).
+  if (INLINE && !GHOST_VOICE && !SEEN && !PEND && isSpeech(d)) {
+    const box = el.parentElement;
+    if (box?.classList.contains('narr')) {
+      box.classList.replace('narr', 'said');
+      box.insertAdjacentHTML('beforebegin', `<div class="who">${esc(V?.story?.title ?? '')}</div>`);
+    }
+  }
   el.closest('.veil')?.classList.add('written');
   PEND += d;
   if (DRAIN == null) DRAIN = requestAnimationFrame(drainVeil);
@@ -8767,6 +8783,7 @@ async function generate(mode = S.mode, again = null) {
   S.busy = true; drawDock(); working(mode);
   // Your text is already on the page in the three modes above, so the model gets no directive —
   // it gets told whose line it is answering instead.
+  GHOST_VOICE = who ?? null;
   ghost();   // the roller, from the press until accept returns
   STOP = new AbortController();
   const r = await api.generateLive({ storyId: S.storyId, mode, chapterId: V.currentChapter.id,
@@ -9079,6 +9096,9 @@ async function regenerateInto(id, steer, seed, again = null) {
   // precisely the cold-start blank page the veil exists to cover. Raised on the press now, the
   // way `generate()` has always done it.
   if (atEnd) {
+    // The server keeps the old take's speaker when the press sends none (`inherit`, routes.ts).
+    GHOST_VOICE = (S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona) : null)
+      ?? (V.passages ?? []).find((x) => x.id === id)?.speaker ?? null;
     ghost();
     // Inline, the new version writes in where the old one was: the old one steps aside until it
     // lands, or comes back if the re-roll is stopped.

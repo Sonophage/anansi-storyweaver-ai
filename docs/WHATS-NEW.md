@@ -18,6 +18,11 @@ it: Cancel on the left, Save on the right. Cancel, Esc and Back close it; if you
 something, they ask first. A double tap in it selects a word and nothing else. When it closes,
 the page is where you left it.
 
+### The same type before and after
+A passage Anansi is writing is now set in the same type it will have when it lands: a line of
+speech arrives as speech, with the name above it, instead of changing font at the end. The
+Alter box shows the passage in the same type as the page.
+
 ### The page stays still when a passage lands
 When Anansi finishes writing, the page no longer jumps to the top or the bottom. It stays where
 you were reading.
