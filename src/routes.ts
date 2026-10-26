@@ -2726,6 +2726,10 @@ export const routes: Record<string, Handler> = {
     db.setActiveBranch(v.id, id);
     return viewOf(c, v.id);
   },
+  'POST /api/branch/delete': (c) => {
+    const r = db.delBranch(c.body.storyId, String(c.body.id ?? ''));
+    return r.error ? { error: r.error } : viewOf(c, c.body.storyId);
+  },
   'POST /api/branch':    (c) => {
     if (!db.setActiveBranch(c.body.storyId, c.body.id)) return { error: 'no such branch' };
     return viewOf(c, c.body.storyId);

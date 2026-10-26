@@ -10,6 +10,17 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-26 · Deleting a branch, and the scenes behind you
+
+### Delete a branch
+This scene → Branches has a Delete button on every branch you are not on. Press it twice and that
+branch goes, with every passage on it. The branch you are on, your threads and every other branch
+stay. To delete the branch you are on, switch to another first.
+
+### The scene lines under the header
+The thin line under the header has a piece for each scene. The scenes before the one you are in
+are dimmed now instead of nearly invisible, so you can see how far the tale has come.
+
 ## 2026-10-26 · A quieter header, and words out of a blur
 
 ### Her web is the menu

@@ -488,7 +488,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  state. A name left here would match nothing and read as a live action.)
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'ctxtoggle', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home',
   're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
-  'savestory', 'summarize', 'extract', 'decide', 'branch', 'newthread', 'entry',
+  'savestory', 'summarize', 'extract', 'decide', 'branch', 'delbranch', 'newthread', 'entry',
   'carryon',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
@@ -981,8 +981,11 @@ function drawMeter() {
    * it used to draw is in that reading, in words, including the no-room case the red bar carried. */
   bar.setAttribute('aria-label', V.chapters.length === 1
     ? 'One scene' : `Scene ${at + 1} of ${V.chapters.length}`);
+  // THE SCENES BEHIND YOU ARE DIMMED, NOT GONE. Seth, 2026-10-26: "the older chapters don't show up
+  // only the current one does. Old ones should be dimmed but still there." They were drawn in
+  // --rule, which the dark themes all but hide.
   bar.innerHTML = V.chapters.map((c, i) =>
-    `<i class="${i === at ? 'at' : ''}"></i>`).join('');
+    `<i class="${i === at ? 'at' : i < at ? 'past' : ''}"></i>`).join('');
 
   /* A ⌄ IN ITS PLACE UNTIL IT IS PRESSED. It was always open from 2026-09-02 ("have this always
    * visible") until Seth, 2026-10-26: the stats "should be replaced by a down arrow that when
@@ -4054,7 +4057,12 @@ const PANELS = {
             b.isPrimary && b.name.toLowerCase() !== 'main' ? ' · main' : ''}</span>
           <span style="margin-left:auto; font-size:11px; color:var(--faint)">${
             b.forkOrdinal ? `from passage ${b.forkOrdinal}` : ''}</span></div>
-        ${b.active ? '' : `<button data-branch="${b.id}" class="btn ghost" style="margin-top:4px">Switch to this branch</button>`}</div>`).join('')}
+        ${b.active ? '' : `<div style="display:flex; gap:8px; margin-top:4px">
+          <button data-branch="${b.id}" class="btn ghost" style="flex:1">Switch to this branch</button>
+          <!-- Two presses, like every deletion (Seth, 2026-10-26: "there's no way for me to delete
+               branches"). Not on the branch you are on: the server refuses that too. -->
+          <button data-delbranch="${b.id}" class="btn ghost" style="width:auto; padding:0 14px; color:var(--bad)"
+            ><span class="lbl-txt">Delete</span></button></div>`}</div>`).join('')}
       </div>
       </div></div>`;
   },
@@ -11418,6 +11426,14 @@ document.addEventListener('click', async (e) => {
   }
   if (d.branch) { const r = await api.switchBranch(S.storyId, d.branch); if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); return; }
+  if (d.delbranch) {
+    const b = (V.branches ?? []).find((x) => x.id === d.delbranch);
+    if (!armed(t, `branch:${d.delbranch}`, `Press Delete again. "${b?.name ?? 'This branch'}" and every passage on it go for good.`)) return;
+    const r = await api.delBranch(S.storyId, d.delbranch);
+    if (r.error) return toast(r.error);
+    V = r.passages ? r : await api.story(S.storyId); paint();
+    return toast('That branch is gone.');
+  }
 
   /** COUNCIL 09 §1, answered and then fixed. This handler and `acceptSpark` below were the two the
    *  checklist flagged and nobody had read: both fired a model call — this one — or a WRITE — that

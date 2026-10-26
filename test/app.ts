@@ -1152,11 +1152,15 @@ ok('the header names the book, and carries no reading of its own');
   const segs = [...html('ctxbar').matchAll(/<i class="([^"]*)"><\/i>/g)].map((m) => m[1]);
   assert.strictEqual(segs.length, STORY.chapters.length,
     `the bar must have one segment per chapter, not ${segs.length} for ${STORY.chapters.length}`);
-  assert.strictEqual(segs.filter((c) => c.includes('at')).length, 1,
+  assert.strictEqual(segs.filter((c) => c === 'at').length, 1,
     'and exactly one of them is the chapter you are in');
-  assert.strictEqual(segs.findIndex((c) => c.includes('at')),
+  assert.strictEqual(segs.findIndex((c) => c === 'at'),
     STORY.chapters.findIndex((c: any) => c.id === STORY.currentChapter.id),
     'and it is the one the view says you are in');
+  // THE ONES BEHIND YOU ARE DIMMED, NOT HIDDEN (Seth, 2026-10-26).
+  const here = segs.findIndex((c) => c === 'at');
+  assert.ok(here > 0 && segs.slice(0, here).every((c) => c === 'past'),
+    `every scene before the one you are in is drawn, dimmed (${JSON.stringify(segs)})`);
   // AND THE PERCENTAGE IS NOT IN IT. The bar was a single `<i>` filled to the context percentage,
   // and this is what goes red if that comes back — the number belongs in the reading, in words.
   assert.ok(!/width:/.test(html('ctxbar')),
