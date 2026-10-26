@@ -1,0 +1,4 @@
+# A parallel merge of two branches that each add an entry at the top of the same release kept
+# both entries but stopped on a conflict, every time (v2-threads into v2-integrate, 1437199).
+# union keeps both sides with no conflict. Read the order of the entries in the merge commit.
+docs/WHATS-NEW.md merge=union
