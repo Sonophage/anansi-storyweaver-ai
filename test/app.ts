@@ -698,8 +698,8 @@ assert.match(html('page'), /The Ashfall Concordat/);
   // THE BAND, NOT A HERO CARD. The newest book used to be a full-width `.storycard.hero` at 3/4 —
   // about a thousand pixels of cover on a laptop, with every other book under the fold and the one
   // thing you came back for, where you stopped, not on the screen at all. It is now a band that
-  // carries the sentence you stopped on and one gold action.
-  assert.ok(shelf.indexOf('class="resumeband"') >= 0, 'the newest book gets the resume band');
+  // carries the sentence you stopped on and one gold action. Since v3 (2026-10-25) it is the hero.
+  assert.match(shelf, /<section class="resumeband/, 'the newest book gets the hero');
   assert.doesNotMatch(shelf, /storycard hero/,
     'and no hero card survives beside it — two answers to "which book" is one too many');
   // The band's job is the sentence. A band that renders with the chrome and no prose in it is the
@@ -1931,31 +1931,23 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 }
 }
 
-// WHAT IS OWED SITS ON THE BAND, BESIDE THE BOOK IT IS ABOUT. It used to be a strip across the top
-// of the page listing a book title and a number. That number was a count of KINDS and never of
-// items — it counted the rows `waiting()` returns, and `waiting()` returns at most one per kind —
-// so a book with nine proposals said "· 1". On the band there is one book to speak for, so the
-// chips can say the kind and the real count.
+// WHAT IS OWED, ON THE HERO (v3, 2026-10-25). The chips that said "2 threads basted" beside the book
+// came off with Seth's "simplify it to match the design"; a gold dot on Carry on writing says the
+// tale owes something, and the button's label says what, by kind and with the real count.
 {
   click({ leave: '1' });
   await new Promise((r) => setTimeout(r, 40));
   const page = html('page');
-  // The KIND, with its own number, which is the whole reason this moved. A digit alone was the
-  // old strip's failure and an assertion that only counted chips could not see it.
-  assert.match(page, /2 threads basted/, 'the chip says what is waiting, not how many kinds');
-  assert.match(page, /1 string not tied off/, 'and singular reads as singular');
-  // Each kind opens the panel that DECIDES it. The old strip sent every chip to 'waiting'
-  // regardless, because it had thrown the kind away before it drew anything.
-  assert.match(page, /data-owed="s-1" data-owedpanel="chapter"/, 'proposals open the chapter panel');
-  assert.match(page, /data-owed="s-1" data-owedpanel="strings"/, 'promises open Strings');
-  // THE COST, WRITTEN DOWN. The Salt Ledger is owed three proposals and a promise and is not the
-  // hero, so the shelf now says nothing about it — an owed thing reads as information beside its
-  // book and as a notification at the top of a page, and this is the price of choosing the first.
-  // If a later change puts a cross-book indicator back, this is the assertion that should fail.
-  assert.ok(!/data-owed="s-2"/.test(page),
-    'a book that is not the hero shows nothing owed on the shelf — deliberate, and the trade');
+  const go = /<button class="btn bandgo" data-carryon="s-1"([^>]*)>([\s\S]*?)<\/button>/.exec(page);
+  assert.ok(go, 'the hero has its Carry on writing');
+  assert.match(go![1], /aria-label="Carry on writing\. Waiting: 2 threads basted, 1 string not tied off"/,
+    'its label says what is owed, by kind, with the real count, singular as singular');
+  assert.match(go![2], /class="owedot"/, 'and it carries the dot');
+  assert.doesNotMatch(page, /data-owed=|data-readfrom=/, 'the chips and Read from scene one are gone from the rack');
+  // THE COST, WRITTEN DOWN, as before: a tale that is not the hero says nothing about what it owes.
+  assert.ok(!/data-carryon="s-2"/.test(page), 'a tale that is not the hero has no Carry on and no dot');
 }
-ok('what is owed is drawn on the band, by kind, and opens the panel that decides it');
+ok('what is owed is a dot on the hero\'s Carry on, and its label says what');
 }
 
 // The webs and their prose, kept in step. This is the check that fails when somebody adds a help

@@ -10,6 +10,17 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-25 · Your tale, big, on the rack
+
+### The tale you were last in
+The tale at the top of the rack now fills most of the screen, with the first row of your other
+tales showing under it. Its picture fills it; a tale with no picture gets your theme's colour, and
+rings breathe slowly out behind the title either way. It says where you left off and how long ago,
+the title, the scene you are in, a bar for each scene, and your last line in a glass card with the
+genre and how many words. Carry on writing is the one button. It has a small gold dot when the
+tale has threads basted or strings not tied off. Read from scene one, the room used and the two
+owed buttons are gone from it: the Scenes list in the tale opens scene one.
+
 ## 2026-10-25 · Every model, for every writer
 
 ### Models that take the whole plan

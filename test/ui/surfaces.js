@@ -40,31 +40,43 @@ ok("   it says what it is showing you", bandText.includes('Where you left off'))
 ok(`   and carries a sentence of the writer's own prose (${JSON.stringify(bandText.slice(0, 0) || '')})`,
    await page.eval(`(() => { const q = document.querySelector('.resumeband .quote');
      return !!q && q.textContent.trim().length > 20; })()`));
-ok("   with one gold action that is not a navigation to chapter one",
-   await page.eval("!!document.querySelector('.resumeband [data-carryon]') && !!document.querySelector('.resumeband [data-readfrom]')"));
+// THE HERO (v3, 2026-10-25): Carry on writing alone. Read from scene one came off with Seth's
+// "simplify it to match the design"; the Scenes list reaches scene one.
+ok("   with one gold action, Carry on writing, and nothing else",
+   await page.eval("!!document.querySelector('.resumeband [data-carryon]') && document.querySelectorAll('.resumeband button').length === 1"));
+ok("   it says how long ago the tale was touched, over the title",
+   /Where you left off\s*·\s*(just now|\d+ (minutes|hours?|days) ago|yesterday)/.test(bandText));
 ok("   and no hero card survives beside it",
    await page.eval("!document.querySelector('.storycard.hero')"));
 
-// THE FOLD. This is the whole argument of the redesign and the only assertion that can falsify it:
-// a band that grows, a cover that goes back to 3/4 at four across, or a card that gains a row will
-// all push the shelf off a laptop screen again, and every other check here would still pass.
-// AT 1440x900 MEANING THE VIEWPORT, not the window. The driver's window is 1440x900 and its
-// innerHeight is 757 once the browser's own furniture is taken out, so measuring against the
-// window would be measuring chromium rather than the shelf.
-await page.viewport(1440, 900);
-const fold = await page.eval(`(() => {
-  const cards = [...document.querySelectorAll('#page .shelfgrid .storycard')];
-  const band = document.querySelector('.resumeband');
-  const second = cards[1] ?? cards[0];
-  return JSON.stringify({ cards: cards.length, innerH: innerHeight,
-    bandH: Math.round(band.getBoundingClientRect().height),
-    bottom: second ? Math.round(second.getBoundingClientRect().bottom) : null });
-})()`);
-const f = JSON.parse(fold);
-console.log("   fold: " + fold);
-ok(`   the shelf holds the other books as cards (${f.cards})`, f.cards >= 2);
-ok(`   and the second book is inside a 1440x900 viewport (${f.bottom} of ${f.innerH})`,
-   f.innerH === 900 && f.bottom !== null && f.bottom <= f.innerH);
+// THE PEEK. The hero is most of the screen since v3 (Seth, 2026-10-25: "most of the screen"), and
+// the first row of the rack must still show its top under it, or the rack reads as not there. On a
+// desk the hero is capped; on the iPhone it fills down to the peek.
+for (const [vw, vh, where] of [[1440, 900, 'a 1440x900 desk'], [390, 844, 'the iPhone']]) {
+  await page.viewport(vw, vh);
+  await wait(300);
+  const f = JSON.parse(await page.eval(`(() => {
+    const cards = [...document.querySelectorAll('#page .shelfgrid .storycard')];
+    const band = document.querySelector('.resumeband').getBoundingClientRect();
+    return JSON.stringify({ cards: cards.length, innerH: innerHeight, bandH: Math.round(band.height),
+      top: cards[0] ? Math.round(cards[0].getBoundingClientRect().top) : null }); })()`));
+  console.log(`   ${where}: ` + JSON.stringify(f));
+  ok(`   on ${where} the hero is most of the screen (${f.bandH} of ${f.innerH})`,
+     f.bandH >= Math.min(440, f.innerH * 0.5));
+  ok(`   and the first row of the rack peeks in under it (top ${f.top} of ${f.innerH})`,
+     f.cards >= 2 && f.top !== null && f.top < f.innerH - 40);
+}
+// THE TITAN (360x360) has no room for most of the screen: the hero takes what its words need, and
+// nothing in it is cut off at the top, which the first build did to the label and the title.
+{
+  await page.viewport(360, 360);
+  await wait(300);
+  const t = JSON.parse(await page.eval(`(() => { const b = document.querySelector('.resumeband').getBoundingClientRect();
+    const k = document.querySelector('.resumeband .herokind').getBoundingClientRect();
+    const g = document.querySelector('.resumeband .bandgo').getBoundingClientRect();
+    return JSON.stringify({ band: [Math.round(b.top), Math.round(b.bottom)], label: Math.round(k.top), go: Math.round(g.bottom) }); })()`));
+  ok(`   on the Titan nothing in the hero is cut off (${JSON.stringify(t)})`, t.label >= t.band[0] && t.go <= t.band[1]);
+}
 await page.viewport(1440, 757);   // back to the driver's own size for everything after this
 
 // #19 took New story OFF the shelf entirely — the bar pill is the one door, and it lost `deskonly`
@@ -89,15 +101,15 @@ const talkCard = await cardOf('A Book That Only Talks');
 ok(`   and a book whose last passage is all dialogue refuses to quote it (${JSON.stringify(talkCard.slice(0, 90))})`,
    talkCard.includes('all dialogue') && !talkCard.includes('he said'));
 
-// 2. the pill is the genre — and genre is comma-separated, so it is pillS. An AI Dungeon import
-// writes its whole tag list into this field, which is how a card came to read "horror, nsfw"
-// inside a single pill. Asserted on the band, which follows the same rule as a card.
-const pills = await page.eval("(() => [...document.querySelectorAll('.resumeband .tag')]"
-  + ".map(t => t.textContent.trim()).join('|'))()");
-console.log("   tag pills: " + JSON.stringify(pills));
-ok(`2. a comma-separated genre is one tag per pill (${JSON.stringify(pills)})`,
-   pills.split('|').filter(Boolean).length >= 3 && pills.includes('fantasy') && pills.includes('heist'));
-ok("   and no pill holds two of them", !pills.split('|').some((t) => t.includes(',')));
+// 2. THE GENRE ON THE HERO is plain words, the first genre only (v3, 2026-10-25). Genre is
+// comma-separated — an AI Dungeon import writes its whole tag list into it — so "fantasy, noir,
+// heist" must read "Fantasy", never the list and never a pill.
+const heroGenre = await page.eval("JSON.stringify({ meta: document.querySelector('.resumeband .herometa')?.textContent ?? '',"
+  + " pills: document.querySelectorAll('.resumeband .tag').length })").then(JSON.parse);
+console.log("   hero genre: " + JSON.stringify(heroGenre));
+ok(`2. the hero names the first genre in plain words (${JSON.stringify(heroGenre.meta)})`,
+   /^Fantasy · [\d,]+ words?$/.test(heroGenre.meta) && heroGenre.pills === 0);
+ok("   and none of the others, and no comma", !/noir|heist|,/.test(heroGenre.meta.replace(/\d,\d/g, '')));
 // Put it back, or every later assertion about this story's genre is reading the test's own edit.
 await page.eval("(async () => { await fetch('/api/story', { method:'POST',"
   + " headers:{'Content-Type':'application/json'},"
@@ -443,6 +455,7 @@ ok("   and the cover on the shelf asks for it, with the version in the URL",
    cardArt.includes('/api/cover?story=' + sid) && cardArt.includes('v=' + set));
 // The gradient stays underneath as the fallback, so a cover that has not arrived is not a blank hole.
 ok("   with the gradient still under it while it loads", /gradient/.test(cardArt));
+ok("   and the hero says it has a picture", await page.eval("document.querySelector('.resumeband').classList.contains('haspic')"));
 
 await page.eval("(async () => { await fetch('/api/cover', { method:'DELETE',"
   + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ storyId: '" + sid + "' }) }); })()");
@@ -450,7 +463,9 @@ await page.goto(B + "/");
 await wait(500);
 const bare = await page.eval("(() => { const c = document.querySelector('.resumeband .art');"
   + " return c ? c.getAttribute('style') : ''; })()");
-ok("   removing it puts the cover back to its gradient", !bare.includes('/api/cover') && /gradient/.test(bare));
+// With no picture the hero's ground is the theme's accent, drawn by the band itself (v3).
+ok("   removing it takes the picture off the hero", !(bare ?? '').includes('/api/cover')
+   && !(await page.eval("document.querySelector('.resumeband').classList.contains('haspic')")));
 
 // ---- CHECKBOXES ARE DRAWN, not the platform's (2026-09-02). Seth: "all checkboxes should be styled
 // and auto save so i dont have to hit save everytime." There were nine in the app and not one line

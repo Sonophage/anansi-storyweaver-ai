@@ -1787,84 +1787,73 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
   .firstways > .btn { width:100%; text-align:center; }
 }
 
-/* THE RESUME BAND. Structural only: everything that depends on which book it is drawing stays
-   inline in resumeBand().
+/* THE RESUME BAND, AS THE HERO (v3 design, 2026-10-25). Structural only: what depends on which
+   tale it draws stays inline in resumeBand().
 
-   The height is the constraint. Covers are portrait, so a card at four across is about 420px and
-   the first shelf row only clears a 900px window if this stays under ~310. max-height rather than
-   height, because a book with two chapters has less to say than one with nine and should not be
-   padded out to the same size. */
-/* NO max-height, and it is not an oversight. This band is a flex item in the page's column, so
-   its automatic minimum size is its own content — `min-height:auto` floors a flex item and beats
-   `max-height` outright. A cap here measured 262 and laid out at 283, which is a number that lies.
-   `min-height:0` would let it clamp, and then `overflow:hidden` would cut the actions off the
-   bottom, which is worse than a tall band. So the height is bought from the content instead: the
-   type sizes and the gaps below are what keep it near 255, and that is what the assertion watches
-   through the first shelf card's bottom edge. */
-.resumeband { display:flex; align-items:stretch; border:1px solid var(--edge);
-  border-radius:var(--r); overflow:hidden; background:var(--rail);
-  box-shadow:0 26px 60px -20px rgba(0,0,0,.85), 0 2px 0 rgba(255,255,255,.02) inset;
-  animation:rise var(--t-slow) var(--ease) both; }
-.resumeband > .art { flex:0 0 268px; position:relative; display:block; cursor:pointer; }
-/* Left to right, not top to bottom: the text sits to the right of this, so the cover has to fall
-   away towards the words rather than towards its own bottom edge. */
-.resumeband > .art .wash { position:absolute; inset:0;
-  background:linear-gradient(90deg,rgba(10,10,12,0) 50%,rgba(12,12,14,.7)); }
-.resumeband > .art .spine { position:absolute; top:0; bottom:0; right:0; width:9px;
-  background:linear-gradient(90deg,rgba(0,0,0,.5),rgba(255,255,255,.045) 55%,rgba(0,0,0,.35)); }
-.resumeband > .said { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:10px;
-  padding:18px 30px 16px; }
-/* The band's own type. In CSS rather than inline on the spans because a phone has to make all
-   three of these smaller at once, and a media query cannot reach an inline style. */
-.resumeband .bandhead { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
-.resumeband .bandtitle { font-size:36px; line-height:1.02; color:var(--ink-bright); }
-.resumeband .bandchapter { font-size:19px; font-style:italic; color:var(--label); }
-.resumeband .bandprose { font-style:italic; font-size:17px; line-height:1.6; color:var(--narr);
-  text-wrap:pretty; }
-.resumeband .bandgo { width:auto; padding:0 24px; height:38px; }
-.resumeband .bandacts { display:flex; align-items:center; gap:10px; margin-top:auto; flex-wrap:wrap; }
-.resumeband .bandgap { flex:1; }
-.resumeband .bandchips { display:flex; gap:8px; }
-.resumeband .quote { display:flex; align-items:flex-start; gap:16px; max-width:680px; min-width:0; }
-.resumeband .quote > .rule { width:1px; align-self:stretch; background:var(--gold-dim); opacity:.5;
-  flex:0 0 auto; }
-/* One segment per chapter. Written behind you, the one you are in wider and lit, the rest still
-   to come — the same three states the chapter list uses, at 5px. */
-.bandmeter { display:flex; gap:3px; height:5px; }
-.bandmeter > i { flex:1; border-radius:var(--r-tight); background:var(--chip); }
-.bandmeter > i.done { background:var(--gold-dim); }
-.bandmeter > i.now { flex:1.4; background:var(--gold); }
+   MOST OF THE SCREEN, with the first row of the rack peeking in under it: Seth's call over the
+   design's 780 of 844. svh, so a phone's own address bar does not push the peek off the bottom.
+   On a wide screen it is the same hero with its height capped, not a second layout.
 
-/* A 268px cover beside text does not fit a phone, so the band stacks and the cover becomes a
-   letterbox above the words. It keeps its shadow; the spine goes, because a spine down the right
-   edge of something with nothing to its right is a line for its own sake. */
-@media (max-width:719px) {
-  .resumeband { flex-direction:column; max-height:none; }
-  .resumeband > .art { flex:0 0 132px; }
-  .resumeband > .art .wash { background:linear-gradient(180deg,rgba(10,10,12,0) 30%,rgba(12,12,14,.92)); }
-  .resumeband > .art .spine { display:none; }
-  .resumeband > .said { padding:14px 16px 16px; gap:11px; }
-  /* Everything comes down a size, or the band alone is most of a phone screen: the title wraps to
-     two lines at 36px in 353px of width, and each wrap is a row of the shelf pushed off the
-     bottom. */
-  .resumeband .bandtitle { font-size:27px; }
-  .resumeband .bandchapter { font-size:15px; }
-  .resumeband .bandprose { font-size:14.5px; line-height:1.55; }
-  /* The gold action takes the width, because that is where a thumb is. The second button keeps its
-     own row rather than being dropped — reading from the top is not a desk-only intention. */
-  .resumeband .bandgo { width:100%; padding:0 16px; }
-  /* The title over the cover. `bottom` measured from the band's own box puts the head's baseline
-     block on the art's bottom edge — the art is the first 132px of a stacked band, so
-     `calc(100% - 132px)` is that edge and nothing has to know the title's own height. */
-  .resumeband { position:relative; }
-  .resumeband .bandhead { position:absolute; left:16px; right:16px; bottom:calc(100% - 132px);
-    padding-bottom:9px; }
-  /* The two chips take a row of their own and split it, because at 353px they do not sit beside
-     two buttons and wrapping them one per line is three rows of chrome under the prose. */
-  .resumeband .bandgap { display:none; }
-  .resumeband .bandchips { width:100%; gap:7px; }
-  .resumeband .bandchips > .chip { flex:1; text-align:center; }
-}
+   ITS OWN DARK, ON EVERY THEME. The type over it is light, so the ground is always dark: the
+   picture under a wash, or the theme's accent mixed into a fixed near-black. On parchment the hero
+   is a dark plate on a light page, which is what a cover on a desk is. */
+.resumeband { position:relative; display:flex; flex-direction:column; overflow:hidden;
+  height:clamp(260px, calc(100svh - 230px), 640px); padding:22px 18px 18px; box-sizing:border-box;
+  border-radius:var(--r); border:1px solid var(--edge); color:#fff;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--gold) 62%, #0e0c10) 0%,
+    color-mix(in srgb, var(--gold) 48%, #0e0c10) 55%, color-mix(in srgb, var(--gold) 30%, #0e0c10) 100%);
+  box-shadow:0 26px 60px -20px rgba(0,0,0,.85); animation:rise var(--t-slow) var(--ease) both; }
+@media (min-width:720px) { .resumeband { height:440px; padding:28px 32px 24px; } }
+/* A SHORT SCREEN (the Titan's 360x360) has no room for "most of the screen": the hero takes the
+   height its words need, the scene bars and the count come off, and the title comes down a size,
+   so nothing is cut off its top. */
+@media (max-height:520px) { .resumeband { height:auto; padding:16px 14px 14px; }
+  .resumeband > .herobody { gap:8px; } .resumeband .bandtitle { font-size:32px; }
+  .resumeband .bandmeter, .resumeband .herocount { display:none; }
+  .resumeband > .glass { margin-top:10px; padding:10px 12px; } .resumeband .quote { -webkit-line-clamp:2; }
+  .resumeband > .bandacts { margin-top:10px; } }
+.resumeband > .art { position:absolute; inset:0; cursor:pointer; }
+.resumeband > .wash { position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(180deg, rgba(4,6,12,.25) 0%, rgba(4,6,12,0) 25%, rgba(4,6,12,.45) 62%,
+    rgba(14,12,16,.94) 100%); }
+.resumeband.haspic > .wash { background:linear-gradient(180deg, rgba(4,6,12,.45) 0%, rgba(4,6,12,.2) 28%,
+    rgba(4,6,12,.6) 60%, rgba(14,12,16,.96) 100%); }
+/* The rings: four, a quarter of the cycle apart, breathing out from behind the title. The global
+   reduced-motion rule stops them; the resting opacity is what is left on screen then. */
+.resumeband > .rings { position:absolute; left:50%; top:38%; pointer-events:none; }
+.resumeband > .rings > i { position:absolute; left:0; top:0; width:300px; height:300px; border-radius:50%;
+  border:1px solid rgba(255,255,255,.35); opacity:.15; transform:translate(-50%,-50%);
+  animation:heroring 9s linear infinite; }
+.resumeband > .rings > i:nth-child(2) { animation-delay:-2.25s; }
+.resumeband > .rings > i:nth-child(3) { animation-delay:-4.5s; }
+.resumeband > .rings > i:nth-child(4) { animation-delay:-6.75s; }
+@keyframes heroring { 0% { transform:translate(-50%,-50%) scale(.2); opacity:0; } 30% { opacity:.5; }
+  100% { transform:translate(-50%,-50%) scale(1.6); opacity:0; } }
+.resumeband > .herobody { position:relative; flex:1 1 auto; min-height:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:12px; text-align:center; pointer-events:none; }
+.resumeband .herokind { font-size:11px; font-weight:600; letter-spacing:.28em; text-transform:uppercase;
+  color:rgba(255,255,255,.78); }
+.resumeband .bandtitle { font-size:clamp(34px, 11vw, 58px); line-height:1; font-weight:300;
+  color:#fff; text-shadow:0 2px 16px rgba(0,0,0,.35); text-wrap:balance; overflow-wrap:anywhere; }
+.resumeband .herorule { width:40px; height:1px; background:rgba(255,255,255,.6); }
+.resumeband .herowhere { font-size:15px; letter-spacing:.04em; }
+.resumeband .herocount { font-size:12px; color:rgba(255,255,255,.75); }
+/* One bar per scene, lit up to the one you are in. */
+.bandmeter { display:flex; gap:4px; width:150px; height:4px; }
+.bandmeter > i { flex:1; border-radius:2px; background:rgba(255,255,255,.22); }
+.bandmeter > i.done { background:#fff; }
+.resumeband > .glass { position:relative; display:flex; flex-direction:column; gap:6px; margin-top:14px;
+  padding:14px 16px; border-radius:16px; background:rgba(4,6,12,.4); border:1px solid rgba(255,255,255,.14);
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+.resumeband .quote { font-style:italic; font-size:16px; line-height:1.5; color:rgba(255,255,255,.94);
+  text-wrap:pretty; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.resumeband .quote.empty { color:rgba(255,255,255,.75); }
+.resumeband .herometa { font-size:12px; color:rgba(255,255,255,.75); }
+.resumeband > .bandacts { position:relative; display:flex; justify-content:flex-end; margin-top:14px; }
+.resumeband .bandgo { width:auto; min-height:48px; padding:0 24px; position:relative; }
+/* Something is owed in this tale: a gold dot on the button, the words in its label. */
+.resumeband .owedot { position:absolute; top:-3px; right:-3px; width:12px; height:12px; border-radius:50%;
+  background:var(--gold-lit); border:2px solid #0e0c10; }
 /* 3:4, the shape of a page. Set as an aspect-ratio rather than a height so the card holds its
    proportions at every column width the grid resolves to. */
 .storycard .art { aspect-ratio:3/4; height:auto; position:relative; }

@@ -284,8 +284,7 @@ const S = {
   fromBook: null,       // the book whose 'start a book here' box is open, on Threads
 };
 let LIB = [], V = null, MANI = null, MANI_EXACT = false, ACT = null, HITS = null, LEDGER = null, PROMPT = '';
-// WHICH BOOK `MANI` IS ABOUT. The comment on HERO_CTX says the manifest "belongs to the OPEN
-// story", and until now that was true only AFTER the fetch landed: `openStory` paints and THEN
+// WHICH BOOK `MANI` IS ABOUT. The manifest "belongs to the OPEN story", and until now that was true only AFTER the fetch landed: `openStory` paints and THEN
 // calls `refreshManifest`, so the first paint of a newly-opened book read the previous book's
 // manifest. That was a percentage a few hundred milliseconds wrong; it stopped being harmless
 // when the Threads list started reading the same object to say which threads are live.
@@ -483,10 +482,10 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // ('help' left this list on 2026-09-03. The webs are drawn by tipMark now, so a help icon
   //  carries `data-tip` like every other folded explanation — one mark, one handler, one
   //  state. A name left here would match nothing and read as a live action.)
-  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home', 'owed',
+  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home',
   're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'newthread', 'entry',
-  'carryon', 'readfrom',
+  'carryon',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
   // #36. A followed card, per card. `unlink` was taken by the entry-LINKS feature years of commits
@@ -7030,131 +7029,67 @@ const ART = [
 
 /** THE RESUME BAND — the last-written book, across the top of the shelf.
  *
- *  The first press on a writing app is almost always "back into the book I was in". The shelf used
- *  to answer that with a cover: a full-width `.storycard` at 3/4, which on a laptop is most of the
- *  fold, with the other books under it and the thing you actually wanted — where you stopped — not
- *  on screen at all. So resume is the screen rather than a button on it.
+ *  The first press on a writing app is almost always "back into the book I was in", so resume is
+ *  the screen rather than a button on it.
  *
- *  HEIGHT IS THE CONSTRAINT, not a style. Covers are portrait at Seth's direction (app.html, "a
- *  page rather than a banner"), so a shelf card at four across is ~420px tall, and the first row of
- *  books only clears a 900px window if this band comes in under ~310. That is why the prose is
- *  clamped to two sentences rather than the three the design draws.
+ *  THE HERO (v3 design, Seth, 2026-10-25). It was a band of about 280px, the cover beside the text,
+ *  held short so the first row of books cleared a 900px window. Now it is most of the screen, as
+ *  the design draws it, and the first row of books only PEEKS in under it. In it, top to bottom:
+ *  where you left off and how long ago, the title, where you are, a bar per scene, the last line in
+ *  a glass card with the genre and the words, and Carry on writing.
  *
- *  ponytail: two sentences, because portrait covers at four across spend the height. Five across
- *  would buy the third sentence back at 184px of cover; the assertion to watch is the second card's
- *  bottom edge against the viewport, not this band's own height.
+ *  The ground is the tale's picture; with none, the theme's accent ("colours come from the theme"),
+ *  mixed into a fixed dark so the light type over it reads on every theme, parchment included.
+ *  Rings breathe out behind the title either way; reduced motion holds them still (app.html).
+ *
+ *  What the old band carried and this does not, by Seth's call ("simplify it to match the design"):
+ *  Read from scene one (the Scenes list reaches it), the room-used percentage, and the basted and
+ *  not-tied-off chips. In their place a gold dot on Carry on says the tale owes something, and its
+ *  label says what; the tale's own panels hold the detail.
  */
 function resumeBand(s) {
-  const chapter = s.last_chapter_idx ? sceneName({ title: s.last_chapter_title, index: s.last_chapter_idx }) : (s.last_chapter_title || '');
-  // ONE sentence, not the design's three. Measured: a portrait cover at four across makes a
-  // 433px card, and the first shelf row only clears a 900px viewport if this band stays
-  // under ~280 — which is one sentence of prose, the meter and the actions.
-  const line = leftOffLine(s.last_body, 1);
-  const pct = HERO_CTX && HERO_CTX.id === s.id ? HERO_CTX.pct : null;
-  const chapters = Math.max(Number(s.chapter_count) || 0, Number(s.last_chapter_idx) || 0);
   const at = Number(s.last_chapter_idx) || 0;
-  // One tag per pill, the same rule the cards follow — genre is comma-separated and an AI Dungeon
-  // import writes its whole tag list into the field, so a single pill reads "horror, nsfw".
-  const tags = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
-  return `<div class="resumeband">
-    <!-- The cover opens the book, because pressing a book is what a cover is for — and because it
-         is the one press target on this band big enough for a thumb. Carry on writing is the
-         same door with the cursor already in the composer. -->
-    <span class="art" data-open="${esc(s.id)}" style="background:${s.cover
-      ? `url('${api.coverUrl(s.id, s.cover)}') center/cover no-repeat, ${ART[0]}` : ART[0]}">
-      <span class="wash"></span><span class="spine"></span>
-      ${tags.length ? `<span style="position:absolute; top:12px; left:14px; display:flex; gap:5px;
-        flex-wrap:wrap; max-width:80%">${tags.map((t) => `<span class="tag"
-        style="background:rgba(10,9,12,.6); border-color:var(--gold-dim); color:var(--gold)"
-        >${esc(t)}</span>`).join('')}</span>` : ''}
+  const chapters = Math.max(Number(s.chapter_count) || 0, at);
+  // "Scene 3 · The Bell" when the scene has a name of its own, "Scene 3" when it is only numbered.
+  const named = s.last_chapter_title && !numbered(s.last_chapter_title, at) ? s.last_chapter_title.trim() : '';
+  const where = at ? `Scene ${at}${named ? ` · ${named}` : ''}` : (named || '');
+  const line = leftOffLine(s.last_body, 1);
+  // The first genre only, as plain words: the rack's cards still carry every one as a pill.
+  const genre = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean)[0] ?? '';
+  const words = Number(s.words) || 0;
+  const meta = [genre && genre[0].toUpperCase() + genre.slice(1),
+    words ? `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}` : ''].filter(Boolean).join(' · ');
+  const owed = [Number(s.proposed) ? `${s.proposed} thread${s.proposed === 1 ? '' : 's'} basted` : '',
+    Number(s.unpaid) ? `${s.unpaid} string${s.unpaid === 1 ? '' : 's'} not tied off` : ''].filter(Boolean);
+  return `<section class="resumeband${s.cover ? ' haspic' : ''}" aria-label="Where you left off: ${esc(s.title)}">
+    <!-- The ground opens the book, because pressing a book is what a cover is for. Carry on writing
+         is the same door with the cursor already in the composer. -->
+    <span class="art" data-open="${esc(s.id)}" aria-hidden="true"${s.cover
+      ? ` style="background:url('${api.coverUrl(s.id, s.cover)}') center/cover no-repeat, ${ART[0]}"` : ''}></span>
+    <span class="rings" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span class="wash" aria-hidden="true"></span>
+    <span class="herobody">
+      <span class="herokind">Where you left off${s.updated_at ? ` &middot; ${touchedAgo(s.updated_at)}` : ''}</span>
+      <span class="serif bandtitle">${esc(s.title)}</span>
+      <span class="herorule" aria-hidden="true"></span>
+      ${where ? `<span class="herowhere">${esc(where)}</span>` : ''}
+      ${at && chapters ? `<span class="bandmeter" aria-hidden="true">${Array.from({ length: chapters }, (_, i) =>
+        `<i class="${i + 1 <= at ? 'done' : ''}"></i>`).join('')}</span>
+      <span class="herocount">Scene ${at || 1} of ${chapters}</span>` : ''}
     </span>
-    <span class="said">
-      <span style="display:flex; align-items:center; gap:12px">
-        <span class="kind">Where you left off${s.updated_at ? ` &middot; ${touchedAgo(s.updated_at)}` : ''}</span>
-        <span style="flex:1; height:1px; background:var(--line)"></span>
-        <!-- Silence, not a guess. The percentage arrives from its own fetch a moment after the
-             page paints, and never arrives at all when the router is asleep or the request fails.
-             An empty right-hand side is honest; a 0% is not. -->
-        ${pct === null ? '' : `<span class="kind" style="color:var(--label)">room ${pct}% used</span>`}
-      </span>
-      <!-- ONE node, moved rather than duplicated. On a phone this sits over the bottom of the
-           cover, which is what the design draws and what buys back the height the stacked layout
-           costs — done by taking it out of flow in the media query, not by rendering the title
-           twice and hiding one. Two copies of a book's title in the DOM is two things to keep in
-           step and two things a text assertion counts. -->
-      <span class="bandhead">
-        <span class="serif bandtitle">${esc(s.title)}</span>
-        ${chapter ? `<span class="serif bandchapter">${esc(chapter)}</span>` : ''}
-      </span>
-      ${line ? `<span class="quote"><span class="rule"></span>
-        <span class="serif bandprose">${esc(line)}</span></span>`
-        : `<span style="font-size:12.5px; color:var(--faint); font-style:italic">${
-            at ? 'the last passage is all dialogue, and a character&rsquo;s words are not the narrator&rsquo;s'
-               : 'nothing written yet &mdash; the first passage is one press away'}</span>`}
-      ${chapters ? `<span style="display:flex; flex-direction:column; gap:7px; max-width:680px">
-        <span class="kind" style="display:flex; align-items:baseline; gap:12px; color:var(--label)">
-          <span>scene ${at || 1} of ${chapters}</span>
-          <span style="color:var(--faint)">${(s.chapter_words ?? 0).toLocaleString()} words this scene</span>
-          <!-- "no target set" STOOD HERE AND IS GONE. Seth, 2026-09-01: "on the my stories the
-               header on says no target set." It was there to explain why no progress bar is drawn:
-               a book has no target length in this app, because target_words is how long ONE passage
-               runs. But a writer does not need the absence of a feature narrated to them on the
-               first screen they see. Saying nothing beats explaining nothing. --></span>
-        <!-- ONE CHAPTER GETS NO SEGMENTS. A single segment fills the width and is drawn in the
-             lit colour, which reads as a progress bar at 100% on a book that has barely started —
-             and it would be saying that two lines under "no target set". The row of words above
-             already says "chapter 1 of 1", which is the whole truth for that book. -->
-        ${chapters > 1 ? `<span class="bandmeter">${Array.from({ length: chapters }, (_, i) =>
-          `<i class="${i + 1 === at ? 'now' : i + 1 < at ? 'done' : ''}"></i>`).join('')}</span>` : ''}
-      </span>` : ''}
-      <span class="bandacts">
-        <button class="btn bandgo" data-carryon="${esc(s.id)}">Carry on writing</button>
-        <button class="btn ghost bandgo" data-readfrom="${esc(s.id)}">Read from scene one</button>
-        <span class="bandgap"></span>
-        <span class="bandchips">
-        <!-- WHAT IS OWED, BESIDE THE BOOK IT IS ABOUT. This replaces the page-level strip: an owed
-             thing reads as information next to its book and as a notification at the top of a page.
-             The counts come off the row rather than off waiting(), which collapses every book
-             into whichever one has the most of a kind and so cannot answer "in THIS book". -->
-        ${Number(s.proposed) ? `<button class="chip" data-owed="${esc(s.id)}" data-owedpanel="chapter"
-          style="font-size:11.5px; padding:6px 12px; border-color:var(--gold-dim)">${s.proposed} thread${
-          s.proposed === 1 ? '' : 's'} basted</button>` : ''}
-        ${Number(s.unpaid) ? `<button class="chip" data-owed="${esc(s.id)}" data-owedpanel="strings"
-          style="font-size:11.5px; padding:6px 12px">${s.unpaid} string${
-          s.unpaid === 1 ? '' : 's'} not tied off</button>` : ''}
-        </span>
-      </span>
+    <span class="glass">
+      ${line ? `<span class="serif quote">${esc(line)}</span>`
+        : `<span class="serif quote empty">${at
+            ? 'The last passage is all dialogue, and a character&rsquo;s words are not the narrator&rsquo;s.'
+            : 'Nothing written yet. The first passage is one press away.'}</span>`}
+      ${meta ? `<span class="herometa">${esc(meta)}</span>` : ''}
     </span>
-  </div>`;
-}
-
-/** The hero book's context percentage, held apart from `MANI` ON PURPOSE.
- *
- *  `MANI` belongs to the OPEN story: `refreshManifest` keys off `S.storyId`, and `drawBar` and
- *  `drawMeter` read it to draw that book's meter. Writing the shelf's hero into it would render
- *  one book's context under another book's title — the exact stale-manifest bug the guard inside
- *  `refreshManifest` exists to stop, arriving by a different road.
- *
- *  Asked once per book. `POST /api/manifest` assembles the whole prompt and does a /tokenize round
- *  trip, so this is not a free read, and re-asking on every repaint would pay it on every keystroke
- *  that repaints the page.
- *
- *  ponytail: one assemble + tokenize per visit to the shelf. If that ever shows, the cheaper
- *  answer is the estimate alone — the route already returns the manifest without `exact` when the
- *  router is asleep.
- */
-let HERO_CTX = null, HERO_CTX_FOR = null;
-async function loadHeroContext(storyId) {
-  if (!storyId || HERO_CTX_FOR === storyId) return;
-  HERO_CTX_FOR = storyId;
-  const r = await api.manifest({ storyId });
-  const m = r?.manifest;
-  // Only a MEASURED number is printed. `exact` is null when the model is asleep, and the estimate
-  // has run 1.28x high against the tokenizer — a figure that wrong does not belong on a screen in
-  // the same typeface as one that is right.
-  HERO_CTX = typeof r?.exact === 'number' && m?.totals?.budget > 0
-    ? { id: storyId, pct: Math.round(r.exact / m.totals.budget * 100) } : null;
-  if (S.place === 'workspace' && S.wpage === 'stories') drawPage();
+    <span class="bandacts">
+      <button class="btn bandgo" data-carryon="${esc(s.id)}"${owed.length
+        ? ` aria-label="Carry on writing. Waiting: ${esc(owed.join(', '))}"` : ''}>Carry on writing${
+        owed.length ? '<span class="owedot" aria-hidden="true"></span>' : ''}</button>
+    </span>
+  </section>`;
 }
 
 const WPAGES = {
@@ -7289,9 +7224,6 @@ const WPAGES = {
     // all rather than promoting one — putting a book away is the act that means stop showing me
     // this, and the hero slot is the loudest place on the screen.
     const [hero, ...rest] = live;
-    // The hero book's context, asked for once. Fired from the render the way loadModels and the
-    // cross-book ledger's fetch are, guarded so an answer that repaints does not ask again.
-    if (hero) loadHeroContext(hero.id);
     // THE PAGE-LEVEL "WAITING FOR YOU" STRIP IS GONE. It listed a book title and a count of KINDS
     // — never of items, because it counted rows and `waiting()` returns at most one row per kind —
     // so a book with nine proposals said "· 1". What is owed now sits on the band beside the book
@@ -10886,22 +10818,7 @@ document.addEventListener('click', async (e) => {
     $('input')?.focus();
     return;
   }
-  if (d.readfrom) {
-    await openStory(d.readfrom);
-    if (S.storyId !== d.readfrom) return;
-    const first = V?.chapters?.[0];
-    if (!first || first.id === V.currentChapter?.id) return;
-    const r = await api.story(d.readfrom, first.id);
-    if (!r.error) { V = r; paint(); }
-    return;
-  }
 
-  if (d.owed) {
-    await openStory(d.owed);
-    S.panel = d.owedpanel || 'chapter';
-    syncHash(); paint();
-    return;
-  }
   // The logo goes home. It looked like a heading and was the one thing on every screen that did
   // nothing when pressed.
   if (d.home) {
