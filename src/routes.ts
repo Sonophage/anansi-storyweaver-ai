@@ -2919,7 +2919,13 @@ export const routes: Record<string, Handler> = {
   },
 
   // ---- ledger ----
-  'POST /api/entry':   (c) => { db.upsertEntry(c.body.storyId, c.owner, c.body.entry); return viewOf(c, c.body.storyId); },
+  // A refused write says so. `upsertEntry` refuses an activation that is not one of its two words,
+  // and this answered with the view as if the save had landed.
+  'POST /api/entry':   (c) => {
+    if (!db.upsertEntry(c.body.storyId, c.owner, c.body.entry))
+      return { error: 'That thread was not saved: it must be always on or on a word.' };
+    return viewOf(c, c.body.storyId);
+  },
   'DELETE /api/entry': (c) => { db.delEntry(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
 
   /** The same card in another book. Exported to, or imported from — one operation, and which one it

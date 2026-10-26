@@ -37,6 +37,15 @@ of the list adds a thread.
 
 ## 2026-10-25 · Three buttons at the bottom
 
+### A thread, read
+Open a thread from the list and it reads like a page. "‹ Threads" at the top goes back to the
+list, and Back on your phone does the same. Under the name is one row: what kind of thread it is,
+how it reaches Anansi (the same eye as the list, and a tap still switches it), and how many
+pockets it has. Then what the thread says, and each pocket as its own card with On or Off on it.
+Tap what the thread says to alter it. Everything else you could do with a thread is under the ⋯
+at the top right: alter it, over time, stitched together, copy to another tale, earlier versions,
+the thread as JSON, read the whole tale for it, retire it, and delete it.
+
 ### Reweave, Continue and Anansi's ideas
 Once a passage has landed, the bottom of the screen is three buttons: ↻ Reweave, a big Continue,
 and ✦. Tap Continue and Anansi writes the next passage straight away, and everything you had at

@@ -461,4 +461,23 @@ const NOT_CARRIED: Record<string, string> = {
   ok('the per-book export prunes its own book, keeps the nested neighbour, and defaults to never');
 }
 
+// AN IMPORT CROSSES THE SAME FLOOR (2026-10-25). A file whose thread carries an activation that is
+// not always on or on a word — an old row, or a file edited by hand — is refused by `upsertEntry`,
+// the one floor, and the import says so in its notes rather than counting it as written.
+{
+  const s = db.createStory(owner, { title: 'Bad Word', premise: 'A test.' });
+  const id = db.upsertEntry(s.id, owner, { title: 'The Odd One', body: '[the Odd One]', activation: 'triggered', keys: ['odd'] })!;
+  db.upsertEntry(s.id, owner, { title: 'The Good One', body: '[the Good One]', activation: 'always_on' });
+  const raw = new DatabaseSync('/tmp/anansi-import.db');
+  raw.prepare("UPDATE entries SET activation = 'keyed' WHERE id = ?").run(id);
+  raw.close();
+  const { file } = db.exportStory(s.id, owner, '/tmp/anansi-import-out');
+  const back = imp.absorb(owner, imp.fromExport(file));
+  assert.strictEqual(back.entries, 1, `one of the two threads is written, and it was ${back.entries}`);
+  assert.deepStrictEqual(db.entriesOf(back.storyId).map((e: any) => e.title), ['The Good One']);
+  assert.ok(back.notes.some((n: string) => /The Odd One.*not imported/.test(n)),
+    `and the import's notes name the one it refused: ${JSON.stringify(back.notes)}`);
+  ok('an import refuses a thread whose activation is neither word, and says so');
+}
+
 console.log(`\n${n} checks passed`);

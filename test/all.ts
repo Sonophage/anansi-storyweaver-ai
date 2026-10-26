@@ -83,4 +83,7 @@ for (const r of await Promise.all(runs)) {
 const secs = ((Date.now() - started) / 1000).toFixed(1);
 console.log(bad.length ? `\n${bad.length} suite(s) FAILED: ${bad.join(', ')}  ·  ${secs}s`
                        : `\nall suites passed  ·  ${secs}s`);
-process.exit(bad.length ? 1 : 0);
+// exitCode, NOT exit(). `process.exit()` ends the process before stdout has drained into a pipe,
+// so `test/all.ts | tail -2` lost the very line above: it showed a suite's last check and no
+// verdict. Setting the code lets node finish writing and then exit with it.
+process.exitCode = bad.length ? 1 : 0;
