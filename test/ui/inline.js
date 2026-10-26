@@ -63,7 +63,8 @@ await page.eval(`(() => { const read = document.getElementById('read');
       if (n.isConnected) { window.__w.live = (window.__w.live ?? 0) + 1;
         if (getComputedStyle(n).animationName === 'inkin') window.__w.blurred++; }
       if (window.__w.words === 1) { const c = getComputedStyle(n);
-        window.__w.font = [c.fontFamily, c.fontSize, c.fontStyle].join(' | '); }
+        window.__w.font = [c.fontFamily, c.fontSize, c.fontStyle].join(' | ');
+        window.__w.label = document.querySelector('#ghost .from')?.textContent.replace(/\\s+/g, ' ').trim() ?? null; }
       if (window.__w.words === 1) requestAnimationFrame(() => { const g = document.getElementById('ghost');
         const p = [...document.querySelectorAll('#col .block')].filter((b) => b !== g && b.offsetParent !== null
           && (b.compareDocumentPosition(g) & Node.DOCUMENT_POSITION_FOLLOWING)).at(-1);
@@ -87,6 +88,9 @@ ok(`  and at the first word the passage before is in view (${w.seam})`, w.seam !
 const landedFont = await page.eval(`(() => { const b = [...document.querySelectorAll('#col .block')].at(-1);
   const t = b.querySelector('.said, .narr'), c = getComputedStyle(t); return [c.fontFamily, c.fontSize, c.fontStyle].join(' | '); })()`);
 ok(`  and it is set in the same type while it arrives as when it has landed (${w.font} / ${landedFont})`, w.font === landedFont);
+// AND THE SAME LABEL ("Speak · Aldis Fen"), from the first word (Seth, 2026-10-26: "add the label too").
+const landedLabel = await page.eval("[...document.querySelectorAll('#col .block')].at(-1).querySelector('.from')?.textContent.replace(/\\s+/g, ' ').trim() ?? null");
+ok(`  with the same label while it arrives as when it has landed (${w.label} / ${landedLabel})`, !!w.label && w.label === landedLabel);
 
 // AND A READER WHO SCROLLED UP STAYS PUT WHEN IT LANDS (Seth, 2026-10-26: "a weird transition after
 // the text is finished that takes me back to the top or the bottom of the screen"). The repaint at

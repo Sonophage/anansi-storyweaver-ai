@@ -1674,7 +1674,9 @@ function drawDoc() {
    * view the whole time it was written, and an Alter or Reweave box closes over the place it was
    * opened from: those set HOLD_SCROLL, and this repaint puts the page back exactly there. */
   if (HOLD_SCROLL != null) { read.scrollTop = HOLD_SCROLL; HOLD_SCROLL = null; }
-  else if (tip && !(grew && pinTo(DREW.newest))) read.scrollTop = read.scrollHeight;
+  // 'instant': #read has scroll-behavior:smooth, so assigning scrollTop GLIDES, and a glide still
+  // running when Anansi's first word lands is the page moving under the words (Seth, 2026-10-26).
+  else if (tip && !(grew && pinTo(DREW.newest))) read.scrollTo({ top: read.scrollHeight, behavior: 'instant' });
   DREW = { chapter: ch.id, newest: newestId };
 
   // THE RUNNING HEAD IS GONE, 2026-08-27. It opened on scroll, moved the prose down to make room
@@ -8193,12 +8195,17 @@ function ghost() {
   if (!WRITING_VEIL) {
     const col = $('col'); if (!col) return;
     const g = document.createElement('div');
-    g.id = 'ghost'; g.className = 'block inlive';
+    // The label and the accent it will land with: "Speak · Aldis Fen", "Continue" (Seth, 2026-10-26:
+    // "add the label too"). The same words passageHTML writes on the landed passage.
+    const accented = [...MODES.map(([k]) => k), 'continue'].includes(GHOST_MODE);
+    const press = MODES.find(([k]) => k === GHOST_MODE)?.[1] ?? (GHOST_MODE === 'continue' ? 'Continue' : 'Anansi');
+    g.id = 'ghost'; g.className = `block inlive${accented ? ` m-${GHOST_MODE}` : ''}${GHOST_VOICE ? ' speak' : ''}`;
     // SET AS IT WILL LAND. A passage with a named voice lands as speech — sans, the bubble size, the
     // name above it — and one that opens on a quote does too (`spoken`, passageHTML). It was always
     // written as narration and changed font the moment it landed (Seth, 2026-10-26). The voice is
     // the speaker the press sent (GHOST_VOICE); an opening quote is seen at the first word (liveDelta).
-    g.innerHTML = `<div class="veilweave" aria-live="polite">${weavingAt('dock') ? weaveWords('dock') : ''}</div>
+    g.innerHTML = `<div class="from"><i></i>${esc(press)}${GHOST_VOICE ? ` &middot; ${esc(GHOST_VOICE)}` : ''}</div>
+      <div class="veilweave" aria-live="polite">${weavingAt('dock') ? weaveWords('dock') : ''}</div>
       ${GHOST_VOICE ? `<div class="who">${esc(GHOST_VOICE)}</div>` : ''}
       <div class="${GHOST_VOICE ? 'said' : 'narr'}"><div class="veiltext" aria-live="polite"></div></div>`;
     col.appendChild(g);
@@ -8261,6 +8268,9 @@ let PEND = '', DRAIN = null, VEIL_DONE = false, LAST_TICK = 0, TIP = [], SEEN = 
 /** The named voice of the passage about to be written, or null: the speaker the press sends. Set by
  *  each caller just before ghost(), so the passage being written is set as it will land. */
 let GHOST_VOICE = null;
+/** And the press it is written for (generate's mode; a re-roll's inherited one), for the label and
+ *  the margin accent the passage will land with. */
+let GHOST_MODE = null;
 /** The inline passage being written (INLINE), kept by reference: a repaint rebuilds #col and would drop it,
  *  so drawDoc puts it back. Null when nothing is being written inline. */
 let INLINE = null;
@@ -8392,7 +8402,7 @@ function liveDelta(d) {
   if (INLINE && !GHOST_VOICE && !SEEN && !PEND && isSpeech(d)) {
     const box = el.parentElement;
     if (box?.classList.contains('narr')) {
-      box.classList.replace('narr', 'said');
+      box.classList.replace('narr', 'said'); INLINE.classList.add('speak');
       box.insertAdjacentHTML('beforebegin', `<div class="who">${esc(V?.story?.title ?? '')}</div>`);
     }
   }
@@ -8783,7 +8793,7 @@ async function generate(mode = S.mode, again = null) {
   S.busy = true; drawDock(); working(mode);
   // Your text is already on the page in the three modes above, so the model gets no directive —
   // it gets told whose line it is answering instead.
-  GHOST_VOICE = who ?? null;
+  GHOST_VOICE = who ?? null; GHOST_MODE = mode;
   ghost();   // the roller, from the press until accept returns
   STOP = new AbortController();
   const r = await api.generateLive({ storyId: S.storyId, mode, chapterId: V.currentChapter.id,
@@ -9039,11 +9049,11 @@ function pinTo(id) {
   const el = document.querySelector(`[data-edit="${id}"]`)?.closest('.block');
   if (!el) return false;
   // A little above the fold, so the line you stopped on is still on screen rather than exactly at
-  // the edge. `behavior:'auto'` because #read carries scroll-behavior:smooth, and a half-second
-  // travel races the 1.5s wipe.
+  // the edge. 'instant' and not 'auto': 'auto' means "whatever the CSS says", and #read carries
+  // scroll-behavior:smooth, so 'auto' glided — the half-second travel this was written to avoid.
   const PEEK = 72;
   const top = read.scrollTop + (el.getBoundingClientRect().bottom - read.getBoundingClientRect().top) - PEEK;
-  read.scrollTo({ top, behavior: 'auto' });
+  read.scrollTo({ top, behavior: 'instant' });
   return true;
 }
 
@@ -9097,8 +9107,11 @@ async function regenerateInto(id, steer, seed, again = null) {
   // way `generate()` has always done it.
   if (atEnd) {
     // The server keeps the old take's speaker when the press sends none (`inherit`, routes.ts).
+    const old = (V.passages ?? []).find((x) => x.id === id);
     GHOST_VOICE = (S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona) : null)
-      ?? (V.passages ?? []).find((x) => x.id === id)?.speaker ?? null;
+      ?? old?.speaker ?? null;
+    // `inherit` in routes.ts: an instruction makes it Direct, else the old take's own press.
+    GHOST_MODE = steer || old?.directive ? 'direct' : (old?.mode || S.mode);
     ghost();
     // Inline, the new version writes in where the old one was: the old one steps aside until it
     // lands, or comes back if the re-roll is stopped.

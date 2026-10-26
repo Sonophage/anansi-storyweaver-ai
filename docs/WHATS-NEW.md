@@ -20,8 +20,9 @@ the page is where you left it.
 
 ### The same type before and after
 A passage Anansi is writing is now set in the same type it will have when it lands: a line of
-speech arrives as speech, with the name above it, instead of changing font at the end. The
-Alter box shows the passage in the same type as the page.
+speech arrives as speech, with the name above it, instead of changing font at the end. It
+carries its label from the first word too, such as Speak · Aldis Fen or Continue. The Alter box
+shows the passage in the same type as the page.
 
 ### The page stays still when a passage lands
 When Anansi finishes writing, the page no longer jumps to the top or the bottom. It stays where
