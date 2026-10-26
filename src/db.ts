@@ -2843,10 +2843,13 @@ export function revertEntryField(storyId: string, entryId: string, revisionId: s
 }
 
 // ---- backup ----
-/** #76. A line on a tale's update report: what moved, and the thread it was about. */
+/** #76. A line on a tale's update report: what moved, and the thread it was about.
+ *  ITS OWN STATEMENT, ID AND CLOCK, not `q`, `uid` and `now`: its callers are migrations, which run
+ *  inside `migrate()` at load, and those three are declared below that call. Reaching for them from
+ *  there throws "Cannot access before initialization" (`repairStrandedChapters` paid for it first). */
 export function noteUpdate(storyId: string, line: string, entryId: string | null = null) {
-  q('INSERT INTO update_lines (id, story_id, entry_id, line, backup, backup_at, at) VALUES (?,?,?,?,?,?,?)')
-    .run(uid('ul-'), storyId, entryId, line, REWRITE?.file ?? null, REWRITE?.at ?? null, now());
+  db.prepare('INSERT INTO update_lines (id, story_id, entry_id, line, backup, backup_at, at) VALUES (?,?,?,?,?,?,?)')
+    .run('ul-' + randomBytes(4).toString('hex'), storyId, entryId, line, REWRITE?.file ?? null, REWRITE?.at ?? null, Date.now());
 }
 
 /** The tale's update report, newest first. Same-millisecond lines keep their order by rowid. */
