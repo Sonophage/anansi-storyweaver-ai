@@ -50,14 +50,16 @@ export const SLOTS: Record<EntryKind, { name: string; exclusive: boolean }[]> = 
   ],
 };
 
-/** #77 · THE POCKETS THAT BECAME ALWAYS TRUE (ADR 0005, Seth 2026-10-26). Role, provenance and scope
- *  are what a thread IS, and history is mostly what it was before the tale opens, so each is now
- *  appended to Always true under its label and is no longer a pocket. Kept as a list because the
- *  update and a pasted card both fold them, and the two must agree on which. */
+/** #77 · THE POCKETS THAT ARE POCKETS NO MORE (ADR 0005, the 2026-10-26 grill). Role, provenance and
+ *  scope are what a thread IS, so they join Always true. History is what has happened to it, so it
+ *  joins Over time: the thread's own text, where it stands from scene 1. Each is appended under its
+ *  label. A list because the update and a pasted or pulled card both fold them, and must agree. */
 export const FOLDED = ['history', 'provenance', 'role', 'scope'];
+/** Of those, the one that goes to Over time rather than Always true. */
+export const TO_OVER_TIME = ['history'];
 /** One folded pocket as a line of Always true: `[Role: the one Aldis owes]`. The writer's own name
  *  for it wins over the slot's, unless it only repeats the slot or the thread's title. */
-export const foldLine = (slot: string, name: string, body: string, title = '') => {
+export const foldLine = (slot: string, name: string, body: string, title: string) => {
   const raw = String(body ?? '').trim();
   const inner = raw.startsWith('[') && raw.indexOf(']') === raw.length - 1 ? raw.slice(1, -1).trim() : raw;
   const own = String(name ?? '').trim();

@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 // The slot names live in one module because `entries.field_editors` keys provenance by them and
 // the partial unique index below names them as a literal. Three copies of one list is the drift
 // `src/blocks.ts` exists to stop for the block order; this is the same rule for slots.
-import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, foldLine } from './slots.ts';
+import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, TO_OVER_TIME, foldLine } from './slots.ts';
 import { factsLost } from './context.ts';
 import { isRemote } from './llama.ts';
 
@@ -74,72 +74,6 @@ db.exec('PRAGMA busy_timeout = 5000;');
  *  SCOPED TO A BRANCH WHOSE NEWEST CHAPTER IS CLOSED AND WHICH HAS NO OPEN CHAPTER AT ALL, so it
  *  writes nothing when the invariant holds — which is every book but the one. Returns what it did,
  *  so the caller can say so rather than repairing silently. */
-/** #77 · UPDATE DAY FOR ALWAYS TRUE (ADR 0005). Every facts pocket is a thread's Always true, which
- *  is always sent, so one that was switched off is switched on. Role, provenance, scope and history
- *  are appended to it under their labels and stop being pockets (`slots.FOLDED`). The tale's update
- *  report says, per thread, what moved — and, in the same run only, which threads have Always true
- *  and Info both written (check they agree; Halsey's say secretary and singer) and which have none.
- *
- *  ONCE BY ITS DATA: it acts only on rows that are still in the old shape, so a second boot finds
- *  none and writes nothing. A backup comes first (`beforeRewrite`), and it is all one transaction.
- *  Its own statements and clock, like `repairStrandedChapters`: it runs inside `migrate()`. */
-export function foldAlwaysTrue() {
-  const P = (sql: string) => db.prepare(sql);
-  const off = P(`SELECT * FROM addons WHERE slot = 'facts' AND active = 0 AND entry_id IS NOT NULL`).all() as any[];
-  const folds = P(`SELECT * FROM addons WHERE slot IN (${FOLDED.map(() => '?').join(',')}) AND entry_id IS NOT NULL
-    ORDER BY entry_id, created_at, rowid`).all(...FOLDED) as any[];
-  if (!off.length && !folds.length) return { changed: 0 };
-  beforeRewrite();
-  const title = (id: string) => String((P('SELECT title FROM entries WHERE id = ?').get(id) as any)?.title ?? '');
-  const factsOf = (entryId: string) => P(`SELECT * FROM addons WHERE entry_id = ? AND slot = 'facts'
-    ORDER BY active DESC, created_at, rowid`).all(entryId) as any[];
-  db.exec('BEGIN');
-  try {
-    // ON. Two facts rows on one thread (one on, one off) is a shape the old screens allowed; the
-    // index allows only one switched on, so the second's text is appended to the first instead.
-    for (const a of off) {
-      const [keep, ...rest] = factsOf(a.entry_id);
-      if (keep.id === a.id) P('UPDATE addons SET active = 1 WHERE id = ?').run(a.id);
-      else {
-        P('UPDATE addons SET body = ? WHERE id = ?').run(`${keep.body.trim()}\n${a.body.trim()}`, keep.id);
-        P('DELETE FROM addons WHERE id = ?').run(a.id);
-      }
-      if (!rest.some((r: any) => r.id === a.id) || keep.id === a.id)
-        noteUpdate(a.story_id, 'Its Always true (shown as Facts until now) was switched off. Always true is sent every time, so it is sent now.', a.entry_id);
-    }
-    // FOLDED, in the order they were written, under the thread's one Always true.
-    const byEntry = new Map<string, any[]>();
-    for (const a of folds) byEntry.set(a.entry_id, [...(byEntry.get(a.entry_id) ?? []), a]);
-    for (const [entryId, rows] of byEntry) {
-      const t = title(entryId);
-      const lines = rows.map((a) => foldLine(a.slot, a.name, a.body, t));
-      const [have] = factsOf(entryId);
-      if (have) P('UPDATE addons SET body = ? WHERE id = ?').run([have.body.trim(), ...lines].filter(Boolean).join('\n'), have.id);
-      else P(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,created_at)
-        VALUES (?,?,?,'facts','facts',?,'[]',1,?)`).run('ad-' + randomBytes(4).toString('hex'), rows[0].story_id, entryId,
-          lines.join('\n'), Date.now());
-      for (const a of rows) P('DELETE FROM addons WHERE id = ?').run(a.id);
-      const names = lines.map((l) => l.slice(1, l.indexOf(':')));
-      noteUpdate(rows[0].story_id, `${names.join(', ')} moved into Always true and ${names.length === 1 ? 'is' : 'are'} no longer a pocket. Always true is sent every time.`, entryId);
-    }
-    // WHAT TO CHECK, written in this run only: it is about the library as the update found it.
-    // The threads with no Always true are ONE line per tale: a dry run on the live library found 253
-    // of them, and a report of 253 identical lines is a report nobody reads.
-    const none = new Map<string, string[]>();
-    for (const e of P(`SELECT e.id, e.story_id, e.title, e.body, (SELECT body FROM addons a WHERE a.entry_id = e.id
-        AND a.slot = 'facts' LIMIT 1) AS always FROM entries e ORDER BY e.title`).all() as any[]) {
-      const always = String(e.always ?? '').trim(), info = String(e.body ?? '').trim();
-      if (always && info) noteUpdate(e.story_id, 'Its Always true and its Info are both written. Check that they agree: the model is sent both.', e.id);
-      else if (!always && info) none.set(e.story_id, [...(none.get(e.story_id) ?? []), e.title]);
-    }
-    for (const [story, names] of none) noteUpdate(story, `${names.length === 1 ? 'One thread has' : `${names.length} threads have`} `
-      + `no Always true yet: ${names.slice(0, 30).join(', ')}${names.length > 30 ? `, and ${names.length - 30} more` : ''}. `
-      + 'Who or what each one is can be written there.');
-    db.exec('COMMIT');
-  } catch (err) { db.exec('ROLLBACK'); throw err; }
-  return { changed: off.length + folds.length };
-}
-
 export function repairStrandedChapters(): { storyId: string; idx: number }[] {
   const stranded = db.prepare(`
     SELECT c.story_id, c.branch_id, c.idx FROM chapters c
@@ -163,6 +97,86 @@ export function repairStrandedChapters(): { storyId: string; idx: number }[] {
     done.push({ storyId: r.story_id, idx });
   }
   return done;
+}
+
+/** #77 · UPDATE DAY FOR ALWAYS TRUE (ADR 0005). A thread's Facts row is its Always true, which is
+ *  always sent, so one that was switched off is switched on, and a second one is added to the first.
+ *  Role, provenance and scope are appended to Always true, and history to the thread's own text (the
+ *  start of Over time), each under its label, and they stop being pockets (`slots.FOLDED`). The
+ *  tale's update report says, per thread, what moved — and, in the same run only, which threads have
+ *  Always true and Info both written (check they agree; Halsey's say secretary and singer) and which
+ *  have none.
+ *
+ *  ONCE BY ITS DATA: it acts only on rows still in the old shape, and `upsertAddon` writes Always true
+ *  on and one per thread, so a later boot finds none and writes nothing. A backup comes first
+ *  (`beforeRewrite`), and it is all one transaction.
+ *  Its own statements and clock, like `repairStrandedChapters`: it runs inside `migrate()`. */
+export function foldAlwaysTrue() {
+  const P = (sql: string) => db.prepare(sql);
+  const off = P(`SELECT * FROM addons WHERE slot = 'facts' AND active = 0 AND entry_id IS NOT NULL`).all() as any[];
+  const folds = P(`SELECT * FROM addons WHERE slot IN (${FOLDED.map(() => '?').join(',')}) AND entry_id IS NOT NULL
+    ORDER BY entry_id, created_at, rowid`).all(...FOLDED) as any[];
+  if (!off.length && !folds.length) return;
+  beforeRewrite();
+  const factsOf = (entryId: string) => P(`SELECT * FROM addons WHERE entry_id = ? AND slot = 'facts'
+    ORDER BY active DESC, created_at, rowid`).all(entryId) as any[];
+  db.exec('BEGIN');
+  try {
+    // ON. Two facts rows on one thread (one on, one off) is a shape the old screens allowed; the
+    // index allows only one switched on, so the second's text is appended to the first instead.
+    for (const a of off) {
+      const [keep] = factsOf(a.entry_id);
+      if (keep.id === a.id) {
+        P('UPDATE addons SET active = 1 WHERE id = ?').run(a.id);
+        noteUpdate(a.story_id, 'Its Always true (shown as Facts until now) was switched off. Always true is sent every time, so it is sent now.', a.entry_id);
+      } else {
+        P('UPDATE addons SET body = ? WHERE id = ?').run(`${keep.body.trim()}\n${a.body.trim()}`, keep.id);
+        P('DELETE FROM addons WHERE id = ?').run(a.id);
+        noteUpdate(a.story_id, 'It had a second Facts, switched off. Its text was added to Always true, which is sent every time.', a.entry_id);
+      }
+    }
+    // FOLDED, in the order they were written, under the thread's one Always true.
+    const byEntry = new Map<string, any[]>();
+    for (const a of folds) byEntry.set(a.entry_id, [...(byEntry.get(a.entry_id) ?? []), a]);
+    for (const [entryId, rows] of byEntry) {
+      const t = String((P('SELECT title FROM entries WHERE id = ?').get(entryId) as any)?.title ?? '');
+      const always = rows.filter((a) => !TO_OVER_TIME.includes(a.slot));
+      const later = rows.filter((a) => TO_OVER_TIME.includes(a.slot));
+      if (always.length) {
+        const lines = always.map((a) => foldLine(a.slot, a.name, a.body, t));
+        const [have] = factsOf(entryId);
+        if (have) P('UPDATE addons SET body = ? WHERE id = ?').run([have.body.trim(), ...lines].filter(Boolean).join('\n'), have.id);
+        else P(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,created_at)
+          VALUES (?,?,?,'facts','facts',?,'[]',1,?)`).run('ad-' + randomBytes(4).toString('hex'), rows[0].story_id, entryId,
+            lines.join('\n'), Date.now());
+        const names = lines.map((l) => l.slice(1, l.indexOf(':')));
+        noteUpdate(rows[0].story_id, `${names.join(', ')} moved into Always true and ${names.length === 1 ? 'is' : 'are'} no longer a pocket. Always true is sent every time.`, entryId);
+      }
+      if (later.length) {
+        const lines = later.map((a) => foldLine(a.slot, a.name, a.body, t));
+        const body = String((P('SELECT body FROM entries WHERE id = ?').get(entryId) as any)?.body ?? '').trim();
+        P('UPDATE entries SET body = ?, updated_at = ? WHERE id = ?').run([body, ...lines].filter(Boolean).join('\n'), Date.now(), entryId);
+        const names = later.map((a, i) => { const l = lines[i].slice(1, lines[i].indexOf(':'));
+          return l.toLowerCase() === a.slot ? l : `${a.slot[0].toUpperCase() + a.slot.slice(1)} (${l})`; });
+        noteUpdate(rows[0].story_id, `${names.join(', ')} moved into Over time, where the thread stands from scene 1, and ${names.length === 1 ? 'is' : 'are'} no longer a pocket. It is sent every time.`, entryId);
+      }
+      for (const a of rows) P('DELETE FROM addons WHERE id = ?').run(a.id);
+    }
+    // WHAT TO CHECK, written in this run only: it is about the library as the update found it.
+    // The threads with no Always true are ONE line per tale: a dry run on the live library found 253
+    // of them, and a report of 253 identical lines is a report nobody reads.
+    const none = new Map<string, string[]>();
+    for (const e of P(`SELECT e.id, e.story_id, e.title, e.body, (SELECT body FROM addons a WHERE a.entry_id = e.id
+        AND a.slot = 'facts' LIMIT 1) AS always FROM entries e ORDER BY e.title`).all() as any[]) {
+      const always = String(e.always ?? '').trim(), info = String(e.body ?? '').trim();
+      if (always && info) noteUpdate(e.story_id, 'Its Always true and its Info are both written. Check that they agree: the model is sent both.', e.id);
+      else if (!always && info) none.set(e.story_id, [...(none.get(e.story_id) ?? []), e.title]);
+    }
+    for (const [story, names] of none) noteUpdate(story, `${names.length === 1 ? 'One thread has' : `${names.length} threads have`} `
+      + `no Always true yet: ${names.slice(0, 30).join(', ')}${names.length > 30 ? `, and ${names.length - 30} more` : ''}. `
+      + 'Who or what each one is can be written there.');
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
 }
 
 // Migrations. `CREATE TABLE IF NOT EXISTS` cannot alter an existing table or replace an index,
@@ -2336,6 +2350,14 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
   // a row can be hung off another writer's card. Same shape as `wearOutfit`'s ownership check.
   if (entryId && !q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId)) return null;
   const keys = JSON.stringify(keysOf(a.keys));
+  // #77 · ONE ALWAYS TRUE PER THREAD, AND ON. Always true is stored as the `facts` addon and is not a
+  // pocket: a second one is an edit of the first, and it is never written switched off. Here, where
+  // every writer of a thread passes (the tray, a paste, the forge, a pulled card).
+  if (slot === 'facts' && entryId && !a.id) {
+    const have = q("SELECT id FROM addons WHERE entry_id = ? AND story_id = ? AND slot = 'facts' ORDER BY active DESC, created_at LIMIT 1")
+      .get(entryId, storyId) as any;
+    if (have) a = { ...a, id: have.id };
+  }
   if (a.id && q('SELECT 1 FROM addons WHERE id = ? AND story_id = ?').get(a.id, storyId)) {
     // PRESENCE, NOT TRUTHINESS. These two were written as `?? null` unconditionally and the addon
     // editor sends neither, so every save of a room silently cleared its chapter anchors — which
@@ -2359,8 +2381,9 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
   }
   const id = uid('ad-');
   q(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,from_chapter,retired_at_chapter,created_at)
-     VALUES (?,?,?,?,?,?,?,0,?,?,?)`)
-    .run(id, storyId, entryId, slot, a.name, a.body, keys, a.fromChapter ?? null, a.retiredAtChapter ?? null, t);
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(id, storyId, entryId, slot, a.name, a.body, keys, slot === 'facts' && entryId ? 1 : 0,
+      a.fromChapter ?? null, a.retiredAtChapter ?? null, t);
   touch(storyId);
   return id;
 }
@@ -2915,6 +2938,16 @@ export function revertEntryField(storyId: string, entryId: string, revisionId: s
 }
 
 // ---- backup ----
+/** #77. Add to the end of a thread's own text: where it stands from scene 1, the start of Over time.
+ *  A pasted or pulled card's history lands here (`slots.TO_OVER_TIME`). */
+export function appendInfo(storyId: string, entryId: string, text: string) {
+  const e = q('SELECT body FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId) as any;
+  if (!e || !String(text ?? '').trim()) return;
+  q('UPDATE entries SET body = ?, updated_at = ? WHERE id = ?')
+    .run([String(e.body ?? '').trim(), String(text).trim()].filter(Boolean).join('\n'), now(), entryId);
+  touch(storyId);
+}
+
 /** #76. A line on a tale's update report: what moved, and the thread it was about.
  *  ITS OWN STATEMENT, ID AND CLOCK, not `q`, `uid` and `now`: its callers are migrations, which run
  *  inside `migrate()` at load, and those three are declared below that call. Reaching for them from

@@ -6,7 +6,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
-import { ALL_SLOTS, slotsFor, SLOTS, FOLDED, foldLine } from './slots.ts';
+import { ALL_SLOTS, slotsFor, SLOTS, FOLDED, TO_OVER_TIME, foldLine } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultModePrompts, trimToSentence,
@@ -654,7 +654,7 @@ function roomOffer(onto: any, field: string | null, body: string): string | null
  *    - `none`, or anything not a slot, means the card's own body. The normal answer.
  *    - A room needs a card that ALREADY EXISTS to be a room OF. A brand-new thread has no rooms
  *      yet and its body is the whole of it, so a field on a `new` proposal is dropped.
- *    - A slot this KIND does not have — `voice` on a rule, `provenance` on a character — is
+ *    - A slot this KIND does not have — `voice` on a rule, `atmosphere` on a character — is
  *      refused against `slotsFor`, which is the same list the screen draws from. The enums in
  *      EXTRACT_SCHEMA and TALK_SCHEMA cannot express "per kind" and this is where that is enforced.
  *
@@ -1480,25 +1480,47 @@ async function check(c: Ctx, storyId: string, passageId: string) {
  *
  *  Returns what landed and what did not, because a paste that silently drops half a card is worse
  *  than one that refuses — `notes` is the importer's own convention for saying so. */
+/** #77 · THE LOCK (ADR 0005). Always true of a thread that exists is the writer's alone, so a chalked
+ *  change aimed at it (the finder still calls permanent things "facts", and a pulled card brings its
+ *  own) is sewn in as an Over time entry from its scene instead. The entry is WHOLE, as every Over
+ *  time entry is: where the thread stood there, then the change, because the model reads only the
+ *  one in force. A closed scene's change is in force from the next one, as the memory pass has it.
+ *  Called from the accept route, which every chalked thing passes through to reach the tale. */
+function lockToOverTime(p: any, text: string) {
+  const v = bookOf(p.story_id);
+  const e = v?.entries.find((x: any) => x.id === p.entry_id);
+  if (!e || !text.trim()) return;
+  const ch = v.chapters.find((x: any) => x.id === p.chapter_id);
+  const from = ch ? ch.index + (ch.status === 'closed' ? 1 : 0) : (v.currentChapter?.index ?? 1);
+  db.upsertState(p.story_id, e.id, { fromChapter: from,
+    body: [resolveBody(e, from).trim(), text.trim()].filter(Boolean).join('\n'),
+    label: p.delta || null, beforeMode: 'hide' });
+}
+
 function writeRooms(storyId: string, entryId: string, kind: string, rooms: any, label: string) {
   const notes: string[] = [];
   let made = 0;
   const here = slotsFor(kind).map((sl) => sl.name);
   // #77. ROLE, PROVENANCE, SCOPE AND HISTORY ARE NOT POCKETS, but a pasted card or a pulled one may
-  // still carry them, and dropping them would lose text the writer chose. They are folded into
-  // Always true under their labels, as the update folded the library's own (`slots.FOLDED`).
-  const folded = Object.entries(rooms ?? {}).filter(([slot]) => FOLDED.includes(slot))
+  // still carry them, and dropping them would lose text the writer chose. They are folded as the
+  // update folded the library's own (`slots.FOLDED`): history into Over time (the thread's own
+  // text), the rest into Always true, each under its label.
+  const fold = (want: (slot: string) => boolean) => Object.entries(rooms ?? {})
+    .filter(([slot]) => FOLDED.includes(slot) && want(slot))
     .map(([slot, val]: [string, any]) => {
       const o: any = (val && typeof val === 'object') ? val : { body: String(val ?? '') };
       return String(o.body ?? '').trim() ? foldLine(slot, String(o.name ?? ''), String(o.body), label) : '';
     }).filter(Boolean);
+  const later = fold((slot) => TO_OVER_TIME.includes(slot));
+  if (later.length) db.appendInfo(storyId, entryId, later.join('\n'));
+  const folded = fold((slot) => !TO_OVER_TIME.includes(slot));
   if (folded.length) {
     const facts: any = (rooms as any).facts;
     const own = String((facts && typeof facts === 'object') ? facts.body ?? '' : facts ?? '').trim();
     rooms = { ...rooms, facts: { ...(facts && typeof facts === 'object' ? facts : {}),
       body: [own && (own.startsWith('[') ? own : `[${own}]`), ...folded].filter(Boolean).join('\n') } };
-    for (const slot of FOLDED) delete (rooms as any)[slot];
   }
+  rooms = Object.fromEntries(Object.entries(rooms ?? {}).filter(([slot]) => !FOLDED.includes(slot)));
   for (const [slot, val] of Object.entries(rooms ?? {})) {
     if (!here.includes(slot)) {
       notes.push(`"${label}" offered a "${slot}" — a ${kind} has no such pocket, so it was left out.`);
@@ -3913,19 +3935,8 @@ export const routes: Record<string, Handler> = {
         db.upsertString(p.story_id, { title: p.title, body: c.body.body ?? p.body,
           fromChapter: Number(JSON.parse(p.keys || '[]')[0]) || null });
       } else if (c.body.accept && target === 'room:facts') {
-        // #77 · THE LOCK (ADR 0005). Always true of a thread that exists is the writer's alone, so a
-        // chalked change aimed at it — the finder still calls permanent things "facts" — is sewn in
-        // as an Over time entry from its scene instead. The entry is WHOLE, as every Over time entry
-        // is: where the thread stood there, then the change, because the model reads only the one
-        // in force. A closed scene's change is in force from the next one, as the memory pass has it.
-        // Here, on accept, because every chalked thing reaches the tale through this one press.
-        const v = bookOf(p.story_id);
-        const e = v?.entries.find((x: any) => x.id === p.entry_id);
-        const ch = v?.chapters.find((x: any) => x.id === p.chapter_id);
-        const from = ch ? ch.index + (ch.status === 'closed' ? 1 : 0) : (v?.currentChapter?.index ?? 1);
-        if (e) db.upsertState(p.story_id, e.id, { fromChapter: from,
-          body: [resolveBody(e, from).trim(), String(c.body.body ?? p.body).trim()].filter(Boolean).join('\n'),
-          label: p.delta || null, beforeMode: 'hide' });
+        // #77 · THE LOCK: see `lockToOverTime`.
+        lockToOverTime(p, String(c.body.body ?? p.body));
       } else if (c.body.accept && target.startsWith('room:')) {
         // PLAN-08 Phase 4. THE ROOM, NOT THE WHOLE CARD. `proposals.field` has been written since
         // Phase 2 and read by nothing, so every accepted change rewrote the entire body — which is
@@ -3956,6 +3967,14 @@ export const routes: Record<string, Handler> = {
         // AFTER the entry had been created, so a pulled card arrived with no rooms and its proposal
         // stayed open. The route's catch turned a crash into an error string, which is why it read
         // as "rooms are not pulled" rather than as a fault.
+        // THE LOCK FOR A PULLED CARD TOO (#77): Look it up online can land on a thread that exists,
+        // and the Always true it brings is the model's. It goes to Over time; the other rooms land.
+        const existed = !!p.entry_id && !!(db.entriesOf(p.story_id) as any[]).some((x) => x.id === p.entry_id);
+        if (existed && p.rooms) {
+          const r = (() => { try { return JSON.parse(p.rooms); } catch { return null; } })();
+          const f = r?.facts && typeof r.facts === 'object' ? r.facts.body : r?.facts;
+          if (r && String(f ?? '').trim()) { lockToOverTime(p, String(f)); delete r.facts; p.rooms = JSON.stringify(r); }
+        }
         const made = db.upsertEntry(p.story_id, c.owner, { id: p.entry_id || undefined, title: p.title,
           body: c.body.body ?? p.body, entryType: p.entry_type,
           // PLAN-08 Phase 2. The proposal can carry an activation now, and this honours it for

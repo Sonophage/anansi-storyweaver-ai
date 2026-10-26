@@ -10169,7 +10169,7 @@ document.addEventListener('click', async (e) => {
     // The tray stays open on top of the list, so nothing on screen moves when this works. It said
     // nothing at all before, which from in here is indistinguishable from a press that missed.
     paint(); refreshManifest();
-    toast(slot === 'outfit' ? 'Added, unworn.' : `Added. Switch it on from the thread.`); return;
+    toast(slot === 'outfit' ? 'Added, unworn.' : slot === 'facts' ? 'Added.' : `Added. Switch it on from the thread.`); return;
   }
   if (d.saveoutfit) {
     const name = document.querySelector(`[data-ofn="${d.saveoutfit}"]`)?.value.trim();

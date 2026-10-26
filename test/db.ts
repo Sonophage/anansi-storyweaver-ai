@@ -2141,6 +2141,17 @@ ok('the extraction schema and src/slots.ts name the same slots', () => {
     .filter((x: string) => x !== 'none').sort();
   assert.deepStrictEqual(inSchema, [...slots.ALL_SLOTS].sort(),
     'the extraction schema and the module disagree about which rooms exist');
+  // #77. THE OTHER TWO ENUMS, guarded the same way: they were hand-trimmed when four pockets folded
+  // into Always true and Over time, and only this one was checked. Talk names every room, as
+  // extraction does; the memory pass names a character's, minus the wardrobe it does not write.
+  const enumOf = (sch: any, path: string[]) => [...path.reduce((o, k) => o[k], sch).enum].filter((x: string) => x !== 'none').sort();
+  assert.deepStrictEqual(enumOf(prompts.TALK_SCHEMA, ['properties', 'entries', 'items', 'properties', 'field']),
+    [...slots.ALL_SLOTS].sort(), 'the Talk schema and the module disagree about which rooms exist');
+  assert.deepStrictEqual(enumOf(prompts.MEMORY_SCHEMA, ['properties', 'characters', 'items', 'properties', 'field']),
+    slots.SLOTS.character.map((x: any) => x.name).filter((n: string) => n !== 'outfit').sort(),
+    'the memory schema and the character pockets disagree');
+  assert.deepStrictEqual(slots.FOLDED.filter((n: string) => slots.ALL_SLOTS.includes(n)), [],
+    'a folded pocket is a pocket again, and a paste would fold it away silently');
 });
 
 {
@@ -3327,6 +3338,10 @@ ok('update day: every facts text becomes Always true, switched on, with the fold
   put('a-m-role', 'e-marek', 'role', 'role', '[the one Aldis owes]', 1);
   put('a-m-hist', 'e-marek', 'history', 'The war', '[lost a hand at Sallow]', 0);
   put('a-k-prov', 'e-key', 'provenance', 'provenance', 'cut from the vault lock', 1);
+  // TWO FACTS ON ONE THREAD, both off: a shape the old screens allowed. One Always true comes of it.
+  db.upsertEntry(t.id, o, { id: 'e-twice', title: 'Twice', body: '', entryType: 'character' });
+  put('a-t-1', 'e-twice', 'facts', 'facts', '[Twice: born in the flood]', 0);
+  put('a-t-2', 'e-twice', 'facts', 'facts', '[Twice: left-handed]', 0);
   raw.close();
 
   db.foldAlwaysTrue();
@@ -3335,27 +3350,55 @@ ok('update day: every facts text becomes Always true, switched on, with the fold
   assert.strictEqual(facts('e-halsey').active, 1, 'FOLD-ON: a facts pocket that was off is Always true, and on');
   assert.strictEqual(facts('e-halsey').body, '[Halsey: 26; secretary]', '  with its text unchanged');
   assert.ok(rooms('e-halsey').some((a) => a.slot === 'voice'), '  and her other pockets stay pockets');
-  assert.strictEqual(facts('e-marek').body, '[Marek: moneylender]\n[Role: the one Aldis owes]\n[The war: lost a hand at Sallow]',
-    'FOLD-POCKETS: role and history are appended under their labels');
-  assert.deepStrictEqual(rooms('e-marek').map((a) => a.slot), ['facts'], '  and are pockets no more');
+  assert.strictEqual(facts('e-marek').body, '[Marek: moneylender]\n[Role: the one Aldis owes]',
+    'FOLD-POCKETS: role is appended to Always true under its label');
+  // HISTORY GOES TO OVER TIME (ADR 0005, Seth in the grill): what has happened to the thread, so it
+  // joins the text Over time starts from, not the evergreen half.
+  assert.strictEqual((db.entriesOf(t.id) as any[]).find((e) => e.id === 'e-marek').body, '[The war: lost a hand at Sallow]',
+    'FOLD-HISTORY: history is appended to where the thread stands (Over time), under its label');
+  assert.deepStrictEqual(rooms('e-marek').map((a) => a.slot), ['facts'], '  and neither is a pocket any more');
   assert.strictEqual(facts('e-key')?.body, '[Provenance: cut from the vault lock]',
     'FOLD-NEW: a thread with only a folded pocket gets an Always true made of it');
   assert.strictEqual(facts('e-key')?.active, 1, '  switched on');
   assert.strictEqual(facts('e-bare'), undefined, 'a thread with nothing to fold is given nothing');
+  const twice = rooms('e-twice').filter((a) => a.slot === 'facts');
+  assert.deepStrictEqual(twice.map((a) => [a.body, a.active]), [['[Twice: born in the flood]\n[Twice: left-handed]', 1]],
+    'FOLD-TWO: two Facts on one thread become one Always true, the older first, switched on');
 
   const lines = db.updatesOf(t.id).map((l: any) => `${l.entryTitle}: ${l.line}`);
   const has = (re: RegExp) => lines.some((l: string) => re.test(l));
   assert.ok(has(/^Halsey: .*was switched off/i), `REPORT-ON: the switched-off one is named (${lines.join(' | ')})`);
   assert.ok(has(/^Halsey: .*agree/i), 'REPORT-BOTH: a thread with Always true and Info both written is asked to check they agree');
-  assert.ok(has(/^Marek: .*Role.*The war/), 'REPORT-FOLD: the folded pockets are named on their thread');
+  assert.ok(has(/^Marek: Role moved into Always true/), 'REPORT-FOLD: the folded pockets are named on their thread');
+  assert.ok(has(/^Marek: History \(The war\) moved into Over time/), 'REPORT-HISTORY: and history says where it went, by its kind as well as its name');
+  assert.ok(db.updatesOf(t.id).every((l: any) => l.backup), 'REPORT-BACKUP-FIRST: every line names the backup taken before it');
   assert.ok(has(/^null: One thread has no Always true yet: Bare\./), `REPORT-NONE: threads with no Always true are named, in one line for the tale (${lines.join(' | ')})`);
-  assert.ok(!has(/^Marek: .*agree/i), '  and a thread with no Info is not asked to compare');
+  assert.ok(has(/^Marek: .*agree/i), '  and Marek, whose Info is his history now, is asked too');
 
   const before = db.updatesOf(t.id).length;
   db.foldAlwaysTrue();
-  assert.strictEqual(facts('e-marek').body, '[Marek: moneylender]\n[Role: the one Aldis owes]\n[The war: lost a hand at Sallow]',
+  assert.strictEqual(facts('e-marek').body, '[Marek: moneylender]\n[Role: the one Aldis owes]',
     'FOLD-ONCE: a second run changes nothing');
   assert.strictEqual(db.updatesOf(t.id).length, before, '  and writes no second report');
+});
+
+// #77 · ONE ALWAYS TRUE PER THREAD, AND IT IS ON. Every writer of a thread (the tray, a paste, the
+// forge, a pulled card) goes through upsertAddon, so the floor is there: a second one edits the
+// first, and none is ever written switched off. Without it the update's "switched off" pass found
+// the tray's own new rows on the next boot and reported them as old.
+ok('Always true is one row per thread, written switched on, whoever writes it', () => {
+  const t = db.createStory(o, { title: 'One true', premise: 'p' });
+  db.upsertEntry(t.id, o, { id: 'e-one-true', title: 'Ilse', body: '', entryType: 'character' });
+  const a = db.upsertAddon(t.id, 'e-one-true', { slot: 'facts', name: 'facts', body: '[Ilse: a ferrywoman]' });
+  const b = db.upsertAddon(t.id, 'e-one-true', { slot: 'facts', name: 'facts', body: '[Ilse: a ferrywoman, forty]' });
+  const rows = (db.addonsOf(t.id) as any[]).filter((x) => x.entry_id === 'e-one-true' && x.slot === 'facts');
+  assert.strictEqual(rows.length, 1, 'ONE-TRUE: a second Always true edits the first');
+  assert.strictEqual(b, a, '  and says it is the same one');
+  assert.strictEqual(rows[0].body, '[Ilse: a ferrywoman, forty]', '  with the newer text');
+  assert.strictEqual(rows[0].active, 1, 'ONE-TRUE-ON: and it is on, with nobody pressing a switch');
+  const lines = db.updatesOf(t.id).length;
+  db.foldAlwaysTrue();
+  assert.strictEqual(db.updatesOf(t.id).length, lines, '  so a later boot finds nothing to switch on, and reports nothing');
 });
 
 console.log(`\n${n} checks passed`);

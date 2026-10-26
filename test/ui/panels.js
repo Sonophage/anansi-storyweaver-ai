@@ -1248,9 +1248,9 @@ ok(`  named for the character it dresses`,
   await page.click('[data-cardtab="rooms"]');
   // #77. ROLE FOLDED INTO ALWAYS TRUE and is not a pocket, so the pill under test is the first
   // pocket this thread has never filled, read off the view rather than written down here.
-  const view = await page.eval(`(async () => JSON.stringify((await (await fetch('/api/story?story=${sid3}')).json()).slots.character.map((x) => x.name)))()`).then(JSON.parse);
-  const have = new Set(await page.eval(`(async () => JSON.stringify((await (await fetch('/api/story?story=${sid3}')).json())
-    .entries.find((e) => e.id === ${JSON.stringify(who.id)}).addons.map((a) => a.slot)))()`).then(JSON.parse));
+  const sv = await page.eval(`(async () => JSON.stringify(await (await fetch('/api/story?story=${sid3}')).json()))()`).then(JSON.parse);
+  const view = sv.slots.character.map((x) => x.name);
+  const have = new Set(sv.entries.find((e) => e.id === who.id).addons.map((a) => a.slot));
   const empty = view.find((n) => !have.has(n) && n !== 'facts' && n !== 'outfit');
   const expectPills = view.filter((n) => n !== 'facts' || !have.has('facts')).length;
   for (let i = 0; i < 40 && !(await page.visible(`[data-newroom="${empty}"]`)); i++) await wait(250);

@@ -380,6 +380,13 @@ export function resolveBody(e: Entry, chapter: number): string {
   return [inForce?.body ?? e.body, ...hints.map((h) => `[not yet known: ${h}]`)].join(' ');
 }
 
+/** #77 · WHO OR WHAT THE THREAD IS, which does not change through the tale (ADR 0005). Stored as the
+ *  `facts` addon, so this is the one reader of it as Always true. It reads BARE: a facts body IS the
+ *  card format (`[Seth: protagonist…]`), and wrapping it once produced `[You: [You: …]]`. Not
+ *  switched or woken like a pocket: a thread's Always true goes wherever the thread goes. */
+export const alwaysTrue = (e: Entry): string =>
+  ((e.addons ?? []).find((a) => a.slot === 'facts')?.body ?? '').trim();
+
 /** THE CARD AS THE MODEL SEES IT: what is in force at this chapter, plus every room switched on.
  *
  *  This exists because reading `resolveBody` alone stopped being the same thing as reading the card
@@ -391,13 +398,6 @@ export function resolveBody(e: Entry, chapter: number): string {
  *
  *  With no window, only rooms that are switched ON are included; pass the chapter's text and rooms
  *  whose keys fire come too, which is what the prompt builder wants and a cast list does not. */
-/** #77 · WHO OR WHAT THE THREAD IS, which does not change through the tale (ADR 0005). Stored as the
- *  `facts` addon, so this is the one reader of it as Always true. It reads BARE: a facts body IS the
- *  card format (`[Seth: protagonist…]`), and wrapping it once produced `[You: [You: …]]`. Not
- *  switched or woken like a pocket: a thread's Always true goes wherever the thread goes. */
-export const alwaysTrue = (e: Entry): string =>
-  ((e.addons ?? []).find((a) => a.slot === 'facts')?.body ?? '').trim();
-
 export const cardText = (e: Entry, at: number, window = '') =>
   [alwaysTrue(e), resolveBody(e, at), ...rooms(e, at, window)].map((x) => x.trim()).filter(Boolean).join('\n');
 
