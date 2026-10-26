@@ -1246,10 +1246,10 @@ async function assertPortFree(port: number) {
 }
 
 /* EVERY SERVER THIS SUITE SPAWNS GETS THIS, and both spawns below read it from here so they cannot
- * drift apart. A scratch library, the other writer, a router unit that does not exist, and a model
- * host on a port that refuses at once: `src/llama.ts` defaults to the live router on :8080. */
+ * drift apart. A scratch library, the other writer, and a model host on a port that refuses at
+ * once: `src/llama.ts` defaults to the live router on :8080. */
 const SERVER_ENV = { ANANSI_DB: '/tmp/anansi-scope.db', ANANSI_USER: 'bob',
-                     ANANSI_LLAMA: 'http://127.0.0.1:9', ANANSI_LLAMA_UNIT: 'anansi-test-nonexistent.service' };
+                     ANANSI_LLAMA: 'http://127.0.0.1:9' };
 
 async function bootServer(port: number, env: Record<string, string>) {
   await assertPortFree(port);
@@ -1566,40 +1566,18 @@ async function bootServer(port: number, env: Record<string, string>) {
   ok('a proxy header on a loopback request fails closed rather than handing over the desk');
 }
 
-// Who may stop the router, and whose model a switch lands on. Both are the same lesson: the gate
-// answers "is this your story", and neither of these questions is that one.
+// A ROUTE'S OWN 400 REACHES THE CLIENT AS A 400. It arrived as 500 until the dispatcher stopped
+// flattening everything but 404. Proved on `/api/dismiss`, which names 400 for a kind off its fixed
+// list, on a story bob owns so the gate lets him through to it. (It was proved on `/api/router`
+// until that route was deleted on 2026-10-25.)
 {
-  const boot = async (port: number, admin: string) => {
-    const { srv, url } = await bootServer(port, { ANANSI_ADMIN: admin });
-    const post = (path: string, body: unknown) => fetch(url + path, { method: 'POST',
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    return { srv, post };
-  };
-
-  // Bob owns the story he names, so the ownership gate lets him through. The admin check is what
-  // stops him, and it has to be a different answer from 404 or the two are indistinguishable.
-  const notAdmin = await boot(5194, 'alice');
+  const { srv, url } = await bootServer(5194, { ANANSI_ADMIN: 'bob' });
   try {
-    const r = await notAdmin.post('/api/router', { storyId: bStory.id, action: 'status' });
-    assert.strictEqual(r.status, 403,
-      'owning the story you named is not permission to stop a service the other writer shares');
-  } finally { notAdmin.srv.kill(); }
-
-  // The control: same request, same story, bob IS the admin. Anything but 403 — the unit does not
-  // exist here, so systemctl's own answer comes back and that is fine. Without this the check above
-  // cannot tell an admin gate from a route that refuses everyone.
-  const isAdmin = await boot(5195, 'bob');
-  try {
-    const r = await isAdmin.post('/api/router', { storyId: bStory.id, action: 'status' });
-    assert.notStrictEqual(r.status, 403, 'the admin is not refused — the 403 above is the admin check');
-
-    // And while a route's own codes are being trusted: this one names 400 for an action off its
-    // fixed list, and that arrived as 500 until the dispatcher stopped flattening everything but 404.
-    const bad = await isAdmin.post('/api/router', { storyId: bStory.id, action: 'rm -rf' });
+    const bad = await fetch(url + '/api/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storyId: bStory.id, kind: 'rm -rf' }) });
     assert.strictEqual(bad.status, 400, "a route's own 400 must not reach the client as a 500");
-  } finally { isAdmin.srv.kill(); }
-
-  ok('only the admin may stop the router, and owning a story is not being the admin');
+  } finally { srv.kill(); }
+  ok("a route's own 400 reaches the client as a 400");
 }
 
 // modelFor's precedence, which is what keeps one writer's switch off the other's prose: the story

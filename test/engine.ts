@@ -20,9 +20,9 @@ const base = (): Input => ({
   story: { title: 'The Silver Key', genre: 'fantasy noir', premise: 'A debt comes due.',
            setting: 'Vantic, in the rain', pov: 'third limited, past', spice: 2,
            // `direction` STAYS ON THIS FIXTURE ON PURPOSE, and it is the whole of the test below.
-           // The field came out of the app on 2026-08-30 but the column was kept, so the live
-           // library still holds two books that wrote in it. A row that carries one is exactly the
-           // case that must not leak into a prompt, and a fixture without it could not fail.
+           // The field came out of the app on 2026-08-30 and the column was dropped on 2026-10-25,
+           // but an old export still carries one. A story that arrives with it is exactly the case
+           // that must not leak into a prompt, and a fixture without it could not fail.
            writingStyle: 'clipped, wet, unsentimental', direction: 'Marek chooses the archive.' } as any,
   chapters: [
     { id: 'c1', index: 1, title: 'Debt', summary: 'Aldis borrows from Marek.' },
@@ -304,10 +304,8 @@ ok('a triggered entry fires on its keyword; an unmentioned one does not', () => 
 // Was 'the destination reaches SPINE', and it was true from COUNCIL-03 §5 until 2026-08-30, when
 // the field came out of the app at Seth's direction: "no ones going to use it. ive asked."
 //
-// INVERTED RATHER THAN DELETED, because the interesting case survived the removal. The column was
-// kept — two books in the live library had written in it — so the question is no longer "does the
-// destination reach the prompt" but "can retained data reach the prompt", and the answer has to
-// stay no. Deleting this check would have left that unasked.
+// INVERTED RATHER THAN DELETED, because the interesting case survived the removal: a story that
+// arrives carrying a destination (an old export) must still not put it in the prompt.
 ok('a destination still in the row never reaches SPINE', () => {
   const m = buildContext(base(), count);
   const spine = m.blocks.find((b) => b.kind === 'SPINE')!.text;
@@ -315,7 +313,7 @@ ok('a destination still in the row never reaches SPINE', () => {
   assert.match(spine, /Setting: Vantic/, 'and still carries the setting it trims');
   assert.doesNotMatch(spine, /Where this is going/, 'the label is gone');
   assert.doesNotMatch(spine, /Marek chooses the archive/,
-    'and so is the text — stories.direction is retained data and nothing may read it into a prompt');
+    'and so is the text — nothing may read a destination into a prompt');
 });
 
 ok('the chapter beat reaches DIRECTIVE', () => {
@@ -1661,25 +1659,13 @@ ok('a decimal is not a count', () => {
   assert.deepStrictEqual(nums('3.5 crowns'), []);
 });
 
-// ---- the rejected take, which is an ARM and not a feature yet -------------------------------
+// ---- the rejected take is not sent: F44 measured it flat, and the arm was deleted 2026-10-25 ----
 
-ok('a rejected take reaches DIRECTIVE when it is sent, and nothing changes when it is not', () => {
-  // `db.rejectTake` has recorded rejections since it was written and never told the model. The
-  // field exists so `bench/reroll.ts` can measure whether telling it helps, before anything in the
-  // app starts doing it — the same bar F20 set when it deleted a block that measured zero.
-  const off = render(buildContext(base(), count));
+ok('a rejected take never reaches the prompt, even if a caller passes one', () => {
   const b = base();
   (b as any).rejected = 'He went down the stair and the rain went with him.';
   const on = render(buildContext(b, count));
-  assert.doesNotMatch(off, /rejected this attempt/i, 'silent unless the caller sends one');
-  assert.match(on, /rejected this attempt/i);
-  assert.match(on, /the rain went with him/, 'and it carries the take itself, not a summary of it');
-});
-
-ok('  and a blank one is not a rejection', () => {
-  const b = base();
-  (b as any).rejected = '   ';
-  assert.doesNotMatch(render(buildContext(b, count)), /rejected this attempt/i);
+  assert.doesNotMatch(on, /rejected this attempt|the rain went with him/i);
 });
 
 // ---- #18: the voice split, and the book's own style -------------------------------------------

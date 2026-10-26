@@ -33,9 +33,9 @@ node --experimental-strip-types test/all.ts     # every suite; it prints its own
 (once per clone). Runs on the machine queue behind `test/lock.ts`, so parallel worktrees wait their
 turn instead of colliding on the fixed ports and `/tmp` databases.
 
-Run it before and after. No model needed, so there is no excuse for skipping it. It runs the fourteen
-unit suites **and all nineteen `check` modes under `bench/`**, in parallel, in about 20 seconds
-(`suites` in `test/all.ts` is the list).
+Run it before and after. No model needed, so there is no excuse for skipping it. It runs every unit
+suite **and every listed `check` mode under `bench/`**, in parallel, in about 30 seconds
+(`suites` in `test/all.ts` is the list; it prints its own total).
 Each bench entry is spawned with its own `ANANSI_DB`: most of them touch no database,
 `bench/rooms.ts` opens one, and without that guard it would open the live library read-write and
 migrate it mid-run. Under it, `src/db.ts` refuses the default library to any `test/` script, any

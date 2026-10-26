@@ -634,36 +634,6 @@ export async function unload(id: string): Promise<{ ok: boolean; error?: string 
   } catch (e: any) { return { ok: false, error: e?.message ?? String(e) }; }
 }
 
-/** Release the models, or bring the router back.
- *
- *  Per MODEL, use `unload` above. This stops the whole unit, which is what you want before running
- *  something else on the GPU: it takes every model down at once and does not come back on its own.
- *
- *  It is a `--user` unit, so no privilege escalation is involved. The command is a fixed list with
- *  the unit name hardcoded — nothing from a request reaches a shell, and `execFile` takes an
- *  argument array rather than a command line, so there is no shell to reach.
- *
- *  Gated in routes.ts. The server no longer binds to loopback only, so the gate is the whole of
- *  it — see routes.ts on why an ownership check is not the same as an admin check. */
-const UNIT = process.env.ANANSI_LLAMA_UNIT ?? 'llama-router.service';
-export async function router(action: 'stop' | 'start' | 'restart' | 'status') {
-  const { execFile } = await import('node:child_process');
-  const run = (args: string[]) => new Promise<{ out: string; code: number }>((res) => {
-    execFile('systemctl', args, { timeout: 20_000 },
-      (err: any, stdout: string, stderr: string) =>
-        res({ out: (stdout || stderr || '').trim(), code: err?.code ?? 0 }));
-  });
-  if (action === 'status') {
-    const a = await run(['--user', 'is-active', UNIT]);
-    const t = await run(['--user', 'show', UNIT, '-p', 'ExecMainStartTimestamp', '--value']);
-    return { unit: UNIT, state: a.out || 'unknown', since: t.out || null };
-  }
-  const r = await run(['--user', action, UNIT]);
-  const a = await run(['--user', 'is-active', UNIT]);
-  return { unit: UNIT, action, state: a.out || 'unknown', ok: r.code === 0,
-           message: r.out || null };
-}
-
 export async function models(): Promise<{ id: string; status: string }[]> {
   const r = await reach(`${HOST}/v1/models`, { signal: AbortSignal.timeout(15_000) });
   if (!r.ok) throw new Error(`/v1/models answered ${r.status}`);

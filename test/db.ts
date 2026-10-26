@@ -1200,11 +1200,11 @@ ok('snapshot() carries a write still in the -wal, which cp does not', () => {
 ok('a partial story save keeps every field it did not mention', () => {
   const o = db.owner('partial-save');
   const st = db.createStory(o, { title: 'Kept', genre: 'noir', premise: 'A test.',
-    setting: 'Vantic', pov: 'third limited', persona: 'Aldis', writingStyle: 'clipped', spice: 3,
-    direction: 'He keeps the debt.' });
-  db.updateStory(st.id, { direction: 'He gives it up.' });
+    setting: 'Vantic', pov: 'third limited', persona: 'Aldis', writingStyle: 'clipped', spice: 3 });
+  // One field, as the Trajectory panel's Save sent `direction` alone (that column is gone now).
+  db.updateStory(st.id, { premise: 'A changed test.' });
   const a = db.getStory(st.id);
-  assert.strictEqual(a.direction, 'He gives it up.', 'the field sent must land');
+  assert.strictEqual(a.premise, 'A changed test.', 'the field sent must land');
   for (const [col, want] of [['title', 'Kept'], ['genre', 'noir'], ['setting', 'Vantic'],
                              ['persona', 'Aldis'], ['writing_style', 'clipped']] as const) {
     assert.strictEqual(a[col], want, `${col} must survive a save that did not mention it`);
@@ -1219,7 +1219,7 @@ ok('a partial story save keeps every field it did not mention', () => {
 });
 
 // Regenerating away from a take is a judgement about it, not just a replacement. Recorded and
-// shown; deliberately NOT sent to the model — see the ponytail marker on rejectTake.
+// shown; deliberately NOT sent to the model — see the note on rejectTake (F44).
 ok('a rejected take is marked, kept, and still steppable', () => {
   const o = db.owner('rejects');
   const st = db.createStory(o, { title: 'Takes' });

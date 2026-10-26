@@ -374,6 +374,8 @@ function migrate() {
    * with no data in it costs one `add()` to restore, which is why measuring the data first is what
    * made this safe rather than brave. */
   drop('entries', 'priority', 'stored and ignored since it was written; 0 on every row');
+  drop('stories', 'direction', 'the Where this is going box, out of the app since 2026-08-30 and '
+    + 'empty on every tale when Seth called the drop on 2026-10-25');
   drop('chapters', 'summary_tokens', 'never populated on any chapter; NULL on all 17');
 
   // The search indexes, built if empty. The probe, the healing and the reasons live in
@@ -473,12 +475,7 @@ CREATE TABLE IF NOT EXISTS stories (
   persona TEXT,              -- who you are in it. The "You · Ilva Marren" byline.
   locked_character TEXT,     -- the one the model never writes. See migrate().
   writing_style TEXT,
-  -- ponytail: "direction" is RETAINED DATA AND NOTHING READS IT. The Where this is going box came
-  -- out of every surface and every prompt on 2026-08-30 — Seth: "no ones going to use it. ive
-  -- asked." The column stays because two books in the live library had written in it and deleting
-  -- a column here is the awkward direction of a migration (see the note above). Ceiling: it is
-  -- write-only dead weight on the row. Upgrade path: drop it once nobody wants the text back.
-  direction TEXT, spice INTEGER DEFAULT 2,
+  spice INTEGER DEFAULT 2,
   max_context INTEGER,
   status TEXT DEFAULT 'in_progress',   -- in_progress | finished | draft
   active_branch TEXT,                  -- which path you are writing on
@@ -1036,11 +1033,11 @@ export function createStory(o: string, s: any) {
   // switch OFF in the wizard was the only case that could show it.
   q(`INSERT INTO stories (id,owner_id,title,genre,premise,setting,pov,persona,writing_style,
       style_note,
-      direction,spice,spice_note,max_context,model,locked_character,lockout_on,status,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, o, s.title ?? 'Untitled', tidyGenre(s.genre),
+      spice,spice_note,max_context,model,locked_character,lockout_on,status,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, o, s.title ?? 'Untitled', tidyGenre(s.genre),
     s.premise ?? '', s.setting ?? '', s.pov ?? 'second person, present tense', s.persona ?? null,
     s.writingStyle ?? '', s.styleNote ?? null,
-    s.direction ?? null, s.spice ?? 2, s.spiceNote ?? null,
+    s.spice ?? 2, s.spiceNote ?? null,
     s.maxContext ?? null, s.model ?? null, s.lockedCharacter ?? null,
     s.lockoutOn === false ? 0 : 1,
     s.status ?? 'in_progress', t, t);
@@ -2163,20 +2160,12 @@ export function upsertEntry(storyId: string, o: string, e: any) {
 /** Mark a take as one the writer regenerated away from. Regenerating already keeps the old take;
  *  this records that it was not merely superseded but rejected, which is a different fact.
  *
- *  MEASURED 2026-08-29 — F44 — and the answer was not the one the question expected. Feeding the
- *  rejected take into DIRECTIVE was built as an ARM (`Input.rejected`, which nothing in the app
- *  sets) and run against a control: median word overlap between the reroll and the take it
- *  replaced was 0.15 told against 0.19 not told, at n=6. No difference worth the bracket.
- *
- *  The useful number is the CONTROL. 0.19 means a reroll already goes somewhere else on its own,
- *  so the complaint this feature exists for — "I pressed it again and got the same paragraph" —
- *  is not happening. There was nothing to fix, which is why saying more did not fix it.
- *
- *  ponytail: the arm and `bench/reroll.ts` are KEPT rather than deleted, and n=6 is why: it is
- *  thin, and throwing the apparatus away means rebuilding it to ask the same question properly.
- *  Nothing sets the field, so it costs nothing at runtime. Ceiling: a field with no caller is dead
- *  code with a bench attached. Upgrade path, and the trigger, is a writer actually reporting
- *  repeated rerolls — then re-run at n>=50 and either wire it up or delete both. */
+ *  THE MODEL IS NOT TOLD, AND THAT WAS MEASURED (F44, 2026-08-29). Feeding the rejected take into
+ *  DIRECTIVE was built as an arm and run against a control: median word overlap between the reroll
+ *  and the take it replaced was 0.15 told against 0.19 not told, at n=6. 0.19 means a reroll
+ *  already goes somewhere else on its own. The arm (`Input.rejected`) and its bench
+ *  (`bench/reroll.ts`) were deleted on 2026-10-25 at Seth's call; both are in git history if a
+ *  writer ever reports getting the same paragraph twice and the question needs asking at n>=50. */
 export const rejectTake = (storyId: string, id: string) =>
   q('UPDATE passages SET rejected = 1 WHERE id = ? AND story_id = ?').run(id, storyId);
 
@@ -2679,12 +2668,12 @@ export function updateStory(id: string, s: any) {
   if (!cur) return;
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
-      direction=?,spice=?,spice_note=?,max_context=?,status=?,model=?,
+      spice=?,spice_note=?,max_context=?,status=?,model=?,
       locked_character=?,lockout_on=?,weaving=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,
       lore_from=?,style_note=?,world=?,world_note=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
-      p('direction', 'direction') ?? null, p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
+      p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
       p('maxContext', 'max_context') ?? null, p('status', 'status') ?? 'in_progress',
       p('model', 'model') ?? null,
       p('lockedCharacter', 'locked_character') ?? null,
@@ -3112,7 +3101,7 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
     title: title || `${src.title} — a copy`,
     genre: src.genre, premise: src.premise, setting: src.setting, pov: src.pov,
     persona: src.persona, writingStyle: src.writing_style, styleNote: src.style_note,
-    direction: src.direction, spice: src.spice, spiceNote: src.spice_note,
+    spice: src.spice, spiceNote: src.spice_note,
     maxContext: src.max_context, model: src.model, lockedCharacter: src.locked_character,
     lockoutOn: src.lockout_on !== 0,
     // AN ARCHIVED BOOK COPIES ONTO THE SHELF. Carrying `archived` would answer the press with a

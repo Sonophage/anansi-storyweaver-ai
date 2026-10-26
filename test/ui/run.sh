@@ -116,11 +116,7 @@ fresh() {
   # A scenario that needs more than the fixture makes it, the way handlers.js makes its empty book
   # and its second book to race.
   node --experimental-strip-types test/ui/seed.ts "$WORK/db" >/dev/null
-  # The scenarios drive Preferences, which can stop and restart the llama-router unit. Point the
-  # test server at a unit that does not exist so no test can ever take the real one down: a
-  # scenario that stops the model server mid-suite would fail every scenario after it, and would
-  # do it on the machine somebody is writing on.
-  ANANSI_PORT=$PORT ANANSI_DB="$WORK/db" ANANSI_LLAMA_UNIT=anansi-test-nonexistent.service \
+  ANANSI_PORT=$PORT ANANSI_DB="$WORK/db" \
     ANANSI_FEATHERLESS_URL="$fl_url" ANANSI_FEATHERLESS_KEY_FILE="$fl_key" ANANSI_HF_URL="$hf_url" \
     ANANSI_LLAMA="$llama" \
     nohup node --experimental-strip-types serve.ts >"$WORK/serve.log" 2>&1 &

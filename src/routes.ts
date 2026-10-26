@@ -1,5 +1,5 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
-import { count, chat, structured, structuredRetry, model, models, checkModel, allowList, modelFor, router, webSearch, searchConfigured,
+import { count, chat, structured, structuredRetry, model, models, checkModel, allowList, modelFor, webSearch, searchConfigured,
          releasable, unload, busyOn, isRemote, remoteReady, REMOTE_PREFIX, askSwitchWith } from './llama.ts';
 import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound, RESULT_CAP,
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
@@ -1604,8 +1604,8 @@ export const routes: Record<string, Handler> = {
   'GET /api/stories':    (c) => (warmModel(c), {
     stories: db.listStories(c.owner).map((s: any) => ({ ...s, pin: remotePin(c, s.model, s.owner_id) })),
     model: c.defaultModel ?? model(),
-    // Still reported: `admin` decides who may stop the router. It no longer decides who sees The
-    // Web — that opened to everyone on 2026-08-31.
+    // Still reported: admin-only screens (the machine's numbers) read it. It no longer decides who
+    // sees The Web — that opened to everyone on 2026-08-31.
     admin: c.admin, demo: c.demo,
     // WHO IS ASKING. The shelf needs it to tell a turn owed to YOU from one owed to the other
     // writer — both are on the same row and only one of them is a thing that wants you. An id and
@@ -1809,20 +1809,6 @@ export const routes: Record<string, Handler> = {
     return { models: db.shortlistOf(c.owner),
       ...(named.length ? { toast: `${list[0].toUpperCase()}${list.slice(1)} ${
         named.length === 1 ? 'goes' : 'go'} back to the local model.` } : {}) };
-  },
-  // Releasing the models and bringing them back. GATED — not on the OPEN list — because it stops
-  // a service both tenants share. The action is checked against a fixed list here as well as in
-  // llama.ts; nothing from the body reaches a command.
-  'POST /api/router': async (c: Ctx) => {
-    const action = String(c.body.action ?? 'status');
-    if (!['status', 'stop', 'start', 'restart'].includes(action))
-      throw Object.assign(new Error(`no such action: ${action}`), { code: 400 });
-    // The gate proves you own the story you named, which is not the same as proving you may
-    // stop a service both writers share. ANANSI_ADMIN decides that, and it is the desk by default.
-    if (!c.admin) throw Object.assign(new Error('only the admin may stop or start the router'),
-      { code: 403 });
-    try { return await router(action as any); }
-    catch (e: any) { return { error: e?.message ?? 'could not reach systemctl' }; }
   },
 
   // Per WRITER, not per process. A story that names its own model still wins over this — see
@@ -2663,10 +2649,7 @@ export const routes: Record<string, Handler> = {
 
   /** THE FORGE. Prompts to hand a different model, so what it writes drops into this app whole.
    *
-   *  OPEN, AND THEN IT ASKS THE ADMIN QUESTION ITSELF — the same shape `POST /api/look` uses and
-   *  for the same reason. It names no story, so the ownership gate would refuse it outright; being
-   *  on the open list means the gate does not run AT ALL, so the check below is the whole of its
-   *  protection. `c.admin` is the flag that already decides who may stop the router.
+   *  OPEN: it names no story, so the ownership gate would refuse it outright.
    *
    *  NO LONGER ADMIN-ONLY. It was the admin's workbench on Seth's call of 2026-08-30; he tested it
    *  as the second writer on 2026-08-31 and reversed that — "allow this to not only be for the
