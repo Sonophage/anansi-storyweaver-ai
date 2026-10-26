@@ -3675,14 +3675,17 @@ ok('a card face reads body, then what is on, then what is not — and finishing 
   assert.ok(src(face, 'e-1'), 'the read face shows it');
   assert.ok(before(face, 'entry=e-1', 'Envoy Sereth'), 'above the name');
 
-  // 3 · THE FORM. It is the one view that could already show a picture, and the point here is that
-  // it now comes BEFORE the fields rather than after the facts room.
+  // 3 · THE FORM. It was moved above the fields on 2026-09-01; since the v2 Alter screen it is
+  // under More, at the top with the kind (Seth, 2026-10-25: "move em under more"). Both halves:
+  // past the thread tab's fields, and first under More.
   click({ cardview: 'form' });
   await new Promise((r) => setTimeout(r, 30));
   const form = html('sideBody');
   assert.ok(src(form, 'e-1'), 'the form shows it');
-  assert.ok(before(form, 'entry=e-1', 'f-card-body'),
-    'and the picture row is above Info now, not under the facts room');
+  assert.ok(before(form, 'f-card-body', 'entry=e-1'),
+    'and the picture is not on The thread tab any more, it is past Info');
+  assert.ok(before(form, 'entry=e-1', 'data-kind="character"'),
+    'and it heads More, above the kind');
   click({ cardview: null });
   click({ backentry: '1' });
 

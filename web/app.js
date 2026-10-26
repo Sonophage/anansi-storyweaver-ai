@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting } from './model.js';
+import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -550,6 +550,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'onlyin', 'flipact', 'cardtab', 'storytab', 'chaptab', 'tip',
   // One thread, read: its ⋯ menu, and the rows under it that open the form at a section.
   'readmenu', 'readgo',
+  // Alter: leave it (asking first if anything changed), and take a wake word off.
+  'cancelalter', 'keyx',
   // A card out as JSON and back in again: copy, save to a file, read one.
   'cardcopy', 'cardsave', 'cardread',
   // A thread pulled off the web, in the subject's own canon.
@@ -2192,16 +2194,13 @@ function drawSide() {
   // rarer actions under ⋯ on the right. Close stays, because shutting the drawer from a thread is a
   // press the drawer always had. The form keeps its own bar until Alter is redesigned.
   const thRead = isReading();
-  if (thRead) {
-    const e = V.entries.find((x) => x.id === S.entryId);
-    $('sideHead').innerHTML = `
-    <button data-backentry="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
-      class="serif">Threads</span></button>
-    <span style="flex:1"></span>
-    ${e && !e.sharedFrom ? `<button data-readmenu="1" class="headmore" aria-expanded="${!!S.readMenu}"
-      aria-label="More for this thread" title="More for this thread"><span aria-hidden="true">&middot;&middot;&middot;</span></button>` : ''}
+  // AND ONE THREAD BEING ALTERED: Cancel on the left, Save on the right, and nothing else — no
+  // Close, because shutting the drawer from here would throw away what was typed without asking.
+  // Cancel goes back to Read, asking first if anything has changed (alterDirty).
+  if (isAltering()) $('sideHead').innerHTML = threadBar('alter');
+  else if (thRead) $('sideHead').innerHTML = `${threadBar('read')}
     <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
-  } else $('sideHead').innerHTML = `
+  else $('sideHead').innerHTML = `
     <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis">${esc(TITLES[S.panel] ?? '')}</span>
     ${/* Outside the heading span, for the reason given for the mark below. */
@@ -2215,18 +2214,43 @@ function drawSide() {
       title="Add a thread, or read the scene"><span>${mark('create', 16)}</span></button>` : ''}
     <button data-panel="" style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
-  $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead ? helpBody(PANEL_HELP[S.panel]) : '')
+  $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead && !isAltering() ? helpBody(PANEL_HELP[S.panel]) : '')
     + (PANELS[S.panel] ?? (() => ''))();
   // After the markup, because a textarea has no scrollHeight until it is in the document.
   growFields($('sideBody'));
 }
 
-/** ONE THREAD OPEN ON ITS READ SCREEN — from the Threads list, or on its own from a passage. The
- *  form (Alter) is not this, and keeps its own bar. */
-function isReading() {
-  return (S.panel === 'threads' || S.panel === 'entry') && !!S.entryId
-    && S.cardView !== 'form' && !!V?.entries?.some((x) => x.id === S.entryId);
+/** A THREAD IS OPEN, in the Threads drawer, on its own from a passage, or on the cross-book
+ *  page (which draws the same Read and Alter screens in the page rather than in a drawer). */
+function threadOpen() {
+  return !!S.entryId && !!V?.entries?.some((x) => x.id === S.entryId)
+    && (S.place !== 'story' || S.panel === 'threads' || S.panel === 'entry');
 }
+/** ONE THREAD OPEN ON ITS READ SCREEN. */
+function isReading() { return threadOpen() && S.cardView !== 'form'; }
+
+/** THE READ AND ALTER SCREENS' OWN CONTROLS, drawn once. In the drawer they are its header; on the
+ *  cross-book page, which has no drawer header, the editor draws them at its own top (`pageBar`).
+ *  Read: "‹ Threads" back to the list, and ⋯ for the rarer actions (none on a followed thread,
+ *  whose rare actions are on its face). Alter: Cancel and Save and nothing else — no Close, because
+ *  leaving from here would throw away what was typed without asking; Cancel asks (alterDirty). */
+function threadBar(mode) {
+  if (mode === 'alter') return `
+    <button data-cancelalter="1" class="headback" aria-label="Cancel and go back to reading it"><span
+      class="serif">Cancel</span></button>
+    <span style="flex:1"></span>
+    <button data-saveentry="1" class="headsave">Save</button>`;
+  const e = V?.entries.find((x) => x.id === S.entryId);
+  return `
+    <button data-backentry="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
+      class="serif">Threads</span></button>
+    <span style="flex:1"></span>
+    ${e && !e.sharedFrom ? `<button data-readmenu="1" class="headmore" aria-expanded="${!!S.readMenu}"
+      aria-label="More for this thread" title="More for this thread"><span aria-hidden="true">&middot;&middot;&middot;</span></button>` : ''}`;
+}
+/** The same controls at the top of the editor when it is not in the drawer. */
+const pageBar = (mode) => (S.place === 'story' ? ''
+  : `<div class="savebar pagebar" style="display:flex; align-items:center; gap:12px">${threadBar(mode)}</div>`);
 
 /** One proposal, with the two decisions it carries. Lifted out of the Chapter panel on
  *  2026-08-27 so Waiting can offer the same card rather than a second copy of it — this repo's
@@ -5748,50 +5772,11 @@ function inventTray(kind, label, placeholder, value = '') {
  *
  *  data-goslot and not an href. The app routes on the hash — `#storyid/panel` — so a `#appearance`
  *  link would be read as navigation and throw the panel away on the way to the anchor. */
-/** READ, EDIT, EXIT — one row, both views, in the panel's own Close type. Seth: "this looks good
- *  but it should be read, edit, exit. and theres a secondary close text on the card. thats where i
- *  want these buttons in that size text."
- *
- *  That secondary text is the panel's Close at the head of every side panel: 11px, small caps,
- *  gold. These are the same control at the same weight, so the card's three doors read as chrome
- *  rather than as three things to do — a row of full-width buttons at the top of a card said the
- *  most important thing on the screen was leaving it. The view you are in is the gold one, so the
- *  row also says where you are. */
-/*  SAVE RIDES IN THIS ROW AND THE ROW IS STICKY. Seth, 2026-08-30: "the save button need to be up
- *  top." Same call the story panel made in #26 — Save sat at the end of eleven fields there and at
- *  the end of a dozen sections here, so the press that commits the form was the one thing you had
- *  to scroll to find. Beside Back, because leaving and keeping should be the same reach.
- *
- *  IT SAYS BACK, NOT EXIT (2026-09-01). Seth: "we have a close button so close and exit is
- *  confusing and the exit button there takes you back to the other threads." The panel's Close
- *  shuts the panel; this returns to the thread list. Two different moves, two different words.
- *
- *  IT IS `.savebar` NOW (2026-09-01), not its own copy of sticky-plus-a-background. Seth: "theres
- *  a space above it and the threads and close section can we remove the padding and make the
- *  background full width of the panel." The hand-rolled version sat inside #sideBody's 22px side
- *  padding, so its ground stopped short of the panel edges and the form slid past in the gutter —
- *  which is the exact problem the negative gutter on `.savebar` was written for. One bar, one rule,
- *  and the flush-to-the-head margin comes with it.
- *
- *  Sticky, or moving it up only inverts the problem: the bar scrolls with #sideBody, so a Save at
- *  the top of a long card is as far away from the bottom of it as the old one was from the top.
- *  There is exactly ONE Save on this screen — a second at the foot is a second thing to keep in
- *  step, and this one is reachable from anywhere in the form. */
-function cardBar(view) {
-  const link = (on) => `background:none; border:0; padding:4px 0; cursor:pointer; font-size:11px;
-    letter-spacing:.12em; text-transform:uppercase;
-    color:${on ? 'var(--gold)' : 'var(--faint)'}`;
-  return `<div class="savebar" style="display:flex; gap:16px; align-items:center">
-    <button data-cardview="face" style="${link(view === 'face')}"
-      aria-pressed="${view === 'face'}">Read</button>
-    <button data-cardview="form" style="${link(view === 'form')}"
-      aria-pressed="${view === 'form'}">Alter</button>
-    ${view === 'form' ? `<button data-saveentry="1" style="${link(true)}; margin-left:auto;
-      border:1px solid rgba(217,178,106,.42); border-radius:var(--r); padding:4px 14px">Save</button>` : ''}
-    <button data-backentry="1" style="${link(false)}; ${view === 'form' ? '' : 'margin-left:auto'}">Back</button>
-  </div>`;
-}
-
+/*  THE CARD'S OWN BAR IS GONE (v2 redesign, 2026-10-25). It was Read / Alter / Save / Back in one
+ *  sticky row above the card; the drawer's header carries each now — "‹ Threads" and ⋯ on Read,
+ *  Cancel and Save on Alter (drawSide). What the bar settled still holds there: there is exactly ONE
+ *  Save on the form (Seth, 2026-08-30: "the save button need to be up top"), it is reachable from
+ *  anywhere in the form because the header does not scroll, and leaving says where it goes. */
 /** A ROOM, IN THE SHAPE A STORY CARD ALREADY HAS. Seth: "these should be formatted almost as the
  *  story cards." Same `.card`, same title-plus-pill head, same `.kind` line under it and the same
  *  body type — `entryCard` is three lines above this and the two are read in the same list, so a
@@ -5908,6 +5893,7 @@ function cardFace(e, slots) {
    * story id, which is the audit this comment exists instead of.
    */
   if (e.sharedFrom) return `<div style="display:flex; flex-direction:column">
+    ${pageBar('read')}
     ${threadPic(e) ? `<img src="${threadPic(e)}" alt="" style="width:100%; max-height:240px;
       object-fit:cover; border-radius:var(--r); border:1px solid var(--edge); margin:0 0 11px">` : ''}
     ${cardHead(e, [])}
@@ -5954,6 +5940,7 @@ function cardFace(e, slots) {
   const m = reachMark(e, lit);
   const pockets = rooms.filter((a) => a.slot !== 'facts').length;
   return `<div class="readface" style="display:flex; flex-direction:column">
+    ${pageBar('read')}
     ${S.readMenu ? readMenu(e) : ''}
     <!-- ABOVE THE NAME, at Seth's direction: "if a card has an image move it to the top". A picture
          is the fastest way to recognise a card and it was two screens down, under the rooms. -->
@@ -6194,7 +6181,7 @@ const slotTab = (name) => (name === 'facts' ? 'card' : 'rooms');
 function cardTabs(tab) {
   return `<div style="display:flex; gap:6px; margin:12px 0 4px">${CARD_TABS.map(([k, label]) =>
     `<button data-cardtab="${k}" aria-pressed="${tab === k}" style="flex:1; text-align:center;
-      font-size:11px; letter-spacing:.12em; text-transform:uppercase; padding:8px 0;
+      font-size:11px; letter-spacing:.06em; text-transform:uppercase; padding:10px 2px; white-space:nowrap;
       border-radius:var(--r); ${tab === k
         ? 'border:1px solid rgba(217,178,106,.42); background:rgba(217,178,106,.12); color:var(--gold-lit)'
         : 'border:1px solid var(--chip); color:var(--mute)'}">${label}</button>`).join('')}</div>`;
@@ -6233,6 +6220,46 @@ function cardJSON(e, slots) {
   }, null, 2);
 }
 
+/** THE WAKE WORDS BEING ALTERED. Null until a chip is added or removed, so the form shows the
+ *  saved ones; a list once the writer has touched them. Cleared by Save, Cancel and opening another
+ *  thread — it is the one part of the form that is not a box the browser keeps for us. */
+const keyDraftFor = (e) => S.keyDraft ?? (e?.keys ?? []);
+const keyChips = (keys) => keys.map((k, i) => `<span class="keychip">${esc(k)}<button
+  data-keyx="${i}" aria-label="Remove ${esc(k)}" title="Remove ${esc(k)}">&times;</button></span>`).join('');
+/** The chips again, and only the chips: the box after them keeps its caret and whatever is in it. */
+function redrawKeyChips() {
+  const box = $('keychips'); if (!box) return;
+  box.querySelectorAll('.keychip').forEach((c) => c.remove());
+  box.insertAdjacentHTML('afterbegin', keyChips(keyDraftFor(V?.entries.find((x) => x.id === S.entryId))));
+}
+/** Words typed into the add box, added as chips by the same rules the save uses. Ten at most, as
+ *  the box always allowed (SPEC §7.1); past that it says so rather than dropping one quietly. */
+function addKeyWords(text) {
+  const e = V?.entries.find((x) => x.id === S.entryId); if (!e) return;
+  const had = keyDraftFor(e);
+  const all = keysFrom([...had, ...String(text ?? '').split(',')]);
+  if (all.length > 10) toast('Ten wake words at most. The rest were not added.');
+  S.keyDraft = all.slice(0, 10);
+  redrawKeyChips();
+}
+
+/** ONE THREAD OPEN ON ITS ALTER SCREEN (the form). */
+function isAltering() { return threadOpen() && S.cardView === 'form'; }
+/** HAS ANYTHING BEEN CHANGED AND NOT SAVED? Any box on the form that no longer holds what it was
+ *  drawn with — `defaultValue` is the value the markup carried — or wake words added or taken off.
+ *  The picture search and Anansi's steer box are not the thread, so typing in them is not a change
+ *  to lose. Cancel and Back ask before throwing these away. */
+function alterDirty() {
+  if (!isAltering()) return false;
+  const e = V.entries.find((x) => x.id === S.entryId);
+  const boxes = [...document.querySelectorAll('#sideBody textarea, #sideBody input')]
+    .filter((el) => (el.tagName === 'TEXTAREA' || el.type === 'text' || el.type === 'number' || !el.type)
+      && !el.readOnly && !el.matches('[data-picq], [data-invdir]'));
+  if (boxes.some((el) => el.value !== el.defaultValue)) return true;
+  const had = (e.keys ?? []).join('\u0000'), now = keyDraftFor(e).join('\u0000');
+  return had !== now;
+}
+
 function entryEditor() {
   const e = V?.entries.find((x) => x.id === S.entryId);
   if (!e) return `<div class="hint">That thread is gone.</div>`;
@@ -6250,29 +6277,27 @@ function entryEditor() {
   const chip = (on) => `border:1px solid ${on ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
     background:${on ? 'rgba(217,178,106,.12)' : 'transparent'}; color:${on ? 'var(--gold-lit)' : 'var(--mute)'}`;
   const tab = S.cardTab ?? 'card';
+  // THE ALTER SCREEN (v2 redesign, 2026-10-25). Cancel and Save are the drawer's header now
+  // (drawSide), so the Read / Alter / Save / Back bar and the head above the tabs are gone; the
+  // name is the first field. The four tabs stay as they were — Seth, twice: Over time does not move
+  // into More. Picture and Kind did move into More (Seth: "move em under more"): both are set once
+  // and rarely again, and they were the first two things above the name.
   return `<div style="display:flex; flex-direction:column">
-    ${cardBar('form')}
-    ${cardHead(e, shown)}
+    ${pageBar('alter')}
+    ${/* THE JUMP CHIPS STAY ABOVE THE TABS, so a press from any tab opens the one its pocket is on
+          (data-goslot). The head they shared with the name and the kind is gone: the name is the
+          first field now and the kind is under More. */
+      shown.length ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin:0 0 4px">${shown.map((sl) =>
+        `<button data-goslot="${esc(sl.name)}" class="tag" style="cursor:pointer">${
+          esc(sl.name.replace(/_/g, ' '))}</button>`).join('')}</div>` : ''}
     ${cardTabs(tab)}
     <div class="pane"${tab === 'card' ? '' : ' hidden'}>
-    <!-- AN OPTIONAL PICTURE, AND FIRST. Seth, 2026-09-01: "lets add an optional image field", then
-         "if a card has an image move it to the top". It sat under the facts room, so on a card with
-         a picture the one thing you could recognise at a glance was the one thing you had to scroll
-         past the words to reach.
-         OPTIONAL is still the whole shape of it: no picture is the normal state and shows one quiet
-         line rather than an empty frame. The picture never reaches the model — it is not a room, it
-         is not in the body, and the engine's Entry type has no such field. It is for the eye. -->
-    ${entryPicture(e)}
     <label class="lbl" for="f-card-title">Name</label>
-    <input class="field" id="f-card-title" data-f="title" value="${esc(e.title ?? '')}">
-    <label class="lbl">Type</label>
-    <div style="display:flex; gap:6px">${KINDS.map((k) => `<button data-kind="${k}"
-      style="flex:1; text-align:center; font-size:11.5px; padding:8px 0; border-radius:var(--r);
-      ${chip(k === e.entryType)}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+    <input class="field altname" id="f-card-title" data-f="title" value="${esc(e.title ?? '')}">
     <label class="lbl">When it reaches the model</label>
     <div style="display:flex; gap:6px">${[['always_on', 'Always on'], ['triggered', 'On a word']]
-      .map(([k, l]) => `<button data-act="${k}" style="flex:1; text-align:center; font-size:11.5px;
-      padding:8px 0; border-radius:var(--r); ${chip(k === e.activation)}">${l}</button>`).join('')}</div>
+      .map(([k, l]) => `<button data-act="${k}" aria-pressed="${k === e.activation}" style="flex:1; text-align:center; font-size:12px;
+      padding:10px 0; border-radius:var(--r-pill); ${chip(k === e.activation)}">${l}</button>`).join('')}</div>
     <!-- FACTS ABOVE INFO. Seth, 2026-08-30: "facts and info need to change positions." He is
          right and it is not a matter of taste. The chapter-end pass REWRITES the body; it has
          never been able to touch a room, which is the whole reason src/slots.ts grew a facts slot
@@ -6318,7 +6343,13 @@ function entryEditor() {
         : '<strong>This thread cannot reach the model yet.</strong> On a word with no wake words '
           + 'never wakes, and nothing else on this screen would tell you. Comma separated, up to '
           + 'ten — a whole word in recent prose or in your directive wakes it.'}</p>`)}
-    <input class="field" id="f-card-keys" data-f="keys" value="${esc((e.keys ?? []).join(', '))}">
+    <!-- ONE CHIP PER WORD (v2 redesign). The box was a comma list to edit in place, which on a
+         phone is a long line of words to move a caret through. Each word is a chip with its own x;
+         the box after them adds one, on Enter or a comma, and a pasted list splits. keysFrom is
+         keysOf's own rules, so a chip is exactly what the save will store (test/db.ts). -->
+    <div class="keychips" id="keychips">${keyChips(keyDraftFor(e))}<input class="keyadd" id="f-card-keys"
+      data-f="keys" data-keyadd="1" aria-label="Add a wake word" placeholder="+ word" enterkeyhint="done"
+      autocomplete="off" autocapitalize="off"></div>
     </div>
     <div class="pane"${tab === 'rooms' ? '' : ' hidden'}>
     ${addTray(e, slots)}
@@ -6395,7 +6426,18 @@ function entryEditor() {
          a duplicate of the thing you are looking at, and the dedupe would refuse it. -->
     </div>
     <div class="pane"${tab === 'more' ? '' : ' hidden'}>
-    <div style="display:flex; justify-content:flex-end">${
+    <!-- AN OPTIONAL PICTURE. Seth, 2026-09-01: "lets add an optional image field". OPTIONAL is the
+         whole shape of it: no picture is the normal state and shows one quiet line rather than an
+         empty frame. The picture never reaches the model — it is not a room, it is not in the body,
+         and the engine's Entry type has no such field. It is for the eye. It was first on The
+         thread tab; under More since the v2 redesign, with Kind. -->
+    ${entryPicture(e)}
+    <label class="lbl">Kind</label>
+    <div style="display:flex; gap:6px; flex-wrap:wrap">${KINDS.map((k) => `<button data-kind="${k}"
+      aria-pressed="${k === e.entryType}"
+      style="flex:1; text-align:center; font-size:12px; padding:10px 0; border-radius:var(--r);
+      ${chip(k === e.entryType)}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+    <div style="display:flex; justify-content:flex-end; margin-top:14px">${
       tipMark('cardInvent', 'Having Anansi write this thread')}</div>
     ${tipCard('cardInvent', 'Having Anansi write this thread', `<p>It fills the fields above, unsaved.
       Nothing changes until you press Save.</p>`)}
@@ -7817,7 +7859,7 @@ window.addEventListener('popstate', () => { BACKING = false; closeLayersBack(); 
  *  drawer already, and its ⋯ shares the drawer's entry, so Back there shuts both. Give it a step
  *  of its own if anyone opens the ⋯ from a passage often enough to notice. */
 const threadDepth = () => (S.place === 'story' && S.panel === 'threads' && S.entryId
-  ? (S.readMenu && isReading() ? 2 : 1) : 0);
+  ? ((S.readMenu && isReading()) || isAltering() ? 2 : 1) : 0);
 function syncThread() {
   if (!ROUTED || ROUTING || BACKING || S.panel !== 'threads') return;
   const want = threadDepth(), have = history.state?.thread ?? 0;
@@ -7828,7 +7870,17 @@ function closeThreadBack() {
   if (S.panel !== 'threads') return;
   const at = history.state?.thread ?? 0;
   if (at >= threadDepth()) return;
-  if (at < 2) S.readMenu = false;
+  // BACK FROM ALTER FOLLOWS CANCEL'S RULE. The browser has already stepped back by the time this
+  // runs, so with changes unsaved the step is put back and the writer is told; a second Back within
+  // a few seconds is the second press, and throws them away.
+  if (at < 2 && isAltering() && alterDirty() && !(S.backArmed && Date.now() - S.backArmed < 6000)) {
+    S.backArmed = Date.now();
+    history.pushState({ ...history.state, thread: 2 }, '', location.href);
+    toast('You have changes that are not saved. Press Back again to throw them away, or Save.');
+    return;
+  }
+  S.backArmed = 0;
+  if (at < 2) { S.readMenu = false; if (S.cardView === 'form') { S.cardView = null; S.keyDraft = null; } }
   if (at < 1) { S.entryId = null; S.cardView = null; }
   // drawSide and not paint: a Back that leaves the drawer altogether lands here before the
   // hashchange that shuts it, and paint's syncHash would push the drawer straight back.
@@ -9822,7 +9874,21 @@ document.addEventListener('click', async (e) => {
   }
 
   // ---- PLAN-08: the card's two views, its jump links, and its rooms ----
-  if (d.cardview) { S.cardView = d.cardview === 'form' ? 'form' : null; S.readMenu = false; paint(); return; }
+  if (d.cardview) { S.cardView = d.cardview === 'form' ? 'form' : null; S.readMenu = false; S.keyDraft = null;
+    paint(); if ($('sideBody')) $('sideBody').scrollTop = 0; return; }
+  // CANCEL. Nothing changed: straight back to Read. Something did: the app's two-press rule, the
+  // same one Delete uses, so a slip of the thumb cannot throw away a paragraph.
+  if (d.cancelalter) {
+    if (alterDirty() && !armed(t, 'alter:' + S.entryId,
+      'You have changes that are not saved. Press Cancel again to throw them away, or Save.')) return;
+    S.cardView = null; S.keyDraft = null; paint(); return;
+  }
+  // A wake word's x. The chips redraw and nothing else does, so what is typed elsewhere stays.
+  if (d.keyx !== undefined) {
+    const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
+    S.keyDraft = keyDraftFor(e).filter((_, i) => i !== Number(d.keyx));
+    redrawKeyChips(); $('f-card-keys')?.focus({ preventScroll: true }); return;
+  }
   // THE READ SCREEN'S ⋯ (v2 redesign). Open and shut by the same press, by Back and by Esc.
   if (d.readmenu) { S.readMenu = !S.readMenu; paint(); return; }
   // A ROW UNDER ⋯ THAT NEEDS TYPING opens the form on the tab that holds it, with its section
@@ -9838,7 +9904,7 @@ document.addEventListener('click', async (e) => {
       if (r.error) return toast(r.error);
       S.fieldHistory = r.entry ?? [];
     }
-    S.readMenu = false; S.cardView = 'form'; S.cardTab = to[0];
+    S.readMenu = false; S.cardView = 'form'; S.cardTab = to[0]; S.keyDraft = null;
     if (to[1]) S.folds = { ...S.folds, [to[1]]: true };
     paint();
     if (to[2]) document.querySelector(to[2])?.scrollIntoView({ block: 'start' });
@@ -10333,6 +10399,7 @@ document.addEventListener('click', async (e) => {
   // READ it and landing in a form of empty boxes, which is the thing the face exists to avoid.
   if (d.entry) { if (S.entryId !== d.entry) S.cardTab = 'card';
     S.entryId = d.entry; S.fieldHistory = null; S.cardView = null; S.newRoom = null; S.readMenu = false;
+    S.keyDraft = null;
     if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     // The cross-book page lists threads from every story and the editor beside it reads from the
     // OPEN one, so pressing a thread in a book you had not opened set S.entryId and then rendered
@@ -10397,7 +10464,10 @@ document.addEventListener('click', async (e) => {
       ? (e.activation === 'always_on' ? 'triggered' : 'always_on') : d.act;
     const r = await api.saveEntry(S.storyId, patch);
     if (r.error) return toast(r.error);
-    V = await api.story(S.storyId); paint(); refreshManifest();
+    // ON THE ALTER SCREEN THE CHIP SAVES ITSELF AND NOTHING ELSE. A plain repaint redrew the form
+    // from the saved thread and threw away a name or a paragraph typed above it but not yet saved;
+    // the chips the writer added are kept in S.keyDraft and survive either way.
+    V = await api.story(S.storyId); if (isAltering()) repaintKeepingText(); else paint(); refreshManifest();
     // `allowNoKeys` is what lets the two-step above work, and from the list there is no
     // trigger-words field in front of you to notice you have nothing to fire on. The card screen
     // says it in bold; out here it has to be said out loud or the thread goes dark silently.
@@ -10461,16 +10531,19 @@ document.addEventListener('click', async (e) => {
   if (d.saveentry) {
     const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
     const get = (f) => document.querySelector(`[data-f="${f}"]`)?.value;
-    // `db.keysOf` is authoritative and re-parses this on the way in; the same bound is mirrored
-    // here only so the box does not show a key the server is about to drop. SPEC §7.1: ten, 2-32.
-    const keys = String(get('keys') ?? '').split(',').map((s) => s.trim())
-      .filter((s) => s.length >= 2 && s.length <= 32).slice(0, 10);
+    // THE CHIPS, plus anything still in the add box: a word typed and not yet Entered is a word the
+    // writer meant. `keysFrom` is keysOf's own rules (test/db.ts holds them equal); ten, SPEC §7.1.
+    const keys = keysFrom([...keyDraftFor(e), ...String(get('keys') ?? '').split(',')]).slice(0, 10);
     // Same reason as the chips: the writer is looking at the entry. Emptying the keys box and
     // saving leaves it triggered-and-dark, which the hint below now says out loud — better than
     // silently switching it always-on and changing what every call sends without being asked.
     const r = await api.saveEntry(S.storyId, { ...e, id: e.id, title: get('title') ?? e.title,
       body: get('body') ?? e.body, notes: get('notes') ?? e.notes, keys, allowNoKeys: true });
-    if (r.error) return toast(r.error);
+    // REFUSED IS SAID, and the form stays as it is: what was typed is still there to fix or keep.
+    if (r.error) return toast(/not saved/i.test(r.error) ? r.error : `Not saved. ${r.error}`);
+    // SAVED GOES BACK TO READ (v2 redesign): Cancel and Save are the two ways out of the form, and
+    // the thread you just wrote is the thing to look at next.
+    S.cardView = null; S.keyDraft = null;
     V = await api.story(S.storyId); paint(); toast('Saved.'); refreshManifest(); return;
   }
   if (d.delafter) {
@@ -12140,6 +12213,12 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && S.bigInput) { S.bigInput = false; drawDock(); $('input')?.focus(); return; }
   // A THREAD'S ⋯, THEN THE THREAD, THEN THE DRAWER: one layer per Esc, the same order as Back.
   if (e.key === 'Escape' && S.readMenu && isReading()) { S.readMenu = false; paint(); return; }
+  // Alter: Esc is Cancel, under Cancel's rule — a second Esc throws unsaved changes away.
+  if (e.key === 'Escape' && isAltering() && overlay()) {
+    if (alterDirty() && !armed(null, 'alter:' + S.entryId,
+      'You have changes that are not saved. Press Esc again to throw them away, or Save.')) return;
+    S.cardView = null; S.keyDraft = null; paint(); return;
+  }
   if (e.key === 'Escape' && S.panel === 'threads' && S.entryId && overlay()) {
     S.entryId = null; S.cardView = null; S.readMenu = false; paint(); return; }
   if (e.key === 'Escape') { if (S.appearance) { S.appearance = false; drawAppearance(); drawBar(); } else if (S.panel && overlay()) { S.panel = null; paint(); } }
@@ -12851,6 +12930,19 @@ document.addEventListener('mousedown', (e) => {
   atAccept(Number(b.dataset.atpick));
 });
 
+/** THE FIELD BEING TYPED IN STAYS ON SCREEN WHEN THE KEYBOARD OPENS (v2 Alter, 2026-10-25). The
+ *  viewport is `interactive-widget=resizes-content`, so an on-screen keyboard shortens the page and
+ *  the drawer with it; a field low on the form — the wake words, a pocket's text — was left under
+ *  the keyboard, typed into blind. On every resize, a text field focused in the drawer is scrolled
+ *  just into view within it. `nearest`, so a field already on screen does not move. */
+const keepFieldInView = () => {
+  const el = document.activeElement;
+  if (!el || !el.closest?.('#sideBody') || !el.matches('input, textarea')) return;
+  el.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+};
+window.addEventListener('resize', keepFieldInView);
+window.visualViewport?.addEventListener('resize', keepFieldInView);
+
 // A fresh focus starts a fresh measurement, so the pair in a report is one visit to the box
 // rather than the first keystroke of the session against the latest.
 document.addEventListener('focusin', (e) => {
@@ -12863,6 +12955,21 @@ document.addEventListener('focusin', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  // A WAKE WORD IS ADDED BY ENTER OR A COMMA, the way every chip box on a phone works. Backspace in
+  // an empty box takes the last chip off, which is the other half of the same habit.
+  if (e.target?.dataset?.keyadd !== undefined) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      if (e.target.value.trim()) { addKeyWords(e.target.value); e.target.value = ''; }
+      return;
+    }
+    if (e.key === 'Backspace' && !e.target.value) {
+      const en = V?.entries.find((x) => x.id === S.entryId);
+      const have = keyDraftFor(en);
+      if (have.length) { e.preventDefault(); S.keyDraft = have.slice(0, -1); redrawKeyChips(); }
+      return;
+    }
+  }
   if (atCfg(e.target?.id) && AT) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -12957,6 +13064,15 @@ document.addEventListener('input', (e) => {
   }
   // One story's threads. Its own list only, the same rule as the two above: this panel holds
   // Premise, the voice and every room body as free text that Save commits.
+  // A COMMA IN THE WAKE-WORD BOX MAKES CHIPS of everything before it. This is the paste of a list
+  // and also a phone's comma, which arrives as text with no keydown the handler above can read.
+  if (e.target.dataset?.keyadd !== undefined && e.target.value.includes(',')) {
+    const parts = e.target.value.split(',');
+    const rest = parts.pop();
+    addKeyWords(parts.join(','));
+    e.target.value = rest.trimStart();
+    return;
+  }
   if (e.target.id === 'thq') {
     S.threadQ = e.target.value;
     if ($('thlist')) $('thlist').innerHTML = threadRows();

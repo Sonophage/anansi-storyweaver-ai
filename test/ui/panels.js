@@ -606,9 +606,9 @@ ok(`  and putting it back updates the card rather than duplicating it (${nBefore
 ok("  with the edit landing on it",
    /put back/.test(back.entries.find((e) => e.id === card.id)?.body ?? ''));
 
-// And the card goes, so every section below sees the fixture it expects.
-await page.click('[data-cardview="form"]');
-await wait(500);
+// And the card goes, so every section below sees the fixture it expects. Alter is pressed only
+// if Read is what is showing: the form has no Alter button of its own since the v2 Alter screen.
+if (await page.visible('[data-cardview="form"]')) { await page.click('[data-cardview="form"]'); await wait(500); }
 await page.click('[data-cardtab="more"]');
 await wait(500);
 for (let i = 0; i < 2; i++) { await page.click('[data-delentry]'); await wait(500); }
@@ -960,23 +960,15 @@ if (anyEntry) {
   await page.click('[data-cardview="form"]');
   await wait(400);
   ok("  and Edit this card opens the form", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
-  // THE BAR'S GEOMETRY, MEASURED — ON THE FORM since the v2 Read screen (2026-10-25), which has
-  // no bar: its Back is the drawer header's "‹ Threads" and Alter is under ⋯ (test/ui/threadread.js).
-  // The form keeps the Read / Alter / Save / Back bar until Alter is redesigned, and this holds it.
-  // Seth, 2026-09-01: "theres a space above it and the threads and close section can we remove the
-  // padding and make the background full width of the panel."
-  // Nothing readable from the source can see this: the first attempt set a negative margin on the
-  // bar, the computed style read it back as applied, and sticky clamped the bar inside its wrapper
-  // so it sat at exactly the same place it had before. A fix that reads as applied and is not is
-  // the reason this assertion measures pixels instead of trusting a rule.
-  const barBox = await page.eval(`(() => {
-    const b = document.querySelector('#sideBody .savebar'); if (!b) return null;
-    const r = b.getBoundingClientRect(), body = document.getElementById('sideBody').getBoundingClientRect();
-    return { gap: Math.round(r.top - document.getElementById('sideHead').getBoundingClientRect().bottom),
-             inset: Math.round(r.left - body.left), width: Math.round(r.width - body.width) };
-  })()`);
-  ok(`  and the form's Read / Alter / Back bar is flush under the head and full width (${JSON.stringify(barBox)})`,
-     barBox != null && barBox.gap === 0 && barBox.inset === 0 && barBox.width === 0);
+  // THE BAR IS THE DRAWER'S HEADER NOW (v2 Alter screen, 2026-10-25). Seth, 2026-09-01, of the
+  // card's own bar: "theres a space above it and the threads and close section can we remove the
+  // padding and make the background full width of the panel." The bar is gone and its two presses
+  // are in the header itself, which is the full width of the panel with nothing above it — so
+  // what this asserts is that the form draws no bar of its own and the header carries both.
+  const barBox = await page.eval(`JSON.stringify({ bar: !!document.querySelector('#sideBody .savebar'),
+    cancel: !!document.querySelector('#sideHead [data-cancelalter]'), save: !!document.querySelector('#sideHead [data-saveentry]') })`);
+  ok(`  and the form's Cancel and Save are the drawer's header, with no bar under it (${barBox})`,
+     barBox === JSON.stringify({ bar: false, cancel: true, save: true }));
 
   // THE FORM IS TABBED, 2026-09-02 handoff. VISIBLE, not merely present: a hidden pane keeps all
   // of its markup, so `querySelector` finds every field on every tab and a presence check would
@@ -1112,7 +1104,9 @@ if (anyEntry) {
   console.log("  tail folds: " + JSON.stringify(tails));
   ok(`  and Over time, Brings in with it and Another book are folded shut (${JSON.stringify(tails)})`,
      tails.states === false && tails.edges === false && tails.copy === false);
-  await page.click('[data-cardview="face"]');
+  // Back to Read by Cancel: nothing was typed, so it goes straight there (the old Read button is
+  // the drawer header's Cancel since the v2 Alter screen).
+  await page.click('#sideHead [data-cancelalter]');
   await wait(500);
   // The switch is the writer's half of how a room reaches the model; its keys are the other half.
   ok(`  and the room starts off (${face && face.on})`, !!face && face.on === 'Off');
@@ -1129,7 +1123,7 @@ if (anyEntry) {
     divider: [...document.querySelectorAll('.lbl')].some(x => /Not turned on/.test(x.textContent)) }))()`);
   ok(`  and the form moves it up out of "Not turned on" when it goes on (${
        JSON.stringify(regrouped)})`, regrouped.box === true && regrouped.divider === false);
-  await page.click('[data-cardview="face"]');
+  await page.click('#sideHead [data-cancelalter]');
   await wait(500);
 
   await page.click('[data-cardview="form"]');
@@ -1351,12 +1345,14 @@ ok(`  named for the character it dresses`,
     const body = document.querySelector('[data-f="body"]');
     return { n: s.length, above: s[0] && body
       ? s[0].getBoundingClientRect().top < body.getBoundingClientRect().top : null,
-      sticky: s[0] ? getComputedStyle(s[0].parentElement).position : null }; })()`);
+      // In the header, which is outside #sideBody — the one part of the drawer that scrolls.
+      fixed: s[0] ? !!s[0].closest('#sideHead') && !s[0].closest('#sideBody') : null }; })()`);
   console.log("  save: " + JSON.stringify(saves));
   ok(`the form has exactly one Save (${saves.n})`, saves.n === 1);
   ok('  and it is above the body rather than under a dozen sections', saves.above === true);
-  // Moving it up without pinning it only inverts the scroll: the bar rides #sideBody.
-  ok(`  in a bar that stays put while the form scrolls (${saves.sticky})`, saves.sticky === 'sticky');
+  // Moving it up without pinning it only inverts the scroll: the bar rode #sideBody. The header
+  // does not scroll at all.
+  ok(`  in a bar that stays put while the form scrolls (${saves.fixed})`, saves.fixed === true);
 }
 // THE CARD'S TAIL SECTIONS ARE FOLDS NOW, SHUT BY DEFAULT (2026-08-30). Seth: "the over time and
 // the brings in with it and another book should be toggle and defaulted as off." Their fields are

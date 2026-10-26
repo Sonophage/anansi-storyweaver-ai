@@ -1522,6 +1522,23 @@ textarea.field { resize:vertical; min-height:70px; }
 .readrow[disabled] { opacity:.5; }
 .readnote { font-size:12px; color:var(--faint); }
 .pocketsw { min-height:30px; padding:0 12px; display:inline-flex; align-items:center; }
+/* ONE THREAD, ALTERED (v2 redesign, 2026-10-25): Cancel and a Save pill in the header, the name
+   as the first field in the serif, and the wake words as chips with an add box after them. */
+.headsave { height:36px; margin:-4px 0; padding:0 18px; border:1px solid rgba(217,178,106,.5);
+  border-radius:var(--r-pill); color:var(--gold); font-size:12px; letter-spacing:.14em;
+  text-transform:uppercase; flex:0 0 auto; }
+.field.altname { font-family:'Instrument Serif', var(--serif, serif); font-size:24px; line-height:1.2;
+  color:var(--ink-bright); padding:8px 13px; }
+.keychips { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:6px; min-height:48px;
+  border:1px solid var(--chip); border-radius:var(--r); background:var(--field); }
+.keychips:focus-within { border-color:var(--edge-lit); }
+.keychip { display:inline-flex; align-items:center; gap:2px; height:32px; padding:0 4px 0 12px;
+  border:1px solid rgba(217,178,106,.42); border-radius:var(--r-pill); color:var(--gold-lit);
+  font-size:13px; }
+.keychip > button { width:24px; height:24px; display:flex; align-items:center; justify-content:center;
+  font-size:15px; color:var(--mute); border-radius:var(--r-pill); }
+.keyadd { flex:1 1 90px; min-width:90px; height:32px; background:transparent; border:0; outline:none;
+  color:var(--ink); font:inherit; font-size:13.5px; padding:0 6px; }
 /* The header's +: 44px to the finger, a 34px ring to the eye, and no taller header for it. */
 .headadd { width:44px; height:44px; margin:-8px -6px -8px 0; display:flex; align-items:center;
   justify-content:center; color:var(--gold); flex:0 0 auto; }

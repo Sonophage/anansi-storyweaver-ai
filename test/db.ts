@@ -11,6 +11,8 @@ for (const f of ['', '-wal', '-shm']) { try { unlinkSync('/tmp/anansi-test.db' +
 const db = await import('../src/db.ts');
 // A second handle on the same file, for writing a row the way an old one was written: past the floor.
 const { DatabaseSync: RawDb } = await import('node:sqlite');
+// The screen's copy of the wake-word parser, run against keysOf below.
+const webModel: any = await import('../web/model.js');
 const slots = await import('../src/slots.ts');
 const prompts = await import('../src/prompts.ts');
 
@@ -159,6 +161,21 @@ ok('entries upsert by row existence, not by whether an id was passed', () => {
   db.upsertEntry(s.id, o, { id: 'e-fixed', title: 'A2', body: '[A]', keys: ['a'] });
   assert.strictEqual(db.entriesOf(s.id).length, 1);
   assert.strictEqual((db.entriesOf(s.id)[0] as any).title, 'A2');
+});
+// ---- THE WAKE-WORD CHIPS AND THE DATABASE READ A TYPED LIST THE SAME WAY (2026-10-25).
+// `keysFrom` in web/model.js is what the Alter screen's chips show; `keysOf` here is what the save
+// stores. Two parsers that must agree is this repo's most expensive bug, so they run side by side on
+// every edge case found for them, and a difference names the case.
+ok('the wake-word chips and keysOf agree on every edge case', () => {
+  const cases: unknown[] = [
+    'key, coat', ' key ,coat ', 'key,,coat,', '"key", \'coat\'', '\u201cthe key\u201d', 'Key, key, KEY',
+    'a, ab, ' + 'x'.repeat(32) + ', ' + 'y'.repeat(33), 'the silver key, Silver Key', '...key!!',
+    'Marek Vale, marek vale', '', ',,,', '  ', 'caf\u00e9, na\u00efve', 'one two, three', ['key', ' coat ', 'Key'],
+    ['', null, 'ok'], 'k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11', '12, 1984', '-dash-, _under_', undefined, null,
+  ];
+  for (const c of cases)
+    assert.deepStrictEqual(webModel.keysFrom(c), db.keysOf(c),
+      `the wake-word chips and db.keysOf disagree on ${JSON.stringify(c)}`);
 });
 // ---- AN ACTIVATION IS ONE OF TWO WORDS, refused otherwise (2026-10-25). The column is TEXT with
 // no CHECK, so for its whole life it stored whatever it was handed: this file wrote 'keyed' twice,

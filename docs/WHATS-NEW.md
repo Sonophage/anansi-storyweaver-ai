@@ -12,6 +12,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-25 · Three buttons at the bottom
 
+### Altering a thread
+Alter has Cancel and Save at the top. Save keeps your changes and goes back to reading the thread;
+Cancel goes back without them, and if you changed something it asks first: press Cancel again to
+throw the changes away. Back on your phone does the same. If a save is refused, it says so, and
+what you typed stays. The tabs are as they were: The thread, Over time, Pockets and More. The
+picture and the kind are under More now. Wake words are one chip each: tap × to take one off,
+and type a word and press Enter or a comma to add one. A pasted list becomes chips. When the
+keyboard opens on a phone, the box you are typing in stays above it.
+
 ### A thread, read
 Open a thread from the list and it reads like a page. "‹ Threads" at the top goes back to the
 list, and Back on your phone does the same. Under the name is one row: what kind of thread it is,

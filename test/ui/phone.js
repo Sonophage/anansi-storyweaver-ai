@@ -419,7 +419,12 @@ await wait(700);
 const ftop = await page.eval("(() => { const el = document.querySelector('#page [data-f=\"body\"]');"
   + " return el ? Math.round(el.getBoundingClientRect().top) : 9999; })()");
 ok(`  and Edit reaches the body field without a scroll (${ftop}px from the top)`, ftop < 700);
-await page.click('[data-backentry]');
+// Out of the form by its Cancel (nothing was changed, so it does not ask), then back to the list
+// by "‹ Threads": the v2 Read and Alter screens draw their own bar on this page, which has no
+// drawer header to carry them.
+await page.click('#page [data-cancelalter]');
+await wait(600);
+await page.click('#page [data-backentry]');
 await wait(900);
 ok("  and Back returns to the list rather than to nothing",
    (await page.eval("document.querySelectorAll('#page [data-entry]').length")) > 0);

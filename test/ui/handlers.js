@@ -58,6 +58,9 @@ await page.click('[data-act="triggered"]');
 await wait(700);
 let e = (await entries()).find((x) => x.id === eid);
 ok(`switching activation to triggered persists (now ${e?.activation})`, e?.activation === "triggered");
+// THE KIND IS UNDER MORE since the v2 Alter screen (2026-10-25; Seth: "move em under more").
+await page.click('[data-cardtab="more"]');
+await wait(300);
 await page.click('[data-kind="lore"]');
 await wait(700);
 e = (await entries()).find((x) => x.id === eid);
@@ -327,7 +330,8 @@ const opened = (await page.eval("document.querySelector('#page .aside')?.textCon
 // The three rooms of the entry editor. Any one of them proves the editor rendered rather than the
 // hint — the body box proves it has the thread's own text and not an empty form.
 ok("  and Edit opens the form, with no need to find its book on the shelf first",
-   opened.includes('When it reaches the model') && opened.includes('Type'));
+   // "Kind" since the v2 Alter screen, under More (it was "Type", on the first tab).
+   opened.includes('When it reaches the model') && opened.includes('Kind'));
 const body = await page.eval("document.querySelector('#page .aside textarea')?.value ?? ''");
 ok(`  and the box holds the thread's own body (${JSON.stringify(body.slice(0, 30))})`, body.trim().length > 0);
 
@@ -362,6 +366,9 @@ await wait(700);
 // hoped for.
 await page.click('[data-cardview="form"]');
 await wait(500);
+// Under More since the v2 Alter screen, with the picture.
+await page.click('[data-cardtab="more"]');
+await wait(300);
 // VISIBLE, not merely present. The form grew TABS on 2026-09-02 — The card / Rooms / Over time /
 // More — and a pane that is not the open one is `display:none` with all of its markup still in the
 // document. This assertion asked `querySelector` and so stayed green while everything it was about

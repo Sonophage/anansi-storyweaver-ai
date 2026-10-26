@@ -39,6 +39,22 @@ export const MODES = [
 
 export const KINDS = ['character', 'lore', 'item', 'rule'];
 
+/** A THREAD'S WAKE WORDS FROM WHAT WAS TYPED, by the rules of `keysOf` in src/db.ts, which re-parses
+ *  them on the way in and is the authority. The Alter screen's chips use this so a chip never shows
+ *  a word the save would drop or split: a comma list splits, each word is trimmed of the spaces and
+ *  punctuation round it (quotes included), 2 to 32 characters is kept, and a word already there in
+ *  any case is not added twice — the first spelling stays. test/web.ts runs both on the same edge
+ *  cases and fails if they disagree, which is what keeps this a copy of one parser and not a second.
+ *  `cap` is the screen's limit (ten, SPEC §7.1); the database takes the list as given. */
+export const keysFrom = (k, cap = Infinity) => {
+  const seen = new Set();
+  return (Array.isArray(k) ? k : String(k ?? '').split(','))
+    .map((x) => String(x ?? '').trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
+    .filter((x) => x.length >= 2 && x.length <= 32)
+    .filter((x) => !seen.has(x.toLowerCase()) && (seen.add(x.toLowerCase()), true))
+    .slice(0, cap);
+};
+
 /** The four kinds as GROUPS, which is how every row that offers them reads: you are filtering or
  *  asking for characters, not for character. #22 named them on the cross-shelf page and #21 needs
  *  the same words in the wizard — one map, because two would drift on the first rename. */
