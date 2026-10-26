@@ -417,7 +417,7 @@ button:not(:disabled):active { transform:translateY(.5px); }
    because a ring that arrives late is a ring you have already moved past. */
 :focus-visible { outline:2px solid var(--gold); outline-offset:2px; border-radius:var(--r); transition:none; }
 
-/* The toast comes up from the composer it is talking about, and leaves the way it came. */
+/* The toast softens into view where it sits, and leaves the way it came. */
 #toast { animation:soften .42s var(--ease) both; }
 
 /* Chips that toggle — modes, outfits, kinds — do NOT move. They did not go anywhere; only their
@@ -1305,7 +1305,10 @@ html[data-work="ai"]       { --work:var(--gold); }
   color:var(--gold); display:flex; align-items:center; justify-content:center; font-size:21px; flex:0 0 auto; }
 #nextrow > button:disabled { opacity:.45; }
 #nextrow > button:hover:not(:disabled) { border-color:var(--edge-lit); }
-#nextrow #cont.stopping { background:var(--gold); border-color:var(--gold); color:var(--on-gold);
+/* FADED, LIKE ↻ BESIDE IT. Seth, 2026-10-26: "Let the stop button be faded so it matches the one on
+   the left." While she writes ↻ is disabled at .45, and a gold Stop beside it was the loudest thing
+   on the bar. Same outline, same fade; it still takes a press. */
+#nextrow #cont.stopping { opacity:.45;
   font-size:11px; letter-spacing:.12em; text-transform:uppercase; }
 /* THE QUILL, in its circle, in the middle, with the hold hint under it. */
 #nextrow .quillcell { display:flex; flex-direction:column; align-items:center; gap:4px; }
@@ -1649,6 +1652,11 @@ textarea.field { resize:vertical; min-height:70px; }
 .rerollbox .rwrow { flex:1; min-height:0; width:100%; max-width:var(--col); margin:0 auto;
   display:flex; align-items:stretch; gap:12px; }
 .rerollbox .rwrow textarea { flex:1; min-height:0; height:auto; margin:0; resize:none; }
+/* NO BOX ROUND THE TEXT. Seth, 2026-10-26: "the text is bounded by a blue box". The field's own
+   border and the global focus ring drew a frame inside a screen that is already nothing but the
+   field — the full-screen composer dropped both for the same reason (#dock.big #inputWrap). */
+.rerollbox .rwrow textarea { border-color:transparent; background:transparent; padding-left:0; padding-right:0; }
+.rerollbox .rwrow textarea:focus-visible { outline:none; }
 /* Reweave's instruction is an instruction, in the serif. Alter's text is the passage, set exactly
    as the page sets it — narration or speech, in the tale's own reading font and size (Seth,
    2026-10-26: "The font changes ... I think in edit mode"). The family comes from the .narr rules
@@ -1658,6 +1666,11 @@ textarea.field { resize:vertical; min-height:70px; }
 .rerollbox textarea.said { font-size:var(--bubble); line-height:1.65; color:var(--body); }
 .rerollbox .rwside { width:38px; border-radius:var(--r); display:flex; align-items:center;
   justify-content:center; flex:0 0 auto; border:1px solid var(--chip); color:var(--ink); }
+/* THE COMPOSER'S SIZE, NOT THE BOX'S. Seth, 2026-10-26: "the buttons are really long". The row
+   stretches its children to the box's height, so Cancel and Save ran the full height of the screen.
+   A height of their own stops the stretch: 44 on a desk and 56 on a phone, as #send and Full screen. */
+.rerollbox .rwside { height:44px; }
+@media (max-width:719px) { .rerollbox .rwside { height:56px; } }
 .rerollbox .rwgo { background:var(--gold); color:var(--on-gold); border-color:transparent; }
 .rerollbox .rwside .btnword { display:none; }
 @media (min-width:720px) { .rerollbox .rwside { width:auto; padding:0 14px; gap:7px; }
@@ -1896,23 +1909,24 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 [data-tab="summaries"] > .sgroup[data-group="summaries"],
 [data-tab="branches"]  > .sgroup[data-group="branches"] { display:flex; }
 
-/* IN THE MIDDLE OF THE SCREEN, not on the bottom edge — Seth, 2026-09-02: "all the site toast
-   notifications should be centered to the screen and styled." It sat 26px off the bottom, directly
-   over the composer, which is both the place a writer's eyes are NOT and the one control it was
-   usually telling them to use. Centred, it is read before it goes.
+/* NOT ON THE BOTTOM EDGE — Seth, 2026-09-02. It sat 26px off the bottom, directly over the
+   composer, which is both the place a writer's eyes are NOT and the one control it was usually
+   telling them to use. It was centred on the screen from then until 2026-10-26 (below).
    THE ACCENT IS THE EDGE, the same gold-dim-to-gold vocabulary the composer's field and the two
    dials use, on the app's own sheet rather than the field grey. Small caps would be wrong: this is
    a sentence to read, not a label. */
+/* AT THE TOP, WITH A SHADOW BENEATH IT. Seth, 2026-10-26: "let toasts happen at the top of the
+   screen with a shadow beneath not center screen." Centred, it sat over the prose being read. */
 #toast {
-  position:fixed; left:50%; top:50%; transform:translate(-50%, -50%); z-index:60;
+  position:fixed; left:50%; top:calc(12px + env(safe-area-inset-top, 0px)); transform:translateX(-50%); z-index:60;
   /* Nothing in a toast is clickable, and it used to sit directly over the composer. Without this it
      swallowed every click on the input for 4.2 seconds — so the error telling you to type
-     something was the thing stopping you from typing it. It is over the prose now, which is worse
-     to block, not better. */
+     something was the thing stopping you from typing it. It is over the header now, whose buttons
+     it must not block either. */
   pointer-events:none;
   background:var(--sheet); border:1px solid var(--gold-dim); color:var(--ink-bright);
   padding:14px 22px; border-radius:var(--r); font-size:13.5px; line-height:1.45; text-align:center;
-  box-shadow:0 24px 60px rgba(0,0,0,.72); max-width:min(74vw, 460px);
+  box-shadow:0 14px 28px -6px rgba(0,0,0,.7); max-width:min(86vw, 460px);
 }
 /* The @ menu. Floats ABOVE the ask box rather than sitting in the column, so opening it moves
    nothing — the whole point of a menu that appears while you are mid-sentence. Opaque, because it

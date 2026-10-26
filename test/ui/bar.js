@@ -153,12 +153,16 @@ await page.eval("(() => { const i = document.getElementById('input'); i.value = 
 await press('#send');
 ok("SEND-EMPTY-CONTINUES: Send with an empty box makes Anansi write",
    await until("!!document.querySelector('#col > #ghost.inlive')"));
-ok("ONE-STOP: while she writes with the box up, Send is Stop and ✦ is not",
-   await page.eval("!!document.querySelector('#send[data-stop]') && !document.querySelector('#cont[data-stop]') && document.querySelectorAll('[data-stop]').length === 1"));
-ok("SEND-STOP-LOOKS: and Send looks like a Stop, not like Send, while it is one",
-   await page.eval("!!document.querySelector('#send[data-stop].stopping')"));
+// SEND FOLDS THE BOX AT THE PRESS (Seth, 2026-10-26), not when the passage lands, so the Stop is ✦.
+ok("SEND-FOLDS: Send folds the box back to the three buttons at once", await folded());
+ok("ONE-STOP: while she writes, the one Stop on screen is ✦",
+   await page.eval("(() => { const v = [...document.querySelectorAll('#dock [data-stop]')].filter((b) => b.offsetParent); return v.length === 1 && v[0].id === 'cont'; })()"));
+// FADED LIKE ↻ (Seth, 2026-10-26): the Stop wears the disabled ↻'s fade, and still takes a press.
+ok("STOP-FADED: and it is faded like ↻ beside it",
+   await page.eval("(() => { const s = document.querySelector('#cont[data-stop]'), r = document.querySelector('#nextrow [data-re]');"
+     + " return !!s && !!r && r.disabled && !s.disabled && getComputedStyle(s).opacity === getComputedStyle(r).opacity; })()"));
 ok("  and lands", await until("!document.getElementById('ghost')", 120) && (await models()) === m1 + 1);
-ok("FOLDS: and the box folds back to the three buttons", await until("document.getElementById('dock').classList.contains('folded')", 40));
+ok("FOLDS: and the box stays folded with the three buttons", await until("document.getElementById('dock').classList.contains('folded')", 40));
 
 // ---- hold the quill: Talk, in the same box
 await open();

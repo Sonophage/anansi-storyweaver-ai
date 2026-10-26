@@ -1673,7 +1673,10 @@ function drawDoc() {
    * editing "takes me to the bottom rather than just staying". A passage written inline has been in
    * view the whole time it was written, and an Alter or Reweave box closes over the place it was
    * opened from: those set HOLD_SCROLL, and this repaint puts the page back exactly there. */
-  if (HOLD_SCROLL != null) { read.scrollTop = HOLD_SCROLL; HOLD_SCROLL = null; }
+  // 'instant' HERE TOO. Assigning scrollTop glides on #read, so the page jumped when the ghost came
+  // out and then slid back: Seth, 2026-10-26, "still a transition after the ai has stopped writing
+  // that resets the reading position".
+  if (HOLD_SCROLL != null) { read.scrollTo({ top: HOLD_SCROLL, behavior: 'instant' }); HOLD_SCROLL = null; }
   // 'instant': #read has scroll-behavior:smooth, so assigning scrollTop GLIDES, and a glide still
   // running when Anansi's first word lands is the page moving under the words (Seth, 2026-10-26).
   else if (tip && !(grew && pinTo(DREW.newest))) read.scrollTo({ top: read.scrollHeight, behavior: 'instant' });
@@ -1899,8 +1902,9 @@ function holdLearned() {
  *  hint sits above the circle. ✦ CONTINUES: Anansi writes the next passage with no box at all.
  *
  *  ONE STOP AT A TIME. While Anansi writes, ✦ is Stop when the box is folded, because then it is the
- *  only Stop on screen. With the box up, Send at the end of the box is Stop and ✦ waits, disabled:
- *  two Stops was the thing Seth asked to be rid of.
+ *  only Stop on screen. Send folds the box (see `generate`), so this is the Stop after every Send.
+ *  Only a box opened again mid-write makes Send the Stop, and then ✦ waits, disabled: two Stops was
+ *  the thing Seth asked to be rid of.
  *
  *  Anansi's three ideas left this bar for the bulb under the last passage (see `ideasHTML`).
  *  NO BACKTICKS IN THE HTML COMMENTS BELOW: they are inside a template literal. */
@@ -8789,6 +8793,12 @@ async function generate(mode = S.mode, again = null) {
   // because for Speak and Act your own line has already landed by now, and that line is the one
   // you would be reading from.
   S.seam = V?.passages?.filter((p) => !p.isBreak).at(-1)?.id ?? null;
+  // THE BOX FOLDS ON SEND. Seth, 2026-10-26: "after you press send allow the input bar to go back to
+  // its default state with the three buttons." It folded when the passage LANDED (foldDock), so the
+  // whole write ran with the box up and Send standing in as Stop. Now the three buttons are back at
+  // the press and ✦ is the Stop. What was typed stays in the folded box until the passage lands, so
+  // a Stop or an error leaves it there, one tap on the quill away.
+  foldBox();
   weaveStart();
   S.busy = true; drawDock(); working(mode);
   // Your text is already on the page in the three modes above, so the model gets no directive —
@@ -8848,10 +8858,12 @@ async function generate(mode = S.mode, again = null) {
   // HANDED TO THE VEIL, not done here. If there is no veil — a re-roll further up the page, reduced
   // motion, a writer who already typed — it runs immediately and this is the old behaviour.
   const land = () => {
-    arrive(); foldDock();
     // Written inline, it was in view the whole time: the page stays where the reader left it
     // (HOLD_SCROLL), and the seam pin is only for a passage that arrives all at once.
     const held = HOLD_SCROLL != null;
+    // AND IT IS NOT WIPED IN AGAIN. Its words already blurred in as they came; the 1.5s wipe on top
+    // of that was the second transition Seth saw after she stopped (2026-10-26). Announced either way.
+    arrive(!held); foldDock();
     paint(); if (!held) pinToSeam(); refreshManifest(); refreshHistory();
     if (said) toast(said);
   };
@@ -9014,10 +9026,10 @@ function takeToast(r) {
 /** Mark the newest passage so it fades in once, and only once. The flag is cleared on a timer
  *  rather than at the end of the animation because every later repaint would otherwise re-add the
  *  class and replay it — a paragraph that fades in again every time you open a panel. */
-function arrive() {
+function arrive(wipe = true) {
   const last = V?.passages?.filter((p) => !p.isBreak).at(-1);
   if (!last) return;
-  S.arrived = last.id;
+  if (wipe) S.arrived = last.id;
   // AND SAID OUT LOUD. The fade is the only sign a passage landed and a screen reader cannot see
   // it. One sentence, not the prose: the passage is in the document already and a reader moves to
   // it themselves — reading it into a live region as well would say the whole thing twice.

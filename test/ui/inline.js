@@ -32,18 +32,19 @@ await send("She reaches the door.");
 ok("the passage being written sits in the page, under the last one",
    await until("!!document.querySelector('#col > #ghost.inlive')"));
 ok("  and there is no full-screen veil", !(await page.eval("!!document.querySelector('#ghost.veil')")));
-ok("  and Stop stays on the composer", await page.eval("!!document.querySelector('#send[data-stop]')"));
-// GOLD AND STILL (Seth, 2026-10-26): the one press while she writes, and nothing pulsing on it.
-const stop = await page.eval(`(() => { const b = document.querySelector('#send[data-stop]'); if (!b) return null;
-  const cs = getComputedStyle(b), probe = document.createElement('i'); probe.style.color = 'var(--gold)';
-  document.body.append(probe); const gold = getComputedStyle(probe).color; probe.remove();
-  return JSON.stringify({ bg: cs.backgroundColor, gold, anim: cs.animationName }); })()`).then((x) => x && JSON.parse(x));
-ok(`  and Stop is gold and still (${JSON.stringify(stop)})`, !!stop && stop.bg === stop.gold && stop.anim === 'none');
+// Send folds the box (Seth, 2026-10-26), so the composer's Stop is ✦ on the three buttons.
+ok("  and Stop stays on the composer", await page.eval("!!document.querySelector('#cont[data-stop]')?.offsetParent"));
+// FADED AND STILL (Seth, 2026-10-26: "faded so it matches the one on the left"; earlier the same day,
+// "not animated"). The fade is read off the disabled ↻ beside it, not written here as a number.
+const stop = await page.eval(`(() => { const b = document.querySelector('#cont[data-stop]'), r = document.querySelector('#nextrow [data-re]');
+  if (!b || !r) return null; const cs = getComputedStyle(b);
+  return JSON.stringify({ op: cs.opacity, re: getComputedStyle(r).opacity, anim: cs.animationName }); })()`).then((x) => x && JSON.parse(x));
+ok(`  and Stop is faded like ↻ and still (${JSON.stringify(stop)})`, !!stop && stop.op === stop.re && Number(stop.op) < 1 && stop.anim === 'none');
 ok("its words arrive in it", await until("(document.querySelector('#ghost .veiltext')?.textContent ?? '').length > 0", 80));
 ok("when it is done it becomes a passage like the others",
    await until("!document.getElementById('ghost')", 120));
 ok(`  and it was written (${before} -> ${await models()})`, (await models()) === before + 1);
-ok("  with no tap needed to see it", await until("!document.querySelector('#send[data-stop]')", 40));
+ok("  with no tap needed to see it", await until("!document.querySelector('#dock [data-stop]')", 40));
 
 // ---- where the page sits, and how the words arrive (Seth, 2026-10-25)
 // At the first word the page moves ONCE so the end of the passage before sits 72px under the top
@@ -108,6 +109,28 @@ await wait(400);
 const up = await page.eval("JSON.stringify({ up: window.__up, now: Math.round(document.getElementById('read').scrollTop) })").then(JSON.parse);
 ok(`  a reader scrolled up while she wrote is left where they were when it lands (${up.up} -> ${up.now})`,
    up.up !== null && Math.abs(up.now - up.up) <= 2);
+ok("  and the passage is not wiped in again: its words already came in as she wrote",
+   await page.eval("!document.querySelector('#col .block.arrived')"));
+
+// AND NOTHING MOVES AT ALL WHILE IT LANDS (Seth, 2026-10-26: "still a transition after the ai has
+// stopped writing that resets the reading position"). The restore of the held position glided, so a
+// reader at the BOTTOM saw the page drop about 110px as the ghost came out and slide back over ten
+// frames; a reader scrolled well up was below the drop and saw nothing, which is why the case above
+// passed throughout. Every frame from the first word to 1.5s after landing is sampled.
+await page.eval(`(() => { const read = document.getElementById('read');
+  read.scrollTo({ top: read.scrollHeight, behavior: 'instant' }); window.__tops = []; window.__on = false; window.__stopTops = false;
+  new MutationObserver((ms, obs) => { for (const m of ms) for (const n of m.addedNodes ?? []) if (n.classList?.contains?.('w')) {
+    obs.disconnect(); window.__on = true; return; } }).observe(document.getElementById('col'), { subtree: true, childList: true });
+  const tick = () => { if (window.__on) window.__tops.push(Math.round(read.scrollTop)); if (!window.__stopTops) requestAnimationFrame(tick); };
+  requestAnimationFrame(tick); return 1; })()`);
+await send("He waits at the bottom of the page.");
+await until("!document.getElementById('ghost')", 120);
+await wait(1500);
+await page.eval("(() => { window.__stopTops = true; return 1; })()");
+const tops = await page.eval("JSON.stringify(window.__tops)").then(JSON.parse);
+const drift = tops.length ? Math.max(...tops.map((t) => Math.abs(t - tops.at(-1)))) : -1;
+ok(`  and a reader at the bottom sees the page hold still as it lands (${tops.length} frames, at most ${drift}px off)`,
+   tops.length > 10 && drift <= 2);
 
 // ---- a re-roll of the last passage: the new version writes where the old one was
 await page.eval("(() => { document.querySelector('#nextbar [data-re]').click(); return 1; })()");
@@ -123,7 +146,17 @@ ok(`  with no toast saying so (${JSON.stringify(await page.text('#toast'))})`,
 // ---- Stop, from the composer
 await send("He does not answer.");
 await until("!!document.querySelector('#col > #ghost.inlive')");
-await page.eval("(() => { document.querySelector('#send[data-stop]').click(); return 1; })()");
+await page.eval("(() => { document.querySelector('#cont[data-stop]').click(); return 1; })()");
 ok("Stop takes the passage being written away", await until("!document.getElementById('ghost')", 40));
+// AT THE TOP, NOT IN THE MIDDLE (Seth, 2026-10-26: "let toasts happen at the top of the screen with a
+// shadow beneath"). Shown by hand: the fake router writes the passage in one chunk, so Stop can land
+// after it and say nothing, which would leave this asserting a toast that never came.
+const tst = await page.eval(`(() => { const t = document.getElementById('toast'); if (!t) return null;
+  const was = [t.hidden, t.textContent]; t.textContent = 'A line to measure.'; t.hidden = false;
+  const r = t.getBoundingClientRect(), out = JSON.stringify({ top: Math.round(r.top), mid: Math.round(r.left + r.width / 2 - innerWidth / 2),
+    shadow: getComputedStyle(t).boxShadow });
+  [t.hidden, t.textContent] = was; return out; })()`).then((x) => x && JSON.parse(x));
+ok(`a toast sits at the top of the screen, centred across it, a shadow under it (${JSON.stringify(tst)})`,
+   !!tst && tst.top < 80 && Math.abs(tst.mid) <= 2 && tst.shadow !== 'none');
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

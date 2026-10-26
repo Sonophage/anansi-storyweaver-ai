@@ -90,7 +90,7 @@ await until(`/^Planning/.test(document.querySelector('#ghost .veilweave')?.textC
 await page.eval("(() => { document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); return 1; })()");
 ok("leaving the veil shows the count beside the composer",
   await until(`/^Planning\u2026 \\d+s$/.test(document.getElementById('weaving')?.textContent ?? '')`, 20, 100));
-ok("  where Stop is, too", await page.eval("!!document.querySelector('#send[data-stop]')"));
+ok("  where Stop is, too", await page.eval("[...document.querySelectorAll('#dock [data-stop]')].filter((b) => b.offsetParent).length === 1"));
 ok("  and it goes at the first word", await until(`!(document.getElementById('weaving')?.textContent)`, 40, 250));
 await until("!document.getElementById('send')?.disabled", 40);
 

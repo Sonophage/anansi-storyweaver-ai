@@ -147,6 +147,8 @@ for (const [label, on, off] of [
       instruction: box.querySelector('[data-rerollbox]').value,
       order: x.right <= ta.left && ta.right <= go.left,
       tall: Math.round(ta.height) > innerHeight / 3,
+      sides: [Math.round(x.height), Math.round(go.height)],
+      frame: [getComputedStyle(box.querySelector('[data-rerollbox]')).borderTopColor, getComputedStyle(box.querySelector('[data-rerollbox]')).outlineStyle],
       rebases: [bs.transform, bs.filter, bs.maskImage || bs.webkitMaskImage, bs.animationName]
         .filter((v) => !(v === 'none' || v === 'auto' || v === 'normal' || !v)),
       onTop: !!hit && !!hit.closest('.rerollbox') }); })()`).then((x) => (x ? JSON.parse(x) : null));
@@ -156,6 +158,12 @@ for (const [label, on, off] of [
      !!sheet && sheet.quote.length > 10);
   ok("  and the instruction in the big box", !!sheet && sheet.instruction.length > 0 && sheet.tall);
   ok("  Cancel on the left, Reweave on the right, as Back and Send", !!sheet && sheet.order);
+  // BUTTON-SIZED, AND NO FRAME ROUND THE TEXT (Seth, 2026-10-26: "Regenerate has the same issue as the
+  // alter screen"): the row stretched Cancel and Reweave to the box's height, and the field drew a box.
+  ok(`  Cancel and Reweave are button-sized, not the box's height (${sheet && sheet.sides})`,
+     !!sheet && sheet.sides.every((h) => h <= 60));
+  ok(`  and the instruction has no frame round it (${sheet && sheet.frame})`,
+     !!sheet && /rgba\(0, 0, 0, 0\)|transparent/.test(sheet.frame[0]));
   ok(`  with nothing on its block re-basing it (${JSON.stringify(sheet && sheet.rebases)})`,
      !!sheet && sheet.rebases.length === 0);
   ok("  and it is what a press in the middle of the screen hits", !!sheet && sheet.onTop);

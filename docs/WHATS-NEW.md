@@ -10,6 +10,25 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-26 · The bar after you send
+
+### Send folds the box
+When you press Send, the box folds away and the three buttons come back at once. While Anansi
+writes, Stop is the button on the right, faded like the one on the left. What you typed waits in
+the folded box until the passage lands, so if you stop her it is still there.
+
+### The page holds still when she finishes
+When Anansi stops writing, the page no longer drops and slides back, and the passage she just
+wrote is not wiped in a second time.
+
+### Alter and Reweave look like the box you write in
+Cancel, Save and Reweave are ordinary-sized buttons again instead of running the height of the
+screen, and the text has no frame round it.
+
+### Messages at the top
+Short messages now appear at the top of the screen with a shadow under them, instead of in the
+middle of the page.
+
 ## 2026-10-26 · Altering a passage, full screen
 
 ### Alter opens the full-screen box

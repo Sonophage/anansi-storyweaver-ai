@@ -47,6 +47,14 @@ ok(`Alter opens the full-screen box (${JSON.stringify(box && { ...box, text: box
 ok("  with the passage's own text in it", !!box && box.text === start);
 ok("  the caret at the end, nothing selected", !!box && box.focus && box.caretAtEnd);
 ok("  Cancel on the left, Save on the right", !!box && box.order);
+// THE BUTTONS ARE THE COMPOSER'S SIZE, AND THE TEXT HAS NO FRAME (Seth, 2026-10-26: "the buttons are
+// really long. And the text is bounded by a blue box"). The row stretched them to the box's height.
+const look = await page.eval(`(() => { const b = document.querySelector('[data-editbox]'), c = getComputedStyle(b);
+  const h = [...document.querySelectorAll('.rerollbox .rwside')].map((x) => Math.round(x.getBoundingClientRect().height));
+  return JSON.stringify({ h, border: c.borderTopColor, outline: c.outlineStyle, focus: document.activeElement === b }); })()`).then(JSON.parse);
+ok(`  Cancel and Save are button-sized, not the box's height (${look.h})`, look.h.length === 2 && look.h.every((x) => x <= 60));
+ok(`  and the text has no box round it (${look.border}, outline ${look.outline})`,
+   look.focus && /rgba\(0, 0, 0, 0\)|transparent/.test(look.border) && look.outline === 'none');
 // SET AS THE PAGE SETS IT (Seth, 2026-10-26: the font changes "in edit mode").
 const fonts = await page.eval(`(() => { const f = (e) => { const c = getComputedStyle(e); return [c.fontFamily, c.fontSize, c.fontStyle].join(' | '); };
   return JSON.stringify([f(document.querySelector('[data-editbox]')), f(document.querySelector('[data-edit="${pid}"]'))]); })()`).then(JSON.parse);

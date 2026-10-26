@@ -84,7 +84,7 @@ ok("  and the composer is usable again", await page.eval("!document.getElementBy
   // once the words start. Between those two there was no way to stop a generation at all. So the
   // composer carries Stop whenever she is writing and no veil is in front of it.
   ok("  the composer carries Stop while she writes", await page.eval(
-    "!!document.querySelector('#send[data-stop]')"));
+    "[...document.querySelectorAll('#dock [data-stop]')].filter((b) => b.offsetParent).length === 1"));
   ok("  and the veil carries one too, until the words start", await page.eval(
     "!!document.querySelector('#ghost [data-stop]')"));
   // STOP IT BEFORE THE FIRST TOKEN, which is the only window on this fixture that is not a race.

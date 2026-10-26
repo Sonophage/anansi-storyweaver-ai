@@ -611,13 +611,18 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
       console.log(`  note  the browser harness has never run on this machine —`
         + ` ${scenarios.length} scenarios unaccounted for (test/ui/run.sh)`);
     } else {
-      const dead = Object.values(rec).filter((r: any) => r.died || r.red > 0)
+      // ONLY SCENARIOS THAT STILL EXIST. The record outlives a deleted scenario file, so "delete the
+      // scenario and say why" (the message below) left its red in place for ever: a scratch probe
+      // deleted on 2026-10-26 failed this suite with no file left to rerun. Gone is a note, not a corpse.
+      const gone = Object.keys(rec).filter((n) => !scenarios.includes(n));
+      if (gone.length) console.log(`  note  recorded but no longer a scenario: ${gone.join(', ')}`);
+      const dead = Object.values(rec).filter((r: any) => scenarios.includes(r.name) && (r.died || r.red > 0))
         .map((r: any) => `${r.name} (${r.died ? `died after ${r.ok} ok` : `${r.red} red`})`);
       const never = scenarios.filter((n) => !rec![n]);
       // Staleness against the surface itself: change app.js and every recorded result is a
       // statement about a version of the app that no longer exists.
       const appAt = Math.floor(statSync(new URL('../web/app.js', import.meta.url)).mtimeMs / 1000);
-      const stale = Object.values(rec).filter((r: any) => r.at < appAt).map((r: any) => r.name);
+      const stale = Object.values(rec).filter((r: any) => scenarios.includes(r.name) && r.at < appAt).map((r: any) => r.name);
       if (never.length) console.log(`  note  never run here: ${never.join(', ')}`);
       if (stale.length) console.log(`  note  older than web/app.js: ${stale.join(', ')}`);
       assert.deepStrictEqual(dead, [],

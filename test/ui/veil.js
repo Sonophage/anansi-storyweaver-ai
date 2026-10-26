@@ -234,7 +234,7 @@ ok("the veil keeps its own Stop while the words arrive",
 await page.eval("(() => { document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); return 1; })()");
 await wait(250);
 ok("  and leaving the veil mid-write hands Stop back to the composer",
-   await page.eval("!!document.querySelector('#send[data-stop]')"));
+   await page.eval("[...document.querySelectorAll('#dock [data-stop]')].filter((b) => b.offsetParent).length === 1"));
 // THE HANDOFF IS ASSERTED HERE; THE ABORT IS ASSERTED IN model.js. Pressing that Stop from here is
 // a race and was one: the remaining decode can finish while the dismissal animates, Stop correctly
 // becomes Send again, and the click throws on a button that was right to go. model.js §1b stops a
