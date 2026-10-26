@@ -38,8 +38,11 @@ ok(`  reading one shows it (${opened.length} chars)`, opened.length > 400);
 // reciting a list somebody typed into the client — src/slots.ts is the authority and the prompt is
 // built from it, so a character's rooms are named and a place's are not.
 ok("  naming this database's character rooms",
-   ['facts', 'role', 'appearance', 'outfit', 'interiority', 'relationships', 'voice', 'history']
+   ['facts', 'appearance', 'outfit', 'interiority', 'relationships', 'voice']
      .every((r) => opened.includes('"' + r + '"')));
+// #77. Role and history are not pockets any more: they fold into Always true and Over time.
+ok("  and not the ones that folded away",
+   !opened.includes('"role"') && !opened.includes('"history"'));
 ok("  and not a place's",
    !opened.includes('"atmosphere"') && !opened.includes('"who_is_here"'));
 ok("  and carrying the app's own card register",
