@@ -2822,8 +2822,8 @@ const PANELS = {
    *  thing to see before adding more; the search below it. Remove lives here and nowhere else, so
    *  the menu stays a place to pick from.
    *
-   *  The search is the SERVER's: the browser never talks to Featherless, and the filters, the
-   *  context floor and the rule about models that take the whole plan are all decided there. This
+   *  The search is the SERVER's: the browser never talks to Featherless, and the filters and the
+   *  context floor are decided there. This
    *  draws what comes back. Typing redraws only the results, so the box keeps its caret. */
   findmodel() {
     const f = S.find;

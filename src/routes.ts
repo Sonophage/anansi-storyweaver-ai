@@ -300,12 +300,11 @@ export const OPEN_ROUTES = new Set([
   // A writer's own shortlist of remote models. Names no story; every read and write takes c.owner,
   // so another writer's list cannot be named. test/scope.ts proves it with two owners.
   'GET /api/shortlist', 'POST /api/shortlist', 'POST /api/shortlist/remove',
-  // The Featherless catalogue. Names no story and holds nothing of anyone's; what differs by
-  // writer is the admin question, which `refusal` asks of c.admin: only the admin sees a model over
-  // half the plan.
+  // The Featherless catalogue. Names no story and holds nothing of anyone's, and every writer is
+  // shown the same models.
   'GET /api/catalogue',
   // What a catalogue model is, from Hugging Face. The same: nothing of anyone's, and the handler
-  // asks `refusal` with c.admin so a model hidden from the search cannot be described either.
+  // asks `refusal` so a model hidden from the search cannot be described either.
   'POST /api/catalogue/tags', 'GET /api/catalogue/card',
   // Names no story — it is about the FORMAT, not about a book. Open means the gate does not run, so
   // the handler asks the admin question itself; that check is the whole of its protection.
@@ -374,7 +373,7 @@ const describable = async (c: Ctx, ids: unknown[]) => {
   if ('error' in rows) return rows;
   const byId = new Map(rows.map((r) => [r.id, r]));
   return ids.map(String).filter(isRemote).map((id) => ({ id, row: byId.get(id.slice(REMOTE_PREFIX.length)) }))
-    .filter((x) => x.row && !refusal(x.row, c.admin) && isRepo(x.row.id))
+    .filter((x) => x.row && !refusal(x.row) && isRepo(x.row.id))
     .map((x) => ({ id: x.id, repo: x.row!.id }));
 };
 
@@ -1725,10 +1724,10 @@ export const routes: Record<string, Handler> = {
     const found = await fromCatalogue(() => catalogueEntry(id.slice(REMOTE_PREFIX.length)));
     if (found && 'error' in found) return found;
     if (!found) return { error: `Featherless does not list "${id.slice(REMOTE_PREFIX.length)}"` };
-    // The floor (a model whose entry gives no context is under it) and the unit gate: the same
+    // The floor (a model whose entry gives no context is under it): the same
     // predicate the search uses, so what the search hides is what this refuses — and refused
     // BEFORE the probe, so a refusal spends none of the plan.
-    const no = refusal(found, c.admin);
+    const no = refusal(found);
     if (no) return { error: no };
     // THE PROBE. One tiny call with weaving off: a model that plans anyway cannot be switched off,
     // and the label the writer reads should say what it did rather than what its class suggests.
@@ -1755,7 +1754,7 @@ export const routes: Record<string, Handler> = {
     db.addToShortlist(c.owner, id, found.context, weavingFound(found, answer, takes), found.cost, takes);
     return { models: db.shortlistOf(c.owner) };
   },
-  /** SEARCH THE CATALOGUE. The knowledge — filters, the floor, the unit gate, the sort — is in
+  /** SEARCH THE CATALOGUE. The knowledge — filters, the floor, the sort — is in
    *  src/catalogue.ts; this only reads the query. `uncensored=0` is the one way to turn the
    *  default filter off. */
   'GET /api/catalogue': async (c: Ctx) => {
@@ -1764,7 +1763,7 @@ export const routes: Record<string, Handler> = {
     const q = c.query;
     const { unread, ...found } = searchCatalogue(rows, { text: q.get('q') ?? '', size: q.get('size') ?? '',
       weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0',
-      cost: q.get('cost') ?? '', tag: q.get('tag') ?? '' }, c.admin, REMOTE_PREFIX, tagsKnown);
+      cost: q.get('cost') ?? '', tag: q.get('tag') ?? '' }, REMOTE_PREFIX, tagsKnown);
     // The tags a tag search could not answer for yet are read in the background; the page asks again.
     if (unread?.length) indexTags(unread);
     return found;

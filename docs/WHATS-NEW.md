@@ -10,6 +10,14 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-25 · Every model, for every writer
+
+### Models that take the whole plan
+Every writer can now find and add a Featherless model that takes three or all four of the plan's
+units, not only the admin. Find a model shows them, and the units filter goes up to 4. While one
+writer writes with a model like that, the other writer's passage waits, tries again for about
+twenty seconds, and then says Featherless is busy.
+
 ## 2026-10-25 · The quill
 
 ### Three marks at the bottom
