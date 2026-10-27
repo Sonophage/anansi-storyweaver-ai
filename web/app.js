@@ -2418,10 +2418,15 @@ function deckCards(only = null) {
   const chalk = [...groups.values()].map((ps) => ({ kind: 'chalk', key: ps.map((p) => p.id).join(','),
     title: ps[0].title, sub: what(ps), line: ps.find((p) => p.line)?.line ?? '', ps,
     right: 'Sew it in', left: 'Reject' }));
-  const knots = (V?.violations ?? []).filter((f) => f.status !== 'dismissed').map((f) => ({ kind: 'knot', key: f.id, f,
+  // EVERY YES AND NO MOVES ON (Seth, 2026-10-26). A knot on a thread ignored for this scene is the
+  // "Ignored in this scene" card's from then on; left here, Ignore kept it on top with nothing changed.
+  const knots = (V?.violations ?? []).filter((f) => f.status !== 'dismissed' && !(V.muted ?? []).includes(f.entryId))
+    .map((f) => ({ kind: 'knot', key: f.id, f,
     title: V.entries.find((x) => x.id === f.entryId)?.title ?? 'a thread', sub: f.reached === false ? 'Never sent' : 'Knot',
     line: f.quote ?? '', right: 'Mend', left: 'Ignore' }));
-  const strings = (V?.strings ?? []).filter((x) => x.status === 'open').map((x) => ({ kind: 'string', key: x.id, x,
+  // A string summoned or dismissed from the deck stays open (it is still owed), so it is decided for
+  // this sitting by `S.deckDone` and not by its status; the Strings tab still has it.
+  const strings = (V?.strings ?? []).filter((x) => x.status === 'open' && !S.deckDone?.has(x.id)).map((x) => ({ kind: 'string', key: x.id, x,
     title: x.title, sub: x.summoned ? 'String · summoned' : 'String', line: '', right: x.summoned ? 'Dismiss' : 'Summon',
     left: 'Let go' }));
   // ONLY THESE, for the hem page: the chalked cards of the scene just hemmed, and no knots or strings.
@@ -10119,6 +10124,7 @@ document.addEventListener('click', async (e) => {
     const x = (V.strings ?? []).find((s2) => s2.id === d.summon);
     const r = await api.saveString(S.storyId, { ...x, summoned: !x?.summoned });
     if (r.error) return toast(r.error);
+    if (d.deckright) S.deckDone = new Set([...(S.deckDone ?? []), d.summon]);
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
     return toast(x?.summoned ? 'Dismissed. The model stops being told about it.'
                              : 'Summoned. The model is told about it from the next call.');
@@ -11228,8 +11234,9 @@ document.addEventListener('click', async (e) => {
       if (r.error) { V = await api.story(S.storyId); paint(); return toast(r.error); }
     }
     S.deckUndo = yes ? null : ids;
+    const who = t.closest('.deckcard')?.querySelector('.decktitle')?.textContent.trim();
     V = await api.story(S.storyId); paint(); refreshManifest();
-    return toast(yes ? 'Sewn in.' : 'Rejected. Undo puts it back.');
+    return toast(`${who || 'It'}: ${yes ? 'sewn in.' : 'rejected. Undo puts it back.'}`);
   }
   if (d.deckmove) { S.deckAt = Math.max(0, (S.deckAt ?? 0) + Number(d.deckmove)); paint(); return; }
   if (d.deckundo) {
@@ -12695,8 +12702,16 @@ document.addEventListener('contextmenu', (e) => {
     card.style.transform = ''; card.dataset.lean = '';
     if (!moved) return;
     swallow = true; setTimeout(() => { swallow = false; }, 400);
-    if (Math.abs(dx) > Math.min(120, card.getBoundingClientRect().width / 4))
-      card.querySelector(dx > 0 ? '[data-deckright]' : '[data-deckleft]')?.click();
+    if (Math.abs(dx) <= Math.min(120, card.getBoundingClientRect().width / 4)) return;
+    const press = () => card.querySelector(dx > 0 ? '[data-deckright]' : '[data-deckleft]')?.click();
+    if (still()) return press();
+    // THE CARD GOES, so the writer sees it go: two cards in a row for one thread (Tidy, then the hem)
+    // otherwise read as nothing having happened. A press that fails repaints nothing, so a card
+    // still in the page after the fly is put back.
+    card.style.transition = 'transform .18s ease-in, opacity .18s ease-in';
+    card.style.transform = `translateX(${dx > 0 ? 120 : -120}%) rotate(${dx > 0 ? 8 : -8}deg)`; card.style.opacity = '0';
+    setTimeout(press, 180);
+    setTimeout(() => { if (card.isConnected) { card.style.transition = card.style.transform = card.style.opacity = ''; } }, 1600);
   };
   document.addEventListener('pointerup', end);
   document.addEventListener('pointercancel', () => { if (drag) { drag.card.style.transform = ''; drag.card.dataset.lean = ''; } drag = null; });

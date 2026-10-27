@@ -149,6 +149,11 @@ ok("  and every pass can be run again from the report", await page.visible('[dat
    && await page.visible('[data-refinished="1"]'));
 
 await page.goto(B + "/#" + sid + "/setup");
+// A RELOAD LANDS ON WHAT THE SCENE LEFT while any of it is undecided — the panel's own rule, keyed
+// on the rows, not the session. The hem chalks for every thread the scene names since #73, so on
+// this fixture there always is some, and the title box is one step on, on the premise step.
+for (let i = 0; i < 40 && !(await page.visible('[data-setupstep="premise"]')); i++) await wait(250);
+if (!(await page.visible('[data-savesetup="1"]'))) await page.click('[data-setupstep="premise"]');
 for (let i = 0; i < 40 && !(await page.visible('[data-savesetup="1"]')); i++) await wait(250);
 ok("the setup panel is reachable on its own hash too", await page.visible('[data-savesetup="1"]'));
 const head = (await page.text('#sideHead') || '');
@@ -172,7 +177,9 @@ const body = (await page.text('#sideBody') || '');
   // predates it, was left reading a placeholder as an answer. `web/app.js:2126` is the same rule in
   // the app: empty, or exactly `Chapter ${index}`.
   const idx = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).currentChapter.index)()");
-  const isPlaceholder = (t) => !String(t ?? '').trim() || String(t).trim() === `Chapter ${idx}`;
+  // `Scene N` as well since the scene rename: the app's own rule is `numbered` (web/model.js), and a
+  // loop that took "Scene 4" for a name stopped waiting before the beat had come back.
+  const isPlaceholder = (t) => !String(t ?? '').trim() || [`Chapter ${idx}`, `Scene ${idx}`].includes(String(t).trim());
   let filled = null;
   for (let i = 0; i < 90; i++) {
     filled = await page.eval("(() => { const t = document.querySelector('[data-setup=\"title\"]');"
@@ -238,6 +245,9 @@ await page.type('[data-setup="note"]', 'It has to end with Aldis handing the key
 // only triggered entries, the fixture's characters are all always-on, so the selector matched
 // nothing and two assertions never ran. Always-on entries are offered now, which is what
 // surfaced it.
+// WHO IS IN IT IS THE THIRD STEP, Anyone new, one press on from the beat (760b857 split the page).
+await page.click('[data-setupstep="more"]');
+for (let i = 0; i < 20 && !(await page.visible('[data-pin]')); i++) await wait(250);
 const castBtn = await page.eval("document.querySelector('[data-pin]')?.dataset.pin");
 ok("the setup page offers at least one character to tick", !!castBtn);
 if (castBtn) {
@@ -277,7 +287,10 @@ if (placeBtn) {
 }
 
 // ---- saving writes the beat where the engine already reads it
-// The form must survive a repaint. Ticking a character used to rebuild the panel and empty it.
+// The form must survive a repaint. Ticking a character used to rebuild the panel and empty it; and
+// it must survive the step change back to the beat, which is where its box is.
+await page.click('[data-setupstep="premise"]');
+for (let i = 0; i < 20 && !(await page.visible('[data-setup="note"]')); i++) await wait(250);
 ok("what was typed survived ticking a character",
    (await page.eval("document.querySelector('[data-setup=\"note\"]')?.value")) === 'It has to end with Aldis handing the key over.');
 await page.click('[data-savesetup="1"]');

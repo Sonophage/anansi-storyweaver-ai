@@ -1062,8 +1062,12 @@ description follows them into every scene for the rest of the book, including th
 are not wearing it — so if this chapter says what somebody has on, propose it as their outfit, and
 leave their description alone.
 
-FULLY FLESHED. A NEW thread is a whole thread, not a line: its body is who or what it is, and
-pockets fills every pocket its kind can have that the chapter gives you enough for:
+FULLY FLESHED. A NEW thread is a whole thread, not a line: its body is its Always true, who or what
+it is and nothing else (a name, an age, what they are, where they are from; where two things
+disagree, the later one), never looks, clothes, voice or what has happened: those are pockets.
+"[Vel: 31; a ferry pilot from the north shore; Aldis's older sister]" is a whole body. And
+pockets fills every pocket its kind can have that the chapter gives you enough for, each with a
+short title of its own ("Jersey snap", "With Seth"), never the slot's word:
 
     character  appearance, voice, interiority, relationships, outfit
     place      appearance, atmosphere, who_is_here
