@@ -761,7 +761,7 @@ ok('the story surface renders with no undefined fields');
 
 assert.match(html('rail'), /What he reads/, 'the rail must switch to the story nav');
 assert.match(html('rail'), /The Envoy/, 'and list chapters by title');
-assert.ok(!/>Rack</.test(html('rail')), 'and drop the workspace nav');
+assert.ok(!/>Library</.test(html('rail')), 'and drop the workspace nav');
 ok('the rail swaps navigation when a story opens');
 
 // TWO menus, one rail, and which one is showing is no longer decided by where you are — the menu

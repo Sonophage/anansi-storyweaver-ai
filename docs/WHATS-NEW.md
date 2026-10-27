@@ -16,6 +16,9 @@ Everything below this line was written by that model call, before it was removed
 The first screen, where your tales are kept, is called the Library everywhere: the menu, the way
 back from a tale, and the demo.
 
+### Prompts to take elsewhere is now Export
+The page of prompts you hand to another model, whose answers come back in whole, is called Export.
+
 ### Anansi is "he"
 Every screen, tip and note now calls Anansi "he": What he reads, How he talks, Ask what he would
 change.

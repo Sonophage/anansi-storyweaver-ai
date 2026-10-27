@@ -429,7 +429,8 @@ const WNAV = [
   // "The Web", in the case the other rows use. Seth, 2026-08-31: "the case in the menu needs to
   // match the other menu items so it should be name The Web." Renamed "Prompts to take elsewhere"
   // on 2026-10-24, in the same case, with the rest of the writer's words.
-  ['forge', 'threads', 'Prompts to take elsewhere'],
+  // "Export" since 2026-10-27. Seth: "Prompts to take else where should be name export."
+  ['forge', 'threads', 'Export'],
 ];
 /** The rail as this account sees it. Everything in WNAV, for everyone: The Web was admin-only from
  *  2026-08-30 until Seth tested it as the second writer — "allow this to not only be for the admin.
@@ -474,7 +475,7 @@ const WTITLES = {
   // "The Web", to match the menu row. Renamed there on 2026-08-31 and missed here, so the row
   // said one thing and the page it opened said another. Seth: "the web, on the menu it says the
   // web on tha page it does not." Both say "Pattern book" since 2026-10-24, renamed together.
-  forge: () => ['Prompts to take elsewhere', 'prompts to hand another model, so what it writes lands whole'],
+  forge: () => ['Export', 'prompts to hand another model, so what it writes lands whole'],
 };
 
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
@@ -3413,7 +3414,7 @@ const PANELS = {
         <textarea class="field grow newname" id="newname" data-webwho data-invdir rows="1"
           aria-label="Name it, or paste one in" placeholder="Name it, or paste one in"
           autocomplete="off">${esc(S.lore.draft ?? '')}</textarea>
-        <div class="hint trail-6">A thread pasted from Prompts is read in as it is.</div>
+        <div class="hint trail-6">A thread pasted from Export is read in as it is.</div>
         <div class="lbl sect">Write it as</div>
         <div style="display:flex; flex-wrap:wrap; gap:8px">
           ${/* #75. A rule is added from the tale's own thread; offered here only when that is where this came from. */
@@ -5311,7 +5312,7 @@ function sparkReview() {
          ${forgeCopy('location', 'Copy the place pattern')}
        </div>` : ''}
        <textarea class="field" data-castpaste aria-label="Paste threads as JSON"
-         placeholder="Or paste JSON from Prompts to take elsewhere &mdash; one thread, or a list"
+         placeholder="Or paste JSON from Export &mdash; one thread, or a list"
          style="min-height:60px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
        <button class="btn ghost" data-pastecast="1">Read it and add to the threads</button>
        <div class="hint">It joins the threads above, to read and alter before you start the tale.
@@ -6721,7 +6722,7 @@ function entryEditor() {
 
     <div class="lbl sect">Put one back${
       tipMark('cardPutBack', 'Put one back')}</div>
-    ${tipCard('cardPutBack', 'Put one back', `<p>The same reader Prompts to take elsewhere uses, so anything that
+    ${tipCard('cardPutBack', 'Put one back', `<p>The same reader Export uses, so anything that
       works there works here. A file is read in the browser and never uploaded anywhere but this
       app.</p>`)}
     <label class="btn ghost" style="display:flex; align-items:center; justify-content:center;
@@ -7446,7 +7447,7 @@ const WPAGES = {
    *  press that matters is Copy, not scroll. */
   forge() {
     if (FORGE === null && !S.forgeBusy) { S.forgeBusy = true; loadForge(); }
-    if (FORGE === null) return '<div class="hint">Opening Prompts to take elsewhere&hellip;</div>';
+    if (FORGE === null) return '<div class="hint">Opening Export&hellip;</div>';
     // NOT "the admin's workbench" any more — it opened to every writer on 2026-08-31, so an empty
     // list here means the list is empty, not that you were refused.
     if (!FORGE.length) return `<div class="hint">${esc(S.forgeError ?? 'No prompts here yet.')}</div>`;
@@ -10782,7 +10783,7 @@ document.addEventListener('click', async (e) => {
     if (S.panel === 'entry' || S.panel === 'history') S.panel = 'threads';
     paint(); return; }
   // NEW THREAD'S Write it. A box with a brace, a bracket or a second line in it is a paste — a
-  // thread from Prompts, or a model's answer with its "Certainly! Here is…" still on top — and goes
+  // thread from Export, or a model's answer with its "Certainly! Here is…" still on top — and goes
   // to the forge's own reader, which reads it in as it is, pockets and all, or says plainly why not.
   // Anything else is a name: the thread is made with it and opens on Alter, where it is written.
   if (d.newthread) {

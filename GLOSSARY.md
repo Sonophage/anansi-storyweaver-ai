@@ -235,9 +235,10 @@ The raw block names and tokens show only under Show detail.
 _Avoid_: measurements, context, the prompt, manifest, budget
 _In code_: manifest, context
 
-**Prompts to take elsewhere**:
-Prompts to hand another model, whose answers come back into Anansi.
-_Avoid_: pattern book, the web, the forge
+**Export**:
+Prompts to hand another model, whose answers come back into Anansi. (Was "Prompts to take
+elsewhere" until 2026-10-27.)
+_Avoid_: prompts to take elsewhere, pattern book, the web, the forge
 _In code_: forge
 
 ## Starting and keeping tales

@@ -49,7 +49,7 @@ ok("   it says how long ago the tale was touched, over the title",
 ok("   and no hero card survives beside it",
    await page.eval("!document.querySelector('.storycard.hero')"));
 
-// THE LIBRARY LINE AT THE BOTTOM. The hero is the whole screen but "The rack" since v3 (Seth,
+// THE LIBRARY LINE AT THE BOTTOM. The hero is the whole screen but "The library" since v3 (Seth,
 // 2026-10-25: "only the library line is at the bottom as a prompt to scroll down"): the line shows at
 // the bottom edge, and the first row of cards waits under the fold.
 for (const [vw, vh, where] of [[1440, 900, 'a 1440x900 desk'], [390, 844, 'the iPhone']]) {
