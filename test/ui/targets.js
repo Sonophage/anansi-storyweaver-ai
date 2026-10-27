@@ -54,7 +54,7 @@ const check = async (where) => {
   ok(`every control on ${where} is 44px to the finger (${bad.length} short${bad.length ? ': ' + JSON.stringify(bad) : ''})`, bad.length === 0);
 };
 
-await check("the rack");
+await check("the library");
 await page.click('#bar .hdoor[data-railview="workspace"]');
 await wait(600);
 await check("the main menu");

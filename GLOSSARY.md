@@ -25,10 +25,10 @@ world and follow it.
 _Avoid_: world book, world bible, bolt
 _In code_: a story with `is_world`; a tale follows one through `lore_from`
 
-**Rack**:
-Where a writer's tales and worlds hang: the first screen.
-_Avoid_: shelf, my stories, library, workspace
-_In code_: workspace, shelf
+**Library**:
+Where a writer's tales and worlds are kept: the first screen. (Was "Rack" until 2026-10-27.)
+_Avoid_: rack, shelf, my stories, workspace
+_In code_: workspace, shelf. Not the `anansi.db` file, which the code also calls the library.
 
 **Scene**:
 One section of a tale. A tale is written one scene at a time, and a scene is hemmed when it is
@@ -253,7 +253,7 @@ _Avoid_: a second look, read back
 _In code_: `spark/review`
 
 **Fold away / Folded**:
-Put a tale at the end of the rack / a tale put there.
+Put a tale at the end of the library / a tale put there.
 _Avoid_: archive, archived, put away, shelve
 _In code_: `status` = `archived`
 

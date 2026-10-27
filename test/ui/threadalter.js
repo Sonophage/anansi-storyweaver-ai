@@ -46,7 +46,7 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   await page.mobile(w, h);
   await page.goto(B + "/");
   await wait(900);
-  // By title, not "the first tale on the rack": the iPhone pass makes a tale of its own, and the
+  // By title, not "the first tale in the library": the iPhone pass makes a tale of its own, and the
   // newest is first.
   const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s => s.title === 'The Silver Key').id)()");
   const v = await story(sid);

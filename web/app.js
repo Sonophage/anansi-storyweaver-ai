@@ -414,7 +414,7 @@ const SNAV = [
 // the change. Cheaper to map them than to serve a blank panel.
 const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queue: 'chapter', branches: 'chapter' };
 const WNAV = [
-  ['stories', 'stories', 'Rack'], ['create', 'create', 'New tale'],
+  ['stories', 'stories', 'Library'], ['create', 'create', 'New tale'],
   ['canon', 'threads', 'Threads'], ['import', 'import', 'Import'],
   // #23: it is a writing record, not a settings screen. The panel key stays `prefs` so every
   // bookmark and open tab still resolves — a renamed key is a broken deep link for no gain.
@@ -457,7 +457,7 @@ TITLES.findmodel = 'Find a model';
 // #76. Opened from Tale → Keep. What an update to Anansi moved in this tale.
 TITLES.updates = 'What the update moved';
 const WTITLES = {
-  stories: () => [`Rack`, `${LIB.length} ${LIB.length === 1 ? 'tale' : 'tales'}`],
+  stories: () => [`Library`, `${LIB.length} ${LIB.length === 1 ? 'tale' : 'tales'}`],
   create: () => ['New tale', 'Spark one from an idea, or start blank'],
   canon: () => {
     // Counts the whole ledger, not the open story — the page shows every book. It used to say
@@ -779,7 +779,7 @@ function drawRail() {
     <span style="width:19px; height:19px; display:flex; align-items:center; justify-content:center;
       flex:0 0 auto; color:${SRV.demo ? 'var(--gold)' : 'var(--faint)'}">${mark('book')}</span>
     <span class="txt" style="font-size:13px; color:${SRV.demo ? 'var(--gold-lit)' : 'var(--mute)'}">${
-      SRV.demo ? 'Leave the demo rack' : 'Demo rack'}</span></button>`;
+      SRV.demo ? 'Leave the demo library' : 'Demo library'}</span></button>`;
   const active = storyMenu ? S.panel : S.wpage;
   const item = ([k, g, l]) => {
     const on = k === active;
@@ -831,13 +831,13 @@ function drawRail() {
          style="display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${
          esc(sceneName(c))}</span></button>`).join('')}`
     // NO "Open" LIST HERE, only the demo switch. It reprinted the first four books in a rail whose first row is already
-    // My stories (Rack, now), which is the same door with a complete list behind it. Seth, 2026-08-31: "the
+    // My stories (Library, now), which is the same door with a complete list behind it. Seth, 2026-08-31: "the
     // open option in the main menu that should be removed."
     : demoRow;
 
   $('rail').innerHTML = `
     <div style="display:flex; align-items:center; gap:10px; padding:26px 20px 20px; flex:0 0 auto">
-      <button data-home="1" aria-label="Anansi — back to the rack"
+      <button data-home="1" aria-label="Anansi — back to the library"
         style="display:flex; align-items:center; gap:10px; padding:0; text-align:left">
         <!-- Issue #6 — the logo carried a background plate on every theme.
              web/icon.svg paints a rect filled #0A0A0C behind the web and strokes it in #D9B26A.
@@ -1067,12 +1067,12 @@ function drawBar() {
          The word came back on 2026-10-25 as a door you can see, below: Seth chose R1. -->
     <!-- THE WAY OUT, IN WORDS. The usability check of 2026-10-24 scored the menu 2 of 5 on a Titan:
          the only door was the title, and nothing said it was one. Seth chose the R1 design on
-         2026-10-25: a ‹ back button at the left goes back to the rack (the word Anansi came off it the
+         2026-10-25: a ‹ back button at the left goes back to the library (the word Anansi came off it the
          same day: "just make it the back button that matches the other buttons"), a ⋯ at the right opens this
-         tale's menu, and on the rack a labelled Menu button opens the main one. Off a tale the
+         tale's menu, and in the library a labelled Menu button opens the main one. Off a tale the
          title still opens the menu too. In a tale it opens the tale's Threads since #71 round two,
          and the ⋯ is the tale menu's one door. -->
-    ${inStory ? `<button data-home="1" class="pill hdoor" aria-label="Back to the rack"
+    ${inStory ? `<button data-home="1" class="pill hdoor" aria-label="Back to the library"
       style="display:flex; align-items:center; padding:6px 11px; font-size:17px; line-height:1"
       >&lsaquo;</button>`
       : `<button data-railview="workspace" class="pill hdoor" aria-label="Menu"
@@ -1129,11 +1129,11 @@ function drawBar() {
         ><span style="font-family:'Instrument Serif',serif; font-size:15px">Aa</span><span class="btnword">Look</span></button>
 `
       : `${S.wpage === 'create' ? '' : '<button class="pill" data-open="new">New tale</button>'}
-         ${/* ONE DOOR, NOT TWO. On the rack the hero band already says Carry on writing, for the
+         ${/* ONE DOOR, NOT TWO. On the library the hero band already says Carry on writing, for the
               same tale, so this one is drawn only where the band is not: on every other page, and
-              on a rack with no live tale to put in the band. Same words as the band. */
+              in a library with no live tale to put in the band. Same words as the band. */
            // Desk only, and not on New tale: on a phone it pushed the header to 446px of 390 and cut
-           // every page's title (usability check, 2026-10-25). The rack's band carries it there.
+           // every page's title (usability check, 2026-10-25). The library's band carries it there.
            LIB.length && S.wpage !== 'create' && !(S.wpage === 'stories' && heroOf()) ? `<button class="deskonly" data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
            text-transform:uppercase; color:var(--on-gold); background:var(--gold); padding:9px 18px;
            border-radius:var(--r); font-weight:500; white-space:nowrap">Carry on writing</button>` : ''}`}
@@ -3896,7 +3896,7 @@ const PANELS = {
         tipMark('sArchive', 'Fold it away')}</div>
       ${tipCard('sArchive', 'Fold it away', `<p>${V.story.status === 'archived'
         ? 'It goes back among the others, in the order you last wrote in it.'
-        : 'It stays on the rack, dimmed and last. Nothing is deleted and nothing the model is sent changes.'}</p>`)}
+        : 'It stays in the library, dimmed and last. Nothing is deleted and nothing the model is sent changes.'}</p>`)}
       <button class="btn ghost" data-archive="${V.story.status === 'archived' ? 'in_progress' : 'archived'}">${
         V.story.status === 'archived' ? 'Unfold it' : 'Fold this tale away'}</button>
 
@@ -5177,7 +5177,7 @@ function sparkReview() {
          + 'with it.', 60)}
        ${row('title', 'Title', s.title)}
        ${rerollField('title')}
-       ${row('genre', 'Genre', s.genre, 'Comma separated. Each one becomes its own tag on the rack.')}
+       ${row('genre', 'Genre', s.genre, 'Comma separated. Each one becomes its own tag in the library.')}
        ${rerollField('genre')}
        ${area('premise', 'Premise', s.premise, 'Anansi reads it every time he writes.', 110)}
        ${rerollField('premise')}
@@ -7258,7 +7258,7 @@ function drawPage() {
   $('page').innerHTML = (WPAGES[S.wpage] ?? WPAGES.stories)();
 }
 
-/** THE TALE THE RACK'S HERO BAND IS ABOUT: the newest live tale, never a world or a folded one.
+/** THE TALE THE LIBRARY'S HERO BAND IS ABOUT: the newest live tale, never a world or a folded one.
  *  WPAGES.stories draws the band from `live[0]`, which is this; the header reads it to know whether
  *  the band is showing. */
 const heroOf = () => shelfOrder((LIB ?? []).filter((s) => !s.is_world))
@@ -7394,7 +7394,7 @@ function resumeBand(s) {
   const named = s.last_chapter_title && !numbered(s.last_chapter_title, at) ? s.last_chapter_title.trim() : '';
   const where = at ? `Scene ${at}${named ? ` · ${named}` : ''}` : (named || '');
   const line = leftOffLine(s.last_body, 1);
-  // The first genre only, as plain words: the rack's cards still carry every one as a pill.
+  // The first genre only, as plain words: the library's cards still carry every one as a pill.
   const genre = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean)[0] ?? '';
   const words = Number(s.words) || 0;
   const meta = [genre && genre[0].toUpperCase() + genre.slice(1),
@@ -7521,7 +7521,7 @@ const WPAGES = {
       return `<div class="firstrun">
         <div class="stack-10">
           <span class="serif" style="font-size:44px; line-height:1.06; color:var(--ink-bright)"
-            >Nothing on the rack yet.</span>
+            >Nothing in the library yet.</span>
           <span style="font-size:15px; line-height:1.6; color:var(--mute); max-width:620px">Give me a
             sentence and I will hand you back a title, a premise, a voice and a cast &mdash; none of
             it written down until you start the tale.</span>
@@ -7577,11 +7577,11 @@ const WPAGES = {
     return `<div class="stack-16">
       ${hero ? resumeBand(hero) : ''}
       ${rest.length ? `<div style="display:flex; align-items:baseline; gap:14px">
-        <span class="kicker">The rack${tipMark('rack', 'The rack')}</span>
+        <span class="kicker">The library${tipMark('rack', 'The library')}</span>
         <span style="flex:1; height:1px; background:var(--line)"></span>
       </div>
-      ${tipCard('rack', 'The rack', `<p>The rack is where your tales hang: this first screen.
-        Worlds hang on the Threads page.</p>`)}` : ''}
+      ${tipCard('rack', 'The library', `<p>The library is where your tales are kept: this first screen.
+        Worlds are kept on the Threads page.</p>`)}` : ''}
       <!-- The dashed New story cell went with #19: it was a book-shaped hole in a shelf of books
            and it took a column from the ones that are real. The bar's pill lost deskonly in the
            same change, so a phone still has a door. The design puts them back; #19 is the more
@@ -7614,7 +7614,7 @@ const WPAGES = {
           is editable afterwards, and everything here can be left empty. The title is the only one
           you will miss.</div>
         ${f('title', 'Title')}
-        ${f('genre', 'Genre', 'Comma separated. Each one becomes its own tag on the rack.')}
+        ${f('genre', 'Genre', 'Comma separated. Each one becomes its own tag in the library.')}
         ${area('premise', 'Premise', 'One or two sentences. Anansi reads it every time he writes.',
                'A broke ex-sergeant owes a moneylender more than he can pay…')}
         ${f('setting', 'Setting', 'Where it happens. Lore written later can replace this.')}
@@ -7865,7 +7865,7 @@ const WPAGES = {
           </select>
           <div class="hint">AI Dungeon exports one adventure as two files &mdash; its Story Cards and
             the prose. Bring the second one into the tale the first one made, rather than ending up
-            with two halves on the rack. Threads match by title, so importing an altered one again
+            with two halves in the library. Threads match by title, so importing an altered one again
             updates it instead of leaving two.</div>
         </div>
         <div style="display:flex; gap:10px">
@@ -8040,7 +8040,7 @@ const WPAGES = {
 /** The address follows the screen, and going DEEPER is a history entry of its own.
  *
  *  It was replaceState every time, so a drawer never had an entry and the phone's Back button left
- *  the tale — the usability check of 2026-10-24 found it on every drawer. Now: rack → tale and
+ *  the tale — the usability check of 2026-10-24 found it on every drawer. Now: library → tale and
  *  tale → drawer push; drawer → drawer replaces, so Back is one press out of a drawer however many
  *  were opened in it; and shutting a drawer that pushed its own entry steps back over it instead
  *  of writing a second copy of the tale's address, which would be a Back press that does nothing.
@@ -11614,7 +11614,7 @@ document.addEventListener('click', async (e) => {
     const r = await api.saveStory(S.storyId, { status: d.archive });
     if (r.error) return toast(r.error);
     V = r; await loadLibrary(); paint();
-    toast(d.archive === 'archived' ? 'Folded away. It hangs at the end of the rack.' : 'Back on the rack.');
+    toast(d.archive === 'archived' ? 'Folded away. It is kept at the end of the library.' : 'Back in the library.');
     return;
   }
   if (d.delstory) {
@@ -12350,7 +12350,7 @@ document.addEventListener('click', async (e) => {
     LEDGER = null; syncHash();
     await loadLibrary();
     paint();
-    return toast(on ? 'Showing the demo rack. Your own tales are untouched.' : 'Back on your own rack.');
+    return toast(on ? 'Showing the demo library. Your own tales are untouched.' : 'Back in your own library.');
   }
   // One button, both states: `data-fromhere` carries the book id to open and '' to shut.
   if (d.fromhere !== undefined) { S.fromBook = d.fromhere || null; drawPage(); return; }
@@ -13320,7 +13320,7 @@ function atFind(q, wide = false) {
       add(sceneName(c), 'chapter', 'this tale', c.id);
   }
   if (wide) {
-    for (const b of LIB ?? []) if (hit(b.title) && b.id !== S.storyId) add(b.title, 'book', 'your rack', b.id);
+    for (const b of LIB ?? []) if (hit(b.title) && b.id !== S.storyId) add(b.title, 'book', 'your library', b.id);
     for (const e of LEDGER ?? []) if (e.story !== S.storyId && hit(e.title))
       add(e.title, 'thread', e.storyTitle || 'another tale', e.id);
   }
@@ -13603,7 +13603,7 @@ async function route() {
     // In the same tale the address is the whole truth about the drawer, so an address with none
     // shuts it: that is Back out of a drawer. A world book has no page under its threads.
     // `S.place` as well as the id: leaving a tale keeps `S.storyId`, and a link back into it from
-    // the rack has to open the tale, not repaint the rack with the tale's id on the address.
+    // the library has to open the tale, not repaint the library with the tale's id on the address.
     if (S.place === 'story' && S.storyId === id) {
       S.panel = panel ?? (V?.story?.is_world ? 'threads' : null);
       paint();

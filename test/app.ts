@@ -567,7 +567,7 @@ for (const id of ['rail', 'bar', 'page']) {
 }
 ok('the workspace boots with no undefined fields');
 
-assert.match(html('rail'), /Rack/);
+assert.match(html('rail'), /Library/);
 // The id is what the router answers to and what ANANSI_MODEL takes, so it stays — in the title,
 // where it is one hover away instead of the first thing the rail says.
 assert.match(html('rail'), /Write \u00b7 Qwen3\.6/, 'the rail names the model in words');
@@ -769,7 +769,7 @@ ok('the rail swaps navigation when a story opens');
 // one. Both directions asserted from inside an OPEN story, because that is the only place the two
 // can disagree: outside one they are the same answer and a broken split still passes.
 click({ railview: 'workspace' });
-assert.match(html('rail'), /Rack/,
+assert.match(html('rail'), /Library/,
   'the menu button must reach the workspace menu without leaving the story');
 assert.ok(!/list chapters|Chapters/.test(html('rail')),
   'and the chapter list goes with it — it named a book you are no longer looking at');
@@ -3971,7 +3971,7 @@ ok('a voice can be saved to the library, pulled back into any book, and the defa
     click({ home: '1' });
     await new Promise((r) => setTimeout(r, 60));
     const cold = html('page');
-    assert.match(cold, /Nothing on the rack yet/, 'an empty shelf is the idea box, not a heading');
+    assert.match(cold, /Nothing in the library yet/, 'an empty shelf is the idea box, not a heading');
     assert.match(cold, /id="idea"/, 'and the box is on it, rather than a button that goes to find one');
     // The same id and the same action the create page uses, so there is one spark path and not two.
     assert.match(cold, /data-spark="1"/, 'the gold press sparks from here directly');
@@ -3986,7 +3986,7 @@ ok('a voice can be saved to the library, pulled back into any book, and the defa
     click({ home: '1' });
     await new Promise((r) => setTimeout(r, 60));
     const warm = html('page');
-    assert.match(warm, /Nothing on the rack yet/, 'still the idea box');
+    assert.match(warm, /Nothing in the library yet/, 'still the idea box');
     assert.doesNotMatch(warm, /The model is asleep/,
       'and it does not claim a loaded model is asleep');
     assert.doesNotMatch(warm, /Wake the model first/,

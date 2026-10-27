@@ -20,7 +20,7 @@ const state = () => page.eval("(() => ({ hash: location.hash, tale: !!document.q
 await page.click("#page [data-open]");
 await wait(1400);
 const tale = await state();
-ok(`a tale opens from the rack (${JSON.stringify(tale)})`, tale.tale && !tale.drawer && /^#[^/]+$/.test(tale.hash));
+ok(`a tale opens from the library (${JSON.stringify(tale)})`, tale.tale && !tale.drawer && /^#[^/]+$/.test(tale.hash));
 
 // A drawer, opened the way a writer opens one: a press on a control, not a pasted address.
 await page.eval("(() => { document.querySelector('#bar [data-railview=\"story\"]').click(); document.querySelector('[data-nav=\"anansi\"]').click(); return 1; })()");
@@ -48,7 +48,7 @@ ok(`the drawer's close shuts it and clears the address (${JSON.stringify(shut)})
 await page.eval("(() => { history.back(); return 1; })()");
 await wait(1100);
 const after = await state();
-ok(`  and the next Back goes to the rack, not to the same tale again (${JSON.stringify(after)}, ${len} entries)`,
+ok(`  and the next Back goes to the library, not to the same tale again (${JSON.stringify(after)}, ${len} entries)`,
    !after.tale && after.hash === "");
 
 // Esc. The keyboard path set the panel to null and repainted without touching the address.
@@ -102,7 +102,7 @@ const s3 = await state();
 ok(`over Reading mode, Back shuts the drawer and keeps reading (${JSON.stringify(s3)})`,
    s3.tale && !s3.drawer && (await page.eval("document.documentElement.dataset.reading === '1'")));
 
-// Shut by its own control, then Back: no dead entry, straight to the rack.
+// Shut by its own control, then Back: no dead entry, straight to the library.
 await page.goto(B + "/");
 await wait(600);
 await page.click("#page [data-open]");

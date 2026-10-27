@@ -10,7 +10,11 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
-## 2026-10-27 · Anansi is he
+## 2026-10-27 · Anansi is he, and the Rack is the Library
+
+### The Rack is now the Library
+The first screen, where your tales are kept, is called the Library everywhere: the menu, the way
+back from a tale, and the demo.
 
 ### Anansi is "he"
 Every screen, tip and note now calls Anansi "he": What he reads, How he talks, Ask what he would

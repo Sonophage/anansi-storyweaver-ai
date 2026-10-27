@@ -1,10 +1,10 @@
-// The doors a new writer can see: the menu, the way back to the rack, and a passage's actions.
+// The doors a new writer can see: the menu, the way back to the library, and a passage's actions.
 //
 //   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/doors.js
 //
 // The usability check of 2026-10-24 found the menu reachable only through the header title and a
 // passage's actions only through a double tap, with nothing on screen saying either. Seth chose the
-// R1 design on 2026-10-25: a menu button on the rack, a ‹ back pill and a ⋯ in a tale, and one tap
+// R1 design on 2026-10-25: a menu button in the library, a ‹ back pill and a ⋯ in a tale, and one tap
 // on a passage for its actions. Asserted on a phone, by touch, and then on a Titan's square.
 const B = "http://127.0.0.1:5179";
 let red = 0;
@@ -30,11 +30,11 @@ const railOpen = () => page.eval("document.documentElement.dataset.uiRail === 'o
 const backdrop = () => page.eval("(() => { document.getElementById('scrim').click(); return 1; })()");
 const tray = () => page.eval("!!document.querySelector('.block[aria-expanded=\"true\"]')");
 
-// ---- the rack
+// ---- the library
 // The ☰ alone since 2026-10-25 (Seth: "Remove the word menu, keep it as a menu"); its name is
 // for a screen reader.
 const menu = await seen('#bar .hdoor[data-railview="workspace"]');
-ok(`the rack shows the menu button, ☰ with no word (${JSON.stringify(menu)})`, menu === '☰'
+ok(`the library shows the menu button, ☰ with no word (${JSON.stringify(menu)})`, menu === '☰'
    && (await page.eval("document.querySelector('#bar .hdoor[data-railview=\"workspace\"]').getAttribute('aria-label')")) === 'Menu');
 await page.click('#bar .hdoor[data-railview="workspace"]');
 await wait(500);
@@ -43,7 +43,7 @@ await page.goto(B + "/");
 await wait(600);
 
 // ---- every menu page's header fits a phone. The second review (2026-10-25) measured the bar at
-// 446px on a 390px screen on every page but the rack: Carry on writing pushed the titles to "Threa…".
+// 446px on a 390px screen on every page but the library: Carry on writing pushed the titles to "Threa…".
 const over = [];
 for (const nav of ['canon', 'prefs', 'forge', 'create', 'import', 'news']) {
   await page.eval(`(() => { document.querySelector('[data-nav="${nav}"]').click(); return 1; })()`);
@@ -68,7 +68,7 @@ await page.click("#page [data-open]");
 await wait(1400);
 const home = await seen('#bar [data-home]');
 // A ‹ pill like the others since 2026-10-25 ("just make it the back button that matches the other buttons").
-ok(`a tale shows the way back to the rack, a ‹ pill like the others (${JSON.stringify(home)})`,
+ok(`a tale shows the way back to the library, a ‹ pill like the others (${JSON.stringify(home)})`,
    home === '‹' && (await page.eval("document.querySelector('#bar [data-home]').classList.contains('pill')")));
 // HER WEB IS THE TALE'S MENU since 2026-10-26 (Seth: "make the web icon at the top open what the
 // three dots open and then remove the three dots").
@@ -134,10 +134,10 @@ if (chip) {
   ok("a tap on a flag in a passage opens the flag, not the tray", !(await tray()));
 } else ok("(no flag in the fixture to tap: the exclusion is untested here)", true);
 
-// ---- back to the rack
+// ---- back to the library
 await page.click('#bar [data-home]');
 await wait(900);
-ok("‹ goes back to the rack",
+ok("‹ goes back to the library",
    !!(await seen('#bar .hdoor[data-railview="workspace"]')) && (await page.eval("location.hash")) === "");
 
 // ---- the Titan's square, 360 by 360: every door on screen, and the header not wider than it

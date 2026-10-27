@@ -42,7 +42,7 @@ await page.key("Escape", 27);
 await wait(300);
 ok("  and Esc shuts it", await page.eval("document.documentElement.dataset.uiRail === 'closed'"));
 
-// ---- the rack: no second New tale while you are on New tale
+// ---- the library: no second New tale while you are on New tale
 await page.goto(B + "/");
 await wait(700);
 await page.click('#page [data-open="new"], #bar [data-open="new"]');

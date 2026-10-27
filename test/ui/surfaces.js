@@ -49,8 +49,8 @@ ok("   it says how long ago the tale was touched, over the title",
 ok("   and no hero card survives beside it",
    await page.eval("!document.querySelector('.storycard.hero')"));
 
-// THE RACK LINE AT THE BOTTOM. The hero is the whole screen but "The rack" since v3 (Seth,
-// 2026-10-25: "only the rack line is at the bottom as a prompt to scroll down"): the line shows at
+// THE LIBRARY LINE AT THE BOTTOM. The hero is the whole screen but "The rack" since v3 (Seth,
+// 2026-10-25: "only the library line is at the bottom as a prompt to scroll down"): the line shows at
 // the bottom edge, and the first row of cards waits under the fold.
 for (const [vw, vh, where] of [[1440, 900, 'a 1440x900 desk'], [390, 844, 'the iPhone']]) {
   await page.viewport(vw, vh);
@@ -59,11 +59,11 @@ for (const [vw, vh, where] of [[1440, 900, 'a 1440x900 desk'], [390, 844, 'the i
     const band = document.querySelector('.resumeband'), line = band.nextElementSibling;
     const card = document.querySelector('#page .shelfgrid .storycard');
     const r = (e) => e ? e.getBoundingClientRect() : null;
-    return JSON.stringify({ innerH: innerHeight, bandH: Math.round(r(band).height), rack: /the rack/i.test(line?.textContent ?? ''),
+    return JSON.stringify({ innerH: innerHeight, bandH: Math.round(r(band).height), rack: /the library/i.test(line?.textContent ?? ''),
       line: line ? Math.round(r(line).bottom) : null, card: card ? Math.round(r(card).top) : null }); })()`));
   console.log(`   ${where}: ` + JSON.stringify(f));
   ok(`   on ${where} the hero is most of the screen (${f.bandH} of ${f.innerH})`, f.bandH >= f.innerH * 0.6);
-  ok(`   with "The rack" showing at the bottom edge (line ends at ${f.line} of ${f.innerH})`,
+  ok(`   with "The library" showing at the bottom edge (line ends at ${f.line} of ${f.innerH})`,
      f.rack && f.line !== null && f.line <= f.innerH && f.line >= f.innerH - 80);
   ok(`   and the cards under the fold (first at ${f.card})`, f.card !== null && f.card >= f.innerH - 24);
 }

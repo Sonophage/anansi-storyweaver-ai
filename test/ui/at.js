@@ -317,7 +317,7 @@ console.log(red ? `\n  ${red} RED` : "\n  all green");
   console.log("  @@: " + JSON.stringify(wide.items));
   ok("@@ opens the menu too", wide.open === true);
   ok("  and reaches past this book",
-     !!wide.items && wide.items.some((t) => /your rack|another tale/i.test(t)));
+     !!wide.items && wide.items.some((t) => /your library|another tale/i.test(t)));
   ok("  and the hint is gone once you are already wide",
      !(await page.eval("(() => (document.getElementById('atlist')?.textContent ?? '').includes('to search every tale'))()")));
 
