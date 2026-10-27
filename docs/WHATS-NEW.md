@@ -10,6 +10,26 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-26 · Fuller threads, and a deck that moves on
+
+### Every card moves on
+Ignoring a knot or summoning a string on the Workbench now moves on to the next card, as sewing in
+and rejecting always did. A card you swipe flies off the side, and the note that follows names the
+thread, so two cards in a row for one person no longer look like nothing happened.
+
+### A new thread knows where it stands
+A thread Anansi finds in a scene now arrives with where it stands as well as who it is and its
+pockets. Sewing it in makes that its first entry in Over time.
+
+### A new tale's cast arrives fleshed out
+When you start a tale, each person and place Anansi offers comes with its pockets (how they talk,
+what they wear, what they hide, what a place is like) written as instructions, and switched on from
+the first scene.
+
+### Pockets read as instructions
+Every pocket Anansi writes now starts by telling the writer what to do, such as "Write her lines
+short" or "Never let her say she is afraid", rather than listing traits for the prose to repeat.
+
 ## 2026-10-26 · Gold means press here
 
 ### One gold button on a screen
