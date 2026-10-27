@@ -24,3 +24,7 @@ changes", which puts the thread back as it was when Alter opened.
 - The work goes in three passes, each merged before the next: inline styles into classes (no
   visible change; screenshots before and after must match), then the gold pass, then the
   save-as-you-go pass.
+- Pass one, as done (2026-10-27): every style written out in more than one place became a named
+  class in the stylesheet. A style used in one place stays inline where it is used, and so does
+  one that works out a value as it draws (Seth, the same day). `bench/samestyle.ts` is how "no
+  visible change" was checked.
