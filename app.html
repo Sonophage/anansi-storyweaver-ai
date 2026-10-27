@@ -866,7 +866,10 @@ html[data-reading="1"] .carry { display:none !important; }
 /* Its own line, under the two buttons: beside them it pushed Continue onto two lines at 390px. */
 /* #71, round two: beside the bulb on one line now, so it takes the rest of the line rather than all of
    it, and sits on the bulb's middle. */
-.taphint { display:none; flex:1 1 0; min-width:0; align-self:center; font-size:12px; color:var(--faint); }
+/* A HALO OF THE THEME'S OWN SHEET, so the hint reads over a tale picture on a dark theme, where
+   faint ink on a busy picture was close to invisible. */
+.taphint { display:none; flex:1 1 0; min-width:0; align-self:center; font-size:12px; color:var(--mute);
+  text-shadow:0 0 3px var(--sheet), 0 0 8px var(--sheet); }
 .carry { align-items:center; }
 .carry .bulb { width:44px; height:44px; margin-left:-12px; border:0; padding:0; color:var(--gold-dim);
   display:flex; align-items:center; justify-content:center; flex:0 0 auto; }

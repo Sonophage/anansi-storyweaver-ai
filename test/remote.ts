@@ -121,6 +121,14 @@ const flSrv = createServer((req, res) => {
       // #64 · PAST THE CAP WITH NO STREAM, as one did (1,213 of 900, F62). The same words as the
       // streamed overrun, in one answer, with the usage that says how far over it went. A call asking
       // for JSON gets JSON that PARSES, so a check that only reads the parse cannot see the overrun.
+      // WEAVING, PAST THE CAP: the plan counts against it, as it does on the server (F5), and comes
+      // back in `reasoning`, beside the prose. Half the cap is plan, the whole cap is prose.
+      if (!body.stream && how === 'overcapplan') {
+        const cap = Number(body.max_tokens);
+        const words = Array.from({ length: cap }, (_, k) => (k % 7 === 6 ? 'end.' : 'word')).join(' ');
+        return json(200, { choices: [{ message: { content: words, reasoning: Array(cap / 2).fill('plan').join(' ') },
+          finish_reason: 'length' }], usage: { prompt_tokens: 321, completion_tokens: cap * 1.5 } });
+      }
       if (!body.stream && (how === 'overcap' || how === 'atcap')) {
         const cap = Number(body.max_tokens);
         const n = how === 'overcap' ? cap * 2 : cap;
@@ -649,6 +657,13 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.ok(words <= cap, `WAITED-CAP: no more than the cap lands (${words} words of a ${cap} cap)`);
   assert.strictEqual(r.cut, true, 'WAITED-FLAG: the passage is recorded as cut, as a capped one is');
   assert.ok(/end\.$/.test(r.prose), 'and trimmed back to the last whole sentence');
+
+  // THE PLAN IS PART OF WHAT WAS OVER. Cutting the prose as if it were all of the count kept two
+  // thirds of the cap in prose on top of half a cap of plan; it keeps the cap less the plan.
+  script.push('overcapplan');
+  const pl = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  const plw = pl.prose.split(/\s+/).length;
+  assert.ok(plw <= cap / 2 && plw > cap / 2 - 8, `WAITED-PLAN: the plan counts against the cap (${plw} words of prose, cap ${cap}, plan ${cap / 2})`);
 
   script.push('atcap');
   const at = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));

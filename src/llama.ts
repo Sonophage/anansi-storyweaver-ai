@@ -198,7 +198,14 @@ function keepCap(r: any, cap: number) {
   const used = Number(r?.usage?.completion_tokens);
   const m = r?.choices?.[0]?.message;
   if (!(cap > 0) || !(used > cap) || typeof m?.content !== 'string') return r;
-  m.content = m.content.slice(0, Math.floor(m.content.length * cap / used));
+  // THE PLAN COUNTS, as `readSSE` counts it: a weaving answer's count is plan and prose together,
+  // and the plan came first, so what is over is the end of the prose. The plan's share is the count
+  // the server gives for it, or else its share of the text.
+  const plan = String(m.reasoning_content ?? m.reasoning ?? '');
+  const told = Number(r?.usage?.completion_tokens_details?.reasoning_tokens);
+  const planned = told >= 0 ? told : plan ? used * plan.length / (plan.length + m.content.length) : 0;
+  const keep = Math.max(0, cap - planned) / Math.max(1, used - planned);
+  m.content = m.content.slice(0, Math.floor(m.content.length * Math.min(1, keep)));
   r.choices[0].finish_reason = 'length';
   return r;
 }

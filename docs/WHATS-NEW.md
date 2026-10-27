@@ -19,6 +19,16 @@ further, so the box you are typing in is the only thing that reads.
 ### Six more fonts for the prose
 Look → Font now offers Literata, EB Garamond, Lora, Cormorant, Spectral and Crimson Pro beside the
 six already there. They are fetched the first time you open the Font tab or pick one.
+## 2026-10-27 · Small fixes
+
+### The tap hint reads over a picture
+"Tap a passage for its actions" now has a soft edge of the page colour behind it, so it can be read
+over a tale's picture on the dark themes.
+
+### Woven passages from a remote model keep to their length
+When a remote model weaves and runs past its length, its plan now counts toward that length, as it
+already did while a passage streams in. Before, a passage that arrived all at once could land
+longer than the length it was given.
 
 ## 2026-10-26 · Fuller threads, and a deck that moves on
 
