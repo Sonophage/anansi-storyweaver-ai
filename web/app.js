@@ -165,6 +165,12 @@ const SHIPPED = { theme: 'obsidian', font: 'serif', size: 'm', scale: '100' };
 const MYLOOK = { ...SHIPPED };
 // Wrapped because a private window throws on access rather than returning null.
 try { Object.assign(MYLOOK, JSON.parse(localStorage.getItem(LOOK) || '{}')); } catch { /* no storage */ }
+/** FONTS THAT LEFT THE LIST, and the one each look now reads as (2026-10-27, five serif, five sans,
+ *  five easy to read). A look saved on this device or on a tale still names the old key. */
+const FONT_WAS = { book: 'literata', garamond: 'ebgaramond', cormorant: 'ebgaramond', crimson: 'spectral',
+  mono: 'sans' };
+const fontNow = (l) => (FONT_WAS[l.font] ? { ...l, font: FONT_WAS[l.font] } : l);
+Object.assign(MYLOOK, fontNow(MYLOOK));
 let look = { ...MYLOOK };
 /** The cache, and only ever of the default. */
 const cacheMine = () => {
@@ -172,13 +178,16 @@ const cacheMine = () => {
 };
 /** Resolve what should be on screen: the book's look, over yours. `own` null means follow. */
 function resolveLook(own) {
-  look = { ...MYLOOK, ...(own ?? {}) };
+  look = fontNow({ ...MYLOOK, ...(own ?? {}) });
   applyLook();
 }
 /** THE BOOK FACES THAT ARE FETCHED, by the key the look stores. One stylesheet request for all of
  *  them, made the first time one is on screen or the Font tab opens, never at load. */
 const WEBFONTS = { literata: 'Literata:ital@0;1', ebgaramond: 'EB+Garamond:ital@0;1', lora: 'Lora:ital@0;1',
-  cormorant: 'Cormorant+Garamond:ital,wght@0,400;0,500;1,400', spectral: 'Spectral:ital@0;1', crimson: 'Crimson+Pro:ital@0;1' };
+  spectral: 'Spectral:ital@0;1', inter: 'Inter:ital@0;1', sourcesans: 'Source+Sans+3:ital@0;1',
+  nunito: 'Nunito+Sans:ital@0;1', atkinson: 'Atkinson+Hyperlegible+Next:ital@0;1',
+  // No italic in these two: asking for one makes Google refuse the whole request, every face in it.
+  lexend: 'Lexend', andika: 'Andika:ital@0;1', inclusive: 'Inclusive+Sans:ital@0;1', readex: 'Readex+Pro' };
 let fontsAsked = false;
 function loadFonts() {
   if (fontsAsked) return;
@@ -186,7 +195,7 @@ function loadFonts() {
   const l = document.createElement('link');
   l.rel = 'stylesheet';
   l.href = `https://fonts.googleapis.com/css2?${Object.values(WEBFONTS).map((f) => `family=${f}`).join('&')}&display=swap`;
-  document.head.appendChild(l);
+  document.head?.appendChild?.(l);   // `?.`: test/app.ts drives this against a DOM stub with no <head>
 }
 function applyLook() {
   root.dataset.uiTheme = look.theme; root.dataset.uiFont = look.font; root.dataset.uiSize = look.size;
@@ -1193,20 +1202,27 @@ function drawAppearance() {
   if (!S.appearance) return;
   // From the table, so a theme added there appears here without a second list to keep in step.
   const themes = Object.entries(THEMES);
-  // Iowan to Monospace are system stacks; the six after them are fetched only when one is wanted
-  // (`loadFonts`). See app.html.
-  const fonts = [['serif', 'Instrument Serif', "'Instrument Serif',Georgia,serif"],
-                 ['sans', 'IBM Plex Sans', "'IBM Plex Sans',sans-serif"],
-                 ['book', 'Iowan / Palatino', "'Iowan Old Style',Palatino,Georgia,serif"],
-                 ['garamond', 'Garamond', "Garamond,Baskerville,'Times New Roman',serif"],
-                 ['system', 'System', "system-ui,-apple-system,'Segoe UI',sans-serif"],
-                 ['mono', 'Monospace', "ui-monospace,Menlo,Consolas,monospace"],
-                 ['literata', 'Literata', "'Literata',Georgia,serif"],
-                 ['ebgaramond', 'EB Garamond', "'EB Garamond',Georgia,serif"],
-                 ['lora', 'Lora', "'Lora',Georgia,serif"],
-                 ['cormorant', 'Cormorant', "'Cormorant Garamond',Georgia,serif"],
-                 ['spectral', 'Spectral', "'Spectral',Georgia,serif"],
-                 ['crimson', 'Crimson Pro', "'Crimson Pro',Georgia,serif"]];
+  // FIVE OF EACH, IN THREE GROUPS (Seth, 2026-10-27: "five sans fonts five serif fonts and five fonts
+  // like hyperligibility ... this is a book reading and writing app after all"). Instrument Serif
+  // and IBM Plex Sans load with the page and System needs nothing; the rest are fetched only when
+  // one is wanted (`loadFonts`). OpenDyslexic and Luciole are not on Google Fonts, the one place this
+  // page fetches from, so the easy-to-read five are the ones that are. See app.html.
+  const fonts = [
+    ['Serif', [['serif', 'Instrument Serif', "'Instrument Serif',Georgia,serif"],
+               ['literata', 'Literata', "'Literata',Georgia,serif"],
+               ['ebgaramond', 'EB Garamond', "'EB Garamond',Georgia,serif"],
+               ['lora', 'Lora', "'Lora',Georgia,serif"],
+               ['spectral', 'Spectral', "'Spectral',Georgia,serif"]]],
+    ['Sans', [['sans', 'IBM Plex Sans', "'IBM Plex Sans',sans-serif"],
+              ['inter', 'Inter', "'Inter',system-ui,sans-serif"],
+              ['sourcesans', 'Source Sans', "'Source Sans 3',system-ui,sans-serif"],
+              ['nunito', 'Nunito Sans', "'Nunito Sans',system-ui,sans-serif"],
+              ['system', 'System', "system-ui,-apple-system,'Segoe UI',sans-serif"]]],
+    ['Easy to read', [['atkinson', 'Atkinson Hyperlegible', "'Atkinson Hyperlegible Next',system-ui,sans-serif"],
+                      ['lexend', 'Lexend', "'Lexend',system-ui,sans-serif"],
+                      ['andika', 'Andika', "'Andika',system-ui,sans-serif"],
+                      ['inclusive', 'Inclusive Sans', "'Inclusive Sans',system-ui,sans-serif"],
+                      ['readex', 'Readex Pro', "'Readex Pro',system-ui,sans-serif"]]]];
   const tabs = [['theme', 'Theme'], ['font', 'Font'], ['size', 'Size'], ['scale', 'UI']];
   const tab = S.lookTab ?? 'theme';
   if (tab === 'font') loadFonts();
@@ -1232,9 +1248,10 @@ function drawAppearance() {
           <span style="font-size:13px; color:${look.theme === k ? 'var(--ink)' : 'var(--mute)'}">${esc(t.label)}</span>
         </button>`).join('')}</div>`
     : tab === 'font'
-    ? `<div class="stack-7">${fonts.map(([k, l, fam]) => `
+    ? `<div class="stack-7">${fonts.map(([group, list]) => `
+        <div class="lbl sect">${group}</div>${list.map(([k, l, fam]) => `
         <button class="chip" data-fontpick="${k}" aria-pressed="${look.font === k}"
-          style="font-family:${fam}; font-size:15px">${l}</button>`).join('')}</div>`
+          style="font-family:${fam}; font-size:15px">${l}</button>`).join('')}`).join('')}</div>`
     : tab === 'size'
     ? `<div class="stack-7">
         <div class="row-5">${['xs', 's', 'm', 'l', 'xl'].map((k) => `

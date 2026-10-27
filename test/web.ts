@@ -1333,4 +1333,28 @@ ok('the delegation refuses html and body outright');
   ok('the stylesheet\'s braces balance');
 }
 
+// ---- FIVE SERIF, FIVE SANS, FIVE EASY TO READ (2026-10-27), AND EACH ONE DRAWN. A pick with no
+// `html[data-ui-font=…] .narr` rule sets the prose in whatever the page fell back to, and a fetched
+// face that is not a pick, or a pick that is fetched and not listed, are the two halves disagreeing.
+{
+  const app = read('web/app.js'), css = read('app.html');
+  const block = app.slice(app.indexOf('  const fonts = ['), app.indexOf("  const tabs = [['theme'"));
+  const groups = [...block.matchAll(/\['(Serif|Sans|Easy to read)', \[([\s\S]*?)\]\]\]/g)];
+  const picks = groups.map((g) => [...g[2].matchAll(/\['([a-z]+)', '/g)].map((m) => m[1]));
+  assert.deepStrictEqual(groups.map((g) => g[1]), ['Serif', 'Sans', 'Easy to read'], 'three groups, in that order');
+  assert.deepStrictEqual(picks.map((p) => p.length), [5, 5, 5], 'five fonts in each');
+  const all = picks.flat();
+  for (const k of all) assert.match(css, new RegExp(`html\\[data-ui-font="${k}"\\] \\.narr \\{ font-family:`),
+    `the ${k} pick has a rule that sets the prose in it`);
+  const web = app.slice(app.indexOf('const WEBFONTS = {'), app.indexOf('};', app.indexOf('const WEBFONTS = {')));
+  for (const k of [...web.matchAll(/\b([a-z]+): '/g)].map((m) => m[1]))
+    assert.ok(all.includes(k), `the fetched face ${k} is one of the picks`);
+  const was = app.slice(app.indexOf('const FONT_WAS = {'), app.indexOf('};', app.indexOf('const FONT_WAS = {')));
+  for (const [, from, to] of was.matchAll(/\b([a-z]+): '([a-z]+)'/g)) {
+    assert.ok(all.includes(to), `a look saved with ${from} reads as a font that is listed`);
+    assert.ok(!all.includes(from), `and ${from} itself is gone from the list`);
+  }
+  ok('fifteen fonts in three groups, each with its rule, and the old ones mapped onto them');
+}
+
 console.log(`\n${n} checks passed`);

@@ -784,7 +784,7 @@ ok('the menu and the story name are two doors onto one rail');
   assert.strictEqual(root.dataset.uiTheme, 'ink', "the open book's own theme must be applied");
   // The book names ONLY a theme, so everything else has to come from the writer's default. A
   // book that pinned all four would pass this whatever the layering did.
-  assert.strictEqual(root.dataset.uiFont, 'garamond', "and the writer's font underneath it");
+  assert.strictEqual(root.dataset.uiFont, 'ebgaramond', "and the writer's font underneath it (saved as garamond, which FONT_WAS maps)");
   assert.strictEqual(root.dataset.uiSize, 'l', 'and their prose size');
   assert.strictEqual(root.dataset.uiScale, '110', 'and their UI scale');
   // The cache is of YOUR default, never of what is on screen. Caching the effective look is how
@@ -883,7 +883,7 @@ await new Promise((r) => setTimeout(r, 40));
 {
   const root = (globalThis as any).document.documentElement;
   assert.strictEqual(root.dataset.uiTheme, 'parchment', 'the shelf is back to the writer default');
-  assert.strictEqual(root.dataset.uiFont, 'garamond', 'with the rest of it unchanged');
+  assert.strictEqual(root.dataset.uiFont, 'ebgaramond', 'with the rest of it unchanged');
 }
 ok('leaving a book takes its look with it');
 
@@ -2888,7 +2888,10 @@ ok('an invention that weaves counts the seconds on its button, and one that does
     assert.ok(talkAt >= 0, `TWO-COUNTS: and Talk counts its own (${nodes.get('talkweaving')?.textContent})`);
     open(); await new Promise((r) => setTimeout(r, 60));
     assert.strictEqual(String(nodes.get('weaving')?.textContent ?? ''), '', 'TWO-COUNTS: the passage\'s first word ends the passage\'s count');
-    await new Promise((r) => setTimeout(r, 1100));
+    // POLLED, NOT ONE FIXED WAIT. A single 1.1 s sleep raced the next one-second tick, and under
+    // test/all.ts's parallel load the tick landed late and this read the same second twice (flaked
+    // 2026-10-26 and 2026-10-27). Up to 3 s for the count to rise; a stopped count still fails.
+    for (let i = 0; i < 30 && !(secs('talkweaving') > talkAt); i++) await new Promise((r) => setTimeout(r, 100));
     assert.ok(secs('talkweaving') > talkAt,
       `TWO-COUNTS: and Talk, still weaving, keeps counting (${talkAt} then ${nodes.get('talkweaving')?.textContent})`);
     answer({ reply: 'It is about a debt.', seconds: 1, tokens: 10 });

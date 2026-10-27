@@ -16,6 +16,12 @@ Everything below this line was written by that model call, before it was removed
 The first screen, where your tales are kept, is called the Library everywhere: the menu, the way
 back from a tale, and the demo.
 
+### Fifteen fonts: five serif, five sans, five easy to read
+Look → Font now lists three groups of five. Serif: Instrument Serif, Literata, EB Garamond, Lora,
+Spectral. Sans: IBM Plex Sans, Inter, Source Sans, Nunito Sans, System. Easy to read: Atkinson
+Hyperlegible, Lexend, Andika, Inclusive Sans, Readex Pro. If you had picked Iowan, Garamond,
+Cormorant, Crimson Pro or Monospace, your prose now shows the nearest of these.
+
 ### The tale's menu starts with Tale
 Inside a tale the menu now reads Tale, This scene, Scenes, Prose search, Threads, Workbench, Strings,
 Talk to Anansi, What he reads, Storyteller: the writing first, then what the tale remembers, then

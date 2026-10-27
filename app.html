@@ -745,22 +745,23 @@ input[type="checkbox"]:focus-visible { outline:2px solid var(--gold); outline-of
 .narr { font-size:var(--prose); line-height:1.7; color:var(--narr); text-wrap:pretty; white-space:pre-wrap; }
 html[data-ui-font="serif"] .narr { font-family:'Instrument Serif',Georgia,serif; font-style:italic; }
 html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-serif; font-style:normal; }
-/* The four below are SYSTEM stacks on purpose. The two above come from fonts.googleapis.com, which
-   is the only network this page touches; adding more families would deepen that for a local-first
-   app. These cost nothing and work with the wire unplugged. */
-html[data-ui-font="book"] .narr { font-family:'Iowan Old Style',Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif; font-style:normal; }
-html[data-ui-font="garamond"] .narr { font-family:Garamond,'EB Garamond','Apple Garamond',Baskerville,'Times New Roman',serif; font-style:normal; }
 html[data-ui-font="system"] .narr { font-family:system-ui,-apple-system,'Segoe UI',sans-serif; font-style:normal; }
-html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo,Consolas,monospace; font-style:normal; }
-/* SIX MORE BOOK FACES, 2026-10-27 (Seth: "can we add more fonts as options"). Fetched from the same
-   place as the two above, but only when one is chosen or the Font tab is open (`loadFonts` in
-   web/app.js), so a writer who never picks one pays nothing and the page still opens offline. */
+/* FIVE SERIF, FIVE SANS, FIVE EASY TO READ (2026-10-27). The two above come from fonts.googleapis.com
+   with the page, System is the device's own; the rest are fetched from the same place only when one
+   is chosen or the Font tab is open (`loadFonts` in web/app.js), so a writer who never picks one
+   pays nothing and the page still opens offline. Older keys are mapped by FONT_WAS in web/app.js. */
 html[data-ui-font="literata"] .narr { font-family:'Literata',Georgia,serif; font-style:normal; }
-html[data-ui-font="ebgaramond"] .narr { font-family:'EB Garamond',Garamond,Georgia,serif; font-style:normal; }
+html[data-ui-font="ebgaramond"] .narr { font-family:'EB Garamond',Garamond,Georgia,serif; font-style:normal; font-size:calc(var(--prose) * 1.05); }
 html[data-ui-font="lora"] .narr { font-family:'Lora',Georgia,serif; font-style:normal; }
-html[data-ui-font="cormorant"] .narr { font-family:'Cormorant Garamond',Garamond,Georgia,serif; font-style:normal; font-size:calc(var(--prose) * 1.08); }
 html[data-ui-font="spectral"] .narr { font-family:'Spectral',Georgia,serif; font-style:normal; }
-html[data-ui-font="crimson"] .narr { font-family:'Crimson Pro',Georgia,serif; font-style:normal; font-size:calc(var(--prose) * 1.05); }
+html[data-ui-font="inter"] .narr { font-family:'Inter',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="sourcesans"] .narr { font-family:'Source Sans 3',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="nunito"] .narr { font-family:'Nunito Sans',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="atkinson"] .narr { font-family:'Atkinson Hyperlegible Next',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="lexend"] .narr { font-family:'Lexend',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="andika"] .narr { font-family:'Andika',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="inclusive"] .narr { font-family:'Inclusive Sans',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="readex"] .narr { font-family:'Readex Pro',system-ui,sans-serif; font-style:normal; }
 .said { max-width:600px; font-size:var(--bubble); line-height:1.65; color:var(--body); text-wrap:pretty; white-space:pre-wrap; }
 .who { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--label); }
 .block { position:relative; display:flex; flex-direction:column; gap:10px; }

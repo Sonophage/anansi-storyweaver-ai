@@ -387,14 +387,13 @@ ok(`  each theme's swatch carries its accent (${new Set(swatches).size} distinct
    new Set(swatches).size === swatches.length);
 await page.eval("(() => { document.querySelector('[data-looktab=\"font\"]').click(); return 1; })()");
 await wait(300);
-ok("  switching to Font shows the six fonts and hides the themes",
-   (await page.eval("document.querySelectorAll('[data-fontpick]').length")) === 6
+ok("  switching to Font shows the fifteen fonts and hides the themes",
+   (await page.eval("document.querySelectorAll('[data-fontpick]').length")) === 15
    && (await page.eval("document.querySelectorAll('[data-theme]').length")) === 0);
-// Four of the six are system stacks, which is the whole reason there can be six: the two web faces
-// are the only network this page touches, and the list must not have deepened that.
-ok("  and the four added ones are system faces, not new downloads",
-   (await page.eval("(() => { const want = ['book','garamond','system','mono'];"
-     + " return want.every(k => document.querySelector(`[data-fontpick=\"${k}\"]`)); })()")) === true);
+// Five serif, five sans, five easy to read (2026-10-27), each group under its own name.
+ok("  under Serif, Sans and Easy to read",
+   (await page.eval("[...document.querySelectorAll('#appearance .lbl.sect')].map(e => e.textContent.trim()).join(',')"))
+     === 'Serif,Sans,Easy to read');
 await page.eval("(() => { document.querySelector('[data-looktab=\"size\"]').click(); return 1; })()");
 await wait(300);
 ok("  and Size shows the five reading sizes",
