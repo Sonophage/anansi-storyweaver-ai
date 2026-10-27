@@ -1557,6 +1557,16 @@ textarea.field { resize:vertical; min-height:70px; }
 .readrow:last-child { border-bottom:0; }
 .readrow[disabled] { opacity:.5; }
 .readnote { font-size:12px; color:var(--faint); }
+/* The thread menu's three folds (2026-10-27): shut each time the menu opens, a chevron that turns. */
+.readfold > summary { list-style:none; cursor:pointer; color:var(--mute); }
+.readfold > summary::-webkit-details-marker { display:none; }
+.readfold > summary::after { content:'\203A'; font-size:18px; line-height:1; transition:transform .15s; }
+.readfold[open] > summary::after { transform:rotate(90deg); }
+.readfold[open] > summary { color:var(--ink-bright); }
+.readfold > .readrow { padding-left:28px; }
+.readmenu > .readfold:last-child:not([open]) > summary,
+.readmenu > .readfold:last-child > .readrow:last-child { border-bottom:0; }
+.headmore[disabled] { opacity:.5; }
 .pocketsw { min-height:30px; padding:0 12px; display:inline-flex; align-items:center; }
 /* ONE THREAD, ALTERED (v2 redesign, 2026-10-25): Cancel and a Save pill in the header, the name
    as the first field in the serif, and the wake words as chips with an add box after them. */

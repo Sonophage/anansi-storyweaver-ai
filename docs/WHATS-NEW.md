@@ -16,6 +16,11 @@ Everything below this line was written by that model call, before it was removed
 The first screen, where your tales are kept, is called the Library everywhere: the menu, the way
 back from a tale, and the demo.
 
+### A thread's menu is shorter, and Tidy has its own button
+Open a thread and Tidy this thread is now an icon at the top, beside the menu button, which shows
+sliders instead of three dots. The menu opens with only Alter showing; the rest sit under Look
+closer, With the tale, and Retire or delete, folded until you open one.
+
 ### Passages you ordered count as yours when you play a character
 In a tale where you play someone, a passage Anansi wrote to your order is now marked as yours when
 he reads it back. Before, an order like "he laughs and tells her his name" left a passage that

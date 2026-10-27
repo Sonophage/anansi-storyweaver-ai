@@ -693,6 +693,9 @@ export const MARK = {
   book:     'M10 5.6V16.2M10 5.6C8.1 4.4 5.6 4.1 3.7 4.3V14.8C5.6 14.6 8.1 14.9 10 16.2'
           + 'M10 5.6C11.9 4.4 14.4 4.1 16.3 4.3V14.8C14.4 14.6 11.9 14.9 10 16.2',
   menu:     'M3 6.5h14M3 10h14M3 13.5h14',
+  // Tidy this thread: three loose strands drawn into one even run.
+  tidy:     'M3.5 6.5C6 5 8 8 10.5 6.5M3.5 10C6 8.5 8 11.5 10.5 10M3.5 13.5C6 12 8 15 10.5 13.5'
+          + 'M12.5 6.5H16.5M12.5 10H16.5M12.5 13.5H16.5',
   chevron:  'M8 5.5 13 10 8 14.5',
   // WHERE A MODEL RUNS (#53). They ride beside the source circle on the menu rows, the strip and
   // the Storyteller, so the source never rests on colour alone. Drawn for 15px, which is where they

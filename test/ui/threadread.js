@@ -130,6 +130,12 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   // ---- ⋯ holds every action the old screens had, and each one goes somewhere
   await page.click('#sideHead [data-readmenu]');
   await wait(500);
+  // Folded since 2026-10-27: Alter in sight, the rest under three folds, shut on every open.
+  const shut = await page.eval(`[...document.querySelectorAll('#sideBody .readmenu details.readfold')].filter((d) => !d.open).length`);
+  ok(`  its three folds start shut (${shut})`, shut === 3);
+  for (const f of ['rmLook', 'rmTale', 'rmEnd']) { await page.click(`#sideBody .readmenu [data-fold="${f}"]`); await wait(300); }
+  ok("Tidy is an icon in the header, not a row", await page.eval(
+    `!!document.querySelector('#sideHead [data-tidy]') && !document.querySelector('#sideBody .readmenu [data-tidy]')`));
   const rows = await page.eval(`JSON.stringify([...document.querySelectorAll('#sideBody .readmenu .readrow')].map((b) => ({
     text: b.textContent.replace(/\\s+/g, ' ').trim(), keys: Object.keys(b.dataset).join(','),
     h: Math.round(b.getBoundingClientRect().height) })))`).then(JSON.parse);
@@ -148,6 +154,7 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
                                   ['json', 'more', '#f-card-json']]) {
       await list(sid); await openThread('Marek Vale');
       await page.click('#sideHead [data-readmenu]'); await wait(400);
+      await page.click(`#sideBody .readmenu [data-fold="${go === 'copy' ? 'rmTale' : 'rmLook'}"]`); await wait(300);
       await page.click(`#sideBody .readmenu [data-readgo="${go}"]`); await wait(900);
       const at = await page.eval(`JSON.stringify((() => {
         const pane = [...document.querySelectorAll('#sideBody .pane')].find((p) => !p.hidden);
@@ -159,6 +166,7 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
     // Delete still asks twice.
     await list(sid); const key = await openThread('the Silver Key');
     await page.click('#sideHead [data-readmenu]'); await wait(400);
+    await page.click('#sideBody .readmenu [data-fold="rmEnd"]'); await wait(300);
     await page.click('#sideBody .readmenu [data-delentry]'); await wait(600);
     ok("Delete under ⋯ asks again before it deletes",
        (await story(sid)).entries.some((e) => e.id === key));

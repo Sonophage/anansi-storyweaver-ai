@@ -3388,6 +3388,26 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
 }
 ok('a card face reads body, then what is on, then what is not — and finishing lives in the form');
 
+// ---- THE THREAD'S MENU, FOLDED, AND TIDY AS AN ICON BESIDE IT (Seth, 2026-10-27).
+{
+  click({ entry: 'e-1' });
+  const head = html('sideHead');
+  assert.match(head, /<button data-tidy="e-1" class="headmore"/, 'Tidy is an icon in the header');
+  assert.doesNotMatch(head, /&middot;&middot;&middot;/, 'and the menu is no longer three dots');
+  click({ readmenu: '1' });
+  const menu = html('sideBody');
+  assert.doesNotMatch(menu, /class="readrow"[^>]*data-tidy|data-tidy="e-1" class="readrow"/, 'Tidy is not in the menu');
+  assert.match(menu, /data-cardview="form" class="readrow"/, 'Alter stays in sight');
+  assert.strictEqual((menu.match(/<details class="readfold"\s+>/g) ?? []).length, 3, 'and the three folds start shut');
+  click({ fold: 'rmEnd' });
+  assert.match(html('sideBody'), /<details class="readfold" open>\s*<summary class="readrow" data-fold="rmEnd"/, 'a fold opens');
+  click({ readmenu: '1' }); click({ readmenu: '1' });
+  assert.strictEqual((html('sideBody').match(/<details class="readfold"\s+>/g) ?? []).length, 3,
+    'and opening the menu again shuts it');
+  click({ readmenu: '1' });
+}
+ok("the thread's menu opens folded, and Tidy is an icon beside it");
+
 // ---- POLISH PASS, 2026-09-01 · WHAT IS ON AND WHERE YOU ARE, SAID AND NOT ONLY COLOURED.
 //
 // Four controls carried their state in a colour and nothing else: the rail's open row, the current

@@ -243,7 +243,7 @@ const S = {
   // The Threads list, filtered to what actually reaches the model in this chapter. Session-only:
   // a filter that survives a reload is a list that looks empty for a reason nobody can see.
   onlyIn: false,
-  readMenu: false,          // the Read screen's ⋯ is open
+  readMenu: false,          // the Read screen's menu is open
   // Which tab of the thread editor is showing. Session-only and reset when a different card opens:
   // landing in Rooms because that is where you were on the last thread is the app deciding what you
   // came here for.
@@ -571,13 +571,13 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The Threads list: filter to what is in context, and flip one card between always-on and
   // triggered without opening it.
   'onlyin', 'flipact', 'cardtab', 'storytab', 'chaptab', 'tip',
-  // One thread, read: its ⋯ menu, and the rows under it that open the form at a section.
+  // One thread, read: its menu, and the rows under it that open the form at a section.
   'readmenu', 'readgo',
   // Alter: leave it (asking first if anything changed), and take a wake word off.
   'cancelalter', 'keyx',
   // #79. Over time: take a dated wardrobe or retirement event out. #80: make a Lore thread a place.
   'delevent', 'makeplace',
-  // #73. Tidy this thread, from its ⋯ menu. #74: the deck's yes and no, arrows, undo, Anansi edits.
+  // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
   'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit',
   // #75. The tale's own thread.
   'taleopen', 'taleclose', 'newrule', 'addtalepocket',
@@ -2345,7 +2345,7 @@ function isReading() { return threadOpen() && S.cardView !== 'form'; }
 
 /** THE READ AND ALTER SCREENS' OWN CONTROLS, drawn once. In the drawer they are its header; on the
  *  cross-book page, which has no drawer header, the editor draws them at its own top (`pageBar`).
- *  Read: "‹ Threads" back to the list, and ⋯ for the rarer actions (none on a followed thread,
+ *  Read: "‹ Threads" back to the list, Tidy, and the menu mark for the rarer actions (none on a followed thread,
  *  whose rare actions are on its face). Alter: Cancel and Save and nothing else — no Close, because
  *  leaving from here would throw away what was typed without asking; Cancel asks (alterDirty). */
 function threadBar(mode) {
@@ -2359,8 +2359,14 @@ function threadBar(mode) {
     <button data-backentry="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
       class="serif">Threads</span></button>
     <span class="fill"></span>
-    ${e && !e.sharedFrom ? `<button data-readmenu="1" class="headmore" aria-expanded="${!!S.readMenu}"
-      aria-label="More for this thread" title="More for this thread"><span aria-hidden="true">&middot;&middot;&middot;</span></button>` : ''}`;
+    ${/* TIDY IS ITS OWN ICON, beside the menu and out of it (Seth, 2026-10-27: "Tidy this thread
+          shouldn't be in that menu, but as an icon next to the ... icon and that ... should be
+          changed as well"). The menu's mark is the sliders now, not three dots. */
+      e && !e.sharedFrom ? `<button data-tidy="${esc(e.id)}" class="headmore" ${S.tidying ? 'disabled aria-busy="true"' : ''}
+      aria-label="${S.tidying === e.id ? 'Tidying this thread' : 'Tidy this thread: sort it into its three parts'}"
+      title="${S.tidying === e.id ? 'Tidying&hellip;' : 'Tidy this thread'}"><span>${mark('tidy', 17)}</span></button>
+    <button data-readmenu="1" class="headmore" aria-expanded="${!!S.readMenu}"
+      aria-label="More for this thread" title="More for this thread"><span>${mark('prefs', 17)}</span></button>` : ''}`;
 }
 /** The same controls at the top of the editor when it is not in the drawer. */
 const pageBar = (mode) => (S.place === 'story' ? ''
@@ -6242,7 +6248,7 @@ function cardFace(e, slots) {
   </div>`;
 }
 
-/** THE RARER ACTIONS, UNDER THE HEADER'S ⋯ (v2 redesign, 2026-10-25). Seth: the threads screen "is
+/** THE RARER ACTIONS, UNDER THE HEADER'S MENU MARK (v2 redesign, 2026-10-25; three dots until 2026-10-27). Seth: the threads screen "is
  *  a lot of information and needs to be simpler ... without losing functionality". Each row is a
  *  door the thread already had: most of them lived at the foot of the form's More tab, a scroll and
  *  two presses away, and nothing on the Read screen said they existed. The rows that ACT do it here
@@ -6256,23 +6262,28 @@ function readMenu(e) {
   const say = (label, note = '') => `${label}${note ? `<span class="readnote">${note}</span>` : ''}`;
   const edges = (V.edges ?? []).filter((x) => x.parentId === e.id).length;
   const states = (e.states ?? []).length;
+  // FOLDED, EVERY TIME IT OPENS (Seth, 2026-10-27: the menu items "should be collapsed by default").
+  // Alter stays in sight; the rest sit under three names, and opening the menu shuts them again
+  // (the readmenu handler clears their S.folds). The same <details> and data-fold as foldSection.
+  const group = (name, label, rows) => `<details class="readfold" ${S.folds?.[name] ? 'open' : ''}>
+    <summary class="readrow" data-fold="${name}">${say(label)}</summary>${rows}</details>`;
   return `<div class="readmenu" role="menu" aria-label="More for ${esc(e.title)}">
     <button data-cardview="form" class="readrow">${say('Alter this thread')}</button>
+    ${group('rmLook', 'Look closer', `
     <button data-readgo="time" class="readrow">${say('Over time', states ? `${states}` : '')}</button>
     <button data-readgo="edges" class="readrow">${say('Stitched together', edges ? `${edges}` : '')}</button>
-    <button data-readgo="copy" class="readrow">${say('Copy to another tale')}</button>
     <button data-readgo="history" class="readrow">${say('Earlier versions')}</button>
-    <button data-readgo="json" class="readrow">${say('This thread as JSON')}</button>
+    <button data-readgo="json" class="readrow">${say('This thread as JSON')}</button>`)}
+    ${group('rmTale', 'With the tale', `
     <button data-scanstory="${esc(e.id)}" class="readrow" ${S.scanning ? 'disabled' : ''}>${
       say(S.scanning === e.id ? 'Reading the tale&hellip;' : 'Read the whole tale for this thread')}</button>
-    ${/* #73. One thread sorted into Always true, where it stands and instruction pockets, chalked. */ ''}
-    <button data-tidy="${esc(e.id)}" class="readrow" ${S.tidying ? 'disabled' : ''}>${
-      say(S.tidying === e.id ? 'Tidying&hellip;' : 'Tidy this thread', 'sort it into its three parts')}</button>
+    <button data-readgo="copy" class="readrow">${say('Copy to another tale')}</button>`)}
+    ${group('rmEnd', 'Retire or delete', `
     ${e.retiredAtChapter == null
       ? `<button data-retire="${esc(e.id)}" class="readrow">${say('Retire this thread')}</button>`
       : `<button data-unretire="${esc(e.id)}" class="readrow">${
         say('Bring it back', `retired at scene ${esc(String(e.retiredAtChapter))}`)}</button>`}
-    <button data-delentry="1" class="readrow danger">${say('Delete this thread')}</button>
+    <button data-delentry="1" class="readrow danger">${say('Delete this thread')}</button>`)}
   </div>`;
 }
 
@@ -10228,7 +10239,9 @@ document.addEventListener('click', async (e) => {
     redrawKeyChips(); $('f-card-keys')?.focus({ preventScroll: true }); return;
   }
   // THE READ SCREEN'S ⋯ (v2 redesign). Open and shut by the same press, by Back and by Esc.
-  if (d.readmenu) { S.readMenu = !S.readMenu; paint(); return; }
+  if (d.readmenu) { S.readMenu = !S.readMenu;
+    if (S.readMenu) S.folds = { ...S.folds, rmLook: false, rmTale: false, rmEnd: false };
+    paint(); return; }
   // A ROW UNDER ⋯ THAT NEEDS TYPING opens the form on the tab that holds it, with its section
   // unfolded and on screen. Earlier versions are fetched on the way, which is what the form's own
   // button does; everything else is already in the view.
