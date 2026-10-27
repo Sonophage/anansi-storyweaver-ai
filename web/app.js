@@ -1491,7 +1491,7 @@ function passageHTML(p, newest, opening) {
     // is not a drop cap — and not on the writer's own passages, which are set differently: on
     // Sutera the first passage is the writer's and is right-aligned, so a left-floated capital
     // sat on its own with the text running away from it.
-    + (newest ? ' newest' : '') + (opening && !spoken && !mine ? ' opening' : '')
+    + (newest && p.id !== QUIET_LAND ? ' newest' : '') + (opening && !spoken && !mine ? ' opening' : '')
     // Holding the re-roll sheet. The class is what stops this block being the containing block for
     // it — see the note on `.rerollbox` in the stylesheet, and the longer one above the acts tray.
     + (S.reroll?.id === p.id ? ' rerolling' : '') + (S.passEdit?.id === p.id ? ' altering' : '');
@@ -1729,6 +1729,7 @@ function drawDoc() {
   // 'instant': #read has scroll-behavior:smooth, so assigning scrollTop GLIDES, and a glide still
   // running when Anansi's first word lands is the page moving under the words (Seth, 2026-10-26).
   else if (tip && !(grew && pinTo(DREW.newest))) read.scrollTo({ top: read.scrollHeight, behavior: 'instant' });
+  if (DREW && DREW.chapter !== ch.id) col.style.paddingBottom = '';   // anchorLive's room is per chapter
   DREW = { chapter: ch.id, newest: newestId };
 
   // THE RUNNING HEAD IS GONE, 2026-08-27. It opened on scroll, moved the prose down to make room
@@ -8572,6 +8573,8 @@ let GHOST_MODE = null;
 /** The inline passage being written (INLINE), kept by reference: a repaint rebuilds #col and would drop it,
  *  so drawDoc puts it back. Null when nothing is being written inline. */
 let INLINE = null;
+/** The passage that landed where it was written inline, which must not play `rise` (see land). */
+let QUIET_LAND = null;
 /** Whether the page moves at the first word of an inline passage (see anchorLive). */
 let INLINE_ANCHOR = false;
 /** THE FIRST WORD MOVES THE PAGE ONCE, AND NOTHING AFTER IT DOES. Seth, 2026-10-25: the text
@@ -8597,9 +8600,22 @@ function anchorLive() {
   // could reach the top, and taking it away when the passage landed jumped the page (Seth,
   // 2026-10-26). The page goes as far toward the seam as its prose allows, and stays.
   const edge = prev ? prev.getBoundingClientRect().bottom - PEEK : g.getBoundingClientRect().top - 12;
+  const want = read.scrollTop + edge - read.getBoundingClientRect().top;
+  // ROOM BELOW, HELD AND NEVER TAKEN BACK (Seth, 2026-10-27: it "doesn't anchor the text up top").
+  // With a short page the seam could not reach the top, so the words wrote at the bottom. The
+  // column's foot grows by what is missing and keeps it after the passage lands, which is what
+  // stops the jump that removing it caused on 2026-10-26; drawDoc clears it on a chapter change.
+  // ponytail: the room stays under the landed passage until the chapter changes or the next press
+  // measures again; trim it on land if a blank screen under the last passage reads as a bug.
+  const col = $('col');
+  if (col) {
+    col.style.paddingBottom = '';
+    const short = want - (read.scrollHeight - read.clientHeight);
+    if (short > 0) col.style.paddingBottom = `${20 + Math.ceil(short)}px`;
+  }
   // 'instant', not 'auto': #read has scroll-behavior:smooth, which 'auto' would honour, and a page
   // still gliding while the words arrive is the motion this removes.
-  read.scrollTo({ top: read.scrollTop + edge - read.getBoundingClientRect().top, behavior: 'instant' });
+  read.scrollTo({ top: want, behavior: 'instant' });
 }
 /** Keep the newest words in view while they arrive, unless the writer has scrolled up to read.
  *  Only for the empty block at the press now, so the wait has something to show; the words do not
@@ -9097,7 +9113,9 @@ async function generate(mode = S.mode, again = null) {
   S.busy = true; drawDock(); working(mode);
   // Your text is already on the page in the three modes above, so the model gets no directive —
   // it gets told whose line it is answering instead.
-  GHOST_VOICE = who ?? null; GHOST_MODE = mode;
+  // NOT `who`: that is whose line the model answers, and the answer lands as narration (routes.ts
+  // files no speaker on it since 2026-10-27), so it is written as narration, in the book's font.
+  GHOST_VOICE = null; GHOST_MODE = mode;
   ghost();   // the roller, from the press until accept returns
   STOP = new AbortController();
   const r = await api.generateLive({ storyId: S.storyId, mode, chapterId: V.currentChapter.id,
@@ -9155,6 +9173,10 @@ async function generate(mode = S.mode, again = null) {
     // Written inline, it was in view the whole time: the page stays where the reader left it
     // (HOLD_SCROLL), and the seam pin is only for a passage that arrives all at once.
     const held = HOLD_SCROLL != null;
+    // AND IT DOES NOT RISE IN AGAIN. The newest passage fades up from 7px below (`rise`), which on a
+    // passage already on screen is the text vanishing and coming back: the flash Seth saw when a
+    // passage finished (2026-10-27). One written inline was in view the whole time.
+    if (held) QUIET_LAND = V?.passages?.filter((p) => !p.isBreak).at(-1)?.id ?? null;
     // AND IT IS NOT WIPED IN AGAIN. Its words already blurred in as they came; the 1.5s wipe on top
     // of that was the second transition Seth saw after he stopped (2026-10-26). Announced either way.
     arrive(!held); foldDock();
@@ -9412,10 +9434,10 @@ async function regenerateInto(id, steer, seed, again = null) {
   // precisely the cold-start blank page the veil exists to cover. Raised on the press now, the
   // way `generate()` has always done it.
   if (atEnd) {
-    // The server keeps the old take's speaker when the press sends none (`inherit`, routes.ts).
     const old = (V.passages ?? []).find((x) => x.id === id);
-    GHOST_VOICE = (S.mode === 'speak' || S.mode === 'act' ? (S.speaker || V.story.persona) : null)
-      ?? old?.speaker ?? null;
+    // A take keeps its passage's own speaker, so it is set as the passage is (2026-10-27: no longer
+    // the press's speaker, which is whose line a reply answers, not who is speaking).
+    GHOST_VOICE = old?.speaker ?? null;
     // `inherit` in routes.ts: an instruction makes it Direct, else the old take's own press.
     GHOST_MODE = steer || old?.directive ? 'direct' : (old?.mode || S.mode);
     ghost();

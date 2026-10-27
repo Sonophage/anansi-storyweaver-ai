@@ -16,6 +16,15 @@ Everything below this line was written by that model call, before it was removed
 The first screen, where your tales are kept, is called the Library everywhere: the menu, the way
 back from a tale, and the demo.
 
+### Anansi's writing lands without a flash, and starts at the top
+When Anansi finishes a passage, it no longer fades out and back in: it stays as it was written.
+On a short page the new passage now starts near the top of the screen instead of at the bottom.
+
+### Anansi's answer to your line is set as his, in your font
+In Speak, Anansi's answer to what your character said was filed as your character's own speech:
+drawn as a speech bubble with their name on it, in the app's font instead of the book's. It is set
+as narration now, in the font you chose, both while he writes it and after.
+
 ### Fifteen fonts: five serif, five sans, five easy to read
 Look → Font now lists three groups of five. Serif: Instrument Serif, Literata, EB Garamond, Lora,
 Spectral. Sans: IBM Plex Sans, Inter, Source Sans, Nunito Sans, System. Easy to read: Atkinson

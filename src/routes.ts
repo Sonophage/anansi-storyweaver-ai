@@ -975,7 +975,9 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
       landed = c.body.regenerateOf
         ? db.addVariant(v.id, String(c.body.regenerateOf), prose)
         : db.addPassage({ storyId: v.id, branchId: v.branchId!, chapterId: v.currentChapter.id,
-            body: prose, author: 'model', speaker: c.body.speaker ?? null,
+            // NO SPEAKER. `speaker` is whose line this answers, for the prompt; filed on the model's
+            // passage it drew the reply as that character's own speech (2026-10-27).
+            body: prose, author: 'model', speaker: null,
             mode, directive: directive ?? null, claimed: false });
       if (landed) { db.tieGeneration(String(genId), String(landed)); checkLanded(c, v.id, String(landed)); }
       // A re-roll away from a take is a judgement about the take, not just a replacement — the same
@@ -2769,7 +2771,7 @@ export const routes: Record<string, Handler> = {
     const id = c.body.variantOf
       ? db.addVariant(v.id, c.body.variantOf, c.body.body)
       : db.addPassage({ storyId: v.id, branchId: v.branchId!, chapterId: v.currentChapter.id,
-          body: c.body.body, author: 'model', speaker: c.body.speaker ?? null,
+          body: c.body.body, author: 'model', speaker: null,   // see the streamed path: never the addressee
           mode: c.body.mode, directive: c.body.directive ?? null });
     // Tie the take to the call that produced it, so History can say what canon it was written
     // against. Two takes in one slot come from two different prompts, and nothing recorded which.

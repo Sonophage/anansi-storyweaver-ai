@@ -457,5 +457,20 @@ const ok = (m: string, fn?: unknown) => {
   ok('  a re-roll checks the new take once, and not the take it passed over');
 }
 
+// ---- 7 · THE MODEL'S ANSWER TO A SPOKEN LINE IS NOT THAT CHARACTER'S LINE (2026-10-27). Speak sends
+// the writer's character as `speaker` so the prompt can say whose line it answers, and the streamed
+// path stored it on the model's passage too: in Seth's tale six of Anansi's replies were filed as
+// Seth's own speech, drawn as a bubble with his name on it, in the UI's sans and not the book's font.
+{
+  const h: any = await routes['POST /api/generate'](ctx({ storyId: story.id, mode: 'speak',
+    speaker: 'Vel', stream: true }));
+  const r: any = await h.__stream(() => {});
+  assert.ok(!r.error && r.passageId, r.error ?? 'a passage landed');
+  const row: any = db.passagesOf(story.id).find((p: any) => p.id === r.passageId);
+  assert.strictEqual(row.author, 'model', 'the reply is the model\'s');
+  assert.strictEqual(row.speaker, null, 'and it carries no speaker: it answers Vel, it is not Vel speaking');
+  ok('  a reply to a spoken line is not filed as the speaker\'s line');
+}
+
 console.log(`\n${n} checks passed`);
 srv.close();
