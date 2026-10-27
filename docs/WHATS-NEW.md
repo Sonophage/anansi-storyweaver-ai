@@ -10,6 +10,14 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-27 · A character's voice no longer hides who they are
+
+### Voice pockets that describe a whole person work again
+Since yesterday, every voice pocket told Anansi to show it "only in what they say" and never in the
+narration. Where a voice pocket also describes who the character is, that kept their personality
+out of the narration entirely, and a tale told from their side went flat. It now only asks the
+narration not to name how they sound, such as their accent.
+
 ## 2026-10-27 · A shorter tale menu
 
 ### The tale's menu fits in half the height

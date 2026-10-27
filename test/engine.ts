@@ -1320,8 +1320,14 @@ ok('a voice room reaches the prompt as an instruction about dialogue, not as a n
     active: true })], { title: 'Aldis Fen' } as any);
   // #73. And the narration is told to keep out of it: "the letters thick with her accent" was the
   // narration repeating a voice pocket. Owed a control run (the #73 voice A/B) before it is a fix.
-  assert.match(b.text, /Show it only in what they say; the narration never names or describes it\.\]/,
+  assert.match(b.text, /clipped, never swears\. The narration never names how they sound\.\]/,
     'VOICE-NARRATION: the voice frame keeps the narration out of the accent');
+  // AND ONLY OUT OF HOW THEY SOUND (2026-10-27). It said "Show it only in what they say; the
+  // narration never names or describes it", and a voice pocket that also holds who someone IS (Kia's
+  // Talia: cynical, irreverent, protective) then forbade the narration to describe the viewpoint
+  // character's personality at all. Her tale went flat the day it shipped and nothing else changed.
+  assert.doesNotMatch(b.text, /Show it only in what they say|names or describes it/,
+    'VOICE-SCOPE: the frame does not make everything in the pocket dialogue-only');
   assert.match(b.text, /When Aldis Fen speaks, write the dialogue this way: clipped, never swears/,
     'the room has to name the character and the thing to produce, or it is a description again');
   assert.doesNotMatch(b.text, /\[voice:|\[How she sounds:/,
@@ -1334,7 +1340,7 @@ ok('  and a voice already written in the bracket form is not double-wrapped', ()
   // wrapper is the `[You: [You: …]]` defect the `facts` branch already carries a comment about.
   const b = withAddons([room({ slot: 'voice', body: '[short sentences; laughs when afraid]',
     active: true })], { title: 'Aldis Fen' } as any);
-  assert.match(b.text, /this way: short sentences; laughs when afraid\. Show it only/);
+  assert.match(b.text, /this way: short sentences; laughs when afraid\. The narration never/);
   assert.doesNotMatch(b.text, /\[\[|: \[short/, 'one set of brackets, not two');
 });
 

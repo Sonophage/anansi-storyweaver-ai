@@ -59,6 +59,6 @@ choices and the model stay settings. It has no Over time: the scene summaries ar
   report lists threads whose Always true and Info seem to disagree.
 - Every prompt that writes a thread or a pocket changes: hemming, Make a thread of this, Read the
   scene, Write one for me, Look it up online, the new tale's cast.
-- The voice pocket's frame gains "the narration never names or describes it". A prompt change: it
+- The voice pocket's frame gains "the narration never names or describes it" (narrowed on 2026-10-27 to "the narration never names how they sound": the wider form made a pocket that also held a personality dialogue-only). A prompt change: it
   is measured against a control before it is called a fix.
 - One hem call for every thread or one per thread is decided on a measurement, not here.

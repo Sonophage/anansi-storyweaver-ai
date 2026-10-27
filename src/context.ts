@@ -344,14 +344,19 @@ const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
       // NOTHING IS CLAIMED FOR IT YET. `bench/cast.ts` is the detector and its baseline is 11
       // chapters, which decides nothing — this is F37's shape applied to the one place that was
       // not using it, and it is owed a measurement before anyone calls it a fix.
-      // #73. AND THE NARRATION KEEPS OUT OF IT. "The letters thick with her accent even in digital
-      // form" was the narration saying a voice pocket back. NOT MEASURED: owed the #73 voice A/B.
+      // #73. AND THE NARRATION KEEPS OUT OF HOW THEY SOUND. "The letters thick with her accent even in
+      // digital form" was the narration saying a voice pocket back. NOT MEASURED: owed the #73 voice A/B.
+      // SCOPED TO SOUND since 2026-10-27. It read "Show it only in what they say; the narration never
+      // names or describes it", which made EVERYTHING in the pocket dialogue-only — and a voice pocket
+      // written the old way holds who someone is as well (Kia's Talia: her whole personality). For a
+      // viewpoint character that forbade the narration her inner life, and her tale went flat the
+      // day it shipped (10-26) with nothing else changed. Seth's accent case is still covered.
       // THE LOCKED CHARACTER'S VOICE IS NOT FRAMED AS DIALOGUE TO WRITE (prompt audit, 2026-10-27):
       // the frame asked for his dialogue while his pocket and the lockout forbade it. Bare instead.
       if (a.slot === 'voice' && locked && who.toLowerCase() === locked.toLowerCase())
         return `[${body.replace(/[.\s]+$/, '')}]`;
       if (a.slot === 'voice') return `[When ${who || 'they'} speaks, write the dialogue this way: ${
-        body.replace(/[.\s]+$/, '')}. Show it only in what they say; the narration never names or describes it.]`;
+        body.replace(/[.\s]+$/, '')}. The narration never names how they sound.]`;
 
       // INTERIORITY IS THE THIRD ROOM WHOSE NAME IS NOT WHAT THE MODEL NEEDS TO BE TOLD, and its
       // own definition in `src/forge.ts` is why: "What they will not say out loud, AND WHAT THEY DO
