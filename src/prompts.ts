@@ -119,10 +119,12 @@ to do — Write, Show, Give, Keep, Let, Never — and is never a list of traits.
     interiority    what they will not say out loud, and what they do instead of saying it.
                    "Never let her say she is afraid; show it as her talking faster and touching him."
     relationships  how they act around that one person, and what stands between them.
-                   "With Seth, give the orders and wait to see if he takes them; never ask twice." 
     appearance     the one or two things another character notices first, and when to show them.
     atmosphere, who_is_here, what_it_does, consequences
-                   what to put on the page when this place, object or rule is in the scene.`;
+                   what to put on the page when this place, object or rule is in the scene.
+
+The quoted lines above show the FORM only. Never copy their words: write each pocket from what this
+thread's own text says about it, and leave out a pocket its text gives you nothing for.`;
 
 /** What a scene did to the threads it names (#73, ADR 0005). Every kind, not only people: a place
  *  burns, an item breaks, a rule stops holding.
