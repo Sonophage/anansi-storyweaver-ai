@@ -2119,6 +2119,41 @@ body[data-dev] #devbar {
   background:var(--chip); color:var(--warn); border-bottom:1px solid var(--edge);
   font-size:11px; letter-spacing:.14em; text-transform:uppercase;
 }
+
+/* ---------------------------------------------------------------------------
+   NAMED PARTS, moved out of inline styles (ADR 0004, pass one). Each was a style attribute written
+   out by hand in web/app.js; the class carries the same declarations, so nothing on screen moves
+   (bench/samestyle.ts compares every element before and after).
+
+   EACH IS WRITTEN TWICE OVER (`.flush.flush`) ON PURPOSE. An inline style beats any rule in this
+   sheet; a single class does not, and `.lbl:first-child` or `.hint` would have quietly won back
+   the margins these set. Doubling the class lifts it over every one-class and one-pseudo rule here,
+   and it sits last, so it wins the ties.
+   --------------------------------------------------------------------------- */
+.flush.flush { margin:0; }
+.fill.fill { flex:1; }
+.sect.sect { letter-spacing:.1em; margin-top:22px; }
+.sect-far.sect-far { letter-spacing:.1em; margin-top:26px; }
+.sect-top.sect-top { letter-spacing:.1em; margin-top:0; }
+.wide.wide { letter-spacing:.1em; }
+.stack.stack { display:flex; flex-direction:column; }
+.stack-roomy.stack-roomy { display:flex; flex-direction:column; gap:9px; }
+.line.line { display:flex; align-items:center; gap:9px; }
+.end-row.end-row { display:flex; justify-content:flex-end; }
+.inked.inked { color:var(--ink); }
+.faint.faint { color:var(--faint); }
+.danger.danger { color:var(--bad); }
+.mode-ink.mode-ink { color:var(--m, var(--gold)); }
+.note.note { font-size:12.5px; line-height:1.5; color:var(--mute); }
+.count.count { margin-left:auto; color:var(--faint); }
+.count-sm.count-sm { margin-left:auto; font-size:11px; color:var(--faint); }
+.btn-side.btn-side { flex:0 0 auto; width:auto; padding:12px 20px; }
+.pressable.pressable { cursor:pointer; }
+.tag-lit.tag-lit { border-color:var(--edge-lit); color:var(--ink-bright); }
+.dimmed.dimmed { opacity:.5; }
+.body-ink.body-ink { font-size:13px; color:var(--ink); }
+.btnrow.btnrow { display:flex; gap:7px; }
+.quiet.quiet { font-size:11px; color:var(--dim); }
 </style>
 </head>
 <body>

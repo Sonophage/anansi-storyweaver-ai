@@ -708,7 +708,7 @@ assert.match(html('page'), /The Ashfall Concordat/);
   assert.match(shelf, /Where you left off/, 'and says what it is showing you');
   assert.doesNotMatch(shelf, /data-open="new"/,
     'the shelf itself offers no New story button — the rail is the one door');
-  assert.match(html('bar'), /<button class="pill" data-open="new"/,
+  assert.match(html('bar'), /<button class="pill(?: [^"]*)?" data-open="new"/,
     'and the bar pill is not deskonly, or a phone has no door at all');
 }
 ok('one New story button, on the bar, and the shelf does not repeat it');
@@ -799,13 +799,13 @@ ok("a book's look sits over the writer's, and never becomes it");
 // renders whatever the switch says is a switch that does nothing.
 {
   const withPlate = html('col');
-  assert.match(withPlate, /class="plate"/, 'the book asks for it, so the chapter carries the plate');
+  assert.match(withPlate, /class="plate(?: [^"]*)?"/, 'the book asks for it, so the chapter carries the plate');
   assert.match(withPlate, /api\/cover\?story=s-1/, 'and the plate is the STORY cover, not a second image');
   // The title moves INTO the plate rather than being printed twice.
-  const bandTitles = (withPlate.match(/class="serif band-title"/g) ?? []).length;
+  const bandTitles = (withPlate.match(/class="serif band-title(?: [^"]*)?"/g) ?? []).length;
   assert.strictEqual(bandTitles, 0,
     'the chapter title belongs to the plate when there is one — printed in both is the same name twice');
-  assert.match(withPlate, /class="serif plate-title"/, 'and it is on the plate');
+  assert.match(withPlate, /class="serif plate-title(?: [^"]*)?"/, 'and it is on the plate');
 }
 ok('a chapter wears the book cover as its plate, and the title moves onto it');
 
@@ -823,7 +823,7 @@ ok('a chapter wears the book cover as its plate, and the title moves onto it');
   assert.match(back, /opacity:0\.45/, "at the story's own strength, not a constant");
   // The plate and the backdrop are two treatments of one picture and must never both be on: the
   // cover would appear twice, once scrolling and once not.
-  assert.doesNotMatch(html('col'), /class="plate"/,
+  assert.doesNotMatch(html('col'), /class="plate(?: [^"]*)?"/,
     'and the plate steps aside — one picture, one treatment');
 
   // THE CHROME STAYS ON TOP. The backdrop is a later sibling than the header, so at the same
@@ -844,7 +844,7 @@ ok('a chapter wears the book cover as its plate, and the title moves onto it');
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
   assert.ok(nodes.get('backdrop').hidden, 'off again, the backdrop goes');
-  assert.match(html('col'), /class="plate"/, 'and the plate comes back');
+  assert.match(html('col'), /class="plate(?: [^"]*)?"/, 'and the plate comes back');
 }
 ok('a book can keep its cover behind the prose instead, at a strength it chooses');
 
@@ -903,25 +903,25 @@ assert.match(html('col'), /class="[^"]*\bspeak\b[^"]*"/, 'quoted prose is a spee
 // distinguishing them would put a pair of buttons under every paragraph and still "have" them.
 {
   // The ⋯ handle is gone; a double click is the only way into the tray now.
-  assert.doesNotMatch(html('col'), /class="more"|data-more/,
+  assert.doesNotMatch(html('col'), /class="more(?: [^"]*)?"|data-more/,
     'the three-dot handle must be gone — a double tap opens the tray and has since F34');
-  assert.match(html('col'), /class="acts"/, 'but the tray itself is still rendered');
+  assert.match(html('col'), /class="acts(?: [^"]*)?"/, 'but the tray itself is still rendered');
   // Reading mode keeps the tray and loses everything in it that writes. The marker is what CSS
   // hides, so it is asserted here rather than left to a stylesheet nobody reads.
-  const tray = html('col').match(/<div class="acts">[\s\S]*?<\/div>/)?.[0] ?? '';
-  assert.match(tray, /class="wr" data-ed/, 'Edit is marked as writing, so reading mode drops it');
+  const tray = html('col').match(/<div class="acts(?: [^"]*)?">[\s\S]*?<\/div>/)?.[0] ?? '';
+  assert.match(tray, /class="wr(?: [^"]*)?" data-ed/, 'Edit is marked as writing, so reading mode drops it');
   assert.match(tray, /data-fork/, 'Branch is not, so reading mode keeps it');
-  assert.match(tray, /class="readonly" *|data-chapters/, 'and the chapter list is reading-mode only');
+  assert.match(tray, /class="readonly(?: [^"]*)?" *|data-chapters/, 'and the chapter list is reading-mode only');
 
-  const carries = html('col').match(/class="carry"/g) ?? [];
+  const carries = html('col').match(/class="carry(?: [^"]*)?"/g) ?? [];
   assert.strictEqual(carries.length, 1,
     `the line under the last passage belongs to the last passage only — found ${carries.length} rows`);
   // #71. Reweave and Continue moved down to the three buttons at the foot of the screen, and are
   // asserted in both places: gone from under the passage, there on the bar, naming the LAST passage.
-  const carry = html('col').match(/<div class="carry">[\s\S]*?<\/div>/)?.[0] ?? '';
+  const carry = html('col').match(/<div class="carry(?: [^"]*)?">[\s\S]*?<\/div>/)?.[0] ?? '';
   assert.doesNotMatch(carry, /data-re=|data-continue/, 'Reweave and Continue are no longer under the passage');
   // Round two: the bulb for Anansi's ideas is where the tap hint is, under the last passage.
-  assert.match(carry, /class="bulb" data-idea="1"/, 'the bulb for Anansi\'s ideas is under the last passage');
+  assert.match(carry, /class="bulb(?: [^"]*)?" data-idea="1"/, 'the bulb for Anansi\'s ideas is under the last passage');
   const bar = html('dockCol').match(/<div id="nextbar">[\s\S]*$/)?.[0] ?? '';
   assert.match(bar, /data-re="p-5"/, 'the bar\'s Reweave must name the LAST passage, not the first');
   assert.match(bar, /data-dockopen="1"/, 'the quill that opens the box is beside it');
@@ -929,7 +929,7 @@ assert.match(html('col'), /class="[^"]*\bspeak\b[^"]*"/, 'quoted prose is a spee
   assert.doesNotMatch(bar, /data-idea/, 'and the ideas are no longer on the bar');
 }
 ok('↻, the quill and ✦ sit on the bar at the foot of the screen, and the bulb under the last passage');
-assert.match(html('col'), /class="block you"/, 'the writer\'s own line is a you block');
+assert.match(html('col'), /class="block you(?: [^"]*)?"/, 'the writer\'s own line is a you block');
 
 /* ---- WHERE EACH PASSAGE CAME FROM, said in words as well as in a colour.
  *
@@ -942,7 +942,7 @@ assert.match(html('col'), /class="block you"/, 'the writer\'s own line is a you 
  * Narrate, because both write a bare human row. The fixture has one of each shape. */
 {
   const col = html('col');
-  const chips = [...col.matchAll(/<div class="from"><i><\/i>([^<]*)</g)].map((m) => m[1].trim());
+  const chips = [...col.matchAll(/<div class="from(?: [^"]*)?"><i><\/i>([^<]*)</g)].map((m) => m[1].trim());
   assert.strictEqual(chips.length, (col.match(/class="block/g) ?? []).length,
     'every passage says where it came from, not just the ones with a mode');
   // AT THE TOP OF ITS BLOCK, which is what was asked for — before the prose, not under it.
@@ -959,7 +959,7 @@ assert.match(html('col'), /class="block you"/, 'the writer\'s own line is a you 
   assert.ok(chips.some((c) => /Speak|Act|Direct|Narrate/.test(c)),
     `at least one chip names the press that made it — got ${JSON.stringify(chips)}`);
   // AND A SPOKEN LINE CARRIES WHO SAID IT, which is the one thing the colour cannot say.
-  assert.match(col, /<div class="from"><i><\/i>[^<]*&middot; Envoy Sereth</,
+  assert.match(col, /<div class="from(?: [^"]*)?"><i><\/i>[^<]*&middot; Envoy Sereth</,
     'a line spoken as someone else names them on the chip');
 }
 ok('every passage carries a chip saying where it came from, above the prose');
@@ -977,7 +977,7 @@ assert.match(html('col'), /Knot · Envoy Sereth/, 'a violation must surface on i
 {
   const col = html('col');
   assert.match(col, /Never sent · The stair/, 'the fixture really carries a never-sent flag too');
-  const acts = [...col.matchAll(/<div class="flagacts">[\s\S]*?<\/div>/g)].map((m) => m[0]);
+  const acts = [...col.matchAll(/<div class="flagacts(?: [^"]*)?">[\s\S]*?<\/div>/g)].map((m) => m[0]);
   assert.strictEqual(acts.length, 2, `two flags, two action rows, and there are ${acts.length}`);
   const withRepair = acts.filter((a) => /data-repair=/.test(a));
   assert.strictEqual(withRepair.length, 1,
@@ -999,7 +999,7 @@ ok('a contradiction can be corrected in place; a never-sent flag is not offered 
 // of what Narrate is for.
 assert.match(html('col'), /class="narr"[^>]*data-edit="p-4"/,
   'a human passage that is not dialogue must render as narration, not as your speech');
-assert.ok(!/You · Ilva Marren<\/div>\s*<div class="said" contenteditable="plaintext-only" data-edit="p-4"/.test(html('col')),
+assert.ok(!/You · Ilva Marren<\/div>\s*<div class="said(?: [^"]*)?" contenteditable="plaintext-only" data-edit="p-4"/.test(html('col')),
   'and must carry no "You ·" chip');
 // Speaking AS someone else labels it with their name, not with yours.
 assert.match(html('col'), /Envoy Sereth<\/div>\s*<div class="said"[^>]*data-edit="p-5"/,
@@ -1042,7 +1042,7 @@ assert.match(html('dockCol'), /The words Ilva Marren says/,
 // a drop down. the selection should look like a button." Asserted as one select carrying all four
 // AND as the absence of the buttons: putting the dial in without taking the rail out is the shape
 // that ships both, and only the pair can catch it.
-const dial = () => html('dockCol').match(/<select class="dial" data-modesel[\s\S]*?<\/select>/)?.[0] ?? '';
+const dial = () => html('dockCol').match(/<select class="dial(?: [^"]*)?" data-modesel[\s\S]*?<\/select>/)?.[0] ?? '';
 assert.ok(dial(), 'the rail must carry the mode dial');
 for (const k of ['speak', 'act', 'direct', 'narrate'])
   assert.match(dial(), new RegExp(`value="${k}"`), `${k} must be an option on the dial`);
@@ -1127,7 +1127,7 @@ assert.doesNotMatch(modeRow, /data-threadsel|data-goblock="threads:"|data-newlor
   'the threads dial is gone from above the box');
 assert.match(html('bar'), /<button data-goblock="threads:" aria-label="This tale's threads"/,
   'and the tale\'s title in the header opens this tale\'s threads');
-assert.match(html('bar'), /data-railview="story" class="pill" aria-label="This tale's menu"/,
+assert.match(html('bar'), /data-railview="story" class="pill(?: [^"]*)?" aria-label="This tale's menu"/,
   'while the ⋯ still opens the tale\'s menu');
 ok('the composer offers one mode dial and the name beside it, and the title opens the threads');
 
@@ -1346,7 +1346,7 @@ assert.ok(!/27,401/.test(html('sideBody')),
 {
   // Scoped to the meter's own element: `sideBody` holds other percentage widths and summing the
   // lot gave 246.4%, which is a check measuring the whole panel rather than the bar.
-  const bar = html('sideBody').match(/<div class="meter">([\s\S]*?)<\/div>/);
+  const bar = html('sideBody').match(/<div class="meter(?: [^"]*)?">([\s\S]*?)<\/div>/);
   assert.ok(bar, 'the inspector must draw a meter for this to say anything');
   const widths = [...bar[1].matchAll(/width:([\d.]+)%/g)].map((m) => Number(m[1]));
   assert.ok(widths.length >= 2, `only ${widths.length} segments — a one-piece bar cannot show a mix`);
@@ -1521,7 +1521,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.ok(landsAt > -1 && bodyAt > -1, 'the card says where it lands and offers the body');
   assert.ok(landsAt < bodyAt, 'and says where it lands BEFORE the words that will land there');
   // The room is a chip on the title row, so a queue can be read without opening anything.
-  assert.match(onlyChanged, /class="tag"[^>]*>appearance</, 'the room is a chip on the card');
+  assert.match(onlyChanged, /class="tag(?: [^"]*)?"[^>]*>appearance</, 'the room is a chip on the card');
   // Spoken, not stored: `who_is_here` is a column name. Proved on a slot that has underscores.
   const spoken = html('sideBody');
   assert.doesNotMatch(spoken, /who_is_here/, 'no room name is shown with its underscores');
@@ -1956,7 +1956,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.ok(go, 'the hero has its Carry on writing');
   assert.match(go![1], /aria-label="Carry on writing\. Waiting: 2 threads chalked, 1 string not tied off"/,
     'its label says what is owed, by kind, with the real count, singular as singular');
-  assert.match(go![2], /class="owedot"/, 'and it carries the dot');
+  assert.match(go![2], /class="owedot(?: [^"]*)?"/, 'and it carries the dot');
   assert.doesNotMatch(page, /data-owed=|data-readfrom=/, 'the chips and Read from scene one are gone from the rack');
   // THE COST, WRITTEN DOWN, as before: a tale that is not the hero says nothing about what it owes.
   assert.ok(!/data-carryon="s-2"/.test(page), 'a tale that is not the hero has no Carry on and no dot');
@@ -2171,7 +2171,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   for (let i = 0; i < 20 && !/data-lbook=/.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25));
   const page = html('page');
   assert.match(page, /data-lbook=/, 'every book is a heading you can press');
-  assert.match(page, /class="clamp3"/,
+  assert.match(page, /class="clamp3(?: [^"]*)?"/,
     'and a long thread does not stretch its row — the body is clamped in the selectable view');
 
   // #22 §3. ONE TOGGLE FOR THE WHOLE PANEL, and it opens on the book you were last writing in.
@@ -2390,10 +2390,10 @@ ok('the model panel reads the router, the preset file, this database and the id,
   click({ panel: 'teller' });
   await new Promise((r) => setTimeout(r, 30));
   const teller = visible(html('sideBody'));
-  assert.match(teller, /<span class="tag">Write<\/span>/, 'the badges are chips here, where there is room');
-  assert.match(teller, /<span class="tag">uncensored<\/span>/);
-  assert.match(teller, /<span class="tag">novel tier<\/span>/);
-  assert.match(teller, /<span class="tag">35B-A3B<\/span>/, 'and the size fits on this one');
+  assert.match(teller, /<span class="tag(?: [^"]*)?">Write<\/span>/, 'the badges are chips here, where there is room');
+  assert.match(teller, /<span class="tag(?: [^"]*)?">uncensored<\/span>/);
+  assert.match(teller, /<span class="tag(?: [^"]*)?">novel tier<\/span>/);
+  assert.match(teller, /<span class="tag(?: [^"]*)?">35B-A3B<\/span>/, 'and the size fits on this one');
   assert.match(teller, /data-modelinfo="Qwen3\.6-WNTH-35B-A3B-NN"/,
     'with a door to the panel that holds the blurb, the speed and the context');
   // The option text in the select is built from `detail` — the badges with the size put back in,
@@ -3259,7 +3259,7 @@ ok('a cover can be drawn: the book seeds the words, the writer owns them, and th
   // the ELEMENT is what must be gone, and it is the element that came back empty every repaint.
   assert.doesNotMatch(after, /id="idea"/, 'and the idea box is gone, not merely beside it');
   assert.doesNotMatch(after, /data-spark="1"/, 'along with the button that has nothing left to send');
-  assert.doesNotMatch(after, /class="split"/,
+  assert.doesNotMatch(after, /class="split(?: [^"]*)?"/,
     'and the two-column layout with it — on a phone that stacks, which put the dead box on top');
   // (A "rendered exactly once" assertion stood here and was DELETED. Falsifying it — putting
   // `S.spark ? sparkReview() : ''` back into the aside — left the suite green, because the early
@@ -3608,13 +3608,13 @@ ok('a card face reads body, then what is on, then what is not — and finishing 
   click({ readmode: '1' });
   await new Promise((r) => setTimeout(r, 40));
   const doc = html('col');
-  const chapters = [...doc.matchAll(/<section class="chap" id="ch-(\d+)"/g)].map((m) => m[1]);
+  const chapters = [...doc.matchAll(/<section class="chap(?: [^"]*)?" id="ch-(\d+)"/g)].map((m) => m[1]);
   assert.ok(chapters.length > 1, `reading mode draws every chapter and drew ${chapters.length}`);
   // AN ANCHOR PER CHAPTER, which is the thing he offered as an acceptable minimum.
   assert.deepStrictEqual(chapters, [...new Set(chapters)], 'each anchor is its own chapter');
   // ONE BREAK FEWER THAN THERE ARE CHAPTERS: between them, never above the first, where it would be
   // a rule under the header with nothing above it to separate from.
-  const breaks = (doc.match(/class="chapbreak"/g) ?? []).length;
+  const breaks = (doc.match(/class="chapbreak(?: [^"]*)?"/g) ?? []).length;
   assert.strictEqual(breaks, chapters.length - 1,
     `${chapters.length} chapters want ${chapters.length - 1} breaks and got ${breaks}`);
   assert.ok(doc.indexOf('class="chapbreak"') > doc.indexOf('id="ch-1"'),
@@ -3622,7 +3622,7 @@ ok('a card face reads body, then what is on, then what is not — and finishing 
   click({ readmode: '0' });
   await new Promise((r) => setTimeout(r, 30));
   // WRITING STILL DRAWS ONE, which is the trade #37 deliberately kept — so no break at all.
-  assert.strictEqual((html('col').match(/class="chapbreak"/g) ?? []).length, 0,
+  assert.strictEqual((html('col').match(/class="chapbreak(?: [^"]*)?"/g) ?? []).length, 0,
     'writing draws one chapter, so there is nothing to separate');
   ok('a continuous read separates its chapters and anchors each one (#37 follow-up)');
 }
@@ -3975,7 +3975,7 @@ ok('a voice can be saved to the library, pulled back into any book, and the defa
     assert.match(cold, /id="idea"/, 'and the box is on it, rather than a button that goes to find one');
     // The same id and the same action the create page uses, so there is one spark path and not two.
     assert.match(cold, /data-spark="1"/, 'the gold press sparks from here directly');
-    assert.doesNotMatch(cold, /class="grid"|class="shelfgrid"|dashed/,
+    assert.doesNotMatch(cold, /class="grid(?: [^"]*)?"|class="shelfgrid(?: [^"]*)?"|dashed/,
       'no empty grid and no dashed cells — there is nothing to put in them');
     assert.match(cold, /The model is asleep/, 'a sleeping router is said out loud before the first press');
     assert.match(cold, /Wake the model first/, 'with somewhere to go about it');
@@ -4027,7 +4027,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
   // The first group is open by default, and every other is a heading you press. The banner belongs
   // to the OPEN one, so a banner per book would be the failure this counts.
-  const banners = page.match(/class="lbanner"/g) ?? [];
+  const banners = page.match(/class="lbanner(?: [^"]*)?"/g) ?? [];
   assert.strictEqual(banners.length, 1,
     `one banner, on the book that is open — drew ${banners.length}`);
 
@@ -4036,7 +4036,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   await new Promise((r) => setTimeout(r, 40));
   // #books, not #page: opening a group repaints only that element.
   const opened = html('books');
-  assert.match(opened, /class="lbanner"/, 'the world book gets a banner too');
+  assert.match(opened, /class="lbanner(?: [^"]*)?"/, 'the world book gets a banner too');
   assert.match(opened, />World</, 'tagged as what it is, not as Writing');
   assert.match(opened, /Lore only/, 'and it says there is nothing written in it');
 
@@ -4093,7 +4093,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // The first version sliced the second banner out and asserted no `--doc-wash` in it — the slice
   // came back EMPTY and passed against nothing. Two groups open, one book with a look: the two
   // counts ARE the assertion and neither can go vacuous.
-  const drawn = (opened.match(/class="lbanner"/g) ?? []).length;
+  const drawn = (opened.match(/class="lbanner(?: [^"]*)?"/g) ?? []).length;
   const painted = (opened.match(/--doc-wash/g) ?? []).length;
   assert.strictEqual(drawn, 2, 'both groups are open, so there are two banners to tell apart');
   assert.strictEqual(painted, 1,
@@ -4492,7 +4492,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.ok(anyone > -1, 'Anyone new is the accented button — class "btn", not "btn ghost"');
   assert.ok(saveWrite > -1, 'and Save and write is still there');
   assert.ok(anyone < saveWrite, 'with Anyone new above it');
-  assert.match(beat, /<button class="btn ghost" data-savesetup="1"/,
+  assert.match(beat, /<button class="btn ghost(?: [^"]*)?" data-savesetup="1"/,
     'Save and write gives up the accent — one accent per screen, and it is the way out rather than '
     + 'the way through');
   /* AND A QUEUE FROM FURTHER BACK IS NOT A DEBRIEF. The fallback is the chapter BEFORE this one and
@@ -4554,14 +4554,14 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(css, /\.savebar\s*\{[^}]*top:\s*0/, 'and pinned to the top of the scrolling panel');
   // #sideBody is the scroll container, and it is only that because it carries `.scroll`. Sticky
   // against a non-scrolling ancestor silently does nothing, which is the failure this catches.
-  assert.match(css, /id="sideBody" class="scroll"/,
+  assert.match(css, /id="sideBody" class="scroll(?: [^"]*)?"/,
     '#sideBody must carry .scroll or nothing in the panel can be sticky against it');
 
   for (const [panel, label] of [['story', 'Tale'], ['chapter', 'This scene'], ['teller', 'Storyteller']]) {
     click({ panel });
     await new Promise((r) => setTimeout(r, 40));
     const body = html('sideBody');
-    const bar = body.match(/<div class="savebar">[\s\S]*?<\/div>/)?.[0] ?? '';
+    const bar = body.match(/<div class="savebar(?: [^"]*)?">[\s\S]*?<\/div>/)?.[0] ?? '';
     assert.ok(bar, `the ${label} panel draws a .savebar`);
     assert.match(bar, /data-save(story|gen)="1"/, `and the ${label} panel's Save is inside it`);
     // AT THE TOP, which is the half a class name cannot promise. Measured as a position in the
@@ -4603,7 +4603,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     assert.match(sheet, new RegExp(`\\[data-tab="${g}"\\]\\s*>\\s*\\.sgroup\\[data-group="${g}"\\]`),
       `and app.html brings the ${g} group back — without its rule that tab opens on nothing`);
   }
-  assert.strictEqual((body.match(/class="sgroup"/g) ?? []).length, GROUPS.length,
+  assert.strictEqual((body.match(/class="sgroup(?: [^"]*)?"/g) ?? []).length, GROUPS.length,
     'four groups and no more — a fifth would be drawn and unreachable');
   assert.strictEqual((body.match(/data-chaptab="/g) ?? []).length, GROUPS.length,
     'and one chip per group, or a group has no door');
@@ -4614,9 +4614,9 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // Zero is drawn as NOTHING, not as 0: "Summaries" is a place you can go, "Summaries 0" reads as a
   // counter that broke. The fixture has summaries, so the count must be there.
   const chip = (k: string) => body.match(new RegExp(`data-chaptab="${k}"[\\s\\S]{0,240}?</button>`))?.[0] ?? '';
-  assert.match(chip('summaries'), /class="tnum"/, 'Summaries says how many it holds');
-  assert.match(chip('proposed'), /class="tnum"/, 'and so does Proposed');
-  assert.doesNotMatch(chip('this'), /class="tnum"/,
+  assert.match(chip('summaries'), /class="tnum(?: [^"]*)?"/, 'Summaries says how many it holds');
+  assert.match(chip('proposed'), /class="tnum(?: [^"]*)?"/, 'and so does Proposed');
+  assert.doesNotMatch(chip('this'), /class="tnum(?: [^"]*)?"/,
     'This chapter counts nothing — a count there would be a number with no referent');
 
   // THE SAVE BAR STAYS OUTSIDE THEM. It commits the chapter's name and its two boxes, and those
@@ -4694,7 +4694,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
    *
    * COUNTED INSIDE THE LABEL, because that is where the bug was visible: both marks rendered, both
    * worked, and nothing was broken except the reading. */
-  const lbl = body.match(/<label class="lbl" for="f-story-writingStyle">[\s\S]*?<\/label>/)?.[0] ?? '';
+  const lbl = body.match(/<label class="lbl(?: [^"]*)?" for="f-story-writingStyle">[\s\S]*?<\/label>/)?.[0] ?? '';
   assert.ok(lbl, 'the voice field draws a label');
   assert.strictEqual((lbl.match(/data-tip=/g) ?? []).length, 1,
     'Voice of the weave carries one mark, not one per source of explanation');
@@ -4819,14 +4819,14 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
   // Writing: one chapter's band only.
   const writing = html('col');
-  const bandsWriting = (writing.match(/class="band"/g) ?? []).length;
+  const bandsWriting = (writing.match(/class="band(?: [^"]*)?"/g) ?? []).length;
   assert.strictEqual(bandsWriting, 1, 'writing draws exactly one chapter band');
 
   // Reading: one band per chapter.
   click({ readmode: '1' });
   await new Promise((r) => setTimeout(r, 60));
   const reading = html('col');
-  const bandsReading = (reading.match(/class="band"/g) ?? []).length;
+  const bandsReading = (reading.match(/class="band(?: [^"]*)?"/g) ?? []).length;
   assert.strictEqual(bandsReading, chapters,
     `reading draws a band for every chapter (${bandsReading} of ${chapters})`);
   // And the prose of a chapter that is NOT the one being written has to actually be on the page —
@@ -4847,7 +4847,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // Back to writing, and back to one chapter.
   click({ readmode: '0' });
   await new Promise((r) => setTimeout(r, 60));
-  assert.strictEqual((html('col').match(/class="band"/g) ?? []).length, 1,
+  assert.strictEqual((html('col').match(/class="band(?: [^"]*)?"/g) ?? []).length, 1,
     'leaving reading mode scopes the column back to one chapter');
   ok('reading mode draws every chapter, writing draws one, and only one passage is newest (#37)');
 }
@@ -4868,11 +4868,11 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   await new Promise((r) => setTimeout(r, 60));
   const doc = html('col');
 
-  assert.match(doc, /class="cameback"/, 'an unclaimed passage this page did not watch is marked');
+  assert.match(doc, /class="cameback(?: [^"]*)?"/, 'an unclaimed passage this page did not watch is marked');
   assert.match(doc, /written while you were away/, 'and says what happened in words');
   // EXACTLY ONE. Every other fixture passage omits `claimed`, which an older server also omits, and
   // undefined must read as claimed rather than marking the whole book.
-  assert.strictEqual((doc.match(/class="cameback"/g) ?? []).length, 1,
+  assert.strictEqual((doc.match(/class="cameback(?: [^"]*)?"/g) ?? []).length, 1,
     'and only that one — a missing `claimed` field reads as claimed, not as unclaimed');
   // The prose is THERE, not hidden behind a decision. The row is real; that is the design.
   assert.match(doc, /The bell rang once and nobody came down for it\./,
@@ -5016,7 +5016,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // and the animation is what lost. So the repaint is handed to the veil and runs when it is
   // dismissed. Asserted in both directions, because "it repaints eventually" would pass on the old
   // behaviour and on a veil that never held anything back.
-  assert.match(html('col'), /class="cameback"/,
+  assert.match(html('col'), /class="cameback(?: [^"]*)?"/,
     'the page must NOT be rebuilt while the veil is still up — that is the whole point of holding it');
 
   // Typing is one of the three ways out, and the one this harness can drive: the click stub's
@@ -5025,7 +5025,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   for (let i = 0; i < 40 && /class="cameback"/.test(html('col')); i++) {
     await new Promise((r) => setTimeout(r, 25));
   }
-  assert.doesNotMatch(html('col'), /class="cameback"/,
+  assert.doesNotMatch(html('col'), /class="cameback(?: [^"]*)?"/,
     'a passage this page watched arrive is not marked as having arrived while away');
 
   // ---- AND IT IS SAID OUT LOUD. The fade is the only sign a passage landed and a screen reader

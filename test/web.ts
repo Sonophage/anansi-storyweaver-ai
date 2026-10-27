@@ -546,7 +546,7 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   // `ritual` is the chapter's own screen, opened from the Chapter panel's door and from the row at
   // the top of setup that says what the close found.
   const byClick = { entry: /S\.panel = 'entry'/, history: /S\.panel = 'history'/,
-                    setup: /<button class="btn ghost" data-panel="setup"/,
+                    setup: /<button class="btn ghost(?: [^"]*)?" data-panel="setup"/,
                     ritual: /S\.panel = 'ritual'/,
                     // #25. Its door is a row in the rail's model list, which is why the opener is
                     // `data-modelinfo` and not `data-panel`: the row has to say WHICH model, and a
@@ -577,7 +577,7 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   {
     // #74: on the Workbench deck, as an upkeep card (`upkeepCards`), since upkeep became cards.
     const w = js.slice(js.indexOf('function upkeepCards() {'), js.indexOf('\n}\n', js.indexOf('function upkeepCards() {')));
-    assert.match(w, /<button class="btn" data-unretire="/,
+    assert.match(w, /<button class="btn(?: [^"]*)?" data-unretire="/,
       'a finished thread must be liftable from Waiting, the way a mute is');
     assert.match(w, /retiredAtChapter/, 'and it must read the threshold off the view, not guess');
     ok('a finished thread is listed in Waiting with the press that brings it back');
