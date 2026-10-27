@@ -8659,13 +8659,14 @@ function anchorLive() {
   const read = $('read'), g = INLINE, col = $('col');
   if (!INLINE_ANCHOR || !read || !g) return;
   INLINE_ANCHOR = false;
-  // BELOW THE CHAPTER LINES (Seth, 2026-10-27: "it's hidden behind it"). The chapter meter and the
-  // strip under the header sit above #read, and the strip's ⌄ reaches 14px down into it to be 44px
-  // to the finger, over the prose. The header goes under whichever of them ends lowest.
-  const GAP = 14;
+  // BELOW THE CHAPTER LINES AND THE CONTEXT TOGGLE (Seth, 2026-10-27: "it's hidden behind it", then
+  // "below the toggle for the context so a little lower"). The chapter meter and the context strip
+  // sit above #read, and the strip's ⌄ reaches 14px down into it, open or shut, to be 44px to the
+  // finger. The header goes 24px under whichever of them ends lowest.
+  const GAP = 24;
   const floor = Math.max(read.getBoundingClientRect().top,
     ...['ctxbar', 'ctxread'].map((id) => $(id)).filter((el) => el && !el.hidden && el.offsetParent !== null)
-      .map((el) => el.getBoundingClientRect().bottom + (el.classList.contains('shut') ? 14 : 0)));
+      .map((el) => el.getBoundingClientRect().bottom + (el.id === 'ctxread' ? 14 : 0)));
   if (col) col.style.paddingBottom = '';
   const want = read.scrollTop + g.getBoundingClientRect().top - floor - GAP;
   const short = want - (read.scrollHeight - read.clientHeight);

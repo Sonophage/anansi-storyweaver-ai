@@ -84,7 +84,7 @@ ok(`the words come up out of a blur (${w.blurred} of the ${w.live} on the page)`
 const writing = w.tops.slice(0, -1);
 ok(`  the page does not follow them down while he writes (scroll positions ${JSON.stringify([...new Set(writing)])})`,
    writing.length > 0 && new Set(writing).size === 1);
-ok(`  and the new entry's header is at the top of the page (${w.head}px under it)`, w.head != null && w.head >= 0 && w.head <= 40);
+ok(`  and the new entry's header is at the top of the page (${w.head}px under it)`, w.head != null && w.head >= 0 && w.head <= 70);
 // THE SAME TYPE BEFORE AND AFTER IT LANDS (Seth, 2026-10-26: "The font changes after the transition
 // comes in"). The composer is on Speak, and Anansi's answer lands as narration in the book's font
 // (2026-10-27: it was filed as the speaker's own line, a bubble in the UI sans).
