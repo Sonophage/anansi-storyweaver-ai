@@ -2490,9 +2490,9 @@ function deckCard(c, i, top) {
       <summary><span class="lbl" style="margin:0">${label(p)}</span>
         <span class="deckpeek">${esc(String(p.body ?? '').slice(0, 90))}${String(p.body ?? '').length > 90 ? '&hellip;' : ''}</span></summary>
       ${proposalCard(p)}
-      ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint" style="margin:6px 0 0">It arrives with these pockets:</div>
+      ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint" style="margin:6px 0 0">It arrives with these:</div>
         ${Object.entries(p.rooms).map(([slot, r]) => `<div style="font-size:12px; line-height:1.45; color:var(--mute); margin-top:4px">
-          <span class="lbl" style="margin:0">${esc(pocketTitle(slot))}${r?.name && r.name !== slot ? ` &middot; ${esc(r.name)}` : ''}</span>
+          <span class="lbl" style="margin:0">${slot === 'stands' ? 'Where it stands' : esc(pocketTitle(slot))}${r?.name && r.name !== slot ? ` &middot; ${esc(r.name)}` : ''}</span>
           ${esc(typeof r === 'object' ? r.body ?? '' : String(r))}</div>`).join('')}` : ''}
       <div class="deckredo">
         <input class="field" data-aeask="${esc(p.id)}" placeholder="What should change? (or leave it empty)"

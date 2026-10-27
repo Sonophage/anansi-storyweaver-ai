@@ -840,6 +840,7 @@ ok('the house style is written from the genre and the premise, and never from th
   db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'Ilse poled the ferry in silence, her coat buttoned to the throat.' });
   found = [{ title: 'Ilse', type: 'character', keys: ['Ilse'], activation: 'triggered', field: 'none',
     body: '[Ilse: the ferrywoman at Sallow crossing]',
+    stands: '[Ilse: has taken the stranger across without asking his name]',
     pockets: [{ slot: 'voice', name: 'How she talks', body: 'Hardly at all; one word where three would do.' },
               { slot: 'outfit', name: 'The ferry coat', body: 'A long oilcloth coat, buttoned to the throat.' },
               { slot: 'atmosphere', name: 'x', body: 'A person has no atmosphere pocket, so this one is dropped.' }] }];
@@ -849,12 +850,14 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.match(asked.system + asked.user, /every pocket its kind can have/i, 'FLESH-ASKED: the finder is asked to fill every pocket the scene supports');
   const p: any = (db.proposalsOf(t.id) as any[]).find((x) => x.title === 'Ilse');
   const rooms = JSON.parse(p?.rooms || '{}');
-  assert.deepStrictEqual(Object.keys(rooms).sort(), ['outfit', 'voice'], 'FLESH-NEW: a new thread arrives with the pockets its kind can have');
+  assert.deepStrictEqual(Object.keys(rooms).filter((k) => k !== 'stands').sort(), ['outfit', 'voice'], 'FLESH-NEW: a new thread arrives with the pockets its kind can have');
   await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
   const ilse: any = db.entriesOf(t.id).find((e: any) => e.title === 'Ilse');
   const mine = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === ilse.id);
   assert.deepStrictEqual(mine.map((a) => a.slot).sort(), ['facts', 'outfit', 'voice'], 'FLESH-SEWN: sewn in, it has Always true and both pockets');
   assert.ok(mine.find((a) => a.slot === 'voice')?.active, '  and its pockets are on');
+  assert.match(ilse.body, /taken the stranger across/, 'FLESH-STANDS: and where it stands is its first Over time entry');
+  assert.ok(!/taken the stranger/.test(mine.find((a) => a.slot === 'facts')?.body ?? ''), '  and not in its Always true');
   assert.match(prompts.MEMORY, /pocket\s+it does not have yet/i, 'FLESH-HEM: the hem pass is told to start the pockets a thread lacks');
   ok('a new thread from the scene arrives fully fleshed, and hem fleshes out what it names');
 }

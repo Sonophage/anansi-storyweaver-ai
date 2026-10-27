@@ -91,8 +91,10 @@ export const EXTRACT_SCHEMA = {
             name: { type: 'string' },
             body: { type: 'string' },
           }, required: ['slot', 'name', 'body'] } },
+          // A NEW thread's first Over time entry: where it stands at the end of the chapter, or "".
+          stands: { type: 'string' },
         },
-        required: ['title', 'type', 'body', 'keys', 'activation', 'field', 'pockets'],
+        required: ['title', 'type', 'body', 'keys', 'activation', 'field', 'pockets', 'stands'],
       },
     },
   },
@@ -501,12 +503,25 @@ it is not wanted — that is a decision, not an omission.
   item       an object that matters
   rule       a law of this world, or of this story, that holds until it is broken
 
-Each entry is a name, its kind, and a body of forty to eighty words written to be READ BY A MODEL
-on every call: dense and specific. What it looks like in a way that shows on the page, what it
-wants or what it does, what it costs, what it will not do, and how it stands towards at least one
-of the others. Facts, not atmosphere — "a mysterious past" is nothing; "struck off the register in
-'09 and still signs the forms" is something. Never a finished sentence of the book: it will be in
-the prompt while the book is written, and a phrase that reads as prose gets lifted whole.
+Each entry is a name, its kind, a body and its pockets, written to be READ BY A MODEL on every
+call: dense and specific.
+
+The body is its Always true, twenty to forty words: who or what it is for the whole story, what it
+wants or does, what it costs, and how it stands towards at least one of the others. Never its looks,
+its clothes or its voice: those are pockets. Facts, not atmosphere — "a mysterious past" is nothing;
+"struck off the register in '09 and still signs the forms" is something. Never a finished sentence
+of the book: it will be in the prompt while the book is written, and a phrase that reads as prose
+gets lifted whole.
+
+The pockets are every pocket its kind can have, each with a short title of its own:
+
+    character  appearance, voice, interiority, relationships, outfit
+    place      appearance, atmosphere, who_is_here
+    lore       appearance, atmosphere, who_is_here
+    item       appearance, what_it_does
+    rule       consequences
+
+${POCKET_FORM}
 
 ${LEDGER_REGISTER}
 
@@ -781,8 +796,16 @@ export const castSchema = (kinds: string[]) => ({
           // No maxLength, per F25: the converter honours it and closes the string mid-word with
           // the JSON still valid, so a body ending "and she signs the" would look finished.
           body: { type: 'string' },
+          // FULLY FLESHED FROM THE START: its pockets, as instructions. The route keeps only the
+          // ones the entry's kind can have.
+          pockets: { type: 'array', items: { type: 'object', properties: {
+            slot: { type: 'string', enum: ['appearance', 'atmosphere', 'consequences', 'interiority',
+                    'outfit', 'relationships', 'voice', 'what_it_does', 'who_is_here'] },
+            name: { type: 'string' },
+            body: { type: 'string' },
+          }, required: ['slot', 'name', 'body'] } },
         },
-        required: ['name', 'kind', 'body'],
+        required: ['name', 'kind', 'body', 'pockets'],
       },
     },
     persona: { type: 'string' },
@@ -1077,6 +1100,10 @@ short title of its own ("Jersey snap", "With Seth"), never the slot's word:
 
 Leave out a pocket the chapter says nothing for rather than invent it. For a thread that already
 exists, pockets is empty: use field, as above.
+
+And stands, for a NEW thread: where it stands at the end of this chapter, what has happened to it
+and what is at stake, in one bracket. Never who it is, never looks or clothes. "" when the chapter
+does not say, and always "" for a thread that already exists.
 
 ${POCKET_FORM}
 

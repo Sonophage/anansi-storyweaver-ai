@@ -77,7 +77,9 @@ const srv = createServer((req, res) => {
         ],
       }
       : asksForCast ? { entries: [
-        { name: 'Vel', kind: 'character', body: 'Speaks for the dead god. Owes nothing and says so.' },
+        { name: 'Vel', kind: 'character', body: 'Speaks for the dead god. Owes nothing and says so.',
+          pockets: [{ slot: 'voice', name: 'The Murmur', body: 'Write her lines short and flat; she never asks a question.' },
+                    { slot: 'atmosphere', name: 'x', body: 'A person has no atmosphere pocket, so this is dropped.' }] },
         { name: 'The Long Stair', kind: 'lore', body: 'A stair with no landing, cut into the rock.' },
         // A kind nobody asked for. The grammar makes this unreachable from a real model; the route
         // drops it anyway, and this is what proves the belt exists as well as the braces.
@@ -475,6 +477,16 @@ ok('a kind that does not exist is refused rather than assembled');
     ['character', 'lore'], 'and the schema says so where the grammar can read it');
   assert.match(r.entries[0].body, /^\[Vel: /, 'bodies arrive in the bracket format the ledger uses');
   assert.deepStrictEqual(r.entries[0].keys, ['Vel'], 'and fire on their own name');
+  // FULLY FLESHED FROM THE START (Seth, 2026-10-26): the cast arrives with its pockets, as
+  // instructions, and only the ones its kind can have.
+  assert.deepStrictEqual(Object.keys(r.entries[0].rooms ?? {}), ['voice'], 'CAST-POCKETS: a cast thread arrives with its pockets, its kind\'s only');
+  assert.match(r.entries[0].rooms.voice.body, /^Write her lines/, '  each one an instruction');
+  assert.match(CAST, /STARTS WITH A VERB/, '  because the cast is asked for them in the instruction form');
+  const tale: any = routes['POST /api/stories']({ body: { title: 'Cast Pockets', premise: PREMISE, entries: r.entries },
+    query: new URLSearchParams(), owner: me } as any);
+  const vel: any = db.entriesOf(tale.id).find((e: any) => e.title === 'Vel');
+  const voice: any = (db.addonsOf(tale.id) as any[]).find((a) => a.entry_id === vel?.id && a.slot === 'voice');
+  assert.ok(voice?.active, 'CAST-ON: made into a tale, its pockets are written and on, so they reach the model');
 
   // A NAME THAT IS NOT IN THE CAST POINTS THE BYLINE AT NOBODY. The fake names one on purpose.
   assert.strictEqual(r.persona, 'Vel', 'a persona that IS in the cast is carried');

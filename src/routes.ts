@@ -547,11 +547,13 @@ const INVENT_TOKENS = 2000;
  *  room for the model to be generous where it was asked to be. */
 // #21 §2. Was 3,400 for one object carrying the book AND its cast. Two objects now, each asked
 // for on its own: the scaffold is prose-heavy (a premise of eight to twelve sentences, a setting of
-// four to eight, a voice of a hundred words) and the cast is up to eight bodies of forty to eighty.
-// Smaller objects are the point — F25 measured what a truncated one costs, and it is the largest
-// that truncates.
+// four to eight, a voice of a hundred words) and the cast is up to eight bodies of twenty to forty,
+// each with up to five pockets (2026-10-26). Smaller objects are the point — F25 measured what a
+// truncated one costs, and it is the largest that truncates.
+// ponytail: 5,000 for the cast is an estimate (8 × (40 + 5 × 45) words), not measured on a full
+// cast; if a cast comes back cut off, measure one and size it.
 const SPARK_TOKENS = 2200;
-const CAST_TOKENS = 2000;
+const CAST_TOKENS = 5000;
 const REVIEW_TOKENS = 1600;
 
 /** Every changed character's WHOLE description, in one answer. A state replaces the body rather than
@@ -1134,6 +1136,8 @@ async function extract(c: Ctx, storyId: string, chapterId?: string) {
       if (slot !== 'facts' && kinds.includes(slot) && body && !rooms[slot])
         rooms[slot] = { name: String(pk?.name ?? '').trim() || slot, body };
     }
+    // AND WHERE IT STANDS, its first Over time entry, riding as `stands` (not a pocket) to the accept.
+    if (!cls.entry_id && String(e.stands ?? '').trim()) rooms.stands = { body: String(e.stands).trim() };
     if (db.addProposal(v.id, { ...cls, chapterId: ch.id, title: e.title.trim(),
       body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
       activation: e.activation, field: cls.entry_id ? field : 'facts', target,
@@ -1953,6 +1957,11 @@ export const routes: Record<string, Handler> = {
       const id = db.upsertEntry(made.id, c.owner, moveToFacts ? { ...e, body: '' } : e);
       const rooms = moveToFacts ? { ...(e.rooms ?? {}), facts: { body } } : e.rooms;
       if (id && rooms) roomNotes.push(...writeRooms(made.id, id, e.entryType ?? 'character', rooms, e.title).notes);
+      // A ROOM MARKED `on` IS SWITCHED ON: the new tale's cast (POST /api/spark/cast) marks the
+      // pockets it wrote, because a pocket with no wake words that is off never reaches the model.
+      // A pasted or imported card's rooms stay as they came; the writer turns those on.
+      if (id && rooms) for (const a of db.addonsOf(made.id) as any[])
+        if (a.entry_id === id && !a.active && rooms[a.slot]?.on) db.setAddonActive(made.id, a.id, true);
     }
     // AFTER the cast exists, because the persona names one of them and the wizard lets you choose
     // it a step before they are written. A name the model PROPOSED and that did not survive an edit
@@ -2138,8 +2147,18 @@ export const routes: Record<string, Handler> = {
     // braces, and it costs one comparison.
     const entries = (r.data.entries as any[])
       .filter((e) => e?.name?.trim() && e?.body?.trim() && kinds.includes(e.kind))
-      .map((e) => ({ title: e.name.trim(), entryType: e.kind, activation: 'always_on',
-                     body: `[${e.name.trim()}: ${e.body.trim()}]`, keys: [e.name.trim()] }));
+      .map((e) => {
+        // ITS POCKETS RIDE AS ROOMS, which POST /api/stories writes (`writeRooms`) as the tale is made.
+        const kinds = slotsFor(e.kind).map((sl) => sl.name), rooms: Record<string, any> = {};
+        for (const pk of (Array.isArray(e.pockets) ? e.pockets : []) as any[]) {
+          const slot = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
+          if (slot !== 'facts' && kinds.includes(slot) && body && !rooms[slot])
+            rooms[slot] = { name: String(pk?.name ?? '').trim() || slot, body, on: true };
+        }
+        return { title: e.name.trim(), entryType: e.kind, activation: 'always_on',
+                 body: `[${e.name.trim()}: ${e.body.trim()}]`, keys: [e.name.trim()],
+                 ...(Object.keys(rooms).length ? { rooms } : {}) };
+      });
     if (!entries.length) return { error: 'nothing came back in the kinds you asked for' };
     // Proposals, not decisions, and only ever a name that is in the cast this call produced —
     // POST /api/stories checks them again against what actually gets created.
@@ -4054,7 +4073,12 @@ export const routes: Record<string, Handler> = {
         if (made && asAlways) db.upsertAddon(p.story_id, made, { slot: 'facts', name: 'facts', body: String(c.body.body ?? p.body) });
         if (made && p.rooms) {
           try {
-            writeRooms(p.story_id, made, p.entry_type, JSON.parse(p.rooms), p.title);
+            // A NEW THREAD'S FIRST OVER TIME ENTRY (#73): where the scene left it. The thread's own
+            // text is Over time from its start, and it did not exist before this scene.
+            const rooms = JSON.parse(p.rooms);
+            if (asAlways && String(rooms?.stands?.body ?? '').trim()) db.appendInfo(p.story_id, made, String(rooms.stands.body));
+            delete rooms?.stands;
+            writeRooms(p.story_id, made, p.entry_type, rooms, p.title);
             /* AND THEY REACH THE MODEL. `writeRooms` does not switch a room on — the forge's paste
              * does not need it to, because a pasted card is written by hand and the writer turns
              * its rooms on themselves. A pulled card's rooms arrive with no trigger words, and the
