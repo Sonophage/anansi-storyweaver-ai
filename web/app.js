@@ -2477,7 +2477,10 @@ function deckCard(c, i, top) {
  *  in the same deck as the Workbench (one renderer), and whatever is not decided stays there. */
 function deckHTML(only = null) {
   const cards = deckCards(only);
-  if (!cards.length) return '';
+  // THE LAST CARD REJECTED STILL HAS ITS UNDO, or rejecting the last thing on the deck could not be
+  // taken back at all.
+  if (!cards.length) return S.deckUndo ? `<div class="deck" data-deck><div class="deckhead"><span>Nothing left to decide</span>
+    <button data-deckundo="1" class="tag" style="cursor:pointer; margin-left:auto">Undo</button></div></div>` : '';
   const top = Math.min(Math.max(0, S.deckAt ?? 0), cards.length - 1);
   return `<div class="deck" data-deck>
     <div class="deckhead"><span>${cards.length} to decide</span>
@@ -12681,27 +12684,43 @@ document.addEventListener('contextmenu', (e) => {
  * right or left button; short of it the card goes back. Not from a field or a button, where a drag
  * is somebody selecting text or pressing. The lean is a transform, dropped under reduced motion. */
 {
-  let drag = null;
+  // FROM ANYWHERE ON THE CARD BUT A FIELD (Seth, 2026-10-26: "I thought it was gonna be swipe
+  // actions?"). The first cut would not start on a button or a section's heading, and on a phone a
+  // card is almost all of those, so there was nowhere left to swipe from. A drag past 10px is a
+  // swipe and swallows the click it ends on; anything shorter is a tap and does what a tap does.
+  let drag = null, swallow = false;
   document.addEventListener('pointerdown', (e) => {
     const card = e.target.closest?.('.deckcard:not([hidden])');
-    if (!card || e.target.closest('input, textarea, select, button, summary, a')) return;
-    drag = { card, x: e.clientX, dx: 0 };
+    if (!card || e.target.closest('input, textarea, select, [contenteditable]')) return;
+    drag = { card, x: e.clientX, y: e.clientY, dx: 0, moved: false };
   });
   document.addEventListener('pointermove', (e) => {
     if (!drag) return;
     drag.dx = e.clientX - drag.x;
+    // A mostly vertical move is the page scrolling, and is left alone.
+    if (!drag.moved && Math.abs(e.clientY - drag.y) > Math.abs(drag.dx)) { if (Math.abs(e.clientY - drag.y) > 10) drag = null; return; }
+    if (Math.abs(drag.dx) > 10) drag.moved = true;
+    if (!drag.moved) return;
     if (!still()) drag.card.style.transform = `translateX(${drag.dx}px) rotate(${drag.dx / 40}deg)`;
     drag.card.dataset.lean = drag.dx > 40 ? 'right' : drag.dx < -40 ? 'left' : '';
   });
   const end = () => {
     if (!drag) return;
-    const { card, dx } = drag; drag = null;
+    const { card, dx, moved } = drag; drag = null;
     card.style.transform = ''; card.dataset.lean = '';
-    if (Math.abs(dx) > card.getBoundingClientRect().width / 3)
+    if (!moved) return;
+    swallow = true; setTimeout(() => { swallow = false; }, 400);
+    if (Math.abs(dx) > Math.min(120, card.getBoundingClientRect().width / 4))
       card.querySelector(dx > 0 ? '[data-deckright]' : '[data-deckleft]')?.click();
   };
   document.addEventListener('pointerup', end);
-  document.addEventListener('pointercancel', end);
+  document.addEventListener('pointercancel', () => { if (drag) { drag.card.style.transform = ''; drag.card.dataset.lean = ''; } drag = null; });
+  // THE CLICK A SWIPE ENDS ON IS NOT A PRESS. The browser fires it after pointerup, on whatever the
+  // finger lifted over; caught here in the capture phase before any handler sees it. The swipe's
+  // own press in `end` is a script click (not trusted), so it is not the one swallowed.
+  document.addEventListener('click', (e) => {
+    if (swallow && e.isTrusted && e.target.closest?.('.deckcard')) { e.stopPropagation(); e.preventDefault(); swallow = false; }
+  }, true);
 }
 
 /* #71 · A TAP ON THE PROSE FOLDS THE BOX. With the box up the bar is hidden, and the page above it is

@@ -4014,8 +4014,11 @@ export const routes: Record<string, Handler> = {
           const f = r?.facts && typeof r.facts === 'object' ? r.facts.body : r?.facts;
           if (r && String(f ?? '').trim()) { lockToOverTime(p, String(f)); delete r.facts; p.rooms = JSON.stringify(r); }
         }
-        // #73. A new thread chalked with its text as Always true is made with that, and no Info.
-        const asAlways = !p.entry_id && p.field === 'facts';
+        // #73. A NEW THREAD'S TEXT IS WHO OR WHAT IT IS: made with it as Always true, and no Info —
+        // from any finder (the scene, Talk, Make a thread of this, Write one for me). Not a pulled
+        // card that brought an Always true of its own in its rooms: its text is then where it stands.
+        const pulledAlways = (() => { try { return !!JSON.parse(p.rooms || '{}')?.facts; } catch { return false; } })();
+        const asAlways = !p.entry_id && (p.field === 'facts' || (!p.field && !pulledAlways));
         const made = db.upsertEntry(p.story_id, c.owner, { id: p.entry_id || undefined, title: p.title,
           body: asAlways ? '' : (c.body.body ?? p.body), entryType: p.entry_type,
           // PLAN-08 Phase 2. The proposal can carry an activation now, and this honours it for

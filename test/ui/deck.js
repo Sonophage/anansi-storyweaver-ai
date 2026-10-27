@@ -41,4 +41,26 @@ ok("the right arrow sews the top card in", !v.proposals.some((p) => p.id === rai
 ok("  as a new thread whose text is its Always true",
    /gutters have given up/.test(v.entries.find((e) => e.title === 'The Vantic Rain')?.addons?.find((a) => a.slot === 'facts')?.body ?? ''));
 
+// ---- a swipe, from the card itself, which on a phone is most of what there is to touch. A string
+// is chalked first, so the deck has a card on it whatever the steps above left.
+await page.eval(`(async () => { await fetch('/api/string', { method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ storyId: ${JSON.stringify(sid)}, string: { title: 'The debt nobody has called in', body: 'Owed since the spring.' } }) }); return 1; })()`);
+await page.goto(B + "/#" + sid + "/waiting");
+await until("!!document.querySelector('.deckcard:not([hidden])')");
+const before = (await view(sid)).proposals.length + (await view(sid)).violations.length + (await view(sid)).strings.filter((x) => x.status === 'open').length;
+const swiped = await page.eval(`(async () => {
+  const card = document.querySelector('.deckcard:not([hidden])');
+  const from = card.querySelector('summary, .decktitle') ?? card;
+  const r = from.getBoundingClientRect(), y = r.top + r.height / 2, x0 = r.left + 20;
+  const ev = (type, x) => from.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerType: 'touch', isPrimary: true }));
+  ev('pointerdown', x0);
+  for (let i = 1; i <= 8; i++) ev('pointermove', x0 - i * 30);
+  const lean = card.dataset.lean;
+  ev('pointerup', x0 - 240);
+  return lean; })()`);
+await wait(1200);
+const after = (await view(sid)).proposals.length + (await view(sid)).violations.length + (await view(sid)).strings.filter((x) => x.status === 'open').length;
+ok(`a swipe left from a section's heading leans the card and says no (lean ${swiped}, ${before} -> ${after} waiting)`,
+   swiped === 'left' && after === before - 1);
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");

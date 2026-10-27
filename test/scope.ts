@@ -2052,16 +2052,19 @@ async function bootServer(port: number, env: Record<string, string>) {
   const rooms = (db.addonsOf(st.id) as any[]).filter((a) => a.entry_id === card.id);
   // #77. HISTORY IS NOT A POCKET ANY MORE: it is what has happened to the thread, so it arrives
   // folded into Over time (the thread's own text, from scene 1) under its label (ADR 0005).
-  assert.deepStrictEqual(rooms.map((a) => a.slot).sort(), ['appearance'],
-    'and the room it arrived with; history is not a room');
-  assert.match(card.body, /\[Ferrus Manus: Primarch of the Iron Hands\]\n\[History: Raised on Medusa, later known as the Headless\]$/,
+  // #73: and a new thread's own text is its Always true, so Info starts as the history alone.
+  assert.deepStrictEqual(rooms.map((a) => a.slot).sort(), ['appearance', 'facts'],
+    'and the room it arrived with, plus its text as Always true; history is not a room');
+  assert.strictEqual(rooms.find((a) => a.slot === 'facts').body, '[Ferrus Manus: Primarch of the Iron Hands]',
+    'NEW-ALWAYS: a new thread\'s text is its Always true');
+  assert.match(card.body, /^\[History: Raised on Medusa, later known as the Headless\]$/,
     'FOLD-PULLED: a pulled card\'s history lands in Over time under its label');
   assert.match(rooms.find((a) => a.slot === 'appearance').body, /living metal/,
     'with the text the pull found');
   // AND SWITCHED ON. A room with no trigger words that nobody pinned reaches no prompt at all —
   // the room-proposal branch beside this one says so in as many words. A pulled room has no keys,
   // so without this it would sit on the card looking filled in and be invisible to every call.
-  assert.deepStrictEqual(rooms.map((a) => !!a.active), [true],
+  assert.deepStrictEqual(rooms.map((a) => !!a.active), [true, true],
     'and it is on, or the card looks filled in and reaches the model with none of it');
   // #77 · THE LOCK. A chalked change to Always true of a thread that ALREADY EXISTS and HAS one is sewn
   // in as an Over time entry from its scene, carrying forward where the thread stood; Always true is
@@ -2070,17 +2073,16 @@ async function bootServer(port: number, env: Record<string, string>) {
     title: 'Ferrus Manus', body: '[Ferrus Manus: Primarch of the X Legion]', field: 'facts', keys: [], delta: 'who he is' });
   const fill: any = db.proposalsOf(st.id).find((x: any) => x.field === 'facts' && x.status === 'open');
   await routes['POST /api/proposal'](ctxI(alice, { storyId: st.id, id: fill.id, accept: true }));
-  assert.strictEqual((db.addonsOf(st.id) as any[]).find((a) => a.entry_id === card.id && a.slot === 'facts')?.body,
-    '[Ferrus Manus: Primarch of the X Legion]', 'FILL-EMPTY: an empty Always true is filled by the chalked offer');
+  // (An empty Always true is filled by a chalked offer: test/memory.ts FILL-EMPTY. Ferrus has one.)
   db.addProposal(st.id, { chapterId: chapter, kind: 'update', entryType: 'character', entry_id: card.id,
     title: 'Ferrus Manus', body: '[left-handed]', field: 'facts', keys: [], delta: 'left-handed' });
   const lock: any = db.proposalsOf(st.id).find((x: any) => x.field === 'facts' && x.status === 'open');
   await routes['POST /api/proposal'](ctxI(alice, { storyId: st.id, id: lock.id, accept: true }));
   const after = (db.addonsOf(st.id) as any[]).find((a) => a.entry_id === card.id && a.slot === 'facts');
-  assert.strictEqual(after?.body, '[Ferrus Manus: Primarch of the X Legion]', 'LOCK-UNTOUCHED: a second chalked change does not rewrite it');
+  assert.strictEqual(after?.body, '[Ferrus Manus: Primarch of the Iron Hands]', 'LOCK-UNTOUCHED: a chalked change does not rewrite it');
   const st8: any[] = db.statesForStory(st.id).get(card.id) ?? [];
   assert.strictEqual(st8.length, 1, 'LOCK-OVER-TIME: it is an Over time entry instead');
-  assert.match(st8[0].body, /Primarch of the Iron Hands[\s\S]*left-handed/,
+  assert.match(st8[0].body, /Raised on Medusa[\s\S]*left-handed/,
     '  carrying forward where the thread stood, with the change after it');
   assert.strictEqual(st8[0].label, 'left-handed', '  labelled with what changed');
   // AND THE SAME LOCK FOR A PULLED CARD that lands on a thread that exists: Look it up online can

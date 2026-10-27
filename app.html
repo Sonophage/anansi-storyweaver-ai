@@ -2067,7 +2067,13 @@ html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
 .deckhead { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--mute); }
 .deckhead button { min-width:32px; min-height:32px; color:var(--mute); }
 .deckhead button:disabled { opacity:.35; }
-.deckcard { gap:9px; touch-action:pan-y; transition:transform .18s var(--ease); user-select:none; }
+.deckcard, .deckcard summary, .deckcard button { touch-action:pan-y; }
+.deckcard { gap:9px; transition:transform .18s var(--ease); user-select:none; position:relative; }
+/* What the swipe will do, said on the card as it leans that way. */
+.deckcard[data-lean]::after { position:absolute; top:12px; font-size:11px; letter-spacing:.14em;
+  text-transform:uppercase; padding:4px 9px; border-radius:var(--r-pill); pointer-events:none; }
+.deckcard[data-lean="right"]::after { content:'Yes'; right:12px; color:var(--on-gold); background:var(--gold); }
+.deckcard[data-lean="left"]::after { content:'No'; left:12px; color:var(--warn); border:1px solid var(--warn); }
 .deckcard[hidden] { display:none; }
 .deckcard[data-lean="right"] { border-color:var(--gold); }
 .deckcard[data-lean="left"] { border-color:var(--warn); }
