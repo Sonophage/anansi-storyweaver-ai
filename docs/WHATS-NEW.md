@@ -24,7 +24,8 @@ has in the Library, and its page opens under the same banner.
 When Anansi finishes a passage, it no longer fades out and back in: it stays as it was written.
 When you press, the new passage's label (Continue, Speak, Direct) moves to the top of the page,
 just under the header, and Anansi writes down from there. You do not have to scroll to start
-reading; whatever runs past the bottom of the screen is there when you scroll down.
+reading; whatever runs past the bottom of the screen is there when you scroll down. The label sits
+below the chapter lines, and the space kept for it goes when you delete a passage.
 
 ### Anansi's answer to your line is set as his, in your font
 In Speak, Anansi's answer to what your character said was filed as your character's own speech:
@@ -44,8 +45,7 @@ Anansi and the model.
 
 ### A thread's menu is shorter, and Tidy has its own button
 Open a thread and Tidy this thread is now an icon at the top, beside the menu button, which shows
-sliders instead of three dots. The menu opens with only Alter showing; the rest sit under Look
-closer, With the tale, and Retire or delete, folded until you open one.
+sliders instead of three dots. Everything else is one list in that menu, with no folds inside it.
 
 ### Passages you ordered count as yours when you play a character
 In a tale where you play someone, a passage Anansi wrote to your order is now marked as yours when

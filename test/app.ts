@@ -3405,7 +3405,7 @@ ok('a card face reads body, then what is on, then what is not — and finishing 
 }
 ok("the tale's own thread is a banner in the list and on its page");
 
-// ---- THE THREAD'S MENU, FOLDED, AND TIDY AS AN ICON BESIDE IT (Seth, 2026-10-27).
+// ---- THE THREAD'S MENU, ONE FLAT LIST, AND TIDY AS AN ICON BESIDE IT (Seth, 2026-10-27).
 {
   click({ entry: 'e-1' });
   const head = html('sideHead');
@@ -3415,15 +3415,11 @@ ok("the tale's own thread is a banner in the list and on its page");
   const menu = html('sideBody');
   assert.doesNotMatch(menu, /class="readrow"[^>]*data-tidy|data-tidy="e-1" class="readrow"/, 'Tidy is not in the menu');
   assert.match(menu, /data-cardview="form" class="readrow"/, 'Alter stays in sight');
-  assert.strictEqual((menu.match(/<details class="readfold"\s+>/g) ?? []).length, 3, 'and the three folds start shut');
-  click({ fold: 'rmEnd' });
-  assert.match(html('sideBody'), /<details class="readfold" open>\s*<summary class="readrow" data-fold="rmEnd"/, 'a fold opens');
-  click({ readmenu: '1' }); click({ readmenu: '1' });
-  assert.strictEqual((html('sideBody').match(/<details class="readfold"\s+>/g) ?? []).length, 3,
-    'and opening the menu again shuts it');
+  assert.doesNotMatch(menu, /<details/, 'and no folds inside it: the menu is the one toggle (Seth, 2026-10-27)');
+  assert.match(menu, /data-delentry="1" class="readrow danger"/, 'every row in one list, Delete last');
   click({ readmenu: '1' });
 }
-ok("the thread's menu opens folded, and Tidy is an icon beside it");
+ok("the thread's menu is one flat list, and Tidy is an icon beside it");
 
 // ---- POLISH PASS, 2026-09-01 · WHAT IS ON AND WHERE YOU ARE, SAID AND NOT ONLY COLOURED.
 //

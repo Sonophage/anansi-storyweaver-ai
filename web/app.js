@@ -1729,8 +1729,11 @@ function drawDoc() {
   // 'instant': #read has scroll-behavior:smooth, so assigning scrollTop GLIDES, and a glide still
   // running when Anansi's first word lands is the page moving under the words (Seth, 2026-10-26).
   else if (tip && !(grew && pinTo(DREW.newest))) read.scrollTo({ top: read.scrollHeight, behavior: 'instant' });
-  if (DREW && DREW.chapter !== ch.id) col.style.paddingBottom = '';   // anchorLive's room is per chapter
-  DREW = { chapter: ch.id, newest: newestId };
+  // anchorLive's room is per chapter, and goes when anything is deleted (Seth, 2026-10-27: "if
+  // something is deleted it should get rid of the empty space").
+  const drawnNow = (V.passages ?? []).length;
+  if (DREW && (DREW.chapter !== ch.id || drawnNow < DREW.count)) col.style.paddingBottom = '';
+  DREW = { chapter: ch.id, newest: newestId, count: drawnNow };
 
   // THE RUNNING HEAD IS GONE, 2026-08-27. It opened on scroll, moved the prose down to make room
   // for itself, and by then said only the chapter's name — everything else in it had moved to the
@@ -6285,28 +6288,22 @@ function readMenu(e) {
   const say = (label, note = '') => `${label}${note ? `<span class="readnote">${note}</span>` : ''}`;
   const edges = (V.edges ?? []).filter((x) => x.parentId === e.id).length;
   const states = (e.states ?? []).length;
-  // FOLDED, EVERY TIME IT OPENS (Seth, 2026-10-27: the menu items "should be collapsed by default").
-  // Alter stays in sight; the rest sit under three names, and opening the menu shuts them again
-  // (the readmenu handler clears their S.folds). The same <details> and data-fold as foldSection.
-  const group = (name, label, rows) => `<details class="readfold" ${S.folds?.[name] ? 'open' : ''}>
-    <summary class="readrow" data-fold="${name}">${say(label)}</summary>${rows}</details>`;
+  // ONE LIST, NO FOLDS INSIDE IT. Folds under the menu were toggles within a toggle (Seth,
+  // 2026-10-27); the menu itself is what is shut until pressed. Tidy is the header icon beside it.
   return `<div class="readmenu" role="menu" aria-label="More for ${esc(e.title)}">
     <button data-cardview="form" class="readrow">${say('Alter this thread')}</button>
-    ${group('rmLook', 'Look closer', `
     <button data-readgo="time" class="readrow">${say('Over time', states ? `${states}` : '')}</button>
     <button data-readgo="edges" class="readrow">${say('Stitched together', edges ? `${edges}` : '')}</button>
+    <button data-readgo="copy" class="readrow">${say('Copy to another tale')}</button>
     <button data-readgo="history" class="readrow">${say('Earlier versions')}</button>
-    <button data-readgo="json" class="readrow">${say('This thread as JSON')}</button>`)}
-    ${group('rmTale', 'With the tale', `
+    <button data-readgo="json" class="readrow">${say('This thread as JSON')}</button>
     <button data-scanstory="${esc(e.id)}" class="readrow" ${S.scanning ? 'disabled' : ''}>${
       say(S.scanning === e.id ? 'Reading the tale&hellip;' : 'Read the whole tale for this thread')}</button>
-    <button data-readgo="copy" class="readrow">${say('Copy to another tale')}</button>`)}
-    ${group('rmEnd', 'Retire or delete', `
     ${e.retiredAtChapter == null
       ? `<button data-retire="${esc(e.id)}" class="readrow">${say('Retire this thread')}</button>`
       : `<button data-unretire="${esc(e.id)}" class="readrow">${
         say('Bring it back', `retired at scene ${esc(String(e.retiredAtChapter))}`)}</button>`}
-    <button data-delentry="1" class="readrow danger">${say('Delete this thread')}</button>`)}
+    <button data-delentry="1" class="readrow danger">${say('Delete this thread')}</button>
   </div>`;
 }
 
@@ -8604,9 +8601,15 @@ function anchorLive() {
   const read = $('read'), g = INLINE, col = $('col');
   if (!INLINE_ANCHOR || !read || !g) return;
   INLINE_ANCHOR = false;
-  const GAP = 12;
+  // BELOW THE CHAPTER LINES (Seth, 2026-10-27: "it's hidden behind it"). The chapter meter and the
+  // strip under the header sit above #read, and the strip's ⌄ reaches 14px down into it to be 44px
+  // to the finger, over the prose. The header goes under whichever of them ends lowest.
+  const GAP = 14;
+  const floor = Math.max(read.getBoundingClientRect().top,
+    ...['ctxbar', 'ctxread'].map((id) => $(id)).filter((el) => el && !el.hidden && el.offsetParent !== null)
+      .map((el) => el.getBoundingClientRect().bottom + (el.classList.contains('shut') ? 14 : 0)));
   if (col) col.style.paddingBottom = '';
-  const want = read.scrollTop + g.getBoundingClientRect().top - read.getBoundingClientRect().top - GAP;
+  const want = read.scrollTop + g.getBoundingClientRect().top - floor - GAP;
   const short = want - (read.scrollHeight - read.clientHeight);
   if (col && short > 0) col.style.paddingBottom = `${20 + Math.ceil(short)}px`;
   // 'instant', not 'auto': #read has scroll-behavior:smooth, which 'auto' would honour, and a page
@@ -10269,9 +10272,7 @@ document.addEventListener('click', async (e) => {
     redrawKeyChips(); $('f-card-keys')?.focus({ preventScroll: true }); return;
   }
   // THE READ SCREEN'S ⋯ (v2 redesign). Open and shut by the same press, by Back and by Esc.
-  if (d.readmenu) { S.readMenu = !S.readMenu;
-    if (S.readMenu) S.folds = { ...S.folds, rmLook: false, rmTale: false, rmEnd: false };
-    paint(); return; }
+  if (d.readmenu) { S.readMenu = !S.readMenu; paint(); return; }
   // A ROW UNDER ⋯ THAT NEEDS TYPING opens the form on the tab that holds it, with its section
   // unfolded and on screen. Earlier versions are fetched on the way, which is what the form's own
   // button does; everything else is already in the view.
