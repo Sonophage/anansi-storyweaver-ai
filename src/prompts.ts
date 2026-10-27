@@ -497,7 +497,8 @@ export const CAST =
 writer, and you are not revising it.
 
 Return entries ONLY of the kinds asked for, and nothing of any other kind. If a kind is not listed,
-it is not wanted — that is a decision, not an omission.
+it is not wanted — that is a decision, not an omission. When characters are asked for, every person
+the premise names is one of them, the one it is about first.
 
   character  a person in the book
   place      a place: a city, a building, a room, a road

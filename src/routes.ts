@@ -2155,8 +2155,13 @@ export const routes: Record<string, Handler> = {
           if (slot !== 'facts' && kinds.includes(slot) && body && !rooms[slot])
             rooms[slot] = { name: String(pk?.name ?? '').trim() || slot, body, on: true };
         }
-        return { title: e.name.trim(), entryType: e.kind, activation: 'always_on',
-                 body: `[${e.name.trim()}: ${e.body.trim()}]`, keys: [e.name.trim()],
+        // ONE NAME AT THE FRONT. The model often starts the body with the name already, and wrapped
+        // again it read "[Seth: Seth: The Witness…]" on every call (2026-10-27, #81).
+        const name = e.name.trim();
+        const own = e.body.trim().replace(/^\[|\]$/g, '').trim();
+        const said = own.toLowerCase().startsWith(name.toLowerCase() + ':') ? own.slice(name.length + 1).trim() : own;
+        return { title: name, entryType: e.kind, activation: 'always_on',
+                 body: `[${name}: ${said}]`, keys: [name],
                  ...(Object.keys(rooms).length ? { rooms } : {}) };
       });
     if (!entries.length) return { error: 'nothing came back in the kinds you asked for' };
