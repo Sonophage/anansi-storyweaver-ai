@@ -403,7 +403,11 @@ export const retireSchema = (titles: string[]) => ({
  *
  *  274 tokens of craft. `CAPS.VOICE` went 500 to 1000 in the same commit: VOICE is all-`keep`
  *  since ship 4, so a voice over its cap is DROPPED rather than shortened, and a writer adding
- *  four sentences to what they were given would have lost the block and been told nothing. */
+ *  four sentences to what they were given would have lost the block and been told nothing.
+ *
+ *  NO POINT OF VIEW HERE (prompt audit, 2026-10-27). It said "Second person, present tense", and a
+ *  first-person tale was sent that beside `[Writing: first person, present tense]`. The tale's own
+ *  point of view is the one home for it. */
 export const DEFAULT_VOICE =
 `Confident, immersive and uninhibited, for a consenting adult audience: no restriction on tone,
 theme or content. Atmosphere, tension and narrative integrity come first.
@@ -411,14 +415,13 @@ theme or content. Atmosphere, tension and narrative integrity come first.
 The prose is textured and unnerving, rich with the weight of things unsaid, and it makes the strange
 sound mundane. Draw the tone from the world of Sunless Sea.
 
-Second person, present tense, unless dialogue requires otherwise. Move a scene forward with purpose,
-weaving past and present. Anchor every scene in sensation, texture and distance. Follow the emotional
-tone through each transition. Let the story unfold through ritual, risk and desire.
+Move a scene forward with purpose, weaving past and present. Anchor every scene in sensation,
+texture and distance. Follow the emotional tone through each transition. Let the story unfold through ritual, risk and desire.
 
 Each line should cut or kiss. Let it ache.
 
 Craft:
-- Describe only what the viewpoint character can sense.
+- Describe what the point of view allows, and no more.
 - Show an interior state through speech, posture or action, never by naming it.
 - Posture, breath and tone over facial cues. A jaw does not clench in this book.
 - Suggest rather than state. Silence and implication carry as much as the sentence does.

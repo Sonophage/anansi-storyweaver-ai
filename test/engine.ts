@@ -1776,6 +1776,49 @@ ok("the writer's own passages are marked, and only while a lockout is in force",
     'lockout switched off: nothing is marked either');
 });
 
+// ---- A PASSAGE WRITTEN TO THE WRITER'S ORDER IS MARKED TOO (prompt audit, 2026-10-27).
+// In Seth's tale the directives order the locked character's actions ("He laughs. He tells her his
+// name"), the model obeys, and the passage was stored as the model's with no mark: 61 of 88
+// sentences with Seth as their subject sat in directed passages, read back as the book's own habit.
+// Its own words, not "the writer's own": the writer did not write the prose, only the order.
+ok("a directed passage is marked as written to the writer's order, under the same gate", () => {
+  const build = (o: { locked?: string }) => {
+    const b = base();
+    return render(buildContext({ ...b,
+      story: { ...b.story, lockedCharacter: o.locked },
+      passages: [
+        { id: 'p1', ordinal: 1, body: 'The rain kept on.', author: 'model' },
+        { id: 'p2', ordinal: 2, body: 'He laughs, and tells her his name.', author: 'model', directed: true },
+      ],
+      proseAuthor: true } as any, count));
+  };
+  const ORDER = /\[written to the writer's order, not yours\]\nHe laughs/;
+  const out = build({ locked: 'Mira Vance' });
+  assert.match(out, ORDER, 'the directed passage carries the mark, directly above its prose');
+  assert.strictEqual((out.match(/not yours\]/g) ?? []).length, 1, 'and nothing else is marked');
+  assert.doesNotMatch(build({}), /writer's order/, 'no lockout: nothing is marked');
+});
+
+// ---- THE LOCKED CHARACTER'S VOICE POCKET IS NOT FRAMED AS DIALOGUE TO WRITE (prompt audit,
+// 2026-10-27). The frame says "When Seth speaks, write the dialogue this way:" and the pocket body
+// says "Seth's lines are the writer's. Never write them" — one line asking for his dialogue and
+// forbidding it. Under a lockout on that character the pocket reads bare.
+ok("the locked character's voice pocket reads bare, and every other voice keeps its frame", () => {
+  const build = (locked?: string) => {
+    const b = base();
+    const card = (id: string, title: string, body: string) => ({ id, title, body: '', entryType: 'character',
+      activation: 'always_on', keys: [], addons: [{ id: id + 'v', slot: 'voice', name: 'voice', active: 1, keys: [], body }] });
+    return render(buildContext({ ...b, story: { ...b.story, lockedCharacter: locked },
+      entries: [card('e1', 'Seth', "Seth's lines are the writer's. Never write them"),
+                card('e2', 'Ashley', 'Short fragments when urgent')] } as any, count));
+  };
+  const out = build('Seth');
+  assert.match(out, /\[Seth's lines are the writer's\. Never write them\]/, 'his pocket reads bare');
+  assert.doesNotMatch(out, /When Seth speaks/, 'and is not framed as dialogue to write');
+  assert.match(out, /When Ashley speaks, write the dialogue this way/, "another character's voice keeps the frame");
+  assert.match(build(), /When Seth speaks, write the dialogue this way/, 'with no lockout his pocket keeps the frame');
+});
+
 // ---- A CARD WITH AN EMPTY BODY AND EVERYTHING IN `facts` RENDERS CLEAN (issue #39, 2026-09-01).
 //
 // Story creation now puts a new card's description in the facts room and leaves Info empty, because

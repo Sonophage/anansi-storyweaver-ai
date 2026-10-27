@@ -42,8 +42,8 @@ const OUTDIR = process.env.ANANSI_OUT ?? '/tmp/anansi-council06';
 const TITLE = 'C06 base rate';
 
 // The two non-POV characters. The viewpoint is second person — the shipped `DEFAULT_VOICE` is
-// "Second person, present tense" and this story sets no `writingStyle`, so it gets that voice
-// through `story.ts:266`. So "you" is the viewpoint and EVERY named character is non-POV by
+// "Second person, present tense" (until 2026-10-27; since then the voice names no POV) and this story
+// sets no `pov`, so `db.createStory` gives it second person. So "you" is the viewpoint and EVERY named character is non-POV by
 // construction, which is why a name anchor works here where it could not in bench/lockout.ts.
 const NPOV = String.raw`(?:Machek|Solveig)`;
 
@@ -514,8 +514,8 @@ if (process.argv[2] === 'setup') {
   const old = stories.find((s: any) => s.title === TITLE);
   if (old) await j('/api/stories', { id: old.id }, 'DELETE');
   // NO `writingStyle` — so `story.ts:266` falls through to the writer's default and then to the
-  // shipped DEFAULT_VOICE, second person, present tense. NO `pov` — so `db.createStory` supplies
-  // its own default, which is the same. NO `persona` and NO `lockedCharacter` — see the header:
+  // shipped DEFAULT_VOICE, which names no POV since 2026-10-27. NO `pov` — so `db.createStory`
+  // supplies its own default, second person, present tense. NO `persona` and NO `lockedCharacter` — see the header:
   // either one would put the interiority firewall in DIRECTIVE and this would stop being a base rate.
   const made = await j('/api/stories', {
     title: TITLE, genre: 'crime',

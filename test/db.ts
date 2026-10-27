@@ -702,7 +702,7 @@ ok('no rule is said twice, in one block or across SYSTEM and the house voice', (
 // which is the thing ship 5 exists to undo.
 ok('SYSTEM keeps the contract and the house voice keeps the craft', () => {
   const craft = [/jaw does not clench/i, /one strong image/i, /vary the rhythm/i,
-                 /viewpoint character can sense/i, /never with a wink/i, /no cliche/i,
+                 /what the point of view allows/i, /never with a wink/i, /no cliche/i,
                  // Added 2026-08-30 when it moved out of SYSTEM. It is in this list rather than
                  // only in the struck row because this is the list that says WHY it is in the
                  // voice: craft is the writer's, and a rule they cannot delete is not a default.

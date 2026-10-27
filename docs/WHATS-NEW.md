@@ -16,6 +16,16 @@ Everything below this line was written by that model call, before it was removed
 The first screen, where your tales are kept, is called the Library everywhere: the menu, the way
 back from a tale, and the demo.
 
+### Passages you ordered count as yours when you play a character
+In a tale where you play someone, a passage Anansi wrote to your order is now marked as yours when
+he reads it back. Before, an order like "he laughs and tells her his name" left a passage that
+looked like Anansi writing your character, and he took it as leave to do it again. A pocket saying
+your character's lines are yours is no longer framed as a way to write them.
+
+### The default Voice no longer sets second person
+A new tale's starting Voice no longer says "second person, present tense". The tale's own point of
+view is the one place that decides it.
+
 ### Prompts to take elsewhere is now Export
 The page of prompts you hand to another model, whose answers come back in whole, is called Export.
 

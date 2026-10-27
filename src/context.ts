@@ -64,6 +64,10 @@ export interface Passage {
    *  the lockout forbids writing the locked character, and the prose two hundred tokens later
    *  shows recent examples of exactly that with no way to tell they are the writer's. */
   author?: 'human' | 'model' | string;
+  /** Written by the model to the writer's order (it carries a directive). Marked like the writer's
+   *  own under a lockout: the order may have the locked character act, and unmarked it reads back
+   *  as the model's own habit. Prompt audit, 2026-10-27. */
+  directed?: boolean;
 }
 export interface Story {
   title: string; genre: string; premise: string; setting: string;
@@ -296,7 +300,7 @@ export function retiredAt(e: Entry, at: number): number | null {
   return last?.kind === 'retire' ? last.fromChapter : null;
 }
 
-const rooms = (e: Entry, at: number, window: string): string[] =>
+const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
   (e.addons ?? [])
     // ALWAYS TRUE IS NOT A POCKET (#77, ADR 0005). It is stored as the `facts` addon and read by
     // `alwaysTrue` below, ahead of everything; every other room keeps the order the view gave it.
@@ -342,6 +346,10 @@ const rooms = (e: Entry, at: number, window: string): string[] =>
       // not using it, and it is owed a measurement before anyone calls it a fix.
       // #73. AND THE NARRATION KEEPS OUT OF IT. "The letters thick with her accent even in digital
       // form" was the narration saying a voice pocket back. NOT MEASURED: owed the #73 voice A/B.
+      // THE LOCKED CHARACTER'S VOICE IS NOT FRAMED AS DIALOGUE TO WRITE (prompt audit, 2026-10-27):
+      // the frame asked for his dialogue while his pocket and the lockout forbade it. Bare instead.
+      if (a.slot === 'voice' && locked && who.toLowerCase() === locked.toLowerCase())
+        return `[${body.replace(/[.\s]+$/, '')}]`;
       if (a.slot === 'voice') return `[When ${who || 'they'} speaks, write the dialogue this way: ${
         body.replace(/[.\s]+$/, '')}. Show it only in what they say; the narration never names or describes it.]`;
 
@@ -438,8 +446,8 @@ export const alwaysTrue = (e: Entry): string =>
  *
  *  With no window, only rooms that are switched ON are included; pass the chapter's text and rooms
  *  whose keys fire come too, which is what the prompt builder wants and a cast list does not. */
-export const cardText = (e: Entry, at: number, window = '') =>
-  [alwaysTrue(e), resolveBody(e, at), ...rooms(e, at, window)].map((x) => x.trim()).filter(Boolean).join('\n');
+export const cardText = (e: Entry, at: number, window = '', locked = '') =>
+  [alwaysTrue(e), resolveBody(e, at), ...rooms(e, at, window, locked)].map((x) => x.trim()).filter(Boolean).join('\n');
 
 // The proximity bound is BUILT (2026-08-25) — see `fires` below. The marker that stood here said
 // to build it "when a real ledger actually false-fires", and COUNCIL-04 recorded two, from a
@@ -1026,7 +1034,8 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // EMPTIES DROPPED BEFORE THE JOIN. A card whose permanent half has moved into its `facts` room
   // has an empty body, and joining that with the rooms put a blank line at the top of every one of
   // them — 461 cards, one wasted line each.
-  const bodyOf = (e: Entry) => cardText(e, currentChapter.index, recent);
+  const bodyOf = (e: Entry) => cardText(e, currentChapter.index, recent,
+    story.lockoutOn === false ? '' : story.lockedCharacter?.trim() ?? '');
 
   const pins = input.pins ?? {};
   for (const e of entries) {
@@ -1221,8 +1230,11 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // change than the one being measured, and it would be measured by nothing.
   const lockedNow = story.lockoutOn === false ? '' : story.lockedCharacter?.trim();
   const marking = !!input.proseAuthor && !!lockedNow;
-  const mark = (p: Passage) => marking && p.author === 'human'
-    ? `[the writer's own, not yours]\n${p.body}` : p.body;
+  // A directed passage is the model's prose to the writer's order. NOT MEASURED: F53 measured the
+  // writer's own passages only; this is owed a bench/lockout-book.ts A/B.
+  const mark = (p: Passage) => !marking ? p.body
+    : p.author === 'human' ? `[the writer's own, not yours]\n${p.body}`
+    : p.directed ? `[written to the writer's order, not yours]\n${p.body}` : p.body;
   for (const p of head)
     add('PROSE', p.id, mark(p), p.chapterId && pulled.has(p.chapterId) ? 'pulled back' : 'recent prose');
 
