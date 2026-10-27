@@ -248,9 +248,13 @@ input, textarea { font:inherit; color:inherit; }
    3.5px — 14, then 7, then this, all on 2026-08-28 and all by eye, which is the only instrument for
    it. With the tint gone the blur is the only thing between the writer and the page, and it only
    has to say "not now" rather than take the book away. */
-#dock.big { background:transparent; }
+/* DARKER AND DEEPER, 2026-10-27. Seth: "the edit screen and regenerate and the maximized input
+   screen have a higher dark background and more of a blur". The tint comes back, from the page's own
+   colour so a light theme darkens its own paper rather than turning grey, and the blur goes from
+   3.5px to 10px. The Alter and Reweave box (.rerollbox below) takes the same two values. */
+#dock.big { background:color-mix(in srgb, var(--doc-bg) 66%, transparent); }
 #ghost.veil, #dock.big {
-  backdrop-filter:blur(3.5px) saturate(.95); -webkit-backdrop-filter:blur(3.5px) saturate(.95); }
+  backdrop-filter:blur(10px) saturate(.9); -webkit-backdrop-filter:blur(10px) saturate(.9); }
 /* GOING IS SLOWER THAN ARRIVING. Seth, 2026-09-02: "the fade away to input should be a little more
    gradual." .2s was the default token for hovers and chips, which is right for a thing that has
    been on screen for a moment and wrong for a full-screen surface a writer has been reading — it
@@ -748,6 +752,15 @@ html[data-ui-font="book"] .narr { font-family:'Iowan Old Style',Palatino,'Palati
 html[data-ui-font="garamond"] .narr { font-family:Garamond,'EB Garamond','Apple Garamond',Baskerville,'Times New Roman',serif; font-style:normal; }
 html[data-ui-font="system"] .narr { font-family:system-ui,-apple-system,'Segoe UI',sans-serif; font-style:normal; }
 html[data-ui-font="mono"] .narr { font-family:ui-monospace,'IBM Plex Mono',Menlo,Consolas,monospace; font-style:normal; }
+/* SIX MORE BOOK FACES, 2026-10-27 (Seth: "can we add more fonts as options"). Fetched from the same
+   place as the two above, but only when one is chosen or the Font tab is open (`loadFonts` in
+   web/app.js), so a writer who never picks one pays nothing and the page still opens offline. */
+html[data-ui-font="literata"] .narr { font-family:'Literata',Georgia,serif; font-style:normal; }
+html[data-ui-font="ebgaramond"] .narr { font-family:'EB Garamond',Garamond,Georgia,serif; font-style:normal; }
+html[data-ui-font="lora"] .narr { font-family:'Lora',Georgia,serif; font-style:normal; }
+html[data-ui-font="cormorant"] .narr { font-family:'Cormorant Garamond',Garamond,Georgia,serif; font-style:normal; font-size:calc(var(--prose) * 1.08); }
+html[data-ui-font="spectral"] .narr { font-family:'Spectral',Georgia,serif; font-style:normal; }
+html[data-ui-font="crimson"] .narr { font-family:'Crimson Pro',Georgia,serif; font-style:normal; font-size:calc(var(--prose) * 1.05); }
 .said { max-width:600px; font-size:var(--bubble); line-height:1.65; color:var(--body); text-wrap:pretty; white-space:pre-wrap; }
 .who { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--label); }
 .block { position:relative; display:flex; flex-direction:column; gap:10px; }
@@ -1646,8 +1659,8 @@ textarea.field { resize:vertical; min-height:70px; }
 .block:is(.rerolling, .altering) .rerollbox {
   position:fixed; inset:0 0 auto 0; height:var(--kbh, 100%); z-index:41; margin:0; display:flex; flex-direction:column; gap:14px;
   padding:calc(18px + env(safe-area-inset-top, 0px)) 18px 18px; box-sizing:border-box;
-  background:color-mix(in srgb, var(--doc-bg) 30%, transparent);
-  backdrop-filter:blur(3.5px) saturate(.95); -webkit-backdrop-filter:blur(3.5px) saturate(.95);
+  background:color-mix(in srgb, var(--doc-bg) 66%, transparent);
+  backdrop-filter:blur(10px) saturate(.9); -webkit-backdrop-filter:blur(10px) saturate(.9);
 }
 .rerollbox .rwhead { width:100%; max-width:var(--col); margin:0 auto; display:flex; flex-direction:column; gap:8px; }
 .rerollbox .rwquote { font-size:17px; font-style:italic; color:var(--narr); line-height:1.45; }

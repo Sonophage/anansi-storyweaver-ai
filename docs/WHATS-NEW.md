@@ -10,6 +10,16 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-27 · Deeper blur, more fonts
+
+### The full-screen boxes sit on a darker, softer page
+Alter, Reweave and the full-screen writing box now darken the page behind them more and blur it
+further, so the box you are typing in is the only thing that reads.
+
+### Six more fonts for the prose
+Look → Font now offers Literata, EB Garamond, Lora, Cormorant, Spectral and Crimson Pro beside the
+six already there. They are fetched the first time you open the Font tab or pick one.
+
 ## 2026-10-26 · Fuller threads, and a deck that moves on
 
 ### Every card moves on

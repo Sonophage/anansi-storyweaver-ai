@@ -175,8 +175,22 @@ function resolveLook(own) {
   look = { ...MYLOOK, ...(own ?? {}) };
   applyLook();
 }
+/** THE BOOK FACES THAT ARE FETCHED, by the key the look stores. One stylesheet request for all of
+ *  them, made the first time one is on screen or the Font tab opens, never at load. */
+const WEBFONTS = { literata: 'Literata:ital@0;1', ebgaramond: 'EB+Garamond:ital@0;1', lora: 'Lora:ital@0;1',
+  cormorant: 'Cormorant+Garamond:ital,wght@0,400;0,500;1,400', spectral: 'Spectral:ital@0;1', crimson: 'Crimson+Pro:ital@0;1' };
+let fontsAsked = false;
+function loadFonts() {
+  if (fontsAsked) return;
+  fontsAsked = true;
+  const l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = `https://fonts.googleapis.com/css2?${Object.values(WEBFONTS).map((f) => `family=${f}`).join('&')}&display=swap`;
+  document.head.appendChild(l);
+}
 function applyLook() {
   root.dataset.uiTheme = look.theme; root.dataset.uiFont = look.font; root.dataset.uiSize = look.size;
+  if (WEBFONTS[look.font]) loadFonts();
   root.dataset.uiScale = look.scale ?? '100';
   // Every colour, derived from the theme's one row and written as custom properties. It replaced
   // three hand-written CSS blocks — which is why there were three themes and not nine, and why
@@ -1176,15 +1190,23 @@ function drawAppearance() {
   if (!S.appearance) return;
   // From the table, so a theme added there appears here without a second list to keep in step.
   const themes = Object.entries(THEMES);
-  // The last four are system stacks, so the list does not add a font to download. See app.html.
+  // Iowan to Monospace are system stacks; the six after them are fetched only when one is wanted
+  // (`loadFonts`). See app.html.
   const fonts = [['serif', 'Instrument Serif', "'Instrument Serif',Georgia,serif"],
                  ['sans', 'IBM Plex Sans', "'IBM Plex Sans',sans-serif"],
                  ['book', 'Iowan / Palatino', "'Iowan Old Style',Palatino,Georgia,serif"],
                  ['garamond', 'Garamond', "Garamond,Baskerville,'Times New Roman',serif"],
                  ['system', 'System', "system-ui,-apple-system,'Segoe UI',sans-serif"],
-                 ['mono', 'Monospace', "ui-monospace,Menlo,Consolas,monospace"]];
+                 ['mono', 'Monospace', "ui-monospace,Menlo,Consolas,monospace"],
+                 ['literata', 'Literata', "'Literata',Georgia,serif"],
+                 ['ebgaramond', 'EB Garamond', "'EB Garamond',Georgia,serif"],
+                 ['lora', 'Lora', "'Lora',Georgia,serif"],
+                 ['cormorant', 'Cormorant', "'Cormorant Garamond',Georgia,serif"],
+                 ['spectral', 'Spectral', "'Spectral',Georgia,serif"],
+                 ['crimson', 'Crimson Pro', "'Crimson Pro',Georgia,serif"]];
   const tabs = [['theme', 'Theme'], ['font', 'Font'], ['size', 'Size'], ['scale', 'UI']];
   const tab = S.lookTab ?? 'theme';
+  if (tab === 'font') loadFonts();
 
   // THE SWATCH IS A DISC, HALF PAPER AND HALF ACCENT. Six of the nine themes are near-black —
   // #0A0A0C, #0B0B0C, #07090E, #0A0D0B, #0C0C0C, #08090C — so a circle of the paper alone gave six
