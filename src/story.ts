@@ -273,6 +273,8 @@ export function view(storyId: string, focusChapterId?: string) {
       target: p.target ?? null,
       // #73. One Workbench card per group, the narration line it came from, and a pocket's name.
       grp: p.grp ?? null, line: p.line ?? null, pocket: p.pocket ?? null,
+      // The pockets a new thread arrives with, so its card can show them before it is sewn in.
+      rooms: (() => { try { return p.rooms ? JSON.parse(p.rooms) : null; } catch { return null; } })(),
     })),
   };
 }

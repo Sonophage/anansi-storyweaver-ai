@@ -69,6 +69,7 @@ process.env.ANANSI_LLAMA = `http://127.0.0.1:${(srv.address() as any).port}`;
 const db = await import('../src/db.ts');
 const { routes } = await import('../src/routes.ts');
 const { resolveBody } = await import('../src/context.ts');
+const prompts = await import('../src/prompts.ts');
 
 const me = db.owner('rememberer');
 const story = db.createStory(me, { title: 'Sutera', premise: 'A city on a dead god.' });
@@ -826,6 +827,34 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.ok(!k.some((p) => p.field === 'facts'), 'HEM-ALWAYS-ONCE: a thread that has an Always true is not offered another');
   assert.ok(k.every((p) => p.line === null), 'HEM-LINE-QUOTED: a line the narration does not contain is not kept');
   ok('hem reviews every thread the scene names, of every kind, as one card each with its line');
+}
+
+// ---- FULLY FLESHED (Seth, 2026-10-26): "it not only has to update the characters but make them fully
+// fleshed". A new thread from the scene arrives with its pockets, as instructions, and the hem pass
+// is told to start the pockets a named thread does not have yet.
+{
+  const t = db.createStory(me, { title: 'Fleshed', premise: 'p' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'Ilse poled the ferry in silence, her coat buttoned to the throat.' });
+  found = [{ title: 'Ilse', type: 'character', keys: ['Ilse'], activation: 'triggered', field: 'none',
+    body: '[Ilse: the ferrywoman at Sallow crossing]',
+    pockets: [{ slot: 'voice', name: 'How she talks', body: 'Hardly at all; one word where three would do.' },
+              { slot: 'outfit', name: 'The ferry coat', body: 'A long oilcloth coat, buttoned to the throat.' },
+              { slot: 'atmosphere', name: 'x', body: 'A person has no atmosphere pocket, so this one is dropped.' }] }];
+  asked = null;
+  await routes['POST /api/extract'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  found = [];
+  assert.match(asked.system + asked.user, /every pocket its kind can have/i, 'FLESH-ASKED: the finder is asked to fill every pocket the scene supports');
+  const p: any = (db.proposalsOf(t.id) as any[]).find((x) => x.title === 'Ilse');
+  const rooms = JSON.parse(p?.rooms || '{}');
+  assert.deepStrictEqual(Object.keys(rooms).sort(), ['outfit', 'voice'], 'FLESH-NEW: a new thread arrives with the pockets its kind can have');
+  await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
+  const ilse: any = db.entriesOf(t.id).find((e: any) => e.title === 'Ilse');
+  const mine = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === ilse.id);
+  assert.deepStrictEqual(mine.map((a) => a.slot).sort(), ['facts', 'outfit', 'voice'], 'FLESH-SEWN: sewn in, it has Always true and both pockets');
+  assert.ok(mine.find((a) => a.slot === 'voice')?.active, '  and its pockets are on');
+  assert.match(prompts.MEMORY, /pocket\s+it does not have yet/i, 'FLESH-HEM: the hem pass is told to start the pockets a thread lacks');
+  ok('a new thread from the scene arrives fully fleshed, and hem fleshes out what it names');
 }
 
 // ---- #73 · TIDY THIS THREAD ----

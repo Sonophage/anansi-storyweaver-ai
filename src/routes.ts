@@ -1121,9 +1121,19 @@ async function extract(c: Ctx, storyId: string, chapterId?: string) {
     if (said) continue;
     // #73. A NEW THREAD'S TEXT IS WHO OR WHAT IT IS, so it is chalked as its Always true (`facts`
     // on a proposal with no thread yet); the accept route writes it there and leaves Info empty.
+    // FULLY FLESHED: a new thread's pockets ride with it as its rooms, one per slot of its own kind,
+    // never Always true; accepting it writes them (`writeRooms`) and switches them on.
+    const kinds = slotsFor(e.type).map((sl) => sl.name);
+    const rooms: Record<string, any> = {};
+    if (!cls.entry_id) for (const pk of (Array.isArray(e.pockets) ? e.pockets : []) as any[]) {
+      const slot = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
+      if (slot !== 'facts' && kinds.includes(slot) && body && !rooms[slot])
+        rooms[slot] = { name: String(pk?.name ?? '').trim() || slot, body };
+    }
     if (db.addProposal(v.id, { ...cls, chapterId: ch.id, title: e.title.trim(),
       body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
-      activation: e.activation, field: cls.entry_id ? field : 'facts', target })) added++;
+      activation: e.activation, field: cls.entry_id ? field : 'facts', target,
+      rooms: Object.keys(rooms).length ? rooms : undefined })) added++;
   }
   return { added, chapter: ch.index, proposals: db.proposalsOf(v.id) };
 }

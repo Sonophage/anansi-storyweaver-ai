@@ -62,6 +62,13 @@ as well as people, and offers what changed: where each one stands now, written o
 pocket the scene gave it something new for. Everything she offers for one thread comes together,
 with the line of the scene it came from. A thread with no Always true yet gets one offered.
 
+### Threads come out fully fleshed
+When Anansi reads a scene and finds someone new, the thread arrives whole: who or what it is,
+plus every pocket the scene gives her enough for (for a person: how they look, how they talk, what
+they will not say, who they are to the others, what they wear). When you hem a scene she also
+starts the pockets a thread it names does not have yet, if the scene shows enough for them. The
+card shows the pockets a new thread arrives with before you sew it in.
+
 ### Pockets are instructions
 Anansi now writes pockets as instructions for the next scene (how she talks, what she wears, what
 to show when a place is in a scene) rather than descriptions for the prose to repeat. A voice

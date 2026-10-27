@@ -83,8 +83,16 @@ export const EXTRACT_SCHEMA = {
                    enum: ['none', 'appearance', 'atmosphere', 'consequences', 'facts',
                           'interiority', 'outfit', 'relationships',
                           'voice', 'what_it_does', 'who_is_here'] },
+          // FULLY FLESHED (Seth, 2026-10-26): a NEW thread's pockets, each an instruction, from the
+          // kind's own list. The route drops any its kind cannot have, and any for a thread that exists.
+          pockets: { type: 'array', items: { type: 'object', properties: {
+            slot: { type: 'string', enum: ['appearance', 'atmosphere', 'consequences', 'interiority',
+                    'outfit', 'relationships', 'voice', 'what_it_does', 'who_is_here'] },
+            name: { type: 'string' },
+            body: { type: 'string' },
+          }, required: ['slot', 'name', 'body'] } },
         },
-        required: ['title', 'type', 'body', 'keys', 'activation', 'field'],
+        required: ['title', 'type', 'body', 'keys', 'activation', 'field', 'pockets'],
       },
     },
   },
@@ -135,7 +143,10 @@ For each thread the scene CHANGED, return:
   label    four words at most, for the timeline: "arm broken", "no longer trusts Vel".
   line     the shortest phrase of the narration where the change happens, copied exactly.
   pockets  the pockets this scene gives the thread something new for: a pocket to add to, or one
-           it did not have. Only names from its kind's list. Empty when nothing about them changed.
+           it did not have. Only names from its kind's list.
+           FLESH IT OUT: a thread should end up with every pocket its kind can have. For any pocket
+           it does not have yet, if the scene (with what the thread already says) gives you enough
+           for it, start it, even when nothing about that part changed.
   always   ONLY when its Always true is empty: who or what it is, in one bracket. Otherwise "".
 
 ${POCKET_FORM}
@@ -153,7 +164,7 @@ Rules:
   is missing.
 - Present tense, third person. No summary of the scene's plot.
 
-Return only threads that changed.`;
+Return the threads that changed, and the ones you can flesh out.`;
 
 export const MEMORY_SCHEMA = {
   type: 'object',
@@ -1033,6 +1044,20 @@ changes between one chapter and the next; who they are does not. A coat written 
 description follows them into every scene for the rest of the book, including the ones where they
 are not wearing it — so if this chapter says what somebody has on, propose it as their outfit, and
 leave their description alone.
+
+FULLY FLESHED. A NEW thread is a whole thread, not a line: its body is who or what it is, and
+pockets fills every pocket its kind can have that the chapter gives you enough for:
+
+    character  appearance, voice, interiority, relationships, outfit
+    place      appearance, atmosphere, who_is_here
+    lore       appearance, atmosphere, who_is_here
+    item       appearance, what_it_does
+    rule       consequences
+
+Leave out a pocket the chapter says nothing for rather than invent it. For a thread that already
+exists, pockets is empty: use field, as above.
+
+${POCKET_FORM}
 
 Propose nothing rather than pad. Zero proposals is a valid answer.`;
 
