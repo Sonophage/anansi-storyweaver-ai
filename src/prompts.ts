@@ -480,7 +480,8 @@ Return entries ONLY of the kinds asked for, and nothing of any other kind. If a 
 it is not wanted — that is a decision, not an omission.
 
   character  a person in the book
-  lore       a place, an institution, a faction, a history
+  place      a place: a city, a building, a room, a road
+  lore       an institution, a faction, a history, a custom
   item       an object that matters
   rule       a law of this world, or of this story, that holds until it is broken
 

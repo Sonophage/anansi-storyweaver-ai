@@ -53,8 +53,9 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
       help: !!document.querySelector('#sideBody .tipcard#tip-threads') }; })())`).then(JSON.parse);
   ok(`the heading is New thread, and the box asks for a name or a paste (${JSON.stringify([shape.head, shape.ph])})`,
      shape.head === 'New thread' && shape.ph === 'Name it, or paste one in' && shape.hint);
+  // #80 adds Places; #75 adds a rule from the tale's own thread, not here.
   ok(`  Write it as the four kinds, Character lit (${shape.kinds.join(' · ')}; lit ${shape.lit})`,
-     shape.kinds.join() === 'Character,Lore,Item,Rule' && shape.lit.join() === 'character');
+     shape.kinds.join() === 'Character,Place,Lore,Item' && shape.lit.join() === 'character');
   ok(`  and Anansi's three cards (${shape.cards.join(' · ')})`,
      shape.cards.join() === 'Write one for me,Look it up online,Read the scene');
   ok(`  top to bottom: heading, box, kinds, Write it, the cards (${shape.order})`,

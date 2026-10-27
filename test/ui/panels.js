@@ -408,8 +408,9 @@ const threads = (await page.text('#sideBody') || '').replace(/\s+/g, ' ');
 console.log("  threads groups: " + (threads.match(/Characters|Lore|Items|Rules/g) || []).join(','));
 ok("Threads groups the cards by kind", /Characters/.test(threads));
 const kinds = new Set((await story()).entries.map((e) => e.entryType));
+// #75: rules are on the tale's own thread, the first card, so the list has no Rules group.
 ok(`  and every kind this story has is shown (${[...kinds].join(',')})`,
-   [...kinds].every((k) => new RegExp({ character: 'Characters', lore: 'Lore', item: 'Items', rule: 'Rules' }[k]).test(threads)));
+   [...kinds].every((k) => new RegExp({ character: 'Characters', place: 'Places', lore: 'Lore', item: 'Items', rule: 'The tale' }[k]).test(threads)));
 // ONE DOOR TO ALL FOUR KINDS. The four New-* buttons came off this panel on 2026-09-02; New thread
 // offers the same four kinds and ends in one Write it press, which is
 // what "any functionality that these buttons may have carry over" means. Asserted on the tray's
@@ -418,7 +419,7 @@ await page.click('#sideHead [data-newlore]');
 await wait(500);
 ok("  with a way to add each kind",
    (await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b => b.dataset.lorekind).sort().join(',')"))
-     === 'character,item,lore,rule');
+     === 'character,item,lore,place');
 ok("  and the four buttons that used to say so are gone",
    !(await page.eval("!!document.querySelector('#sideBody [data-newentry]')")));
 await page.click('#sideHead [data-newlore]');
@@ -841,7 +842,7 @@ ok("  it opens New thread with every way in", /New thread/.test(lore) && /read t
 // offered here any more — a pocket is added from its thread, on the Pockets tab.
 {
   const offered = await page.eval("[...document.querySelectorAll('[data-lorekind]')].map(b=>b.dataset.lorekind).sort()");
-  ok(`  offering the four kinds (${offered.join(',')})`, offered.join(',') === 'character,item,lore,rule');
+  ok(`  offering the four kinds (${offered.join(',')})`, offered.join(',') === 'character,item,lore,place');
   ok("    with Character lit", (await page.eval("document.querySelector('[data-lorekind=\"character\"]').getAttribute('aria-pressed')")) === 'true');
   await page.click('[data-lorekind="character"]');
   await wait(400);

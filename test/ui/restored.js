@@ -31,7 +31,9 @@ const openFold = async (name) => {
   if ((await page.eval(`document.querySelector('[data-cardtab="${tab}"]')?.getAttribute('aria-pressed')`)) !== 'true')
     await page.click(`[data-cardtab="${tab}"]`);
   await wait(300);
-  if (!(await page.eval(`!!document.querySelector('[data-fold="${name}"]')?.parentElement?.open`)))
+  // #78. Over time is no longer a fold; a fold that is not there is not pressed.
+  if ((await page.eval(`!!document.querySelector('[data-fold="${name}"]')`))
+    && !(await page.eval(`!!document.querySelector('[data-fold="${name}"]')?.parentElement?.open`)))
     await page.click(`[data-fold="${name}"]`);
   await wait(300);
 };

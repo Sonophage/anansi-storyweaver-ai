@@ -231,11 +231,12 @@ await wait(700);
  * at the `d.sparkstep` handler in web/app.js. The step still arrives empty and the cast is still its
  * own call, which is what the assertions below this one are written against.
  */
+// Five kinds since #80 added Places.
 ok("  every kind is on from the start, not characters alone",
-   (await page.eval(`document.querySelectorAll('[data-spkind][aria-pressed="true"]').length`)) === 4);
+   (await page.eval(`document.querySelectorAll('[data-spkind][aria-pressed="true"]').length`)) === 5);
 ok("  the step arrives empty, and asks what kinds this book needs",
    (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 0
-   && (await page.eval("document.querySelectorAll('[data-spkind]').length")) === 4);
+   && (await page.eval("document.querySelectorAll('[data-spkind]').length")) === 5);
 /* #40 · AND THE THREADS SUGGEST THEMSELVES on leaving the book. Seth: "having them suggested is
  * good." Fired on LEAVING rather than arriving, which is what keeps it inside #24's rule — pressing
  * on IS the ask. The stub refused this first one, so what is on screen is the model-down state.
@@ -275,7 +276,7 @@ ok("  step 4 is a field you type into while the cast step has been skipped",
  * them tests the chips as well, and it keeps forty assertions saying what they were written to say
  * instead of being rewritten to match a fixture. */
 await go("The threads");
-for (const k of ['lore', 'item', 'rule']) {
+for (const k of ['place', 'lore', 'item', 'rule']) {
   await page.click(`[data-spkind="${k}"]`);
   await wait(150);
 }

@@ -10,6 +10,11 @@ const view = (sid) => page.eval(`(async () => JSON.stringify(await (await fetch(
 
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find((s) => s.title === 'The Silver Key').id)()");
 let v = await view(sid);
+// The fixture has no Lore thread, so one is written first.
+await page.eval(`(async () => { await fetch('/api/entry', { method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ storyId: ${JSON.stringify(sid)}, entry: { title: 'The Long Market', body: '[The Long Market: stalls under the arches]',
+    entryType: 'lore', activation: 'triggered', keys: ['market'] } }) }); return 1; })()`);
+v = await view(sid);
 const lore = v.entries.find((e) => e.entryType === 'lore');
 ok(`the fixture has a Lore thread to sort (${lore?.title})`, !!lore);
 

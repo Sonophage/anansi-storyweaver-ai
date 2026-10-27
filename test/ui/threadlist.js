@@ -72,7 +72,8 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   const groups = await page.eval(`JSON.stringify([...document.querySelectorAll('#thlist [data-kindhead]')].map((h) => ({
     kind: h.dataset.kindhead, text: h.textContent.replace(/\\s+/g, ' ').trim(),
     cards: document.querySelectorAll('#thlist [data-kindrows="' + h.dataset.kindhead + '"] .card.plate[data-entry]').length })))`).then(JSON.parse);
-  const LABEL = { character: 'Characters', lore: 'Lore', item: 'Items', rule: 'Rules' };
+  // #75: rules are on the tale's own thread, not a group here; #80 adds Places.
+  const LABEL = { character: 'Characters', place: 'Places', lore: 'Lore', item: 'Items' };
   const want = Object.entries(LABEL).map(([k]) => [k, v.entries.filter((e) => e.entryType === k).length]).filter(([, c]) => c);
   ok(`every kind is a heading with its count (${groups.map((g) => g.text).join(' / ')})`,
      groups.length === want.length && want.every(([k, c]) => groups.some((g) => g.kind === k
@@ -91,7 +92,9 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
       eyeInside: er ? er.left >= r.left && er.right <= r.right + 0.5 : false,
       tags: [...c.querySelectorAll('.tag')].map((x) => x.textContent.trim()), h: Math.round(r.height) };
   }))`).then(JSON.parse);
-  ok(`one card per thread (${cards.length} of ${n})`, cards.length === n);
+  // Rules are on the tale's own thread (#75), so the list has a card for every other thread.
+  const listed = v.entries.filter((e) => e.entryType !== 'rule').length;
+  ok(`one card per thread (${cards.length} of ${listed})`, cards.length === listed);
   ok("  each with its name and two lines of its text, and no kind line under the name",
      cards.length > 0 && cards.every((c) => {
        const e = v.entries.find((x) => x.id === c.id);
@@ -151,7 +154,7 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
     await wait(300);
     return page.eval("[...document.querySelectorAll('#thlist .platename')].map(x => x.textContent).join(',')");
   };
-  ok("search finds a thread by name", (await typeQ("vantic")) === "Vantic law");
+  ok("search finds a thread by name", (await typeQ("moneylender")) === "Marek Vale");
   ok("  and finds one by what is in its pockets", (await typeQ('grey coat')) === 'Marek Vale');
   ok("  and its kind heading counts what the search left", /Characters · 1/.test(await page.text('#thlist') || ''));
   await typeQ('zzqx');
@@ -159,7 +162,15 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   await typeQ('');
 
   // ---- The mark is the switch: always on and on a word, one tap each way
-  const rule = v.entries.find((e) => e.title === 'Vantic law');
+  // #75: Vantic law is a rule, so it is on the tale's own thread now and not in this list. An
+  // always-on thread with no wake words is written for the same job.
+  await page.eval(`(async () => { await fetch('/api/entry', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ storyId: '${sid}', entry: { title: 'The curfew bell', body: '[The curfew bell: rung at the ninth hour]',
+      entryType: 'item', activation: 'always_on', keys: [] } }) }); return 1; })()`);
+  await page.goto(B + "/#" + sid + "/threads");
+  for (let i = 0; i < 40 && !(await page.visible('#thq')); i++) await wait(250);
+  await wait(400);
+  const rule = (await story(sid)).entries.find((e) => e.title === 'The curfew bell');
   const actNow = async () => (await story(sid)).entries.find((e) => e.id === rule.id).activation;
   const tap = async () => { await page.click(`#thlist [data-flipact="${rule.id}"]`); await wait(800); return actNow(); };
   const sentNow = () => page.eval("Number(document.querySelector('#sideBody [data-onlyin=\"1\"]').textContent.match(/\\d+/)[0])");
@@ -169,7 +180,7 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   const steps = [await actNow(), await tap()];
   const asleep = await markOf(rule.id);
   const sent1 = await sentNow();
-  // Vantic law has no wake words, so on a word it is asleep: a shut eye, dim, out of Sent now.
+  // The curfew bell has no wake words, so on a word it is asleep: a shut eye, dim, out of Sent now.
   ok(`  and on a word with nothing waking it is a shut eye, dim, saying a tap sends it every call (${JSON.stringify(asleep)})`,
      asleep.lit === '0' && asleep.look === 'eyeshut' && /^On a word, asleep.*every call/.test(asleep.label));
   // Brought into this scene, the same thread is an @, lit. A pin rather than a wake word, because

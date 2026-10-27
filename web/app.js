@@ -2976,8 +2976,6 @@ const PANELS = {
    *  also says how to put the library back, from the backup taken before the move. */
   updates() {
     const u = V?.updates ?? [];
-    if (!u.length) return `<div class="hint" style="margin:0">Nothing has moved in this tale. When an
-      update to Anansi moves something in it, this page says what moved, and where to.</div>`;
     const last = u.find((x) => x.backup);
     const file = last?.backup.split('/').pop();
     // #80. PLACES ARE SORTED OUT OF LORE BY THE WRITER, never by guessing ("the Watch" is not a
@@ -2997,6 +2995,8 @@ const PANELS = {
         .toLocaleString())}, before anything was moved.${recent ? ` To put the library back as it was,
         the admin restores <code>${esc(file)}</code> from the backups folder. That puts back every
         tale, and anything written since is lost.` : ''}</div>` : ''}
+      ${u.length ? '' : `<div class="hint" style="margin:0">Nothing has moved in this tale. When an
+        update to Anansi moves something in it, this page says what moved, and where to.</div>`}
       ${u.map((x) => `<div class="row" style="align-items:flex-start; gap:10px">
         <span style="flex:1; color:var(--ink); line-height:1.5">${esc(x.line)}</span>
         ${x.entryTitle ? `<button data-entry="${esc(x.entryId)}" class="tag" style="cursor:pointer"
@@ -3467,7 +3467,8 @@ const PANELS = {
            so they share one box. -->
       ${(() => {
         const pin = pinModes();
-        const n = V.entries.filter((e) => inContext(e, pin)).length;
+        // Of the threads THIS LIST draws: rules are on the tale's own thread (#75), not here.
+        const n = V.entries.filter((e) => e.entryType !== 'rule' && inContext(e, pin)).length;
         return `<div class="thfind">
           <span class="thfindmark">${mark('search', 17)}</span>
           <input id="thq" type="search" aria-label="Search this tale's threads"
@@ -8947,7 +8948,7 @@ async function refreshManifest() {
   if (S.panel === 'threads' && $('thlist')) {
     $('thlist').innerHTML = threadRows();
     const n = $('sideBody').querySelector('[data-onlyin="1"] .tnum');
-    if (n) n.textContent = String(V.entries.filter((e) => inContext(e, pinModes())).length);
+    if (n) n.textContent = String(V.entries.filter((e) => e.entryType !== 'rule' && inContext(e, pinModes())).length);
   }
 }
 
