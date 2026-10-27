@@ -82,16 +82,16 @@ export const HELP = {
       keeps reaching the model at scene forty.</p>`,
   },
   context: {
-    title: 'What she reads',
+    title: 'What he reads',
     body: `<p>What the model reads for the next passage, in order, and what was left out.</p>
       <p>The percentage is of the space one writer has, not of the tale. A row that was left out says why.</p>`,
   },
   anansi: {
     title: 'Anansi',
-    body: `<p>She has kept every thread of the tale and can be asked about it. She answers from the
-      threads, the scene summaries and the recent passages, and she names what she drew on.</p>
-      <p>She chalks and never writes. Chalked means suggested and not yet in the tale: a thread she
-      offers waits on the Workbench until you sew it in; a directive she writes lands in the
+    body: `<p>He has kept every thread of the tale and can be asked about it. He answers from the
+      threads, the scene summaries and the recent passages, and he names what he drew on.</p>
+      <p>He chalks and never writes. Chalked means suggested and not yet in the tale: a thread he
+      offers waits on the Workbench until you sew it in; a directive he writes lands in the
       composer unsent.</p>`,
   },
 };

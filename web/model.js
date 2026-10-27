@@ -641,7 +641,7 @@ export function themeVars(key) {
 export const MARK = {
   // THE WHOLE WEB, the seven strokes of web/icon.svg at this box size: four threads and three
   // rings. `web` below is three strokes of it and stays what it is — a corner of a web reads as a
-  // menu, and the whole thing reads as her. Circles are arcs so `mark()` can draw them: it splits
+  // menu, and the whole thing reads as his. Circles are arcs so `mark()` can draw them: it splits
   // on a capital M and hands each piece to a <path>, which a <circle> cannot ride in.
   webfull:  'M10 3.6 10 16.4M3.6 10 16.4 10M5.4 5.4 14.6 14.6M14.6 5.4 5.4 14.6'
           + 'M10 7.8A2.2 2.2 0 1 1 10 12.2A2.2 2.2 0 1 1 10 7.8'
@@ -697,7 +697,7 @@ export const MARK = {
   // WHERE A MODEL RUNS (#53). They ride beside the source circle on the menu rows, the strip and
   // the Storyteller, so the source never rests on colour alone. Drawn for 15px, which is where they
   // sit: a spider is a head, a body and four bent legs a side, few enough strokes that the legs
-  // still read as legs at menu size. Local is the spider because the house is hers.
+  // still read as legs at menu size. Local is the spider because the house is his.
   spider:   'M10 5.4A1.5 1.5 0 1 1 10 8.4A1.5 1.5 0 1 1 10 5.4'
           + 'M10 8.6A2.8 2.8 0 1 1 10 14.2A2.8 2.8 0 1 1 10 8.6'
           + 'M8.8 7.2 6.4 5.2 5.6 2.8M7.6 9.8 5 8.4 2.8 9M7.4 11.6 4.8 12.2 3 14.6M8.2 13.4 6.6 15.4 6.4 17.8'

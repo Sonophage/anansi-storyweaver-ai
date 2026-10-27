@@ -48,7 +48,7 @@ ok("  with no tap needed to see it", await until("!document.querySelector('#dock
 
 // ---- where the page sits, and how the words arrive (Seth, 2026-10-25)
 // At the first word the page moves ONCE so the end of the passage before sits 72px under the top
-// (the seam), and then it stays still while she writes below the fold. Each word comes up out of
+// (the seam), and then it stays still while he writes below the fold. Each word comes up out of
 // a blur (Seth, 2026-10-26: "cinematically fade in from a blur"; it scrambled for a day before).
 // Watched from inside the page, because the moments are shorter than a round trip from here.
 await page.eval(`(() => { const read = document.getElementById('read');
@@ -78,10 +78,10 @@ await wait(300);
 const w = await page.eval("JSON.stringify(window.__w)").then(JSON.parse);
 console.log("  arrival: " + JSON.stringify(w));
 ok(`the words come up out of a blur (${w.blurred} of the ${w.live} on the page)`, w.live > 0 && w.blurred === w.live);
-// NOTHING MOVES while she writes; the last word is recorded in the frame the passage lands in, when
+// NOTHING MOVES while he writes; the last word is recorded in the frame the passage lands in, when
 // the composer folds and the five-word fixture passage cannot fill the room it leaves.
 const writing = w.tops.slice(0, -1);
-ok(`  the page does not follow them down while she writes (scroll positions ${JSON.stringify([...new Set(writing)])})`,
+ok(`  the page does not follow them down while he writes (scroll positions ${JSON.stringify([...new Set(writing)])})`,
    writing.length > 0 && new Set(writing).size === 1);
 ok(`  and at the first word the passage before is in view (${w.seam})`, w.seam !== null && w.seam >= 0);
 // THE SAME TYPE BEFORE AND AFTER IT LANDS (Seth, 2026-10-26: "The font changes after the transition

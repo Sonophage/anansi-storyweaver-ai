@@ -536,7 +536,7 @@ ok('the slot the router reports is worth seven times the floor assumed without i
 // target; this is the only place it becomes a ceiling.
 ok('the ceiling is derived from the target, and never sits under what the model actually writes', () => {
   // Off is the default and has to stay well clear: 0 hits in 212 logged runs at 900.
-  assert.strictEqual(story.capFor(0), 900, '"let her decide" must not reintroduce a low ceiling');
+  assert.strictEqual(story.capFor(0), 900, '"let him decide" must not reintroduce a low ceiling');
   // The floor holds for small targets — a 200-word target does not license a 560-token ceiling,
   // because the model's observed maximum was 845 whatever it was asked for.
   assert.strictEqual(story.capFor(200), 900, 'a small target must not lower the ceiling');

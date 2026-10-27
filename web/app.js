@@ -404,10 +404,10 @@ const SNAV = [
   ['story', 'story', 'Tale'], ['chapter', 'scene', 'This scene'],
   ['chapters', 'chapter', 'Scenes'],
   ['threads', 'threads', 'Threads'], ['strings', 'strings', 'Strings'],
-  ['context', 'context', 'What she reads'],
+  ['context', 'context', 'What he reads'],
   ['teller', 'teller', 'Storyteller'],
   // BACK ON THIS LIST, 2026-10-26. It came off on 2026-08-27 for a door on the composer row, which
-  // became her web in the header; the web opens this menu now, so the Talk drawer's door is here.
+  // became his web in the header; the web opens this menu now, so the Talk drawer's door is here.
   ['anansi', 'anansi', 'Talk to Anansi'],
 ];
 // Deep links and bookmarks still carry the old names, and so does a browser tab left open across
@@ -602,7 +602,7 @@ const READOUT = {
   // The whole left end of the track is the off position, and the server agrees with it to the
   // token: anything under 150 stores as zero, so there is no value the writer can set that reads
   // back as a different one.
-  target_words: (n) => (Number(n) < 150 ? 'let her decide' : `~${n} words`),
+  target_words: (n) => (Number(n) < 150 ? 'let him decide' : `~${n} words`),
   coverOpacity: (n) => `${n}%`,
   // Words, not the sampler's numbers (second usability check, 2026-10-25). The bands are the
   // writer's sense of the slider, not a measurement.
@@ -1054,7 +1054,7 @@ function drawBar() {
   $('bar').innerHTML = `
     <!-- THE MAIN MENU IS THE LOGO NOW. Seth, 2026-08-28: "the maine menu moveing forward will be
          the anansi logo on the left or the header of any main menu item. only the name of the story
-         will open the story menu." Her mark, drawn the way the rail's header draws it — no plate,
+         will open the story menu." His mark, drawn the way the rail's header draws it — no plate,
          currentColor, so it takes the theme (issue #6). It is on EVERY screen, which is the whole
          property test/ui/phone.js exists to keep: the hole it guards is zero doors, not two. -->
     <!-- #26, and then Seth on 2026-08-29: "remove the word anansi from the header." The mark was
@@ -1137,14 +1137,14 @@ function drawBar() {
            LIB.length && S.wpage !== 'create' && !(S.wpage === 'stories' && heroOf()) ? `<button class="deskonly" data-open="${LIB[0].id}" style="font-size:12px; letter-spacing:.1em;
            text-transform:uppercase; color:var(--on-gold); background:var(--gold); padding:9px 18px;
            border-radius:var(--r); font-weight:500; white-space:nowrap">Carry on writing</button>` : ''}`}
-      <!-- HER WEB, AND IT OPENS HER. Seth: "make the icon a full web and make it go to anansi.
-           this can remove the anansi text link from the input field." Asking her something is a
+      <!-- HIS WEB, AND IT OPENS HIM. Seth: "make the icon a full web and make it go to anansi.
+           this can remove the anansi text link from the input field." Asking him something is a
            thing you do while writing, which is the argument that took Anansi off the nav row in
            the first place; it just had the wrong control.
            IN A STORY ONLY, because there is no Anansi to ask without one — and the menu is not
            lost with it, which was the objection: the logo at the far left of this bar is the way
            in on every screen now. Same glyph size and padding as Reading mode beside it. -->
-      ${/* HER WEB OPENS THE TALE'S MENU, and the ⋯ is gone. Seth, 2026-10-26: "make the web icon at
+      ${/* HIS WEB OPENS THE TALE'S MENU, and the ⋯ is gone. Seth, 2026-10-26: "make the web icon at
             the top open what the three dots open and then remove the three dots". It opened the
             Talk drawer; that is a row on the menu now (SNAV), and Talk is still the quill's hold. */ ''}
       ${inStory ? `<button data-railview="story" class="pill" aria-label="This tale's menu" title="This tale's menu"
@@ -1772,7 +1772,7 @@ async function nameChapter(chapterId, auto = false) {
   S.setup = { chapterId, title: typed || r.title, note: live.note.trim() || r.note,
               opens: live.opens.trim() || (r.opens ?? '') };
   drawSide();
-  // Do not claim she filled a box she left empty. The beat is the half that matters — it rides
+  // Do not claim he filled a box he left empty. The beat is the half that matters — it rides
   // near the generation point on every call of this chapter — so a silent blank is the one thing
   // worse than no proposal at all.
   toast(r.noteMissing && !live.note.trim()
@@ -1948,7 +1948,7 @@ function nextBar(last) {
         ${hint ? `<small class="holdhint">${hwkb ? 'hold, or Alt+T, to talk' : 'hold to talk'}</small>` : ''}
         ${/* #55 ON THE BAR TOO (Seth, 2026-10-26: "show the planning count on the bar"). Send folds the
               box, which hid the count beside it; with the box folded it sits here, where the hold hint
-              sits when she is not writing. One #weaving at a time: drawDock leaves the other out. */
+              sits when he is not writing. One #weaving at a time: drawDock leaves the other out. */
           weavingAt('dock') && !open ? `<small id="weaving" class="weaving holdhint tnum" aria-live="polite">${weaveWords('dock')}</small>` : ''}
         <button id="quill" data-dockopen="1" aria-expanded="${open}"
           aria-label="${open ? 'Fold the box away. Hold to talk to Anansi' : 'Open the box, to write it yourself. Hold to talk to Anansi'}"
@@ -2150,10 +2150,10 @@ function drawDock() {
           : `Hands off ${esc(V.story.lockedCharacter)} — the model will not write them. Press to let it.`}"
         style="flex:0 0 auto; margin-left:auto;
         color:${V.story.lockoutOn === false ? 'var(--faint)' : 'var(--ink-bright)'}">Hands off</button>` : ''}
-      <!-- ANANSI CAME OFF THIS ROW. Her web in the header is the way to her now, and it is a
+      <!-- ANANSI CAME OFF THIS ROW. His web in the header is the way to him now, and it is a
            better one: the row was three doors deep and the seventh control was already being
            fought onto one line at 390px. The PANEL is unchanged and data-panel="anansi" still
-           opens it, exactly as when she came off the nav row for the same reason. -->
+           opens it, exactly as when he came off the nav row for the same reason. -->
     </div>
     <div id="inputRow">
       <!-- ON THE LEFT. It is what you reach for BEFORE writing — take the whole screen to say it
@@ -2174,18 +2174,18 @@ function drawDock() {
       <!-- SEND STAYS SEND. It carried two jobs for as long as Stop had nowhere else to be — the
            argument was that the place your eye is already on is the place you last pressed. Stop
            lives on the veil now, which covers the whole screen and is the only thing you can see
-           while she writes, so the composer's button no longer has to change identity underneath
+           while he writes, so the composer's button no longer has to change identity underneath
            you. Seth: "the stop button on the input doesnt have to be where the send button is. it
            can stay the send button since we have it on the other screen."
            Disabled while busy rather than repurposed: a control that cannot act should say so,
            not become a different control. -->
       <!-- STOP COMES BACK HERE WHEN THE VEIL IS NOT UP. PLAN-07 moved Stop onto the veil on the
            argument that the veil "covers the whole screen and is the only thing you can see while
-           she writes", so the composer never had to change identity. That was true until
+           he writes", so the composer never had to change identity. That was true until
            2026-09-02, when the veil learned to be dismissed mid-write and its own Stop learned to
            hide once the words start — and between those two, a writer who left the veil early had
            NO way to stop a generation at all. The veil's Stop was the only one in the app.
-           So: while she is writing and there is no veil in front of you, this is Stop.
+           So: while he is writing and there is no veil in front of you, this is Stop.
            It wears the stopping look since #71 round two made it the one Stop with the box up: on a
            phone the word is hidden, and without it the button showed Send's mark unchanged. -->
       <!-- #55. WHILE A WEAVING BOOK'S PASSAGE IS BEING WOVEN, the count, here and on the veil. Only
@@ -2908,7 +2908,7 @@ function loadShortlist() {
 }
 
 /** WHY A BLOCK IS IN THE PROMPT, OR IS NOT, in the writer's words. The builder's reasons are
- *  written for the code ('anchor', 'always_on', 'mode:speak', 'retired at chapter 3') and the What she
+ *  written for the code ('anchor', 'always_on', 'mode:speak', 'retired at chapter 3') and the What he
  *  reads page showed them as they were (usability check, 2026-10-24). A wake word stays as it is:
  *  it is the writer's own word. Anything not listed passes through, so a new reason shows rather
  *  than vanishing. */
@@ -3227,7 +3227,7 @@ const PANELS = {
     if (deck) rows.push(deck);
 
     if (!rows.length) {
-      // In her own voice, at Seth's asking: an empty panel that says nothing is indistinguishable
+      // In his own voice, at Seth's asking: an empty panel that says nothing is indistinguishable
       // from a broken one.
       return `<div class="card" style="gap:6px">
         <div class="kind">the workbench is clear</div>
@@ -3244,8 +3244,8 @@ const PANELS = {
   history: historyPanel,
   context() {
     if (!MANI) return `<div class="hint">${MANIERR
-      ? `What she reads could not be worked out: ${esc(MANIERR)}`
-      : 'Open the composer once and what she reads appears here.'}</div>`;
+      ? `What he reads could not be worked out: ${esc(MANIERR)}`
+      : 'Open the composer once and what he reads appears here.'}</div>`;
     if (S.ctxView === 'prompt') {
       return `<div class="stack">
         ${ctxTabs()}
@@ -3289,13 +3289,13 @@ const PANELS = {
     return `<div class="stack-2">
       ${ctxTabs()}
       <div style="display:flex; align-items:baseline; gap:10px; font-size:12.5px; color:var(--mute)">
-        <!-- In the writer's words since the second usability check (2026-10-25): a share of her
+        <!-- In the writer's words since the second usability check (2026-10-25): a share of his
              room, not "387 / 6,245 (est.)". The counts stay in the tooltip for whoever wants them. -->
-        <span>What she will read next time</span>
+        <span>What he will read next time</span>
         <span class="tnum count" data-exact="${MANI_EXACT ? 1 : 0}"
           title="${MANI.totals.used.toLocaleString()} of ${budget.toLocaleString()} tokens${MANI_EXACT ? ', counted by the model'
             : ', estimated because the model is not answering'}"
-          >${Math.round(MANI.totals.used / budget * 100)}% of her room${MANI_EXACT ? '' : ', roughly'}</span></div>
+          >${Math.round(MANI.totals.used / budget * 100)}% of his room${MANI_EXACT ? '' : ', roughly'}</span></div>
       <div class="meter">${Object.entries(agg).map(([k, v]) =>
         `<i style="width:${(v * scale / budget * 100).toFixed(2)}%; background:${BLOCK_COLOR[k] ?? 'var(--ink-ghost)'}"></i>`).join('')}</div>
       ${MANIFIT ? `<div class="item-row">
@@ -3309,7 +3309,7 @@ const PANELS = {
         return `<div class="item-row">
           <span style="width:8px; height:8px; border-radius:50%; background:var(--gold-dim); margin-top:5px; flex:0 0 auto"></span>
           <span class="col-4">
-            <span class="body-ink">Scenes ${h.from}&ndash;${h.to} are out of her reach${helpMark('horizon')}</span>
+            <span class="body-ink">Scenes ${h.from}&ndash;${h.to} are out of his reach${helpMark('horizon')}</span>
             ${tipCard('horizon', HELP.horizon.title, `${helpText('horizon')}<p>Their summaries no
               longer reach the model, so it cannot draw on them or stay consistent with them.
               <strong>This scene &rarr; Summaries</strong> gathers a run of them into a chapter, whose
@@ -3325,7 +3325,7 @@ const PANELS = {
         if (!prose) return '';
         return `${tipCard('ctxCompact', 'Summarise this scene now', `<p>Summarises the open scene,
             so Anansi reads a few lines about it instead of every passage. The passages are
-            ${Math.round(prose / MANI.totals.used * 100)}% of what she reads here${pct >= 70
+            ${Math.round(prose / MANI.totals.used * 100)}% of what he reads here${pct >= 70
               ? ' &mdash; and you are at ' + pct + '% full.' : '.'}</p>`)}
           <div style="display:flex; align-items:center; gap:2px; margin:10px 0 8px">
             <button class="btn ghost fill" data-summarize="1">Summarise this scene now</button>
@@ -3433,7 +3433,7 @@ const PANELS = {
         ${weaveFitRow(`invent:${kind}`)}
         <div class="stack-10">
           <button class="letcard" data-invent="${esc(kind)}">${
-            card('quill', 'Write one for me', 'From what you typed, or her own idea')}</button>
+            card('quill', 'Write one for me', 'From what you typed, or his own idea')}</button>
           <button class="letcard" data-fromweb="${esc(kind)}" ${S.webPulling || !searchable ? 'disabled' : ''}>${
             card('search', S.webPulling ? 'Looking it up&hellip;' : 'Look it up online',
               searchable ? 'Uses the name you typed' : 'Searching the web is not switched on here')}</button>
@@ -3507,7 +3507,7 @@ const PANELS = {
             tipMark('thInContext', 'What Sent now can see')}</div>
           ${tipCard('thInContext', 'What Sent now can see', manifestNow()
             ? `<p>The threads the model is actually sent right now &mdash; read off the same
-              numbers the What she reads drawer shows, so the two cannot disagree. An on-a-word
+              numbers the What he reads drawer shows, so the two cannot disagree. An on-a-word
               thread is here when one of its wake words has appeared, and an always-on one is
               missing when it was pushed out to make space.</p>
               <p>It moves as you write, because what wakes moves as you write.</p>`
@@ -4299,9 +4299,9 @@ const PANELS = {
           : `<div style="max-width:94%; display:flex; flex-direction:column; gap:7px">
               <div style="font-size:13.5px; line-height:1.62; color:var(--ink); white-space:pre-wrap">${esc(turn.text)}</div>
               <!-- NO LINK LIST. Seth, 2026-09-01: "i dont need anansi to post where the
-                   information is coming from like the url links." Four links under every answer she
+                   information is coming from like the url links." Four links under every answer he
                    looked something up for, which is provenance nobody asked for and the widest
-                   thing on a phone. The search still happens and still reaches her; the writer just
+                   thing on a phone. The search still happens and still reaches him; the writer just
                    is not handed the bibliography. -->
               ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
                 border-color:var(--edge-lit); color:var(--ink-bright)">${turn.proposed} chalked &mdash; under This scene</button>` : ''}
@@ -4361,8 +4361,8 @@ const PANELS = {
 
       ${weaveFitRow('talk')}
       <div style="display:flex; flex-direction:column; gap:8px; padding-top:10px; border-top:1px solid var(--line); position:relative">
-        <!-- @ SUMMONS SOMETHING BY NAME. Issue #7: Anansi answers better when she is told which
-             thread you mean than when she has to guess from a paraphrase. The list floats ABOVE
+        <!-- @ SUMMONS SOMETHING BY NAME. Issue #7: Anansi answers better when he is told which
+             thread you mean than when he has to guess from a paraphrase. The list floats ABOVE
              the box rather than sitting in the column, so opening it moves nothing. -->
         <div id="atlist" hidden></div>
         <div id="askWrap">
@@ -4461,7 +4461,7 @@ const PANELS = {
       <div class="lbl sect">A new string${
         tipMark('strNew', 'A new string')}</div>
       ${tipCard('strNew', 'A new string', `<p>Anansi chalks these too &mdash; they arrive under This
-        scene with everything else she offers.</p>`)}
+        scene with everything else he offers.</p>`)}
       <input class="field" data-st2="title" aria-label="What to call the promise"
         placeholder="The letter he has not opened">
       <textarea class="field" data-st2="body" aria-label="What was promised, and to whom"
@@ -4584,7 +4584,7 @@ const PANELS = {
            always weaves cannot be switched off, so for either the server sends weaveNote, the
            sentence to show here instead of the switch. Its words are the server's alone. -->
       ${V.weaveNote ? `<div id="weavenote" class="hint" style="margin:16px 0 2px">${esc(V.weaveNote)}</div>`
-      : `${tipCard('weaving', 'Plans first', `<p>Anansi plans each passage, unseen, before she writes
+      : `${tipCard('weaving', 'Plans first', `<p>Anansi plans each passage, unseen, before he writes
         it. The plan is never shown. It is slower, and it sets aside space that
         would otherwise hold more of your tale.</p>`)}
       <label style="display:flex; align-items:center; gap:10px; margin:16px 0 2px; font-size:13px;
@@ -4592,14 +4592,14 @@ const PANELS = {
         <input type="checkbox" data-story="weaving" ${V.story.weaving ? 'checked' : ''}>
         Plans first${tipMark('weaving', 'Plans first')}</label>`}
 
-      <div class="lbl sect">How she picks words</div>
+      <div class="lbl sect">How he picks words</div>
       ${slider('Surprise', 'temperature', g.temperature ?? 0.85, 2,
-        'How far Anansi reaches for a less obvious word. Only for prose: her notes and suggestions always stay steady.')}
+        'How far Anansi reaches for a less obvious word. Only for prose: his notes and suggestions always stay steady.')}
       ${slider('Focus', 'top_p', g.top_p ?? 0.95, 1,
-        'How many words she considers at all. Lower is tighter and more predictable.')}
+        'How many words he considers at all. Lower is tighter and more predictable.')}
       ${slider('Passage length', 'target_words', g.target_words ?? 0, 2000,
         'Roughly how long a passage should run. Anansi aims for it and is allowed to come in under '
-        + 'it — she is not cut off at it. All the way left leaves the length to her, which is how '
+        + 'it — he is not cut off at it. All the way left leaves the length to him, which is how '
         + 'every tale here was written until now.')}
       <!-- #18 §3. THE WRITER'S DEFAULT VOICE, which had no surface at all before this. Only the
            two buttons inside the spark wizard ever read it, and the server quietly backfills it
@@ -4625,23 +4625,23 @@ const PANELS = {
         : '<div class="hint">Reading it&hellip;</div>'}
 
       <!-- HOW ANANSI TALKS, and it is a different thing from the box above it. That one is how
-           the BOOK is written; this one is how she answers you. They were the same thing until
-           2026-08-30 by accident: the book's voice was reaching the chat and outranking her own,
-           so a book written in short flat sentences got a short flat Anansi. She is isolated from
-           it now, and her register is here rather than nowhere. NOT copied into anything and not
-           per story - she is one character across the shelf. -->
+           the BOOK is written; this one is how he answers you. They were the same thing until
+           2026-08-30 by accident: the book's voice was reaching the chat and outranking his own,
+           so a book written in short flat sentences got a short flat Anansi. He is isolated from
+           it now, and his register is here rather than nowhere. NOT copied into anything and not
+           per story - he is one character across the shelf. -->
       <div class="lbl sect">How Anansi talks</div>
       ${S.prompts?.anansi ? `
         <textarea class="field grow box-110" data-anansivoice aria-label="How Anansi talks"
          >${esc(S.prompts.anansi.mine ?? S.prompts.anansi.shipped)}</textarea>
         <div class="btnrow">
           <button class="btn ghost fill" data-setanansi="1">${
-            S.prompts.anansi.mine ? 'Save how she talks' : 'Make this how she talks'}</button>
+            S.prompts.anansi.mine ? 'Save how he talks' : 'Make this how he talks'}</button>
         </div>
         <div class="hint">${S.prompts.anansi.mine
-          ? `Yours, on every tale. Emptying the box puts her own back.`
-          : `Her own. Change it and save, and she answers you like this everywhere.`}
-          Her register only &mdash; what she may offer you, and the rule that she never invents a
+          ? `Yours, on every tale. Emptying the box puts his own back.`
+          : `His own. Change it and save, and he answers you like this everywhere.`}
+          His register only &mdash; what he may offer you, and the rule that he never invents a
           fact the tale does not have, is not in this box and cannot be altered away.</div>`
         : '<div class="hint">Reading it&hellip;</div>'}
 
@@ -4649,7 +4649,7 @@ const PANELS = {
         tipMark('genPrompts', 'The five modes and Reweave')}</div>
       ${tipCard('genPrompts', 'The five modes and Reweave', `<p>Yours on every tale, not on one,
         and they reach the model exactly as written &mdash; nothing is added between the box and the
-        model. Read one in <strong>What she reads &rarr; Exactly as sent</strong> before you trust it.</p>`)}
+        model. Read one in <strong>What he reads &rarr; Exactly as sent</strong> before you trust it.</p>`)}
       ${(() => {
         // The shipped wording comes from the server, rendered by the engine itself, so the box
         // shows what it is actually replacing rather than a second copy that goes stale.
@@ -4929,8 +4929,8 @@ function searchHits() {
 const STEPS = [
   ['book',    'The tale',        'What it is, and how the prose sounds.'],
   ['threads', 'The threads',     'What this tale needs, if anything.'],
-  ['look',    'Try it on',       'Anansi reads it back and says what she would change.'],
-  ['you',     'You',             'Who you play, and whom she keeps her hands off.'],
+  ['look',    'Try it on',       'Anansi reads it back and says what he would change.'],
+  ['you',     'You',             'Who you play, and whom he keeps his hands off.'],
   ['scene',   'The first scene', 'Where it opens.'],
   ['opening', 'The opening',     'Who writes the first passage.'],
   ['begin',   'Begin',           'What gets written when you start it.'],
@@ -5179,7 +5179,7 @@ function sparkReview() {
        ${rerollField('title')}
        ${row('genre', 'Genre', s.genre, 'Comma separated. Each one becomes its own tag on the rack.')}
        ${rerollField('genre')}
-       ${area('premise', 'Premise', s.premise, 'Anansi reads it every time she writes.', 110)}
+       ${area('premise', 'Premise', s.premise, 'Anansi reads it every time he writes.', 110)}
        ${rerollField('premise')}
        ${forgeCopy('premise', 'Copy the premise pattern')}
        ${reroll('Reweave from your idea')}
@@ -5351,7 +5351,7 @@ function sparkReview() {
     // made "what changed" slow, and #24 is the whole argument.
     ? `<button class="btn ghost below-10" data-spreview="1" ${S.spark.reviewing ? 'disabled' : ''}
         >${S.spark.reviewing ? 'Reading it back&hellip;'
-           : S.spark.review ? 'Read it back again' : 'Ask what she would change'}</button>
+           : S.spark.review ? 'Read it back again' : 'Ask what he would change'}</button>
        ${!S.spark.review ? `<div class="hint flush">Nothing has been asked yet. This is the
          first point where the tale can be read as a whole &mdash; the premise was written before
          the cast existed, and the cast from a premise you may have rewritten since. Skipping it
@@ -5363,14 +5363,14 @@ function sparkReview() {
            <div class="hint flush">${esc(ch.why)}</div>
            <button class="btn ghost small-btn" data-spapply="${i}">Use this instead</button></div>`).join('')}
           ${S.spark.review.entries.length ? `<div class="lbl wide push-14"
-            >Threads she would add</div>
+            >Threads he would add</div>
             ${S.spark.review.entries.map((e, i) => `<div class="card below-8 gap-6">
               <div class="base-8">
                 <span class="name-14">${esc(e.title)}</span>
                 <span class="tag">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></div>
               <div class="note">${esc(e.body)}</div>
               <button class="btn ghost small-btn" data-spaddone="${i}">Add to the cast</button></div>`).join('')}` : ''}`
-       : `<div class="hint flush">She would not change anything. That is a real answer and
+       : `<div class="hint flush">He would not change anything. That is a real answer and
           it is the one a skeleton that hangs together gets.</div>`}`
     : key === 'scene'
     // THE FIRST SCENE. It asked for "Where this is going" as well until 2026-08-30, when that
@@ -5566,10 +5566,10 @@ function setupPanel() {
    *
    * The step names were already the split and the queue ignored them: everything landed on step one.
    * The sharpest version of the bug is on step three — a writer presses "Have Anansi write someone"
-   * in the tray THERE, and the card she proposes appeared two steps away, with a toast pointing at a
+   * in the tray THERE, and the card he proposes appeared two steps away, with a toast pointing at a
    * different panel.
    *
-   * So: a `new` card is a thread this book does not have, which is what ANYONE NEW means whether she
+   * So: a `new` card is a thread this book does not have, which is what ANYONE NEW means whether he
    * offered it at the close or you asked for it a moment ago. Everything else — a change, a conflict,
    * a state, a retirement — writes into a thread you already have, which is what the chapter LEFT. */
   const fresh = queue.filter((p) => p.kind === 'new');
@@ -5703,7 +5703,7 @@ function setupPanel() {
         tipMark('setInvent', 'Having Anansi write one for this scene')}</div>
       ${tipCard('setInvent', 'Having Anansi write one for this scene', `<p>Anansi reads where you
         said the scene heads and chalks a thread for it. It goes to the Workbench like everything
-        else she offers; nothing is in the tale until you sew it in.</p>`)}
+        else he offers; nothing is in the tale until you sew it in.</p>`)}
       <div class="push-12 row-6">${KINDS.map((k) => `<button data-setupkind="${k}" aria-pressed="${k === kind}"
         style="flex:1; text-align:center; font-size:11px; padding:8px 0; border-radius:var(--r);
         border:1px solid ${k === kind ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
@@ -5781,8 +5781,8 @@ function setupPanel() {
       placeholder="${S.naming ? 'and saying where it goes…' : 'Where this scene is going, eventually'}"
       >${esc(form.note)}</textarea>
     <div class="hint">${form.note.trim()
-      ? 'Anansi reads it every time she writes, as where the scene is going &mdash; not as a thing to do now.'
-      : '<strong>Not set.</strong> Once it is, Anansi reads it every time she writes, as where the scene is going.'}</div>
+      ? 'Anansi reads it every time he writes, as where the scene is going &mdash; not as a thing to do now.'
+      : '<strong>Not set.</strong> Once it is, Anansi reads it every time he writes, as where the scene is going.'}</div>
 
     <!-- THE OPTION TO INFLUENCE. Seth: "title and premise should be together with the option to
          influence." It was one button that took whatever came back. A steer is the difference
@@ -5879,7 +5879,7 @@ const outfitOwner = () => S.entryId || null;
  *  + Thread tray, which had been two copies of the same three fields drifting apart; the tray's
  *  door went with New thread.
  *
- *  ANANSI FIRST, and the fields folded behind her. Seth: "right now it looks like alot to fill
+ *  ANANSI FIRST, and the fields folded behind him. Seth: "right now it looks like alot to fill
  *  out" — the two ways in were stacked with nothing between them, so the screen asked for a name
  *  and a body before it offered to write them. A <details>, not a state flag and a repaint: the
  *  browser has this, and a repaint here would throw away whatever is half-typed in the fold.
@@ -7615,7 +7615,7 @@ const WPAGES = {
           you will miss.</div>
         ${f('title', 'Title')}
         ${f('genre', 'Genre', 'Comma separated. Each one becomes its own tag on the rack.')}
-        ${area('premise', 'Premise', 'One or two sentences. Anansi reads it every time she writes.',
+        ${area('premise', 'Premise', 'One or two sentences. Anansi reads it every time he writes.',
                'A broke ex-sergeant owes a moneylender more than he can pay…')}
         ${f('setting', 'Setting', 'Where it happens. Lore written later can replace this.')}
         <label class="lbl" for="f-bf-pov">Point of view</label>
@@ -7678,7 +7678,7 @@ const WPAGES = {
     }
     return `<div class="split">
       <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px; max-width:640px">
-        <div class="serif title-lg">Hand her one idea</div>
+        <div class="serif title-lg">Hand him one idea</div>
         <div style="font-size:14px; line-height:1.65; color:var(--mute)">Spark turns an idea into a skeleton.
           Every field stays editable, and the cast comes back as threads you keep or reject.</div>
         <textarea id="idea" class="field serif" aria-label="The idea to spark a tale from"
@@ -8430,7 +8430,7 @@ function decode(el, slot) {
  *  AND THE WEB DRAWS ITSELF IN. Seth: "the ai takes long to respond anyway while it formulates so
  *  having a ritual for this buys us that time while giving the user something to look at." It is
  *  the app's own mark — the same seven strokes as web/icon.svg, which is a spider's web because
- *  she is Anansi — drawn on with `pathLength="1"` so one dash length fits every stroke whatever
+ *  he is Anansi — drawn on with `pathLength="1"` so one dash length fits every stroke whatever
  *  its real geometry, radials first and then the rings, and then it breathes. `stroke-dashoffset`
  *  animates on the compositor and costs nothing while the model is loading a 35B on the same box.
  */
@@ -8475,7 +8475,7 @@ function ghost() {
       <div class="${GHOST_VOICE ? 'said' : 'narr'}"><div class="veiltext" aria-live="polite"></div></div>`;
     col.appendChild(g);
     INLINE = g;
-    // At the bottom when she starts, the page will move once, at her first word; scrolled up to
+    // At the bottom when he starts, the page will move once, at his first word; scrolled up to
     // read something else, it stays where you are. Measured before followLive brings the empty
     // block into view, or every press would count as "at the bottom".
     const r = $('read');
@@ -8784,7 +8784,7 @@ function dismissVeil(ch) {
   // pressing a key and the letter appearing is the app arguing with them.
   if (still()) g.remove();
   else { g.classList.add('leaving'); g.addEventListener('animationend', () => g.remove(), { once: true }); }
-  // NO LAND MEANS SHE IS STILL WRITING — the deferred repaint is only set once a take has landed.
+  // NO LAND MEANS HE IS STILL WRITING — the deferred repaint is only set once a take has landed.
   // The composer has to be redrawn anyway, because Stop lives on it again the moment the veil is
   // not in front of it.
   if (!land && S.busy) drawDock();
@@ -8997,7 +8997,7 @@ async function openingPassage() {
   // BY CHAPTER, which is what the line above has always claimed and did not do. `db.passagesOf`
   // returns every passage in the story on this branch, so on any book past its first passage this
   // returned early and the opening was never written — the setting says Anansi writes it, and after
-  // the first chapter she silently did not. `ritualPanel` asks the same question correctly forty
+  // the first chapter he silently did not. `ritualPanel` asks the same question correctly forty
   // lines above, filtering on `chapterId`. Found by Council 07, seat 4.
   if ((V.passages ?? []).some((p) => !p.isBreak && p.chapterId === V.currentChapter.id)) return;
   await generate('continue');
@@ -9123,7 +9123,7 @@ async function generate(mode = S.mode, again = null) {
     // (HOLD_SCROLL), and the seam pin is only for a passage that arrives all at once.
     const held = HOLD_SCROLL != null;
     // AND IT IS NOT WIPED IN AGAIN. Its words already blurred in as they came; the 1.5s wipe on top
-    // of that was the second transition Seth saw after she stopped (2026-10-26). Announced either way.
+    // of that was the second transition Seth saw after he stopped (2026-10-26). Announced either way.
     arrive(!held); foldDock();
     paint(); if (!held) pinToSeam(); refreshManifest(); refreshHistory();
     if (said) toast(said);
@@ -9178,7 +9178,7 @@ async function invented(r, kind, dir, search) {
   if (r.error) return toast(r.error);
   if (r.card) {
     // The open card, rewritten, unsaved. Same bargain as the outfit below and as every other
-    // thing Anansi offers: she fills the fields, the writer reads them and presses Save. The
+    // thing Anansi offers: he fills the fields, the writer reads them and presses Save. The
     // keys come with it because a card whose trigger words are not rewritten alongside its body
     // is a card that still fires on the old one.
     const set = (f, v) => { const el = document.querySelector(`[data-f="${f}"]`); if (el) el.value = v; };
@@ -11083,9 +11083,9 @@ document.addEventListener('click', async (e) => {
     // thing behind it never did. Caught by asserting what the client SENDS rather than what it
     // stores. Only the ones still named in the question — a mention whose text you deleted is a
     // reference to something you are no longer asking about, and sending it would put a whole
-    // thread in front of her for a word that is not there.
+    // thread in front of him for a word that is not there.
     // De-duplicated: naming the same thread twice in one question, or picking it, deleting the
-    // word and picking it again, would otherwise put its whole body in front of her twice.
+    // word and picking it again, would otherwise put its whole body in front of him twice.
     // One filter for the two boxes that send to Talk (#71): see `mentionsSaid`.
     const mentions = mentionsSaid(said, S.talk.mentions);
     S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true, draft: null,
@@ -11551,7 +11551,7 @@ document.addEventListener('click', async (e) => {
     drawSide();
     return toast(r.reset ? 'Reset to Anansi\'s voice.' : 'That is your voice now.');
   }
-  // HOW SHE TALKS. Same bargain as the box above and the same blank-is-reset, but it is copied
+  // HOW HE TALKS. Same bargain as the box above and the same blank-is-reset, but it is copied
   // into nothing: the chat reads it live on every call, so a change is in force on the next
   // question rather than on the next book.
   if (d.setanansi) {
@@ -11561,7 +11561,7 @@ document.addEventListener('click', async (e) => {
     S.prompts = { ...S.prompts, yours: r.yours ?? S.prompts.yours, library: r.library ?? null,
                   voice: r.voice ?? S.prompts.voice, anansi: r.anansi ?? S.prompts.anansi };
     drawSide();
-    return toast(r.reset ? 'Reset: she talks her own way again.' : 'That is how she talks now.');
+    return toast(r.reset ? 'Reset: he talks his own way again.' : 'That is how he talks now.');
   }
   if (d.restyle) {
     if (S.styling) return;
@@ -11896,7 +11896,7 @@ document.addEventListener('click', async (e) => {
    *  is the surface telling you to press again. */
   if (d.spark) {
     const idea = $('idea')?.value.trim();
-    if (!idea) return toast('Give her an idea first.');
+    if (!idea) return toast('Give him an idea first.');
     const r = await whileWorking(t, 'Making it…', () => api.spark(idea));
     if (!r) return;
     if (r.error) return toast(r.error);
@@ -11923,7 +11923,7 @@ document.addEventListener('click', async (e) => {
       // blank-start form's, which is what lets both share `seedList`.
       seed: [],
       // #21 §3 step 5. Null until asked for: it fires from a button, and "not asked yet" and
-      // "asked, and she would change nothing" are different screens.
+      // "asked, and he would change nothing" are different screens.
       reviewing: false, review: null,
       // What Anansi proposed, kept as it arrived. The server polices ONLY these names, so an edit
       // here must not rewrite them — a persona the writer types is theirs and is never dropped.
@@ -12018,8 +12018,8 @@ document.addEventListener('click', async (e) => {
     S.spark.review = { changes: r.changes ?? [], entries: r.entries ?? [] };
     paint();
     return toast(S.spark.review.changes.length || S.spark.review.entries.length
-      ? 'She tried it on. Nothing is applied until you press it.'
-      : 'She would not change anything.');
+      ? 'He tried it on. Nothing is applied until you press it.'
+      : 'He would not change anything.');
   }
   // ONE PRESS, ONE CHANGE, AND IT LEAVES THE LIST. A suggestion still on screen after it has been
   // taken reads as one you have not decided about yet.
@@ -13206,7 +13206,7 @@ document.addEventListener('drop', (e) => {
  *  doesn't always answer correctly. I should be able to summon threads, stories or chapters by
  *  using the @ symbol and then typing the letters and an autocomplete comes up." Naming a thread
  *  exactly is worth more than any amount of prompt: the difference between "what happened with the
- *  ledger" and "@the ledger" is whether she has to guess which of your things you meant.
+ *  ledger" and "@the ledger" is whether he has to guess which of your things you meant.
  *
  *  WHAT IT CAN SEE, and this is the whole of the scoping decision. Seth: "it should look inside
  *  the story and its threads. it can reach other books but only the users. it shouldnt reach out
@@ -13255,7 +13255,7 @@ const atClose = () => {
  *  ONLY while it is still going to be sent. Type `@the ledger` by hand and nothing lights up,
  *  because nothing was picked and there is no id behind it. Delete a letter out of a name you did
  *  pick and the highlight goes, because the filter at send time drops it too. What you see is
- *  exactly what she gets.
+ *  exactly what he gets.
  *
  *  A textarea cannot colour part of its own text, so this is the mirror trick: a div behind the
  *  box with the same font, padding and wrapping, holding the same string with the mentions wrapped
@@ -13374,7 +13374,7 @@ function atAccept(i) {
   // The name goes in WITHOUT the @, because what reaches Anansi should read as English. The @ is
   // how you FIND it, not part of what you meant.
   // REMEMBERED, not just typed. Seth: "yes I do want it to do that. that way anansi knows exactly
-  // what I'm referring to." The name alone tells her which words you used; the id tells her which
+  // what I'm referring to." The name alone tells him which words you used; the id tells him which
   // thing. Filtered against the box's text at send time, so deleting the name drops the mention
   // rather than shipping a reference to something the question no longer mentions.
   atRemember(boxId, { kind: it.kind, id: it.id, label: it.label });

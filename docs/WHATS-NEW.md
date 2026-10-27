@@ -10,6 +10,12 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-27 · Anansi is he
+
+### Anansi is "he"
+Every screen, tip and note now calls Anansi "he": What he reads, How he talks, Ask what he would
+change.
+
 ## 2026-10-27 · Deeper blur, more fonts
 
 ### The full-screen boxes sit on a darker, softer page
@@ -85,7 +91,7 @@ to fix it (write the summary, open Chapters, watch it again, bring it back) or l
 
 ### Edit, or have Anansi edit
 Open a part of a card to change its words yourself, or press Anansi edits, with a few words about
-what should change or none, and she writes that part again. It stays chalked until you sew it in.
+what should change or none, and he writes that part again. It stays chalked until you sew it in.
 
 ### Chalked
 What Anansi suggests and you have not decided is now called chalked, not basted.
@@ -99,18 +105,18 @@ are always sent but were not in the scene, so you can check them.
 ### Hemming reads every thread the scene names
 When you hem a scene, Anansi now looks at every thread its narration names, places, lore and items
 as well as people, and offers what changed: where each one stands now, written out whole, and any
-pocket the scene gave it something new for. Everything she offers for one thread comes together,
+pocket the scene gave it something new for. Everything he offers for one thread comes together,
 with the line of the scene it came from. A thread with no Always true yet gets one offered.
 
 ### Threads come out fully fleshed
 When Anansi reads a scene and finds someone new, the thread arrives whole: who or what it is,
-plus every pocket the scene gives her enough for (for a person: how they look, how they talk, what
-they will not say, who they are to the others, what they wear). When you hem a scene she also
+plus every pocket the scene gives him enough for (for a person: how they look, how they talk, what
+they will not say, who they are to the others, what they wear). When you hem a scene he also
 starts the pockets a thread it names does not have yet, if the scene shows enough for them. The
 card shows the pockets a new thread arrives with before you sew it in.
 
 ### Pockets are instructions
-Anansi now writes pockets as instructions for the next scene (how she talks, what she wears, what
+Anansi now writes pockets as instructions for the next scene (how he talks, what he wears, what
 to show when a place is in a scene) rather than descriptions for the prose to repeat. A voice
 tells the model to show the voice only in what is said, never to describe it in the narration.
 
@@ -150,7 +156,7 @@ and the parts that are new since the one before.
 What was called Facts on a thread is now Always true: who or what the thread is, for the whole
 tale. It is shown first on the thread, above where it stands now, and it is always sent with the
 thread, so it has no on or off switch. Anansi never changes it on a thread you already have; when
-she finds something permanent about one, she offers it as a change to where it stands instead.
+he finds something permanent about one, he offers it as a change to where it stands instead.
 
 ### Role, history, where it came from and what it covers moved too
 These were pockets. They are now part of Always true, each under its own name, so they are sent
@@ -178,10 +184,10 @@ while Anansi plans, since Send folds the box it used to sit beside.
 ### Send folds the box
 When you press Send, the box folds away and the three buttons come back at once. While Anansi
 writes, Stop is the button on the right, faded like the one on the left. What you typed waits in
-the folded box until the passage lands, so if you stop her it is still there.
+the folded box until the passage lands, so if you stop him it is still there.
 
-### The page holds still when she finishes
-When Anansi stops writing, the page no longer drops and slides back, and the passage she just
+### The page holds still when he finishes
+When Anansi stops writing, the page no longer drops and slides back, and the passage he just
 wrote is not wiped in a second time.
 
 ### Alter and Reweave look like the box you write in
@@ -226,14 +232,14 @@ are dimmed now instead of nearly invisible, so you can see how far the tale has 
 
 ## 2026-10-26 · A quieter header, and words out of a blur
 
-### Her web is the menu
+### His web is the menu
 In a tale, Anansi's web at the top right now opens the tale's menu, and the ⋯ beside it is gone.
 Talk to Anansi is the last row of that menu.
 
 ### The numbers under the header are folded away
-The row under the header with the scene, the words, how much of her room is used and What is in
+The row under the header with the scene, the words, how much of his room is used and What is in
 it is a small ⌄ now. Tap it to show the numbers, and tap again to hide them. What is in it still
-opens what she reads. Your device remembers which you chose.
+opens what he reads. Your device remembers which you chose.
 
 ### Writing
 Each word Anansi writes comes up out of a blur. Stop is gold and holds still. A new version of a
@@ -265,7 +271,7 @@ The + at the top of your Threads opens New thread. Type a name, or paste in a th
 in the one box at the top. Under Write it as, pick Character, Lore, Item or Rule (Character is
 picked until you choose another), then press Write it: the thread is made with that name and opens
 for you to write it. A pasted thread is read in as it is, pockets and all. Under Or let Anansi there
-are three cards: Write one for me, from what you typed or her own idea; Look it up online, for the
+are three cards: Write one for me, from what you typed or his own idea; Look it up online, for the
 name you typed; and Read the scene, for facts already on the page. All three use the kind you
 picked. Back or Esc goes back to the list. Pockets are added from the thread itself now, on its
 Pockets tab.
@@ -286,11 +292,11 @@ the box is up the three buttons go away. To put the box away without sending, ta
 its top edge, press Esc, or tap the page above it; what you typed stays in it. Hold the quill to
 talk to Anansi, as you held Continue before; with the box up, Talk to Anansi is on the How you are
 writing menu. ✦ is Continue now: Anansi writes the next passage, with no box needed, and while
-she writes ✦ is Stop. Around the three buttons the bar is see-through, so a tale's picture
+he writes ✦ is Stop. Around the three buttons the bar is see-through, so a tale's picture
 behind the page shows through it.
 
 ### Send with nothing in the box
-With the box up, Send makes Anansi write. Leave the box empty and she just carries on. While she
+With the box up, Send makes Anansi write. Leave the box empty and he just carries on. While he
 writes, Send is the Stop, and there is only one Stop on screen.
 
 ### Ideas under the last passage
@@ -326,19 +332,19 @@ the thread as JSON, read the whole tale for it, retire it, and delete it.
 Once a passage has landed, the bottom of the screen is three buttons: ↻ Reweave, a big Continue,
 and ✦. Tap Continue and Anansi writes the next passage straight away, and everything you had at
 the bottom before (how you are writing, threads, the box and Send) comes up so you can steer the
-one after. While she writes, Continue is Stop. When the passage lands, the bottom folds back to
+one after. While he writes, Continue is Stop. When the passage lands, the bottom folds back to
 the three buttons. To write your own line first, tap the short line above the buttons, or just
 start typing on a keyboard.
 
 ### Hold Continue to talk to Anansi
-Hold Continue and the same box and Send go to Talk instead, and her answer appears in the Talk
+Hold Continue and the same box and Send go to Talk instead, and his answer appears in the Talk
 drawer. Back to writing turns the box back. You can also pick Talk to Anansi on the How you are
 writing menu, or press Alt+T on a keyboard.
 
 ### Ideas for what comes next
 Tap ✦ and Anansi offers three ideas for what could happen next, from your tale's own model. Tap
 one and it goes in the box as a Direct instruction, for you to change or send. Nothing is asked
-of her until you tap.
+of him until you tap.
 
 ## 2026-10-25 · Doors you can see
 
@@ -357,7 +363,7 @@ length limit, as it does on this machine's model. Before, the plan was free, and
 run to several times the length you asked for before Anansi stopped it.
 
 ### Anansi writes into the page
-While Anansi writes, her words now appear in the page under the last passage, and Stop stays on
+While Anansi writes, his words now appear in the page under the last passage, and Stop stays on
 the box where you type. The full-screen blur is gone. It is kept, so it can come back if you miss it.
 
 ### Old words, new words
@@ -366,7 +372,7 @@ stories are on the Rack. A chapter you wrote in is a Scene; a Chapter is now a r
 gathered under one summary. Regenerate is Reweave, and each try is a Version. Edit is Alter, and
 History is Alterations. Remember this is Make a thread of this. End this chapter is Hem this scene.
 A card is a Thread, and a room in it is a Pocket. Waiting is the Workbench, where a proposal is
-Basted until you Sew it in or Reject it. A contradiction is a Knot. Context is What she reads. The
+Basted until you Sew it in or Reject it. A contradiction is a Knot. Context is What he reads. The
 Web is Prompts to take elsewhere. Create a story is New tale. Speaking as is You play, and the
 held-back character is Hands off. A paid string is Tied off, a dropped one Let go. Archived is
 Folded. Back to the default is Reset.
@@ -387,10 +393,10 @@ longer replace the whole passage. Save and Cancel sit under the passage while yo
 cancels.
 
 ### Plainer words
-What she reads says why each thing is there in plain words: always on, a wake word, the Speak
+What he reads says why each thing is there in plain words: always on, a wake word, the Speak
 mode, retired at scene 3. "Compact now" is "Summarise this scene now". The model page tells a
 writer how much a model can read in words and how fast it writes, and has a button to choose another
-model. Settings say "Anansi reads it every time she writes" instead of "sent on every call".
+model. Settings say "Anansi reads it every time he writes" instead of "sent on every call".
 Pocket names start with a capital.
 
 ### The Workbench offers the fix
@@ -404,7 +410,7 @@ while they are closed. The menu's rows wrap instead of cutting off their names.
 
 ### Plain words for the numbers
 The band under the title says "room 40% used" and "3 scenes out of reach" instead of "40% full"
-and "scenes not sent". What she reads says how much of her room the next passage uses, and
+and "scenes not sent". What he reads says how much of his room the next passage uses, and
 "roughly" when the model is not answering. Surprise and Focus say steady, balanced or adventurous,
 and wide, medium or narrow, instead of numbers. The model list says how many words a model reads
 and writes a second. Find a model searches tags across every model, not only the ones on screen.
@@ -460,7 +466,7 @@ Some of the new words were hard to guess, so they changed again. A run of scenes
 one summary is a chapter, and its summary is a chapter summary. A bolt is a world. A fitting is a
 version. A thread the tale is done with is retired; hemmed is only for scenes now. A string the
 tale abandons is let go. You sew a basted thing in, and the message says "Sewn in." Measurements
-is What she reads, the Pattern book is Prompts to take elsewhere, Cut a new tale is New tale, and
+is What he reads, the Pattern book is Prompts to take elsewhere, Cut a new tale is New tale, and
 Back to the house cut is Reset. Spinning is Plans first. A stale summary is out of date, and the
 screen says what that means: an out-of-date scene summary is not sent until it is written again,
 and an out-of-date chapter summary is still sent. The composer says Speak and Act, and You play
@@ -470,13 +476,13 @@ icons on a desk or a tablet. New tips say what a world, a chapter, a version, th
 are.
 
 ### Anansi's own words, everywhere
-Anansi is a spider and a tailor, and the screens now speak her trade. A story is a tale, and your
+Anansi is a spider and a tailor, and the screens now speak his trade. A story is a tale, and your
 tales hang on the rack. A chapter is a scene; when a scene is done you hem it, and a run
 of scenes rolled into one summary is a panel. A world book is a bolt: threads that tales are
 cut from. Every fact is a thread, its sections are pockets, and the words that bring it in
 are its wake words. What Anansi suggests is basted until you weave it in; a line that
-contradicts a thread is a knot, and Mend asks her to fix it. Reweave makes a new
-fitting of a passage, Alter changes it by hand, and Alterations keeps them all. Her
+contradicts a thread is a knot, and Mend asks him to fix it. Reweave makes a new
+fitting of a passage, Alter changes it by hand, and Alterations keeps them all. His
 unseen planning is Spinning, the character the model leaves alone is Hands off, what the
 model reads is Measurements, the prompts for other models are the Pattern book, and the
 Waiting list is the Workbench. Nothing you wrote changed, and nothing the model is told changed:
@@ -593,23 +599,23 @@ The Talk window now says Asking while it waits in a book that does not weave.
 
 ### A full model on Featherless waits its turn
 When a model on Featherless is full, Anansi now waits a few seconds and asks again, up to three
-times, as she already does when Featherless is busy. If it is still full, she tells you
+times, as he already does when Featherless is busy. If it is still full, he tells you
 "Featherless is busy, try again". Before, you saw Featherless's own message after one try. Stop
-still works while she waits. She never switches to another model on her own. Adding a model to
+still works while he waits. He never switches to another model on his own. Adding a model to
 your shortlist waits the same way when that model is full.
 
 ### Let a book weave
 A book's Storyteller panel has a new switch, Weaving, just under the book's model. When it is on,
-Anansi weaves each passage in that book before she writes it: she works it out unseen, and then
-the prose arrives as usual. You never see what she wove. A passage takes longer, often a minute
-or more, and the book has less room for older chapters while she weaves. Weaving is off for every
-book until you turn it on, and it changes nothing in your other books. While she weaves, the
+Anansi weaves each passage in that book before he writes it: he works it out unseen, and then
+the prose arrives as usual. You never see what he wove. A passage takes longer, often a minute
+or more, and the book has less room for older chapters while he weaves. Weaving is off for every
+book until you turn it on, and it changes nothing in your other books. While he weaves, the
 writing screen says Weaving and counts the seconds, and Stop still works. The switch takes the
 place of the old red note in that panel, which said this was not a setting.
 
 ### When weaving does not fit
 Weaving sets aside room, and in a long book that room can push older passages, chapter summaries
-or threads out of what Anansi reads. When it would, she does not write. A row above the writing box
+or threads out of what Anansi reads. When it would, he does not write. A row above the writing box
 says what would be left out and gives you two buttons. Write anyway writes the passage with
 weaving, and the oldest passages drop out first, as they already do in a book that runs long. Turn
 weaving off for this book turns the switch off and writes the passage as usual. The Context panel
@@ -617,12 +623,12 @@ tells you the same thing before you press anything. If the book would not fit at
 room weaving needs, only Turn weaving off is offered.
 
 ### Talk and Invent weave too
-In a book with Weaving on, Anansi also weaves before she answers you in Talk and before she
-invents a thread or a room for a card. Both take longer while she does, and while she weaves the
+In a book with Weaving on, Anansi also weaves before he answers you in Talk and before he
+invents a thread or a room for a card. Both take longer while he does, and while he weaves the
 Talk window, or the button you pressed to invent, says Weaving and counts the seconds, as the
 writing screen does. An invention sets aside
-more room than a passage or a Talk answer, because what she weaves for one runs longer. If the room she needs to
-weave would push part of your book out of what she reads, she does not answer; she tells you what
+more room than a passage or a Talk answer, because what he weaves for one runs longer. If the room he needs to
+weave would push part of your book out of what he reads, he does not answer; he tells you what
 would be left out, with the same two buttons a passage gets: Write anyway, or Turn weaving off for
 this book. They appear in the Talk window, or in the place you asked for the invention. Summaries,
 the canon check and Remember this never weave.
@@ -1240,7 +1246,7 @@ change. It is the sixth row now, and it saves and goes back the same way: empty 
 It is the wording a re-roll of a plain passage uses. Re-rolling a passage you **directed** still
 re-runs that passage's own instruction, which you edit on the passage itself.
 
-## 2026-09-02 · The words arrive while she writes them, and The Anagram is quick again
+## 2026-09-02 · The words arrive while he writes them, and The Anagram is quick again
 
 ### The passage types itself out while you watch, and you leave when you are ready
 The waiting screen used to hold until the whole passage was finished, and on a long one that is
@@ -1264,7 +1270,7 @@ When it finishes, the screen **stays**. It is the take, and it is yours to sit w
 and it gets out of the way** — the letter you typed goes into the box, so carrying on writing is one
 motion. A tap anywhere on it closes it too, and so does Escape.
 
-**Stop** stays for the whole time she is writing and goes when she finishes, because by then there
+**Stop** stays for the whole time he is writing and goes when he finishes, because by then there
 is nothing left to stop. A passage that fails still puts you straight back on the page.
 
 ### The Anagram is back on the usual model
@@ -1398,8 +1404,8 @@ Add **site:pinterest.com** — or artstation.com, unsplash.com, any host — to 
 become a picture, so a grid of them was a row of presses that could only fail.
 
 ### Anansi no longer pastes links
-A card she wrote with help from a search used to carry the URL in its own text, which then rode into
-every prompt that thread fired. The links under her replies are gone too. She still looks things up;
+A card he wrote with help from a search used to carry the URL in its own text, which then rode into
+every prompt that thread fired. The links under his replies are gone too. He still looks things up;
 you just are not handed the bibliography.
 
 ### Chapters are separated again when you read the whole book
@@ -1508,8 +1514,8 @@ written in this book arrives in the world as a new thread.
 ## 2026-09-01 · You can ask Anansi to correct a contradiction
 
 ### Let Anansi correct it, on the flag itself
-Open a red contradiction line and there is a third press: **Let Anansi correct it**. She rewrites
-only the sentences that break canon, then **checks her own work** and tells you what actually
+Open a red contradiction line and there is a third press: **Let Anansi correct it**. He rewrites
+only the sentences that break canon, then **checks his own work** and tells you what actually
 happened — *"2 of 3 corrected, one still contradicts"*, not just *"corrected"*.
 
 The correction arrives as a **new take**, so the version you had is one press away under History.
@@ -1546,17 +1552,17 @@ Now it is one set of words, wherever you meet them, with the same **?** explaine
 
 ## 2026-09-01 · You say where a change goes
 
-### Anansi can finally name the room, and she has to
-Ask her in the chat to pad out a card and she used to have no way of saying which part of it she
+### Anansi can finally name the room, and he has to
+Ask him in the chat to pad out a card and he used to have no way of saying which part of it he
 meant — so accepting the offer rewrote the card's whole description and everything else you had
-written there went with it. She now names the room, the same as the passes that run when a chapter
+written there went with it. He now names the room, the same as the passes that run when a chapter
 closes: appearance, voice, interiority, one relationship, history, role. The change lands in that
 one room and the rest of the card is left exactly as it is.
 
-She is also told outright that **What is always true** is not the answer for most changes. It is for
+He is also told outright that **What is always true** is not the answer for most changes. It is for
 what never changes.
 
-### And if she picks the wrong one, you move it
+### And if he picks the wrong one, you move it
 Every offer about a card you already have now carries **Goes in** — a picker with that card's own
 rooms in it, and *the card's own Info* at the top for a change that really is to the whole
 description. Move it before you accept it. A place is offered a place's rooms; a person is offered a
@@ -1592,12 +1598,12 @@ follow.
 
 ## 2026-09-01 · A cover found on the web, and Anansi can look things up
 
-### She can search, and it is one switch everywhere
+### He can search, and it is one switch everywhere
 Anansi's **Search before responding** box is live now that the server has a search endpoint. The same
-switch appears wherever she can look something up — asking her a question, or having her write a
+switch appears wherever he can look something up — asking him a question, or having him write a
 thread — and it is one preference: tick it once and it stays ticked in both.
 
-Asked a question with it on, she reads what came back and answers from it, with the sources.
+Asked a question with it on, he reads what came back and answers from it, with the sources.
 
 ### Find a cover instead of drawing one
 The cover section has **Find one on the web** beside **Have one drawn**. Type a phrase, get a wall of
@@ -1610,7 +1616,7 @@ Where the picture comes from is worth knowing, because it is different from the 
 go to your own search endpoint, and the picture itself comes back **through Anansi** rather than from
 your browser. Nothing about the book is sent — not the premise, not a word of the prose.
 
-## 2026-09-01 · Anansi remembers whether she looks things up
+## 2026-09-01 · Anansi remembers whether he looks things up
 
 ### The Search the web switch stays where you left it
 Ticking **Search the web** in Anansi's ask box lasted until the next reload and then went back off.
@@ -1642,8 +1648,8 @@ If Anansi cannot be reached the step is simply empty and says nothing happened, 
 ask again every time you walk past.
 
 ### Say what you need after you have seen what you got
-The steer box moved below the list, because that is when you have something to say. Read what she
-proposed, untick what you do not want, then tell her what the book actually needs.
+The steer box moved below the list, because that is when you have something to say. Read what he
+proposed, untick what you do not want, then tell him what the book actually needs.
 
 ### Asking again keeps what you ticked
 This is the part that was wrong before: asking again replaced everything, so reading six threads,
@@ -1703,7 +1709,7 @@ Same screen, same cards, the name it has everywhere else in the app.
 
 ### A second look comes earlier, where it can still change something
 Anansi's read-back used to come after you had picked who you play. It now comes straight after the
-threads — which matters, because one of the things she offers is threads the book implies and the
+threads — which matters, because one of the things he offers is threads the book implies and the
 list is missing. Those arrive before you choose your character out of that list, instead of after.
 
 ## 2026-09-01 · The character you hold back is held back harder
@@ -2127,14 +2133,14 @@ to choose from — so you typed a name and hoped. They come after the cast now. 
 the list you just made, already filled in with what Anansi proposed, and you can change either.
 Skip the cast step and they go back to being boxes you type in.
 
-### Tell her what the cast should be, and re-roll them one at a time
+### Tell him what the cast should be, and re-roll them one at a time
 There is a box on the cast step for what this book needs from its people: nobody over thirty, a
 rival who is family, a city that is a character. Whatever you write there reaches every ask on the
 step.
 
 Each proposed card now has its own re-roll. Asking for a different cast replaces all of them, which
 is the wrong thing when four are right and one is not — so re-roll the one, and the others stay
-exactly where they are, along with the name in "You are". She is told who is staying, so she will
+exactly where they are, along with the name in "You are". He is told who is staying, so he will
 not hand you somebody you already have under a new name.
 
 ### Bring threads from books you already have
@@ -2167,43 +2173,43 @@ If you were using it to keep a character from being marked finished at the end o
 is worth knowing: nothing replaces it there yet. It was measured and it was not doing that job —
 the same number of characters were wrongly marked finished with it as without.
 
-## 2026-08-30 · Anansi has a voice of her own again, and it is yours to change
+## 2026-08-30 · Anansi has a voice of his own again, and it is yours to change
 
-### She stopped answering in your book's voice
-Ask Anansi a question and she was answering in the register your book is written in. A book
+### He stopped answering in your book's voice
+Ask Anansi a question and he was answering in the register your book is written in. A book
 written in short flat sentences got a short flat Anansi; a cold, restrained book got a cold,
-restrained one. Your book's voice was reaching her as an instruction, and it was drowning hers.
-She reads your book exactly as much as she did before — the canon, the chapter summaries, the
-recent passages, who is telling the story — but how it is WRITTEN no longer decides how she talks.
+restrained one. Your book's voice was reaching him as an instruction, and it was drowning his own.
+He reads your book exactly as much as he did before — the canon, the chapter summaries, the
+recent passages, who is telling the story — but how it is WRITTEN no longer decides how he talks.
 
 ### How Anansi talks is now a box in Preferences
-Under your own default voice, there is a second box: her register. Change it and she answers you
-like that, on every book, from your next question. Empty it and her shipped voice comes back.
+Under your own default voice, there is a second box: his register. Change it and he answers you
+like that, on every book, from your next question. Empty it and his shipped voice comes back.
 
-What she may offer you is not in that box and cannot be edited away — she still cites what she
-drew on, still says "the story does not say" instead of inventing one, and still keeps her
-suggestions to what you asked for. You are changing how she sounds, not what she is allowed to do.
+What he may offer you is not in that box and cannot be edited away — he still cites what he
+drew on, still says "the story does not say" instead of inventing one, and still keeps his
+suggestions to what you asked for. You are changing how he sounds, not what he is allowed to do.
 
-### Asking her to write a card no longer hands her your prose
-Have Anansi write a character, a place or a room and she writes it as notes for you, not as a
+### Asking him to write a card no longer hands him your prose
+Have Anansi write a character, a place or a room and he writes it as notes for you, not as a
 page of your book. Your book's finished prose used to be sitting in that request, and lines from
 it came back inside the card.
 
-## 2026-08-30 · Passage length is something you ask for, not somewhere she gets cut off
+## 2026-08-30 · Passage length is something you ask for, not somewhere he gets cut off
 
 ### Passages stop ending mid-word
 Passage length used to be a hard stop. When a passage reached it, it ended — mid-sentence,
 mid-word, wherever the count ran out, and nothing on the page said that was what had happened.
 Nearly a quarter of the passages written since the 26th ended that way. They don't any more.
 
-### The slider is a target now, and you can leave it to her
-Drag it and you are telling Anansi roughly how long you want a passage to run. She aims for it
+### The slider is a target now, and you can leave it to him
+Drag it and you are telling Anansi roughly how long you want a passage to run. He aims for it
 and is allowed to come in under it — a beat that wants three sentences still gets three
-sentences. All the way to the left leaves the length to her entirely, which is how every book
+sentences. All the way to the left leaves the length to him entirely, which is how every book
 here was written until today, and it is where the slider starts.
 
-### And if a passage ever does run long, she says so
-There is still a ceiling, far above where she normally writes, so a runaway cannot eat the whole
+### And if a passage ever does run long, he says so
+There is still a ceiling, far above where he normally writes, so a runaway cannot eat the whole
 page. If a passage reaches it, what lands is trimmed back to its last finished sentence and you
 get told it was trimmed — instead of a paragraph that stops for no reason you can see.
 
@@ -2216,7 +2222,7 @@ skipped rather than shown empty.
 
 ### Then the next chapter, title and beat together
 Its own page: what it is called and where it has to end up, side by side, with a box to steer what
-Anansi suggests before she suggests it. Save and write is right there — you never have to go
+Anansi suggests before he suggests it. Save and write is right there — you never have to go
 further than this to start writing.
 
 ### Then anyone new, if you want them
@@ -2305,8 +2311,8 @@ It sits one press away from the next chapter's page and both opened with a chapt
 same place. The one looking backwards says closed next to the name now.
 
 ### Anansi writes the opening passage of a new chapter again
-If you have her opening your chapters, she quietly stopped after the first one — every chapter
-after that opened on a blank page. She does it again. She also waits until you have said what the
+If you have him opening your chapters, he quietly stopped after the first one — every chapter
+after that opened on a blank page. He does it again. He also waits until you have said what the
 chapter has to do, so its first passage is written with the same steer as the rest of it, instead
 of being the one passage in the chapter that could not have it.
 
@@ -2423,19 +2429,19 @@ from the house voice.
 
 ### A room is one room, not a whole character
 When you ask Anansi to fill in a single room on a card — the interiority, the voice, an
-appearance, a relationship — she was writing you a whole character every time. Three or four
+appearance, a relationship — he was writing you a whole character every time. Three or four
 hundred characters of it, for one room, on a card that has eight of them. Cards were coming
 back three or four times longer than they should be, and the same person was being described
 over and over in rooms that were supposed to be about one thing each.
 
-She now writes a room the length of a room: forty to eighty words, on that room's own subject,
-and she is told outright that the rest of the card already exists so she does not repeat it.
+He now writes a room the length of a room: forty to eighty words, on that room's own subject,
+and he is told outright that the rest of the card already exists so he does not repeat it.
 Outfits already worked this way and were the only ones that did.
 
-Asking her for a whole new thread is unchanged — that is still the fuller answer you asked for
+Asking him for a whole new thread is unchanged — that is still the fuller answer you asked for
 back in August, and it should be.
 
-**Cards you already have are untouched.** This only changes what she writes from now on. If a
+**Cards you already have are untouched.** This only changes what he writes from now on. If a
 card you already own reads long, it will not shrink on its own.
 
 ## 2026-08-29 · You can see what each model is for, and have a cover drawn for you
@@ -2451,20 +2457,20 @@ It now only ever prunes its own. A snapshot you or anyone else put there by hand
 alone. The off-disk copies were never affected; those were being kept correctly the whole
 time.
 
-### Anansi speaks like herself now
-The voice in the chat panel — the one you get from the button that summons her — is older
-and more formal than it was. She is a scholar who has watched things rise and fall from the
-corner of the room, dry, quietly amused, and she implies rather than boasts. No gestures, no
+### Anansi speaks like himself now
+The voice in the chat panel — the one you get from the button that summons him — is older
+and more formal than it was. He is a scholar who has watched things rise and fall from the
+corner of the room, dry, quietly amused, and he implies rather than boasts. No gestures, no
 leaning, no enthusiasm with an exclamation mark behind it.
 
-Three things she still will not do, because a voice is not worth losing a tool over. She
-answers first and she lands — no trailing off, no *"but that is only one weaving"*. She does
+Three things he still will not do, because a voice is not worth losing a tool over. He
+answers first and he lands — no trailing off, no *"but that is only one weaving"*. He does
 not borrow the words Thread, String or weave as figures of speech, because those are things
-on your screen and it would read as her filing something. And she does not open with an
-anecdote about someone she knew, because she never knew them.
+on your screen and it would read as him filing something. And he does not open with an
+anecdote about someone he knew, because he never knew them.
 
-This voice is in chat and nowhere else. When she names a chapter, writes a thread, or sums up
-a scene, she writes plainly — that text is stored and read back to the writing model on every
+This voice is in chat and nowhere else. When he names a chapter, writes a thread, or sums up
+a scene, he writes plainly — that text is stored and read back to the writing model on every
 call afterwards, and a voice in it would end up in your book by the back door.
 
 ### The craft rules are yours now, and they are in your book's voice
@@ -2548,10 +2554,10 @@ again from it. Who you play comes BEFORE the cast, because that is a decision ab
 rather than a pick from a list somebody else wrote — and once there is a cast it becomes a
 pick over it. The last step says exactly what accepting will create, before you press it.
 
-### Anansi will read your skeleton back and say what she would change
+### Anansi will read your skeleton back and say what he would change
 A new fifth step. It is the first moment the book can be read as a whole — your premise was
 written before the cast existed, and the cast from a premise you may have rewritten since.
-She proposes a replacement for a title, premise, setting or direction, and threads the
+He proposes a replacement for a title, premise, setting or direction, and threads the
 skeleton implies and the cast is missing. Every one of them is a press you can skip, and
 nothing is applied until you press it. It only runs when you ask.
 

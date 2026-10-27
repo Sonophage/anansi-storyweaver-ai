@@ -35,7 +35,7 @@ const veil = () => page.eval(`(() => {
     chars: t ? t.textContent.length : 0,
     held: t ? t.innerHTML.length : 0,
     stopShown: b ? getComputedStyle(b).display !== 'none' : false,
-    // The bar above Stop: present and travelling while she writes, gone when she is done.
+    // The bar above Stop: present and travelling while he writes, gone when he is done.
     // The pair of presses on the finished passage: none while writing, two when done.
     carry: (() => { const row = g.querySelector('.veilcarry');
       if (!row || getComputedStyle(row).display === 'none') return 0;

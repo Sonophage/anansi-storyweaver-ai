@@ -6,7 +6,7 @@
 //
 // Seth's second round, 2026-10-25: "[↻] [🪶] [✦]", marks only. ↻ reweaves. The quill in its circle
 // opens the box and writes nothing; held, the box and Send go to Talk, and the "hold to talk" hint
-// sits under it. ✦ continues with no box, and is Stop while she writes with the box folded. With
+// sits under it. ✦ continues with no box, and is Stop while he writes with the box folded. With
 // the box up, Send writes (an empty box continues) and is the one Stop. The three ideas are a bulb
 // under the last passage. In the header the tale's title opens its Threads and ⋯ opens the menu,
 // and the Threads dial above the box is gone. Asserted on a phone, by touch, and on the Titan's
@@ -129,11 +129,11 @@ ok("  and Esc leaves Talk, then folds", !(await talking()) && (await folded()));
 
 await open();
 
-// ---- ✦ continues with no box, and is Stop while she writes
+// ---- ✦ continues with no box, and is Stop while he writes
 await page.click('#cont');
 ok("CONT-WRITES: ✦ writes the next passage at once", await until("!!document.querySelector('#col > #ghost.inlive')"));
 ok("CONT-NO-BOX: and leaves the box folded", await folded());
-ok("STOP-FOLDED: while she writes with the box folded, ✦ is Stop",
+ok("STOP-FOLDED: while he writes with the box folded, ✦ is Stop",
    await page.eval("(() => { const c = document.getElementById('cont'); return !!c && c.dataset.stop === '1' && /Stop/.test(c.textContent); })()"));
 ok("LANDS: the passage lands", await until("!document.getElementById('ghost')", 120));
 ok(`  (${m0} -> ${await models()} passages by Anansi)`, (await models()) === m0 + 1);
@@ -155,7 +155,7 @@ ok("SEND-EMPTY-CONTINUES: Send with an empty box makes Anansi write",
    await until("!!document.querySelector('#col > #ghost.inlive')"));
 // SEND FOLDS THE BOX AT THE PRESS (Seth, 2026-10-26), not when the passage lands, so the Stop is ✦.
 ok("SEND-FOLDS: Send folds the box back to the three buttons at once", await folded());
-ok("ONE-STOP: while she writes, the one Stop on screen is ✦",
+ok("ONE-STOP: while he writes, the one Stop on screen is ✦",
    await page.eval("(() => { const v = [...document.querySelectorAll('#dock [data-stop]')].filter((b) => b.offsetParent); return v.length === 1 && v[0].id === 'cont'; })()"));
 // FADED LIKE ↻ (Seth, 2026-10-26): the Stop wears the disabled ↻'s fade, and still takes a press.
 ok("STOP-FADED: and it is faded like ↻ beside it",

@@ -1,10 +1,10 @@
-// The keyboard, and the words on What she reads.
+// The keyboard, and the words on What he reads.
 //
 //   bash test/ui/run.sh keys
 //
 // From the usability check of 2026-10-24 on the Titan's hardware keyboard: Esc did not close the
 // menu or a passage's actions, and Tab walked the menu's hidden controls before reaching anything on
-// screen. And What she reads showed the builder's own reasons: anchor, always_on, mode:speak.
+// screen. And What he reads showed the builder's own reasons: anchor, always_on, mode:speak.
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (m, cond) => { console.log(`  ${cond ? "ok  " : "FAIL"} ${m}${cond ? "" : "   <-- broken"}`); if (!cond) red++; };
@@ -20,14 +20,14 @@ ok("a double click opens a passage's actions", (await page.eval("document.docume
 await page.key("Escape", 27);
 ok("  and Esc shuts them", (await page.eval("document.documentElement.dataset.tray")) === '0');
 
-// ---- What she reads, in the writer's words
+// ---- What he reads, in the writer's words
 await page.goto(B + "/#" + sid + "/context");
 await wait(1200);
 const text = await page.eval("document.getElementById('sideBody')?.textContent ?? ''");
 const machine = ['always_on', 'anchor', 'mode:', 'retired at chapter', 'pinned out of this chapter', 'tail prose', 'Compact now',
   'past the horizon', '(est.)', 'Measured for the next call', 'covers to']
   .filter((w) => text.includes(w));
-ok(`What she reads uses no builder words (${JSON.stringify(machine)})`, text.length > 200 && machine.length === 0);
+ok(`What he reads uses no builder words (${JSON.stringify(machine)})`, text.length > 200 && machine.length === 0);
 
 // ---- a phone-sized window with a keyboard: the menu over the page
 await page.viewport(390, 844);

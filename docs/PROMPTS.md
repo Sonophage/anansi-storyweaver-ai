@@ -304,7 +304,7 @@ chat prompt would let it continue the book.
 output the writer reads and nothing stores. Everything the other roles return — a card body, a
 summary, a chapter beat, a story field — is re-sent to the *writing* model on later calls, so a
 register in one of them is not a style choice: F36 measured that finished English in a prompt is
-lifted verbatim into the prose, so her voice would reach the book through the ledger, by a route
+lifted verbatim into the prose, so his voice would reach the book through the ledger, by a route
 the contradiction checker cannot see. `test/db.ts` fails if any persona marker appears outside
 `TALK`, and the reasoning is in the comment above the constant.
 

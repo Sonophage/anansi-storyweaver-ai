@@ -923,7 +923,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
       .map((t) => ({ text: `[For the whole tale: ${t.replace(/^\[|\]$/g, '')}]`, keep: true })),
   ], CAPS.SPINE!);
 
-  /** ANANSI READS THE BOOK; SHE DOES NOT WRITE IT.
+  /** ANANSI READS THE BOOK; HE DOES NOT WRITE IT.
    *
    *  VOICE, STYLE and DIRECTIVE are instructions to a prose engine, and `talk` is the one mode
    *  that is not writing prose. Sent to the chat they do not sit there quietly: F37's whole
@@ -933,13 +933,13 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
    *  anansi chatbot should have a seperate voice from anything in the book. it can of course read
    *  the thread and narrative but it shouldnt be affected by it."*
    *
-   *  Measured on a live manifest before this gate: 506 tokens of VOICE telling her "short,
+   *  Measured on a live manifest before this gate: 506 tokens of VOICE telling him "short,
    *  declarative sentences… calm, slightly detached", and a DIRECTIVE carrying
    *  `[Writing: first person, present tense]` and the spice register, on a call that writes no
    *  prose at all.
    *
-   *  SHE KEEPS THE KNOWLEDGE. SPINE, canon, the chapter summaries and the recent passages are
-   *  what she answers FROM and none of them are gated here. What goes is the craft.
+   *  HE KEEPS THE KNOWLEDGE. SPINE, canon, the chapter summaries and the recent passages are
+   *  what he answers FROM and none of them are gated here. What goes is the craft.
    *
    *  `POST /api/invent` rides this mode too and is meant to. A card body is a note of fact for
    *  the writing model to read later, so the book's own finished prose sitting in the call that

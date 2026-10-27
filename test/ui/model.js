@@ -79,11 +79,11 @@ ok("  and the composer is usable again", await page.eval("!document.getElementBy
   }
   ok("Stop: the call is in flight, with the roller up, before we stop it", arrived);
   // SEND BECOMES STOP AGAIN, and PLAN-07's note that it does not is now history. PLAN-07 moved Stop
-  // to the veil on the argument that the veil "is the only thing you can see while she writes" —
+  // to the veil on the argument that the veil "is the only thing you can see while he writes" —
   // true until 2026-09-02, when the veil learned to be dismissed mid-write AND to hide its own Stop
   // once the words start. Between those two there was no way to stop a generation at all. So the
   // composer carries Stop whenever she is writing and no veil is in front of it.
-  ok("  the composer carries Stop while she writes", await page.eval(
+  ok("  the composer carries Stop while he writes", await page.eval(
     "[...document.querySelectorAll('#dock [data-stop]')].filter((b) => b.offsetParent).length === 1"));
   ok("  and the veil carries one too, until the words start", await page.eval(
     "!!document.querySelector('#ghost [data-stop]')"));
@@ -235,7 +235,7 @@ ok(`editing prose in place saves (${JSON.stringify((edited?.body ?? '').slice(0,
 // exists for, and the bug it replaced: whatever mode you were in, your words only ever became
 // a directive, so typed dialogue never reached the page.
 // IDLE IS NOT "SEND IS NOT DISABLED" ANY MORE. It was, while `#send` stayed a DISABLED Send for the
-// length of a generation. Since 2026-09-02 it is a Stop button while she writes, and a Stop button
+// length of a generation. Since 2026-09-02 it is a Stop button while he writes, and a Stop button
 // carries no `disabled` — so this returned true on the first tick and every check after it ran on
 // top of a live generation. Four reds in §5b, none of them a product fault.
 //

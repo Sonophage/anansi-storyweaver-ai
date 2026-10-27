@@ -759,7 +759,7 @@ for (const id of ['rail', 'bar', 'col', 'dockCol', 'sideBody']) {
 }
 ok('the story surface renders with no undefined fields');
 
-assert.match(html('rail'), /What she reads/, 'the rail must switch to the story nav');
+assert.match(html('rail'), /What he reads/, 'the rail must switch to the story nav');
 assert.match(html('rail'), /The Envoy/, 'and list chapters by title');
 assert.ok(!/>Rack</.test(html('rail')), 'and drop the workspace nav');
 ok('the rail swaps navigation when a story opens');
@@ -774,7 +774,7 @@ assert.match(html('rail'), /Rack/,
 assert.ok(!/list chapters|Chapters/.test(html('rail')),
   'and the chapter list goes with it — it named a book you are no longer looking at');
 click({ railview: 'story' });
-assert.match(html('rail'), /What she reads/, "the story's name must bring its own menu back");
+assert.match(html('rail'), /What he reads/, "the story's name must bring its own menu back");
 assert.match(html('rail'), /Anansi<\/span>/, 'which is where Anansi lives');
 ok('the menu and the story name are two doors onto one rail');
 
@@ -1013,7 +1013,7 @@ for (const label of ['Speak', 'Act', 'Direct', 'Narrate']) {
   assert.match(html('dockCol'), new RegExp(`>${label}<`), `the composer must offer ${label}`);
 }
 // SEND STAYS SEND. It carried two jobs for as long as Stop had nowhere else to be. Stop lives on
-// the veil now — which covers the whole screen and is the only thing visible while she writes — so
+// the veil now — which covers the whole screen and is the only thing visible while he writes — so
 // the composer's button no longer changes identity underneath the writer. Disabled while busy
 // rather than repurposed: a control that cannot act should say so, not become a different control.
 {
@@ -1182,7 +1182,7 @@ ok('the header names the book, and carries no reading of its own');
   click({ ctxtoggle: '1' });   // left open: the checks below read the stats
   assert.match(opened, /scene 2 of 2/, 'which says which scene you are on');
   assert.match(opened, /words/, 'and how many words are in it');
-  assert.match(opened, new RegExp(`room ${pct}% used`), 'and how much of her room is used, in those words');
+  assert.match(opened, new RegExp(`room ${pct}% used`), 'and how much of his room is used, in those words');
   assert.match(opened, /data-panel="context"/, 'with the way through to the blocks behind it');
 
   // NO ROOM IS NOT NO BAR. A budget of zero — llama-server unreachable so the slot is unknown, or
@@ -1332,8 +1332,8 @@ ok('the bar counts chapters, and the reading is always open');
 }
 ok('the story panel is four groups behind four chips, and switching cannot lose what you typed');
 
-// In words on screen since 2026-10-25 ("46% of her room"); the counts are kept in its tooltip.
-assert.match(html('sideBody'), />46% of her room</);
+// In words on screen since 2026-10-25 ("46% of his room"); the counts are kept in its tooltip.
+assert.match(html('sideBody'), />46% of his room</);
 assert.match(html('sideBody'), /21,401 of 46,146 tokens, counted by the model/,
   'the inspector shows the TOKENIZER\'s count, not the estimate — /api/manifest already paid for '
   + 'a /tokenize round trip and returned it, and PLAN-06 2a and 2d are both errors in the number '
@@ -1372,14 +1372,14 @@ assert.match(html('sideBody'), /stale summary/, 'an omitted block must say why')
   assert.match(asleep, /27,401 of 46,146 tokens, estimated/,
     'with no tokenizer answer the estimate is what there is, and it is shown');
   // "roughly" in words since 2026-10-25, where it said "(est.)".
-  assert.match(asleep, /of her room, roughly/,
+  assert.match(asleep, /of his room, roughly/,
     'and it is MARKED. An estimate that looks like a measurement is the surface telling the '
     + 'writer something it does not know, and 2a is exactly how wrong it can be.');
   (MANIFEST as any).exact = realExact;
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
   click({ panel: 'context' });
-  assert.ok(!/of her room, roughly/.test(html('sideBody')),
+  assert.ok(!/of his room, roughly/.test(html('sideBody')),
     'and the mark goes when the tokenizer answers again — a label that never clears is noise');
 }
 ok('an estimate is labelled as one, and the label clears when the tokenizer answers');
@@ -1420,7 +1420,7 @@ ok('what came off collapses to one row per reason, with a count');
 // so a writer who never opens the Context panel still finds out.
 assert.match(html('bar'), /10 scenes out of reach/,
   'the bar names how many chapters the model can no longer read (1 plus the arc\'s nine)');
-assert.match(html('sideBody'), /Scenes 1&ndash;11 are out of her reach/,
+assert.match(html('sideBody'), /Scenes 1&ndash;11 are out of his reach/,
   'and the panel names which — the range, not the block count');
 assert.match(html('sideBody'), /Summaries<\/strong> gathers/, 'and what to do about it (the Summaries tab, where chapters are gathered)');
 ok('a book past its horizon says so on the bar, not only in a dimmed row');
@@ -2434,7 +2434,7 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   // The switch sits after the book's model and before the sampler: everything about what writes
   // this book in one place.
   const at = (re: RegExp) => teller.search(re);
-  assert.ok(at(/data-storymodel/) < at(/data-story="weaving"/) && at(/data-story="weaving"/) < at(/>How she picks words</),
+  assert.ok(at(/data-storymodel/) < at(/data-story="weaving"/) && at(/data-story="weaving"/) < at(/>How he picks words</),
     'between the book\'s model and the sampler');
 
   STORY.story.weaving = true;
@@ -2476,7 +2476,7 @@ ok('the Storyteller has a Weaving switch where the thinking note was, and it sav
       const said = t.match(/<div[^>]*id="weavenote"[^>]*>([\s\S]*?)<\/div>/)?.[1]?.trim() ?? '';
       assert.strictEqual(said, note, 'WEAVE-NOTE: the panel shows the server\'s sentence, and no copy of its own');
       const at = (re: RegExp) => t.search(re);
-      assert.ok(at(/data-storymodel/) < at(/id="weavenote"/) && at(/id="weavenote"/) < at(/>How she picks words</),
+      assert.ok(at(/data-storymodel/) < at(/id="weavenote"/) && at(/id="weavenote"/) < at(/>How he picks words</),
         'where the switch would be');
     }
   } finally { (STORY as any).weaveNote = was; }
@@ -2700,9 +2700,9 @@ ok('a refusal on a model that always weaves offers Write anyway and another mode
     delete (MANIFEST as any).weaveFit;
     click({ open: 's-1' });
     await new Promise((r) => setTimeout(r, 40));
-    if (!html('sideBody').includes('What she will read next time')) click({ panel: 'context' });
+    if (!html('sideBody').includes('What he will read next time')) click({ panel: 'context' });
     await new Promise((r) => setTimeout(r, 40));
-    assert.ok(html('sideBody').includes('What she will read next time'), 'precondition: the Context panel is open');
+    assert.ok(html('sideBody').includes('What he will read next time'), 'precondition: the Context panel is open');
     assert.ok(!html('sideBody').includes('still in view'), 'and says nothing when weaving fits');
   } finally { delete (MANIFEST as any).weaveFit; }
 }

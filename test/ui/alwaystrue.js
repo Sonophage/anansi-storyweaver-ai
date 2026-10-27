@@ -43,7 +43,7 @@ ok(`Alter: Always true is the first tab's own field (${JSON.stringify(alter)})`,
 ok("  with no wake words, no name and no switch", !alter.keys && !alter.name && !alter.sw);
 ok("  and no Facts", !alter.facts);
 
-// ---- What she reads: it is sent, though its old switch is off
+// ---- What he reads: it is sent, though its old switch is off
 const asked = await page.eval(`(async () => JSON.stringify(await (await fetch('/api/manifest', { method: 'POST',
   headers: { 'content-type': 'application/json' }, body: JSON.stringify({ storyId: ${JSON.stringify(sid)} }) })).json()))()`).then(JSON.parse);
 const block = (asked.manifest ?? asked).blocks?.find((b) => b.id === aldis.id);

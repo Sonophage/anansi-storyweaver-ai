@@ -538,7 +538,7 @@ Spell both exactly as they appear in your own list, or return the empty string. 
 a real answer: a story narrated from outside has no persona, and inventing one points the writer's
 byline at somebody who is not in their book. Never name anybody not on that list.`;
 
-/** #21 §3 · STEP FIVE. Anansi reads the whole skeleton back and says what she would change.
+/** #21 §3 · STEP FIVE. Anansi reads the whole skeleton back and says what he would change.
  *
  *  checks.md, by way of the step order: *"The model suggests changes to everything so far: new
  *  cards, revised premise or title."* It is the first moment anything can be judged as a WHOLE —
@@ -1472,10 +1472,10 @@ export const inventSchema = (kind: string) => ALL_SLOTS.includes(kind)
  *  summary, a beat or a story field — every one of which is re-sent to the WRITING model on later
  *  calls. A persona in those is not a style choice, it is contamination: a card body in an archaic
  *  register becomes canon, sits in every subsequent prompt, and F36 measured what finished English
- *  in a prompt does — it is lifted verbatim into the prose. Her voice would reach the book through
+ *  in a prompt does — it is lifted verbatim into the prose. His voice would reach the book through
  *  the ledger, and the contradiction checker cannot see that class at all.
  *
- *  So: in character where she is TALKING; plain everywhere she is producing something the model
+ *  So: in character where he is TALKING; plain everywhere he is producing something the model
  *  will later read as fact. `CHAPTER` and `MEMO` open "You are Anansi" and may keep it — it is a
  *  name, not a register, and it carries no diction with it. What must not spread is anything in
  *  `TALK_VOICE`. `test/db.ts` fails if it does, and it tests `TALK_CONTRACT` on the same side of
@@ -1489,8 +1489,8 @@ export const inventSchema = (kind: string) => ALL_SLOTS.includes(kind)
  *
  *    - **The web and thread imagery.** The document says to speak of threads, patterns and
  *      weaving. In this app a Thread is an entry and a String is an unpaid promise, both of them
- *      on the writer's screen while they are reading her answer, so the metaphor does not read as
- *      a metaphor — it reads as her filing something. The ban was already here; it now says why.
+ *      on the writer's screen while they are reading his answer, so the metaphor does not read as
+ *      a metaphor — it reads as him filing something. The ban was already here; it now says why.
  *    - **"Never conclude definitively. End with: but that is only one weaving."** The app's job is
  *      "Green. Her entry, chapter one." A trickster who will not answer the question is a worse
  *      tool and a worse character.
@@ -1499,16 +1499,16 @@ export const inventSchema = (kind: string) => ALL_SLOTS.includes(kind)
  *      already three paragraphs down. */
 /** COUNCIL-07 · THE CONTRACT AND THE VOICE, and it is `SYSTEM` / `DEFAULT_VOICE` again.
  *
- *  `TALK` was one blob until 2026-08-30, and then Seth asked for her register to be his to edit.
+ *  `TALK` was one blob until 2026-08-30, and then Seth asked for Anansi's register to be his to edit.
  *  It could not go in a box whole. Half of it is the register — the scholar, the diction, the
- *  never-list — and the other half is what keeps her honest on a route that files proposals into
+ *  never-list — and the other half is what keeps him honest on a route that files proposals into
  *  the ledger: cite what you drew on, do not invent, offer nothing unasked, and the ban on the
- *  three words that are entries on the writer's screen. A writer changing her diction must not
+ *  three words that are entries on the writer's screen. A writer changing his diction must not
  *  thereby switch off "do not fill the gap with invention".
  *
  *  So the division is `src/render.ts`'s, for the same reason and in the same words: THE CONTRACT
- *  IS THE APP'S, THE VOICE IS THE WRITER'S. Anything about what is TRUE, what she may offer and
- *  what shape the answer takes stays here where nobody can delete it. Everything about how she
+ *  IS THE APP'S, THE VOICE IS THE WRITER'S. Anything about what is TRUE, what he may offer and
+ *  what shape the answer takes stays here where nobody can delete it. Everything about how he
  *  READS is hers.
  *
  *  THE CONTRACT GOES FIRST AND THE VOICE LAST, which is the opposite of the arithmetic order and
@@ -1518,7 +1518,7 @@ export const inventSchema = (kind: string) => ALL_SLOTS.includes(kind)
  *
  *  The name is NOT in here. It opens the voice instead, so the frame reads once rather than
  *  twice — and a saved override can never be blank, because `db.setPrompt` deletes on empty and
- *  `anansiOf` falls back to `TALK_VOICE`. She cannot end up nameless. */
+ *  `anansiOf` falls back to `TALK_VOICE`. He cannot end up nameless. */
 export const TALK_CONTRACT =
 `The writer is asking you about their story. You have their canon, their chapter summaries and the
 last few passages above.
@@ -1589,10 +1589,10 @@ Offer nothing you were not asked for. A question wants an answer, not a queue of
 asking who a character is has asked one thing; answering it and also filing two entries for the
 ledger is work handed back to them for asking.`;
 
-/** HER REGISTER, AND THE WRITER'S TO REPLACE. The shipped default behind the "How Anansi talks"
+/** HIS REGISTER, AND THE WRITER'S TO REPLACE. The shipped default behind the "How Anansi talks"
  *  box in Preferences; `anansiOf` in `src/story.ts` runs the same two-rung ladder `voiceOf` does.
  *
- *  Everything here is how she READS. Nothing here decides what is true, what she may offer, or
+ *  Everything here is how he READS. Nothing here decides what is true, what he may offer, or
  *  what shape the answer takes — that is `TALK_CONTRACT` above, which ships whatever this says. */
 export const TALK_VOICE =
 `You are Anansi, who has kept every story there is. You speak as a scholar who has watched

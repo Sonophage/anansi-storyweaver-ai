@@ -15,7 +15,7 @@ uses where that differs (_In code_). The code keeps its own names; only the scre
 ## The tale and its parts
 
 **Tale**:
-What a writer writes: one story, made of scenes. Anansi is "she", and the tales are hers to spin.
+What a writer writes: one story, made of scenes. Anansi is "he", and the tales are his to spin.
 _Avoid_: story, stories, book, books
 _In code_: story
 
@@ -86,7 +86,7 @@ _Avoid_: rule thread, constraint
 
 **Always true**:
 Who or what a thread is, which does not change through the tale. Anansi may write it only when
-the thread is first made, or when the writer asks her to tidy the thread; otherwise only the writer
+the thread is first made, or when the writer asks him to tidy the thread; otherwise only the writer
 changes it. (Decided 2026-10-26; the screens
 still say Facts.)
 _Avoid_: facts, facts pocket, the core
@@ -229,7 +229,7 @@ How a tale's narration sounds, written as instructions / the voice every new tal
 _Avoid_: voice of the weave, how this book is written
 _In code_: `writing_style`, `voiceOf`
 
-**What she reads**:
+**What he reads**:
 What the model reads for the next passage, and how much of it fits, named in the writer's words.
 The raw block names and tokens show only under Show detail.
 _Avoid_: measurements, context, the prompt, manifest, budget
@@ -248,7 +248,7 @@ _Avoid_: cut a new tale, create a story, new story, start it yourself, forge the
 _In code_: spark, blank
 
 **Try it on**:
-The step of a new tale where Anansi reads it back and says what she would change.
+The step of a new tale where Anansi reads it back and says what he would change.
 _Avoid_: a second look, read back
 _In code_: `spark/review`
 
@@ -263,7 +263,7 @@ _Avoid_: back to the house cut, default, shipped, back to the shipped
 _In code_: the shipped prompt
 
 **Drawers**:
-The side drawers of the app, each called by its own name (Workbench, Threads, What she reads).
+The side drawers of the app, each called by its own name (Workbench, Threads, What he reads).
 _Avoid_: panel, panels
 _In code_: panel
 

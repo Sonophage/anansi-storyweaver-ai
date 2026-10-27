@@ -68,7 +68,7 @@ const toChapter = (c: any) => ({
 export const voiceOf = (owner: string) => db.promptsOf(owner).voice?.trim() || DEFAULT_VOICE;
 
 /** HOW ANANSI TALKS, and it is the writer's. Two rungs where the book's voice has three: there is
- *  no per-story Anansi, because she is one character across the shelf and a book that wanted a
+ *  no per-story Anansi, because he is one character across the shelf and a book that wanted a
  *  different one would be a different character rather than a different register.
  *
  *  THE KEY IS `anansi` AND NOT `talk`, and that is the whole reason this can exist at all.

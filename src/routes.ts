@@ -3052,8 +3052,8 @@ export const routes: Record<string, Handler> = {
       .map((t: any) => `${t.you ? 'WRITER' : 'ANANSI'}: ${String(t.text ?? '').slice(0, 1200)}`).join('\n');
 
     // WHAT THE WRITER POINTED AT. `@` in the ask box inserts a name; this is the thing behind it.
-    // Seth: "that way anansi knows exactly what i'm referring to." A name tells her which words
-    // were used, and there are two threads called `the letter` in most books; an id tells her
+    // Seth: "that way anansi knows exactly what i'm referring to." A name tells him which words
+    // were used, and there are two threads called `the letter` in most books; an id tells him
     // which one.
     //
     // OWNER-SCOPED BY CONSTRUCTION, not by a check bolted on here. `ledgerOf` and `listStories`
@@ -3108,8 +3108,8 @@ export const routes: Record<string, Handler> = {
       // the register in it was overwriting hers — but DIRECTIVE was also the ONLY place the
       // prompt said the book's point of view and who the writer speaks as. SPINE carries neither.
       // So it comes back here, in the past tense of a thing that is true rather than the
-      // imperative of a thing to do: "written in first person" tells her how to read the passages
-      // she is looking at, where "[Writing: first person, present tense]" told her to write them.
+      // imperative of a thing to do: "written in first person" tells him how to read the passages
+      // he is looking at, where "[Writing: first person, present tense]" told him to write them.
       v.story.pov && `The book is written in ${v.story.pov}${v.story.persona
         ? `, and ${v.story.persona} is the one the writer speaks as` : ''}.`,
       turns && `Earlier in this conversation:\n${turns}`,
