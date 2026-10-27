@@ -153,8 +153,8 @@ For each thread the scene CHANGED, return:
   line     the shortest phrase of the narration where the change happens, copied exactly.
   pockets  the pockets this scene gives the thread something new for: a pocket to add to, or one
            it did not have. Its slot comes only from its kind's list; its name is a short title of
-           its own, two or three words ("The bridge", "With Halsey"), never the slot's word and never
-           the thread's name.
+           its own, two or three words naming what it is about, never the slot's word and never the
+           thread's name.
            FLESH IT OUT: a thread should end up with every pocket its kind can have. For any pocket
            it does not have yet, if the scene (with what the thread already says) gives you enough
            for it, start it, even when nothing about that part changed.
@@ -1092,7 +1092,7 @@ it is and nothing else (a name, an age, what they are, where they are from; wher
 disagree, the later one), never looks, clothes, voice or what has happened: those are pockets.
 "[Vel: 31; a ferry pilot from the north shore; Aldis's older sister]" is a whole body. And
 pockets fills every pocket its kind can have that the chapter gives you enough for, each with a
-short title of its own ("Jersey snap", "With Seth"), never the slot's word:
+short title of its own, two or three words naming what it is about, never the slot's word:
 
     character  appearance, voice, interiority, relationships, outfit
     place      appearance, atmosphere, who_is_here
