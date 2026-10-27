@@ -7,7 +7,7 @@
 // A long panel or page is shot in parts down its scroll (`-p2`, `-p3`, at most five). Reduced
 // motion is asked for first, so no heading is caught half-decoded.
 const B = "http://127.0.0.1:5179";
-const { mkdirSync } = await import('node:fs');
+const { mkdirSync, writeFileSync } = await import('node:fs');
 const OUT = process.env.ANANSI_SHOTS || (process.env.HOME + '/.cache/anansi-v2/shots');
 mkdirSync(OUT, { recursive: true });
 const SIZES = [['desk', 1440, 900], ['tablet', 900, 1180], ['phone', 390, 844]];
@@ -41,6 +41,31 @@ const words = async (name) => {
   })()`);
 };
 
+/* THE COMPUTED STYLE OF EVERY ELEMENT, when ANANSI_STYLES names a directory: its box and the
+ * longhands of every property an inline style in web/app.js sets, in document order. Moving inline
+ * styles into classes must leave every one of these the same (bench/samestyle.ts compares two). */
+const STYLES = process.env.ANANSI_STYLES;
+if (STYLES) mkdirSync(STYLES, { recursive: true });
+const LONGHANDS = ['accent-color', 'align-items', 'align-self', 'aspect-ratio', 'background-color',
+  'background-image', 'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+  'border-top-style', 'border-bottom-style', 'border-left-style', 'border-right-style', 'border-top-color',
+  'border-bottom-color', 'border-left-color', 'border-right-color', 'border-top-left-radius',
+  'border-bottom-right-radius', 'bottom', 'box-shadow', 'box-sizing', 'color', 'cursor', 'display', 'filter',
+  'flex-grow', 'flex-shrink', 'flex-basis', 'flex-direction', 'flex-wrap', 'font-family', 'font-size',
+  'font-style', 'font-weight', 'row-gap', 'column-gap', 'grid-template-columns', 'height', 'justify-content',
+  'left', 'letter-spacing', 'line-height', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+  'max-height', 'max-width', 'min-height', 'min-width', 'object-fit', 'opacity', 'overflow-x', 'overflow-y',
+  'padding-top', 'padding-right', 'padding-bottom', 'padding-left', 'pointer-events', 'position', 'right',
+  'text-align', 'text-decoration-line', 'text-overflow', 'text-transform', 'top', 'transform',
+  'transition-property', 'vertical-align', 'white-space', 'width', 'word-break'];
+const styles = async (file) => {
+  if (!STYLES) return;
+  const got = await page.eval(`JSON.stringify([...document.querySelectorAll('body *')].map((el) => {
+    const c = getComputedStyle(el), r = el.getBoundingClientRect(), q = (n) => Math.round(n * 2) / 2;
+    return [el.tagName, q(r.x), q(r.y), q(r.width), q(r.height), ...${JSON.stringify(LONGHANDS)}.map((p) => c.getPropertyValue(p))].join('|'); }))`);
+  writeFileSync(`${STYLES}/${file}.json`, got);
+};
+
 /** Every size, and down the scroller in parts. `scroller` is the element that scrolls: the side
  *  panel's body, or the workspace page. The book's prose is shot at its resting place only. */
 const snap = async (name, scroller) => {
@@ -50,6 +75,7 @@ const snap = async (name, scroller) => {
     if (scroller) await page.eval(`(() => { const e = document.querySelector('${scroller}'); if (e) e.scrollTop = 0; return 1; })()`);
     await wait(150);
     await page.shot(`${OUT}/${name}--${tag}.png`, [w, h]); n++;
+    await styles(`${name}--${tag}`);
     if (!scroller) continue;
     for (let part = 2; part <= 5; part++) {
       const moved = await page.eval(`(() => { const e = document.querySelector('${scroller}');
@@ -147,7 +173,6 @@ for (const [k, label] of steps) {
   await snap(`w-create-${k}-${label.toLowerCase().replace(/[^a-z]+/g, '-')}`, '#page');
 }
 
-const { writeFileSync } = await import('node:fs');
 writeFileSync(`${OUT}/text.json`, JSON.stringify(TEXT, null, 1));
 console.log(`  ${steps.length ? 'ok  ' : 'FAIL'} ${n} screenshots in ${OUT}, ${steps.length} wizard steps`);
 console.log(steps.length ? '\n  all green' : '\n  1 RED');
