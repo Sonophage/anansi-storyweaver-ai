@@ -126,6 +126,7 @@ await page.click('#bar [data-railview="story"], #bar [data-railview="workspace"]
 await wait(400);
 await page.click('#rail [data-home]');
 await wait(400);
+await page.click('[data-nav="account"]'); await wait(600); await page.click('[data-accttab="books"]'); await wait(300);  // Account → Your books since 2026-10-27
 await page.click('[data-nav="prefs"]');
 await wait(1200);
 // #23 took the model list OFF this page — the rail footer has the one that stays, and what is left

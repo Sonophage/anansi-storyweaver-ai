@@ -10,6 +10,19 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-27 · Your Account, and your own Featherless key
+
+### Account
+The menu has an Account row, with five pages. You: your name and a picture. Model: whether your
+own Featherless key is in place, and the model that writes your tales. Look: theme, font and size.
+Writing: your voice for new tales, how Anansi talks to you, and the five modes in your words, which
+used to sit in the middle of the Storyteller. Your books: Import, Export and What you have written,
+which have left the menu for here.
+
+### Each writer has their own Featherless key
+Remote models now run on your own Featherless plan. In a tale someone shares with you, they run on
+the owner's. Without a key of your own you write on the local model.
+
 ## 2026-10-27 · Anansi is he, and the Rack is the Library
 
 ### The Rack is now the Library

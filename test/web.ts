@@ -557,7 +557,12 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
                     // #51. Its door is the last row of the same list, and its handler names it.
                     findmodel: /<button data-findmodel="1"[\s\S]*S\.panel = 'findmodel'/,
                     // #76. A button in Tale → Keep.
-                    updates: /<button[^>]* data-panel="updates"/ };
+                    updates: /<button[^>]* data-panel="updates"/,
+                    // Account → Your books (2026-10-27): Import, Export and What you have written
+                    // left the menu for Account, and their doors are buttons there.
+                    import: /<button class="card plate full-left" data-nav="import">/,
+                    forge: /<button class="card plate full-left" data-nav="forge">/,
+                    prefs: /<button class="card plate full-left" data-nav="prefs">/ };
   for (const [name, opens] of Object.entries(byClick)) {
     assert.ok(opens.test(js), `the ${name} panel is not in the rail, so something must set S.panel to it`);
   }

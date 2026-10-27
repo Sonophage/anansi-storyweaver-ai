@@ -1,6 +1,6 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
 import { count, chat, structured, structuredRetry, model, models, checkModel, allowList, modelFor, webSearch, searchConfigured,
-         releasable, unload, busyOn, isRemote, remoteReady, REMOTE_PREFIX, askSwitchWith } from './llama.ts';
+         releasable, unload, busyOn, isRemote, remoteReady, keyPathFor, REMOTE_PREFIX, askSwitchWith } from './llama.ts';
 import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound, RESULT_CAP,
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
@@ -93,6 +93,26 @@ export function isPrivateHost(h: string): boolean {
 // A cover is downscaled in the browser to about 900px wide, which lands near 150KB. 1MB is room
 // for a wide one at high quality and still refuses a phone camera original posted whole.
 const MAX_COVER = 1_000_000;
+/** A data-URL JPEG from a browser, checked at the boundary: the prefix is a claim, the magic bytes
+ *  are the file. A PNG or an SVG relabelled as JPEG is refused rather than stored and served back
+ *  with an image/jpeg header. Downscaled in the browser, hence 1MB and not MAX_UPLOAD. One check
+ *  for the cover and the writer's picture alike. */
+const jpegOf = (dataUrl: unknown, what: string): Buffer => {
+  const b64 = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl ?? ''))?.[1];
+  if (!b64) throw Object.assign(new Error(`the ${what} must be a base64 JPEG data URL`), { code: 400 });
+  const buf = Buffer.from(b64, 'base64');
+  if (!buf.length) throw Object.assign(new Error(`that ${what} is empty`), { code: 400 });
+  if (buf.length > MAX_COVER) throw Object.assign(
+    new Error(`that ${what} is ${Math.round(buf.length / 1000)}KB, over the 1MB ceiling`), { code: 400 });
+  if (!(buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff))
+    throw Object.assign(new Error('that is not a JPEG'), { code: 400 });
+  return buf;
+};
+/** The Account page's answer. The key file's path for a login that names one; never the key. */
+const meOf = (owner: string) => {
+  const a = db.accountOf(owner);
+  return { ...a, featherless: { ready: remoteReady(), file: a.login ? keyPathFor(a.login) : null } };
+};
 
 const need = <T,>(v: T, msg: string): NonNullable<T> => {
   if (!v) throw Object.assign(new Error(msg), { code: 404 }); return v as NonNullable<T>; };
@@ -297,6 +317,8 @@ export const OPEN_ROUTES = new Set([
   'GET /api/models', 'GET /api/ledger', 'GET /api/stats', 'POST /api/bug',
   // Account-wide, like the sampler. Owner-scoped in SQL — every read and write takes c.owner.
   'GET /api/prompts', 'POST /api/prompts',
+  // The Account page (2026-10-27): the writer's name, picture and key status. Owner-scoped.
+  'GET /api/me', 'POST /api/me', 'POST /api/me/avatar', 'GET /api/me/avatar', 'DELETE /api/me/avatar',
   // A writer's own shortlist of remote models. Names no story; every read and write takes c.owner,
   // so another writer's list cannot be named. test/scope.ts proves it with two owners.
   'GET /api/shortlist', 'POST /api/shortlist', 'POST /api/shortlist/remove',
@@ -3859,6 +3881,21 @@ export const routes: Record<string, Handler> = {
    *  one's cover in the file — a book leaves and comes back with its face. The markdown and JSON
    *  exports carry the set_at and not the bytes, because both are for reading elsewhere. Base64 it
    *  into the JSON if that export ever has to be a full round trip. */
+  /** THE ACCOUNT (2026-10-27). Who you are here, and whether your own Featherless key file is in
+   *  place: the payer of a request that names no book is the writer asking (serve.ts), so
+   *  `remoteReady` answers for this writer's file alone. The file's path is shown, never its text. */
+  'GET /api/me': (c: Ctx) => meOf(c.owner),
+  'POST /api/me': (c: Ctx) => {
+    const name = String(c.body.name ?? '').trim().slice(0, 80);
+    if (!name) throw Object.assign(new Error('a name cannot be empty'), { code: 400 });
+    db.setName(c.owner, name);
+    return meOf(c.owner);
+  },
+  'POST /api/me/avatar': (c: Ctx) => { db.setAvatar(c.owner, jpegOf(c.body.dataUrl, 'picture')); return meOf(c.owner); },
+  'GET /api/me/avatar': (c: Ctx) => ({ __raw: { type: 'image/jpeg', body: need(db.getAvatar(c.owner), 'no picture'),
+    headers: { 'Cache-Control': 'private, max-age=31536000, immutable' } } }),
+  'DELETE /api/me/avatar': (c: Ctx) => { db.delAvatar(c.owner); return meOf(c.owner); },
+
   'POST /api/cover': (c: Ctx) => {
     const url = String(c.body.dataUrl ?? '');
     // Validated at the boundary, not trusted from the surface: the prefix is a claim, the magic

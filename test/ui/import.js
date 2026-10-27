@@ -40,6 +40,7 @@ const pick = async (path) => {
 
 // ---- 1. a markdown adventure: previewed, not written
 await page.goto(B + "/");
+await page.click('[data-nav="account"]'); await wait(600); await page.click('[data-accttab="books"]'); await wait(300);  // Account → Your books since 2026-10-27
 await page.click('[data-nav="import"]');
 ok("the import page offers a file picker", await page.eval("!!document.getElementById('impfile')"));
 ok("  and no longer says it is unwired", !/Not wired/.test(await page.text('#page') || ''));

@@ -1121,6 +1121,7 @@ if (anyEntry) {
 
 // ---- 12. the writing dashboard, drawn from rows that already existed
 await page.goto(B + "/");
+await page.click('[data-nav="account"]'); await wait(600); await page.click('[data-accttab="books"]'); await wait(300);  // Account → Your books since 2026-10-27
 await page.click('[data-nav="prefs"]');
 for (let i = 0; i < 60 && !/What you have written/.test(await page.text('#page') || ''); i++) await wait(250);
 const prefs = (await page.text('#page') || '').replace(/\s+/g, ' ');

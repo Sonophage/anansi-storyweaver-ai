@@ -264,6 +264,12 @@ export const api = {
   catalogueCard: (model)         => j(`/api/catalogue/card?${new URLSearchParams({ model })}`),
   importPreview: (name, data)     => j('/api/import/preview', 'POST', { name, data }),
   runImport:    (name, data, into) => j('/api/import', 'POST', { name, data, into: into || undefined }),
+  // THE ACCOUNT (2026-10-27): your name, your picture, and whether your Featherless key file is in.
+  me:           ()               => j('/api/me'),
+  setName:      (name)           => j('/api/me', 'POST', { name }),
+  setAvatar:    (dataUrl)        => j('/api/me/avatar', 'POST', { dataUrl }),
+  delAvatar:    ()               => j('/api/me/avatar', 'DELETE', {}),
+  avatarUrl:    (v)              => `/api/me/avatar?v=${v}`,
   setCover:     (storyId, dataUrl) => j('/api/cover', 'POST', { storyId, dataUrl }),
   delCover:     (storyId)        => j('/api/cover', 'DELETE', { storyId }),
   // `v` is the set_at the shelf was told about, and the route answers immutable for it, so a

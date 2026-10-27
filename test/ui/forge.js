@@ -16,7 +16,8 @@ await page.goto(B + "/");
 await wait(700);
 
 // ---- 1. the rail carries it, for this account ----
-ok("the forge has a row in the rail", await page.eval("!!document.querySelector('[data-nav=\"forge\"]')"));
+await page.click('[data-nav="account"]'); await wait(600); await page.click('[data-accttab="books"]'); await wait(300);  // Account → Your books since 2026-10-27
+ok("Export has a door in Account → Your books", await page.eval("!!document.querySelector('[data-nav=\"forge\"]')"));
 await page.click('[data-nav="forge"]');
 await wait(800);
 const page1 = (await page.text('#page') || '');

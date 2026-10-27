@@ -955,6 +955,13 @@ CREATE TABLE IF NOT EXISTS dismissals (
   at INTEGER NOT NULL,
   PRIMARY KEY (story_id, kind, ref));
 
+-- A writer's own picture, for the Account page (2026-10-27). In the database like a cover, so the
+-- nightly backup holds it.
+CREATE TABLE IF NOT EXISTS user_images (
+  owner_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  jpeg BLOB NOT NULL,
+  set_at INTEGER NOT NULL);
+
 CREATE TABLE IF NOT EXISTS story_covers (
   story_id TEXT PRIMARY KEY REFERENCES stories(id) ON DELETE CASCADE,
   jpeg BLOB NOT NULL,
@@ -1187,6 +1194,23 @@ export const getCover = (id: string) =>
  *  cover is fetched once per change rather than once per paint of the shelf. */
 export const coverAt = (id: string): number | null =>
   (q('SELECT set_at FROM story_covers WHERE story_id = ?').get(id) as any)?.set_at ?? null;
+/** THE ACCOUNT (2026-10-27): who a writer is to themselves. Owner-scoped by the key alone. */
+export const accountOf = (ownerId: string) => {
+  const u = q('SELECT login, name FROM users WHERE id = ?').get(ownerId) as any;
+  const pic = q('SELECT set_at FROM user_images WHERE owner_id = ?').get(ownerId) as any;
+  return { login: u?.login ?? null, name: u?.name || u?.login || null, avatar: pic?.set_at ?? null };
+};
+export const setName = (ownerId: string, name: string) => {
+  q('UPDATE users SET name = ? WHERE id = ?').run(name, ownerId);
+};
+export function setAvatar(ownerId: string, jpeg: Uint8Array) {
+  q(`INSERT INTO user_images (owner_id, jpeg, set_at) VALUES (?,?,?)
+     ON CONFLICT(owner_id) DO UPDATE SET jpeg = excluded.jpeg, set_at = excluded.set_at`).run(ownerId, jpeg, now());
+}
+export const getAvatar = (ownerId: string): Uint8Array | null =>
+  (q('SELECT jpeg FROM user_images WHERE owner_id = ?').get(ownerId) as any)?.jpeg ?? null;
+export const delAvatar = (ownerId: string) => { q('DELETE FROM user_images WHERE owner_id = ?').run(ownerId); };
+
 export function setCover(id: string, jpeg: Uint8Array) {
   q(`INSERT INTO story_covers (story_id, jpeg, set_at) VALUES (?,?,?)
      ON CONFLICT(story_id) DO UPDATE SET jpeg = excluded.jpeg, set_at = excluded.set_at`)

@@ -523,6 +523,9 @@ let stubTalk: any = null, stubInvent: any = null;
     : url.startsWith('/api/style') ? { style: 'Wet streets and short sentences.' }
     // #18 §3. The library rides beside the modes rather than inside them, which is the shape the
     // route returns: a saved voice is not a sixth mode and must never be drawn as one.
+    // The Account page (2026-10-27). /api/me/avatar is an <img>, never fetched here.
+    : url.startsWith('/api/me') ? { login: 'sonophage', name: 'Seth', avatar: null,
+        featherless: { ready: false, file: '/home/x/.config/anansi/featherless-sonophage.key' } }
     : url.startsWith('/api/prompts') ? { defaults: { continue: 'Carry on.', speak: 'Say it.',
         act: 'Do it.', direct: 'Make it happen.', narrate: 'Write it.' },
         yours: {}, voice: { shipped: 'The shipped voice.', mine: null, inUse: 'The shipped voice.' },
@@ -3391,6 +3394,27 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
 }
 ok('a card face reads body, then what is on, then what is not — and finishing lives in the form');
 
+// ---- THE ACCOUNT, FIVE PAGES (Seth, 2026-10-27): you, your key and model, the look, your writing,
+// your books; Import, Export and What you have written left the menu for it.
+{
+  click({ railview: 'workspace' }); click({ nav: 'account' });
+  for (let i = 0; i < 40 && !/f-me-name/.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25));
+  const tabsOf = (h: string) => [...h.matchAll(/data-accttab="([a-z]+)"/g)].map((m) => m[1]);
+  assert.deepStrictEqual(tabsOf(html('page')), ['profile', 'model', 'look', 'writing', 'books'], 'five pages, not one');
+  assert.match(html('page'), /id="f-me-name" value="Seth"/, 'You: your name');
+  assert.match(html('page'), /data-avatar="1"/, 'and a picture to choose');
+  assert.doesNotMatch(html('rail'), /data-nav="(import|prefs|forge)"/, 'Import, Export and What you have written are off the menu');
+  assert.match(html('rail'), /data-nav="account"/, 'and Account is on it');
+  click({ accttab: 'model' });
+  assert.match(html('page'), /No key yet, so you write on the local model/, 'Model: no key means the local model');
+  assert.match(html('page'), /featherless-sonophage\.key/, 'and says which file the key goes in');
+  click({ accttab: 'books' });
+  for (const k of ['import', 'forge', 'prefs'])
+    assert.match(html('page'), new RegExp(`data-nav="${k}"`), `Your books opens ${k}`);
+  click({ accttab: 'profile' });
+}
+ok('Account is five pages, and Your books holds Import, Export and What you have written');
+
 // ---- THE TALE'S OWN THREAD IS A BANNER: its picture, or the colour its Library card wears (2026-10-27).
 {
   click({ open: 's-1' });
@@ -3930,11 +3954,14 @@ ok('the house style can be re-rolled, into the box and not into the story');
   const doc = (globalThis as any).document;
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
+  // In Account → Writing since 2026-10-27; the Storyteller keeps a door to it.
   click({ panel: 'teller' });
-  for (let i = 0; i < 40 && !/data-mydefaultvoice/.test(html('sideBody')); i++) {
+  assert.match(html('sideBody'), /data-acctgo="writing"/, 'the Storyteller points at Account → Writing');
+  click({ acctgo: 'writing' });
+  for (let i = 0; i < 40 && !/data-mydefaultvoice/.test(html('page')); i++) {
     await new Promise((r) => setTimeout(r, 25));
   }
-  const teller = html('sideBody');
+  const teller = html('page');
   // THE DEFAULT VOICE HAD NO SURFACE AT ALL. Only the two spark buttons read it, while the server
   // quietly backfilled it into any book created with the voice box left blank — a page of text
   // nobody had seen, reaching the model, with nowhere to go and look at it.
@@ -3945,6 +3972,8 @@ ok('the house style can be re-rolled, into the box and not into the story');
   // not a mode is invisible to it — and the editor must not draw it either.
   assert.doesNotMatch(teller, /data-editprompt="voice:Noir"/, 'and it is not listed as a mode');
 
+  click({ open: 's-1' });   // back into the tale, which Account took us out of
+  await new Promise((r) => setTimeout(r, 40));
   click({ panel: 'story' });
   await new Promise((r) => setTimeout(r, 30));
   const story = html('sideBody');

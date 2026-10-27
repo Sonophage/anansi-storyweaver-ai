@@ -428,22 +428,16 @@ const SNAV = [
 const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queue: 'chapter', branches: 'chapter' };
 const WNAV = [
   ['stories', 'stories', 'Library'], ['create', 'create', 'New tale'],
-  ['canon', 'threads', 'Threads'], ['import', 'import', 'Import'],
-  // #23: it is a writing record, not a settings screen. The panel key stays `prefs` so every
-  // bookmark and open tab still resolves — a renamed key is a broken deep link for no gain.
-  ['prefs', 'prefs', 'What you have written'],
+  ['canon', 'threads', 'Threads'],
+  // THE ACCOUNT (Seth, 2026-10-27): "Import and export and what you have written should all go
+  // under an account page", with your name and picture, your key, your model, the look, and your
+  // voice and instructions, "not all on one page". Import, Export and What you have written keep
+  // their pages and their keys (`prefs` is still What you have written, so old links resolve);
+  // their door is Account's Your books now.
+  ['account', 'prefs', 'Account'],
   // Above Report an issue, which is where Seth put it: the two are the same conversation from
   // opposite ends — here is what changed, and here is what is wrong with it.
   ['news', 'book', 'What changed'], ['bug', 'bug', 'Report an issue'],
-  // #29. Prompts to hand another model. In this list rather than appended by `wnav()` below,
-  // because a row built somewhere else is a row `test/web.ts` cannot see — its reachability check
-  // reads THIS array, and a page it cannot find is reported as having no door.
-  //
-  // "The Web", in the case the other rows use. Seth, 2026-08-31: "the case in the menu needs to
-  // match the other menu items so it should be name The Web." Renamed "Prompts to take elsewhere"
-  // on 2026-10-24, in the same case, with the rest of the writer's words.
-  // "Export" since 2026-10-27. Seth: "Prompts to take else where should be name export."
-  ['forge', 'threads', 'Export'],
 ];
 /** The rail as this account sees it. Everything in WNAV, for everyone: The Web was admin-only from
  *  2026-08-30 until Seth tested it as the second writer — "allow this to not only be for the admin.
@@ -489,6 +483,7 @@ const WTITLES = {
   // said one thing and the page it opened said another. Seth: "the web, on the menu it says the
   // web on tha page it does not." Both say "Pattern book" since 2026-10-24, renamed together.
   forge: () => ['Export', 'prompts to hand another model, so what it writes lands whole'],
+  account: () => ['Account', 'you, your key, your model, the look, your voice, your books'],
 };
 
 // One list, so a new action cannot be added to the markup and forgotten here — and so the
@@ -594,6 +589,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit',
   // #75. The tale's own thread.
   'taleopen', 'taleclose', 'newrule', 'addtalepocket',
+  // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
+  'accttab', 'savename', 'delavatar', 'acctgo',
   // A card out as JSON and back in again: copy, save to a file, read one.
   'cardcopy', 'cardsave', 'cardread',
   // A thread pulled off the web, in the subject's own canon.
@@ -4634,94 +4631,12 @@ const PANELS = {
         'Roughly how long a passage should run. Anansi aims for it and is allowed to come in under '
         + 'it — he is not cut off at it. All the way left leaves the length to him, which is how '
         + 'every tale here was written until now.')}
-      <!-- #18 §3. THE WRITER'S DEFAULT VOICE, which had no surface at all before this. Only the
-           two buttons inside the spark wizard ever read it, and the server quietly backfills it
-           into any book created with the voice box left blank — so a page of text nobody had seen
-           was reaching the model and there was nowhere to go and look at it. Here, because this
-           panel is already the one that says out loud that its contents are shared and not per
-           story. -->
-      <div class="lbl sect">Your voice, for every tale</div>
-      ${S.prompts?.voice ? `
-        <textarea class="field grow box-110" data-mydefaultvoice aria-label="Your voice, for every tale"
-         >${esc(S.prompts.voice.mine ?? S.prompts.voice.shipped)}</textarea>
-        <div class="btnrow">
-          <button class="btn ghost fill" data-setvoice="1">${
-            S.prompts.voice.mine ? 'Save it as your voice' : 'Make this your voice'}</button>
-        </div>
-        <div class="hint">${S.prompts.voice.mine
-          ? `Yours. A new tale starts from this unless you write it one of its own, and emptying the
-             box puts Anansi's own back.`
-          : `Anansi's own, which is what a new tale starts from today. Change it and save, and
-             every tale you start after that starts from yours instead.`}
-          It is COPIED into a tale when it is started &mdash; changing it here does not rewrite tales
-          that already exist.</div>`
-        : '<div class="hint">Reading it&hellip;</div>'}
-
-      <!-- HOW ANANSI TALKS, and it is a different thing from the box above it. That one is how
-           the BOOK is written; this one is how he answers you. They were the same thing until
-           2026-08-30 by accident: the book's voice was reaching the chat and outranking his own,
-           so a book written in short flat sentences got a short flat Anansi. He is isolated from
-           it now, and his register is here rather than nowhere. NOT copied into anything and not
-           per story - he is one character across the shelf. -->
-      <div class="lbl sect">How Anansi talks</div>
-      ${S.prompts?.anansi ? `
-        <textarea class="field grow box-110" data-anansivoice aria-label="How Anansi talks"
-         >${esc(S.prompts.anansi.mine ?? S.prompts.anansi.shipped)}</textarea>
-        <div class="btnrow">
-          <button class="btn ghost fill" data-setanansi="1">${
-            S.prompts.anansi.mine ? 'Save how he talks' : 'Make this how he talks'}</button>
-        </div>
-        <div class="hint">${S.prompts.anansi.mine
-          ? `Yours, on every tale. Emptying the box puts his own back.`
-          : `His own. Change it and save, and he answers you like this everywhere.`}
-          His register only &mdash; what he may offer you, and the rule that he never invents a
-          fact the tale does not have, is not in this box and cannot be altered away.</div>`
-        : '<div class="hint">Reading it&hellip;</div>'}
-
-      <div class="lbl sect">The five modes and Reweave, in your words${
-        tipMark('genPrompts', 'The five modes and Reweave')}</div>
-      ${tipCard('genPrompts', 'The five modes and Reweave', `<p>Yours on every tale, not on one,
-        and they reach the model exactly as written &mdash; nothing is added between the box and the
-        model. Read one in <strong>What he reads &rarr; Exactly as sent</strong> before you trust it.</p>`)}
-      ${(() => {
-        // The shipped wording comes from the server, rendered by the engine itself, so the box
-        // shows what it is actually replacing rather than a second copy that goes stale.
-        if (!S.prompts) return '<div class="hint flush">Reading them&hellip;</div>';
-        const { defaults, yours } = S.prompts;
-        // FIVE. There was a sixth, `regenerate`, from 2026-09-01 to 2026-09-18: the re-roll's own
-        // wording. It named the passage being re-rolled, which is the one passage a re-roll's
-        // prompt leaves out, so the model rewrote the passage BEFORE it instead. A re-roll re-runs
-        // the mode the passage was written with now, and there is no sixth string to show. This
-        // list, the route's EDITABLE_MODES and `defaultModePrompts` are the three that must agree.
-        return ['continue', 'speak', 'act', 'direct', 'narrate'].map((k) => {
-          const mine = yours[k];
-          const open = S.promptOpen === k;
-          return `<div class="card" style="margin-bottom:7px; gap:6px;
-              border-color:${mine ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
-            <button class="line full-left" data-editprompt="${k}">
-              <span class="kind">${k[0].toUpperCase() + k.slice(1)}</span>
-              ${mine ? '<span class="tag tag-lit">yours</span>' : ''}
-              ${open ? tipMark(`prompt-${k}`, `The ${k} instruction`) : ''}
-              <span class="count-12">${open ? '\u2212' : '+'}</span>
-            </button>
-            ${open ? `${tipCard(`prompt-${k}`, `The ${k} instruction`, `<p>Replaces the whole
-                instruction for this mode. Reweave runs the instruction the passage was
-                written with again, so this is what it says on the way back round too. ${
-                k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
-                  k === 'speak' || k === 'act' ? '<code>{{speaker}}</code> is whoever you play. ' : ''}
-                Empty it and press Save, or press Reset, to have Anansi's own
-                again.</p>`)}
-              <textarea class="field" data-prompttext aria-label="The whole instruction for ${esc(k)}"
-                style="min-height:132px; font-family:ui-monospace,monospace;
-                font-size:11.5px; line-height:1.5">${esc(mine ?? defaults[k] ?? '')}</textarea>
-              <div class="btnrow">
-                <button class="btn ghost fill" data-saveprompt="${k}">Save</button>
-                <button class="btn ghost fill" data-resetprompt="${k}">Reset</button>
-              </div>` : ''}
-          </div>`;
-        }).join('');
-      })()}
-
+      <!-- YOUR VOICE, HOW ANANSI TALKS AND THE FIVE MODES moved to Account → Writing on 2026-10-27:
+           they are yours on every tale, and Account is where what is yours lives (ADR 0003, one
+           home per setting). -->
+      <div class="lbl sect">Your voice and the five modes</div>
+      <div class="hint flush">Yours on every tale, so they live in Account &rarr; Writing.</div>
+      <button class="btn ghost push-8" data-acctgo="writing">Open Account &rarr; Writing</button>
 
       <div class="lbl sect">This tale's calls</div>
       ${(ACT?.runs ?? []).slice(0, 3).map((r) => `<div class="row">
@@ -7474,7 +7389,150 @@ function resumeBand(s) {
   </section>`;
 }
 
+/** YOUR VOICE, HOW ANANSI TALKS, AND THE FIVE MODES: the writer's own, on every tale. Drawn on
+ *  Account → Writing; it was the middle of the Storyteller panel until 2026-10-27. Reads S.prompts
+ *  only, never the open tale. */
+function writingDefaults() {
+  return `
+      <!-- #18 §3. THE WRITER'S DEFAULT VOICE, which had no surface at all before this. Only the
+           two buttons inside the spark wizard ever read it, and the server quietly backfills it
+           into any book created with the voice box left blank — so a page of text nobody had seen
+           was reaching the model and there was nowhere to go and look at it. Here, because this
+           panel is already the one that says out loud that its contents are shared and not per
+           story. -->
+      <div class="lbl sect">Your voice, for every tale</div>
+      ${S.prompts?.voice ? `
+        <textarea class="field grow box-110" data-mydefaultvoice aria-label="Your voice, for every tale"
+         >${esc(S.prompts.voice.mine ?? S.prompts.voice.shipped)}</textarea>
+        <div class="btnrow">
+          <button class="btn ghost fill" data-setvoice="1">${
+            S.prompts.voice.mine ? 'Save it as your voice' : 'Make this your voice'}</button>
+        </div>
+        <div class="hint">${S.prompts.voice.mine
+          ? `Yours. A new tale starts from this unless you write it one of its own, and emptying the
+             box puts Anansi's own back.`
+          : `Anansi's own, which is what a new tale starts from today. Change it and save, and
+             every tale you start after that starts from yours instead.`}
+          It is COPIED into a tale when it is started &mdash; changing it here does not rewrite tales
+          that already exist.</div>`
+        : '<div class="hint">Reading it&hellip;</div>'}
+
+      <!-- HOW ANANSI TALKS, and it is a different thing from the box above it. That one is how
+           the BOOK is written; this one is how he answers you. They were the same thing until
+           2026-08-30 by accident: the book's voice was reaching the chat and outranking his own,
+           so a book written in short flat sentences got a short flat Anansi. He is isolated from
+           it now, and his register is here rather than nowhere. NOT copied into anything and not
+           per story - he is one character across the shelf. -->
+      <div class="lbl sect">How Anansi talks</div>
+      ${S.prompts?.anansi ? `
+        <textarea class="field grow box-110" data-anansivoice aria-label="How Anansi talks"
+         >${esc(S.prompts.anansi.mine ?? S.prompts.anansi.shipped)}</textarea>
+        <div class="btnrow">
+          <button class="btn ghost fill" data-setanansi="1">${
+            S.prompts.anansi.mine ? 'Save how he talks' : 'Make this how he talks'}</button>
+        </div>
+        <div class="hint">${S.prompts.anansi.mine
+          ? `Yours, on every tale. Emptying the box puts his own back.`
+          : `His own. Change it and save, and he answers you like this everywhere.`}
+          His register only &mdash; what he may offer you, and the rule that he never invents a
+          fact the tale does not have, is not in this box and cannot be altered away.</div>`
+        : '<div class="hint">Reading it&hellip;</div>'}
+
+      <div class="lbl sect">The five modes and Reweave, in your words${
+        tipMark('genPrompts', 'The five modes and Reweave')}</div>
+      ${tipCard('genPrompts', 'The five modes and Reweave', `<p>Yours on every tale, not on one,
+        and they reach the model exactly as written &mdash; nothing is added between the box and the
+        model. Read one in <strong>What he reads &rarr; Exactly as sent</strong> before you trust it.</p>`)}
+      ${(() => {
+        // The shipped wording comes from the server, rendered by the engine itself, so the box
+        // shows what it is actually replacing rather than a second copy that goes stale.
+        if (!S.prompts) return '<div class="hint flush">Reading them&hellip;</div>';
+        const { defaults, yours } = S.prompts;
+        // FIVE. There was a sixth, `regenerate`, from 2026-09-01 to 2026-09-18: the re-roll's own
+        // wording. It named the passage being re-rolled, which is the one passage a re-roll's
+        // prompt leaves out, so the model rewrote the passage BEFORE it instead. A re-roll re-runs
+        // the mode the passage was written with now, and there is no sixth string to show. This
+        // list, the route's EDITABLE_MODES and `defaultModePrompts` are the three that must agree.
+        return ['continue', 'speak', 'act', 'direct', 'narrate'].map((k) => {
+          const mine = yours[k];
+          const open = S.promptOpen === k;
+          return `<div class="card" style="margin-bottom:7px; gap:6px;
+              border-color:${mine ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
+            <button class="line full-left" data-editprompt="${k}">
+              <span class="kind">${k[0].toUpperCase() + k.slice(1)}</span>
+              ${mine ? '<span class="tag tag-lit">yours</span>' : ''}
+              ${open ? tipMark(`prompt-${k}`, `The ${k} instruction`) : ''}
+              <span class="count-12">${open ? '\u2212' : '+'}</span>
+            </button>
+            ${open ? `${tipCard(`prompt-${k}`, `The ${k} instruction`, `<p>Replaces the whole
+                instruction for this mode. Reweave runs the instruction the passage was
+                written with again, so this is what it says on the way back round too. ${
+                k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
+                  k === 'speak' || k === 'act' ? '<code>{{speaker}}</code> is whoever you play. ' : ''}
+                Empty it and press Save, or press Reset, to have Anansi's own
+                again.</p>`)}
+              <textarea class="field" data-prompttext aria-label="The whole instruction for ${esc(k)}"
+                style="min-height:132px; font-family:ui-monospace,monospace;
+                font-size:11.5px; line-height:1.5">${esc(mine ?? defaults[k] ?? '')}</textarea>
+              <div class="btnrow">
+                <button class="btn ghost fill" data-saveprompt="${k}">Save</button>
+                <button class="btn ghost fill" data-resetprompt="${k}">Reset</button>
+              </div>` : ''}
+          </div>`;
+        }).join('');
+      })()}`;
+}
+
+const ACCT_TABS = [['profile', 'You'], ['model', 'Model'], ['look', 'Look'], ['writing', 'Writing'],
+  ['books', 'Your books']];
 const WPAGES = {
+  /** THE ACCOUNT, five pages of it (Seth, 2026-10-27: "not all on one page"). Each tab draws what
+   *  already exists where it can: Look opens the same sheet the header's Aa does, Writing is the
+   *  same writingDefaults() block the Storyteller used to carry, and Your books is the doors to
+   *  Import, Export and What you have written. */
+  account() {
+    if (S.me === undefined) { S.me = null; api.me().then((r) => { S.me = r.error ? { error: r.error } : r; paint(); }); }
+    const tab = S.acctTab ?? 'profile';
+    const tabs = `<div class="row-6 wraps below-14">${ACCT_TABS.map(([k, l]) =>
+      `<button class="chip" data-accttab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>`;
+    const me = S.me;
+    const body = tab === 'writing' ? (S.prompts === null ? (loadPrompts(), '') : '') + writingDefaults()
+      // WRITTEN OUT, not mapped: test/web.ts reads this file for each page's door, and cannot see
+      // one through an interpolated attribute.
+      : tab === 'books' ? `<div class="stack-7">
+        <button class="card plate full-left" data-nav="import"><span class="platename">Import</span>
+          <span class="hint flush">A character card, an Anansi export, AI Dungeon</span></button>
+        <button class="card plate full-left" data-nav="forge"><span class="platename">Export</span>
+          <span class="hint flush">Prompts to hand another model, so what it writes lands whole</span></button>
+        <button class="card plate full-left" data-nav="prefs"><span class="platename">What you have written</span>
+          <span class="hint flush">Words, passages, versions not chosen</span></button></div>`
+      : tab === 'look' ? `<div class="hint flush">Theme, font and size are kept on this device.</div>
+        <button class="btn push-10" data-appearance="1">Theme, font and size</button>`
+      : !me ? '<div class="hint flush">Reading&hellip;</div>'
+      : me.error ? `<div class="hint flush">${esc(me.error)}</div>`
+      : tab === 'model' ? `
+        <div class="lbl wide">Your Featherless key</div>
+        ${me.featherless?.ready
+          ? '<div class="hint flush">In place. Remote models write on your own plan, and in a tale you share, on the owner&rsquo;s.</div>'
+          : `<div class="hint flush">No key yet, so you write on the local model. Your key goes in a file
+              on the server, never in this page: <code>${esc(me.featherless?.file ?? '')}</code></div>`}
+        <div class="lbl wide push-18">Your model</div>
+        <div class="hint flush"><code>${esc(modelName(SRV.model ?? '').name || 'the local default')}</code>
+          writes every tale that does not name its own. Change it from the model list at the foot of the menu.</div>`
+      : `
+        <div class="acctface">${me.avatar
+          ? `<img class="acctpic" src="${api.avatarUrl(me.avatar)}" alt="Your picture">`
+          : `<span class="acctpic" aria-hidden="true">${esc((me.name || '?').slice(0, 1).toUpperCase())}</span>`}
+          <div class="col-4">
+            <label class="btn ghost">Choose a picture<input type="file" accept="image/*" data-avatar="1" hidden></label>
+            ${me.avatar ? '<button class="btn ghost" data-delavatar="1">Take it off</button>' : ''}</div></div>
+        <label class="lbl push-14" for="f-me-name">Your name</label>
+        <input class="field" id="f-me-name" value="${esc(me.name ?? '')}" autocomplete="name">
+        <button class="btn push-8" data-savename="1">Save</button>
+        <div class="hint">Signed in as <code>${esc(me.login ?? '')}</code>.</div>`;
+    return `<div class="stack" style="max-width:640px">${tabs}${body}</div>`;
+  },
+
   /** THE FORGE. Prompts to hand a different model, so what it writes drops into this app whole.
    *
    *  Seth, 2026-08-30: "the prompts should say that what it is and what format it should be written
@@ -10503,6 +10561,18 @@ document.addEventListener('click', async (e) => {
     toast(`${x.added ?? 0} chalked as threads — nothing sewn in yet.`);
     return;
   }
+  if (d.accttab) { S.acctTab = d.accttab; paint(); return; }
+  if (d.acctgo) { S.acctTab = d.acctgo; return void await leaveTo('account'); }
+  if (d.savename) {
+    const r = await api.setName($('f-me-name')?.value ?? '');
+    if (r.error) return toast(r.error);
+    S.me = r; paint(); return toast('Saved.');
+  }
+  if (d.delavatar) {
+    const r = await api.delAvatar();
+    if (r.error) return toast(r.error);
+    S.me = r; paint(); return toast('Picture taken off.');
+  }
   if (d.nav) {
     // Which list the row came from is `S.railView`, the same state drawRail used to draw it —
     // not `S.place`, which since the two menus split can say "story" while the rail is showing
@@ -13088,19 +13158,25 @@ function drawTray() {
  *  callers read conditionals. Two short functions that each say what they do beat one that asks.
  *  If a third picture destination ever appears, the shrink is the part worth extracting.
  */
+/** THE SHRINK, shared by every picture destination (cover, a thread's picture, your own) since the
+ *  third arrived, as the note above said it should be. Fitted into a box and never enlarged, then
+ *  JPEG at 0.82: a photograph as PNG is several megabytes, and every picture route takes JPEG only. */
+async function shrinkJpeg(f, maxW, maxH) {
+  let bmp;
+  try { bmp = await createImageBitmap(f); } catch { return null; }
+  const k = Math.min(1, maxW / bmp.width, maxH / bmp.height);
+  const w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k));
+  const c = Object.assign(document.createElement('canvas'), { width: w, height: h });
+  c.getContext('2d').drawImage(bmp, 0, 0, w, h);
+  bmp.close?.();
+  return c.toDataURL('image/jpeg', 0.82);
+}
+
 async function readEntryImage(entryId, f) {
   if (!f) return;
   toast('Shrinking the picture…');
-  let bmp;
-  try { bmp = await createImageBitmap(f); }
-  catch { return toast('That file is not an image this browser can read.'); }
-  const scale = Math.min(1, 900 / Math.max(bmp.width, bmp.height));
-  const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale));
-  const cv = document.createElement('canvas');
-  cv.width = w; cv.height = h;
-  cv.getContext('2d').drawImage(bmp, 0, 0, w, h);
-  bmp.close?.();
-  const dataUrl = cv.toDataURL('image/jpeg', 0.82);
+  const dataUrl = await shrinkJpeg(f, 900, 900);
+  if (!dataUrl) return toast('That file is not an image this browser can read.');
   const r = await api.setEntryImage(S.storyId, entryId, dataUrl);
   if (r.error) return toast(r.error);
   V = r; S.entryPic = null; drawSide();
@@ -13112,27 +13188,26 @@ async function readCover(f) {
   // Before the decode, not after it: a camera original spends its time here, and a toast that
   // says "shrinking" once the shrinking is done reports the past.
   toast('Shrinking the cover…');
-  let bmp;
-  try { bmp = await createImageBitmap(f); }
-  catch { return toast('could not read that image'); }
-  // Fitted into a box, not scaled by width alone: a tall panorama at 900px wide is still millions
-  // of pixels, and it would come out the far side of the route's 1MB ceiling with nothing the
-  // writer could do about it. Never enlarged — the 1 in the min is what stops a small image being
-  // blown up into a soft one.
   // Portrait, since the cards and the chapter backdrop both became 3:4 on 2026-08-27 — the long
-  // edge is now the tall one, and 900 across was cut for a banner. 1100 x 1600 lands near 220KB at
-  // 0.82, well under the route's 1MB ceiling and sharp on a desk-width backdrop.
-  const k = Math.min(1, 1100 / bmp.width, 1600 / bmp.height);
-  const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
-  const c = Object.assign(document.createElement('canvas'), { width: w, height: h });
-  c.getContext('2d').drawImage(bmp, 0, 0, w, h);
-  bmp.close?.();
-  // JPEG and not PNG: a photograph as PNG is several megabytes, and the route only accepts JPEG
-  // for that reason. 0.82 is where a 900px cover lands around 150KB.
-  const r = await api.setCover(S.storyId, c.toDataURL('image/jpeg', 0.82));
+  // edge is now the tall one. 1100 x 1600 lands near 220KB, well under the route's 1MB ceiling.
+  const dataUrl = await shrinkJpeg(f, 1100, 1600);
+  if (!dataUrl) return toast('could not read that image');
+  const r = await api.setCover(S.storyId, dataUrl);
   if (r.error) return toast(r.error);
   V = r; await loadLibrary(); paint();
   toast('Cover set.');
+}
+
+/** Your own picture, for the Account page. Small: it is shown at the size of a face. */
+async function readAvatar(f) {
+  if (!f) return;
+  toast('Shrinking the picture…');
+  const dataUrl = await shrinkJpeg(f, 512, 512);
+  if (!dataUrl) return toast('That file is not an image this browser can read.');
+  const r = await api.setAvatar(dataUrl);
+  if (r.error) return toast(r.error);
+  S.me = r; paint();
+  toast('Picture set.');
 }
 
 /** MOVING A PROPOSAL, and it goes to the server rather than being held on screen.
@@ -13159,6 +13234,7 @@ document.addEventListener('change', (e) => {
   const moved = e.target.dataset?.pwhere ?? e.target.dataset?.pkeys;
   if (moved) return void moveProposal(moved);
   if (e.target.dataset?.cover) return void readCover(e.target.files?.[0]);
+  if (e.target.dataset?.avatar) return void readAvatar(e.target.files?.[0]);
   // A picture chosen from disk for one thread. Same shrink, different destination.
   if (e.target.dataset?.picfile) return void readEntryImage(e.target.dataset.picfile, e.target.files?.[0]);
   if (e.target.dataset?.story === 'spice') {
