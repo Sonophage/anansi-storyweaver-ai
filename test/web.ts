@@ -575,8 +575,9 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   // invisible AND permanent. Sliced to the waiting panel on purpose — the same argument the mutes
   // carry, and asserting it anywhere in the file would pass on a comment about it.
   {
-    const w = js.slice(js.indexOf('  waiting() {'), js.indexOf('\n  },', js.indexOf('  waiting() {')));
-    assert.match(w, /<button data-unretire="/,
+    // #74: on the Workbench deck, as an upkeep card (`upkeepCards`), since upkeep became cards.
+    const w = js.slice(js.indexOf('function upkeepCards() {'), js.indexOf('\n}\n', js.indexOf('function upkeepCards() {')));
+    assert.match(w, /<button class="btn" data-unretire="/,
       'a finished thread must be liftable from Waiting, the way a mute is');
     assert.match(w, /retiredAtChapter/, 'and it must read the threshold off the view, not guess');
     ok('a finished thread is listed in Waiting with the press that brings it back');

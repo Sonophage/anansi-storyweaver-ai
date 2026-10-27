@@ -1481,7 +1481,8 @@ if (btn) {
   const waiting = (await page.text('#sideBody')) || '';
   ok(`the waiting list carries the out-of-date act (${waiting.replace(/\s+/g, ' ').slice(0, 70)})`,
      /Short to Water is out of date/.test(waiting) && /Scene 2/.test(waiting)
-     && await page.visible('[data-dismiss="act"]'));
+     // #74: on a card of the deck, which may not be the top one, so in the page rather than visible.
+     && await page.eval(`!!document.querySelector('[data-dismiss="act"]')`));
   await page.goto(B + "/#" + aid + "/chapter");
   await wait(900);
   await page.click('[data-chaptab="summaries"]');

@@ -38,6 +38,11 @@ string. Swipe right, or press the right button, to say yes: sew it in, mend the 
 the string. Swipe left to say no: reject, ignore, or let go. The arrow keys do the same. A card you
 reject can be put back with Undo.
 
+### Upkeep is on the deck too
+Summaries that are out of date or missing, chapters that need writing again, scenes out of reach,
+threads you ignored for a scene and threads you retired are cards on the deck as well. Swipe right
+to fix it (write the summary, open Chapters, watch it again, bring it back) or left for not now.
+
 ### Edit, or have Anansi edit
 Open a part of a card to change its words yourself, or press Anansi edits, with a few words about
 what should change or none, and she writes that part again. It stays chalked until you sew it in.

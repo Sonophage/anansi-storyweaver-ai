@@ -2425,7 +2425,50 @@ function deckCards(only = null) {
     title: x.title, sub: x.summoned ? 'String · summoned' : 'String', line: '', right: x.summoned ? 'Dismiss' : 'Summon',
     left: 'Let go' }));
   // ONLY THESE, for the hem page: the chalked cards of the scene just hemmed, and no knots or strings.
-  return only ? chalk : [...chalk, ...knots, ...strings];
+  return only ? chalk : [...chalk, ...knots, ...strings, ...upkeepCards()];
+}
+
+/** UPKEEP AS CARDS (Seth, 2026-10-26: "Summaries and such those sit at the bottom instead of also
+ *  being cards"). Each is a card like any other on the deck: its fix on the right — write the
+ *  summary again, open Chapters, watch it again, bring it back — and on the left "Not now", which
+ *  asks again if it changes, or "Leave it", which only moves on where there is nothing to wave away.
+ *  The fixes are the presses the Workbench always had; only where they sit has changed. */
+function upkeepCards() {
+  const w = V?.waiting ?? {}, h = horizon(), out = [];
+  // Each fix is written out with its own data- name, so test/web.ts can see the action on it.
+  const notNow = (kind, ref) => `<button class="btn ghost" data-dismiss="${esc(kind)}" data-ref="${esc(ref)}" data-deckleft="1">&larr; Not now</button>`;
+  const leave = `<button class="btn ghost" data-deckmove="1" data-deckleft="1">&larr; Leave it</button>`;
+  // EACH WITH ITS WAY TO FIX IT, not only "Not now" (usability check, 2026-10-24).
+  for (const c of (w.stale ?? [])) out.push({ kind: 'upkeep', key: `stale:${c.id}`, sub: 'Upkeep · a summary',
+    title: `${sceneName(c)}: its summary is out of date`,
+    body: 'Its prose changed after the summary was written. An out-of-date scene summary is not sent until it is written again.',
+    right: `<button class="btn" data-summarize="${esc(c.id)}" data-deckright="1">Write it again &rarr;</button>`, left: notNow('stale', c.ref) });
+  // A HEMMED SCENE WITH NO SUMMARY (second usability check, 2026-10-25): worked out from the tale,
+  // so there is nothing to wave away; writing the summary is what clears it.
+  for (const c of (V?.chapters ?? []).filter((x) => x.status === 'closed' && !(x.summary ?? '').trim()
+    && (V.passages ?? []).some((p) => p.chapterId === x.id && !p.isBreak)))
+    out.push({ kind: 'upkeep', key: `nosum:${c.id}`, sub: 'Upkeep · a summary', title: `${sceneName(c)} has no summary`,
+      body: 'It was hemmed without one, so Anansi reads none of it once the tale has moved on.',
+      right: `<button class="btn" data-summarize="${esc(c.id)}" data-deckright="1">Write the summary &rarr;</button>`, left: leave });
+  // #47. An act still reaches the model out of date, so this says what to read, not what was dropped.
+  for (const a of (w.acts ?? [])) out.push({ kind: 'upkeep', key: `act:${a.ref}`, sub: 'Upkeep · a chapter',
+    title: `${a.title || `Scenes ${a.fromChapter}–${a.toChapter}`} is out of date`, body: actChanged(a.chapter, a.why, a.chapterTitle),
+    right: `<button class="btn" data-sumtab="1" data-deckright="1">Open Chapters &rarr;</button>`, left: notNow('act', a.ref) });
+  if (h) out.push({ kind: 'upkeep', key: `horizon:${h.to}`, sub: 'Upkeep · out of reach',
+    title: `${h.chapters} scene${h.chapters === 1 ? '' : 's'} no longer reach the model`,
+    body: `Scenes ${h.from} to ${h.to}. Their summaries do not fit any more; gathering a run of them into a chapter makes them fit.`,
+    right: `<button class="btn" data-sumtab="1" data-deckright="1">Open Chapters &rarr;</button>`, left: notNow('horizon', String(h.to)) });
+  // THE WAY BACK from a mute and from a retirement, as cards: a quiet you cannot see is deafness,
+  // and a retired thread is drawn like a live one everywhere else.
+  for (const m of (V?.muted ?? []).map((id) => V.entries.find((x) => x.id === id)).filter(Boolean))
+    out.push({ kind: 'upkeep', key: `muted:${m.id}`, sub: 'Ignored in this scene', title: m.title,
+      body: 'Knots with this thread are not looked for while the scene moves on.',
+      right: `<button class="btn" data-unmute="${esc(m.id)}" data-deckright="1">Watch it again &rarr;</button>`, left: leave });
+  for (const e of (V?.entries ?? []).filter((x) => x.retiredAtChapter != null))
+    out.push({ kind: 'upkeep', key: `retired:${e.id}`, sub: 'Retired', title: e.title,
+      body: `Not sent from scene ${e.retiredAtChapter} on; every scene before it still has it.`,
+      right: `<button class="btn" data-unretire="${esc(e.id)}" data-deckright="1">Bring it back &rarr;</button>`, left: leave });
+  return out;
 }
 
 function deckCard(c, i, top) {
@@ -2460,6 +2503,9 @@ function deckCard(c, i, top) {
     right = f.reached === false ? '' : `<button class="btn" data-repair="${esc(f.passageId)}" data-deckright="1">Mend &rarr;</button>`;
     left = f.entryId ? `<button class="btn ghost" data-mute="${esc(f.entryId)}" data-deckleft="1">&larr; Ignore</button>`
       : `<button class="btn ghost" data-dropflag="${esc(f.id)}" data-deckleft="1">&larr; Clear</button>`;
+  } else if (c.kind === 'upkeep') {
+    body = `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(c.body)}</div>`;
+    right = c.right; left = c.left;
   } else {
     const x = c.x;
     body = `${x.body ? `<div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(x.body)}</div>` : ''}
@@ -3145,75 +3191,16 @@ const PANELS = {
   waiting() {
     const w = V?.waiting;
     if (!w) return '<div class="hint">Nothing to show yet.</div>';
-    const h = horizon();
     // EVERY DECISION IS TAKEN HERE. It listed counts and sent you elsewhere to act on them, which
     // is four journeys to answer "does anything want me" — the thing this panel exists to end. Each
     // chalked section is the SAME `proposalCard` the tale has always used, inside the deck's cards,
     // so Sew it in here and anywhere else are one behaviour rather than two that drift.
-    const section = (title, hint, inner) => `<div class="lbl" style="letter-spacing:.1em; margin-top:18px">${
-      esc(title)}</div><div class="hint" style="margin:0 0 8px">${esc(hint)}</div>${inner}`;
-
-    // #74 · THE DECK: chalked things, knots and strings, one card at a time (deckHTML).
+    // #74 · THE DECK: chalked things, knots, strings and upkeep, one card at a time (deckHTML).
     const rows = [];
     const deck = deckHTML();
     if (deck) rows.push(deck);
 
-    // THE WAY BACK. A mute you cannot see is deafness. Every entry quieted in this chapter is
-    // listed here with the press that lifts it, so "not for now" never silently becomes "never".
-    const muted = (V.muted ?? []).map((id) => V.entries.find((x) => x.id === id)).filter(Boolean);
-    if (muted.length) rows.push(section(
-      `${muted.length} ignored in this scene`,
-      'Knots with these are not looked for while the scene moves on. Watch one again and they are.',
-      muted.map((m) => `<div class="card" style="margin-bottom:8px; flex-direction:row; align-items:center; gap:9px">
-        <span style="font-size:13px; color:var(--mute)">${esc(m.title)}</span>
-        <button data-unmute="${m.id}" style="margin-left:auto; padding:7px 12px; border-radius:var(--r);
-          border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Watch again</button></div>`).join('')));
-
-    // THE SAME ARGUMENT AS THE MUTES ABOVE, one step further. A retired card stops reaching the
-    // model for the rest of the book and the Threads screen draws it exactly like a live one, so
-    // without this list a wrong press is invisible and permanent. `retiredAtChapter` has ridden on
-    // the view since Phase 2 and nothing has ever rendered it.
-    const finished = (V.entries ?? []).filter((e) => e.retiredAtChapter != null);
-    if (finished.length) rows.push(section(
-      `${finished.length} retired`,
-      'A retired thread is one the tale is done with. These stopped reaching the model at the scene named; every scene before it still has them.',
-      finished.map((e) => `<div class="card" style="margin-bottom:8px; flex-direction:row; align-items:center; gap:9px">
-        <span style="font-size:13px; color:var(--mute)">${esc(e.title)}</span>
-        <span style="font-size:11px; color:var(--faint)">from scene ${esc(String(e.retiredAtChapter))}</span>
-        <button data-unretire="${e.id}" style="margin-left:auto; padding:7px 12px; border-radius:var(--r);
-          border:1px solid var(--chip); color:var(--faint); font-size:11.5px">Bring it back</button></div>`).join('')));
-
-    // The two that are COMPUTED rather than stored, and so can be waved away. The ref carries the
-    // state that made each worth saying, so this is "not for this", never "never again".
-    const off = [];
-    // EACH WITH ITS WAY TO FIX IT. The only button here was "Not now", so the Workbench named a
-    // job and offered no way to do it (usability check, 2026-10-24).
-    for (const c of (w.stale ?? [])) off.push({ kind: 'stale', ref: c.ref,
-      fix: `<button class="btn ghost" data-summarize="${esc(c.id)}" style="align-self:flex-start; width:auto; padding:0 16px; margin-top:4px">Write the summary again</button>`,
-      title: `${sceneName(c)}: its summary is out of date`,
-      body: 'Its prose changed after the summary was written. An out-of-date scene summary is not '
-          + 'sent until it is written again.' });
-    // #47. An act still reaches the model when it is out of date, so this says what to read, not
-    // what was dropped. The ref carries what its chapters say now: a later change brings it back.
-    // A HEMMED SCENE WITH NO SUMMARY. A hem with the model down closes the scene and writes none,
-    // and after a reload nothing said so anywhere but This scene → Summaries (second usability
-    // check, 2026-10-25). Worked out here from the tale itself, so there is nothing to wave away:
-    // writing the summary is what clears it.
-    for (const c of (V.chapters ?? []).filter((x) => x.status === 'closed' && !(x.summary ?? '').trim()
-      && (V.passages ?? []).some((p) => p.chapterId === x.id && !p.isBreak)))
-      off.push({ kind: 'nosum', title: `${sceneName(c)} has no summary`,
-        body: 'It was hemmed without one, so Anansi reads none of it once the tale has moved on.',
-        fix: `<button class="btn ghost" data-summarize="${esc(c.id)}" style="align-self:flex-start; width:auto; padding:0 16px; margin-top:4px">Write the summary</button>` });
-    const toChapters = `<button class="btn ghost" data-sumtab="1" style="align-self:flex-start; width:auto; padding:0 16px; margin-top:4px">Open Chapters</button>`;
-    for (const a of (w.acts ?? [])) off.push({ kind: 'act', ref: a.ref, fix: toChapters,
-      title: `${a.title || `Scenes ${a.fromChapter}–${a.toChapter}`} is out of date`,
-      body: actChanged(a.chapter, a.why, a.chapterTitle) });
-    if (h) off.push({ kind: 'horizon', ref: String(h.to), fix: toChapters,
-      title: `${h.chapters} scene${h.chapters === 1 ? '' : 's'} no longer reach the model`,
-      body: `Scenes ${h.from} to ${h.to}. Their summaries do not fit any more. On This scene, the Summaries tab `
-          + 'Chapters, gathers a run of them into a chapter.' });
-
-    if (!rows.length && !off.length) {
+    if (!rows.length) {
       // In her own voice, at Seth's asking: an empty panel that says nothing is indistinguishable
       // from a broken one.
       return `<div class="card" style="gap:6px">
@@ -3225,14 +3212,7 @@ const PANELS = {
 
     return `<div class="hint" style="margin:0">The Workbench is where everything that wants you
         collects: chalked things, strings not tied off, knots and out-of-date summaries.</div>
-      ${rows.join('')}
-      ${off.map((d) => `<div class="card" style="margin-bottom:9px; gap:5px">
-        <div class="kind">${esc(d.title)}</div>
-        <div style="font-size:12.5px; line-height:1.5; color:var(--mute)">${esc(d.body)}</div>
-        ${d.fix ?? ''}
-        ${d.kind === 'nosum' ? '' : `<button data-dismiss="${d.kind}" data-ref="${esc(d.ref)}"
-          style="align-self:flex-start; font-size:11.5px; color:var(--faint); margin-top:3px"
-          >Not now &mdash; ask me again if it changes</button>`}</div>`).join('')}`;
+      ${rows.join('')}`;
   },
   setup: setupPanel,
   history: historyPanel,
