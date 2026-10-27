@@ -8520,12 +8520,9 @@ function ghost() {
       <div class="${GHOST_VOICE ? 'said' : 'narr'}"><div class="veiltext" aria-live="polite"></div></div>`;
     col.appendChild(g);
     INLINE = g;
-    // At the bottom when he starts, the page will move once, at his first word; scrolled up to
-    // read something else, it stays where you are. Measured before followLive brings the empty
-    // block into view, or every press would count as "at the bottom".
-    const r = $('read');
-    INLINE_ANCHOR = !r || r.scrollHeight - r.scrollTop - r.clientHeight < 160;
-    followLive();
+    // THE NEW ENTRY'S HEADER GOES TO THE TOP, AT THE PRESS (Seth, 2026-10-27, below at anchorLive).
+    INLINE_ANCHOR = true;
+    anchorLive();
     return;
   }
 
@@ -8586,56 +8583,36 @@ let GHOST_MODE = null;
 let INLINE = null;
 /** The passage that landed where it was written inline, which must not play `rise` (see land). */
 let QUIET_LAND = null;
-/** Whether the page moves at the first word of an inline passage (see anchorLive). */
+/** Whether the page still owes the inline passage its one move (see anchorLive). */
 let INLINE_ANCHOR = false;
-/** THE FIRST WORD MOVES THE PAGE ONCE, AND NOTHING AFTER IT DOES. Seth, 2026-10-25: the text
- *  "should stay at the top of the line to allow the user to scroll down. As more text comes in it
- *  can write below the fold." It used to follow the newest word down (followLive on every word),
- *  which dragged the page under the reader's eye for the whole passage.
+/** THE ENTRY'S HEADER UNDER THE APP'S HEADER, ONCE, AT THE PRESS, AND NOTHING MOVES AFTER IT.
+ *  Seth, 2026-10-27: "Each entry from the ai ... has a header that says what type of entry it is so
+ *  why not just anchor that header to the top beneath the header and leave the space below empty
+ *  let the ai write and anything that falls under the fold is just under the fold. That way the
+ *  user doesn't have to scroll at first."
  *
- *  THE SEAM, NOT THE NEW PASSAGE'S TOP. The end of the passage before it sits 72px under the top of
- *  the screen and the new prose starts under it — the rule Seth set on 2026-09-01 for a passage
- *  that has landed ("shoot back to the end of the last entry"), and pinTo's PEEK. The block before
- *  the ghost is the seam; a re-roll's own old take is hidden while it writes and is skipped. */
+ *  It replaces two earlier rules: following the newest word down (dragged the page under the eye,
+ *  2026-10-25) and pinning the seam 72px from the top at the first word, as far as the prose
+ *  allowed (on a short page it could not reach the top, so the words wrote at the bottom).
+ *
+ *  ROOM BELOW, HELD AND NEVER TAKEN BACK. The column's foot grows by whatever the page is short of
+ *  putting the header at the top, and keeps it after the passage lands, so landing does not jump
+ *  (the jump that removing it caused on 2026-10-26); drawDoc clears it on a chapter change.
+ *  ponytail: the room stays under the landed passage until the chapter changes or the next press
+ *  measures again; trim it on land if a blank screen under the last passage reads as a bug. */
 function anchorLive() {
-  const read = $('read'), g = INLINE;
+  const read = $('read'), g = INLINE, col = $('col');
   if (!INLINE_ANCHOR || !read || !g) return;
   INLINE_ANCHOR = false;
-  // The last block drawn before the ghost, in document order: the blocks sit inside a chapter's
-  // own element, so the ghost's siblings are not them.
-  const prev = [...document.querySelectorAll('#col .block')]
-    .filter((b) => b !== g && b.offsetParent !== null
-      && (b.compareDocumentPosition(g) & Node.DOCUMENT_POSITION_FOLLOWING)).at(-1);
-  const PEEK = 72;
-  // NO ROOM HELD OPEN BELOW IT. A screen's height was held open under the first word so the seam
-  // could reach the top, and taking it away when the passage landed jumped the page (Seth,
-  // 2026-10-26). The page goes as far toward the seam as its prose allows, and stays.
-  const edge = prev ? prev.getBoundingClientRect().bottom - PEEK : g.getBoundingClientRect().top - 12;
-  const want = read.scrollTop + edge - read.getBoundingClientRect().top;
-  // ROOM BELOW, HELD AND NEVER TAKEN BACK (Seth, 2026-10-27: it "doesn't anchor the text up top").
-  // With a short page the seam could not reach the top, so the words wrote at the bottom. The
-  // column's foot grows by what is missing and keeps it after the passage lands, which is what
-  // stops the jump that removing it caused on 2026-10-26; drawDoc clears it on a chapter change.
-  // ponytail: the room stays under the landed passage until the chapter changes or the next press
-  // measures again; trim it on land if a blank screen under the last passage reads as a bug.
-  const col = $('col');
-  if (col) {
-    col.style.paddingBottom = '';
-    const short = want - (read.scrollHeight - read.clientHeight);
-    if (short > 0) col.style.paddingBottom = `${20 + Math.ceil(short)}px`;
-  }
+  const GAP = 12;
+  if (col) col.style.paddingBottom = '';
+  const want = read.scrollTop + g.getBoundingClientRect().top - read.getBoundingClientRect().top - GAP;
+  const short = want - (read.scrollHeight - read.clientHeight);
+  if (col && short > 0) col.style.paddingBottom = `${20 + Math.ceil(short)}px`;
   // 'instant', not 'auto': #read has scroll-behavior:smooth, which 'auto' would honour, and a page
   // still gliding while the words arrive is the motion this removes.
   read.scrollTo({ top: want, behavior: 'instant' });
 }
-/** Keep the newest words in view while they arrive, unless the writer has scrolled up to read.
- *  Only for the empty block at the press now, so the wait has something to show; the words do not
- *  call it (anchorLive). */
-function followLive() {
-  const r = $('read');
-  if (r && r.scrollHeight - r.scrollTop - r.clientHeight < 160) r.scrollTo({ top: r.scrollHeight, behavior: 'instant' });
-}
-
 /** #55. "WEAVING…" AND THE SECONDS, from the press until the first word of prose.
  *
  *  Only for a book the server says weaves (`V.weaves`): the client does not decide which calls
@@ -8754,7 +8731,6 @@ function drainVeil(now) {
       SEEN += cut;
       PEND = PEND.slice(cut);
       el.append(span);
-      if (!WRITING_VEIL && SEEN === cut) anchorLive();
       /* THE GLOW GOES ON THE FIRST WORD — Seth, 2026-09-02: "Remove the border around the ghost as
        * soon as something starts streaming." The glow says something is happening, and once words
        * are appearing the words say it better than a border can. So the glow belongs to the WAIT:

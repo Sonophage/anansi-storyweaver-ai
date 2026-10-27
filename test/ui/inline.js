@@ -47,8 +47,8 @@ ok(`  and it was written (${before} -> ${await models()})`, (await models()) ===
 ok("  with no tap needed to see it", await until("!document.querySelector('#dock [data-stop]')", 40));
 
 // ---- where the page sits, and how the words arrive (Seth, 2026-10-25)
-// At the first word the page moves ONCE so the end of the passage before sits 72px under the top
-// (the seam), and then it stays still while he writes below the fold. Each word comes up out of
+// At the press the page moves ONCE so the new entry's header sits at the top, under the app's header
+// (Seth, 2026-10-27), and then it stays still while he writes below the fold. Each word comes up out of
 // a blur (Seth, 2026-10-26: "cinematically fade in from a blur"; it scrambled for a day before).
 // Watched from inside the page, because the moments are shorter than a round trip from here.
 await page.eval(`(() => { const read = document.getElementById('read');
@@ -69,7 +69,8 @@ await page.eval(`(() => { const read = document.getElementById('read');
       if (window.__w.words === 1) requestAnimationFrame(() => { const g = document.getElementById('ghost');
         const p = [...document.querySelectorAll('#col .block')].filter((b) => b !== g && b.offsetParent !== null
           && (b.compareDocumentPosition(g) & Node.DOCUMENT_POSITION_FOLLOWING)).at(-1);
-        if (p) window.__w.seam = Math.round(p.getBoundingClientRect().bottom - read.getBoundingClientRect().top); }); } } })
+        if (p) window.__w.seam = Math.round(p.getBoundingClientRect().bottom - read.getBoundingClientRect().top);
+        window.__w.head = Math.round(g.getBoundingClientRect().top - read.getBoundingClientRect().top); }); } } })
     .observe(document.getElementById('col'), { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   return 1; })()`);
 await send("He looks back once.");
@@ -83,9 +84,10 @@ ok(`the words come up out of a blur (${w.blurred} of the ${w.live} on the page)`
 const writing = w.tops.slice(0, -1);
 ok(`  the page does not follow them down while he writes (scroll positions ${JSON.stringify([...new Set(writing)])})`,
    writing.length > 0 && new Set(writing).size === 1);
-ok(`  and at the first word the passage before is in view (${w.seam})`, w.seam !== null && w.seam >= 0);
+ok(`  and the new entry's header is at the top of the page (${w.head}px under it)`, w.head != null && w.head >= 0 && w.head <= 40);
 // THE SAME TYPE BEFORE AND AFTER IT LANDS (Seth, 2026-10-26: "The font changes after the transition
-// comes in"). The composer is on Speak, so this passage lands as speech, with a voice.
+// comes in"). The composer is on Speak, and Anansi's answer lands as narration in the book's font
+// (2026-10-27: it was filed as the speaker's own line, a bubble in the UI sans).
 const landedFont = await page.eval(`(() => { const b = [...document.querySelectorAll('#col .block')].at(-1);
   const t = b.querySelector('.said, .narr'), c = getComputedStyle(t); return [c.fontFamily, c.fontSize, c.fontStyle].join(' | '); })()`);
 ok(`  and it is set in the same type while it arrives as when it has landed (${w.font} / ${landedFont})`, w.font === landedFont);

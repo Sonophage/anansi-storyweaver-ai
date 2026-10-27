@@ -22,7 +22,9 @@ has in the Library, and its page opens under the same banner.
 
 ### Anansi's writing lands without a flash, and starts at the top
 When Anansi finishes a passage, it no longer fades out and back in: it stays as it was written.
-On a short page the new passage now starts near the top of the screen instead of at the bottom.
+When you press, the new passage's label (Continue, Speak, Direct) moves to the top of the page,
+just under the header, and Anansi writes down from there. You do not have to scroll to start
+reading; whatever runs past the bottom of the screen is there when you scroll down.
 
 ### Anansi's answer to your line is set as his, in your font
 In Speak, Anansi's answer to what your character said was filed as your character's own speech:
