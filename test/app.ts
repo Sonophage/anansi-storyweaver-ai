@@ -3391,6 +3391,20 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
 }
 ok('a card face reads body, then what is on, then what is not — and finishing lives in the form');
 
+// ---- THE TALE'S OWN THREAD IS A BANNER: its picture, or the colour its Library card wears (2026-10-27).
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'threads' }); click({ backentry: '1' });   // a thread left open by an earlier check
+  assert.match(html('sideBody'), /class="card plate thplate talebanner full-left" data-taleopen="1" style="background:/,
+    'the tale heads the threads as a banner with a background');
+  click({ taleopen: '1' });
+  assert.match(html('sideBody'), /class="talebanner tbhead" style="background:[^"]*"><h2 class="readname">/,
+    'and its own page opens under the same banner');
+  click({ taleclose: '1' });
+}
+ok("the tale's own thread is a banner in the list and on its page");
+
 // ---- THE THREAD'S MENU, FOLDED, AND TIDY AS AN ICON BESIDE IT (Seth, 2026-10-27).
 {
   click({ entry: 'e-1' });

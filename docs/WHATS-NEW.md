@@ -16,6 +16,10 @@ Everything below this line was written by that model call, before it was removed
 The first screen, where your tales are kept, is called the Library everywhere: the menu, the way
 back from a tale, and the demo.
 
+### The tale's own thread is a banner
+At the top of Threads, the tale's own thread now wears the tale's picture, or the colour its card
+has in the Library, and its page opens under the same banner.
+
 ### Anansi's writing lands without a flash, and starts at the top
 When Anansi finishes a passage, it no longer fades out and back in: it stays as it was written.
 On a short page the new passage now starts near the top of the screen instead of at the bottom.

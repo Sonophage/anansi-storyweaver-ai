@@ -2420,7 +2420,7 @@ function taleThread() {
   const own = V.talePockets ?? [];
   return `<div class="taleface stack">
     <button data-taleclose="1" class="headback" style="align-self:flex-start">&lsaquo;&nbsp;<span class="serif">Threads</span></button>
-    <h2 class="readname">${esc(st.title || 'This tale')}</h2>
+    <div class="talebanner tbhead" style="${taleArt()}"><h2 class="readname">${esc(st.title || 'This tale')}</h2></div>
     <div class="hint lead-10">The tale's own thread: what Anansi is told about the whole tale, every time.</div>
     <div class="lbl wide">Always true</div>
     <label class="lbl push-4" for="f-tale-premise">Premise</label>
@@ -3543,8 +3543,9 @@ const PANELS = {
             : `<p>Always-on threads, plus anything brought into this scene &mdash; nothing has been
               measured yet, so an on-a-word thread cannot be counted until it has.</p>`)}` : ''}`;
       })()}
-      ${/* #75. THE TALE'S OWN THREAD, FIRST: the premise, the voice, the rules, the writer's own. */ ''}
-      <button class="card plate thplate full-left" data-taleopen="1">
+      ${/* #75. THE TALE'S OWN THREAD, FIRST: the premise, the voice, the rules, the writer's own.
+            A BANNER, because it heads the list (Seth, 2026-10-27): the tale's picture, or its colour. */ ''}
+      <button class="card plate thplate talebanner full-left" data-taleopen="1" style="${taleArt()}">
         <span class="platename">The tale</span>
         <span class="clamp2 thtext">${esc(V.story.premise || 'Its premise, its voice and its rules.')}</span>
         <span class="thtags"><span class="tag">premise &middot; voice${
@@ -7395,6 +7396,16 @@ function storyCard(s, i, hero) {
   </button>`;
 }
 
+/** THE OPEN TALE'S BANNER BACKGROUND, for its own thread (2026-10-27): its picture over its colour,
+ *  or its colour alone. The colour is the one its card wears in the Library, by the same order the
+ *  Library draws (live first, folded last), so the banner and the card agree. A style attribute. */
+function taleArt() {
+  const ordered = shelfOrder((LIB ?? []).filter((s) => !s.is_world));
+  const all = [...ordered.filter((s) => s?.status !== 'archived'), ...ordered.filter((s) => s?.status === 'archived')];
+  const art = ART[Math.max(0, all.findIndex((s) => s.id === S.storyId)) % ART.length];
+  return V?.cover ? `background:url('${api.coverUrl(S.storyId, V.cover)}') center/cover no-repeat, ${art}`
+    : `background:${art}`;
+}
 const ART = [
   'radial-gradient(70% 90% at 25% 20%, rgba(150,105,195,.55), transparent 70%), linear-gradient(140deg,#221B2E,#0F0D14)',
   'radial-gradient(70% 90% at 30% 30%, rgba(70,150,160,.5), transparent 70%), linear-gradient(140deg,#101E22,#0B0D0F)',

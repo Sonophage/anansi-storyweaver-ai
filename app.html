@@ -1514,6 +1514,15 @@ textarea.field { resize:vertical; min-height:70px; }
 .card.plate.thplate { min-height:0; margin:0; padding:14px 60px 14px 18px; gap:6px; text-align:left; width:100%; }
 .thplate .thtext { font-size:13px; line-height:1.5; color:var(--mute); }
 .thplate .thtags { display:flex; flex-wrap:wrap; gap:5px; margin-top:3px; }
+/* THE TALE'S OWN THREAD IS A BANNER (2026-10-27): the tale's picture or its colour, with the page
+   colour washed up from the foot so the words read on any picture. */
+.talebanner { position:relative; overflow:hidden; border-radius:var(--r); }
+.talebanner::before { content:''; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--doc-bg) 82%, transparent) 70%); }
+.talebanner > * { position:relative; }
+.card.plate.thplate.talebanner { min-height:112px; justify-content:flex-end; border-color:var(--edge-lit); }
+.talebanner.tbhead { min-height:132px; display:flex; align-items:flex-end; padding:16px 18px; margin:6px 0 10px; }
+.talebanner.tbhead .readname { margin:0; }
 .theye { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:44px; height:44px;
   display:flex; align-items:center; justify-content:center; border-radius:var(--r-pill);
   color:var(--faint); }
