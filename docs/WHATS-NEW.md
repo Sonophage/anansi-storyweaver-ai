@@ -16,6 +16,11 @@ Everything below this line was written by that model call, before it was removed
 The first screen, where your tales are kept, is called the Library everywhere: the menu, the way
 back from a tale, and the demo.
 
+### The tale's menu starts with Tale
+Inside a tale the menu now reads Tale, This scene, Scenes, Prose search, Threads, Workbench, Strings,
+Talk to Anansi, What he reads, Storyteller: the writing first, then what the tale remembers, then
+Anansi and the model.
+
 ### A thread's menu is shorter, and Tidy has its own button
 Open a thread and Tidy this thread is now an icon at the top, beside the menu button, which shows
 sliders instead of three dots. The menu opens with only Alter showing; the rest sit under Look

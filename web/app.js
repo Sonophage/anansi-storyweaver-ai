@@ -378,11 +378,11 @@ const POV = ['first person, present tense', 'first person, past tense',
 // hairline weight; the ⚙ ❧ ☙ ⟡ ◈ ⌕ ◐ ✻ they replace came from six Unicode blocks and never sat
 // together as a set however they were sized.
 const SNAV = [
-  // Search first, at Seth's direction: it is the row you reach for when you are looking rather
-  // than deciding, and a thing you look for is a thing you want at the top of the list.
-  ['search', 'search', 'Prose search'],
-  // Everything this book is waiting on, in one place — see the panel for why one place matters.
-  ['waiting', 'threads', 'Workbench'],
+  // TALE FIRST, THE REST BY THEME (Seth, 2026-10-27: "tale should be first the rest in order of
+  // most used or themed"). Nothing records which rows are used, so it is by theme: the writing
+  // (scenes, then searching them), what the tale remembers (threads, the Workbench, strings),
+  // Anansi, and the model last. Search was first, at Seth's direction, until then.
+  ['story', 'story', 'Tale'],
   /* TWO ROWS, TWO WORDS THAT ARE NOT EACH OTHER'S PLURAL — Seth, 2026-09-02: "We need a way to
    * differentiate chapter and chapters." Chapter and Chapters sat next to each other and the only
    * thing telling them apart was a final s, on a rail read at 11px in small caps.
@@ -401,14 +401,18 @@ const SNAV = [
    * THE KEYS DO NOT MOVE. `chapter` and `chapters` are what the hash carries, what PANEL_WAS maps
    * three retired names onto, and what every bookmark holds — a renamed key is a broken deep link
    * for no gain, which the note on `prefs` in WNAV already says. */
-  ['story', 'story', 'Tale'], ['chapter', 'scene', 'This scene'],
+  ['chapter', 'scene', 'This scene'],
   ['chapters', 'chapter', 'Scenes'],
-  ['threads', 'threads', 'Threads'], ['strings', 'strings', 'Strings'],
-  ['context', 'context', 'What he reads'],
-  ['teller', 'teller', 'Storyteller'],
+  ['search', 'search', 'Prose search'],
+  ['threads', 'threads', 'Threads'],
+  // Everything this book is waiting on, in one place — see the panel for why one place matters.
+  ['waiting', 'threads', 'Workbench'],
+  ['strings', 'strings', 'Strings'],
   // BACK ON THIS LIST, 2026-10-26. It came off on 2026-08-27 for a door on the composer row, which
   // became his web in the header; the web opens this menu now, so the Talk drawer's door is here.
   ['anansi', 'anansi', 'Talk to Anansi'],
+  ['context', 'context', 'What he reads'],
+  ['teller', 'teller', 'Storyteller'],
 ];
 // Deep links and bookmarks still carry the old names, and so does a browser tab left open across
 // the change. Cheaper to map them than to serve a blank panel.
