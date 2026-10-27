@@ -1306,6 +1306,10 @@ export function setStoryLook(storyId: string, ownerId: string, look: any) {
 export const MINE = (a = 's.') => `(${a}owner_id = ? OR EXISTS (
   SELECT 1 FROM story_writers w WHERE w.story_id = ${a}id AND w.owner_id = ?))`;
 
+/** The account that owns a book, or null. Not an ownership check: see ownsStory and MINE. */
+export const storyOwner = (storyId: string): string | null =>
+  (q('SELECT owner_id FROM stories WHERE id = ?').get(storyId) as any)?.owner_id ?? null;
+
 export const ownsStory = (storyId: string, ownerId: string) =>
   !!q(`SELECT 1 FROM stories s WHERE s.id = ? AND ${MINE()}`).get(storyId, ownerId, ownerId);
 

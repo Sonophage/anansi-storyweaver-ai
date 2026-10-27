@@ -2,6 +2,7 @@
 // so buildContext itself stays pure.
 
 import { readFileSync } from 'node:fs';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const HOST = process.env.ANANSI_LLAMA ?? 'http://127.0.0.1:8080';
@@ -59,11 +60,32 @@ export const FEATHERLESS = (process.env.ANANSI_FEATHERLESS_URL ?? 'https://api.f
 export const FEATHERLESS_AGENT = { 'User-Agent': 'Anansi' };
 /** THE KEY LIVES IN A FILE, never in the repo or the database, and is read on each call rather than
  *  once at boot: a key added or rotated while the server runs is picked up without a restart, and
- *  a box with no file simply has no remote models — not an error at boot. */
-const KEY_FILE = process.env.ANANSI_FEATHERLESS_KEY_FILE
-  ?? `${process.env.HOME ?? ''}/.config/anansi/featherless.key`;
+ *  a box with no file simply has no remote models — not an error at boot.
+ *
+ *  ONE FILE PER WRITER (#70, Seth, 2026-10-27: "a file, the owner, local model"). Each writer has
+ *  their own plan: `featherless-<login>.key` in ANANSI_FEATHERLESS_KEY_DIR. Whose key a call uses is
+ *  the PAYER, set once per request by serve.ts (`asPayer`): the book's owner when the request names
+ *  a book, so a guest's passage in a shared book is on the owner's plan, else the writer asking. A
+ *  writer with no file has no remote models and writes on the local one. Work with no request
+ *  behind it has no payer and no key.
+ *
+ *  ANANSI_FEATHERLESS_KEY_FILE, when set, is one file for every writer: the suites and the benches
+ *  set it, to a fake or to nothing, and that is what keeps them off the real plans. */
+const KEY_DIR = () => process.env.ANANSI_FEATHERLESS_KEY_DIR ?? `${process.env.HOME ?? ''}/.config/anansi`;
+const payer = new AsyncLocalStorage<string>();
+/** Run `fn` with `login`'s key as the one every Featherless call inside it uses, across awaits. */
+export const asPayer = <T>(login: string | null, fn: () => T): T => payer.run(login ?? '', fn);
+/** The same, for the rest of the current request: serve.ts sets it once per request, after the
+ *  ownership gate, and everything that request awaits or starts (a stream, detached work after it)
+ *  keeps it. Each request is its own async chain, so one writer's payer never reaches another's. */
+export const payFor = (login: string | null) => payer.enterWith(login ?? '');
+/** The key file for a login, or null for one that is not a plain name (it becomes part of a path). */
+export const keyPathFor = (login: string): string | null =>
+  /^[\w.@+-]+$/.test(login) && !login.includes('..') ? `${KEY_DIR()}/featherless-${login}.key` : null;
 const featherlessKey = (): string | null => {
-  try { return readFileSync(KEY_FILE, 'utf8').trim() || null; } catch { return null; }
+  const file = process.env.ANANSI_FEATHERLESS_KEY_FILE || keyPathFor(payer.getStore() ?? '');   // '' is unset
+  if (!file) return null;
+  try { return readFileSync(file, 'utf8').trim() || null; } catch { return null; }
 };
 export const remoteReady = () => !!featherlessKey();
 /** Whatever Featherless says goes through this before it can reach a toast, a log line or a
@@ -82,9 +104,9 @@ const DOCUMENTED = new Set(['model', 'messages', 'text', 'temperature', 'top_p',
   'presence_penalty', 'frequency_penalty', 'repetition_penalty', 'stop', 'max_tokens', 'seed',
   'stream', 'stream_options', 'chat_template_kwargs', 'response_format']);
 
-/** THE 429 RETRY. One key serves both writers, so they share one plan's units, and Featherless
- *  refuses with 429 when a call would go over. Two writers colliding for a moment is the common
- *  case, so three retries across about twenty seconds, then the writer is told plainly. The env
+/** THE 429 RETRY. Featherless refuses with 429 when a call would go over the plan's units. Each
+ *  writer has their own key since 2026-10-27, so a 429 is now one writer's own calls colliding (or
+ *  a guest's and the owner's in a shared book, which share the owner's plan), so three retries across about twenty seconds, then the writer is told plainly. The env
  *  var exists only so the test suite can shrink the wait. */
 const BACKOFF = (process.env.ANANSI_FEATHERLESS_BACKOFF_MS ?? '2000,6000,12000')
   .split(',').map(Number).filter((n) => n >= 0);
@@ -124,7 +146,7 @@ export const askSwitchWith = (fn: (id: string) => boolean) => { takesSwitch = fn
 async function featherless(path: string, body: Record<string, any>, signal?: AbortSignal,
                            first = 0): Promise<Response & { attempt: number }> {
   const key = featherlessKey();
-  if (!key) throw new Error("Featherless isn't set up on this server — there is no key file");
+  if (!key) throw new Error("Featherless isn't set up for this writer — there is no key file");
   const payload = Object.fromEntries(Object.entries(body).filter(([k]) => DOCUMENTED.has(k)));
   payload.model = remoteName(String(body.model));
   if (!(body.weaveSwitch ?? takesSwitch(String(body.model)))) delete payload.chat_template_kwargs;

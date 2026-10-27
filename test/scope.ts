@@ -2212,4 +2212,27 @@ async function bootServer(port: number, env: Record<string, string>) {
   } finally { srv.kill(); }
 }
 
+// ---- WHOSE FEATHERLESS PLAN PAYS (#70, 2026-10-27), through a real server, because the payer is
+// set in serve.ts's request handler. Bob (the desk) has no key file; alice has one. In alice's book,
+// shared with bob, bob's calls are on alice's plan; anywhere else bob has no remote models; and a
+// story id on an open route for a book bob may not use does not put alice's plan behind him.
+{
+  const { mkdtempSync, writeFileSync: put } = await import('node:fs');
+  const dir = mkdtempSync('/tmp/anansi-scope-keys-');
+  put(`${dir}/featherless-alice.key`, 'fl-ALICE\n');
+  const shared = db.createStory(alice, { title: 'Shared with bob' });
+  db.addWriter(shared.id, bob);
+  const { srv, url } = await bootServer(5195, { ANANSI_FEATHERLESS_KEY_FILE: '', ANANSI_FEATHERLESS_KEY_DIR: dir });
+  try {
+    const remote = async (q: string) => (await (await fetch(`${url}/api/models${q}`)).json()).remote;
+    assert.strictEqual(await remote(`?story=${shared.id}`), true, "in alice's shared book, bob is on alice's plan");
+    assert.strictEqual(await remote(''), false, 'outside it, bob has no key of his own and no remote models');
+    assert.strictEqual(await remote(`?story=${aStory.id}`), false,
+      "and naming alice's own book, which bob may not use, does not lend him her plan");
+    put(`${dir}/featherless-bob.key`, 'fl-BOB\n');
+    assert.strictEqual(await remote(''), true, 'his own file, added while the server runs, is read on the next call');
+  } finally { srv.kill(); }
+  ok('the book owner pays in a shared book, each writer pays for their own, and no key means local');
+}
+
 console.log(`\n${n} checks passed`);

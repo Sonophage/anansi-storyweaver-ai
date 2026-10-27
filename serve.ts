@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { gzip as gzipCB } from 'node:zlib';
 import { extname, resolve } from 'node:path';
 import { routes, OPEN_ROUTES, storyIdOf } from './src/routes.ts';
+import { payFor } from './src/llama.ts';
 import type { Ctx } from './src/routes.ts';
 import { slotNow, slotFirstRead, slotIsKnown, model } from './src/llama.ts';
 import { capFor } from './src/story.ts';
@@ -426,6 +427,15 @@ const handler = async (req: any, res: any) => {
      * the nightly export, a scheduled job — would otherwise inherit whoever pressed something last
      * and be suppressed for the one writer most likely to be watching. */
     bus.asWriter(OWNER);
+    // WHOSE FEATHERLESS PLAN PAYS (#70, 2026-10-27): the book's owner when the request names one,
+    // so a guest writing in a shared book is on the owner's plan, else the writer asking. Set after
+    // the gate above, so a story id here is one this writer may use. See `asPayer` in llama.ts.
+    {
+      const sid = storyIdOf(ctx.body, ctx.query);
+      // ONLY A BOOK THIS WRITER MAY USE. Open routes skip the gate above, and a story id on one of
+      // them must not put a stranger's plan behind this writer's calls.
+      payFor(db.loginOf((sid && db.ownsStory(sid, OWNER) && db.storyOwner(sid)) || OWNER));
+    }
     const out = await handler(ctx);
     // NDJSON, not SSE: EventSource cannot POST, and every generation carries a body. One JSON
     // object per line — `{d}` for a delta, and the last line is exactly what the non-streaming
