@@ -216,9 +216,11 @@ let proposal: any;
 
   // Re-proposing after acceptance is deliberate — the dedupe index covers OPEN proposals only,
   // because once a subject had been accepted it could otherwise never be proposed again.
-  answer = [{ name: 'Vel', stands: AFTER, label: 'arm broken, trust gone', line: '', always: '', pockets: [] }];
+  // Named as the ask lists it, kind in brackets: the real model answers "Vel (character)", and a
+  // match on the name as written once made a whole scene's review chalk nothing.
+  answer = [{ name: 'Vel (character)', stands: AFTER, label: 'arm broken, trust gone', line: '', always: '', pockets: [] }];
   const again = await routes['POST /api/remember'](ctx({ storyId: story.id, chapterId }));
-  assert.strictEqual(again.remembered, 1, 'an accepted subject can be proposed again later');
+  assert.strictEqual(again.remembered, 1, 'an accepted subject can be proposed again later, named with its kind');
 
   // Which is why (entry, chapter) has to be the identity of a state. Accepting the second one must
   // not leave two states at chapter 2 with resolveBody silently preferring whichever sorts last.

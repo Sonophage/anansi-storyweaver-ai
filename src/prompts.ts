@@ -106,14 +106,18 @@ export const EXTRACT_SCHEMA = {
  *  NOT MEASURED YET: owed a control run before anyone calls it a fix (the voice A/B in #73). */
 export const POCKET_FORM =
 `A pocket is an INSTRUCTION to whoever writes the next scene: how to use this part of the thread,
-never a description to copy into the prose. Write each one as directions:
+never a description to copy into the prose. EVERY POCKET STARTS WITH A VERB telling the writer what
+to do — Write, Show, Give, Keep, Let, Never — and is never a list of traits. Directions:
 
     voice          how their dialogue is written: sentence length, words they use and never use,
-                   how they dodge a question. "Short, clipped lines; says aye for yes. Show the
-                   accent only in what she says; the narration never names it."
+                   how they dodge a question. "Write her lines short and clipped; she says aye for
+                   yes. Show the accent only in what she says; the narration never names it."
     outfit         what they have on and what of it shows in a scene, as clothes, not as who they are.
+                   "Dress her in the black slip dress; let one strap fall when she leans in." 
     interiority    what they will not say out loud, and what they do instead of saying it.
+                   "Never let her say she is afraid; show it as her talking faster and touching him."
     relationships  how they act around that one person, and what stands between them.
+                   "With Seth, give the orders and wait to see if he takes them; never ask twice." 
     appearance     the one or two things another character notices first, and when to show them.
     atmosphere, who_is_here, what_it_does, consequences
                    what to put on the page when this place, object or rule is in the scene.`;
@@ -140,10 +144,13 @@ For each thread the scene CHANGED, return:
   stands   the WHOLE of where it stands now, after this scene: everything in "where it stands
            now" that is still true, with the change folded in. It replaces that text from the next
            scene on, so anything you leave out is lost from then on.
+  name     the thread's name exactly as it is given, without the kind in brackets.
   label    four words at most, for the timeline: "arm broken", "no longer trusts Vel".
   line     the shortest phrase of the narration where the change happens, copied exactly.
   pockets  the pockets this scene gives the thread something new for: a pocket to add to, or one
-           it did not have. Only names from its kind's list.
+           it did not have. Its slot comes only from its kind's list; its name is a short title of
+           its own, two or three words ("The bridge", "With Halsey"), never the slot's word and never
+           the thread's name.
            FLESH IT OUT: a thread should end up with every pocket its kind can have. For any pocket
            it does not have yet, if the scene (with what the thread already says) gives you enough
            for it, start it, even when nothing about that part changed.
@@ -204,12 +211,21 @@ export const TIDY =
 pockets. Sort what it says into the three parts a thread has, and change nothing else:
 
   always   who or what it is, for the whole story: what does not change. One bracket.
-  stands   where it stands now: what has happened to it and what is at stake. One bracket.
+  stands   where it stands now: what has happened to it and what is at stake. One bracket. No
+           looks, no clothes, no voice: those are pockets.
   pockets  one per part of how to write it, each from its kind's list, as an INSTRUCTION. For each
            pocket it already has, say which one it replaces (its name), or "" for a new one.
+           Its name is a short title of its own, never the slot's word or the thread's name.
 
-Keep every fact it already holds, in one of the three; drop nothing and add nothing. Where Always
-true and where it stands now disagree, keep the later and more specific, in stands.
+Keep every fact it already holds, in one of the three; drop nothing and add nothing. Where two
+parts disagree (an age, a job, a name), the LATER and more specific one is true: write only that
+one, and never both. Always true holds identity only: no clothes, no events, no mood, no voice.
+
+Rewrite EVERY pocket it already has as an instruction, even when it was a description: "Jersey
+accent, commanding tone" becomes "Write her dialogue with a Jersey snap: dropped r's, 'ya' for you,
+orders not requests. Never have the narration name the accent." Where the thread's text holds what
+belongs in a pocket of its kind that it does not have yet (how they talk, what they wear, who they
+are to someone), make that pocket too. Never leave a pocket a list of traits.
 
 ${POCKET_FORM}
 

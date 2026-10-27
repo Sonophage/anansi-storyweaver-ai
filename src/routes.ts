@@ -1039,7 +1039,11 @@ async function remember(c: Ctx, storyId: string, chapterId: string) {
     { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
   if (!r.data?.threads) return { remembered: 0, error: r.error ?? null };
 
-  const norm = (t: string) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  // THE NAME WITHOUT THE KIND. The ask lists each thread as "Seth (character)", and the real model
+  // answered with it exactly so: matched as written, every answer named nobody and a whole scene's
+  // review came to nothing (A Night of Bedlam, 2026-10-26). The bracket is the ask's, not the name's.
+  const norm = (t: string) => String(t).replace(/\s*\((character|place|lore|item|rule)\)\s*$/i, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   // THE LINE IS QUOTED OR IT IS NOTHING: a line the narration does not contain is the model's, and
   // a card that shows it would be showing an invented sentence as the evidence.
   const quoted = (l: string) => { const t = String(l ?? '').trim();
