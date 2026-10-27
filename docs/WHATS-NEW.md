@@ -10,6 +10,16 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-27 · A shorter tale menu
+
+### The tale's menu fits in half the height
+Inside a tale, the menu shows Tale across the top and the other nine as small tiles in two
+columns, icon over name. Nothing left it, and the order is the same.
+
+### No planning count above the middle button
+The "Planning… 12s" count no longer sits above the middle button while Anansi plans a passage. It
+still shows in the passage being written.
+
 ## 2026-10-27 · Your Account, and your own Featherless key
 
 ### Account

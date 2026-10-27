@@ -874,7 +874,10 @@ function drawRail() {
          of scrolling — the list ran off the bottom of a rail that is overflow:hidden, and on a
          phone, where the rail is the whole screen, the chapters simply were not reachable. -->
     <div class="scroll" style="flex:1; min-height:0; padding:0 16px; display:flex; flex-direction:column"
-      >${rows.map(item).join('')}${tail}</div>
+      >${/* THE TALE'S MENU IN TWO COLUMNS (Seth, 2026-10-27: "can we somehow shorten it without
+            losing whats there"). Same rows, same order: Tale across the top, the other nine as tiles,
+            icon over word. Six rows tall instead of ten. The workspace menu keeps its list. */
+        storyMenu ? `<div class="navgrid">${rows.map(item).join('')}</div>` : rows.map(item).join('')}${tail}</div>
     <!-- The model, and the place to change it. It was a label: the one thing on this rail that
          named something you can act on and could not be acted on. The router's stop and restart
          left the screen with Preferences (#23) — this is the switch, where you are already looking
@@ -1969,10 +1972,9 @@ function nextBar(last) {
       <div class="quillcell">
         ${/* ABOVE the circle (Seth, 2026-10-25): a thumb on the circle covers what is under it. */ ''}
         ${hint ? `<small class="holdhint">${hwkb ? 'hold, or Alt+T, to talk' : 'hold to talk'}</small>` : ''}
-        ${/* #55 ON THE BAR TOO (Seth, 2026-10-26: "show the planning count on the bar"). Send folds the
-              box, which hid the count beside it; with the box folded it sits here, where the hold hint
-              sits when he is not writing. One #weaving at a time: drawDock leaves the other out. */
-          weavingAt('dock') && !open ? `<small id="weaving" class="weaving holdhint tnum" aria-live="polite">${weaveWords('dock')}</small>` : ''}
+        ${/* #55's planning count came OFF the bar on 2026-10-27 (Seth: "remove the thinking from above
+              the middle circle"). It went on 2026-10-26; the count still shows in the passage being
+              written, above its first word, and beside the open box. */ ''}
         <button id="quill" data-dockopen="1" aria-expanded="${open}"
           aria-label="${open ? 'Fold the box away. Hold to talk to Anansi' : 'Open the box, to write it yourself. Hold to talk to Anansi'}"
           title="${open ? 'Fold the box away' : 'Write it yourself'}. Hold to talk to Anansi">${mark('quill', 24)}</button>

@@ -2530,19 +2530,16 @@ ok('a book moved to a model that cannot take the switch says its weaving went of
     streamGate = new Promise<void>((r) => { open = r; });
     void click({ continue: '1' });
     await new Promise((r) => setTimeout(r, 30));
-    assert.match(html('dockCol'), /Planning/, 'the composer says Planning while it waits');
-    assert.match(html('dockCol'), /id="weaving"[^>]*>Planning… 0s</, 'with the seconds, from nought');
-    await new Promise((r) => setTimeout(r, 1100));
-    assert.match(String(nodes.get('weaving')?.textContent), /^Planning… 1s$/, 'and the count runs');
-    // The first word, with the call still open behind it: the count ends at the word, not at the end.
+    // OFF THE BAR since 2026-10-27 (Seth: "remove the thinking from above the middle circle"). The
+    // count lives in the passage being written, which this stub cannot read; test/ui/weave.js does.
+    assert.doesNotMatch(html('dockCol'), /Planning/, 'nothing above the middle circle says Planning');
     let end!: () => void;
     endGate = new Promise<void>((r) => { end = r; });
     open(); await new Promise((r) => setTimeout(r, 60));
-    assert.strictEqual(String(nodes.get('weaving')?.textContent ?? ''), '', 'the first word ends it');
     end(); await new Promise((r) => setTimeout(r, 60));
   } finally { streamGate = null; endGate = null; (STORY as any).weaves = weaving; }
 }
-ok('a weaving book says Weaving with a running count from the press until the first word');
+ok('a weaving book keeps its planning count off the bar above the middle circle');
 
 // #56. WHEN WEAVING DOES NOT FIT. The server refuses a weaving passage that would leave part of the
 // book out, and offers two ways on. The app had no toast that carries actions, so the refusal is a
@@ -3393,6 +3390,21 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   click({ cardview: null });
 }
 ok('a card face reads body, then what is on, then what is not — and finishing lives in the form');
+
+// ---- THE TALE'S MENU, SHORTER AND WHOLE (Seth, 2026-10-27): two columns, every row still there.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ railview: 'story' });
+  const grid = html('rail').match(/<div class="navgrid">([\s\S]*?)<\/div>\s*<\/div>/)?.[1] ?? html('rail');
+  assert.match(html('rail'), /<div class="navgrid">/, 'the tale\'s menu is the two-column grid');
+  assert.deepStrictEqual([...grid.matchAll(/data-nav="([a-z]+)"/g)].map((m) => m[1]),
+    ['story', 'chapter', 'chapters', 'search', 'threads', 'waiting', 'strings', 'anansi', 'context', 'teller'],
+    'with every row it had, in the same order');
+  click({ railview: 'workspace' });
+  assert.doesNotMatch(html('rail'), /class="navgrid"/, 'and the main menu stays a list');
+}
+ok("the tale's menu is two columns with nothing lost");
 
 // ---- THE ACCOUNT, FIVE PAGES (Seth, 2026-10-27): you, your key and model, the look, your writing,
 // your books; Import, Export and What you have written left the menu for it.
