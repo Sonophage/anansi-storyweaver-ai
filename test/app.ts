@@ -4487,7 +4487,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   await new Promise((r) => setTimeout(r, 30));
   const beat = html('sideBody');
   const at = (re) => beat.search(re);
-  const anyone = at(/<button class="btn" data-setupstep="more"/);
+  const anyone = at(/<button class="btn(?! ghost)(?: [^"]*)?" data-setupstep="more"/);
   const saveWrite = at(/data-savesetup="1"/);
   assert.ok(anyone > -1, 'Anyone new is the accented button — class "btn", not "btn ghost"');
   assert.ok(saveWrite > -1, 'and Save and write is still there');

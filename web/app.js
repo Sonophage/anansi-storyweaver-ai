@@ -876,7 +876,7 @@ function drawRail() {
            In a book, the model named is the one that WRITES it, resolved by the server with its
            pin, remote pins included; on the shelf, the writer's default. -->
       ${runsMark(writing, localStatus)}
-      <span class="txt" style="display:flex; flex-direction:column; gap:2px; min-width:0">
+      <span class="txt stack-2 squeeze">
         <span style="font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis"
           title="${esc(writing || '')}">${esc(modelName(writing).name)}</span>
         <!-- WHAT IT IS, not only what it is called. #25, and Seth on 2026-08-29: "we need the
@@ -916,7 +916,7 @@ function drawRail() {
                 overflow:hidden; text-overflow:ellipsis">${esc(modelName(m.id).bits.join(' \u00b7 '))}</span>` : ''}
               ${modelFacts(m, !SRV.admin) ? `<span class="quiet">${esc(modelFacts(m, !SRV.admin))}</span>` : ''}</span>
           </button>`).join('')}
-      ${S.models?.length ? `<div class="hint" style="margin:6px 0 0">Press a model to see what it is for
+      ${S.models?.length ? `<div class="hint trail-6">Press a model to see what it is for
         and how fast it writes here, and to write with it. This is your usual model; a tale with its
         own model still uses that one.</div>` : ''}
       ${/* Only when the server has a Featherless key. Without one there is nothing to add from. */
@@ -1030,7 +1030,7 @@ function drawMeter() {
       pct == null ? (noRoom ? 'no space' : 'size unknown') : `room ${pct}% used`}</span>
     ${h ? `<span style="color:var(--gold-dim)">${h.chapters} ${
       h.chapters === 1 ? 'scene' : 'scenes'} out of reach</span>` : ''}
-    <button data-panel="context" style="margin-left:auto">what is in it &rsaquo;</button>
+    <button class="right" data-panel="context">what is in it &rsaquo;</button>
     ${toggle}`;
 }
 
@@ -1175,10 +1175,10 @@ function emptyModels() {
   if (!allow.length) {
     // AND A WAY ON, where there is one. The list empty was a dead end (second usability check).
     return `<div class="hint flush">The model on this machine is not answering. It has to
-      be restarted on the machine Anansi runs on.</div>${S.remote ? `<button class="btn ghost"
-      data-findmodel="1" style="margin-top:8px">Find a model on Featherless</button>` : ''}`;
+      be restarted on the machine Anansi runs on.</div>${S.remote ? `<button class="btn ghost push-8"
+      data-findmodel="1">Find a model on Featherless</button>` : ''}`;
   }
-  return `<div class="hint" style="margin:0; color:var(--warn)">The router answered, and your
+  return `<div class="hint flush warned">The router answered, and your
     allowlist matched none of it. <code>ANANSI_MODELS</code> is
     <code>${esc(allow.join(', '))}</code> &mdash; if the models on the box were renamed, this is
     the line to change. Unset it to offer everything the router serves.</div>`;
@@ -1222,25 +1222,25 @@ function drawAppearance() {
     box-shadow:inset 0 0 0 1px ${t.dark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.2)'}"></span>`;
 
   const body = tab === 'theme'
-    ? `<div style="display:flex; flex-direction:column; gap:7px">${themes.map(([k, t]) => `
+    ? `<div class="stack-7">${themes.map(([k, t]) => `
         <button data-theme="${k}" aria-pressed="${k === look.theme}" style="display:flex; align-items:center; gap:11px; padding:8px 10px;
           border-radius:var(--r); border:1px solid ${look.theme === k ? 'var(--ink-bright)' : 'var(--chip)'}; width:100%">
           ${swatch(t)}
           <span style="font-size:13px; color:${look.theme === k ? 'var(--ink)' : 'var(--mute)'}">${esc(t.label)}</span>
         </button>`).join('')}</div>`
     : tab === 'font'
-    ? `<div style="display:flex; flex-direction:column; gap:7px">${fonts.map(([k, l, fam]) => `
+    ? `<div class="stack-7">${fonts.map(([k, l, fam]) => `
         <button class="chip" data-fontpick="${k}" aria-pressed="${look.font === k}"
           style="font-family:${fam}; font-size:15px">${l}</button>`).join('')}</div>`
     : tab === 'size'
-    ? `<div style="display:flex; flex-direction:column; gap:7px">
-        <div style="display:flex; gap:5px">${['xs', 's', 'm', 'l', 'xl'].map((k) => `
+    ? `<div class="stack-7">
+        <div class="row-5">${['xs', 's', 'm', 'l', 'xl'].map((k) => `
           <button class="chip" data-sizepick="${k}" aria-pressed="${look.size === k}"
             style="flex:1; text-align:center; padding:9px 0; letter-spacing:.08em; font-size:11.5px">${k.toUpperCase()}</button>`).join('')}</div>
         <span class="hint flush">The prose and the column it sits in.</span></div>`
     // A separate axis: Size moves the prose, UI moves the chrome around it.
-    : `<div style="display:flex; flex-direction:column; gap:7px">
-        <div style="display:flex; gap:5px">${[['90', 'S'], ['100', 'M'], ['110', 'L'], ['125', 'XL']].map(([k, l]) => `
+    : `<div class="stack-7">
+        <div class="row-5">${[['90', 'S'], ['100', 'M'], ['110', 'L'], ['125', 'XL']].map(([k, l]) => `
           <button class="chip" data-scalepick="${k}" aria-pressed="${(look.scale ?? '100') === k}"
             style="flex:1; text-align:center; padding:9px 0; letter-spacing:.08em; font-size:11.5px">${l}</button>`).join('')}</div>
         <span class="hint flush">The menu, the drawers and the buttons. Leaves the prose alone.</span>
@@ -1278,7 +1278,7 @@ function drawAppearance() {
         inStory ? 'This tale' : 'Every tale'}</span>
       <button data-appearance="0" style="margin-left:auto; color:var(--faint); font-size:12px" aria-label="Close">✕</button>
     </div>
-    <div style="display:flex; gap:6px">${tabs.map(([k, l]) => `
+    <div class="row-6">${tabs.map(([k, l]) => `
       <button data-looktab="${k}" aria-pressed="${tab === k}" style="flex:1; text-align:center;
         padding:7px 0; font-size:11.5px; border-radius:var(--r);
         border:1px solid ${tab === k ? 'var(--ink-bright)' : 'var(--chip)'};
@@ -1290,7 +1290,7 @@ function drawAppearance() {
       <span class="hint flush">${ownLook
         ? 'This tale has a look of its own.'
         : 'This tale wears your usual look. Changing anything above gives it its own.'}</span>
-      <div style="display:flex; gap:6px">
+      <div class="row-6">
         <button class="btn ghost" data-lookmine="1" style="flex:1; font-size:12px">Make this my usual look</button>
         ${ownLook ? '<button class="btn ghost" data-lookfollow="1" style="flex:1; font-size:12px">Wear my usual look</button>' : ''}
       </div></div>` : ''}
@@ -1416,7 +1416,7 @@ function passageHTML(p, newest, opening) {
     return `<button class="flag" data-flagx="${f.id}" aria-expanded="false" title="Show what to do about it">
       <span style="width:5px; height:5px; border-radius:50%; flex:0 0 auto; margin-top:6px;
         background:${unseen ? 'var(--warn)' : 'var(--bad)'}"></span>
-      <span${unseen ? ' style="color:var(--warn)"' : ''}>${unseen
+      <span class="warned"${unseen ? '' : ''}>${unseen
         ? `Never sent · ${esc(e?.title ?? 'a thread')} knots with this, and the model was not shown it`
         : `Knot · ${esc(e?.title ?? 'a thread')}`}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>
       <div class="flagacts">
@@ -1655,7 +1655,7 @@ function drawDoc() {
       <div class="band-rule"></div>
     </div>
     ${list.map((p, i) => passageHTML(p, isLastChapter && i === list.length - 1, i === 0)).join('')
-      || `<div class="narr" style="opacity:.6">${
+      || `<div class="narr faded">${
         V.chapters.length > 1 ? 'Nothing in this scene yet.' : 'Nothing written yet. The composer is below.'}</div>`}
     </section>`;
 
@@ -2313,9 +2313,9 @@ function drawSide() {
     <button data-newlore="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
       class="serif">Threads</span></button>
     <span class="fill"></span>
-    <button data-panel="" style="color:var(--mute); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
+    <button class="caps-btn" data-panel="">Close</button>`;
   else if (thRead) $('sideHead').innerHTML = `${threadBar('read')}
-    <button data-panel="" style="color:var(--mute); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
+    <button class="caps-btn" data-panel="">Close</button>`;
   else $('sideHead').innerHTML = `
     <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis">${esc(TITLES[S.panel] ?? '')}</span>
@@ -2328,7 +2328,7 @@ function drawSide() {
     <span class="fill"></span>
     ${thList ? `<button data-newlore="1" class="headadd" aria-label="Add a thread, or read the scene"
       title="Add a thread, or read the scene"><span>${mark('create', 16)}</span></button>` : ''}
-    <button data-panel="" style="color:var(--mute); font-size:11px; letter-spacing:.12em; text-transform:uppercase">Close</button>`;
+    <button class="caps-btn" data-panel="">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
   $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead && !isAltering() && !(S.panel === 'threads' && S.lore && !S.entryId)
     ? helpBody(PANEL_HELP[S.panel]) : '')
@@ -2367,7 +2367,7 @@ function threadBar(mode) {
 }
 /** The same controls at the top of the editor when it is not in the drawer. */
 const pageBar = (mode) => (S.place === 'story' ? ''
-  : `<div class="savebar pagebar" style="display:flex; align-items:center; gap:12px">${threadBar(mode)}</div>`);
+  : `<div class="savebar pagebar line-12">${threadBar(mode)}</div>`);
 
 /** #74 · THE WORKBENCH DECK (ADR 0003, spec #74): everything that wants the writer, one card at a
  *  time. A card is one thread's chalked group (hem chalks a whole Over time entry and its pockets
@@ -2396,34 +2396,34 @@ function taleThread() {
   return `<div class="taleface stack">
     <button data-taleclose="1" class="headback" style="align-self:flex-start">&lsaquo;&nbsp;<span class="serif">Threads</span></button>
     <h2 class="readname">${esc(st.title || 'This tale')}</h2>
-    <div class="hint" style="margin:0 0 10px">The tale's own thread: what Anansi is told about the whole tale, every time.</div>
+    <div class="hint lead-10">The tale's own thread: what Anansi is told about the whole tale, every time.</div>
     <div class="lbl wide">Always true</div>
-    <label class="lbl" for="f-tale-premise" style="margin-top:4px">Premise</label>
+    <label class="lbl push-4" for="f-tale-premise">Premise</label>
     <textarea class="field grow" id="f-tale-premise" data-story="premise">${esc(st.premise ?? '')}</textarea>
     <label class="lbl" for="f-tale-setting">Setting</label>
     <input class="field" id="f-tale-setting" data-story="setting" value="${esc(st.setting ?? '')}">
-    <div class="lbl" style="letter-spacing:.1em; margin-top:18px">Voice</div>
-    <label class="lbl" for="f-tale-voice" style="margin-top:4px">How the narration sounds, as instructions</label>
+    <div class="lbl wide push-18">Voice</div>
+    <label class="lbl push-4" for="f-tale-voice">How the narration sounds, as instructions</label>
     <textarea class="field grow" id="f-tale-voice" data-story="writingStyle">${esc(st.writingStyle ?? '')}</textarea>
-    <button class="btn" data-savestory="1" style="margin-top:10px">Save</button>
+    <button class="btn push-10" data-savestory="1">Save</button>
     <div class="lbl sect">Rules &middot; <span class="tnum">${rules.length}</span></div>
-    <div class="hint" style="margin:0 0 6px">The laws this tale obeys. Each is sent always, or when one of its wake words comes up.</div>
+    <div class="hint lead-6">The laws this tale obeys. Each is sent always, or when one of its wake words comes up.</div>
     <div class="stack-roomy">${rules.map((e) => threadPlate(e, inContext(e, pin, mani))).join('')}</div>
-    <button class="btn ghost" data-newrule="1" style="margin-top:8px">+ Add a rule</button>
+    <button class="btn ghost push-8" data-newrule="1">+ Add a rule</button>
     <div class="lbl sect">Your own</div>
-    <div class="hint" style="margin:0 0 6px">Anything else for the whole tale, as an instruction: "keep it a slow burn",
+    <div class="hint lead-6">Anything else for the whole tale, as an instruction: "keep it a slow burn",
       "the narrator never names him". Sent while it is on.</div>
     ${own.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px; border-color:${a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
       <div class="line">
-        <input class="field" data-an="${esc(a.id)}" aria-label="What to call this instruction" value="${esc(a.name)}"
-          style="margin:0; font-size:13px; color:var(--ink-bright)">
-        <button data-deladdon="${esc(a.id)}" style="flex:0 0 auto; color:var(--bad); font-size:12px" aria-label="Remove">&#10005;</button></div>
+        <input class="field flush name-field" data-an="${esc(a.id)}" aria-label="What to call this instruction" value="${esc(a.name)}"
+         >
+        <button class="del-x" data-deladdon="${esc(a.id)}" aria-label="Remove">&#10005;</button></div>
       <textarea class="field grow" data-ab="${esc(a.id)}" aria-label="The instruction" style="margin:0; min-height:52px">${esc(a.body)}</textarea>
       <div class="btnrow">
         <button class="btn ghost fill" data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}">${a.active ? 'On — take it off' : 'Turn it on'}</button>
         <button class="btn ghost btn-side" data-saveaddon="${esc(a.id)}">Save</button></div>
     </div>`).join('')}
-    <div class="card" style="gap:7px">
+    <div class="card snug">
       <input class="field flush" data-talenew="name" aria-label="A name for the instruction" placeholder="A name: Slow burn">
       <textarea class="field grow" data-talenew="body" aria-label="The instruction" placeholder="The instruction, for the whole tale" style="margin:0; min-height:52px"></textarea>
       <button class="btn ghost" data-addtalepocket="1">Add it, switched on</button></div>
@@ -2512,7 +2512,7 @@ function deckCard(c, i, top) {
       <summary><span class="lbl flush">${label(p)}</span>
         <span class="deckpeek">${esc(String(p.body ?? '').slice(0, 90))}${String(p.body ?? '').length > 90 ? '&hellip;' : ''}</span></summary>
       ${proposalCard(p)}
-      ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint" style="margin:6px 0 0">It arrives with these:</div>
+      ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint trail-6">It arrives with these:</div>
         ${Object.entries(p.rooms).map(([slot, r]) => `<div style="font-size:12px; line-height:1.45; color:var(--mute); margin-top:4px">
           <span class="lbl flush">${slot === 'stands' ? 'Where it stands' : esc(pocketTitle(slot))}${r?.name && r.name !== slot ? ` &middot; ${esc(r.name)}` : ''}</span>
           ${esc(typeof r === 'object' ? r.body ?? '' : String(r))}</div>`).join('')}` : ''}
@@ -2527,7 +2527,7 @@ function deckCard(c, i, top) {
     const f = c.f;
     body = `<details class="decksec"><summary><span class="lbl flush">The line and the thread</span></summary>
       ${f.reason ? `<div class="note">${esc(f.reason)}</div>` : ''}
-      <div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:8px">
+      <div class="btnrow push-8 wraps">
         <button class="btn ghost fill" data-goflag="${esc(f.passageId)}">Show me the passage</button>
         ${f.entryId ? `<button class="btn ghost fill" data-entry="${esc(f.entryId)}">The thread is wrong</button>` : ''}
         <button class="btn ghost fill" data-dropflag="${esc(f.id)}">Clear</button></div></details>`;
@@ -2542,7 +2542,7 @@ function deckCard(c, i, top) {
     body = `${x.body ? `<div class="note">${esc(x.body)}</div>` : ''}
       <div class="hint" style="margin:4px 0 0">${x.fromChapter ? `Set up in ${esc(x.fromChapter)}.` : ''}${
         x.owedBy ? ` Owed by ${esc(x.owedBy)}.` : ''}${x.summoned ? ' Summoned: the model is told it is owed.' : ''}</div>
-      <button class="btn ghost" data-stringstatus="${esc(x.id)}:paid" style="margin-top:8px">Tied off</button>`;
+      <button class="btn ghost push-8" data-stringstatus="${esc(x.id)}:paid">Tied off</button>`;
     right = `<button class="btn" data-summon="${esc(x.id)}" data-deckright="1">${x.summoned ? 'Dismiss' : 'Summon'} &rarr;</button>`;
     left = `<button class="btn ghost" data-stringstatus="${esc(x.id)}:dropped" data-deckleft="1">&larr; Let go</button>`;
   }
@@ -2557,15 +2557,15 @@ function deckHTML(only = null) {
   // THE LAST CARD REJECTED STILL HAS ITS UNDO, or rejecting the last thing on the deck could not be
   // taken back at all.
   if (!cards.length) return S.deckUndo ? `<div class="deck" data-deck><div class="deckhead"><span>Nothing left to decide</span>
-    <button data-deckundo="1" class="tag" style="cursor:pointer; margin-left:auto">Undo</button></div></div>` : '';
+    <button data-deckundo="1" class="tag pressable right">Undo</button></div></div>` : '';
   const top = Math.min(Math.max(0, S.deckAt ?? 0), cards.length - 1);
   return `<div class="deck" data-deck>
     <div class="deckhead"><span>${cards.length} to decide</span>
-      <span class="tnum" style="margin-left:auto">${top + 1} of ${cards.length}</span>
+      <span class="tnum right">${top + 1} of ${cards.length}</span>
       <button data-deckmove="-1" aria-label="The card before" ${top ? '' : 'disabled'}>&lsaquo;</button>
       <button data-deckmove="1" aria-label="The next card" ${top < cards.length - 1 ? '' : 'disabled'}>&rsaquo;</button>
       ${S.deckUndo ? `<button data-deckundo="1" class="tag pressable">Undo</button>` : ''}</div>
-    <div class="hint" style="margin:0 0 8px">Swipe right to say yes, left to say no, or use the buttons. Nothing chalked is in the tale until you sew it in.</div>
+    <div class="hint lead-8">Swipe right to say yes, left to say no, or use the buttons. Nothing chalked is in the tale until you sew it in.</div>
     ${cards.map((c, i) => deckCard(c, i, top)).join('')}
   </div>`;
 }
@@ -2629,7 +2629,7 @@ function proposalCard(p) {
     ? `Lands in the ${esc(room)} pocket of ${esc(p.title)}. The rest of the thread is left exactly as it is.`
     : '';
   return `<div class="card" style="gap:8px">
-          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+          <div class="line-8 wraps">
             <span style="font-size:14.5px; color:var(--ink-bright)">${esc(p.title)}</span>
             ${room ? `<span class="tag tag-lit"
               >${esc(room)}</span>` : ''}
@@ -2645,7 +2645,7 @@ function proposalCard(p) {
             : `<textarea class="field" data-pbody="${p.id}" aria-label="What ${esc(p.title)} will say"
             style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>`}
           ${rooms.length ? `<div style="display:flex; gap:7px; flex-wrap:wrap; align-items:center">
-            <label style="font-size:11px; color:var(--faint)" for="pw-${p.id}">Goes in</label>
+            <label class="caption" for="pw-${p.id}">Goes in</label>
             <select class="field" id="pw-${p.id}" data-pwhere="${p.id}"
               style="margin:0; flex:1; min-width:130px; padding:6px 8px; font-size:11.5px">
               <option value=""${p.field ? '' : ' selected'}>where it stands now</option>
@@ -2740,12 +2740,12 @@ function ritualPanel() {
 
     ${closed ? '' : `${tipCard('ritEnd', 'Hem this scene', `<p>Hemming finishes the scene: it closes
       here and the next one opens. The prose stays exactly where it is.</p>`)}
-    <div style="display:flex; align-items:center; gap:2px">
+    <div class="line-2">
       <button class="btn fill" data-endchapter="1">${
         S.ritual ? esc(S.ritual) : 'Hem this scene'}</button>
       ${tipMark('ritEnd', 'Hem this scene')}</div>`}
 
-    <div style="margin-top:20px">
+    <div class="push-20">
     ${(() => {
       // NOT GREEN WHEN SOMETHING DID NOT RUN. A hem with the model down still closes the scene —
       // each pass is wrapped so it can — and this line was green beside a red report of the passes
@@ -2783,14 +2783,14 @@ function ritualPanel() {
 
     ${queued ? `${tipCard('ritDecide', 'Deciding what is chalked', `<p>On the Workbench, beside
       everything else this tale is owed. Nothing chalked is in the tale until you sew it in.</p>`)}
-    <div style="display:flex; align-items:center; gap:2px; margin-top:8px">
+    <div class="push-8 line-2">
       <button class="btn fill" data-panel="waiting">Decide the ${
         plural(queued, 'chalked thing', 'chalked things')}</button>
       ${tipMark('ritDecide', 'Deciding what is chalked')}</div>` : ''}
 
     ${tipCard('ritSetup', 'Setting up the next scene', `<p>Its name, its brief, and who is in
       it.</p>`)}
-    <div style="display:flex; align-items:center; gap:2px; margin-top:8px">
+    <div class="push-8 line-2">
       <button class="btn ghost fill" data-panel="setup">Set up the next scene</button>
       ${tipMark('ritSetup', 'Setting up the next scene')}</div>
 
@@ -2799,11 +2799,11 @@ function ritualPanel() {
     ${tipCard('ritAgain', 'Running a pass again', `<p>Every pass of hemming is wrapped so the scene
       still closes with the model down. If a line above came back blank, this is the way
       back.</p>`)}
-    <div style="display:flex; flex-wrap:wrap; gap:6px">
-      <button class="btn ghost" data-summarize="1" style="flex:1 1 40%">Summary</button>
-      <button class="btn ghost" data-remember="1" style="flex:1 1 40%">Changes</button>
-      <button class="btn ghost" data-extract="1" style="flex:1 1 40%">Threads</button>
-      <button class="btn ghost" data-refinished="1" style="flex:1 1 40%">Threads to retire</button>
+    <div class="row-6 wraps">
+      <button class="btn ghost half" data-summarize="1">Summary</button>
+      <button class="btn ghost half" data-remember="1">Changes</button>
+      <button class="btn ghost half" data-extract="1">Threads</button>
+      <button class="btn ghost half" data-refinished="1">Threads to retire</button>
     </div>` : ''}
 
     <!-- DELETE THE CHAPTER. Seth, 2026-08-30: "we also need a delete chapter", "deletion is
@@ -2819,8 +2819,8 @@ function ritualPanel() {
       anything it chalked. There is no undo.</p>
       <p>The scenes after it keep the numbers they have &mdash; a change over time is anchored to
       a scene number, so closing the gap would move it to a different scene.</p>`)}
-    <button class="btn ghost" data-delchapter="${esc(ch.id)}"
-      style="margin-top:4px; color:var(--bad)">Delete ${esc(sceneName(ch))}</button>`;
+    <button class="btn ghost danger push-4" data-delchapter="${esc(ch.id)}"
+     >Delete ${esc(sceneName(ch))}</button>`;
 }
 
 /** A remote model's Hugging Face tags, as small lowercase chips. */
@@ -2837,9 +2837,9 @@ const hubTagChips = (tags) => `<span class="hubtags" style="display:flex; gap:4p
  *  with none shows the base model and the tags alone. */
 function remoteAbout(card) {
   if (card === undefined) return '<div class="remoteabout hint flush">Reading what its makers wrote&hellip;</div>';
-  if (card.error) return `<div class="remoteabout hint" style="margin:0; color:var(--warn)">${esc(card.error)}</div>`;
+  if (card.error) return `<div class="remoteabout hint flush warned">${esc(card.error)}</div>`;
   const base = card.base ?? [], tags = card.tags ?? [];
-  return `<div class="remoteabout" style="display:flex; flex-direction:column; gap:6px">
+  return `<div class="remoteabout stack-6">
     ${base.length ? `<span class="quiet">Made from ${
       base.map((b) => `<code>${esc(b)}</code>`).join(', ')}</span>` : ''}
     ${card.about ? `<div style="font-size:13px; line-height:1.55; color:var(--mute)">${esc(card.about)}</div>` : ''}
@@ -2952,23 +2952,23 @@ function findMine() {
 /** The results half, alone, so a keystroke can redraw it without the box it was typed in. */
 function findHits() {
   const f = S.find;
-  if (f.error) return `<div class="hint" style="margin:0; color:var(--warn)">${esc(f.error)}</div>`;
+  if (f.error) return `<div class="hint flush warned">${esc(f.error)}</div>`;
   if (f.hits === null) return '<div class="hint flush">Reading the catalogue&hellip;</div>';
   const have = new Set((S.shortlist ?? []).map((m) => m.id));
   // THE TAG IS SEARCHED ON THE SERVER, over every model this search could show (the tag index in
   // src/catalogue.ts). While it is still reading tags it says how far it has got, and findSearch
   // asks again.
   const ix = f.tagIndex;
-  const head = f.tag.trim() ? `<div class="hint" style="margin:0 0 6px">${f.total}
+  const head = f.tag.trim() ? `<div class="hint lead-6">${f.total}
       ${f.total === 1 ? 'model is' : 'models are'} tagged “${esc(f.tag.trim())}”${ix && ix.read < ix.of
         ? ` so far &mdash; tags read for ${ix.read} of ${ix.of}` : ''}.
       <button data-findtag="" style="text-decoration:underline; color:var(--mute)">Clear</button></div>` : '';
   if (!f.hits.length) return head || '<div class="hint flush">Nothing matches.</div>';
   return head + f.hits.map((m) => foundRow(m, have.has(m.id)
-    ? '<span style="font-size:11px; color:var(--faint)">on your shortlist</span>'
+    ? '<span class="caption">on your shortlist</span>'
     : `<button class="btn" data-addshort="${esc(m.id)}" style="flex:0 0 auto; width:auto; font-size:11.5px; padding:5px 12px"
         ><span class="lbl-txt">Add</span></button>`)).join('')
-    + (f.total > f.hits.length ? `<div class="hint" style="margin:6px 0 0">${f.hits.length} of
+    + (f.total > f.hits.length ? `<div class="hint trail-6">${f.hits.length} of
         ${f.total} shown. Type more of a name to narrow it.</div>` : '');
 }
 
@@ -3009,7 +3009,7 @@ const PANELS = {
     // place): every Lore thread in the tale, each with one press that makes it a place.
     const lore = (V.entries ?? []).filter((e) => e.entryType === 'lore' && !e.sharedFrom);
     const sort = lore.length ? `<div class="lbl sect">Is any of these a place?</div>
-      <div class="hint" style="margin:0 0 6px">Places are their own kind of thread now. Anansi does not guess which
+      <div class="hint lead-6">Places are their own kind of thread now. Anansi does not guess which
         Lore threads are places, so they are listed here for you to sort.</div>
       ${lore.map((e) => `<div class="row" style="align-items:center; gap:10px">
         <span class="fill inked">${esc(e.title)}</span>
@@ -3018,7 +3018,7 @@ const PANELS = {
     // pruned), but an update a week old has a week of writing on top of it to lose.
     const WEEK = 7 * 24 * 3600 * 1000;
     const recent = last && Date.now() - last.backupAt < WEEK;
-    return `${last ? `<div class="hint" style="margin:0 0 14px">The backup was taken ${esc(new Date(last.backupAt)
+    return `${last ? `<div class="hint lead-14">The backup was taken ${esc(new Date(last.backupAt)
         .toLocaleString())}, before anything was moved.${recent ? ` To put the library back as it was,
         the admin restores <code>${esc(file)}</code> from the backups folder. That puts back every
         tale, and anything written since is lost.` : ''}</div>` : ''}
@@ -3097,7 +3097,7 @@ const PANELS = {
         ${writing ? '<span class="tag tag-lit">writing now</span>'
           : remote ? '<span class="tag">on Featherless</span>'
           : m.status === 'unloaded' ? '<span class="tag">asleep</span>'
-          : m.status === 'loaded' ? '<span class="tag" style="color:var(--good)">loaded</span>' : ''}</div>
+          : m.status === 'loaded' ? '<span class="tag goodink">loaded</span>' : ''}</div>
       <!-- The id is what the router answers to and what ANANSI_MODEL takes, so it is on the panel
            in full rather than one hover away: this is the screen you are on when you need it. -->
       ${SRV.admin ? `<div style="font-size:11px; color:var(--dim); margin:3px 0 12px; word-break:break-all">
@@ -3115,7 +3115,7 @@ const PANELS = {
         : BLURB[d.name]
         ? `<div style="font-size:13px; line-height:1.55; color:var(--mute); margin-bottom:6px">${
             esc(BLURB[d.name])}</div>`
-        : `<div class="hint" style="margin:0 0 6px">Nothing is written down about this one. What is
+        : `<div class="hint lead-6">Nothing is written down about this one. What is
             above is decoded from its name; what is below is measured.</div>`}
 
       ${remote
@@ -3150,11 +3150,11 @@ const PANELS = {
             &mdash; <code>${esc(modelName(pinned).name)}</code> &mdash; and this tale's model comes
             before this switch. Change it in Tale.</div>` : ''}
 
-      <div style="margin-top:16px">
+      <div class="push-16">
         ${writing
           // AND THE WAY TO ANOTHER ONE. The page about the model that is writing had no way to change
           // it — the usability check of 2026-10-24 found the switch only in the menu's list.
-          ? `<div class="hint" style="margin:0 0 10px">This is the one writing.${remote ? '' : ` Switching to another
+          ? `<div class="hint lead-10">This is the one writing.${remote ? '' : ` Switching to another
               releases it.`}</div>
              <button class="btn ghost" data-choosemodel="1">Choose another model</button>`
           // A remote model with no key on the server cannot be picked, so nothing offers it.
@@ -3181,21 +3181,21 @@ const PANELS = {
     if (f.hits === null && !f.seq) findSearch(true);
     const opt =(v, l, on) => `<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(l)}</option>`;
     return `<div style="display:flex; flex-direction:column; gap:14px">
-      <div style="display:flex; flex-direction:column; gap:6px">
+      <div class="stack-6">
         <span class="kind">Your shortlist</span>
-        <div id="findmine" style="display:flex; flex-direction:column; gap:2px">${findMine()}</div>
+        <div class="stack-2" id="findmine">${findMine()}</div>
       </div>
       <div style="display:flex; flex-direction:column; gap:8px; padding-top:12px; border-top:1px solid var(--line)">
         <span class="kind">Search Featherless</span>
         <input class="field" id="findq" type="search" aria-label="Search by name" value="${esc(f.q)}" placeholder="Part of a name" autocomplete="off"
           style="width:100%">
-        <div style="display:flex; gap:6px; flex-wrap:wrap">
-          <select class="field" data-findsize="1" aria-label="Size" style="flex:1; width:auto">${opt('', 'Any size', !f.size)}${
+        <div class="row-6 wraps">
+          <select class="field fill autow" data-findsize="1" aria-label="Size">${opt('', 'Any size', !f.size)}${
             f.sizes.map((z) => opt(z, z.toUpperCase(), z === f.size)).join('')}</select>
-          <select class="field" data-findweave="1" aria-label="Plans first" style="flex:1; width:auto">${opt('', 'Plans first: any', !f.weaving)}${
+          <select class="field fill autow" data-findweave="1" aria-label="Plans first">${opt('', 'Plans first: any', !f.weaving)}${
             f.weavings.map((w) => opt(w, spinWord(w), w === f.weaving)).join('')}</select>
           <!-- Seth, 2026-10-25: "a filter for how many units it takes". -->
-          <select class="field" data-findcost="1" aria-label="Units of the plan" style="flex:1; width:auto">${opt('', 'Any units', !f.cost)}${
+          <select class="field fill autow" data-findcost="1" aria-label="Units of the plan">${opt('', 'Any units', !f.cost)}${
             f.costs.map((c) => opt(String(c), `${c} ${c === 1 ? 'unit' : 'units'}`, String(c) === f.cost)).join('')}</select>
         </div>
         <!-- And by tag: typed here, or a press on any tag in the list below. -->
@@ -3205,7 +3205,7 @@ const PANELS = {
           <input type="checkbox" data-finduncensored="1"${f.uncensored ? ' checked' : ''}>
           Uncensored only</label>
       </div>
-      <div id="findhits" style="display:flex; flex-direction:column; gap:2px">${findHits()}</div>
+      <div class="stack-2" id="findhits">${findHits()}</div>
     </div>`;
   },
 
@@ -3286,12 +3286,12 @@ const PANELS = {
         <div class="row"><span class="inked">Measured anyway</span>
           <span class="tnum count">${MANI.totals.used.toLocaleString()} tokens</span></div>
         <div class="row"><span class="inked">Space for it</span>
-          <span class="tnum" style="margin-left:auto; color:var(--bad)">none</span></div>
+          <span class="tnum danger right">none</span></div>
         <div class="hint">Shorten Passage length in Storyteller, or turn Plans first off for this tale:
           both are space kept for the reply.</div></div>`;
     }
     const budget = MANI.totals.budget;
-    return `<div style="display:flex; flex-direction:column; gap:2px">
+    return `<div class="stack-2">
       ${ctxTabs()}
       <div style="display:flex; align-items:baseline; gap:10px; font-size:12.5px; color:var(--mute)">
         <!-- In the writer's words since the second usability check (2026-10-25): a share of her
@@ -3305,7 +3305,7 @@ const PANELS = {
         `<i style="width:${(v * scale / budget * 100).toFixed(2)}%; background:${BLOCK_COLOR[k] ?? 'var(--ink-ghost)'}"></i>`).join('')}</div>
       ${MANIFIT ? `<div style="display:flex; align-items:flex-start; gap:10px; padding:10px 0">
           <span style="width:8px; height:8px; border-radius:50%; background:var(--bad); margin-top:5px; flex:0 0 auto"></span>
-          <span style="flex:1; display:flex; flex-direction:column; gap:4px">
+          <span class="col-4">
             <span class="body-ink">The next passage will be refused as things stand</span>
             <span class="hint flush">${esc(MANIFIT.message)}</span></span></div>` : ''}
       ${(() => {
@@ -3313,7 +3313,7 @@ const PANELS = {
         if (!h) return '';
         return `<div style="display:flex; align-items:flex-start; gap:10px; padding:10px 0">
           <span style="width:8px; height:8px; border-radius:50%; background:var(--gold-dim); margin-top:5px; flex:0 0 auto"></span>
-          <span style="flex:1; display:flex; flex-direction:column; gap:4px">
+          <span class="col-4">
             <span class="body-ink">Scenes ${h.from}&ndash;${h.to} are out of her reach${helpMark('horizon')}</span>
             ${tipCard('horizon', HELP.horizon.title, `${helpText('horizon')}<p>Their summaries no
               longer reach the model, so it cannot draw on them or stay consistent with them.
@@ -3345,7 +3345,7 @@ const PANELS = {
         const [label, dest] = BLOCK_ORIGIN[k] ?? [k, 'doc'];
         const to = dest !== 'canon' ? `${dest}:`
           : rows.length === 1 && rows[0].id ? `entry:${rows[0].id}` : 'threads:';
-        return `<button class="row" data-goblock="${to}" style="width:100%; text-align:left">
+        return `<button class="row full-left" data-goblock="${to}">
           <span style="width:8px; height:8px; border-radius:var(--r-tight); flex:0 0 auto; background:${BLOCK_COLOR[k] ?? 'var(--ink-ghost)'}"></span>
           <span class="inked">${esc(label)}</span>
           <span style="color:var(--gold); font-size:11.5px">${esc(why)}</span>
@@ -3368,13 +3368,13 @@ const PANELS = {
           // over it, and a row you cannot press should not take that press.
           return `<div class="row" style="opacity:.55; pointer-events:none">
             <span style="width:8px; height:8px; border-radius:var(--r-tight); flex:0 0 auto; background:var(--edge-lit)"></span>
-            <span style="color:var(--mute)">${esc((BLOCK_ORIGIN[kind] ?? [kind])[0])}${
+            <span class="muted">${esc((BLOCK_ORIGIN[kind] ?? [kind])[0])}${
               n > 1 ? ` <span class="faint">&times;&thinsp;${n}</span>` : ''}</span>
             <span style="color:var(--bad); font-size:11.5px">${esc(whyWords({ reason }))}</span>
             <span class="tnum count">${tokens.toLocaleString()}</span></div>`;
         }).join('');
       })()}
-      <div style="display:flex; justify-content:flex-end; margin-top:14px">${
+      <div class="end-row push-14">${
         tipMark('ctxCaps', 'How the space is shared out')}</div>
       ${tipCard('ctxCaps', 'How the space is shared out', `<p>Threads are capped at 45% of the
         space, earlier scenes at 25%, recent prose at 60%. The last lines are never left out.</p>
@@ -3418,7 +3418,7 @@ const PANELS = {
         <textarea class="field grow newname" id="newname" data-webwho data-invdir rows="1"
           aria-label="Name it, or paste one in" placeholder="Name it, or paste one in"
           autocomplete="off">${esc(S.lore.draft ?? '')}</textarea>
-        <div class="hint" style="margin:6px 0 0">A thread pasted from Prompts is read in as it is.</div>
+        <div class="hint trail-6">A thread pasted from Prompts is read in as it is.</div>
         <div class="lbl sect">Write it as</div>
         <div style="display:flex; flex-wrap:wrap; gap:8px">
           ${/* #75. A rule is added from the tale's own thread; offered here only when that is where this came from. */
@@ -3426,7 +3426,7 @@ const PANELS = {
             text-align:center; font-size:13px; min-height:46px; border-radius:var(--r-pill); ${chip(kind === k)}">${
               esc(pocketTitle(k))}</button>`).join('')}
         </div>
-        <button class="btn" data-newthread="${esc(kind)}" style="margin-top:12px">Write it</button>
+        <button class="btn push-12" data-newthread="${esc(kind)}">Write it</button>
 
         <div class="lbl sect-far">Or let Anansi${
           tipMark('thInvent', 'What Anansi writes')}</div>
@@ -3436,7 +3436,7 @@ const PANELS = {
           pockets as well as the thread. Your own SearXNG does the searching, and the pages it read
           ride along.</p>`)}
         ${weaveFitRow(`invent:${kind}`)}
-        <div style="display:flex; flex-direction:column; gap:10px">
+        <div class="stack-10">
           <button class="letcard" data-invent="${esc(kind)}">${
             card('quill', 'Write one for me', 'From what you typed, or her own idea')}</button>
           <button class="letcard" data-fromweb="${esc(kind)}" ${S.webPulling || !searchable ? 'disabled' : ''}>${
@@ -3520,7 +3520,7 @@ const PANELS = {
               measured yet, so an on-a-word thread cannot be counted until it has.</p>`)}` : ''}`;
       })()}
       ${/* #75. THE TALE'S OWN THREAD, FIRST: the premise, the voice, the rules, the writer's own. */ ''}
-      <button class="card plate thplate" data-taleopen="1" style="text-align:left; width:100%">
+      <button class="card plate thplate full-left" data-taleopen="1">
         <span class="platename">The tale</span>
         <span class="clamp2 thtext">${esc(V.story.premise || 'Its premise, its voice and its rules.')}</span>
         <span class="thtags"><span class="tag">premise &middot; voice${
@@ -3535,7 +3535,7 @@ const PANELS = {
            page that spans every book already existed and had no door from inside a story: you had
            to leave first, and then know that Threads out there means something wider than Threads
            in here. -->
-      <div style="display:flex; align-items:center; gap:2px; margin-top:14px">
+      <div class="push-14 line-2">
         <button class="btn ghost fill" data-leave="canon">Every tale's threads</button>
         ${tipMark('thWider', "Every tale's threads")}</div>
       ${tipCard('thWider', "Every tale's threads", `<p>${V.entries.length} in this tale. The wider
@@ -3615,7 +3615,7 @@ const PANELS = {
            and a repaint on a tab press throws away whatever was half-typed — the bug this file
            records seven separate times. All four groups are drawn and the attribute on the
            container picks the one you see, so switching cannot lose a word. -->
-      <div style="display:flex; gap:6px; margin:0 0 14px">
+      <div class="lead-14 row-6">
         ${[['voice', 'Voice'], ['book', 'The tale'], ['world', 'Setting'], ['keep', 'Keep']]
           .map(([k, label]) => `<button class="chip" data-storytab="${k}"
             aria-pressed="${tab === k}" style="flex:1; text-align:center; cursor:pointer"
@@ -3687,16 +3687,16 @@ const PANELS = {
       ${V.cover && V.story.chapterHero ? `${tipCard('sSticky', 'Keeping it behind the prose', `<p>It
         stays put and the writing moves over it, fading left to right into the page. Instead of a
         plate at the head of the scene that scrolls away with it.</p>`)}
-      <label style="display:flex; align-items:center; gap:9px; margin-top:12px; cursor:pointer">
+      <label class="line pressable push-12">
         <input type="checkbox" data-story="chapterSticky" ${V.story.chapterSticky ? 'checked' : ''}>
         <span class="body-ink">Keep it behind the prose while you read</span>${
           tipMark('sSticky', 'Keeping it behind the prose')}</label>
-      ${V.story.chapterSticky ? `<label class="lbl" for="f-story-coverOpacity"
-          style="letter-spacing:.1em; margin-top:12px">How much of it shows${
+      ${V.story.chapterSticky ? `<label class="lbl wide push-12" for="f-story-coverOpacity"
+         >How much of it shows${
             tipMark('sOpacity', 'How much of it shows')}</label>
         ${tipCard('sOpacity', 'How much of it shows', `<p>At full strength a picture under text is
           unreadable and at nothing it is not there. It saves itself when you let go.</p>`)}
-        <div style="display:flex; align-items:center; gap:12px">
+        <div class="line-12">
           <input class="fill" type="range" min="0" max="100" step="5" id="f-story-coverOpacity"
             data-story="coverOpacity" value="${V.story.coverOpacity ?? 30}">
           <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
@@ -3764,7 +3764,7 @@ const PANELS = {
             <span class="kind" style="margin-left:6px">${esc(f.kind)}</span>
             ${f.already ? '<span class="hint" style="margin:0; display:inline">already written down</span>' : ''}
           </span></label>`).join('')}
-        <div style="display:flex; gap:7px; margin-top:8px">
+        <div class="btnrow push-8">
           <button class="btn fill" data-worldpull="ticked" ${S.worldPulling ? 'disabled' : ''}
            >${S.worldPulling
               ? `Pulling ${esc(S.worldPulling)}&hellip;` : 'Pull the ticked ones'}</button>
@@ -3811,12 +3811,11 @@ const PANELS = {
       <!-- #36. WHAT THIS BOOK HAS TAKEN OUT, by name. Removing a followed thread writes a tombstone
            rather than deleting anything, so it is reversible — but only if it is listed somewhere,
            or "remove" is a one-way door with no undo on any screen. -->
-      ${(V.dropped ?? []).length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:18px"
+      ${(V.dropped ?? []).length ? `<div class="lbl wide push-18"
         >Taken out of this tale</div>
       ${V.dropped.map((x) => `<div class="row">
         <span class="inked">${esc(x.title)}</span>
-        <button data-bringback="${esc(x.id)}" style="margin-left:auto; padding:6px 11px;
-          border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11px"
+        <button class="pill-btn" data-bringback="${esc(x.id)}"
           >Bring it back</button></div>`).join('')}
       <div class="hint" style="margin-top:0">Still in ${esc(V.follows?.title ?? 'the world it lives in')},
         untouched. This tale just stopped seeing ${
@@ -3834,13 +3833,13 @@ const PANELS = {
         <a class="btn ghost" href="${api.exportUrl(S.storyId, 'json')}" download
           style="flex:1; text-decoration:none">JSON</a>
       </div>
-      <button class="btn ghost" data-exportdb="1" style="margin-top:7px">As a standalone database</button>
+      <button class="btn ghost push-7" data-exportdb="1">As a standalone database</button>
       <!-- #76. Where an update to Anansi says what it moved in this tale. -->
-      <button class="btn ghost" data-panel="updates" style="margin-top:7px">What the update moved</button>
+      <button class="btn ghost push-7" data-panel="updates">What the update moved</button>
       ${tipCard('sForkThreads', 'A new tale from these threads', `<p>A COPY, and both tales
         keep their own from then on. For one set of threads across several tales, follow a world
         above instead &mdash; that is a link, not a copy.</p>`)}
-      <div style="display:flex; align-items:center; gap:2px; margin-top:7px">
+      <div class="push-7 line-2">
         <button class="btn ghost fill" data-forkthreads="1">New tale from
           these threads</button>
         ${tipMark('sForkThreads', 'A new tale from these threads')}</div>
@@ -3857,7 +3856,7 @@ const PANELS = {
         change who somebody is on one path and they change on every path. That is the point of a
         branch and it is why it cannot give you a separate set.</p>
         <p>Knots, old versions and anyone else you write with stay with the original.</p>`)}
-      <div style="display:flex; align-items:center; gap:2px; margin-top:7px">
+      <div class="push-7 line-2">
         <button class="btn ghost fill" data-dupbook="1">Make a copy of this whole
           tale</button>
         ${tipMark('sDuplicate', 'A second copy of this tale')}</div>
@@ -3888,15 +3887,14 @@ const PANELS = {
           the top of the screen says when it is your move.</p>`)}
         ${writers.filter((w) => !w.owns).map((w) => `<div class="row">
           <span class="inked">${esc(w.login)}</span>
-          <button class="btn ghost" data-unshare="${esc(w.login)}" style="margin-left:auto;
-            width:auto; padding:0 14px; height:32px; font-size:11.5px">Take them out</button></div>`).join('')}
+          <button class="btn ghost right small-btn" data-unshare="${esc(w.login)}">Take them out</button></div>`).join('')}
         ${free.length ? `<div style="display:flex; gap:7px; align-items:center; margin-top:8px">
           <select class="field flush fill" id="f-share" aria-label="Who to write this tale with">
             ${free.map((m) => `<option value="${esc(m.login)}">${esc(m.name)}</option>`).join('')}
           </select>
           <button class="btn ghost" data-share="1" style="width:auto; padding:0 16px; height:38px;
             font-size:12px; white-space:nowrap">Call them in</button></div>`
-        : '<div class="hint" style="margin:6px 0 0">Everybody here is already in this tale.</div>'}`;
+        : '<div class="hint trail-6">Everybody here is already in this tale.</div>'}`;
       })()}
 
       <div class="lbl sect-far">Fold it away${
@@ -3975,7 +3973,7 @@ const PANELS = {
     });
     const total = rows.reduce((n, r) => n + r.words, 0);
     return `<div class="stack">
-      <div class="hint" style="margin:0 0 4px">${V.chapters.length} ${
+      <div class="hint lead-4">${V.chapters.length} ${
         V.chapters.length === 1 ? 'scene' : 'scenes'} &middot; ${total.toLocaleString()} words.
         Press one to write in it.</div>
       ${rows.map(({ c, mine, words, first }) => {
@@ -4048,7 +4046,7 @@ const PANELS = {
            PROPOSED CARRIES ITS COUNT. The other three do not need one — a queue that is hidden
            behind a tab and does not say how many are waiting is the one thing this split could
            break, and closing a chapter fills it. -->
-      <div style="display:flex; gap:6px; margin:0 0 14px">
+      <div class="lead-14 row-6">
         ${/* EVERY CHIP CARRIES ITS COUNT, not only Proposed. A tab is a thing you cannot see, so a
               group that does not say how much is behind it is a group nobody opens — the browser
               pass walked straight past Summaries and Branches, which is the same blindness a
@@ -4097,7 +4095,7 @@ const PANELS = {
       <textarea class="field" id="f-chapter-note" data-chapter-note="1">${esc(ch.authorsNote ?? '')}</textarea>
       ${tipCard('chRitual', 'Hem this scene', `<p>Opens the scene's own screen, where it is hemmed:
         closed, summarised, and the next scene opened.</p>`)}
-      <div style="display:flex; align-items:center; gap:2px; margin-top:14px">
+      <div class="push-14 line-2">
         <button class="btn ghost fill" data-ritual="1">Hem this scene</button>
         ${tipMark('chRitual', 'Hem this scene')}</div>
 
@@ -4115,8 +4113,8 @@ const PANELS = {
         anything it chalked. There is no undo.</p>
         <p>The scenes after it keep the numbers they have &mdash; a change over time is anchored
         to a scene number, so closing the gap would move it to a different scene.</p>`)}
-      <button class="btn ghost" data-delchapter="${esc(ch.id)}"
-        style="margin-top:4px; color:var(--bad)">Delete ${esc(sceneName(ch))}</button>
+      <button class="btn ghost danger push-4" data-delchapter="${esc(ch.id)}"
+       >Delete ${esc(sceneName(ch))}</button>
       </div>
 
       <div class="sgroup" data-group="proposed">
@@ -4145,15 +4143,15 @@ const PANELS = {
       ${shown.map(proposalCard).join('') || `<div class="hint flush">${
         ps.length ? 'Nothing of that kind.' : 'Nothing chalked. Hemming a scene reads it for new threads and for what it did to the people in it.'}</div>`}
       ${(V.proposals ?? []).some((p) => p.entryType === 'string')
-        ? `<button class="btn ghost" data-panel="strings" style="margin-top:6px">${
+        ? `<button class="btn ghost push-6" data-panel="strings">${
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length} string${
             (V.proposals ?? []).filter((p) => p.entryType === 'string').length === 1 ? '' : 's'
           } chalked &mdash; they wait under Strings</button>` : ''}
-      <button class="btn ghost" data-extract="1" style="margin-top:6px">Read this scene for threads</button>
+      <button class="btn ghost push-6" data-extract="1">Read this scene for threads</button>
       <!-- POST /api/remember was finished, tested, and reachable from nowhere until 2026-08-27.
            Closing a chapter runs it; this is the way back when the router was down at the time,
            which is the one case the route was written for. -->
-      <button class="btn ghost" data-remember="1" style="margin-top:6px">Note what it did to the
+      <button class="btn ghost push-6" data-remember="1">Note what it did to the
         people in it</button></div>
       </div>
 
@@ -4175,7 +4173,7 @@ const PANELS = {
         style="margin-bottom:8px; ${c.keepWhole ? 'border-color:var(--gold-dim);' : ''}">
         <div class="line">
           <span class="kind">${esc(sceneName(c))}</span>
-          ${c.summary ? `<span data-sumauthor style="font-size:11px; color:var(--faint)">${
+          ${c.summary ? `<span class="caption" data-sumauthor>${
             c.summaryAuthor === 'human' ? 'yours' : 'Anansi&rsquo;s'}</span>` : ''}
           ${/* The word count is on every card, and while the card is being edited it is the editor's
                 live one instead, so the card never shows two counts that disagree. */''}
@@ -4186,23 +4184,23 @@ const PANELS = {
             style="width:100%; font-size:12.5px; line-height:1.5">${esc(S.editSum.text)}</textarea>
           ${wordLine(S.editSum.text, SUMMARY_WORDS)}
           <div style="display:flex; align-items:center; gap:9px; font-size:11.5px">
-            <button class="btn ghost" data-cancelsum="1" style="margin-left:auto">Cancel</button>
+            <button class="btn ghost right" data-cancelsum="1">Cancel</button>
             <button class="btn" data-savesum="${c.id}">Save</button></div>`
-        : c.summary ? `<button aria-expanded="false" data-expand="1" style="text-align:left; width:100%">
+        : c.summary ? `<button class="full-left" aria-expanded="false" data-expand="1">
           <div class="clamp note">${esc(c.summary)}</div>
         </button>
         ${c.summaryStale ? '<div class="hint danger">Out of date — this scene summary is not sent until it is written again: summarise again, or alter it.</div>' : ''}
-        <button data-editsum="${c.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Alter</button>
+        <button class="list-btn" data-editsum="${c.id}">Alter</button>
         ${/* #45. Re-runs THIS card's chapter, not the current one, so a stale summary on an older
               chapter is one press from coming back into the prompt. */''}
-        <button data-summarize="${c.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Summarise again</button>
+        <button class="list-btn" data-summarize="${c.id}">Summarise again</button>
         <button data-pullback="${c.id}" data-on="${c.keepWhole ? '0' : '1'}"
           style="font-size:11.5px; text-align:left; color:${c.keepWhole ? 'var(--gold)' : 'var(--faint)'}"
           >${c.keepWhole
             ? '&check; Sent whole &mdash; press to send its summary again'
             : 'Pull this scene back &mdash; send its prose, not its summary'}</button>`
         : `<div class="hint">No summary.</div>${prose
-          ? `<button data-editsum="${c.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Write one</button>` : ''}`}
+          ? `<button class="list-btn" data-editsum="${c.id}">Write one</button>` : ''}`}
       </div>`; }).join('') || '<div class="hint">No summaries yet. Hemming a scene writes one.</div>'}
       ${/* Only while the current chapter has no card: once it has a summary, its card carries
             Summarise again, and this would be the same press twice. */
@@ -4236,7 +4234,7 @@ const PANELS = {
             <button class="btn ghost fill" data-savearc="${a.id}">Save</button>
             <button class="btn ghost" data-cancelarc="1" style="width:110px">Cancel</button></div>`
         : `<div class="note">${esc(a.summary)}</div>
-          <button data-editarc="${a.id}" style="font-size:11.5px; text-align:left; color:var(--faint)">Alter</button>`}
+          <button class="list-btn" data-editarc="${a.id}">Alter</button>`}
         </div>`; }).join('')}
       ${(() => {
         // The range is computed rather than typed. Two number boxes is a question the writer has
@@ -4254,7 +4252,7 @@ const PANELS = {
         for (const i of run.slice(1)) { if (i !== last + 1) break; last = i; }
         return `${tipCard('chRollup', 'Gathering scenes into a chapter', `<p>Their own summaries stop
             being sent and the chapter summary stands in for them. Undo it by removing the chapter.</p>`)}
-          <div style="display:flex; align-items:center; gap:2px">
+          <div class="line-2">
             <button class="btn ghost fill" data-rollup="${run[0]}:${last}"${S.busy ? ' disabled' : ''}
              >Gather scenes ${run[0]}&ndash;${last} into a chapter</button>${
               tipMark('chRollup', 'Gathering scenes into a chapter')}</div>`;
@@ -4312,7 +4310,7 @@ const PANELS = {
                    is not handed the bibliography. -->
               ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
                 border-color:var(--edge-lit); color:var(--ink-bright)">${turn.proposed} chalked &mdash; under This scene</button>` : ''}
-              ${turn.meta ? `<div style="font-size:11px; color:var(--faint)">${esc(turn.meta)}</div>` : ''}
+              ${turn.meta ? `<div class="caption">${esc(turn.meta)}</div>` : ''}
             </div>`).join('')
           : (() => {
             // The empty state was two paragraphs of explanation over a panel-height void. It said
@@ -4336,7 +4334,7 @@ const PANELS = {
                passages, and that it proposes rather than writes — in different words. Two
                renderings of one idea is the drift this file keeps recording, and the web is the
                copy with a test binding it. Nothing was lost; one of two copies was. */
-            return `<div style="display:flex; flex-direction:column; gap:10px">
+            return `<div class="stack-10">
               <div style="display:flex; flex-direction:column; gap:6px; margin-top:2px">
                 ${asks.map(([m, q]) => `<button data-askfill="${esc(q)}" style="display:flex;
                   align-items:flex-start; gap:11px; text-align:left; width:100%; padding:10px 12px;
@@ -4378,14 +4376,14 @@ const PANELS = {
       placeholder="Ask Anansi about this tale&hellip;"
             style="min-height:64px; margin:0"></textarea>
         </div>
-        <div style="display:flex; align-items:center; gap:8px">
+        <div class="line-8">
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
             t.searchable === false ? 'var(--faint)' : 'var(--mute)'}"
             title="${t.searchable === false ? 'Searching the web is not switched on here' : 'Look it up online first'}">
             <input type="checkbox" data-websearch="1" ${t.search ? 'checked' : ''}
               ${t.searchable === false ? 'disabled' : ''}> Search before responding
           </label>
-          ${t.turns.length ? `<button data-clearchat="1" style="font-size:11px; color:var(--faint)">Clear</button>` : ''}
+          ${t.turns.length ? `<button class="caption" data-clearchat="1">Clear</button>` : ''}
           <button class="btn" data-ask="1" ${t.busy ? 'disabled' : ''}
             style="margin-left:auto; width:auto; padding:0 22px; height:38px">${t.busy ? '&hellip;' : 'Ask'}</button>
         </div>
@@ -4421,14 +4419,14 @@ const PANELS = {
             : since != null ? `${since === 0 ? 'set up this scene' : `${since} ${since === 1 ? 'scene' : 'scenes'} ago`}`
             : ''}</span></div>
         ${x.body ? `<div class="note">${esc(x.body)}</div>` : ''}
-        <div style="display:flex; gap:6px; flex-wrap:wrap">
-          <button class="btn ghost" data-summon="${x.id}" style="width:auto; padding:0 12px; height:30px; font-size:11px">${
+        <div class="row-6 wraps">
+          <button class="btn ghost mini-btn" data-summon="${x.id}">${
             x.summoned ? 'Dismiss' : 'Summon'}</button>
           ${x.status === 'open'
-            ? `<button class="btn ghost" data-stringstatus="${x.id}:paid" style="width:auto; padding:0 12px; height:30px; font-size:11px">Tied off</button>
-               <button class="btn ghost" data-stringstatus="${x.id}:dropped" style="width:auto; padding:0 12px; height:30px; font-size:11px">Let go</button>`
-            : `<button class="btn ghost" data-stringstatus="${x.id}:open" style="width:auto; padding:0 12px; height:30px; font-size:11px">Still open</button>`}
-          <button data-delstring="${x.id}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button>
+            ? `<button class="btn ghost mini-btn" data-stringstatus="${x.id}:paid">Tied off</button>
+               <button class="btn ghost mini-btn" data-stringstatus="${x.id}:dropped">Let go</button>`
+            : `<button class="btn ghost mini-btn" data-stringstatus="${x.id}:open">Still open</button>`}
+          <button class="del-right" data-delstring="${x.id}" aria-label="Remove">✕</button>
         </div></div>`;
     };
     /* THE INTRO CAME OUT for the same reason as Anansi's: it restated web/help.js under this
@@ -4448,7 +4446,7 @@ const PANELS = {
             is a string of the tale until you sew it in.</p>`)}
           ${mine.map((p) => `<div class="card" style="margin-bottom:8px; gap:8px;
             border-color:rgba(217,178,106,.28)">
-            <div style="display:flex; align-items:center; gap:8px">
+            <div class="line-8">
               <span style="font-size:14px; color:var(--ink-bright)">${esc(p.title)}</span>
               <span class="count-sm">${
                 p.keys?.[0] ? `set up in scene ${esc(p.keys[0])}` : ''}</span></div>
@@ -4475,13 +4473,13 @@ const PANELS = {
       <textarea class="field" data-st2="body" aria-label="What was promised, and to whom"
         placeholder="What was promised, and to whom"
         style="min-height:52px; margin-top:6px"></textarea>
-      <div style="display:flex; gap:6px; margin-top:6px">
+      <div class="push-6 row-6">
         <input class="field fill" data-st2="fromChapter" aria-label="The scene it was set up in"
           value="${here}" placeholder="From scene">
         <input class="field fill" data-st2="owedBy" aria-label="The scene it should be tied off by"
           placeholder="Owed by scene">
       </div>
-      <button class="btn" data-newstring="1" style="margin-top:8px">Add the string</button>
+      <button class="btn push-8" data-newstring="1">Add the string</button>
     </div>`;
   },
 
@@ -4526,7 +4524,7 @@ const PANELS = {
       <div class="savebar"><button class="btn" data-savegen="1">Save</button></div>
       <div style="display:flex; align-items:flex-start; gap:12px; padding:0 0 4px">
         <span style="width:8px; height:8px; border-radius:50%; background:var(--warn); margin-top:5px; flex:0 0 auto"></span>
-        <span style="flex:1; display:flex; flex-direction:column; gap:4px">
+        <span class="col-4">
           <span style="font-size:13.5px; color:var(--ink)">These are yours, not per tale${
             tipMark('genShared', 'These are yours, not per tale')}</span>
           ${tipCard('genShared', 'These are yours, not per tale', `<p>The sampler belongs to you,
@@ -4675,7 +4673,7 @@ const PANELS = {
           const open = S.promptOpen === k;
           return `<div class="card" style="margin-bottom:7px; gap:6px;
               border-color:${mine ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
-            <button data-editprompt="${k}" style="display:flex; align-items:center; gap:9px; width:100%; text-align:left">
+            <button class="line full-left" data-editprompt="${k}">
               <span class="kind">${k[0].toUpperCase() + k.slice(1)}</span>
               ${mine ? '<span class="tag tag-lit">yours</span>' : ''}
               ${open ? tipMark(`prompt-${k}`, `The ${k} instruction`) : ''}
@@ -4824,12 +4822,12 @@ function ledgerBooks() {
   // list redraws on every one of those, and a boolean per book kept in the markup would reset.
   return [...books.entries()].map(([sid, b], i) => {
     const shut = S.ledgerShut[sid] ?? (i > 0);
-    return `<div style="display:flex; flex-direction:column; gap:10px">
+    return `<div class="stack-10">
     <div style="display:flex; align-items:baseline; gap:10px">
       <button data-lbook="${sid}" style="display:flex; align-items:baseline; gap:10px; text-align:left"
         aria-expanded="${!shut}">
         <span style="color:var(--dim); font-size:12px; width:10px">${shut ? '›' : '⌄'}</span>
-        <span class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(b.title)}</span>
+        <span class="serif title-md">${esc(b.title)}</span>
         <span class="up quiet">${b.rows.length} ${b.rows.length === 1 ? 'thread' : 'threads'}</span></button>
       <button data-fromhere="${S.fromBook === sid ? '' : sid}" style="margin-left:auto; font-size:11px;
         letter-spacing:.1em; text-transform:uppercase; color:var(--mute)">${
@@ -4864,7 +4862,7 @@ function searchHits() {
       width:100%; text-align:left">
       <span style="display:flex; align-items:center; gap:10px; width:100%">
         <span class="kind" style="font-size:11px">${esc(r.kind === 'Entry' ? 'Thread' : r.kind ?? 'Prose')}</span>
-        <span style="margin-left:auto; font-size:11px; color:var(--dim)">${esc(r.where ?? '')}</span></span>
+        <span class="quiet right">${esc(r.where ?? '')}</span></span>
       <span style="font-size:13.5px; line-height:1.5; color:var(--ink)">${esc((r.body ?? '').slice(0, 260))}</span></button>
     ${r.kind === 'Entry' ? '' : `<button data-tolore="${i}" style="align-self:flex-start; font-size:11px;
       letter-spacing:.1em; text-transform:uppercase; color:var(--gold); padding:2px 0">＋ Add to threads</button>`}
@@ -5170,8 +5168,8 @@ function sparkReview() {
     >${S.spark.spField === k ? 'asking&hellip;' : 'reweave this'}</button>`;
 
   const reroll = (label) => S.spark.idea
-    ? `<button class="btn ghost" data-spreroll="1" ${busy ? 'disabled' : ''}
-        style="margin-top:6px">${S.spark.sparking ? 'Asking&hellip;' : esc(label)}</button>` : '';
+    ? `<button class="btn ghost push-6" data-spreroll="1" ${busy ? 'disabled' : ''}
+       >${S.spark.sparking ? 'Asking&hellip;' : esc(label)}</button>` : '';
 
   const body = key === 'book'
     /* THE BOOK. Title, genre, premise — and the voice, which was on the last step where it was
@@ -5241,7 +5239,7 @@ function sparkReview() {
        ${s.persona && s.persona !== s.lockedCharacter
          ? `<button class="btn ghost" data-splock="1" style="margin-top:2px">Also keep ${esc(s.persona)}
               off the model</button>` : ''}
-       <label class="lbl" for="f-sp-pov" style="margin-top:16px">Point of view</label>
+       <label class="lbl push-16" for="f-sp-pov">Point of view</label>
        <select class="field" id="f-sp-pov" data-sp="pov">${POV.map((o) =>
          `<option value="${esc(o)}" ${o === s.pov ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
        <div class="hint">${esc(POV_EXAMPLE[s.pov] ?? '')}</div>
@@ -5260,7 +5258,7 @@ function sparkReview() {
     // The steer, a re-roll on each card, and the library. Setting up a lore book needed nothing
     // new — `lore` has been one of the kind chips since #21 §2, so asking for places instead of
     // people was already a press.
-    ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px">
+    ? `<div class="lead-10 row-6 wraps">
          ${KINDS.map((k) => {
            const on = (S.spark.kinds ?? KINDS).includes(k);
            // aria-pressed, added 2026-09-01: it is a toggle and every other toggle in this app says
@@ -5274,10 +5272,10 @@ function sparkReview() {
        </div>
        ${S.spark.entries.length ? '' : `<button class="btn ghost" data-spwritecast="1" ${busy ? 'disabled' : ''}
          style="margin-bottom:10px">${S.spark.casting ? 'Writing them&hellip;' : 'Write the threads'}</button>
-       <div class="hint" style="margin:0 0 10px">Pick what this tale needs, then ask. A tale with no
+       <div class="hint lead-10">Pick what this tale needs, then ask. A tale with no
          threads is a real answer &mdash; skip this step and write them as you go.</div>`}
        ${S.spark.entries.map((e, i) => `<div class="card" style="margin-bottom:7px; gap:7px">
-         <div style="display:flex; align-items:center; gap:8px">
+         <div class="line-8">
            <input class="field" data-spname="${i}" aria-label="Name of thread ${i + 1}"
              value="${esc(e.title)}" placeholder="Their name"
              style="margin:0; font-size:14px; color:var(--ink-bright)">
@@ -5285,7 +5283,7 @@ function sparkReview() {
          <textarea class="field" data-spbody="${i}" aria-label="What thread ${i + 1} says" placeholder="[Name: what they are, what they want, what it costs]"
            style="margin:0; min-height:64px; font-size:12.5px; line-height:1.45"
            >${esc(e.body ?? '')}</textarea>
-         <div style="display:flex; align-items:center; gap:8px">
+         <div class="line-8">
            <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint)">
              <input type="checkbox" data-spcast="${i}" ${e.keep === false ? '' : 'checked'}> keep this one</label>
            <button class="btn ghost" data-sprecast="${i}" ${busy ? 'disabled' : ''}
@@ -5305,18 +5303,18 @@ function sparkReview() {
          style="margin-bottom:6px">${S.spark.casting ? 'Writing them&hellip;'
            : dropped ? `Keep the ${kept} ticked and reweave the rest`
            : 'Ask for more'}</button>
-       <div class="hint" style="margin:0 0 10px">${dropped
+       <div class="hint lead-10">${dropped
          ? `The ${kept === 1 ? 'one' : kept} you have ticked stay exactly as they are. The ${dropped}
             you unticked are replaced by whatever comes back.`
          : `Everything is ticked, so nothing is replaced &mdash; this asks for MORE alongside them.
             Untick the ones you do not want first and they are what gets rewritten.`}</div>` : ''}
 
-       <button class="btn ghost" data-spadd="1" style="margin-top:6px">&#65291; Write one of your own</button>
+       <button class="btn ghost push-6" data-spadd="1">&#65291; Write one of your own</button>
 
        <!-- #30 · FORGED SOMEWHERE ELSE. The same paste a tale's New thread box takes, except
             there is no story yet — so it lands in the wizard's cast and is written on Accept with
             everything else. Rooms ride along and reach the ledger through POST /api/stories. -->
-       ${SRV.admin ? `<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:16px">
+       ${SRV.admin ? `<div class="btnrow push-16 wraps">
          ${forgeCopy('character', 'Copy the character pattern')}
          ${forgeCopy('location', 'Copy the place pattern')}
        </div>` : ''}
@@ -5371,17 +5369,15 @@ function sparkReview() {
            <div class="kind">${esc(ch.field)}</div>
            <div class="note">${esc(ch.value)}</div>
            <div class="hint flush">${esc(ch.why)}</div>
-           <button class="btn ghost" data-spapply="${i}" style="width:auto; padding:0 14px; height:32px;
-             font-size:11.5px">Use this instead</button></div>`).join('')}
-          ${S.spark.review.entries.length ? `<div class="lbl" style="letter-spacing:.1em; margin-top:14px"
+           <button class="btn ghost small-btn" data-spapply="${i}">Use this instead</button></div>`).join('')}
+          ${S.spark.review.entries.length ? `<div class="lbl wide push-14"
             >Threads she would add</div>
             ${S.spark.review.entries.map((e, i) => `<div class="card" style="margin-bottom:8px; gap:6px">
               <div style="display:flex; align-items:baseline; gap:8px">
                 <span style="font-size:14px; color:var(--ink-bright)">${esc(e.title)}</span>
                 <span class="tag">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></div>
               <div class="note">${esc(e.body)}</div>
-              <button class="btn ghost" data-spaddone="${i}" style="width:auto; padding:0 14px; height:32px;
-                font-size:11.5px">Add to the cast</button></div>`).join('')}` : ''}`
+              <button class="btn ghost small-btn" data-spaddone="${i}">Add to the cast</button></div>`).join('')}` : ''}`
        : `<div class="hint flush">She would not change anything. That is a real answer and
           it is the one a skeleton that hangs together gets.</div>`}`
     : key === 'scene'
@@ -5389,7 +5385,7 @@ function sparkReview() {
     // field came out of the whole app — Seth: "no ones going to use it. ive asked."
     ? `${row('setting', 'Where it opens', s.setting,
          'Lore written later can replace this. It is the place the first scene stands in.')}
-       ${cast.length ? `<div class="hint" style="margin-top:10px">Everyone you kept is in the tale
+       ${cast.length ? `<div class="hint push-10">Everyone you kept is in the tale
          from the first line &mdash; a spark cast is always-on. Who is in a given SCENE is that
          scene's own question, and the scene's screen asks it.</div>` : ''}`
     : key === 'opening'
@@ -5429,8 +5425,8 @@ function sparkReview() {
     ${step < STEPS.length
       ? `<button data-accept-spark="1" style="margin-top:10px; align-self:flex-start; font-size:12px;
           color:var(--faint); text-decoration:underline">Skip the other steps and start writing</button>`
-      : '<button class="btn" data-accept-spark="1" style="margin-top:8px">Start writing</button>'}
-    <button class="btn ghost" data-drop-spark="1" style="margin-top:8px">Discard it</button>
+      : '<button class="btn push-8" data-accept-spark="1">Start writing</button>'}
+    <button class="btn ghost push-8" data-drop-spark="1">Discard it</button>
     <div class="hint">Nothing has been written yet. Starting it creates the tale and its threads.</div>`;
 }
 
@@ -5474,7 +5470,7 @@ const SUMMARY_WORDS = 180, ACT_WORDS = 220;
 const wordLine = (text, cap) => {
   const n = wordsIn(text);
   return `<div class="hint flush" data-words><span class="tnum" data-wordcount>${
-    plural(n, 'word', 'words')}</span> <span data-wordwarn style="color:var(--warn)" ${n > cap ? '' : 'hidden'}
+    plural(n, 'word', 'words')}</span> <span class="warned" data-wordwarn ${n > cap ? '' : 'hidden'}
     >&middot; past ${cap}, so it costs more space on every call. It still saves.</span></div>`;
 };
 const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next scene'], ['more', 'Anyone new']];
@@ -5654,7 +5650,7 @@ function setupPanel() {
         owed ? ` <span style="color:var(--gold)">${owed}</span>` : ''}</button>`;
     }).join('')}</div>`;
 
-  const skip = `<button class="btn ghost" data-skipsetup="1" style="margin-top:8px">Skip &mdash; just write</button>`;
+  const skip = `<button class="btn ghost push-8" data-skipsetup="1">Skip &mdash; just write</button>`;
   // WHAT JUST CLOSED, one row, on every step that is not itself about it. Council 07 put this row
   // at the top of setup and the reason has not changed — the report is one press away rather than
   // the thing you land on. Re-ordering the panel nearly lost it: step one is SKIPPED when the close
@@ -5676,7 +5672,7 @@ function setupPanel() {
   // ---- 1 · WHAT IT LEFT. The chapter that just closed, as decisions and nothing else.
   if (step === 'cards') return `<div class="stack">
     ${rail}
-    <div class="serif" style="font-size:21px; color:var(--ink-bright)">${
+    <div class="serif title-md">${
       esc(sceneName(justClosed))} changed ${
       plural(left.length, 'thread', 'threads')}${tipMark('setLeft', 'What the scene left')}</div>
     ${tipCard('setLeft', 'What the scene left', `<p>All of it is chalked: nothing here is in the tale
@@ -5684,11 +5680,11 @@ function setupPanel() {
       Workbench.</p>`)}
     <!-- Issue #32, ABOVE the queue. An empty queue is the thing being explained, so the
          explanation has to arrive before the writer reads the emptiness as "no facts here". -->
-    <div style="margin-top:12px">${passReport()}</div>
-    ${justClosed ? `<div style="margin-top:12px">${closedRow}</div>` : ''}
-    ${fresh.length ? `<button class="btn ghost" data-setupstep="more" style="margin-top:8px"
+    <div class="push-12">${passReport()}</div>
+    ${justClosed ? `<div class="push-12">${closedRow}</div>` : ''}
+    ${fresh.length ? `<button class="btn ghost push-8" data-setupstep="more"
       >${plural(fresh.length, 'new thread', 'new threads')} as well &mdash; under Anyone new</button>` : ''}
-    <div style="display:flex; flex-direction:column; gap:9px; margin-top:14px">
+    <div class="stack-roomy push-14">
       ${/* #74. The same deck as the Workbench, holding what this scene left. */
         deckHTML(new Set(left.map((p) => p.id)))
         || '<div class="hint flush">Nothing it changed about a thread you already have.</div>'}</div>
@@ -5703,7 +5699,7 @@ function setupPanel() {
         `<button data-entry="${esc(e.id)}" class="tag pressable">${esc(e.title)}</button>`).join(' ')}
         &mdash; sent on every call, and not named in this scene, so hemming did not look at them.</div>` : '';
     })()}
-    <button class="btn" data-setupstep="premise" style="margin-top:16px">Next &mdash; the next scene</button>
+    <button class="btn push-16" data-setupstep="premise">Next &mdash; the next scene</button>
     ${skip}
   </div>`;
 
@@ -5712,13 +5708,13 @@ function setupPanel() {
     const kind = S.setupKind ?? 'character';
     return `<div class="stack">
       ${rail}
-      <div class="serif" style="font-size:21px; color:var(--ink-bright)">Anyone new</div>
-      <div style="display:flex; justify-content:flex-end; margin-top:6px">${
+      <div class="serif title-md">Anyone new</div>
+      <div class="end-row push-6">${
         tipMark('setInvent', 'Having Anansi write one for this scene')}</div>
       ${tipCard('setInvent', 'Having Anansi write one for this scene', `<p>Anansi reads where you
         said the scene heads and chalks a thread for it. It goes to the Workbench like everything
         else she offers; nothing is in the tale until you sew it in.</p>`)}
-      <div style="display:flex; gap:6px; margin-top:12px">${KINDS.map((k) => `<button data-setupkind="${k}" aria-pressed="${k === kind}"
+      <div class="push-12 row-6">${KINDS.map((k) => `<button data-setupkind="${k}" aria-pressed="${k === kind}"
         style="flex:1; text-align:center; font-size:11px; padding:8px 0; border-radius:var(--r);
         border:1px solid ${k === kind ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
         background:${k === kind ? 'rgba(217,178,106,.10)' : 'transparent'};
@@ -5761,7 +5757,7 @@ function setupPanel() {
         : `<div class="hint flush">${q ? 'Nothing matches that.' : 'No threads yet.'}</div>`}
       <div class="hint">Anansi reads the tale's setting every time regardless
         &mdash; ${esc(V.story.setting || 'not set')}.</div>
-      <button class="btn" data-savesetup="1" style="margin-top:16px">Start writing</button>
+      <button class="btn push-16" data-savesetup="1">Start writing</button>
     </div>`;
   }
 
@@ -5769,7 +5765,7 @@ function setupPanel() {
   return `<div class="stack">
     ${rail}
     ${closedRow}
-    <div class="serif" style="font-size:21px; color:var(--ink-bright)">${esc(sceneName(ch))}${
+    <div class="serif title-md">${esc(sceneName(ch))}${
       tipMark('setNext', 'Setting up the next scene')}</div>
     ${tipCard('setNext', 'Setting up the next scene', `<p>Nothing here is required. Leave it and
       write.</p>`)}
@@ -5802,13 +5798,13 @@ function setupPanel() {
          influence." It was one button that took whatever came back. A steer is the difference
          between accepting a suggestion and asking for one, and it is the same shape as the box in
          every other place Anansi is asked for something in this app. -->
-    <input class="field" data-setup="steer" aria-label="Steer what Anansi suggests"
+    <input class="field push-14" data-setup="steer" aria-label="Steer what Anansi suggests"
       value="${esc(S.setupSteer ?? '')}"
-      placeholder="Steer it — a turn you want, someone who has to be in it" style="margin-top:14px">
-    <button class="btn ghost" data-name="${ch.id}" ${S.naming ? 'disabled' : ''} style="margin-top:7px">${
+      placeholder="Steer it — a turn you want, someone who has to be in it">
+    <button class="btn ghost push-7" data-name="${ch.id}" ${S.naming ? 'disabled' : ''}>${
       S.naming ? 'Asking&hellip;' : (!placeholder || form.note.trim())
         ? 'Have Anansi suggest another' : 'Have Anansi name it'}</button>
-    ${S.nameError?.chapterId === ch.id && !S.naming ? `<div class="hint" style="margin:6px 0 0">Anansi could
+    ${S.nameError?.chapterId === ch.id && !S.naming ? `<div class="hint trail-6">Anansi could
       not suggest a name: ${esc(S.nameError.why)}</div>` : ''}
 
     <!-- ANYONE NEW IS THE ACCENTED PRESS AND IT COMES FIRST, at Seth's direction 2026-09-01: "make
@@ -5816,9 +5812,9 @@ function setupPanel() {
          beat is what says who is needed, so the step after writing the beat is the one worth
          offering — Save and write is the way OUT of the ritual, not the way through it. One accent
          per screen, so Save and write gives it up rather than competing. -->
-    <button class="btn" data-setupstep="more" style="margin-top:20px">Next &mdash; anyone new${
+    <button class="btn push-20" data-setupstep="more">Next &mdash; anyone new${
       fresh.length ? ` &middot; ${fresh.length} chalked` : ''}</button>
-    <button class="btn ghost" data-savesetup="1" style="margin-top:8px">Save and write</button>
+    <button class="btn ghost push-8" data-savesetup="1">Save and write</button>
     ${skip}
   </div>`;
 }
@@ -5862,10 +5858,10 @@ function libTray(kind) {
     <input class="field" data-libname="${esc(kind)}" aria-label="Name this ${esc(what)}"
       placeholder="[name this ${esc(what)}]"
       style="margin:0; width:auto; flex:1; min-width:120px; font-size:11.5px; height:32px; padding:0 10px">
-    <button class="btn ghost" data-savelib="${esc(kind)}"
-      style="width:auto; padding:0 14px; height:32px; font-size:11.5px">Save it</button>
+    <button class="btn ghost small-btn" data-savelib="${esc(kind)}"
+     >Save it</button>
   </div>
-  <div class="hint" style="margin:0 0 10px">${saved.length
+  <div class="hint lead-10">${saved.length
     ? `Press one to copy it into the box above. It is COPIED &mdash; changing the tale afterwards
        does not change what is saved here, and neither does the other way round.`
     : `Save what is in the box above under a name and it is here for every tale you write.`}</div>`;
@@ -6003,7 +5999,7 @@ function inventTray(kind, label, placeholder, value = '') {
 function roomCard(name, body, keys, on, sw, kind, id) {
   return `<div class="card" style="gap:6px; margin-bottom:8px; text-align:left;
       border-color:${on ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
-    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+    <div class="line-8 wraps">
       <span style="flex:1; font-size:14.5px; color:var(--ink-bright)">${esc(name)}</span>
       ${sw}</div>
     ${/* NO SLOT NAME UNDER THE POCKET'S OWN (v2 redesign): the heading over it already says it, and
@@ -6011,7 +6007,7 @@ function roomCard(name, body, keys, on, sw, kind, id) {
     <button data-editroom="${esc(id)}" style="text-align:left; width:100%; font-size:12.5px;
       line-height:1.45; color:var(--mute); cursor:pointer">${esc(body)}</button>
     ${keys.length ? `<div style="display:flex; flex-wrap:wrap; gap:4px">${
-      keys.map((k) => `<span class="tag" style="opacity:.6">${esc(k)}</span>`).join('')}</div>` : ''}
+      keys.map((k) => `<span class="tag faded">${esc(k)}</span>`).join('')}</div>` : ''}
   </div>`;
 }
 
@@ -6066,17 +6062,16 @@ function connections(e) {
       for that.</p>`)}
     ${mine.map((x) => `<div class="card" style="margin-bottom:8px; flex-direction:row; align-items:center; gap:9px">
       <span style="font-size:13px; color:var(--mute)">${esc(nameOf(x.childId))}</span>
-      <span style="font-size:11px; color:var(--faint)">${esc(
+      <span class="caption">${esc(
         (PULL.find((p) => Number(p[0]) === Number(x.confidence)) ?? PULL[0])[1])}</span>
-      <button data-unlink="${x.id}" style="margin-left:auto; padding:6px 11px; border-radius:var(--r);
-        border:1px solid var(--chip); color:var(--faint); font-size:11px">Unstitch</button></div>`).join('')
+      <button class="pill-btn" data-unlink="${x.id}">Unstitch</button></div>`).join('')
       || '<div class="hint" style="margin:0 0 9px">Nothing yet.</div>'}
     ${others.length ? `<div style="display:flex; gap:7px; align-items:center">
       <select class="field flush fill" data-lk="child" aria-label="The thread to stitch on">${
         others.map((x) => `<option value="${esc(x.id)}">${esc(x.title)}</option>`).join('')}</select>
       <select class="field flush fill" data-lk="conf" aria-label="How strongly it pulls the other in">${
         PULL.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}</select></div>
-      <button class="btn ghost" data-link="1" style="margin-top:8px">Stitch together</button>` : ''}`);
+      <button class="btn ghost push-8" data-link="1">Stitch together</button>` : ''}`);
 }
 
 /** #78 · WHERE A THREAD STANDS AT THE SCENE THIS TALE IS OPEN AT: the Over time entry in force there,
@@ -6116,8 +6111,7 @@ function cardFace(e, slots) {
     ${cardHead(e, [])}
     <div class="card" style="flex-direction:row; align-items:center; gap:9px; margin:0 0 10px">
       <span style="font-size:12px; color:var(--faint)">This thread lives in ${esc(e.sharedFrom)}</span>
-      <button data-open="${esc(e.sharedFromId)}" style="margin-left:auto; padding:6px 11px;
-        border-radius:var(--r); border:1px solid var(--chip); color:var(--faint); font-size:11px"
+      <button class="pill-btn" data-open="${esc(e.sharedFromId)}"
         >Open that world</button></div>
     <textarea class="field" data-followedbody="${e.id}" aria-label="What ${esc(e.title)} says"
       style="min-height:110px; font-size:12.5px; line-height:1.55">${esc(e.body ?? '')}</textarea>
@@ -6220,7 +6214,7 @@ function cardFace(e, slots) {
       // text when none has opened. Info was the base text alone, which a later entry replaces.
       const st = standsNow(e);
       return `<div class="lbl" style="letter-spacing:.1em; margin:8px 0 4px">${esc(nowWords())}${
-        st ? ` <span style="opacity:.6">&middot; from scene ${esc(String(st.fromChapter))}</span>` : ''}</div>
+        st ? ` <span class="faded">&middot; from scene ${esc(String(st.fromChapter))}</span>` : ''}</div>
     <button class="readbody" data-cardview="form" aria-label="Alter where ${esc(e.title)} stands now">${
       esc(unbracket(st ? st.body : e.body, e.title) || 'Nothing written down yet.')}</button>`;
     })()}
@@ -6249,12 +6243,12 @@ function cardFace(e, slots) {
       const on = group(true), off = group(false);
       return `${on}${off ? `<div class="lbl" style="letter-spacing:.1em; margin-top:26px;
           border-top:1px solid var(--line); padding-top:16px; color:var(--faint)">Not turned on</div>
-        <div class="hint" style="margin:0 0 4px">Written down, and not reaching the model &mdash;
+        <div class="hint lead-4">Written down, and not reaching the model &mdash;
           either switched off, or until one of its wake words appears.</div>${off}` : ''}`;
     })()}
-    ${pockets ? '' : '<div class="hint" style="margin-top:18px">No pockets filled in yet. Add one, or have Anansi fill some in.</div>'}
+    ${pockets ? '' : '<div class="hint push-18">No pockets filled in yet. Add one, or have Anansi fill some in.</div>'}
     <!-- ADDING ONE IS THE FORM'S POCKETS TAB, which holds the add tray and Anansi filling them. -->
-    <button class="btn ghost" data-readgo="rooms" style="margin-top:18px">+ Add a pocket</button>
+    <button class="btn ghost push-18" data-readgo="rooms">+ Add a pocket</button>
   </div>`;
 }
 
@@ -6307,7 +6301,7 @@ function readMenu(e) {
  *  The help mark sits in the BODY and not in the summary for the same reason from the other side:
  *  a press on it inside the summary toggles the fold natively too, and the repaint would then
  *  disagree with what the DOM just did. */
-const foldSection = (name, label, body) => `<details class="fold" style="margin-top:16px"
+const foldSection = (name, label, body) => `<details class="fold push-16"
   ${S.folds?.[name] ? 'open' : ''}>
   <summary class="wide" data-fold="${esc(name)}">${label}</summary>${body}</details>`;
 
@@ -6332,12 +6326,12 @@ function roomSection(e, sl, live = null, anchor = true) {
   // ALWAYS TRUE IS NOT A POCKET (#77): no switch, no wake words and no name, because it is sent
   // whenever the thread is. Only its text, which is the writer's and which Anansi never changes.
   if (sl.name === 'facts') return `
-    <div ${anchor ? 'data-slotat="facts"' : ''} class="lbl" style="letter-spacing:.1em; margin-top:20px">Always true</div>
-    <div class="hint" style="margin:0 0 6px">Who or what it is, for the whole tale. Anansi never changes it.</div>
+    <div ${anchor ? 'data-slotat="facts"' : ''} class="lbl wide push-20">Always true</div>
+    <div class="hint lead-6">Who or what it is, for the whole tale. Anansi never changes it.</div>
     ${mine.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px">
-      <textarea class="field grow" data-ab="${esc(a.id)}" aria-label="What is always true of ${esc(e.title)}"
-        style="margin:0; min-height:52px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(a.body)}</textarea>
-      <div style="display:flex; gap:7px; justify-content:flex-end">
+      <textarea class="field grow flush box-52" data-ab="${esc(a.id)}" aria-label="What is always true of ${esc(e.title)}"
+       >${esc(a.body)}</textarea>
+      <div class="end-row snug">
         <button data-deladdon="${esc(a.id)}" style="color:var(--bad); font-size:12px; margin-right:auto"
           aria-label="Remove what is always true">&#10005;</button>
         <button class="btn ghost btn-side" data-saveaddon="${esc(a.id)}"
@@ -6349,13 +6343,13 @@ function roomSection(e, sl, live = null, anchor = true) {
     ${mine.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px; border-color:${
       a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
       <div class="line">
-        <input class="field" data-an="${esc(a.id)}" aria-label="What to call this ${esc(slotLabel(sl.name))}"
+        <input class="field flush name-field" data-an="${esc(a.id)}" aria-label="What to call this ${esc(slotLabel(sl.name))}"
           value="${esc(a.name)}"
-          style="margin:0; font-size:13px; color:var(--ink-bright)">
-        <button data-deladdon="${esc(a.id)}" style="flex:0 0 auto; color:var(--bad); font-size:12px"
+         >
+        <button class="del-x" data-deladdon="${esc(a.id)}"
           aria-label="Remove">&#10005;</button></div>
-      <textarea class="field grow" data-ab="${esc(a.id)}" aria-label="What ${esc(a.name)} says"
-        style="margin:0; min-height:52px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(a.body)}</textarea>
+      <textarea class="field grow flush box-52" data-ab="${esc(a.id)}" aria-label="What ${esc(a.name)} says"
+       >${esc(a.body)}</textarea>
       <input class="field" data-ak="${esc(a.id)}" aria-label="Words that wake ${esc(a.name)}"
         value="${esc((a.keys ?? []).join(', '))}"
         placeholder="[wake words, comma separated]" style="margin:0; font-size:12px">
@@ -6388,7 +6382,7 @@ function roomSection(e, sl, live = null, anchor = true) {
  *  it again, because that repaint sees no pill chosen. Upgrade is one more flag on S, set on the
  *  details' own toggle event; not worth it until the shut-again is reported as annoying. */
 function addTray(e, slots) {
-  return `<details class="fold" ${S.newRoom ? 'open' : ''} style="margin:0 0 6px">
+  return `<details class="fold lead-6" ${S.newRoom ? 'open' : ''}>
     <summary>Add to this thread</summary>
     <div style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 0">
       ${/* One Always true per thread (#77): offered here only while the thread has none. */
@@ -6401,8 +6395,8 @@ function addTray(e, slots) {
           color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(pocketTitle(sl.name))}</button>`;
       }).join('')}
     </div>
-    ${S.newRoom ? `<div class="card" style="gap:7px; margin-top:10px">${roomForm(e, S.newRoom, true)}</div>`
-      : `<div class="hint" style="margin:8px 0 0">Pick what you are adding. ${
+    ${S.newRoom ? `<div class="card push-10 snug">${roomForm(e, S.newRoom, true)}</div>`
+      : `<div class="hint trail-8">Pick what you are adding. ${
           esc(e.title || 'This thread')} keeps everything it already has — a pocket is added beside
           them, not over them.</div>`}
   </details>`;
@@ -6537,7 +6531,7 @@ function entryEditor() {
     ${/* THE JUMP CHIPS STAY ABOVE THE TABS, so a press from any tab opens the one its pocket is on
           (data-goslot). The head they shared with the name and the kind is gone: the name is the
           first field now and the kind is under More. */
-      shown.length ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin:0 0 4px">${shown.map((sl) =>
+      shown.length ? `<div class="lead-4 row-6 wraps">${shown.map((sl) =>
         `<button data-goslot="${esc(sl.name)}" class="tag pressable">${
           esc(sl.name.replace(/_/g, ' '))}</button>`).join('')}</div>` : ''}
     ${cardTabs(tab)}
@@ -6545,7 +6539,7 @@ function entryEditor() {
     <label class="lbl" for="f-card-title">Name</label>
     <input class="field altname" id="f-card-title" data-f="title" value="${esc(e.title ?? '')}">
     <label class="lbl">When it reaches the model</label>
-    <div style="display:flex; gap:6px">${[['always_on', 'Always on'], ['triggered', 'On a word']]
+    <div class="row-6">${[['always_on', 'Always on'], ['triggered', 'On a word']]
       .map(([k, l]) => `<button data-act="${k}" aria-pressed="${k === e.activation}" style="flex:1; text-align:center; font-size:12px;
       padding:10px 0; border-radius:var(--r-pill); ${chip(k === e.activation)}">${l}</button>`).join('')}</div>
     <!-- FACTS ABOVE INFO. Seth, 2026-08-30: "facts and info need to change positions." He is
@@ -6568,7 +6562,7 @@ function entryEditor() {
       // from scene 1 is edited as the first row of Over time. One box for each, never two.
       const st = standsNow(e);
       const mark = tipMark('cardBody', 'Where it stands now');
-      return `${st ? `<label class="lbl" for="f-card-now">${esc(nowWords())} <span style="opacity:.6">&middot; from scene ${
+      return `${st ? `<label class="lbl" for="f-card-now">${esc(nowWords())} <span class="faded">&middot; from scene ${
         esc(String(st.fromChapter))}</span>${mark}</label>` : `<label class="lbl" for="f-card-body">${esc(nowWords())}${mark}</label>`}
     ${tipCard('cardBody', 'Where it stands now', `<p>What the model is sent about where this thread
       is now, after Always true. Hemming a scene offers a new one when the scene changes it, dated
@@ -6640,7 +6634,7 @@ function entryEditor() {
       const off = rooms.map((sl) => roomSection(e, sl, false, !anyOn(sl))).join('');
       return `${on}${off ? `<div class="lbl" style="letter-spacing:.1em; margin-top:26px;
           border-top:1px solid var(--line); padding-top:16px; color:var(--faint)">Not turned on</div>
-        <div class="hint" style="margin:0 0 4px">Written down, and not reaching the model &mdash;
+        <div class="hint lead-4">Written down, and not reaching the model &mdash;
           either switched off, or until one of its wake words appears.</div>${off}` : ''}`;
     })()}
 
@@ -6652,7 +6646,7 @@ function entryEditor() {
          what is left here is the wearing, which is this section's own vocabulary and not a
          generic room's. Drawn only when she owns something, for the same reason as the loop. -->
     ${e.entryType === 'character' && (e.outfits ?? []).length ? `
-    <div data-slotat="outfit" class="lbl" style="letter-spacing:.1em; margin-top:20px">outfit <span class="dimmed">(one at a time)</span>${
+    <div data-slotat="outfit" class="lbl wide push-20">outfit <span class="dimmed">(one at a time)</span>${
       tipMark('cardOutfit', 'Outfits')}</div>
     ${tipCard('cardOutfit', 'Outfits', `<p>A named outfit is a second bracket on this character while
       it is worn, so taking the plate off does not mean rewriting who she is. One at a time &mdash;
@@ -6665,11 +6659,11 @@ function entryEditor() {
     ${(e.outfits ?? []).map((o) => `<div class="card" style="margin-bottom:8px; gap:7px;
       border-color:${o.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
       <div class="line">
-        <input class="field" data-ofn="${o.id}" value="${esc(o.name)}" aria-label="Outfit name"
-          style="margin:0; font-size:13px; color:var(--ink-bright)">
-        <button data-deloutfit="${o.id}" style="flex:0 0 auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
-      <textarea class="field grow" data-ofb="${o.id}" aria-label="What the model reads while it is worn"
-        style="margin:0; min-height:52px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(o.body)}</textarea>
+        <input class="field flush name-field" data-ofn="${o.id}" value="${esc(o.name)}" aria-label="Outfit name"
+         >
+        <button class="del-x" data-deloutfit="${o.id}" aria-label="Remove">✕</button></div>
+      <textarea class="field grow flush box-52" data-ofb="${o.id}" aria-label="What the model reads while it is worn"
+       >${esc(o.body)}</textarea>
       <div class="btnrow">
         <button class="btn ghost" data-wear="${e.id}:${o.id}" style="flex:1; ${o.active
           ? 'border-color:var(--edge-lit); color:var(--ink-bright)' : ''}">${
@@ -6696,11 +6690,11 @@ function entryEditor() {
          thread tab; under More since the v2 redesign, with Kind. -->
     ${entryPicture(e)}
     <label class="lbl">Kind</label>
-    <div style="display:flex; gap:6px; flex-wrap:wrap">${KINDS.map((k) => `<button data-kind="${k}"
+    <div class="row-6 wraps">${KINDS.map((k) => `<button data-kind="${k}"
       aria-pressed="${k === e.entryType}"
       style="flex:1; text-align:center; font-size:12px; padding:10px 0; border-radius:var(--r);
       ${chip(k === e.entryType)}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
-    <div style="display:flex; justify-content:flex-end; margin-top:14px">${
+    <div class="end-row push-14">${
       tipMark('cardInvent', 'Having Anansi write this thread')}</div>
     ${tipCard('cardInvent', 'Having Anansi write this thread', `<p>It fills the fields above, unsaved.
       Nothing changes until you press Save.</p>`)}
@@ -6748,7 +6742,7 @@ function entryEditor() {
     <textarea class="field" data-cardpaste aria-label="Paste a thread as JSON"
       placeholder="or paste it here" style="min-height:74px; font-size:11.5px;
       font-family:ui-monospace, monospace"></textarea>
-    <button class="btn ghost" data-cardread="1" style="margin-top:7px">Read it and apply</button>
+    <button class="btn ghost push-7" data-cardread="1">Read it and apply</button>
     </div>
     <div class="pane"${tab === 'time' ? '' : ' hidden'}>
     ${(() => {
@@ -6790,7 +6784,7 @@ function entryEditor() {
           <select class="field flush" data-stm="${st.id ?? ''}" aria-label="Before that scene">
             <option value="hide" ${(st.beforeMode ?? 'hide') === 'hide' ? 'selected' : ''}>hidden before</option>
             <option value="hint" ${st.beforeMode === 'hint' ? 'selected' : ''}>hinted before</option></select>
-          <button data-delstate="${st.id ?? ''}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
+          <button class="del-right" data-delstate="${st.id ?? ''}" aria-label="Remove">✕</button></div>
         ${mine ? readOnly(st.body) : `<textarea class="field grow" data-stb="${st.id ?? ''}" aria-label="Where it stands from that scene on"
           style="margin:0; min-height:56px; max-height:40vh; font-size:12.5px; line-height:1.45">${esc(st.body)}</textarea>`}
         <input class="field flush" data-stl="${st.id ?? ''}" aria-label="What changed, in a few words"
@@ -6807,13 +6801,13 @@ function entryEditor() {
         style="margin-bottom:8px; flex-direction:row; align-items:center; gap:9px">
         <span class="lbl flush wide">Scene ${esc(String(x.fromChapter))}</span>
         <span style="font-size:12.5px; color:var(--mute)">${esc((said[x.kind] ?? (() => x.kind))(x))}</span>
-        <button data-delevent="${esc(x.id)}" style="margin-left:auto; color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>` }));
+        <button class="del-right" data-delevent="${esc(x.id)}" aria-label="Remove">✕</button></div>` }));
       const listed = [...later, ...events].map((r, i) => ({ ...r, i })).sort((a, b) => a.from - b.from || a.i - b.i)
         .map((r) => r.html).join('');
-      return `<div class="lbl" style="letter-spacing:.1em; margin-top:16px">Over time${helpMark('states')}</div>
+      return `<div class="lbl wide push-16">Over time${helpMark('states')}</div>
         ${tipCard('states', HELP.states.title, helpText('states'))}
         ${first}${listed}
-    <div class="card" style="gap:7px">
+    <div class="card snug">
       <div class="btnrow">
         <input class="field" data-st="fromChapter" type="number" min="1" aria-label="From scene"
           placeholder="Scene" style="width:96px">
@@ -6836,7 +6830,7 @@ function entryEditor() {
           <span class="count-sm">${h.replaced_at ? ago(h.replaced_at) : ''}${
             h.replaced_by ? ` &middot; ${esc(h.replaced_by)}` : ''}</span></div>
         <div class="clamp" style="font-size:12.5px; line-height:1.45; color:var(--mute)">${esc(h.previous_value ?? '')}</div>
-        <button class="btn ghost" data-revertfield="${h.id}" style="margin-top:6px">Put this back</button></div>`).join('')
+        <button class="btn ghost push-6" data-revertfield="${h.id}">Put this back</button></div>`).join('')
         : '<div class="hint">No earlier versions of any field.</div>'}` : ''}
     ${connections(e)}
     <!-- #22 §8. BOTH STATES LIVE HERE NOW. It was asymmetric: the form offered "Mark this
@@ -6849,10 +6843,10 @@ function entryEditor() {
     ${e.retiredAtChapter == null ? `${tipCard('cardRetire', 'Retire this thread', `<p>A retired thread
       is one the tale is done with. It stops reaching the model from the next scene on. Every scene
       before it still has it, and the Workbench can bring it back.</p>`)}
-    <div style="display:flex; align-items:center; gap:2px; margin-top:20px">
+    <div class="push-20 line-2">
       <button data-retire="${e.id}" class="btn ghost fill">Retire this thread</button>
       ${tipMark('cardRetire', 'Retire this thread')}</div>`
-      : `<button data-unretire="${e.id}" class="btn ghost" style="margin-top:20px">Bring it back</button>
+      : `<button data-unretire="${e.id}" class="btn ghost push-20">Bring it back</button>
     <div class="hint">Retired at scene ${esc(String(e.retiredAtChapter))} &mdash; it stops
       reaching the model there, and every scene before it still has it. Bringing it back undoes
       that from now on.</div>`}
@@ -6866,7 +6860,7 @@ function entryEditor() {
       NARRATION names it, most recent first. Dialogue is stripped before it is read &mdash; a
       character saying a thing is not the tale committing to it. Everything it finds is chalked;
       nothing is written.</p>`)}
-    <div style="display:flex; align-items:center; gap:2px; margin-top:20px">
+    <div class="push-20 line-2">
       <button class="btn ghost fill" data-scanstory="${esc(e.id)}" ${S.scanning ? 'disabled' : ''}
        >${S.scanning === e.id
           ? 'Reading the tale&hellip;' : 'Read the whole tale for this thread'}</button>
@@ -6875,9 +6869,9 @@ function entryEditor() {
     <!-- SAVE IS NOT DOWN HERE ANY MORE. It is in the sticky bar at the top of the form, which is
          reachable from this end of the card too. Two of them would be two things to keep in step
          for no gain. -->
-    <button class="btn ghost" data-fieldhistory="1" style="margin-top:16px">${
+    <button class="btn ghost push-16" data-fieldhistory="1">${
       S.fieldHistory ? 'Hide earlier versions' : 'Earlier versions'}</button>
-    <button class="btn ghost" data-delentry="1" style="margin-top:10px; color:var(--bad)">Delete this thread</button>
+    <button class="btn ghost danger push-10" data-delentry="1">Delete this thread</button>
     </div>
   </div>`;
 }
@@ -6899,7 +6893,7 @@ function copyElsewhere(e) {
     ${tipCard('copyBook', 'Copying it into another tale', `<p>Copies ${esc(e.title)} into another of
       your tales, with its wake words. What it does NOT carry is the timeline: a change over time
       is anchored to a scene number, and scene seven there is not scene seven here.</p>`)}
-    <div class="card" style="gap:7px">
+    <div class="card snug">
       <select class="field" data-cf="into" aria-label="The tale to copy it into">${others.map((s2) =>
         `<option value="${esc(s2.id)}">${esc(s2.title)}</option>`).join('')}</select>
       <button class="btn ghost" data-copyentry="1">Copy it there</button></div>`
@@ -6944,16 +6938,16 @@ function historyPanel() {
           ${names.map((nm) => `<span class="tag">${esc(nm)}</span>`).join('')
             || `<span class="tag">${t.canon.length} ${t.canon.length === 1 ? 'thread' : 'threads'} since removed</span>`}</div>`;
       })()}
-      ${t.selected ? '' : `<button class="btn ghost" data-usetake="${t.id}" style="margin-top:8px">Put this one in the tale</button>`}
+      ${t.selected ? '' : `<button class="btn ghost push-8" data-usetake="${t.id}">Put this one in the tale</button>`}
       ${/* THE SEED THAT MADE IT. Null on anything written before 2026-09-03 and on anything a
             writer typed, so the row is drawn only where there is one — a blank field labelled
             "seed" on every old take would read as something broken. */
-        t.seed == null ? '' : `<div style="display:flex; align-items:center; gap:8px; margin-top:8px">
+        t.seed == null ? '' : `<div class="push-8 line-8">
         <span class="kind">seed ${esc(String(t.seed))}</span>
         ${/* NOT ON A REMOTE TAKE. Featherless does not give the same passage back for the same
               seed, so the press would promise a roll it cannot deliver. The seed stays shown. */
-          t.remote ? '' : `<button class="btn ghost" data-reseed="${esc(String(pid))}:${esc(String(t.seed))}"
-          style="width:auto; padding:0 14px; height:32px; font-size:11.5px; margin-left:auto"
+          t.remote ? '' : `<button class="btn ghost right small-btn" data-reseed="${esc(String(pid))}:${esc(String(t.seed))}"
+         
           >Reweave on this seed</button>`}</div>`}
     </div>`).join('')
       : '<div class="hint">One version. Reweave a passage and the old version is kept; both appear here.</div>'}
@@ -6965,12 +6959,12 @@ function historyPanel() {
     ${rows.map((r) => `<div class="card" style="margin-bottom:9px">
       <div class="kind">${r.replaced_at ? ago(r.replaced_at) : ''}</div>
       <div class="clamp note">${esc(r.body ?? '')}</div>
-      <button class="btn ghost" data-restore="${r.id}" style="margin-top:8px">Restore this version</button>
+      <button class="btn ghost push-8" data-restore="${r.id}">Restore this version</button>
     </div>`).join('') || '<div class="hint">Not altered &mdash; this passage has not been changed by hand.</div>'}
 
     ${pid ? `${tipCard('hisBranch', 'Branching from this passage', `<p>A branch copies the tale up
       to here and leaves the original untouched.</p>`)}
-      <div style="display:flex; align-items:center; gap:2px; margin-top:14px">
+      <div class="push-14 line-2">
         <button class="btn ghost fill" data-fork="${pid}">Branch from this passage</button>
         ${tipMark('hisBranch', 'Branching from this passage')}</div>` : ''}
   </div>`;
@@ -7048,7 +7042,7 @@ function threadRows() {
       && (!S.onlyIn || inContext(e, pin, mani)) && hit(e));
     if (!rows.length) return '';
     return `
-        <div class="lbl" data-kindhead="${k}" style="letter-spacing:.1em; margin-top:6px">${
+        <div class="lbl wide push-6" data-kindhead="${k}">${
           KIND_PLURAL[k]} &middot; <span class="tnum">${rows.length}</span></div>
         <div class="stack-roomy" data-kindrows="${k}">${
           rows.map((e) => threadPlate(e, inContext(e, pin, mani))).join('')}</div>`;
@@ -7056,7 +7050,7 @@ function threadRows() {
   // A SEARCH THAT FINDS NOTHING HAS TO SAY SO. An empty list under a box you have just typed into
   // reads as the panel having broken, and the two reasons it can be empty need different answers.
   if (out) return out;
-  if (q) return `<div class="hint" style="margin:8px 0 0">No thread here matches
+  if (q) return `<div class="hint trail-8">No thread here matches
     &ldquo;${esc(S.threadQ.trim())}&rdquo;${S.onlyIn ? ' among the ones sent now' : ''}.</div>`;
   return '';
 }
@@ -7114,7 +7108,7 @@ function threadPlate(e, lit) {
   const tags = [
     pockets ? `<span class="tag">${pockets} ${pockets === 1 ? 'pocket' : 'pockets'}</span>` : '',
     e.sharedFrom ? `<span class="tag faint">from ${esc(e.sharedFrom)}</span>` : '',
-    e.retiredAtChapter != null ? `<span class="tag" style="color:var(--warn)">retired, scene ${
+    e.retiredAtChapter != null ? `<span class="tag warned">retired, scene ${
       esc(String(e.retiredAtChapter))}</span>` : '',
   ].join('');
   const { look, label } = reachMark(e, lit);
@@ -7195,10 +7189,10 @@ function entryCard(e, pill = false) {
   // AT THE TOP, and full width rather than a thumbnail beside the name. A card with a face on it is
   // found by the face; shrinking it to a 40px square beside the title makes it decoration.
   const pic = threadPic(e);
-  return `<button class="card plate" data-entry="${e.id}" style="text-align:left; width:100%">
+  return `<button class="card plate full-left" data-entry="${e.id}">
     ${pic ? `<img src="${pic}" alt="" loading="lazy" style="width:100%; height:104px;
       object-fit:cover; border-radius:var(--r); border:1px solid var(--edge); margin:0 0 8px">` : ''}
-    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+    <div class="line-8 wraps">
       <span class="platename">${esc(e.title)}</span>
       ${pill && (e.activation ?? 'always_on') === 'always_on'
         ? '<span class="tag alwayson">always on</span>' : ''}
@@ -7246,11 +7240,11 @@ function seedList() {
   // The whole library is hundreds of cards. Unsearched it shows what is already picked and says how
   // to find the rest, rather than a list nobody can read.
   const show = q ? rows.slice(0, 40) : rows.filter((e) => chosen.includes(e.id));
-  return `${chosen.length ? `<div class="hint" style="margin:0 0 8px">${chosen.length} chosen &mdash;
+  return `${chosen.length ? `<div class="hint lead-8">${chosen.length} chosen &mdash;
     ${esc(chosen.length === 1 ? 'it is copied' : 'they are copied')} into the new tale when you
     start it, with wake words. What they do NOT carry is the timeline: a change over time is
     anchored to a scene number, and scene seven there is not scene seven here.</div>` : ''}
-    ${show.length ? `<div style="display:flex; flex-direction:column; gap:6px">${show.map((e) => {
+    ${show.length ? `<div class="stack-6">${show.map((e) => {
       const on = chosen.includes(e.id);
       // Chosen is a border and a background and nothing in the label, so it says so.
       return `<button data-seedpick="${esc(e.id)}" aria-pressed="${on}" style="display:flex; align-items:baseline; gap:9px;
@@ -7365,7 +7359,7 @@ function storyCard(s, i, hero) {
           font-style:italic; min-height:19px">${esc((s.premise || 'No premise yet.').slice(0, 110))}</span>
         <span style="display:flex; align-items:center; gap:9px; margin-top:11px; font-size:11px; color:var(--faint)">
           <span>${s.entries ?? 0} threads</span><span class="dimmed">·</span><span>no prose</span>
-          <span style="margin-left:auto">${s.updated_at ? touchedAgo(s.updated_at) : ''}</span></span>`
+          <span class="right">${s.updated_at ? touchedAgo(s.updated_at) : ''}</span></span>`
       : `<span style="display:flex; align-items:baseline; gap:8px">
           <span class="kind">${s.last_chapter_idx
             ? `left off · ${esc(sceneName({ title: s.last_chapter_title, index: s.last_chapter_idx }))}`
@@ -7508,12 +7502,12 @@ const WPAGES = {
     // Every release, newest first — the whole history rather than only the latest, which is the
     // difference between release notes and a status line.
     const batches = (NEWS.all?.length ? NEWS.all : [NEWS]);
-    return `<div class="split"><div style="flex:1; min-width:0">
-      <div class="hint" style="margin:0 0 14px">Everything you would notice, newest first.</div>
+    return `<div class="split"><div class="fill squeeze">
+      <div class="hint lead-14">Everything you would notice, newest first.</div>
       ${batches.map((b, i) => `<div style="margin-bottom:${i === batches.length - 1 ? 0 : 26}px">
         <div class="serif" style="font-size:${i ? 19 : 25}px; line-height:1.15; color:var(--ink-bright)">${
           esc(b.headline ?? '')}</div>
-        ${b.at ? `<div class="kind" style="margin-top:4px">${ago(b.at)}</div>` : ''}
+        ${b.at ? `<div class="kind push-4">${ago(b.at)}</div>` : ''}
         ${(b.entries ?? []).map((e) => `<div class="card" style="margin-top:10px; gap:5px">
           <div class="kind">${esc(e.title ?? '')}</div>
           <div style="font-size:13.5px; line-height:1.6; color:var(--mute)">${esc(e.body ?? '')}</div>
@@ -7537,7 +7531,7 @@ const WPAGES = {
     if (!LIB.length) {
       const asleep = !SRV.slot;
       return `<div class="firstrun">
-        <div style="display:flex; flex-direction:column; gap:10px">
+        <div class="stack-10">
           <span class="serif" style="font-size:44px; line-height:1.06; color:var(--ink-bright)"
             >Nothing on the rack yet.</span>
           <span style="font-size:15px; line-height:1.6; color:var(--mute); max-width:620px">Give me a
@@ -7629,7 +7623,7 @@ const WPAGES = {
           style="min-height:88px">${esc(S.blank[k] ?? '')}</textarea>
         ${hint ? `<div class="hint">${hint}</div>` : ''}`;
       return `<div style="display:flex; flex-direction:column; gap:0; max-width:640px">
-        <div class="serif" style="font-size:30px; line-height:1.08; color:var(--ink-bright)">Start blank</div>
+        <div class="serif title-lg">Start blank</div>
         <div style="font-size:14px; line-height:1.65; color:var(--mute); margin:10px 0 6px">Everything here
           is editable afterwards, and everything here can be left empty. The title is the only one
           you will miss.</div>
@@ -7655,9 +7649,9 @@ const WPAGES = {
              rewrites only its own list: the form reads its fields off the DOM when you press
              Create, so a repaint here would throw away everything typed above it. -->
         <div class="lbl sect">Start from threads you have</div>
-        <input class="field" id="seedq" aria-label="Search every tale for threads to start from"
+        <input class="field lead-8" id="seedq" aria-label="Search every tale for threads to start from"
           value="${esc(S.seedQ ?? '')}"
-          placeholder="Search every tale for a character, a place, a rule" style="margin:0 0 8px">
+          placeholder="Search every tale for a character, a place, a rule">
         <div id="seeds">${seedList()}</div>
         <div class="hint">They are COPIED, not shared &mdash; the new tale owns them and can change
           them without touching where they came from. To share threads between tales instead,
@@ -7692,13 +7686,13 @@ const WPAGES = {
     // the wizard: the first thing on screen, and the wrong thing.
     if (S.spark) {
       return `<div style="display:flex; flex-direction:column; gap:16px; max-width:640px">
-        <div class="serif" style="font-size:30px; line-height:1.08; color:var(--ink-bright)">What came back</div>
+        <div class="serif title-lg">What came back</div>
         <div class="hint flush">Nothing is written until you start the tale.</div>
         ${sparkReview()}</div>`;
     }
     return `<div class="split">
       <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px; max-width:640px">
-        <div class="serif" style="font-size:30px; line-height:1.08; color:var(--ink-bright)">Hand her one idea</div>
+        <div class="serif title-lg">Hand her one idea</div>
         <div style="font-size:14px; line-height:1.65; color:var(--mute)">Spark turns an idea into a skeleton.
           Every field stays editable, and the cast comes back as threads you keep or reject.</div>
         <textarea id="idea" class="field serif" aria-label="The idea to spark a tale from"
@@ -7723,7 +7717,7 @@ const WPAGES = {
             aria-expanded="${S.forgeHere ? 'true' : 'false'}"
             style="width:auto; padding:0 18px; height:38px; font-size:12.5px">${
               S.forgeHere ? 'Never mind' : 'Write the whole tale with another model'}</button>
-          ${S.forgeHere ? `<div style="margin-top:14px">
+          ${S.forgeHere ? `<div class="push-14">
             <div class="hint" style="margin:0 0 9px">One pattern writes the tale and its cast
               together. Paste what comes back and the wizard opens with every field and every thread
               already in it &mdash; still yours to read, alter and start.</div>
@@ -7777,7 +7771,7 @@ const WPAGES = {
         <input class="field" id="lq" aria-label="Search the threads in every tale"
           value="${esc(S.ledgerQ)}" placeholder="Search every tale"
           style="margin:0; max-width:340px">
-        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+        <div class="line-8 wraps">
           ${['all', ...KINDS].map((k) => `<button data-lkind="${k}" style="font-size:12px; padding:8px 16px;
             border-radius:var(--r-pill); ${chip(k === S.ledgerKind)}">${LKIND_LABEL[k]}</button>`).join('')}
           <!-- #22 §3. ONE TOGGLE FOR THE WHOLE PANEL, not a checkbox per list. It defaults to the
@@ -7799,7 +7793,7 @@ const WPAGES = {
              are looking at — a place has no wardrobe, a rule has no voice. The list comes from the
              server's own SLOTS, read off V.slots, so there is no second copy to keep in step. -->
         ${S.ledgerKind !== 'all' && (V?.slots?.[S.ledgerKind] ?? []).length ? `
-          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+          <div class="line-8 wraps">
             <button data-lslot="" style="font-size:11.5px; padding:6px 13px; border-radius:var(--r-pill);
               ${chip(!S.ledgerSlot)}">Any pocket</button>
             ${(V.slots[S.ledgerKind] ?? []).map((sl) => `<button data-lslot="${esc(sl.name)}"
@@ -7828,11 +7822,11 @@ const WPAGES = {
       return `<div style="display:flex; flex-direction:column; gap:18px; max-width:640px">
         <div class="lbl wide">Imported</div>
         <div class="serif" style="font-size:26px; color:var(--ink)">${esc(d.source)}</div>
-        <div class="row"><span style="color:var(--mute)">Threads</span>
-          <span class="tnum" style="margin-left:auto; color:var(--ink)">${d.entries}${
+        <div class="row"><span class="muted">Threads</span>
+          <span class="tnum inked right">${d.entries}${
             d.updated ? ` new, ${d.updated} updated` : ''}</span></div>
-        <div class="row"><span style="color:var(--mute)">Passages</span>
-          <span class="tnum" style="margin-left:auto; color:var(--ink)">${d.passages}</span></div>
+        <div class="row"><span class="muted">Passages</span>
+          <span class="tnum inked right">${d.passages}</span></div>
         ${(d.notes ?? []).map((n) => `<div class="hint">${esc(n)}</div>`).join('')}
         <div style="display:flex; gap:10px; margin-top:6px">
           <button data-openimported="${esc(d.storyId)}" class="btn primary">Open the tale</button>
@@ -7848,10 +7842,10 @@ const WPAGES = {
         <div>
           <div class="lbl wide">Read as</div>
           <div class="serif" style="font-size:26px; color:var(--ink)">${esc(P.source)}</div>
-          <div class="hint" style="margin-top:4px">${esc(I.name)} &mdash; nothing has been written yet.</div>
+          <div class="hint push-4">${esc(I.name)} &mdash; nothing has been written yet.</div>
         </div>
         <div class="split" style="gap:26px">
-          <div style="flex:1; min-width:0">
+          <div class="fill squeeze">
             <div class="lbl">${P.entries.length} ${P.entries.length === 1 ? 'thread' : 'threads'}</div>
             ${P.entries.length ? P.entries.map((e) => `<div class="row">
                 <span style="color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(e.title)}</span>
@@ -7871,7 +7865,7 @@ const WPAGES = {
               <span class="tnum count">${P.passages}</span></div>
             ${P.passages ? `<div class="row"><span class="inked">Yours</span>
               <span class="tnum count">${P.human}</span></div>` : ''}
-            ${P.opening ? `<div class="lbl" style="margin-top:18px">Opens with</div>
+            ${P.opening ? `<div class="lbl push-18">Opens with</div>
               <div style="font-size:12.5px; line-height:1.6; color:var(--mute)">${esc(P.opening)}&hellip;</div>` : ''}
           </div>
         </div>
@@ -7912,7 +7906,7 @@ const WPAGES = {
 
   bug() {
     return `<div style="display:flex; flex-direction:column; max-width:640px">
-      <div class="serif" style="font-size:30px; line-height:1.08; color:var(--ink-bright)">Report an issue</div>
+      <div class="serif title-lg">Report an issue</div>
       <div style="font-size:14px; line-height:1.65; color:var(--mute); margin:10px 0 16px">What went
         wrong, and what you were doing when it did. One line is enough &mdash; the report brings the
         rest with it.</div>
@@ -7925,7 +7919,7 @@ const WPAGES = {
         >${esc(S.bug ?? '')}</textarea>
       <button class="btn" data-sendbug="1" style="margin-top:12px; width:auto; padding:0 28px; height:46px">${
         S.bugSending ? 'Filing&hellip;' : 'File it'}</button>
-      ${S.bugUrl ? `<div class="hint" style="color:var(--good)">Filed &mdash;
+      ${S.bugUrl ? `<div class="hint goodink">Filed &mdash;
         <a href="${esc(S.bugUrl)}" target="_blank" rel="noreferrer"
            style="color:var(--gold)">${esc(S.bugUrl.replace(/^https:\/\/github\.com\//, ''))}</a></div>` : ''}
       ${S.bugError ? `<div class="hint danger">${esc(S.bugError)}<br>
@@ -7956,7 +7950,7 @@ const WPAGES = {
     // come back, or the page throws where nothing had ever rendered it to notice.
     const slot = SRV.slot?.perSlot, global = SRV.slot?.global, slots = SRV.slot?.slots;
     return `<div class="split" style="max-width:1000px; gap:28px">
-      <div style="flex:1; min-width:0">
+      <div class="fill squeeze">
         <div class="lbl wide">What you have written</div>
         ${(() => {
           const t = S.stats;
@@ -8008,7 +8002,7 @@ const WPAGES = {
             style="flex:1; min-width:2px; height:${f.w ? Math.max(8, f.w / top * 100) : 4}%;
             background:${f.w ? 'var(--gold)' : 'var(--chip)'}; opacity:${f.w ? .75 : .35};
             border-radius:var(--r-tight)"></span>`).join('')}</div>
-            <div class="hint" style="margin:0 0 8px">Words a day for thirty days, most recent on the
+            <div class="hint lead-8">Words a day for thirty days, most recent on the
               right. A flat bar is a day you did not write.</div>`;
 
           // THE DENOMINATOR, NOT THE COUNT ALONE. "11 takes not chosen" cannot be read without
@@ -8052,7 +8046,7 @@ const WPAGES = {
         <div class="row"><span class="inked">Snapshots</span>
           <span class="count">12 kept · every 30 min</span></div>
         <div class="hint">Snapshots land on the same disk. Off-machine backup is still on you.</div>
-        <button class="btn ghost" data-backup="1" style="margin-top:14px">Snapshot now</button></div>` : ''}</div>`;
+        <button class="btn ghost push-14" data-backup="1">Snapshot now</button></div>` : ''}</div>`;
   },
 };
 
@@ -12920,7 +12914,7 @@ function entryPicture(e) {
       <img src="${api.entryImageUrl(S.storyId, e.id, at)}" alt=""
         style="width:96px; height:96px; object-fit:cover; border-radius:var(--r);
         border:1px solid var(--edge)">
-      <div style="display:flex; flex-direction:column; gap:6px; flex:1">
+      <div class="fill stack-6">
         <button class="btn ghost" data-picfind="${esc(e.id)}" style="width:auto; padding:8px 14px;
           font-size:11.5px">Find another</button>
         <button class="btn ghost" data-picdel="${esc(e.id)}" style="width:auto; padding:8px 14px;
@@ -12943,7 +12937,7 @@ function entryPicture(e) {
           style="flex:0 0 auto; width:auto; padding:12px 18px">${f.busy ? 'Looking&hellip;' : 'Look'}</button>
       </div>
       <div class="hint flush">${SITE_HELP}</div>
-      ${(f.rows ?? []).length ? `<div style="display:flex; flex-wrap:wrap; gap:6px">
+      ${(f.rows ?? []).length ? `<div class="row-6 wraps">
         ${f.rows.map((r) => `<button data-pictake="${esc(r.img)}" title="${esc(r.title)}"
           style="width:72px; height:72px; padding:0; border-radius:var(--r); overflow:hidden;
           border:1px solid var(--edge); background:var(--field) center/cover no-repeat;
@@ -12972,7 +12966,7 @@ function entryPicture(e) {
  */
 function coverFinder() {
   const f = S.found;
-  if (!f) return `<button class="btn ghost" data-findcover="open" style="margin-top:7px">Find one online</button>`;
+  if (!f) return `<button class="btn ghost push-7" data-findcover="open">Find one online</button>`;
   const rows = f.rows ?? [];
   return `<div class="card" style="gap:8px; margin-top:7px">
     <div class="lbl flush wide">What to look for</div>
@@ -12989,7 +12983,7 @@ function coverFinder() {
       and the picture comes back through Anansi rather than from this browser. Nothing about the
       tale is sent &mdash; not the premise, not a word of the prose.</p>`)}
     <div class="hint flush">${SITE_HELP}</div>
-    ${rows.length ? `<div style="display:flex; flex-wrap:wrap; gap:6px">
+    ${rows.length ? `<div class="row-6 wraps">
       ${rows.map((r) => `<button data-takeweb="${esc(r.img)}" title="${esc(r.title)}"
         style="width:86px; height:86px; padding:0; border-radius:var(--r); overflow:hidden;
         border:1px solid var(--edge); background:var(--field) center/cover no-repeat;
@@ -13011,7 +13005,7 @@ function coverFinder() {
 
 function drawTray() {
   if (!S.drawn) {
-    return `<button class="btn ghost" data-drawcover="open" style="margin-top:7px">Have one drawn</button>
+    return `<button class="btn ghost push-7" data-drawcover="open">Have one drawn</button>
       ${coverFinder()}`;
   }
   const shots = S.drawn.shots ?? [];
