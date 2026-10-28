@@ -5493,6 +5493,8 @@ async function ipFollow() {
   const r = name ? await api.sparkWorld(name) : { world: null, people: [] };
   // The writer may have typed another name, or discarded the draft, while this was out.
   if (S.spark !== sp || sp.ipAsked !== name) return;
+  // A lookup that failed is asked again on the next move, rather than read as "no World".
+  if (r?.error) { sp.ipAsked = null; return; }
   if (sp.ipWorld && sp.follow === sp.ipWorld.id) sp.follow = null;
   sp.ipWorld = r?.world ? { ...r.world, people: r.people ?? [] } : null;
   if (sp.ipWorld) sp.follow = sp.ipWorld.id;

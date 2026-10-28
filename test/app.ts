@@ -357,6 +357,8 @@ let stubRefuse: any = null;
 let stubTalk: any = null, stubInvent: any = null, stubUndo: any = null;
 // #100. The setup Talk's answer.
 let stubSparkTalk: any = null;
+// #103. How many World lookups fail before one answers, as a dropped connection would.
+let worldDown = 0;
 (globalThis as any).fetch = async (url: string, init?: any) => {
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
   /* A GENERATION, AS THE NDJSON STREAM THE REAL ROUTE SENDS. Until 2026-09-01 this stub answered
@@ -532,6 +534,7 @@ let stubSparkTalk: any = null;
     : url.startsWith('/api/spark/talk') ? (stubSparkTalk ?? { reply: 'Ask me anything.', seconds: 1 })
     // #103. The writer's own World for a new tale's IP, in the shape POST /api/spark/world returns:
     // one World, Elden Ring, matched as the server matches (trimmed, any case); nothing else.
+    : url.startsWith('/api/spark/world') && worldDown > 0 ? (worldDown--, { error: 'the server did not answer' })
     : url.startsWith('/api/spark/world')
       ? (String(JSON.parse(init?.body ?? '{}').name ?? '').trim().toLowerCase() === 'elden ring'
         ? { world: { id: 'w-ring', title: 'Elden Ring' },
@@ -3824,6 +3827,19 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
     const skipped = (await create()).find((p) => p.url === '/api/stories');
     onScreen = {};
     assert.strictEqual(skipped?.body.loreFrom, 'w-ring', 'IP-SKIP: Skip from the first step still follows the World');
+
+    // A lookup that fails is asked again on the next move, not read as "no World of that name".
+    await startWizard();
+    worldDown = 1;
+    onScreen = { '[data-sp]': [{ dataset: { sp: 'world' }, value: 'Elden Ring' }] };
+    click({ sparkstep: '2' });
+    onScreen = {};
+    for (let i = 0; i < 40 && worldDown > 0; i++) await new Promise((r) => setTimeout(r, 25));
+    await new Promise((r) => setTimeout(r, 40));
+    click({ sparkstep: '5' });
+    await settle(/Morgott/);
+    assert.match(html('page'), /Morgott/, 'IP-RETRY: a failed lookup is asked again on the next move');
+    await create();
 
     // A blank IP: an original tale, as today.
     await startWizard();
