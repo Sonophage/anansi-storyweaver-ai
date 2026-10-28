@@ -46,7 +46,7 @@ are yours, so you do not have to add it to each tale.
 
 ### Threads say how to write, never what happens
 The threads Anansi writes for a new tale, and the ones Try it on suggests, come with pockets that
-tell him how to write each one, and none of them say what will happen next. Try it on's threads now
+tell him how to write each one, and he is told not to say in them what will happen next. Try it on's threads now
 have pockets too. Anansi suggests a rule only when the idea needs one.
 
 ### A preview before the tale is made

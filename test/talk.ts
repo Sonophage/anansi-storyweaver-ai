@@ -76,7 +76,9 @@ const srv = createServer((req, res) => {
             pockets: [{ slot: 'atmosphere', name: 'Damp', body: 'Let the paper curl; keep the water audible.' },
                       { slot: 'voice', name: 'x', body: 'A place has no voice pocket, so this is dropped.' }] },
           // Already in the cast under the same name — the prompt forbids it and this enforces it.
-          { name: 'Vel', kind: 'character', body: 'Speaks for the dead god, again.' },
+          { name: 'Vel', kind: 'character', body: 'Speaks for the dead god, again.',
+            pockets: [{ slot: 'voice', name: 'Murmur', body: 'Write her lines low.' },
+                      { slot: 'interiority', name: 'Fear', body: 'Never let her say she is afraid.' }] },
         ],
       }
       : asksForCast ? { entries: [
@@ -604,6 +606,26 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.deepStrictEqual(Object.keys(rv.entries[0].rooms ?? {}), ['atmosphere'],
     'SPARK-LOOK-POCKETS: its proposed threads carry pockets, their kind\'s only');
   assert.ok(rv.entries[0].rooms.atmosphere.on, '  switched on, like the cast\'s');
+  // THE HANDS-OFF FLOOR HOLDS FOR TRY IT ON TOO: a proposed thread for the held character is written
+  // from outside, whatever the model gave it. The writer holds somebody the cast has no thread for.
+  calls = [];
+  const held: any = await routes['POST /api/spark/review']({
+    body: { story: { ...base, persona: 'Vel', lockedCharacter: 'Vel', writingStyle: VOICE }, entries: [] },
+    query: new URLSearchParams(), owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any);
+  const heldVel = held.entries.find((e: any) => e.title === 'Vel');
+  assert.strictEqual(heldVel?.rooms?.voice?.body, YOURS_VOICE('Vel'), 'SPARK-LOOK-FLOOR: Try it on writes the held character from outside too');
+  assert.ok(!heldVel?.rooms?.interiority, '  with nothing from inside their head');
+  assert.ok(!held.entries.some((e: any) => e.title !== 'Vel' && e.rooms?.voice), '  and the yours pocket on no other thread');
+  // A DESCRIBED CHARACTER gets a thread even when the cast asks for places only.
+  calls = [];
+  const placesOnly = await routes['POST /api/spark/cast']({
+    body: { kinds: ['lore'], story: { ...base, persona: 'Mara', lockedCharacter: 'Mara', personaAbout: 'a courier' } },
+    query: new URLSearchParams(), owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any) as any;
+  const mara2 = placesOnly.entries.find((e: any) => e.title === 'Mara');
+  assert.strictEqual(mara2?.rooms?.voice?.body, YOURS_VOICE('Mara'),
+    'SPARK-NEW-ANY: a character the writer described gets a thread, written from outside, whatever kinds were asked for');
   ok('who you play reaches the cast and Try it on, and the Hands-off thread is written from outside');
 }
 

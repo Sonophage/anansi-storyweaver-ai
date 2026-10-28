@@ -144,11 +144,15 @@ const PERSON = [['first', /\bfirst[\s-]+person\b/i], ['second', /\bsecond[\s-]+p
   ['third', /\bthird[\s-]+person\b|\b(?:close|limited)\s+third\b|\bthird[\s-]+(?:limited|omniscient)\b/i]];
 const TENSE = [['present', /\bpresent[\s-]+tense\b/i], ['past', /\bpast[\s-]+tense\b/i]];
 const sentencesOf = (line) => line.split(/(?<=[.!?])\s+(?=\S)/);
+// Clause by clause: a negation silences its own clause ("never second person"), not the sentence.
 function says(sentence) {
-  const bare = sentence.replace(/"[^"]*"|\u201c[^\u201d]*\u201d/g, ' ');
-  if (/\b(?:never|not|no|avoid|don't|do not)\b[^.!?]*\b(?:person|tense|third)\b/i.test(bare)) return {};
-  return { person: PERSON.find(([, re]) => re.test(bare))?.[0] ?? null,
-           tense: TENSE.find(([, re]) => re.test(bare))?.[0] ?? null };
+  const out = { person: null, tense: null };
+  for (const clause of sentence.replace(/"[^"]*"|\u201c[^\u201d]*\u201d/g, ' ').split(/[,;:]/)) {
+    if (/\b(?:never|not|no|avoid|don't)\b/i.test(clause)) continue;
+    out.person ??= PERSON.find(([, re]) => re.test(clause))?.[0] ?? null;
+    out.tense ??= TENSE.find(([, re]) => re.test(clause))?.[0] ?? null;
+  }
+  return out;
 }
 export function voiceClash(voice, pov) {
   const want = says(String(pov ?? ''));
@@ -166,7 +170,6 @@ export function voiceClash(voice, pov) {
  *  with nothing but its list mark goes too. */
 export function withoutClash(voice, pov) {
   const text = String(voice ?? '');
-  if (!voiceClash(text, pov).length) return text;
   const lines = text.split('\n');
   return lines.map((line) => {
     const kept = sentencesOf(line).filter((sn) => !voiceClash(sn, pov).length);

@@ -1539,6 +1539,16 @@ function playsOf(st: any): { persona: string | null; held: string | null } {
   return { persona, held };
 }
 
+/** THE HANDS-OFF THREAD, FROM OUTSIDE (#84). The prompts ask for no voice and no interiority for
+ *  them; this is the floor under that ask, for the cast and Try it on alike, and the "their lines are
+ *  yours" pocket is added here, to that thread and no other, from the one constant that holds its text. */
+function outsideOnly(entries: any[], held: string | null) {
+  for (const e of entries) if (held && e.entryType === 'character' && e.title.toLowerCase() === held.toLowerCase()) {
+    const { voice: _v, interiority: _i, ...outside } = e.rooms ?? {};
+    e.rooms = { ...outside, voice: { name: 'Their lines are yours', body: YOURS_VOICE(e.title), on: true } };
+  }
+}
+
 /** ONE SPARK THREAD, as the cast and Try it on both return it: Always true in the body, which
  *  POST /api/stories moves into `facts`, and its pockets as rooms, switched on, from its kind's list
  *  only (`writeRooms` writes them as the tale is made). */
@@ -2014,11 +2024,11 @@ export const routes: Record<string, Handler> = {
       if (id && rooms) for (const a of db.addonsOf(made.id) as any[])
         if (a.entry_id === id && !a.active && rooms[a.slot]?.on) db.setAddonActive(made.id, a.id, true);
     }
-    // AFTER the cast exists, because the persona names one of them and the wizard lets you choose
-    // it a step before they are written. A name the model PROPOSED and that did not survive an edit
-    // to the cast is dropped here rather than left pointing at nobody, and it is reported so the
-    // surface can say which. `proposedCast` is what the spark offered: a persona the writer typed
-    // is never policed, because a protagonist is allowed to have no entry.
+    // AFTER the cast exists. A name the model PROPOSED and that did not survive an edit to the cast
+    // is dropped here rather than left pointing at nobody, and it is reported so the surface can say
+    // which. A persona the writer typed is never policed, because a protagonist is allowed to have no
+    // entry. Since #84 the wizard proposes nobody (the writer chooses on You), so it sends no names
+    // and no caller sends any; whether this goes is an open question on #84.
     const dropped = db.pinCast(made.id, c.body.proposedCast ?? []);
     if (c.body.opening) db.addPassage({ ...made, storyId: made.id, body: c.body.opening, author: 'model' });
     return { ...made, droppedCast: dropped, ...(roomNotes.length ? { notes: roomNotes } : {}) };
@@ -2206,19 +2216,12 @@ export const routes: Record<string, Handler> = {
       .map((e) => sparkThread(e.name, e.kind, e.body, e.pockets));
     // A CHARACTER THE WRITER DESCRIBED is in the tale from the start, whether or not the model wrote
     // them: their thread is made from the writer's own words. Not on a re-roll that names them taken.
-    if (you.persona && about && kinds.includes('character')
+    if (you.persona && about
         && !entries.some((e) => e.title.toLowerCase() === you.persona!.toLowerCase())
         && !replacing.some((x: string) => x.toLowerCase() === you.persona!.toLowerCase()))
       entries.unshift(sparkThread(you.persona, 'character', about, []));
     if (!entries.length) return { error: 'nothing came back in the kinds you asked for' };
-    // THE HANDS-OFF THREAD, FROM OUTSIDE (#84). The prompt asks for no voice and no interiority for
-    // them; this is the floor under that ask, and the "their lines are yours" pocket is added here, to
-    // that thread and no other, from the one constant that holds its text.
-    for (const e of entries) if (you.held && e.entryType === 'character'
-        && e.title.toLowerCase() === you.held.toLowerCase()) {
-      const { voice: _v, interiority: _i, ...outside } = (e as any).rooms ?? {};
-      (e as any).rooms = { ...outside, voice: { name: 'Their lines are yours', body: YOURS_VOICE(e.title), on: true } };
-    }
+    outsideOnly(entries, you.held);
     // WHO YOU PLAY GOES BACK AS IT CAME. The model is no longer asked to choose: the writer did, a
     // step earlier, and a cast that reassigned it would undo the lock its pockets were written for.
     return { entries, persona: you.persona, lockedCharacter: String(st.lockedCharacter ?? '').trim() || null };
@@ -2295,7 +2298,8 @@ export const routes: Record<string, Handler> = {
       entries: (r.data.entries ?? [])
         .filter((e: any) => e?.name?.trim() && e?.body?.trim()
           && !have.has(String(e.name).trim().toLowerCase()))
-        .map((e: any) => sparkThread(e.name, e.kind, e.body, e.pockets)),
+        .map((e: any) => sparkThread(e.name, e.kind, e.body, e.pockets))
+        .map((e: any) => (outsideOnly([e], you.held), e)),
     };
   },
 

@@ -695,6 +695,11 @@ ok('every preset on the box has a blurb, and every blurb still belongs to a pres
     'VOICE-CLASH: close third against first person');
   assert.deepStrictEqual(voiceClash('Keep it in the present tense.', THIRD).length, 1,
     'VOICE-CLASH: a tense alone is enough');
+  // A NEGATION SILENCES ITS OWN CLAUSE, NOT THE SENTENCE (review, 2026-10-27).
+  assert.strictEqual(voiceClash('Use first person, never second person.', THIRD).length, 1,
+    'VOICE-CLASH: a statement beside a forbidden person still counts');
+  assert.strictEqual(voiceClash('Do not head-hop; stay in close third, past tense.', 'first person, present tense').length, 1,
+    'VOICE-CLASH: a negation in one clause does not hide the next');
   // AND WHERE IT MUST STAY QUIET.
   const quiet = [
     'Give her one line a scene, and let it be "you never listen".',          // "you" once, in dialogue
@@ -3394,6 +3399,13 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
     assert.match(html('page'), /Never let her say she is afraid|Fear/, 'WIZ-UNDO: undo brings it back');
     assert.match(html('page'), /formal, and shorter/, '  and keeps the edit made before it');
     click({ spdroppocket: '2:interiority' });
+    // UNDO KEEPS AN EDIT MADE AFTER THE CHANGE IT TAKES BACK (review, 2026-10-27).
+    onScreen = { '[data-sppocket]': [{ dataset: { sppocket: '2:voice' }, value: 'Write his lines formal and spare.' }] };
+    click({ spundo: '1' });
+    onScreen = {};
+    assert.match(html('page'), /formal and spare/, 'WIZ-UNDO: an edit typed after the removal survives its undo');
+    assert.match(html('page'), /Never let her say she is afraid/, '  and the removed pocket is back');
+    click({ spdroppocket: '2:interiority' });
     doc.querySelector = (sel: string) => sel === '[data-spnewslot="2"]' ? { value: 'outfit' }
       : sel === '[data-spnewpocket="2"]' ? { value: 'Dress her in grey wool.' } : null;
     click({ spaddpocket: '2' });
@@ -3431,7 +3443,7 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
     assert.deepStrictEqual(made.body.entries.map((e: any) => e.title), ['Ilva Marren', 'Mara Voss', 'Teodor Ash'],
       'WIZ-CREATE: the draft goes as the preview left it, the removed thread too');
     const ilva = made.body.entries[2];
-    assert.strictEqual(ilva.rooms.voice.body, 'Write her lines formal, and shorter.', '  with the edited pocket');
+    assert.strictEqual(ilva.rooms.voice.body, 'Write his lines formal and spare.', '  with the edited pocket');
     assert.ok(!ilva.rooms.interiority, '  without the removed one');
     assert.strictEqual(ilva.rooms.outfit.body, 'Dress her in grey wool.', '  with the added one');
     assert.strictEqual(made.body.entries[1].rooms.voice.name, 'Their lines are yours', "  and the yours pocket on Mara's thread");

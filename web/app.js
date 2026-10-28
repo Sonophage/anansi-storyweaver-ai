@@ -4978,14 +4978,9 @@ function harvestSpark() {
     e.keys = (e.keys ?? []).map((k) => (k === was ? now : k));
     for (const k of ['persona', 'lockedCharacter'])
       if (S.spark.story[k] === was) S.spark.story[k] = now;
-    // And what Anansi PROPOSED moves with it, or the server polices a name that no longer exists
-    // and drops a persona the writer only renamed.
-    S.spark.proposed = (S.spark.proposed ?? []).map((x) => (x === was ? now : x));
   }
 }
 
-/** The cast as it stands: everything still ticked. Step 4 offers these and nothing else, because a
- *  persona naming somebody you just dropped is the exact stranding pinCast exists to catch. */
 /** #30 · WHAT A FORGED CARD LOOKS LIKE ON THE WAY IN, before there is a story to write it to.
  *
  *  The server has the strict reader — `POST /api/thread/paste`, which refuses an unknown kind and
@@ -12158,10 +12153,7 @@ document.addEventListener('click', async (e) => {
       seed: [],
       // #21 §3 step 5. Null until asked for: it fires from a button, and "not asked yet" and
       // "asked, and he would change nothing" are different screens.
-      reviewing: false, review: null,
-      // What Anansi proposed, kept as it arrived. The server polices ONLY these names, so an edit
-      // here must not rewrite them — a persona the writer types is theirs and is never dropped.
-      proposed: [r.story?.persona, r.story?.lockedCharacter].filter(Boolean) };
+      reviewing: false, review: null };
     S.sparkStep = 1;
     if (S.prompts === null) loadPrompts();   // step 5 offers the writer's own voice
     paint();
@@ -12218,7 +12210,6 @@ document.addEventListener('click', async (e) => {
     S.spark.entries = S.spark.entries.map((e, j) => (j === i ? { ...one, keep: e.keep } : e));
     for (const k of ['persona', 'lockedCharacter'])
       if (S.spark.story[k] === was.title && one.title !== was.title) S.spark.story[k] = null;
-    S.spark.proposed = (S.spark.proposed ?? []).filter((x) => x !== was.title);
     paint();
     return toast(`${one.title} instead. The rest of the cast is untouched.`);
   }
@@ -12276,7 +12267,8 @@ document.addEventListener('click', async (e) => {
   }
   /* #84 · THE PREVIEW'S PRESSES. Each changes the draft and nothing else; nothing posts until
    * Start writing. A removal, an addition and the Voice fix keep one step of undo: the part they
-   * change, as it was. Edits typed since are harvested first, so undo does not throw them away. */
+   * change, as it was, put back on its own, so an edit typed since is not thrown away. The Voice fix
+   * is the exception: its undo puts the whole Voice back as it was before the fix. */
   if (d.spfold !== undefined) {
     harvestSpark();
     S.spark.unfolded = { ...(S.spark.unfolded ?? {}), [d.spfold]: !S.spark.unfolded?.[d.spfold] };
@@ -12288,7 +12280,7 @@ document.addEventListener('click', async (e) => {
     const [i, slot] = d.spdroppocket.split(':');
     const e = S.spark.entries[Number(i)];
     if (!e?.rooms?.[slot]) return;
-    S.spark.undo = { what: `removing a pocket from ${e.title}`, entries: structuredClone(S.spark.entries) };
+    S.spark.undo = { what: `removing a pocket from ${e.title}`, entry: e, slot, pocket: e.rooms[slot] };
     const { [slot]: _gone, ...rest } = e.rooms;
     e.rooms = rest;
     paint();
@@ -12300,7 +12292,7 @@ document.addEventListener('click', async (e) => {
     const slot = document.querySelector(`[data-spnewslot="${i}"]`)?.value;
     const body = String(document.querySelector(`[data-spnewpocket="${i}"]`)?.value ?? '').trim();
     if (!e || !slot || !body) return toast('Pick the pocket and say how to write it.');
-    S.spark.undo = { what: `adding a pocket to ${e.title}`, entries: structuredClone(S.spark.entries) };
+    S.spark.undo = { what: `adding a pocket to ${e.title}`, entry: e, slot, pocket: null };
     e.rooms = { ...(e.rooms ?? {}), [slot]: { name: pocketTitle(slot), body, on: true } };
     paint();
     return toast(`${pocketTitle(slot)} added to ${e.title}.`);
@@ -12309,7 +12301,7 @@ document.addEventListener('click', async (e) => {
     harvestSpark();
     const i = Number(d.spdropthread), e = S.spark.entries[i];
     if (!e) return;
-    S.spark.undo = { what: `removing ${e.title}`, entries: structuredClone(S.spark.entries) };
+    S.spark.undo = { what: `removing ${e.title}`, thread: e, at: i };
     S.spark.entries = S.spark.entries.filter((_, j) => j !== i);
     S.spark.unfolded = {};
     paint();
@@ -12327,8 +12319,13 @@ document.addEventListener('click', async (e) => {
     harvestSpark();
     const u = S.spark.undo;
     if (!u) return;
+    // THE ONE CHANGE IS REVERSED, not the whole draft put back, so an edit typed since survives.
     // A thread coming back moves the indices the folds are keyed on; a pocket coming back does not.
-    if (u.entries) { if (u.entries.length !== S.spark.entries.length) S.spark.unfolded = {}; S.spark.entries = u.entries; }
+    if (u.thread) { S.spark.entries.splice(u.at, 0, u.thread); S.spark.unfolded = {}; }
+    if (u.slot) {
+      const { [u.slot]: _was, ...rest } = u.entry.rooms ?? {};
+      u.entry.rooms = u.pocket ? { ...rest, [u.slot]: u.pocket } : rest;
+    }
     if (u.writingStyle !== undefined) S.spark.story.writingStyle = u.writingStyle;
     S.spark.undo = null;
     paint();
@@ -12481,8 +12478,6 @@ document.addEventListener('click', async (e) => {
       // a book with the switch turned off looked identical to one where the field never arrived.
       // Only ever sent as false; on is the column's default and the usual answer.
       lockoutOn: s.lockoutOn !== false,
-      // Only what Anansi proposed is policed server-side. A name typed here is never dropped.
-      proposedCast: S.spark.proposed ?? [],
       entries: keep,
     }));
     // `whileWorking` answers null on a re-entrant press and the state guard above should already
@@ -12687,9 +12682,6 @@ document.addEventListener('click', async (e) => {
       castSteer: '', recasting: null, styling: false, styled: true,
       accepting: false, seed: [], follow: null,
       reviewing: false, review: null,
-      // EMPTY ON PURPOSE. Only what ANANSI proposed is policed server-side; a persona the writer
-      // brought is theirs and must never be dropped.
-      proposed: [],
     };
     // The book, by name. A pasted skeleton lands on the screen that shows what arrived.
     S.sparkStep = stepAt('book');
