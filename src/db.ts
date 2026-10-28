@@ -2856,6 +2856,9 @@ export function dropFollowed(storyId: string, o: string, originId: string) {
       last_editor,field_editors,origin_id,sync,created_at,updated_at)
      VALUES (?,?,?,?,'',NULL,?,'triggered','[]','human','{}',?,'dropped',?,?)`)
     .run(id, storyId, o, e.title, e.entry_type, originId, t, t);
+  // #113 · THIS TALE'S PINS ON THE DROPPED THREAD GO. The tale no longer reads it, so they do
+  // nothing, and bringing the thread back would bring them back unasked. Other tales keep theirs.
+  q('DELETE FROM chapter_pins WHERE story_id = ? AND entry_id = ?').run(storyId, originId);
   touch(storyId);
   return id;
 }

@@ -3676,6 +3676,29 @@ ok('handing a taken-over thread back moves its pins back to the World thread, an
   assert.deepStrictEqual(pinnedIn(tale), [morgott], 'HANDBACK-SENT: the World thread is sent for the pinned scene');
 });
 
+// #113 · DROPPING A FOLLOWED THREAD FROM A TALE REMOVES ITS PIN ON THAT WORLD THREAD. The tale no
+// longer reads it, so the pin does nothing, and bringing the thread back would bring the pin unasked.
+ok('dropping a followed thread from a tale removes its pins on it, and keeps the others', () => {
+  const me = db.owner('pin-drop');
+  const world = db.createWorld(me, { title: 'Caelid', premise: 'p' });
+  const at = (title: string) => db.upsertEntry(world.id, me, { title, body: `[${title}]`,
+    activation: 'triggered', keys: [title.toLowerCase()] })!;
+  const radahn = at('Radahn'), millicent = at('Millicent');
+  const tale = db.storyFollowing(me, world.id, 'Red Sky')!;
+  const other = db.storyFollowing(me, world.id, 'Other Road')!;
+  db.setPin(tale.id, tale.chapterId, radahn, 'force_in');
+  db.setPin(tale.id, tale.chapterId, millicent, 'force_out');
+  db.setPin(other.id, other.chapterId, radahn, 'force_in');
+  assert.ok(db.dropFollowed(tale.id, me, radahn), 'dropped');
+  assert.deepStrictEqual(db.pinsOf(tale.id).map((p: any) => p.entry_id), [millicent],
+    'DROP-UNPINNED: the dropped thread\'s pin is gone, the other World pin stays');
+  assert.deepStrictEqual(db.pinsOf(other.id).map((p: any) => p.entry_id), [radahn],
+    'DROP-ONE-TALE: another tale\'s pin on the same World thread stays');
+  db.relinkEntry(tale.id, me, db.droppedFollowed(tale.id)[0].id, 'theirs');
+  assert.deepStrictEqual(db.pinsOf(tale.id).map((p: any) => p.entry_id), [millicent],
+    'DROP-NOT-BACK: bringing the thread back does not bring the pin back');
+});
+
 // #105 · WORLD PEOPLE IN THE OPENING. The wizard's preview marks them and Create pins them to the
 // first scene, force in. They stay the World's threads: nothing is copied, and a fix in the World is
 // what the scene sends. Their wake words never appear, so the pin is the only way they are sent, and
