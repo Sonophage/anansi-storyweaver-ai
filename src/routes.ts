@@ -17,8 +17,9 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
          weaveFit, actSpan } from './context.ts';
 import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
-import { checkAsked, checkUndo, undoFor, wordsFor, checkDraft, draftWords, aimOf, askWhich, fingerprint } from './changes.ts';
+import { checkAsked, checkUndo, undoFor, wordsFor, textsOf, checkDraft, draftWords, aimOf, askWhich, fingerprint } from './changes.ts';
 import type { Change } from './changes.ts';
+import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
 
@@ -1612,11 +1613,11 @@ async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?:
     v.story.setting ? `SETTING: ${v.story.setting}` : '',
     before.length ? `WHAT HAS HAPPENED:\n${before.map((x: any) =>
       `Chapter ${x.index}${x.title ? ` — ${x.title}` : ''}: ${x.summary}`).join('\n')}` : '',
-    // ADR 0009. Every open string, summoned or not, as a question to keep open: they were sent as
-    // "UNPAID PROMISES" to be pressed on, which pushed the tale's own questions to an answer.
-    (v.strings ?? []).filter((x: any) => x.status === 'open').length
-      ? `OPEN QUESTIONS (keep them in view; complicate one, never answer it): ${(v.strings ?? [])
-          .filter((x: any) => x.status === 'open').map((x: any) => x.title).join('; ')}` : '',
+    // #124 · EACH KIND OF OPEN STRING ON ITS OWN LINE, summoned or not. A promise (the writer's, or
+    // chalked) is sent as it was before #116, to be pressed toward payment; an open question (New
+    // tale's, ADR 0009) is sent to be kept open, so the brief that rides every call never pushes the
+    // tale's own questions to an answer.
+    ...openStringLines(v.strings ?? []),
     tail.trim() ? `THE PROSE ENDS:\n${tail.trim()}` : '',
     // ASKED AGAIN, AWAY FROM THE LAST (2026-10-27): what was suggested before, so the new answer is a
     // different scene and not the same one reworded. Before the writer's steer, which stays last.
@@ -2253,10 +2254,25 @@ export function tidyPockets(existing: any[], answer: unknown, kinds: string[], l
   return out.map(({ replaces: _r, ...p }) => p);
 }
 
+/** #117 · A DRAFT THREAD WHOLE, as Try it on reads it: Always true, where it stands as the tale
+ *  opens, and each pocket by its kind, so it can find two of them that disagree. It was sent the
+ *  Always true alone, and could not see a pocket at all (setup prompt audit, problem I). */
+function draftThreadText(e: any): string {
+  const pockets = Object.entries(e.rooms ?? {}).filter(([slot, p]: [string, any]) => slot !== 'facts' && String(p?.body ?? '').trim())
+    .map(([slot, p]: [string, any]) => `    ${slot}${p.name && p.name !== slot ? ` (${p.name})` : ''}: ${String(p.body).trim()}`);
+  return [`- ${e.title} (${e.entryType ?? 'character'})`, `    always_true: ${e.body ?? ''}`,
+    String(e.stands ?? '').trim() ? `    stands: ${String(e.stands).trim()}` : '', ...pockets].filter(Boolean).join('\n');
+}
+
 /** ONE SPARK THREAD, as the cast and Try it on both return it: Always true in the body, which
  *  POST /api/stories moves into `facts`, and its pockets as rooms, switched on, from its kind's list
- *  only (`writeRooms` writes them as the tale is made). */
-function sparkThread(rawName: string, kind: string, rawBody: string, pockets: unknown) {
+ *  only (`writeRooms` writes them as the tale is made).
+ *
+ *  #117 · `stands`, where it stands as the tale opens, plain, which `writeCast` makes its first Over
+ *  time entry. And ONLY A PERSON STARTS ALWAYS ON: a place, lore, an item or a rule wakes on its own
+ *  name. Every spark thread was Always on, so a scene-1 detail of a laundromat or forty dollars on a
+ *  table rode in every scene's canon (setup prompt audit, 2026-10-28, problem F). */
+function sparkThread(rawName: string, kind: string, rawBody: string, pockets: unknown, rawStands: unknown = '') {
   const here = slotsFor(kind).map((sl) => sl.name), rooms: Record<string, any> = {};
   for (const pk of (Array.isArray(pockets) ? pockets : []) as any[]) {
     const slot = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
@@ -2267,8 +2283,10 @@ function sparkThread(rawName: string, kind: string, rawBody: string, pockets: un
   // thread's Always true, so it is the description only. The model often starts the body with the
   // name already, and wrapped it once read "[Seth: Seth: The Witness…]" (2026-10-27, #81).
   const name = String(rawName).trim();
-  return { title: name, entryType: kind, activation: 'always_on', body: plain(rawBody, wrapperNames('facts', name)), keys: [name],
-           ...(Object.keys(rooms).length ? { rooms } : {}) };
+  const stands = db.plainStands(rawStands, [name]);
+  return { title: name, entryType: kind, activation: kind === 'character' ? 'always_on' : 'triggered',
+           body: plain(rawBody, wrapperNames('facts', name)), keys: [name],
+           ...(stands ? { stands } : {}), ...(Object.keys(rooms).length ? { rooms } : {}) };
 }
 
 function writeRooms(storyId: string, entryId: string, kind: string, rooms: any, label: string) {
@@ -2322,9 +2340,12 @@ function writeCast(storyId: string, owner: string, cast: any[]): string[] {
     const body = String(e.body ?? '').trim();
     const hasOwnFacts = !!String(e.rooms?.facts?.body ?? e.rooms?.facts ?? '').trim();
     const moveToFacts = !!body && !hasOwnFacts;
-    // Written with an EMPTY body, so Anansi's first chapter-end update has the room it expects and
-    // nothing to overwrite. The card's own screen draws facts above Info for this reason already.
-    const id = db.upsertEntry(storyId, owner, moveToFacts ? { ...e, body: '' } : e);
+    // #117 · ITS OWN TEXT IS WHERE IT STANDS AS THE TALE OPENS (`stands`), its first Over time entry,
+    // so a want or a state can change from a later scene on. Empty when the thread brought none: a
+    // hem's Over time entry starts from the next scene, so it never overwrites this one.
+    const { stands: _s, ...thread } = e;
+    const opens = moveToFacts ? db.plainStands(e.stands, [e.title]) : '';
+    const id = db.upsertEntry(storyId, owner, moveToFacts ? { ...thread, body: opens } : thread);
     const rooms = moveToFacts ? { ...(e.rooms ?? {}), facts: { body } } : e.rooms;
     if (id && rooms) notes.push(...writeRooms(storyId, id, e.entryType ?? 'character', rooms, e.title).notes);
     // A ROOM MARKED `on` IS SWITCHED ON: the new tale's cast (POST /api/spark/cast) marks the
@@ -2350,7 +2371,18 @@ function openQuestions(raw: unknown): { title: string; line: string }[] {
  *  inside POST /api/stories's rollback, so a Create that fails later takes them with the tale. */
 function writeOpenQuestions(storyId: string, raw: unknown) {
   for (const q of openQuestions(raw))
-    db.upsertString(storyId, { title: q.title, body: q.line, fromChapter: 1, summoned: true });
+    db.upsertString(storyId, { title: q.title, body: q.line, fromChapter: 1, summoned: true, kind: 'question' });
+}
+
+/** #124 · The scene brief's lines for a tale's open strings: the unpaid promises, then the open
+ *  questions, each line only when it has one. Kind is read through `db.stringKind`, so a string
+ *  with no kind is a promise. NOT MEASURED: the two wordings are the pre-#116 and #116 ones. */
+function openStringLines(strings: any[]): string[] {
+  const open = strings.filter((x: any) => x.status === 'open');
+  const promises = open.filter((x: any) => db.stringKind(x.kind) !== 'question').map((x: any) => x.title);
+  const questions = open.filter((x: any) => db.stringKind(x.kind) === 'question').map((x: any) => x.title);
+  return [promises.length ? `UNPAID PROMISES: ${promises.join('; ')}` : '',
+    questions.length ? `OPEN QUESTIONS (keep them in view; complicate one, never answer it): ${questions.join('; ')}` : ''];
 }
 
 /** #104 · A NEW TALE SET IN AN IP THE WRITER HAS NO WORLD FOR, at Create. Each ticked name is pulled
@@ -3092,7 +3124,7 @@ export const routes: Record<string, Handler> = {
     // braces, and it costs one comparison.
     const entries = (r.data.entries as any[])
       .filter((e) => e?.name?.trim() && e?.body?.trim() && kinds.includes(e.kind))
-      .map((e) => sparkThread(e.name, e.kind, e.body, e.pockets));
+      .map((e) => sparkThread(e.name, e.kind, e.body, e.pockets, e.stands));
     // A CHARACTER THE WRITER DESCRIBED is in the tale from the start, whether or not the model wrote
     // them: their thread is made from the writer's own words. Not on a re-roll that names them taken.
     if (you.persona && about
@@ -3156,9 +3188,7 @@ export const routes: Record<string, Handler> = {
       `Setting: ${st.setting ?? ''}`,
       `Premise: ${st.premise ?? ''}`,
       `Voice: ${st.writingStyle ?? ''}`,
-      cast.length
-        ? `Cast:\n${cast.map((e: any) => `- ${e.title} (${e.entryType}): ${e.body}`).join('\n')}`
-        : 'Cast: nobody yet.',
+      cast.length ? `Cast:\n${cast.map(draftThreadText).join('\n')}` : 'Cast: nobody yet.',
       you.persona ? `THE WRITER PLAYS: ${you.persona}` : '',
       you.held ? `HANDS OFF: ${you.held}` : '',
     ].filter(Boolean).join('\n\n');
@@ -3170,9 +3200,14 @@ export const routes: Record<string, Handler> = {
     // Hands-off floor the cast has, so a proposed thread for the held character is written from outside.
     const proposed = (r.data.entries ?? [])
       .filter((e: any) => e?.name?.trim() && e?.body?.trim() && !have.has(String(e.name).trim().toLowerCase()))
-      .map((e: any) => sparkThread(e.name, e.kind, e.body, e.pockets));
+      .map((e: any) => sparkThread(e.name, e.kind, e.body, e.pockets, e.stands));
     outsideOnly(proposed, you.held);
+    // #117 · WHERE THE DRAFT CONTRADICTS ITSELF: code's floor first, then the model's, each checked
+    // against the draft (src/contradictions.ts).
+    const found = codeContradictions(cast);
+    found.push(...modelContradictions(r.data.contradictions, cast, you.held, found));
     return {
+      contradictions: found,
       changes: (r.data.changes ?? [])
         .filter((x: any) => APPLIABLE.includes(x?.field) && String(x?.value ?? '').trim())
         // A "change" that returns the field unchanged is not one, and it is the shape a model
@@ -4214,7 +4249,9 @@ export const routes: Record<string, Handler> = {
     // land in one answer. A change the tale cannot take is not done, and the reply says so in
     // Anansi's own answer: the model may have said it did it, and the writer must not be left
     // believing that. No operation on the list deletes anything or touches prose.
-    const changes: { words: string; undo: any }[] = [];
+    // #122 · `diff` is the text before and after, for the line to draw as a diff (null when it
+    // rewrote no text).
+    const changes: { words: string; undo: any; diff?: { before: string; after: string } | null }[] = [];
     const notDone: { said: string; why: string }[] = [];
     const raws = (Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4);
     // #101 · IN A TALE THAT FOLLOWS A WORLD, a change the model did not place as canon or as the
@@ -4257,13 +4294,13 @@ export const routes: Record<string, Handler> = {
         // in the fingerprint, and the World's thread was never touched.
         const left = taleOf(v.id).entries.find((e: any) => e.id === copy);
         changes.push({ words: `${k.change.title} is this tale's own now, and ${world!.title} keeps its version. `
-          + wordsFor(k.change), undo: { op: 'takeover.unmake', thread: copy, wrote: fingerprint(left) } });
+          + wordsFor(k.change), undo: { op: 'takeover.unmake', thread: copy, wrote: fingerprint(left) }, diff: textsOf(k.change) });
         continue;
       }
       const undo = undoFor(k.change, made);
       const withWorld = undo && aim.to === 'world' ? { ...undo, world: world!.id } : undo;
       changes.push({ words: aim.to === 'world' ? `${wordsFor(k.change)} In ${world!.title}, for every tale that follows it.`
-        : wordsFor(k.change), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld });
+        : wordsFor(k.change), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change) });
     }
     const answer = [talkReply(r.data.reply, notDone, searchFailed),
       unsure.length ? askWhich(unsure, world!.title) : ''].filter(Boolean).join('\n\n');

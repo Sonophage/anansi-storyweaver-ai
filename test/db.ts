@@ -1088,6 +1088,50 @@ ok('a string is not an entry, and only a summoned one reaches the prompt', () =>
   db.delStory(s11.id);
 });
 
+/* #124 · A STRING HAS A KIND: a promise (the writer's own, or chalked), pressed toward payment, or an
+ * open question (New tale's), kept open. A string with no kind given is a promise, and saving one
+ * without its kind (the panel's save sends the fields it shows) keeps the kind it had. */
+ok('a string is a promise unless it is made an open question, and a save keeps its kind', () => {
+  const s = db.createStory(o, { title: 'Kinds' });
+  const p = db.upsertString(s.id, { title: 'The letter' });
+  const qid = db.upsertString(s.id, { title: 'Who sent it', kind: 'question' });
+  const odd = db.upsertString(s.id, { title: 'Odd', kind: 'riddle' });
+  const kind = (id: string) => db.stringsOf(s.id).find((x: any) => x.id === id).kind;
+  assert.strictEqual(kind(p), 'promise', 'STRING-KIND: a string with no kind is a promise');
+  assert.strictEqual(kind(qid), 'question', 'STRING-KIND: an open question is one');
+  assert.strictEqual(kind(odd), 'promise', 'STRING-KIND: an unknown kind is a promise');
+  db.upsertString(s.id, { id: qid, title: 'Who sent it', summoned: true });
+  assert.strictEqual(kind(qid), 'question', 'STRING-KIND-KEPT: a save that sends no kind keeps it');
+  assert.strictEqual((story.view(s.id) as any).strings.find((x: any) => x.id === qid).kind, 'question',
+    'STRING-KIND-VIEW: the view carries the kind');
+  db.delStory(s.id);
+});
+
+/* #124 · AN OLD LIBRARY'S STRINGS ARE PROMISES. A copy with the kind column taken off, booted the way
+ * a server boots: the column comes back and every string already there is a promise. */
+ok('an old library gains the string kind, and its strings are promises', () => {
+  const me = db.owner('kind-migrate');
+  const t = db.createStory(me, { title: 'Old strings' });
+  db.upsertString(t.id, { title: 'The debt' });
+  const dir = mkdtempSync('/tmp/anansi-kind-');
+  try {
+    const file = join(dir, 'old.db');
+    db.snapshot(file);
+    const old = new RawDb(file);
+    old.exec('ALTER TABLE strings DROP COLUMN kind');
+    old.close();
+    const r = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
+      `await import(${JSON.stringify(new URL('../src/db.ts', import.meta.url).href)});`],
+      { env: { ...process.env, ANANSI_DB: file }, encoding: 'utf8' });
+    assert.strictEqual(r.status, 0, `the boot failed: ${r.stderr}`);
+    const now = new RawDb(file, { readOnly: true });
+    const rows = now.prepare('SELECT title, kind FROM strings WHERE story_id = ?').all(t.id).map((x: any) => ({ ...x }));
+    now.close();
+    assert.deepStrictEqual(rows, [{ title: 'The debt', kind: 'promise' }], 'STRING-KIND-MIGRATE: an existing string is a promise');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+  db.delStory(t.id);
+});
+
 ok('the sweep removes orphans and anything under the confidence floor', () => {
   const s5 = db.createStory(o, { title: 'S' });
   const pid = db.addPassage({ ...s5, storyId: s5.id, body: 'x' });

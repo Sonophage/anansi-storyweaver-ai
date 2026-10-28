@@ -269,6 +269,113 @@ export const touchedAgo = (t) => {
 export const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) =>
   ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/* #122 · ONE WORD-LEVEL DIFF for every place a thread or a Voice changes: a thread's Alterations,
+ * the Workbench cards, Talk's change lines, the Voice choice. Seth, 2026-10-28: "we need some
+ * diffing for thread changes and in this case the voice". One function and one rendering
+ * (`diffHTML`), so the four places cannot disagree about what changed.
+ *
+ * A TOKEN is a word (letters and digits, with an apostrophe inside it: "don't" is one word), one
+ * mark of punctuation, or a run of white space. Punctuation is its own token so "ran." to "ran!"
+ * marks the stop and not the word. The longest common run of tokens is kept; what is left of the
+ * old text is removed, what is left of the new is added. A moved sentence therefore reads as
+ * removed where it was and added where it went, which is what happened to the text.
+ *
+ * The result is a list of `{ op, text }`, op `=` kept, `-` removed, `+` added. Kept and removed
+ * spell the old text exactly, kept and added the new; test/diff.ts holds that both ways. Within one
+ * changed stretch the removed text comes first, then the added, each as one piece, and a single
+ * space shared between two changed words is folded into the change, so "the cat" to "a dog" reads
+ * as one removal and one addition, not word, space, word. */
+const DIFF_TOKEN = /\s+|[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s\p{L}\p{N}]/gu;
+// ponytail: an O(n·m) table, capped at four million cells (a 2,000-word stretch changed against
+// another) after the shared start and end are trimmed off; past that the stretch is shown as all
+// removed and all added. A Myers diff if a real thread ever reaches it.
+const DIFF_CELLS = 4e6;
+export function wordDiff(a, b) {
+  const x = String(a ?? '').match(DIFF_TOKEN) ?? [], y = String(b ?? '').match(DIFF_TOKEN) ?? [];
+  let pre = 0;
+  while (pre < x.length && pre < y.length && x[pre] === y[pre]) pre++;
+  let suf = 0;
+  while (suf < x.length - pre && suf < y.length - pre && x[x.length - 1 - suf] === y[y.length - 1 - suf]) suf++;
+  const xs = x.slice(pre, x.length - suf), ys = y.slice(pre, y.length - suf);
+  const n = xs.length, m = ys.length, w = m + 1;
+  const toks = x.slice(0, pre).map((text) => ({ op: '=', text }));
+  if (n * m > DIFF_CELLS) {
+    toks.push(...xs.map((text) => ({ op: '-', text })), ...ys.map((text) => ({ op: '+', text })));
+  } else {
+    // L[i][j]: the longest common run of xs[i..] and ys[j..].
+    const L = new Uint32Array((n + 1) * w);
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+      L[i * w + j] = xs[i] === ys[j] ? L[(i + 1) * w + j + 1] + 1 : Math.max(L[(i + 1) * w + j], L[i * w + j + 1]);
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (xs[i] === ys[j]) { toks.push({ op: '=', text: xs[i] }); i++; j++; }
+      else if (L[(i + 1) * w + j] >= L[i * w + j + 1]) toks.push({ op: '-', text: xs[i++] });
+      else toks.push({ op: '+', text: ys[j++] });
+    }
+    while (i < n) toks.push({ op: '-', text: xs[i++] });
+    while (j < m) toks.push({ op: '+', text: ys[j++] });
+  }
+  toks.push(...x.slice(x.length - suf).map((text) => ({ op: '=', text })));
+  // A lone shared space between two changes belongs to the change: removed and added both.
+  const out = [];
+  for (let k = 0; k < toks.length; k++) {
+    const t = toks[k];
+    const fold = t.op === '=' && !t.text.trim() && toks[k - 1] && toks[k - 1].op !== '=' && toks[k + 1] && toks[k + 1].op !== '=';
+    if (fold) out.push({ op: '-', text: t.text }, { op: '+', text: t.text });
+    else out.push(t);
+  }
+  // Join: each kept stretch as one piece, each changed stretch as its removal then its addition.
+  const pieces = [];
+  for (let k = 0; k < out.length;) {
+    if (out[k].op === '=') {
+      let text = '';
+      while (k < out.length && out[k].op === '=') text += out[k++].text;
+      pieces.push({ op: '=', text });
+    } else {
+      let del = '', add = '';
+      while (k < out.length && out[k].op !== '=') { if (out[k].op === '-') del += out[k].text; else add += out[k].text; k++; }
+      if (del) pieces.push({ op: '-', text: del });
+      if (add) pieces.push({ op: '+', text: add });
+    }
+  }
+  return pieces;
+}
+
+/** THE ONE RENDERING of a diff: removed words struck through in `<del>`, added words underlined in
+ *  `<ins>`, kept words plain, all escaped. Colour comes from the theme tokens in app.html's `.diff`
+ *  rules, and the strike and the underline carry it without colour. It wraps anywhere, so a long
+ *  word cannot push a 390px phone sideways. */
+export const diffHTML = (a, b) => `<div class="diff">${wordDiff(a, b).map((p) =>
+  p.op === '=' ? esc(p.text) : p.op === '-' ? `<del>${esc(p.text)}</del>` : `<ins>${esc(p.text)}</ins>`).join('')}</div>`;
+
+/** #122 · A THREAD'S ALTERATIONS AS PAIRS: each earlier version (`was`) and the version that replaced
+ *  it (`now`). `rows` is `db.entryHistory`, newest first, so a field's next version is the nearest
+ *  newer row for that field, else the thread as it stands. Wake words are stored as JSON and read
+ *  here as the words. `now` is null when there is nothing to read against: a pocket since deleted,
+ *  or no thread in hand. */
+export function historyPairs(rows, e) {
+  const list = Array.isArray(rows) ? rows : [];
+  const shown = (field, v) => {
+    if (v == null) return null;
+    if (field !== 'keys') return String(v);
+    if (Array.isArray(v)) return v.join(', ');
+    try { const k = JSON.parse(v); return Array.isArray(k) ? k.join(', ') : String(v); } catch { return String(v); }
+  };
+  const current = (field) => {
+    if (!e) return null;
+    if (String(field).startsWith('pocket:')) {
+      const id = String(field).slice(7);
+      return [...(e.addons ?? []), ...(e.outfits ?? [])].find((a) => a.id === id)?.body ?? null;
+    }
+    return typeof e[field] === 'string' || Array.isArray(e[field]) ? e[field] : null;
+  };
+  return list.map((h, k) => {
+    let next;
+    for (let j = k - 1; j >= 0; j--) if (list[j].field === h.field) { next = list[j].previous_value; break; }
+    return { ...h, was: shown(h.field, h.previous_value) ?? '', now: shown(h.field, next === undefined ? current(h.field) : next) };
+  });
+}
+
 // The router answers with two kinds of id and both read as machine noise on a page about a book:
 // short aliases from presets.ini — write-nt-qwen36-h — and raw Hugging Face paths like
 // HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF:32K, which is 64 characters of it.

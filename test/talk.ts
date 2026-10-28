@@ -10,7 +10,7 @@
 //   node --experimental-strip-types test/talk.ts
 import assert from 'node:assert';
 import { createServer } from 'node:http';
-import { unlinkSync } from 'node:fs';
+import { unlinkSync, readFileSync } from 'node:fs';
 
 const DB = '/tmp/anansi-talk.db';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync(DB + f); } catch {} }
@@ -167,6 +167,30 @@ const srv = createServer((req, res) => {
       : asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
         entries: [{ title: 'Vel', type: 'character', field: 'interiority',
                     body: 'She is more afraid of being right than of being wrong.', keys: ['Vel'] }] }
+      : asksForReview && /Hiding in the lower tiers/.test(String(b.messages?.[1]?.content ?? '')) ? {
+        changes: [], entries: [],
+        contradictions: [
+          { one: { thread: 'Vel', part: 'stands', says: 'Waits on the stair for Aldis.' },
+            other: { thread: 'aldis', part: 'stands', says: 'Hiding in the lower tiers.' },
+            fix: { thread: 'Aldis', part: 'stands', text: 'Climbing the stair to meet Vel, late.' },
+            why: 'She waits for him on the stair while he hides below.' },
+          // A thread the draft does not have.
+          { one: { thread: 'Nobody', part: 'always_true', says: 'x' }, other: { thread: 'Vel', part: 'stands', says: 'y' },
+            fix: { thread: 'Nobody', part: 'always_true', text: 'z' }, why: 'No such thread.' },
+          // A fix to neither of the two places it names.
+          { one: { thread: 'Vel', part: 'always_true', says: 'x' }, other: { thread: '', part: 'premise', says: 'y' },
+            fix: { thread: 'Aldis', part: 'stands', text: 'z' }, why: 'Elsewhere.' },
+          // The held character's inside: the model never writes it (#84), so no fix may either.
+          { one: { thread: 'Vel', part: 'interiority', says: 'x' }, other: { thread: 'Aldis', part: 'stands', says: 'y' },
+            fix: { thread: 'Vel', part: 'interiority', text: 'She hates him.' }, why: 'Held.' },
+          { one: { thread: '', part: 'premise', says: 'Aldis owes the moneylender.' },
+            other: { thread: 'Vel', part: 'interiority', says: 'She will forgive the debt.' },
+            fix: { thread: '', part: 'premise', text: 'Aldis, on the stair, owes Vel more than he can pay.' },
+            why: 'The premise names another lender.' },
+          // An empty fix is no fix.
+          { one: { thread: 'Vel', part: 'stands', says: 'a' }, other: { thread: 'Aldis', part: 'stands', says: 'b' },
+            fix: { thread: 'Aldis', part: 'stands', text: '  ' }, why: 'Nothing.' },
+        ] }
       : asksForReview ? {
         changes: [
           { field: 'title', value: 'The Tide Clerk', why: 'The premise counts; the title salts.' },
@@ -189,11 +213,13 @@ const srv = createServer((req, res) => {
       }
       : asksForCast ? { entries: [
         { name: 'Vel', kind: 'character', body: 'Speaks for the dead god. Owes nothing and says so.',
+          stands: 'Vel: waits on the stair for a debtor who is late.',
           pockets: [{ slot: 'voice', name: 'The Murmur', body: 'Write her lines short and flat; she never asks a question.' },
                     { slot: 'atmosphere', name: 'x', body: 'A person has no atmosphere pocket, so this is dropped.' }] },
         // The real model starts a body with the name it was given (2026-10-27: "Seth: Seth: The
         // Witness"), so this one does.
-        { name: 'The Long Stair', kind: 'lore', body: 'The Long Stair: a stair with no landing, cut into the rock.' },
+        { name: 'The Long Stair', kind: 'lore', body: 'The Long Stair: a stair with no landing, cut into the rock.',
+          stands: 'Half its lamps are out.' },
         // A kind nobody asked for. The grammar makes this unreachable from a real model; the route
         // drops it anyway, and this is what proves the belt exists as well as the braces.
         { name: 'The Bell', kind: 'item', body: 'Rung once a year, badly.' },
@@ -616,6 +642,20 @@ ok('a kind that does not exist is refused rather than assembled');
   const vel: any = db.entriesOf(tale.id).find((e: any) => e.title === 'Vel');
   const voice: any = (db.addonsOf(tale.id) as any[]).find((a) => a.entry_id === vel?.id && a.slot === 'voice');
   assert.ok(voice?.active, 'CAST-ON: made into a tale, its pockets are written and on, so they reach the model');
+  // #117 · WHERE EACH STANDS AS THE TALE OPENS is its first Over time entry (the thread's own text),
+  // with no name in front; Always true keeps who it is. Only a person starts Always on: a place, lore
+  // or an item wakes on its name, so a scene-1 detail is not in every scene's canon.
+  assert.strictEqual(r.entries[0].stands, 'waits on the stair for a debtor who is late.', 'CAST-STANDS: the cast hands back where each stands, plain');
+  assert.strictEqual(vel.body, 'waits on the stair for a debtor who is late.', 'CAST-STANDS: made, it is the thread\'s first Over time entry');
+  assert.match(String((db.addonsOf(tale.id) as any[]).find((a) => a.entry_id === vel.id && a.slot === 'facts')?.body), /Speaks for the dead god/,
+    '  and Always true keeps who it is');
+  const stair: any = db.entriesOf(tale.id).find((e: any) => e.title === 'The Long Stair');
+  assert.strictEqual(stair.body, 'Half its lamps are out.', '  for every kind');
+  assert.deepStrictEqual(r.entries.map((e: any) => e.activation), ['always_on', 'triggered'],
+    'CAST-WAKE: a person starts Always on; lore wakes on a word');
+  assert.strictEqual(vel.activation, 'always_on', 'CAST-WAKE: made, the person is Always on');
+  assert.strictEqual(stair.activation, 'triggered', '  and the lore is on a word');
+  assert.deepStrictEqual(JSON.parse(stair.keys), ['The Long Stair'], '  its name');
 
   // #86 · WHO YOU PLAY IS THE WRITER'S, decided a step before the threads. The fake still names a
   // persona and somebody not in the cast; neither reaches the wizard, because the model was not asked.
@@ -959,9 +999,9 @@ ok('a kind that does not exist is refused rather than assembled');
     strings: [QUESTIONS[0], { title: '   ', line: 'a question with no title is none' }] });
   assert.ok(!tale.error, tale.error);
   const made = db.stringsOf(tale.id);
-  assert.deepStrictEqual(made.map((x: any) => [x.title, x.body, x.from_chapter, x.status, x.summoned]),
-    [[QUESTIONS[0].title, QUESTIONS[0].line, 1, 'open', 1]],
-    'QUESTIONS-STRINGS: each one sent is a summoned, open string from scene 1; a blank one is not');
+  assert.deepStrictEqual(made.map((x: any) => [x.title, x.body, x.from_chapter, x.status, x.summoned, x.kind]),
+    [[QUESTIONS[0].title, QUESTIONS[0].line, 1, 'open', 1, 'question']],
+    'QUESTIONS-STRINGS: each one sent is a summoned, open question from scene 1; a blank one is not');
   const plain: any = mk({ title: 'No Questions', premise: PREMISE, entries: [] });
   assert.deepStrictEqual(db.stringsOf(plain.id), [], 'QUESTIONS-NONE: a create that sends none makes none');
   // A Create that fails after the strings are written leaves none of them behind.
@@ -973,21 +1013,124 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.strictEqual(owned(), before, 'QUESTIONS-ROLLBACK: and its strings go with it');
   ok('the ticked open questions become strings at Create, inside its rollback');
 
-  // THE SCENE BRIEF KEEPS THEM OPEN. It was sent every open string as "UNPAID PROMISES" and told to
-  // press on one, which would push the tale's own questions to an answer through the brief that
-  // rides every call; and it named a destination field removed on 2026-08-30.
+  // THE SCENE BRIEF KEEPS THE QUESTIONS OPEN AND PRESSES THE PROMISES (#124). Every open string went
+  // as "UNPAID PROMISES" to be pressed on, which pushed the tale's own questions to an answer through
+  // the brief that rides every call; #116 then sent every string as a question, which left a writer's
+  // own promise with nothing pressing it toward payment. Each kind now has its own line.
   const { CHAPTER } = await import('../src/prompts.ts');
   assert.doesNotMatch(CHAPTER, /destination\s+is\s+set/, 'CHAPTER-NO-DESTINATION: no field that no longer exists');
-  assert.doesNotMatch(CHAPTER, /pressed\s+on|unpaid\s+promise/i, 'CHAPTER-OPEN: nothing tells it to press a string towards payment');
-  assert.match(CHAPTER, /complicate\s+it,\s+never\s+answer\s+it/, 'CHAPTER-OPEN: an open question may be complicated, never answered');
+  assert.match(CHAPTER, /unpaid\s+promise[^.]*pressed\s+on/i, 'CHAPTER-PROMISE: an unpaid promise in play may be pressed on, as before #116');
+  assert.match(CHAPTER, /open\s+questions[^.]*complicate\s+it,\s+never\s+answer\s+it/i, 'CHAPTER-OPEN: an open question may be complicated, never answered');
   calls = [];
   const brief: any = await routes['POST /api/chapter/propose'](ctx({ storyId: tale.id, chapterId: db.chapters(tale.id).at(-1)!.id }));
   assert.ok(!brief.error, brief.error);
   const shownBrief = String(calls.at(-1).messages[1].content);
-  assert.doesNotMatch(shownBrief, /UNPAID PROMISES/, 'BRIEF-OPEN: the brief no longer calls them debts');
+  assert.doesNotMatch(shownBrief, /UNPAID PROMISES/, 'BRIEF-OPEN: a tale with only questions is sent no promises');
   assert.match(shownBrief, /OPEN QUESTIONS[^\n]*never answer[^\n]*Whether the debt is real/,
     'BRIEF-OPEN: it is shown them as open questions, with the order never to answer one');
-  ok('the scene brief keeps the open questions open, and no longer names a destination');
+  // The writer adds a promise of her own: it goes on its own line, and not among the questions.
+  db.upsertString(tale.id, { title: 'The letter under the floor', fromChapter: 1 });
+  calls = [];
+  await routes['POST /api/chapter/propose'](ctx({ storyId: tale.id, chapterId: db.chapters(tale.id).at(-1)!.id }));
+  const both = String(calls.at(-1).messages[1].content);
+  assert.match(both, /^UNPAID PROMISES: The letter under the floor$/m, 'BRIEF-PROMISE: a promise is sent as an unpaid promise, as before #116');
+  assert.doesNotMatch(both.match(/^OPEN QUESTIONS.*$/m)?.[0] ?? '', /letter under the floor/, 'BRIEF-PROMISE: and not as an open question');
+  assert.match(both, /^OPEN QUESTIONS[^\n]*Whether the debt is real$/m, '  while the question stays a question');
+  ok('the scene brief keeps the open questions open and presses the promises, each on its own line');
+}
+
+// ---- #117 · NEW TALE'S THREADS ARE FULL FROM THE START, AND CAN CHANGE
+// Seth, 2026-10-28: Always true holds identity only; wants and secrets go in interiority, and each
+// new thread gets a scene-1 Over time entry (where it stands at the opening) so they can change.
+// The cast asked for "what it costs" (arc language) and "every pocket its kind can have", which
+// clashed with POCKET_FORM's "leave out a pocket its text gives you nothing for". Checked on the text
+// only; the wording is NOT MEASURED.
+{
+  const { CAST, castSchema, NO_OUTCOMES, TALK_SETUP, FROM_WEB, REVIEW } = await import('../src/prompts.ts') as any;
+  assert.doesNotMatch(CAST, /what it costs/i, 'CAST-NO-COST: the cast no longer asks what it costs');
+  assert.doesNotMatch(CAST, /every pocket its kind can have/i, 'CAST-MATERIAL: it no longer asks for every pocket');
+  assert.match(CAST, /premise and setting give/i, '  but for the pockets the premise and setting give material for');
+  assert.match(CAST, /Always true[^.]*identity|identity only/i, 'CAST-IDENTITY: Always true is identity only');
+  assert.match(CAST, /wants? and (?:their )?secrets?[^.]*interiority/i, 'CAST-WANTS: wants and secrets go in interiority');
+  assert.match(CAST, /stands[^.]*as the tale opens/i, 'CAST-STANDS: it asks where each thread stands as the tale opens');
+  assert.ok(castSchema(['character']).properties.entries.items.required.includes('stands'),
+    'CAST-STANDS: and the schema requires it');
+  // NO_OUTCOMES gave an outcome as its example ("he does not take the money"): a shape now.
+  assert.doesNotMatch(NO_OUTCOMES, /money/, 'NO-OUTCOMES-SHAPE: its old outcome is gone');
+  const quoted = [...NO_OUTCOMES.matchAll(/"([^"]*)"/g)].map((m: any) => m[1]);
+  assert.ok(quoted.length > 0, 'NO-OUTCOMES-SHAPE: it still shows the form');
+  for (const q of quoted) assert.match(q, /<[^>]+>/, `NO-OUTCOMES-SHAPE: a quoted example is a shape: "${q}"`);
+  // Every prompt that writes a thread at setup forbids what happens next (audit, problem I and J).
+  for (const [name, text] of [['CAST', CAST], ['REVIEW', REVIEW], ['TALK_SETUP', TALK_SETUP],
+    ['FROM_WEB', FROM_WEB('character', 'Paul Atreides', ['voice'])]] as const)
+    assert.ok(text.includes(NO_OUTCOMES), `NO-OUTCOMES-ONE: ${name} carries NO_OUTCOMES`);
+  // FROM_WEB's register examples were real subjects, and one taught a published fate as a fact to
+  // write ("came back as The Preacher"). They are shapes now.
+  const web = FROM_WEB('character', 'Paul Atreides', ['voice']);
+  assert.doesNotMatch(web, /Preacher|Ferrus|Gorgon|Unterzee/, 'FROM-WEB-SHAPE: no real subject is left as an example');
+  assert.match(web, /RIGHT\s+<[^>]+>/, 'FROM-WEB-SHAPE: its RIGHT example is a shape');
+  ok('the cast asks for identity in Always true, wants in interiority, where each stands at the opening, and no outcomes');
+
+  // TRY IT ON CHECKS THE THREADS AGAINST EACH OTHER AND THE PREMISE (#81: Seth "accepts the forty
+  // dollars" while the forty-dollars thread says he does not). It is sent each thread's Always true,
+  // where it stands and its pockets, and hands back each contradiction with both places and one fix.
+  // A fix must change one of the two places it names, in a thread the draft has. Code finds what it
+  // can on its own (an age given two ways in one thread) and puts those first.
+  const { agesSaid } = await import('../src/contradictions.ts');
+  for (const [text, want] of [['Temple clerk; 28; speaks for the dead god.', [28]], ['A 34-year-old face, lined early.', [34]],
+    ['aged 40, and tired', [40]], ['She is 19 years old.', [19]], ['28', [28]],
+    // Numbers that are not ages, which the detector was not written around.
+    ['owes 40; still unpaid', []], ['Room 12; damp', []], ['forty dollars on the table', []],
+    ['arrived in 1909 with 3 sisters', []], ['the 2-year lease', []]] as [string, number[]][])
+    assert.deepStrictEqual(agesSaid(text), want, `AGES: ${JSON.stringify(text)} gives ${JSON.stringify(want)}`);
+  calls = [];
+  const draft = { story: { title: 'The Rust Year', premise: PREMISE, setting: 'Sutera', persona: 'Vel', lockedCharacter: 'Vel' },
+    entries: [
+      { title: 'Vel', entryType: 'character', body: 'Temple clerk; 28; speaks for the dead god.', stands: 'Waits on the stair for Aldis.',
+        rooms: { interiority: { name: 'Debt', body: 'She will forgive the debt, and hides that she already has.' },
+                 appearance: { name: 'Face', body: 'A 34-year-old face, lined early.' } } },
+      { title: 'Aldis', entryType: 'character', body: 'A debtor; 50; a ferryman once.', stands: 'Hiding in the lower tiers.' }] };
+  const rv: any = await routes['POST /api/spark/review']({ body: draft, query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any);
+  assert.ok(!rv.error, rv.error);
+  const reviewAsk = String(calls.find((x: any) => /say what you would change/.test(String(x.messages?.[0]?.content ?? ''))).messages[1].content);
+  assert.match(reviewAsk, /Hiding in the lower tiers/, 'REVIEW-READS: Try it on is sent where each thread stands');
+  assert.match(reviewAsk, /She will forgive the debt/, '  and its pockets');
+  assert.match(REVIEW, /contradict/i, 'REVIEW-ASKS: and asked for contradictions');
+  assert.deepStrictEqual(rv.contradictions, [
+    { one: { thread: 'Vel', part: 'always_true', says: '28' }, other: { thread: 'Vel', part: 'appearance', says: '34' },
+      fix: { thread: 'Vel', part: 'appearance', text: 'A 28-year-old face, lined early.' },
+      why: 'Vel\'s age is given two ways.', by: 'code' },
+    { one: { thread: 'Vel', part: 'stands', says: 'Waits on the stair for Aldis.' },
+      other: { thread: 'Aldis', part: 'stands', says: 'Hiding in the lower tiers.' },
+      fix: { thread: 'Aldis', part: 'stands', text: 'Climbing the stair to meet Vel, late.' },
+      why: 'She waits for him on the stair while he hides below.', by: 'model' },
+    { one: { thread: null, part: 'premise', says: 'Aldis owes the moneylender.' },
+      other: { thread: 'Vel', part: 'interiority', says: 'She will forgive the debt.' },
+      fix: { thread: null, part: 'premise', text: 'Aldis, on the stair, owes Vel more than he can pay.' },
+      why: 'The premise names another lender.', by: 'model' },
+  ], 'REVIEW-CONTRADICTIONS: code first, then the model\'s; a fix to a thread the draft lacks, to neither place, or to the held one\'s inside, is dropped');
+  ok('Try it on reads every thread whole and hands back each contradiction with both places and one fix');
+}
+
+// ---- #118 · THE LEDGER REGISTER GIVES A SHAPE, NOT A CHARACTER TO COPY
+// Its example was a whole character ("Mara: The Initiator", sharp features, self-cut hair, charcoal on
+// the fingertips, "engineers the situation"), and the real model copied it into real threads: six
+// pockets in the live library carried "charcoal". It rides in CAST, MEMORY, TIDY, REDO, EXTRACT,
+// INVENT and forge, so hemming and Tidy could put it back. It also said to keep the name label in
+// front, which ADR 0008 forbids. Checked on the text only; the wording is NOT MEASURED.
+{
+  const { LEDGER_REGISTER } = await import('../src/prompts.ts');
+  for (const phrase of [/Mara/, /charcoal/i, /cuts herself/i, /engineers the situation/i, /ordinary to him/i, /Initiator/])
+    assert.doesNotMatch(LEDGER_REGISTER, phrase, `LEDGER-SHAPE: no phrase of the old example is left (${phrase})`);
+  assert.doesNotMatch(LEDGER_REGISTER, /opening label|Keep the .{0,20}label/i, 'LEDGER-NO-LABEL: it no longer asks for the name label in front (ADR 0008)');
+  assert.doesNotMatch(LEDGER_REGISTER, /\[/, 'LEDGER-NO-BRACKET: and its example has no brackets');
+  assert.match(LEDGER_REGISTER, /<[^>]+>;\s*<[^>]+>/, 'LEDGER-SHAPE: its example is angle-bracket slots divided by semicolons');
+  // Nothing else in the prompts quotes the old example either: it is sent from one place.
+  const src = readFileSync(new URL('../src/prompts.ts', import.meta.url), 'utf8') + readFileSync(new URL('../src/forge.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, ''), /charcoal on the|hair she cuts herself|engineers the situation/i,
+    'LEDGER-SHAPE: no prompt quotes the old example');
+  ok('the ledger register gives a shape with no name label, and no prompt quotes the old example');
 }
 
 // ---- 7. ANANSI READS THE BOOK; THE BOOK DOES NOT SET HER REGISTER
@@ -1204,6 +1347,9 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(age.changes?.length, 1, `CHANGE-LINE: one change comes back (${JSON.stringify(age.changes)})`);
   assert.match(age.changes[0].words, /Talia Venn.*Always true.*Talia is thirty/,
     `CHANGE-LINE: in the writer's words, naming the thread, the room and the text (${age.changes[0].words})`);
+  // #122 · and the text before and after it, which the line draws as a diff under its Undo.
+  assert.deepStrictEqual(age.changes[0].diff, { before: 'Talia is twenty.', after: 'Talia is thirty.' },
+    'CHANGE-DIFF: the line carries what the Always true said before and what it says now');
   // Offers are still chalked: the place nobody asked for is on the Workbench, not in the tale.
   assert.strictEqual(age.proposed, 1, 'CHANGE-OFFER: the unasked place is chalked');
   assert.ok((db.proposalsOf(tale.id) as any[]).some((p) => p.title === 'The Quay' && p.status === 'open'),
@@ -1260,6 +1406,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(room(ferry.id, 'facts')[0]?.body, 'Rows the dead across for a coin.', 'CHANGE-NEW: with his Always true');
   assert.strictEqual(ferry.activation, 'always_on', 'CHANGE-NEW: a character Talk makes is always on');
   assert.match(made.changes[0].words, /new thread.*The ferryman/i);
+  assert.strictEqual(made.changes[0].diff ?? null, null, 'CHANGE-DIFF: a new thread replaced no text, so its line has no diff');
   const gone: any = undo(made.changes[0].undo);
   assert.ok(!gone.error, gone.error);
   assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'The ferryman'),

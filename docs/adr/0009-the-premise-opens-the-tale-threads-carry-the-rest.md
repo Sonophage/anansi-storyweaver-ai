@@ -18,10 +18,15 @@ want now and what is in their way now. Never how it ends, what it costs or what 
 **The questions the story lives on are strings**, made with the tale. Strings already reach the
 model with the order not to resolve them yet.
 
-**Everything else lives in threads**: wants and secrets in Always true and interiority, what stands
-between people in relationships, backstory and how the world works in lore, places in their own
-pockets. New tale makes every thread full from the start, and makes sure no two of them contradict
-each other before the writer starts.
+**Everything else lives in threads**: wants and secrets in interiority, what stands between people
+in relationships, backstory and how the world works in lore, places in their own pockets. New tale
+makes every thread full from the start, and makes sure no two of them contradict each other before
+the writer starts.
+
+**Always true holds identity only** (Seth, 2026-10-28, on #117). This first said wants and secrets
+went in Always true and interiority, which pulled against ADR 0005: Always true does not change, and
+a want met or a secret told does. So each thread New tale makes also gets a first Over time entry,
+where it stands as the tale opens, and that is what changes.
 
 **Existing tales are left alone.** Their premises keep what they say.
 

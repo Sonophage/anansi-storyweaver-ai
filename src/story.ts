@@ -266,7 +266,7 @@ export function view(storyId: string, focusChapterId?: string) {
     muted: [...db.mutedIn(storyId, (chapters.find((c) => c.id === focusChapterId) ?? chapters.at(-1)!).id)],
     strings: db.stringsOf(storyId).map((x: any) => ({
       id: x.id, title: x.title, body: x.body ?? '', fromChapter: x.from_chapter,
-      owedBy: x.owed_by, status: x.status, summoned: !!x.summoned,
+      owedBy: x.owed_by, status: x.status, summoned: !!x.summoned, kind: x.kind ?? 'promise',
     })),
     // #36. What this book has REMOVED from what it follows. Tombstones are not cards — `entriesOf`
     // keeps them out of `entries` above — so without this line a removed card is invisible and

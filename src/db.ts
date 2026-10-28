@@ -396,6 +396,9 @@ function migrate() {
   // can be made again. Rows from before carry neither (`revertEntryField` says what it does then).
   add('entry_revisions', 'slot', 'TEXT');
   add('entry_revisions', 'name', 'TEXT');
+  // #124. A string is a promise (pressed toward payment) or an open question (kept open). Every
+  // string made before this was a writer's promise or a chalked one, so the default is promise.
+  add('strings', 'kind', "TEXT DEFAULT 'promise'");
   /* WHICH WORLD OR INTELLECTUAL PROPERTY A BOOK BELONGS TO, and what is true in it (2026-09-02).
    * Seth: "Is there a way in the story under the world tab I could add what world or ip it belongs
    * to? And have it hold some info about the world that way".
@@ -884,7 +887,8 @@ CREATE TABLE IF NOT EXISTS strings (
   owed_by INTEGER,                         -- the chapter it should be paid by, if there is one
   status TEXT DEFAULT 'open',              -- open | paid | dropped
   summoned INTEGER DEFAULT 0,              -- only a summoned string reaches the prompt
-  created_at INTEGER NOT NULL);
+  created_at INTEGER NOT NULL,
+  kind TEXT DEFAULT 'promise');            -- promise | question (#124; see stringKind)
 CREATE INDEX IF NOT EXISTS strings_s ON strings(story_id, status);
 
 CREATE TABLE IF NOT EXISTS proposals (
@@ -2379,22 +2383,29 @@ export const promptsOf = (owner: string): Record<string, string> =>
  *  chapters is the one most worth remembering. Bolting it onto entries would drop a promise out of
  *  the book exactly when it had been forgotten longest, which is backwards.
  */
+/** #124 · THE ONE READING OF A STRING'S KIND: 'question' (an open question New tale made, kept
+ *  open) or 'promise' (set up to pay off, and pressed toward payment). Anything else is a promise,
+ *  which is what every string was before kinds existed. Null when none was given, so a save keeps
+ *  the kind it had. */
+export const stringKind = (k: unknown): 'promise' | 'question' | null =>
+  k == null ? null : k === 'question' ? 'question' : 'promise';
+
 export function upsertString(storyId: string, v: any) {
   const id = v.id && (q('SELECT 1 FROM strings WHERE id = ? AND story_id = ?').get(v.id, storyId))
     ? v.id : null;
   if (id) {
-    q(`UPDATE strings SET title=?, body=?, from_chapter=?, owed_by=?, status=?, summoned=?
-       WHERE id=? AND story_id=?`)
+    q(`UPDATE strings SET title=?, body=?, from_chapter=?, owed_by=?, status=?, summoned=?,
+       kind=COALESCE(?, kind) WHERE id=? AND story_id=?`)
       .run(v.title ?? 'Untitled', v.body ?? '', v.fromChapter ?? null, v.owedBy ?? null,
-        v.status ?? 'open', v.summoned ? 1 : 0, id, storyId);
+        v.status ?? 'open', v.summoned ? 1 : 0, stringKind(v.kind), id, storyId);
     touch(storyId);
     return id;
   }
   const made = uid('st-');
-  q(`INSERT INTO strings (id,story_id,title,body,from_chapter,owed_by,status,summoned,created_at)
-     VALUES (?,?,?,?,?,?,?,?,?)`)
+  q(`INSERT INTO strings (id,story_id,title,body,from_chapter,owed_by,status,summoned,created_at,kind)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`)
     .run(made, storyId, v.title ?? 'Untitled', v.body ?? '', v.fromChapter ?? null,
-      v.owedBy ?? null, v.status ?? 'open', v.summoned ? 1 : 0, now());
+      v.owedBy ?? null, v.status ?? 'open', v.summoned ? 1 : 0, now(), stringKind(v.kind) ?? 'promise');
   touch(storyId);
   return made;
 }
@@ -3781,10 +3792,10 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
     // different book, because the ledger says who everybody is and the strings are the only record
     // of what is still owed.
     for (const s2 of q('SELECT * FROM strings WHERE story_id = ?').all(storyId) as any[])
-      q(`INSERT INTO strings (id,story_id,title,body,from_chapter,owed_by,status,summoned,created_at)
-         VALUES (?,?,?,?,?,?,?,?,?)`)
+      q(`INSERT INTO strings (id,story_id,title,body,from_chapter,owed_by,status,summoned,created_at,kind)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`)
         .run(uid('st-'), made.id, s2.title, s2.body, s2.from_chapter, s2.owed_by, s2.status,
-          s2.summoned, s2.created_at);
+          s2.summoned, s2.created_at, s2.kind ?? 'promise');
 
     // Canon over time. See the header: the chapters kept their numbers, so these mean here what
     // they meant there — which is the one condition `copyEntry` says has to hold.

@@ -2,6 +2,7 @@
 // rev-2 wordings the councils asked for.
 import { ALL_SLOTS } from './slots.ts';
 import { CHANGES_SCHEMA, DRAFT_CHANGES_SCHEMA } from './changes.ts';
+import { PARTS } from './contradictions.ts';
 
 /** Every pocket a spark thread may carry: the one slot list, less Always true (`facts`), which is
  *  the thread's body and not a pocket. For the schemas #84 touched; older ones still spell it out. */
@@ -27,20 +28,25 @@ const POCKET_SLOTS = ALL_SLOTS.filter((s) => s !== 'facts');
  *  Named forms rather than a category, which is F37's shape: "notes, not prose" on its own bought
  *  nothing when the same idea was tried as an adjective. The example carries the semicolons.
  *
+ *  #118 · A SHAPE, NOT A CHARACTER (2026-10-28). The example was a whole character, and the real
+ *  model copied it into real threads word for word (six live pockets carried its "charcoal on the
+ *  fingertips"). It is now angle-bracket slots, as POCKET_FORM's are, and the line asking to keep
+ *  the name label in front is gone: ADR 0008 says a stored text has no name in front. Its slots
+ *  are a character's; a place or item fills the same semicolon form with its own parts.
+ *  NOT MEASURED against the old wording.
+ *
  *  NOT MEASURED as prose quality. What is measured is that the old form cost 178 words a room
  *  across 436 imported rooms, and that a compacted room kept every name and number it started
  *  with. Whether the book reads better is unknown and is not claimed. */
 export const LEDGER_REGISTER =
 `A ledger body is NOTES, not prose. Clauses divided by semicolons or commas; no connective
-sentences; no "she is" or "he has" where the bare fact stands on its own:
+sentences; no "she is" or "he has" where the bare fact stands on its own. The shape:
 
-    [Mara: The Initiator. 28; sharp features; hair she cuts herself, uneven; charcoal on the
-     fingertips; wants to break the silence, terrified of being ordinary to him; will not make
-     the first move, engineers the situation instead]
+    <what they are>; <age>; <the one thing seen first>; <a habit or mark>
 
-Keep the opening label — the name and what they are — it is a fact. Write no sentence you would
-be willing to see printed in the book: a model reads this on every call that reaches the card and
-lifts finished English straight into the prose.`;
+The angle brackets show the form only and are never written; no brackets and not the name in
+front. Write no sentence you would be willing to see printed in the book: a model reads this on
+every call that reaches the card and lifts finished English straight into the prose.`;
 
 export const SUMMARY = (maxWords: number) =>
 `Summarize this chapter for a story bible. Under ${maxWords} words. Shorter is better; a short
@@ -145,10 +151,13 @@ thread's own text says about it, and leave out a pocket its text gives you nothi
 /** #84 · NEVER WHAT HAPPENS NEXT. A spark cast wrote "he does not take the money" as a pocket, and the
  *  model read it as an order that steered the tale to an ending the writer never chose (#81). One
  *  sentence, in every wizard prompt that writes a thread (the cast, a one-thread re-roll, which is
- *  the cast again, and Try it on), so they all forbid the same thing. NOT MEASURED. */
+ *  the cast again, Try it on, Talk during setup, and the lookups), so they all forbid the same thing.
+ *  #117 · Its example is a shape now, for POCKET_FORM's reason: the model copies quoted examples.
+ *  NOT MEASURED. */
 export const NO_OUTCOMES =
 `NEVER WRITE WHAT HAPPENS NEXT. A thread says who or what it is and how to write it, never what it
-will do, decide or end up as: "he does not take the money" is the story's to find, not a pocket's.`;
+will do, decide or end up as: "<he does or does not do the thing the tale turns on>" is the story's
+to find, not a pocket's. The angle brackets show the form only.`;
 
 /** #84 · THE HANDS-OFF CHARACTER'S VOICE POCKET, added by the spark cast route itself and never asked
  *  of the model. `context.ts` sends a Hands-off character's voice pocket bare, so this reaches the
@@ -601,7 +610,16 @@ Infer the spice level from the idea; use 2 when there is no signal.`;
  *
  *  THE KINDS ARE THE WRITER'S, and "none" is a real answer the old shape could not express: the
  *  schema required at least two characters, so a book that wanted three places and no people had to
- *  be given people and have them unticked. */
+ *  be given people and have them unticked.
+ *
+ *  #117 · ALWAYS TRUE IS IDENTITY ONLY (Seth, 2026-10-28). It asked for "what it wants or does, what
+ *  it costs, and how it stands towards the others" there, so a want met or a secret told at scene
+ *  thirty was still "always true" (ADR 0005 says only the writer changes it), and "what it costs" is
+ *  arc language (ADR 0009). Wants and secrets go in interiority, how it stands towards another in
+ *  relationships, and where it stands as the tale opens in `stands`, which Create writes as its
+ *  first Over time entry. "Every pocket its kind can have" became the ones the premise and setting
+ *  give material for, so it agrees with POCKET_FORM's "leave out a pocket its text gives you nothing
+ *  for". NOT MEASURED. */
 export const CAST =
 `Populate a story that already exists. Its skeleton is below; it was written or approved by the
 writer, and you are not revising it.
@@ -617,17 +635,26 @@ the premise names is one of them, the one it is about first.
   rule       a law of this world, or of this story, that holds until it is broken. Write a rule only
              when the idea needs one: a tale with no rules is the usual answer.
 
-Each entry is a name, its kind, a body and its pockets, written to be READ BY A MODEL on every
-call: dense and specific.
+Each entry is a name, its kind, a body, where it stands, and its pockets, written to be READ BY A
+MODEL on every call: dense and specific.
 
-The body is its Always true, twenty to forty words: who or what it is for the whole story, what it
-wants or does, what it costs, and how it stands towards at least one of the others. Never its looks,
-its clothes or its voice: those are pockets. Facts, not atmosphere — "a mysterious past" is nothing;
-"struck off the register in '09 and still signs the forms" is something. Never a finished sentence
-of the book: it will be in the prompt while the book is written, and a phrase that reads as prose
-gets lifted whole.
+The body is its Always true, twenty to forty words, and it is identity only: who or what it is,
+which does not change through the tale (what they are, their age, their trade, where they come
+from; what a place or thing is). Never what they want, a secret, or how they stand towards the
+others: those change, so they go below. Never its looks, its clothes or its voice: those are
+pockets. Facts, not atmosphere: "a mysterious past" is nothing; "<a plain fact with a date or a
+number in it>" is something. Never a finished sentence of the book: it will be in the prompt while
+the book is written, and a phrase that reads as prose gets lifted whole.
 
-The pockets are every pocket its kind can have, each with a short title of its own:
+stands is where it stands as the tale opens, one or two clauses: what a person wants right now and
+what is in their way; what state a place or thing is in. It is the thread's first entry in Over
+time, so it can change as the tale is written. Never what they will do.
+
+Its wants and secrets go in its interiority pocket, as what they will not say out loud. How it
+stands towards another goes in its relationships pocket.
+
+The pockets are those of its kind that the premise and setting give material for, each with a
+short title of its own:
 
     character  appearance, voice, interiority, relationships, outfit
     place      appearance, atmosphere, who_is_here
@@ -685,11 +712,21 @@ premise that tells how the tale ends, what it costs or what anyone will do is a 
 
 ${PREMISE_FORM}
 
+THEN READ THE THREADS AGAINST EACH OTHER AND AGAINST THE PREMISE: each thread's Always true, where
+it stands as the tale opens, and each of its pockets. A contradiction is two places that cannot both
+be true as the tale opens: an age given two ways, a person in two places at once, a want in one
+thread that another thread's text says is already settled. For each one: the two places (the
+thread's name, or none for the premise, and which part: premise, always_true, stands, or the
+pocket's kind) with what each says, then ONE fix: which of those two places to change, and its whole
+new text, in the same form as what it replaces. Two places that can both be true are not a
+contradiction; an empty list is the right answer when the draft agrees with itself.
+
 You may also propose entries the skeleton implies and the cast is missing: someone the premise
 names who is not there, the place it happens in, the thing everyone wants. Each is a name, a kind,
-a body and its pockets. The body is its Always true, twenty to forty words in the same dense style
-as the cast: who or what it is for the whole story, facts, not atmosphere, and never a finished
-sentence of the book. Its pockets are from its kind's list:
+a body, where it stands, and its pockets. The body is its Always true, twenty to forty words in the
+same dense style as the cast: who or what it is, identity only, facts, not atmosphere, and never a
+finished sentence of the book. Where it stands is as the tale opens. Its pockets are from its kind's
+list:
 
     character  appearance, voice, interiority, relationships, outfit
     place      appearance, atmosphere, who_is_here
@@ -704,6 +741,11 @@ ${NO_OUTCOMES}
 Do not propose an entry that is already in the cast under any name. If the writer says who they
 play, change nothing about who that is; if somebody is HANDS OFF, propose nothing that has the
 model write for them.`;
+
+/** #117 · One place in a draft, for Try it on's contradictions: a thread by name (empty for the
+ *  premise), the part of it, and what it says there. */
+const PLACE_SCHEMA = { type: 'object', properties: { thread: { type: 'string' }, part: { type: 'string', enum: PARTS },
+  says: { type: 'string' } }, required: ['thread', 'part', 'says'] } as const;
 
 export const REVIEW_SCHEMA = {
   type: 'object',
@@ -731,6 +773,8 @@ export const REVIEW_SCHEMA = {
           name: { type: 'string' },
           kind: { type: 'string', enum: ['character', 'place', 'lore', 'item', 'rule'] },
           body: { type: 'string' },
+          // #117 · Where it stands as the tale opens, as the cast's are.
+          stands: { type: 'string' },
           // #84. Its pockets, as the cast's are; the route keeps only the ones its kind can have.
           pockets: { type: 'array', items: { type: 'object', properties: {
             slot: { type: 'string', enum: POCKET_SLOTS },
@@ -738,11 +782,26 @@ export const REVIEW_SCHEMA = {
             body: { type: 'string' },
           }, required: ['slot', 'name', 'body'] } },
         },
-        required: ['name', 'kind', 'body', 'pockets'],
+        required: ['name', 'kind', 'body', 'stands', 'pockets'],
+      },
+    },
+    // #117 · Where the draft contradicts itself: two places and one fix to one of them. The route
+    // checks every place against the draft (`modelContradictions`), so a wrong one is dropped.
+    contradictions: {
+      type: 'array', maxItems: 6,
+      items: {
+        type: 'object',
+        properties: {
+          one: PLACE_SCHEMA, other: PLACE_SCHEMA,
+          fix: { type: 'object', properties: { thread: { type: 'string' }, part: { type: 'string', enum: PARTS },
+            text: { type: 'string' } }, required: ['thread', 'part', 'text'] },
+          why: { type: 'string' },
+        },
+        required: ['one', 'other', 'fix', 'why'],
       },
     },
   },
-  required: ['changes', 'entries'],
+  required: ['changes', 'entries', 'contradictions'],
 } as const;
 
 /** The next chapter's name and its beat, proposed the moment the chapter opens.
@@ -776,15 +835,18 @@ came before; say where it goes next.
            now — so write the destination, not an instruction to arrive at it. Nothing in it may
            read as "end the chapter here".
 
-Follow what the story is already doing. The open questions are what the tale lives on: keep each
-one in view, and this chapter may complicate it, never answer it. Nothing here may contradict the
-canon or the summaries above.`;
+Follow what the story is already doing. If an unpaid promise is in play, this is where it can be
+pressed on. The open questions are what the tale lives on: keep each one in view, and this chapter
+may complicate it, never answer it. Nothing here may contradict the canon or the summaries above.`;
 // ADR 0009 (2026-10-28). The last paragraph said "if a destination is set, this chapter is a step
 // towards it", naming the direction field removed on 2026-08-30, so the model had to guess one and
 // the premise was the nearest; and "if an unpaid promise is in play, this is where it can be
 // pressed on", which pushed the tale's own open questions (strings made at New tale) to an answer
 // through the beat that rides every call. The string block in the writing prompt already says
 // "do not resolve one"; this now agrees with it. NOT MEASURED.
+// #124 (2026-10-28). Strings have a kind now, and the brief sends each on its own line, so the
+// promise sentence is back for the writer's own promises (UNPAID PROMISES), and the open-question
+// sentence speaks only to New tale's questions (OPEN QUESTIONS). NOT MEASURED.
 
 export const CHAPTER_SCHEMA = {
   type: 'object',
@@ -950,6 +1012,9 @@ export const castSchema = (kinds: string[]) => ({
           // No maxLength, per F25: the converter honours it and closes the string mid-word with
           // the JSON still valid, so a body ending "and she signs the" would look finished.
           body: { type: 'string' },
+          // #117 · WHERE IT STANDS AS THE TALE OPENS: its first Over time entry, so what a thread
+          // wants now can change (Always true holds identity only). Required, like EXTRACT_SCHEMA's.
+          stands: { type: 'string' },
           // FULLY FLESHED FROM THE START: its pockets, as plain descriptions. The route keeps only the
           // ones the entry's kind can have.
           pockets: { type: 'array', items: { type: 'object', properties: {
@@ -958,7 +1023,7 @@ export const castSchema = (kinds: string[]) => ({
             body: { type: 'string' },
           }, required: ['slot', 'name', 'body'] } },
         },
-        required: ['name', 'kind', 'body', 'pockets'],
+        required: ['name', 'kind', 'body', 'stands', 'pockets'],
       },
     },
   },
@@ -1415,25 +1480,29 @@ whatever is in it becomes true by repetition.
 WRITE IT FROM INSIDE THE WORLD, not from outside it. This is the writer's own register and it is
 not negotiable:
 
-    RIGHT   (Ferrus Manus) also called the Gorgon, Primarch of the X Legion, the Iron Hands,
-             raised on Medusa, hands of living metal to the elbow
-    WRONG   (Paul Atreides) he is a fictional character in the Dune universe created by Frank
-             Herbert, appearing in the 1965 novel
+    RIGHT   <another name they go by>, <what they are in their world>, <where they were raised>,
+             <the one thing about them seen first>
+    WRONG   <name> is a fictional character in <the work> created by <its author>, appearing in
+             <a publication and its year>
 
 Never "is a fictional character", never "in the X universe", never "main character in", never the
 author's name, a novel's title as a publication, a film, a game, an edition or a date — unless the
-subject IS an author, in which case their works are the point. "Returns in Children of Dune" is a
-fact about a book; "went into the desert and came back as The Preacher" is a fact about him. An
-encyclopedia describes a story from the outside; a card is used from the inside, by a model writing
-a scene, and it can no more mention the novel than a person can mention their own author.
+subject IS an author, in which case their works are the point. "<returns in a named sequel>" is
+a fact about a book, and never on the card. An encyclopedia describes a story from the outside; a
+card is used from the inside, by a model writing a scene, and it can no more mention the novel than
+a person can mention their own author.
+
+The card is what they are and what they are like, never what the published story later does to
+them: the writer's tale outranks the world it is set in, and finds that out for itself.
+
+${NO_OUTCOMES}
 
 IF THE SUBJECT IS A WORK — a novel, a game, a setting, a franchise — the card is about the WORLD it
 holds and never about the product. Not the studio, the publisher, the platform, the price, the
-release date, the reviews, the awards, the art style, or how it plays. "Sunless Sea" is not a 2D
-Victorian Gothic RPG released on Steam: it is the Unterzee under a fallen London, a lightless ocean
-where captains run out of fuel and their crews start eating each other, and where terror is a thing
-a ship accumulates. Write the second card. If the results only describe the product, take from them
-the world they describe and leave the rest.
+release date, the reviews, the awards, the art style, or how it plays. Not "<a kind of game> released
+on <a platform>", but "<the place it is>, <what life there is like>, <the one thing that makes it
+itself>". Write the second card. If the results only describe the product, take from them the
+world they describe and leave the rest. The angle brackets show the form only.
 
     title  The subject's own name, spelled as the best source spells it.
     body   A plain description, with no brackets and not the subject's name in front: the title
@@ -1967,6 +2036,8 @@ ${PREMISE_FORM}
 - thread.new: its title, its type, and its Always true as text.
 - thread.set: the thread by its name, the room (none for its Always true), and the whole new text.
 - thread.remove: the thread by its name.
+
+${NO_OUTCOMES}
 
 When you offered threads before and they say yes or "add them", that is a request: each one is a
 thread.new.

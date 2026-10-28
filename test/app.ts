@@ -555,6 +555,24 @@ let worldDown = 0;
         ? { world: { id: 'w-ring', title: 'Elden Ring' },
             people: [{ title: 'Morgott', body: '[Morgott: the Omen King]' }] }
         : { world: null, people: [] })
+    // #117 · Try it on's contradictions: both places, one fix each, of every part a fix can change.
+    : url.startsWith('/api/spark/review') ? { changes: [], entries: [], contradictions: [
+        { one: { thread: 'Teodor Ash', part: 'always_true', says: 'a clerk who counts the dead' },
+          other: { thread: null, part: 'premise', says: 'Six houses have one winter' },
+          fix: { thread: 'Teodor Ash', part: 'always_true', text: 'A clerk of House Marren who counts the dead.' },
+          why: 'The premise has six houses, and Teodor belongs to none.', by: 'model' },
+        { one: { thread: 'Teodor Ash', part: 'interiority', says: 'never says she is afraid' },
+          other: { thread: 'Mara Voss', part: 'stands', says: 'on the road' },
+          fix: { thread: 'Mara Voss', part: 'stands', text: 'Waits at the hall gate for Teodor.' },
+          why: 'She cannot be on the road and at the gate.', by: 'model' },
+        { one: { thread: null, part: 'premise', says: 'a peace none of them wants' },
+          other: { thread: 'Ilva Marren', part: 'always_true', says: 'nothing to trade' },
+          fix: { thread: null, part: 'premise', text: 'Six houses, and Ilva carries the seal.' },
+          why: 'An envoy with nothing to trade cannot carry the seal.', by: 'model' },
+        { one: { thread: 'Teodor Ash', part: 'voice', says: 'formal and short' },
+          other: { thread: 'Teodor Ash', part: 'always_true', says: 'a clerk' },
+          fix: { thread: 'Teodor Ash', part: 'voice', text: 'Formal, and he counts aloud.' },
+          why: 'A clerk who counts speaks in numbers.', by: 'model' }] }
     : url.startsWith('/api/spark/cast') ? { entries: [
         { title: 'Mara Voss', entryType: 'character', activation: 'always_on', keys: ['Mara Voss'],
           body: '[Mara Voss: a courier who owes the envoy]',
@@ -2920,7 +2938,8 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
     click({ panel: 'anansi' });
     await new Promise((r) => setTimeout(r, 30));
     stubTalk = { reply: 'Done: he is thirty now.', seconds: 1, tokens: 10,
-      changes: [{ words: "Changed Marek's Always true: “Marek is thirty.”", undo: UNDO }] };
+      changes: [{ words: "Changed Marek's Always true: “Marek is thirty.”", undo: UNDO,
+        diff: { before: 'Marek is twenty.', after: 'Marek is thirty.' } }] };
     POSTED.length = 0;
     (document as any).getElementById('askBox').value = 'Make Marek thirty';
     click({ ask: '1' });
@@ -2931,6 +2950,11 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
     const btn = side.match(/<button[^>]*data-talkundo="([^"]+)"[^>]*>([^<]*)</);
     assert.ok(btn, 'TALK-CHANGE-UNDO: with an Undo beside it');
     assert.match(btn![2], /Undo/, 'TALK-CHANGE-UNDO: labelled Undo');
+    // #122 · UNDER THE LINE AND ITS UNDO, what changed, word by word, drawn by the one renderer.
+    const { diffHTML: talkDiff } = await import('../web/model.js');
+    const drawn = talkDiff('Marek is twenty.', 'Marek is thirty.');
+    assert.ok(side.includes(drawn) && side.indexOf(drawn) > side.indexOf('data-talkundo='),
+      'TALK-CHANGE-DIFF: the line shows the old text against the new under its Undo');
 
     // A refused Undo says why, and the line keeps its Undo.
     stubUndo = { error: 'Not undone: Marek has changed since Talk made it.' };
@@ -3650,6 +3674,71 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
 }
 ok('the wizard asks who you play before the threads, and ends in a preview that edits only the draft');
 
+// #117 · TRY IT ON'S CONTRADICTIONS, with Use this and Leave it, on the draft. Each shows both places
+// and the fix; Use this changes the one place the fix names (Always true, where it stands, a pocket,
+// or the premise) and nothing else; Leave it changes nothing; both take it off the list. Shown on Try
+// it on and again on the preview. Nothing posts but the spark calls until Start writing.
+{
+  const doc = (globalThis as any).document;
+  const wasQS = doc.querySelector;
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  click({ railview: 'workspace' });
+  await new Promise((r) => setTimeout(r, 30));
+  click({ nav: 'create' });
+  await new Promise((r) => setTimeout(r, 30));
+  doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
+  try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
+  finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
+  POSTED.length = 0;
+  click({ sparkstep: '3' });
+  await settle(/Teodor Ash/);
+  click({ sparkstep: '4' });
+  click({ spreview: '1' });
+  await settle(/data-spfix/);
+  let pg = html('page');
+  assert.strictEqual((pg.match(/data-spfix="/g) ?? []).length, 4, 'CLASH-SHOWN: Try it on lists each contradiction with Use this');
+  assert.strictEqual((pg.match(/data-spleave="/g) ?? []).length, 4, '  and Leave it');
+  assert.match(pg, /Teodor Ash[^<]*Always true[\s\S]*a clerk who counts the dead[\s\S]*The premise[\s\S]*Six houses have one winter/,
+    'CLASH-PLACES: both places, each with what it says');
+  assert.match(pg, /The premise has six houses[\s\S]*Fix: Teodor Ash[^<]*Always true[\s\S]*A clerk of House Marren who counts the dead\./, '  why, and the fix');
+  click({ sparkstep: '5' });
+  await settle(/The tale's own thread/);
+  pg = html('page');
+  assert.strictEqual((pg.match(/data-spfix="/g) ?? []).length, 4, 'CLASH-PREVIEW: and the preview shows them too');
+  click({ spfix: '0' });   // Teodor's Always true
+  click({ spfix: '0' });   // Mara's where it stands
+  click({ spleave: '0' }); // the premise: left
+  click({ spfix: '0' });   // Teodor's voice pocket
+  pg = html('page');
+  assert.doesNotMatch(pg, /data-spfix=|data-spleave=/, 'CLASH-DONE: each one pressed leaves the list');
+  assert.match(pg, /A clerk of House Marren who counts the dead\./, 'CLASH-USE: Use this changes the Always true it names');
+  assert.match(pg, /Six houses have one winter to sign a peace none of them wants\./, 'CLASH-LEAVE: Leave it changes nothing');
+  click({ spfold: '1' });
+  assert.match(html('page'), /data-spstands="1"[^>]*>Waits at the hall gate for Teodor\.</, 'CLASH-USE: where she stands is changed, and shown to edit');
+  click({ spfold: '1' });
+  // Where a thread stands is the writer's to edit in the preview, like the rest of it.
+  const wasQSA = doc.querySelectorAll;
+  doc.querySelectorAll = (sel: string) => sel === '[data-spstands]' ? [{ dataset: { spstands: '2' }, value: 'Counting the dead at the gate.' }] : [];
+  click({ spfold: '2' });
+  doc.querySelectorAll = wasQSA;
+  assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')), `CLASH-NOTHING: nothing posts but the spark calls (${POSTED.map((p) => p.url).join(', ')})`);
+  doc.querySelector = (sel: string) => sel === '[data-sp-open]' ? { checked: false } : null;
+  click({ acceptSpark: '1' });
+  doc.querySelector = wasQS;
+  for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
+  const made = POSTED.find((p) => p.url === '/api/stories');
+  assert.ok(made, 'CLASH-CREATE: the tale is made');
+  const by = (t: string) => made.body.entries.find((e: any) => e.title === t);
+  assert.strictEqual(by('Teodor Ash').body, 'A clerk of House Marren who counts the dead.', 'CLASH-CREATE: with the fixed Always true');
+  assert.strictEqual(by('Teodor Ash').rooms.voice.body, 'Formal, and he counts aloud.', '  the fixed pocket');
+  assert.strictEqual(by('Teodor Ash').rooms.voice.name, 'Envoy', '  its name kept');
+  assert.strictEqual(by('Mara Voss').stands, 'Waits at the hall gate for Teodor.', '  and where she stands');
+  assert.strictEqual(by('Teodor Ash').stands, 'Counting the dead at the gate.', 'CLASH-EDIT: where a thread stands, edited in the preview, is sent');
+  assert.strictEqual(made.body.premise, 'Six houses have one winter to sign a peace none of them wants.', '  and the premise left alone');
+  await new Promise((r) => setTimeout(r, 60));
+}
+ok("Try it on's contradictions are shown with both places and a fix, and Use this changes only the draft");
+
 // #100 · TALK WHILE A TALE IS SET UP. The same Talk window, on the draft: what comes back as asked is
 // applied to the draft at once, each with an Undo the page holds; what is offered has an Add press;
 // a box the writer typed in on this step is changed only when that turn named it; and nothing posts
@@ -3704,6 +3793,11 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
     const side = html('sideBody');
     assert.match(side, /Changed the premise/, 'SETUP-TALK-LINES: each change is a line in the conversation');
     assert.match(side, /data-talkundo="1:0"/, 'SETUP-TALK-LINES: with its Undo');
+    // #122 · the premise line shows the premise before against the premise now; the new thread
+    // replaced nothing, so the conversation holds that one diff and no other.
+    const { diffHTML: setupDiff } = await import('../web/model.js');
+    assert.ok(side.includes(setupDiff(ORIGINAL, DARKER)), 'SETUP-TALK-DIFF: the premise line is a diff of the premise');
+    assert.strictEqual([...side.matchAll(/class="diff"/g)].length, 1, 'SETUP-TALK-DIFF: and the new thread has none');
     const add = side.match(/data-talkadd="([^"]+)"/);
     assert.ok(add, `SETUP-TALK-ADD: the offer has an Add press:\n${side.slice(0, 900)}`);
     assert.match(side, /House Marren/, 'SETUP-TALK-ADD: naming what is offered');
@@ -3783,6 +3877,9 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
     ].map((k: any) => { assert.ok(k.ok, `ONE-MAPPING: the server takes it (${k.why})`); return k.change; });
     stubSparkTalk = { reply: 'Done.', seconds: 1, changes: checked.map((change: any) => ({ words: 'Changed.', change })) };
     await ask('Change the Ferryman and the voice');
+    // #122 · the Always true line reads the old Always true against the new, as the server checked them.
+    assert.ok(html('sideBody').includes(setupDiff(checked[0].before ?? '', 'rows twice for a liar.')),
+      'SETUP-TALK-DIFF: a thread change\'s line is a diff of the text the server checked');
     stubSparkTalk = { reply: 'Yes.', seconds: 1 };
     const mapped = (await ask('And?')).body.draft;
     const ferry = mapped.entries.find((e: any) => e.title === 'The Ferryman');
@@ -6208,15 +6305,20 @@ const hemCardOf = (side: string) => {
     'the summary comes first on the card, in a box, before any thread');
   assert.match(card, /data-hemsumtext="c-1"[^>]*>Ilva arrives\./, '  holding the scene summary');
   assert.doesNotMatch(card, /<button[^>]*data-hemsum="c-1"/, '  and no Save press: it saves as you go (ADR 0004)');
-  // BEFORE AND AFTER: the Over time entry in force, then the chalked text.
-  // Read against the row's own box, not the fold's one-line peek, which repeats the chalked text.
-  assert.ok(card.indexOf('She waits by the door, gloved.') > 0
-    && card.indexOf('She waits by the door, gloved.') < card.indexOf('data-pbody="hs-1"')
-    && /data-pbody="hs-1"[^>]*>She has stopped waiting\./.test(card),
-    'an Over time row shows the entry in force before the chalked text');
-  assert.ok(card.indexOf('Flat, unhurried.') > 0
-    && card.indexOf('Flat, unhurried.') < card.indexOf('data-pbody="hs-2"'),
-    'a pocket row shows the pocket as it is before the chalked text');
+  // BEFORE AND AFTER, AS ONE DIFF (#122): the Over time entry in force against the chalked text,
+  // drawn by the one renderer, above the row's own box.
+  const { diffHTML } = await import('../web/model.js');
+  const diffAt = (id: string, was: string) => {
+    const at = card.indexOf(`data-deckdiff="${id}">`);
+    const body = card.match(new RegExp(`data-pbody="${id}"[^>]*>([^<]*)<`))?.[1] ?? '';
+    return at > 0 && at < card.indexOf(`data-pbody="${id}"`)
+      && card.slice(at + `data-deckdiff="${id}">`.length).startsWith(diffHTML(was, body)) && /<del>/.test(diffHTML(was, body));
+  };
+  assert.match(card, /data-pbody="hs-1"[^>]*>She has stopped waiting\./, 'the chalked text is in its own box');
+  assert.ok(diffAt('hs-1', 'She waits by the door, gloved.'),
+    'an Over time row shows the entry in force against the chalked text, as a diff, before the box');
+  assert.ok(diffAt('hs-2', 'Flat, unhurried.'),
+    'a pocket row shows the pocket as it is against the chalked text, as a diff, before the box');
   // SEW ALL / REJECT ALL, over every row on the card.
   assert.match(card, /data-deckall="accept" data-ids="hs-1,hs-2,hs-3,hs-4"[^>]*>Sew all/,
     'Sew all takes every row on the card');
@@ -6237,6 +6339,11 @@ const hemCardOf = (side: string) => {
   // THE OLD PER-THREAD CARD, as it always was.
   assert.match(side, /Hemming found[\s\S]*?data-deckall="accept" data-ids="hp-1"[^>]*>Sew it in/,
     'an old per-thread hem card is drawn as before');
+  // A CHALKED CHANGE OUTSIDE A HEM shows the same diff (#122): the thread's text against the chalk.
+  assert.ok(side.includes(`data-deckdiff="hp-1">${diffHTML('[comes at six]', 'He came at five, not six.')}`),
+    'a chalk card reads what is there now against what is chalked, with the one renderer');
+  // And a row with nothing before it (a new thread, a retirement) has no diff to read.
+  assert.doesNotMatch(side, /data-deckdiff="hs-[34]"/, '  and a new thread or a retirement has none');
   (globalThis as any).fetch = canned;
   click({ open: 's-1' }); await settle();
   ok('a hemmed scene is one Workbench card: summary first, before and after, Sew all and Reject all (#92)');

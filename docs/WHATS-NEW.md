@@ -38,8 +38,34 @@ When Anansi writes a style note for a new tale, it now says how the prose reads:
 sentences run, how close the telling sits, what it notices and leaves unsaid, and how much is
 dialogue. It no longer says how chapters end or reuses the premise's images, which steered every
 passage toward one ending. Style notes you already have are not changed.
+### New tale's threads start where they stand, and Try it on finds what disagrees
+Each thread New tale makes now says who or what it is in Always true, and keeps what they want and
+what they hide in their inner life, so those can change as the tale goes on. Each one also says where
+it stands as the tale opens, which you can read and change in the preview, and which becomes its
+first entry in Over time. People are always on; places, lore and things come in when their name does.
+Try it on now reads every thread whole, pockets included, and lists each place where two of them, or
+a thread and the premise, disagree: both places, what each says, and a fix. Use this puts the fix in
+the draft; Leave it keeps what you have. Nothing is saved until you start the tale.
+
+### Your promises are pressed, the tale's questions are kept open
+A string is now one of two kinds. The open questions New tale makes are kept open: when Anansi
+suggests a scene, he may complicate one but never answer it. The promises you set up yourself, and
+the ones Anansi chalks, are pressed toward paying off again, as they were before. Every string you
+already have is a promise.
+
+### No more borrowed details in your characters
+Anansi's own note on how to write a thread used to show one made-up character as its example, and
+Anansi sometimes copied her into yours: charcoal on the fingertips, hair she cuts herself. The note
+now shows only the form, so the details in a new thread come from your tale.
 
 ## 2026-10-28 · Tidy this thread, made safe to use on a whole library
+
+### See exactly what changed, word by word
+When a thread changes, you now see which words went and which came in. Words that were taken out
+are struck through. Words that were put in are underlined. This shows in a thread's Earlier
+versions, where each old version is set against the one that replaced it. It also shows on
+Workbench cards, where what is there now is set against what Anansi chalked. And it shows under
+each change Talk made, beside its Undo. It reads on a phone and in every theme.
 
 ### Tidy leaves "their lines are yours" alone
 Tidying the character you play, or the one you keep Hands off, no longer touches the pocket that
