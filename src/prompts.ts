@@ -571,12 +571,21 @@ No marketing language, no rhetorical questions.`;
  *  time and cheaply.
  *
  *  So this asks for the book and stops. The cast is CAST below, run after the writer has said which
- *  kinds of card they want — including none. */
+ *  kinds of card they want — including none.
+ *
+ *  #121 · THE SETTING HOLDS THE PLACE, THE OPENING MOMENT HOLDS THE HOUR. The setting asked for
+ *  "what the weather and the light are doing", and the setting is the tale's thread's Always true,
+ *  sent on every call for the life of the tale: a tale set "at three in the morning" in the rain
+ *  stayed at three in the morning in the rain. So the setting asks only for what stays true of the
+ *  place, and the weather, the light and the time come back as `opensWith`, which Create writes to
+ *  scene 1's Opens with: sent only until that scene has prose, the right lifetime for a moment.
+ *  NOT MEASURED: no control run says the model writes a setting free of the moment more often. */
 export const SPARK =
 `Turn this idea into a story skeleton.
 
-Return: a title, a premise, a genre as a comma-separated list of two or three tags, a setting, a
-point of view, a spice level from 1 to 5, the voice the prose is written in, and the open questions.
+Return: a title, a premise, a genre as a comma-separated list of two or three tags, a setting, the
+opening moment, a point of view, a spice level from 1 to 5, the voice the prose is written in, and
+the open questions.
 
 NO CHARACTERS. They are asked for separately, once the writer has said what kinds of thing this
 book needs. Do not name a cast, and do not write the premise as though one has been chosen for you.
@@ -587,10 +596,16 @@ The open questions are two to four things the tale will keep the reader asking a
 answered: kept apart from the premise, and never answered here. Each is a short title and one line.
 Shape: title "<the question, in a few words>", line "<what is not known yet, and who it is between>".
 
-The setting is four to eight sentences, and it is a PLACE rather than a genre: where this happens,
-when, what the weather and the light are doing, what the buildings are made of, who holds power in
-it and how that is visible on the street, and one thing about it that would not be true anywhere
-else. Name it. A setting that could be lifted into another book is not this book's setting.
+The setting is four to eight sentences, and it is a PLACE rather than a genre. It is read on every
+call for the whole tale, so write only what stays true of the place for the whole tale: where this
+happens, in what era, what the buildings are made of, who holds power in it and how that is visible
+on the street, and one thing about it that would not be true anywhere else. Name it. A setting that
+could be lifted into another book is not this book's setting. Nothing that passes belongs here:
+that goes in the opening moment.
+
+The opening moment is one or two sentences: the weather, the light and the time as the first scene
+opens, and where in the place it opens. It is read only until the first passage is written.
+Shape: "<where in the place>, <the time>; <the weather>, <the light>."
 
 The writing style is the voice of the weave, and a model has to be able to match it from what you
 write — so a hundred words or so, not a label. Say how the sentences run and how long they are,
@@ -968,6 +983,9 @@ export const SPARK_SCHEMA = {
     premise: { type: 'string' },
     genre:   { type: 'string' },
     setting: { type: 'string' },
+    // #121. The weather, light and time the first scene opens in, apart from the setting: Create
+    // writes it to scene 1's Opens with, which is sent only until that scene has prose.
+    opensWith: { type: 'string' },
     pov:     { type: 'string' },
     // The GBNF converter ignores numeric minimum/maximum but honours enums, so the range
     // is spelled out as literals rather than stated as bounds it would drop.
@@ -989,7 +1007,7 @@ export const SPARK_SCHEMA = {
   // #21 §2. `characters`, `persona` and `lockedCharacter` were HERE and were REQUIRED — which is
   // why "no characters at this point" was unreachable without a schema change. The cast moved to
   // CAST_SCHEMA, asked for separately; who you play is the writer's, chosen before it (#84).
-  required: ['title', 'premise', 'genre', 'setting', 'pov', 'spice', 'writingStyle', 'questions'],
+  required: ['title', 'premise', 'genre', 'setting', 'opensWith', 'pov', 'spice', 'writingStyle', 'questions'],
 } as const;
 
 /** #21 §2 · WHAT THE CAST CALL RETURNS. Built per request rather than declared once, because the

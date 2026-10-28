@@ -978,6 +978,23 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.match(SPARK, /open questions/i, 'QUESTIONS-ASK: the spark asks for them');
   for (const q of [...SPARK.matchAll(/"([^"]*)"/g)].map((m) => m[1]).filter((q) => /question|line/i.test(q)))
     assert.match(q, /<[^>]+>/, `QUESTIONS-SHAPE: quoted as a shape: "${q}"`);
+  // #121 · THE SETTING HOLDS THE PLACE, THE FIRST SCENE HOLDS THE MOMENT. The setting is sent on
+  // every call for the life of the tale, so weather, light or the hour written there hold forever.
+  const settingAsk = /The setting is[\s\S]*?(?=\n\n)/.exec(SPARK)?.[0] ?? '';
+  assert.ok(settingAsk, 'SETTING-ASK: the spark still asks for a setting');
+  assert.doesNotMatch(settingAsk, /weather|light|hour|time of (?:day|night)|season/i,
+    'SETTING-STAYS: the setting asks for no weather, light or hour');
+  assert.match(settingAsk, /whole tale/i, 'SETTING-STAYS: it asks for what holds for the whole tale');
+  const opens = SPARK_SCHEMA.properties.opensWith;
+  assert.ok(opens && opens.type === 'string' && (SPARK_SCHEMA.required as readonly string[]).includes('opensWith'),
+    'OPENS-SCHEMA: the spark returns the moment the tale opens in, as its own field');
+  const opensAsk = /The opening moment is[\s\S]*?(?=\n\n)/.exec(SPARK)?.[0] ?? '';
+  assert.match(opensAsk, /weather/i, 'OPENS-ASK: the weather goes to the opening moment');
+  assert.match(opensAsk, /light/i, 'OPENS-ASK: and the light');
+  assert.match(opensAsk, /time/i, 'OPENS-ASK: and the time');
+  const opensQuoted = [...opensAsk.matchAll(/"([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(opensQuoted.length > 0, 'OPENS-SHAPE: the opening moment is given a shape');
+  for (const q of opensQuoted) assert.match(q, /<[^>]+>/, `OPENS-SHAPE: quoted as a shape: "${q}"`);
 
   // The re-roll sends the same wording on the wire, and the spark hands the questions back.
   calls = [];
