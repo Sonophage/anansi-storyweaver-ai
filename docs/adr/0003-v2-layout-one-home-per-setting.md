@@ -58,3 +58,5 @@ It replaces the setup drawer, its three steps, and the closing report.
   the glossary's words on them.
 - What each surface holds depends on the memory-model decisions (what the Workbench and the scene
   list contain); those come next and may refine this.
+
+2026-10-28: the canon check (knots) was deleted (#94); what this record says about it no longer applies.

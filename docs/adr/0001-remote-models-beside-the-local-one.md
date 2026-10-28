@@ -15,3 +15,5 @@ already did. That keeps the measured roles on the
 model they were measured on and keeps background calls from spending the shared units, at the cost
 of the background failing when this machine is off. A refused request (HTTP 429) is retried, then
 reported to the writer; it never falls back to another model silently.
+
+2026-10-28: the canon check (knots) was deleted (#94); what this record says about it no longer applies.

@@ -22,3 +22,5 @@ Two exceptions stay on the local default:
 Costs accepted: these roles were measured on the local model and are not measured on remote ones
 yet; the book's text goes to Featherless for this work too; and a busy plan can now delay a
 chapter close, which reports the pass that did not run as it already does.
+
+2026-10-28: the canon check (knots) was deleted (#94); what this record says about it no longer applies.

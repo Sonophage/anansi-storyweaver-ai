@@ -41,3 +41,6 @@ tale has chosen to differ from.
   it reads a passage.
 - A tale that followed nothing can later be offered "Make a World of this IP and follow it" from its
   settings, using the same World maker.
+
+2026-10-28: the contradiction check was deleted (#94), so the lines above about how it ranks the
+tale over its World no longer apply to anything. The tale still outranks its World for the model.

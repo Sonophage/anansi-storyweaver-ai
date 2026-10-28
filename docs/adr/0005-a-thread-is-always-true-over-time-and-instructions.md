@@ -62,3 +62,5 @@ choices and the model stay settings. It has no Over time: the scene summaries ar
 - The voice pocket's frame gains "the narration never names or describes it" (narrowed on 2026-10-27 to "the narration never names how they sound": the wider form made a pocket that also held a personality dialogue-only). A prompt change: it
   is measured against a control before it is called a fix.
 - One hem call for every thread or one per thread is decided on a measurement, not here.
+
+2026-10-28: the canon check (knots) was deleted (#94); what this record says about it no longer applies.

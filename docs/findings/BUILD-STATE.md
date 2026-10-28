@@ -51,7 +51,7 @@ Not a list of features — a list of things whose absence would be a bug, verifi
 | Co-op: `story_writers`, one `MINE()` predicate, owner-only invite | `src/db.ts`, `POST /api/writers` |
 | Live channel — the other writer's work arrives with no refresh | `src/live.ts`, `GET /api/live` |
 | Ceilings, an **eviction order**, and a hard refusal on overflow | `src/context.ts`, `evict()` |
-| Canon extraction, violation flags, muting, repair — all queued, nothing auto-canon | `src/routes.ts` |
+| Canon extraction — queued, nothing auto-canon | `src/routes.ts` |
 | Branches, forking, per-passage history and restore | `src/db.ts` |
 | Import: Anansi exports, AI Dungeon both halves, character cards V1/V2/V3 | `src/import.ts` |
 | Backups: half-hourly beside the DB, six-hourly to `/data`, daily per-book export | `serve.ts` |
@@ -69,7 +69,7 @@ re-run it rather than believe this table.
 |---|---|
 | **Activation depth** — secondary keys, `key_logic`, proximity bound, exclusion keys, regex keys | 0 live hits for each in `context.ts`/`db.ts`; no column on `entries` for any of them |
 | **Budget engine's remainder** — reservation, trim ladder, `partial` block state. **Eviction is NOT missing** — built 2026-08-29, `evict()` at `context.ts:1427` | `grep -n "evict\|reserve\|partial" src/context.ts` |
-| **Internal coherence** — nothing checks a passage against *itself* | 0 hits; the checker compares passage→canon only |
+| **Coherence** — nothing checks a passage against *itself* or against its threads. The canon check was deleted on 2026-10-28 (#94) | `grep -arn "violations" src` finds only the migration that drops the table |
 | **Canon against canon** — two cards may disagree and nothing notices | 0 hits |
 | **Resumable streams** — the passage persists, but the page loses track until something redraws | no `visibilitychange` handler; every "resume" in `app.js` is the shelf band |
 | **Per-writer cost or time ceiling** | no quota or rate limit in `routes.ts` or `serve.ts` |

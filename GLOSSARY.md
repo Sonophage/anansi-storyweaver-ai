@@ -200,21 +200,9 @@ there. He may look things up on the web when the writer lets him, and names ever
 _Avoid_: chat, Anansi chat, ask Anansi
 _In code_: `/api/talk`
 
-**Knot**:
-A line of narration that contradicts a thread, found after a passage lands.
-_Avoid_: contradiction, flag, the checker, violation
-_In code_: violation, the canon check
-
-**Mend / Ignore**:
-Ask Anansi to rewrite the passage so the knot is gone / set this one knot aside, the prose
-untouched. Ignoring every knot about one thread for the scene is a separate, named press; "Watch
-again" undoes that. (Ignore was the whole thread until 2026-10-27.)
-_Avoid_: let Anansi correct it, listen again, clear
-_In code_: `/api/repair`; Ignore is a dismissed violation; the whole thread is muted
-
 **Workbench**:
-Where everything that wants the writer collects: chalked things, unkept strings, knots,
-out-of-date summaries.
+Where everything that wants the writer collects: chalked things, unkept strings, out-of-date
+summaries.
 _Avoid_: waiting, chapter queue, inbox
 _In code_: the `waiting` panel
 
@@ -308,8 +296,8 @@ _In code_: panel
 ## Who writes
 
 **Local model**:
-A model run on this machine. Anansi's default, and the only kind that ever runs the knot check.
-The rest of the background work follows the writer's model (ADR 0002).
+A model run on this machine. Anansi's default. Background work follows the writer's model
+(ADR 0002).
 _Avoid_: router model, home model
 
 **Remote model**:
