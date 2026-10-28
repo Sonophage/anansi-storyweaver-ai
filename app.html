@@ -717,7 +717,12 @@ input[type="checkbox"]:focus-visible { outline:2px solid var(--gold); outline-of
 #backdrop > i { position:absolute; inset:0; display:block; background-size:cover;
   background-position:center; }
 #backdrop > u { position:absolute; inset:0; display:block;
-  background:linear-gradient(90deg, transparent 0%, var(--doc-bg) 62%); }
+  background:linear-gradient(var(--fade-dir, 90deg), transparent 0%,
+    var(--doc-bg) clamp(20%, calc(62% + var(--reach, 0) * 33%), 98%)); }
+/* Flipped: the picture whole down the right, the page taking over toward the left. Blurred: softened,
+   and pulled past the edges so the blur has no pale rim. (2026-10-27) */
+#backdrop.flip { --fade-dir:270deg; }
+#backdrop.blur > i { filter:blur(10px); inset:-24px; }
 /* The prose sits above it, and #read must not paint its own ground over the picture.
    `position:relative` with NO z-index, deliberately. A positioned element with a z-index other
    than auto creates a STACKING CONTEXT, and the ⋯ tray is `position:fixed; z-index:32` inside
@@ -736,7 +741,8 @@ input[type="checkbox"]:focus-visible { outline:2px solid var(--gold); outline-of
 /* On a phone the column IS the window, so there is no side for the picture to be whole down: the
    gradient goes nearly to the top of it and the image reads as a wash rather than a photograph. */
 @media (max-width:719px) {
-  #backdrop > u { background:linear-gradient(90deg, transparent 0%, var(--doc-bg) 34%); }
+  #backdrop > u { background:linear-gradient(var(--fade-dir, 90deg), transparent 0%,
+    var(--doc-bg) clamp(10%, calc(34% + var(--reach, 0) * 56%), 95%)); }
 }
 #doc.plated .plate { border-top-left-radius:0; border-top-right-radius:0; }
 @media (max-width:719px) { #read { padding:22px 22px 0; } }
@@ -983,13 +989,14 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 /* The cover, used again at the head of a chapter. Same scrim and same serif as the shelf card
    below, because it is the same picture — two treatments of one image is two things to keep in
    step, and the shelf's is the one that has already been through a contrast pass. */
-.plate { position:relative; height:210px; border-radius:var(--r); overflow:hidden;
+.plate { position:relative; height:260px; border-radius:var(--r); overflow:hidden;
   margin:0 0 18px; }
 .plate .fade { position:absolute; inset:0;
   background:linear-gradient(180deg, rgba(10,10,12,0) 30%, rgba(10,10,12,.94)); }
-.plate-title { position:absolute; bottom:16px; left:20px; right:20px; font-size:38px;
+.plate-title { position:absolute; bottom:18px; left:20px; right:20px; font-size:44px;
   line-height:1.04; color:var(--ink-bright); text-wrap:pretty; }
-@media (max-width:719px) { .plate { height:150px; } .plate-title { font-size:26px; bottom:12px;
+/* A little bigger since 2026-10-27 (Seth: the head of a scene with a picture "can be a little bigger"). */
+@media (max-width:719px) { .plate { height:190px; } .plate-title { font-size:30px; bottom:12px;
   left:14px; right:14px; } }
 
 .band { display:flex; flex-direction:column; gap:13px; padding:8px 0 10px; }

@@ -10,6 +10,24 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-27 · The picture behind the prose
+
+### Blur it, or put it on the right
+With a tale's picture kept behind the prose, two new switches: Blur it, and Show it on the right,
+fading to the left.
+
+### How much of it shows now reaches further across
+The slider used to change only how strong the picture was, so past a fifth of the way it seemed to
+do nothing. It now also moves where the page takes over, so the picture reaches further across as
+you raise it.
+
+### The picture no longer blinks when Anansi finishes
+The picture behind the prose was drawn again every time the page was, so it blinked when a passage
+landed. It is now drawn again only when you change it.
+
+### A bigger head on a scene with a picture
+The picture at the head of each scene, and the scene's name on it, are a little bigger.
+
 ## 2026-10-27 · A character's voice no longer hides who they are
 
 ### Voice pockets that describe a whole person work again

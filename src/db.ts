@@ -404,6 +404,10 @@ function migrate() {
   // under text is unreadable and one at nothing is not there, so this is the control that makes
   // the treatment usable at all rather than a nice idea. 30 is a default that reads as atmosphere.
   add('stories', 'cover_opacity', 'INTEGER DEFAULT 30');
+  // Two more ways to set the cover behind the prose (Seth, 2026-10-27): blurred, and the picture
+  // whole down the RIGHT side with the gradient running the other way. Off on every tale until set.
+  add('stories', 'cover_blur', 'INTEGER DEFAULT 0');
+  add('stories', 'cover_flip', 'INTEGER DEFAULT 0');
   // The character the model must not write: no dialogue, no action, no interior. Null on every
   // story until somebody names one, which keeps the behaviour of every existing book unchanged.
   // A NAME rather than an entry id, because it also has to work for a protagonist who has no
@@ -2843,7 +2847,8 @@ export function updateStory(id: string, s: any) {
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       spice=?,spice_note=?,max_context=?,status=?,model=?,
-      locked_character=?,lockout_on=?,weaving=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,
+      locked_character=?,lockout_on=?,weaving=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,
+      cover_blur=?,cover_flip=?,auto_open=?,
       lore_from=?,style_note=?,world=?,world_note=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
@@ -2859,6 +2864,9 @@ export function updateStory(id: string, s: any) {
       Number(p('chapterHero', 'chapter_hero') ? 1 : 0),
       Number(p('chapterSticky', 'chapter_sticky') ? 1 : 0),
       Math.max(0, Math.min(100, Number(p('coverOpacity', 'cover_opacity')) || 0)),
+      // Booleans over the wire, integers in the columns, in the columns' own slots.
+      Number(p('coverBlur', 'cover_blur') ? 1 : 0),
+      Number(p('coverFlip', 'cover_flip') ? 1 : 0),
       // A boolean over the wire, an integer in the column, and `undefined` means "leave it" —
       // p() already resolves that to the current value, so a partial save cannot switch it off.
       Number(p('autoOpen', 'auto_open') ? 1 : 0),
@@ -3314,10 +3322,10 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
    * somewhere the world book does not exist, and this lands beside it. A copy of a book set in a
    * world is a book set in that world. */
   q(`UPDATE stories SET lore_from=?, is_world=?, world=?, world_note=?, auto_open=?, look=?,
-       chapter_hero=?, chapter_sticky=?, cover_opacity=?, weaving=? WHERE id=?`)
+       chapter_hero=?, chapter_sticky=?, cover_opacity=?, cover_blur=?, cover_flip=?, weaving=? WHERE id=?`)
     .run(src.lore_from ?? null, src.is_world ?? 0, src.world ?? null, src.world_note ?? null,
       src.auto_open, src.look ?? null, src.chapter_hero, src.chapter_sticky, src.cover_opacity,
-      src.weaving ?? 0, made.id);
+      src.cover_blur ?? 0, src.cover_flip ?? 0, src.weaving ?? 0, made.id);
 
   const ledger = copyLedger(storyId, made.id, ownerId);
   const cards = ledger?.map ?? new Map<string, string>();

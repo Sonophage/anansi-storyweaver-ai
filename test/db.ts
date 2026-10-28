@@ -3475,4 +3475,19 @@ ok('Always true is one row per thread, written switched on, whoever writes it', 
   console.log("  ok  the tale holds pockets of its own, sent while switched on");
 }
 
+// The cover behind the prose, blurred or on the other side (Seth, 2026-10-27).
+ok('a tale keeps its cover blur and flip, a partial save leaves them, and a copy carries them', () => {
+  const o = db.owner('coverfx');
+  const t = db.createStory(o, { title: 'Cover', premise: 'p' });
+  const { view } = { view: (id: string) => db.getStory(id) as any };
+  assert.strictEqual(view(t.id).cover_blur, 0, 'off on a new tale');
+  db.updateStory(t.id, { coverBlur: true, coverFlip: true });
+  assert.deepStrictEqual([view(t.id).cover_blur, view(t.id).cover_flip], [1, 1], 'both save');
+  db.updateStory(t.id, { title: 'Cover again' });
+  assert.deepStrictEqual([view(t.id).cover_blur, view(t.id).cover_flip], [1, 1], 'a save that does not name them leaves them');
+  const copy = db.duplicateStory(o, t.id, 'Cover copy') as any;
+  const cid = copy?.id ?? copy;
+  assert.deepStrictEqual([view(cid).cover_blur, view(cid).cover_flip], [1, 1], 'a copy of the tale carries them');
+});
+
 console.log(`\n${n} checks passed`);

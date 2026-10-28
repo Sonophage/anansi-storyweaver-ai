@@ -1608,9 +1608,26 @@ function drawDoc() {
       // reads off paper down the other. The end colour is the theme's token and not a literal:
       // nine themes, and web/model.js exists because 162 raw hexes meant a theme was only ever
       // half applied.
-      back.innerHTML = `<i style="background-image:url('${api.coverUrl(S.storyId, V.cover)}');
-        opacity:${Math.max(0, Math.min(100, V.story.coverOpacity ?? 30)) / 100}"></i><u></u>`;
-    } else back.innerHTML = '';
+      //
+      // THE SLIDER MOVES THE GRADIENT TOO (Seth, 2026-10-27: past about 20% "the dark gradient
+      // doesn't move"). It set only the picture's strength, and the gradient stayed at its fixed
+      // stop, so on a phone the page went dark a third of the way across whatever the slider said.
+      // `--reach` is how far across the picture shows before the page takes over; 30, the default,
+      // keeps the stops it always had (62% desk, 34% phone, in app.html).
+      // BLURRED and FLIPPED are two more ways to set it: the picture softened, and whole down the
+      // right side with the gradient running the other way.
+      // REBUILT ONLY WHEN IT CHANGED. This ran on every paint, and a new <i> is a new picture: the
+      // backdrop blinked each time the page was drawn, which is the "still refreshing" Seth saw when
+      // a passage landed (2026-10-27).
+      const strength = Math.max(0, Math.min(100, V.story.coverOpacity ?? 30));
+      const key = [S.storyId, V.cover, strength, V.story.coverBlur, V.story.coverFlip].join('|');
+      if (back.dataset.key !== key) {
+        back.dataset.key = key;
+        back.className = `${V.story.coverBlur ? 'blur' : ''} ${V.story.coverFlip ? 'flip' : ''}`.trim();
+        back.innerHTML = `<i style="background-image:url('${api.coverUrl(S.storyId, V.cover)}');
+          opacity:${strength / 100}"></i><u style="--reach:${((strength - 30) / 70).toFixed(3)}"></u>`;
+      }
+    } else { back.innerHTML = ''; back.dataset.key = ''; }
   }
   /* PER CHAPTER, and it was not. Reading mode draws every chapter and handed all of them the ONE
    * plate built here — which carried the OPEN chapter's title, so in a continuous read every chapter
@@ -3728,6 +3745,12 @@ const PANELS = {
             data-story="coverOpacity" value="${V.story.coverOpacity ?? 30}">
           <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
             >${V.story.coverOpacity ?? 30}%</span></div>
+        <label class="line pressable push-12">
+          <input type="checkbox" data-story="coverBlur" ${V.story.coverBlur ? 'checked' : ''}>
+          <span class="body-ink">Blur it</span></label>
+        <label class="line pressable push-8">
+          <input type="checkbox" data-story="coverFlip" ${V.story.coverFlip ? 'checked' : ''}>
+          <span class="body-ink">Show it on the right, fading to the left</span></label>
         ` : ''}` : ''}
 
       ${fields.filter((f) => IDENT.includes(f.k)).map(field).join('')}

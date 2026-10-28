@@ -824,6 +824,17 @@ ok('a chapter wears the book cover as its plate, and the title moves onto it');
   assert.ok(!nodes.get('backdrop').hidden, 'the backdrop shows when the book asks for it');
   assert.match(back, /api\/cover\?story=s-1/, 'and it is the story cover');
   assert.match(back, /opacity:0\.45/, "at the story's own strength, not a constant");
+  // THE SLIDER MOVES THE GRADIENT, and the picture is not rebuilt on a repaint (2026-10-27).
+  assert.match(back, /<u style="--reach:0\.214">/, 'the strength also sets how far the picture reaches');
+  const drawn = nodes.get('backdrop').innerHTML;
+  nodes.get('backdrop').innerHTML = drawn + '<!--kept-->';
+  click({ panel: 'chapters' }); await new Promise((r) => setTimeout(r, 20));
+  assert.match(html('backdrop'), /<!--kept-->/, 'a repaint with nothing changed leaves the picture alone');
+  STORY.story.coverBlur = true; STORY.story.coverFlip = true;
+  click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
+  assert.doesNotMatch(html('backdrop'), /<!--kept-->/, 'a change to it does redraw it');
+  assert.strictEqual(nodes.get('backdrop').className, 'blur flip', 'blurred and flipped when the tale asks');
+  STORY.story.coverBlur = false; STORY.story.coverFlip = false;
   // The plate and the backdrop are two treatments of one picture and must never both be on: the
   // cover would appear twice, once scrolling and once not.
   assert.doesNotMatch(html('col'), /class="plate(?: [^"]*)?"/,
