@@ -10,6 +10,13 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-27 · Hemming no longer makes you wait
+
+### The next scene opens as soon as you press Hem this scene
+Anansi now writes the summary, reads what changed for each thread, and finds new threads and
+threads to retire after the next scene has opened, so you can start writing at once. What it finds
+still arrives on the Workbench, and it takes a little while to appear.
+
 ## 2026-10-27 · A character's voice no longer hides who they are
 
 ### Voice pockets that describe a whole person work again

@@ -1114,6 +1114,150 @@ async function remember(c: Ctx, storyId: string, chapterId: string) {
   return { remembered, chapter: ch.index };
 }
 
+/** What the chapter about to be written should be called, and what it has to do.
+ *
+ *  PROPOSES, writes nothing. The setup panel fills its two fields with this and the writer edits
+ *  them before saving, which is the rule the spark and the ledger queue already follow — the last
+ *  item from round four's list, and the one Seth marked "ready to build, no decision needed".
+ *
+ *  Reads the summaries and the tail of the prose rather than the whole book: what it needs is
+ *  where the story has got to, and the chapter it is naming has nothing in it yet by definition. */
+async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?: unknown) {
+const v = bookOf(storyId);
+const ch = v.chapters.find((x: any) => x.id === chapterId) ?? v.currentChapter;
+  // A STALE SUMMARY STAYS OUT, as it does from the writing prompt: it describes prose that moved.
+  const before = v.chapters.filter((x: any) => x.index < ch.index && summaryReaches(x));
+  // The tail of the previous chapter, narration only. Dialogue may lie, and this is being asked
+  // where the story has GOT to — the same rule extract and remember follow.
+  const tail = narrationOnly(v.passages.filter((p: any) => !p.isBreak)
+    .slice(-6).map((p: any) => p.body).join('\n\n')).slice(-2400);
+  const body = [
+    `THE BOOK: ${v.story.title}. ${v.story.premise ?? ''}`,
+    v.story.setting ? `SETTING: ${v.story.setting}` : '',
+    before.length ? `WHAT HAS HAPPENED:\n${before.map((x: any) =>
+      `Chapter ${x.index}${x.title ? ` — ${x.title}` : ''}: ${x.summary}`).join('\n')}` : '',
+    (v.strings ?? []).filter((x: any) => x.status === 'open').length
+      ? `UNPAID PROMISES: ${(v.strings ?? []).filter((x: any) => x.status === 'open')
+          .map((x: any) => x.title).join('; ')}` : '',
+    tail.trim() ? `THE PROSE ENDS:\n${tail.trim()}` : '',
+    // The writer's own steer, LAST and closest to the instruction, which is where this repo's
+    // measured findings put anything that has to be obeyed. Optional: the button asked for a
+    // suggestion with no way to say what it should be about until 2026-08-30.
+    String(steer ?? '').trim() ? `THE WRITER WANTS THIS CHAPTER TO: ${String(steer).trim()}` : '',
+    `NAME CHAPTER ${ch.index}, SAY HOW IT OPENS, AND SAY WHERE IT IS GOING.`,
+  ].filter(Boolean).join('\n\n');
+
+  // The note is the point of this call, not a bonus on the title: it rides near the generation
+  // point on EVERY call while the chapter is being written, which is what CHAPTER's own prompt
+  // says. `required` in the schema only guarantees the key is there, so a blank one is legal and
+  // one arrived on 2026-08-28 — a named chapter, an empty beat box, and a toast saying Anansi
+  // had suggested both. 40 characters is well under the three-to-six sentences asked for; it is
+  // a floor against emptiness, not a quality bar, because a quality bar here would be a taste
+  // judgement made by a length.
+  const enough = (d: any) => String(d?.title ?? '').trim().length > 0
+    && String(d?.note ?? '').trim().length >= 40;
+  const r = await structuredRetry(CHAPTER, body, CHAPTER_SCHEMA,
+    { model: writerModel(c, v), max_tokens: CHAPTER_TOKENS }, enough);
+  if (!r.data?.title) return { error: r.error ?? 'nothing usable came back' };
+  // Past the retry and still short: hand back what there is and SAY the beat is missing. A title
+  // alone is worth having, and the surface must not present an empty box as a filled one.
+  const note = String(r.data.note ?? '').trim();
+  // `opens` rides back beside the note. Not in `enough` above: the retry is spent on the note,
+  // which is the long one and the one that was arriving blank, and a second length bar would
+  // spend a whole extra call on a sentence the writer can type in five seconds.
+  const opens = String(r.data.opens ?? '').trim();
+  return { chapterId: ch.id, title: String(r.data.title).trim(), note, opens,
+    ...(note.length >= 40 ? {} : { noteMissing: true }) };
+}
+
+/** #89 · HEM THIS SCENE, AFTER THE ANSWER. The end-scene route closes the scene, opens the next,
+ *  answers, and leaves this to run: summary, thread changes, new threads, retirements, then the
+ *  next scene's suggestion. The record (`db.beginHem`) is written before the answer, so the view the
+ *  route returns already shows the hem running.
+ *
+ *  ONE HEM PER TALE AT A TIME. Two slots and no queue (F13): a second hem on the same tale waits
+ *  for the first rather than doubling the load on the model. Other tales do not wait.
+ *
+ *  THE PAYER RIDES ALONG. `payFor` (src/llama.ts) sets it on the request's async context, and the
+ *  chain below is built inside the request, so every pass is on the same Featherless plan the
+ *  request was.
+ *
+ *  ponytail: the queue lives in this process. A restart mid-hem leaves the row with no finished_at,
+ *  and the view reads it as running for good. Ceiling: one process, no restarts during a hem.
+ *  Trigger to revisit: a "running" hem seen after a restart; then mark unfinished rows stopped at boot. */
+const hemQueue = new Map<string, Promise<void>>();
+/** Settles when every hem queued on this tale has finished. Tests wait on it; nothing else should. */
+export const hemSettled = (storyId: string): Promise<void> => hemQueue.get(storyId) ?? Promise.resolve();
+
+type HemWant = { summary: boolean; memory: boolean; facts: boolean; finished: boolean };
+function hem(c: Ctx, storyId: string, closing: string, opened: string, want: HemWant) {
+  db.beginHem(storyId, closing);
+  const mine = hemSettled(storyId).then(() => hemPasses(c, storyId, closing, opened, want)).catch(() => {});
+  hemQueue.set(storyId, mine);
+  void mine.then(() => { if (hemQueue.get(storyId) === mine) hemQueue.delete(storyId); });
+}
+
+async function hemPasses(c: Ctx, storyId: string, closing: string, opened: string, want: HemWant) {
+  /** WHICH OF THE PASSES DID NOT RUN, and why. Issue #32: "Facts are not being written
+   *  based on the last chapter anymore."
+   *
+   *  Every pass here was wrapped in a bare `catch {}` so that a chapter can still close with the
+   *  model down — which is right, and which also meant a writer got an empty queue and no reason
+   *  for it. The surface's own comment claimed "the screen says which one did not run"; nothing
+   *  was handed back for it to say, and the client threw the two returned values away.
+   *
+   *  Both channels, because these functions use both: `summarise` and `remember` THROW, while
+   *  `extract` and `retire` also RETURN `{ error }` for the cases they can name themselves
+   *  ("nothing to read in this chapter"). Reporting only thrown errors would have left the most
+   *  common silent case silent. Since #89 the report is stored on the hem's row, not returned.
+   */
+  const passes: Record<string, string | null> = {};
+  const run = async (name: string, on: boolean, fn: () => Promise<any>) => {
+    if (!on) return null;
+    try {
+      const out = await fn();
+      passes[name] = out?.error ?? null;
+      return out;
+    } catch (e: any) {
+      passes[name] = e?.message ?? 'the model did not answer';
+      return null;
+    }
+  };
+  // Summarise on close rather than on a button nobody remembers. Summaries are what bound
+  // the context without the budget engine; leaving it manual leaves the bound optional.
+  //
+  // YOURS IS KEPT (#46). No `replace` here, so `summarise` refuses over a summary the writer
+  // saved by hand. That is the pass doing its job, not failing: it is reported as `keptSummary`
+  // and not in `passes`, which the surface reads as "did not run".
+  const summed = await run('summary', want.summary, () => summarise(c, storyId, closing));
+  const keptSummary = summed?.kept === true;
+  if (keptSummary) passes.summary = null;
+  // The character memory, on the same terms: a chapter must be able to close with the model down.
+  await run('memory', want.memory, () => remember(c, storyId, closing));
+  // And read it for facts. The comment above summarise applies to this word for word: the ledger
+  // is the only tier that survives compaction — prose falls out of the chapter window, summaries
+  // roll into arcs, and entries are re-sent on every call forever — so leaving the tier that
+  // outlives everything on a button nobody remembers leaves the memory optional.
+  //
+  // Measured on 2026-08-27: twelve entries in the whole database, every one of them always_on,
+  // eleven with `keys` that are just the entry's own title. That is what a manual button
+  // produced over a book. PROPOSALS, so nothing becomes canon without being accepted.
+  //
+  // The end-chapter ritual used to make this call itself as its own step 3. It must not again:
+  // the scene would be read twice, and the surface would report on a pass that did not land.
+  await run('facts', want.facts, () => extract(c, storyId, closing));
+  // And ask which of them the chapter FINISHED. Last of the four deliberately: it is the only
+  // step that takes something away, and a writer reading the queue should meet what the chapter
+  // added before what it ended. Nothing is written here either — a retirement is a proposal, and
+  // accepting one is the only decision in the app that changes what the model is told for the
+  // rest of the book.
+  await run('finished', want.finished, () => retire(c, storyId, closing));
+  // The next scene's suggestion, last: it reads the summary the first pass just wrote.
+  const next = await run('next', true, () => suggestScene(c, storyId, opened));
+  db.finishHem(storyId, closing, { passes, kept: keptSummary,
+    suggestion: next?.title ? { title: next.title, note: next.note, opens: next.opens } : null });
+}
+
 /** Read a chapter for facts and put them in the queue as PROPOSALS.
  *
  *  Named rather than inline in its route since 2026-08-27, because the chapter close calls it too —
@@ -2501,61 +2645,9 @@ export const routes: Record<string, Handler> = {
           note: 'already basted — it is under This scene', proposals: db.proposalsOf(v.id) };
   },
 
-  /** What the chapter about to be written should be called, and what it has to do.
-   *
-   *  PROPOSES, writes nothing. The setup panel fills its two fields with this and the writer edits
-   *  them before saving, which is the rule the spark and the ledger queue already follow — the last
-   *  item from round four's list, and the one Seth marked "ready to build, no decision needed".
-   *
-   *  Reads the summaries and the tail of the prose rather than the whole book: what it needs is
-   *  where the story has got to, and the chapter it is naming has nothing in it yet by definition. */
-  'POST /api/chapter/propose': async (c: Ctx) => {
-    const v = viewOf(c, c.body.storyId);
-    const ch = v.chapters.find((x: any) => x.id === c.body.chapterId) ?? v.currentChapter;
-    // A STALE SUMMARY STAYS OUT, as it does from the writing prompt: it describes prose that moved.
-    const before = v.chapters.filter((x: any) => x.index < ch.index && summaryReaches(x));
-    // The tail of the previous chapter, narration only. Dialogue may lie, and this is being asked
-    // where the story has GOT to — the same rule extract and remember follow.
-    const tail = narrationOnly(v.passages.filter((p: any) => !p.isBreak)
-      .slice(-6).map((p: any) => p.body).join('\n\n')).slice(-2400);
-    const body = [
-      `THE BOOK: ${v.story.title}. ${v.story.premise ?? ''}`,
-      v.story.setting ? `SETTING: ${v.story.setting}` : '',
-      before.length ? `WHAT HAS HAPPENED:\n${before.map((x: any) =>
-        `Chapter ${x.index}${x.title ? ` — ${x.title}` : ''}: ${x.summary}`).join('\n')}` : '',
-      (v.strings ?? []).filter((x: any) => x.status === 'open').length
-        ? `UNPAID PROMISES: ${(v.strings ?? []).filter((x: any) => x.status === 'open')
-            .map((x: any) => x.title).join('; ')}` : '',
-      tail.trim() ? `THE PROSE ENDS:\n${tail.trim()}` : '',
-      // The writer's own steer, LAST and closest to the instruction, which is where this repo's
-      // measured findings put anything that has to be obeyed. Optional: the button asked for a
-      // suggestion with no way to say what it should be about until 2026-08-30.
-      String(c.body.steer ?? '').trim() ? `THE WRITER WANTS THIS CHAPTER TO: ${String(c.body.steer).trim()}` : '',
-      `NAME CHAPTER ${ch.index}, SAY HOW IT OPENS, AND SAY WHERE IT IS GOING.`,
-    ].filter(Boolean).join('\n\n');
-
-    // The note is the point of this call, not a bonus on the title: it rides near the generation
-    // point on EVERY call while the chapter is being written, which is what CHAPTER's own prompt
-    // says. `required` in the schema only guarantees the key is there, so a blank one is legal and
-    // one arrived on 2026-08-28 — a named chapter, an empty beat box, and a toast saying Anansi
-    // had suggested both. 40 characters is well under the three-to-six sentences asked for; it is
-    // a floor against emptiness, not a quality bar, because a quality bar here would be a taste
-    // judgement made by a length.
-    const enough = (d: any) => String(d?.title ?? '').trim().length > 0
-      && String(d?.note ?? '').trim().length >= 40;
-    const r = await structuredRetry(CHAPTER, body, CHAPTER_SCHEMA,
-      { model: writerModel(c, v), max_tokens: CHAPTER_TOKENS }, enough);
-    if (!r.data?.title) return { error: r.error ?? 'nothing usable came back' };
-    // Past the retry and still short: hand back what there is and SAY the beat is missing. A title
-    // alone is worth having, and the surface must not present an empty box as a filled one.
-    const note = String(r.data.note ?? '').trim();
-    // `opens` rides back beside the note. Not in `enough` above: the retry is spent on the note,
-    // which is the long one and the one that was arriving blank, and a second length bar would
-    // spend a whole extra call on a sentence the writer can type in five seconds.
-    const opens = String(r.data.opens ?? '').trim();
-    return { chapterId: ch.id, title: String(r.data.title).trim(), note, opens,
-      ...(note.length >= 40 ? {} : { noteMissing: true }) };
-  },
+  /** What the scene about to be written should be called, and what it has to do. The body is
+   *  `suggestScene`, which a hem also runs (#89); this route stays for the client's own button. */
+  'POST /api/chapter/propose': (c: Ctx) => suggestScene(c, c.body.storyId, c.body.chapterId, c.body.steer),
   'POST /api/chapter/end': async (c) => {
     // Closing a chapter is standing behind everything in it.
     db.claimPassages(c.body.storyId);
@@ -2565,64 +2657,11 @@ export const routes: Record<string, Handler> = {
       body: c.body.note ?? '', author: 'human', isBreak: true });
     const closing = v.currentChapter.id;
     const r = db.endChapter(v.id, v.branchId!, c.body.nextTitle);
-
-    /** WHICH OF THE FOUR PASSES DID NOT RUN, and why. Issue #32: "Facts are not being written
-     *  based on the last chapter anymore."
-     *
-     *  Every pass here was wrapped in a bare `catch {}` so that a chapter can still close with the
-     *  model down — which is right, and which also meant a writer got an empty queue and no reason
-     *  for it. The surface's own comment claimed "the screen says which one did not run"; nothing
-     *  was handed back for it to say, and the client threw the two returned values away.
-     *
-     *  Both channels, because these functions use both: `summarise` and `remember` THROW, while
-     *  `extract` and `retire` also RETURN `{ error }` for the cases they can name themselves
-     *  ("nothing to read in this chapter"). Reporting only thrown errors would have left the most
-     *  common silent case silent.
-     */
-    const passes: Record<string, string | null> = {};
-    const run = async (name: string, want: boolean, fn: () => Promise<any>) => {
-      if (!want) return null;
-      try {
-        const out = await fn();
-        passes[name] = out?.error ?? null;
-        return out;
-      } catch (e: any) {
-        passes[name] = e?.message ?? 'the model did not answer';
-        return null;
-      }
-    };
-    // Summarise on close rather than on a button nobody remembers. Summaries are what bound
-    // the context without the budget engine; leaving it manual leaves the bound optional.
-    //
-    // YOURS IS KEPT (#46). No `replace` here, so `summarise` refuses over a summary the writer
-    // saved by hand. That is the pass doing its job, not failing: it is reported as `keptSummary`
-    // and not in `passes`, which the surface reads as "did not run".
-    const summed = await run('summary', c.body.summarise !== false, () => summarise(c, v.id, closing));
-    const keptSummary = summed?.kept === true;
-    if (keptSummary) passes.summary = null;
-    // The character memory, on the same terms: a chapter must be able to close with the model down.
-    await run('memory', c.body.remember !== false, () => remember(c, v.id, closing));
-    // And read it for facts. The comment above summarise applies to this word for word: the ledger
-    // is the only tier that survives compaction — prose falls out of the chapter window, summaries
-    // roll into arcs, and entries are re-sent on every call forever — so leaving the tier that
-    // outlives everything on a button nobody remembers leaves the memory optional.
-    //
-    // Measured on 2026-08-27: twelve entries in the whole database, every one of them always_on,
-    // eleven with `keys` that are just the entry's own title. That is what a manual button
-    // produced over a book. PROPOSALS, so nothing becomes canon without being accepted.
-    //
-    // RETURNED, not just done. The end-chapter ritual used to make this call itself as its own
-    // step 3, so moving it here without handing the answer back would have run the extractor
-    // twice per close — one wasted model call, and a surface that reports on a different pass
-    // from the one that happened.
-    const extracted = await run('facts', c.body.extract !== false, () => extract(c, v.id, closing));
-    // And ask which of them the chapter FINISHED. Last of the four deliberately: it is the only
-    // step that takes something away, and a writer reading the queue should meet what the chapter
-    // added before what it ended. Nothing is written here either — a retirement is a proposal, and
-    // accepting one is the only decision in the app that changes what the model is told for the
-    // rest of the book.
-    const retired = await run('finished', c.body.retire !== false, () => retire(c, v.id, closing));
-    return { ...r, extracted, retired, passes, keptSummary, ...viewOf(c, v.id) };
+    // #89. THE PASSES RUN AFTER THE ANSWER: the writer starts the next scene while they work, and
+    // the view shows the hem running, then done.
+    hem(c, v.id, closing, r.opened, { summary: c.body.summarise !== false, memory: c.body.remember !== false,
+      facts: c.body.extract !== false, finished: c.body.retire !== false });
+    return { ...r, ...viewOf(c, v.id) };
   },
 
   // ---- history & revert. §7.4's safety argument is "you can revert" — this is the revert. ----

@@ -1227,7 +1227,7 @@ ok('the delegation refuses html and body outright');
     ['the writing prompt (EARLIER)',
       region('context', 'for (const c of chapters) {', "add('EARLIER', c.id")],
     ['the act roll-up', region('routes', "'POST /api/rollup'", 'db.addArc(')],
-    ['chapter proposals', region('routes', "'POST /api/chapter/propose'", 'WHAT HAS HAPPENED')],
+    ['chapter proposals', region('routes', 'async function suggestScene(', 'WHAT HAS HAPPENED')],
     ['a chapter named in a question', region('routes', "m?.kind === 'chapter'", "m?.kind === 'book'")],
   ];
   for (const [who, src] of readers)

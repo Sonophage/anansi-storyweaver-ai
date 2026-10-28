@@ -760,6 +760,19 @@ CREATE TABLE IF NOT EXISTS proposals (
 CREATE UNIQUE INDEX IF NOT EXISTS proposals_dedupe ON proposals(story_id, content_hash)
   WHERE status = 'open';
 
+-- #89. ONE ROW PER HEMMED SCENE, holding only what is stored nowhere else: when the hem started and
+-- finished, the fingerprint of the scene's prose when it started (proseHash, the one summaryCover
+-- uses), which pass did not run and why (#32, JSON), whether the writer's own summary was kept,
+-- and the next-scene suggestion (JSON: title, note, opens). Running is finished_at NULL. Out of date
+-- is derived on read and never stored. A hem again replaces the row.
+CREATE TABLE IF NOT EXISTS hems (
+  chapter_id TEXT PRIMARY KEY REFERENCES chapters(id) ON DELETE CASCADE,
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  started_at INTEGER NOT NULL, finished_at INTEGER,
+  prose_hash TEXT NOT NULL,
+  passes TEXT, kept INTEGER DEFAULT 0, suggestion TEXT);
+CREATE INDEX IF NOT EXISTS hems_story ON hems(story_id);
+
 -- SPEC 7.1. Per-chapter overrides on the ledger: force a fact in for a scene where it
 -- matters but nobody says its keyword, or force one out to keep a reveal sealed.
 --
@@ -1697,6 +1710,35 @@ export function summaryCover(chapterId: string): { passages: any[]; through: num
   const ps = all.filter((p: any) => !p.is_break && p.body.trim());
   if (!ps.length) return null;
   return { passages: ps, through: ps.at(-1)!.ordinal, hash: proseHash(all.map((p: any) => p.body)) };
+}
+
+/** #89. The fingerprint a hem is checked against: the scene's selected prose, breaks included, hashed
+ *  as `summaryStale` hashes it. An edit, a reweave or a delete in the scene changes it. */
+const scenePrint = (chapterId: string) => proseHash(passagesOfChapter(chapterId).map((p: any) => p.body));
+
+/** A hem starts: the row is written, or replaced by a hem again, before any pass runs. */
+export const beginHem = (storyId: string, chapterId: string) =>
+  q(`INSERT OR REPLACE INTO hems (chapter_id, story_id, started_at, finished_at, prose_hash, passes, kept, suggestion)
+     VALUES (?, ?, ?, NULL, ?, NULL, 0, NULL)`).run(chapterId, storyId, now(), scenePrint(chapterId));
+
+/** A hem ends, with its pass report and the next-scene suggestion (null when that pass gave none). */
+export const finishHem = (storyId: string, chapterId: string,
+    r: { passes: Record<string, string | null>; kept: boolean; suggestion: { title: string; note: string; opens: string } | null }) =>
+  q('UPDATE hems SET finished_at = ?, passes = ?, kept = ?, suggestion = ? WHERE chapter_id = ? AND story_id = ?')
+    .run(now(), JSON.stringify(r.passes), r.kept ? 1 : 0, r.suggestion ? JSON.stringify(r.suggestion) : null,
+      chapterId, storyId);
+
+/** Every hemmed scene of a tale, by chapter id, as the story view shows it. `outOfDate` is derived
+ *  here, on read: the scene's prose now against its fingerprint when the hem started. */
+export function hemsOf(storyId: string): Map<string, any> {
+  const rows = q('SELECT * FROM hems WHERE story_id = ?').all(storyId) as any[];
+  const json = (t: string | null) => { try { return t ? JSON.parse(t) : null; } catch { return null; } };
+  return new Map(rows.map((h) => [h.chapter_id, {
+    state: h.finished_at == null ? 'running' : 'done',
+    startedAt: h.started_at, finishedAt: h.finished_at ?? null,
+    passes: json(h.passes) ?? {}, keptSummary: !!h.kept, suggestion: json(h.suggestion),
+    outOfDate: scenePrint(h.chapter_id) !== h.prose_hash,
+  }]));
 }
 
 /** A SUMMARY SAVED BY HAND (#43). It is checked against the chapter's prose as it is now: the

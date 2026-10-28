@@ -46,16 +46,33 @@ let tidied: any = {};
 /** And what REDO returns (#74): one section written again. */
 let redone = '';
 
+/** #89. A fake that HOLDS its answer while `gate` is pending: how a test proves the hem answers
+ *  before its passes do, and that a second hem waits for the first. `inflight` counts asks being
+ *  held at once. `failIf` answers 500 to an ask whose system prompt it matches: one pass failing. */
+let gate: Promise<void> | null = null;
+let inflight = 0, mostInflight = 0;
+let failIf: ((system: string) => boolean) | null = null;
+/** Every ask, in order. A hem runs five passes after its answer, so the last ask is no longer the
+ *  one a test means: `askOf` finds the latest ask made with one role's prompt. */
+const asks: any[] = [];
+const askOf = (prompt: string) => asks.findLast((a) => a.system.startsWith(prompt.slice(0, 80)));
+
 const srv = createServer((req, res) => {
   let raw = '';
   req.on('data', (d) => { raw += d; });
-  req.on('end', () => {
+  req.on('end', async () => {
     const b = JSON.parse(raw || '{}');
     const send = (o: unknown) => { res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(o)); };
     if (req.url === '/tokenize') return send({ tokens: Array.from({ length: 200 }, (_, i) => i) });
     calls++;
     asked = { system: b.messages?.[0]?.content ?? '', user: b.messages?.[1]?.content ?? '' };
+    asks.push(asked);
+    // Only an ask is held: the client's health probe must still answer, or it reports the model down.
+    if (b.messages) { inflight++; mostInflight = Math.max(mostInflight, inflight);
+      if (gate) await gate;
+      inflight--; }
+    if (failIf?.(asked.system)) { res.writeHead(500); return res.end('{"error":"held down"}'); }
     if (summed !== null) return send({ choices: [{ message: { content: summed } }],
       usage: { prompt_tokens: 200, completion_tokens: 60 } });
     send({ choices: [{ message: { content: JSON.stringify({ ...tidied, body: redone, threads: answer, entries: found,
@@ -67,7 +84,7 @@ await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
 process.env.ANANSI_LLAMA = `http://127.0.0.1:${(srv.address() as any).port}`;
 
 const db = await import('../src/db.ts');
-const { routes } = await import('../src/routes.ts');
+const { routes, hemSettled } = await import('../src/routes.ts');
 const { resolveBody } = await import('../src/context.ts');
 const prompts = await import('../src/prompts.ts');
 
@@ -82,6 +99,12 @@ const chapterId = (db.chapters(story.id)[0] as any).id;
 const ctx = (body: any) => ({ body, query: new URLSearchParams(), owner: me,
   slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: { max_tokens: 400 }, setGen: () => {},
   defaultModel: null, setDefaultModel: () => {}, admin: true }) as any;
+
+const sceneOf = (v: any, id: string) => (v.chapters ?? []).find((c: any) => c.id === id) ?? {};
+// The story view as every route builds it, without GET /api/story: opening a book prewarms the model,
+// and a warm is an ask this fake would count.
+const { view } = await import('../src/story.ts');
+const viewNow = (id: string) => view(id) as any;
 
 let n = 0;
 // Message only — assertions run inline above. db.ts, engine.ts and stream.ts take a callback and
@@ -133,18 +156,18 @@ const ok = (m: string, fn?: unknown) => {
 {
   const before = db.proposalsOf(story.id).length;
   found = [{ title: 'The Dead God', body: 'The city is built on its back.', type: 'lore', keys: ['god'] }];
+  const closing = (db.chapters(story.id).at(-1) as any).id;
   const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: story.id }));
   assert.ok(!r.error, r.error);
+  await hemSettled(story.id);
   const after = db.proposalsOf(story.id);
   assert.ok(after.length > before,
     `closing a chapter must read it for facts: ${before} proposals before, ${after.length} after`);
   assert.ok(after.some((p: any) => p.title === 'The Dead God'),
     'and what it found must be in the queue');
-  // HANDED BACK, not merely done. The end-chapter ritual reports this rather than making its own
-  // extract call — without the answer on the response it would call again, and every chapter
-  // close would cost two model calls to say one thing.
-  assert.ok(r.extracted, 'the close must return what it found, or the surface asks a second time');
-  assert.strictEqual(r.extracted.added, 1, 'with the count the ritual prints');
+  // REPORTED, not merely done (#32): the hem's record says the facts pass ran (#89).
+  const hem = (await viewNow(story.id)).chapters.find((c: any) => c.id === closing)?.hem;
+  assert.strictEqual(hem?.passes?.facts, null, `the hem reports the facts pass ran (${hem?.passes?.facts})`);
   // Proposals, never writes. The whole reason this is safe to fire on its own.
   assert.ok(!db.entriesOf(story.id).some((e: any) => e.title === 'The Dead God'),
     'nothing may become canon without being accepted');
@@ -158,6 +181,7 @@ const ok = (m: string, fn?: unknown) => {
     body: 'A second chapter, with a fact in it.' });
   found = [{ title: 'Never Proposed', body: 'Because extraction was switched off.', type: 'lore', keys: ['never'] }];
   await routes['POST /api/chapter/end'](ctx({ storyId: story.id, extract: false }));
+  await hemSettled(story.id);
   assert.ok(!db.proposalsOf(story.id).some((p: any) => p.title === 'Never Proposed'),
     'extract: false must switch it off, the way summarise: false and remember: false do');
   ok('and extract: false opts out of it');
@@ -438,17 +462,18 @@ let retProposal: any;
   asked = null;
   const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: story.id }));
   assert.ok(!r.error, r.error);
+  await hemSettled(story.id);
 
-  // `retire` runs LAST of the four, so `asked` is its ask.
+  // The next-scene suggestion runs after `retire` (#89), so its ask is found by its prompt.
+  asked = askOf(prompts.RETIRE);
   assert.ok(asked.user.includes('Vel went down on the stair'), 'the narration reaches the scan');
   assert.ok(!asked.user.includes('She is fine'),
     'and the porter does not — a character SAYS she is fine, and dialogue does not commit the story');
   assert.ok(asked.user.includes(BEFORE) || asked.user.includes(AFTER),
     'the description in force is seeded, so the judgement is about the card the book actually has');
 
-  // The denominator rides in the runtime answer, not only in the probe.
-  assert.strictEqual(r.retired?.proposed, 1);
-  assert.ok((r.retired?.eligible ?? 0) >= 1, 'and it says how many the chapter named');
+  assert.strictEqual(db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length, 1,
+    'the close proposes the one retirement the scene supports');
 
   retProposal = db.proposalsOf(story.id).find((p: any) => p.entry_type === 'retire');
   assert.ok(retProposal, 'a retirement proposal exists');
@@ -527,14 +552,13 @@ let retProposal: any;
     body: 'The Long Stair was empty and the rain came in sideways.' });
   finished = [{ card: 'Vel', quote: 'invented out of nothing, and not in the prose at all' }];
   const before = db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length;
-  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: story.id }));
-  assert.strictEqual(db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length,
-    before, 'a card this chapter never names must not be retirable through it');
+  await routes['POST /api/chapter/end'](ctx({ storyId: story.id }));
+  await hemSettled(story.id);
   // The model named a card that was never on its list. In production the enum makes that
   // impossible; the route checks anyway, because the constraint is the router's to honour and
   // this is the one answer that decides what the model stops being told.
-  assert.strictEqual(r.retired?.proposed, 0,
-    'a name that was never offered must produce nothing, whatever the model returns');
+  assert.strictEqual(db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length,
+    before, 'a card this chapter never names must not be retirable through it');
   ok('a card the closing chapter never names is never offered to the scan, and cannot be smuggled in');
 }
 
@@ -545,6 +569,7 @@ let retProposal: any;
   finished = [{ card: 'The Long Stair', quote: 'The Long Stair went on being a stair with no landing' }];
   const before = db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length;
   await routes['POST /api/chapter/end'](ctx({ storyId: story.id, retire: false }));
+  await hemSettled(story.id);
   assert.strictEqual(db.proposalsOf(story.id).filter((p: any) => p.entry_type === 'retire').length,
     before, 'retire: false must switch it off, the way summarise/remember/extract: false do');
   ok('and retire: false opts out of it');
@@ -782,14 +807,15 @@ ok('the house style is written from the genre and the premise, and never from th
   // Yours, and stale: written against prose the chapter no longer has.
   const MINE = 'Mara crosses by day. \u2014 mine, with an odd  space.';
   db.setSummary(first, MINE, 1, 'not-this-prose', 'human');
-  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: book.id }));
-  const one = (r.chapters ?? []).find((c: any) => c.id === first) ?? {};
+  await routes['POST /api/chapter/end'](ctx({ storyId: book.id }));
+  await hemSettled(book.id);
+  const one = sceneOf(await viewNow(book.id), first);
   assert.strictEqual(one.summary, MINE, 'closing leaves your summary byte-identical');
   assert.strictEqual(one.summaryAuthor, 'human', '  and still yours');
-  assert.strictEqual(r.keptSummary, true, '  and the close reports it kept your summary');
-  assert.ok(!r.passes?.summary, `  not as a pass that failed (${r.passes?.summary})`);
-  assert.ok(['memory', 'facts', 'finished'].every((k) => k in (r.passes ?? {})),
-    `  the other passes ran (${Object.keys(r.passes ?? {}).join(', ')})`);
+  assert.strictEqual(one.hem?.keptSummary, true, '  and the hem reports it kept your summary');
+  assert.ok(!one.hem?.passes?.summary, `  not as a pass that failed (${one.hem?.passes?.summary})`);
+  assert.ok(['memory', 'facts', 'finished'].every((k) => k in (one.hem?.passes ?? {})),
+    `  the other passes ran (${Object.keys(one.hem?.passes ?? {}).join(', ')})`);
   ok('closing a chapter keeps your summary, even stale, runs the other passes, and says so');
 }
 
@@ -913,6 +939,42 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.strictEqual(db.proposal(t.id, p.id).status, 'open', 'UNDO-REJECT: a rejected section is back on the Workbench');
   ok('Anansi edits one section on a steer, still chalked, and a reject can be undone');
 }
+
+// ---- #89 · HEM IN THE BACKGROUND ----
+//
+// Pressing Hem this scene closes the scene and opens the next at once; the passes run after the
+// answer. A fake that holds every ask proves it: if the route waited on a pass, it would wait here.
+const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bell, and somebody on the far bank is waiting for it.',
+  opens: 'The river was low.' };
+{
+  const t = db.createStory(me, { title: 'Background hem', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Oren cut the bell down from the ferry post and carried it home.' });
+  answer = [{ name: 'Oren', stands: '[Oren: the ferryman, who has taken the ferry bell home]', label: 'took the bell',
+    line: 'Oren cut the bell down from the ferry post', always: '', pockets: [] }];
+  found = [{ title: 'The Ferry Bell', body: 'Bronze, green with river damp.', type: 'item', keys: ['bell'] }];
+  finished = []; tidied = { ...NEXT };
+  let release!: () => void;
+  gate = new Promise<void>((r) => { release = r; });
+  const r: any = await Promise.race([routes['POST /api/chapter/end'](ctx({ storyId: t.id })),
+    new Promise((r) => setTimeout(() => r('held'), 3000))]);
+  assert.notStrictEqual(r, 'held', 'HEM-AT-ONCE: the hem answers while the model is still holding its first ask');
+  assert.notStrictEqual(r.currentChapter?.id, ch0.id, '  with the next scene open');
+  assert.strictEqual(sceneOf(r, ch0.id).hem?.state, 'running', 'HEM-RUNNING: the view shows the hem running');
+  release(); gate = null;
+  await hemSettled(t.id);
+  tidied = {};
+  const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.strictEqual(hem?.state, 'done', 'HEM-DONE: and done once the passes settle');
+  assert.deepStrictEqual(Object.keys(hem.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary'],
+    `  with a report on every pass (${Object.keys(hem.passes)})`);
+  assert.deepStrictEqual(hem.suggestion, NEXT, 'HEM-NEXT: and the next-scene suggestion');
+  assert.strictEqual(hem.outOfDate, false, '  and nothing has changed since');
+  ok('hem answers at once, and the view shows it running, then done with its report and suggestion');
+}
+
 
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter

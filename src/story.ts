@@ -85,7 +85,10 @@ export const anansiOf = (owner: string) => db.promptsOf(owner).anansi?.trim() ||
 export function view(storyId: string, focusChapterId?: string) {
   const s = db.getStory(storyId);
   if (!s) return null;
-  const chapters = db.chapters(storyId).map(toChapter);
+  // #89. Each hemmed scene carries its hem: running or done, the pass report, the suggestion, and
+  // whether the scene changed since. Null on a scene never hemmed through the background hem.
+  const hems = db.hemsOf(storyId);
+  const chapters = db.chapters(storyId).map((c: any) => ({ ...toChapter(c), hem: hems.get(c.id) ?? null }));
   const branches = db.branchesOf(storyId);
   const variants = db.variantsBySlot(storyId);
   const states = db.statesForStory(storyId);
