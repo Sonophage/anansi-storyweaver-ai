@@ -2216,6 +2216,40 @@ function holdsLock(e: any, st: any): boolean {
     && String(a.body ?? '').includes(YOURS_VOICE(who))));
 }
 
+/** #114 · WHAT A TIDY'S POCKETS STAND IN FOR. Tidy sorts the whole thread, so its pockets are the
+ *  thread's whole set, kind by kind. A trial on the real model returned a new pocket for every kind
+ *  and named what it replaced for one only, and sewn in, the old ones stayed beside the new.
+ *
+ *  Per kind the answer names: an answered pocket stands in for the pockets its `replaces` names (the
+ *  first is rewritten, the rest are merged away), then any answered pocket still unmatched takes the
+ *  next unmatched old pocket of its kind, in order, and any old pocket still left over is merged away
+ *  by the first answered pocket of the kind. A kind the answer does not name is left alone; so is
+ *  Always true, and the lock pocket (`holdsLock`): with `lock`, no voice pocket on either side.
+ *  Pure: `existing` is the thread's pockets, the result is one row per answered pocket to chalk. */
+export function tidyPockets(existing: any[], answer: unknown, kinds: string[], lock: boolean) {
+  const usable = (slot: string) => slot !== 'facts' && kinds.includes(slot) && !(lock && slot === 'voice');
+  const out = ((Array.isArray(answer) ? answer : []) as any[])
+    .map((pk) => ({ slot: String(pk?.slot ?? ''), body: String(pk?.body ?? '').trim(),
+      name: String(pk?.name ?? '').trim().slice(0, 60) || null, replaces: pk?.replaces,
+      target: null as string | null, merges: [] as string[] }))
+    .filter((p) => p.body && usable(p.slot));
+  const key = (n: unknown) => String(n ?? '').trim().toLowerCase();
+  for (const slot of new Set(out.map((p) => p.slot))) {
+    const mine = out.filter((p) => p.slot === slot);
+    const left = existing.filter((a) => a.slot === slot);
+    const take = (a: any) => { left.splice(left.indexOf(a), 1); return a.id as string; };
+    for (const p of mine) {
+      const names = [...new Set((Array.isArray(p.replaces) ? p.replaces : [p.replaces]).map(key).filter(Boolean))];
+      const was: string[] = [];
+      for (const n of names) { const a = left.find((x) => key(x.name) === n); if (a) was.push(take(a)); }
+      p.target = was[0] ?? null; p.merges = was.slice(1);
+    }
+    for (const p of mine) if (!p.target && left.length) p.target = take(left[0]);
+    mine[0].merges.push(...left.map((a) => a.id));
+  }
+  return out.map(({ replaces: _r, ...p }) => p);
+}
+
 /** ONE SPARK THREAD, as the cast and Try it on both return it: Always true in the body, which
  *  POST /api/stories moves into `facts`, and its pockets as rooms, switched on, from its kind's list
  *  only (`writeRooms` writes them as the tale is made). */
@@ -4858,21 +4892,11 @@ export const routes: Record<string, Handler> = {
     if (stands && stands !== db.plainStands(inForce?.body ?? e.body, [e.title]) && db.addProposal(v.id, inForce
       ? { ...base, body: stands, entryType: 'state', keys: [String(inForce.fromChapter)], delta: inForce.label || 'tidied' }
       : { ...base, body: stands })) added++;
-    const kinds = slotsFor(e.entryType).map((sl) => sl.name), replaced = new Set<string>();
-    for (const pk of (Array.isArray(r.data.pockets) ? r.data.pockets : []) as any[]) {
-      const field = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
-      if (field === 'facts' || !kinds.includes(field) || !body || (lock && field === 'voice')) continue;
-      // #114 · A MERGE NAMES EVERY POCKET IT REPLACES: the first is rewritten, the rest go when it is
-      // sewn in. Only this thread's pockets of the same kind, each once, and never one already taken
-      // by an earlier pocket of this answer.
-      const names = (Array.isArray(pk?.replaces) ? pk.replaces : [pk?.replaces])
-        .map((n: unknown) => String(n ?? '').trim().toLowerCase()).filter(Boolean);
-      const was = [...new Set(names)].map((n) => (e.addons ?? []).find((a: any) => a.slot === field
-        && String(a.name).trim().toLowerCase() === n && !replaced.has(a.id))).filter(Boolean) as any[];
-      for (const a of was) replaced.add(a.id);
-      if (db.addProposal(v.id, { ...base, body, field, target: was[0]?.id ?? null, merges: was.slice(1).map((a) => a.id),
-        pocket: String(pk?.name ?? '').trim().slice(0, 60) || null })) added++;
-    }
+    // #114 · THE ANSWER'S POCKETS ARE THE THREAD'S WHOLE SET, kind by kind: see `tidyPockets`. The
+    // first is rewritten, the rest go when it is sewn in, into the thread's history.
+    for (const p of tidyPockets(e.addons ?? [], r.data.pockets, slotsFor(e.entryType).map((sl) => sl.name), lock))
+      if (db.addProposal(v.id, { ...base, body: p.body, field: p.slot, target: p.target, merges: p.merges,
+        pocket: p.name })) added++;
     return { added, ...viewOf(c, v.id) };
   },
   'POST /api/remember': async (c: Ctx) => {

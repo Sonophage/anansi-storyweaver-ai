@@ -84,7 +84,7 @@ await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
 process.env.ANANSI_LLAMA = `http://127.0.0.1:${(srv.address() as any).port}`;
 
 const db = await import('../src/db.ts');
-const { routes, hemSettled } = await import('../src/routes.ts');
+const { routes, hemSettled, tidyPockets } = await import('../src/routes.ts');
 const { resolveBody } = await import('../src/context.ts');
 const prompts = await import('../src/prompts.ts');
 
@@ -1071,6 +1071,71 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.ok(!(askOf(prompts.TIDY)?.user ?? '').includes("lines are the writer's"), 'LOCK-TEXT: a voice pocket holding the lock text is not sent either');
   assert.ok(!(db.proposalsOf(t.id) as any[]).some((p) => p.entry_id === seth && p.field === 'voice'), '  nor replaced');
   ok('Tidy never sends or replaces the lock pocket');
+}
+
+// TIDY'S ANSWER IS THE THREAD'S WHOLE POCKET SET, kind by kind. The trial on Seth's thread
+// (2026-10-28, the real model): a new pocket for each kind, but `replaces` named for one only, and
+// sewn in, the old ones stayed beside the new. Now an answered pocket stands in for the pocket it
+// names, then for the next one of its kind in order, and any old pocket of a kind it answered that
+// is still left over is merged away, into the history. A kind it does not answer is left alone.
+{
+  const t = db.createStory(me, { title: 'Whole set', premise: 'p' }) as any;
+  db.updateStory(t.id, { persona: 'Ashley', lockedCharacter: 'Seth', lockoutOn: true });
+  const seth = db.upsertEntry(t.id, me, { title: 'Seth', entryType: 'character', body: '30s' })!;
+  const add = (slot: string, name: string, body: string) => db.upsertAddon(t.id, seth, { slot, name, body })!;
+  const lock = add('voice', 'Their lines are yours', prompts.YOURS_VOICE('Seth'));
+  const look = add('appearance', 'Look', 'tall, dark coat');
+  const clothes = add('outfit', 'Street clothes', 'jeans and a jacket');
+  const lonely = add('interiority', 'Lonely', 'lonely, and hides it');
+  db.setAddonActive(t.id, lonely, true);
+  const ashley = add('relationships', 'Ashley', 'drawn to Ashley');
+  const drawn = add('relationships', 'Drawn to Ashley', 'patient with Ashley');
+  const atmo = add('atmosphere', 'Night', 'wet streets');
+  const before = new Map((db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === seth).map((a) => [a.id, a.body]));
+  const answer = [
+    { slot: 'appearance', name: 'Streetlight details', body: 'Under the streetlight his coat looks black.', replaces: [] },
+    { slot: 'interiority', name: 'Externalized loneliness', body: 'His loneliness shows in what he does, never in what he thinks.', replaces: [] },
+    { slot: 'outfit', name: 'Walk attire', body: 'Jeans and a jacket for the walk.', replaces: [] },
+    { slot: 'relationships', name: 'Ashley interaction', body: 'Drawn to Ashley and patient with her.', replaces: ['drawn to ashley '] },
+    { slot: 'voice', name: 'How he talks', body: 'Short, dry lines.', replaces: [] }];
+
+  // The deciding function, alone: which old pocket each answered pocket stands in for, and which go.
+  const old = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === seth);
+  const plan = tidyPockets(old, answer, ['appearance', 'atmosphere', 'interiority', 'outfit', 'relationships', 'voice'], true);
+  assert.deepStrictEqual(plan.map((p: any) => [p.slot, p.target, p.merges]),
+    [['appearance', look, []], ['interiority', lonely, []], ['outfit', clothes, []], ['relationships', drawn, [ashley]]],
+    `WHOLE-PLAN: each answered pocket stands in for one old pocket of its kind, named first, then in order (${JSON.stringify(plan)})`);
+  assert.deepStrictEqual(tidyPockets(old, [], ['relationships'], true), [], 'WHOLE-EMPTY: no pockets answered, nothing replaced');
+
+  tidied = { always: '', stands: '', kept: '', pockets: answer };
+  await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: seth }));
+  tidied = {};
+  for (const p of (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === seth))
+    await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
+  const now = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === seth && a.slot !== 'facts');
+  const byKind = (slot: string) => now.filter((a) => a.slot === slot).map((a) => a.name);
+  assert.deepStrictEqual(['appearance', 'interiority', 'outfit', 'relationships'].map(byKind),
+    [['Streetlight details'], ['Externalized loneliness'], ['Walk attire'], ['Ashley interaction']],
+    `WHOLE-SET: sewn in, one pocket per kind, the answer's (${now.map((a) => `${a.slot}:${a.name}`).join(', ')})`);
+  assert.deepStrictEqual(now.filter((a) => a.slot === 'voice').map((a) => [a.id, a.body]), [[lock, prompts.YOURS_VOICE('Seth')]],
+    'WHOLE-LOCK: the lock pocket is untouched');
+  assert.deepStrictEqual(now.filter((a) => a.slot === 'atmosphere').map((a) => [a.id, a.body]), [[atmo, 'wet streets']],
+    'WHOLE-UNASKED: a kind the answer does not name is left alone');
+  const hist = db.entryHistory(t.id, seth) as any[];
+  for (const id of [look, clothes, lonely, ashley, drawn])
+    assert.ok(hist.some((r) => r.field === `pocket:${id}` && r.previous_value === before.get(id)),
+      `WHOLE-HISTORY: the old text of ${id} ("${before.get(id)}") is in the history`);
+
+  // A tidy that answers no pockets changes none.
+  const kept = JSON.stringify((db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === seth));
+  tidied = { always: '', stands: 'Walking Ashley home.', kept: '', pockets: [] };
+  await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: seth }));
+  tidied = {};
+  for (const p of (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === seth))
+    await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
+  assert.strictEqual(JSON.stringify((db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === seth)), kept,
+    'WHOLE-NONE: a tidy with no pockets changes no pockets');
+  ok("Tidy's pockets replace the thread's pockets kind by kind, and the old texts are kept");
 }
 
 // ---- #74 · ANANSI EDITS ONE SECTION, AND A REJECT CAN BE UNDONE ----

@@ -33,6 +33,9 @@ When a thread has two pockets of one kind that overlap, such as two about the sa
 offers one pocket that holds both. The card says which other pocket it replaces, and sewing it in
 leaves one pocket where there were two. The pocket that goes is kept in the thread's Alterations,
 and putting it back from there makes it again, switched off.
+Tidy's pockets now replace the thread's old pockets of the same kind, even when it does not name
+them, so a tidied thread never keeps an old pocket beside its new one. Kinds Tidy does not answer
+stay as they were.
 
 ### Tidy changes where a thread stands now, not where it started
 When a thread has an Over time entry for the scene you are on, Tidy's change to where it stands now
