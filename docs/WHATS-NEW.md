@@ -23,6 +23,12 @@ When Anansi stopped writing, the header above the page faded in again and the pr
 line. Now the header is left alone when nothing in it changed, the hint under the buttons keeps
 its place while he writes, and the page stays where you were reading.
 
+### The passage stays where it was written
+The new passage still jumped up when it finished, by the height of the line under the passage
+before it ("Tap a passage for its actions", and "written while you were away"). Those now go when
+you press, so the passage lands exactly where you watched it written. It is boxed as the newest
+passage from its first word, and keeps the box when it lands.
+
 ## 2026-10-28 · The tale's menu, rearranged
 
 ### Model on top, scenes beside the menu

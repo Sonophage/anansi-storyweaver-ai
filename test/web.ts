@@ -402,7 +402,8 @@ const ok = (m: string, fn?: unknown) => {
       + 'unmarked for as long as it did');
     // AND THE NEWEST PASSAGE'S RING FOLLOWS THE SAME LIST, or the accent vanishes for the one
     // passage a writer is looking at hardest.
-    const ring = /#col \.block\.newest:is\(([^)]*)\)/.exec(css)?.[1] ?? '';
+    // The passage being written inline shares the rule, so it lands in the box it was written in.
+    const ring = /#col :is\(\.block\.newest, #ghost\.inlive\):is\(([^)]*)\)/.exec(css)?.[1] ?? '';
     for (const k of PRESSES) {
       assert.ok(ring.includes(`.m-${k}`), `the newest passage's ring does not cover ${k}`);
     }

@@ -1528,7 +1528,9 @@ function passageHTML(p, newest, opening) {
     // is not a drop cap — and not on the writer's own passages, which are set differently: on
     // Sutera the first passage is the writer's and is right-aligned, so a left-floated capital
     // sat on its own with the text running away from it.
-    + (newest && p.id !== QUIET_LAND ? ' newest' : '') + (opening && !spoken && !mine ? ' opening' : '')
+    // QUIET keeps the newest's box and drops only its rise (QUIET_LAND). Dropping `newest` took the box
+    // off as the passage landed, a box it had worn while it was written (2026-10-28).
+    + (newest ? ` newest${p.id === QUIET_LAND ? ' quiet' : ''}` : '') + (opening && !spoken && !mine ? ' opening' : '')
     // Holding the re-roll sheet. The class is what stops this block being the containing block for
     // it — see the note on `.rerollbox` in the stylesheet, and the longer one above the acts tray.
     + (S.reroll?.id === p.id ? ' rerolling' : '') + (S.passEdit?.id === p.id ? ' altering' : '');
@@ -1570,8 +1572,11 @@ function passageHTML(p, newest, opening) {
    * where it came from and gets out of the way; writing the next thing claims it.
    *
    * `p.claimed === false` and not `!p.claimed`: an older server sends no such field, and undefined
-   * must read as claimed rather than marking the whole book. */
-  const away = p.claimed === false && !WATCHED.has(p.id) && !mine
+   * must read as claimed rather than marking the whole book.
+   *
+   * GONE AT THE PRESS, not at the landing (2026-10-28): a passage being written inline is the carrying
+   * on. The line went as the new passage landed, and the new one jumped up by its 46px. */
+  const away = p.claimed === false && !WATCHED.has(p.id) && !mine && !INLINE
     ? `<div class="cameback">written while you were away &mdash; carry on and it is yours</div>` : '';
   /* ALTER IS THE FULL-SCREEN BOX TOO (Seth, 2026-10-26: "The edit screen should be the same
    * maximized input screen"). It edited the paragraph in place, with Save and Cancel under it;
@@ -1729,7 +1734,10 @@ function drawDoc() {
       ${(() => { const e = epigraphOf(list); return e ? `<div class="band-epi"><i></i><span class="serif">${esc(e)}</span></div>` : ''; })()}
       <div class="band-rule"></div>
     </div>
-    ${list.map((p, i) => passageHTML(p, isLastChapter && i === list.length - 1, i === 0)).join('')
+    ${/* NO NEWEST WHILE ONE IS WRITTEN INLINE (2026-10-28): the passage being written is the end of the
+          book. The row under the newest passage stood between it and the one being written, and moved
+          under the new one as it landed, so the new one jumped up by the row's height (82px, measured). */ ''}
+    ${list.map((p, i) => passageHTML(p, isLastChapter && i === list.length - 1 && !INLINE, i === 0)).join('')
       || `<div class="narr faded">${
         V.chapters.length > 1 ? 'Nothing in this scene yet.' : 'Nothing written yet. The composer is below.'}</div>`}
     </section>`;
@@ -9019,8 +9027,10 @@ function ghost() {
       <div class="veilweave" aria-live="polite">${weavingAt('dock') ? weaveWords('dock') : ''}</div>
       ${GHOST_VOICE ? `<div class="who">${esc(GHOST_VOICE)}</div>` : ''}
       <div class="${GHOST_VOICE ? 'said' : 'narr'}"><div class="veiltext" aria-live="polite"></div></div>`;
-    col.appendChild(g);
+    // Drawn again with it in place, so the passage before it gives up the newest's row (chapterHTML).
+    // drawDoc appends it.
     INLINE = g;
+    drawDoc();
     // THE NEW ENTRY'S HEADER GOES TO THE TOP, AT THE PRESS (Seth, 2026-10-27, below at anchorLive).
     INLINE_ANCHOR = true;
     anchorLive();
@@ -9419,7 +9429,8 @@ const unghost = () => {
   if (!g && INLINE) { INLINE = null; }
   for (const b of document.querySelectorAll('.block.rerolling-out')) b.classList.remove('rerolling-out');
   if (!g || g.classList.contains('leaving')) return;
-  if (!g.classList.contains('veil')) { g.remove(); INLINE = null; return; }
+  // And the passage before it is the newest again, with its row back under it.
+  if (!g.classList.contains('veil')) { g.remove(); INLINE = null; if (V && S.place === 'story') drawDoc(); return; }
   if (still()) return g.remove();
   // STRAIGHT TO THE FADE. There used to be a 1,220ms resolve here — the middle column of a six-by-
   // eleven grid spelling ANANSI while the rest went out from under it. The grid is gone (Seth,

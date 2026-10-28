@@ -123,7 +123,10 @@ await page.eval(`(() => { const read = document.getElementById('read');
   read.scrollTo({ top: read.scrollHeight, behavior: 'instant' }); window.__tops = []; window.__on = false; window.__stopTops = false;
   new MutationObserver((ms, obs) => { for (const m of ms) for (const n of m.addedNodes ?? []) if (n.classList?.contains?.('w')) {
     obs.disconnect(); window.__on = true; return; } }).observe(document.getElementById('col'), { subtree: true, childList: true });
-  const tick = () => { if (window.__on) window.__tops.push(Math.round(read.scrollTop)); if (!window.__stopTops) requestAnimationFrame(tick); };
+  // Where the passage being written sits, to the last frame it is on the page.
+  const tick = () => { if (window.__on) window.__tops.push(Math.round(read.scrollTop));
+    const g = document.getElementById('ghost'); if (g) window.__gtop = Math.round(g.getBoundingClientRect().top);
+    if (!window.__stopTops) requestAnimationFrame(tick); };
   requestAnimationFrame(tick); return 1; })()`);
 await send("He waits at the bottom of the page.");
 await until("!document.getElementById('ghost')", 120);
@@ -133,6 +136,14 @@ const tops = await page.eval("JSON.stringify(window.__tops)").then(JSON.parse);
 const drift = tops.length ? Math.max(...tops.map((t) => Math.abs(t - tops.at(-1)))) : -1;
 ok(`  and a reader at the bottom sees the page hold still as it lands (${tops.length} frames, at most ${drift}px off)`,
    tops.length > 10 && drift <= 2);
+// AND THE PASSAGE ITSELF DOES NOT MOVE, which a held scroll does not prove (2026-10-28). The row under
+// the newest passage stood above the one being written and moved under it at the landing: the scroll
+// held and the new passage jumped up 82px.
+const at = await page.eval(`JSON.stringify({ was: window.__gtop ?? null, boxed: !!document.querySelector('#col .block.newest'),
+  now: Math.round([...document.querySelectorAll('#col .block')].at(-1).getBoundingClientRect().top) })`).then(JSON.parse);
+ok(`  and the passage lands where it was written (${at.was} -> ${at.now})`, at.was !== null && Math.abs(at.now - at.was) <= 2);
+// IN THE SAME BOX: the passage being written wears the newest's outline, and keeps it as it lands.
+ok("  in the box it was written in", at.boxed);
 
 // ---- a re-roll of the last passage: the new version writes where the old one was
 await page.eval("(() => { document.querySelector('#nextbar [data-re]').click(); return 1; })()");

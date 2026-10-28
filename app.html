@@ -196,6 +196,8 @@ input, textarea { font:inherit; color:inherit; }
    358 passages it would be a slow one. The renderer marks it; `:last-of-type` cannot, because it
    means "last <div>" and the chapter pager is a div that comes after every block. */
 #col .block.newest { animation:rise var(--t-slow) var(--ease-out) both; }
+/* Not one that was written inline: it was on screen the whole time (QUIET_LAND in web/app.js). */
+#col .block.newest.quiet { animation:none; }
 /* The passage as it arrives. Dimmed and carried by a caret, because it is not in the book yet:
    nothing is saved until the stream ends and accept returns. It replaces a p50 of 5.7 seconds
    of blank page, which read as a hung app (COUNCIL-04 #3). */
@@ -832,7 +834,8 @@ html[data-ui-font="readex"] .narr { font-family:'Readex Pro',system-ui,sans-seri
    version used a border with padding and negative margins to compensate, and it shifted the document
    enough to break the running-head check in panels.js — the band's position is measured there, and
    46px of drift is exactly the kind of thing a decoration should never cause. */
-#col .block.newest {
+/* And the passage being written inline wears it, so the box does not appear round it as it lands. */
+#col :is(.block.newest, #ghost.inlive) {
   outline:1px solid var(--chip); outline-offset:12px; border-radius:var(--r);
 }
 /* THE CHIP SAYS WHERE A PASSAGE CAME FROM, and it wears the same colour as the rule beside it —
@@ -855,7 +858,7 @@ html[data-reading="1"] .from { display:none; }
    would move the prose 16px left the moment a newer passage arrived, on every passage, for ever —
    the same class of shift the outline above exists to avoid. A passage with no mode keeps the faint
    outline it has always had, which is what "old ones neutral" means on screen. */
-#col .block.newest:is(.m-speak,.m-act,.m-direct,.m-narrate,.m-continue) {
+#col :is(.block.newest, #ghost.inlive):is(.m-speak,.m-act,.m-direct,.m-narrate,.m-continue) {
   outline-color:var(--m); border-left-color:transparent;
 }
 /* Where a search result put you. Fades on its own after a few seconds — a permanent mark on
