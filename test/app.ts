@@ -3610,6 +3610,20 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
 }
 ok('a card face reads body, then what is on, then what is not — and finishing lives in the form');
 
+// ---- EVERY SCENE CAN BE DELETED FROM THE SCENES LIST (Seth, 2026-10-27).
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'chapters' });
+  const list = html('sideBody');
+  const rows = [...list.matchAll(/data-chapter="([^"]+)"/g)].map((m) => m[1]);
+  const dels = [...list.matchAll(/class="scenedel" data-delchapter="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(rows.length > 0, 'the list has scenes');
+  assert.deepStrictEqual(dels, rows, 'and every scene row has its own delete, for that scene');
+  assert.doesNotMatch(list, /<button class="card"[^>]*>(?:(?!<\/button>)[\s\S])*<button/, 'never a button inside the card button');
+}
+ok('every scene in Scenes has a delete beside it');
+
 // ---- THE TALE'S MENU, SHORTER AND WHOLE (Seth, 2026-10-27): two columns, every row still there.
 {
   click({ open: 's-1' });

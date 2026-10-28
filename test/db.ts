@@ -243,20 +243,19 @@ ok('deleting a chapter takes its prose with it, and leaves the numbers where the
    * FOUND IN THE LIVE LIBRARY on 2026-09-01 and not by this test, which asserted the wrong rule:
    * "The Transaction of Silence", chapter one closed with 22 passages and no chapter two at all.
    * Seth had ended chapter one and deleted the empty chapter the close opened for him. */
+  // ONE PRESS, NOT A CLEAN-UP (Seth, 2026-10-27: "we also need a simpler way of deleting scenes so
+  // I don't have to ask you for the cleanup"). Deleting the only OPEN scene while another remains
+  // used to be refused, and he had to ask for scene 1 to be reopened by hand. Now the latest scene
+  // left is reopened in the same step, so the tale still has somewhere to write.
   const openOne = db.delChapter(s2.id, three.opened);
-  assert.strictEqual(openOne.deleted, 0, 'the only OPEN chapter cannot go, whatever else remains');
-  assert.match(String(openOne.error), /last one open/);
-  assert.deepStrictEqual(db.chapters(s2.id).map((c: any) => c.idx), [1, 3], 'and it is still there');
-
-  // A CLOSED one may go while an open one remains, which is the case the old count also allowed and
-  // is the half that was right. Asserted so the fix cannot be over-applied into refusing everything.
-  assert.strictEqual(db.delChapter(s2.id, db.chapters(s2.id)[0].id).deleted, 1,
-    'a closed chapter can still go while there is somewhere to write');
-  assert.deepStrictEqual(db.chapters(s2.id).map((c: any) => c.idx), [3]);
-  // And now the same chapter is both the last one and the only open one, so it is refused again.
+  assert.strictEqual(openOne.deleted, 1, 'the only open scene goes when another remains');
+  assert.strictEqual(openOne.reopened, 1, 'and says which scene it opened again');
+  assert.deepStrictEqual(db.chapters(s2.id).map((c: any) => [c.idx, c.status]), [[1, 'open']],
+    'the latest scene left is open, so there is somewhere to write');
+  // The last scene of all still cannot go: there would be no scene to write in.
   const last = db.delChapter(s2.id, db.chapters(s2.id)[0].id);
   assert.strictEqual(last.deleted, 0);
-  assert.match(String(last.error), /last one open/);
+  assert.match(String(last.error), /only scene/);
   assert.strictEqual(db.chapters(s2.id).length, 1);
   db.delStory(s2.id);   // the shelf-counting checks below read every story this owner has
 });

@@ -4053,7 +4053,10 @@ const PANELS = {
           c.keepWhole ? 'sent whole'
             : c.summary ? (c.summaryStale ? 'summary out of date' : 'summarised') : 'no summary',
         ];
-        return `<button class="card" data-chapter="${esc(c.id)}"
+        // A DELETE ON EVERY ROW, beside the card and not inside it (a button in a button is not a
+        // button). Seth, 2026-10-27: "a simpler way of deleting scenes". Two presses, the same
+        // data-delchapter and handler as This scene's own Delete; the confirm names what goes.
+        return `<div class="scenerow"><button class="card" data-chapter="${esc(c.id)}"
           style="text-align:left; width:100%; margin-bottom:8px; gap:6px;
           ${here ? 'border-color:var(--gold-dim)' : ''}">
           <div class="base-9">
@@ -4066,7 +4069,10 @@ const PANELS = {
             : '<div class="hint flush">Nothing written in it yet.</div>'}
           <div style="display:flex; flex-wrap:wrap; gap:4px 10px; font-size:11px; color:var(--faint)"
             >${stats.map((t) => `<span class="tnum">${esc(t)}</span>`).join('')}</div>
-        </button>`;
+        </button>
+        <button class="scenedel" data-delchapter="${esc(c.id)}"
+          aria-label="Delete ${esc(sceneName(c))} and its ${mine.length} ${mine.length === 1 ? 'passage' : 'passages'}"
+          title="Delete this scene">&#10005;</button></div>`;
       }).join('')}</div>`;
   },
 
@@ -11198,7 +11204,8 @@ document.addEventListener('click', async (e) => {
     // The panel was reporting on the chapter that just went, so it cannot stay pointed at it.
     S.ritualOf = null; S.panel = 'context';
     V = await api.story(S.storyId); paint(); refreshManifest();
-    return toast('Scene deleted. The numbers after it are unchanged.');
+    return toast(r.reopened ? `Scene deleted. Scene ${r.reopened} is open again to write in.`
+      : 'Scene deleted. The numbers after it are unchanged.');
   }
 
   if (d.delentry) {

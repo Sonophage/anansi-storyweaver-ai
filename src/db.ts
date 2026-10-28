@@ -1896,7 +1896,7 @@ export function editPassage(storyId: string, id: string, body: string) {
  *
  *  Refuses the last chapter in the branch. A story with no chapter has nowhere to put the next
  *  passage, and every read here does `chapters.at(-1)` as its fallback. */
-export function delChapter(storyId: string, chapterId: string): { deleted: number; error?: string } {
+export function delChapter(storyId: string, chapterId: string): { deleted: number; reopened?: number; error?: string } {
   const ch = q('SELECT id, branch_id, idx FROM chapters WHERE id = ? AND story_id = ?')
     .get(chapterId, storyId) as any;
   if (!ch) return { deleted: 0, error: 'That chapter is gone already.' };
@@ -1918,11 +1918,18 @@ export function delChapter(storyId: string, chapterId: string): { deleted: numbe
   const openLeft = (q(`SELECT COUNT(*) AS n FROM chapters
       WHERE story_id = ? AND branch_id = ? AND status = 'open' AND id != ?`)
     .get(storyId, ch.branch_id, chapterId) as any).n;
-  if (!openLeft) return { deleted: 0,
-    error: 'A book keeps a chapter to write in, and this is the last one open. Close another chapter '
-      + 'or start one, then this can go.' };
+  /* AND NOW IT KEEPS ONE BY OPENING ONE, rather than refusing (Seth, 2026-10-27: "a simpler way of
+   * deleting scenes so I don't have to ask you for the cleanup"). Deleting the only open scene while
+   * others remain reopens the latest of them in the same transaction, so the invariant above holds
+   * and the writer needs one press. Only the very last scene on the branch is still refused. */
+  const reopen = openLeft ? null : q(`SELECT id, idx FROM chapters
+      WHERE story_id = ? AND branch_id = ? AND id != ? ORDER BY idx DESC LIMIT 1`)
+    .get(storyId, ch.branch_id, chapterId) as any;
+  if (!openLeft && !reopen) return { deleted: 0,
+    error: 'This is the only scene in the tale, so there would be nowhere left to write.' };
   db.exec('BEGIN');
   try {
+    if (reopen) q("UPDATE chapters SET status = 'open' WHERE id = ? AND story_id = ?").run(reopen.id, storyId);
     q(`DELETE FROM violations WHERE story_id = ? AND passage_id IN
          (SELECT id FROM passages WHERE chapter_id = ?)`).run(storyId, chapterId);
     q('DELETE FROM proposals WHERE story_id = ? AND chapter_id = ?').run(storyId, chapterId);
@@ -1930,7 +1937,7 @@ export function delChapter(storyId: string, chapterId: string): { deleted: numbe
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
   touch(storyId);
-  return { deleted: 1 };
+  return reopen ? { deleted: 1, reopened: reopen.idx } : { deleted: 1 };
 }
 
 /** DELETE EVERY PASSAGE BELOW THIS ONE. Seth, 2026-08-30: "a way to delete anything after a

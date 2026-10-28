@@ -40,6 +40,16 @@ If your Voice says one person or tense and the point of view says another, the p
 and one press takes that sentence out of the Voice. You can still start the tale with the warning
 showing.
 
+## 2026-10-27 · Deleting a scene takes one press
+
+### Delete a scene from the Scenes list
+Every scene in Scenes has a ✕ beside it. Press it twice and the scene goes, with its prose.
+
+### Deleting the scene you are writing in just works
+Deleting the open scene used to be refused if the scene before it had been hemmed. Now the latest
+scene left opens again so you can keep writing there, and the message says which. Only the very
+last scene in a tale cannot be deleted.
+
 ## 2026-10-27 · The picture behind the prose
 
 ### Blur it, or put it on the right
