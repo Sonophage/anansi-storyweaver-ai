@@ -1125,6 +1125,46 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 
 
+// HEM AGAIN after an edit: what was sewn in or rejected stays, what was still chalked is replaced,
+// and the scene is in date again.
+{
+  const t = db.createStory(me, { title: 'Hem again', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'] });
+  const p = db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Oren cut the bell down from the ferry post and carried it home.' }) as any;
+  answer = [{ name: 'Oren', stands: '[Oren: the ferryman, who has taken the ferry bell home]', label: 'took the bell',
+    line: 'Oren cut the bell down from the ferry post', always: '', pockets: [] }];
+  found = [{ title: 'The Ferry Bell', body: 'Bronze, green with river damp.', type: 'item', keys: ['bell'] }];
+  finished = [{ card: 'Oren', quote: 'Oren cut the bell down from the ferry post' }];
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
+  await hemSettled(t.id);
+  const first = db.proposalsOf(t.id) as any[];
+  const sewn = first.find((x) => x.entry_type === 'state'), rejected = first.find((x) => x.title === 'The Ferry Bell');
+  const open = first.find((x) => x.entry_type === 'retire');
+  assert.ok(sewn && rejected && open, `  the first hem chalked three rows (${first.map((x) => x.title)})`);
+  db.setProposalStatus(t.id, sewn.id, 'accepted');
+  db.setProposalStatus(t.id, rejected.id, 'rejected');
+  await routes['POST /api/passage'](ctx({ storyId: t.id, id: typeof p === 'string' ? p : p.id,
+    body: 'Oren cut the bell down, then the rope, and carried both home.' }));
+  assert.strictEqual(sceneOf(await viewNow(t.id), ch0.id).hem?.outOfDate, true, '  the edit put the scene out of date');
+  found = [{ title: 'The Ferry Rope', body: 'Hemp, frayed where it met the post.', type: 'item', keys: ['rope'] }];
+  finished = [];
+  const r: any = await routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  assert.ok(!r.error, r.error);
+  await hemSettled(t.id);
+  assert.strictEqual(db.proposal(t.id, sewn.id)?.status, 'accepted', 'HEM-AGAIN-KEEPS: a row sewn in stays');
+  assert.strictEqual(db.proposal(t.id, rejected.id)?.status, 'rejected', 'HEM-AGAIN-KEEPS: a row rejected stays');
+  assert.strictEqual(db.proposal(t.id, open.id), undefined, 'HEM-AGAIN-DROPS: a row still chalked is dropped');
+  const rope = (db.proposalsOf(t.id) as any[]).find((x) => x.title === 'The Ferry Rope');
+  assert.strictEqual(rope?.grp, `scene:${ch0.id}`, '  and what the new hem found is chalked in the scene group');
+  const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.strictEqual(hem?.state, 'done', '  and the hem is done');
+  assert.strictEqual(hem.outOfDate, false, 'HEM-AGAIN-IN-DATE: the scene is no longer out of date');
+  ok('hem again keeps what was sewn in and rejected, replaces what was chalked, and is in date');
+}
+
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several

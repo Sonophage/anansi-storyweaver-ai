@@ -2660,8 +2660,9 @@ export const routes: Record<string, Handler> = {
    *  `suggestScene`, which a hem also runs (#89); this route stays for the client's own button. */
   'POST /api/chapter/propose': (c: Ctx) => suggestScene(c, c.body.storyId, c.body.chapterId, c.body.steer),
   /** #91 · RUN A HEM'S PASSES AGAIN, from the scene's Workbench card. `pass` names one pass of the
-   *  report (try again): only that pass runs, and only its line changes. Detached and queued like
-   *  the hem itself; the answer is the view, with the hem shown running. */
+   *  report (try again): only that pass runs, and only its line changes. With no `pass` it is HEM
+   *  AGAIN: a new record on the prose as it is now (so the scene is in date), and every pass again.
+   *  Detached and queued like the hem itself; the answer is the view, with the hem shown running. */
   'POST /api/chapter/hem': (c: Ctx) => {
     const storyId = String(c.body.storyId), chapterId = String(c.body.chapterId ?? '');
     // The gate resolves `storyId` only, never the chapter id: the chapter must be in this story.
@@ -2669,7 +2670,17 @@ export const routes: Record<string, Handler> = {
     const at = chs.findIndex((x: any) => x.id === chapterId);
     if (at < 0) return { error: 'That scene is not in this book.' };
     const opened = chs[at + 1]?.id;
-    const pass = String(c.body.pass ?? '');
+    if (c.body.pass == null) {
+      db.beginHem(storyId, chapterId);
+      // Dropped inside the queue, not here: a hem still running on the tale may yet chalk into it.
+      queueHem(storyId, async () => {
+        db.dropChalked(storyId, `scene:${chapterId}`);
+        await hemPasses(c, storyId, chapterId, opened,
+          Object.fromEntries(HEM_PASSES.map((k) => [k, true])) as HemWant);
+      });
+      return viewOf(c, storyId);
+    }
+    const pass = String(c.body.pass);
     if (!(HEM_PASSES as readonly string[]).includes(pass)) return { error: `There is no pass called "${pass}".` };
     if (!db.reopenHem(storyId, chapterId)) return { error: 'This scene has not been hemmed yet.' };
     const want = Object.fromEntries(HEM_PASSES.map((k) => [k, k === pass])) as HemWant;

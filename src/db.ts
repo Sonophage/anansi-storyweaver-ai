@@ -1739,6 +1739,11 @@ export function finishHem(storyId: string, chapterId: string,
     .run(now(), JSON.stringify({ ...before, ...r.passes }), kept ? 1 : 0, suggestion, chapterId, storyId);
 }
 
+/** #91. HEM AGAIN drops what the last hem left chalked in the scene's group, and only that: a row
+ *  sewn in or rejected is the writer's decision and stays. */
+export const dropChalked = (storyId: string, grp: string) =>
+  q("DELETE FROM proposals WHERE story_id = ? AND grp = ? AND status = 'open'").run(storyId, grp);
+
 /** #91. A try-again starts: the hem shows running again, with its fingerprint and report as they
  *  were. False when the scene has no hem in this story, which is the route's refusal. */
 export const reopenHem = (storyId: string, chapterId: string) =>
