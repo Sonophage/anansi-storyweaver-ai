@@ -1138,7 +1138,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(prose(), proseBefore, 'CHANGE-NO-PROSE: not one passage changed in this whole block');
   ok('a change naming no thread, a room the kind lacks, or an operation off the list is refused, and the reply says so');
 
-  // AN UNDO REACHES NOTHING A REQUEST COULD NOT: another tale's thread, named from your own tale,
+  // AN UNDO REACHES ONLY THIS TALE: another tale's thread, named from your own tale,
   // resolves to nothing. The dispatcher's half — another writer's tale id — is test/scope.ts's.
   const other = db.createStory(db.owner('stranger'), { title: 'Not yours' });
   const hers = db.upsertEntry(other.id, db.owner('stranger'), { title: 'Hers', body: '' });

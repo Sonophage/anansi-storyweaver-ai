@@ -16,10 +16,21 @@
  * tale the writer may change.
  *
  * TWO GRAMMARS, ONE FILE. `checkAsked` is what the model may ask for. `checkUndo` is what an Undo
- * may do: put back the text that was there (a `thread.set` by id), or take away a thread or a room
- * Talk made. Neither list contains a delete of anything the writer made, or any prose: removing is
- * only an Undo's, and only while the thing is exactly as Talk made it, so a forged Undo cannot
- * remove a thread the writer wrote. The unmake operations are refused from the model by name.
+ * may do: put back the value that was there, or take away a thread, a pocket, an Over time entry or
+ * a retirement Talk made. Neither list touches prose. The unmake operations are refused from the
+ * model by name.
+ *
+ * WHAT HOLDS FOR AN UNDO, which the page sends back and so anyone can forge. It acts by id, on the
+ * tale the route read through the gate, so it reaches only the writer's own tale. A put-back is
+ * done only while the thing still holds what the Undo says Talk wrote (`wrote`), and it names the
+ * pocket it writes over, so it never makes one; it never leaves a thread On a word with no words. A
+ * take-away is done only while the thing holds exactly the text the Undo names and nothing else
+ * (no other pocket, no Over time). What does NOT hold: a forged Undo is not proved to be Talk's.
+ * One that copies a thread's id, name and Always true can take away a thread the writer made, if
+ * that thread has nothing else in it, and one that copies the current value can write any text
+ * over it. Neither is more than the writer's own Delete or save can do to their own tale; the text
+ * is not capped, because it puts back what the writer had, which can be longer than anything Talk
+ * may write.
  */
 import { ALL_SLOTS, KINDS, slotsFor } from './slots.ts';
 import { retiredAt } from './context.ts';
@@ -208,8 +219,10 @@ const wakeWords = (activation: string, keys: string[]) => activation === 'trigge
  *  Undo. A request for On a word must leave the thread with words, its own or the ones it gave, or
  *  the thread never reaches the model again and looks fine on the screen (`upsertEntry`'s floor
  *  would quietly turn it Always on instead, and the line would say otherwise). Always on with no
- *  words given keeps the words it had, as the hand switch does. An Undo puts back exactly what was
- *  there, a thread on a word with none included, because that is what the writer had.
+ *  words given keeps the words it had, as the hand switch does. An Undo puts back what was there,
+ *  with one exception: a thread that was On a word with no words is not put back that way, because
+ *  that is a thread that never reaches the model, and an Undo may not do what a request may not.
+ *  It is refused, and the thread stays as it is.
  *
  *  A CHARACTER MAY BE PUT ON A WORD HERE, unlike in a thread Talk makes: there the model chose; here
  *  the writer asked for it in so many words, as they could with the switch on the thread. */
@@ -224,8 +237,8 @@ function wakeOn(t: Thread, raw: any, said: string, undo: boolean): Checked {
     return { ok: false, said, why: SINCE };
   const given = keysOf(raw.keys);
   const keys = undo ? given : given.length ? given : had.keys;
-  if (!undo && activation === 'triggered' && !keys.length) return { ok: false, said,
-    why: `On a word needs wake words, and ${t.title} has none. Say which words` };
+  if (activation === 'triggered' && !keys.length) return { ok: false, said,
+    why: `On a word needs wake words, and ${t.title} has none${undo ? '' : '. Say which words'}` };
   if (!undo && activation === had.activation && sameKeys(keys, had.keys)) return { ok: false, said,
     why: `${t.title} is already ${wakeWords(had.activation, had.keys)}` };
   return { ok: true, change: { op: 'thread.wake', thread: t.id, title: t.title, activation, keys,
@@ -348,7 +361,10 @@ function setOn(t: Thread, slot: string, text: string, said: string, undo: boolea
   if (t.sharedFrom) return followed(t, said);
   if (!hasRoom(t, slot)) return { ok: false, said, why: noRoom(t, slot) };
   const cur = undo ? (t.addons ?? []).find((a) => a.id === addon && a.slot === slot) ?? null : roomFor(t, slot);
-  if (undo && addon && !cur) return { ok: false, said, why: 'that room is no longer in this tale' };
+  // A put-back names the pocket it writes over. With none named it would make one, and making a
+  // pocket is a request's, checked as one; an Undo of a pocket Talk made is `room.unmake`.
+  if (undo && !addon) return { ok: false, said, why: 'that Undo names no pocket to put back' };
+  if (undo && !cur) return { ok: false, said, why: 'that room is no longer in this tale' };
   if (undo && cur && !stillWrote(wrote, cur.body)) return { ok: false, said, why: SINCE };
   if (!undo && !text) return { ok: false, said, why: 'it came with no text' };
   if (!undo && cur && cur.body.trim() === text) return { ok: false, said,

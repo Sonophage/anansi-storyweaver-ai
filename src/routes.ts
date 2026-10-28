@@ -714,14 +714,13 @@ function applyChange(storyId: string, owner: string, ch: Change):
   if (ch.op === 'tale.set') { db.updateStory(storyId, { [ch.field]: ch.text }); return {}; }
   // How a thread wakes, through the thread's own save. `upsertEntry` writes the whole row, so the
   // rest of it is handed back as it stands. `last_editor` is left as it was: how a thread wakes is
-  // not its text, and keeping it is what lets the Undo put the row back exactly. `allowNoKeys` only
-  // ever matters to an Undo putting back a thread that was On a word with none, which is what the
-  // writer had; a request for On a word with no words was refused in `src/changes.ts`.
+  // not its text, and keeping it is what lets the Undo put the row back exactly. On a word with no
+  // words is refused in `src/changes.ts`, for a request and an Undo alike.
   if (ch.op === 'thread.wake') {
     const cur = db.entriesOf(storyId).find((e: any) => e.id === ch.thread);
     if (!cur) return null;
     return db.upsertEntry(storyId, owner, { id: cur.id, title: cur.title, body: cur.body, entryType: cur.entry_type,
-      activation: ch.activation, keys: ch.keys, lastEditor: cur.last_editor, allowNoKeys: !!ch.undo }) ? {} : null;
+      activation: ch.activation, keys: ch.keys, lastEditor: cur.last_editor }) ? {} : null;
   }
   // An Over time entry, through the save the Over time list makes: by id when it writes over one,
   // else `upsertState` finds or makes the one at that scene.
@@ -3750,9 +3749,10 @@ export const routes: Record<string, Handler> = {
 
   /** #97 · UNDO ONE CHANGE TALK MADE. The client holds the `undo` each change came back with and
    *  sends it here; nothing about the conversation is stored. It goes through the same slice and
-   *  the same writes as the request did, so it reaches nothing a request could not: by id, on this
-   *  tale's own threads (the gate has already said the tale is the writer's), putting back the old
-   *  text or taking away a thread or room Talk made while it is still exactly as Talk made it. */
+   *  the same writes as the request did, by id, on this tale only (the gate has already said the
+   *  tale is the writer's). `checkUndo` holds the rest, and its file's header says exactly what that
+   *  is and is not: an Undo is not proved to be Talk's, so a forged one can do to the writer's own
+   *  tale what their own save or Delete could, and no more. */
   'POST /api/talk/undo': (c: Ctx) => {
     const v = bookOf(c.body.storyId);
     const k = checkUndo(c.body.undo, taleOf(v.id));

@@ -361,6 +361,17 @@ ok('THREAD-RETIRE-REFUSED: a scene the tale does not have, a thread already reti
     refused(ch.checkAsked({ op, thread: 'letter', event: 'ev-1' }, retiring), /not something Talk can do/i);
 });
 
+ok('UNDO-FORGED: an Undo cannot make a pocket, or leave a thread On a word with no words', () => {
+  // A put-back names the pocket it writes over. With none named it would make one, which is a
+  // request's to do and is checked as one; an Undo that takes a pocket away is room.unmake.
+  refused(ch.checkUndo({ op: 'thread.set', thread: 'e-talia', room: 'appearance', addon: null, text: 'Tall.', wrote: '' }, tale),
+    /names no pocket/i);
+  refused(ch.checkUndo({ op: 'thread.set', thread: 'e-talia', room: 'appearance', text: 'Tall.' }, tale), /names no pocket/i);
+  // On a word with no words never reaches the model: a request is refused it, and so is an Undo.
+  refused(ch.checkUndo({ op: 'thread.wake', thread: 'e-vel', activation: 'triggered', keys: [],
+    wrote: { activation: 'always_on', keys: [] } }, waking), /wake words/i);
+});
+
 ok('the change slice never reaches for the database itself', () => {
   const src = readFileSync(new URL('../src/changes.ts', import.meta.url), 'utf8');
   assert.ok(!/from '\.\/db\.ts'/.test(src), 'src/changes.ts must not import db.ts');
