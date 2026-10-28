@@ -529,18 +529,28 @@ Dialogue:
  *  situation and nothing after it; the questions the story lives on come back apart, as strings,
  *  and the rest lives in threads.
  *
- *  ONE WORDING, in every prompt that writes a premise (SPARK, SPARK_FIELD's re-roll and TALK_SETUP),
- *  so a re-roll or a change asked in Talk cannot bring the arc back. The shape has angle-bracket
- *  slots, never a quoted sentence: the real model copies quoted examples word for word (see the
- *  SHAPES, NOT EXAMPLES note on POCKET_FORM). `test/talk.ts` checks all three carry it.
+ *  IT SAYS HOW THE TALE BEGINS, not how things stand: it is read on every call for the life of the
+ *  tale, so a premise written as a standing "now" would still read as now at scene thirty (setup
+ *  prompt audit, 2026-10-28, problem B). Its shape carries "as the tale opens" for that reason.
+ *  No sentence band: the floor paragraph that pushed every field long was deleted from SPARK with
+ *  this (the live premise came back at nineteen sentences against eight to twelve asked), and a
+ *  count reads as a target (F18), so this gives a ceiling only.
+ *
+ *  ONE WORDING, in every prompt that writes or rewrites a premise (SPARK, SPARK_FIELD's re-roll,
+ *  REVIEW and TALK_SETUP), so a re-roll, Try it on or a change asked in Talk cannot bring the arc
+ *  back. The shape has angle-bracket slots, never a quoted sentence: the real model copies quoted
+ *  examples word for word (see the SHAPES, NOT EXAMPLES note on POCKET_FORM). `test/talk.ts`
+ *  checks all four carry it.
  *  NOT MEASURED: no control run yet says this keeps the model off the ending better than the old
  *  wording did. Owed one before anyone calls it better. */
 export const PREMISE_FORM =
-`The premise is ONE paragraph, three to five sentences, and it is the OPENING of the tale: who we
-are with, where and when, what they want right now and what is in their way right now. Never how
-it ends, what it costs or what anyone will do: the tale finds that out as it is written. Shape:
-"<who we are with>, <where and when>. <what they want now>. <what is in their way now>." A premise,
-not a blurb. No marketing language, no rhetorical questions.`;
+`The premise is ONE paragraph, no more than five sentences, and it is the OPENING of the tale: it
+says how the tale BEGINS, not how things will stand later. It is read on every call for the life of
+the tale, so write it as the beginning: who we are with, where and when the tale opens, what they
+want as it opens and what is in their way. Never how it ends, what it costs or what anyone will do:
+the tale finds that out as it is written. Shape: "<who we are with>, <where and when>, as the tale
+opens: <what they want>, and <what is in their way>." A premise, not a blurb.
+No marketing language, no rhetorical questions.`;
 
 /** #21 §2 · THE SCAFFOLD, AND NOT THE CAST. Split out of one 3,400-token object on 2026-08-29.
  *
@@ -561,10 +571,6 @@ point of view, a spice level from 1 to 5, the voice the prose is written in, and
 
 NO CHARACTERS. They are asked for separately, once the writer has said what kinds of thing this
 book needs. Do not name a cast, and do not write the premise as though one has been chosen for you.
-
-EVERY FIELD BELOW IS SOMETHING THE WRITER STARTS FROM AND SOMETHING THE MODEL READS ON EVERY CALL
-FOR THE LIFE OF THE BOOK. A line is not enough for either. Where a length is given, it is a floor
-as much as a ceiling: come back short and the writer has to do the work again from a blank field.
 
 ${PREMISE_FORM}
 
@@ -674,7 +680,10 @@ list is the correct answer for one. Do not invent a disagreement to have somethi
 
 For each change: which field, the whole replacement text for it, and one sentence on why. The
 replacement is not a note about the field — it is what the field would say instead, written to the
-same length and in the same voice as what it replaces.
+same length and in the same voice as what it replaces. A new premise keeps this shape, and a
+premise that tells how the tale ends, what it costs or what anyone will do is a thing to change:
+
+${PREMISE_FORM}
 
 You may also propose entries the skeleton implies and the cast is missing: someone the premise
 names who is not there, the place it happens in, the thing everyone wants. Each is a name, a kind,
@@ -767,9 +776,15 @@ came before; say where it goes next.
            now — so write the destination, not an instruction to arrive at it. Nothing in it may
            read as "end the chapter here".
 
-Follow what the story is already doing. If a destination is set, this chapter is a step towards it
-rather than a detour, and if an unpaid promise is in play, this is where it can be pressed on.
-Nothing here may contradict the canon or the summaries above.`;
+Follow what the story is already doing. The open questions are what the tale lives on: keep each
+one in view, and this chapter may complicate it, never answer it. Nothing here may contradict the
+canon or the summaries above.`;
+// ADR 0009 (2026-10-28). The last paragraph said "if a destination is set, this chapter is a step
+// towards it", naming the direction field removed on 2026-08-30, so the model had to guess one and
+// the premise was the nearest; and "if an unpaid promise is in play, this is where it can be
+// pressed on", which pushed the tale's own open questions (strings made at New tale) to an answer
+// through the beat that rides every call. The string block in the writing prompt already says
+// "do not resolve one"; this now agrees with it. NOT MEASURED.
 
 export const CHAPTER_SCHEMA = {
   type: 'object',

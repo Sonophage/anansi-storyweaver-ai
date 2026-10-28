@@ -871,10 +871,12 @@ ok('a kind that does not exist is refused rather than assembled');
     ['the voice', /a hundred words or so, not a label/],
   ] as const) assert.match(SPARK, re,
     `${what} needs a length worth filling, or the model gives it a line`);
-  // And a floor is only a floor if it is said to be one.
-  assert.match(SPARK, /floor\s+as much as a ceiling/i,
-    'the prompt has to say the bands are minimums too — every one of them was read as a ceiling '
-    + 'and answered at the bottom of the range');
+  // THE FLOOR PARAGRAPH IS GONE (ADR 0009, 2026-10-28). It said every band was a floor as much as
+  // a ceiling, and it pushed the premise long: the live one came back at nineteen sentences against
+  // the eight to twelve asked, and a one-paragraph opening cannot share a prompt with a push for
+  // length. (It was added because bands were read as ceilings; that is now the lesser risk.)
+  assert.doesNotMatch(SPARK, /floor\s+as\s+much\s+as\s+a\s+ceiling|A line is not enough/i,
+    'SPARK-NO-FLOOR: nothing in the spark pushes the fields to run long');
   for (const [what, re] of [
     ['a premise is not a blurb', /not a\s+blurb\.\s+No marketing language, no rhetorical questions/],
     ['the voice describes prose, not genre', /description of PROSE/],
@@ -908,10 +910,14 @@ ok('a kind that does not exist is refused rather than assembled');
 // change cannot bring the arc back. The wording itself is NOT MEASURED; these check only that it
 // is the one asked for, everywhere, and that its examples are shapes.
 {
-  const { SPARK, SPARK_FIELD, TALK_SETUP, PREMISE_FORM, SPARK_SCHEMA } = await import('../src/prompts.ts') as any;
+  const { SPARK, SPARK_FIELD, TALK_SETUP, REVIEW, PREMISE_FORM, SPARK_SCHEMA } = await import('../src/prompts.ts') as any;
   assert.ok(typeof PREMISE_FORM === 'string' && PREMISE_FORM.length > 0, 'PREMISE-FORM: one wording for the premise exists');
   assert.match(PREMISE_FORM, /ONE paragraph/, 'PREMISE-FORM: one paragraph');
   assert.match(PREMISE_FORM, /opening/i, 'PREMISE-FORM: and it is the opening');
+  // It is read on every call for the life of the tale, so it is how the tale BEGAN, not a standing
+  // "now": the shape itself carries "as the tale opens".
+  assert.match(PREMISE_FORM, /BEGINS/, 'PREMISE-BEGINS: the premise says how the tale begins');
+  assert.match(PREMISE_FORM, /"[^"]*as\s+the\s+tale\s+opens[^"]*"/, 'PREMISE-BEGINS: and its shape is set at the opening');
   assert.match(PREMISE_FORM, /Never\s+how\s+it\s+ends,\s+what\s+it\s+costs\s+or\s+what\s+anyone\s+will\s+do/,
     "PREMISE-FORM: never the ending, the cost or anyone's next move (ADR 0009's words)");
   // SHAPES, NOT EXAMPLES: every quoted span is a shape with an angle-bracket slot, never a sentence
@@ -919,7 +925,7 @@ ok('a kind that does not exist is refused rather than assembled');
   const quoted = [...PREMISE_FORM.matchAll(/"([^"]*)"/g)].map((m) => m[1]);
   assert.ok(quoted.length > 0, 'PREMISE-SHAPE: the form gives a shape');
   for (const q of quoted) assert.match(q, /<[^>]+>/, `PREMISE-SHAPE: a quoted example is a shape, not a sentence: "${q}"`);
-  for (const [name, text] of [['SPARK', SPARK], ['SPARK_FIELD', SPARK_FIELD], ['TALK_SETUP', TALK_SETUP]] as const) {
+  for (const [name, text] of [['SPARK', SPARK], ['SPARK_FIELD', SPARK_FIELD], ['TALK_SETUP', TALK_SETUP], ['REVIEW', REVIEW]] as const) {
     assert.ok(text.includes(PREMISE_FORM), `PREMISE-ONE: ${name} asks for the premise in the one wording`);
     assert.doesNotMatch(text, /who else wants something incompatible|eight to twelve sentences/,
       `PREMISE-NO-ARC: ${name} no longer asks for the arc`);
@@ -966,6 +972,22 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.match(String(refused.error), /nothing was made/, 'QUESTIONS-ROLLBACK: a refused copy fails the Create');
   assert.strictEqual(owned(), before, 'QUESTIONS-ROLLBACK: and its strings go with it');
   ok('the ticked open questions become strings at Create, inside its rollback');
+
+  // THE SCENE BRIEF KEEPS THEM OPEN. It was sent every open string as "UNPAID PROMISES" and told to
+  // press on one, which would push the tale's own questions to an answer through the brief that
+  // rides every call; and it named a destination field removed on 2026-08-30.
+  const { CHAPTER } = await import('../src/prompts.ts');
+  assert.doesNotMatch(CHAPTER, /destination\s+is\s+set/, 'CHAPTER-NO-DESTINATION: no field that no longer exists');
+  assert.doesNotMatch(CHAPTER, /pressed\s+on|unpaid\s+promise/i, 'CHAPTER-OPEN: nothing tells it to press a string towards payment');
+  assert.match(CHAPTER, /complicate\s+it,\s+never\s+answer\s+it/, 'CHAPTER-OPEN: an open question may be complicated, never answered');
+  calls = [];
+  const brief: any = await routes['POST /api/chapter/propose'](ctx({ storyId: tale.id, chapterId: db.chapters(tale.id).at(-1)!.id }));
+  assert.ok(!brief.error, brief.error);
+  const shownBrief = String(calls.at(-1).messages[1].content);
+  assert.doesNotMatch(shownBrief, /UNPAID PROMISES/, 'BRIEF-OPEN: the brief no longer calls them debts');
+  assert.match(shownBrief, /OPEN QUESTIONS[^\n]*never answer[^\n]*Whether the debt is real/,
+    'BRIEF-OPEN: it is shown them as open questions, with the order never to answer one');
+  ok('the scene brief keeps the open questions open, and no longer names a destination');
 }
 
 // ---- 7. ANANSI READS THE BOOK; THE BOOK DOES NOT SET HER REGISTER

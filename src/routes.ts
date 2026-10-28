@@ -1612,9 +1612,11 @@ async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?:
     v.story.setting ? `SETTING: ${v.story.setting}` : '',
     before.length ? `WHAT HAS HAPPENED:\n${before.map((x: any) =>
       `Chapter ${x.index}${x.title ? ` — ${x.title}` : ''}: ${x.summary}`).join('\n')}` : '',
+    // ADR 0009. Every open string, summoned or not, as a question to keep open: they were sent as
+    // "UNPAID PROMISES" to be pressed on, which pushed the tale's own questions to an answer.
     (v.strings ?? []).filter((x: any) => x.status === 'open').length
-      ? `UNPAID PROMISES: ${(v.strings ?? []).filter((x: any) => x.status === 'open')
-          .map((x: any) => x.title).join('; ')}` : '',
+      ? `OPEN QUESTIONS (keep them in view; complicate one, never answer it): ${(v.strings ?? [])
+          .filter((x: any) => x.status === 'open').map((x: any) => x.title).join('; ')}` : '',
     tail.trim() ? `THE PROSE ENDS:\n${tail.trim()}` : '',
     // ASKED AGAIN, AWAY FROM THE LAST (2026-10-27): what was suggested before, so the new answer is a
     // different scene and not the same one reworded. Before the writer's steer, which stays last.
