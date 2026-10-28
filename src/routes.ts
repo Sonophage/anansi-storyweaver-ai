@@ -2431,7 +2431,7 @@ function worldPeopleAtCreate(made: any, owner: string, body: any): string | null
     for (const a of db.addonsOf(made.id) as any[])
       if (a.entry_id === copy && (a.slot === 'voice' || a.slot === 'interiority')) db.delAddon(made.id, a.id);
     const v = outside.rooms.voice;
-    const id = db.upsertAddon(made.id, copy, { slot: 'voice', name: v.name, body: `[${v.body}]` });
+    const id = db.upsertAddon(made.id, copy, { slot: 'voice', name: v.name, body: v.body });
     if (id) db.setAddonActive(made.id, id, true);
   }
   const read = db.entriesFor(made.id) as any[];
