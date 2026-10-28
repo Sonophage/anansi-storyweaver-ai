@@ -742,8 +742,8 @@ if (await page.visible('[data-setup="title"]')) {
   // another page. then the option of adding new cards based on that premise then it begins ...
   // right now it out of order and all in one page."
   //
-  // A COLD LOAD OPENS ON THE PREMISE, not on step one: `S.setupStep` is session state and only a
-  // chapter close sets it, so somebody navigating to #story/setup on purpose lands on the step
+  // A COLD LOAD OPENS ON THE PREMISE, not on step one: `S.setupStep` is session state and only the
+  // steps themselves set it (a chapter close did, until #92), so somebody navigating to #story/setup on purpose lands on the step
   // they came for. Asserted rather than assumed, because it is the reason the ledger controls
   // below are no longer on the first thing you see.
   const cold = await page.eval(`(() => ({
@@ -1877,7 +1877,13 @@ ok("  and it is still there a moment later, not eaten by a repaint",
     // Two asked for, two refused, so the absent pair is a real distinction rather than an empty set.
     const end = await (await fetch('/api/chapter/end', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ storyId:id, remember:false, retire:false }) })).json();
-    return JSON.stringify({ passes: end.passes ?? null, hasExtracted: 'extracted' in end }); })()`);
+    // #89/#92: the route answers before the passes run, and the report lands on the scene's hem.
+    let hem = null;
+    for (let i = 0; i < 240 && hem?.state !== 'done'; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      hem = (await (await fetch('/api/story?story=' + id)).json()).chapters.find((c) => c.id === end.closed)?.hem;
+    }
+    return JSON.stringify({ passes: hem?.passes ?? null, hasExtracted: 'extracted' in end }); })()`);
   const p6 = JSON.parse(closed6);
   ok(`  the close reports its passes (${JSON.stringify(p6.passes)})`,
      p6.passes && typeof p6.passes === 'object');

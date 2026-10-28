@@ -750,8 +750,6 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     // world books draw on Threads and keep their tag, and `storyFollowing` never cared whether the
     // book it follows is one. What has no door is making a NEW one.
     newWorld: 'issue #34: the Name-a-world strip came off Threads and nothing replaced it (2026-08-31)',
-    // #91 built the route; #92 puts Try again, Hem again and the overflow ask on the scene's card.
-    hemAgain: 'issue #92 wires it to the scene card on the Workbench (route built in #91, 2026-10-27)',
   };
   const orphans = defined.filter((d) => !new RegExp(`\\bapi\\.${d}\\b`).test(app) && !(d in DEFERRED));
   assert.deepStrictEqual(orphans, [],

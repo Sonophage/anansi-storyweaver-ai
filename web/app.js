@@ -228,12 +228,6 @@ const S = {
   // a cold load at #story/setup opens on: only a chapter close starts at the top.
   setupStep: null, setupKind: 'character', setupSteer: '', propKind: 'all', models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', threadQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, spark: null, ritual: null, setup: null,
-  // Issue #32. Which of the chapter close's four passes did not run, by name, and why. Null means
-  // no chapter has been closed this session; an empty object means all four ran.
-  ritualPasses: null,
-  // #46. The chapter whose summary the last close kept because it was yours, or null. Only a close
-  // knows it kept one, so the closing report reads this and not who wrote the summary.
-  ritualKept: null,
   // Issue #38. The passage whose re-roll instruction is open for editing, and the text in it.
   // Null means no editor is open, which is every press on an undirected passage.
   reroll: null,
@@ -587,6 +581,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'delevent', 'makeplace',
   // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
   'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit',
+  // #92. A hemmed scene's card: run its passes again, save its summary, use its next-scene suggestion.
+  'hemagain', 'hemsum', 'usehem',
   // #75. The tale's own thread.
   'taleopen', 'taleclose', 'newrule', 'addtalepocket',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
@@ -1775,8 +1771,8 @@ async function nameChapter(chapterId, auto = false) {
   // the title box, and the next read of it threw on `.trim()` — the panel stopped rendering at
   // all. Found by the stub DOM answering this route with {}, which is exactly what a route that
   // half-fails does.
-  // ASKED ON ITS OWN, IT FAILS QUIETLY. The panel asks as it opens, which is straight after a hem;
-  // with the model down that toast landed on top of the hem's own report and read as the hem
+  // ASKED ON ITS OWN, IT FAILS QUIETLY. The panel asks as it opens, which used to be straight after
+  // a hem (since #92 it does not ask when the hem brings a suggestion); with the model down that toast landed on top of the hem's own report and read as the hem
   // failing (usability check, 2026-10-24). So the reason sits under the button that asks again,
   // and a toast is kept for the press.
   if (r.error || !r.title) {
@@ -2458,9 +2454,20 @@ function taleThread() {
 }
 
 function deckCards(only = null) {
-  const props = (V?.proposals ?? []).filter((p) => p.entryType !== 'string' && (!only || only.has(p.id)));
+  const all = (V?.proposals ?? []).filter((p) => p.entryType !== 'string');
+  const props = all.filter((p) => !only || only.has(p.id));
+  // #92 · A HEMMED SCENE IS ONE CARD: everything one hem chalked is the scene's group (#89), and
+  // the card is drawn from the chapter's hem, so it is there while the hem runs and before anything
+  // is chalked. `only` names a scene's card by its group, `scene:<chapterId>`.
+  const hems = (V?.chapters ?? []).filter((ch) => ch.hem).map((ch) => {
+    const key = `scene:${ch.id}`, ps = all.filter((p) => p.grp === key);
+    if (only ? !only.has(key) : !hemShows(ch, ps)) return null;
+    return { kind: 'hem', key, ch, ps, title: sceneName(ch), line: '',
+      sub: ch.hem.state === 'running' ? 'Hemming this scene' : 'Hemmed scene' };
+  }).filter(Boolean);
+  const taken = new Set(hems.map((c) => c.key));
   const groups = new Map();
-  for (const p of props) { const k = p.grp || p.id; groups.set(k, [...(groups.get(k) ?? []), p]); }
+  for (const p of props.filter((x) => !taken.has(x.grp))) { const k = p.grp || p.id; groups.set(k, [...(groups.get(k) ?? []), p]); }
   const what = (ps) => ps.some((p) => !p.entryId) ? 'New thread'
     : ps.some((p) => (p.grp ?? '').startsWith('hem:')) ? 'Hemming found' : ps[0].kind === 'tidy' ? 'Tidy this thread'
     : 'Anansi chalked';
@@ -2479,7 +2486,105 @@ function deckCards(only = null) {
     title: x.title, sub: x.summoned ? 'String · summoned' : 'String', line: '', right: x.summoned ? 'Dismiss' : 'Summon',
     left: 'Let go' }));
   // ONLY THESE, for the hem page: the chalked cards of the scene just hemmed, and no knots or strings.
-  return only ? chalk : [...chalk, ...knots, ...strings, ...upkeepCards()];
+  return only ? [...hems, ...chalk] : [...hems, ...chalk, ...knots, ...strings, ...upkeepCards()];
+}
+
+/** #92 · THE SCENE AFTER A HEMMED ONE, while it is the scene being written: the one the hem's
+ *  suggestion is for. Null once the writer has moved past it, so an old suggestion stops asking. */
+const hemNext = (ch) => {
+  const n = (V?.chapters ?? []).find((x) => x.index === ch.index + 1);
+  return n && n.id === V.currentChapter?.id && n.status !== 'closed' ? n : null;
+};
+/** Whether a hemmed scene's card is on the deck: while it runs, while anything it chalked is
+ *  undecided, while a pass did not run, and while its suggestion waits for the scene being written.
+ *  OUT OF DATE ALONE DOES NOT BRING IT BACK: with nothing chalked left there is nothing to sew in from
+ *  text that is gone, and the summary's own upkeep card already says when it is out of date. */
+const hemShows = (ch, ps) => ch.hem.state === 'running' || ps.length > 0
+  || missedPasses(ch).length > 0 || !!(ch.hem.suggestion && hemNext(ch));
+
+/** What a chalked row would change, as it stands now: the Over time entry in force for a row about
+ *  where the thread stands, the pocket it lands in for a pocket row. Null when there is nothing
+ *  before it (a new thread, a retirement, an empty pocket). */
+function hemBefore(p) {
+  const e = p.entryId ? (V.entries ?? []).find((x) => x.id === p.entryId) : null;
+  if (!e || p.entryType === 'retire') return null;
+  if (p.entryType === 'state') return standsNow(e)?.body ?? e.body ?? null;
+  if (!p.field) return e.body ?? null;
+  const pockets = [...(e.addons ?? []), ...(e.outfits ?? [])];
+  return (pockets.find((a) => a.id === p.target) ?? pockets.find((a) => a.slot === p.field))?.body ?? null;
+}
+
+/** #92 · ONE HEMMED SCENE'S CARD, in the spec's order: what state the hem is in, the summary
+ *  (editable; saving it makes it the writer's, #46), each changed thread before and after, threads
+ *  to retire, new threads, the threads past the cap, and the next scene's suggestion. Every thread
+ *  folds to its name and one line until opened, so it reads on a phone. Each row is the same
+ *  `deckRow` the other chalk cards use; Sew all and Reject all are the deck's own `deckall`. */
+function hemCardParts(c) {
+  const ch = c.ch, h = ch.hem, id = esc(ch.id), running = h.state === 'running';
+  const state = [];
+  if (running) state.push(`<div class="note">Anansi is still hemming this scene. What it finds lands on this card.</div>`);
+  if (!running && h.outOfDate) state.push(`<div class="note warned">Out of date: the scene changed after it
+    was hemmed, so what is still chalked here was read from text that is gone. What you sewed in or
+    rejected stays.</div>
+    <button class="btn ghost push-8" data-hemagain="${id}">Hem again</button>`);
+  for (const m of missedPasses(ch)) state.push(`<div class="line-8 wraps push-8"><span class="note">
+    <span class="inked">${esc(m.label)}</span> did not run &mdash; ${esc(m.why)}</span>
+    <button class="btn ghost" data-hemagain="${id}" data-pass="${esc(m.key)}">Try again</button></div>`);
+  const summary = running ? '' : `<label class="lbl sub-lbl" for="hemsum-${id}">${
+      ch.summaryAuthor === 'human' ? 'Your summary' : 'The summary'}</label>
+    <textarea class="field" id="hemsum-${id}" data-hemsumtext="${id}" aria-label="The summary of ${esc(c.title)}"
+      placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>
+    <button class="btn ghost" data-hemsum="${id}">Save it as yours</button>`;
+  const peek = (s) => `${esc(String(s ?? '').slice(0, 90))}${String(s ?? '').length > 90 ? '&hellip;' : ''}`;
+  const fold = ([k, rows]) => `<details class="decksec" data-hemthread="${esc(k)}">
+    <summary><span class="lbl flush">${esc(rows[0].title)}</span><span class="deckpeek">${peek(rows[0].body)}</span></summary>
+    ${rows.map((p) => {
+      const was = hemBefore(p);
+      return `${was == null ? '' : `<div class="hint lead-8"><span class="lbl flush">Before</span> ${esc(was)}</div>
+        <div class="hint flush"><span class="lbl flush">After</span></div>`}${deckRow(p)}`;
+    }).join('')}</details>`;
+  const section = (label, rows) => {
+    const by = new Map();
+    for (const p of rows) { const k = p.entryId || p.title; by.set(k, [...(by.get(k) ?? []), p]); }
+    return rows.length ? `<div class="lbl sub-lbl">${label}</div>${[...by].map(fold).join('')}` : '';
+  };
+  const ps = c.ps;
+  const threads = section('What changed', ps.filter((p) => p.entryId && p.entryType !== 'retire'))
+    + section('To retire', ps.filter((p) => p.entryType === 'retire'))
+    + section('New threads', ps.filter((p) => !p.entryId));
+  const past = h.overflow ?? [];
+  const overflow = past.length ? `<div class="hint push-8">Also changed in this scene, past the six:
+    ${past.map(esc).join(', ')}.</div>
+    <button class="btn ghost" data-hemagain="${id}" data-names="${esc(JSON.stringify(past))}">Ask for ${
+      past.length === 1 ? 'it' : 'these'}</button>` : '';
+  const s = h.suggestion, next = s && hemNext(ch);
+  const suggestion = next ? `<div class="lbl sub-lbl">${esc(sceneName(next))}, as Anansi suggests it</div>
+    <div class="serif">${esc(s.title)}</div>
+    ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
+    ${s.opens ? `<div class="hint flush">Opens with: ${esc(s.opens)}</div>` : ''}
+    <button class="btn ghost push-8" data-usehem="${id}">Use these</button>` : '';
+  const ids = esc(ps.map((p) => p.id).join(','));
+  return {
+    body: `${state.join('')}${summary}${threads}${overflow}${suggestion}`,
+    right: ps.length ? `<button class="btn" data-deckall="accept" data-ids="${ids}" data-deckright="1">Sew all &rarr;</button>` : '',
+    left: ps.length ? `<button class="btn ghost" data-deckall="reject" data-ids="${ids}" data-deckleft="1">&larr; Reject all</button>`
+      : `<button class="btn ghost" data-deckmove="1" data-deckleft="1">&larr; Leave it</button>`,
+  };
+}
+
+/** One chalked section as the deck draws it: the shared `proposalCard`, what a new thread arrives
+ *  with, and Anansi edits. One renderer for the per-thread cards and the scene cards. */
+function deckRow(p) {
+  return `${proposalCard(p)}
+      ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint trail-6">It arrives with these:</div>
+        ${Object.entries(p.rooms).map(([slot, r]) => `<div style="font-size:12px; line-height:1.45; color:var(--mute); margin-top:4px">
+          <span class="lbl flush">${slot === 'stands' ? 'Where it stands' : esc(pocketTitle(slot))}${r?.name && r.name !== slot ? ` &middot; ${esc(r.name)}` : ''}</span>
+          ${esc(typeof r === 'object' ? r.body ?? '' : String(r))}</div>`).join('')}` : ''}
+      <div class="deckredo">
+        <input class="field" data-aeask="${esc(p.id)}" placeholder="What should change? (or leave it empty)"
+          aria-label="What should change, for Anansi to write it again" style="margin:0; flex:1; font-size:12px">
+        <button class="btn ghost" data-anansiedit="${esc(p.id)}" style="flex:0 0 auto; width:auto; padding:0 14px">Anansi edits</button>
+      </div>`;
 }
 
 /** UPKEEP AS CARDS (Seth, 2026-10-26: "Summaries and such those sit at the bottom instead of also
@@ -2538,18 +2643,11 @@ function deckCard(c, i, top) {
     body = c.ps.map((p) => `<details class="decksec"${c.ps.length === 1 ? ' open' : ''}>
       <summary><span class="lbl flush">${label(p)}</span>
         <span class="deckpeek">${esc(String(p.body ?? '').slice(0, 90))}${String(p.body ?? '').length > 90 ? '&hellip;' : ''}</span></summary>
-      ${proposalCard(p)}
-      ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint trail-6">It arrives with these:</div>
-        ${Object.entries(p.rooms).map(([slot, r]) => `<div style="font-size:12px; line-height:1.45; color:var(--mute); margin-top:4px">
-          <span class="lbl flush">${slot === 'stands' ? 'Where it stands' : esc(pocketTitle(slot))}${r?.name && r.name !== slot ? ` &middot; ${esc(r.name)}` : ''}</span>
-          ${esc(typeof r === 'object' ? r.body ?? '' : String(r))}</div>`).join('')}` : ''}
-      <div class="deckredo">
-        <input class="field" data-aeask="${esc(p.id)}" placeholder="What should change? (or leave it empty)"
-          aria-label="What should change, for Anansi to write it again" style="margin:0; flex:1; font-size:12px">
-        <button class="btn ghost" data-anansiedit="${esc(p.id)}" style="flex:0 0 auto; width:auto; padding:0 14px">Anansi edits</button>
-      </div></details>`).join('');
+      ${deckRow(p)}</details>`).join('');
     right = `<button class="btn" data-deckall="accept" data-ids="${esc(ids)}" data-deckright="1">Sew it in &rarr;</button>`;
     left = `<button class="btn ghost" data-deckall="reject" data-ids="${esc(ids)}" data-deckleft="1">&larr; Reject</button>`;
+  } else if (c.kind === 'hem') {
+    ({ body, right, left } = hemCardParts(c));
   } else if (c.kind === 'knot') {
     const f = c.f;
     body = `<details class="decksec"><summary><span class="lbl flush">The line and the thread</span></summary>
@@ -2777,18 +2875,24 @@ function ritualPanel() {
       // each pass is wrapped so it can — and this line was green beside a red report of the passes
       // that failed, which read as two answers (usability check, 2026-10-24). The scene IS closed,
       // so the words say that; the colour says it is not finished.
-      const missed = closed && S.ritualPassesOf === ch.id ? missedPasses().length : 0;
-      return line(!closed ? '--chip' : missed ? '--warn' : '--good',
-        !closed ? 'Not hemmed yet' : missed
+      // #92. The report is the scene's hem, so it is the same after a reload; while the hem runs
+      // the lines below are still filling in, and the line says so.
+      const missed = closed ? missedPasses(ch).length : 0;
+      const running = closed && ch.hem?.state === 'running';
+      return line(!closed || running ? '--chip' : missed ? '--warn' : '--good',
+        !closed ? 'Not hemmed yet' : running ? 'Closed, and the next one opened — Anansi is still hemming it'
+          : missed
           ? `Closed, and the next one opened — but ${missed === 1 ? 'one pass' : `${missed} passes`} did not run`
           : 'Hemmed, and the next one opened',
-        !closed ? 'Nothing below has run.' : missed ? 'Run each again from its own line below when the model is back.' : '');
+        !closed ? 'Nothing below has run.' : running ? 'Its card waits on the Workbench.' : '');
     })()}
+    ${closed ? passReport(ch) : ''}
 
     ${line(summary ? '--good' : closed ? '--warn' : '--chip',
-      // #46. "Kept" is what the close reported it did, so before a close, or after one that did not
-      // keep it, nothing says kept. Yours that was not kept is still not "Summarised": Anansi did not.
-      summary ? `${S.ritualKept === ch.id ? 'Kept your summary,'
+      // #46. "Kept" is what the hem reported it did, so before a hem, or after one that did not
+      // keep it, nothing says kept, and nor does it once Anansi has written over it since.
+      // Yours that was not kept is still not "Summarised": Anansi did not.
+      summary ? `${ch.hem?.keptSummary && ch.summaryAuthor === 'human' ? 'Kept your summary,'
         : ch.summaryAuthor === 'human' ? 'Your summary,' : 'Summarised in'} ${
         plural(words, 'word', 'words')}` : 'Not summarised',
       summary ? esc(summary)
@@ -2825,12 +2929,20 @@ function ritualPanel() {
     ${tipCard('ritAgain', 'Running a pass again', `<p>Every pass of hemming is wrapped so the scene
       still closes with the model down. If a line above came back blank, this is the way
       back.</p>`)}
-    <div class="row-6 wraps">
+    ${/* #92. A scene hemmed in the background runs a pass again through its hem, so what it finds
+         lands on the scene's card; a scene hemmed before #89 keeps the four old presses. */
+      ch.hem ? `<div class="row-6 wraps">
+      <button class="btn ghost half" data-hemagain="${esc(ch.id)}" data-pass="summary">Summary</button>
+      <button class="btn ghost half" data-hemagain="${esc(ch.id)}" data-pass="memory">Changes</button>
+      <button class="btn ghost half" data-hemagain="${esc(ch.id)}" data-pass="facts">Threads</button>
+      <button class="btn ghost half" data-hemagain="${esc(ch.id)}" data-pass="finished">Threads to retire</button>
+      <button class="btn ghost half" data-hemagain="${esc(ch.id)}" data-pass="next">The next scene</button>
+    </div>` : `<div class="row-6 wraps">
       <button class="btn ghost half" data-summarize="1">Summary</button>
       <button class="btn ghost half" data-remember="1">Changes</button>
       <button class="btn ghost half" data-extract="1">Threads</button>
       <button class="btn ghost half" data-refinished="1">Threads to retire</button>
-    </div>` : ''}
+    </div>`}` : ''}
 
     <!-- DELETE THE CHAPTER. Seth, 2026-08-30: "we also need a delete chapter", "deletion is
          deletion". Here and not on the chapter list, because this is the screen that says what
@@ -5417,19 +5529,21 @@ const wordLine = (text, cap) => {
 };
 const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next scene'], ['more', 'Anyone new']];
 
-/** Issue #32. The four passes a chapter close runs, and what a writer calls each one.
+/** Issue #32. The passes a hem runs, and what a writer calls each one.
  *
- *  Keyed by the name the route reports. A pass that is absent from `S.ritualPasses` was not asked
- *  for; one whose value is null ran; one with a string failed and the string is why.
+ *  Keyed by the name the hem's report uses. A pass that is absent from the report was not asked
+ *  for; one whose value is null ran; one with a string failed and the string is why. Since #89 the
+ *  report is on the scene's hem (`ch.hem.passes`), so it survives a reload; #92 reads it there.
  */
 const PASSES = [['summary', 'the summary'], ['memory', 'the character memory'],
-                ['facts', 'the threads pass'], ['finished', 'the scan for threads to retire']];
+                ['facts', 'the threads pass'], ['finished', 'the scan for threads to retire'],
+                ['next', "the next scene's suggestion"]];
 
-/** Which of them did not run, in the order they run in. Empty when everything ran, which is the
- *  normal case — so every caller can treat length as "is there anything to say". */
-const missedPasses = () => PASSES
-  .filter(([k]) => S.ritualPasses?.[k])
-  .map(([k, label]) => ({ label, why: String(S.ritualPasses[k]) }));
+/** Which of them did not run on this scene's hem, in the order they run in. Empty when everything
+ *  ran, which is the normal case — so every caller can treat length as "is there anything to say". */
+const missedPasses = (ch) => PASSES
+  .filter(([k]) => ch?.hem?.passes?.[k])
+  .map(([k, label]) => ({ key: k, label, why: String(ch.hem.passes[k]) }));
 
 /** The same thing on the report, where it stays after the toast has gone.
  *
@@ -5437,18 +5551,18 @@ const missedPasses = () => PASSES
  *  did not run" — is the shape the queue already had: you can see nothing arrived and cannot tell
  *  whether that is the chapter or the model.
  */
-function passReport() {
-  const missed = missedPasses();
+function passReport(ch) {
+  const missed = missedPasses(ch);
   if (!missed.length) return '';
   return `<div style="display:flex; flex-direction:column; gap:6px; margin:0 0 14px; padding:10px 12px;
     border-radius:var(--r); border:1px solid rgba(200,112,90,.35); background:rgba(200,112,90,.07)">
     <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase;
       color:var(--bad)">${missed.length === 1 ? 'One pass did not run' : `${missed.length} passes did not run`}</span>
     ${missed.map((m) => `<span class="note">
-      <span class="inked">${esc(m.label)}</span> &mdash; ${esc(m.why)}</span>`).join('')}
+      <span class="inked">${esc(m.label)}</span> &mdash; ${esc(m.why)}
+      <button class="tag pressable" data-hemagain="${esc(ch.id)}" data-pass="${esc(m.key)}">Try again</button></span>`).join('')}
     <span class="hint flush">Nothing was lost: the scene is hemmed and the prose is
-      untouched. Each pass has its own button on this screen, so run it again when the model is
-      back up.</span></div>`;
+      untouched. Try each again when the model is back up.</span></div>`;
 }
 
 function setupPanel() {
@@ -5502,14 +5616,20 @@ function setupPanel() {
    * With that, the whole panel — its queue, its counts and where it opens — is independent of session
    * state, because a proposal is a row and survives everything. */
   const prev = V.chapters.find((c) => c.index === V.currentChapter.index - 1);
-  const owing = prev && (V.proposals ?? []).some((p) => p.chapterId === prev.id) ? prev : null;
+  // #92. A scene whose hem card is on the deck owes a debrief too, even before anything is chalked.
+  const sceneRows = (c) => (V.proposals ?? []).filter((p) => p.grp === `scene:${c.id}`);
+  const hemOwed = (c) => !!c?.hem && hemShows(c, sceneRows(c));
+  const owing = prev && ((V.proposals ?? []).some((p) => p.chapterId === prev.id) || hemOwed(prev)) ? prev : null;
   const justClosed = (S.ritualOf && S.ritualOf !== V.currentChapter.id
       ? V.chapters.find((c) => c.id === S.ritualOf) : null) ?? owing ?? null;
+  // #92. THE SCENE'S OWN CARD, whole, on step one: what one hem left is one card on the Workbench and
+  // the same card here. Its rows are not split again between the steps below.
+  const sceneCard = justClosed && hemOwed(justClosed) ? `scene:${justClosed.id}` : null;
   // WHAT IS THERE TO DECIDE. Scoped to the chapter that just closed when there is one, because that
   // is what step one is about; everything pending otherwise, so the step is not empty for a writer
   // who opened this panel with a queue from yesterday.
-  const queue = justClosed ? (V.proposals ?? []).filter((p) => p.chapterId === justClosed.id)
-                           : (V.proposals ?? []);
+  const queue = (justClosed ? (V.proposals ?? []).filter((p) => p.chapterId === justClosed.id)
+                            : (V.proposals ?? [])).filter((p) => !sceneCard || p.grp !== sceneCard);
   /* TWO KINDS OF OFFER, TWO STEPS. Seth, 2026-09-01: *"the new cards that are suggested are still
    * landing under what is left instead of anyone new panel the new cards should show up under
    * anyone new."*
@@ -5524,6 +5644,8 @@ function setupPanel() {
    * a state, a retirement — writes into a thread you already have, which is what the chapter LEFT. */
   const fresh = queue.filter((p) => p.kind === 'new');
   const left = queue.filter((p) => p.kind !== 'new');
+  // What step one counts: the changes, and the scene's card as its rows (one while it is running).
+  const leftN = left.length + (sceneCard ? Math.max(1, sceneRows(justClosed).length) : 0);
   // A chapter opens on two empty fields, and an empty field on a panel you did not ask for is a
   // field that stays empty — while the note is the one thing in this app that rides near the
   // generation point on every call. So Anansi fills them in, once. Seth: "chapter information
@@ -5534,8 +5656,12 @@ function setupPanel() {
   // (db.ts:933), so a fresh chapter always has a title and the first version of this test never
   // fired once — the driver saw "Chapter 4" in the box, called it filled, and reported the note
   // empty. A title that is exactly this chapter's own number is the placeholder, not a name.
+  //
+  // #92. NOT WHILE A HEM WILL BRING ONE: the scene before this one, hemmed, carries Anansi's
+  // suggestion for this one on its card (Use these), and asking here as well would ask twice.
   const placeholder = numbered(form.title, ch.index);
-  if (!S.naming && !NAMED.has(ch.id) && placeholder && !form.note.trim()) {
+  const coming = prev?.hem && (prev.hem.state === 'running' || prev.hem.suggestion);
+  if (!coming && !S.naming && !NAMED.has(ch.id) && placeholder && !form.note.trim()) {
     NAMED.add(ch.id);
     nameChapter(ch.id, true);
   }
@@ -5549,8 +5675,9 @@ function setupPanel() {
    * sat on a step the writer had to press backwards to reach. A gold count on the rail is not the
    * same as being shown them.
    *
-   * THE CLOSE HANDLER ALREADY SETS `S.setupStep = 'cards'`, and that is why this took two goes to
-   * understand: the landing was right for as long as that session state lived. `S.ritualOf` and
+   * THE CLOSE HANDLER SET `S.setupStep = 'cards'` (until #92 landed the writer in the new scene
+   * instead), and that is why this took two goes to understand: the landing was right for as long
+   * as that session state lived. `S.ritualOf` and
    * `S.setupStep` are session state — a reload, or coming back to the tab later, clears both. Then
    * `justClosed` is null and this fell through to the premise, with the cards sitting on a step
    * behind a gold count. That is the state he was looking at.
@@ -5570,16 +5697,16 @@ function setupPanel() {
   // simply whichever kind of offer is waiting, and What it left comes first when both are.
   const isDebrief = !!justClosed && justClosed.id !== V.currentChapter.id;
   let step = SETUP_STEPS.some(([k]) => k === S.setupStep) ? S.setupStep
-             : isDebrief && left.length ? 'cards'
+             : isDebrief && leftN ? 'cards'
              : isDebrief && fresh.length ? 'more' : 'premise';
   // The cards step holds only the changes now, so an empty one is empty of THOSE — a close that
   // proposed nothing but new threads used to be sent here and find nothing.
-  if (step === 'cards' && !left.length) step = fresh.length ? 'more' : 'premise';
+  if (step === 'cards' && !leftN) step = fresh.length ? 'more' : 'premise';
 
   const rail = `<div style="display:flex; gap:6px; margin-bottom:15px">
     ${SETUP_STEPS.map(([k, l], i) => {
-      const owed = k === 'cards' ? left.length : k === 'more' ? fresh.length : 0;
-      const dead = k === 'cards' && !left.length;
+      const owed = k === 'cards' ? leftN : k === 'more' ? fresh.length : 0;
+      const dead = k === 'cards' && !leftN;
       const here = k === step;
       return `<button data-setupstep="${k}" ${dead ? 'disabled' : ''} style="flex:1; text-align:left;
         padding:7px 9px; border-radius:var(--r); font-size:11px; letter-spacing:.1em;
@@ -5597,36 +5724,39 @@ function setupPanel() {
   // the thing you land on. Re-ordering the panel nearly lost it: step one is SKIPPED when the close
   // proposed nothing, and the report would then have had no door anywhere in the ritual.
   // NOT GREEN WHEN A PASS DID NOT RUN: the same rule as the report's own first line.
-  const missedHere = justClosed && S.ritualPassesOf === justClosed.id ? missedPasses().length : 0;
+  const missedHere = missedPasses(justClosed).length;
+  const runningHere = justClosed?.hem?.state === 'running';
+  const keptHere = justClosed?.hem?.keptSummary && justClosed.summaryAuthor === 'human';
   const closedRow = justClosed && justClosed.id !== ch.id ? `<button data-panel="ritual" style="display:flex;
     align-items:center; gap:9px; width:100%; padding:9px 11px; margin-bottom:15px; text-align:left;
     border-radius:var(--r); border:1px solid var(--chip); background:transparent">
-    <span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(${missedHere ? '--warn' : '--good'})"></span>
+    <span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(${
+      runningHere ? '--chip' : missedHere ? '--warn' : '--good'})"></span>
     <span style="flex:1; min-width:0; font-size:12.5px; color:var(--mute); overflow:hidden;
-      text-overflow:ellipsis; white-space:nowrap">${esc(sceneName(justClosed))} ${missedHere
-        ? `closed &middot; ${missedHere === 1 ? 'one pass' : `${missedHere} passes`} did not run`
-        : `hemmed${justClosed.summary ? (S.ritualKept === justClosed.id ? ', kept your summary' : ', summarised') : ''}`}${
-        queue.length ? ` &middot; ${queue.length} on the workbench` : ''}</span>
+      text-overflow:ellipsis; white-space:nowrap">${esc(sceneName(justClosed))} ${runningHere
+        ? 'closed &middot; still hemming, and its card will wait on the Workbench'
+        : missedHere ? `closed &middot; ${missedHere === 1 ? 'one pass' : `${missedHere} passes`} did not run`
+        : `hemmed${justClosed.summary ? (keptHere ? ', kept your summary' : ', summarised') : ''}`}${
+        queue.length + (sceneCard ? sceneRows(justClosed).length : 0)
+          ? ` &middot; ${queue.length + (sceneCard ? sceneRows(justClosed).length : 0)} on the workbench` : ''}</span>
     <span class="row-label">what it found</span></button>` : '';
 
   // ---- 1 · WHAT IT LEFT. The chapter that just closed, as decisions and nothing else.
   if (step === 'cards') return `<div class="stack">
     ${rail}
     <div class="serif title-md">${
-      esc(sceneName(justClosed))} changed ${
-      plural(left.length, 'thread', 'threads')}${tipMark('setLeft', 'What the scene left')}</div>
+      esc(sceneName(justClosed))}: what it left${tipMark('setLeft', 'What the scene left')}</div>
     ${tipCard('setLeft', 'What the scene left', `<p>All of it is chalked: nothing here is in the tale
       until you sew it in, and nothing here is required &mdash; what you leave stays on the
       Workbench.</p>`)}
-    <!-- Issue #32, ABOVE the queue. An empty queue is the thing being explained, so the
-         explanation has to arrive before the writer reads the emptiness as "no facts here". -->
-    <div class="push-12">${passReport()}</div>
+    <!-- Issue #32: which pass did not run is at the top of the scene's own card now (#92), above
+         what it chalked, so the explanation still arrives before the emptiness it explains. -->
     ${justClosed ? `<div class="push-12">${closedRow}</div>` : ''}
     ${fresh.length ? `<button class="btn ghost push-8" data-setupstep="more"
       >${plural(fresh.length, 'new thread', 'new threads')} as well &mdash; under Anyone new</button>` : ''}
     <div class="stack-roomy push-14">
       ${/* #74. The same deck as the Workbench, holding what this scene left. */
-        deckHTML(new Set(left.map((p) => p.id)))
+        deckHTML(new Set([...left.map((p) => p.id), ...(sceneCard ? [sceneCard] : [])]))
         || '<div class="hint flush">Nothing it changed about a thread you already have.</div>'}</div>
     ${(() => {
       // #74 · ALSO CHECK: the threads sent on every call that this scene never named. Hemming reviews
@@ -8273,6 +8403,33 @@ function paint() {
   const world = S.place === 'story' && V && !!V.story?.is_world;
   if (S.place === 'story' && V && !world) { drawDoc(); drawDock(); }
   else { $('dock').hidden = true; if (world) drawDoc(); }
+  watchHems();
+}
+
+/** #92 · A HEM RUNNING IN THE BACKGROUND, WATCHED. While any scene of the open tale is hemming, the
+ *  tale is read again every few seconds; the screen is redrawn only when what is running changes
+ *  (a hem finished, or another began), so a box being typed in is not redrawn under the writer on
+ *  every read. One timer at a time, and none once nothing is running: every paint asks, so a hem
+ *  started anywhere — the end-scene press, Hem again, a reload mid-hem — is watched.
+ *
+ *  ponytail: a fixed 3-second poll, not a push from the server. Ceiling: one read per 3 seconds per
+ *  open tab while a hem runs (a hem is a few model calls, so tens of reads). Revisit if the server
+ *  gains a push channel, or if several tabs on one tale make the reads show up in the logs. */
+let HEM_WATCH = null;
+const HEM_POLL_MS = 3000;
+const hemsRunning = (v) => (v?.chapters ?? []).filter((c) => c.hem?.state === 'running').map((c) => c.id).join(',');
+function watchHems() {
+  if (HEM_WATCH || S.place !== 'story' || !hemsRunning(V)) return;
+  const sid = S.storyId;
+  HEM_WATCH = setTimeout(async () => {
+    // The scene in view stays in view. `api` never rejects: a failure is `{ error }`, and reads again.
+    const r = await api.story(sid, V?.currentChapter?.id);
+    HEM_WATCH = null;
+    // The writer may have left the tale while it was read; then this answer is about nothing on screen.
+    if (S.storyId !== sid || !V) return;
+    if (!r.error && hemsRunning(r) !== hemsRunning(V)) { V = r; paint(); return; }
+    watchHems();
+  }, HEM_POLL_MS);
 }
 
 /** The notes, and the error if there are none. Kept beside LEDGER because it is the same shape of
@@ -11828,57 +11985,58 @@ document.addEventListener('click', async (e) => {
       return;
     }
     S.confirmEnd = false;
-    working('reroll');
-    // FOUR PASSES, ONE CALL. The route closes the chapter, summarises it, remembers what it did to
-    // the people in it, reads it for facts, and asks which threads it finished — all on the same
-    // terms: "on close rather than on a button nobody remembers". Each is wrapped server-side so a
-    // chapter can still close with the model down, and the screen says which one did not run.
-    S.ritual = 'Hemming: summarising, reading it…'; paint();
+    // #92 · THE ROUTE ANSWERS AT ONCE (#89). It closes the scene and opens the next; the passes —
+    // summary, thread changes, new threads, retirements, the next scene's suggestion — run after
+    // the answer, and what they find waits on the scene's card on the Workbench. So nothing here
+    // waits on them. `S.ritual` only guards the second press while the close itself is in flight.
+    S.ritual = 'Hemming…'; paint();
     const closing = V.currentChapter;
     const r = await api.endChapter(S.storyId, {});
-    if (r.error) { S.ritual = null; working(null); paint(); return toast(r.error); }
-    // WHICH OF THE FOUR DID NOT RUN. Issue #32: "Facts are not being written based on the last
-    // chapter anymore." The four passes are each wrapped server-side so a chapter can close with
-    // the model down, and until now that meant an empty queue with no reason given — the comment
-    // above claimed this screen says which one failed, and nothing was handed back for it to say.
-    // Kept for the report to draw, and said once here, because a writer who closed a chapter and
-    // got no facts needs to know it was the model and not the chapter.
-    S.ritualPasses = r.passes ?? null;
-    S.ritualPassesOf = closing.id;
-    S.ritualKept = r.keptSummary ? closing.id : null;
-    V = await api.story(S.storyId);
-    // The panel stays on the chapter that just closed and recomputes its whole report from `V`.
-    // refetch dropped — so the checklist vanished on the next unrelated press.
+    S.ritual = null;
+    if (r.error) { paint(); return toast(r.error); }
+    // The answer is the view. The hem report (`ch.hem`) is on the scene, so it survives a reload.
+    V = r;
+    // The ritual panel stays on the scene that just closed.
     S.ritualOf = closing.id;
-    S.ritual = null; working(null);
-    // LAND ON THE NEXT CHAPTER, not on the report of the one that just ended. The verb pressed was
-    // END, and what comes after ending a chapter is starting one: `setupPanel` asks Anansi for the
-    // new chapter's name and its beat from its own render, and that only ever happened for a writer
-    // who scrolled past five report sections and found a ghost button. The report is not gone — it
-    // is one row at the top of setup, and `S.ritualOf` above still points this panel at the chapter
-    // that closed rather than the empty one that opened. Council 07: it debriefed before it
-    // dispatched.
-    S.panel = 'setup';
-    // AT THE TOP OF THE RITUAL, not in the middle of it. Council 07 landed the close on setup; this
-    // is the same argument one step further — what the chapter LEFT is decided before what the next
-    // one is FOR, because a proposal accepted after the beat is written is a card the beat could
-    // not have been written with. The step falls through to the premise when nothing was proposed.
-    S.setupStep = 'cards';
+    // LAND IN THE NEW SCENE, BLANK. The writer starts it themselves (spec #82, stories 1 and 2):
+    // no setup to step through, no name asked of Anansi — the hem brings its suggestion to the card,
+    // and Use these fills the boxes. No opening passage is written either: that is `savesetup`'s.
+    S.setup = null; S.setupStep = null; S.panel = 'context';
     syncHash(); paint(); refreshManifest();
-    // AND SAY IT, once, if anything did not run. The report keeps it (see `passReport`); this is
-    // the sentence the writer reads without going looking, because "no facts were proposed" and
-    // "the facts pass never ran" look identical on the queue.
-    const missed = missedPasses();
-    // #46. A summary that was yours is kept, not re-run, and that is said rather than left silent.
-    const kept = r.keptSummary ? ' Kept your summary.' : '';
-    // SHORT. It covered the next scene's form, and joined two messages into one (second check).
-    // Which passes and why are on the report, one row each.
-    if (missed.length) toast(`Scene closed, but ${missed.length === 1 ? 'one part' : `${missed.length} parts`} did not run. The row at the top says which.${kept}`);
-    else if (kept) toast('Scene hemmed — kept your summary.');
-    // THE OPENING PASSAGE IS NOT WRITTEN HERE ANY MORE — see `savesetup`. The beat rides near the
-    // generation point on every call of a chapter, and writing its first passage from this line
-    // wrote the one passage in the chapter that could not have it.
+    toast(`${sceneName(closing)} is being hemmed. Its card will wait on the Workbench.`);
     return;
+  }
+  // #92 · A HEMMED SCENE'S PASSES AGAIN (#91). `pass` is Try again for one pass; `names` asks for
+  // the threads past the cap; neither is Hem again, which drops what is still chalked on the card
+  // (what was sewn in or rejected stays), so it asks first.
+  if (d.hemagain) {
+    const o = d.pass ? { pass: d.pass } : d.names ? { names: JSON.parse(d.names) } : {};
+    if (!d.pass && !d.names && !armed(t, `hem:${d.hemagain}`,
+      'Press again to hem this scene again. What is still chalked on its card goes; what you sewed in or rejected stays.')) return;
+    const r = await api.hemAgain(S.storyId, d.hemagain, o);
+    if (r.error) return toast(r.error);
+    V = r; paint();
+    return toast(d.pass ? 'Trying that again. It lands on the card.' : d.names ? 'Asking for them. They land on the card.'
+      : 'Hemming it again. The card fills in when it is done.');
+  }
+  // #92. The summary on a scene's card, saved as the writer's (#46): a later hem keeps it. Removing a
+  // summary stays on the Chapters tab, where it takes two presses.
+  if (d.hemsum) {
+    const text = document.querySelector(`[data-hemsumtext="${d.hemsum}"]`)?.value ?? '';
+    if (!text.trim()) return toast('A summary needs something in it.');
+    const r = await api.saveSummary(S.storyId, d.hemsum, text);
+    if (r.error) return toast(r.error);
+    V = r; paint(); refreshManifest();
+    return toast('Saved. This summary is yours now.');
+  }
+  // #92 · USE THESE. The hem's suggestion goes into the next scene's three boxes on its setup, as
+  // a draft (`S.setup`), and nothing is saved until the writer presses Save there.
+  if (d.usehem) {
+    const ch = V.chapters.find((c) => c.id === d.usehem), s = ch?.hem?.suggestion, next = ch && hemNext(ch);
+    if (!s || !next) return;
+    S.setup = { chapterId: next.id, title: s.title ?? '', note: s.note ?? '', opens: s.opens ?? '' };
+    S.panel = 'setup'; S.setupStep = 'premise'; syncHash(); paint();
+    return toast('Filled in. Change anything; nothing is saved until you press Save.');
   }
   // The way back when the router was asleep at the close. Same shape as data-remember.
   if (d.refinished) {
@@ -11919,8 +12077,6 @@ document.addEventListener('click', async (e) => {
     const r = await whileWorking(t, 'Summarising…', () => api.summarize(S.storyId, ch, yours));
     if (!r) return;
     if (r.error) return toast(r.error);
-    // What the close kept is gone once Anansi has written over it; the report must stop saying kept.
-    if (S.ritualKept === ch) S.ritualKept = null;
     V = await api.story(S.storyId); paint(); return; }
   if (d.extract) {
     const r = await whileWorking(t, 'Reading the scene…', () => api.extract(S.storyId, V.currentChapter.id));

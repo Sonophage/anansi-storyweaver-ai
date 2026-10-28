@@ -342,12 +342,6 @@ let modelsRemote = false;
 // Whether the library answer says this writer is the admin. Off: the fixture's writer is not. The
 // model panel checks flip it to see the admin's view beside the writer's.
 let libAdmin = false;
-// Issue #32. What `POST /api/chapter/end` says about its own four passes, for the one test that
-// closes a chapter. Undefined means it says nothing, which is both the all-ran case and the case
-// of an older server.
-let endPasses: any = undefined;
-// #46. Whether the close kept a summary that was yours. Undefined is every close but that one.
-let endKept: any = undefined;
 // #46. What `GET /api/after` names for delete-after's first press, and the passage it was asked about.
 let afterYours: any[] = [];
 let afterAsked: string | null = null;
@@ -536,10 +530,9 @@ let stubTalk: any = null, stubInvent: any = null;
         setting: 'Ashfall Hall', pov: 'third limited, past tense', spice: 2,
         writingStyle: 'Cold, spare.', persona: 'Ilva Marren' },
         entries: [{ title: 'Ilva Marren', entryType: 'character', body: 'A envoy with nothing to trade.' }] }
-    // Issue #32. What the chapter close reports about its own four passes. `undefined` is the
-    // normal answer — every pass ran — and a route that predates the field returns nothing at all,
-    // which has to read the same way.
-    : url.startsWith('/api/chapter/end') ? { ...STORY, passes: endPasses, keptSummary: endKept }
+    // #89. The end-scene route answers with the view at once; the passes run after it, and what
+    // they report is on the scene's hem, not in this answer.
+    : url.startsWith('/api/chapter/end') ? STORY
     : url.startsWith('/api/after?') ? (afterAsked = new URLSearchParams(url.split('?')[1]).get('id'),
         { yours: afterYours })
     : url.startsWith('/api/manifest') ? MANIFEST
@@ -4304,27 +4297,20 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   ok('a checkbox redraws the panel it changed, and carries the half-typed text across');
 }
 
-// ---- WHEN A CHAPTER CLOSE'S PASSES DO NOT RUN, THE SCREEN SAYS SO (issue #32). Seth: "Facts are
-// not being written based on the last chapter anymore."
+// ---- WHEN A HEM'S PASSES DO NOT RUN, THE SCREEN SAYS SO (issue #32). Seth: "Facts are not being
+// written based on the last chapter anymore."
 //
-// Four model passes run on close — summary, character memory, facts, finished threads — and each is
-// wrapped server-side so a chapter can still close with the model down. That wrapper was a bare
-// `catch {}` returning null, and the client discarded the two values the route did hand back, so a
-// writer got an empty queue and no reason. The handler's own comment claimed "the screen says which
-// one did not run", which was the thing it did not do.
+// The passes run on every hem — summary, character memory, threads, finished threads, the next
+// scene's suggestion — and each is wrapped server-side so a scene can still close with the model
+// down. That wrapper was a bare `catch {}` returning null, so a writer got an empty queue and no
+// reason. Since #89 the passes run after the end-scene route answers, and the report is stored on
+// the scene's hem (`ch.hem.passes`); #92 reads it there, so it is the same after a reload.
 //
 // The EMPTY case is asserted first and it is the half that matters: a report drawn when nothing
-// failed would be a permanent red box on a screen a writer sees after every chapter.
+// failed would be a permanent red box on a screen a writer sees after every scene.
 {
-  const closeChapter = async () => {
-    click({ endchapter: 'ask' });            // arms
-    click({ endchapter: 'ask' });            // and closes
-    await new Promise((r) => setTimeout(r, 60));
-    return html('sideBody');
-  };
-
-  // #46. BEFORE ANY CLOSE NOTHING SAYS KEPT. A summary that is yours is only "kept" by a close that
-  // kept it; the closing report reads that off the close, not off who wrote the summary.
+  // #46. BEFORE ANY CLOSE NOTHING SAYS KEPT. A summary that is yours is only "kept" by a hem that
+  // kept it; the closing report reads that off the hem, not off who wrote the summary.
   {
     const wasChapters = STORY.chapters, wasCurrent = STORY.currentChapter;
     STORY.chapters = STORY.chapters.map((c: any) => ({ ...c, summary: 'The envoy waits.',
@@ -4343,83 +4329,72 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     await new Promise((r) => setTimeout(r, 40));
   }
 
-  endPasses = undefined;
-  let side = await closeChapter();
-  assert.doesNotMatch(side, /did not run/,
-    'a close where everything ran draws no failure report');
+  /** The tale as it is after Scene 2 was hemmed: Scene 2 closed and carrying its hem, and an empty
+   *  Scene 3 being written. Opening the tale again is a reload, so the report is read from the data
+   *  alone, and the door names no scene: the report is about the one before the empty one. */
+  const wasChapters = STORY.chapters, wasCurrent = STORY.currentChapter;
+  const reportOn = async (passes: any, o: { kept?: boolean, author?: string } = {}) => {
+    STORY.chapters = [wasChapters[0], { ...wasChapters[1], status: 'closed', summary: 'The envoy waits.',
+      summaryAuthor: o.author ?? 'model', hem: { state: 'done', startedAt: 1, finishedAt: 2, passes,
+        keptSummary: !!o.kept, suggestion: null, outOfDate: false, overflow: [] } },
+      { id: 'c-3', index: 3, title: 'Scene 3', summary: null, authorsNote: null, status: 'open',
+        coversThrough: null, summaryStale: false, keepWhole: false, hem: null }] as any;
+    STORY.currentChapter = { ...STORY.chapters[2] } as any;
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    click({ ritual: '1' });
+    await new Promise((r) => setTimeout(r, 30));
+    return html('sideBody');
+  };
+  const ran = { summary: null, memory: null, facts: null, finished: null, next: null };
+
+  let side = await reportOn(ran);
+  assert.match(side, /The Envoy &middot; hemmed/, 'the report is about the scene that was hemmed');
+  assert.doesNotMatch(side, /did not run/, 'a hem where everything ran draws no failure report');
 
   // One pass down. The reason is the model's own words, so it has to be printed rather than
   // classified — "the model did not answer" and "nothing to read in this chapter" send a writer
   // to two different places.
-  endPasses = { summary: null, memory: null, facts: 'the model did not answer', finished: null };
-  side = await closeChapter();
+  side = await reportOn({ ...ran, facts: 'the model did not answer' });
   assert.match(side, /One pass did not run/, 'a failed pass is reported, and counted');
   assert.match(side, /the threads pass/, 'named as the writer knows it (#77: not facts, which is Always true)');
   assert.match(side, /the model did not answer/, 'with the reason, verbatim');
-  // NOT AS A LOST CHAPTER. The prose is committed before any of the four run, and a writer who
-  // reads this box has to know that before they go looking for their words.
-  assert.match(side, /Nothing was lost/, 'and says the chapter itself closed');
-  // The three that ran are not listed. A report that names all four every time is a report nobody
+  // NOT AS A LOST SCENE. The prose is committed before any pass runs, and a writer who reads this
+  // box has to know that before they go looking for their words.
+  assert.match(side, /Nothing was lost/, 'and says the scene itself closed');
+  // The ones that ran are not listed. A report that names every pass every time is a report nobody
   // reads to the end.
   assert.doesNotMatch(side, /the character memory/, 'and a pass that ran is not in the list');
+  assert.match(side, /data-hemagain="c-2" data-pass="facts"/, '  and that pass alone can be tried again');
 
-  endPasses = { summary: 'llama-server is not running', facts: 'llama-server is not running' };
-  side = await closeChapter();
+  side = await reportOn({ summary: 'llama-server is not running', facts: 'llama-server is not running' });
   assert.match(side, /2 passes did not run/, 'two failures are counted as two');
   assert.match(side, /the summary/, 'both are named');
   assert.match(side, /the threads pass/, 'both are named');
 
-  // #46. A CLOSE THAT KEPT YOURS SAYS SO, and not as a pass that did not run. The route reports it
-  // as `keptSummary`; the summary line of the closing report reads the author off the chapter, so
-  // it is still right after a reload.
-  endPasses = { summary: null, memory: null, facts: null, finished: null };
-  endKept = true;
-  const wasChapters = STORY.chapters;
-  STORY.chapters = STORY.chapters.map((c: any) => c.id === 'c-2'
-    ? { ...c, summary: 'The envoy waits.', summaryAuthor: 'human' } : c) as any;
-  side = await closeChapter();
-  assert.match(String(nodes.get('toast').textContent), /kept your summary/,
-    'closing over yours says it kept your summary');
+  // #46. A HEM THAT KEPT YOURS SAYS SO, and not as a pass that did not run. The hem reports it as
+  // `keptSummary`; the summary line reads the author off the chapter, so a summary Anansi has since
+  // written over is no longer called kept.
+  side = await reportOn(ran, { kept: true, author: 'human' });
+  assert.match(side, /Kept your summary/, 'a hem over yours says it kept your summary');
   assert.doesNotMatch(side, /did not run/, '  and not as a pass that did not run');
-  // The row at the top of setup names the chapter that closed once the next one is current. The
-  // stub answers with the same chapter object, so the next chapter is made by renaming it in place.
-  STORY.currentChapter.id = 'c-3';
   click({ panel: 'setup' });
   await new Promise((r) => setTimeout(r, 30));
   assert.match(html('sideBody'), /hemmed, kept your summary/, '  and the row for the scene that was hemmed says it');
-  STORY.currentChapter.id = 'c-2';
-  click({ panel: 'ritual' });
-  await new Promise((r) => setTimeout(r, 30));
-  assert.match(html('sideBody'), /Kept your summary/, '  and the closing report says it too');
-  // Summarise again over it, both presses: Anansi has written over what the close kept, so the
-  // report stops saying kept.
-  click({ summarize: 'c-2' });
-  click({ summarize: 'c-2' });
-  await new Promise((r) => setTimeout(r, 30));
-  click({ panel: 'ritual' });
-  await new Promise((r) => setTimeout(r, 30));
-  assert.doesNotMatch(html('sideBody'), /Kept your summary/,
+  side = await reportOn(ran, { kept: true, author: 'model' });
+  assert.doesNotMatch(side, /Kept your summary/,
     '  and once Anansi writes over it, the closing report stops saying kept');
-  // A CLOSE THAT DID NOT KEEP IT does not say kept, even over a summary that is yours: the report
-  // says what the close did, and this one did not keep anything.
-  endKept = false;
-  side = await closeChapter();
-  click({ panel: 'ritual' });
-  await new Promise((r) => setTimeout(r, 30));
-  assert.doesNotMatch(html('sideBody'), /Kept your summary/i,
-    '  and a close that did not keep it does not say kept, though the summary is yours');
-  STORY.chapters = STORY.chapters.map((c: any) => c.id === 'c-2' ? { ...c, summaryAuthor: 'model' } : c) as any;
-  endKept = undefined;
-  side = await closeChapter();
-  assert.doesNotMatch(String(nodes.get('toast').textContent), /kept your summary/,
-    "  and a close over Anansi's does not say it");
-  click({ panel: 'ritual' });
-  await new Promise((r) => setTimeout(r, 30));
-  assert.match(html('sideBody'), /Summarised in/, "  and the closing report says Summarised");
-  STORY.chapters = wasChapters;
-
-  endPasses = undefined;
-  ok('a chapter close reports which of its four passes did not run, and why (#32)');
+  assert.match(side, /Summarised in/, "  and says Summarised");
+  // A HEM THAT DID NOT KEEP IT does not say kept, even over a summary that is yours: the report says
+  // what the hem did, and this one did not keep anything.
+  side = await reportOn(ran, { kept: false, author: 'human' });
+  assert.doesNotMatch(side, /Kept your summary/i,
+    '  and a hem that did not keep it does not say kept, though the summary is yours');
+  assert.match(side, /Your summary/, '  and it still says the summary is yours');
+  STORY.chapters = wasChapters; STORY.currentChapter = wasCurrent;
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  ok('the hem report says which of its passes did not run, and why, from the scene itself (#32, #92)');
 
   // ---- DELETE-AFTER NAMES THE SUMMARIES OF YOURS IT WOULD CLEAR (#46). It clears the summary of
   // every chapter that loses a passage, and a summary that is yours is words the writer typed. The
@@ -4473,7 +4448,13 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   STORY.proposals.push({ id: 'pr-old', entryId: 'e-1', title: 'Envoy Sereth',
     body: 'She has stopped waiting.', entryType: 'character', keys: [], kind: 'changed',
     delta: 'stopped waiting', chapterId: 'c-1' } as any);
-  side = await closeChapter();
+  // #92. Hem this scene lands the writer in the new scene now, not on this panel; the panel opens
+  // on the cards whenever it is opened while they are owed.
+  click({ skipsetup: '1' });
+  await new Promise((r) => setTimeout(r, 20));
+  click({ panel: 'setup' });
+  await new Promise((r) => setTimeout(r, 30));
+  side = html('sideBody');
   assert.match(side, /data-setupstep="cards"/, 'the setup panel has a cards step');
   // THE STEP THAT IS LIT, not merely present. Read off the rail's own highlight, which is what a
   // writer sees, and asserted against the OTHER step too — a check for "cards is lit" would pass on
@@ -4492,8 +4473,8 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // they did not come for. Not re-asserted here: `S.setupStep` is remembered between opens, so a
   // second check in this block would have to set the step it then reads.
   /* AND IT SURVIVES THE SESSION STATE GOING AWAY, which is the ACTUAL defect and the reason this
-   * needed two attempts. The close handler sets `S.setupStep = 'cards'` itself, so a test that only
-   * closes a chapter passes on that — and says nothing about the state Seth was in, which is a
+   * needed two attempts. The close handler set `S.setupStep = 'cards'` itself (before #92), so a
+   * test that only closed a chapter passed on that — and says nothing about the state Seth was in, which is a
    * reload later with `S.setupStep` and `S.ritualOf` both gone.
    *
    * `skipsetup` clears `S.setupStep` (and only that), so it stands in for the reload exactly: the
@@ -5172,6 +5153,292 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   ok("whether Anansi looks things up is remembered per device, and still starts off");
 }
 
+// ---- #92 · ONE CARD PER HEMMED SCENE, on the Workbench deck.
+//
+// Since #89 a hem runs after the end-scene route answers and chalks everything into the scene's
+// group, `scene:<chapterId>`; the chapter carries its hem (running or done, the pass report, the
+// suggestion for the next scene, out of date, the threads past the cap). The fixture is shaped
+// like `src/story.ts` hands it over. A fake of the hem routes answers with the view and records
+// what was asked; everything else falls through to the canned server.
+const HEM_ROWS = [
+  { id: 'hs-1', entryId: 'e-1', title: 'Envoy Sereth', body: 'She has stopped waiting.', entryType: 'state',
+    kind: 'memory', keys: ['2'], delta: 'stopped waiting', chapterId: 'c-1', grp: 'scene:c-1' },
+  { id: 'hs-2', entryId: 'e-1', title: 'Envoy Sereth', body: 'Clipped now, every word counted.',
+    entryType: 'character', kind: 'changed', field: 'voice', target: 'a-on', keys: [], delta: 'clipped',
+    chapterId: 'c-1', grp: 'scene:c-1' },
+  { id: 'hs-3', entryId: 'e-2', title: 'The stair', body: 'Nobody climbs it after this scene.',
+    entryType: 'retire', kind: 'retire', keys: ['2'], chapterId: 'c-1', grp: 'scene:c-1' },
+  { id: 'hs-4', entryId: null, title: 'The bellringer', body: 'Rings the hour, never the alarm.',
+    entryType: 'character', kind: 'new', field: 'facts', keys: [], chapterId: 'c-1', grp: 'scene:c-1' },
+];
+// A card from before #89: one thread's group. It must be drawn exactly as it always was.
+const OLD_ROW = { id: 'hp-1', entryId: 'e-fired', title: 'The lamplighter', body: 'He came at five, not six.',
+  entryType: 'state', kind: 'memory', keys: ['2'], chapterId: 'c-1', grp: 'hem:c-1:e-fired' };
+const HEM_DONE = { state: 'done', startedAt: 1, finishedAt: 2,
+  passes: { summary: null, memory: null, facts: null, finished: null, next: null }, keptSummary: false,
+  suggestion: { title: 'The Rust Year', note: 'By the end the debt is called in, with Marek in the room.',
+    opens: 'Rain on the shutters.' }, outOfDate: false, overflow: ['Coyle', 'Vantic law'] };
+let HEM_VIEW: any = null;
+const hemView = (hem: any, rows: any[]) => ({ ...STORY,
+  chapters: STORY.chapters.map((c: any) => ({ ...c, hem: c.id === 'c-1' ? hem : null })),
+  // Envoy Sereth has an Over time entry in force: that is the "before" of her state row.
+  entries: STORY.entries.map((e: any) => e.id === 'e-1' ? { ...e, nowStateId: 'st-1',
+    states: [{ id: 'st-1', fromChapter: 1, body: 'She waits by the door, gloved.' }] } : e),
+  proposals: rows, violations: [], strings: [] });
+const hemFetch = (canned: any) => async (url: string, init?: any) => {
+  const body = init?.body ? JSON.parse(init.body) : null;
+  const reply = (o: any) => ({ ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) });
+  if (url.startsWith('/api/story?') || url === '/api/chapter/hem' || url === '/api/summary') {
+    if (body) POSTED.push({ url, body });
+    return reply(HEM_VIEW);
+  }
+  return canned(url, init);
+};
+/** THE WATCH ON A RUNNING HEM, HELD. While a hem runs the app reads the tale again on a 3-second
+ *  timer (`watchHems`). Here that timer is caught rather than waited out, so a running fixture
+ *  neither slows the suite nor fires into a later block; the end-scene block below runs it by hand.
+ *  Every other timer runs as usual. Restored at the end of that block. */
+const HEM_TIMERS: Function[] = [];
+const REAL_SET_TIMEOUT = globalThis.setTimeout;
+(globalThis as any).setTimeout = (fn: Function, ms?: number, ...rest: any[]) =>
+  ms === 3000 ? HEM_TIMERS.push(fn) : REAL_SET_TIMEOUT(fn as any, ms, ...rest);
+/** The one scene card in the side panel's markup, from its opening tag to the next card. */
+const hemCardOf = (side: string) => {
+  const at = side.indexOf('data-deckkind="hem"');
+  if (at < 0) return '';
+  const next = side.indexOf('data-deckcard=', at);
+  return side.slice(at, next < 0 ? undefined : next);
+};
+{
+  const canned = (globalThis as any).fetch;
+  (globalThis as any).fetch = hemFetch(canned);
+  const settle = () => new Promise((r) => setTimeout(r, 40));
+  HEM_VIEW = hemView(HEM_DONE, [...HEM_ROWS, OLD_ROW]);
+  click({ open: 's-1' }); await settle();
+  click({ panel: 'waiting' }); await settle();
+  const side = html('sideBody');
+  assert.strictEqual([...side.matchAll(/data-deckkind="hem"/g)].length, 1,
+    'one card for the hemmed scene, however many threads it changed');
+  const card = hemCardOf(side);
+  for (const p of HEM_ROWS) assert.match(card, new RegExp(`data-decide="accept" data-id="${p.id}"`),
+    `  and ${p.id} is decided on it, with its own Sew it in`);
+  assert.doesNotMatch(card, /hp-1/, '  and an old per-thread card is not folded into it');
+  // THE SUMMARY FIRST, editable, before any thread.
+  assert.ok(card.indexOf('data-hemsumtext="c-1"') > 0
+    && card.indexOf('data-hemsumtext="c-1"') < card.indexOf('data-decide'),
+    'the summary comes first on the card, in a box, before any thread');
+  assert.match(card, /data-hemsumtext="c-1"[^>]*>Ilva arrives\./, '  holding the scene summary');
+  assert.match(card, /<button[^>]*data-hemsum="c-1"/, '  with a press that saves it');
+  // BEFORE AND AFTER: the Over time entry in force, then the chalked text.
+  // Read against the row's own box, not the fold's one-line peek, which repeats the chalked text.
+  assert.ok(card.indexOf('She waits by the door, gloved.') > 0
+    && card.indexOf('She waits by the door, gloved.') < card.indexOf('data-pbody="hs-1"')
+    && /data-pbody="hs-1"[^>]*>She has stopped waiting\./.test(card),
+    'an Over time row shows the entry in force before the chalked text');
+  assert.ok(card.indexOf('Flat, unhurried.') > 0
+    && card.indexOf('Flat, unhurried.') < card.indexOf('data-pbody="hs-2"'),
+    'a pocket row shows the pocket as it is before the chalked text');
+  // SEW ALL / REJECT ALL, over every row on the card.
+  assert.match(card, /data-deckall="accept" data-ids="hs-1,hs-2,hs-3,hs-4"[^>]*>Sew all/,
+    'Sew all takes every row on the card');
+  assert.match(card, /data-deckall="reject" data-ids="hs-1,hs-2,hs-3,hs-4"[^>]*>&larr; Reject all/,
+    'Reject all takes every row on the card');
+  // ONE FOLD PER THREAD, shut, in the spec's order: changes, then retirements, then new threads.
+  const folds = [...card.matchAll(/<details[^>]*data-hemthread="([^"]+)"[^>]*>/g)];
+  assert.deepStrictEqual(folds.map((m) => m[1]), ['e-1', 'e-2', 'The bellringer'],
+    'each thread folds once, changed threads first, then retirements, then new threads');
+  assert.ok(folds.every((m) => !/\bopen\b/.test(m[0])), '  and every fold starts shut, for a phone');
+  assert.match(card, /data-hemthread="e-1"[^>]*>\s*<summary>[\s\S]*?Envoy Sereth[\s\S]*?deckpeek/,
+    '  showing the thread name and one line while shut');
+  // THE THREADS PAST THE CAP, named, with a way to ask for them.
+  assert.match(card, /Coyle/, 'the threads past the cap are named');
+  assert.match(card, /Vantic law/);
+  assert.match(card, /data-hemagain="c-1" data-names="[^"]*Coyle[^"]*Vantic law[^"]*"/,
+    '  with a press that asks for them by name');
+  // THE OLD PER-THREAD CARD, as it always was.
+  assert.match(side, /Hemming found[\s\S]*?data-deckall="accept" data-ids="hp-1"[^>]*>Sew it in/,
+    'an old per-thread hem card is drawn as before');
+  (globalThis as any).fetch = canned;
+  click({ open: 's-1' }); await settle();
+  ok('a hemmed scene is one Workbench card: summary first, before and after, Sew all and Reject all (#92)');
+}
+
+// ---- #92 · THE CARD'S STATES, and the presses each one offers: running, a pass that did not run
+// (Try again for that pass), out of date (Hem again), and the threads past the cap (asked for by
+// name). Each press goes to `POST /api/chapter/hem` (#91) with what it names, and nothing else.
+{
+  const canned = (globalThis as any).fetch;
+  (globalThis as any).fetch = hemFetch(canned);
+  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const show = async (hem: any, rows: any[]) => {
+    HEM_VIEW = hemView(hem, rows);
+    click({ open: 's-1' }); await settle();
+    click({ panel: 'waiting' }); await settle();
+    return hemCardOf(html('sideBody'));
+  };
+  const asked = () => POSTED.filter((p: any) => p.url === '/api/chapter/hem');
+
+  // RUNNING: the card is there before anything is chalked, and says the hem is still going.
+  let card = await show({ ...HEM_DONE, state: 'running', finishedAt: null, suggestion: null, overflow: [] }, []);
+  assert.ok(card, 'a running hem has its card on the Workbench before anything is chalked');
+  assert.match(card, /still hemming/, '  and it says the hem is still going');
+  assert.doesNotMatch(card, /data-deckall|data-hemsumtext/, '  with nothing to sew in and no summary yet');
+
+  // A PASS THAT DID NOT RUN, named with its reason, and Try again for that pass alone.
+  card = await show({ ...HEM_DONE, passes: { ...HEM_DONE.passes, memory: 'the model did not answer' } }, HEM_ROWS);
+  assert.match(card, /the character memory<\/span> did not run &mdash; the model did not answer/,
+    'a pass that did not run is named on the card, with the reason');
+  assert.doesNotMatch(card, /the threads pass/, '  and a pass that ran is not');
+  let before = asked().length;
+  click({ hemagain: 'c-1', pass: 'memory' }); await settle();
+  assert.strictEqual(asked().length, before + 1, 'Try again asks once');
+  assert.deepStrictEqual(asked().at(-1).body, { storyId: 's-1', chapterId: 'c-1', pass: 'memory' },
+    '  for that pass only');
+
+  // OUT OF DATE, with Hem again, which asks twice: it drops what is still chalked on the card.
+  card = await show({ ...HEM_DONE, outOfDate: true }, HEM_ROWS);
+  assert.match(card, /Out of date/, 'a scene changed after its hem is marked out of date');
+  assert.match(card, /<button[^>]*data-hemagain="c-1">Hem again</, '  with Hem again');
+  card = await show(HEM_DONE, HEM_ROWS);
+  assert.doesNotMatch(card, /Out of date|>Hem again</, '  and a scene in date is not');
+  before = asked().length;
+  click({ hemagain: 'c-1' }); await settle();
+  assert.strictEqual(asked().length, before, 'Hem again asks first, and the first press sends nothing');
+  click({ hemagain: 'c-1' }); await settle();
+  assert.deepStrictEqual(asked().at(-1).body, { storyId: 's-1', chapterId: 'c-1' },
+    '  and the second hems the whole scene again');
+
+  // THE THREADS PAST THE CAP, asked for by name.
+  click({ hemagain: 'c-1', names: JSON.stringify(['Coyle', 'Vantic law']) }); await settle();
+  assert.deepStrictEqual(asked().at(-1).body, { storyId: 's-1', chapterId: 'c-1', names: ['Coyle', 'Vantic law'] },
+    'asking for the threads past the cap sends their names');
+
+  // DONE AND DECIDED: nothing chalked, every pass ran, and no next scene waiting on its suggestion.
+  // The card has done its job and leaves the deck.
+  const wasCurrent = STORY.currentChapter;
+  STORY.currentChapter = { ...STORY.chapters[0] } as any;
+  card = await show({ ...HEM_DONE, overflow: [] }, []);
+  assert.strictEqual(card, '', 'a hem with nothing left to decide has no card');
+  STORY.currentChapter = wasCurrent;
+
+  (globalThis as any).fetch = canned;
+  click({ open: 's-1' }); await settle();
+  ok('the scene card shows a running hem, a pass that did not run, and out of date, each with its press (#92)');
+}
+
+// ---- #92 · THE SUMMARY ON THE CARD IS SAVED AS THE WRITER'S, AND USE THESE FILLS THE NEW SCENE.
+{
+  const canned = (globalThis as any).fetch;
+  (globalThis as any).fetch = hemFetch(canned);
+  const settle = () => new Promise((r) => setTimeout(r, 40));
+  HEM_VIEW = hemView(HEM_DONE, HEM_ROWS);
+  click({ open: 's-1' }); await settle();
+  click({ panel: 'waiting' }); await settle();
+  const card = hemCardOf(html('sideBody'));
+  assert.match(card, /The Rust Year[\s\S]*By the end the debt is called in[\s\S]*Rain on the shutters\./,
+    "the next scene's suggested title, note and opening are on the card");
+  assert.match(card, /<button[^>]*data-usehem="c-1">Use these</, '  with Use these');
+
+  // The summary box, as typed. The stub DOM finds nothing by selector, so the box is handed over.
+  const doc = (globalThis as any).document, wasQS = doc.querySelector;
+  doc.querySelector = (sel: string) => sel === '[data-hemsumtext="c-1"]' ? { value: 'Ilva arrives, and stays.' } : wasQS(sel);
+  click({ hemsum: 'c-1' }); await settle();
+  doc.querySelector = wasQS;
+  assert.deepStrictEqual(POSTED.filter((p: any) => p.url === '/api/summary').at(-1)?.body,
+    { storyId: 's-1', chapterId: 'c-1', summary: 'Ilva arrives, and stays.' },
+    'saving the summary on the card saves what is in its box, as the writer\'s');
+
+  // USE THESE: the new scene's three boxes hold the suggestion, and nothing is saved yet.
+  const saves = POSTED.filter((p: any) => p.url === '/api/chapter').length;
+  click({ usehem: 'c-1' }); await settle();
+  const setup = html('sideBody');
+  assert.match(setup, /data-setup="title" value="The Rust Year"/, 'Use these fills the new scene\'s title');
+  assert.match(setup, /By the end the debt is called in, with Marek in the room\./, '  and its note');
+  assert.match(setup, /Rain on the shutters\./, '  and its opening');
+  assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/chapter').length, saves,
+    '  and saves nothing until the writer does');
+  (globalThis as any).fetch = canned;
+  click({ skipsetup: '1' }); await settle();
+  click({ open: 's-1' }); await settle();
+  ok('the summary on the card saves as yours, and Use these fills the new scene (#92)');
+}
+
+// ---- #92 · HEM THIS SCENE OPENS THE NEXT ONE AT ONCE, and the card arrives without a reload.
+//
+// The route answers before the passes run (#89). The writer lands in the new scene, blank: the hem
+// brings the suggestion, so nothing asks Anansi for a name. While a hem runs, the tale is read
+// again now and then; when it finishes the card is on the Workbench, and the reading stops.
+{
+  const canned = (globalThis as any).fetch;
+  const settle = () => new Promise((r) => setTimeout(r, 40));
+  // Before: Scene 2 being written. After: Scene 2 closed and hemming, Scene 3 blank.
+  // Its own id: the panel asks for a name once per scene id per session, and earlier blocks here
+  // have already opened a `c-3`, so reusing one would pass without the rule under test.
+  const c3 = { id: 'c-hem3', index: 3, title: 'Scene 3', summary: null, authorsNote: null, opensWith: null,
+    status: 'open', coversThrough: null, summaryStale: false, keepWhole: false, hem: null };
+  const after = (hem: any, rows: any[]) => ({ ...STORY, violations: [], strings: [], proposals: rows,
+    chapters: [{ ...STORY.chapters[0], hem: null }, { ...STORY.chapters[1], status: 'closed', hem }, c3],
+    currentChapter: { ...c3 } });
+  const running = { ...HEM_DONE, state: 'running', finishedAt: null, suggestion: null, overflow: [],
+    passes: {} };
+  const rows = HEM_ROWS.map((p) => ({ ...p, chapterId: 'c-2', grp: 'scene:c-2' }));
+  let VIEW: any = { ...STORY, chapters: STORY.chapters.map((c: any) => ({ ...c, hem: null })) };
+  let reads = 0;
+  (globalThis as any).fetch = async (url: string, init?: any) => {
+    const reply = (o: any) => ({ ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) });
+    if (url.startsWith('/api/story?')) { reads++; return reply(VIEW); }
+    if (url === '/api/chapter/end') {
+      POSTED.push({ url, body: JSON.parse(init.body) });
+      VIEW = after(running, []);
+      return reply({ closed: 'c-2', opened: 'c-hem3', ...VIEW });
+    }
+    return canned(url, init);
+  };
+  // The watches the blocks above left waiting, run against a tale with nothing hemming: each
+  // reads once and stops, so this block starts with no watch.
+  const timers = HEM_TIMERS;
+  while (timers.length) { timers.shift()!(); await settle(); }
+  try {
+    click({ open: 's-1' }); await settle();
+    assert.strictEqual(timers.length, 0, 'nothing is read again while no hem is running');
+    const proposes = POSTED.filter((p: any) => p.url === '/api/chapter/propose').length;
+    click({ endchapter: '1' }); await settle(); await settle();
+    assert.ok(POSTED.some((p: any) => p.url === '/api/chapter/end'), 'Hem this scene closes the scene');
+    assert.doesNotMatch(html('sideBody'), /data-setupstep=/, '  and lands in the new scene, not on its setup');
+    assert.match(String(nodes.get('toast').textContent), /Workbench/,
+      '  and a short line says the card will wait on the Workbench');
+    // Setup opens on what the scene left (its card, running), and the new scene is one step on.
+    click({ panel: 'setup' }); await settle();
+    assert.match(hemCardOf(html('sideBody')), /still hemming/, 'its setup opens on the running card');
+    click({ setupstep: 'premise' }); await settle();
+    assert.match(html('sideBody'), /data-setup="title" value="Scene 3"/, 'the new scene opens blank');
+    assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/chapter/propose').length, proposes,
+      '  and nothing asks Anansi to name it: the hem brings the suggestion');
+
+    // STILL RUNNING: read again, nothing changes, and it is read again later.
+    click({ panel: 'waiting' }); await settle();
+    assert.match(hemCardOf(html('sideBody')), /still hemming/, 'the Workbench shows the hem running');
+    assert.strictEqual(timers.length, 1, 'while it runs, one read is waiting');
+    reads = 0;
+    timers.shift()!(); await settle();
+    assert.strictEqual(reads, 1, '  and it reads the tale once');
+    assert.strictEqual(timers.length, 1, '  and while it still runs, it waits to read again');
+
+    // DONE: the next read brings the card, and nothing more is read.
+    VIEW = after({ ...HEM_DONE, overflow: [] }, rows);
+    timers.shift()!(); await settle();
+    const card = hemCardOf(html('sideBody'));
+    assert.match(card, /data-decide="accept" data-id="hs-1"/, 'when the hem finishes, its card fills in without a reload');
+    assert.doesNotMatch(card, /still hemming/, '  and no longer says it is running');
+    assert.strictEqual(timers.length, 0, '  and the reading stops');
+  } finally {
+    (globalThis as any).setTimeout = REAL_SET_TIMEOUT;
+    (globalThis as any).fetch = canned;
+  }
+  click({ open: 's-1' }); await settle();
+  ok('Hem this scene opens the next scene at once, blank, and the card arrives without a reload (#92)');
+}
+
 // ---- #66. THE NAME PROPOSED FOR THE NEXT CHAPTER LANDS ON THE NEXT CHAPTER.
 //
 // "The Lands Between" chapter 6 was found titled with a name that read like chapter 7's proposal.
@@ -5191,10 +5458,15 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     if (url === '/api/chapter/end') {
       POSTED.push({ url, body });
       const open = chs.at(-1); open.status = 'closed';
+      // #92. The hem's suggestion for the next scene arrives on the scene's card; here it has
+      // already arrived, which is the case where it could land on the wrong scene.
+      open.hem = { state: 'done', passes: {}, keptSummary: false, outOfDate: false, overflow: [],
+        suggestion: { title: "The Fell Omen's Tale",
+          note: 'By the end the omen has to be read aloud, and someone has to believe it.', opens: '' } };
       chs.push({ id: `c-${chs.length + 1}`, index: chs.length + 1, title: `Chapter ${chs.length + 1}`,
         summary: null, authorsNote: null, opensWith: null, status: 'open', coversThrough: null,
-        summaryStale: false, keepWhole: false });
-      return reply({ closed: open.id, passes: {}, ...viewAt() });
+        summaryStale: false, keepWhole: false, hem: null });
+      return reply({ closed: open.id, ...viewAt() });
     }
     if (url === '/api/chapter/propose') {
       POSTED.push({ url, body });
@@ -5214,10 +5486,11 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   const titleOf = (id: string) => chs.find((c) => c.id === id)?.title;
 
   click({ open: 's-1' }); await settle();
-  // Close c-2 ('The Envoy'). The close lands on setup and Anansi names c-3.
+  // Close c-2 ('The Envoy'). Its hem suggests a name for c-3, and Use these puts it in c-3's boxes.
   click({ endchapter: '1' }); await settle(); await settle();
-  assert.ok(POSTED.some((p: any) => p.url === '/api/chapter/propose' && p.body.chapterId === 'c-3'),
-    'the close asked Anansi to name the chapter it opened');
+  click({ usehem: 'c-2' }); await settle();
+  assert.match(html('sideBody'), /data-setup="title" value="The Fell Omen&#39;s Tale"/,
+    "Use these puts the hem's suggestion in the boxes of the scene it opened");
   // The writer looks back at the chapter that just closed, and saves setup THERE. The draft was
   // written for c-3; the screen now reads c-2.
   click({ chapter: 'c-2' }); await settle();

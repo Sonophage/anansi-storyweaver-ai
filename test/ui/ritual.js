@@ -39,73 +39,57 @@ ok(`  and it names its steps before anything has run (${plan.replace(/\s+/g,' ')
    /summarise|summaris/i.test(plan) && /finish/i.test(plan));
 
 await page.click('[data-endchapter="1"]');
-console.log("  ritual running (summarise, remember, extraction, finished)…");
-// The step rail is what says the setup panel is up, whichever step it opened on.
+// ---- WHERE THE CLOSE LANDS (#92, spec #82 stories 1 and 2). The route answers before the passes
+// run, and the writer lands in the new scene at once, blank: not on its setup, and not on a report
+// of the scene that just ended. The passes (summary, thread changes, new threads, retirements, the
+// next scene's suggestion) run after, and what they find waits on the scene's card on the Workbench.
+//
+// NOT VERIFIED BY A RUN when #92 rewrote it: this file needs a model and is not in test/ui/run.sh,
+// so the assertions below were reasoned from the source. Treat a red here as the test being wrong
+// before the app is.
+for (let i = 0; i < 40; i++) {
+  if ((await story()).currentChapter.id !== closing.id) break;
+  await wait(250);
+}
+await wait(600);
+ok("closing a scene lands in the new scene at once, not on its setup",
+   !(await page.visible('[data-setupstep]')) && !(await page.visible('[data-savesetup="1"]')));
+console.log("  hem running (summary, thread changes, threads, retirements, next scene)…");
+let hem = null;
 for (let i = 0; i < 180; i++) {
-  if (await page.visible('[data-setupstep="premise"]')) break;
+  hem = (await story()).chapters.find((c) => c.id === closing.id)?.hem;
+  if (hem?.state === 'done') break;
   await wait(1000);
 }
-
-// ---- WHERE THE CLOSE LANDS. Council 07 moved it off the report of the chapter that had just
-// closed and onto the next chapter's setup. Seth, 2026-08-30, took it one step further: "it should
-// show the cards that are proposed to be added first as a single panel. then the premise of the
-// next chapter is set in another page. then the option of adding new cards based on that premise
-// then it begins ... right now it out of order and all in one page."
-//
-// So the close lands at the TOP of a three-step ritual: what the chapter LEFT is decided before
-// what the next one is FOR, because a proposal accepted after the beat is written is a card the
-// beat could not have been written with. Step one is SKIPPED when the close proposed nothing —
-// a step whose whole content is "nothing to decide" is a press that returns nothing — so this
-// accepts either landing and says which one it got.
-//
-// NOT VERIFIED BY A RUN when it was written: this file needs a model and is not in test/ui/run.sh,
-// so the three assertions below were reasoned from the source and have not been watched to pass.
-// Whoever runs this next should treat a red here as the test being wrong before the app is.
-const landed = await page.eval(`(() => ({
-  step: document.querySelector('[data-setupstep][disabled]') ? 'premise-or-later' : 'cards-offered',
-  cards: !!document.querySelector('[data-acceptall], [data-decide]'),
-  save: !!document.querySelector('[data-savesetup="1"]'),
-  rail: document.querySelectorAll('[data-setupstep]').length }))()`);
-console.log("  landed: " + JSON.stringify(landed));
-ok(`closing a chapter lands at the top of the ritual, not on the report (${landed.rail} steps)`,
-   landed.rail >= 3 && (landed.cards || landed.save));
-// And the report is one row away rather than gone. The three-state rule it enforces — ran-and-found-
-// nothing, ran-and-failed, never-ran — is why it still exists at all. It is on step one when there
-// was something to decide and on the premise otherwise, so it is asked for after stepping there.
-if (!(await page.visible('[data-savesetup="1"]'))) {
-  await page.click('[data-setupstep="premise"]');
-  await wait(600);
+ok(`  and the hem finishes in the background (${hem?.state ?? 'no hem'})`, hem?.state === 'done');
+// THE CARD ARRIVES WITHOUT A RELOAD. The page reads the tale again while a hem runs; give it one
+// read past the finish, then look at the Workbench by its button, not by a reload.
+await wait(3500);
+await page.click('[data-panel="waiting"], [data-nav="waiting"]');
+await wait(700);
+const vDone = await story();
+const sceneRows = vDone.proposals.filter((p) => p.grp === `scene:${closing.id}`);
+const missedNow = Object.values(hem?.passes ?? {}).filter(Boolean).length;
+const cardOwed = sceneRows.length > 0 || missedNow > 0 || !!hem?.suggestion;
+if (cardOwed) {
+  ok(`  and its one card is on the Workbench (${sceneRows.length} chalked, ${missedNow} passes did not run)`,
+     await page.eval("!!document.querySelector('#sideBody [data-deckkind=\"hem\"]')"));
+} else {
+  ok("  and a hem that left nothing to decide has no card", !(await page.eval("!!document.querySelector('#sideBody [data-deckkind=\"hem\"]')")));
 }
-ok("  and the premise step is one press away, with Save on it",
-   await page.visible('[data-savesetup="1"]'));
-// The row survives the re-ordering deliberately: step one is skipped when the close proposed
-// nothing, so a report that only lived there would have had no door in the ritual at all.
-ok("  and what just closed is still one row on it",
-   await page.visible('[data-panel="ritual"]'));
-// THE REPORT SURVIVES A RELOAD. It used to be `V.ritualDone`, a client field carried across
-// exactly one refetch and dropped by every other, so the checklist vanished on the next press.
+
+// THE REPORT, from the scene's hem, so it is the same after a reload.
 await page.goto(B + "/#" + sid + "/ritual");
 for (let i = 0; i < 40 && !(await page.text('#sideBody')); i++) await wait(250);
 const again = (await page.text('#sideBody') || '');
-ok(`  and the report is still there after a reload (${again.replace(/\s+/g,' ').trim().length} chars)`,
-   /summaris/i.test(again));
-// THE REPORT ITSELF, and it moved here from the setup panel on 2026-08-28. Setup is what comes
-// NEXT; what just ended is the ritual screen's own business, which is the whole reason the screen
-// exists. These two assertions came with it unchanged in intent.
+ok(`  and the report is there after a reload (${again.replace(/\s+/g,' ').trim().length} chars)`,
+   /summaris|Your summary|Kept your summary/i.test(again));
 console.log("  ritual report: " + again.replace(/\s+/g, ' ').slice(0, 180));
-ok("  it reports the summary it wrote", /Summarised in \d+ word|Not summarised/.test(again));
-// NOT `|Could not read`, which is what this said until 2026-08-27. The wording it looked for —
-// "proposed for the ledger" — was renamed when the ledger became Threads, and the assertion was
-// never updated. So for as long as extraction FAILED here it passed on its own failure branch, and
-// the day extraction started working on chapter close it went red. An assertion that accepts the
-// error message as a pass cannot fail. Same family as the two inert blocks in this file that
-// .claude/CLAUDE.md records.
+ok("  it reports the summary it wrote", /Summarised in \d+ word|Not summarised|Your summary|Kept your summary/.test(again));
 // WHAT THE SCREEN SAYS MUST EQUAL WHAT THE SERVER HOLDS, which is an invariant and holds at zero.
-// The version this replaces demanded the model propose at least one fact — a statement about the
-// model dressed as a statement about the code, and it goes red on a chapter that genuinely holds
-// nothing new. Its ancestor had the opposite fault and accepted "Could not read" as a pass, so it
-// could not fail at all. This can fail, and only for a reason worth waking up for: the count on
-// screen disagreeing with the queue, or the empty case saying nothing.
+// The version before this demanded the model propose at least one fact — a statement about the
+// model dressed as a statement about the code. Its ancestor accepted "Could not read" as a pass, so
+// it could not fail at all. This can fail, and only for a reason worth waking up for.
 const v = await story();
 const facts = v.proposals.filter((p) => p.chapterId === closing.id
   && !['state', 'string', 'retire'].includes(p.entryType));
@@ -116,37 +100,30 @@ if (facts.length) {
   ok("  and a chapter that proposed nothing says so, rather than showing a bare heading",
      /No new threads came out of this scene/.test(again));
 }
-// The finished-thread step, in the guard-proof form: the model may legitimately find nothing, so
-// assert the invariant that holds at ZERO and then branch with an else, or the check stops running
-// and still reports green — which this file has already done twice.
-const rets = (await story()).proposals.filter((p) => p.entryType === 'retire');
+// The finished-thread step, in the guard-proof form: assert the invariant that holds at ZERO and
+// branch with an else, or the check stops running and still reports green.
+const rets = (await story()).proposals.filter((p) => p.entryType === 'retire' && p.chapterId === closing.id);
 if (rets.length) {
-  // ON SCREEN AS A COUNT, not as a stack of cards. `/data-decide/` is what this asked for until
-  // 2026-08-30 and it could not have passed: `page.text` returns textContent (bench/drive.ts:240),
-  // so an attribute name was never going to appear in it. It never went red because the model had
-  // not proposed a retirement on this fixture — the guarded-assertion fault this repo has now found
-  // five times, in the file whose own comments warn about it twice.
   ok(`  ${rets.length} finished thread(s) proposed, and the count is on screen`,
      new RegExp(`${rets.length} thread${rets.length === 1 ? '' : 's'} chalked to be retired`).test(again));
 } else {
   ok("  nothing was proposed as finished, and the screen says so in words",
      /No thread was chalked to be retired/i.test(again));
 }
-// COUNCIL 07, SEAT 4: the cards were rendered here AND on Waiting, which made the report the fifth
-// panel answering "does anything want me" — the exact thing Waiting was built to end. The count
-// stays here, the deciding moved there. Written with an else so it cannot quietly stop running.
+// COUNCIL 07, SEAT 4: the count stays here, the deciding is on the Workbench.
 const owed = (await story()).proposals.filter((p) => p.chapterId === closing.id).length;
 if (owed) {
-  ok(`  and the ${owed} proposal(s) are decided on Waiting rather than a second time here`,
+  ok(`  and the ${owed} proposal(s) are decided on the Workbench rather than a second time here`,
      (await page.visible('[data-panel="waiting"]')) && new RegExp(`Decide the ${owed} chalked thing`).test(again));
 } else {
   ok("  and a chapter that proposed nothing offers no queue to decide",
      !(await page.visible('[data-panel="waiting"]')));
 }
 // The way back when the router was asleep at the close. Four passes, four buttons, one row.
-ok("  and every pass can be run again from the report", await page.visible('[data-summarize="1"]')
-   && await page.visible('[data-remember="1"]') && await page.visible('[data-extract="1"]')
-   && await page.visible('[data-refinished="1"]'));
+// #92: a scene hemmed in the background runs each pass again through its hem (Try again).
+ok("  and every pass can be run again from the report", await page.visible('[data-hemagain][data-pass="summary"]')
+   && await page.visible('[data-hemagain][data-pass="memory"]') && await page.visible('[data-hemagain][data-pass="facts"]')
+   && await page.visible('[data-hemagain][data-pass="finished"]') && await page.visible('[data-hemagain][data-pass="next"]'));
 
 await page.goto(B + "/#" + sid + "/setup");
 // A RELOAD LANDS ON WHAT THE SCENE LEFT while any of it is undecided — the panel's own rule, keyed
@@ -161,40 +138,44 @@ ok(`  and it is titled for the next chapter (${JSON.stringify(head.replace(/\s+/
    /next scene/i.test(head));
 const body = (await page.text('#sideBody') || '');
 
-// The new chapter names itself. It fires from the panel's own render the moment both boxes are
-// empty, so by the time the ritual has finished there is something in them — and neither is saved
-// until Save is pressed, which is the half that matters and is asserted from the database below.
+// THE NEW SCENE OPENS BLANK, AND THE HEM'S SUGGESTION FILLS IT ON A PRESS (#92). Nothing asks
+// Anansi to name it as the panel opens any more: the hem's last pass suggests a title, a note and an
+// opening, on the scene's card, and Use these puts them in the boxes. Neither is saved until Save,
+// which is asserted from the database below.
 {
   // A TITLE THAT IS THIS CHAPTER'S OWN NUMBER IS THE PLACEHOLDER, NOT A NAME. `endChapter` opens
-  // the next chapter titled `Chapter N` (db.ts), and the panel renders `ch.title` into the box
-  // before Anansi has been asked — so "the title box is non-empty" was true from the first paint.
-  // This loop broke on it instantly and then read the note box, which Anansi had not filled yet,
-  // and reported 0 chars. That is not a model failure and it was reported as one: measured against
-  // the route the same evening, the beat came back at 629 characters in this very run, and six
-  // direct calls across two databases returned 550 to 906.
-  //
-  // `7b49bf7` established this exact rule and asserted it in the checks it added; this loop, which
-  // predates it, was left reading a placeholder as an answer. `web/app.js:2126` is the same rule in
-  // the app: empty, or exactly `Chapter ${index}`.
+  // the next chapter titled `Scene N` (db.ts), and the panel renders it into the box. The app's own
+  // rule is `numbered` (web/model.js): empty, or exactly `Chapter N` / `Scene N`.
   const idx = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).currentChapter.index)()");
-  // `Scene N` as well since the scene rename: the app's own rule is `numbered` (web/model.js), and a
-  // loop that took "Scene 4" for a name stopped waiting before the beat had come back.
   const isPlaceholder = (t) => !String(t ?? '').trim() || [`Chapter ${idx}`, `Scene ${idx}`].includes(String(t).trim());
-  let filled = null;
-  for (let i = 0; i < 90; i++) {
-    filled = await page.eval("(() => { const t = document.querySelector('[data-setup=\"title\"]');"
-      + " const n = document.querySelector('[data-setup=\"note\"]');"
-      + " return t && n ? { title: t.value, note: n.value } : null; })()");
-    if (filled && (!isPlaceholder(filled.title) || filled.note.trim())) break;
-    await wait(1000);
-  }
-  ok(`Anansi names the new chapter (${JSON.stringify((filled?.title ?? '').slice(0, 30))})`,
-     !!filled && !isPlaceholder(filled.title));
+  const boxes = () => page.eval("(() => { const t = document.querySelector('[data-setup=\"title\"]');"
+    + " const n = document.querySelector('[data-setup=\"note\"]');"
+    + " return t && n ? { title: t.value, note: n.value } : null; })()");
+  const blank = await boxes();
+  ok(`the new scene opens blank (${JSON.stringify(blank?.title ?? null)})`,
+     !!blank && isPlaceholder(blank.title) && !blank.note.trim());
   // The other direction, so the check above cannot be satisfied by the thing it exists to refuse.
-  ok(`  and \`Chapter ${idx}\` would not have counted as a name`, isPlaceholder(`Chapter ${idx}`)
+  ok(`  and \`Scene ${idx}\` would not have counted as a name`, isPlaceholder(`Scene ${idx}`)
      && !isPlaceholder('The Stair'));
-  ok(`  and says what it has to do (${(filled?.note ?? '').length} chars)`,
-     (filled?.note ?? '').trim().length > 60);
+  let filled = blank;
+  if (hem?.suggestion) {
+    // The card may not be the top one on the deck, and only the top one shows, so the press is
+    // made on the button itself.
+    await page.goto(B + "/#" + sid + "/waiting");
+    for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('[data-usehem]')")); i++) await wait(250);
+    await page.eval("(() => { document.querySelector('[data-usehem]')?.click(); return 1; })()");
+    for (let i = 0; i < 20 && !(await page.visible('[data-setup="title"]')); i++) await wait(250);
+    filled = await boxes();
+    ok(`Use these names the new scene (${JSON.stringify((filled?.title ?? '').slice(0, 30))})`,
+       !!filled && !isPlaceholder(filled.title));
+    ok(`  and says what it has to do (${(filled?.note ?? '').length} chars)`,
+       (filled?.note ?? '').trim().length > 60);
+  } else {
+    // The suggestion is the hem's last pass; with the model down it did not come back, and the
+    // report has to say so rather than leave the card silent.
+    ok(`  no suggestion came back, and the hem says why (${JSON.stringify(hem?.passes?.next ?? null)})`,
+       typeof hem?.passes?.next === 'string');
+  }
   // On 2026-08-28 this came back 0 chars: CHAPTER_SCHEMA marks `note` required, and `required`
   // means the key is PRESENT, not that it holds anything, so an empty string satisfied the
   // grammar completely. The route asks a second time now. If the model still says nothing, the

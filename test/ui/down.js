@@ -49,11 +49,16 @@ const before = await page.eval("(async () => (await (await fetch('/api/story?sto
 await page.eval("(() => { document.querySelector('#sideBody [data-endchapter]').click(); return 1; })()");
 await until(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).currentChapter.id !== ${JSON.stringify(before)})()`, 60);
 await wait(800);
+// #92. The route answers before the passes run, so the press says only that the scene is being
+// hemmed and where its card will be; what did not run is on the card and the report, once known.
 const toast = await page.eval("document.getElementById('toast')?.textContent ?? ''");
-ok(`the hem says the scene closed and what did not run (${JSON.stringify(toast.slice(0, 90))})`,
-   /closed, but .* did not run/.test(toast) && !/hemmed/i.test(toast));
+ok(`the hem says the scene is being hemmed and its card will wait (${JSON.stringify(toast.slice(0, 90))})`,
+   /being hemmed/.test(toast) && /Workbench/.test(toast));
+await until(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).chapters.find((c) => c.id === ${JSON.stringify(before)})?.hem?.state === 'done')()`, 60);
 // The row at the top of the next scene's screen that names the scene just closed. It was a green
 // dot and "hemmed" beside a red report of what did not run.
+await page.goto(B + "/#" + sid + "/setup");
+await wait(900);
 await page.eval("(() => { const b = [...document.querySelectorAll('#sideBody [data-setupstep]')].find((x) => /The next scene/.test(x.textContent)); if (b) b.click(); return !!b; })()");
 await wait(700);
 const row = await page.eval("(() => { const r = document.querySelector('#sideBody button[data-panel=\"ritual\"]');"

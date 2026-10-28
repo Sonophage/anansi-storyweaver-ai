@@ -21,9 +21,23 @@ the World your tale follows, the change becomes that person's own thread in your
 World stays as it was.
 
 ### The next scene opens as soon as you press Hem this scene
-Anansi now writes the summary, reads what changed for each thread, and finds new threads and
-threads to retire after the next scene has opened, so you can start writing at once. What it finds
-still arrives on the Workbench, and it takes a little while to appear.
+The next scene opens at once, blank, so you can start writing straight away. Anansi hems the scene
+you left while you write: the summary, what changed for each thread, new threads, threads to
+retire, and a title, note and opening for the next scene.
+
+### One card on the Workbench for each scene you hem
+Everything one hem finds now waits on one card, not a card for each thread. The summary comes
+first, and you can change it there; once you save it, it is yours and a later hem keeps it. Each
+thread that changed shows how it stands now and what it would become, with Sew it in and Reject
+beside it, and Sew all and Reject all take the whole card at once. Each thread folds to its name
+and one line until you open it, so the card reads on a phone. Threads past the six are named, with
+a button to ask for them. Use these puts Anansi's title, note and opening into the next scene's
+setup, and nothing is saved until you press Save.
+
+The card says when Anansi is still hemming, and it fills in on its own when he is done. If a part
+did not run, the card names it and Try again runs that part alone. If you change the scene after
+it was hemmed, the card says it is out of date, and Hem again reads it afresh; what you already
+sewed in or rejected stays as you left it. Cards from before this change are as they were.
 
 ## 2026-10-27 · A character's voice no longer hides who they are
 

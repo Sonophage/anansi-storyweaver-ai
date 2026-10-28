@@ -214,7 +214,7 @@ _In code_: `/api/memo`
 **Hem this scene**:
 End the scene: the next scene opens at once, and Anansi summarises the one just ended and chalks
 what changed in it, out of the way, onto one card on the Workbench for that scene. (Background and
-one card decided 2026-10-27; not built: today the writer waits, and each thread is its own card.)
+one card decided 2026-10-27, built in #89 to #92; cards chalked before then stay one per thread.)
 _Avoid_: end this chapter, close the chapter, ritual
 _In code_: `/api/chapter/end`
 
