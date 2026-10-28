@@ -3652,6 +3652,30 @@ ok('taking over a pinned World thread moves the pin to the tale\'s own thread, a
   assert.deepStrictEqual(pinnedIn(tale), [own], 'TAKEOVER-SENT: his own thread is sent for the pinned scene');
 });
 
+// #113 · HANDING A TAKEN-OVER THREAD BACK MOVES ITS PINS BACK TO THE WORLD THREAD. The tale reads the
+// World thread again, so the pins follow it instead of going with the deleted copy. Both directions.
+ok('handing a taken-over thread back moves its pins back to the World thread, and it is sent', () => {
+  const me = db.owner('pin-handback');
+  const world = db.createWorld(me, { title: 'Leyndell', premise: 'p' });
+  const morgott = db.upsertEntry(world.id, me, { title: 'Morgott', body: '[Morgott: the Grace-Given]',
+    activation: 'triggered', keys: ['omen king'] })!;
+  const tale = db.storyFollowing(me, world.id, 'The Queen')!;
+  db.addPassage({ ...tale, storyId: tale.id, body: 'The capital was quiet under the ash.' });
+  const two = db.endChapter(tale.id, tale.branchId) as any;
+  const rows = () => db.pinsOf(tale.id).map((p: any) => [p.chapter_id, p.entry_id, p.mode])
+    .sort((a: any, b: any) => a[2] < b[2] ? -1 : 1);
+  for (const keep of ['theirs', 'mine'] as const) {
+    const own = db.unlinkEntry(tale.id, me, morgott)!;
+    db.setPin(tale.id, tale.chapterId, own, 'force_out');
+    db.setPin(tale.id, two.opened, own, 'force_in');
+    assert.ok(db.relinkEntry(tale.id, me, own, keep), `handed back (${keep})`);
+    assert.deepStrictEqual(rows(), [[two.opened, morgott, 'force_in'], [tale.chapterId, morgott, 'force_out']],
+      `HANDBACK-MOVED: both pins name the World thread again, each on its scene, each as it was (${keep})`);
+  }
+  db.addPassage({ storyId: tale.id, branchId: tale.branchId, chapterId: two.opened, body: 'Rain on the steps.' });
+  assert.deepStrictEqual(pinnedIn(tale), [morgott], 'HANDBACK-SENT: the World thread is sent for the pinned scene');
+});
+
 // #105 · WORLD PEOPLE IN THE OPENING. The wizard's preview marks them and Create pins them to the
 // first scene, force in. They stay the World's threads: nothing is copied, and a fix in the World is
 // what the scene sends. Their wake words never appear, so the pin is the only way they are sent, and

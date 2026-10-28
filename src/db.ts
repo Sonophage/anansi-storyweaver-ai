@@ -2817,6 +2817,12 @@ export function relinkEntry(storyId: string, o: string, id: string, keep: 'mine'
       entryType: cur.entry_type, activation: cur.activation, keys: JSON.parse(cur.keys || '[]'),
       lastEditor: 'human', allowNoKeys: true });
   }
+  // #113 · ITS PINS MOVE BACK TO THE WORLD THREAD, the reverse of `unlinkEntry`. The tale reads the
+  // World thread from now on, and the delete below would otherwise take the pins with the copy.
+  // OR REPLACE: a pin on the World thread for the same scene is older than the copy's, which is the
+  // one the writer saw last, so the copy's wins.
+  q('UPDATE OR REPLACE chapter_pins SET entry_id = ? WHERE story_id = ? AND entry_id = ?')
+    .run(cur.origin_id, storyId, id);
   // A HARD delete, not `delEntry`: that one leaves a tombstone for exactly this kind of row, which
   // would suppress the card we are handing back and make reconnecting a no-op.
   q('DELETE FROM addons WHERE entry_id = ? AND story_id = ?').run(id, storyId);
