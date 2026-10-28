@@ -30,6 +30,8 @@ const IDEAS = ['Vel finds the moneylender\'s ledger open on the stair, at his pa
   'Aldis comes up the stair with the money, and it is not enough.'];
 
 // ADR 0009 · the open questions a spark returns beside the premise.
+// #121 · the moment the tale opens in, which the spark returns apart from the setting.
+const OPENS = 'The lower stair, an hour before dawn; rain off the rock, the lamps guttering.';
 const QUESTIONS = [{ title: 'Whether the debt is real', line: 'Nobody has seen the ledger but the moneylender.' },
   { title: 'Who sent the letter', line: 'It came under the door with no name on it.' }];
 
@@ -234,6 +236,7 @@ const srv = createServer((req, res) => {
       }
       : props.premise ? { title: 'The Rust Year', premise: PREMISE, genre: 'noir, gothic',
         setting: 'Sutera', pov: 'third limited, past tense', spice: 2, writingStyle: VOICE,
+        ...(props.opensWith ? { opensWith: `  ${OPENS}  ` } : {}),
         // ADR 0009. The open questions, and one with nothing in it that the route must drop.
         ...(props.questions ? { questions: [...QUESTIONS, { title: '  ', line: 'nothing' }] } : {}),
         characters: [{ name: 'Vel', role: 'the Murmur', description: 'Speaks for the dead god.' },
@@ -1029,6 +1032,25 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.match(String(refused.error), /nothing was made/, 'QUESTIONS-ROLLBACK: a refused copy fails the Create');
   assert.strictEqual(owned(), before, 'QUESTIONS-ROLLBACK: and its strings go with it');
   ok('the ticked open questions become strings at Create, inside its rollback');
+
+  // #121 · THE OPENING MOMENT COMES BACK WITH THE SKELETON AND BECOMES SCENE 1'S OPENS WITH AT CREATE,
+  // inside the one create's rollback. Opens with is sent only until the scene has prose, which is
+  // the right lifetime for the weather, the light and the hour.
+  assert.strictEqual(sk.story.opensWith, OPENS, 'OPENS-BACK: the spark hands back the opening moment, trimmed');
+  const opened: any = mk({ title: 'Opens', premise: PREMISE, setting: 'Sutera', entries: [], opensWith: `  ${OPENS}\n` });
+  assert.ok(!opened.error, opened.error);
+  assert.strictEqual((db.chapters(opened.id)[0] as any).opens_with, OPENS,
+    "OPENS-SCENE: Create writes the opening moment to scene 1's Opens with");
+  assert.strictEqual(db.getStory(opened.id).setting, 'Sutera', 'OPENS-SCENE: and leaves the setting as it was sent');
+  const blank: any = mk({ title: 'Opens Blank', premise: PREMISE, entries: [], opensWith: '   ' });
+  assert.strictEqual((db.chapters(blank.id)[0] as any).opens_with, null, 'OPENS-NONE: a blank one writes no Opens with');
+  const tales = () => (db.listStories(me) as any[]).length;
+  const had = tales();
+  const nope: any = mk({ title: 'Opens Refused', premise: PREMISE, entries: [], opensWith: OPENS,
+    seed: [{ storyId: 'no-such-tale', entryId: 'no-such-thread' }] });
+  assert.match(String(nope.error), /nothing was made/, 'OPENS-ROLLBACK: a refused copy fails the Create');
+  assert.strictEqual(tales(), had, 'OPENS-ROLLBACK: and takes the scene and its Opens with with the tale');
+  ok("the opening moment comes back apart from the setting and becomes scene 1's Opens with at Create");
 
   // THE SCENE BRIEF KEEPS THE QUESTIONS OPEN AND PRESSES THE PROMISES (#124). Every open string went
   // as "UNPAID PROMISES" to be pressed on, which pushed the tale's own questions to an answer through

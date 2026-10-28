@@ -2374,6 +2374,15 @@ function writeOpenQuestions(storyId: string, raw: unknown) {
     db.upsertString(storyId, { title: q.title, body: q.line, fromChapter: 1, summoned: true, kind: 'question' });
 }
 
+/** #121 · THE MOMENT THE TALE OPENS IN, written to scene 1's Opens with at Create: the weather, the
+ *  light and the hour, which the setting no longer holds because the setting is sent for the life
+ *  of the tale and Opens with only until the scene has prose. Called inside POST /api/stories's
+ *  rollback, so it goes with the tale if the Create fails. A blank one writes nothing. */
+function writeOpensWith(made: { id: string; chapterId: string }, raw: unknown) {
+  const opensWith = String(raw ?? '').trim().slice(0, 2000);
+  if (opensWith) db.updateChapter(made.id, made.chapterId, { opensWith });
+}
+
 /** #124 · The scene brief's lines for a tale's open strings: the unpaid promises, then the open
  *  questions, each line only when it has one. Kind is read through `db.stringKind`, so a string
  *  with no kind is a promise. NOT MEASURED: the two wordings are the pre-#116 and #116 ones. */
@@ -2917,6 +2926,7 @@ export const routes: Record<string, Handler> = {
       roomNotes.push(...writeCast(made.id, c.owner, cast));
       // ADR 0009 · THE OPEN QUESTIONS THE WRITER TICKED, as strings, inside this rollback.
       writeOpenQuestions(made.id, c.body.strings);
+      writeOpensWith(made, c.body.opensWith);   // #121, inside this rollback too
       // #84 · THE TALE'S OWN POCKETS from the wizard's preview (#75's `instruction` slot), switched on,
       // as the tale's own thread adds them one at a time. A blank one is not a pocket.
       for (const p of (Array.isArray(c.body.talePockets) ? c.body.talePockets : []).slice(0, 24) as any[]) {
@@ -3022,6 +3032,9 @@ export const routes: Record<string, Handler> = {
     return {
       story: {
         title: d.title, premise: d.premise, genre: d.genre, setting: d.setting,
+        // #121. The moment the first scene opens in, kept apart from the setting: Create writes it
+        // to scene 1's Opens with, not to the tale.
+        opensWith: String(d.opensWith ?? '').trim(),
         pov: d.pov, spice: d.spice, writingStyle: d.writingStyle,
         persona: null, lockedCharacter: null,
       },
