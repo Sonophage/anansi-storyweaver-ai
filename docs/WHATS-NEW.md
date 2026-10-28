@@ -23,6 +23,11 @@ A tale you start from an idea now begins with the Voice you set in your Account,
 when you have not set one. The Voice Anansi wrote for the idea is shown under yours, with what it
 would change marked, and a Use this button. It is only used if you press it, and Undo puts yours
 back.
+### The setting holds the place, and the first scene holds the weather
+New tale's setting now says only what stays true of the place for the whole tale. The weather,
+the light and the time of day come back on their own, as how the first scene opens, in a box you
+can edit on the preview. Anansi reads that until the first passage is written, so a tale that
+opens on a rainy night does not stay on a rainy night forever.
 
 ### The premise is the opening, and the open questions are strings
 New tale's premise is now one paragraph that opens the story: who we are with, where and when,

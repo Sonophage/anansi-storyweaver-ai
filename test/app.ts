@@ -588,7 +588,9 @@ let worldDown = 0;
     : url.startsWith('/api/spark') ? { story: { title: 'The Winter Signature', genre: 'political fantasy',
         premise: 'Six houses have one winter to sign a peace none of them wants.',
         setting: 'Ashfall Hall', pov: 'third limited, past tense', spice: 2,
-        writingStyle: 'Cold, spare.', persona: 'Ilva Marren' },
+        writingStyle: 'Cold, spare.', persona: 'Ilva Marren',
+        // #121. The moment the tale opens in, apart from the setting.
+        opensWith: 'The east gallery, the first frost; snow on the leads, a grey morning.' },
         // #123. The Voice the spark wrote, offered beside the writer's own and never in the story.
         voiceOffer: 'Cold, spare. Long sentences, and the frost in every one.',
         entries: [{ title: 'Ilva Marren', entryType: 'character', body: 'A envoy with nothing to trade.' }],
@@ -3593,6 +3595,14 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
     click({ sparkstep: '5' });
     onScreen = {};
     assert.match(html('page'), /<input type="checkbox" data-spquestion="1">/, 'WIZ-QUESTIONS: an unticked one stays unticked');
+    // #121 · THE OPENING MOMENT, an editable box of its own on the preview, apart from the setting.
+    const opensBox = /<textarea[^>]*data-sp="opensWith"[^>]*>([^<]*)<\/textarea>/.exec(pv);
+    assert.ok(opensBox, 'WIZ-OPENS: the preview shows how the first scene opens as an editable box');
+    assert.strictEqual(opensBox![1], 'The east gallery, the first frost; snow on the leads, a grey morning.',
+      '  holding the moment the spark returned');
+    onScreen = { '[data-sp]': [{ dataset: { sp: 'opensWith' }, value: 'The east gallery at noon; thaw.' }] };
+    click({ sparkstep: '5' });
+    onScreen = {};
     for (const t of ['Ilva Marren', 'Mara Voss', 'Teodor Ash', 'Road dust', 'Their lines are yours', 'Envoy', 'Fear', 'The fine'])
       assert.ok(pv.includes(t.replace(/'/g, '&#39;')), `WIZ-PREVIEW: every thread and pocket is listed: ${t}`);
     assert.doesNotMatch(pv, /Write her lines formal and short/, 'WIZ-FOLD: folded to its name and Always true');
@@ -3693,6 +3703,8 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
       "WIZ-CREATE: and the tale's own pockets as the preview left them");
     assert.deepStrictEqual(made.body.strings, [{ title: 'Who signs first', line: 'Each house waits for another to sign.' }],
       'WIZ-CREATE-QUESTIONS: only the ticked open questions are sent, to be made as strings');
+    assert.strictEqual(made.body.opensWith, 'The east gallery at noon; thaw.',
+      "WIZ-CREATE-OPENS: the opening moment goes as the writer left it, for scene 1's Opens with");
     await new Promise((r) => setTimeout(r, 60));
   } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
 }

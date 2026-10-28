@@ -5964,8 +5964,10 @@ function sparkReview() {
     : key === 'scene'
     // THE FIRST SCENE. It asked for "Where this is going" as well until 2026-08-30, when that
     // field came out of the whole app — Seth: "no ones going to use it. ive asked."
-    ? `${row('setting', 'Where it opens', s.setting,
-         'Lore written later can replace this. It is the place the first scene stands in.')}
+    // #121: the setting is the place for the whole tale; the moment the scene opens in is its own box.
+    ? `${row('setting', 'Setting', s.setting,
+         'What stays true of the place for the whole tale. Lore written later can replace this.')}
+       ${sparkOpensWith(area)}
        ${cast.length ? `<div class="hint push-10">Everyone you kept is in the tale
          from the first line &mdash; the people always on, and places and things when their name
          comes up. Who is in a given SCENE is that scene's own question, and the scene's screen
@@ -6079,6 +6081,13 @@ function sparkVoiceOffer(s) {
     ? `<button class="btn ghost below-10" data-spundo="1">Undo ${esc(S.spark.undo.what)}</button>` : '';
 }
 
+/** #121 · HOW THE FIRST SCENE OPENS: the weather, the light and the hour the spark returned apart
+ *  from the setting, as an editable box. Create writes it to scene 1's Opens with, which Anansi reads
+ *  only until the scene has prose; the setting is read for the whole tale. On the preview and on the
+ *  first scene's step, from the one field (`S.spark.story.opensWith`, harvested by `data-sp`). */
+const sparkOpensWith = (area) => area('opensWith', 'How the first scene opens', S.spark?.story?.opensWith,
+  'The weather, the light and the time as the tale begins. Anansi reads it until the first passage is written.', 60);
+
 function sparkPreview(s, { row, area }) {
   const kept = (S.spark.entries ?? []).map((e, i) => [e, i])
     .filter(([e]) => e.keep !== false && (e.title ?? '').trim());
@@ -6153,6 +6162,8 @@ function sparkPreview(s, { row, area }) {
         <span class="base-8"><input type="checkbox" data-spquestion="${i}"${q.keep === false ? '' : ' checked'}>
           <span class="name-14">${esc(q.title)}</span></span>
         <span class="note">${esc(q.line)}</span></label>`).join('')}` : ''}
+    <div class="lbl sect">The first scene</div>
+    ${sparkOpensWith(area)}
     ${ipWorld ? `<div class="lbl sect">From your World, ${esc(ipWorld.title)} &middot;
         <span class="tnum">${ipWorld.people.length}</span></div>
       <div class="hint lead-6">This tale follows it, so its people come in with it. They are the World's
@@ -13423,6 +13434,8 @@ document.addEventListener('click', async (e) => {
       talePockets: S.spark.talePockets ?? [],
       // ADR 0009. The open questions ticked in the preview, made as strings.
       strings: sparkQuestions(),
+      // #121. The moment the tale opens in, written to scene 1's Opens with.
+      opensWith: s.opensWith || '',
       // #84. Tells the create route to settle the yours pocket on whoever is Hands off now.
       spark: true,
       entries: keep,
