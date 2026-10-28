@@ -75,10 +75,11 @@ _Avoid_: card, cards, entry, entries, canon, ledger, ledger entry
 _In code_: entry
 
 **Pocket**:
-A named instruction inside a thread on how to write one part of it: how they talk, what they
-wear, what a place feels like. Switched on or off; outfits are worn and taken off. A pocket tells
-the model how to use a thing, never words to repeat. (Decided 2026-10-26; today's pockets are
-still descriptions.)
+A named part of a thread that says how to write one part of it: how they talk, what they wear,
+what a place feels like. Switched on or off; outfits are worn and taken off. The writer sees and
+writes only a plain description; Anansi turns each kind into the instruction the model reads, so
+no instruction wording or brackets appear in the writer's box. Every change keeps the old version.
+(Decided 2026-10-26; the description-only half 2026-10-28, ADR 0008.)
 _Avoid_: room, rooms, slot, addon
 _In code_: addon, slot
 
