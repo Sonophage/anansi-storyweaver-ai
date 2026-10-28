@@ -83,6 +83,12 @@ no instruction wording or brackets appear in the writer's box. Every change keep
 _Avoid_: room, rooms, slot, addon
 _In code_: addon, slot
 
+**Premise**:
+One paragraph that opens the tale: who we are with, where and when, what they want now and what
+is in their way now. Never how it ends, what it costs or what anyone will do; the questions the
+story lives on are strings, and everything else lives in threads. (Decided 2026-10-28, ADR 0009.)
+_Avoid_: synopsis, plot, blurb, story arc
+
 **The tale's thread**:
 The one thread about the tale itself. Its Always true is the premise and setting; its pockets are
 the text the writer gives the model for the whole tale: Voice first, then the tale's rules, then
