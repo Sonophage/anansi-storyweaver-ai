@@ -41,7 +41,7 @@ import { retiredAt } from './context.ts';
 export const ASKED = ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire',
   'tale.set', 'scene.set'] as const;
 /** What only an Undo may do, beside putting back old text. */
-export const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake', 'retire.unmake'] as const;
+export const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake', 'retire.unmake', 'takeover.unmake'] as const;
 /** What an Undo may put back as it was: the asked operations that write over a value, by id. */
 const PUT_BACK = ['thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set'] as const;
 
@@ -84,6 +84,9 @@ export const CHANGES_SCHEMA = {
       // #99 · the search results this change was made from, by their numbers. The route puts their
       // links in the thread's notes; they never go in its text.
       sources: { type: 'array', maxItems: 3, items: { type: 'integer', minimum: 1 } },
+      // #101 · in a tale that follows a World: `world` for the IP's canon, `tale` for the writer's own
+      // version. Left out, it is a question (`aimOf`), and nothing in that answer is done.
+      to: { type: 'string', enum: ['world', 'tale'] },
     },
     required: ['op'],
   },
@@ -91,6 +94,7 @@ export const CHANGES_SCHEMA = {
 
 type Room = { id: string; slot: string; name: string; body: string; keys: string[]; active: boolean };
 type Thread = { id: string; title: string; entryType: string; addons?: Room[]; sharedFrom?: string | null;
+  originId?: string | null;
   activation?: string; keys?: string[]; states?: State[];
   events?: { id: string; kind: string; fromChapter: number }[]; retiredAtChapter?: number | null };
 type State = { id: string; fromChapter: number; body: string; label?: string | null; beforeMode?: string | null };
@@ -123,7 +127,9 @@ export type Change =
   | { op: 'state.unmake'; thread: string; title: string; state: string; from: number }
   | { op: 'thread.retire'; thread: string; title: string; from: number }
   /** The retirement Talk dated, taken out of the thread's Over time: the thread is back as it was. */
-  | { op: 'retire.unmake'; thread: string; title: string; event: string };
+  | { op: 'retire.unmake'; thread: string; title: string; event: string }
+  /** #101 · The tale's copy of a World thread Talk took over, handed back: the World's is read again. */
+  | { op: 'takeover.unmake'; thread: string; title: string; origin: string };
 export type Checked = { ok: true; change: Change } | { ok: false; said: string; why: string };
 
 const NOT_TALK = 'that is not something Talk can do. It changes the tale, its threads and its scenes; '
@@ -425,6 +431,13 @@ export function checkUndo(raw: any, tale: Tale): Checked {
   }
   // A retirement is taken back by its own dated event, and only a retirement: never an outfit, and
   // never a return the writer pressed. The thread is then as it was before Talk retired it.
+  // #101 · A TAKE-OVER HANDED BACK, only while the copy is exactly as Talk left it (`fingerprint`):
+  // anything the writer did to it since is theirs, and handing it back would throw it away.
+  if (op === 'takeover.unmake') {
+    if (!t.originId || t.sharedFrom) return { ok: false, said, why: `${t.title} is not one this tale took over` };
+    if (fingerprint(t) !== String(raw.wrote ?? '')) return { ok: false, said, why: SINCE };
+    return { ok: true, change: { op, thread: t.id, title: t.title, origin: t.originId } };
+  }
   if (op === 'retire.unmake') {
     const ev = (t.events ?? []).find((x) => x.id === String(raw.event ?? '') && x.kind === 'retire');
     if (!ev) return { ok: false, said, why: 'that retirement is no longer in this tale' };
@@ -458,6 +471,7 @@ export function wordsFor(c: Change): string {
   if (c.op === 'state.unmake') return `Took away ${c.title}'s Over time from scene ${c.from}.`;
   if (c.op === 'thread.retire') return `Retired ${c.title} from scene ${c.from}. It is kept, and can be brought back.`;
   if (c.op === 'retire.unmake') return `Brought back ${c.title}.`;
+  if (c.op === 'takeover.unmake') return `Gave ${c.title} back to its World: this tale reads the World's version again.`;
   if (c.op === 'thread.overtime') return c.undo ? `Put back ${c.title}'s Over time from scene ${c.from}.`
     : `${c.state ? 'Changed' : 'Added to'} ${c.title}'s Over time from scene ${c.from}: “${clip(c.text)}”`;
   if (c.op === 'tale.set') return c.undo ? `Put back the tale's ${c.field}.`
@@ -485,13 +499,78 @@ function saidOf(raw: any): string {
   return `${String(raw?.op ?? 'something') || 'something'}${name ? ` on ${name}` : ''}`;
 }
 
+/* #101 · TALK IN A TALE THAT FOLLOWS A WORLD (ADR 0006). The World holds the IP's canon for every
+ * tale that follows it; the tale outranks it with its own thread of the same name. So a change the
+ * writer asks for has two homes, and the model says which in `to`:
+ *
+ *   - `world`: the IP's canon. It goes to the World's thread, and every tale that follows it has it.
+ *   - `tale`: the writer's own version. It goes to the tale's thread; a thread the tale only follows
+ *     is taken over first (the tale gets its own copy, the World's is untouched), the same take-over
+ *     the thread's own press makes.
+ *   - neither: not clear. Nothing is guessed. The route applies nothing in that answer and asks in
+ *     one line (`askWhich`).
+ *
+ * Only the threads the World has anything to do with are asked about: a thread the World has no
+ * thread of the same name for, the premise and setting, and a scene are the tale's, whatever `to`
+ * says. Over time and retiring are dated by a tale's scenes, and a World has none, so canon cannot
+ * take them. `world` is the followed World only when the writer owns it (the route decides that):
+ * with none, every change is the tale's, and the tale's own rule refuses a thread it only follows. */
+export type World = { id: string; title: string; entries: Thread[] };
+export type Aim = { to: 'tale' | 'world'; raw: any } | { to: 'takeover'; raw: any; origin: string }
+  | { ask: string } | { refused: { said: string; why: string } };
+export function aimOf(raw: any, tale: Tale, world: World | null): Aim {
+  const op = String(raw?.op ?? '');
+  const to = raw?.to === 'world' || raw?.to === 'tale' ? raw.to : null;
+  if (!world || !op.startsWith('thread.')) return { to: 'tale', raw };
+  if (op === 'thread.new') {
+    const title = String(raw.title ?? raw.thread ?? '').trim();
+    return to ? { to, raw } : { ask: title || 'the new thread' };
+  }
+  const { hit } = threadNamed(tale, raw.thread);
+  if (!hit) return { to: 'tale', raw };
+  // The World's thread this one is: the one it reads through, the one it was taken over from, or
+  // one of the same name the tale wrote its own version of.
+  const canon = world.entries.find((e) => e.id === (hit.sharedFrom ? hit.id : hit.originId))
+    ?? world.entries.find((e) => norm(e.title) === norm(hit.title));
+  if (!canon) return to === 'world' ? { refused: { said: saidOf(raw),
+    why: `${world.title} has no thread called ${hit.title}; it is this tale's own` } } : { to: 'tale', raw };
+  if (!to) return { ask: hit.title };
+  if (to === 'world') {
+    if (op === 'thread.overtime' || op === 'thread.retire') return { refused: { said: saidOf(raw),
+      why: `a World has no scenes, so ${hit.title}'s Over time and retiring are this tale's. Say it is your version` } };
+    return { to, raw: { ...raw, thread: canon.title } };
+  }
+  return hit.sharedFrom ? { to: 'takeover', raw: { ...raw, thread: hit.title }, origin: hit.id } : { to, raw };
+}
+
+/** THE ONE LINE THAT ASKS, for every change in an answer the model did not place. */
+export const askWhich = (names: string[], world: string) => {
+  const who = [...new Set(names)];
+  const list = who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0];
+  return `Nothing is changed yet: is that ${list} as ${world} has it, for every tale that follows it, or your own version, for this tale only?`;
+};
+
+/** EVERYTHING OF A THREAD A WRITER CAN CHANGE, as one string, so a take-over's Undo can tell whether
+ *  the copy is still as Talk left it. Ids are left out: they are not the writer's. */
+export function fingerprint(t: Thread): string {
+  const sorted = (xs: string[]) => [...xs].sort();
+  return JSON.stringify([t.title, t.entryType, t.activation ?? '', sorted(t.keys ?? []),
+    sorted((t.addons ?? []).map((a) => JSON.stringify([a.slot, a.name, a.body, a.active, sorted(a.keys ?? [])]))),
+    sorted((t.states ?? []).map((s) => JSON.stringify([s.fromChapter, s.body, s.label ?? null]))),
+    sorted((t.events ?? []).map((e) => JSON.stringify([e.kind, e.fromChapter])))]);
+}
+
 /* #100 · THE DRAFT, WHILE A NEW TALE IS SET UP. The same rule, asked means done, on a tale that
  * does not exist yet: the wizard's draft, which the page holds and sends. Nothing here is written
  * anywhere; a checked change goes back to the page, which applies it to its own draft and holds
  * the Undo. So the list is the draft's own, and it is short:
  *
  *   - tale.set: the draft's title, premise, genre, setting or voice. Not the setting's scene: there
- *     are no scenes yet.
+ *     are no scenes yet. And (#101) its World: the story or game it is set in, the box on the
+ *     tale's own step. Setting it hands over to the World step, which the page runs on that box
+ *     (`ipFollow`): it follows the writer's World of that name or looks the IP up. The route holds
+ *     back the threads the same answer would have made or offered, because that step is the one
+ *     way an IP's people are made.
  *   - thread.new, thread.set: as on a tale, against the draft's threads and their rooms.
  *   - thread.remove: removing a draft thread is allowed here, where a tale only retires one,
  *     because nothing has been saved: the thread is the page's, the press is one Undo away, and
@@ -501,12 +580,12 @@ function saidOf(raw: any): string {
  * A draft thread's Always true is its `body`, a plain description as the cast writes it (#110; POST
  * /api/stories moves it into `facts` at Start); its other rooms are `rooms[slot]`. */
 const DRAFT_OPS = ['tale.set', 'thread.new', 'thread.set', 'thread.remove'] as const;
-const DRAFT_FIELDS = ['title', 'premise', 'genre', 'setting', 'voice'] as const;
+const DRAFT_FIELDS = ['title', 'premise', 'genre', 'setting', 'voice', 'world'] as const;
 /** The draft's own name for each field: the voice is `writingStyle` in the wizard and the column.
  *  The one copy: `checkDraft` hands the key back with the change, and the route and the page both
  *  write to it. */
 const DRAFT_KEY: Record<string, string> = { title: 'title', premise: 'premise', genre: 'genre', setting: 'setting',
-  voice: 'writingStyle' };
+  voice: 'writingStyle', world: 'world' };
 
 /** The schema fragment the setup Talk's answer carries. Flat, as `CHANGES_SCHEMA` is, for the same
  *  reason. */
@@ -567,13 +646,13 @@ export function checkDraft(raw: any, draft: Draft): DraftChecked {
     : op === 'tale.set' ? `Change the ${String(raw?.field ?? '').trim() || 'draft'}` : saidOf(raw);
   if (!(DRAFT_OPS as readonly string[]).includes(op)) return { ok: false, said,
     why: 'that is not something Talk can do while a tale is set up. It changes the draft\'s title, premise, '
-      + 'genre, setting and voice, and its threads; there are no scenes or prose yet' };
+      + 'genre, setting, voice and World, and its threads; there are no scenes or prose yet' };
   const st = draft.story ?? {};
   const text = String(raw.text ?? '').trim();
   if (op === 'tale.set') {
     const field = String(raw.field ?? '').trim().toLowerCase();
     if (!(DRAFT_FIELDS as readonly string[]).includes(field)) return { ok: false, said,
-      why: `Talk changes the title, premise, genre, setting or voice, not the ${field || 'nothing'}` };
+      why: `Talk changes the title, premise, genre, setting, voice or World, not the ${field || 'nothing'}` };
     const key = DRAFT_KEY[field];
     const before = String(st[key] ?? '');
     if (!text) return { ok: false, said, why: 'it came with no text' };
@@ -615,7 +694,8 @@ export function checkDraft(raw: any, draft: Draft): DraftChecked {
 
 /** What a draft change did, in the writer's words: one line in the conversation. */
 export function draftWords(c: DraftChange): string {
-  if (c.op === 'tale.set') return `Changed the ${c.field}: “${clip(c.text)}”`;
+  if (c.op === 'tale.set') return c.field === 'world' ? `Set in ${c.text}. Its World comes from your Worlds, or is looked up on The threads.`
+    : `Changed the ${c.field}: “${clip(c.text)}”`;
   if (c.op === 'thread.new') return `Added a thread: ${c.thread.title}, ${an(c.thread.entryType)}.`;
   if (c.op === 'thread.remove') return `Removed ${c.title} from the draft.`;
   return `Changed ${c.title}'s ${roomLabel(c.room)}: “${clip(c.text)}”`;

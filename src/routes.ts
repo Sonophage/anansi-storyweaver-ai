@@ -17,7 +17,7 @@ import { resolveBody, cardText, alwaysTrue, retiredAt, narrationOnly, quotedSpan
          weaveFit, actSpan } from './context.ts';
 import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
-import { checkAsked, checkUndo, undoFor, wordsFor, checkDraft, draftWords } from './changes.ts';
+import { checkAsked, checkUndo, undoFor, wordsFor, checkDraft, draftWords, aimOf, askWhich, fingerprint } from './changes.ts';
 import type { Change } from './changes.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
@@ -760,6 +760,9 @@ function applyChange(storyId: string, owner: string, ch: Change):
   if (ch.op === 'state.unmake') { db.delState(storyId, ch.state); return {}; }
   // The retirement taken out of its Over time, the way the ✕ on that line takes it out by hand.
   if (ch.op === 'retire.unmake') return db.delEvent(storyId, ch.event) ? {} : null;
+  // #101 · A take-over handed back through the thread's own Hand back press, keeping the World's
+  // version: the copy goes, with its pockets, Over time and dated events, and the World's is read.
+  if (ch.op === 'takeover.unmake') return db.relinkEntry(storyId, owner, ch.thread, 'theirs') ? {} : null;
   return null;
 }
 
@@ -1066,6 +1069,17 @@ const talkReply = (reply: unknown, notDone: { said: string; why: string }[], sea
  *  its premise and setting, its scenes, and the scene the writer is in. */
 const taleOf = (id: string) => { const v = bookOf(id);
   return { entries: v.entries as any[], story: v.story, chapters: v.chapters, at: v.currentChapter?.index ?? 1 }; };
+
+/** #101 · THE WORLD A TALK CHANGE MAY REACH: the one this tale follows, read as `taleOf` reads a
+ *  tale, and only when the writer OWNS both. Not `MINE()`: being called in to write in a tale is not
+ *  owning its World (`db.worldNamed`'s rule), and `entriesFor` reads a World only when its owner is
+ *  the tale's. Null otherwise, and then every change is the tale's. */
+const worldOf = (owner: string, v: any) => {
+  const id = v.loreFrom;
+  if (!id || id === v.id || db.storyOwner(id) !== owner || db.storyOwner(v.id) !== owner) return null;
+  const w = bookOf(id);
+  return { id, title: String(w.story.title), entries: w.entries as any[] };
+};
 
 /** WHICH ROOM A PROPOSED CHANGE LANDS IN, asked once for every pass that can name one.
  *
@@ -3191,10 +3205,20 @@ export const routes: Record<string, Handler> = {
       else if (notes && ch.op === 'thread.set') ch.notes = notes;
       changes.push({ words: draftWords(k.change), change: ch });
     }
+    // #101 · NAMING AN IP HANDS OVER TO THE WORLD STEP. The page runs that step on the World field
+    // (`ipFollow`: the writer's World of that name, or the IP looked up for a new one), so Talk does
+    // not make the IP's people its own way in the same answer: a thread it would have made is not
+    // done, and says why, and nothing is offered. One the writer wants of their own, they ask again.
+    const ip = changes.find((x) => x.change.op === 'tale.set' && x.change.key === 'world')?.change.text;
+    if (ip) for (const x of changes.filter((y) => y.change.op === 'thread.new')) {
+      changes.splice(changes.indexOf(x), 1);
+      notDone.push({ said: `Make a new thread: ${x.change.thread.title}`,
+        why: `the people and places of ${ip} come from its World, on The threads. Ask again for one of your own` });
+    }
     // OFFERED, in the shape a draft thread has, for the page's Add press. Never one the draft
     // already has, and the Hands-off floor the cast has.
     const have = new Set(draft.entries.map((e: any) => String(e.title ?? '').trim().toLowerCase()));
-    const entries = (((r.data as any).entries ?? []) as any[])
+    const entries = ip ? [] : (((r.data as any).entries ?? []) as any[])
       .filter((e) => e?.title?.trim() && e?.body?.trim() && KINDS_ALL.includes(e.type)
         && !have.has(String(e.title).trim().toLowerCase()))
       .map((e) => sparkThread(e.title, e.type, e.body, []));
@@ -3955,6 +3979,7 @@ export const routes: Record<string, Handler> = {
     const grounded = { ...v, passages: v.passages.slice(-6) };
 
     const turns = turnsOf(c.body.turns);
+    const world = worldOf(c.owner, v);
 
     // #99 · ANANSI CHOOSES HIS OWN SEARCHES. `search` is the writer's permission, no longer the
     // query: it used to be their words, typed exactly, which found blogs instead of wikis. With
@@ -4034,6 +4059,13 @@ export const routes: Record<string, Handler> = {
       // he is looking at, where "[Writing: first person, present tense]" told him to write them.
       v.story.pov && `The book is written in ${v.story.pov}${v.story.persona
         ? `, and ${v.story.persona} is the one the writer speaks as` : ''}.`,
+      // #101 · WHICH THREADS ARE THE WORLD'S, so a change can say whether it is canon or the
+      // writer's version (`to`). A fact, like the line above; `aimOf` is the guard, not this.
+      world && `This tale follows the World ${world.title}, which holds the canon of its IP for every `
+        + `tale that follows it. Threads from ${world.title}: ${(v.entries as any[]).filter((e) => e.sharedFrom)
+          .map((e) => e.title).slice(0, 60).join(', ') || 'none'}. The tale has its own version of: `
+        + `${(v.entries as any[]).filter((e) => !e.sharedFrom && world.entries.some((w) => w.id === e.originId
+          || w.title.trim().toLowerCase() === String(e.title).trim().toLowerCase())).map((e) => e.title).slice(0, 60).join(', ') || 'none'}.`,
       turns && `Earlier in this conversation:\n${turns}`,
       sourcesText(sources),
       said,
@@ -4112,22 +4144,57 @@ export const routes: Record<string, Handler> = {
     // believing that. No operation on the list deletes anything or touches prose.
     const changes: { words: string; undo: any }[] = [];
     const notDone: { said: string; why: string }[] = [];
-    for (const raw of (Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4)) {
-      const k = checkAsked(raw, taleOf(v.id));
-      if (!k.ok) { notDone.push({ said: k.said, why: k.why }); continue; }
-      const made = applyChange(v.id, c.owner, k.change);
-      if (!made) { notDone.push({ said: wordsFor(k.change), why: 'the tale refused it' }); continue; }
+    const raws = (Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4);
+    // #101 · IN A TALE THAT FOLLOWS A WORLD, a change the model did not place as canon or as the
+    // writer's version is a question. Then NOTHING in this answer is done, the rest included: the
+    // writer answers one line and asks again, rather than finding half of what they said applied.
+    const unsure = raws.flatMap((raw: any) => { const a = aimOf(raw, taleOf(v.id), world); return 'ask' in a ? [a.ask] : []; });
+    for (const raw of unsure.length ? [] : raws) {
+      // Placed against the tale as the changes before it left it, so a second change to a thread the
+      // first one took over lands on the tale's copy.
+      // Canon asked for by a writer who does not own the World this tale follows is not theirs to
+      // change, and is not quietly written to the tale instead: that was not what they asked.
+      if (!world && v.follows && raw?.to === 'world') { notDone.push({ said: `Change ${String(raw.thread ?? raw.title ?? 'it')}`,
+        why: `${v.follows.title} is a World only its owner changes` }); continue; }
+      const aim = aimOf(raw, taleOf(v.id), world);
+      if ('refused' in aim) { notDone.push(aim.refused); continue; }
+      if ('ask' in aim) continue;
+      // CANON: checked against the World and written there, through the same slice and the same
+      // writes; its Undo names the World, which the Undo route holds to the one this tale follows.
+      const where = aim.to === 'world' ? world!.id : v.id;
+      // THE WRITER'S VERSION OF A THREAD THE TALE ONLY FOLLOWS: taken over first, through the
+      // thread's own Take over press (`db.unlinkEntry`), then changed on the tale's copy. A change
+      // the copy cannot take hands it straight back, so a refusal leaves the tale as it was.
+      const copy = aim.to === 'takeover' ? db.unlinkEntry(v.id, c.owner, aim.origin) : null;
+      if (aim.to === 'takeover' && !copy) { notDone.push({ said: `Change ${aim.raw.thread}`,
+        why: `this tale could not take ${aim.raw.thread} over from ${world!.title}` }); continue; }
+      const handBack = () => { if (copy) db.relinkEntry(v.id, c.owner, copy, 'theirs'); };
+      const k = checkAsked(aim.raw, taleOf(where));
+      if (!k.ok) { handBack(); notDone.push({ said: k.said, why: k.why }); continue; }
+      const made = applyChange(where, c.owner, k.change);
+      if (!made) { handBack(); notDone.push({ said: wordsFor(k.change), why: `the ${aim.to === 'world' ? 'World' : 'tale'} refused it` }); continue; }
       // #99 · THE PAGE IT CAME FROM, in the notes of the thread it made or changed: writer-only,
       // never sent to a model. Numbers the model named that no result has are dropped. Its Undo
       // carries the lines it added, so the notes go back as they were too.
       const from = (Array.isArray(raw?.sources) ? raw.sources : []).map((n: any) => sources[Number(n) - 1])
         .filter(Boolean);
       const thread = made.thread ?? (k.change as any).thread;
-      const noted = thread && from.length ? noteLinks(v.id, c.owner, thread, from) : [];
+      const noted = thread && from.length ? noteLinks(where, c.owner, thread, from) : [];
+      if (copy) {
+        // Its Undo hands the whole copy back, while it is as Talk left it: what the change wrote is
+        // in the fingerprint, and the World's thread was never touched.
+        const left = taleOf(v.id).entries.find((e: any) => e.id === copy);
+        changes.push({ words: `${k.change.title} is this tale's own now, and ${world!.title} keeps its version. `
+          + wordsFor(k.change), undo: { op: 'takeover.unmake', thread: copy, wrote: fingerprint(left) } });
+        continue;
+      }
       const undo = undoFor(k.change, made);
-      changes.push({ words: wordsFor(k.change), undo: noted.length && undo ? { ...undo, noted } : undo });
+      const withWorld = undo && aim.to === 'world' ? { ...undo, world: world!.id } : undo;
+      changes.push({ words: aim.to === 'world' ? `${wordsFor(k.change)} In ${world!.title}, for every tale that follows it.`
+        : wordsFor(k.change), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld });
     }
-    const answer = talkReply(r.data.reply, notDone, searchFailed);
+    const answer = [talkReply(r.data.reply, notDone, searchFailed),
+      unsure.length ? askWhich(unsure, world!.title) : ''].filter(Boolean).join('\n\n');
 
     return { reply: answer.trim(), directive: r.data.directive || null, changes, notDone,
              proposed, sources: sources.map((x) => ({ title: x.title, url: x.url })),
@@ -4143,14 +4210,20 @@ export const routes: Record<string, Handler> = {
    *  tale what their own save or Delete could, and no more. */
   'POST /api/talk/undo': (c: Ctx) => {
     const v = bookOf(c.body.storyId);
-    const k = checkUndo(c.body.undo, taleOf(v.id));
+    // #101 · AN UNDO OF A CHANGE TO CANON names the World it was written to. It reaches only the
+    // World this tale follows, and only for the writer who owns both (`worldOf`), whatever it names.
+    const named = c.body.undo?.world;
+    const world = named ? worldOf(c.owner, v) : null;
+    if (named && world?.id !== String(named)) return { error: 'Not undone: that World is not one this tale follows.' };
+    const where = world ? world.id : v.id;
+    const k = checkUndo(c.body.undo, taleOf(where));
     if (!k.ok) return { error: `Not undone: ${k.why}.` };
-    if (!applyChange(v.id, c.owner, k.change)) return { error: 'Not undone: the tale refused it.' };
+    if (!applyChange(where, c.owner, k.change)) return { error: 'Not undone: the tale refused it.' };
     // #99 · and the link lines the change added to that thread's notes, if it is still there. Only
     // on the thread the checked Undo resolved in this tale, and only those exact lines.
     const noted = Array.isArray(c.body.undo?.noted) ? c.body.undo.noted.map(String) : [];
     if (noted.length && k.change.op !== 'thread.unmake' && 'thread' in k.change)
-      noteLinks(v.id, c.owner, k.change.thread, [], noted);
+      noteLinks(where, c.owner, k.change.thread, [], noted);
     return { undone: wordsFor(k.change), ...viewOf(c, v.id) };
   },
 

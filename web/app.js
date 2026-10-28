@@ -5269,7 +5269,8 @@ document.addEventListener('input', (e) => {
 /** Why a change to a box the writer typed in is not done, or null when it may be. */
 function typedHere(ch, said) {
   if (ch.op === 'tale.set' && S.spark.typed?.[ch.key]
-      && !saidNames(said, ch.field === 'voice' ? ['voice', 'style'] : [ch.field]))
+      // #101 · the World box is named by the IP it is set to as well: "make it Elden Ring" asks for it.
+      && !saidNames(said, ch.field === 'voice' ? ['voice', 'style'] : ch.field === 'world' ? ['world', ch.text] : [ch.field]))
     return `You wrote the ${ch.field} yourself, and did not ask for it to change. Ask for the ${ch.field} by name and it will be.`;
   if ((ch.op === 'thread.set' || ch.op === 'thread.remove') && draftNamed(ch.title)?.typed
       && !saidNames(said, [ch.title, ...ch.title.split(/\s+/).filter((w) => w.length > 3)]))
@@ -5362,6 +5363,9 @@ async function talkSetup(said) {
   t.turns = [...t.turns, { you: false, text: r.reply || '(nothing came back)', sources: r.sources ?? [],
     changes, offers: r.entries ?? [], meta: `${r.seconds}s` }];
   paint();
+  // #101 · AN IP NAMED IN TALK HANDS OVER TO THE WORLD STEP, the one the World box runs on every
+  // move: the writer's World of that name is followed, or the IP is looked up for a new one.
+  if (changes.some((x) => x.undo?.key === 'world')) void ipFollow();
   const b = $('askBox'); if (b) { b.value = ''; b.focus(); }
 }
 
@@ -12075,7 +12079,10 @@ document.addEventListener('click', async (e) => {
     const why = undoDraft(ch.undo);
     if (why) return toast(`Not undone: ${why}.`);
     ch.undone = true;
-    paint(); return;
+    paint();
+    // #101 · and the World it followed is let go of, or the one named before is followed again.
+    if (ch.undo.key === 'world') void ipFollow();
+    return;
   }
   if (d.talkundo) {
     const [i, j] = String(d.talkundo).split(':').map(Number);

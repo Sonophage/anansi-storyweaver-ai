@@ -481,6 +481,79 @@ ok('TALK-PLAIN: Talk\'s text loses its bracket wrapper and name before it is che
   assert.strictEqual(dvoice.text, 'never hurries', 'DRAFT-PLAIN-POCKET: and a pocket');
 });
 
+// #101 · TALK AND AN IP. In a tale that follows a World, a change to the IP's canon goes to the
+// World's thread, the writer's own version goes to the tale (a take-over when the tale only follows
+// that thread), and a change the model did not say which of is a question, not a guess.
+const ring = { id: 'w-ring', title: 'Elden Ring', entries: [
+  { id: 'w-erd', title: 'The Erdtree', entryType: 'lore', addons: [room('wa-e', 'facts', 'It burns gold.')] },
+  { id: 'w-morg', title: 'Morgott', entryType: 'character', addons: [room('wa-m', 'facts', 'The Omen King.')] }] };
+const follows = { entries: [
+  { id: 'w-erd', title: 'The Erdtree', entryType: 'lore', sharedFrom: 'Elden Ring', addons: [room('wa-e', 'facts', 'It burns gold.')] },
+  { id: 't-morg', title: 'Morgott', entryType: 'character', originId: 'w-morg', addons: [room('ta-m', 'facts', 'The Omen King, wed.')] },
+  { id: 't-vel', title: 'Vel', entryType: 'character', addons: [] }], chapters: [{ id: 'c1', index: 1 }, { id: 'c2', index: 2 }], at: 1 };
+const aim = (raw: any, world: any = ring): any => ch.aimOf(raw, follows, world);
+
+ok('IP-AIM-CANON: a change to canon goes to the World\'s thread, by the World\'s name for it', () => {
+  const a = aim({ op: 'thread.set', thread: 'erdtree', text: 'It is ash.', to: 'world' });
+  assert.strictEqual(a.to, 'world');
+  assert.strictEqual(a.raw.thread, 'The Erdtree', 'the World\'s own name, so the World resolves it');
+  assert.strictEqual(aim({ op: 'thread.set', thread: 'Morgott', room: 'voice', text: 'Slow.', to: 'world' }).to, 'world',
+    'canon reaches the World through a thread the tale has taken over too');
+  assert.strictEqual(aim({ op: 'thread.new', title: 'Malenia', type: 'character', text: 'Blade.', to: 'world' }).to, 'world',
+    'a new thread of the canon is made in the World');
+});
+
+ok('IP-AIM-MINE: the writer\'s version goes to the tale, taking a followed thread over first', () => {
+  const a = aim({ op: 'thread.set', thread: 'The Erdtree', text: 'It is ash.', to: 'tale' });
+  assert.deepStrictEqual([a.to, a.origin], ['takeover', 'w-erd'], 'a thread the tale only follows is taken over');
+  assert.strictEqual(aim({ op: 'thread.set', thread: 'Morgott', text: 'Wed.', to: 'tale' }).to, 'tale',
+    'a thread the tale has its own version of is changed there');
+  assert.strictEqual(aim({ op: 'thread.new', title: 'Sela', type: 'character', text: 'Mine.', to: 'tale' }).to, 'tale');
+});
+
+ok('IP-AIM-ASK: a change the model did not place is a question, for a World thread and a new one', () => {
+  for (const raw of [{ op: 'thread.set', thread: 'The Erdtree', text: 'It is ash.' },
+    { op: 'thread.set', thread: 'Morgott', text: 'Wed.' },
+    { op: 'thread.wake', thread: 'The Erdtree', activation: 'always_on' },
+    { op: 'thread.new', title: 'Malenia', type: 'character', text: 'Blade.' }])
+    assert.ok(aim(raw).ask, `asked, not placed: ${JSON.stringify(raw)} -> ${JSON.stringify(aim(raw))}`);
+  assert.strictEqual(aim({ op: 'thread.set', thread: 'Morgott', text: 'Wed.', to: 'ask' }).ask, 'Morgott');
+});
+
+ok('IP-AIM-PLAIN: what the World has nothing to do with is the tale\'s, whatever the model said', () => {
+  assert.strictEqual(aim({ op: 'thread.set', thread: 'Vel', text: 'Old.' }).to, 'tale', 'a thread the World does not have');
+  assert.strictEqual(aim({ op: 'tale.set', field: 'premise', text: 'Ash.', to: 'world' }).to, 'tale', 'the premise');
+  assert.strictEqual(aim({ op: 'thread.set', thread: 'Nobody', text: 'Old.' }).to, 'tale', 'a name nothing has, for the check to refuse');
+  assert.strictEqual(aim({ op: 'thread.set', thread: 'The Erdtree', text: 'Ash.' }, null).to, 'tale',
+    'and with no World the writer owns, nothing is asked: the tale\'s own rule refuses a followed thread');
+});
+
+ok('IP-AIM-REFUSED: what a World cannot take is refused, in words', () => {
+  assert.match(aim({ op: 'thread.set', thread: 'Vel', text: 'Old.', to: 'world' }).refused?.why ?? '',
+    /Elden Ring has no thread called Vel/);
+  assert.match(aim({ op: 'thread.overtime', thread: 'Morgott', scene: 2, text: 'Blind.', to: 'world' }).refused?.why ?? '',
+    /no scenes/);
+  assert.match(aim({ op: 'thread.retire', thread: 'The Erdtree', to: 'world' }).refused?.why ?? '', /no scenes/);
+});
+
+ok('IP-ASK-LINE: the question is one line, naming each thread and the World', () => {
+  const line = ch.askWhich(['Morgott', 'Malenia'], 'Elden Ring');
+  assert.doesNotMatch(line, /\n/);
+  for (const w of [/Morgott/, /Malenia/, /Elden Ring/, /this tale/]) assert.match(line, w);
+});
+
+ok('IP-TAKEOVER-UNDO: a take-over is handed back only while the copy is as Talk left it', () => {
+  const t = follows.entries[1];
+  const wrote = ch.fingerprint(t as any);
+  const back = done(ch.checkUndo({ op: 'takeover.unmake', thread: 't-morg', wrote }, follows));
+  assert.deepStrictEqual([back.op, back.thread, back.origin], ['takeover.unmake', 't-morg', 'w-morg']);
+  assert.match(ch.wordsFor(back), /Morgott/);
+  const since = { ...follows, entries: [{ ...t, addons: [room('ta-m', 'facts', 'The Omen King, widowed.')] }] };
+  refused(ch.checkUndo({ op: 'takeover.unmake', thread: 't-morg', wrote }, since), /changed since/);
+  refused(ch.checkUndo({ op: 'takeover.unmake', thread: 't-vel', wrote: ch.fingerprint(follows.entries[2] as any) }, follows),
+    /not one this tale took over/);
+});
+
 ok('the change slice never reaches for the database itself', () => {
   const src = readFileSync(new URL('../src/changes.ts', import.meta.url), 'utf8');
   assert.ok(!/from '\.\/db\.ts'/.test(src), 'src/changes.ts must not import db.ts');
