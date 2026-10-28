@@ -685,6 +685,38 @@ ok('a story cannot be deleted by someone who does not own it');
   }
   ok('the whole book copies, keeps the world it is set in, and refuses another writer');
 
+  /* #102. A SCENE PIN CAN HOLD A THREAD OF THE FOLLOWED WORLD, AND ONLY THE WRITER'S OWN. The pin's
+   * thread is keyed by its id alone now, so the route is what stands between one writer's tale and
+   * another writer's World. Bob's tale is pointed at Alice's World through the column, the state an
+   * import or a source changing hands would leave, because no screen will make it. */
+  {
+    const ctxFor = (body: any, owner: string) => ({ body, query: new URLSearchParams(), owner,
+      slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+      defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+    const pin = (owner: string, tale: any, entryId: string): any => routes['POST /api/pin'](ctxFor(
+      { storyId: tale.id, chapterId: tale.chapterId, entryId, mode: 'force_in' }, owner));
+    const hers = db.createWorld(alice, { title: 'Her Lands Between' });
+    const margit = db.upsertEntry(hers.id, alice, { title: 'Margit', body: '[the Fell Omen]' })!;
+    const herTale = db.storyFollowing(alice, hers.id, 'Her road')!;
+    const r = pin(alice, herTale, margit);
+    assert.ok(!r.error, `SCOPE-PIN-WORLD: her pin on her own World's thread is kept: ${r.error}`);
+    assert.deepStrictEqual(r.pins.map((p: any) => p.entryId), [margit], '  and the view carries it');
+
+    const his = db.createWorld(bob, { title: 'His Lands Between' });
+    const godrick = db.upsertEntry(his.id, bob, { title: 'Godrick', body: '[the Grafted]' })!;
+    const hisTale = db.storyFollowing(bob, his.id, 'His road')!;
+    const stolen = pin(bob, hisTale, margit);
+    assert.ok(stolen.error, "SCOPE-PIN-HERS: bob cannot pin alice's World thread into his tale");
+    db.updateStory(hisTale.id, { loreFrom: hers.id });
+    assert.strictEqual((db.getStory(hisTale.id) as any).lore_from, hers.id, 'his tale names her World');
+    const through = pin(bob, hisTale, margit);
+    assert.ok(through.error, "SCOPE-PIN-THROUGH: nor when his tale's column names her World");
+    assert.deepStrictEqual(db.pinsOf(hisTale.id), [], '  and no pin was written');
+    db.updateStory(hisTale.id, { loreFrom: his.id });
+    assert.ok(!pin(bob, hisTale, godrick).error, 'his own World thread pins as hers does');
+  }
+  ok('a pin can hold a thread of the followed World, and never another writer\'s');
+
   // AND A FOLLOWED BOOK CANNOT BE DELETED OUT FROM UNDER ITS FOLLOWERS. Built without a check
   // first, which the falsification caught: stubbing the guard left every assertion green.
   {
