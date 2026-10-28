@@ -86,14 +86,17 @@ _In code_: addon, slot
 **Premise**:
 One paragraph that opens the tale: who we are with, where and when, what they want now and what
 is in their way now. Never how it ends, what it costs or what anyone will do; the questions the
-story lives on are strings, and everything else lives in threads. (Decided 2026-10-28, ADR 0009.)
+story lives on are strings, and everything else lives in threads. The model reads it until the
+first hem; after that it reads where the tale stands. (Decided 2026-10-28, ADRs 0009 and 0010.)
 _Avoid_: synopsis, plot, blurb, story arc
 
 **The tale's thread**:
-The one thread about the tale itself. Its Always true is the premise and setting; its pockets are
-the text the writer gives the model for the whole tale: Voice first, then the tale's rules, then
-the writer's own. Spice, the cast choices and the model stay settings. It has no Over time.
-(Decided 2026-10-26; not built.)
+The one thread about the tale itself. Its Always true is the setting; its pockets are the text the
+writer gives the model for the whole tale: Voice first, then the tale's rules, then the writer's
+own. Its Over time is where the tale stands now, one paragraph each hem writes and the writer sews
+in; from the first hem on, the model reads that instead of the premise, which stays as how the tale
+began. Spice, the cast choices and the model stay settings. (Decided 2026-10-26; where it stands
+2026-10-28, ADR 0010; not built.)
 _Avoid_: story card, tale instructions, author's note
 
 **Rule**:

@@ -1612,9 +1612,11 @@ async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?:
     v.story.setting ? `SETTING: ${v.story.setting}` : '',
     before.length ? `WHAT HAS HAPPENED:\n${before.map((x: any) =>
       `Chapter ${x.index}${x.title ? ` — ${x.title}` : ''}: ${x.summary}`).join('\n')}` : '',
+    // ADR 0009. Every open string, summoned or not, as a question to keep open: they were sent as
+    // "UNPAID PROMISES" to be pressed on, which pushed the tale's own questions to an answer.
     (v.strings ?? []).filter((x: any) => x.status === 'open').length
-      ? `UNPAID PROMISES: ${(v.strings ?? []).filter((x: any) => x.status === 'open')
-          .map((x: any) => x.title).join('; ')}` : '',
+      ? `OPEN QUESTIONS (keep them in view; complicate one, never answer it): ${(v.strings ?? [])
+          .filter((x: any) => x.status === 'open').map((x: any) => x.title).join('; ')}` : '',
     tail.trim() ? `THE PROSE ENDS:\n${tail.trim()}` : '',
     // ASKED AGAIN, AWAY FROM THE LAST (2026-10-27): what was suggested before, so the new answer is a
     // different scene and not the same one reworded. Before the writer's steer, which stays last.
@@ -2334,6 +2336,23 @@ function writeCast(storyId: string, owner: string, cast: any[]): string[] {
   return notes;
 }
 
+/** ADR 0009 · THE TALE'S OPEN QUESTIONS, as the spark returns them and as Create receives the
+ *  ticked ones: a title and one line each, a blank title dropped, both clamped. One reader for both
+ *  ends, so what the wizard is offered and what Create takes are the same shape. */
+function openQuestions(raw: unknown): { title: string; line: string }[] {
+  return (Array.isArray(raw) ? raw : []).slice(0, 8)
+    .map((q: any) => ({ title: String(q?.title ?? '').trim().slice(0, 120), line: String(q?.line ?? '').trim().slice(0, 600) }))
+    .filter((q) => q.title);
+}
+
+/** ADR 0009 · THE TICKED OPEN QUESTIONS, MADE AS STRINGS AT CREATE: owed from scene 1, and summoned,
+ *  because only a summoned string reaches the model, with the order not to resolve it yet. Called
+ *  inside POST /api/stories's rollback, so a Create that fails later takes them with the tale. */
+function writeOpenQuestions(storyId: string, raw: unknown) {
+  for (const q of openQuestions(raw))
+    db.upsertString(storyId, { title: q.title, body: q.line, fromChapter: 1, summoned: true });
+}
+
 /** #104 · A NEW TALE SET IN AN IP THE WRITER HAS NO WORLD FOR, at Create. Each ticked name is pulled
  *  by the fromweb lookup (`pullThread`), searched in the World's name, or from memory when the list
  *  said so or the search is off, fails or finds nothing. ALL OF THEM BEFORE ANYTHING IS WRITTEN, so
@@ -2864,6 +2883,8 @@ export const routes: Record<string, Handler> = {
         cast.push(own);
       }
       roomNotes.push(...writeCast(made.id, c.owner, cast));
+      // ADR 0009 · THE OPEN QUESTIONS THE WRITER TICKED, as strings, inside this rollback.
+      writeOpenQuestions(made.id, c.body.strings);
       // #84 · THE TALE'S OWN POCKETS from the wizard's preview (#75's `instruction` slot), switched on,
       // as the tale's own thread adds them one at a time. A blank one is not a pocket.
       for (const p of (Array.isArray(c.body.talePockets) ? c.body.talePockets : []).slice(0, 24) as any[]) {
@@ -2973,6 +2994,9 @@ export const routes: Record<string, Handler> = {
         persona: null, lockedCharacter: null,
       },
       entries: [],
+      // ADR 0009. Beside the story, never in it: they are offered as strings, not written into the
+      // premise.
+      questions: openQuestions(d.questions),
     };
   },
 

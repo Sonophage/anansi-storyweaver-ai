@@ -5405,6 +5405,11 @@ function harvestSpark() {
     if (el.type === 'checkbox') { S.spark.story[k] = el.checked; continue; }
     S.spark.story[k] = k === 'spice' ? Number(el.value) || 2 : el.value;
   }
+  // ADR 0009. An open question ticked or unticked in the preview.
+  for (const c of document.querySelectorAll('[data-spquestion]')) {
+    const q = (S.spark.questions ?? [])[Number(c.dataset.spquestion)];
+    if (q) q.keep = c.checked;
+  }
   // The thread you play stays ticked while you play them (#84): unticking it would drop it at Create.
   for (const c of document.querySelectorAll('[data-spcast]')) {
     const e = S.spark.entries[Number(c.dataset.spcast)];
@@ -6018,6 +6023,15 @@ function sparkReview() {
 const playsThis = (e) => !!S.spark?.story?.persona
   && String(e.title ?? '').trim().toLowerCase() === String(S.spark.story.persona).trim().toLowerCase();
 
+/** ADR 0009 · THE TALE'S OPEN QUESTIONS. The spark returns them beside the premise, never in it;
+ *  they arrive ticked, and the ticked ones ride the one Create (`strings`), which makes them strings
+ *  from scene 1 inside its rollback. */
+const questionsOf = (r) => (Array.isArray(r?.questions) ? r.questions : [])
+  .filter((q) => String(q?.title ?? '').trim())
+  .map((q) => ({ title: String(q.title), line: String(q.line ?? ''), keep: true }));
+const sparkQuestions = () => (S.spark?.questions ?? []).filter((q) => q.keep !== false)
+  .map(({ title, line }) => ({ title, line }));
+
 function sparkPreview(s, { row, area }) {
   const kept = (S.spark.entries ?? []).map((e, i) => [e, i])
     .filter(([e]) => e.keep !== false && (e.title ?? '').trim());
@@ -6082,6 +6096,13 @@ function sparkPreview(s, { row, area }) {
     ${row('setting', 'Setting', s.setting)}
     ${area('writingStyle', 'Voice', s.writingStyle, `How the narration sounds, as instructions. Point of
       view: ${esc(s.pov ?? 'not set')}.`, 120)}
+    ${(S.spark.questions ?? []).length ? `<div class="lbl sect">Open questions</div>
+      <div class="hint lead-6">What the tale keeps asking. Each one you tick becomes a string from the
+        first scene, and Anansi is told not to answer it yet.</div>
+      ${S.spark.questions.map((q, i) => `<label class="card below-8 gap-6" style="cursor:pointer">
+        <span class="base-8"><input type="checkbox" data-spquestion="${i}"${q.keep === false ? '' : ' checked'}>
+          <span class="name-14">${esc(q.title)}</span></span>
+        <span class="note">${esc(q.line)}</span></label>`).join('')}` : ''}
     ${ipWorld ? `<div class="lbl sect">From your World, ${esc(ipWorld.title)} &middot;
         <span class="tnum">${ipWorld.people.length}</span></div>
       <div class="hint lead-6">This tale follows it, so its people come in with it. They are the World's
@@ -12935,7 +12956,9 @@ document.addEventListener('click', async (e) => {
       // #84. The tale's own pockets ("Your own"), added in the preview and made at Create.
       talePockets: [],
       // #103. The IP last looked up (`ipFollow`), and the writer's World of that name, if any.
-      ipAsked: '', ipWorld: null };
+      ipAsked: '', ipWorld: null,
+      // ADR 0009. The open questions, offered ticked in the preview (`sparkQuestions`).
+      questions: questionsOf(r) };
     S.sparkStep = 1;
     if (S.prompts === null) loadPrompts();   // step 5 offers the writer's own voice
     paint();
@@ -13149,6 +13172,8 @@ document.addEventListener('click', async (e) => {
     // premise has not asked to lose the people in it — the cast has its own button one step over.
     S.spark.story = { ...(r.story ?? {}), persona: S.spark.story.persona,
                       lockedCharacter: S.spark.story.lockedCharacter };
+    // The open questions belong to the premise they came with, so they are replaced with it.
+    S.spark.questions = questionsOf(r);
     paint();
     return toast('Another skeleton, from the same idea.');
   }
@@ -13311,6 +13336,8 @@ document.addEventListener('click', async (e) => {
       // the cast made none. And the tale's own pockets from the preview.
       personaAbout: s.personaAbout || null,
       talePockets: S.spark.talePockets ?? [],
+      // ADR 0009. The open questions ticked in the preview, made as strings.
+      strings: sparkQuestions(),
       // #84. Tells the create route to settle the yours pocket on whoever is Hands off now.
       spark: true,
       entries: keep,

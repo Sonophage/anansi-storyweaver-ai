@@ -29,6 +29,10 @@ const IDEAS = ['Vel finds the moneylender\'s ledger open on the stair, at his pa
   'The lower tiers go dark, and someone below calls her by her old name.',
   'Aldis comes up the stair with the money, and it is not enough.'];
 
+// ADR 0009 · the open questions a spark returns beside the premise.
+const QUESTIONS = [{ title: 'Whether the debt is real', line: 'Nobody has seen the ledger but the moneylender.' },
+  { title: 'Who sent the letter', line: 'It came under the door with no name on it.' }];
+
 let calls: any[] = [];
 let breakFirst = false;   // answer the first call with a truncated object, as running out of room does
 const srv = createServer((req, res) => {
@@ -204,6 +208,8 @@ const srv = createServer((req, res) => {
       }
       : props.premise ? { title: 'The Rust Year', premise: PREMISE, genre: 'noir, gothic',
         setting: 'Sutera', pov: 'third limited, past tense', spice: 2, writingStyle: VOICE,
+        // ADR 0009. The open questions, and one with nothing in it that the route must drop.
+        ...(props.questions ? { questions: [...QUESTIONS, { title: '  ', line: 'nothing' }] } : {}),
         characters: [{ name: 'Vel', role: 'the Murmur', description: 'Speaks for the dead god.' },
                      { name: 'Aldis', role: 'a debtor', description: 'Owes more than he can pay.' }] }
       : asksForStrings ? { reply: 'Two things are owed.',
@@ -222,6 +228,8 @@ const srv = createServer((req, res) => {
                                   keys: ['choir', 'rust'] }
       // ✦ (#71). Its own one-field schema, so the shape alone tells it apart.
       : props.ideas ? { ideas: IDEAS }
+      // One field of the skeleton, asked again (SPARK_FIELD_SCHEMA).
+      : props.value ? { value: 'Aldis, on the stair at dusk, wants the ledger before the lamps are lit.' }
       : { reply: LONG };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ choices: [{ message: { content: cut
@@ -856,16 +864,19 @@ ok('a kind that does not exist is refused rather than assembled');
   // regression. What must be true is that each of the four names a band at all — a field with no
   // length comes back as a line, which is the failure being fixed.
   for (const [what, re] of [
-    ['the premise', /premise is \w+ to \w+ sentences/],
+    // ADR 0009: the premise is one paragraph, the opening, and that is its length.
+    ['the premise', /premise is ONE paragraph/],
     ['the setting', /setting is \w+ to \w+ sentences/],
     // (the character length band moved to CAST with the cast itself — asserted below)
     ['the voice', /a hundred words or so, not a label/],
   ] as const) assert.match(SPARK, re,
     `${what} needs a length worth filling, or the model gives it a line`);
-  // And a floor is only a floor if it is said to be one.
-  assert.match(SPARK, /floor\s+as much as a ceiling/i,
-    'the prompt has to say the bands are minimums too — every one of them was read as a ceiling '
-    + 'and answered at the bottom of the range');
+  // THE FLOOR PARAGRAPH IS GONE (ADR 0009, 2026-10-28). It said every band was a floor as much as
+  // a ceiling, and it pushed the premise long: the live one came back at nineteen sentences against
+  // the eight to twelve asked, and a one-paragraph opening cannot share a prompt with a push for
+  // length. (It was added because bands were read as ceilings; that is now the lesser risk.)
+  assert.doesNotMatch(SPARK, /floor\s+as\s+much\s+as\s+a\s+ceiling|A line is not enough/i,
+    'SPARK-NO-FLOOR: nothing in the spark pushes the fields to run long');
   for (const [what, re] of [
     ['a premise is not a blurb', /not a\s+blurb\.\s+No marketing language, no rhetorical questions/],
     ['the voice describes prose, not genre', /description of PROSE/],
@@ -890,6 +901,93 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.ok(!again.error, again.error);
   assert.strictEqual(again.story.premise, PREMISE, 'and the second answer arrives whole');
   ok('a spark that runs out of room is retried rather than handed back as nothing usable');
+}
+
+// ---- 7b. ADR 0009 · THE PREMISE IS THE OPENING, AND THE OPEN QUESTIONS COME BACK APART FROM IT
+// The premise is sent whole at the top of every prompt and never trimmed, so an arc in it (who wants
+// what, what it costs, who else wants something incompatible) kept the model steering to an ending.
+// One wording, PREMISE_FORM, in all three prompts that write a premise, so a re-roll or a Talk
+// change cannot bring the arc back. The wording itself is NOT MEASURED; these check only that it
+// is the one asked for, everywhere, and that its examples are shapes.
+{
+  const { SPARK, SPARK_FIELD, TALK_SETUP, REVIEW, PREMISE_FORM, SPARK_SCHEMA } = await import('../src/prompts.ts') as any;
+  assert.ok(typeof PREMISE_FORM === 'string' && PREMISE_FORM.length > 0, 'PREMISE-FORM: one wording for the premise exists');
+  assert.match(PREMISE_FORM, /ONE paragraph/, 'PREMISE-FORM: one paragraph');
+  assert.match(PREMISE_FORM, /opening/i, 'PREMISE-FORM: and it is the opening');
+  // It is read on every call for the life of the tale, so it is how the tale BEGAN, not a standing
+  // "now": the shape itself carries "as the tale opens".
+  assert.match(PREMISE_FORM, /BEGINS/, 'PREMISE-BEGINS: the premise says how the tale begins');
+  assert.match(PREMISE_FORM, /"[^"]*as\s+the\s+tale\s+opens[^"]*"/, 'PREMISE-BEGINS: and its shape is set at the opening');
+  assert.match(PREMISE_FORM, /Never\s+how\s+it\s+ends,\s+what\s+it\s+costs\s+or\s+what\s+anyone\s+will\s+do/,
+    "PREMISE-FORM: never the ending, the cost or anyone's next move (ADR 0009's words)");
+  // SHAPES, NOT EXAMPLES: every quoted span is a shape with an angle-bracket slot, never a sentence
+  // the real model can copy word for word (see POCKET_FORM).
+  const quoted = [...PREMISE_FORM.matchAll(/"([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(quoted.length > 0, 'PREMISE-SHAPE: the form gives a shape');
+  for (const q of quoted) assert.match(q, /<[^>]+>/, `PREMISE-SHAPE: a quoted example is a shape, not a sentence: "${q}"`);
+  for (const [name, text] of [['SPARK', SPARK], ['SPARK_FIELD', SPARK_FIELD], ['TALK_SETUP', TALK_SETUP], ['REVIEW', REVIEW]] as const) {
+    assert.ok(text.includes(PREMISE_FORM), `PREMISE-ONE: ${name} asks for the premise in the one wording`);
+    assert.doesNotMatch(text, /who else wants something incompatible|eight to twelve sentences/,
+      `PREMISE-NO-ARC: ${name} no longer asks for the arc`);
+  }
+  // The open questions: asked for apart from the premise, two to four, each a title and one line.
+  const qs = SPARK_SCHEMA.properties.questions;
+  assert.ok(qs && qs.type === 'array' && qs.minItems === 2 && qs.maxItems === 4,
+    'QUESTIONS-SCHEMA: the spark returns two to four open questions');
+  assert.deepStrictEqual([...qs.items.required].sort(), ['line', 'title'], 'QUESTIONS-SCHEMA: each a title and one line');
+  assert.match(SPARK, /open questions/i, 'QUESTIONS-ASK: the spark asks for them');
+  for (const q of [...SPARK.matchAll(/"([^"]*)"/g)].map((m) => m[1]).filter((q) => /question|line/i.test(q)))
+    assert.match(q, /<[^>]+>/, `QUESTIONS-SHAPE: quoted as a shape: "${q}"`);
+
+  // The re-roll sends the same wording on the wire, and the spark hands the questions back.
+  calls = [];
+  const ctx = (body: any) => ({ body, query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any);
+  const rr: any = await routes['POST /api/spark/field'](ctx({ field: 'premise', story: { title: 'The Rust Year' }, idea: 'A debt.' }));
+  assert.ok(!rr.error, rr.error);
+  assert.ok(String(calls.at(-1).messages[0].content).includes(PREMISE_FORM), 'PREMISE-REROLL: the premise re-roll is asked in the same shape');
+  const sk: any = await routes['POST /api/spark'](ctx({ idea: 'A broke ex-sergeant owes a moneylender more than he can pay.' }));
+  assert.deepStrictEqual(sk.questions, QUESTIONS.map((q) => ({ title: q.title, line: q.line })),
+    'QUESTIONS-BACK: the open questions come back beside the skeleton');
+  assert.ok(!('questions' in sk.story), 'QUESTIONS-APART: and not inside the story, so they never land in the premise');
+  ok('the premise is asked for as the opening in one wording everywhere, and the open questions come back apart from it');
+
+  // THE TICKED QUESTIONS ARE MADE AS STRINGS AT CREATE, from scene 1, summoned so they reach the
+  // model with the order not to resolve them, and inside the one create's rollback.
+  const mk = (body: any) => routes['POST /api/stories']({ body, query: new URLSearchParams(), owner: me } as any) as any;
+  const tale: any = mk({ title: 'Open Questions', premise: PREMISE, spark: true, entries: [],
+    strings: [QUESTIONS[0], { title: '   ', line: 'a question with no title is none' }] });
+  assert.ok(!tale.error, tale.error);
+  const made = db.stringsOf(tale.id);
+  assert.deepStrictEqual(made.map((x: any) => [x.title, x.body, x.from_chapter, x.status, x.summoned]),
+    [[QUESTIONS[0].title, QUESTIONS[0].line, 1, 'open', 1]],
+    'QUESTIONS-STRINGS: each one sent is a summoned, open string from scene 1; a blank one is not');
+  const plain: any = mk({ title: 'No Questions', premise: PREMISE, entries: [] });
+  assert.deepStrictEqual(db.stringsOf(plain.id), [], 'QUESTIONS-NONE: a create that sends none makes none');
+  // A Create that fails after the strings are written leaves none of them behind.
+  const owned = () => (db.listStories(me) as any[]).flatMap((s) => db.stringsOf(s.id)).length;
+  const before = owned();
+  const refused: any = mk({ title: 'Refused', premise: PREMISE, entries: [], strings: QUESTIONS,
+    seed: [{ storyId: 'no-such-tale', entryId: 'no-such-thread' }] });
+  assert.match(String(refused.error), /nothing was made/, 'QUESTIONS-ROLLBACK: a refused copy fails the Create');
+  assert.strictEqual(owned(), before, 'QUESTIONS-ROLLBACK: and its strings go with it');
+  ok('the ticked open questions become strings at Create, inside its rollback');
+
+  // THE SCENE BRIEF KEEPS THEM OPEN. It was sent every open string as "UNPAID PROMISES" and told to
+  // press on one, which would push the tale's own questions to an answer through the brief that
+  // rides every call; and it named a destination field removed on 2026-08-30.
+  const { CHAPTER } = await import('../src/prompts.ts');
+  assert.doesNotMatch(CHAPTER, /destination\s+is\s+set/, 'CHAPTER-NO-DESTINATION: no field that no longer exists');
+  assert.doesNotMatch(CHAPTER, /pressed\s+on|unpaid\s+promise/i, 'CHAPTER-OPEN: nothing tells it to press a string towards payment');
+  assert.match(CHAPTER, /complicate\s+it,\s+never\s+answer\s+it/, 'CHAPTER-OPEN: an open question may be complicated, never answered');
+  calls = [];
+  const brief: any = await routes['POST /api/chapter/propose'](ctx({ storyId: tale.id, chapterId: db.chapters(tale.id).at(-1)!.id }));
+  assert.ok(!brief.error, brief.error);
+  const shownBrief = String(calls.at(-1).messages[1].content);
+  assert.doesNotMatch(shownBrief, /UNPAID PROMISES/, 'BRIEF-OPEN: the brief no longer calls them debts');
+  assert.match(shownBrief, /OPEN QUESTIONS[^\n]*never answer[^\n]*Whether the debt is real/,
+    'BRIEF-OPEN: it is shown them as open questions, with the order never to answer one');
+  ok('the scene brief keeps the open questions open, and no longer names a destination');
 }
 
 // ---- 7. ANANSI READS THE BOOK; THE BOOK DOES NOT SET HER REGISTER
