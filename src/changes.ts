@@ -566,7 +566,11 @@ export function fingerprint(t: Thread): string {
  * the Undo. So the list is the draft's own, and it is short:
  *
  *   - tale.set: the draft's title, premise, genre, setting or voice. Not the setting's scene: there
- *     are no scenes yet.
+ *     are no scenes yet. And (#101) its World: the story or game it is set in, the box on the
+ *     tale's own step. Setting it hands over to the World step, which the page runs on that box
+ *     (`ipFollow`): it follows the writer's World of that name or looks the IP up. The route holds
+ *     back the threads the same answer would have made or offered, because that step is the one
+ *     way an IP's people are made.
  *   - thread.new, thread.set: as on a tale, against the draft's threads and their rooms.
  *   - thread.remove: removing a draft thread is allowed here, where a tale only retires one,
  *     because nothing has been saved: the thread is the page's, the press is one Undo away, and
@@ -576,12 +580,12 @@ export function fingerprint(t: Thread): string {
  * A draft thread's Always true is its `body`, a plain description as the cast writes it (#110; POST
  * /api/stories moves it into `facts` at Start); its other rooms are `rooms[slot]`. */
 const DRAFT_OPS = ['tale.set', 'thread.new', 'thread.set', 'thread.remove'] as const;
-const DRAFT_FIELDS = ['title', 'premise', 'genre', 'setting', 'voice'] as const;
+const DRAFT_FIELDS = ['title', 'premise', 'genre', 'setting', 'voice', 'world'] as const;
 /** The draft's own name for each field: the voice is `writingStyle` in the wizard and the column.
  *  The one copy: `checkDraft` hands the key back with the change, and the route and the page both
  *  write to it. */
 const DRAFT_KEY: Record<string, string> = { title: 'title', premise: 'premise', genre: 'genre', setting: 'setting',
-  voice: 'writingStyle' };
+  voice: 'writingStyle', world: 'world' };
 
 /** The schema fragment the setup Talk's answer carries. Flat, as `CHANGES_SCHEMA` is, for the same
  *  reason. */
@@ -642,13 +646,13 @@ export function checkDraft(raw: any, draft: Draft): DraftChecked {
     : op === 'tale.set' ? `Change the ${String(raw?.field ?? '').trim() || 'draft'}` : saidOf(raw);
   if (!(DRAFT_OPS as readonly string[]).includes(op)) return { ok: false, said,
     why: 'that is not something Talk can do while a tale is set up. It changes the draft\'s title, premise, '
-      + 'genre, setting and voice, and its threads; there are no scenes or prose yet' };
+      + 'genre, setting, voice and World, and its threads; there are no scenes or prose yet' };
   const st = draft.story ?? {};
   const text = String(raw.text ?? '').trim();
   if (op === 'tale.set') {
     const field = String(raw.field ?? '').trim().toLowerCase();
     if (!(DRAFT_FIELDS as readonly string[]).includes(field)) return { ok: false, said,
-      why: `Talk changes the title, premise, genre, setting or voice, not the ${field || 'nothing'}` };
+      why: `Talk changes the title, premise, genre, setting, voice or World, not the ${field || 'nothing'}` };
     const key = DRAFT_KEY[field];
     const before = String(st[key] ?? '');
     if (!text) return { ok: false, said, why: 'it came with no text' };
@@ -690,7 +694,8 @@ export function checkDraft(raw: any, draft: Draft): DraftChecked {
 
 /** What a draft change did, in the writer's words: one line in the conversation. */
 export function draftWords(c: DraftChange): string {
-  if (c.op === 'tale.set') return `Changed the ${c.field}: “${clip(c.text)}”`;
+  if (c.op === 'tale.set') return c.field === 'world' ? `Set in ${c.text}. Its World comes from your Worlds, or is looked up on The threads.`
+    : `Changed the ${c.field}: “${clip(c.text)}”`;
   if (c.op === 'thread.new') return `Added a thread: ${c.thread.title}, ${an(c.thread.entryType)}.`;
   if (c.op === 'thread.remove') return `Removed ${c.title} from the draft.`;
   return `Changed ${c.title}'s ${roomLabel(c.room)}: “${clip(c.text)}”`;

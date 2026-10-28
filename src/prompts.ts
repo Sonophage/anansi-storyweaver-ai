@@ -1859,7 +1859,9 @@ WHAT THE WRITER ASKS YOU TO CHANGE in the draft, you change, in changes, and now
 they asked for in so many words; never replace what they wrote in a box unless they asked for that
 box. Each is done the moment you answer.
 
-- tale.set: the field (title, premise, genre, setting or voice) and its whole new text.
+- tale.set: the field (title, premise, genre, setting or voice) and its whole new text. When they
+  say the tale is set in a story or game that exists, the field is world and the text its name;
+  its people come from its World, so make and offer none of them.
 - thread.new: its title, its type, and its Always true as text.
 - thread.set: the thread by its name, the room (none for its Always true), and the whole new text.
 - thread.remove: the thread by its name.

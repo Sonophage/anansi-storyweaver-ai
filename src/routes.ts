@@ -3205,10 +3205,20 @@ export const routes: Record<string, Handler> = {
       else if (notes && ch.op === 'thread.set') ch.notes = notes;
       changes.push({ words: draftWords(k.change), change: ch });
     }
+    // #101 · NAMING AN IP HANDS OVER TO THE WORLD STEP. The page runs that step on the World field
+    // (`ipFollow`: the writer's World of that name, or the IP looked up for a new one), so Talk does
+    // not make the IP's people its own way in the same answer: a thread it would have made is not
+    // done, and says why, and nothing is offered. One the writer wants of their own, they ask again.
+    const ip = changes.find((x) => x.change.op === 'tale.set' && x.change.key === 'world')?.change.text;
+    if (ip) for (const x of changes.filter((y) => y.change.op === 'thread.new')) {
+      changes.splice(changes.indexOf(x), 1);
+      notDone.push({ said: `Make a new thread: ${x.change.thread.title}`,
+        why: `the people and places of ${ip} come from its World, on The threads. Ask again for one of your own` });
+    }
     // OFFERED, in the shape a draft thread has, for the page's Add press. Never one the draft
     // already has, and the Hands-off floor the cast has.
     const have = new Set(draft.entries.map((e: any) => String(e.title ?? '').trim().toLowerCase()));
-    const entries = (((r.data as any).entries ?? []) as any[])
+    const entries = ip ? [] : (((r.data as any).entries ?? []) as any[])
       .filter((e) => e?.title?.trim() && e?.body?.trim() && KINDS_ALL.includes(e.type)
         && !have.has(String(e.title).trim().toLowerCase()))
       .map((e) => sparkThread(e.title, e.type, e.body, []));

@@ -113,6 +113,11 @@ const srv = createServer((req, res) => {
       SETUPASK: { reply: 'Three houses matter most: the Marrens, the Ashes and the crown.',
         entries: [{ title: 'House Marren', type: 'lore', body: 'Holds the northern passes.', keys: ['Marren'], field: 'none' },
                   { title: 'Ilva Marren', type: 'character', body: 'Already in the draft.', keys: ['Ilva'], field: 'none' }] },
+      // #101 · an IP named during setup, with a thread made for it and one offered.
+      SETUPIP: { reply: 'Elden Ring it is, and Morgott is in.',
+        changes: [{ op: 'thread.new', title: 'Morgott', type: 'character', text: 'The Omen King.' },
+                  { op: 'tale.set', field: 'world', text: 'Elden Ring' }],
+        entries: [{ title: 'Godfrey', type: 'character', body: 'The first Elden Lord.', keys: ['Godfrey'], field: 'none' }] },
       SETUPWEB: { reply: 'Charon is in.',
         changes: [{ op: 'thread.new', title: 'Charon', type: 'character',
           text: 'Ferries the dead for an obol (https://myth.example/charon/1).', sources: [1] }] },
@@ -1610,6 +1615,19 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.match(offer.entries[0].body, /northern passes/, 'SETUP-OFFER: in the shape a draft thread has');
   assert.strictEqual(offer.entries[0].entryType, 'lore');
   ok('a question gets an answer and offers, and changes nothing');
+
+  // #101 · NAMING AN IP HANDS OVER TO THE WORLD STEP. The tale's World field is set, which the page
+  // matches to a World or looks up (#103, #104); the people he would have made or offered for it are
+  // held back, because the World step is the one way they are made.
+  const ip = await setup('CHANGE-SETUPIP: it is set in Elden Ring, with Morgott in it');
+  assert.ok(!ip.error, ip.error);
+  assert.deepStrictEqual(ip.changes.map((x: any) => [x.change.op, x.change.key, x.change.text]), [['tale.set', 'world', 'Elden Ring']],
+    `SETUP-IP: the World field is set, and no thread is made (${JSON.stringify(ip.changes)})`);
+  assert.strictEqual(ip.changes[0].change.before, '', 'SETUP-IP: with what was there, for its Undo');
+  assert.deepStrictEqual(ip.entries, [], 'SETUP-IP: and nothing is offered for the IP either');
+  assert.match(ip.reply, /Morgott[^\n]*World/, `SETUP-IP: the reply says where Morgott will come from (${ip.reply})`);
+  assert.deepStrictEqual(rows(), before, 'SETUP-IP: and nothing is written');
+  ok('naming an IP during setup sets the tale\'s World and leaves its people to the World step');
 
   // Search, as in a tale: Anansi's own queries, the pages listed, a link in the notes, not the text.
   const searched: string[] = [];

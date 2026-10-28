@@ -3884,6 +3884,58 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
 }
 ok('a new tale naming an IP the writer has a World for follows it, shows its people, and makes nothing until Start');
 
+// #101 · NAMING AN IP IN TALK DURING SETUP HANDS OVER TO THE WORLD STEP. The change sets the tale's
+// World field, and the page runs the same World step the field's own box runs: the writer's World of
+// that name is followed. Its Undo lets go of it again. Nothing is saved.
+{
+  const doc = (globalThis as any).document;
+  const wasQSA = doc.querySelectorAll;
+  const settle = async (re: RegExp, id = 'page') => { for (let i = 0; i < 40 && !re.test(html(id)); i++) await new Promise((r) => setTimeout(r, 25)); };
+  const looked = () => POSTED.filter((p) => p.url === '/api/spark/world').map((p) => p.body.name);
+  click({ railview: 'workspace' });
+  await new Promise((r) => setTimeout(r, 30));
+  click({ nav: 'create' });
+  await new Promise((r) => setTimeout(r, 30));
+  doc.getElementById = (id: string) => id === 'idea' ? { value: 'A queen for the Omen King.' } : (nodes.get(id) ?? el(id));
+  try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
+  finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
+  doc.querySelectorAll = () => [];
+  POSTED.length = 0;
+  try {
+    click({ panel: 'anansi' });
+    await settle(/askBox/, 'sideBody');
+    stubSparkTalk = { reply: 'Elden Ring it is.', seconds: 1,
+      changes: [{ words: 'Set in Elden Ring.', change: { op: 'tale.set', field: 'world', key: 'world', text: 'Elden Ring', before: '' } }] };
+    (document as any).getElementById('askBox').value = 'It is set in Elden Ring';
+    click({ ask: '1' });
+    for (let i = 0; i < 40 && !looked().length; i++) await new Promise((r) => setTimeout(r, 25));
+    assert.deepStrictEqual(looked(), ['Elden Ring'], 'SETUP-IP-HANDOVER: the World step looks the IP up among the writer\'s Worlds');
+    click({ sparkstep: '8' });
+    await settle(/creates all of this/);
+    assert.match(html('page'), /Elden Ring<\/span>\s*<span[^>]*>the World it follows/,
+      'SETUP-IP-HANDOVER: and the tale follows the World of that name');
+    // Undone where the writer stands, with no move to another step: the Begin step says it at once.
+    click({ talkundo: '1:0' });
+    await settle(/No World<\/span>/);
+    assert.match(html('page'), /No World<\/span>\s*<span[^>]*>the World it follows/,
+      'SETUP-IP-UNDO: Undo lets go of the World again');
+    // A World box the writer typed in is still changed by a turn that names the IP it is changed to.
+    (listeners.input ?? []).forEach((f: Function) => f({ target: { dataset: { sp: 'world' }, value: 'Dune' } }));
+    stubSparkTalk = { reply: 'Elden Ring, then.', seconds: 1,
+      changes: [{ words: 'Set in Elden Ring.', change: { op: 'tale.set', field: 'world', key: 'world', text: 'Elden Ring', before: '' } }] };
+    (document as any).getElementById('askBox').value = 'No, make it Elden Ring';
+    click({ ask: '1' });
+    await settle(/Elden Ring<\/span>\s*<span[^>]*>the World it follows/);
+    assert.match(html('page'), /Elden Ring<\/span>\s*<span[^>]*>the World it follows/,
+      'SETUP-IP-TYPED: naming the IP is asking for the World box by name');
+    assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
+      `SETUP-IP-NOTHING: nothing is saved (${POSTED.map((p) => p.url).join(', ')})`);
+    click({ dropSpark: '1' });
+    await new Promise((r) => setTimeout(r, 30));
+  } finally { doc.querySelectorAll = wasQSA; stubSparkTalk = null; }
+}
+ok('naming an IP in Talk during setup starts the World step, and its Undo lets go of the World');
+
 // #104 · AN IP WITH NO WORLD OF THAT NAME IS LOOKED UP. The threads step lists its people and places
 // with a line each, ticked; more can be asked for and a name added; the preview shows the ticked
 // ones; nothing is made until Start writing, which sends the ticked names as the new World. Names
