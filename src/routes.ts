@@ -3022,9 +3022,15 @@ export const routes: Record<string, Handler> = {
     return {
       story: {
         title: d.title, premise: d.premise, genre: d.genre, setting: d.setting,
-        pov: d.pov, spice: d.spice, writingStyle: d.writingStyle,
+        // #123 · THE TALE STARTS WITH THE WRITER'S OWN VOICE (Seth, 2026-10-28): the Account
+        // Voice, or the shipped one when none is set. F37: the Voice outranks everything for
+        // register, so the writer's own is the one a tale starts with.
+        pov: d.pov, spice: d.spice, writingStyle: voiceOf(c.owner),
         persona: null, lockedCharacter: null,
       },
+      // The Voice the spark wrote, beside the story and not in it: the wizard offers it as a diff
+      // against the writer's own, and it is the tale's only if the writer presses Use this.
+      voiceOffer: String(d.writingStyle ?? '').trim(),
       entries: [],
       // ADR 0009. Beside the story, never in it: they are offered as strings, not written into the
       // premise.

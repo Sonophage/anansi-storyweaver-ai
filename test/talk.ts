@@ -867,7 +867,7 @@ ok('a kind that does not exist is refused rather than assembled');
 // regress here on their own: the prompt asking for a line again, the room it is asked for in, and
 // the retry that a longer answer makes worth having. All three are asserted.
 {
-  const { SPARK, SPARK_SCHEMA } = await import('../src/prompts.ts');
+  const { SPARK, SPARK_SCHEMA, DEFAULT_VOICE } = await import('../src/prompts.ts');
   calls = [];
   const spark = (idea: string) => routes['POST /api/spark']({
     body: { idea }, query: new URLSearchParams(), owner: me,
@@ -879,7 +879,18 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.strictEqual(skel.story.premise, PREMISE,
     'the premise arrives whole — a cap on the field would close it mid-word with the JSON still '
     + 'valid, which is F25 and would look like a finished answer');
-  assert.strictEqual(skel.story.writingStyle, VOICE, 'and so does the voice of the weave');
+  // #123 · THE TALE STARTS WITH THE WRITER'S OWN VOICE. The one the spark wrote comes back apart
+  // from the story, offered, and is never the tale's unless the writer chooses it.
+  assert.strictEqual(skel.voiceOffer, VOICE, 'VOICE-OFFER: the voice the spark wrote arrives whole, as an offer');
+  assert.strictEqual(skel.story.writingStyle, DEFAULT_VOICE,
+    'VOICE-START: with no Account Voice set, the tale starts with the shipped one');
+  const ACCOUNT = 'Narrate close and cold. Never name a feeling the weather can show.';
+  db.setPrompt(me, 'voice', ACCOUNT);
+  const mine = await spark('A broke ex-sergeant owes a moneylender more than he can pay.');
+  db.setPrompt(me, 'voice', '');
+  assert.strictEqual(mine.story.writingStyle, ACCOUNT, 'VOICE-START: the tale starts with the Account Voice');
+  assert.strictEqual(mine.voiceOffer, VOICE, '  and the spark\'s is still offered beside it');
+  ok('VOICE-START: a new tale starts with the Account Voice, and the spark\'s Voice is only offered');
 
   // #21 §2. THE CEILING CAME DOWN WITH THE ASK, and this check came down with it. The spark asked
   // for the cast as well until 2026-08-29 — roughly 800 words in one object, which is why the floor
