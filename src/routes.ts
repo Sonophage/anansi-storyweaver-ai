@@ -1060,8 +1060,13 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     `  Pockets it has: ${(e.addons ?? []).filter((a: any) => a.slot !== 'facts').map((a: any) => `${a.slot} (${a.name})`).join(', ') || 'none'}`,
     `  Pockets its kind can have: ${slotsFor(e.entryType).map((sl) => sl.name).filter((n) => n !== 'facts').join(', ')}`,
   ].join('\n')).join('\n\n');
+  // #90 · OUTSIDE ONLY: the character the writer plays, and the Hands-off one while the switch is on.
+  // Neither is the hem's to get inside of. Named by title, as the story stores them.
+  const outside = [v.story.persona, v.story.lockoutOn ? v.story.lockedCharacter : null]
+    .map((x) => String(x ?? '').trim()).filter(Boolean);
+  const outsideLine = outside.length ? `\n\nOUTSIDE ONLY: ${outside.join(', ')}` : '';
 
-  const r = await structuredRetry(MEMORY, `${text}\n\n---\n\n${inForce}`, MEMORY_SCHEMA,
+  const r = await structuredRetry(MEMORY, `${text}\n\n---\n\n${inForce}${outsideLine}`, MEMORY_SCHEMA,
     { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
   if (!r.data?.threads) return { remembered: 0, error: r.error ?? null };
 

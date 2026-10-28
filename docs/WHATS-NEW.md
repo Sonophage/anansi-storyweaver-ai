@@ -12,6 +12,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-27 · Hemming no longer makes you wait
 
+### Hemming chalks less
+When you hem a scene, Anansi now offers a change only for a thread the scene acts on, never for one
+it only mentions, and only what is new about it. It no longer fills out pockets nothing in the
+scene touched. The character you play and the Hands-off character are seen from the outside only.
+
 ### The next scene opens as soon as you press Hem this scene
 Anansi now writes the summary, reads what changed for each thread, and finds new threads and
 threads to retire after the next scene has opened, so you can start writing at once. What it finds

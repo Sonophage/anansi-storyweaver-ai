@@ -884,8 +884,7 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.ok(mine.find((a) => a.slot === 'voice')?.active, '  and its pockets are on');
   assert.match(ilse.body, /taken the stranger across/, 'FLESH-STANDS: and where it stands is its first Over time entry');
   assert.ok(!/taken the stranger/.test(mine.find((a) => a.slot === 'facts')?.body ?? ''), '  and not in its Always true');
-  assert.match(prompts.MEMORY, /pocket\s+it does not have yet/i, 'FLESH-HEM: the hem pass is told to start the pockets a thread lacks');
-  ok('a new thread from the scene arrives fully fleshed, and hem fleshes out what it names');
+  ok('a new thread from the scene arrives fully fleshed');
 }
 
 // ---- #73 · TIDY THIS THREAD ----
@@ -1082,6 +1081,32 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
   assert.ok(asked.user.includes('Oren crosses at dawn.') && asked.user.includes('Oren crosses back at dusk.'),
     'HEM-ROLLUP: the roll-up is sent both summaries the hems wrote');
   ok('a chapter roll-up reads the scene summaries a background hem wrote');
+}
+
+
+// ---- #90 · HEM CHALKS LESS: acted on, only news, six at most, outside only, World people ----
+//
+// The thread-change pass chalked a card for every thread the scene named, and asked for pockets
+// where nothing changed. These drive what it is told and what code keeps of its answer.
+{
+  const t = db.createStory(me, { title: 'Chalks less', premise: 'p', persona: 'Seth', lockedCharacter: 'Halloran' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  for (const title of ['Seth', 'Halloran', 'Ilse'])
+    db.upsertEntry(t.id, me, { title, body: `[${title}: on the quay]`, entryType: 'character', keys: [title] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Seth pushed Halloran off the quay. Ilse watched from the boat.' });
+  answer = [];
+  asked = null;
+  await routes['POST /api/remember'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  assert.match(prompts.MEMORY, /acting or being acted on/i, 'CHALK-ACTING: the prompt says a thread must act or be acted on');
+  assert.match(prompts.MEMORY, /mention is not a\s+change/i, '  and that a mention is not a change');
+  assert.doesNotMatch(prompts.MEMORY, /FLESH IT OUT/, 'CHALK-NO-FLESH: the prompt no longer asks for pockets where nothing changed');
+  assert.match(prompts.MEMORY, /never an\s+outcome/i, 'CHALK-POCKET-FORM: pockets are instructions, never outcomes');
+  assert.match(prompts.MEMORY, /six/i, 'CHALK-CAP: the prompt carries the cap of six');
+  assert.match(asked.user, /OUTSIDE ONLY: Seth, Halloran/, 'CHALK-OUTSIDE-NAMED: the ask names the played and Hands-off characters');
+  assert.match(prompts.MEMORY, /OUTSIDE ONLY/, '  and the prompt says what that means');
+  assert.ok(asked.user.includes('Where it stands now: [Seth: on the quay]'), 'CHALK-IN-FORCE: each thread arrives with the entry in force');
+  ok('the hem prompt carries the acting rule, the in-force entries, the outside-only rule and the cap of six');
 }
 
 

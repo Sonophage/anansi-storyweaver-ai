@@ -134,30 +134,42 @@ thread's own text says about it, and leave out a pocket its text gives you nothi
  *  would silently drop her debts from that scene on, and it would read as the model forgetting.
  *  Its pockets come back as instructions (POCKET_FORM), and Always true only where it is empty.
  *
+ *  #90 · IT CHALKS LESS. A hem chalked a card for nearly every thread the scene named, and the old
+ *  "FLESH IT OUT" rule asked for pockets where nothing had changed, so a writer met a Workbench of
+ *  restatements. Four rules now: a thread counts only when the narration shows it acting or acted
+ *  on; only what differs from the entry in force; pockets only from the kind's list, as
+ *  instructions; the played and Hands-off characters (named in the ask as OUTSIDE ONLY) from the
+ *  outside. And six threads at most, largest change first, the rest as names. Code enforces each
+ *  rule it can check (`remember` in routes.ts); the prompt is the half code cannot check.
+ *  NOT MEASURED: none of this wording has been run against the real model. It is owed a control
+ *  run before anyone says it chalks less, or says which rule did it.
+ *
  *  One call for every thread rather than one per thread: the scene is the expensive half of the
  *  prompt and this way it is prefilled once. Whether one per thread lands more changes in the right
- *  place is the #73 measurement, owed before this is called settled.
+ *  place is the #73 measurement, owed before this is called settled (ADR 0005).
  */
 export const MEMORY =
 `Below is a scene's narration, then the threads it names: people, places, lore, items and rules.
-Each comes with its Always true (who or what it is, which does not change), where it stands now,
-and the pockets its kind can have.
+Each comes with its Always true (who or what it is, which does not change), where it stands now
+(the entry in force), and the pockets its kind can have.
+
+Consider a thread ONLY if the narration shows it acting or being acted on. A mention is not a
+change: a thread that is named, remembered, looked at or merely present is left out entirely.
 
 For each thread the scene CHANGED, return:
 
   stands   the WHOLE of where it stands now, after this scene: everything in "where it stands
            now" that is still true, with the change folded in. It replaces that text from the next
-           scene on, so anything you leave out is lost from then on.
+           scene on, so anything you leave out is lost from then on. If nothing in it differs from
+           the entry in force, the thread did not change: leave it out.
   name     the thread's name exactly as it is given, without the kind in brackets.
   label    four words at most, for the timeline: "arm broken", "no longer trusts Vel".
   line     the shortest phrase of the narration where the change happens, copied exactly.
-  pockets  the pockets this scene gives the thread something new for: a pocket to add to, or one
-           it did not have. Its slot comes only from its kind's list; its name is a short title of
-           its own, two or three words naming what it is about, never the slot's word and never the
-           thread's name.
-           FLESH IT OUT: a thread should end up with every pocket its kind can have. For any pocket
-           it does not have yet, if the scene (with what the thread already says) gives you enough
-           for it, start it, even when nothing about that part changed.
+  pockets  only pockets this scene gives the thread something NEW for, and only from its kind's
+           list. Each is an instruction on how to write it from now on, never an outcome of the
+           scene: what happened goes in stands. Never repeat what the thread already says. Its name
+           is a short title of its own, two or three words naming what it is about, never the
+           slot's word and never the thread's name. Most threads get no pockets.
   always   ONLY when its Always true is empty: who or what it is, in one bracket. Otherwise "".
 
 ${POCKET_FORM}
@@ -170,12 +182,15 @@ ${LEDGER_REGISTER}
 Rules:
 - Change means something the narration establishes: an injury, a death, a move, a fire, a
   relationship that turned, a thing learned or lost. Not a mood in one scene.
-- If a thread was merely present, leave it out of the answer entirely.
 - Only the narration commits the story. Dialogue has been removed already; do not infer from what
   is missing.
+- A thread listed under OUTSIDE ONLY is written from the outside: what it did, what was done to it,
+  what others can see. Never its thoughts or feelings, and never an interiority pocket for it.
+- At most SIX threads, the largest change first. Put the name of every other thread that changed
+  in overflow, and nothing else there.
 - Present tense, third person. No summary of the scene's plot.
 
-Return the threads that changed, and the ones you can flesh out.`;
+Return the threads that changed, six at most, and the names of the rest in overflow.`;
 
 export const MEMORY_SCHEMA = {
   type: 'object',
@@ -202,8 +217,10 @@ export const MEMORY_SCHEMA = {
         required: ['name', 'stands', 'label', 'line', 'always', 'pockets'],
       },
     },
+    // #90. The names of the threads that changed past the cap of six, for the hem's card.
+    overflow: { type: 'array', items: { type: 'string' } },
   },
-  required: ['threads'],
+  required: ['threads', 'overflow'],
 } as const;
 
 /** #73 · TIDY THIS THREAD. An old thread is often one box holding who it is, what it wears and what
