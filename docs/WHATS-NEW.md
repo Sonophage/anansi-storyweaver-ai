@@ -16,6 +16,16 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-28 · A new tale starts at its opening
+
+### The premise is the opening, and the open questions are strings
+New tale's premise is now one paragraph that opens the story: who we are with, where and when,
+what they want now and what is in their way now. It never says how it ends, what it costs or what
+anyone will do, so Anansi starts the story instead of steering to its end. Rewriting the premise,
+or asking Talk to change it, keeps the same shape. The questions the story lives on come back on
+their own, ticked, in the preview. Each one you keep ticked becomes a string from the first scene,
+and Anansi is told not to answer it yet. Tales you already have are not changed.
+
 ## 2026-10-28 · Tidy this thread, made safe to use on a whole library
 
 ### Tidy leaves "their lines are yours" alone

@@ -571,7 +571,10 @@ let worldDown = 0;
         premise: 'Six houses have one winter to sign a peace none of them wants.',
         setting: 'Ashfall Hall', pov: 'third limited, past tense', spice: 2,
         writingStyle: 'Cold, spare.', persona: 'Ilva Marren' },
-        entries: [{ title: 'Ilva Marren', entryType: 'character', body: 'A envoy with nothing to trade.' }] }
+        entries: [{ title: 'Ilva Marren', entryType: 'character', body: 'A envoy with nothing to trade.' }],
+        // ADR 0009. The open questions, beside the story and not in it.
+        questions: [{ title: 'Who signs first', line: 'Each house waits for another to sign.' },
+                    { title: 'What the envoy carries', line: 'Ilva has a sealed case nobody has opened.' }] }
     // #89. The end-scene route answers with the view at once; the passes run after it, and what
     // they report is on the scene's hem, not in this answer.
     : url.startsWith('/api/chapter/end') ? STORY
@@ -3532,6 +3535,17 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
     assert.ok(pv.indexOf("The tale's own thread") < pv.indexOf('Teodor Ash'), '  above the threads');
     assert.match(pv, /Six houses have one winter/, '  with its premise');
     assert.ok(pv.indexOf('Ring Law') < pv.indexOf('Teodor Ash'), '  and a Rule is in it, not among the threads');
+    // ADR 0009 · THE OPEN QUESTIONS, offered ticked, each with its line; unticking one keeps it off.
+    assert.match(pv, /<input type="checkbox" data-spquestion="0" checked>/, 'WIZ-QUESTIONS: the open questions are offered ticked');
+    assert.match(pv, /<input type="checkbox" data-spquestion="1" checked>/, '  every one of them');
+    assert.match(pv, /Who signs first[\s\S]*Each house waits for another to sign\./, '  with the title and its line');
+    assert.doesNotMatch(pv.slice(pv.indexOf('data-sp="premise"'), pv.indexOf('</textarea>', pv.indexOf('data-sp="premise"'))),
+      /Who signs first/, '  and never inside the premise');
+    onScreen = { '[data-spquestion]': [{ dataset: { spquestion: '0' }, checked: true },
+                                       { dataset: { spquestion: '1' }, checked: false }] };
+    click({ sparkstep: '5' });
+    onScreen = {};
+    assert.match(html('page'), /<input type="checkbox" data-spquestion="1">/, 'WIZ-QUESTIONS: an unticked one stays unticked');
     for (const t of ['Ilva Marren', 'Mara Voss', 'Teodor Ash', 'Road dust', 'Their lines are yours', 'Envoy', 'Fear', 'The fine'])
       assert.ok(pv.includes(t.replace(/'/g, '&#39;')), `WIZ-PREVIEW: every thread and pocket is listed: ${t}`);
     assert.doesNotMatch(pv, /Write her lines formal and short/, 'WIZ-FOLD: folded to its name and Always true');
@@ -3629,6 +3643,8 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
     assert.strictEqual(made.body.personaAbout, 'a courier who owes the envoy', '  and what you said of them, for a thread if the cast made none');
     assert.deepStrictEqual(made.body.talePockets, [{ name: 'Slow burn', body: 'Keep it a very slow burn.' }],
       "WIZ-CREATE: and the tale's own pockets as the preview left them");
+    assert.deepStrictEqual(made.body.strings, [{ title: 'Who signs first', line: 'Each house waits for another to sign.' }],
+      'WIZ-CREATE-QUESTIONS: only the ticked open questions are sent, to be made as strings');
     await new Promise((r) => setTimeout(r, 60));
   } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
 }
