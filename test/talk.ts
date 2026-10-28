@@ -203,6 +203,7 @@ process.env.ANANSI_LLAMA = `http://127.0.0.1:${(srv.address() as any).port}`;
 const db = await import('../src/db.ts');
 const { routes } = await import('../src/routes.ts');
 const { TALK_SCHEMA, INVENT } = await import('../src/prompts.ts');
+const { ALL_SLOTS: ALL_SLOTS_T } = await import('../src/slots.ts');
 
 const me = db.owner('talker');
 const story = db.createStory(me, { title: 'Sutera', premise: 'A city on a dead god.' });
@@ -1533,6 +1534,34 @@ ok('emptying the box gives her back the voice she shipped with');
   await setup('How should I start?');
   assert.strictEqual(calls.at(-1).model, sparkModel, `SETUP-MODEL: Spark's model (${sparkModel}), not ${calls.at(-1).model}`);
   ok('setup Talk asks the model Spark asks');
+
+  // THE ROUTE IS OPEN, so what it puts in the prompt is capped whatever it is sent: how many threads,
+  // how many pockets of each, and how long each piece of text is.
+  {
+    const huge = 'x'.repeat(5000);
+    const pockets = Object.fromEntries(['not_a_slot_' + 'y'.repeat(300), 'setting', ...ALL_SLOTS_T].map((s) =>
+      [s, { name: s, body: `${s}:${huge}`, on: true }]));
+    const big = { story: { ...draft.story, persona: 'P'.repeat(5000), lockedCharacter: 'L'.repeat(5000), title: 'T'.repeat(5000) },
+      entries: Array.from({ length: 200 }, (_, i) => ({ title: `Thread ${i} ${'t'.repeat(300)}`, entryType: 'character',
+        body: huge, rooms: pockets })) };
+    calls = [];
+    const r = await routes['POST /api/spark/talk']({ body: { draft: big, step: STEP, said: 'Who matters?' },
+      query: new URLSearchParams(), owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {},
+      setGen: () => {}, defaultModel: null } as any) as any;
+    assert.ok(!r.error, r.error);
+    const sent = String(calls.at(-1).messages[1].content);
+    const threads = sent.split('\n').filter((l) => /^- Thread \d+/.test(l));
+    assert.ok(threads.length <= 30, `SETUP-CAP-THREADS: at most 30 threads reach the prompt (${threads.length})`);
+    assert.ok(threads.length > 0, 'SETUP-CAP-THREADS: and some do');
+    const first = sent.slice(sent.indexOf('- Thread 0'), sent.indexOf('- Thread 1'));
+    const read = first.split('\n').filter((l) => /^ {2}\w+:/.test(l));
+    assert.ok(read.length <= 4, `SETUP-CAP-POCKETS: at most four pockets of a thread are read (${read.length})`);
+    assert.ok(!/not_a_slot/.test(sent), 'SETUP-CAP-POCKETS: and only pockets that exist');
+    assert.ok(!/x{601}/.test(sent), 'SETUP-CAP-TEXT: no piece of thread text over 600 characters');
+    assert.ok(!/[PLT]{201}/.test(sent), 'SETUP-CAP-TEXT: nor who the writer plays, who is held, or the title');
+    assert.ok(sent.length < 80_000, `SETUP-CAP-TEXT: the whole ask is bounded (${sent.length} characters)`);
+  }
+  ok('setup Talk caps the threads, the pockets and the text an open request can put in the prompt');
 
   const bad = await setup('CHANGE-SETUPBAD: do all of this');
   assert.ok(!bad.error, bad.error);
