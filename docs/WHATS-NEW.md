@@ -45,6 +45,19 @@ Each one has Undo, which puts back what was there: the old premise, the old name
 it was, the old wake words, or the thread back in the tale. If you name a scene the tale does not
 have, he says so and changes nothing.
 
+### Anansi chooses his own searches
+The switch under Talk now reads **Anansi may search**, and it remembers what you set it to. With
+it on, Anansi decides when a question needs the web, and writes the searches himself: a name, or a
+name and your tale's world, which finds the wiki pages rather than essays. He searches at most
+three times for one answer, and not at all when your tale already answers the question. With the
+switch off, nothing goes to the web.
+
+Every page he read is listed under his answer, with its link. When he makes or changes a thread
+from a page, that page's link goes in the thread's notes, which only you see. It never goes in
+the thread itself, so it never reaches the model. Undo takes the link out of the notes again.
+
+If web search is not set up where Anansi runs, the switch says so.
+
 ## 2026-10-28 · No blink when Anansi finishes
 
 ### The page holds still when a passage lands

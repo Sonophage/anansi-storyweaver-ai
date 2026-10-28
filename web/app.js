@@ -4633,11 +4633,17 @@ const PANELS = {
               font-size:13px; line-height:1.5; color:var(--ink)">${esc(turn.text)}</div>`
           : `<div style="max-width:94%; display:flex; flex-direction:column; gap:7px">
               <div style="font-size:13.5px; line-height:1.62; color:var(--ink); white-space:pre-wrap">${esc(turn.text)}</div>
-              <!-- NO LINK LIST. Seth, 2026-09-01: "i dont need anansi to post where the
-                   information is coming from like the url links." Four links under every answer he
-                   looked something up for, which is provenance nobody asked for and the widest
-                   thing on a phone. The search still happens and still reaches him; the writer just
-                   is not handed the bibliography. -->
+              <!-- THE PAGES HE READ, each with its link (#99). Seth, 2026-09-01, asked that links not
+                   be written into what Anansi made ("i dont need anansi to post where the
+                   information is coming from like the url links"), and that holds: no link goes in
+                   a thread's text. Since Anansi chooses his own searches (spec #96, 2026-10-28), the
+                   writer is shown what he read, as one caption line that wraps on a phone. Only an
+                   http(s) link is drawn: a search result is a stranger's text. -->
+              ${(turn.sources ?? []).some((s) => /^https?:\/\//i.test(s.url ?? '')) ? `<div class="caption"
+                style="display:flex; flex-wrap:wrap; gap:3px 10px">Pages read: ${turn.sources
+                  .filter((s) => /^https?:\/\//i.test(s.url ?? ''))
+                  .map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noreferrer"
+                    style="color:var(--mute)">${esc(s.title || s.url)}</a>`).join('')}</div>` : ''}
               ${(turn.changes ?? []).map((ch, j) => `<div class="line-2" style="align-items:center; gap:8px">
                 <span style="font-size:12.5px; line-height:1.45; color:var(--ink-bright); flex:1">${esc(ch.words)}</span>
                 ${ch.undone ? '<span class="caption">Undone</span>'
@@ -4713,16 +4719,17 @@ const PANELS = {
         <div class="line-8">
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:${
             t.searchable === false ? 'var(--faint)' : 'var(--mute)'}"
-            title="${t.searchable === false ? 'Searching the web is not switched on here' : 'Look it up online first'}">
+            title="${t.searchable === false ? 'Web search is not set up on this server'
+              : 'He decides when a question needs the web, and searches up to three times'}">
             <input type="checkbox" data-websearch="1" ${t.search ? 'checked' : ''}
-              ${t.searchable === false ? 'disabled' : ''}> Search before responding
+              ${t.searchable === false ? 'disabled' : ''}> Anansi may search
           </label>
           ${t.turns.length ? `<button class="caption" data-clearchat="1">Clear</button>` : ''}
           <button class="btn" data-ask="1" ${t.busy ? 'disabled' : ''}
             style="margin-left:auto; width:auto; padding:0 22px; height:38px">${t.busy ? '&hellip;' : 'Ask'}</button>
         </div>
         ${t.searchable === false
-          ? `<div class="hint flush">Searching the web is not switched on here.</div>`
+          ? `<div class="hint flush">Web search is not set up on this server, so Anansi cannot search.</div>`
           : ''}
       </div>
     </div>`;
@@ -9801,7 +9808,8 @@ async function talk(said, mentions, anyway = false) {
   drawSide(); working('direct');
   const r = await api.talk(S.storyId, {
     said, turns: S.talk.turns.slice(0, -1).map((t) => ({ you: t.you, text: t.text })),
-    search: S.talk.search ? said : undefined,
+    // Permission, not a query (#99): Anansi writes his own searches, and only when he has this.
+    search: S.talk.search || undefined,
     mentions: mentions.length ? mentions : undefined,
     ...(anyway ? { weaveAnyway: true } : {}),
   });

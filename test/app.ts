@@ -2923,6 +2923,35 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
 }
 ok('a change Talk made shows in the conversation with Undo, and Undo sends that change back');
 
+// #99 · ANANSI MAY SEARCH. The switch is permission, so the ask sends `search: true` and never the
+// writer's words as a query; the switch reads "Anansi may search"; and every page he read is listed
+// under his answer with its link.
+{
+  const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
+  try {
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    click({ panel: 'anansi' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.match(html('sideBody'), /data-websearch="1"[^>]*>\s*Anansi may search/, 'SEARCH-LABEL: the switch reads "Anansi may search"');
+    changeIn({ dataset: { websearch: '1' }, checked: true });
+    stubTalk = { reply: 'Charon rows the dead.', seconds: 1, tokens: 10,
+      sources: [{ title: 'Charon - Wikipedia', url: 'https://en.wikipedia.org/wiki/Charon' },
+                { title: 'Charon | Mythopedia', url: 'https://mythopedia.com/charon' }] };
+    POSTED.length = 0;
+    (document as any).getElementById('askBox').value = 'Who is the ferryman?';
+    click({ ask: '1' });
+    await new Promise((r) => setTimeout(r, 80));
+    const sent = POSTED.find((p: any) => p.url === '/api/talk');
+    assert.strictEqual(sent?.body.search, true, `SEARCH-PERMISSION: the ask sends permission, not the words (${sent?.body.search})`);
+    const side = html('sideBody');
+    assert.match(side, /<a [^>]*href="https:\/\/en\.wikipedia\.org\/wiki\/Charon"[^>]*>Charon - Wikipedia<\/a>/,
+      `SEARCH-PAGES: each page read is listed with its link:\n${side.slice(0, 900)}`);
+    assert.match(side, /href="https:\/\/mythopedia\.com\/charon"/, 'SEARCH-PAGES: all of them');
+  } finally { stubTalk = null; changeIn({ dataset: { websearch: '1' }, checked: false }); }
+}
+ok('the switch reads Anansi may search, sends permission, and every page he read is listed with its link');
+
 // #58 · WHAT THE TALK PANEL SAYS WHILE IT WAITS. Weaving when the book weaves (the server's
 // `weaves`, which a model that always weaves sets too), and Asking otherwise. Never Thinking: the
 // glossary keeps that word off the page.
