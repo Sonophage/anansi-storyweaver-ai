@@ -3722,7 +3722,7 @@ ok('playing or holding a World person gives the tale its own thread for them, an
   assert.deepStrictEqual(pockets(made.id, copy(morgott).id).map((p) => p[0]), ['facts', 'interiority', 'voice'],
     'PLAY-KEEPS: the one played keeps his pockets');
   const held = pockets(made.id, copy(margit).id);
-  assert.deepStrictEqual(held.filter((p) => p[0] !== 'facts'), [['voice', `[${prompts.YOURS_VOICE('Margit')}]`, 1]],
+  assert.deepStrictEqual(held.filter((p) => p[0] !== 'facts'), [['voice', prompts.YOURS_VOICE('Margit'), 1]],
     'HOLD-OUTSIDE: the one held has the yours pocket on, and no voice or interiority of her own');
   assert.deepStrictEqual([pockets(world.id, morgott), pockets(world.id, margit), db.entriesOf(world.id)], worldBefore,
     'HOLD-WORLD-UNCHANGED: the World\'s threads and pockets are not rewritten');
