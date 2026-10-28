@@ -26,6 +26,13 @@ or asking Talk to change it, keeps the same shape. The questions the story lives
 their own, ticked, in the preview. Each one you keep ticked becomes a string from the first scene,
 and Anansi is told not to answer it yet. Tales you already have are not changed.
 
+### A Hands-off narrator gets one rule, not two
+When the character you keep Hands off is also the one telling the story, in first or second person,
+Anansi was told two things at once: to write what they decide, and never to write what they think
+or decide. Now it is told one thing. It writes what they see, hear and remember, goes around what
+you wrote for them, and stops where they would speak, act or choose. What they say, do and decide is
+yours. This applies to the tales you already have.
+
 ## 2026-10-28 · Tidy this thread, made safe to use on a whole library
 
 ### Tidy leaves "their lines are yours" alone

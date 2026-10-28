@@ -7,6 +7,7 @@ import { buildContext, resolveBody, fires, retirable, numbersIn, narrationOnly, 
 import type { Input, Entry } from '../src/context.ts';
 import { render } from '../src/render.ts';
 import { ORDER } from '../src/blocks.ts';
+import { YOURS_VOICE } from '../src/prompts.ts';
 
 // Deterministic stand-in for /tokenize. Keeps the engine testable with no model up.
 const count = (s: string) => Math.ceil(s.length / 4);
@@ -1886,6 +1887,35 @@ ok("the locked character's voice pocket reads bare, and every other voice keeps 
   assert.doesNotMatch(out, /When Seth speaks/, 'and is not framed as dialogue to write');
   assert.match(out, /When Ashley speaks, write the dialogue this way/, "another character's voice keeps the frame");
   assert.match(build(), /When Seth speaks, write the dialogue this way/, 'with no lockout his pocket keeps the frame');
+});
+
+// ---- #119 · FIRST- OR SECOND-PERSON HANDS OFF: ONE RULE, NOT TWO. The narrator line told the model
+// to write what the Hands-off narrator "senses, remembers or decides", and the lock pocket on his
+// card told it "Never write what Seth says, does, thinks or decides" — in one prompt. The writer
+// decides; the narration may go around what the writer wrote, and never decides for him.
+ok('first- or second-person Hands off: the narrator line and the lock agree', () => {
+  const build = (pov: string) => {
+    const b = base();
+    const card = (id: string, title: string, body: string) => ({ id, title, body: '', entryType: 'character',
+      activation: 'always_on', keys: [], addons: [{ id: id + 'v', slot: 'voice', name: 'Their lines are yours', active: 1, keys: [], body }] });
+    return render(buildContext({ ...b, story: { ...b.story, pov, lockedCharacter: 'Seth' },
+      entries: [card('e1', 'Seth', YOURS_VOICE('Seth')), card('e2', 'Ashley', 'Short fragments when urgent')] } as any, count));
+  };
+  for (const pov of ['first person, present tense', 'second person, present tense']) {
+    const out = build(pov);
+    assert.match(out, /\[Seth is telling this story\./, `${pov}: he is still named as the narrator`);
+    assert.doesNotMatch(out, /write only what Seth senses, remembers or decides/,
+      `${pov}: the narrator line never asks the model to decide for him`);
+    assert.match(out, /What Seth says, does and decides is the writer's/, `${pov}: it says whose his choices are`);
+    assert.doesNotMatch(out, /Never write what Seth says, does, thinks or decides/,
+      `${pov}: the lock pocket that forbids his thought is not sent beside narration that is his thought`);
+    assert.match(out, /When Ashley speaks, write the dialogue this way/, `${pov}: another voice is untouched`);
+  }
+  // THIRD PERSON IS UNCHANGED: the lock pocket reads bare there, beside F28's line.
+  const third = build('third limited, past');
+  assert.match(third, /\[Seth's lines are the writer's\. Never write what Seth says, does, thinks or decides\]/,
+    'third person keeps the lock pocket');
+  assert.match(third, /Seth belongs to the writer: never write their dialogue/, "and F28's line");
 });
 
 // ---- A CARD WITH AN EMPTY BODY AND EVERYTHING IN `facts` RENDERS CLEAN (issue #39, 2026-09-01).
