@@ -16,6 +16,14 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-28 · A World's people in a scene
+
+### Bring in a thread of the World your tale follows
+In a scene's setup, you can now tick a person or place from the World your tale follows, the same
+way you tick one of the tale's own. Before, Anansi said "that scene or thread is not in this tale".
+The thread is sent for that scene and stays the World's: a change to it in the World reaches the
+scene. Your pins from before are all still there.
+
 ## 2026-10-28 · Anansi changes what you ask him to
 
 ### Ask in Talk, and it is done
