@@ -1110,6 +1110,26 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 
 
+// A change equal to the entry in force, or a pocket that says what the thread already says, is not
+// news, and is not chalked. Case and punctuation do not make it news either.
+{
+  const t = db.createStory(me, { title: 'Only news', premise: 'p' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const ilse = db.upsertEntry(t.id, me, { title: 'Ilse', body: '[Ilse: poles the ferry at Sallow]', entryType: 'character', keys: ['Ilse'] });
+  db.setAddonActive(t.id, db.upsertAddon(t.id, ilse, { slot: 'voice', name: 'Few words',
+    body: 'Write her lines short; one word where three would do.' })!, true);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'Ilse poled the ferry across and tied it off.' });
+  answer = [{ name: 'Ilse', stands: 'Ilse: Poles the ferry at Sallow.', label: 'crossed', line: 'Ilse poled the ferry across',
+    always: '', pockets: [{ slot: 'voice', name: 'Short', body: 'Write her lines short; one word where three would do.' }] }];
+  await routes['POST /api/remember'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  answer = [];
+  const mine = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === ilse);
+  assert.ok(!mine.some((p) => p.entry_type === 'state'), 'CHALK-SAME-STANDS: a change equal to the entry in force is not chalked');
+  assert.ok(!mine.some((p) => p.field === 'voice'), 'CHALK-SAME-POCKET: a pocket that repeats the thread is not chalked');
+  ok('a change equal to the entry in force, or a repeated pocket, is not chalked');
+}
+
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several

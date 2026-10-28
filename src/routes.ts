@@ -1101,6 +1101,10 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
       const field = String(pk?.slot ?? '');
       let body = String(pk?.body ?? '').trim();
       if (field === 'facts' || !kinds.includes(field) || !body || /^none[.\s]*$/i.test(body)) continue;
+      // #90 · A POCKET THE THREAD ALREADY HAS IS NOT NEWS. Asked of the pocket as the model wrote it:
+      // `withoutEcho` below cuts the repeated clause and leaves a stub ("Write her lines short;")
+      // that no longer matches the room it repeats, and the stub was chalked.
+      if (roomOffer(who, field, body) === 'said') continue;
       body = withoutEcho(body, cardText(who, ch.index));
       if (body.length < 12) continue;
       const offer = roomOffer(who, field, body);
