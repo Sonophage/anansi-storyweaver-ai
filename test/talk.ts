@@ -626,6 +626,34 @@ ok('a kind that does not exist is refused rather than assembled');
   const mara2 = placesOnly.entries.find((e: any) => e.title === 'Mara');
   assert.strictEqual(mara2?.rooms?.voice?.body, YOURS_VOICE('Mara'),
     'SPARK-NEW-ANY: a character the writer described gets a thread, written from outside, whatever kinds were asked for');
+
+  // CREATE MAKES THE DESCRIBED CHARACTER'S THREAD, even when the cast step never ran (Seth, 2026-10-27):
+  // from the writer's words, from outside, with the yours pocket on.
+  const mk = (body: any) => routes['POST /api/stories']({ body, query: new URLSearchParams(), owner: me } as any) as any;
+  const bare: any = mk({ title: 'Courier', premise: PREMISE, persona: 'Mara', lockedCharacter: 'Mara',
+    personaAbout: 'a courier who owes Aldis a favour', entries: [] });
+  const maraT: any = db.entriesOf(bare.id).find((e: any) => e.title === 'Mara');
+  assert.ok(maraT, 'CREATE-YOU: a described character gets a thread at Create with no cast');
+  const maraA = (db.addonsOf(bare.id) as any[]).filter((a) => a.entry_id === maraT.id);
+  assert.match(maraA.find((a) => a.slot === 'facts')?.body ?? '', /a courier who owes Aldis a favour/, '  written from the description');
+  const yv = maraA.find((a) => a.slot === 'voice');
+  assert.strictEqual(yv?.body, `[${YOURS_VOICE('Mara')}]`, '  with the yours pocket');
+  assert.ok(yv?.active, '  switched on');
+  const twice: any = mk({ title: 'Courier 2', premise: PREMISE, persona: 'Mara', personaAbout: 'a courier',
+    entries: [{ title: 'Mara', entryType: 'character', body: '[Mara: the cast wrote her]' }] });
+  assert.strictEqual(db.entriesOf(twice.id).filter((e: any) => e.title === 'Mara').length, 1,
+    'CREATE-YOU-ONCE: and never a second thread when the cast already wrote one');
+  const free3: any = mk({ title: 'Courier 3', premise: PREMISE, persona: 'Mara', personaAbout: 'a courier', entries: [] });
+  const looseM: any = db.entriesOf(free3.id).find((e: any) => e.title === 'Mara');
+  assert.ok(!(db.addonsOf(free3.id) as any[]).some((a) => a.entry_id === looseM?.id && a.slot === 'voice'),
+    'CREATE-YOU-LOOSE: no yours pocket when nobody is held');
+
+  // THE TALE'S OWN POCKETS ride through Create (#75's instruction slot), switched on; a blank one does not.
+  const own: any = mk({ title: 'Own', premise: PREMISE, entries: [],
+    talePockets: [{ name: 'Slow burn', body: 'Keep it a slow burn.' }, { name: 'Empty', body: '   ' }] });
+  const tp = (db.addonsOf(own.id) as any[]).filter((a) => !a.entry_id && a.slot === 'instruction');
+  assert.deepStrictEqual(tp.map((a) => a.name), ['Slow burn'], 'CREATE-TALE-POCKETS: the tale\'s own pockets are made, the blank one is not');
+  assert.ok(tp[0]?.active, '  and on');
   ok('who you play reaches the cast and Try it on, and the Hands-off thread is written from outside');
 }
 

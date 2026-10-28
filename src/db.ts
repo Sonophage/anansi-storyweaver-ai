@@ -1409,7 +1409,7 @@ export const passagesOf = (id: string) => q(
  *  every query that means "cards" has to exclude it or it surfaces as an empty card with a name.
  *
  *  FOUR READERS WERE MISSED on the first pass and found by grepping `FROM entries` rather than by a
- *  check: the cross-story Threads page, the shelf's per-book card count, `pinCast`'s title set (a
+ *  check: the cross-story Threads page, the shelf's per-book card count, a persona check deleted with #84 (a
  *  dropped card's name would count as still in the cast) and SEARCH (a title hit with no body). That
  *  is why this is a shared fragment and not a condition written out four times: the fifth reader is
  *  the one nobody remembers.
@@ -2511,39 +2511,6 @@ export function wearOutfit(storyId: string, entryId: string, outfitId: string | 
   return outfitId;
 }
 
-
-/** Drop a persona or a locked character that names nobody in this story.
- *
- *  The wizard's whole point is choosing who you play from a cast that has not been written yet, so
- *  the name arrives before the entry does and there is a window where it can be wrong: the spark
- *  proposes it, the writer edits the cast, and the character they were going to play is gone. The
- *  same window exists on import, where persona comes from a stranger's card by name.
- *
- *  Only names in `proposed` are policed, and that limit is the whole correctness of this. A persona
- *  is a NAME and not an entry id ON PURPOSE — see the locked_character migration above — because a
- *  protagonist need not have a ledger entry at all, and plenty of second-person books never give
- *  "you" one. The first version of this policed every persona and wiped exactly those, which
- *  test/ui/hostile.js caught by creating a story whose persona names nobody and expecting it to
- *  survive. What the model proposed is fair game; what the writer typed is not.
- *
- *  Returns what it cleared, so a caller can say so rather than silently disagreeing with the form
- *  the writer just filled in. */
-export function pinCast(storyId: string, proposed: string[] = []): string[] {
-  if (!proposed.length) return [];
-  const fromModel = new Set(proposed.map((s) => String(s)));
-  const titles = new Set((q(`SELECT title FROM entries WHERE story_id = ? AND ${LIVE()}`)
-    .all(storyId) as any[]).map((r) => r.title));
-  const cur = q('SELECT persona, locked_character FROM stories WHERE id = ?').get(storyId) as any;
-  if (!cur) return [];
-  const cleared: string[] = [];
-  for (const [col, val] of [['persona', cur.persona], ['locked_character', cur.locked_character]]) {
-    if (val && fromModel.has(val) && !titles.has(val)) {
-      q(`UPDATE stories SET ${col} = NULL WHERE id = ?`).run(storyId);
-      cleared.push(String(val));
-    }
-  }
-  return cleared;
-}
 
 /** Copy one entry into another of the writer's own books.
  *

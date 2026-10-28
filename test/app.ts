@@ -3411,6 +3411,31 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
     click({ spaddpocket: '2' });
     doc.querySelector = wasQS;
     assert.match(html('page'), /Dress her in grey wool/, 'WIZ-ADD: an added pocket is in the draft');
+    // THE THREAD YOU PLAY STAYS while you play them (Seth, 2026-10-27), and the screen says why.
+    assert.doesNotMatch(html('page'), /data-spdropthread="1"/, 'WIZ-KEEP-YOU: no remove on the thread you play');
+    click({ spfold: '1' });
+    assert.match(html('page'), /You play Mara Voss, so (?:her|their) thread stays/, '  and it says why');
+    click({ spdropthread: '1' });
+    assert.match(html('page'), /a courier who owes the envoy/, '  and a press that reaches the handler anyway removes nothing');
+    click({ spfold: '1' });
+    // THE TALE'S OWN POCKETS ("Your own"): add, edit, remove, undo.
+    doc.querySelector = (sel: string) => sel === '[data-sptpnew="name"]' ? { value: 'Slow burn' }
+      : sel === '[data-sptpnew="body"]' ? { value: 'Keep it a slow burn.' } : null;
+    click({ spaddtp: '1' });
+    doc.querySelector = wasQS;
+    assert.match(html('page'), /data-sptpbody="0"/, 'WIZ-TALE-POCKET: a pocket of the tale\'s own is added');
+    doc.querySelector = (sel: string) => sel === '[data-sptpnew="name"]' ? { value: 'Narrator' }
+      : sel === '[data-sptpnew="body"]' ? { value: 'The narrator never names him.' } : null;
+    click({ spaddtp: '1' });
+    doc.querySelector = wasQS;
+    onScreen = { '[data-sptpbody]': [{ dataset: { sptpbody: '0' }, value: 'Keep it a very slow burn.' }] };
+    click({ spdroptp: '1' });
+    onScreen = {};
+    assert.doesNotMatch(html('page'), /never names him/, 'WIZ-TALE-POCKET: and removed');
+    assert.match(html('page'), /very slow burn/, '  and edited');
+    click({ spundo: '1' });
+    assert.match(html('page'), /never names him/, '  and the removal undone');
+    click({ spdroptp: '1' });
     // Remove the Rule, undo, remove it again.
     click({ spdropthread: '3' });
     assert.doesNotMatch(html('page'), /nobody descends without a writ/, 'WIZ-DROP: a removed thread is gone');
@@ -3449,6 +3474,9 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
     assert.strictEqual(made.body.entries[1].rooms.voice.name, 'Their lines are yours', "  and the yours pocket on Mara's thread");
     assert.strictEqual(made.body.persona, 'Mara Voss', '  who you play');
     assert.strictEqual(made.body.lockedCharacter, 'Mara Voss', '  and Hands off');
+    assert.strictEqual(made.body.personaAbout, 'a courier who owes the envoy', '  and what you said of them, for a thread if the cast made none');
+    assert.deepStrictEqual(made.body.talePockets, [{ name: 'Slow burn', body: 'Keep it a very slow burn.' }],
+      "WIZ-CREATE: and the tale's own pockets as the preview left them");
     await new Promise((r) => setTimeout(r, 60));
   } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
 }

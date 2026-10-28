@@ -10,6 +10,36 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+## 2026-10-27 · A new tale asks who you play first, and shows you everything before it is made
+
+### You say who you play before the threads are written
+When you start a tale from an idea, the You step now comes right after the tale and before the
+threads. Pick one of the threads so far, or name someone new and say who they are in a line or two.
+Anansi writes the threads with them in, and they get a thread of their own even if you skip the
+threads.
+
+### Your character is written from the outside
+If you keep Anansi's hands off your character, their thread says only what others can see of
+them: no voice and nothing from inside their head. It also gets a voice pocket that says their lines
+are yours, so you do not have to add it to each tale.
+
+### Threads say how to write, never what happens
+The threads Anansi writes for a new tale, and the ones Try it on suggests, come with pockets that
+tell him how to write each one, and he is told not to say in them what will happen next. Try it on's threads now
+have pockets too. Anansi suggests a rule only when the idea needs one.
+
+### A preview before the tale is made
+After Try it on there is a preview of everything that will be made: the tale's own thread at the
+top (premise, setting, Voice, rules and your own instructions for the whole tale), then every
+thread, folded to its name. Open a thread to change, remove or add a pocket, or remove the thread.
+The thread of the character you play stays while you play them. Undo takes back the last change.
+Nothing is saved until you start the tale.
+
+### A warning when the Voice and the point of view disagree
+If your Voice says one person or tense and the point of view says another, the preview tells you,
+and one press takes that sentence out of the Voice. You can still start the tale with the warning
+showing.
+
 ## 2026-10-27 · The picture behind the prose
 
 ### Blur it, or put it on the right
@@ -32,34 +62,6 @@ landed. It is now drawn again only when you change it.
 
 ### A bigger head on a scene with a picture
 The picture at the head of each scene, and the scene's name on it, are a little bigger.
-## 2026-10-27 · A new tale asks who you play first, and shows you everything before it is made
-
-### You say who you play before the threads are written
-When you start a tale from an idea, the You step now comes right after the tale and before the
-threads. Pick one of the threads so far, or name someone new and say who they are in a line or two.
-Anansi writes the threads with them in.
-
-### Your character is written from the outside
-If you keep Anansi's hands off your character, their thread says only what others can see of
-them: no voice and nothing from inside their head. It also gets a voice pocket that says their lines
-are yours, so you do not have to add it to each tale.
-
-### Threads say how to write, never what happens
-The threads Anansi writes for a new tale, and the ones Try it on suggests, come with pockets that
-tell him how to write each one, and he is told not to say in them what will happen next. Try it on's threads now
-have pockets too. Anansi suggests a rule only when the idea needs one.
-
-### A preview before the tale is made
-After Try it on there is a preview of everything that will be made: the tale's own thread at the
-top (premise, setting, Voice and rules), then every thread, folded to its name. Open a thread to
-change, remove or add a pocket, or remove the thread. Undo takes back the last change. Nothing is
-saved until you start the tale.
-
-### A warning when the Voice and the point of view disagree
-If your Voice says one person or tense and the point of view says another, the preview tells you,
-and one press takes that sentence out of the Voice. You can still start the tale with the warning
-showing.
-
 ## 2026-10-27 · A character's voice no longer hides who they are
 
 ### Voice pockets that describe a whole person work again

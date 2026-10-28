@@ -484,8 +484,8 @@ ok("  and a thread she suggested joins the cast when you say so",
 // Drop it again — the assertions at the end count what actually gets written.
 await page.eval("(() => { document.querySelector('[data-spcast=\"2\"]').checked = false; return 1; })()");
 
-// Step 4 may only offer people who are still in the cast: a persona naming somebody just dropped is
-// exactly the stranding the server's pinCast exists to catch, and the surface should not create it.
+// You offers only people still in the cast: offering somebody just dropped would invite a persona
+// that names nobody.
 await page.eval("(() => { document.querySelector('[data-spcast=\"1\"]').checked = false; return 1; })()");
 await go("You");
 await wait(400);
@@ -628,8 +628,7 @@ if (made) {
   ok(`  the kept cast and the picked thread were written, and nothing else (${made.names})`,
      made.entries === 2 && made.names === 'Ilva Vane|Vantic law');
   ok("  the persona survived the rename", made.persona === 'Ilva Vane');
-  // The writer chose Ilva for both on You. She stayed, so both stand — the drop only fires on a name that
-  // left the cast, which is what the server's proposedCast list is for.
+  // The writer chose Ilva for both on You, and nothing drops a name the writer chose.
   ok("  and the locked character with it", made.locked === 'Ilva Vane');
   // #40. Switched off on step 4 and it stayed off. False, not undefined and not true: the column
   // defaults to 1, so `true` here is exactly what a dropped field looks like.

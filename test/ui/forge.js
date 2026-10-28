@@ -261,7 +261,7 @@ if (book) {
   // A character has no `atmosphere`. It was dropped rather than filed under a real room.
   ok("  and a room that kind has no business with was left out",
      !book.sellaRooms.includes('atmosphere'));
-  // The persona was the writer's, not Anansi's, so pinCast never had standing to drop it.
+  // The persona was the writer's, so nothing drops it.
   ok("  and a pasted persona was not policed away", book.persona === 'Sella Vane');
 }
 

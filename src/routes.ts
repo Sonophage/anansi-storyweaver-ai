@@ -2009,7 +2009,18 @@ export const routes: Record<string, Handler> = {
      * AN EXPLICIT `rooms.facts` WINS. A book forged elsewhere may have written one on purpose, and
      * silently replacing it with the body would be the paste losing information it carried. */
     const roomNotes: string[] = [];
-    for (const e of c.body.entries ?? []) {
+    // #84 · A CHARACTER THE WRITER DESCRIBED ON YOU is in the tale from the start, even when the cast
+    // step never ran (Skip the other steps, or no kinds asked for): a thread from their own words,
+    // written from outside when they are Hands off. Never a second one beside the cast's.
+    const cast = [...(Array.isArray(c.body.entries) ? c.body.entries : [])];
+    const you = playsOf(c.body), about = String(c.body.personaAbout ?? '').trim().slice(0, 600);
+    if (you.persona && about && !cast.some((e: any) =>
+        String(e?.title ?? '').trim().toLowerCase() === you.persona!.toLowerCase())) {
+      const own = sparkThread(you.persona, 'character', about, []);
+      outsideOnly([own], you.held);
+      cast.push(own);
+    }
+    for (const e of cast) {
       const body = String(e.body ?? '').trim();
       const hasOwnFacts = !!String(e.rooms?.facts?.body ?? e.rooms?.facts ?? '').trim();
       const moveToFacts = !!body && !hasOwnFacts;
@@ -2024,14 +2035,16 @@ export const routes: Record<string, Handler> = {
       if (id && rooms) for (const a of db.addonsOf(made.id) as any[])
         if (a.entry_id === id && !a.active && rooms[a.slot]?.on) db.setAddonActive(made.id, a.id, true);
     }
-    // AFTER the cast exists. A name the model PROPOSED and that did not survive an edit to the cast
-    // is dropped here rather than left pointing at nobody, and it is reported so the surface can say
-    // which. A persona the writer typed is never policed, because a protagonist is allowed to have no
-    // entry. Since #84 the wizard proposes nobody (the writer chooses on You), so it sends no names
-    // and no caller sends any; whether this goes is an open question on #84.
-    const dropped = db.pinCast(made.id, c.body.proposedCast ?? []);
+    // #84 · THE TALE'S OWN POCKETS from the wizard's preview (#75's `instruction` slot), switched on,
+    // as the tale's own thread adds them one at a time. A blank one is not a pocket.
+    for (const p of (Array.isArray(c.body.talePockets) ? c.body.talePockets : []) as any[]) {
+      const body = String(p?.body ?? '').trim();
+      if (!body) continue;
+      const id = db.upsertAddon(made.id, null, { slot: 'instruction', name: String(p?.name ?? '').trim() || 'Your own', body });
+      if (id) db.setAddonActive(made.id, id, true);
+    }
     if (c.body.opening) db.addPassage({ ...made, storyId: made.id, body: c.body.opening, author: 'model' });
-    return { ...made, droppedCast: dropped, ...(roomNotes.length ? { notes: roomNotes } : {}) };
+    return { ...made, ...(roomNotes.length ? { notes: roomNotes } : {}) };
   },
 /** Copy one book's ledger into another, minting the other if `into` is the literal `new`.
  *
