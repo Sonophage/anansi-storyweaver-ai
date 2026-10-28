@@ -1038,6 +1038,53 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 
 
+// TWO HEMS ON ONE TALE RUN ONE AFTER THE OTHER: two slots and no queue (F13). The fake holds the
+// first hem's ask; if the second ran beside it, two asks would be held at once.
+{
+  const t = db.createStory(me, { title: 'Two hems', premise: 'A ferry town.' }) as any;
+  const off = { summarise: false, remember: false, extract: false, retire: false };
+  const first = (db.chapters(t.id)[0] as any).id;
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: first, body: 'The first crossing.' });
+  let release!: () => void;
+  gate = new Promise<void>((r) => { release = r; });
+  mostInflight = 0;
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id, ...off }));
+  const second = (db.chapters(t.id).at(-1) as any).id;
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: second, body: 'The second crossing.' });
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id, ...off }));
+  await new Promise((r) => setTimeout(r, 500));
+  assert.strictEqual(inflight, 1, `HEM-ONE-AT-A-TIME: one ask is held, not ${inflight}`);
+  assert.strictEqual(sceneOf(await viewNow(t.id), second).hem?.state, 'running', '  and the second hem shows as running while it waits');
+  release(); gate = null;
+  await hemSettled(t.id);
+  assert.strictEqual(mostInflight, 1, `HEM-ONE-AT-A-TIME: the hems never asked at once (${mostInflight})`);
+  const v = await viewNow(t.id);
+  assert.ok([first, second].every((id) => sceneOf(v, id).hem?.state === 'done'), '  and both finish');
+  ok('a second hem on the same tale waits for the first');
+}
+
+
+// A CHAPTER ROLL-UP STILL READS THE SCENE SUMMARIES a background hem writes.
+{
+  const t = db.createStory(me, { title: 'Rolled up', premise: 'A ferry town.' }) as any;
+  const only = { remember: false, extract: false, retire: false };
+  for (const [body, sum] of [['Oren crossed at dawn.', 'Oren crosses at dawn.'], ['Oren crossed at dusk.', 'Oren crosses back at dusk.']]) {
+    const ch = (db.chapters(t.id).at(-1) as any).id;
+    db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch, body });
+    summed = sum;
+    await routes['POST /api/chapter/end'](ctx({ storyId: t.id, ...only }));
+    await hemSettled(t.id);
+  }
+  summed = 'Oren crosses and comes back.';
+  const r: any = await routes['POST /api/rollup'](ctx({ storyId: t.id, from: 1, to: 2 }));
+  summed = null;
+  assert.ok(!r.error, r.error);
+  assert.ok(asked.user.includes('Oren crosses at dawn.') && asked.user.includes('Oren crosses back at dusk.'),
+    'HEM-ROLLUP: the roll-up is sent both summaries the hems wrote');
+  ok('a chapter roll-up reads the scene summaries a background hem wrote');
+}
+
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several
