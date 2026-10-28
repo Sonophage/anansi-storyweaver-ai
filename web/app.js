@@ -5481,8 +5481,9 @@ const sparkCast = () => (S.spark?.entries ?? [])
 
 /** #28 · THE THREADS PICKED FROM THE LIBRARY, each named by the tale it lives in. #107: they ride the
  *  create, which copies them through `db.copyEntry` (it refuses unless both tales are the writer's)
- *  inside its rollback, so a refused copy makes no tale rather than a half-made one. */
-const sparkSeed = () => (S.spark?.seed ?? []).map((id) => (LEDGER ?? []).find((e) => e.id === id))
+ *  inside its rollback, so a refused copy makes no tale rather than a half-made one. #113: the
+ *  wizard and Start blank both send theirs through this. */
+const seedOf = (ids) => (ids ?? []).map((id) => (LEDGER ?? []).find((e) => e.id === id))
   .filter(Boolean).map((e) => ({ storyId: e.story, entryId: e.id }));
 
 /** #103 · THE IP NAMED ON THE TALE'S OWN STEP, MATCHED TO A WORLD THE WRITER ALREADY HAS. Asked
@@ -5870,8 +5871,8 @@ function sparkReview() {
          Nothing is written until then, and its pockets travel with it.</div>
 
        <!-- #28 · FROM THE BOOKS YOU ALREADY HAVE. The same picker the blank-start form uses, and
-            the same copy on accept, because "db.copyEntry" refuses unless BOTH books are yours and
-            a second copy path is a second place for that check to be forgotten. -->
+            the same copy at Create (seedOf), because "db.copyEntry" refuses unless BOTH books are
+            yours and a second copy path is a second place for that check to be forgotten. -->
        <div class="lbl sect">Or bring threads you already have</div>
        <input class="field" id="seedq" aria-label="Search every tale for threads to bring in"
          value="${esc(S.seedQ ?? '')}"
@@ -7897,9 +7898,8 @@ function entryCard(e, pill = false) {
  *  where it came from — "revisiting a location" is the same place at a different time, not the
  *  same row.
  *
- *  `POST /api/entry/copy` is the move, unchanged: it is what a single card already uses from the
- *  card screen, and `db.copyEntry` refuses unless BOTH books belong to the caller. Writing a second
- *  copy path here would be a second place for that check to be forgotten.
+ *  The picked threads ride the create (`seedOf`, #107 and #113), which copies them through
+ *  `db.copyEntry`, the one copy path: it refuses unless BOTH books belong to the caller.
  *
  *  It rewrites `#seeds` and nothing else. The form around it reads its fields off the DOM when you
  *  press Create, so a full repaint on every pick would throw away everything typed so far — the
@@ -13296,7 +13296,7 @@ document.addEventListener('click', async (e) => {
       // #104. A new World of the IP, made first; any failure there makes nothing at all.
       ...(ipTicked().length ? { newWorld: { title: S.spark.ipNew.title,
         threads: ipTicked().map((f) => ({ name: f.name, kind: f.kind, memory: !!f.memory })) } } : {}),
-      seed: sparkSeed(),
+      seed: seedOf(S.spark.seed),
       // #105. The World's people marked in the opening, pinned to the first scene at Create.
       inOpening: sparkOpening(),
       // #107. auto_open defaults on in the column, so it is only ever sent to turn it OFF.
@@ -13307,7 +13307,7 @@ document.addEventListener('click', async (e) => {
     // press that IS working would be unguarded from here on.
     if (!r) return;
     if (r.error) { S.spark.accepting = false; return toast(r.error); }
-    const seeded = sparkSeed().length;   // read before the cached list and the draft are let go
+    const seeded = seedOf(S.spark.seed).length;   // read before the cached list and the draft are let go
     if (seeded) LEDGER = null;   // the new book's copies are not in the cached list
 
     /* #40 stage 3. AND WHAT IT IS SET IN. `loreFrom` is the same column "Start a book here" writes,
@@ -13632,32 +13632,17 @@ document.addEventListener('click', async (e) => {
       // #18. Both halves travel from the form, or a book created here starts with no specimen and
       // no style however carefully they were typed.
       styleNote: get('styleNote').trim(),
-      spice: Number(get('spice')) || 2 };
+      spice: Number(get('spice')) || 2,
+      // #113 · THE THREADS PICKED FROM THE LIBRARY RIDE THE ONE CREATE, as the wizard's do (#107):
+      // the route copies them inside its rollback, so a refused copy makes no tale at all.
+      seed: seedOf(S.blank.seed) };
     const r = await api.createStory(story);
     if (r.error) return toast(r.error);
     const into = r.id ?? r.storyId;
-
-    // #20 §4. THE THREADS COME OVER AFTER THE BOOK EXISTS, one call each through the route a single
-    // card already uses — `db.copyEntry` refuses unless both books belong to the caller, and a
-    // second copy path here would be a second place for that check to be forgotten.
-    //
-    // A failure is REPORTED AND THE REST STILL RUN. The book is already made by this point, so
-    // stopping on the first refusal would leave a story half seeded with nothing on screen saying
-    // which half. `seeded` counts what actually landed rather than what was asked for.
-    const wanted = S.blank.seed ?? [];
-    let seeded = 0;
-    for (const id of wanted) {
-      const from = (LEDGER ?? []).find((e) => e.id === id);
-      if (!from) continue;
-      const c = await api.copyEntry(from.story, into, id);
-      if (!c?.error) seeded++;
-    }
     S.blank = null; S.seedQ = '';
-    if (wanted.length) {
+    if (story.seed.length) {
       LEDGER = null;                    // the new book's copies are not in the cached list
-      toast(seeded === wanted.length
-        ? `${seeded} thread${seeded === 1 ? '' : 's'} copied in.`
-        : `${seeded} of ${wanted.length} threads copied in — the rest were refused.`);
+      toast(`${story.seed.length} thread${story.seed.length === 1 ? '' : 's'} copied in.`);
     }
     await loadLibrary();
     await openStory(into);

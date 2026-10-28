@@ -4730,14 +4730,14 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
     assert.strictEqual(made.body.premise, typed,
       'carrying what was typed before the picker was touched — the picker must not cost the form');
 
-    // COPIES, NEVER LINKS, and through the route a single card already uses: db.copyEntry refuses
-    // unless BOTH books belong to the caller, and a second copy path would be a second place for
-    // that check to be forgotten.
-    const copied = POSTED.filter((x) => String(x.url).startsWith('/api/entry/copy'));
-    assert.strictEqual(copied.length, 1, 'the chosen thread is copied into the new book');
-    assert.strictEqual(copied[0].body.entryId, 'e-1');
-    assert.strictEqual(copied[0].body.storyId, 's-1', 'from the book it actually lives in');
-    assert.notStrictEqual(copied[0].body.into, 's-1', 'into the new one');
+    // COPIES, NEVER LINKS. #113: the chosen thread rides the one create, named by the book it
+    // actually lives in, so the server copies it inside the create's rollback (db.copyEntry, which
+    // refuses unless BOTH books belong to the caller). Nothing is copied after the create, so a
+    // failed copy cannot leave a half-made book.
+    assert.deepStrictEqual(made.body.seed, [{ storyId: 's-1', entryId: 'e-1' }],
+      'BLANK-SEED: the chosen thread rides the create, named by the book it lives in');
+    assert.deepStrictEqual(POSTED.filter((x) => String(x.url).startsWith('/api/entry/copy')).map((x) => x.url), [],
+      'BLANK-ONE: nothing is copied after the create');
   } finally { doc.querySelector = wasQS; }
 }
 ok('a book can be started from threads already in the library, and they are copied rather than linked');
