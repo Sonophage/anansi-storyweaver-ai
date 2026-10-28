@@ -103,7 +103,7 @@ export type Change =
   | { op: 'thread.new'; title: string; type: string; always: string; keys: string[]; activation: string }
   /** `addon` is the room it writes over, null for one it makes; `before` is that room's text, null
    *  when there was none. On an Undo, `before` is the text being put back. */
-  | { op: 'thread.set'; thread: string; title: string; type: string; room: string; addon: string | null;
+  | { op: 'thread.set'; thread: string; title: string; room: string; addon: string | null;
       name: string; keys: string[]; text: string; before: string | null; undo?: true }
   | { op: 'thread.unmake'; thread: string; title: string }
   | { op: 'room.unmake'; thread: string; title: string; addon: string; room: string }
@@ -136,7 +136,7 @@ const roomOf = (r: unknown) => {
   const x = String(r ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
   return !x || x === 'none' || x === 'always_true' ? 'facts' : x;
 };
-export const roomLabel = (slot: string) => slot === 'facts' ? 'Always true' : slot.replace(/_/g, ' ');
+const roomLabel = (slot: string) => slot === 'facts' ? 'Always true' : slot.replace(/_/g, ' ');
 const clip = (t: string, n = 160) => t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t;
 /** A web link, with the brackets a model puts round one. */
 const LINK = /\s*[(\[<]?https?:\/\/[^\s)\]>]+[)\]>]?/g;
@@ -185,14 +185,10 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   const said = saidOf(raw);
   if (!(ASKED as readonly string[]).includes(op)) return { ok: false, said, why: NOT_TALK };
   if (op === 'thread.new') {
-    const title = String(raw.title ?? raw.thread ?? '').trim();
-    const type = String(raw.type ?? '').trim();
-    if (!title) return { ok: false, said, why: 'the new thread had no name' };
-    if (!(KINDS as string[]).includes(type)) return { ok: false, said,
-      why: `"${type || 'nothing'}" is not a kind of thread. A thread is ${KINDS.join(', ')}` };
-    const twin = tale.entries.find((e) => norm(e.title) === norm(title));
-    if (twin) return { ok: false, said, why: `there is already a thread called ${twin.title}` };
-    const keys = (Array.isArray(raw.keys) ? raw.keys : []).map((k: unknown) => String(k ?? '').trim()).filter(Boolean);
+    const n = newThread(raw, tale);
+    if ('why' in n) return { ok: false, said, why: n.why };
+    const { title, type } = n;
+    const keys = keysOf(raw.keys);
     // A CHARACTER NEVER LANDS ON A WORD FROM A MODEL'S ANSWER, the rule accepting a chalked thread
     // follows: a character who stops reaching the model does not fade, he vanishes. Anything else
     // waits for its word only when it has one; `upsertEntry` holds the same floor.
@@ -207,6 +203,19 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   if (op === 'thread.overtime') return overtimeOn(tale, hit, raw, said, false);
   if (op === 'thread.retire') return retireOn(tale, hit, raw, said);
   return setOn(hit, roomOf(raw.room), String(raw.text ?? '').trim(), said, false);
+}
+
+/** A NEW THREAD'S NAME AND KIND, checked the one way for a tale and a draft: it has a name, its kind
+ *  is a kind, and no thread already has that name. */
+function newThread(raw: any, tale: Tale): { title: string; type: string } | { why: string } {
+  const title = String(raw.title ?? raw.thread ?? '').trim();
+  const type = String(raw.type ?? '').trim();
+  if (!title) return { why: 'the new thread had no name' };
+  if (!(KINDS as string[]).includes(type))
+    return { why: `"${type || 'nothing'}" is not a kind of thread. A thread is ${KINDS.join(', ')}` };
+  const twin = tale.entries.find((e) => norm(e.title) === norm(title));
+  if (twin) return { why: `there is already a thread called ${twin.title}` };
+  return { title, type };
 }
 
 const keysOf = (k: unknown) => (Array.isArray(k) ? k : []).map((x) => String(x ?? '').trim()).filter(Boolean);
@@ -369,7 +378,7 @@ function setOn(t: Thread, slot: string, text: string, said: string, undo: boolea
   if (!undo && !text) return { ok: false, said, why: 'it came with no text' };
   if (!undo && cur && cur.body.trim() === text) return { ok: false, said,
     why: `${t.title}'s ${roomLabel(slot)} already says that` };
-  return { ok: true, change: { op: 'thread.set', thread: t.id, title: t.title, type: t.entryType, room: slot,
+  return { ok: true, change: { op: 'thread.set', thread: t.id, title: t.title, room: slot,
     addon: cur?.id ?? null, name: cur?.name ?? (slot === 'facts' ? 'facts' : t.title), keys: cur?.keys ?? [],
     text, before: undo ? text : cur ? cur.body : null, ...(undo ? { undo: true as const } : {}) } };
 }
@@ -557,13 +566,9 @@ export function checkDraft(raw: any, draft: Draft): DraftChecked {
   }
   const tale = draftTale(draft);
   if (op === 'thread.new') {
-    const title = String(raw.title ?? raw.thread ?? '').trim();
-    const type = String(raw.type ?? '').trim();
-    if (!title) return { ok: false, said, why: 'the new thread had no name' };
-    if (!(KINDS as string[]).includes(type)) return { ok: false, said,
-      why: `"${type || 'nothing'}" is not a kind of thread. A thread is ${KINDS.join(', ')}` };
-    const twin = tale.entries.find((e) => norm(e.title) === norm(title));
-    if (twin) return { ok: false, said, why: `there is already a thread called ${twin.title}` };
+    const n = newThread(raw, tale);
+    if ('why' in n) return { ok: false, said, why: n.why };
+    const { title, type } = n;
     // ALWAYS ON, keyed by its name, the way every thread the cast writes arrives: the preview tells
     // the writer a spark cast is always on, and a draft thread on a word the model chose would be the
     // one exception they were not told about.

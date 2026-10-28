@@ -5251,7 +5251,6 @@ const onSetup = () => S.place !== 'story' && S.wpage === 'create' && !!S.spark;
 const setupTalk = () => (S.spark.talk ??= { turns: [], busy: false });
 const draftNamed = (title) => (S.spark?.entries ?? [])
   .find((e) => e.keep !== false && String(e.title ?? '').trim() === title);
-const draftCopy = (o) => JSON.parse(JSON.stringify(o));
 const kindWord = (k) => `${/^[aeiou]/.test(k ?? '') ? 'an' : 'a'} ${k ?? 'thread'}`;
 /** Whether the writer's words name any of `words`, as a word. */
 const saidNames = (said, words) => words.filter(Boolean).some((w) =>
@@ -5291,13 +5290,13 @@ function applyDraft(ch) {
   }
   if (ch.op === 'thread.new') {
     if (draftNamed(ch.thread?.title)) return null;
-    list.push({ ...draftCopy(ch.thread), keep: true });
+    list.push({ ...structuredClone(ch.thread), keep: true });
     return { op: ch.op, title: ch.thread.title, body: ch.thread.body };
   }
   const at = list.findIndex((e) => e.keep !== false && String(e.title ?? '').trim() === ch.title);
   if (at < 0) return null;
   if (ch.op === 'thread.remove') return { op: ch.op, at, prev: list.splice(at, 1)[0] };
-  const e = list[at], prev = draftCopy(e);
+  const e = list[at], prev = structuredClone(e);
   if (ch.room === 'facts') e.body = ch.body;
   else e.rooms = { ...(e.rooms ?? {}), [ch.room]: { ...(e.rooms?.[ch.room] ?? { name: ch.room, on: true }), body: ch.text } };
   // #99 · the page it came from, in its notes: writer-only, never in its text.
