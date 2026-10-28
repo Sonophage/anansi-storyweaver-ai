@@ -264,6 +264,55 @@ ok('THREAD-WAKE-REFUSED: On a word with no words, no change, a followed thread, 
   refused(ch.checkAsked({ op: 'thread.wake', thread: 'Nobody', activation: 'always_on' }, waking), /no thread called/i);
 });
 
+const dated = { ...whole, chapters: [...whole.chapters, { id: 'c-3', index: 3, title: 'Far bank', authorsNote: '' }],
+  entries: [...tale.entries,
+    { id: 'e-vel', title: 'Vel', entryType: 'character', addons: [],
+      states: [{ id: 'st-2', fromChapter: 2, body: 'Vel is soaked.', label: 'Fell in', beforeMode: 'hint' }] }] };
+
+ok('THREAD-OVERTIME: a dated entry from a scene; a new one is taken away by Undo, one written over is put back', () => {
+  const c = done(ch.checkAsked({ op: 'thread.overtime', thread: 'Vel', scene: 3, text: 'Vel is blind in one eye.',
+    label: 'Lost an eye' }, dated));
+  assert.strictEqual(c.thread, 'e-vel');
+  assert.strictEqual(c.from, 3);
+  assert.strictEqual(c.state, null, 'nothing is dated from scene 3 yet');
+  assert.match(ch.wordsFor(c), /Added to Vel's Over time from scene 3.*blind in one eye/);
+  assert.deepStrictEqual(ch.undoFor(c, { state: 'st-new' }),
+    { op: 'state.unmake', thread: 'e-vel', state: 'st-new', text: 'Vel is blind in one eye.' });
+  // Scene 2 already has an entry: it is written over, and its Undo puts back all of it.
+  const o = done(ch.checkAsked({ op: 'thread.overtime', thread: 'Vel', scene: 2, text: 'Vel is soaked and cold.' }, dated));
+  assert.strictEqual(o.state, 'st-2');
+  assert.match(ch.wordsFor(o), /Changed Vel's Over time from scene 2/);
+  assert.deepStrictEqual(ch.undoFor(o, { state: 'st-2' }), { op: 'thread.overtime', thread: 'e-vel', state: 'st-2',
+    scene: 2, text: 'Vel is soaked.', label: 'Fell in', beforeMode: 'hint' });
+  // No scene named is the scene the writer is in.
+  assert.strictEqual(done(ch.checkAsked({ op: 'thread.overtime', thread: 'Vel', text: 'Vel is dry.' }, dated)).from, 2);
+  const u = done(ch.checkUndo({ op: 'thread.overtime', thread: 'e-vel', state: 'st-2', scene: 2, text: 'Vel is soaked.',
+    label: 'Fell in', beforeMode: 'hint' }, dated));
+  assert.match(ch.wordsFor(u), /Put back Vel's Over time from scene 2/);
+  assert.match(ch.wordsFor(done(ch.checkUndo({ op: 'state.unmake', thread: 'e-vel', state: 'st-2', text: 'Vel is soaked.' }, dated))),
+    /Took away Vel's Over time from scene 2/);
+});
+
+ok('THREAD-OVERTIME-REFUSED: a scene the tale does not have, scene 1, no text, the same text, a followed thread', () => {
+  refused(ch.checkAsked({ op: 'thread.overtime', thread: 'Vel', scene: 4, text: 'Gone.' }, dated), /no scene 4/i);
+  refused(ch.checkAsked({ op: 'thread.overtime', thread: 'Vel', scene: 1, text: 'Dry.' }, dated), /scene 1/i);
+  refused(ch.checkAsked({ op: 'thread.overtime', thread: 'Vel', scene: 3, text: '' }, dated), /no text/i);
+  refused(ch.checkAsked({ op: 'thread.overtime', thread: 'Vel', scene: 2, text: 'Vel is soaked.' }, dated), /already says/i);
+  refused(ch.checkAsked({ op: 'thread.overtime', thread: 'The Erdtree', scene: 2, text: 'Ash.' }, dated), /Lands Between/);
+  // Undo: an entry the writer has changed since Talk made it is theirs; another thread's entry is not this one's.
+  refused(ch.checkUndo({ op: 'state.unmake', thread: 'e-vel', state: 'st-2', text: 'Vel is blind.' }, dated), /changed since/i);
+  refused(ch.checkUndo({ op: 'state.unmake', thread: 'e-talia', state: 'st-2', text: 'Vel is soaked.' }, dated),
+    /no longer in this tale/i);
+  refused(ch.checkUndo({ op: 'thread.overtime', thread: 'e-vel', state: 'st-gone', scene: 2, text: 'x' }, dated),
+    /no longer in this tale/i);
+  refused(ch.checkAsked({ op: 'state.unmake', thread: 'Vel', state: 'st-2' }, dated), /not something Talk can do/i);
+  // A thread Talk made, with an Over time entry since: taking it away would take the entry too.
+  const madeDated = { entries: [{ id: 'e-new', title: 'The ferryman', entryType: 'character',
+    addons: [room('a-nf', 'facts', 'Rows.')], states: [{ id: 'st-f', fromChapter: 2, body: 'Rows no more.' }] }] };
+  refused(ch.checkUndo({ op: 'thread.unmake', thread: 'e-new', title: 'The ferryman', text: 'Rows.' }, madeDated),
+    /changed since/i);
+});
+
 ok('the change slice never reaches for the database itself', () => {
   const src = readFileSync(new URL('../src/changes.ts', import.meta.url), 'utf8');
   assert.ok(!/from '\.\/db\.ts'/.test(src), 'src/changes.ts must not import db.ts');

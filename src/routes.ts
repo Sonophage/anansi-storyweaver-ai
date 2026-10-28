@@ -691,7 +691,7 @@ function roomOffer(onto: any, field: string | null, body: string): string | null
  *  follows: a room with no words that nobody pinned on never reaches the model, and looks filled in
  *  on the thread while it does nothing. A new thread is made the way accepting a chalked one makes
  *  it: its text is its Always true, and it is the writer's (`last_editor` human), because they asked. */
-function applyChange(storyId: string, owner: string, ch: Change): { thread?: string; addon?: string } | null {
+function applyChange(storyId: string, owner: string, ch: Change): { thread?: string; addon?: string; state?: string } | null {
   if (ch.op === 'thread.new') {
     const id = db.upsertEntry(storyId, owner, { title: ch.title, body: '', entryType: ch.type,
       activation: ch.activation, keys: ch.keys, lastEditor: 'human' });
@@ -720,6 +720,13 @@ function applyChange(storyId: string, owner: string, ch: Change): { thread?: str
     return db.upsertEntry(storyId, owner, { id: cur.id, title: cur.title, body: cur.body, entryType: cur.entry_type,
       activation: ch.activation, keys: ch.keys, lastEditor: cur.last_editor, allowNoKeys: !!ch.undo }) ? {} : null;
   }
+  // An Over time entry, through the save the Over time list makes: by id when it writes over one,
+  // else `upsertState` finds or makes the one at that scene.
+  if (ch.op === 'thread.overtime') {
+    const id = db.upsertState(storyId, ch.thread, { id: ch.state ?? undefined, fromChapter: ch.from, body: ch.text,
+      label: ch.label, beforeMode: ch.beforeMode });
+    return id ? { state: id } : null;
+  }
   // A scene's title or Heads toward, through the scene panel's own save, which is partial the same way.
   if (ch.op === 'scene.set') {
     db.updateChapter(storyId, ch.chapter, ch.field === 'title' ? { title: ch.text } : { authorsNote: ch.text });
@@ -729,6 +736,7 @@ function applyChange(storyId: string, owner: string, ch: Change): { thread?: str
   // since — `checkUndo` refused anything else before this was reached.
   if (ch.op === 'thread.unmake') { db.delEntry(storyId, ch.thread); return {}; }
   if (ch.op === 'room.unmake') { db.delAddon(storyId, ch.addon); return {}; }
+  if (ch.op === 'state.unmake') { db.delState(storyId, ch.state); return {}; }
   return null;
 }
 

@@ -24,11 +24,11 @@
 import { ALL_SLOTS, KINDS, slotsFor } from './slots.ts';
 
 /** What the model may ask for. #97 cut the path with the first two; #98 adds the rest. */
-export const ASKED = ['thread.new', 'thread.set', 'thread.wake', 'tale.set', 'scene.set'] as const;
+export const ASKED = ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set'] as const;
 /** What only an Undo may do, beside putting back old text. */
-const UNMAKE = ['thread.unmake', 'room.unmake'] as const;
+const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake'] as const;
 /** What an Undo may put back as it was: the asked operations that write over a value, by id. */
-const PUT_BACK = ['thread.set', 'thread.wake', 'tale.set', 'scene.set'] as const;
+const PUT_BACK = ['thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set'] as const;
 
 /** THE TALE'S OWN FIELDS TALK MAY CHANGE. Until the tale's thread is built (GLOSSARY), its premise
  *  and setting are the story's own columns, and these are the two. Rules are rule threads today, so
@@ -50,8 +50,11 @@ export const CHANGES_SCHEMA = {
       thread: { type: 'string', maxLength: 80 },
       // thread.set: the room, or `none` for its Always true.
       room: { type: 'string', enum: ['none', ...ALL_SLOTS] },
-      // thread.set: the new text of that room. thread.new: its Always true.
+      // thread.set: the new text of that room. thread.new: its Always true. thread.overtime: the
+      // whole of where the thread stands from that scene on. tale.set, scene.set: the field's text.
       text: { type: 'string', maxLength: 600 },
+      // thread.overtime: what changed, in a few words.
+      label: { type: 'string', maxLength: 60 },
       // thread.new only.
       title: { type: 'string', maxLength: 80 },
       type: { type: 'string', enum: [...KINDS] },
@@ -60,7 +63,8 @@ export const CHANGES_SCHEMA = {
       activation: { type: 'string', enum: ['always_on', 'triggered'] },
       // tale.set: which of the tale's own fields. scene.set: which of the scene's.
       field: { type: 'string', enum: [...TALE_FIELDS, ...SCENE_FIELDS] },
-      // scene.set: the scene by its number; none is the scene the writer is in.
+      // scene.set: the scene by its number. thread.overtime: the scene it holds from. None is the
+      // scene the writer is in.
       scene: { type: 'integer', minimum: 1 },
     },
     required: ['op'],
@@ -69,7 +73,8 @@ export const CHANGES_SCHEMA = {
 
 type Room = { id: string; slot: string; name: string; body: string; keys: string[]; active: boolean };
 type Thread = { id: string; title: string; entryType: string; addons?: Room[]; sharedFrom?: string | null;
-  activation?: string; keys?: string[] };
+  activation?: string; keys?: string[]; states?: State[] };
+type State = { id: string; fromChapter: number; body: string; label?: string | null; beforeMode?: string | null };
 type Scene = { id: string; index: number; title?: string | null; authorsNote?: string | null };
 /** The tale as the route read it through the gate: its threads, and since #98 its own fields, its
  *  scenes and the scene the writer is in. The later three are optional so a check that needs only
@@ -90,7 +95,13 @@ export type Change =
   | { op: 'scene.set'; chapter: string; index: number; field: string; text: string; before: string; undo?: true }
   /** `before` is how it woke before the change; on an Undo, how it is being put back. */
   | { op: 'thread.wake'; thread: string; title: string; activation: string; keys: string[];
-      before: { activation: string; keys: string[] }; undo?: true };
+      before: { activation: string; keys: string[] }; undo?: true }
+  /** `state` is the Over time entry it writes over, null for one it makes; `before` is all of that
+   *  entry, null when there was none. On an Undo, the entry being put back. */
+  | { op: 'thread.overtime'; thread: string; title: string; from: number; text: string; label: string | null;
+      beforeMode: string; state: string | null; before: { body: string; label: string | null; beforeMode: string } | null;
+      undo?: true }
+  | { op: 'state.unmake'; thread: string; title: string; state: string; from: number };
 export type Checked = { ok: true; change: Change } | { ok: false; said: string; why: string };
 
 const NOT_TALK = 'that is not something Talk can do. It changes the tale, its threads and its scenes; '
@@ -166,6 +177,7 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   const { hit, why } = threadNamed(tale, raw.thread);
   if (!hit) return { ok: false, said, why: why! };
   if (op === 'thread.wake') return wakeOn(hit, raw, said, false);
+  if (op === 'thread.overtime') return overtimeOn(tale, hit, raw, said, false);
   return setOn(hit, roomOf(raw.room), String(raw.text ?? '').trim(), said, false);
 }
 
@@ -198,6 +210,39 @@ function wakeOn(t: Thread, raw: any, said: string, undo: boolean): Checked {
     why: `${t.title} is already ${wakeWords(had.activation, had.keys)}` };
   return { ok: true, change: { op: 'thread.wake', thread: t.id, title: t.title, activation, keys,
     before: undo ? { activation, keys } : had, ...(undo ? { undo: true as const } : {}) } };
+}
+
+/** #98 · AN OVER TIME ENTRY: where the thread stands from a scene on, the whole of it, with a short
+ *  label. A request names the scene by number (none is the scene the writer is in), and it must be a
+ *  scene the tale has: an entry dated after the last scene is not refused by the database and would
+ *  sit there unread, which is the change the writer thinks happened and did not. Not scene 1: what
+ *  holds from scene 1 is the thread itself, which thread.set changes. An entry already dated from
+ *  that scene is written over, as `upsertState` does for the hand edit, and its Undo puts all of it
+ *  back. An Undo names the entry by id. */
+function overtimeOn(tale: Tale, t: Thread, raw: any, said: string, undo: boolean): Checked {
+  if (t.sharedFrom) return followed(t, said);
+  const text = String(raw?.text ?? '').trim();
+  const label = String(raw?.label ?? '').trim() || null;
+  if (undo) {
+    const st = (t.states ?? []).find((s) => s.id === String(raw.state ?? ''));
+    if (!st) return { ok: false, said, why: 'that Over time entry is no longer in this tale' };
+    const from = Number(raw.scene) || st.fromChapter;
+    const beforeMode = raw.beforeMode === 'hint' ? 'hint' : 'hide';
+    return { ok: true, change: { op: 'thread.overtime', thread: t.id, title: t.title, from, text, label, beforeMode,
+      state: st.id, before: { body: text, label, beforeMode }, undo: true } };
+  }
+  const sc = sceneAt(tale, raw?.scene, tale.at);
+  if (!sc) return { ok: false, said, why: noScene(tale, raw?.scene) };
+  if (sc.index === 1) return { ok: false, said, why: `Over time starts at scene 2. What holds from scene 1 is `
+    + `${t.title}'s own text` };
+  if (!text) return { ok: false, said, why: 'it came with no text' };
+  const at = (t.states ?? []).find((s) => s.fromChapter === sc.index) ?? null;
+  if (at && at.body.trim() === text) return { ok: false, said,
+    why: `${t.title}'s Over time from scene ${sc.index} already says that` };
+  const beforeMode = at?.beforeMode === 'hint' ? 'hint' : 'hide';
+  return { ok: true, change: { op: 'thread.overtime', thread: t.id, title: t.title, from: sc.index, text,
+    label: label ?? at?.label ?? null, beforeMode, state: at?.id ?? null,
+    before: at ? { body: at.body, label: at.label ?? null, beforeMode } : null } };
 }
 
 /** A THREAD THE TALE FOLLOWS lives in its World and is changed there. The screen draws it read-only
@@ -274,6 +319,7 @@ export function checkUndo(raw: any, tale: Tale): Checked {
   const text = String(raw.text ?? '');
   if (op === 'thread.set') return setOn(t, roomOf(raw.room), text, said, true, raw.addon ?? null);
   if (op === 'thread.wake') return wakeOn(t, raw, said, true);
+  if (op === 'thread.overtime') return overtimeOn(tale, t, raw, said, true);
   // TAKEN AWAY ONLY WHILE IT IS AS TALK MADE IT. The text it was made with rides in the Undo and is
   // compared with what is there now: a thread or room the writer has changed since is theirs, and
   // an Undo that claims Talk made a thread the writer wrote does not match its text.
@@ -281,8 +327,17 @@ export function checkUndo(raw: any, tale: Tale): Checked {
   if (op === 'thread.unmake') {
     if (t.sharedFrom || norm(t.title) !== norm(raw.title)) return changed;
     const always = (t.addons ?? []).find((a) => a.slot === 'facts')?.body ?? '';
-    if (always.trim() !== text.trim() || (t.addons ?? []).some((a) => a.slot !== 'facts')) return changed;
+    // An Over time entry made since is a change too (#98): taking the thread away would take it.
+    if (always.trim() !== text.trim() || (t.addons ?? []).some((a) => a.slot !== 'facts')
+      || (t.states ?? []).length) return changed;
     return { ok: true, change: { op, thread: t.id, title: t.title } };
+  }
+  if (op === 'state.unmake') {
+    const st = (t.states ?? []).find((s) => s.id === String(raw.state ?? ''));
+    if (!st) return { ok: false, said, why: 'that Over time entry is no longer in this tale' };
+    if (st.body.trim() !== text.trim()) return { ...changed,
+      why: `${t.title}'s Over time from scene ${st.fromChapter} has changed since Talk made it` };
+    return { ok: true, change: { op, thread: t.id, title: t.title, state: st.id, from: st.fromChapter } };
   }
   const a = (t.addons ?? []).find((x) => x.id === String(raw.addon ?? ''));
   if (!a) return { ok: false, said, why: 'that room is no longer in this tale' };
@@ -295,6 +350,9 @@ export function wordsFor(c: Change): string {
   if (c.op === 'thread.new') return `Made a new thread: ${c.title}, ${an(c.type)}.`;
   if (c.op === 'thread.unmake') return `Took away ${c.title}.`;
   if (c.op === 'room.unmake') return `Took away ${c.title}'s ${roomLabel(c.room)}.`;
+  if (c.op === 'state.unmake') return `Took away ${c.title}'s Over time from scene ${c.from}.`;
+  if (c.op === 'thread.overtime') return c.undo ? `Put back ${c.title}'s Over time from scene ${c.from}.`
+    : `${c.state ? 'Changed' : 'Added to'} ${c.title}'s Over time from scene ${c.from}: “${clip(c.text)}”`;
   if (c.op === 'tale.set') return c.undo ? `Put back the tale's ${c.field}.`
     : `Changed the tale's ${c.field}: “${clip(c.text)}”`;
   if (c.op === 'thread.wake') return c.undo ? `Put back how ${c.title} wakes: ${wakeWords(c.activation, c.keys)}.`
@@ -312,6 +370,7 @@ function saidOf(raw: any): string {
   if (raw?.op === 'thread.new') return `Make a new thread${name ? `: ${name}` : ''}`;
   if (raw?.op === 'scene.set') return `Change scene ${raw?.scene ?? 'this one'}`;
   if (raw?.op === 'thread.wake') return `Change how ${name || 'a thread'} wakes`;
+  if (raw?.op === 'thread.overtime') return `Add to ${name || 'a thread'}'s Over time${raw?.scene ? ` from scene ${raw.scene}` : ''}`;
   if (raw?.op === 'tale.set') return `Change the tale's ${String(raw?.field ?? '').trim() || 'premise or setting'}`;
   if (raw?.op === 'thread.set') return `Change ${name || 'a thread'}${raw?.room && roomOf(raw.room) !== 'facts'
     ? `'s ${roomLabel(roomOf(raw.room))}` : ''}`;
@@ -320,8 +379,12 @@ function saidOf(raw: any): string {
 
 /** THE CHANGE THAT PUTS THIS ONE BACK, built once it is applied: `made` holds the ids the write
  *  minted, which nothing knows before it. Returned with the change, and sent back by the Undo. */
-export function undoFor(c: Change, made: { thread?: string; addon?: string }) {
+export function undoFor(c: Change, made: { thread?: string; addon?: string; state?: string }) {
   if (c.op === 'thread.new') return { op: 'thread.unmake', thread: made.thread, title: c.title, text: c.always };
+  if (c.op === 'thread.overtime') return c.before
+    ? { op: 'thread.overtime', thread: c.thread, state: c.state, scene: c.from, text: c.before.body,
+        label: c.before.label, beforeMode: c.before.beforeMode }
+    : { op: 'state.unmake', thread: c.thread, state: made.state, text: c.text };
   if (c.op === 'tale.set') return { op: 'tale.set', field: c.field, text: c.before };
   if (c.op === 'scene.set') return { op: 'scene.set', chapter: c.chapter, field: c.field, text: c.before };
   if (c.op === 'thread.wake') return { op: 'thread.wake', thread: c.thread, ...c.before };

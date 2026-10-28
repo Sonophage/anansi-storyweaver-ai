@@ -88,6 +88,10 @@ const srv = createServer((req, res) => {
       WAKE: { reply: 'The letter is always there now, and the ferryman waits for his name.',
         changes: [{ op: 'thread.wake', thread: 'the letter', activation: 'always_on' },
                   { op: 'thread.wake', thread: 'Charon', activation: 'triggered', keys: ['Charon', 'ferryman'] }] },
+      OVERTIME: { reply: 'From scene 3 she is blind in one eye.',
+        changes: [{ op: 'thread.overtime', thread: 'Vel', scene: 3, text: 'Vel is blind in one eye.', label: 'Lost an eye' },
+                  { op: 'thread.overtime', thread: 'Vel', scene: 2, text: 'Vel is soaked and cold.' },
+                  { op: 'thread.overtime', thread: 'Vel', scene: 7, text: 'Vel is gone.' }] },
     };
     const answer = asked && CHANGES[asked] ? CHANGES[asked]
       : asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
@@ -1026,7 +1030,7 @@ ok('emptying the box gives her back the voice she shipped with');
   const age = await say('CHANGE-AGE: make Talia thirty, not twenty');
   assert.ok(!age.error, age.error);
   const ops = calls[0].response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum;
-  assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'thread.wake', 'tale.set', 'scene.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
+  assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
 
   // Always true, changed at once.
   assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is thirty.', 'CHANGE-DONE: Talia\'s Always true is changed');
@@ -1177,6 +1181,31 @@ ok('emptying the box gives her back the voice she shipped with');
     for (const col of ['activation', 'keys', 'title', 'body', 'entry_type', 'last_editor'])
       assert.strictEqual(row(id)[col], before[col], `UNDO-WAKE: ${before.title}'s ${col} is as it was`);
   ok('asked to change how a thread wakes, Talk does, and Undo puts back the old way and the old wake words');
+
+  // Over time. A third scene; Vel already has an entry from scene 2, written by hand.
+  db.endChapter(tale.id, tale.branchId, 'Far bank');
+  const vel = db.upsertEntry(tale.id, me, { title: 'Vel', body: 'Vel is dry.', activation: 'always_on' });
+  const hand = db.upsertState(tale.id, vel, { fromChapter: 2, body: 'Vel is soaked.', label: 'Fell in', beforeMode: 'hint' });
+  const states = () => (db.statesForStory(tale.id).get(vel) ?? []).map((s: any) =>
+    ({ id: s.id, from: s.from_chapter, body: s.body, label: s.label, mode: s.before_mode }));
+  const statesBefore = JSON.stringify(states());
+  const ot = await say('CHANGE-OVERTIME: from scene 3 Vel is blind in one eye');
+  assert.ok(!ot.error, ot.error);
+  const s3 = states().find((s: any) => s.from === 3);
+  assert.strictEqual(s3?.body, 'Vel is blind in one eye.', 'THREAD-OVERTIME: an entry from scene 3');
+  assert.strictEqual(s3?.label, 'Lost an eye', 'THREAD-OVERTIME: with its label');
+  assert.strictEqual(states().find((s: any) => s.from === 2)?.body, 'Vel is soaked and cold.',
+    'THREAD-OVERTIME: the entry from scene 2 is written over, not doubled');
+  assert.strictEqual(states().length, 2, 'THREAD-OVERTIME: two entries, not three');
+  assert.strictEqual(states().find((s: any) => s.from === 2)?.id, hand, 'THREAD-OVERTIME: the same entry');
+  assert.strictEqual((db.entriesOf(tale.id) as any[]).find((e) => e.id === vel).body, 'Vel is dry.',
+    'THREAD-OVERTIME: and where she stands from scene 1 is left alone');
+  assert.match(ot.reply, /Not done.*no scene 7/, `OVERTIME-MISSING: the reply says scene 7 is not there:\n${ot.reply}`);
+  assert.strictEqual(ot.changes.length, 2);
+  for (const x of ot.changes) assert.ok(!undo(x.undo).error);
+  assert.strictEqual(JSON.stringify(states()), statesBefore,
+    'UNDO-OVERTIME: the new entry is gone and the old one is back, body, label and hint alike');
+  ok('asked to record a change Over time, Talk dates it, refuses a scene that is not there, and Undo puts the record back');
 }
 
 // ---- 6d · THE WRITER MOVES A PROPOSAL, AND THE WRITER OUTRANKS THE MODEL ----
