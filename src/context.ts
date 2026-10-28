@@ -957,7 +957,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
    *  `POST /api/invent` rides this mode too and is meant to. A card body is a note of fact for
    *  the writing model to read later, so the book's own finished prose sitting in the call that
    *  writes one is F36's surface exactly — and F36 says a finished-English line in a prompt comes
-   *  back verbatim in the book, by a route the contradiction checker cannot see.
+   *  back verbatim in the book, by a route no check can see.
    *
    *  The POV and the persona are the one thing DIRECTIVE was carrying that is a FACT rather than
    *  an instruction, and dropping it here would leave the chat with nothing that says who is
@@ -977,7 +977,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // COUNCIL-06 ship 4 · THE PROSE SAMPLE IS GONE, and F36 is the argument. A finished-English line
   // sitting in every prompt is lifted verbatim into the prose — that finding is a weather-beaten
   // Martin guitar coming out of a coat pocket because the entry saying she carries one was in the
-  // prompt — and *"the contradiction checker cannot see this class at all"*. A whole paragraph of
+  // prompt — and the contradiction check (deleted 2026-10-28) could not see that class at all. A whole paragraph of
   // the writer's finished prose is the largest possible version of that surface.
   //
   // The wrapper said "never continue it, quote it, or take facts from it", which is exactly the

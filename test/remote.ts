@@ -789,7 +789,7 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
   ok('a remote default or pin stands only on the owning writer\'s shortlist');
 }
 
-// ---- 10. background work follows the writer's model, except the canon check (ADR 0002) ----
+// ---- 10. background work follows the writer's model (ADR 0002) ----
 {
   assert.strictEqual(db.defaultModelOf(me), ID, 'the writer is on the remote model');
   const chapterId = (db.chapters(story.id)[0] as any).id;
@@ -866,7 +866,7 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
   // only place the shortlist is asked; a second `modelFor(` would be a call that can skip it.
   const src = (await import('node:fs')).readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8');
   assert.strictEqual(src.match(/\bmodelFor\(/g)?.length, 1, 'routes.ts calls modelFor in one place');
-  ok('background work follows the writer, the canon check stays local, and calls resolve through one helper');
+  ok('background work follows the writer, and calls resolve through one helper');
 }
 
 // ---- 11. only a real catalogue model, by its prefixed id, goes on a shortlist ----

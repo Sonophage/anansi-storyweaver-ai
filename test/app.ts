@@ -268,7 +268,7 @@ const STORY = {
   turn: null,
   // What the engine computes in story.ts: the counts the shelf reads, and the stale summaries,
   // which are the part that can be waved away. The panel gates on this being present at all.
-  waiting: { proposals: 2, strings: 1, flags: 1,
+  waiting: { proposals: 2, strings: 1,
              stale: [{ id: 'c-1', index: 1, title: 'Ashfall', ref: 'hash-1' }] },
   // #94. The shape a server from before the contradiction check was deleted sent: one knot and one
   // never-sent knot on p-2, and a thread ignored for the scene. Kept so the page can be shown to draw
@@ -415,27 +415,25 @@ let worldDown = 0;
         // OWED SOMETHING, on purpose. What is waiting is drawn on the band now, which means it is
         // drawn for the hero book and nowhere else — so a hero owed nothing makes the chips
         // untestable, and the assertion would pass against a band that could never draw one.
-        proposed: shelfOwes ? 2 : 0, unpaid: shelfOwes ? 1 : 0, flags: 0 },
+        proposed: shelfOwes ? 2 : 0, unpaid: shelfOwes ? 1 : 0 },
       // Two of the three are owed something, and between them five separate things — so a shelf that
       // listed items would show five chips where it must show two.
       // #18 §5. One book pinned to a model the router no longer serves — the 2026-08-27 rename is
       // exactly this shape — and one pinned to a model it does, so the mark can be wrong in both
       // directions rather than only missing.
       { id: 's-2', title: 'The Salt Ledger', status: 'in_progress', updatedAt: 2, words: 400, last: 'He paid.',
-        proposed: shelfOwes ? 3 : 0, unpaid: shelfOwes ? 1 : 0, flags: 0, model: 'write-nt-qwen36-h' },
+        proposed: shelfOwes ? 3 : 0, unpaid: shelfOwes ? 1 : 0, model: 'write-nt-qwen36-h' },
       { id: 's-3', title: 'Sutera', status: 'draft', updatedAt: 1, words: 0, last: null,
-        // unpaid: 2 since 2026-08-31. This book used to be owed ONLY its two flags, and flags
-        // stopped counting toward the strip that day — so without a kind that still counts, the
-        // second book falls off and this stops testing grouping at all. It has to WIN a kind, not
-        // merely have one: `waiting()` returns one row per kind naming the book with the most of
-        // it, so a tie with The Salt Ledger's 1 would still name that book and draw one chip. The
-        // flags stay, so the fixture still proves they contribute nothing.
-        proposed: 0, unpaid: shelfOwes ? 2 : 0, flags: 2, model: 'Qwen3.6-WNTH-35B-A3B-NN' },
+        // unpaid: 2 since 2026-08-31, so the second book is on the strip and this tests grouping.
+        // It has to WIN a kind, not merely have one: `waiting()` returns one row per kind naming the
+        // book with the most of it, so a tie with The Salt Ledger's 1 would still name that book and
+        // draw one chip.
+        proposed: 0, unpaid: shelfOwes ? 2 : 0, model: 'Qwen3.6-WNTH-35B-A3B-NN' },
       // A FOURTH, PUT AWAY. Added 2026-08-31 with the archived section: the shelf splits live
       // books from archived ones under their own header, and with no archived book in the
       // fixture that split renders identically either way and the assertion below cannot fail.
       { id: 's-4', title: 'The Drowned Almanac', status: 'archived', updatedAt: 0, words: 60,
-        last: 'It ended.', proposed: 0, unpaid: 0, flags: 0,
+        last: 'It ended.', proposed: 0, unpaid: 0,
         // A BOOK SHARED WITH THIS WRITER, pinned by its owner to a remote model on the OWNER's
         // shortlist. This writer's model list never holds it; the row the server sends does.
         model: 'featherless:owner/Lent-Remote-24B', pin: { id: 'featherless:owner/Lent-Remote-24B',
@@ -448,7 +446,7 @@ let worldDown = 0;
       // `stories.look` column while `src/story.ts` hands the OPEN book a parsed object — an
       // asymmetry the banner has to cope with, and one an object here would hide completely.
       { id: 's-5', title: 'The Tessellate', status: 'in_progress', updatedAt: 5, words: 0,
-        last: null, proposed: 0, unpaid: 0, flags: 0, is_world: 1, genre: 'fantasy',
+        last: null, proposed: 0, unpaid: 0, is_world: 1, genre: 'fantasy',
         look: '{"theme":"cyberpunk","font":"sans","size":"m","scale":"100"}' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
       // The writer's default look rides the library call, which is the first thing asked for.
       look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' },
@@ -990,7 +988,7 @@ ok('a book can keep its cover behind the prose instead, at a strength it chooses
   assert.match(w, /data-decide="accept"/, 'a proposal is accepted here');
   assert.match(w, /data-decide="reject"/, 'or refused here');
   assert.match(w, /data-pbody=/, 'and what lands is the box, which is why the box has to be here');
-  // Strings and flags, each with the action that belongs to them.
+  // Strings, with the action that belongs to them.
   assert.match(w, /data-summon=/, 'a promise is summoned here');
   // The handler reads the status after the colon. Without one the save fell back to open and only
   // took the promise out of play, so "Paid" never paid (found 2026-10-24).
@@ -1900,24 +1898,14 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 {
   const { waiting } = await import('../web/model.js');
   const shelf: any[] = [
-    { id: 's-1', title: 'Sutera', status: 'in_progress', proposed: 1, unpaid: 2, flags: 0 },
-    { id: 's-2', title: 'The Salt Ledger', status: 'in_progress', proposed: 4, unpaid: 0, flags: 1 },
-    { id: 's-3', title: 'Put Away', status: 'archived', proposed: 9, unpaid: 9, flags: 9 },
+    { id: 's-1', title: 'Sutera', status: 'in_progress', proposed: 1, unpaid: 2 },
+    { id: 's-2', title: 'The Salt Ledger', status: 'in_progress', proposed: 4, unpaid: 0 },
+    { id: 's-3', title: 'Put Away', status: 'archived', proposed: 9, unpaid: 9 },
   ];
   const w = waiting(shelf);
   assert.deepStrictEqual(w.map((x: any) => x.label),
     ['5 threads chalked', '2 strings not tied off'],
     'it counts across books, and says one thread rather than one threads');
-
-  // AND FLAGS ARE NOT IN IT, on purpose, since 2026-08-31. The contradiction check moved off the
-  // generation path and files a flag detached; Seth's rule for that flag is that it "can be
-  // silently ignored ... if the writer keeps writing". A count on the strip is the opposite of
-  // that. `s-2` carries a flag in the fixture above and must contribute nothing here.
-  assert.ok(!w.some((x: any) => x.key === 'flags'),
-    'a flag never joins the waiting strip — it is found when you go looking, not on the way past');
-  assert.deepStrictEqual(
-    waiting([{ id: 's', title: 'x', proposed: 0, unpaid: 0, flags: 7 }] as any), [],
-    'and a book whose only outstanding thing is flags shows no strip at all');
 
   // One press has to go where the work is. Sending you to a list of places the work might be is
   // the thing this replaces.
@@ -1929,7 +1917,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.ok(!w.some((x: any) => x.total > 5), 'an archived book is not counted at all');
 
   assert.deepStrictEqual(waiting([]), [], 'an empty shelf owes nothing');
-  assert.deepStrictEqual(waiting([{ id: 's', title: 'x', proposed: 0, unpaid: 0, flags: 0 }] as any), [],
+  assert.deepStrictEqual(waiting([{ id: 's', title: 'x', proposed: 0, unpaid: 0 }] as any), [],
     'and a shelf with nothing outstanding shows no strip rather than three zeroes');
   ok('the shelf says what is waiting, per kind, in the book it is waiting in');
 
@@ -1962,8 +1950,8 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 {
   const { waiting: w } = await import('../web/model.js');
   const rows: any[] = [
-    { id: 's-real', title: 'A Real Book', status: 'in_progress', proposed: 1, unpaid: 1, flags: 0 },
-    { id: 's-w', title: 'The Tessellate', status: 'in_progress', proposed: 9, unpaid: 9, flags: 0,
+    { id: 's-real', title: 'A Real Book', status: 'in_progress', proposed: 1, unpaid: 1 },
+    { id: 's-w', title: 'The Tessellate', status: 'in_progress', proposed: 9, unpaid: 9,
       is_world: 1 },
   ];
   const out = w(rows);
@@ -4672,8 +4660,8 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
     /data-edit="p-5"/.test(sel) ? { closest: () => ({ getBoundingClientRect: () => ({ bottom: 500 }) }) }
     : null;
   try {
-    // A REPAINT THAT CHANGED NOTHING MUST NOT MOVE THE PAGE — an edit, a panel, a toast, the
-    // contradiction check landing a few seconds after a passage. Since 2026-10-27 it stays exactly
+    // A REPAINT THAT CHANGED NOTHING MUST NOT MOVE THE PAGE — an edit, a panel, a toast, a result
+    // landing a few seconds after a passage. Since 2026-10-27 it stays exactly
     // where it was; it went to the bottom whenever you were near it (Seth: "as soon as it's done it
     // moves the text to the bottom and it's really annoying").
     atTip();

@@ -579,13 +579,13 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
 
   // A RETIRED CARD MUST BE VISIBLE SOMEWHERE. It stops reaching the model for the rest of the book
   // and the Threads screen draws it like any other, so without the way back a wrong press is
-  // invisible AND permanent. Sliced to the waiting panel on purpose — the same argument the mutes
-  // carry, and asserting it anywhere in the file would pass on a comment about it.
+  // invisible AND permanent. Sliced to the waiting panel on purpose: asserting it anywhere in the
+  // file would pass on a comment about it.
   {
     // #74: on the Workbench deck, as an upkeep card (`upkeepCards`), since upkeep became cards.
     const w = js.slice(js.indexOf('function upkeepCards() {'), js.indexOf('\n}\n', js.indexOf('function upkeepCards() {')));
     assert.match(w, /<button class="btn(?: [^"]*)?" data-unretire="/,
-      'a finished thread must be liftable from Waiting, the way a mute is');
+      'a finished thread must be liftable from Waiting');
     assert.match(w, /retiredAtChapter/, 'and it must read the threshold off the view, not guess');
     ok('a finished thread is listed in Waiting with the press that brings it back');
   }

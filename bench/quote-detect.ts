@@ -14,7 +14,7 @@
 // "the thrifted military jacket swallowing her frame" and "pulls out a weather-beaten Martin guitar",
 // the second jammed into a sentence built for a cigarette: "and taps one against the filter".
 //
-// The contradiction checker cannot see this class at all. Canon SAYS she carries that guitar, so a
+// A check against canon cannot see this class at all. Canon SAYS she carries that guitar, so a
 // passage saying she carries it agrees with canon perfectly; the incoherence is internal.
 
 /** Words to n-grams, punctuation and case thrown away. */

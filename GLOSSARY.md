@@ -5,7 +5,7 @@ of a tale that the writer and the model share, and the only words the screens us
 
 Anansi is a spider and a tailor of stories. Both trades work in thread. **Spider words are for
 making** new prose (weave, reweave). **Tailor words are for handling what is made** (chalk, alter,
-mend, hem). Things keep plain or already-themed names. A word a new writer would not guess
+hem). Things keep plain or already-themed names. A word a new writer would not guess
 carries its plain meaning in its tip the first time it appears.
 
 Each term: what it means, the words a screen must not use for it (_Avoid_), and the name the code

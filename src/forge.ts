@@ -17,7 +17,7 @@
 //
 // THE CARD REGISTER IS NOT RESTATED EITHER. `LEDGER_REGISTER` is what this app's own prompts send
 // when they ask for a card, and F36 is why it matters: a finished English sentence sitting in a
-// prompt comes back verbatim in the book, by a route the contradiction checker cannot see. A forged
+// prompt comes back verbatim in the book, by a route no check can see. A forged
 // card is read on every call exactly like a written one, so it is held to the same rule, from the
 // same string.
 

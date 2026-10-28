@@ -70,8 +70,8 @@ const words = (t: string) => t.trim().split(/\s+/).filter(Boolean).length;
  *  three, and the copy is how the greedy-number bug got written twice.
  *
  *  A model asked to shorten prose drops the specific before the ornamental — a number, a name, a
- *  debt — which is exactly what a ledger holds, and the contradiction checker cannot catch it
- *  because it never sees the old version. So every rewrite is diffed and anything that lost a
+ *  debt — which is exactly what a ledger holds, and nothing reading only the new version could
+ *  catch it. So every rewrite is diffed and anything that lost a
  *  fact is left for a person. It FLAGS and never auto-rejects: a false positive that silently
  *  skipped a room is the worse failure. */
 const { factsLost: lost } = await import('../src/context.ts');
