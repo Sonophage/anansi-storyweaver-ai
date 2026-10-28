@@ -13,6 +13,14 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+
+## 2026-10-27 · No more contradiction check
+
+### Anansi no longer checks each passage for contradictions
+After each passage, Anansi used to read it against your threads and mark knots. It often marked a
+tale's own take on its world as a mistake, and its result redrew the page a few seconds after every
+passage. It is switched off. Knots it already found stay on the Workbench until you deal with them.
+
 ## 2026-10-27 · The Workbench, easier to move through
 
 ### A hem says what it is doing

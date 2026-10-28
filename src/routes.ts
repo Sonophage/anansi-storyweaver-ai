@@ -1648,7 +1648,16 @@ export function classify(existing: any[], p: any) {
  *  it passed over is not checked again. Detached — a flag is not worth making the writer wait, and
  *  it appears on the next refresh. Background work, so it names no model and runs on the local
  *  default (ADR 0001). */
+// OFF SINCE 2026-10-27, AND MARKED FOR DELETION (Seth: "turn off conflict check and mark it for
+// deletion, we may not need it"). It flagged Kia's own version of Elden Ring as mistakes, its knots
+// repainted the page after every passage, and its corrections rewrote prose. Knots already found
+// stay on the Workbench; no new ones are looked for. ANANSI_CANON_CHECK=1 turns it back on (the
+// suite that tests it sets it).
+// ponytail: dead code kept for one decision (#94). Trigger: Seth deciding to delete it; then remove
+// `check`, `checkLanded`, POST /api/check and /api/repair, the violations table and the knot cards.
+const CANON_CHECK_ON = () => process.env.ANANSI_CANON_CHECK === '1';
 function checkLanded(c: Ctx, storyId: string, passageId: string) {
+  if (!CANON_CHECK_ON()) return;
   void check(c, storyId, passageId).catch(() => {});
 }
 

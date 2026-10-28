@@ -17,6 +17,8 @@ import { unlinkSync } from 'node:fs';
 const DB = '/tmp/anansi-check.db';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync(DB + f); } catch {} }
 process.env.ANANSI_DB = DB;
+// The landed-passage check is off by default since 2026-10-27; this suite tests it, so it turns it on.
+process.env.ANANSI_CANON_CHECK = '1';
 
 const CANON = 'Vel is the Murmur. She has never been anyone else.';
 const BROKEN = 'She was no longer the Murmur, and the city knew it.';
@@ -470,6 +472,22 @@ const ok = (m: string, fn?: unknown) => {
   assert.strictEqual(row.author, 'model', 'the reply is the model\'s');
   assert.strictEqual(row.speaker, null, 'and it carries no speaker: it answers Vel, it is not Vel speaking');
   ok('  a reply to a spoken line is not filed as the speaker\'s line');
+}
+
+// ---- 8 · OFF BY DEFAULT (2026-10-27). With ANANSI_CANON_CHECK unset, a landed passage asks for no check.
+{
+  await new Promise((r) => setTimeout(r, 400));   // the checks the sections above started, settled first
+  delete process.env.ANANSI_CANON_CHECK;
+  calls = [];
+  reply = { prose: BROKEN, found: 1, inDialogue: false, canon: 1 };
+  const h: any = await routes['POST /api/generate'](ctx({ storyId: story.id, mode: 'direct',
+    directive: 'She walks into the light.', stream: true }));
+  const r: any = await h.__stream(() => {});
+  assert.ok(r.passageId, 'a passage still lands');
+  await new Promise((r) => setTimeout(r, 300));
+  assert.strictEqual(calls.filter((x) => x.kind === 'check').length, 0, 'CHECK-OFF: and no contradiction check is asked for');
+  process.env.ANANSI_CANON_CHECK = '1';
+  ok('  the landed-passage check is off unless ANANSI_CANON_CHECK=1');
 }
 
 console.log(`\n${n} checks passed`);
