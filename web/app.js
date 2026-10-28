@@ -1572,6 +1572,7 @@ function closePassEdit(t = null) {
 function drawDoc() {
   const read = $('read'), col = $('col');
   const tip = read.scrollHeight - read.scrollTop - read.clientHeight < 140;
+  const was = read.scrollTop;
   // ONE chapter at a time. Every chapter in one scroll was fine at three passages and is not at
   // 358: you cannot jump to a chapter, and the browser holds the whole book in the DOM. The
   // engine has focused a chapter since it was written — view(storyId, focusChapterId) — and the
@@ -1746,7 +1747,15 @@ function drawDoc() {
   if (HOLD_SCROLL != null) { read.scrollTo({ top: HOLD_SCROLL, behavior: 'instant' }); HOLD_SCROLL = null; }
   // 'instant': #read has scroll-behavior:smooth, so assigning scrollTop GLIDES, and a glide still
   // running when Anansi's first word lands is the page moving under the words (Seth, 2026-10-26).
-  else if (tip && !(grew && pinTo(DREW.newest))) read.scrollTo({ top: read.scrollHeight, behavior: 'instant' });
+  // A REPAINT THAT CHANGED NOTHING LEAVES THE PAGE EXACTLY WHERE IT WAS. It went to the bottom
+  // whenever you were near it, so the repaint that follows a passage landing (the contradiction
+  // check's result arriving on the live channel, a few seconds later) threw the page down past the
+  // words you were reading, into the room held under them. Seth, 2026-10-27: "as soon as it's done
+  // it moves the text to the bottom and it's really annoying". Only a new chapter goes to the
+  // bottom now, and only a passage that arrived pins the seam.
+  else if (grew && tip) { if (!pinTo(DREW.newest)) read.scrollTo({ top: read.scrollHeight, behavior: 'instant' }); }
+  else if (tip && (!DREW || DREW.chapter !== ch.id)) read.scrollTo({ top: read.scrollHeight, behavior: 'instant' });
+  else read.scrollTo({ top: was, behavior: 'instant' });
   // anchorLive's room is per chapter, and goes when anything is deleted (Seth, 2026-10-27: "if
   // something is deleted it should get rid of the empty space").
   const drawnNow = (V.passages ?? []).length;

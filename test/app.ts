@@ -3633,12 +3633,14 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
     /data-edit="p-5"/.test(sel) ? { closest: () => ({ getBoundingClientRect: () => ({ bottom: 500 }) }) }
     : null;
   try {
-    // A REPAINT THAT CHANGED NOTHING MUST NOT MOVE THE PAGE — an edit, a panel, a toast. It goes to
-    // the bottom because that is what being at the tip has always meant, and never to the seam.
+    // A REPAINT THAT CHANGED NOTHING MUST NOT MOVE THE PAGE — an edit, a panel, a toast, the
+    // contradiction check landing a few seconds after a passage. Since 2026-10-27 it stays exactly
+    // where it was; it went to the bottom whenever you were near it (Seth: "as soon as it's done it
+    // moves the text to the bottom and it's really annoying").
     atTip();
     redraw();
-    assert.strictEqual(read.scrollTop, 9000,
-      'a repaint with the same newest passage keeps the old behaviour and does not pin');
+    assert.strictEqual(read.scrollTop, 8500,
+      'STAY-PUT: a repaint with the same newest passage leaves the page where it was');
 
     // NOW ONE ARRIVES. p-6 lands after p-5, so p-5 is the seam: 500 down, less 72 of peek, from a
     // pane already scrolled 8500 — the point is that it is NOT scrollHeight.
@@ -3654,7 +3656,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
     // AND ONLY ONCE. The same passage is not new on the next repaint.
     atTip();
     redraw();
-    assert.strictEqual(read.scrollTop, 9000, 'the next repaint is an ordinary one again');
+    assert.strictEqual(read.scrollTop, 8500, 'the next repaint is an ordinary one again: it stays put');
 
     /* AND WHEN THE SEAM IS NOT ON THE PAGE, IT STILL MOVES. `pinTo` returns false so the caller
      * falls back to the bottom — reading mode draws every chapter, a jump can leave the seam

@@ -21,6 +21,11 @@ The slider used to change only how strong the picture was, so past a fifth of th
 do nothing. It now also moves where the page takes over, so the picture reaches further across as
 you raise it.
 
+### The page stays put after Anansi finishes
+A few seconds after a passage landed, the page jumped to the bottom, past the words you were
+reading. A redraw that changes nothing now leaves the page exactly where you are. Only a new
+passage arriving, or moving to another scene, moves it.
+
 ### The picture no longer blinks when Anansi finishes
 The picture behind the prose was drawn again every time the page was, so it blinked when a passage
 landed. It is now drawn again only when you change it.
