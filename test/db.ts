@@ -3452,6 +3452,11 @@ ok('a tale keeps its cover blur and flip, a partial save leaves them, and a copy
   db.updateStory(t.id, { coverBlur: 999 });
   assert.strictEqual(view(t.id).cover_blur, db.MAX_COVER_BLUR, 'and the blur is capped');
   db.updateStory(t.id, { coverBlur: 8 });
+  assert.strictEqual(view(t.id).cover_fade, 1, 'the fade is on by default');
+  db.updateStory(t.id, { coverFade: false });
+  assert.strictEqual(view(t.id).cover_fade, 0, 'and can be turned off');
+  db.updateStory(t.id, { title: 'Cover still' });
+  assert.strictEqual(view(t.id).cover_fade, 0, 'and a save that does not name it leaves it off');
   const copy = db.duplicateStory(o, t.id, 'Cover copy') as any;
   const cid = copy?.id ?? copy;
   assert.deepStrictEqual([view(cid).cover_blur, view(cid).cover_flip], [8, 1], 'a copy of the tale carries them');

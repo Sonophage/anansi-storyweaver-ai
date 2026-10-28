@@ -716,9 +716,20 @@ input[type="checkbox"]:focus-visible { outline:2px solid var(--gold); outline-of
 #backdrop { position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
 #backdrop > i { position:absolute; inset:0; display:block; background-size:cover;
   background-position:center; }
+/* A SOFT RAMP, eased at both ends (Seth, 2026-10-27: the slider "needs a softer gradient between
+   black and image"). It was one straight line from clear to the page colour, which reads as an edge;
+   five stops on a smoothstep curve read as light falling off. `--r` is where the page takes over:
+   62% on a desk, moved by the strength slider through `--reach` (drawDoc). Turned off entirely by
+   the tale's Fade switch (`.nofade`), so a tale can have the fade, the blur, or both. */
 #backdrop > u { position:absolute; inset:0; display:block;
+  --r:clamp(20%, calc(62% + var(--reach, 0) * 33%), 98%);
   background:linear-gradient(var(--fade-dir, 90deg), transparent 0%,
-    var(--doc-bg) clamp(20%, calc(62% + var(--reach, 0) * 33%), 98%)); }
+    color-mix(in srgb, var(--doc-bg) 6%, transparent) calc(var(--r) * 0.2),
+    color-mix(in srgb, var(--doc-bg) 30%, transparent) calc(var(--r) * 0.45),
+    color-mix(in srgb, var(--doc-bg) 66%, transparent) calc(var(--r) * 0.7),
+    color-mix(in srgb, var(--doc-bg) 90%, transparent) calc(var(--r) * 0.88),
+    var(--doc-bg) var(--r)); }
+#backdrop.nofade > u { display:none; }
 /* Flipped: the picture whole down the right, the page taking over toward the left. (2026-10-27) The
    blur is set on the picture itself by drawDoc, by the tale's own amount, and pulled past the edges
    by twice that so it has no pale rim. */
@@ -741,8 +752,7 @@ input[type="checkbox"]:focus-visible { outline:2px solid var(--gold); outline-of
 /* On a phone the column IS the window, so there is no side for the picture to be whole down: the
    gradient goes nearly to the top of it and the image reads as a wash rather than a photograph. */
 @media (max-width:719px) {
-  #backdrop > u { background:linear-gradient(var(--fade-dir, 90deg), transparent 0%,
-    var(--doc-bg) clamp(10%, calc(34% + var(--reach, 0) * 56%), 95%)); }
+  #backdrop > u { --r:clamp(10%, calc(34% + var(--reach, 0) * 56%), 95%); }
 }
 #doc.plated .plate { border-top-left-radius:0; border-top-right-radius:0; }
 @media (max-width:719px) { #read { padding:22px 22px 0; } }

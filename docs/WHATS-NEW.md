@@ -10,6 +10,23 @@ distinguishing them.
 Everything below this line was written by that model call, before it was removed on
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
+
+## 2026-10-27 · Anansi's words land as they were written
+
+### No more reformatting when he finishes
+While Anansi wrote, his passage showed as one block with blank lines, and the moment it finished it
+was set again as indented paragraphs with each line of speech on its own. It is now set that way
+from the first word, so nothing moves when it lands. The first passage of a scene gets its large
+first letter while it is written, too.
+
+### Hemming no longer opens a drawer
+Pressing Hem this scene used to open What he reads over the new scene. It now leaves you in the new
+scene.
+
+### A softer fade, and the fade is optional
+The fade from the picture into the page is softer, easing in and out instead of a straight line.
+A new switch, Fade it into the page, turns it off, so a picture can be faded, blurred, or both.
+
 ## 2026-10-27 · Hemming no longer makes you wait
 
 ### Hemming chalks less

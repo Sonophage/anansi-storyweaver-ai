@@ -886,6 +886,10 @@ ok('a chapter wears the book cover as its plate, and the title moves onto it');
   click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
   assert.doesNotMatch(html('backdrop'), /<!--kept-->/, 'a change to it does redraw it');
   assert.strictEqual(nodes.get('backdrop').className, 'blur flip', 'blurred and flipped when the tale asks');
+  (STORY.story as any).coverFade = false;
+  click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
+  assert.strictEqual(nodes.get('backdrop').className, 'blur flip nofade', 'COVER-FADE: and the fade can be off, leaving the blur alone');
+  (STORY.story as any).coverFade = true;
   assert.match(html('backdrop'), /filter:blur\(6px\); inset:-12px/, 'by the amount the tale asks');
   (STORY.story as any).coverBlur = 0; STORY.story.coverFlip = false;
   // The plate and the backdrop are two treatments of one picture and must never both be on: the
@@ -2075,7 +2079,25 @@ ok('what is owed is a dot on the hero\'s Carry on, and its label says what');
 // Set like a book: dialogue breaks out into its own paragraph, and a quote inside a sentence does
 // not. Pure, so it is tested here rather than through a browser.
 {
-  const { bookParagraphs } = await import('../web/model.js');
+  const { bookParagraphs, inkParagraphs } = await import('../web/model.js');
+  // STREAMED AS IT WILL LAND (2026-10-27): word by word through inkParagraphs gives the same
+  // paragraphs bookParagraphs gives the finished passage, so nothing reflows when it lands.
+  {
+    const mk = (tag: string): any => { const o: any = { tagName: tag.toUpperCase(), kids: [] as any[], dataset: {},
+      _t: '', append(c: any) { o.kids.push(c); }, get lastElementChild() { return o.kids.at(-1) ?? null; },
+      get textContent() { return o.kids.length ? o.kids.map((k: any) => k.textContent).join('') : o._t; },
+      set textContent(v: string) { o._t = v; } }; return o; };
+    const doc = { createElement: mk };
+    const streamed = (body: string) => {
+      const el = mk('div');
+      for (const w of body.match(/[^ ]+ ?| /g) ?? []) inkParagraphs(el, w, doc);
+      return el.kids.map((p: any) => p.textContent.trim());
+    };
+    for (const body of ['She crossed the room. "You came," he said. The rain kept on.',
+                        'The door shut.\n\nNobody moved.\nThen the lamp went out.',
+                        'The sign said "closed", so she left. "Wait," he called.\n\n"No."'])
+      assert.deepStrictEqual(streamed(body), bookParagraphs(body), `STREAM-PARAS: streamed like it lands: ${JSON.stringify(body)}`);
+  }
   assert.deepStrictEqual(
     bookParagraphs('She crossed the room. "You came," he said. The rain kept on.'),
     ['She crossed the room.', '"You came," he said. The rain kept on.'],
@@ -5655,6 +5677,8 @@ const hemCardOf = (side: string) => {
     click({ endchapter: '1' }); await settle(); await settle();
     assert.ok(POSTED.some((p: any) => p.url === '/api/chapter/end'), 'Hem this scene closes the scene');
     assert.doesNotMatch(html('sideBody'), /data-setupstep=/, '  and lands in the new scene, not on its setup');
+    // NO DRAWER OPENS (Seth, 2026-10-27: "When the scene is hemmed it opens the context window").
+    assert.ok(nodes.get('side').hidden, 'HEM-NO-DRAWER: and no drawer opens over the new scene');
     assert.match(String(nodes.get('toast').textContent), /Workbench/,
       '  and a short line says the card will wait on the Workbench');
     // Setup opens on what the scene left (its card, running), and the new scene is one step on.

@@ -214,6 +214,32 @@ export const bookParagraphs = (body) => String(body ?? '')
     .split(/(?<=[.!?…][)"'\u201d]?\s)(?=["\u201c])/u)
     .map((s) => s.trim()))
   .filter(Boolean);
+/** ONE CHUNK OF STREAMED NARRATION INTO PARAGRAPHS, the way `bookParagraphs` (web/model.js) sets the
+ *  landed passage: a new paragraph at every line break (blank lines collapse), and before an opening
+ *  quote that starts a sentence. Leading space at a paragraph's start is dropped, as the landed
+ *  paragraphs are trimmed. Text goes in as text nodes inside spans, never as HTML: it is model
+ *  output. Returns the spans it made, for the ink-in animation. */
+export function inkParagraphs(el, chunk, doc = globalThis.document) {
+  const made = [];
+  let p = el.lastElementChild?.tagName === 'P' ? el.lastElementChild : null;
+  const open = () => { p = doc.createElement('p'); el.append(p); return p; };
+  for (const part of String(chunk).split(/(\n)/)) {
+    if (part === '\n') { if (p && p.textContent.trim()) p.dataset.closed = '1'; continue; }
+    let piece = part;
+    if (!piece) continue;
+    const fresh = !p || p.dataset.closed === '1'
+      || (/^\s*["\u201c]/.test(piece) && /[.!?\u2026][)"'\u201d]?\s$/.test(p.textContent));
+    if (fresh) { piece = piece.replace(/^\s+/, ''); if (!piece) continue; open(); }
+    else if (!p.textContent) piece = piece.replace(/^\s+/, '');
+    if (!piece) continue;
+    const sp = doc.createElement('span');
+    sp.textContent = piece;
+    p.append(sp);
+    made.push(sp);
+  }
+  return made;
+}
+
 export const ago = (t) => { const d = (Date.now() - t) / 864e5;
   return d < 1 ? 'today' : d < 2 ? 'yesterday' : `${Math.floor(d)} days ago`; };
 

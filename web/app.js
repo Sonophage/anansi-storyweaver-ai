@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash } from './model.js';
+import { inkParagraphs, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -1618,11 +1618,12 @@ function drawDoc() {
       // backdrop blinked each time the page was drawn, which is the "still refreshing" Seth saw when
       // a passage landed (2026-10-27).
       const strength = Math.max(0, Math.min(100, V.story.coverOpacity ?? 30));
-      const key = [S.storyId, V.cover, strength, V.story.coverBlur, V.story.coverFlip].join('|');
+      const fade = V.story.coverFade !== false;
+      const key = [S.storyId, V.cover, strength, V.story.coverBlur, V.story.coverFlip, fade].join('|');
       if (back.dataset.key !== key) {
         back.dataset.key = key;
         const blur = Math.max(0, Number(V.story.coverBlur) || 0);
-        back.className = `${blur ? 'blur' : ''} ${V.story.coverFlip ? 'flip' : ''}`.trim();
+        back.className = [blur && 'blur', V.story.coverFlip && 'flip', !fade && 'nofade'].filter(Boolean).join(' ');
         back.innerHTML = `<i style="background-image:url('${api.coverUrl(S.storyId, V.cover)}');
           opacity:${strength / 100}${blur ? `; filter:blur(${blur}px); inset:-${blur * 2}px` : ''}"></i><u style="--reach:${((strength - 30) / 70).toFixed(3)}"></u>`;
       }
@@ -3892,6 +3893,9 @@ const PANELS = {
             data-story="coverBlur" value="${Number(V.story.coverBlur) || 0}">
           <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
             >${Number(V.story.coverBlur) ? `${Number(V.story.coverBlur)}px` : 'none'}</span></div>
+        <label class="line pressable push-12">
+          <input type="checkbox" data-story="coverFade" ${V.story.coverFade !== false ? 'checked' : ''}>
+          <span class="body-ink">Fade it into the page</span></label>
         <label class="line pressable push-8">
           <input type="checkbox" data-story="coverFlip" ${V.story.coverFlip ? 'checked' : ''}>
           <span class="body-ink">Show it on the right, fading to the left</span></label>
@@ -8887,7 +8891,10 @@ function ghost() {
     // "add the label too"). The same words passageHTML writes on the landed passage.
     const accented = [...MODES.map(([k]) => k), 'continue'].includes(GHOST_MODE);
     const press = MODES.find(([k]) => k === GHOST_MODE)?.[1] ?? (GHOST_MODE === 'continue' ? 'Continue' : 'Anansi');
-    g.id = 'ghost'; g.className = `block inlive${accented ? ` m-${GHOST_MODE}` : ''}${GHOST_VOICE ? ' speak' : ''}`;
+    // THE DROP CAP TOO, when this is the scene's first passage: it lands with one (`opening`,
+    // passageHTML), so it is written with one rather than gaining it as it lands (2026-10-27).
+    const opens = !GHOST_VOICE && !(V?.passages ?? []).some((p) => p.chapterId === V?.currentChapter?.id && !p.isBreak);
+    g.id = 'ghost'; g.className = `block inlive${accented ? ` m-${GHOST_MODE}` : ''}${GHOST_VOICE ? ' speak' : ''}${opens ? ' opening' : ''}`;
     // SET AS IT WILL LAND. A passage with a named voice lands as speech — sans, the bubble size, the
     // name above it — and one that opens on a quote does too (`spoken`, passageHTML). It was always
     // written as narration and changed font the moment it landed (Seth, 2026-10-26). The voice is
@@ -9110,12 +9117,18 @@ function drainVeil(now) {
     let cut = PEND.indexOf(' ') + 1;
     if (cut <= 0) cut = VEIL_DONE ? PEND.length : 0;
     if (cut > 0) {
-      const span = document.createElement('span');
-      span.className = 'w tip';
-      span.textContent = PEND.slice(0, cut);   // a text node, never innerHTML: this is model output
+      const text = PEND.slice(0, cut);
       SEEN += cut;
       PEND = PEND.slice(cut);
-      el.append(span);
+      // INLINE NARRATION IS SET AS IT WILL LAND: paragraphs, by bookParagraphs' own rule. It streamed
+      // as one pre-wrapped run (blank lines, speech inline) and became indented paragraphs with each
+      // line of speech on its own the moment it landed. Seth, 2026-10-27: "it stops writing and then
+      // it reformats the text". Speech (`.said`) lands unparagraphed, so it streams that way too.
+      const paged = INLINE && el.parentElement?.classList.contains('narr');
+      const spans = paged ? inkParagraphs(el, text) : [Object.assign(document.createElement('span'), { textContent: text })];
+      if (!paged) el.append(spans[0]);
+      for (const sp of spans) sp.classList.add('w', 'tip');
+      const span = spans.at(-1);
       /* THE GLOW GOES ON THE FIRST WORD — Seth, 2026-09-02: "Remove the border around the ghost as
        * soon as something starts streaming." The glow says something is happening, and once words
        * are appearing the words say it better than a border can. So the glow belongs to the WAIT:
@@ -9125,7 +9138,7 @@ function drainVeil(now) {
       root.dataset.streaming = '1';
       // THE ACCENT IS A TAIL, not a highlight: it marks where the writing has got to, so it has to
       // let go of the word behind it as it moves.
-      TIP.push(span);
+      TIP.push(...spans.slice(0, -1).filter(Boolean)); if (span) TIP.push(span);
       while (TIP.length > TIP_N) TIP.shift().classList.remove('tip');
       const fill = el.closest('.narr')?.querySelector('.veilmeter i');
       if (fill) fill.style.height = veilFill(SEEN, false).toFixed(1) + '%';
@@ -12162,7 +12175,9 @@ document.addEventListener('click', async (e) => {
     // LAND IN THE NEW SCENE, BLANK. The writer starts it themselves (spec #82, stories 1 and 2):
     // no setup to step through, no name asked of Anansi — the hem brings its suggestion to the card,
     // and Use these fills the boxes. No opening passage is written either: that is `savesetup`'s.
-    S.setup = null; S.setupStep = null; S.panel = 'context';
+    // AND NO DRAWER OPENS over it. This set What he reads open (Seth, 2026-10-27: "When the scene is
+    // hemmed it opens the context window, that shouldn't happen").
+    S.setup = null; S.setupStep = null; S.panel = null;
     syncHash(); paint(); refreshManifest();
     toast(`${sceneName(closing)} is being hemmed. Its card will wait on the Workbench.`);
     return;
