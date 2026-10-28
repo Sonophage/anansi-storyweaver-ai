@@ -3478,6 +3478,18 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
     await settle(/data-sp="persona"/);
     assert.match(html('page'), /data-sp="persona"/, 'WIZ-YOU: the You step asks who you play');
     assert.match(html('page'), /data-sp="personaAbout"/, '  and who they are, if they are new');
+    // WIZ-HOLD (#95): the press that holds the one you play, and Hands off's offer of them, follow
+    // the name as it is typed. Both were drawn only from the name the step opened with, so a writer
+    // who typed one saw neither until they left the step and came back.
+    assert.doesNotMatch(html('page'), /Mara Voss/, 'WIZ-HOLD: before the name is typed, nothing offers it');
+    {
+      const field = { dataset: { sp: 'persona' }, value: 'Mara Voss' };
+      onScreen = { '[data-sp]': [field] };
+      (listeners.change ?? []).forEach((f: Function) => f({ target: field }));
+      onScreen = {};
+      assert.match(html('page'), /data-splock="1"[^>]*>Also keep Mara Voss/, 'WIZ-HOLD: typing a name offers to hold them');
+      assert.match(html('page'), /Mara Voss/, '  and Hands off offers them');
+    }
 
     // A new character, described, and held. Leaving You for the threads asks for them.
     onScreen = { '[data-sp]': [{ dataset: { sp: 'persona' }, value: 'Mara Voss' },

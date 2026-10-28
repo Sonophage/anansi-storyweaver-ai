@@ -16,6 +16,13 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-28 · Holding the one you play, in New tale
+
+### "Also keep … off the model" appears as soon as you name who you play
+On the You step of New tale, typing who you play now shows the button that keeps them off the
+model, and offers them under Hands off, as soon as you leave the box. Before, neither appeared
+until you went to another step and came back.
+
 ## 2026-10-28 · Tales set in a story or game, through your Worlds
 
 ### Name the IP, and the new tale follows your World

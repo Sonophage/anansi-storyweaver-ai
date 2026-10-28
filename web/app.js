@@ -10608,6 +10608,15 @@ document.addEventListener('change', (e) => {
     paint();
     return;
   }
+  // WHO YOU PLAY, once it is typed (#95). The You step draws "Also keep … off the model" and Hands
+  // off's offer of them from the name; without a redraw here neither appeared until the writer left
+  // the step and came back. On `change`, not `input`, so nothing is redrawn under a typing finger,
+  // and every field is harvested first so the redraw keeps what was written in the others.
+  if (el?.dataset?.sp === 'persona' && S.spark) {
+    harvestSpark();
+    paint();
+    return;
+  }
   if (!S.storyId) return;
   // The sampler's own path: a different route, and it reads the whole panel rather than one field.
   if (el?.dataset?.gen !== undefined) return void commitGen();
