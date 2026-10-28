@@ -74,6 +74,8 @@ export interface Passage {
 }
 export interface Story {
   title: string; genre: string; premise: string; setting: string;
+  /** #125. Where the tale stands at the scene being written, when the writer has sewn one in. */
+  stands?: string;
   /** #75. The tale's own pockets, switched on: instructions for the whole tale ("keep it a slow burn"). */
   pockets?: string[];
   pov: string; writingStyle: string; spice: 1 | 2 | 3 | 4 | 5;
@@ -986,7 +988,12 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
      * budget, the paragraph is recoverable furniture. A book whose world got trimmed to nothing
      * would be written as generic fantasy, which is the failure this exists to prevent. */
     { text: story.world?.trim() ? `This book is set in ${story.world.trim()}.` : '', keep: true },
-    { text: story.premise, keep: true },
+    // #125 · ADR 0010. WHERE THE TALE STANDS, once the writer has sewn one in: the paragraph in
+    // force at this scene, in the premise's place and kept as the premise was. The premise was true
+    // on page one and reads to the model as the present; this moves with the tale. Resolved above
+    // the purity line (`story.ts`) and handed in on `story.stands`. Without one, the premise.
+    // NOT MEASURED: owed an A/B against the premise-only prompt (ADR 0010).
+    { text: story.stands?.trim() || story.premise, keep: true },
     { text: story.worldNote?.trim()
       ? `About ${story.world?.trim() || 'that world'}: ${story.worldNote.trim()}` : '', keep: false },
     { text: `Setting: ${story.setting}`, keep: false },

@@ -142,6 +142,20 @@ ok('the world a book belongs to rides in SPINE, and only the note is trimmable',
     'the world is still named after a trim — it is keep:true, like the premise');
 });
 
+// #125 · ADR 0010. Once the writer has sewn in where the tale stands, SPINE carries that paragraph
+// in the premise's place, kept untrimmed like the premise was. Without one, the premise as before.
+ok('where the tale stands replaces the premise in SPINE, and without one the premise stays', () => {
+  const none = buildContext(base(), count).blocks.find((b) => b.kind === 'SPINE')!;
+  assert.match(none.text, /A debt comes due\./, 'with nothing sewn in, the premise is sent as before');
+  const i = base();
+  (i.story as any).stands = 'Aldis holds the key and owes Marek a sum he cannot pay.';
+  // Over the cap, so the trim runs: the paragraph must survive it, as the premise did.
+  i.story.setting = 'A cathedral of iron. '.repeat(400);
+  const sp = buildContext(i, count).blocks.find((b) => b.kind === 'SPINE')!;
+  assert.match(sp.text, /Aldis holds the key and owes Marek/, 'where the tale stands is sent, whole');
+  assert.doesNotMatch(sp.text, /A debt comes due/, 'and the premise is not');
+});
+
 ok('the chapter brief is two halves, and only one of them rides every call', () => {
   // Seth, 2026-09-02: "the start should be used as information for the very first scene and the
   // where is this going is only used as a suggestion for the direction of the chapter, not
