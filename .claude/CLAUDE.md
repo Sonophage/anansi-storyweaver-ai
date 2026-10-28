@@ -11,8 +11,7 @@ node --experimental-strip-types status.ts
 ```
 
 Everything it prints is derived at the moment you run it: routes, debt markers, tables on disk,
-whether the search index is actually populated, whether each recorded check is writing rows
-(`SILENT` when it is not), **which prompt flags the running server has**, and how old each backup is. Nothing in it is typed by hand.
+whether the search index is actually populated, **which prompt flags the running server has**, and how old each backup is. Nothing in it is typed by hand.
 
 It is **read-only**: it opens the library with a read-only connection, runs no migration and no
 repair, and leaves the file byte-identical (`test/status.ts` checks this). If the file's schema is
