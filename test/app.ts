@@ -5632,8 +5632,29 @@ const hemCardOf = (side: string) => {
   leave('   '); await settle();
   assert.strictEqual(sums().length, saved, '  and an emptied box saves nothing: removing a summary stays on Chapters');
 
+  // EDITED ON THE CARD, saved as you go (Seth, 2026-10-27: "I can't edit the next scenes info from the
+  // worktable"). Three boxes, holding the suggestion; leaving one saves all three to the next scene.
+  // The scene's own title where it has one (the fixture's c-2 is The Envoy), else the suggestion.
+  assert.match(card, /data-hemnext="title"[^>]*value="The Envoy"/, 'HEM-NEXT-EDIT: the title is a box on the card');
+  assert.match(card, /data-hemnext="note"[^>]*>By the end the debt is called in/, '  and the note');
+  assert.match(card, /data-hemnext="opens"[^>]*>Rain on the shutters\./, '  and the opening');
+  const chapterSaves = () => POSTED.filter((p: any) => p.url === '/api/chapter');
+  const before = chapterSaves().length;
+  const nextId = String(card.match(/data-hemnext="title" data-ch="([^"]+)"/)?.[1]);
+  const fields: Record<string, string> = { title: 'The Rust Year, again', note: 'By the end the debt is paid.', opens: 'Rain.' };
+  const doc = (globalThis as any).document, wasQSA = doc.querySelectorAll;
+  doc.querySelectorAll = (sel: string) => /data-hemnext/.test(sel)
+    ? Object.entries(fields).map(([k, v]) => ({ value: v, dataset: { hemnext: k, ch: nextId } })) : wasQSA?.call(doc, sel) ?? [];
+  (listeners.change ?? []).forEach((f: Function) => f({ target: { value: fields.title, dataset: { hemnext: 'title', ch: nextId } } }));
+  await settle();
+  doc.querySelectorAll = wasQSA;
+  assert.strictEqual(chapterSaves().length, before + 1, 'HEM-NEXT-SAVE: leaving a box saves the next scene once');
+  assert.deepStrictEqual(chapterSaves().at(-1)?.body, { storyId: 's-1', chapterId: nextId,
+    chapter: { title: 'The Rust Year, again', authorsNote: 'By the end the debt is paid.', opensWith: 'Rain.' } },
+    '  with all three boxes as they stand');
+
   // USE THESE: the new scene's three boxes hold the suggestion, and nothing is saved yet.
-  const saves = POSTED.filter((p: any) => p.url === '/api/chapter').length;
+  const saves = chapterSaves().length;
   click({ usehem: 'c-1' }); await settle();
   const setup = html('sideBody');
   assert.match(setup, /data-setup="title" value="The Rust Year"/, 'Use these fills the new scene\'s title');

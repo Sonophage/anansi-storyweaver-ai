@@ -2590,10 +2590,23 @@ function hemCardParts(c) {
     <button class="btn ghost" data-hemagain="${id}" data-names="${esc(JSON.stringify(past))}">Ask for ${
       past.length === 1 ? 'it' : 'these'}</button>` : '';
   const s = h.suggestion, next = s && hemNext(ch);
+  // EDITED HERE, saved as you go (Seth, 2026-10-27: "I can't edit the next scenes info from the
+  // worktable"). Three boxes for the scene the hem opened, holding what that scene has already been
+  // given, else Anansi's suggestion; leaving any box saves all three to it (ADR 0004). Use these
+  // still opens the full setup.
+  const given = (v, dflt) => (String(v ?? '').trim() ? v : dflt) ?? '';
+  const nt = next ? given(/^Scene \d+$/.test(String(next.title ?? '')) ? '' : next.title, s.title) : '';
   const suggestion = next ? `<div class="lbl sub-lbl">Anansi's title and note for ${esc(sceneName(next))}</div>
     <div class="serif">${esc(s.title)}</div>
     ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
     ${s.opens ? `<div class="hint flush">Opens with: ${esc(s.opens)}</div>` : ''}
+    <div class="lbl sub-lbl push-12">${esc(sceneName(next))} as it stands</div>
+    <input class="field" data-hemnext="title" data-ch="${esc(next.id)}" aria-label="The next scene's title" value="${esc(nt)}">
+    <textarea class="field grow min-52" data-hemnext="note" data-ch="${esc(next.id)}" aria-label="Where the next scene is going"
+      placeholder="Where it is going">${esc(given(next.authorsNote, s.note))}</textarea>
+    <textarea class="field grow min-52" data-hemnext="opens" data-ch="${esc(next.id)}" aria-label="How the next scene opens"
+      placeholder="How it opens">${esc(given(next.opensWith, s.opens))}</textarea>
+    <div class="hint flush">Saves when you leave a box.</div>
     <button class="btn ghost push-8" data-usehem="${id}">Use these</button>` : '';
   const ids = esc(ps.map((p) => p.id).join(','));
   return {
@@ -2610,6 +2623,19 @@ function hemCardParts(c) {
  *  hem keeps it. On `change`, which a textarea fires when the writer leaves it, never per keystroke,
  *  so nothing saves mid-sentence. An emptied box saves nothing: removing a summary stays on the
  *  Chapters tab, where it takes two presses. */
+/** THE NEXT SCENE, EDITED ON A HEM CARD (2026-10-27): leaving any of its three boxes saves all three,
+ *  as they stand, to that scene. Read together so a title saved alone cannot blank the note. */
+document.addEventListener('change', async (e) => {
+  const ch = e.target?.dataset?.hemnext && e.target.dataset.ch;
+  if (!ch || !S.storyId) return;
+  const box = {};
+  for (const f of document.querySelectorAll(`[data-hemnext][data-ch="${ch}"]`)) box[f.dataset.hemnext] = String(f.value ?? '');
+  const r = await api.saveChapter(S.storyId, ch,
+    { title: (box.title ?? '').trim() || undefined, authorsNote: box.note ?? '', opensWith: box.opens ?? '' });
+  if (r.error) return toast(r.error);
+  V = await api.story(S.storyId, V?.currentChapter?.id); paint();
+  toast('Saved to the next scene.');
+});
 document.addEventListener('change', async (e) => {
   const el = e.target, id = el?.dataset?.hemsumtext;
   if (!id || !S.storyId || !String(el.value ?? '').trim()) return;

@@ -15,6 +15,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-27 · The Workbench, easier to move through
 
+### Change the next scene on the hem card
+A hemmed scene's card now has boxes for the next scene's title, where it is going, and how it opens,
+holding what it already has or Anansi's suggestion. Change any of them and it saves when you leave
+the box.
+
 ### Back and Next under the cards
 Moving between cards on the Workbench is now a Back and a Next button under the cards, big enough to
 press, with where you are between them.
