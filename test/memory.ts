@@ -1243,6 +1243,25 @@ ok('no interiority pocket for the played or Hands-off character');
   ok("a World person's change lands as a new thread in the tale, never on the World");
 }
 
+// NEVER IN THE WORLD, RETIREMENTS TOO. A World person dying in one tale is not the World's to
+// retire: other tales follow the same thread (ADR 0006). The fake answers with the World person,
+// so only the candidate list can keep him out.
+{
+  const w = db.createStory(me, { title: 'The Lands Between, again', premise: 'p' }) as any;
+  const godrick = db.upsertEntry(w.id, me, { title: 'Godrick', body: '[Godrick: holds Stormveil]', entryType: 'character', keys: ['Godrick'] });
+  const t = db.storyFollowing(me, w.id, 'Kia\'s other tale') as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const QUOTE = 'Godrick fell from the battlement and did not rise again';
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: `${QUOTE}.` });
+  finished = [{ card: 'Godrick', quote: QUOTE }];
+  await routes['POST /api/finished'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  finished = [];
+  const retired = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_type === 'retire');
+  assert.ok(!retired.some((p) => p.entry_id === godrick),
+    `RETIRE-NOT-WORLD: no retirement carries a World thread (${retired.map((p) => p.title)})`);
+  ok('a World thread is never offered for retirement');
+}
+
 
 // ---- #91 · RUN A HEM'S PASSES AGAIN ----
 //

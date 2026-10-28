@@ -28,6 +28,8 @@ export interface Entry {
   /** #79. The dated half of Over time that is not text: an outfit put on or taken off, the thread
    *  retired or brought back, each from a scene on. See `wornAt` and `retiredAt`. */
   events?: { kind: 'wear' | 'unwear' | 'retire' | 'return'; addonId?: string | null; fromChapter: number }[];
+  /** The World this thread is followed from, when it is a World's (ADR 0006). Null on a tale's own. */
+  sharedFrom?: string | null;
 }
 /** A room of a card: an appearance, a relationship, a voice. What an outfit already was,
  *  generalised — see `src/slots.ts`. Several of the plural slots can be live at once. */
@@ -815,6 +817,8 @@ export function retirable(entries: Entry[], window: string, persona?: string | n
   const who = String(persona ?? '').trim().toLowerCase();
   return entries.filter((e) => {
     if (e.entryType !== 'character' && e.entryType !== 'rule') return false;
+    // NEVER A WORLD'S THREAD: other tales follow it, so one tale's scene cannot end it (ADR 0006).
+    if (e.sharedFrom) return false;
     if (e.retiredAtChapter != null) return false;
     if (who && e.title.trim().toLowerCase() === who) return false;
     const title = e.title.trim();
