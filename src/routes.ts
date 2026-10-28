@@ -581,7 +581,15 @@ const REVIEW_TOKENS = 1600;
 /** Every changed character's WHOLE description, in one answer. A state replaces the body rather than
  *  adding to it, so each one is a full restatement and not a line — four characters at 600 characters
  *  each is the shape to leave room for. */
-const MEMORY_TOKENS = 1800;
+// RAISED 2026-10-27, 1800 to 4000: a hem asks once for every named thread (#82), and on Seth's tale
+// the remote model ran past 1800 twice (the ask and its retry) and the pass reported "the answer ran
+// past its length and was cut", so the hem chalked no thread changes at all. Six whole restatements
+// plus their pockets is the shape to leave room for now. A remote answer past its cap is treated as
+// cut (#64), so too small a cap costs the whole pass, not just its tail.
+const MEMORY_TOKENS = 4000;
+// The new-threads pass had no cap of its own and took `structured`'s 1000 (2000 on the retry): cut the
+// same way on the same hem. Several new threads, each with a body and pockets.
+const EXTRACT_TOKENS = 3000;
 // Six objects of a card name and one sentence. Small, and it still gets a named constant for the
 // reason every other role here does: running out of room truncates the OBJECT and costs a retry.
 const RETIRE_TOKENS = 400;
@@ -1355,7 +1363,7 @@ async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string
   const existing = db.entriesOf(v.id);
   const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
   if (!text.trim()) return { error: 'this scene is all dialogue — nothing the narrator committed' };
-  const r = await structuredRetry(EXTRACT, text, EXTRACT_SCHEMA, { model: backgroundModel(c, v) });
+  const r = await structuredRetry(EXTRACT, text, EXTRACT_SCHEMA, { model: backgroundModel(c, v), max_tokens: EXTRACT_TOKENS });
   if (!r.data?.entries) return { error: r.error ?? 'extraction returned nothing usable' };
   let added = 0;
   for (const e of r.data.entries) {
