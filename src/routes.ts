@@ -1043,7 +1043,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
  *  ponytail: one model call for every named thread at once, and the whole scene's narration in the
  *  prompt. Whether one call per thread places changes better is the #73 measurement; and a scene long
  *  enough to overflow the slot returns the overflow error rather than a partial memory. */
-async function remember(c: Ctx, storyId: string, chapterId: string) {
+async function remember(c: Ctx, storyId: string, chapterId: string, scene?: string) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
@@ -1081,7 +1081,8 @@ async function remember(c: Ctx, storyId: string, chapterId: string) {
     // this pass updates what exists and extraction is what adds something.
     const who = named.find((e: any) => norm(e.title) === norm(m.name));
     if (!who) continue;
-    const grp = `hem:${ch.id}:${who.id}`, line = quoted(m.line);
+    // One card per thread from this route; one card per scene from a hem, which hands `scene` in (#89).
+    const grp = scene ?? `hem:${ch.id}:${who.id}`, line = quoted(m.line);
     const delta = (m.label ?? '').trim().slice(0, 60) || 'changed by this scene';
     // WHERE IT STANDS. Whole, and not "none" (the model has put the field's vocabulary in the body
     // before), and not the text it already has.
@@ -1211,6 +1212,8 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
    *  ("nothing to read in this chapter"). Reporting only thrown errors would have left the most
    *  common silent case silent. Since #89 the report is stored on the hem's row, not returned.
    */
+  // #89. Everything this hem chalks is one Workbench card: the scene's group.
+  const scene = `scene:${closing}`;
   const passes: Record<string, string | null> = {};
   const run = async (name: string, on: boolean, fn: () => Promise<any>) => {
     if (!on) return null;
@@ -1233,7 +1236,7 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   const keptSummary = summed?.kept === true;
   if (keptSummary) passes.summary = null;
   // The character memory, on the same terms: a chapter must be able to close with the model down.
-  await run('memory', want.memory, () => remember(c, storyId, closing));
+  await run('memory', want.memory, () => remember(c, storyId, closing, scene));
   // And read it for facts. The comment above summarise applies to this word for word: the ledger
   // is the only tier that survives compaction — prose falls out of the chapter window, summaries
   // roll into arcs, and entries are re-sent on every call forever — so leaving the tier that
@@ -1245,13 +1248,13 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   //
   // The end-chapter ritual used to make this call itself as its own step 3. It must not again:
   // the scene would be read twice, and the surface would report on a pass that did not land.
-  await run('facts', want.facts, () => extract(c, storyId, closing));
+  await run('facts', want.facts, () => extract(c, storyId, closing, scene));
   // And ask which of them the chapter FINISHED. Last of the four deliberately: it is the only
   // step that takes something away, and a writer reading the queue should meet what the chapter
   // added before what it ended. Nothing is written here either — a retirement is a proposal, and
   // accepting one is the only decision in the app that changes what the model is told for the
   // rest of the book.
-  await run('finished', want.finished, () => retire(c, storyId, closing));
+  await run('finished', want.finished, () => retire(c, storyId, closing, scene));
   // The next scene's suggestion, last: it reads the summary the first pass just wrote.
   const next = await run('next', true, () => suggestScene(c, storyId, opened));
   db.finishHem(storyId, closing, { passes, kept: keptSummary,
@@ -1271,7 +1274,7 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
  *  handed it the lie. `remember`'s is the tested pattern, so `remember`'s is the one that stays.
  *  It matters more now that this fires on its own: a mistake behind a button is made when you press
  *  it, and a mistake on chapter close is made every chapter. */
-async function extract(c: Ctx, storyId: string, chapterId?: string) {
+async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
@@ -1309,7 +1312,7 @@ async function extract(c: Ctx, storyId: string, chapterId?: string) {
     if (db.addProposal(v.id, { ...cls, chapterId: ch.id, title: e.title.trim(),
       body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
       activation: e.activation, field: cls.entry_id ? field : 'facts', target,
-      rooms: Object.keys(rooms).length ? rooms : undefined })) added++;
+      rooms: Object.keys(rooms).length ? rooms : undefined, grp })) added++;
   }
   return { added, chapter: ch.index, proposals: db.proposalsOf(v.id) };
 }
@@ -1420,7 +1423,7 @@ async function extractStory(c: Ctx, storyId: string, entryId: string) {
  *  measured prompt to answer a second question is how a measurement stops meaning anything.
  *  Ceiling: four calls on a long chapter. Upgrade path: one call answering both, with both arms
  *  measured by `bench/retire.ts` before the old shape is deleted. */
-async function retire(c: Ctx, storyId: string, chapterId?: string) {
+async function retire(c: Ctx, storyId: string, chapterId?: string, grp?: string) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
@@ -1469,7 +1472,7 @@ async function retire(c: Ctx, storyId: string, chapterId?: string) {
       kind: 'retire', entryType: 'retire', entry_id: who.id, chapterId: ch.id, title: who.title,
       body: String(f.quote ?? '').trim() || 'done with by this scene',
       delta: `Retired: stops reaching the model from scene ${at}`,
-      keys: [String(at)],
+      keys: [String(at)], grp,
     })) proposed++;
   }
   // The denominator rides in the runtime answer and not only in the probe: "2 proposed" means

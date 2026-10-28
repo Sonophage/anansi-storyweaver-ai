@@ -955,7 +955,7 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
   answer = [{ name: 'Oren', stands: '[Oren: the ferryman, who has taken the ferry bell home]', label: 'took the bell',
     line: 'Oren cut the bell down from the ferry post', always: '', pockets: [] }];
   found = [{ title: 'The Ferry Bell', body: 'Bronze, green with river damp.', type: 'item', keys: ['bell'] }];
-  finished = []; tidied = { ...NEXT };
+  finished = [{ card: 'Oren', quote: 'Oren cut the bell down from the ferry post' }]; tidied = { ...NEXT };
   let release!: () => void;
   gate = new Promise<void>((r) => { release = r; });
   const r: any = await Promise.race([routes['POST /api/chapter/end'](ctx({ storyId: t.id })),
@@ -965,7 +965,7 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
   assert.strictEqual(sceneOf(r, ch0.id).hem?.state, 'running', 'HEM-RUNNING: the view shows the hem running');
   release(); gate = null;
   await hemSettled(t.id);
-  tidied = {};
+  tidied = {}; finished = [];
   const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.strictEqual(hem?.state, 'done', 'HEM-DONE: and done once the passes settle');
   assert.deepStrictEqual(Object.keys(hem.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary'],
@@ -973,6 +973,13 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
   assert.deepStrictEqual(hem.suggestion, NEXT, 'HEM-NEXT: and the next-scene suggestion');
   assert.strictEqual(hem.outOfDate, false, '  and nothing has changed since');
   ok('hem answers at once, and the view shows it running, then done with its report and suggestion');
+  const chalked = db.proposalsOf(t.id) as any[];
+  assert.ok(chalked.some((p) => p.entry_type === 'state') && chalked.some((p) => p.title === 'The Ferry Bell')
+    && chalked.some((p) => p.entry_type === 'retire'),
+    `the hem chalked a thread change, a new thread and a retirement (${chalked.map((p) => `${p.entry_type}:${p.title}`)})`);
+  assert.deepStrictEqual([...new Set(chalked.map((p) => p.grp))], [`scene:${ch0.id}`],
+    'HEM-SCENE-GROUP: everything one hem chalks shares the scene group');
+  ok('  and everything it chalked is one scene group');
 }
 
 
