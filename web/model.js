@@ -132,6 +132,51 @@ export const POV_EXAMPLE = {
   'third omniscient, past tense':  'She came up the stair; below her, the porter already knew.',
 };
 
+/** #84 · WHAT A VOICE SAYS ABOUT PERSON AND TENSE, against the tale's point of view. A Voice that
+ *  says "first person, present tense" over a third-person tale tells the model two things (#81).
+ *
+ *  ONLY A STATEMENT COUNTS: "first person", "close third", "past tense". The word "you" does not,
+ *  because a Voice is written TO the model ("You keep the sentences short"); neither does anything
+ *  inside quotes (dialogue may say anything) or a person named to forbid it ("never second person").
+ *  One function, for the wizard's preview now and Tale settings later. Returns each sentence that
+ *  disagrees, with what it says. */
+const PERSON = [['first', /\bfirst[\s-]+person\b/i], ['second', /\bsecond[\s-]+person\b/i],
+  ['third', /\bthird[\s-]+person\b|\b(?:close|limited)\s+third\b|\bthird[\s-]+(?:limited|omniscient)\b/i]];
+const TENSE = [['present', /\bpresent[\s-]+tense\b/i], ['past', /\bpast[\s-]+tense\b/i]];
+const sentencesOf = (line) => line.split(/(?<=[.!?])\s+(?=\S)/);
+// Clause by clause, and within a clause only what follows a negation is silenced: "never second
+// person" says nothing, "first person with no filter words" still says first person.
+function says(sentence) {
+  const out = { person: null, tense: null };
+  for (let clause of sentence.replace(/"[^"]*"|\u201c[^\u201d]*\u201d/g, ' ').split(/[,;:]/)) {
+    clause = clause.split(/\b(?:never|not|no|avoid|don't)\b/i)[0];
+    out.person ??= PERSON.find(([, re]) => re.test(clause))?.[0] ?? null;
+    out.tense ??= TENSE.find(([, re]) => re.test(clause))?.[0] ?? null;
+  }
+  return out;
+}
+export function voiceClash(voice, pov) {
+  const want = says(String(pov ?? ''));
+  const out = [];
+  for (const line of String(voice ?? '').split('\n')) for (const sentence of sentencesOf(line)) {
+    const got = says(sentence);
+    const person = got.person && want.person && got.person !== want.person;
+    const tense = got.tense && want.tense && got.tense !== want.tense;
+    if (person || tense) out.push({ sentence: sentence.replace(/^\s*[-*]\s*/, '').trim(),
+      said: [person ? `${got.person} person` : '', tense ? `${got.tense} tense` : ''].filter(Boolean).join(', ') });
+  }
+  return out;
+}
+/** The fix: the Voice without the sentences `voiceClash` names, and otherwise as it was. A line left
+ *  with nothing but its list mark goes too. */
+export function withoutClash(voice, pov) {
+  const lines = String(voice ?? '').split('\n');
+  return lines.map((line) => {
+    const kept = sentencesOf(line).filter((sn) => !voiceClash(sn, pov).length);
+    return kept.length === sentencesOf(line).length ? line : kept.join(' ');
+  }).filter((line, i) => line === lines[i] || !/^\s*[-*]?\s*$/.test(line)).join('\n');
+}
+
 export const STORY_FIELDS = [
   { k: 'title',        label: 'Title' },
   { k: 'genre',        label: 'Genre' },

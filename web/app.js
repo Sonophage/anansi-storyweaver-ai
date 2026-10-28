@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom } from './model.js';
+import { MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -549,6 +549,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'spfield',
   // #40 stage 3. A whole book, followed rather than copied.
   'spfollow',
+  // #84. The preview: fold a thread, remove or add a pocket, remove a thread, undo, fix the Voice.
+  'spfold', 'spdroppocket', 'spaddpocket', 'spdropthread', 'spundo', 'spvoicefix', 'spaddtp', 'spdroptp',
   'applylib', 'savelib', 'dellib', 'setvoice', 'setanansi',
   'seedpick',
   // The forge: open one prompt and copy it. A forged thread comes back in through New thread's box.
@@ -829,8 +831,7 @@ function drawRail() {
     : storyMenu
     // The rail IS the menu, and the menu is excepted — see tipCard. Its rows were never uppercased;
     // this heading was the only thing in here that was.
-    ? `<div class="txt" style="padding:26px 12px 10px; font-size:11px; letter-spacing:.2em;
-         color:var(--dim)">Scenes</div>
+    ? `<div class="txt railhead">Scenes</div>
        ${V.chapters.map((c) => `<button data-chapter="${c.id}"${
          c.id === V.currentChapter.id ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px;
          border-radius:var(--r); width:100%;
@@ -1568,6 +1569,7 @@ function closePassEdit(t = null) {
 function drawDoc() {
   const read = $('read'), col = $('col');
   const tip = read.scrollHeight - read.scrollTop - read.clientHeight < 140;
+  const was = read.scrollTop;
   // ONE chapter at a time. Every chapter in one scroll was fine at three passages and is not at
   // 358: you cannot jump to a chapter, and the browser holds the whole book in the DOM. The
   // engine has focused a chapter since it was written — view(storyId, focusChapterId) — and the
@@ -1604,9 +1606,27 @@ function drawDoc() {
       // reads off paper down the other. The end colour is the theme's token and not a literal:
       // nine themes, and web/model.js exists because 162 raw hexes meant a theme was only ever
       // half applied.
-      back.innerHTML = `<i style="background-image:url('${api.coverUrl(S.storyId, V.cover)}');
-        opacity:${Math.max(0, Math.min(100, V.story.coverOpacity ?? 30)) / 100}"></i><u></u>`;
-    } else back.innerHTML = '';
+      //
+      // THE SLIDER MOVES THE GRADIENT TOO (Seth, 2026-10-27: past about 20% "the dark gradient
+      // doesn't move"). It set only the picture's strength, and the gradient stayed at its fixed
+      // stop, so on a phone the page went dark a third of the way across whatever the slider said.
+      // `--reach` is how far across the picture shows before the page takes over; 30, the default,
+      // keeps the stops it always had (62% desk, 34% phone, in app.html).
+      // BLURRED and FLIPPED are two more ways to set it: the picture softened, and whole down the
+      // right side with the gradient running the other way.
+      // REBUILT ONLY WHEN IT CHANGED. This ran on every paint, and a new <i> is a new picture: the
+      // backdrop blinked each time the page was drawn, which is the "still refreshing" Seth saw when
+      // a passage landed (2026-10-27).
+      const strength = Math.max(0, Math.min(100, V.story.coverOpacity ?? 30));
+      const key = [S.storyId, V.cover, strength, V.story.coverBlur, V.story.coverFlip].join('|');
+      if (back.dataset.key !== key) {
+        back.dataset.key = key;
+        const blur = Math.max(0, Number(V.story.coverBlur) || 0);
+        back.className = `${blur ? 'blur' : ''} ${V.story.coverFlip ? 'flip' : ''}`.trim();
+        back.innerHTML = `<i style="background-image:url('${api.coverUrl(S.storyId, V.cover)}');
+          opacity:${strength / 100}${blur ? `; filter:blur(${blur}px); inset:-${blur * 2}px` : ''}"></i><u style="--reach:${((strength - 30) / 70).toFixed(3)}"></u>`;
+      }
+    } else { back.innerHTML = ''; back.dataset.key = ''; }
   }
   /* PER CHAPTER, and it was not. Reading mode draws every chapter and handed all of them the ONE
    * plate built here — which carried the OPEN chapter's title, so in a continuous read every chapter
@@ -1724,7 +1744,15 @@ function drawDoc() {
   if (HOLD_SCROLL != null) { read.scrollTo({ top: HOLD_SCROLL, behavior: 'instant' }); HOLD_SCROLL = null; }
   // 'instant': #read has scroll-behavior:smooth, so assigning scrollTop GLIDES, and a glide still
   // running when Anansi's first word lands is the page moving under the words (Seth, 2026-10-26).
-  else if (tip && !(grew && pinTo(DREW.newest))) read.scrollTo({ top: read.scrollHeight, behavior: 'instant' });
+  // A REPAINT THAT CHANGED NOTHING LEAVES THE PAGE EXACTLY WHERE IT WAS. It went to the bottom
+  // whenever you were near it, so the repaint that follows a passage landing (the contradiction
+  // check's result arriving on the live channel, a few seconds later) threw the page down past the
+  // words you were reading, into the room held under them. Seth, 2026-10-27: "as soon as it's done
+  // it moves the text to the bottom and it's really annoying". Only a new chapter goes to the
+  // bottom now, and only a passage that arrived pins the seam.
+  else if (grew && tip) { if (!pinTo(DREW.newest)) read.scrollTo({ top: read.scrollHeight, behavior: 'instant' }); }
+  else if (tip && (!DREW || DREW.chapter !== ch.id)) read.scrollTo({ top: read.scrollHeight, behavior: 'instant' });
+  else read.scrollTo({ top: was, behavior: 'instant' });
   // anchorLive's room is per chapter, and goes when anything is deleted (Seth, 2026-10-27: "if
   // something is deleted it should get rid of the empty space").
   const drawnNow = (V.passages ?? []).length;
@@ -3855,6 +3883,15 @@ const PANELS = {
             data-story="coverOpacity" value="${V.story.coverOpacity ?? 30}">
           <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
             >${V.story.coverOpacity ?? 30}%</span></div>
+        <label class="lbl wide push-12" for="f-story-coverBlur">How much it is blurred</label>
+        <div class="line-12">
+          <input class="fill" type="range" min="0" max="24" step="1" id="f-story-coverBlur"
+            data-story="coverBlur" value="${Number(V.story.coverBlur) || 0}">
+          <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
+            >${Number(V.story.coverBlur) ? `${Number(V.story.coverBlur)}px` : 'none'}</span></div>
+        <label class="line pressable push-8">
+          <input type="checkbox" data-story="coverFlip" ${V.story.coverFlip ? 'checked' : ''}>
+          <span class="body-ink">Show it on the right, fading to the left</span></label>
         ` : ''}` : ''}
 
       ${fields.filter((f) => IDENT.includes(f.k)).map(field).join('')}
@@ -4142,7 +4179,10 @@ const PANELS = {
           c.keepWhole ? 'sent whole'
             : c.summary ? (c.summaryStale ? 'summary out of date' : 'summarised') : 'no summary',
         ];
-        return `<button class="card" data-chapter="${esc(c.id)}"
+        // A DELETE ON EVERY ROW, beside the card and not inside it (a button in a button is not a
+        // button). Seth, 2026-10-27: "a simpler way of deleting scenes". Two presses, the same
+        // data-delchapter and handler as This scene's own Delete; the confirm names what goes.
+        return `<div class="scenerow"><button class="card" data-chapter="${esc(c.id)}"
           style="text-align:left; width:100%; margin-bottom:8px; gap:6px;
           ${here ? 'border-color:var(--gold-dim)' : ''}">
           <div class="base-9">
@@ -4155,7 +4195,10 @@ const PANELS = {
             : '<div class="hint flush">Nothing written in it yet.</div>'}
           <div style="display:flex; flex-wrap:wrap; gap:4px 10px; font-size:11px; color:var(--faint)"
             >${stats.map((t) => `<span class="tnum">${esc(t)}</span>`).join('')}</div>
-        </button>`;
+        </button>
+        <button class="scenedel" data-delchapter="${esc(c.id)}"
+          aria-label="Delete ${esc(sceneName(c))} and its ${mine.length} ${mine.length === 1 ? 'passage' : 'passages'}"
+          title="Delete this scene">&#10005;</button></div>`;
       }).join('')}</div>`;
   },
 
@@ -4938,12 +4981,11 @@ function searchHits() {
   </div>`).join('');
 }
 
-/** The skeleton the spark returned, in five steps, with nothing written until it is accepted.
+/** The skeleton the spark returned, in steps, with nothing written until it is accepted.
  *
- *  Five screens rather than one scroll for one reason that is structural and not cosmetic: `persona`
- *  and `lockedCharacter` are character TITLES, so they cannot be chosen until a cast exists. That
- *  is why picking who you play used to be three screens — you accepted, the cast was written, and
- *  only then could you name one. Cast is step 3 and You is step 4, and the dependency is the order.
+ *  Screens rather than one scroll because each step feeds the next: who you play is told to the
+ *  cast call, and the threads are what Try it on and the preview read. (The order once ran the
+ *  other way, cast before You; #84 turned it round, see below.)
  *
  *  Accept is on every step, not only the last. Everything here is already filled in by the spark, so
  *  gating five screens would turn one press into five for anyone who trusts it. Guide, not gate.
@@ -4967,20 +5009,19 @@ function searchHits() {
  *
  *  Accept stays on every step, which is Seth's own call from the five-step version: everything is
  *  prefilled, so gating eight screens would turn one press into eight. */
-/** THE CAST IS SET BEFORE YOU SAY WHO YOU ARE IN IT. Seth, 2026-08-30: *"the who you never speak
- *  as and the who you are should come AFTER the cast has been set."*
+/** #84 · WHO YOU PLAY COMES BEFORE THE THREADS, AND THE WIZARD ENDS IN A PREVIEW (2026-10-27).
  *
- *  This reverses a decision that was written down and argued for on the old step 3 — that who you
- *  play is a decision about the book rather than a pick from a list somebody else wrote. The
- *  argument was not wrong about what the writer is deciding; it was wrong about the order that
- *  makes deciding it easy. `persona` and `locked_character` are stored as NAMES (`src/db.ts`), and
- *  a name typed before the cast exists is a name the server then has to police and often drop —
- *  `db.pinCast` nulls both when they match nobody, and the accept toast exists to say so.
+ *  This reverses Seth's 2026-08-30 order ("the who you never speak as and the who you are should
+ *  come AFTER the cast has been set"), and the reason is what the old order cost. The threads were
+ *  written before Anansi knew who was Hands off, so the writer's own character got pockets that
+ *  acted for them ("accepting the forty dollars"), which the lock then forbade (#81). Now the cast
+ *  call is told who you play, writes that thread from the outside, and gives it the "their lines
+ *  are yours" pocket itself.
  *
- *  Asking after the cast makes the usual answer a pick over a list that is already right, and the
- *  cast call proposes both itself, so the field arrives filled. Typing a name is still reachable:
- *  skip the cast step and both fall back to free text, which is the shape a book with no ledger
- *  has. */
+ *  The old argument for asking after the cast was a name typed before the cast exists, which
+ *  the server then had to police (`pinCast`, deleted with #84). That no longer applies: the name is
+ *  the writer's, never Anansi's proposal, so it is never dropped; and a character the writer describes gets a thread
+ *  from the description. On a second visit the field offers the cast so far. */
 /** THE WIZARD'S STEPS, NAMED AND NEVER NUMBERED — issue #40, 2026-09-01.
  *
  *  They were `step === 1`, `step === 2` and so on, in a chain whose SOURCE ORDER was already 1, 2,
@@ -5002,12 +5043,14 @@ function searchHits() {
  *      and before you select who you are". It reads title, premise, setting, voice and cast, and
  *      never persona, so it loses nothing by moving; and it can PROPOSE missing threads, which
  *      until now arrived after the writer had already picked a persona out of the cast.
+ *    - #84, 2026-10-27: `you` moved ahead of `threads`, and `preview` follows `look`. See above.
  */
 const STEPS = [
   ['book',    'The tale',        'What it is, and how the prose sounds.'],
+  ['you',     'You',             'Who you play, and whom he keeps his hands off.'],
   ['threads', 'The threads',     'What this tale needs, if anything.'],
   ['look',    'Try it on',       'Anansi reads it back and says what he would change.'],
-  ['you',     'You',             'Who you play, and whom he keeps his hands off.'],
+  ['preview', 'The preview',     'Everything that will be made. Nothing is saved until you start it.'],
   ['scene',   'The first scene', 'Where it opens.'],
   ['opening', 'The opening',     'Who writes the first passage.'],
   ['begin',   'Begin',           'What gets written when you start it.'],
@@ -5039,16 +5082,30 @@ function harvestSpark() {
     if (el.type === 'checkbox') { S.spark.story[k] = el.checked; continue; }
     S.spark.story[k] = k === 'spice' ? Number(el.value) || 2 : el.value;
   }
+  // The thread you play stays ticked while you play them (#84): unticking it would drop it at Create.
   for (const c of document.querySelectorAll('[data-spcast]')) {
     const e = S.spark.entries[Number(c.dataset.spcast)];
-    if (e) e.keep = c.checked;
+    if (e) e.keep = c.checked || playsThis(e);
   }
   for (const t of document.querySelectorAll('[data-spbody]')) {
     const e = S.spark.entries[Number(t.dataset.spbody)];
     if (e) e.body = t.value;
   }
-  // Renaming somebody here has to carry what points AT them, or the next step offers a name the
-  // cast no longer contains and the persona quietly becomes Nobody. Same failure the server fixes
+  // #84 · A POCKET EDITED IN THE PREVIEW, keyed `index:slot`: its words, and its name.
+  // And the tale's own pockets ("Your own"), keyed by their place in the list.
+  for (const [sel, key, field] of [['[data-sptpbody]', 'sptpbody', 'body'], ['[data-sptpname]', 'sptpname', 'name']])
+    for (const t of document.querySelectorAll(sel)) {
+      const p = (S.spark.talePockets ?? [])[Number(t.dataset[key])];
+      if (p) p[field] = t.value;
+    }
+  for (const [sel, key, field] of [['[data-sppocket]', 'sppocket', 'body'], ['[data-sppname]', 'sppname', 'name']])
+    for (const t of document.querySelectorAll(sel)) {
+      const [i, slot] = String(t.dataset[key]).split(':');
+      const p = S.spark.entries[Number(i)]?.rooms?.[slot];
+      if (p) p[field] = t.value;
+    }
+  // Renaming somebody here has to carry what points AT them, or who you play names somebody the
+  // cast no longer contains and their thread is lost from under them. Same failure the server fixes
   // for a rename after the story exists; this is the half hour before it exists.
   for (const n of document.querySelectorAll('[data-spname]')) {
     const e = S.spark.entries[Number(n.dataset.spname)];
@@ -5060,14 +5117,9 @@ function harvestSpark() {
     e.keys = (e.keys ?? []).map((k) => (k === was ? now : k));
     for (const k of ['persona', 'lockedCharacter'])
       if (S.spark.story[k] === was) S.spark.story[k] = now;
-    // And what Anansi PROPOSED moves with it, or the server polices a name that no longer exists
-    // and drops a persona the writer only renamed.
-    S.spark.proposed = (S.spark.proposed ?? []).map((x) => (x === was ? now : x));
   }
 }
 
-/** The cast as it stands: everything still ticked. Step 4 offers these and nothing else, because a
- *  persona naming somebody you just dropped is the exact stranding pinCast exists to catch. */
 /** #30 · WHAT A FORGED CARD LOOKS LIKE ON THE WAY IN, before there is a story to write it to.
  *
  *  The server has the strict reader — `POST /api/thread/paste`, which refuses an unknown kind and
@@ -5217,7 +5269,7 @@ function sparkReview() {
   if (key === 'book' && !S.spark.styled && !S.spark.styling && !(s.styleNote ?? '').trim()
       && ((s.genre ?? '').trim() || (s.premise ?? '').trim())) sparkStyle(true);
   // The library, for the picker on the cast step. `loadLedger` paints when it lands.
-  if (key === 'threads' && LEDGER === null) loadLedger();
+  if ((key === 'threads' || key === 'preview') && LEDGER === null) loadLedger();
   // `busy` and not `sparking` alone: step 2 carries TWO model buttons now — this one and the house
   // style — so a re-roll pressed while the style is being written would be a second concurrent call
   // on a router that does not queue. The style button already read the shared flag; this is the
@@ -5280,31 +5332,26 @@ function sparkReview() {
          style="margin:-4px 0 10px; font-size:11.5px">${S.spark.styling ? 'Asking&hellip;'
            : s.styleNote ? 'Reweave it' : 'Have Anansi write it'}</button>`
     : key === 'you'
-    // YOU. AFTER the cast, at Seth's direction — see the note on STEPS. The usual answer is now
-    // a pick over a list that is already right, and the cast call proposes both, so the fields
-    // arrive filled. Skip the cast and both fall back to free text, which is the shape a book with
-    // no ledger has and the only way this branch is now reached.
-    // #40's last item, 2026-09-01: the two pickers are worded and behaved like the Story panel's,
-    // from the same `PERSONA_*`/`LOCKED_*` constants and the same `lockoutHint` and `holdBack`. The
-    // `?` explainers are the panel's too — the wizard is where a writer meets these words FIRST and
-    // it was the screen with no explanation of them.
-    ? `${cast.length
-        ? pickOne('persona', `You play${helpMark('persona')}`, people.map((e) => e.title), s.persona,
-            PERSONA_NONE, PERSONA_HINT, helpBody('persona'))
-        : row('persona', 'You play', s.persona,
-            'The character you speak as in Speak mode. You set no cast, so name them here or '
-            + 'leave it empty.')}
-       ${cast.length
-        ? pickOne('lockedCharacter', `Hands off${helpMark('locked')}`,
-            people.map((e) => e.title), s.lockedCharacter, LOCKED_NONE,
-            `${lockoutHint(s.lockedCharacter, s.lockoutOn !== false)} ${LOCKED_ASIDE}`,
-            helpBody('locked'))
-        : row('lockedCharacter', 'Hands off', s.lockedCharacter,
-            `${lockoutHint(s.lockedCharacter, s.lockoutOn !== false)} ${LOCKED_ASIDE}`)}
+    // YOU, BEFORE THE THREADS (#84): the cast call is told who you play and writes them from the
+    // outside. One box, offering the cast so far on a second visit, or a new name, and a line about
+    // somebody new that their thread is written from. Hands off is picked from the same names.
+    // The pickers' words and `?` explainers are the Story panel's (`PERSONA_*`, `LOCKED_*`).
+    ? `<label class="lbl" for="f-sp-persona">You play${helpMark('persona')}</label>
+       ${helpBody('persona')}
+       <input class="field" id="f-sp-persona" data-sp="persona" list="f-sp-cast" value="${esc(s.persona ?? '')}"
+         placeholder="A name, or leave it empty to play nobody">
+       <datalist id="f-sp-cast">${people.map((e) => `<option value="${esc(e.title)}"></option>`).join('')}</datalist>
+       <div class="hint">${people.length ? 'One of the threads so far, or somebody new.'
+         : 'Somebody new, or nobody. Anansi writes the threads next, with them in.'}</div>
+       ${area('personaAbout', 'If they are new, who they are', s.personaAbout,
+         'A line or two. Their thread is written from it.', 56)}
+       ${pickOne('lockedCharacter', `Hands off${helpMark('locked')}`,
+           [...new Set([s.persona, ...people.map((e) => e.title)].filter(Boolean))], s.lockedCharacter,
+           LOCKED_NONE, `${lockoutHint(s.lockedCharacter, s.lockoutOn !== false)} ${LOCKED_ASIDE}`,
+           helpBody('locked'))}
        ${s.lockedCharacter ? holdBack(s.lockedCharacter, s.lockoutOn !== false, 'data-sp') : ''}
-       <!-- #21 §3. Both DEFAULT to the one you play, which is the usual answer and was not the
-            default before: the columns stay separate, because a book with a second lead the writer
-            does not speak as is a real shape and spark proposes them independently. -->
+       <!-- #21 §3. Both default to the one you play, which is the usual answer: the columns stay
+            separate, because a book with a second lead the writer does not speak as is a real shape. -->
        ${s.persona && s.persona !== s.lockedCharacter
          ? `<button class="btn ghost" data-splock="1" style="margin-top:2px">Also keep ${esc(s.persona)}
               off the model</button>` : ''}
@@ -5449,6 +5496,8 @@ function sparkReview() {
               <button class="btn ghost small-btn" data-spaddone="${i}">Add to the cast</button></div>`).join('')}` : ''}`
        : `<div class="hint flush">He would not change anything. That is a real answer and
           it is the one a skeleton that hangs together gets.</div>`}`
+    : key === 'preview'
+    ? sparkPreview(s, { row, area })
     : key === 'scene'
     // THE FIRST SCENE. It asked for "Where this is going" as well until 2026-08-30, when that
     // field came out of the whole app — Seth: "no ones going to use it. ive asked."
@@ -5497,6 +5546,100 @@ function sparkReview() {
       : '<button class="btn push-8" data-accept-spark="1">Start writing</button>'}
     <button class="btn ghost push-8" data-drop-spark="1">Discard it</button>
     <div class="hint">Nothing has been written yet. Starting it creates the tale and its threads.</div>`;
+}
+
+/** #84 · THE PREVIEW: everything Start writing will make, on one page, before any of it exists.
+ *
+ *  The tale's own thread first (premise, setting, Voice and any Rules), then every thread folded to
+ *  its name and Always true, with its pockets named; unfolded, every pocket can be edited, removed
+ *  or added to. It is the wizard's own state (`S.spark`), so nothing here posts: Start writing
+ *  sends the whole draft once through POST /api/stories. Removals, additions and the Voice fix keep
+ *  one step of undo (`S.spark.undo`).
+ *
+ *  THE VOICE AGAINST THE POINT OF VIEW is warned about, never enforced: a deliberate mismatch is the
+ *  writer's to keep, so the warning does not stand between them and Start writing. */
+/** The thread of the character you play: it stays while you play them (Seth, 2026-10-27). */
+const playsThis = (e) => !!S.spark?.story?.persona
+  && String(e.title ?? '').trim().toLowerCase() === String(S.spark.story.persona).trim().toLowerCase();
+
+function sparkPreview(s, { row, area }) {
+  const kept = (S.spark.entries ?? []).map((e, i) => [e, i])
+    .filter(([e]) => e.keep !== false && (e.title ?? '').trim());
+  const rules = kept.filter(([e]) => e.entryType === 'rule');
+  const threads = kept.filter(([e]) => e.entryType !== 'rule');
+  const clash = voiceClash(s.writingStyle, s.pov);
+  const card = ([e, i]) => {
+    const open = !!S.spark.unfolded?.[i];
+    const rooms = Object.entries(e.rooms ?? {}).filter(([slot]) => slot !== 'facts');
+    const free = (LEDGER_SLOTS?.[e.entryType] ?? []).map((x) => x.name)
+      .filter((n) => n !== 'facts' && !(e.rooms ?? {})[n]);
+    return `<div class="card below-8 gap-6">
+      <button data-spfold="${i}" aria-expanded="${open}" style="display:flex; flex-direction:column;
+        gap:4px; width:100%; text-align:left">
+        <span class="base-8"><span class="name-14">${esc(e.title)}</span>
+          <span class="tag">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></span>
+        ${open ? '' : `<span class="note">${esc(e.body ?? '')}</span>`}
+        <span class="hint flush">${rooms.length
+          ? rooms.map(([slot, p]) => esc(p.name || pocketTitle(slot))).join(' &middot; ')
+          : 'No pockets'}</span></button>
+      ${!open ? '' : `
+      <input class="field flush" data-spname="${i}" aria-label="Name of ${esc(e.title)}" value="${esc(e.title)}">
+      <label class="lbl" for="f-sp-at-${i}">Always true</label>
+      <textarea class="field grow flush min-52" id="f-sp-at-${i}" data-spbody="${i}">${esc(e.body ?? '')}</textarea>
+      ${rooms.map(([slot, p]) => `<div class="card snug gap-6">
+        <div class="line">
+          <input class="field flush name-field" data-sppname="${i}:${esc(slot)}" value="${esc(p.name ?? '')}"
+            aria-label="What to call this ${esc(slotLabel(slot))} pocket">
+          <span class="tag">${esc(pocketTitle(slot))}</span>
+          <button class="del-x" data-spdroppocket="${i}:${esc(slot)}" aria-label="Remove this pocket">&#10005;</button></div>
+        <textarea class="field grow flush min-52" data-sppocket="${i}:${esc(slot)}"
+          aria-label="How to write ${esc(e.title)}'s ${esc(slotLabel(slot))}">${esc(p.body ?? '')}</textarea>
+      </div>`).join('')}
+      ${free.length ? `<div class="card snug gap-6">
+        <select class="field flush" data-spnewslot="${i}" aria-label="Which pocket to add">${free.map((n) =>
+          `<option value="${esc(n)}">${esc(pocketTitle(n))}</option>`).join('')}</select>
+        <textarea class="field grow flush min-52" data-spnewpocket="${i}" aria-label="The new pocket"
+          placeholder="How to write it, as an instruction"></textarea>
+        <button class="btn ghost" data-spaddpocket="${i}">Add the pocket</button></div>` : ''}
+      ${playsThis(e) ? `<div class="hint flush">You play ${esc(e.title)}, so their thread stays. Choose
+        somebody else on You first to remove it.</div>`
+        : `<button class="btn ghost" data-spdropthread="${i}">Remove ${esc(e.title)}</button>`}`}
+    </div>`;
+  };
+  return `${S.spark.undo ? `<button class="btn ghost below-10" data-spundo="1">Undo ${esc(S.spark.undo.what)}</button>` : ''}
+    ${clash.length ? `<div class="card below-10 gap-6" role="alert">
+      <div class="kind">The Voice and the point of view disagree</div>
+      <div class="note">Your Voice says ${esc(clash.map((c) => c.said).join('; '))}, and the point of view
+        is ${esc(s.pov)}. The model would be told both.</div>
+      ${clash.map((c) => `<div class="hint flush">&ldquo;${esc(c.sentence)}&rdquo;</div>`).join('')}
+      <button class="btn ghost small-btn" data-spvoicefix="1">Take ${clash.length === 1 ? 'that sentence'
+        : 'those sentences'} out of the Voice</button>
+      <div class="hint flush">Or keep it: you can still start the tale with this showing.</div></div>` : ''}
+    <div class="lbl wide">The tale's own thread</div>
+    <div class="hint lead-6">What Anansi is told about the whole tale, every time.</div>
+    ${row('title', 'Title', s.title)}
+    ${area('premise', 'Premise', s.premise, '', 110)}
+    ${row('setting', 'Setting', s.setting)}
+    ${area('writingStyle', 'Voice', s.writingStyle, `How the narration sounds, as instructions. Point of
+      view: ${esc(s.pov ?? 'not set')}.`, 120)}
+    <div class="lbl sect">Rules &middot; <span class="tnum">${rules.length}</span></div>
+    ${rules.length ? rules.map(card).join('') : '<div class="hint flush">None. A tale needs a rule only when the idea does.</div>'}
+    <div class="lbl sect">Your own</div>
+    <div class="hint lead-6">Anything else for the whole tale, as an instruction. Sent while it is on, and it starts on.</div>
+    ${(S.spark.talePockets ?? []).map((p, i) => `<div class="card snug gap-6">
+      <div class="line">
+        <input class="field flush name-field" data-sptpname="${i}" aria-label="What to call this instruction" value="${esc(p.name ?? '')}">
+        <button class="del-x" data-spdroptp="${i}" aria-label="Remove this instruction">&#10005;</button></div>
+      <textarea class="field grow flush min-52" data-sptpbody="${i}" aria-label="The instruction">${esc(p.body ?? '')}</textarea>
+    </div>`).join('')}
+    <div class="card snug gap-6">
+      <input class="field flush" data-sptpnew="name" aria-label="A name for the instruction" placeholder="A name: Slow burn">
+      <textarea class="field grow flush min-52" data-sptpnew="body" aria-label="The instruction" placeholder="The instruction, for the whole tale"></textarea>
+      <button class="btn ghost" data-spaddtp="1">Add it</button></div>
+    <div class="lbl sect">The threads &middot; <span class="tnum">${threads.length}</span></div>
+    <div class="hint lead-6">You play ${esc(s.persona || 'nobody')}${s.lockedCharacter && s.lockoutOn !== false
+      ? `; hands off ${esc(s.lockedCharacter)}` : ''}. Press a thread to open its pockets.</div>
+    ${threads.length ? threads.map(card).join('') : '<div class="hint flush">No threads. Write them as you go.</div>'}`;
 }
 
 /** The new chapter's setup. Three fields, none of them new machinery: the beat is the chapter's
@@ -8475,9 +8618,12 @@ async function loadForge() {
   drawPage();
 }
 
+let LEDGER_SLOTS = null;
 async function loadLedger() {
   const r = await api.ledger();
   LEDGER = r.error ? [] : (r.entries ?? []);
+  // The pockets each kind can have, the server's own SLOTS: the wizard's preview offers them.
+  LEDGER_SLOTS = r.slots ?? LEDGER_SLOTS;
   // drawBar too: the header's line under "Threads" counts the ledger, and said "reading…" until
   // something else repainted the header (usability check, 2026-10-24).
   // And New tale, whose Start blank form offers the threads to start from.
@@ -10247,13 +10393,8 @@ async function writeCast(quiet = false) {
   if (r.error) { paint(); return toast(r.error); }
   const fresh = withTriggers(r.entries ?? []);
   S.spark.entries = [...keepers, ...fresh];
-  // The two names only when there were no keepers — otherwise a re-roll would reassign who you play
-  // out from under a cast you had just curated, which a per-card re-roll has never been allowed to do.
-  if (!keptNames.length) {
-    S.spark.story = { ...S.spark.story, persona: r.persona ?? null,
-                      lockedCharacter: r.lockedCharacter ?? null };
-    S.spark.proposed = [r.persona, r.lockedCharacter].filter(Boolean);
-  }
+  // WHO YOU PLAY IS NOT TOUCHED (#84). It was chosen on the step before this one and sent with the
+  // call, which wrote the threads for it; the cast no longer proposes anybody.
   paint();
   if (!quiet) toast(keptNames.length
     ? `${fresh.length} more, beside the ${keptNames.length} you kept.`
@@ -11234,7 +11375,8 @@ document.addEventListener('click', async (e) => {
     // The panel was reporting on the chapter that just went, so it cannot stay pointed at it.
     S.ritualOf = null; S.panel = 'context';
     V = await api.story(S.storyId); paint(); refreshManifest();
-    return toast('Scene deleted. The numbers after it are unchanged.');
+    return toast(r.reopened ? `Scene deleted. Scene ${r.reopened} is open again to write in.`
+      : 'Scene deleted. The numbers after it are unchanged.');
   }
 
   if (d.delentry) {
@@ -12204,9 +12346,8 @@ document.addEventListener('click', async (e) => {
       // #21 §3 step 5. Null until asked for: it fires from a button, and "not asked yet" and
       // "asked, and he would change nothing" are different screens.
       reviewing: false, review: null,
-      // What Anansi proposed, kept as it arrived. The server polices ONLY these names, so an edit
-      // here must not rewrite them — a persona the writer types is theirs and is never dropped.
-      proposed: [r.story?.persona, r.story?.lockedCharacter].filter(Boolean) };
+      // #84. The tale's own pockets ("Your own"), added in the preview and made at Create.
+      talePockets: [] };
     S.sparkStep = 1;
     if (S.prompts === null) loadPrompts();   // step 5 offers the writer's own voice
     paint();
@@ -12238,11 +12379,10 @@ document.addEventListener('click', async (e) => {
    *  names are staying so it does not hand back somebody already on screen, and the first entry it
    *  returns is spliced in. Everything else about the call is unchanged.
    *
-   *  PERSONA AND LOCKED CHARACTER ARE NOT TOUCHED. The whole-cast re-roll overwrites both, because
-   *  it decided them; this one has no standing to. If the re-rolled card WAS the persona, the name
-   *  is now stale — `harvestSpark`'s rename propagation does not fire here because the name did not
-   *  change in the box, it was replaced wholesale — so the old name is cleared rather than left
-   *  pointing at somebody who is no longer in the book. */
+   *  PERSONA AND LOCKED CHARACTER ARE NOT TOUCHED (#84): the call is told who you play, so a new
+   *  take on that thread comes back under the same name and written from outside, and that take is
+   *  preferred. Only if the re-rolled card was them and nobody of that name came back is the name
+   *  cleared, rather than left pointing at somebody who is no longer in the book. */
   if (d.sprecast !== undefined) {
     if (S.spark.casting || S.spark.recasting !== null || S.spark.styling) return;
     harvestSpark();
@@ -12257,14 +12397,13 @@ document.addEventListener('click', async (e) => {
       S.spark.castSteer, keptNames));
     S.spark.recasting = null;
     if (r.error) { paint(); return toast(r.error); }
-    const one = (r.entries ?? [])[0];
+    const one = (r.entries ?? []).find((e) => e.title === was.title) ?? (r.entries ?? [])[0];
     if (!one) { paint(); return toast('Nothing came back in that kind.'); }
     // `keep` rides across: a card you had already ticked off stays ticked off after a re-roll, and
     // one you had kept stays kept.
     S.spark.entries = S.spark.entries.map((e, j) => (j === i ? { ...one, keep: e.keep } : e));
     for (const k of ['persona', 'lockedCharacter'])
-      if (S.spark.story[k] === was.title) S.spark.story[k] = null;
-    S.spark.proposed = (S.spark.proposed ?? []).filter((x) => x !== was.title);
+      if (S.spark.story[k] === was.title && one.title !== was.title) S.spark.story[k] = null;
     paint();
     return toast(`${one.title} instead. The rest of the cast is untouched.`);
   }
@@ -12319,6 +12458,95 @@ document.addEventListener('click', async (e) => {
     S.spark.review.entries = S.spark.review.entries.filter((_, i) => i !== Number(d.spaddone));
     paint();
     return toast(`${e.title} added to the cast.`);
+  }
+  /* #84 · THE PREVIEW'S PRESSES. Each changes the draft and nothing else; nothing posts until
+   * Start writing. A removal, an addition and the Voice fix keep one step of undo: the part they
+   * change, as it was, put back on its own, so an edit typed since is not thrown away. The Voice fix
+   * is the exception: its undo puts the whole Voice back as it was before the fix. */
+  if (d.spfold !== undefined) {
+    harvestSpark();
+    S.spark.unfolded = { ...(S.spark.unfolded ?? {}), [d.spfold]: !S.spark.unfolded?.[d.spfold] };
+    paint();
+    return;
+  }
+  if (d.spdroppocket) {
+    harvestSpark();
+    const [i, slot] = d.spdroppocket.split(':');
+    const e = S.spark.entries[Number(i)];
+    if (!e?.rooms?.[slot]) return;
+    S.spark.undo = { what: `removing a pocket from ${e.title}`, entry: e, slot, pocket: e.rooms[slot] };
+    const { [slot]: _gone, ...rest } = e.rooms;
+    e.rooms = rest;
+    paint();
+    return toast(`${pocketTitle(slot)} taken off ${e.title}.`);
+  }
+  if (d.spaddpocket !== undefined) {
+    harvestSpark();
+    const i = Number(d.spaddpocket), e = S.spark.entries[i];
+    const slot = document.querySelector(`[data-spnewslot="${i}"]`)?.value;
+    const body = String(document.querySelector(`[data-spnewpocket="${i}"]`)?.value ?? '').trim();
+    if (!e || !slot || !body) return toast('Pick the pocket and say how to write it.');
+    S.spark.undo = { what: `adding a pocket to ${e.title}`, entry: e, slot, pocket: null };
+    e.rooms = { ...(e.rooms ?? {}), [slot]: { name: pocketTitle(slot), body, on: true } };
+    paint();
+    return toast(`${pocketTitle(slot)} added to ${e.title}.`);
+  }
+  if (d.spdropthread !== undefined) {
+    harvestSpark();
+    const i = Number(d.spdropthread), e = S.spark.entries[i];
+    if (!e) return;
+    if (playsThis(e)) return toast(`You play ${e.title}, so their thread stays. Choose somebody else on You first.`);
+    S.spark.undo = { what: `removing ${e.title}`, thread: e, at: i };
+    S.spark.entries = S.spark.entries.filter((_, j) => j !== i);
+    S.spark.unfolded = {};
+    paint();
+    return toast(`${e.title} removed. Nothing is saved yet.`);
+  }
+  // The tale's own pockets ("Your own"), sent through Create as #75's instruction pockets.
+  if (d.spaddtp) {
+    harvestSpark();
+    const name = String(document.querySelector('[data-sptpnew="name"]')?.value ?? '').trim();
+    const body = String(document.querySelector('[data-sptpnew="body"]')?.value ?? '').trim();
+    if (!name || !body) return toast('An instruction needs a name and something in it.');
+    S.spark.talePockets = [...(S.spark.talePockets ?? []), { name, body }];
+    S.spark.undo = { what: `adding ${name}`, taleAdded: true };
+    paint();
+    return toast(`${name} added to the tale's own thread.`);
+  }
+  if (d.spdroptp !== undefined) {
+    harvestSpark();
+    const i = Number(d.spdroptp), p = (S.spark.talePockets ?? [])[i];
+    if (!p) return;
+    S.spark.undo = { what: `removing ${p.name}`, tale: p, at: i };
+    S.spark.talePockets = S.spark.talePockets.filter((_, j) => j !== i);
+    paint();
+    return toast(`${p.name} removed. Nothing is saved yet.`);
+  }
+  if (d.spvoicefix) {
+    harvestSpark();
+    const was = S.spark.story.writingStyle ?? '';
+    S.spark.undo = { what: 'the Voice fix', writingStyle: was };
+    S.spark.story.writingStyle = withoutClash(was, S.spark.story.pov);
+    paint();
+    return toast('Taken out of the Voice.');
+  }
+  if (d.spundo) {
+    harvestSpark();
+    const u = S.spark.undo;
+    if (!u) return;
+    // THE ONE CHANGE IS REVERSED, not the whole draft put back, so an edit typed since survives.
+    // A thread coming back moves the indices the folds are keyed on; a pocket coming back does not.
+    if (u.thread) { S.spark.entries.splice(u.at, 0, u.thread); S.spark.unfolded = {}; }
+    if (u.tale) S.spark.talePockets.splice(u.at, 0, u.tale);
+    if (u.taleAdded) S.spark.talePockets.pop();
+    if (u.slot) {
+      const { [u.slot]: _was, ...rest } = u.entry.rooms ?? {};
+      u.entry.rooms = u.pocket ? { ...rest, [u.slot]: u.pocket } : rest;
+    }
+    if (u.writingStyle !== undefined) S.spark.story.writingStyle = u.writingStyle;
+    S.spark.undo = null;
+    paint();
+    return toast(`Undone: ${u.what}.`);
   }
   if (d.spreroll) {
     if (S.spark.sparking || S.spark.casting || S.spark.recasting !== null || S.spark.styling) return;
@@ -12396,7 +12624,9 @@ document.addEventListener('click', async (e) => {
      * paging back and forth would ask again each time, on a router that does not queue. Set BEFORE
      * the await, so the repaint it causes cannot start a second one. Same shape as `styled`.
      */
-    if (was === 'book' && STEPS[S.sparkStep - 1]?.[0] === 'threads'
+    // #84: You comes between the book and the threads now, so it fires on arriving at the threads
+    // from any step before them, which is the same press it always was.
+    if (stepAt(was) < stepAt('threads') && STEPS[S.sparkStep - 1]?.[0] === 'threads'
         && !S.spark.casting && !S.spark.castTried && (S.spark.kinds ?? []).length) {
       S.spark.castTried = true;
       void writeCast(true);
@@ -12465,8 +12695,12 @@ document.addEventListener('click', async (e) => {
       // a book with the switch turned off looked identical to one where the field never arrived.
       // Only ever sent as false; on is the column's default and the usual answer.
       lockoutOn: s.lockoutOn !== false,
-      // Only what Anansi proposed is policed server-side. A name typed here is never dropped.
-      proposedCast: S.spark.proposed ?? [],
+      // #84. What the writer said of a new character on You: Create makes their thread from it when
+      // the cast made none. And the tale's own pockets from the preview.
+      personaAbout: s.personaAbout || null,
+      talePockets: S.spark.talePockets ?? [],
+      // #84. Tells the create route to settle the yours pocket on whoever is Hands off now.
+      spark: true,
       entries: keep,
     }));
     // `whileWorking` answers null on a re-entrant press and the state guard above should already
@@ -12508,7 +12742,6 @@ document.addEventListener('click', async (e) => {
     }
 
     const wantOpen = S.spark.autoOpen !== false;
-    const dropped = r.droppedCast ?? [];
     S.spark = null; S.sparkStep = 1; S.seedQ = '';
     await loadLibrary();
     await openStory(r.id);
@@ -12527,9 +12760,7 @@ document.addEventListener('click', async (e) => {
     // Surfaced here for the same reason the paste route surfaces it — a card that arrived with half
     // its rooms and no mention of the other half is the silent loss this whole format avoids.
     const roomNote = (r.notes ?? []).length ? ` ${r.notes[0]}` : '';
-    toast(dropped.length
-      ? `Created. ${dropped.join(' and ')} was not in the cast, so it was left unset.${roomNote}`
-      : `Created with ${keep.length} threads${brought}${set}.${roomNote}`);
+    toast(`Created with ${keep.length} threads${brought}${set}.${roomNote}`);
     if (wantOpen) await openingPassage();
     return;
   }
@@ -12575,10 +12806,8 @@ document.addEventListener('click', async (e) => {
    *  anything: every other thing a model writes in this app is read before it is kept, and a book
    *  is the largest of them.
    *
-   *  The persona is treated as the WRITER'S rather than as proposed — `proposedCast` stays empty —
-   *  because pasting is a deliberate act. `db.pinCast` polices only what the spark offered, so a
-   *  persona named here survives even if the writer unticks the card it points at, the same as one
-   *  typed by hand. */
+   *  The persona is the WRITER'S, as every persona is since #84: it survives even if the writer
+   *  unticks the card it points at, the same as one typed by hand. */
   // The door on the create screen. `data-forgehere` carries '1' to open and '' to shut, so the one
   // button is both and there is no second action name for closing.
   if (d.forgehere !== undefined) { S.forgeHere = d.forgehere === '1'; drawPage(); return; }
@@ -12671,9 +12900,6 @@ document.addEventListener('click', async (e) => {
       castSteer: '', recasting: null, styling: false, styled: true,
       accepting: false, seed: [], follow: null,
       reviewing: false, review: null,
-      // EMPTY ON PURPOSE. Only what ANANSI proposed is policed server-side; a persona the writer
-      // brought is theirs and must never be dropped.
-      proposed: [],
     };
     // The book, by name. A pasted skeleton lands on the screen that shows what arrived.
     S.sparkStep = stepAt('book');

@@ -71,9 +71,14 @@ const srv = createServer((req, res) => {
           { field: 'spice', value: '5', why: 'Hotter.' },
         ],
         entries: [
-          { name: 'The Quay Office', kind: 'lore', body: 'A room of ledgers above the water.' },
+          { name: 'The Quay Office', kind: 'lore', body: 'A room of ledgers above the water.',
+            // #86. Try it on's threads arrive with pockets now; a voice is not a lore pocket.
+            pockets: [{ slot: 'atmosphere', name: 'Damp', body: 'Let the paper curl; keep the water audible.' },
+                      { slot: 'voice', name: 'x', body: 'A place has no voice pocket, so this is dropped.' }] },
           // Already in the cast under the same name — the prompt forbids it and this enforces it.
-          { name: 'Vel', kind: 'character', body: 'Speaks for the dead god, again.' },
+          { name: 'Vel', kind: 'character', body: 'Speaks for the dead god, again.',
+            pockets: [{ slot: 'voice', name: 'Murmur', body: 'Write her lines low.' },
+                      { slot: 'interiority', name: 'Fear', body: 'Never let her say she is afraid.' }] },
         ],
       }
       : asksForCast ? { entries: [
@@ -86,7 +91,15 @@ const srv = createServer((req, res) => {
         // A kind nobody asked for. The grammar makes this unreachable from a real model; the route
         // drops it anyway, and this is what proves the belt exists as well as the braces.
         { name: 'The Bell', kind: 'item', body: 'Rung once a year, badly.' },
-      ], persona: 'Vel', lockedCharacter: 'Somebody Who Is Not In The Cast' }
+        // #86. A SECOND PERSON, only when the ask names somebody Hands off, so "the voice pocket goes
+        // to that thread and no other" has another thread to be wrong on. His pockets are the
+        // model's own and must survive; Vel's, when she is the one held, must not.
+        ...(/HANDS OFF:/.test(String(b.messages?.[1]?.content ?? '')) ? [{ name: 'Aldis', kind: 'character',
+          body: 'Owes the moneylender more than he can pay.',
+          pockets: [{ slot: 'voice', name: 'Debtor', body: 'Write his lines as apologies that never finish.' }] }] : []),
+      ].map((e: any) => e.name === 'Vel' && /HANDS OFF:/.test(String(b.messages?.[1]?.content ?? '')) ? { ...e, pockets: [...e.pockets,
+          { slot: 'interiority', name: 'Fear', body: 'Never let her say she is afraid; she counts instead.' }] } : e),
+      }
       : props.premise ? { title: 'The Rust Year', premise: PREMISE, genre: 'noir, gothic',
         setting: 'Sutera', pov: 'third limited, past tense', spice: 2, writingStyle: VOICE,
         characters: [{ name: 'Vel', role: 'the Murmur', description: 'Speaks for the dead god.' },
@@ -492,9 +505,9 @@ ok('a kind that does not exist is refused rather than assembled');
   const voice: any = (db.addonsOf(tale.id) as any[]).find((a) => a.entry_id === vel?.id && a.slot === 'voice');
   assert.ok(voice?.active, 'CAST-ON: made into a tale, its pockets are written and on, so they reach the model');
 
-  // A NAME THAT IS NOT IN THE CAST POINTS THE BYLINE AT NOBODY. The fake names one on purpose.
-  assert.strictEqual(r.persona, 'Vel', 'a persona that IS in the cast is carried');
-  assert.strictEqual(r.lockedCharacter, null, 'and one that is not is dropped rather than passed on');
+  // #86 · WHO YOU PLAY IS THE WRITER'S, decided a step before the threads. The fake still names a
+  // persona and somebody not in the cast; neither reaches the wizard, because the model was not asked.
+  assert.ok(!('persona' in r) && !('lockedCharacter' in r), 'CAST-NO-PICK: the cast never chooses who you play, or who is Hands off');
 
   // IT IS GIVEN THE SKELETON AS IT STANDS, which is what makes the cast belong to the book the
   // writer has read and edited rather than to the sentence it started from — and what makes
@@ -512,6 +525,147 @@ ok('a kind that does not exist is refused rather than assembled');
   const bare = await cast(['character'], { title: 'x', premise: '   ' });
   assert.match(bare.error, /no premise/, 'and a skeleton with nothing in it is refused too');
   ok('the cast is its own call, for the kinds asked for, against the skeleton as it stands');
+}
+
+// ---- #86 · WHO YOU PLAY REACHES THE CAST, AND THE HANDS-OFF THREAD IS WRITTEN FROM OUTSIDE ----
+//
+// The wizard asked who you play AFTER it wrote the threads, so the writer's own character got pockets
+// that acted for them ("accepting the forty dollars"), which the lock then forbade (#81).
+{
+  const { CAST, REVIEW, NO_OUTCOMES, YOURS_VOICE } = await import('../src/prompts.ts');
+  const base = { title: 'The Rust Year', genre: 'noir', setting: 'Sutera', premise: PREMISE };
+  const cast = (story: any, extra: any = {}) => routes['POST /api/spark/cast']({
+    body: { kinds: ['character', 'lore'], story, ...extra }, query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any) as any;
+  const lastAsk = () => calls.filter((x: any) => /Populate a story/.test(String(x.messages?.[0]?.content ?? ''))).at(-1)!;
+
+  calls = [];
+  const r = await cast({ ...base, persona: 'Vel', lockedCharacter: 'Vel' });
+  assert.ok(!r.error, r.error);
+  const said = String(lastAsk().messages[1].content);
+  assert.match(said, /THE WRITER PLAYS: Vel/, 'SPARK-PLAYS: the cast is told who the writer plays');
+  assert.match(said, /HANDS OFF: Vel/, '  and who the model never writes');
+  assert.match(String(lastAsk().messages[0].content), /OUTSIDE ONLY/,
+    'SPARK-OUTSIDE: and is asked to write that thread from the outside only');
+  const vel = r.entries.find((e: any) => e.title === 'Vel');
+  assert.strictEqual(vel.rooms.voice.body, YOURS_VOICE('Vel'),
+    'SPARK-YOURS: the Hands-off thread gets the their-lines-are-yours voice pocket, in place of the model\'s');
+  assert.ok(vel.rooms.voice.on, '  switched on');
+  assert.ok(!vel.rooms.interiority, 'SPARK-NO-INSIDE: and no pocket from inside their head');
+  const aldis = r.entries.find((e: any) => e.title === 'Aldis');
+  assert.match(aldis?.rooms?.voice?.body ?? '', /apologies/, 'SPARK-YOURS-ONE: every other thread keeps its own voice pocket');
+  assert.strictEqual(r.entries.filter((e: any) => e.rooms?.voice?.body === YOURS_VOICE('Vel')).length, 1,
+    '  the yours pocket is on one thread only');
+
+  // A WRITER WHO PLAYS NOBODY GETS TODAY'S CAST: nothing named, nothing held, nothing stripped.
+  calls = [];
+  const free = await cast(base);
+  assert.doesNotMatch(String(lastAsk().messages[1].content), /PLAYS|HANDS OFF/, 'SPARK-NOBODY: playing nobody adds nothing to the ask');
+  assert.match(free.entries[0].rooms.voice.body, /^Write her lines/, '  and every voice pocket is the model\'s');
+  // Hands off switched off: who you play is named, nobody is held.
+  calls = [];
+  const loose = await cast({ ...base, persona: 'Vel', lockedCharacter: 'Vel', lockoutOn: false });
+  assert.doesNotMatch(String(lastAsk().messages[1].content), /HANDS OFF/, 'SPARK-LOOSE: Hands off switched off holds nobody');
+  assert.match(loose.entries[0].rooms.voice.body, /^Write her lines/, '  and her voice is written as anyone\'s');
+
+  // A NEW CHARACTER THE WRITER DESCRIBES is in the tale from the start, even when the model leaves her out.
+  calls = [];
+  const mara = await cast({ ...base, persona: 'Mara', lockedCharacter: 'Mara', personaAbout: 'a courier who owes Aldis a favour' });
+  assert.match(String(lastAsk().messages[1].content), /THE WRITER PLAYS: Mara — a courier who owes Aldis a favour/,
+    'SPARK-NEW: the description reaches the ask');
+  const m = mara.entries.find((e: any) => e.title === 'Mara');
+  assert.strictEqual(m?.body, '[Mara: a courier who owes Aldis a favour]', '  and she gets a thread from it');
+  assert.strictEqual(m?.rooms?.voice?.body, YOURS_VOICE('Mara'), '  with the yours pocket');
+
+  // A RE-ROLL KEEPS WHO YOU PLAY: the one-thread re-roll is the same route with `replacing`.
+  calls = [];
+  const again = await cast({ ...base, persona: 'Vel', lockedCharacter: 'Vel' }, { replacing: ['The Long Stair'] });
+  assert.match(String(lastAsk().messages[1].content), /HANDS OFF: Vel/, 'SPARK-REROLL: a re-roll still names who is held');
+  assert.strictEqual(again.entries.find((e: any) => e.title === 'Vel')?.rooms?.voice?.body, YOURS_VOICE('Vel'),
+    '  and still writes their thread from outside');
+
+  // NEVER WHAT HAPPENS NEXT, in every wizard prompt that writes a thread (#81: "he does not take the money").
+  assert.ok(CAST.includes(NO_OUTCOMES), 'SPARK-NO-OUTCOME: the cast forbids what happens next');
+  assert.ok(REVIEW.includes(NO_OUTCOMES), '  and so does Try it on');
+  assert.match(CAST, /rule only\s+when/i, 'SPARK-RULE: a Rule is proposed only when the idea needs one');
+
+  // TRY IT ON reads the tale with your character chosen, and its threads come with pockets.
+  calls = [];
+  const rv: any = await routes['POST /api/spark/review']({
+    body: { story: { ...base, persona: 'Vel', lockedCharacter: 'Vel', writingStyle: VOICE },
+            entries: [{ title: 'Vel', entryType: 'character', body: '[Vel: speaks for the dead god]' }] },
+    query: new URLSearchParams(), owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any);
+  const rvAsk = calls.find((x: any) => /say what you would change/.test(String(x.messages?.[0]?.content ?? '')))!;
+  assert.match(String(rvAsk.messages[1].content), /THE WRITER PLAYS: Vel/, 'SPARK-LOOK-PLAYS: Try it on knows who you play');
+  assert.match(String(rvAsk.messages[1].content), /HANDS OFF: Vel/, '  and who is held');
+  assert.deepStrictEqual(Object.keys(rv.entries[0].rooms ?? {}), ['atmosphere'],
+    'SPARK-LOOK-POCKETS: its proposed threads carry pockets, their kind\'s only');
+  assert.ok(rv.entries[0].rooms.atmosphere.on, '  switched on, like the cast\'s');
+  // THE HANDS-OFF FLOOR HOLDS FOR TRY IT ON TOO: a proposed thread for the held character is written
+  // from outside, whatever the model gave it. The writer holds somebody the cast has no thread for.
+  calls = [];
+  const held: any = await routes['POST /api/spark/review']({
+    body: { story: { ...base, persona: 'Vel', lockedCharacter: 'Vel', writingStyle: VOICE }, entries: [] },
+    query: new URLSearchParams(), owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any);
+  const heldVel = held.entries.find((e: any) => e.title === 'Vel');
+  assert.strictEqual(heldVel?.rooms?.voice?.body, YOURS_VOICE('Vel'), 'SPARK-LOOK-FLOOR: Try it on writes the held character from outside too');
+  assert.ok(!heldVel?.rooms?.interiority, '  with nothing from inside their head');
+  assert.ok(!held.entries.some((e: any) => e.title !== 'Vel' && e.rooms?.voice), '  and the yours pocket on no other thread');
+  // A DESCRIBED CHARACTER gets a thread even when the cast asks for places only.
+  calls = [];
+  const placesOnly = await routes['POST /api/spark/cast']({
+    body: { kinds: ['lore'], story: { ...base, persona: 'Mara', lockedCharacter: 'Mara', personaAbout: 'a courier' } },
+    query: new URLSearchParams(), owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any) as any;
+  const mara2 = placesOnly.entries.find((e: any) => e.title === 'Mara');
+  assert.strictEqual(mara2?.rooms?.voice?.body, YOURS_VOICE('Mara'),
+    'SPARK-NEW-ANY: a character the writer described gets a thread, written from outside, whatever kinds were asked for');
+
+  // CREATE MAKES THE DESCRIBED CHARACTER'S THREAD, even when the cast step never ran (Seth, 2026-10-27):
+  // from the writer's words, from outside, with the yours pocket on.
+  const mk = (body: any) => routes['POST /api/stories']({ body, query: new URLSearchParams(), owner: me } as any) as any;
+  const bare: any = mk({ title: 'Courier', premise: PREMISE, persona: 'Mara', lockedCharacter: 'Mara',
+    personaAbout: 'a courier who owes Aldis a favour', entries: [] });
+  const maraT: any = db.entriesOf(bare.id).find((e: any) => e.title === 'Mara');
+  assert.ok(maraT, 'CREATE-YOU: a described character gets a thread at Create with no cast');
+  const maraA = (db.addonsOf(bare.id) as any[]).filter((a) => a.entry_id === maraT.id);
+  assert.match(maraA.find((a) => a.slot === 'facts')?.body ?? '', /a courier who owes Aldis a favour/, '  written from the description');
+  const yv = maraA.find((a) => a.slot === 'voice');
+  assert.strictEqual(yv?.body, `[${YOURS_VOICE('Mara')}]`, '  with the yours pocket');
+  assert.ok(yv?.active, '  switched on');
+  const twice: any = mk({ title: 'Courier 2', premise: PREMISE, persona: 'Mara', personaAbout: 'a courier',
+    entries: [{ title: 'Mara', entryType: 'character', body: '[Mara: the cast wrote her]' }] });
+  assert.strictEqual(db.entriesOf(twice.id).filter((e: any) => e.title === 'Mara').length, 1,
+    'CREATE-YOU-ONCE: and never a second thread when the cast already wrote one');
+  const free3: any = mk({ title: 'Courier 3', premise: PREMISE, persona: 'Mara', personaAbout: 'a courier', entries: [] });
+  const looseM: any = db.entriesOf(free3.id).find((e: any) => e.title === 'Mara');
+  assert.ok(!(db.addonsOf(free3.id) as any[]).some((a) => a.entry_id === looseM?.id && a.slot === 'voice'),
+    'CREATE-YOU-LOOSE: no yours pocket when nobody is held');
+
+  // WHO IS HANDS OFF CAN CHANGE AFTER THE THREADS ARE WRITTEN: a spark Create moves the yours pocket
+  // to the thread held now, written from outside, and takes it off the one held before.
+  const moved: any = mk({ title: 'Moved', premise: PREMISE, persona: 'Aldis', lockedCharacter: 'Aldis', spark: true, entries: [
+    { title: 'Vel', entryType: 'character', body: '[Vel: the Murmur]',
+      rooms: { voice: { name: 'Their lines are yours', body: YOURS_VOICE('Vel'), on: true } } },
+    { title: 'Aldis', entryType: 'character', body: '[Aldis: a debtor]',
+      rooms: { voice: { name: 'Debtor', body: 'Write his lines as apologies.', on: true },
+               interiority: { name: 'Shame', body: 'Never let him say it.', on: true } } }] });
+  const byTitle = (t: string) => { const id = (db.entriesOf(moved.id) as any[]).find((e) => e.title === t)?.id;
+    return (db.addonsOf(moved.id) as any[]).filter((a) => a.entry_id === id); };
+  assert.ok(!byTitle('Vel').some((a) => a.slot === 'voice'), 'CREATE-HELD: the yours pocket leaves the one no longer held');
+  assert.strictEqual(byTitle('Aldis').find((a) => a.slot === 'voice')?.body, `[${YOURS_VOICE('Aldis')}]`, '  and goes to the one held now');
+  assert.ok(!byTitle('Aldis').some((a) => a.slot === 'interiority'), '  written from outside');
+
+  // THE TALE'S OWN POCKETS ride through Create (#75's instruction slot), switched on; a blank one does not.
+  const own: any = mk({ title: 'Own', premise: PREMISE, entries: [],
+    talePockets: [{ name: 'Slow burn', body: 'Keep it a slow burn.' }, { name: 'Empty', body: '   ' }] });
+  const tp = (db.addonsOf(own.id) as any[]).filter((a) => !a.entry_id && a.slot === 'instruction');
+  assert.deepStrictEqual(tp.map((a) => a.name), ['Slow burn'], 'CREATE-TALE-POCKETS: the tale\'s own pockets are made, the blank one is not');
+  assert.ok(tp[0]?.active, '  and on');
+  ok('who you play reaches the cast and Try it on, and the Hands-off thread is written from outside');
 }
 
 // ---- #21 §3 · STEP FIVE: SHE READS THE WHOLE THING BACK ----

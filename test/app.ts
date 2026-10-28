@@ -525,6 +525,20 @@ let stubTalk: any = null, stubInvent: any = null;
         yours: {}, voice: { shipped: 'The shipped voice.', mine: null, inUse: 'The shipped voice.' },
         library: { voice: [{ name: 'Noir', text: 'Wet streets. Nobody explains themselves.' }],
                    style: [] } }
+    // #88. The cast, in the shape POST /api/spark/cast returns: the writer's character written from
+    // outside with the yours pocket, another with pockets of her own, and a Rule.
+    : url.startsWith('/api/spark/cast') ? { entries: [
+        { title: 'Mara Voss', entryType: 'character', activation: 'always_on', keys: ['Mara Voss'],
+          body: '[Mara Voss: a courier who owes the envoy]',
+          rooms: { appearance: { name: 'Road dust', body: 'Show the dust on her boots first.', on: true },
+                   voice: { name: 'Their lines are yours', body: "Mara Voss's lines are the writer's.", on: true } } },
+        { title: 'Teodor Ash', entryType: 'character', activation: 'always_on', keys: ['Teodor Ash'],
+          body: '[Teodor Ash: a clerk who counts the dead]',
+          rooms: { voice: { name: 'Envoy', body: 'Write her lines formal and short.', on: true },
+                   interiority: { name: 'Fear', body: 'Never let her say she is afraid.', on: true } } },
+        { title: 'Ring Law', entryType: 'rule', activation: 'always_on', keys: ['writ'],
+          body: '[Ring Law: nobody descends without a writ]',
+          rooms: { consequences: { name: 'The fine', body: 'Show the fine paid in public.', on: true } } }] }
     : url.startsWith('/api/spark') ? { story: { title: 'The Winter Signature', genre: 'political fantasy',
         premise: 'Six houses have one winter to sign a peace none of them wants.',
         setting: 'Ashfall Hall', pov: 'third limited, past tense', spice: 2,
@@ -656,6 +670,51 @@ ok('a preset id in the 2026-08-27 convention decodes to purpose, weaving, decens
     'the one fact about this model that decides whether prose arrives at all');
 }
 ok('every preset on the box has a blurb, and every blurb still belongs to a preset');
+
+// #87 · THE VOICE AGAINST THE POINT OF VIEW. A Voice that names a person or a tense the tale's point
+// of view does not tells the model two things (#81). Planted cases in both directions, and run against
+// text it was not written for: the shipped Voice, under every point of view the screens offer.
+{
+  const { voiceClash, withoutClash } = await import('../web/model.js');
+  const { DEFAULT_VOICE } = await import('../src/prompts.ts');
+  const THIRD = 'third limited, past tense';
+  const clash = 'Narrate in first person, present tense.';
+  const v = `Short sentences. ${clash} Weather does the feeling.`;
+  assert.deepStrictEqual(voiceClash(v, THIRD).map((c: any) => c.sentence), [clash],
+    'VOICE-CLASH: a Voice that states another person and tense is named, that sentence only');
+  assert.strictEqual(withoutClash(v, THIRD), 'Short sentences. Weather does the feeling.',
+    'VOICE-FIX: the fix takes out that sentence and nothing else');
+  assert.deepStrictEqual(voiceClash('You write in close third.', 'first person, present tense').length, 1,
+    'VOICE-CLASH: close third against first person');
+  assert.deepStrictEqual(voiceClash('Keep it in the present tense.', THIRD).length, 1,
+    'VOICE-CLASH: a tense alone is enough');
+  // A NEGATION SILENCES ITS OWN CLAUSE, NOT THE SENTENCE (review, 2026-10-27).
+  assert.strictEqual(voiceClash('Use first person, never second person.', THIRD).length, 1,
+    'VOICE-CLASH: a statement beside a forbidden person still counts');
+  assert.strictEqual(voiceClash('Do not head-hop; stay in close third, past tense.', 'first person, present tense').length, 1,
+    'VOICE-CLASH: a negation in one clause does not hide the next');
+  assert.strictEqual(voiceClash('First person present tense with no filter words.', THIRD)[0]?.said, 'first person, present tense',
+    'VOICE-CLASH: a negation hides only what follows it, not what it comes after');
+  // AND WHERE IT MUST STAY QUIET.
+  const quiet = [
+    'Give her one line a scene, and let it be "you never listen".',          // "you" once, in dialogue
+    'You are the narrator. You keep the sentences short.',                    // "you" is the model
+    '"Write it in first person," the editor said, and nobody did.',           // a person named only inside quotes
+    'Never slip into second person.',                                          // named to forbid it
+    'Write in third person, with no filter words.',                            // a negation after an agreeing statement
+    'Write in third person, past tense.',                                      // agrees
+    'Describe what the point of view allows, and no more.',
+  ];
+  for (const q of quiet) assert.deepStrictEqual(voiceClash(q, THIRD), [], `VOICE-QUIET: "${q}"`);
+  assert.strictEqual(withoutClash(quiet.join(' '), THIRD), quiet.join(' '), 'VOICE-FIX: and a quiet Voice is left byte for byte');
+  const POVS = ['first person, present tense', 'first person, past tense', 'second person, present tense',
+    'third limited, present tense', 'third limited, past tense', 'third omniscient, past tense'];
+  for (const pov of POVS) assert.deepStrictEqual(voiceClash(DEFAULT_VOICE, pov), [], `VOICE-SHIPPED: the shipped Voice under ${pov}`);
+  // A list Voice: the clashing line goes, its neighbours stay.
+  const list = 'Craft:\n- Stay close.\n- Write in the second person.\n- One image a line.';
+  assert.strictEqual(withoutClash(list, THIRD), 'Craft:\n- Stay close.\n- One image a line.', 'VOICE-FIX: a list item goes whole');
+}
+ok('a Voice that disagrees with the point of view is named, and the fix takes out only that sentence');
 
 // The writing head is a run of glyphs APPENDED after the prose, never a scramble of the prose
 // itself. The first version rewrote the last sixteen characters of the text on every delta: the
@@ -817,6 +876,18 @@ ok('a chapter wears the book cover as its plate, and the title moves onto it');
   assert.ok(!nodes.get('backdrop').hidden, 'the backdrop shows when the book asks for it');
   assert.match(back, /api\/cover\?story=s-1/, 'and it is the story cover');
   assert.match(back, /opacity:0\.45/, "at the story's own strength, not a constant");
+  // THE SLIDER MOVES THE GRADIENT, and the picture is not rebuilt on a repaint (2026-10-27).
+  assert.match(back, /<u style="--reach:0\.214">/, 'the strength also sets how far the picture reaches');
+  const drawn = nodes.get('backdrop').innerHTML;
+  nodes.get('backdrop').innerHTML = drawn + '<!--kept-->';
+  click({ panel: 'chapters' }); await new Promise((r) => setTimeout(r, 20));
+  assert.match(html('backdrop'), /<!--kept-->/, 'a repaint with nothing changed leaves the picture alone');
+  (STORY.story as any).coverBlur = 6; STORY.story.coverFlip = true;
+  click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
+  assert.doesNotMatch(html('backdrop'), /<!--kept-->/, 'a change to it does redraw it');
+  assert.strictEqual(nodes.get('backdrop').className, 'blur flip', 'blurred and flipped when the tale asks');
+  assert.match(html('backdrop'), /filter:blur\(6px\); inset:-12px/, 'by the amount the tale asks');
+  (STORY.story as any).coverBlur = 0; STORY.story.coverFlip = false;
   // The plate and the backdrop are two treatments of one picture and must never both be on: the
   // cover would appear twice, once scrolling and once not.
   assert.doesNotMatch(html('col'), /class="plate(?: [^"]*)?"/,
@@ -3264,6 +3335,154 @@ ok('a cover can be drawn: the book seeds the words, the writer owns them, and th
 }
 ok('sparking replaces the screen with the wizard rather than sitting it beside an empty box');
 
+// #88 · THE WIZARD ASKS WHO YOU PLAY FIRST AND ENDS IN A PREVIEW. Driven from the wizard the block
+// above left on screen. Nothing may post but the spark calls until Start writing, and Start writing
+// must carry the draft as the preview left it.
+{
+  const doc = (globalThis as any).document;
+  const wasQSA = doc.querySelectorAll, wasQS = doc.querySelector;
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  // What the wizard reads off the screen when it harvests: a list per selector, nothing by default.
+  let onScreen: Record<string, any[]> = {};
+  doc.querySelectorAll = (sel: string) => onScreen[sel] ?? [];
+  try {
+    const steps = [...html('page').matchAll(/data-sparkstep="\d+"[^>]*?aria-label="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepStrictEqual(steps, ['The tale', 'You', 'The threads', 'Try it on', 'The preview',
+      'The first scene', 'The opening', 'Begin'], 'WIZ-ORDER: You comes before the threads, and the preview after Try it on');
+
+    POSTED.length = 0;
+    click({ sparkstep: '2' });
+    await settle(/data-sp="persona"/);
+    assert.match(html('page'), /data-sp="persona"/, 'WIZ-YOU: the You step asks who you play');
+    assert.match(html('page'), /data-sp="personaAbout"/, '  and who they are, if they are new');
+
+    // A new character, described, and held. Leaving You for the threads asks for them.
+    onScreen = { '[data-sp]': [{ dataset: { sp: 'persona' }, value: 'Mara Voss' },
+      { dataset: { sp: 'personaAbout' }, value: 'a courier who owes the envoy' },
+      { dataset: { sp: 'lockedCharacter' }, value: 'Mara Voss' }] };
+    click({ sparkstep: '3' });
+    onScreen = {};
+    await settle(/a courier who owes the envoy/);
+    const cast = POSTED.find((p) => p.url === '/api/spark/cast');
+    assert.ok(cast, 'WIZ-CAST: arriving at the threads asks for them');
+    assert.strictEqual(cast.body.story.persona, 'Mara Voss', 'WIZ-CAST: with who you play');
+    assert.strictEqual(cast.body.story.lockedCharacter, 'Mara Voss', '  and who is Hands off');
+    assert.strictEqual(cast.body.story.personaAbout, 'a courier who owes the envoy', '  and what you said of them');
+
+    // THE THREAD YOU PLAY CANNOT BE UNTICKED on the threads step either (round-two review).
+    onScreen = { '[data-spcast]': [{ dataset: { spcast: '1' }, checked: false }] };
+    click({ sparkstep: '4' });
+    onScreen = {};
+    click({ sparkstep: '5' });
+    await settle(/The tale's own thread/);
+    assert.match(html('page'), /a courier who owes the envoy/, 'WIZ-KEEP-YOU: unticking the thread you play keeps it');
+    let pv = html('page');
+    assert.match(pv, /The tale's own thread/, "WIZ-PREVIEW: the tale's own thread is at the top");
+    assert.ok(pv.indexOf("The tale's own thread") < pv.indexOf('Teodor Ash'), '  above the threads');
+    assert.match(pv, /Six houses have one winter/, '  with its premise');
+    assert.ok(pv.indexOf('Ring Law') < pv.indexOf('Teodor Ash'), '  and a Rule is in it, not among the threads');
+    for (const t of ['Ilva Marren', 'Mara Voss', 'Teodor Ash', 'Road dust', 'Their lines are yours', 'Envoy', 'Fear', 'The fine'])
+      assert.ok(pv.includes(t.replace(/'/g, '&#39;')), `WIZ-PREVIEW: every thread and pocket is listed: ${t}`);
+    assert.doesNotMatch(pv, /Write her lines formal and short/, 'WIZ-FOLD: folded to its name and Always true');
+    assert.doesNotMatch(pv, /data-spvoicefix/, 'WIZ-WARN: a Voice that agrees is not warned about');
+
+    // Unfold Teodor (index 2: the spark's own Ilva is 0), edit his voice, take off her interiority, undo, take it off again, add an outfit.
+    click({ spfold: '2' });
+    assert.match(html('page'), /data-sppocket="2:voice"/, 'WIZ-UNFOLD: unfolded, his pockets can be edited');
+    onScreen = { '[data-sppocket]': [{ dataset: { sppocket: '2:voice' }, value: 'Write her lines formal, and shorter.' }] };
+    click({ spdroppocket: '2:interiority' });
+    onScreen = {};
+    pv = html('page');
+    assert.doesNotMatch(pv, /Never let her say she is afraid/, 'WIZ-REMOVE: a removed pocket is gone');
+    assert.match(pv, /formal, and shorter/, 'WIZ-EDIT: an edit stays');
+    assert.match(pv, /data-spundo="1"/, '  and the removal can be undone');
+    click({ spundo: '1' });
+    assert.match(html('page'), /Never let her say she is afraid|Fear/, 'WIZ-UNDO: undo brings it back');
+    assert.match(html('page'), /formal, and shorter/, '  and keeps the edit made before it');
+    click({ spdroppocket: '2:interiority' });
+    // UNDO KEEPS AN EDIT MADE AFTER THE CHANGE IT TAKES BACK (review, 2026-10-27).
+    onScreen = { '[data-sppocket]': [{ dataset: { sppocket: '2:voice' }, value: 'Write his lines formal and spare.' }] };
+    click({ spundo: '1' });
+    onScreen = {};
+    assert.match(html('page'), /formal and spare/, 'WIZ-UNDO: an edit typed after the removal survives its undo');
+    assert.match(html('page'), /Never let her say she is afraid/, '  and the removed pocket is back');
+    click({ spdroppocket: '2:interiority' });
+    doc.querySelector = (sel: string) => sel === '[data-spnewslot="2"]' ? { value: 'outfit' }
+      : sel === '[data-spnewpocket="2"]' ? { value: 'Dress her in grey wool.' } : null;
+    click({ spaddpocket: '2' });
+    doc.querySelector = wasQS;
+    assert.match(html('page'), /Dress her in grey wool/, 'WIZ-ADD: an added pocket is in the draft');
+    // THE THREAD YOU PLAY STAYS while you play them (Seth, 2026-10-27), and the screen says why.
+    assert.doesNotMatch(html('page'), /data-spdropthread="1"/, 'WIZ-KEEP-YOU: no remove on the thread you play');
+    click({ spfold: '1' });
+    assert.match(html('page'), /You play Mara Voss, so (?:her|their) thread stays/, '  and it says why');
+    click({ spdropthread: '1' });
+    assert.match(html('page'), /a courier who owes the envoy/, '  and a press that reaches the handler anyway removes nothing');
+    click({ spfold: '1' });
+    // THE TALE'S OWN POCKETS ("Your own"): add, edit, remove, undo.
+    doc.querySelector = (sel: string) => sel === '[data-sptpnew="name"]' ? { value: 'Slow burn' }
+      : sel === '[data-sptpnew="body"]' ? { value: 'Keep it a slow burn.' } : null;
+    click({ spaddtp: '1' });
+    doc.querySelector = wasQS;
+    assert.match(html('page'), /data-sptpbody="0"/, 'WIZ-TALE-POCKET: a pocket of the tale\'s own is added');
+    doc.querySelector = (sel: string) => sel === '[data-sptpnew="name"]' ? { value: 'Narrator' }
+      : sel === '[data-sptpnew="body"]' ? { value: 'The narrator never names him.' } : null;
+    click({ spaddtp: '1' });
+    doc.querySelector = wasQS;
+    onScreen = { '[data-sptpbody]': [{ dataset: { sptpbody: '0' }, value: 'Keep it a very slow burn.' }] };
+    click({ spdroptp: '1' });
+    onScreen = {};
+    assert.doesNotMatch(html('page'), /never names him/, 'WIZ-TALE-POCKET: and removed');
+    assert.match(html('page'), /very slow burn/, '  and edited');
+    click({ spundo: '1' });
+    assert.match(html('page'), /never names him/, '  and the removal undone');
+    click({ spdroptp: '1' });
+    // Remove the Rule, undo, remove it again.
+    click({ spdropthread: '3' });
+    assert.doesNotMatch(html('page'), /nobody descends without a writ/, 'WIZ-DROP: a removed thread is gone');
+    click({ spundo: '1' });
+    assert.match(html('page'), /nobody descends without a writ/, 'WIZ-UNDO: undo brings the thread back');
+    click({ spdropthread: '3' });
+
+    // THE VOICE AGAINST THE POINT OF VIEW: warned, fixed, undone, and Start writing still works.
+    onScreen = { '[data-sp]': [{ dataset: { sp: 'writingStyle' }, value: 'Cold, spare. Narrate in first person, present tense.' }] };
+    click({ sparkstep: '5' });
+    onScreen = {};
+    pv = html('page');
+    assert.match(pv, /data-spvoicefix="1"/, 'WIZ-WARN: a Voice in first person over a third-person tale is warned about');
+    assert.match(pv, /first person, present tense/, '  naming what it says');
+    click({ spvoicefix: '1' });
+    assert.doesNotMatch(html('page'), /data-spvoicefix/, 'WIZ-FIX: the fix ends the warning');
+    assert.match(html('page'), />Cold, spare\.</, '  and leaves the rest of the Voice');
+    click({ spundo: '1' });
+    assert.match(html('page'), /data-spvoicefix="1"/, '  and is undone like the rest');
+
+    assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
+      `WIZ-NOTHING: nothing is posted before Start writing (${POSTED.map((p) => p.url).join(', ')})`);
+    doc.querySelector = (sel: string) => sel === '[data-sp-open]' ? { checked: false } : null;
+    click({ acceptSpark: '1' });
+    doc.querySelector = wasQS;
+    for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
+    const made = POSTED.find((p) => p.url === '/api/stories');
+    assert.ok(made, 'WIZ-CREATE: Start writing works with the warning showing');
+    assert.match(made.body.writingStyle, /first person/, '  and keeps the Voice as the writer left it');
+    assert.deepStrictEqual(made.body.entries.map((e: any) => e.title), ['Ilva Marren', 'Mara Voss', 'Teodor Ash'],
+      'WIZ-CREATE: the draft goes as the preview left it, the removed thread too');
+    const ilva = made.body.entries[2];
+    assert.strictEqual(ilva.rooms.voice.body, 'Write his lines formal and spare.', '  with the edited pocket');
+    assert.ok(!ilva.rooms.interiority, '  without the removed one');
+    assert.strictEqual(ilva.rooms.outfit.body, 'Dress her in grey wool.', '  with the added one');
+    assert.strictEqual(made.body.entries[1].rooms.voice.name, 'Their lines are yours', "  and the yours pocket on Mara's thread");
+    assert.strictEqual(made.body.persona, 'Mara Voss', '  who you play');
+    assert.strictEqual(made.body.lockedCharacter, 'Mara Voss', '  and Hands off');
+    assert.strictEqual(made.body.personaAbout, 'a courier who owes the envoy', '  and what you said of them, for a thread if the cast made none');
+    assert.deepStrictEqual(made.body.talePockets, [{ name: 'Slow burn', body: 'Keep it a very slow burn.' }],
+      "WIZ-CREATE: and the tale's own pockets as the preview left them");
+    await new Promise((r) => setTimeout(r, 60));
+  } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
+}
+ok('the wizard asks who you play before the threads, and ends in a preview that edits only the draft');
+
 // #24 · WHAT CHANGED IS A FILE NOW. Seth, 2026-08-29: "lets just have it show case from one file we
 // serve that we update after each commit and we remove the need for a local model to do it."
 //
@@ -3383,6 +3602,20 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   click({ cardview: null });
 }
 ok('a card face reads body, then what is on, then what is not — and finishing lives in the form');
+
+// ---- EVERY SCENE CAN BE DELETED FROM THE SCENES LIST (Seth, 2026-10-27).
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'chapters' });
+  const list = html('sideBody');
+  const rows = [...list.matchAll(/data-chapter="([^"]+)"/g)].map((m) => m[1]);
+  const dels = [...list.matchAll(/class="scenedel" data-delchapter="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(rows.length > 0, 'the list has scenes');
+  assert.deepStrictEqual(dels, rows, 'and every scene row has its own delete, for that scene');
+  assert.doesNotMatch(list, /<button class="card"[^>]*>(?:(?!<\/button>)[\s\S])*<button/, 'never a button inside the card button');
+}
+ok('every scene in Scenes has a delete beside it');
 
 // ---- THE TALE'S MENU, SHORTER AND WHOLE (Seth, 2026-10-27): two columns, every row still there.
 {
@@ -3614,12 +3847,14 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
     /data-edit="p-5"/.test(sel) ? { closest: () => ({ getBoundingClientRect: () => ({ bottom: 500 }) }) }
     : null;
   try {
-    // A REPAINT THAT CHANGED NOTHING MUST NOT MOVE THE PAGE — an edit, a panel, a toast. It goes to
-    // the bottom because that is what being at the tip has always meant, and never to the seam.
+    // A REPAINT THAT CHANGED NOTHING MUST NOT MOVE THE PAGE — an edit, a panel, a toast, the
+    // contradiction check landing a few seconds after a passage. Since 2026-10-27 it stays exactly
+    // where it was; it went to the bottom whenever you were near it (Seth: "as soon as it's done it
+    // moves the text to the bottom and it's really annoying").
     atTip();
     redraw();
-    assert.strictEqual(read.scrollTop, 9000,
-      'a repaint with the same newest passage keeps the old behaviour and does not pin');
+    assert.strictEqual(read.scrollTop, 8500,
+      'STAY-PUT: a repaint with the same newest passage leaves the page where it was');
 
     // NOW ONE ARRIVES. p-6 lands after p-5, so p-5 is the seam: 500 down, less 72 of peek, from a
     // pane already scrolled 8500 — the point is that it is NOT scrollHeight.
@@ -3635,7 +3870,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
     // AND ONLY ONCE. The same passage is not new on the next repaint.
     atTip();
     redraw();
-    assert.strictEqual(read.scrollTop, 9000, 'the next repaint is an ordinary one again');
+    assert.strictEqual(read.scrollTop, 8500, 'the next repaint is an ordinary one again: it stays put');
 
     /* AND WHEN THE SEAM IS NOT ON THE PAGE, IT STILL MOVES. `pinTo` returns false so the caller
      * falls back to the bottom — reading mode draws every chapter, a jump can leave the seam

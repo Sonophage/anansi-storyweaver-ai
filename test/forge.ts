@@ -237,7 +237,7 @@ const paste = (text: string, o = me) => routes['POST /api/thread/paste'](ctx({ s
   const made: any = routes['POST /api/stories'](ctx({
     title: 'The Drowned Ledger', genre: 'noir', premise: 'A clerk counts what the sea returns.',
     writingStyle: 'Write the narration in past tense: she came up the stair.',
-    persona: 'Sella Vane', proposedCast: [],
+    persona: 'Sella Vane',
     entries: [{
       title: 'Sella Vane', entryType: 'character', activation: 'always_on',
       body: '[Sella Vane: tide-clerk; owes the Ambersand]', keys: ['Sella'],
@@ -255,8 +255,7 @@ const paste = (text: string, o = me) => routes['POST /api/thread/paste'](ctx({ s
   assert.deepStrictEqual(rooms, ['facts', 'voice'], 'the rooms rode in with the cast');
   assert.ok((made.notes ?? []).some((x: string) => /atmosphere/.test(x)),
     'and the one a character has no business with was named, not coerced');
-  // The persona was not in `proposedCast`, so it is the writer's own and pinCast never touches it.
-  // A pasted book's persona is typed, not proposed — the writer chose to paste it.
+  // A pasted book's persona is the writer's — they chose to paste it — and nothing polices it.
   const st: any = db.getStory(made.id);
   assert.strictEqual(st.persona, 'Sella Vane', 'a pasted persona is the writer\'s and is not policed away');
   ok('a whole book pasted at once keeps its cast, their rooms, and its persona');

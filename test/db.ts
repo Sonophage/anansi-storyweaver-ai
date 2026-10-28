@@ -243,20 +243,19 @@ ok('deleting a chapter takes its prose with it, and leaves the numbers where the
    * FOUND IN THE LIVE LIBRARY on 2026-09-01 and not by this test, which asserted the wrong rule:
    * "The Transaction of Silence", chapter one closed with 22 passages and no chapter two at all.
    * Seth had ended chapter one and deleted the empty chapter the close opened for him. */
+  // ONE PRESS, NOT A CLEAN-UP (Seth, 2026-10-27: "we also need a simpler way of deleting scenes so
+  // I don't have to ask you for the cleanup"). Deleting the only OPEN scene while another remains
+  // used to be refused, and he had to ask for scene 1 to be reopened by hand. Now the latest scene
+  // left is reopened in the same step, so the tale still has somewhere to write.
   const openOne = db.delChapter(s2.id, three.opened);
-  assert.strictEqual(openOne.deleted, 0, 'the only OPEN chapter cannot go, whatever else remains');
-  assert.match(String(openOne.error), /last one open/);
-  assert.deepStrictEqual(db.chapters(s2.id).map((c: any) => c.idx), [1, 3], 'and it is still there');
-
-  // A CLOSED one may go while an open one remains, which is the case the old count also allowed and
-  // is the half that was right. Asserted so the fix cannot be over-applied into refusing everything.
-  assert.strictEqual(db.delChapter(s2.id, db.chapters(s2.id)[0].id).deleted, 1,
-    'a closed chapter can still go while there is somewhere to write');
-  assert.deepStrictEqual(db.chapters(s2.id).map((c: any) => c.idx), [3]);
-  // And now the same chapter is both the last one and the only open one, so it is refused again.
+  assert.strictEqual(openOne.deleted, 1, 'the only open scene goes when another remains');
+  assert.strictEqual(openOne.reopened, 1, 'and says which scene it opened again');
+  assert.deepStrictEqual(db.chapters(s2.id).map((c: any) => [c.idx, c.status]), [[1, 'open']],
+    'the latest scene left is open, so there is somewhere to write');
+  // The last scene of all still cannot go: there would be no scene to write in.
   const last = db.delChapter(s2.id, db.chapters(s2.id)[0].id);
   assert.strictEqual(last.deleted, 0);
-  assert.match(String(last.error), /last one open/);
+  assert.match(String(last.error), /only scene/);
   assert.strictEqual(db.chapters(s2.id).length, 1);
   db.delStory(s2.id);   // the shelf-counting checks below read every story this owner has
 });
@@ -1609,37 +1608,6 @@ ok('a story\'s persona and locked character follow a rename, and clear on a dele
   assert.strictEqual(read().locked_character, 'Kade Ferrin', 'and leaves the other reference standing');
 });
 
-ok('a persona naming nobody in the story is dropped, and one naming a real character is kept', () => {
-  const me = db.owner('pincast-test');
-  // The wizard's order: the persona is chosen a step BEFORE the cast is written, so it arrives on
-  // the create call as a name and the entries follow it.
-  const st = db.createStory(me, { title: 'The Cast', persona: 'Ilva Marren', lockedCharacter: 'Nobody At All' });
-  db.upsertEntry(st.id, me, { title: 'Ilva Marren', body: 'A courier.', entryType: 'character' });
-  const read = () => db.listStories(me).find((r: any) => r.id === st.id) as any;
-
-  // Only what the MODEL proposed is policed. A persona the writer typed is left alone even when it
-  // names nobody, because a protagonist is allowed to have no ledger entry.
-  assert.deepStrictEqual(db.pinCast(st.id), [], 'with nothing proposed, nothing is policed');
-  assert.strictEqual(read().locked_character, 'Nobody At All', 'a name the writer typed survives');
-
-  const cleared = db.pinCast(st.id, ['Ilva Marren', 'Nobody At All']);
-  assert.deepStrictEqual(cleared, ['Nobody At All'], 'it says what it cleared, and only that');
-  assert.strictEqual(read().persona, 'Ilva Marren', 'a persona that names a real character is kept');
-  assert.strictEqual(read().locked_character, null, 'and one that names nobody is dropped');
-
-  // Idempotent: running it again must not clear the good one, which is the failure that would make
-  // it unsafe to call on every save.
-  assert.deepStrictEqual(db.pinCast(st.id, ['Ilva Marren', 'Nobody At All']), [],
-    'a second run clears nothing');
-  assert.strictEqual(read().persona, 'Ilva Marren', 'and leaves the kept one alone');
-
-  // Scoped: a character of the same name in ANOTHER story does not rescue a dangling persona.
-  const other = db.createStory(me, { title: 'Elsewhere', persona: 'Someone Elses Hero' });
-  db.upsertEntry(st.id, me, { title: 'Someone Elses Hero', body: 'In the wrong book.', entryType: 'character' });
-  assert.deepStrictEqual(db.pinCast(other.id, ['Someone Elses Hero']), ['Someone Elses Hero'],
-    "a cast member of another story cannot satisfy this story's persona");
-});
-
 ok('auto-open is on by default, survives a partial save, and can be turned off', () => {
   const me = db.owner('autoopen-test');
   const st = db.createStory(me, { title: 'The Opening' });
@@ -2661,7 +2629,7 @@ ok('a followed card can be taken over, handed back, or taken out of one book alo
   // It keeps its TITLE so the screen can offer it back by name, and nothing else. FOUR readers were
   // missed on the first pass and found by grepping `FROM entries` rather than by any check: the
   // cross-story Threads page listed it as an empty card, the shelf counted it in a book's thread
-  // total, `pinCast` counted its name as still in the cast, and SEARCH returned it as a title hit
+  // total, a persona check (since deleted, #84) counted its name as still in the cast, and SEARCH returned it as a title hit
   // with no body. `LIVE` is one fragment so the fifth reader inherits the rule; this asserts all of
   // them, because a shared fragment nobody applies is the same bug with a nicer comment.
   {
@@ -2683,10 +2651,6 @@ ok('a followed card can be taken over, handed back, or taken out of one book alo
       "listStories — the shelf's per-book thread count must agree with the cards there are");
     assert.ok(!db.search(me, stoneTitle, book.id).some((r: any) => r.kind === 'Entry'),
       'search — a tombstone kept its title, so it came back as a hit with no body');
-    // pinCast: a dropped card's name must not count as still in the cast.
-    db.updateStory(book.id, { persona: stoneTitle });
-    assert.deepStrictEqual(db.pinCast(book.id, [stoneTitle]), [stoneTitle],
-      'pinCast must clear a persona naming a thread this book has taken out');
 
     // AND IT IS STILL OFFERABLE BY NAME, which is the one place it must appear.
     assert.ok(db.droppedFollowed(book.id).some((x: any) => x.title === stoneTitle),
@@ -3474,5 +3438,23 @@ ok('Always true is one row per thread, written switched on, whoever writes it', 
   assert.ok(JSON.stringify(out).includes('Nobody touches before scene ten.'), 'TALE-POCKET-ON: switched on, it is in what is sent');
   console.log("  ok  the tale holds pockets of its own, sent while switched on");
 }
+
+// The cover behind the prose, blurred or on the other side (Seth, 2026-10-27).
+ok('a tale keeps its cover blur and flip, a partial save leaves them, and a copy carries them', () => {
+  const o = db.owner('coverfx');
+  const t = db.createStory(o, { title: 'Cover', premise: 'p' });
+  const { view } = { view: (id: string) => db.getStory(id) as any };
+  assert.strictEqual(view(t.id).cover_blur, 0, 'off on a new tale');
+  db.updateStory(t.id, { coverBlur: 8, coverFlip: true });
+  assert.deepStrictEqual([view(t.id).cover_blur, view(t.id).cover_flip], [8, 1], 'both save, the blur as an amount');
+  db.updateStory(t.id, { title: 'Cover again' });
+  assert.deepStrictEqual([view(t.id).cover_blur, view(t.id).cover_flip], [8, 1], 'a save that does not name them leaves them');
+  db.updateStory(t.id, { coverBlur: 999 });
+  assert.strictEqual(view(t.id).cover_blur, db.MAX_COVER_BLUR, 'and the blur is capped');
+  db.updateStory(t.id, { coverBlur: 8 });
+  const copy = db.duplicateStory(o, t.id, 'Cover copy') as any;
+  const cid = copy?.id ?? copy;
+  assert.deepStrictEqual([view(cid).cover_blur, view(cid).cover_flip], [8, 1], 'a copy of the tale carries them');
+});
 
 console.log(`\n${n} checks passed`);

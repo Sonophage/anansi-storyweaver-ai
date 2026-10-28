@@ -404,6 +404,11 @@ function migrate() {
   // under text is unreadable and one at nothing is not there, so this is the control that makes
   // the treatment usable at all rather than a nice idea. 30 is a default that reads as atmosphere.
   add('stories', 'cover_opacity', 'INTEGER DEFAULT 30');
+  // Two more ways to set the cover behind the prose (Seth, 2026-10-27): how much it is blurred, in
+  // pixels (0 is sharp, a slider since Seth asked for "how much blur"), and the picture whole down
+  // the RIGHT side with the gradient running the other way. Both off on every tale until set.
+  add('stories', 'cover_blur', 'INTEGER DEFAULT 0');
+  add('stories', 'cover_flip', 'INTEGER DEFAULT 0');
   // The character the model must not write: no dialogue, no action, no interior. Null on every
   // story until somebody names one, which keeps the behaviour of every existing book unchanged.
   // A NAME rather than an entry id, because it also has to work for a protagonist who has no
@@ -1423,7 +1428,7 @@ export const passagesOf = (id: string) => q(
  *  every query that means "cards" has to exclude it or it surfaces as an empty card with a name.
  *
  *  FOUR READERS WERE MISSED on the first pass and found by grepping `FROM entries` rather than by a
- *  check: the cross-story Threads page, the shelf's per-book card count, `pinCast`'s title set (a
+ *  check: the cross-story Threads page, the shelf's per-book card count, a persona check deleted with #84 (a
  *  dropped card's name would count as still in the cast) and SEARCH (a title hit with no body). That
  *  is why this is a shared fragment and not a condition written out four times: the fifth reader is
  *  the one nobody remembers.
@@ -1990,7 +1995,7 @@ export function editPassage(storyId: string, id: string, body: string) {
  *
  *  Refuses the last chapter in the branch. A story with no chapter has nowhere to put the next
  *  passage, and every read here does `chapters.at(-1)` as its fallback. */
-export function delChapter(storyId: string, chapterId: string): { deleted: number; error?: string } {
+export function delChapter(storyId: string, chapterId: string): { deleted: number; reopened?: number; error?: string } {
   const ch = q('SELECT id, branch_id, idx FROM chapters WHERE id = ? AND story_id = ?')
     .get(chapterId, storyId) as any;
   if (!ch) return { deleted: 0, error: 'That chapter is gone already.' };
@@ -2012,11 +2017,18 @@ export function delChapter(storyId: string, chapterId: string): { deleted: numbe
   const openLeft = (q(`SELECT COUNT(*) AS n FROM chapters
       WHERE story_id = ? AND branch_id = ? AND status = 'open' AND id != ?`)
     .get(storyId, ch.branch_id, chapterId) as any).n;
-  if (!openLeft) return { deleted: 0,
-    error: 'A book keeps a chapter to write in, and this is the last one open. Close another chapter '
-      + 'or start one, then this can go.' };
+  /* AND NOW IT KEEPS ONE BY OPENING ONE, rather than refusing (Seth, 2026-10-27: "a simpler way of
+   * deleting scenes so I don't have to ask you for the cleanup"). Deleting the only open scene while
+   * others remain reopens the latest of them in the same transaction, so the invariant above holds
+   * and the writer needs one press. Only the very last scene on the branch is still refused. */
+  const reopen = openLeft ? null : q(`SELECT id, idx FROM chapters
+      WHERE story_id = ? AND branch_id = ? AND id != ? ORDER BY idx DESC LIMIT 1`)
+    .get(storyId, ch.branch_id, chapterId) as any;
+  if (!openLeft && !reopen) return { deleted: 0,
+    error: 'This is the only scene in the tale, so there would be nowhere left to write.' };
   db.exec('BEGIN');
   try {
+    if (reopen) q("UPDATE chapters SET status = 'open' WHERE id = ? AND story_id = ?").run(reopen.id, storyId);
     q(`DELETE FROM violations WHERE story_id = ? AND passage_id IN
          (SELECT id FROM passages WHERE chapter_id = ?)`).run(storyId, chapterId);
     q('DELETE FROM proposals WHERE story_id = ? AND chapter_id = ?').run(storyId, chapterId);
@@ -2024,7 +2036,7 @@ export function delChapter(storyId: string, chapterId: string): { deleted: numbe
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
   touch(storyId);
-  return { deleted: 1 };
+  return reopen ? { deleted: 1, reopened: reopen.idx } : { deleted: 1 };
 }
 
 /** DELETE EVERY PASSAGE BELOW THIS ONE. Seth, 2026-08-30: "a way to delete anything after a
@@ -2606,39 +2618,6 @@ export function wearOutfit(storyId: string, entryId: string, outfitId: string | 
 }
 
 
-/** Drop a persona or a locked character that names nobody in this story.
- *
- *  The wizard's whole point is choosing who you play from a cast that has not been written yet, so
- *  the name arrives before the entry does and there is a window where it can be wrong: the spark
- *  proposes it, the writer edits the cast, and the character they were going to play is gone. The
- *  same window exists on import, where persona comes from a stranger's card by name.
- *
- *  Only names in `proposed` are policed, and that limit is the whole correctness of this. A persona
- *  is a NAME and not an entry id ON PURPOSE — see the locked_character migration above — because a
- *  protagonist need not have a ledger entry at all, and plenty of second-person books never give
- *  "you" one. The first version of this policed every persona and wiped exactly those, which
- *  test/ui/hostile.js caught by creating a story whose persona names nobody and expecting it to
- *  survive. What the model proposed is fair game; what the writer typed is not.
- *
- *  Returns what it cleared, so a caller can say so rather than silently disagreeing with the form
- *  the writer just filled in. */
-export function pinCast(storyId: string, proposed: string[] = []): string[] {
-  if (!proposed.length) return [];
-  const fromModel = new Set(proposed.map((s) => String(s)));
-  const titles = new Set((q(`SELECT title FROM entries WHERE story_id = ? AND ${LIVE()}`)
-    .all(storyId) as any[]).map((r) => r.title));
-  const cur = q('SELECT persona, locked_character FROM stories WHERE id = ?').get(storyId) as any;
-  if (!cur) return [];
-  const cleared: string[] = [];
-  for (const [col, val] of [['persona', cur.persona], ['locked_character', cur.locked_character]]) {
-    if (val && fromModel.has(val) && !titles.has(val)) {
-      q(`UPDATE stories SET ${col} = NULL WHERE id = ?`).run(storyId);
-      cleared.push(String(val));
-    }
-  }
-  return cleared;
-}
-
 /** Copy one entry into another of the writer's own books.
  *
  *  Both stories are checked here and not only at the gate. The gate resolves ONE story id per
@@ -2936,13 +2915,16 @@ export function endChapter(storyId: string, branchId: string, nextTitle?: string
  *  This was a full-row UPDATE, so saving from a panel holding one field bound `undefined` to
  *  every other column and threw: the Trajectory panel's Save, whose only field is `direction`,
  *  answered 500. Absent keys now keep what is already stored; an explicit null still clears. */
+/** The most the cover behind the prose can be blurred, in pixels. Past this it is a colour wash. */
+export const MAX_COVER_BLUR = 24;
 export function updateStory(id: string, s: any) {
   const cur = getStory(id);
   if (!cur) return;
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       spice=?,spice_note=?,max_context=?,status=?,model=?,
-      locked_character=?,lockout_on=?,weaving=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,auto_open=?,
+      locked_character=?,lockout_on=?,weaving=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,
+      cover_blur=?,cover_flip=?,auto_open=?,
       lore_from=?,style_note=?,world=?,world_note=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
@@ -2958,6 +2940,9 @@ export function updateStory(id: string, s: any) {
       Number(p('chapterHero', 'chapter_hero') ? 1 : 0),
       Number(p('chapterSticky', 'chapter_sticky') ? 1 : 0),
       Math.max(0, Math.min(100, Number(p('coverOpacity', 'cover_opacity')) || 0)),
+      // Booleans over the wire, integers in the columns, in the columns' own slots.
+      Math.max(0, Math.min(MAX_COVER_BLUR, Math.round(Number(p('coverBlur', 'cover_blur')) || 0))),
+      Number(p('coverFlip', 'cover_flip') ? 1 : 0),
       // A boolean over the wire, an integer in the column, and `undefined` means "leave it" —
       // p() already resolves that to the current value, so a partial save cannot switch it off.
       Number(p('autoOpen', 'auto_open') ? 1 : 0),
@@ -3413,10 +3398,10 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
    * somewhere the world book does not exist, and this lands beside it. A copy of a book set in a
    * world is a book set in that world. */
   q(`UPDATE stories SET lore_from=?, is_world=?, world=?, world_note=?, auto_open=?, look=?,
-       chapter_hero=?, chapter_sticky=?, cover_opacity=?, weaving=? WHERE id=?`)
+       chapter_hero=?, chapter_sticky=?, cover_opacity=?, cover_blur=?, cover_flip=?, weaving=? WHERE id=?`)
     .run(src.lore_from ?? null, src.is_world ?? 0, src.world ?? null, src.world_note ?? null,
       src.auto_open, src.look ?? null, src.chapter_hero, src.chapter_sticky, src.cover_opacity,
-      src.weaving ?? 0, made.id);
+      src.cover_blur ?? 0, src.cover_flip ?? 0, src.weaving ?? 0, made.id);
 
   const ledger = copyLedger(storyId, made.id, ownerId);
   const cards = ledger?.map ?? new Map<string, string>();
