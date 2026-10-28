@@ -16,13 +16,21 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-28 · Holding the one you play, in New tale
+
+### "Also keep … off the model" appears as soon as you name who you play
+On the You step of New tale, typing who you play now shows the button that keeps them off the
+model, and offers them under Hands off, as soon as you leave the box. Before, neither appeared
+until you went to another step and came back.
+
 ## 2026-10-28 · Tales set in a story or game, through your Worlds
 
 ### Name the IP, and the new tale follows your World
 The first step of New tale now asks whether the tale is set in a story or game that already
 exists. Name it. If you already have a World with that name (in any capitals), the new tale
 follows it, and the preview lists that World's people coming in with it. They are the World's
-threads, not copies: change one in the World and it changes in every tale that follows it.
+threads, not copies: change one in the World and it changes in every tale that follows it. The
+Begin step names the World the tale will follow, or says No World.
 
 Nothing is made until you press Start writing, and if starting fails, nothing is left half made.
 Only your own Worlds are found. Leave the box empty for a tale of your own, as before. A name you
@@ -43,15 +51,24 @@ one is marked "from memory, not looked up" in the list and the preview, so you k
 check. The mark is never in the thread itself. If the lookup fails, or you would rather not, press
 Go on with no World: the tale keeps the name and follows nothing.
 
+### Threads you bring in are part of starting the tale
+The threads you pick from your other tales on New tale, and turning off "Anansi writes the first
+passage", are now part of Start writing itself. If a picked thread cannot be brought over, the tale
+is not made and your draft is still there; before, the tale was made without it.
+
 ### A tale's universe always names the World it follows
 When a tale follows a World, the universe or IP in its Tale settings is that World's name, so the
-two never say different things.
+two never say different things. Rename the World, and every tale that follows it takes the new
+name too.
 
 ### Bring in a thread of the World your tale follows
 In a scene's setup, you can now tick a person or place from the World your tale follows, the same
 way you tick one of the tale's own. Before, Anansi said "that scene or thread is not in this tale".
 The thread is sent for that scene and stays the World's: a change to it in the World reaches the
 scene. Your pins from before are all still there.
+If the tale stops following that World, or follows another, its ticks on the old World's
+threads come off. Its own threads stay ticked. If you make the tale's own copy of a World thread
+you ticked, the tick moves to the copy, so the scene still gets that person.
 
 ### A thread's boxes hold only what it is
 Always true and every pocket now hold a plain description, and nothing else: no square brackets,

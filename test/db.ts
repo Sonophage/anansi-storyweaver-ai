@@ -3515,6 +3515,23 @@ ok("a tale following a World names it in its World field, and the two never disa
     "another writer's World does not put its name in her tale");
 });
 
+// #107 · RENAMING A WORLD RENAMES THE WORLD FIELD OF EVERY TALE THAT FOLLOWS IT. Otherwise the pair
+// splits the other way round: the tale follows "The Lands Between" while its field still says
+// "Elden Ring", and the model is told two settings.
+ok('renaming a World renames the World field of the tales that follow it, and no other', () => {
+  const kia = db.owner('kia-107-rename');
+  const ring = db.createWorld(kia, { title: 'Elden Ring' });
+  const one = db.storyFollowing(kia, ring.id, 'The Lands Between')!;
+  const two = db.storyFollowing(kia, ring.id, 'A Second Tarnished')!;
+  const own = db.createStory(kia, { title: 'Its own' });
+  db.updateStory(own.id, { world: 'Elden Ring' });   // names the IP, follows nothing
+  db.updateStory(ring.id, { title: 'The Lands Between (World)' });
+  const field = (id: string) => (db.getStory(id) as any).world;
+  assert.deepStrictEqual([field(one.id), field(two.id)], ['The Lands Between (World)', 'The Lands Between (World)'],
+    'RENAME-FOLLOWERS: both tales that follow it name it by its new title');
+  assert.strictEqual(field(own.id), 'Elden Ring', 'RENAME-ONLY-FOLLOWERS: a tale that only names the IP keeps its field');
+});
+
 // #102. A SCENE PIN CAN HOLD A THREAD OF THE WORLD THE TALE FOLLOWS. The thread stays the World's: it
 // is pinned by its own id, it is not copied into the tale, and it reaches the model for that scene.
 // Margit's wake word never appears in the scene, so the pin is the only way she can be sent.
@@ -3589,6 +3606,50 @@ ok('a pin on an unfollowed World or another writer\'s thread is refused, and a W
   assert.deepStrictEqual(pins(), [margit], 'pinned on the second scene');
   db.delEntry(world.id, margit);
   assert.deepStrictEqual(pins(), [], 'PIN-GONE-THREAD: deleting the World thread removes the pin');
+});
+
+// #107 · A TALE THAT STOPS FOLLOWING ITS WORLD LOSES ITS WORLD PINS. They name threads the tale no
+// longer reads, so they did nothing, and following the World again would bring them back unasked.
+ok('a tale that stops following its World loses its World pins and keeps its own', () => {
+  const me = db.owner('pin-unfollow');
+  const world = db.createWorld(me, { title: 'Stormveil', premise: 'p' });
+  const other = db.createWorld(me, { title: 'Liurnia', premise: 'p' });
+  const margit = db.upsertEntry(world.id, me, { title: 'Margit', body: '[Margit]', activation: 'triggered', keys: ['omen'] })!;
+  const tale = db.storyFollowing(me, world.id, 'Road')!;
+  const nepheli = db.upsertEntry(tale.id, me, { title: 'Nepheli', body: '[Nepheli]', activation: 'triggered', keys: ['axe'] })!;
+  const pins = () => db.pinsOf(tale.id).map((p: any) => p.entry_id).sort();
+  db.setPin(tale.id, tale.chapterId, margit, 'force_in');
+  db.setPin(tale.id, tale.chapterId, nepheli, 'force_in');
+  db.updateStory(tale.id, { title: 'Road, renamed' });
+  assert.deepStrictEqual(pins(), [margit, nepheli].sort(), 'UNFOLLOW-KEEP-SAVE: a save that keeps the World keeps its pins');
+  db.updateStory(tale.id, { loreFrom: other.id });
+  assert.deepStrictEqual(pins(), [nepheli], 'UNFOLLOW-OTHER: following another World drops the old World\'s pins');
+  db.updateStory(tale.id, { loreFrom: world.id });
+  db.setPin(tale.id, tale.chapterId, margit, 'force_out');
+  db.updateStory(tale.id, { loreFrom: null });
+  assert.deepStrictEqual(pins(), [nepheli], 'UNFOLLOW-NONE: following nothing drops the World pins, and the tale\'s own stays');
+});
+
+// #107 · A TALE THAT TAKES OVER A WORLD THREAD IT HAS PINNED KEEPS THE PIN, ON ITS OWN THREAD. The
+// tale reads its own copy from then on, so a pin left on the World thread's id would send nothing.
+ok('taking over a pinned World thread moves the pin to the tale\'s own thread, and it is sent', () => {
+  const me = db.owner('pin-takeover');
+  const world = db.createWorld(me, { title: 'Leyndell', premise: 'p' });
+  const morgott = db.upsertEntry(world.id, me, { title: 'Morgott', body: '[Morgott: the Grace-Given]',
+    activation: 'triggered', keys: ['omen king'] })!;
+  const tale = db.storyFollowing(me, world.id, 'The Queen')!;
+  db.addPassage({ ...tale, storyId: tale.id, body: 'The capital was quiet under the ash.' });
+  const two = db.endChapter(tale.id, tale.branchId) as any;
+  db.setPin(tale.id, tale.chapterId, morgott, 'force_out');
+  db.setPin(tale.id, two.opened, morgott, 'force_in');
+  const own = db.unlinkEntry(tale.id, me, morgott)!;
+  assert.ok(own && own !== morgott, 'the tale has its own thread for him');
+  assert.deepStrictEqual(db.pinsOf(tale.id).map((p: any) => [p.chapter_id, p.entry_id, p.mode])
+    .sort((a: any, b: any) => a[2] < b[2] ? -1 : 1),
+    [[two.opened, own, 'force_in'], [tale.chapterId, own, 'force_out']],
+    'TAKEOVER-MOVED: both pins now name the tale\'s own thread, each on its scene, each as it was');
+  db.addPassage({ storyId: tale.id, branchId: tale.branchId, chapterId: two.opened, body: 'Rain on the steps.' });
+  assert.deepStrictEqual(pinnedIn(tale), [own], 'TAKEOVER-SENT: his own thread is sent for the pinned scene');
 });
 
 /* #102. A LIBRARY FROM BEFORE IS REBUILT, and its pins come through unchanged. The old library is a

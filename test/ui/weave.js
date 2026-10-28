@@ -88,12 +88,20 @@ ok(`  and the model wrote nothing (${before} → ${after} of its passages)`, aft
 await send("The lamp goes out.");
 await until(`/^Planning/.test(document.querySelector('#ghost .veilweave')?.textContent ?? '')`, 40, 100);
 await page.eval("(() => { document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); return 1; })()");
-ok("leaving the veil shows the count beside the composer",
+// OFF THE THREE-BUTTON BAR since 2026-10-27 (Seth: "remove the thinking from above the middle
+// circle"). It sat there from 2026-10-26, because Send folds the box and the count beside Send was
+// in the folded row. With the bar's count gone, the count is beside the box when the writer opens it.
+await until("!!document.querySelector('#nextbar')", 20, 100);
+await wait(300);
+ok("leaving the veil puts no count on the three-button bar",
+  await page.eval("!!document.querySelector('#nextbar') && !document.querySelector('#nextbar #weaving')"));
+// Once the veil has faded: while it fades it is still over the bar, and takes the press.
+await until("!document.getElementById('ghost')", 20, 100);
+await page.click("#quill");
+ok("  and opening the box shows the count beside the composer",
   await until(`/^Planning\u2026 \\d+s$/.test(document.getElementById('weaving')?.textContent ?? '')`, 20, 100));
-// ON THE BAR, AND SEEN (Seth, 2026-10-26: "show the planning count on the bar"). Send folds the box,
-// and the count beside Send was in the folded row: there, and hidden.
-ok("  on the three-button bar, where it can be seen, since Send folded the box",
-  await page.eval("(() => { const w = document.getElementById('weaving'); return !!w && !!w.offsetParent && !!w.closest('#nextbar') && document.querySelectorAll('#weaving').length === 1; })()"));
+ok("  seen, and only once",
+  await page.eval("(() => { const w = document.getElementById('weaving'); return !!w && !!w.offsetParent && document.querySelectorAll('#weaving').length === 1; })()"));
 ok("  where Stop is, too", await page.eval("[...document.querySelectorAll('#dock [data-stop]')].filter((b) => b.offsetParent).length === 1"));
 ok("  and it goes at the first word", await until(`!(document.getElementById('weaving')?.textContent)`, 40, 250));
 await until("!document.getElementById('send')?.disabled", 40);

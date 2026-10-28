@@ -1898,6 +1898,26 @@ async function bootServer(port: number, env: Record<string, string>) {
   assert.deepStrictEqual(count(alice), aliceHad, '  and nothing that Create made is left behind');
   ok("Create follows the writer's own World with the tale, never another's, and a failure leaves nothing");
 
+  // #107 · THE THREADS PICKED FROM THE LIBRARY AND THE OPEN SWITCH RIDE THE ONE CREATE, inside its
+  // rollback: a thread that cannot be copied (here, one of bob's) fails the Create with nothing made.
+  const lib = db.createStory(alice, { title: 'Her library' });
+  const ranni = db.upsertEntry(lib.id, alice, { title: 'Ranni', entryType: 'character', body: '[Ranni: a witch]' })!;
+  const bobBook = db.createStory(bob, { title: 'His library' });
+  const blaidd = db.upsertEntry(bobBook.id, bob, { title: 'Blaidd', entryType: 'character', body: '[Blaidd: a wolf]' })!;
+  const seeded: any = routes['POST /api/stories'](ctx(alice, { title: 'Seeded', spark: true, entries: [],
+    autoOpen: false, seed: [{ storyId: lib.id, entryId: ranni }] }));
+  assert.strictEqual((db.getStory(seeded.id) as any)?.auto_open, 0, 'SEED-OPEN: Create turns Anansi writes it off');
+  assert.deepStrictEqual(db.entriesOf(seeded.id).map((e: any) => e.title), ['Ranni'],
+    'SEED-COPY: Create copies the picked thread into the tale');
+  const aliceBefore = count(alice);
+  const half: any = routes['POST /api/stories'](ctx(alice, { title: 'Half seeded', spark: true, entries: [],
+    seed: [{ storyId: lib.id, entryId: ranni }, { storyId: bobBook.id, entryId: blaidd }] }));
+  assert.match(String(half.error), /Blaidd|thread/, 'SEED-REFUSED: a thread she cannot copy fails the Create');
+  assert.deepStrictEqual(count(alice), aliceBefore, 'SEED-NOTHING: and nothing that Create made is left behind');
+  assert.ok(db.getStory(bobBook.id) && db.entriesOf(bobBook.id).length === 1, "  and bob's book is untouched");
+  db.delStory(bobBook.id, bob);   // the count below is bob's from before this block
+  ok('the picked threads and the open switch are made in the one Create, and a refused copy leaves nothing');
+
   // #104 · A NEW IP IS LOOKED UP AND MADE A WORLD AT CREATE. The list names no story, so it is open;
   // the World is the writer's own and checked by name per writer, before any model call is made.
   assert.ok(OPEN_ROUTES.has('POST /api/spark/world/cast'), 'the IP list names no story, so it is open and writes nothing');

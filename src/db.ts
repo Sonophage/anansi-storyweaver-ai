@@ -2823,6 +2823,9 @@ export function unlinkEntry(storyId: string, o: string, originId: string) {
   if (!made) return null;
   q("UPDATE entries SET origin_id = ?, sync = 'off' WHERE id = ? AND story_id = ?")
     .run(originId, made, storyId);
+  // #107 · ITS PINS ON THE WORLD THREAD MOVE TO THE TAKEN-OVER COPY. The tale reads the copy from
+  // now on, so a pin left on the World thread's id would send nothing for that scene.
+  q('UPDATE chapter_pins SET entry_id = ? WHERE story_id = ? AND entry_id = ?').run(made, storyId, originId);
   return made;
 }
 
@@ -3103,6 +3106,18 @@ export function updateStory(id: string, s: any) {
       pair.world,
       p('worldNote', 'world_note') ?? null,
       now(), id);
+  // #107 · A TALE THAT STOPS FOLLOWING A WORLD LOSES ITS PINS ON THAT WORLD'S THREADS. They name
+  // threads it no longer reads, so they do nothing, and following again would bring them back unasked.
+  // `PINNABLE` admits only its own threads and the followed World's, so a pin on a thread that is
+  // not the tale's own is a World pin.
+  if (cur.lore_from && pair.loreFrom !== cur.lore_from)
+    q(`DELETE FROM chapter_pins WHERE story_id = ?
+       AND entry_id NOT IN (SELECT id FROM entries WHERE story_id = ?)`).run(id, id);
+  // #107 · A WORLD RENAMED RENAMES THE FIELD OF EVERY TALE THAT FOLLOWS IT, through `followPair`,
+  // so the rule for what the field says stays in one place.
+  if (cur.is_world && s.title !== undefined && s.title !== cur.title)
+    for (const f of q('SELECT * FROM stories WHERE lore_from = ?').all(id) as any[])
+      q('UPDATE stories SET world = ? WHERE id = ?').run(followPair(f, f.lore_from, f.world).world, f.id);
 }
 /** Partial save. `undefined` means "leave it", which `updateStory` above has done since it was
  *  written and this did not: it wrote `c.keepWhole ? 1 : 0` unconditionally, and both callers send

@@ -32,21 +32,43 @@ console.log("  rail: " + nav);
 // Chapters joined on 2026-09-02, next to Chapter — Seth: "instead of the chapter list being where
 // it is make it it's own panel." Chapter is the one you are IN and this is all of them, so they sit
 // together and in that order.
+// THE TALE'S MENU SINCE 2026-10-28 (Seth: "put tale and storyteller up top then This scene and
+// scenes"): six tiles beside the scenes, and Prose search a bar at their foot rather than a row.
+// Strings, Talk to Anansi and What he reads left the menu the same day for other doors (Workbench
+// cards, the quill held down, the strip's "what is in it"); their panels and links stay, which the
+// walk below checks by address.
 ok(`the rail lists the panels in the order asked for (${nav})`,
-   nav === 'search,waiting,story,chapter,chapters,threads,strings,context,teller,anansi');   // Talk to Anansi joined last, 2026-10-26
+   nav === 'story,teller,chapter,chapters,threads,waiting');
 ok("  and Trajectory, What the chapter added and Branches are no longer rows of their own",
    !/traj|queue|branches/.test(nav));
+ok("  and Prose search is a bar in the menu", await page.eval("!!document.querySelector('#rail [data-railsearch]')"));
 
 // ---- 2. every row opens a panel with content in it. A nav row pointing at a panel that no
 // longer exists renders an empty tray, which is exactly what a rename gets wrong.
-for (const [k, label] of [['story', 'Tale'], ['chapter', 'This scene'], ['threads', 'Threads'],
-                          ['chapters', 'Scenes'], ['search', 'Prose search'], ['teller', 'Storyteller']]) {
-  await page.click(`[data-nav="${k}"]`);
-  await wait(500);
+const opened = async (label) => {
   const body = (await page.text('#sideBody') || '').replace(/\s+/g, ' ').trim();
   ok(`${label} opens with something in it (${body.length} chars)`, body.length > 20);
   ok(`  titled ${JSON.stringify(label)}`, (await head()).trim() === label);
+};
+for (const [k, label] of [['story', 'Tale'], ['chapter', 'This scene'], ['threads', 'Threads'],
+                          ['chapters', 'Scenes'], ['teller', 'Storyteller']]) {
+  await page.click(`[data-nav="${k}"]`);
+  await wait(500);
+  await opened(label);
 }
+// Enter in the menu's search bar opens Prose search.
+await page.eval(`(() => { const i = document.querySelector('#rail [data-railsearch]');
+  i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()`);
+await wait(500);
+await opened('Prose search');
+// The three that left the menu are still panels, reached by their links.
+for (const [k, label] of [['strings', 'Strings'], ['context', 'What he reads'], ['anansi', 'Anansi']]) {
+  await page.goto(B + "/#" + sid + "/" + k);
+  await wait(900);
+  await opened(label);
+}
+await page.goto(B + "/#" + sid);
+for (let i = 0; i < 40 && !(await rail()); i++) await wait(250);
 
 // ---- 3. Chapter holds all four things that used to be separate rows
 await page.click('[data-nav="chapter"]');
@@ -874,7 +896,8 @@ ok("  and New thread closes again", !(await page.eval("!!document.getElementById
 // Threads page, which shared a renderer and still read as two kinds of thing. Computed style, not
 // the stylesheet, so a rule that is written and then overridden cannot pass this.
 {
-  const plate = await page.eval(`(() => { const c = document.querySelector('#sideBody .card.plate');
+  // Not the tale's own thread: it is a banner since 2026-10-27, taller on purpose, at the top.
+  const plate = await page.eval(`(() => { const c = document.querySelector('#sideBody .card.plate:not(.talebanner)');
     if (!c) return null; const s = getComputedStyle(c), n = c.querySelector('.platename');
     return JSON.stringify({ spine: s.borderLeftWidth, minH: s.minHeight,
       name: n ? getComputedStyle(n).fontSize : null,
