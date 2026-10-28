@@ -1459,6 +1459,27 @@ ok('  and a pocket in the old [label: …] or [Name: …] wrapper keeps only its
     /— Debt: counts doorways\]/, 'UNWRAP-LABEL: the pocket\'s own label is said once');
 });
 
+ok('every other kind in SLOTS reaches the model framed, naming the thread', () => {
+  // One case per kind that had only the generic `[label: text]` before #109. Exclusive kinds drop
+  // the label (one per thread, so it tells nothing apart); the rest keep it after a dash, as
+  // interiority does, because a thread carries several and the label is what tells them apart.
+  const one = (title: string, o: any) =>
+    withAddons([room({ active: true, ...o })], { title } as any).text;
+  assert.match(one('Aldis Fen', { slot: 'appearance', name: 'Looks', body: 'grey at the temples' }),
+    /\[What Aldis Fen looks like: grey at the temples\]/, 'FRAME-APPEARANCE');
+  assert.match(one('Aldis Fen', { slot: 'relationships', name: 'Mira', body: 'owes her nine hundred' }),
+    /\[How Aldis Fen stands with others — Mira: owes her nine hundred\]/, 'FRAME-RELATIONSHIPS');
+  assert.match(one('The Ambersand', { slot: 'atmosphere', name: 'Night', body: 'smoke and low talk' }),
+    /\[The feel of The Ambersand — Night: smoke and low talk\]/, 'FRAME-ATMOSPHERE');
+  assert.match(one('The Ambersand', { slot: 'who_is_here', name: 'Regulars', body: 'dockers, a fence' }),
+    /\[Who is found at The Ambersand — Regulars: dockers, a fence\]/, 'FRAME-WHO-IS-HERE');
+  assert.match(one('The Silver Key', { slot: 'what_it_does', name: 'Opens', body: 'any lock once' }),
+    /\[What The Silver Key does — Opens: any lock once\]/, 'FRAME-WHAT-IT-DOES');
+  assert.match(one('No Iron Indoors', { slot: 'consequences', name: 'consequences', body: 'the house turns' }),
+    /\[What follows when No Iron Indoors is broken: the house turns\]/,
+    'FRAME-CONSEQUENCES: a label that only repeats the kind is dropped');
+});
+
 ok('  and a voice nobody switched on stays out, like any other room', () => {
   // The guard that makes the two above mean anything. Asserted rather than assumed: five of the
   // six live voice rooms are `active=0` with no keys, so this branch is the one they take.

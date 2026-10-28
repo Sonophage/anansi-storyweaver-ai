@@ -3,6 +3,7 @@
 
 import { ORDER, CAPS, CANON_KINDS, CANON_CAP_FRAC, EARLIER_CEILING_FRAC, PROSE_CEILING_FRAC } from './blocks.ts';
 import type { Block, Kind } from './blocks.ts';
+import { EXCLUSIVE_SLOTS } from './slots.ts';
 
 interface EntryState {
   fromChapter: number;             // the chapter this state opens at
@@ -325,6 +326,20 @@ const plain = (body: string, names: string[]): string => {
   }).filter(Boolean).join('\n');
 };
 
+/** #109 · THE FRAME EACH POCKET KIND READS UNDER, for the kinds in `SLOTS` that had none (outfit,
+ *  voice and interiority are framed in `rooms` itself). NOT MEASURED, every one: owed an A/B
+ *  against the generic `[label: text]` form before anyone calls it an improvement. */
+const FRAMES: Record<string, (who: string) => string> = {
+  appearance:    (who) => `What ${who} looks like`,
+  relationships: (who) => `How ${who} stands with others`,
+  atmosphere:    (who) => `The feel of ${who}`,
+  who_is_here:   (who) => `Who is found at ${who}`,
+  what_it_does:  (who) => `What ${who} does`,
+  consequences:  (who) => `What follows when ${who} is broken`,
+};
+/** The framed kinds that are exclusive in `SLOTS`: one per thread, so a label tells nothing apart. */
+const SOLO = new Set(EXCLUSIVE_SLOTS);
+
 const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
   (e.addons ?? [])
     // ALWAYS TRUE IS NOT A POCKET (#77, ADR 0005). It is stored as the `facts` addon and read by
@@ -395,6 +410,18 @@ const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
       if (a.slot === 'interiority') {
         const tail = label && !(who && label.toLowerCase() === who.toLowerCase()) ? ` — ${label}` : '';
         return `[What ${who || 'they'} will not say, and what they do instead${tail}: ${body}]`;
+      }
+
+      // #109 · EVERY OTHER KIND IN `SLOTS` HAS ITS OWN FRAME (ADR 0008): the thread's name and what
+      // the text is for, in the shape of the three above. Exclusive kinds drop the label, as voice
+      // does; the rest keep it after a dash, as interiority does, and for interiority's reason.
+      // NOT MEASURED: each is owed an A/B against the generic `[label: text]` form as a control.
+      const head = FRAMES[a.slot];
+      if (head) {
+        const own = label.toLowerCase();
+        const tail = !SOLO.has(a.slot) && label && own !== who.toLowerCase()
+          && own !== a.slot && own !== a.slot.replace(/_/g, ' ') ? ` — ${label}` : '';
+        return `[${head(who || 'this thread')}${tail}: ${body}]`;
       }
 
       // A LABEL THAT REPEATS THE CARD'S OWN TITLE IS NOT A LABEL. Two `role` rooms in the live
