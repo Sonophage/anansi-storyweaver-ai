@@ -23,9 +23,11 @@
  * WHAT HOLDS FOR AN UNDO, which the page sends back and so anyone can forge. It acts by id, on the
  * tale the route read through the gate, so it reaches only the writer's own tale. A put-back is
  * done only while the thing still holds what the Undo says Talk wrote (`wrote`), and it names the
- * pocket it writes over, so it never makes one; it never leaves a thread On a word with no words. A
- * take-away is done only while the thing holds exactly the text the Undo names and nothing else
- * (no other pocket, no Over time). What does NOT hold: a forged Undo is not proved to be Talk's.
+ * pocket it writes over, so it never makes one; it never leaves a thread On a word with no words,
+ * and an Over time entry goes back at its own scene, whatever scene the Undo names. A take-away is
+ * done only while the thing holds exactly the text the Undo names and nothing else (no other
+ * pocket, no Over time). It never takes away a thread's Always true pocket alone: no Undo leaves a
+ * thread without one, so Talk's first Always true on a thread that had none gets no Undo. What does NOT hold: a forged Undo is not proved to be Talk's.
  * One that copies a thread's id, name and Always true can take away a thread the writer made, if
  * that thread has nothing else in it, and one that copies the current value can write any text
  * over it. Neither is more than the writer's own Delete or save can do to their own tale; the text
@@ -428,6 +430,13 @@ export function checkUndo(raw: any, tale: Tale): Checked {
   }
   const a = (t.addons ?? []).find((x) => x.id === String(raw.addon ?? ''));
   if (!a) return { ok: false, said, why: 'that pocket is no longer in this tale' };
+  // A THREAD KEEPS ITS ALWAYS TRUE. A request cannot leave a thread without one, and neither may an
+  // Undo. Taking one away would be right only for a thread that had none before Talk wrote it, and
+  // nothing an Undo carries can show that: it is sent back by the page, so a forged one copies the
+  // pocket's id and text exactly as a real one would. So it is refused for every thread, and
+  // `undoFor` offers no Undo it would refuse.
+  if (a.slot === 'facts') return { ok: false, said,
+    why: `a thread keeps its Always true, so Undo does not take ${t.title}'s away. Change it by hand if you mean to` };
   if (a.body.trim() !== text.trim()) return { ...changed, why: `${t.title}'s ${roomLabel(a.slot)} has changed since Talk made it` };
   return { ok: true, change: { op: 'room.unmake', thread: t.id, title: t.title, addon: a.id, room: a.slot } };
 }
@@ -622,7 +631,9 @@ export function undoFor(c: Change, made: { thread?: string; addon?: string; stat
   if (c.op === 'thread.wake') return { op: 'thread.wake', thread: c.thread, ...c.before,
     wrote: { activation: c.activation, keys: c.keys } };
   if (c.op !== 'thread.set') return null;
-  if (c.before == null) return { op: 'room.unmake', thread: c.thread, addon: made.addon, text: c.text };
+  // The first Always true on a thread that had none gets no Undo: `checkUndo` never takes one away.
+  if (c.before == null) return c.room === 'facts' ? null
+    : { op: 'room.unmake', thread: c.thread, addon: made.addon, text: c.text };
   return { op: 'thread.set', thread: c.thread, room: c.room, addon: c.addon, text: c.before, wrote: c.text };
 }
 

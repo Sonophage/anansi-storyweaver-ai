@@ -177,6 +177,21 @@ ok('UNDO-UNMAKE: a thread or room Talk made is taken away only while it is as Ta
   refused(ch.checkUndo({ op: 'thread.new', title: 'X', type: 'lore', text: 'y' }, made), /not something Undo can do/i);
 });
 
+ok('UNDO-KEEPS-ALWAYS-TRUE: no Undo takes a thread\'s Always true away', () => {
+  // A forged room.unmake that names the Always true and copies its text exactly. The other checks
+  // all pass for it; only the rule that a thread keeps its Always true stops it.
+  refused(ch.checkUndo({ op: 'room.unmake', thread: 'e-talia', addon: 'a-tf', text: 'Talia is twenty.' }, tale),
+    /Always true/);
+  // So the first Always true Talk writes on a thread that had none gets no Undo: one would always
+  // be refused. Its other pockets still do.
+  const bare = { entries: [{ id: 'e-bare', title: 'Bare', entryType: 'character', addons: [] }] };
+  const first = done(ch.checkAsked({ op: 'thread.set', thread: 'Bare', text: 'Bare is old.' }, bare));
+  assert.strictEqual(first.before, null);
+  assert.strictEqual(ch.undoFor(first, { addon: 'a-new' }), null, 'no Undo is offered that would only be refused');
+  const voice = done(ch.checkAsked({ op: 'thread.set', thread: 'Bare', room: 'voice', text: 'Slow.' }, bare));
+  assert.strictEqual(ch.undoFor(voice, { addon: 'a-v' })!.op, 'room.unmake');
+});
+
 // ---- #98 · the rest of what Talk changes: the tale, a scene, Over time, wake words, retirement ----
 //
 // The tale as the route hands it over: its threads, its premise and setting, its scenes, and the

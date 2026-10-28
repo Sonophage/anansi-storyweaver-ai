@@ -4656,7 +4656,7 @@ const PANELS = {
                     style="color:var(--mute)">${esc(s.title || s.url)}</a>`).join('')}</div>` : ''}
               ${(turn.changes ?? []).map((ch, j) => `<div class="line-2" style="align-items:center; gap:8px">
                 <span style="font-size:12.5px; line-height:1.45; color:var(--ink-bright); flex:1">${esc(ch.words)}</span>
-                ${ch.undone ? '<span class="caption">Undone</span>' : ch.refused ? ''
+                ${ch.undone ? '<span class="caption">Undone</span>' : ch.refused || !ch.undo ? ''
                   : `<button class="tag" data-talkundo="${i}:${j}" style="cursor:pointer">Undo</button>`}</div>`).join('')}
               ${/* #100 · WHAT HE OFFERED during setup, each with Add: one press puts it in the draft,
                    and it then has a line and an Undo like any change. */
