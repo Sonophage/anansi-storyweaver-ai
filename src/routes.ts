@@ -2204,6 +2204,17 @@ function outsideOnly(entries: any[], held: string | null) {
   }
 }
 
+/** #114 · THE LOCK POCKET, which Tidy never sends and never replaces: any voice pocket of the thread
+ *  the writer plays or holds Hands off, and any voice pocket holding the lock's own text
+ *  (`YOURS_VOICE`). A trial tidy turned "his lines are the writer's" into a description of how he
+ *  speaks, with the lock sentence buried in it. */
+function holdsLock(e: any, st: any): boolean {
+  const you = playsOf(st), who = String(e.title ?? '').trim();
+  const mine = [you.persona, you.held].some((n) => n && n.toLowerCase() === who.toLowerCase());
+  return e.entryType === 'character' && (mine || (e.addons ?? []).some((a: any) => a.slot === 'voice'
+    && String(a.body ?? '').includes(YOURS_VOICE(who))));
+}
+
 /** ONE SPARK THREAD, as the cast and Try it on both return it: Always true in the body, which
  *  POST /api/stories moves into `facts`, and its pockets as rooms, switched on, from its kind's list
  *  only (`writeRooms` writes them as the tale is made). */
@@ -4816,10 +4827,15 @@ export const routes: Record<string, Handler> = {
     const e = v?.entries.find((x: any) => x.id === c.body.entryId && !x.sharedFrom);
     if (!e) return { error: 'no such thread in this tale' };
     const at = v.currentChapter?.index ?? 1;
+    // #114 · A THREAD THAT HOLDS THE LOCK keeps its voice out of the tidy both ways: not sent, not
+    // offered as a kind, and any voice pocket in the answer is dropped below.
+    const lock = holdsLock(e, v.story);
     const ask = [`${e.title} (${e.entryType})`, `Always true: ${alwaysTrue(e) || '(empty)'}`,
       `Where it stands now: ${resolveBody(e, at).trim() || '(nothing yet)'}`,
-      `Pockets: ${(e.addons ?? []).filter((a: any) => a.slot !== 'facts').map((a: any) => `${a.slot} "${a.name}": ${a.body}`).join(' | ') || 'none'}`,
-      `Pockets its kind can have: ${slotsFor(e.entryType).map((sl) => sl.name).filter((n) => n !== 'facts').join(', ')}`].join('\n');
+      `Pockets: ${(e.addons ?? []).filter((a: any) => a.slot !== 'facts' && !(lock && a.slot === 'voice'))
+        .map((a: any) => `${a.slot} "${a.name}": ${a.body}`).join(' | ') || 'none'}`,
+      `Pockets its kind can have: ${slotsFor(e.entryType).map((sl) => sl.name)
+        .filter((n) => n !== 'facts' && !(lock && n === 'voice')).join(', ')}`].join('\n');
     const r = await structuredRetry(TIDY, ask, TIDY_SCHEMA, { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
     if (!r.data) return { error: r.error ?? 'the tidy returned nothing usable' };
     const grp = `tidy:${e.id}:${Date.now()}`, chapterId = v.currentChapter?.id ?? null;
@@ -4833,7 +4849,7 @@ export const routes: Record<string, Handler> = {
     const kinds = slotsFor(e.entryType).map((sl) => sl.name);
     for (const pk of (Array.isArray(r.data.pockets) ? r.data.pockets : []) as any[]) {
       const field = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
-      if (field === 'facts' || !kinds.includes(field) || !body) continue;
+      if (field === 'facts' || !kinds.includes(field) || !body || (lock && field === 'voice')) continue;
       const was = (e.addons ?? []).find((a: any) => a.slot === field
         && String(a.name).toLowerCase() === String(pk?.replaces ?? '').trim().toLowerCase());
       if (db.addProposal(v.id, { ...base, body, field, target: was?.id ?? null,

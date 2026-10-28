@@ -16,6 +16,12 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-28 · Tidy this thread, made safe to use on a whole library
+
+### Tidy leaves "their lines are yours" alone
+Tidying the character you play, or the one you keep Hands off, no longer touches the pocket that
+says their lines are yours. Anansi does not read it and does not offer a new voice in its place.
+
 ## 2026-10-28 · Holding the one you play, in New tale
 
 ### Anansi writes pockets the way you would

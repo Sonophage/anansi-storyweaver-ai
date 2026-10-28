@@ -915,6 +915,45 @@ ok('the house style is written from the genre and the premise, and never from th
   ok('Tidy this thread chalks one card that sorts it into its three parts, replacing old pockets');
 }
 
+// #114 · THE LOCK POCKET IS NEVER SENT TO TIDY AND NEVER REPLACED BY IT. A trial tidy rewrote the
+// Hands-off thread's "his lines are the writer's" into a description of how he speaks, with the lock
+// sentence buried in it. Two shapes: the Hands-off thread's voice pocket, whatever it holds, and any
+// voice pocket holding the lock's own text.
+{
+  const t = db.createStory(me, { title: 'Lock', premise: 'p' }) as any;
+  db.updateStory(t.id, { persona: 'Ashley', lockedCharacter: 'Seth', lockoutOn: true });
+  const seth = db.upsertEntry(t.id, me, { title: 'Seth', entryType: 'character', body: '30s; calm' })!;
+  const lock = db.upsertAddon(t.id, seth, { slot: 'voice', name: 'Their lines are yours', body: prompts.YOURS_VOICE('Seth') })!;
+  db.upsertAddon(t.id, seth, { slot: 'appearance', name: 'Ring', body: 'a silver ring' });
+  tidied = { always: '', stands: '', pockets: [
+    { slot: 'voice', name: 'How he speaks', body: 'Calm, unhurried lines.', replaces: 'Their lines are yours' },
+    { slot: 'voice', name: 'Fresh', body: 'Low and slow.', replaces: '' },
+    { slot: 'appearance', name: 'Ring', body: 'A silver ring he turns when he waits.', replaces: 'Ring' }] };
+  asks.length = 0;
+  await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: seth }));
+  const sent = askOf(prompts.TIDY)?.user ?? '';
+  assert.ok(sent.includes('silver ring'), `LOCK-ASK: the tidy was asked (${sent.slice(0, 80)})`);
+  assert.ok(!sent.includes("lines are the writer's") && !sent.includes('Their lines are yours'),
+    `LOCK-UNSENT: the lock pocket is not sent to Tidy (${sent})`);
+  const chalked = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === seth);
+  assert.ok(!chalked.some((p) => p.field === 'voice'), `LOCK-UNREPLACED: no voice pocket is chalked for the Hands-off thread (${chalked.map((p) => p.field).join(',')})`);
+  assert.ok(chalked.some((p) => p.field === 'appearance'), '  while its other pockets are');
+  for (const p of chalked) await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
+  const voices = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === seth && a.slot === 'voice');
+  assert.deepStrictEqual(voices.map((a) => [a.id, a.body]), [[lock, prompts.YOURS_VOICE('Seth')]], 'LOCK-KEPT: sewn in, the lock pocket is as it was');
+
+  // Hands off switched off: the thread is no longer held, but a voice pocket holding the lock's text
+  // is still the lock, and still not Tidy's.
+  db.updateStory(t.id, { lockoutOn: false });
+  tidied = { always: '', stands: '', pockets: [{ slot: 'voice', name: 'How he speaks', body: 'Calm.', replaces: 'Their lines are yours' }] };
+  asks.length = 0;
+  await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: seth }));
+  tidied = {};
+  assert.ok(!(askOf(prompts.TIDY)?.user ?? '').includes("lines are the writer's"), 'LOCK-TEXT: a voice pocket holding the lock text is not sent either');
+  assert.ok(!(db.proposalsOf(t.id) as any[]).some((p) => p.entry_id === seth && p.field === 'voice'), '  nor replaced');
+  ok('Tidy never sends or replaces the lock pocket');
+}
+
 // ---- #74 · ANANSI EDITS ONE SECTION, AND A REJECT CAN BE UNDONE ----
 {
   const t = db.createStory(me, { title: 'Redo', premise: 'p' }) as any;
