@@ -43,6 +43,9 @@ reads it afresh; what you already
 sewed in or rejected stays as you left it. Cards from before this change are as they were.
 ## 2026-10-27 · A new tale asks who you play first, and shows you everything before it is made
 
+Once nothing on a scene's card is left to decide, Dismiss takes it off the Workbench for good. What
+you sewed in stays, and Hem again brings the card back.
+
 ### You say who you play before the threads are written
 When you start a tale from an idea, the You step now comes right after the tale and before the
 threads. Pick one of the threads so far, or name someone new and say who they are in a line or two.

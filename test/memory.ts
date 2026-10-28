@@ -979,6 +979,10 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
   assert.deepStrictEqual([...new Set(chalked.map((p) => p.grp))], [`scene:${ch0.id}`],
     'HEM-SCENE-GROUP: everything one hem chalks shares the scene group');
   ok('  and everything it chalked is one scene group');
+  // DISMISSED FOR GOOD, until the next hem (2026-10-27).
+  const set = routes['POST /api/dismiss'](ctx({ storyId: t.id, kind: 'hem', ref: `${ch0.id}:${hem.startedAt}` }));
+  assert.strictEqual(sceneOf(set, ch0.id).hem?.dismissed, true, 'HEM-DISMISSED: a dismissed hem says so in the view');
+  ok('  and it can be dismissed, by the existing set-aside route');
 }
 
 

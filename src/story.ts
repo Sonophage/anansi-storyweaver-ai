@@ -90,7 +90,13 @@ export function view(storyId: string, focusChapterId?: string) {
   // #89. Each hemmed scene carries its hem: running or done, the pass report, the suggestion, and
   // whether the scene changed since. Null on a scene never hemmed through the background hem.
   const hems = db.hemsOf(storyId);
-  const chapters = db.chapters(storyId).map((c: any) => ({ ...toChapter(c), hem: hems.get(c.id) ?? null }));
+  // DISMISSED (Seth, 2026-10-27): the writer set this hem's card aside for good. Keyed to the hem's
+  // start, so Hem again (a new start) brings the card back.
+  const setAside = db.dismissed(storyId);
+  const chapters = db.chapters(storyId).map((c: any) => {
+    const h = hems.get(c.id);
+    return { ...toChapter(c), hem: h ? { ...h, dismissed: setAside.has(`hem:${c.id}:${h.startedAt}`) } : null };
+  });
   const branches = db.branchesOf(storyId);
   const variants = db.variantsBySlot(storyId);
   const states = db.statesForStory(storyId);

@@ -5558,7 +5558,13 @@ const hemCardOf = (side: string) => {
   // card to sit on even with nothing chalked, and Leave it moves on without hemming.
   card = await show({ ...HEM_DONE, overflow: [], outOfDate: true }, []);
   assert.match(card, /<button[^>]*data-hemagain="c-1">Hem again</, 'HEM-STALE-CARD: an out-of-date scene keeps its card, with Hem again');
-  assert.match(card, /data-deckmove="1"[^>]*>&larr; Leave it</, '  and a way to move on');
+  // DISMISS, for good (Seth, 2026-10-27): "Leave it" only moved on for the session. Dismiss is
+  // the existing "set aside" row, keyed to this hem, so a new hem brings the card back.
+  assert.match(card, /data-dismiss="hem" data-ref="c-1:\d+"[^>]*>&larr; Dismiss</, 'HEM-DISMISS: and Dismiss, keyed to this hem');
+  card = await show({ ...HEM_DONE, overflow: [], outOfDate: true, dismissed: true }, []);
+  assert.strictEqual(card, '', '  and a dismissed hem with nothing chalked leaves the deck');
+  card = await show({ ...HEM_DONE, overflow: [], outOfDate: true, dismissed: true }, HEM_ROWS);
+  assert.notStrictEqual(card, '', '  but never hides threads still waiting to be sewn in or rejected');
   STORY.currentChapter = wasCurrent;
 
   (globalThis as any).fetch = canned;

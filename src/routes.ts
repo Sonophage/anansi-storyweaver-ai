@@ -2729,7 +2729,8 @@ export const routes: Record<string, Handler> = {
    *  so editing the chapter or writing past the horizon brings it back. */
   'POST /api/dismiss': (c: Ctx) => {
     const kind = String(c.body.kind ?? '');
-    if (!['stale', 'horizon', 'act'].includes(kind))
+    // `hem`: a hemmed scene's card, keyed to that hem's start, so a new hem brings it back (2026-10-27).
+    if (!['stale', 'horizon', 'act', 'hem'].includes(kind))
       throw Object.assign(new Error(`nothing is dismissed by "${kind}"`), { code: 400 });
     db.dismiss(c.body.storyId, kind, String(c.body.ref ?? ''));
     return viewOf(c, c.body.storyId);

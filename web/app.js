@@ -2528,8 +2528,9 @@ const hemNext = (ch) => {
  *  undecided, while a pass did not run, while its suggestion waits for the scene being written, and
  *  while it is out of date. OUT OF DATE ALONE BRINGS IT BACK (story 19): Hem again lives on the card,
  *  so with nothing chalked left it would have nowhere to appear. Leave it moves on without hemming. */
-const hemShows = (ch, ps) => ch.hem.state === 'running' || ps.length > 0 || !!ch.hem.outOfDate
-  || missedPasses(ch).length > 0 || !!(ch.hem.suggestion && hemNext(ch));
+// A DISMISSED hem keeps its card only while threads still wait on it: Dismiss never hides a decision.
+const hemShows = (ch, ps) => ch.hem.state === 'running' || ps.length > 0 || (!ch.hem.dismissed
+  && (!!ch.hem.outOfDate || missedPasses(ch).length > 0 || !!(ch.hem.suggestion && hemNext(ch))));
 
 /** What a chalked row would change, as it stands now: the Over time entry in force for a row about
  *  where the thread stands, the pocket it lands in for a pocket row. Null when there is nothing
@@ -2597,8 +2598,10 @@ function hemCardParts(c) {
   return {
     body: `${state.join('')}${summary}${threads}${overflow}${suggestion}`,
     right: ps.length ? `<button class="btn" data-deckall="accept" data-ids="${ids}" data-deckright="1">Sew all &rarr;</button>` : '',
+    // DISMISS, not Leave it, once nothing is left to decide (Seth, 2026-10-27): Leave it only moved on
+    // for the session. The existing set-aside row, keyed to this hem; Hem again brings it back.
     left: ps.length ? `<button class="btn ghost" data-deckall="reject" data-ids="${ids}" data-deckleft="1">&larr; Reject all</button>`
-      : `<button class="btn ghost" data-deckmove="1" data-deckleft="1">&larr; Leave it</button>`,
+      : `<button class="btn ghost" data-dismiss="hem" data-ref="${id}:${esc(String(h.startedAt))}" data-deckleft="1">&larr; Dismiss</button>`,
   };
 }
 
@@ -10450,7 +10453,8 @@ document.addEventListener('click', async (e) => {
     const r = await api.dismiss(S.storyId, d.dismiss, d.ref ?? '');
     if (r.error) return toast(r.error);
     V = r; paint();
-    return toast('Set aside. It comes back if it changes.');
+    return toast(d.dismiss === 'hem' ? 'Dismissed. What you sewed in stays; Hem again brings it back.'
+      : 'Set aside. It comes back if it changes.');
   }
   if (d.memo) {
     if (S.memoing) return;
