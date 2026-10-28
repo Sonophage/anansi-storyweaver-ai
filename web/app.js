@@ -2702,10 +2702,13 @@ function deckCard(c, i, top) {
       <div class="btnrow push-8 wraps">
         <button class="btn ghost fill" data-goflag="${esc(f.passageId)}">Show me the passage</button>
         ${f.entryId ? `<button class="btn ghost fill" data-entry="${esc(f.entryId)}">The thread is wrong</button>` : ''}
-        <button class="btn ghost fill" data-dropflag="${esc(f.id)}">Clear</button></div></details>`;
+        ${/* MUTING THE THREAD IS ITS OWN PRESS, named. It was the card's Ignore, so ignoring one knot
+              ignored every knot about that character for the scene (Seth, 2026-10-27). */
+          f.entryId ? `<button class="btn ghost fill" data-mute="${esc(f.entryId)}">Ignore every knot about ${
+            esc(V?.entries?.find((e) => e.id === f.entryId)?.title ?? 'this thread')} in this scene</button>` : ''}</div></details>`;
     right = f.reached === false ? '' : `<button class="btn" data-repair="${esc(f.passageId)}" data-deckright="1">Mend &rarr;</button>`;
-    left = f.entryId ? `<button class="btn ghost" data-mute="${esc(f.entryId)}" data-deckleft="1">&larr; Ignore</button>`
-      : `<button class="btn ghost" data-dropflag="${esc(f.id)}" data-deckleft="1">&larr; Clear</button>`;
+    // IGNORE IS THIS ONE KNOT: set aside, the prose untouched (the old Clear, which it replaces).
+    left = `<button class="btn ghost" data-dropflag="${esc(f.id)}" data-deckleft="1">&larr; Ignore this knot</button>`;
   } else if (c.kind === 'upkeep') {
     body = `<div class="note">${esc(c.body)}</div>`;
     right = c.right; left = c.left;
@@ -2733,12 +2736,16 @@ function deckHTML(only = null) {
   const top = Math.min(Math.max(0, S.deckAt ?? 0), cards.length - 1);
   return `<div class="deck" data-deck>
     <div class="deckhead"><span>${cards.length} to decide</span>
-      <span class="tnum right">${top + 1} of ${cards.length}</span>
-      <button data-deckmove="-1" aria-label="The card before" ${top ? '' : 'disabled'}>&lsaquo;</button>
-      <button data-deckmove="1" aria-label="The next card" ${top < cards.length - 1 ? '' : 'disabled'}>&rsaquo;</button>
-      ${S.deckUndo ? `<button data-deckundo="1" class="tag pressable">Undo</button>` : ''}</div>
+      ${S.deckUndo ? `<button data-deckundo="1" class="tag pressable right">Undo</button>` : ''}</div>
     <div class="hint lead-8">Swipe right to say yes, left to say no, or use the buttons. Nothing chalked is in the tale until you sew it in.</div>
     ${cards.map((c, i) => deckCard(c, i, top)).join('')}
+    ${/* BACK AND FORTH, UNDER THE CARDS (Seth, 2026-10-27), where the thumb already is after a
+          decision, and big enough to hit: the small arrows in the head were easy to miss. */ ''}
+    <div class="decknav">
+      <button data-deckmove="-1" aria-label="The card before" ${top ? '' : 'disabled'}>&lsaquo; Back</button>
+      <span class="tnum">${top + 1} of ${cards.length}</span>
+      <button data-deckmove="1" aria-label="The next card" ${top < cards.length - 1 ? '' : 'disabled'}>Next &rsaquo;</button>
+    </div>
   </div>`;
 }
 

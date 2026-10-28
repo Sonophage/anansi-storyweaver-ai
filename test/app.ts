@@ -942,6 +942,18 @@ ok('a book can keep its cover behind the prose instead, at a strength it chooses
   assert.match(w, /data-stringstatus="[^"]+:paid"/, 'PAID: and paid off here, naming the status it sets');
   assert.match(w, /data-dropflag=/, 'a contradiction is dismissed here');
   assert.match(w, /data-goflag=/, 'or followed to the passage it is about');
+  // IGNORE IS THIS KNOT (Seth, 2026-10-27: "any knot I ignore ignore the full character"). The deck's
+  // Ignore muted the whole thread for the scene; it now sets aside this one knot, and muting the
+  // thread is its own button, named as such.
+  const knot = w.match(/<div class="deckcard card"[^>]*data-deckkind="knot"[\s\S]*?<div class="deckbar">([\s\S]*?)<\/div><\/div>/);
+  assert.ok(knot, 'the deck has a knot card');
+  assert.match(knot![1], /data-dropflag="v-1"[^>]*>&larr; Ignore this knot</, 'KNOT-IGNORE: its Ignore sets aside this knot only');
+  assert.doesNotMatch(knot![1], /data-mute=/, '  and does not mute the whole thread');
+  assert.match(knot![0], /data-mute="e-1"[^>]*>Ignore every knot about/, '  which is its own, named button');
+  // THE WAY BACK AND FORTH IS UNDER THE CARDS (Seth, 2026-10-27).
+  const after = w.slice(w.lastIndexOf('data-deckcard='));
+  assert.match(after, /class="decknav"[\s\S]*data-deckmove="-1"[\s\S]*data-deckmove="1"/, 'DECK-NAV: back and forward sit beneath the cards');
+  assert.doesNotMatch(w.match(/<div class="deckhead">[\s\S]*?<\/div>/)![0], /data-deckmove/, '  and not in the head above them');
   // And it no longer sends you away to do any of it.
   assert.ok(!/data-panel="(chapter|strings|context)"/.test(w),
     'and nothing here is a link to somewhere else to do it');

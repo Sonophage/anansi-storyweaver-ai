@@ -183,10 +183,11 @@ _Avoid_: contradiction, flag, the checker, violation
 _In code_: violation, the canon check
 
 **Mend / Ignore**:
-Ask Anansi to rewrite the passage so the knot is gone / leave the knot for this scene. "Watch
-again" undoes Ignore.
-_Avoid_: let Anansi correct it, listen again
-_In code_: `/api/repair`, muted
+Ask Anansi to rewrite the passage so the knot is gone / set this one knot aside, the prose
+untouched. Ignoring every knot about one thread for the scene is a separate, named press; "Watch
+again" undoes that. (Ignore was the whole thread until 2026-10-27.)
+_Avoid_: let Anansi correct it, listen again, clear
+_In code_: `/api/repair`; Ignore is a dismissed violation; the whole thread is muted
 
 **Workbench**:
 Where everything that wants the writer collects: chalked things, unkept strings, knots,

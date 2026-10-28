@@ -12,6 +12,18 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+
+## 2026-10-27 · The Workbench, easier to move through
+
+### Back and Next under the cards
+Moving between cards on the Workbench is now a Back and a Next button under the cards, big enough to
+press, with where you are between them.
+
+### Ignore sets aside one knot
+Ignore on a knot used to stop every knot about that character for the rest of the scene. It now sets
+aside only the knot in front of you. Ignoring every knot about someone is still there, as its own
+button inside the card.
+
 ## 2026-10-27 · Remote models are not cut short
 
 ### Only the length slider shapes a remote passage
