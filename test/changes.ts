@@ -561,4 +561,28 @@ ok('the change slice never reaches for the database itself', () => {
   assert.ok(!/\bMINE\s*\(/.test(src), 'nor define or call the ownership clause');
 });
 
+// #122 · WHAT A CHANGE LINE DIFFS: the text before and after, for the changes that replace text,
+// and nothing for the ones that do not (a new thread has no before; a retirement replaces no text).
+ok('CHANGE-TEXTS: before and after for what a change rewrote, none where it rewrote nothing', () => {
+  const set = done(ch.checkAsked({ op: 'thread.set', thread: 'Talia Venn', text: 'Talia is thirty.' }, tale));
+  assert.deepStrictEqual(ch.textsOf(set), { before: 'Talia is twenty.', after: 'Talia is thirty.' });
+  const fresh = done(ch.checkAsked({ op: 'thread.set', thread: 'Ring Law', room: 'consequences', text: 'A fine.' }, tale));
+  assert.deepStrictEqual(ch.textsOf(fresh), { before: '', after: 'A fine.' }, 'a pocket it made had nothing before it');
+  assert.deepStrictEqual(ch.textsOf({ op: 'tale.set', field: 'premise', text: 'A debt.', before: 'A loan.' }),
+    { before: 'A loan.', after: 'A debt.' });
+  assert.deepStrictEqual(ch.textsOf({ op: 'scene.set', chapter: 'c', index: 2, field: 'title', text: 'Rust', before: 'Scene 2' }),
+    { before: 'Scene 2', after: 'Rust' });
+  assert.deepStrictEqual(ch.textsOf({ op: 'thread.overtime', thread: 'e', title: 'T', from: 3, text: 'Gone.', label: null,
+    beforeMode: 'hide', state: 's', before: { body: 'Here.', label: null, beforeMode: 'hide' } }), { before: 'Here.', after: 'Gone.' });
+  assert.deepStrictEqual(ch.textsOf({ op: 'thread.overtime', thread: 'e', title: 'T', from: 3, text: 'Gone.', label: null,
+    beforeMode: 'hide', state: null, before: null }), { before: '', after: 'Gone.' });
+  assert.deepStrictEqual(ch.textsOf({ op: 'thread.wake', thread: 'e', title: 'T', activation: 'triggered', keys: ['bell', 'tower'],
+    before: { activation: 'triggered', keys: ['bell'] } }), { before: 'On a word: bell', after: 'On a word: bell, tower' });
+  for (const c of [{ op: 'thread.new', title: 'X', type: 'character', always: 'x', keys: [], activation: 'always_on' },
+    { op: 'thread.retire', thread: 'e', title: 'T', from: 2 }, { op: 'thread.unmake', thread: 'e', title: 'T' }])
+    assert.strictEqual(ch.textsOf(c), null, `${c.op} rewrote no text`);
+  // An Undo's `before` is the text being put back, so its line is not drawn as a diff the wrong way round.
+  assert.strictEqual(ch.textsOf({ op: 'tale.set', field: 'premise', text: 'A loan.', before: 'A loan.', undo: true }), null);
+});
+
 console.log(`\n${n} checks passed`);

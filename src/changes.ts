@@ -485,6 +485,18 @@ export function wordsFor(c: Change): string {
   return `Changed ${c.title}'s ${roomLabel(c.room)}: “${clip(c.text)}”`;
 }
 
+/** #122 · WHAT A CHANGE LINE SHOWS AS A DIFF: the text the change replaced and the text it wrote,
+ *  for the changes that rewrite text; null for the rest (a new thread has no before, a retirement
+ *  rewrites nothing) and for an Undo, whose `before` is the text being put back. A pocket or an Over
+ *  time entry it made had nothing before it, which reads as an empty side. */
+export function textsOf(c: Change): { before: string; after: string } | null {
+  if ((c as any).undo) return null;
+  if (c.op === 'thread.set' || c.op === 'tale.set' || c.op === 'scene.set') return { before: c.before ?? '', after: c.text };
+  if (c.op === 'thread.overtime') return { before: c.before?.body ?? '', after: c.text };
+  if (c.op === 'thread.wake') return { before: wakeWords(c.before.activation, c.before.keys), after: wakeWords(c.activation, c.keys) };
+  return null;
+}
+
 /** What was asked, in words, for a change that is refused before it means anything. */
 function saidOf(raw: any): string {
   const name = String(raw?.thread ?? raw?.title ?? '').trim();

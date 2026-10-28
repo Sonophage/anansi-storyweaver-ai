@@ -32,6 +32,18 @@ or asking Talk to change it, keeps the same shape. The questions the story lives
 their own, ticked, in the preview. Each one you keep ticked becomes a string from the first scene,
 and Anansi is told not to answer it yet. Tales you already have are not changed.
 
+### A Hands-off narrator gets one rule, not two
+When the character you keep Hands off is also the one telling the story, in first or second person,
+Anansi was told two things at once: to write what they decide, and never to write what they think
+or decide. Now it is told one thing. It writes what they see, hear and remember, goes around what
+you wrote for them, and stops where they would speak, act or choose. What they say, do and decide is
+yours. This applies to the tales you already have.
+
+### A new style note is about the sentences, not the story
+When Anansi writes a style note for a new tale, it now says how the prose reads: how long the
+sentences run, how close the telling sits, what it notices and leaves unsaid, and how much is
+dialogue. It no longer says how chapters end or reuses the premise's images, which steered every
+passage toward one ending. Style notes you already have are not changed.
 ### New tale's threads start where they stand, and Try it on finds what disagrees
 Each thread New tale makes now says who or what it is in Always true, and keeps what they want and
 what they hide in their inner life, so those can change as the tale goes on. Each one also says where
@@ -53,6 +65,13 @@ Anansi sometimes copied her into yours: charcoal on the fingertips, hair she cut
 now shows only the form, so the details in a new thread come from your tale.
 
 ## 2026-10-28 · Tidy this thread, made safe to use on a whole library
+
+### See exactly what changed, word by word
+When a thread changes, you now see which words went and which came in. Words that were taken out
+are struck through. Words that were put in are underlined. This shows in a thread's Earlier
+versions, where each old version is set against the one that replaced it. It also shows on
+Workbench cards, where what is there now is set against what Anansi chalked. And it shows under
+each change Talk made, beside its Undo. It reads on a phone and in every theme.
 
 ### Tidy leaves "their lines are yours" alone
 Tidying the character you play, or the one you keep Hands off, no longer touches the pocket that

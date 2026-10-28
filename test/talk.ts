@@ -1386,6 +1386,9 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(age.changes?.length, 1, `CHANGE-LINE: one change comes back (${JSON.stringify(age.changes)})`);
   assert.match(age.changes[0].words, /Talia Venn.*Always true.*Talia is thirty/,
     `CHANGE-LINE: in the writer's words, naming the thread, the room and the text (${age.changes[0].words})`);
+  // #122 · and the text before and after it, which the line draws as a diff under its Undo.
+  assert.deepStrictEqual(age.changes[0].diff, { before: 'Talia is twenty.', after: 'Talia is thirty.' },
+    'CHANGE-DIFF: the line carries what the Always true said before and what it says now');
   // Offers are still chalked: the place nobody asked for is on the Workbench, not in the tale.
   assert.strictEqual(age.proposed, 1, 'CHANGE-OFFER: the unasked place is chalked');
   assert.ok((db.proposalsOf(tale.id) as any[]).some((p) => p.title === 'The Quay' && p.status === 'open'),
@@ -1442,6 +1445,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(room(ferry.id, 'facts')[0]?.body, 'Rows the dead across for a coin.', 'CHANGE-NEW: with his Always true');
   assert.strictEqual(ferry.activation, 'always_on', 'CHANGE-NEW: a character Talk makes is always on');
   assert.match(made.changes[0].words, /new thread.*The ferryman/i);
+  assert.strictEqual(made.changes[0].diff ?? null, null, 'CHANGE-DIFF: a new thread replaced no text, so its line has no diff');
   const gone: any = undo(made.changes[0].undo);
   assert.ok(!gone.error, gone.error);
   assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'The ferryman'),
@@ -2394,6 +2398,27 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(calls.length, 1, `IDEA-NORETRY: a cut answer is not retried (${calls.length} calls)`);
   assert.ok(cut.error, 'IDEA-CUT: and it says so, rather than handing back no ideas');
   ok('✦ asks the book\'s model for three ideas in one call, weaving off, on a small cap, and writes nothing');
+}
+
+// #120 · THE STYLE NOTE IS PROSE ONLY. It is sent on every prose call, and asked "what its chapters
+// are shaped like", one came back "chapters end on the choice to trust, still unmade" — plot, in the
+// one block that is meant to hold how the sentences read. NOT MEASURED: this checks the wording only.
+{
+  const { STYLE_NOTE } = await import('../src/prompts.ts');
+  assert.doesNotMatch(STYLE_NOTE, /shaped like|what its chapters/i, 'STYLE-NO-SHAPE: it never asks what the chapters are shaped like');
+  for (const [asks, what] of [[/sentence/i, 'sentence length'], [/distance|how close the narration sits/i, 'distance'], [/notices/i, 'what the narration notices'],
+      [/unsaid/i, 'what it leaves unsaid'], [/dialogue/i, 'how much is dialogue']] as const)
+    assert.match(STYLE_NOTE, asks, `STYLE-PROSE: it asks for ${what}`);
+  assert.match(STYLE_NOTE, /never[^.]*chapter[^.]*end/i, 'STYLE-NO-PLOT: it forbids chapter shape and endings');
+  assert.match(STYLE_NOTE, /never reuse the premise's images/i, "STYLE-NO-IMAGES: it forbids the premise's images");
+  assert.match(STYLE_NOTE, /<[a-z][^<>]*>/, 'STYLE-SHAPE: it shows the form with angle-bracket placeholders');
+  // A quoted span is a shape only if it holds a placeholder; any other quote of four words or more
+  // is an example sentence the model will copy.
+  const quotes = STYLE_NOTE.match(/"[^"]*"/g) ?? [];
+  assert.ok(quotes.some((q) => q.includes('<')), 'STYLE-SHAPE-QUOTED: the shape is given as a quoted form');
+  assert.deepStrictEqual(quotes.filter((q) => !q.includes('<') && q.split(/\s+/).length >= 4), [],
+    'STYLE-NO-EXAMPLE: no quoted example sentence to copy');
+  ok('the style note asks for how the prose reads, never chapter shape, endings or the premise\'s images');
 }
 
 srv.close();

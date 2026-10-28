@@ -189,6 +189,23 @@ prompt text at all** — it only force-fired that character's own card into cano
 `isPov`) — so a book that named who the writer plays and set no lock said nothing about POV at all.
 With neither set, neither line is sent: inventing a narrator is worse than saying nothing.
 
+**When the teller is Hands off (#119), the line is different**, because the line above asked the
+model to write what he "decides" while his lock pocket ("Never write what he says, does, thinks or
+decides") forbade it, in one prompt. The writer decides; the narration goes around what the writer
+wrote:
+
+```
+[{{locked}} is telling this story. The narration is {{locked}}'s: write what {{locked}} senses and
+ remembers. What {{locked}} says, does and decides is the writer's: narrate around what the writer
+ wrote, never decide it for {{locked}}, and stop where {{locked}} would speak, act or choose. Every
+ other character is written from outside — what they say, do and leave behind. Never state what
+ anyone but {{locked}} thinks, feels or intends; where {{locked}} can only guess, write the guess
+ as a guess.]
+```
+
+In first or second person the Hands-off character's voice pocket is not sent with his card, so this
+line is the one rule. NOT MEASURED.
+
 **Voice is NOT in this block, and has not been since COUNCIL-04 #5.** It is `VOICE`, its own block
 with its own 500-token cap, second in `ORDER`; the book's genre flavour is `STYLE` below it at 200.
 The line that stood here — `[Voice: {{writing_style}}]`, described as the one part of DIRECTIVE that

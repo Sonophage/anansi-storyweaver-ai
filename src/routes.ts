@@ -17,7 +17,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
          weaveFit, actSpan } from './context.ts';
 import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
-import { checkAsked, checkUndo, undoFor, wordsFor, checkDraft, draftWords, aimOf, askWhich, fingerprint } from './changes.ts';
+import { checkAsked, checkUndo, undoFor, wordsFor, textsOf, checkDraft, draftWords, aimOf, askWhich, fingerprint } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
@@ -2472,7 +2472,7 @@ function worldPeopleAtCreate(made: any, owner: string, body: any): string | null
     for (const a of db.addonsOf(made.id) as any[])
       if (a.entry_id === copy && (a.slot === 'voice' || a.slot === 'interiority')) db.delAddon(made.id, a.id);
     const v = outside.rooms.voice;
-    const id = db.upsertAddon(made.id, copy, { slot: 'voice', name: v.name, body: `[${v.body}]` });
+    const id = db.upsertAddon(made.id, copy, { slot: 'voice', name: v.name, body: v.body });
     if (id) db.setAddonActive(made.id, id, true);
   }
   const read = db.entriesFor(made.id) as any[];
@@ -4262,7 +4262,9 @@ export const routes: Record<string, Handler> = {
     // land in one answer. A change the tale cannot take is not done, and the reply says so in
     // Anansi's own answer: the model may have said it did it, and the writer must not be left
     // believing that. No operation on the list deletes anything or touches prose.
-    const changes: { words: string; undo: any }[] = [];
+    // #122 · `diff` is the text before and after, for the line to draw as a diff (null when it
+    // rewrote no text).
+    const changes: { words: string; undo: any; diff?: { before: string; after: string } | null }[] = [];
     const notDone: { said: string; why: string }[] = [];
     const raws = (Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4);
     // #101 · IN A TALE THAT FOLLOWS A WORLD, a change the model did not place as canon or as the
@@ -4305,13 +4307,13 @@ export const routes: Record<string, Handler> = {
         // in the fingerprint, and the World's thread was never touched.
         const left = taleOf(v.id).entries.find((e: any) => e.id === copy);
         changes.push({ words: `${k.change.title} is this tale's own now, and ${world!.title} keeps its version. `
-          + wordsFor(k.change), undo: { op: 'takeover.unmake', thread: copy, wrote: fingerprint(left) } });
+          + wordsFor(k.change), undo: { op: 'takeover.unmake', thread: copy, wrote: fingerprint(left) }, diff: textsOf(k.change) });
         continue;
       }
       const undo = undoFor(k.change, made);
       const withWorld = undo && aim.to === 'world' ? { ...undo, world: world!.id } : undo;
       changes.push({ words: aim.to === 'world' ? `${wordsFor(k.change)} In ${world!.title}, for every tale that follows it.`
-        : wordsFor(k.change), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld });
+        : wordsFor(k.change), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change) });
     }
     const answer = [talkReply(r.data.reply, notDone, searchFailed),
       unsure.length ? askWhich(unsure, world!.title) : ''].filter(Boolean).join('\n\n');

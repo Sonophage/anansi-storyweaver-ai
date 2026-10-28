@@ -2940,7 +2940,8 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
     click({ panel: 'anansi' });
     await new Promise((r) => setTimeout(r, 30));
     stubTalk = { reply: 'Done: he is thirty now.', seconds: 1, tokens: 10,
-      changes: [{ words: "Changed Marek's Always true: “Marek is thirty.”", undo: UNDO }] };
+      changes: [{ words: "Changed Marek's Always true: “Marek is thirty.”", undo: UNDO,
+        diff: { before: 'Marek is twenty.', after: 'Marek is thirty.' } }] };
     POSTED.length = 0;
     (document as any).getElementById('askBox').value = 'Make Marek thirty';
     click({ ask: '1' });
@@ -2951,6 +2952,11 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
     const btn = side.match(/<button[^>]*data-talkundo="([^"]+)"[^>]*>([^<]*)</);
     assert.ok(btn, 'TALK-CHANGE-UNDO: with an Undo beside it');
     assert.match(btn![2], /Undo/, 'TALK-CHANGE-UNDO: labelled Undo');
+    // #122 · UNDER THE LINE AND ITS UNDO, what changed, word by word, drawn by the one renderer.
+    const { diffHTML: talkDiff } = await import('../web/model.js');
+    const drawn = talkDiff('Marek is twenty.', 'Marek is thirty.');
+    assert.ok(side.includes(drawn) && side.indexOf(drawn) > side.indexOf('data-talkundo='),
+      'TALK-CHANGE-DIFF: the line shows the old text against the new under its Undo');
 
     // A refused Undo says why, and the line keeps its Undo.
     stubUndo = { error: 'Not undone: Marek has changed since Talk made it.' };
@@ -3799,6 +3805,11 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     const side = html('sideBody');
     assert.match(side, /Changed the premise/, 'SETUP-TALK-LINES: each change is a line in the conversation');
     assert.match(side, /data-talkundo="1:0"/, 'SETUP-TALK-LINES: with its Undo');
+    // #122 · the premise line shows the premise before against the premise now; the new thread
+    // replaced nothing, so the conversation holds that one diff and no other.
+    const { diffHTML: setupDiff } = await import('../web/model.js');
+    assert.ok(side.includes(setupDiff(ORIGINAL, DARKER)), 'SETUP-TALK-DIFF: the premise line is a diff of the premise');
+    assert.strictEqual([...side.matchAll(/class="diff"/g)].length, 1, 'SETUP-TALK-DIFF: and the new thread has none');
     const add = side.match(/data-talkadd="([^"]+)"/);
     assert.ok(add, `SETUP-TALK-ADD: the offer has an Add press:\n${side.slice(0, 900)}`);
     assert.match(side, /House Marren/, 'SETUP-TALK-ADD: naming what is offered');
@@ -3878,6 +3889,9 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     ].map((k: any) => { assert.ok(k.ok, `ONE-MAPPING: the server takes it (${k.why})`); return k.change; });
     stubSparkTalk = { reply: 'Done.', seconds: 1, changes: checked.map((change: any) => ({ words: 'Changed.', change })) };
     await ask('Change the Ferryman and the voice');
+    // #122 · the Always true line reads the old Always true against the new, as the server checked them.
+    assert.ok(html('sideBody').includes(setupDiff(checked[0].before ?? '', 'rows twice for a liar.')),
+      'SETUP-TALK-DIFF: a thread change\'s line is a diff of the text the server checked');
     stubSparkTalk = { reply: 'Yes.', seconds: 1 };
     const mapped = (await ask('And?')).body.draft;
     const ferry = mapped.entries.find((e: any) => e.title === 'The Ferryman');
@@ -6303,15 +6317,20 @@ const hemCardOf = (side: string) => {
     'the summary comes first on the card, in a box, before any thread');
   assert.match(card, /data-hemsumtext="c-1"[^>]*>Ilva arrives\./, '  holding the scene summary');
   assert.doesNotMatch(card, /<button[^>]*data-hemsum="c-1"/, '  and no Save press: it saves as you go (ADR 0004)');
-  // BEFORE AND AFTER: the Over time entry in force, then the chalked text.
-  // Read against the row's own box, not the fold's one-line peek, which repeats the chalked text.
-  assert.ok(card.indexOf('She waits by the door, gloved.') > 0
-    && card.indexOf('She waits by the door, gloved.') < card.indexOf('data-pbody="hs-1"')
-    && /data-pbody="hs-1"[^>]*>She has stopped waiting\./.test(card),
-    'an Over time row shows the entry in force before the chalked text');
-  assert.ok(card.indexOf('Flat, unhurried.') > 0
-    && card.indexOf('Flat, unhurried.') < card.indexOf('data-pbody="hs-2"'),
-    'a pocket row shows the pocket as it is before the chalked text');
+  // BEFORE AND AFTER, AS ONE DIFF (#122): the Over time entry in force against the chalked text,
+  // drawn by the one renderer, above the row's own box.
+  const { diffHTML } = await import('../web/model.js');
+  const diffAt = (id: string, was: string) => {
+    const at = card.indexOf(`data-deckdiff="${id}">`);
+    const body = card.match(new RegExp(`data-pbody="${id}"[^>]*>([^<]*)<`))?.[1] ?? '';
+    return at > 0 && at < card.indexOf(`data-pbody="${id}"`)
+      && card.slice(at + `data-deckdiff="${id}">`.length).startsWith(diffHTML(was, body)) && /<del>/.test(diffHTML(was, body));
+  };
+  assert.match(card, /data-pbody="hs-1"[^>]*>She has stopped waiting\./, 'the chalked text is in its own box');
+  assert.ok(diffAt('hs-1', 'She waits by the door, gloved.'),
+    'an Over time row shows the entry in force against the chalked text, as a diff, before the box');
+  assert.ok(diffAt('hs-2', 'Flat, unhurried.'),
+    'a pocket row shows the pocket as it is against the chalked text, as a diff, before the box');
   // SEW ALL / REJECT ALL, over every row on the card.
   assert.match(card, /data-deckall="accept" data-ids="hs-1,hs-2,hs-3,hs-4"[^>]*>Sew all/,
     'Sew all takes every row on the card');
@@ -6332,6 +6351,11 @@ const hemCardOf = (side: string) => {
   // THE OLD PER-THREAD CARD, as it always was.
   assert.match(side, /Hemming found[\s\S]*?data-deckall="accept" data-ids="hp-1"[^>]*>Sew it in/,
     'an old per-thread hem card is drawn as before');
+  // A CHALKED CHANGE OUTSIDE A HEM shows the same diff (#122): the thread's text against the chalk.
+  assert.ok(side.includes(`data-deckdiff="hp-1">${diffHTML('[comes at six]', 'He came at five, not six.')}`),
+    'a chalk card reads what is there now against what is chalked, with the one renderer');
+  // And a row with nothing before it (a new thread, a retirement) has no diff to read.
+  assert.doesNotMatch(side, /data-deckdiff="hs-[34]"/, '  and a new thread or a retirement has none');
   (globalThis as any).fetch = canned;
   click({ open: 's-1' }); await settle();
   ok('a hemmed scene is one Workbench card: summary first, before and after, Sew all and Reject all (#92)');

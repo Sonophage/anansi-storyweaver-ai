@@ -325,7 +325,7 @@ const FRAMES: Record<string, (who: string) => string> = {
 /** The framed kinds that are exclusive in `SLOTS`: one per thread, so a label tells nothing apart. */
 const SOLO = new Set(EXCLUSIVE_SLOTS);
 
-const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
+const rooms = (e: Entry, at: number, window: string, locked = '', tells = false): string[] =>
   (e.addons ?? [])
     // ALWAYS TRUE IS NOT A POCKET (#77, ADR 0005). It is stored as the `facts` addon and read by
     // `alwaysTrue` below, ahead of everything; every other room keeps the order the view gave it.
@@ -371,8 +371,11 @@ const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
       // day it shipped (10-26) with nothing else changed. Seth's accent case is still covered.
       // THE LOCKED CHARACTER'S VOICE IS NOT FRAMED AS DIALOGUE TO WRITE (prompt audit, 2026-10-27):
       // the frame asked for his dialogue while his pocket and the lockout forbade it. Bare instead.
+      // #119 · AND IN FIRST OR SECOND PERSON IT IS NOT SENT AT ALL. He is the narrator there, and
+      // DIRECTIVE's narrator line carries the whole Hands-off rule; a pocket saying "never write
+      // what he thinks" beside narration that is his thought was a second rule against the first.
       if (a.slot === 'voice' && locked && who.toLowerCase() === locked.toLowerCase())
-        return `[${body.replace(/[.\s]+$/, '')}]`;
+        return tells ? '' : `[${body.replace(/[.\s]+$/, '')}]`;
       if (a.slot === 'voice') return `[When ${who || 'they'} speaks, write the dialogue this way: ${
         body.replace(/[.\s]+$/, '')}. The narration never names how they sound.]`;
 
@@ -509,8 +512,8 @@ const framedStands = (e: Entry, at: number): string => {
  *
  *  With no window, only rooms that are switched ON are included; pass the chapter's text and rooms
  *  whose keys fire come too, which is what the prompt builder wants and a cast list does not. */
-export const cardText = (e: Entry, at: number, window = '', locked = '') =>
-  [framedAlwaysTrue(e), framedStands(e, at), ...rooms(e, at, window, locked)].map((x) => x.trim()).filter(Boolean).join('\n');
+export const cardText = (e: Entry, at: number, window = '', locked = '', tells = false) =>
+  [framedAlwaysTrue(e), framedStands(e, at), ...rooms(e, at, window, locked, tells)].map((x) => x.trim()).filter(Boolean).join('\n');
 
 // The proximity bound is BUILT (2026-08-25) — see `fires` below. The marker that stood here said
 // to build it "when a real ledger actually false-fires", and COUNCIL-04 recorded two, from a
@@ -1099,8 +1102,11 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // EMPTIES DROPPED BEFORE THE JOIN. A card whose permanent half has moved into its `facts` room
   // has an empty body, and joining that with the rooms put a blank line at the top of every one of
   // them — 461 cards, one wasted line each.
+  // FIRST OR SECOND PERSON, read once: DIRECTIVE's narrator line and the cards' lock pocket (#119)
+  // must agree about it.
+  const firstOrSecond = /^\s*(first|second) person/i.test(story.pov ?? '');
   const bodyOf = (e: Entry) => cardText(e, currentChapter.index, recent,
-    story.lockoutOn === false ? '' : story.lockedCharacter?.trim() ?? '');
+    story.lockoutOn === false ? '' : story.lockedCharacter?.trim() ?? '', firstOrSecond);
 
   const pins = input.pins ?? {};
   for (const e of entries) {
@@ -1337,16 +1343,30 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
    *  grammar: the narrator is named, and the firewall moves to everyone ELSE's interior, which is
    *  the half that can be broken in any person.
    *
+   *  #119 NARROWS THAT FOR A HANDS-OFF NARRATOR. Senses and memory stay the model's; what he says,
+   *  does and decides is the writer's, and the model stops where he would speak, act or choose.
+   *  A narrator the writer only plays (persona, no Hands off) keeps the line as it was.
+   *
    *  The third-person text is UNCHANGED, byte for byte. It is the one instruction in this stack
    *  with a strong measured effect and it is not being reworded in the same commit that moves it.
    */
-  const firstOrSecond = /^\s*(first|second) person/i.test(story.pov ?? '');
   const teller = locked || (story as any).persona?.trim();
   // Not in the chat. Every part of this block is an order to a prose engine — the tense, the
   // lockout, the chapter's ending, the register — and `talk` writes no prose. See `prose` above.
   if (prose) addAnchor('DIRECTIVE', 'directive', [
     { text: `[Writing: ${story.pov}]`, keep: true },
-    { text: firstOrSecond && teller
+    { text: firstOrSecond && locked
+      // #119 · THE HANDS-OFF NARRATOR. The line below asked the model to write what he "senses,
+      // remembers or decides" while his lock pocket forbade what he "says, does, thinks or decides".
+      // One rule now, and the lock pocket is not sent here (`rooms`): the writer decides, and the
+      // narration goes around what the writer wrote. NOT MEASURED.
+      ? `[${locked} is telling this story. The narration is ${locked}'s: write what ${locked} senses `
+        + `and remembers. What ${locked} says, does and decides is the writer's: narrate around what `
+        + `the writer wrote, never decide it for ${locked}, and stop where ${locked} would speak, act `
+        + `or choose. Every other character is written from outside — what they say, do and leave `
+        + `behind. Never state what anyone but ${locked} thinks, feels or intends; where ${locked} can `
+        + `only guess, write the guess as a guess.]`
+      : firstOrSecond && teller
       ? `[${teller} is telling this story. The narration is ${teller}'s: write only what ${teller} `
         + `senses, remembers or decides. Every other character is written from outside — what they `
         + `say, do and leave behind. Never state what anyone but ${teller} thinks, feels or intends; `
