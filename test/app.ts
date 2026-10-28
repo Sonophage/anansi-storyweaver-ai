@@ -5228,7 +5228,7 @@ const hemCardOf = (side: string) => {
     && card.indexOf('data-hemsumtext="c-1"') < card.indexOf('data-decide'),
     'the summary comes first on the card, in a box, before any thread');
   assert.match(card, /data-hemsumtext="c-1"[^>]*>Ilva arrives\./, '  holding the scene summary');
-  assert.match(card, /<button[^>]*data-hemsum="c-1"/, '  with a press that saves it');
+  assert.doesNotMatch(card, /<button[^>]*data-hemsum="c-1"/, '  and no Save press: it saves as you go (ADR 0004)');
   // BEFORE AND AFTER: the Over time entry in force, then the chalked text.
   // Read against the row's own box, not the fold's one-line peek, which repeats the chalked text.
   assert.ok(card.indexOf('She waits by the door, gloved.') > 0
@@ -5344,14 +5344,18 @@ const hemCardOf = (side: string) => {
     "the next scene's suggested title, note and opening are on the card");
   assert.match(card, /<button[^>]*data-usehem="c-1">Use these</, '  with Use these');
 
-  // The summary box, as typed. The stub DOM finds nothing by selector, so the box is handed over.
-  const doc = (globalThis as any).document, wasQS = doc.querySelector;
-  doc.querySelector = (sel: string) => sel === '[data-hemsumtext="c-1"]' ? { value: 'Ilva arrives, and stays.' } : wasQS(sel);
-  click({ hemsum: 'c-1' }); await settle();
-  doc.querySelector = wasQS;
-  assert.deepStrictEqual(POSTED.filter((p: any) => p.url === '/api/summary').at(-1)?.body,
+  // THE SUMMARY SAVES AS YOU GO (ADR 0004): when the writer leaves the box, as the writer's (#46).
+  // `change` on a textarea is the leaving, never a keystroke, so nothing saves mid-sentence.
+  const sums = () => POSTED.filter((p: any) => p.url === '/api/summary');
+  const leave = (value: string) => (listeners.change ?? []).forEach((f: Function) =>
+    f({ target: { value, dataset: { hemsumtext: 'c-1' } } }));
+  leave('Ilva arrives, and stays.'); await settle();
+  assert.deepStrictEqual(sums().at(-1)?.body,
     { storyId: 's-1', chapterId: 'c-1', summary: 'Ilva arrives, and stays.' },
-    'saving the summary on the card saves what is in its box, as the writer\'s');
+    'HEM-SUM-AS-YOU-GO: leaving the summary box saves what is in it, as the writer\'s');
+  const saved = sums().length;
+  leave('   '); await settle();
+  assert.strictEqual(sums().length, saved, '  and an emptied box saves nothing: removing a summary stays on Chapters');
 
   // USE THESE: the new scene's three boxes hold the suggestion, and nothing is saved yet.
   const saves = POSTED.filter((p: any) => p.url === '/api/chapter').length;

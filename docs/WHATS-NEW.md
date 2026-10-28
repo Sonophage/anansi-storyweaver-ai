@@ -27,7 +27,8 @@ retire, and a title, note and opening for the next scene.
 
 ### One card on the Workbench for each scene you hem
 Everything one hem finds now waits on one card, not a card for each thread. The summary comes
-first, and you can change it there; once you save it, it is yours and a later hem keeps it. Each
+first, and you can change it there; it saves when you leave the box, and from then on it is yours
+and a later hem keeps it. Each
 thread that changed shows how it stands now and what it would become, with Sew it in and Reject
 beside it, and Sew all and Reject all take the whole card at once. Each thread folds to its name
 and one line until you open it, so the card reads on a phone. Threads past the six are named, with

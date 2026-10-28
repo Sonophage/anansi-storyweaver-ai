@@ -581,8 +581,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'delevent', 'makeplace',
   // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
   'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit',
-  // #92. A hemmed scene's card: run its passes again, save its summary, use its next-scene suggestion.
-  'hemagain', 'hemsum', 'usehem',
+  // #92. A hemmed scene's card: run its passes again, use its next-scene suggestion.
+  'hemagain', 'usehem',
   // #75. The tale's own thread.
   'taleopen', 'taleclose', 'newrule', 'addtalepocket',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
@@ -2533,8 +2533,7 @@ function hemCardParts(c) {
   const summary = running ? '' : `<label class="lbl sub-lbl" for="hemsum-${id}">${
       ch.summaryAuthor === 'human' ? 'Your summary' : 'The summary'}</label>
     <textarea class="field" id="hemsum-${id}" data-hemsumtext="${id}" aria-label="The summary of ${esc(c.title)}"
-      placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>
-    <button class="btn ghost" data-hemsum="${id}">Save it as yours</button>`;
+      placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>`;
   const peek = (s) => `${esc(String(s ?? '').slice(0, 90))}${String(s ?? '').length > 90 ? '&hellip;' : ''}`;
   const fold = ([k, rows]) => `<details class="decksec" data-hemthread="${esc(k)}">
     <summary><span class="lbl flush">${esc(rows[0].title)}</span><span class="deckpeek">${peek(rows[0].body)}</span></summary>
@@ -2571,6 +2570,19 @@ function hemCardParts(c) {
       : `<button class="btn ghost" data-deckmove="1" data-deckleft="1">&larr; Leave it</button>`,
   };
 }
+
+/** #92 · THE SUMMARY ON A SCENE'S CARD SAVES AS YOU GO (ADR 0004), as the writer's (#46): a later
+ *  hem keeps it. On `change`, which a textarea fires when the writer leaves it, never per keystroke,
+ *  so nothing saves mid-sentence. An emptied box saves nothing: removing a summary stays on the
+ *  Chapters tab, where it takes two presses. */
+document.addEventListener('change', async (e) => {
+  const el = e.target, id = el?.dataset?.hemsumtext;
+  if (!id || !S.storyId || !String(el.value ?? '').trim()) return;
+  const r = await api.saveSummary(S.storyId, id, el.value);
+  if (r.error) return toast(r.error);
+  V = r; paint(); refreshManifest();
+  toast('Saved. This summary is yours now.');
+});
 
 /** One chalked section as the deck draws it: the shared `proposalCard`, what a new thread arrives
  *  with, and Anansi edits. One renderer for the per-thread cards and the scene cards. */
@@ -12018,16 +12030,6 @@ document.addEventListener('click', async (e) => {
     V = r; paint();
     return toast(d.pass ? 'Trying that again. It lands on the card.' : d.names ? 'Asking for them. They land on the card.'
       : 'Hemming it again. The card fills in when it is done.');
-  }
-  // #92. The summary on a scene's card, saved as the writer's (#46): a later hem keeps it. Removing a
-  // summary stays on the Chapters tab, where it takes two presses.
-  if (d.hemsum) {
-    const text = document.querySelector(`[data-hemsumtext="${d.hemsum}"]`)?.value ?? '';
-    if (!text.trim()) return toast('A summary needs something in it.');
-    const r = await api.saveSummary(S.storyId, d.hemsum, text);
-    if (r.error) return toast(r.error);
-    V = r; paint(); refreshManifest();
-    return toast('Saved. This summary is yours now.');
   }
   // #92 · USE THESE. The hem's suggestion goes into the next scene's three boxes on its setup, as
   // a draft (`S.setup`), and nothing is saved until the writer presses Save there.
