@@ -39,7 +39,7 @@ import { retiredAt } from './context.ts';
 export const ASKED = ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire',
   'tale.set', 'scene.set'] as const;
 /** What only an Undo may do, beside putting back old text. */
-const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake', 'retire.unmake'] as const;
+export const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake', 'retire.unmake'] as const;
 /** What an Undo may put back as it was: the asked operations that write over a value, by id. */
 const PUT_BACK = ['thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set'] as const;
 

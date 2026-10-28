@@ -372,6 +372,42 @@ ok('UNDO-FORGED: an Undo cannot make a pocket, or leave a thread On a word with 
     wrote: { activation: 'always_on', keys: [] } }, waking), /wake words/i);
 });
 
+// ONE-SIDED PAIR. Every operation the model may ask for must have an Undo, and every operation that
+// can be applied (asked, or an Undo's own) must be one the route's `applyChange` writes. A new
+// operation added to the list without both lands with `undo: null`, or as "the tale refused it".
+const every = { ...dated, entries: [...dated.entries,
+  { id: 'e-letter', title: 'The letter', entryType: 'item', activation: 'triggered', keys: ['letter'], addons: [], events: [] }] };
+const ASKS: Record<string, any> = {
+  'thread.new': { title: 'The ferryman', type: 'character', text: 'Rows.' },
+  'thread.set': { thread: 'Talia Venn', text: 'Talia is thirty.' },
+  'thread.overtime': { thread: 'Vel', scene: 3, text: 'Vel is blind.' },
+  'thread.wake': { thread: 'the letter', activation: 'always_on' },
+  'thread.retire': { thread: 'the letter' },
+  'tale.set': { field: 'premise', text: 'A darker river.' },
+  'scene.set': { scene: 1, field: 'title', text: 'The Ford' },
+};
+
+ok('ONE-SIDED-PAIR: every operation on the list has an Undo, and the Undo is one Undo can do', () => {
+  assert.deepStrictEqual(Object.keys(ASKS).sort(), [...ch.ASKED].sort(),
+    'every operation on the list has a case here: add one for a new operation');
+  for (const op of ch.ASKED) {
+    const c = done(ch.checkAsked({ op, ...ASKS[op] }, every));
+    const u = ch.undoFor(c, { thread: 'e-new', addon: 'a-new', state: 'st-new', event: 'ev-new' });
+    assert.ok(u, `${op} has no Undo`);
+    const back = ch.checkUndo(u, every);
+    assert.ok(back.ok || !/not something Undo can do/.test(back.why), `${op}'s Undo is ${u!.op}, which Undo cannot do`);
+  }
+});
+
+ok('ONE-SIDED-PAIR: every operation that can be applied is one the route writes', () => {
+  const src = readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8');
+  const at = src.indexOf('function applyChange(');
+  assert.ok(at > 0, 'applyChange is in src/routes.ts');
+  const body = src.slice(at, src.indexOf('\n}\n', at));
+  for (const op of [...ch.ASKED, ...ch.UNMAKE])
+    assert.ok(body.includes(`ch.op === '${op}'`), `applyChange does not write ${op}`);
+});
+
 ok('the change slice never reaches for the database itself', () => {
   const src = readFileSync(new URL('../src/changes.ts', import.meta.url), 'utf8');
   assert.ok(!/from '\.\/db\.ts'/.test(src), 'src/changes.ts must not import db.ts');
