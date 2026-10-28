@@ -64,10 +64,14 @@ if (lib && code) {
   /* THE SCHEMA, compared and never repaired. Every table and column the code builds, against the
    * file. Migrating here would be the write this file exists not to make, so a file that is behind
    * is reported, and the server's own boot migrates it.
-   * ponytail: tables and columns only, not indexes or triggers; compare sqlite_master.sql too if a
-   * migration ever changes only an index. */
+   * And every foreign key, as `table key (from) → parent(to)` (#102): chapter_pins changed what its
+   * thread is keyed to and kept every column, so columns alone called the old file current.
+   * ponytail: tables, columns and foreign keys only, not indexes or triggers; compare
+   * sqlite_master.sql too if a migration ever changes only an index. */
+  const keys = (c: DatabaseSync, t: string) => [...Map.groupBy(all(c, `PRAGMA foreign_key_list("${t}")`), (k) => k.id).values()]
+    .map((g) => `${t} key (${g.map((k) => k.from).join(', ')}) → ${g[0].table}(${g.map((k) => k.to).join(', ')})`);
   const cols = (c: DatabaseSync) => new Set(all(c, "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-    .flatMap((t) => [t.name, ...all(c, `PRAGMA table_info("${t.name}")`).map((k) => `${t.name}.${k.name}`)]));
+    .flatMap((t) => [t.name, ...all(c, `PRAGMA table_info("${t.name}")`).map((k) => `${t.name}.${k.name}`), ...keys(c, t.name)]));
   const want = cols(code.db), have = cols(lib);
   const missing = [...want].filter((k) => !have.has(k)), extra = [...have].filter((k) => !want.has(k));
   if (missing.length || extra.length)
