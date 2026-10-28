@@ -894,6 +894,7 @@ ok('the house style is written from the genre and the premise, and never from th
     body: '[Halsey: singer; from Jersey; wears black lace; invited Seth to the gallery]' });
   db.upsertAddon(t.id, h, { slot: 'facts', name: 'facts', body: '[Halsey: 26; a secretary]' });
   const speech = db.upsertAddon(t.id, h, { slot: 'voice', name: 'Speech', body: '[thick Jersey accent even in text]' })!;
+  db.setAddonActive(t.id, speech, true);   // on: Tidy sees, and replaces, only the pockets that are on
   tidied = { always: '[Halsey: a singer from Jersey]', stands: '[Halsey: has invited Seth to the gallery opening]',
     pockets: [{ slot: 'voice', name: 'Speech', body: 'Short, commanding lines. Show the accent only in what she says; the narration never names it.', replaces: 'Speech' },
               { slot: 'outfit', name: 'Black lace', body: 'Black lace under a long coat; the coat stays on in public.', replaces: '' }] };
@@ -937,6 +938,7 @@ ok('the house style is written from the genre and the premise, and never from th
   const ash = db.upsertAddon(t.id, seth, { slot: 'relationships', name: 'Ashley', body: 'drawn to Ashley' })!;
   const stranger = db.upsertAddon(t.id, seth, { slot: 'relationships', name: 'The stranger', body: 'a stranger to Ashley, and patient with her' })!;
   const marcus = db.upsertAddon(t.id, seth, { slot: 'relationships', name: 'Marcus', body: 'dislikes Marcus' })!;
+  for (const id of [ash, stranger, marcus]) db.setAddonActive(t.id, id, true);
   assert.match(prompts.TIDY, /merge/i, 'MERGE-ASK: the prompt asks for overlapping pockets of one kind to be merged');
   assert.strictEqual((prompts.TIDY_SCHEMA as any).properties.pockets.items.properties.replaces.type, 'array',
     'MERGE-SCHEMA: and a pocket can name more than one it replaces');
@@ -968,6 +970,7 @@ ok('the house style is written from the genre and the premise, and never from th
   // A name that is not one of this thread's pockets of that kind merges nothing away.
   const other = db.upsertEntry(t.id, me, { title: 'Ashley', entryType: 'character', body: '28' })!;
   const hers = db.upsertAddon(t.id, other, { slot: 'relationships', name: 'Seth', body: 'wary of Seth' })!;
+  db.setAddonActive(t.id, hers, true);
   tidied = { always: '', stands: '', kept: '', pockets: [
     { slot: 'relationships', name: 'Seth', body: 'Wary of Seth.', replaces: ['Seth', 'Marcus', 'Nobody'] }] };
   await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: other }));
@@ -1043,7 +1046,7 @@ ok('the house style is written from the genre and the premise, and never from th
   db.updateStory(t.id, { persona: 'Ashley', lockedCharacter: 'Seth', lockoutOn: true });
   const seth = db.upsertEntry(t.id, me, { title: 'Seth', entryType: 'character', body: '30s; calm' })!;
   const lock = db.upsertAddon(t.id, seth, { slot: 'voice', name: 'Their lines are yours', body: prompts.YOURS_VOICE('Seth') })!;
-  db.upsertAddon(t.id, seth, { slot: 'appearance', name: 'Ring', body: 'a silver ring' });
+  db.setAddonActive(t.id, db.upsertAddon(t.id, seth, { slot: 'appearance', name: 'Ring', body: 'a silver ring' })!, true);
   tidied = { always: '', stands: '', pockets: [
     { slot: 'voice', name: 'How he speaks', body: 'Calm, unhurried lines.', replaces: 'Their lines are yours' },
     { slot: 'voice', name: 'Fresh', body: 'Low and slow.', replaces: '' },
@@ -1082,15 +1085,18 @@ ok('the house style is written from the genre and the premise, and never from th
   const t = db.createStory(me, { title: 'Whole set', premise: 'p' }) as any;
   db.updateStory(t.id, { persona: 'Ashley', lockedCharacter: 'Seth', lockoutOn: true });
   const seth = db.upsertEntry(t.id, me, { title: 'Seth', entryType: 'character', body: '30s' })!;
-  const add = (slot: string, name: string, body: string) => db.upsertAddon(t.id, seth, { slot, name, body })!;
+  // All on, as they were in use: a pocket that is switched off is not Tidy's (the next block).
+  const add = (slot: string, name: string, body: string) => {
+    const id = db.upsertAddon(t.id, seth, { slot, name, body })!;
+    db.setAddonActive(t.id, id, true);
+    return id;
+  };
   const lock = add('voice', 'Their lines are yours', prompts.YOURS_VOICE('Seth'));
   const look = add('appearance', 'Look', 'tall, dark coat');
   const clothes = add('outfit', 'Street clothes', 'jeans and a jacket');
   const lonely = add('interiority', 'Lonely', 'lonely, and hides it');
-  db.setAddonActive(t.id, lonely, true);
   const ashley = add('relationships', 'Ashley', 'drawn to Ashley');
   const drawn = add('relationships', 'Drawn to Ashley', 'patient with Ashley');
-  const atmo = add('atmosphere', 'Night', 'wet streets');
   const before = new Map((db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === seth).map((a) => [a.id, a.body]));
   const answer = [
     { slot: 'appearance', name: 'Streetlight details', body: 'Under the streetlight his coat looks black.', replaces: [] },
@@ -1101,7 +1107,7 @@ ok('the house style is written from the genre and the premise, and never from th
 
   // The deciding function, alone: which old pocket each answered pocket stands in for, and which go.
   const old = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === seth);
-  const plan = tidyPockets(old, answer, ['appearance', 'atmosphere', 'interiority', 'outfit', 'relationships', 'voice'], true);
+  const plan = tidyPockets(old, answer, ['appearance', 'interiority', 'outfit', 'relationships', 'voice'], true);
   assert.deepStrictEqual(plan.map((p: any) => [p.slot, p.target, p.merges]),
     [['appearance', look, []], ['interiority', lonely, []], ['outfit', clothes, []], ['relationships', drawn, [ashley]]],
     `WHOLE-PLAN: each answered pocket stands in for one old pocket of its kind, named first, then in order (${JSON.stringify(plan)})`);
@@ -1119,8 +1125,6 @@ ok('the house style is written from the genre and the premise, and never from th
     `WHOLE-SET: sewn in, one pocket per kind, the answer's (${now.map((a) => `${a.slot}:${a.name}`).join(', ')})`);
   assert.deepStrictEqual(now.filter((a) => a.slot === 'voice').map((a) => [a.id, a.body]), [[lock, prompts.YOURS_VOICE('Seth')]],
     'WHOLE-LOCK: the lock pocket is untouched');
-  assert.deepStrictEqual(now.filter((a) => a.slot === 'atmosphere').map((a) => [a.id, a.body]), [[atmo, 'wet streets']],
-    'WHOLE-UNASKED: a kind the answer does not name is left alone');
   const hist = db.entryHistory(t.id, seth) as any[];
   for (const id of [look, clothes, lonely, ashley, drawn])
     assert.ok(hist.some((r) => r.field === `pocket:${id}` && r.previous_value === before.get(id)),
@@ -1136,6 +1140,50 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.strictEqual(JSON.stringify((db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === seth)), kept,
     'WHOLE-NONE: a tidy with no pockets changes no pockets');
   ok("Tidy's pockets replace the thread's pockets kind by kind, and the old texts are kept");
+}
+
+// A SWITCHED-OFF POCKET IS NOT TIDY'S. The trial on Marcus (2026-10-28, the real model): each kind had
+// one pocket on and one off, Tidy was sent both, rewrote the voice in use with the unused one's text,
+// and switched the outfit he does not wear back on. Off is the writer's choice: never sent, never
+// replaced, never merged away, and still off after the tidy is sewn in.
+{
+  const t = db.createStory(me, { title: 'Marcus', premise: 'p' }) as any;
+  const marcus = db.upsertEntry(t.id, me, { title: 'Marcus', entryType: 'character', body: '40s' })!;
+  const add = (slot: string, name: string, body: string, on: boolean) => {
+    const id = db.upsertAddon(t.id, marcus, { slot, name, body })!;
+    if (on) db.setAddonActive(t.id, id, true);
+    return id;
+  };
+  const clipped = add('voice', 'Clipped', "Write his lines as the writer's: clipped, demanding, always returning to her name.", true);
+  add('voice', 'Patient', 'complete sentences, patient, never raises his voice', false);
+  const suit = add('outfit', 'Suit', 'a charcoal suit', true);
+  add('outfit', 'Gym clothes', 'grey sweats and trainers', false);
+  const scar = add('appearance', 'Scar', 'a scar through his left eyebrow', true);
+  add('appearance', 'Young', 'clean-shaven, at twenty', false);
+  const rival = add('relationships', 'Rival', 'resents his brother', true);
+  const off = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === marcus && !a.active && a.slot !== 'facts');
+  tidied = { always: '', stands: '', kept: '', pockets: [
+    { slot: 'voice', name: 'Patient', body: 'Complete sentences, patient; he never raises his voice.', replaces: ['Patient'] },
+    { slot: 'outfit', name: 'Gym clothes', body: 'Grey sweats and trainers.', replaces: ['Gym clothes'] },
+    { slot: 'appearance', name: 'Scarred brow', body: 'A scar runs through his left eyebrow.', replaces: [] }] };
+  asks.length = 0;
+  await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: marcus }));
+  tidied = {};
+  const sent = askOf(prompts.TIDY)?.user ?? '';
+  assert.ok(sent.includes('charcoal suit'), `OFF-ASK: the tidy was asked, with the pockets that are on (${sent.slice(0, 80)})`);
+  for (const a of off) assert.ok(!sent.includes(a.body), `OFF-UNSENT: the switched-off ${a.slot} "${a.name}" is not sent to Tidy`);
+  for (const p of (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === marcus))
+    await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
+  const now = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === marcus && a.slot !== 'facts');
+  for (const a of off) assert.deepStrictEqual(now.find((x) => x.id === a.id) && [now.find((x) => x.id === a.id).body, now.find((x) => x.id === a.id).active],
+    [a.body, 0], `OFF-KEPT: the switched-off ${a.slot} "${a.name}" is as it was, and still off`);
+  const on = (slot: string) => now.filter((a) => a.slot === slot && a.active).map((a) => [a.id, a.body]);
+  assert.deepStrictEqual(on('voice'), [[clipped, 'Complete sentences, patient; he never raises his voice.']],
+    'OFF-ON-REPLACED: the answer stands in for the voice that is on');
+  assert.deepStrictEqual(on('outfit'), [[suit, 'Grey sweats and trainers.']], '  and the outfit he wears stays the one worn');
+  assert.deepStrictEqual(on('appearance'), [[scar, 'A scar runs through his left eyebrow.']], '  and the appearance that is on');
+  assert.deepStrictEqual(on('relationships'), [[rival, 'resents his brother']], 'OFF-UNASKED: a kind the answer does not name is left alone');
+  ok('Tidy is sent, and replaces, only the pockets that are switched on');
 }
 
 // ---- #74 · ANANSI EDITS ONE SECTION, AND A REJECT CAN BE UNDONE ----

@@ -13,7 +13,7 @@ import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultMode
          voiceOf, anansiOf, estimate } from './story.ts';
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
-import { resolveBody, stateInForce, cardText, alwaysTrue, retiredAt, narrationOnly, quotedSpans, retirable, numbersIn, fires, summaryReaches,
+import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, narrationOnly, quotedSpans, retirable, numbersIn, fires, summaryReaches,
          weaveFit, actSpan } from './context.ts';
 import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
@@ -2225,7 +2225,8 @@ function holdsLock(e: any, st: any): boolean {
  *  next unmatched old pocket of its kind, in order, and any old pocket still left over is merged away
  *  by the first answered pocket of the kind. A kind the answer does not name is left alone; so is
  *  Always true, and the lock pocket (`holdsLock`): with `lock`, no voice pocket on either side.
- *  Pure: `existing` is the thread's pockets, the result is one row per answered pocket to chalk. */
+ *  Pure: `existing` is the pockets Tidy was sent (only those switched on: see `POST /api/tidy`), the
+ *  result is one row per answered pocket to chalk. */
 export function tidyPockets(existing: any[], answer: unknown, kinds: string[], lock: boolean) {
   const usable = (slot: string) => slot !== 'facts' && kinds.includes(slot) && !(lock && slot === 'voice');
   const out = ((Array.isArray(answer) ? answer : []) as any[])
@@ -4866,10 +4867,15 @@ export const routes: Record<string, Handler> = {
     // #114 · A THREAD THAT HOLDS THE LOCK keeps its voice out of the tidy both ways: not sent, not
     // offered as a kind, and any voice pocket in the answer is dropped below.
     const lock = holdsLock(e, v.story);
+    // THE POCKETS TIDY SEES, which are the only ones it may replace: one list, for the ask and for
+    // `tidyPockets`, so the two cannot disagree. Only pockets that are on (the outfit worn at this
+    // scene, by the dated wardrobe): one switched off is the writer's choice. The trial on Marcus sent
+    // an off voice beside the on one, and the answer put the off one's text in the voice in use.
+    const seen = (e.addons ?? []).filter((a: any) => a.slot !== 'facts' && !(lock && a.slot === 'voice')
+      && (a.slot === 'outfit' ? wornAt(e, at) === a.id : a.active));
     const ask = [`${e.title} (${e.entryType})`, `Always true: ${alwaysTrue(e) || '(empty)'}`,
       `Where it stands now: ${resolveBody(e, at).trim() || '(nothing yet)'}`,
-      `Pockets: ${(e.addons ?? []).filter((a: any) => a.slot !== 'facts' && !(lock && a.slot === 'voice'))
-        .map((a: any) => `${a.slot} "${a.name}": ${a.body}`).join(' | ') || 'none'}`,
+      `Pockets: ${seen.map((a: any) => `${a.slot} "${a.name}": ${a.body}`).join(' | ') || 'none'}`,
       `Pockets its kind can have: ${slotsFor(e.entryType).map((sl) => sl.name)
         .filter((n) => n !== 'facts' && !(lock && n === 'voice')).join(', ')}`].join('\n');
     const r = await structuredRetry(TIDY, ask, TIDY_SCHEMA, { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
@@ -4894,7 +4900,7 @@ export const routes: Record<string, Handler> = {
       : { ...base, body: stands })) added++;
     // #114 · THE ANSWER'S POCKETS ARE THE THREAD'S WHOLE SET, kind by kind: see `tidyPockets`. The
     // first is rewritten, the rest go when it is sewn in, into the thread's history.
-    for (const p of tidyPockets(e.addons ?? [], r.data.pockets, slotsFor(e.entryType).map((sl) => sl.name), lock))
+    for (const p of tidyPockets(seen, r.data.pockets, slotsFor(e.entryType).map((sl) => sl.name), lock))
       if (db.addProposal(v.id, { ...base, body: p.body, field: p.slot, target: p.target, merges: p.merges,
         pocket: p.name })) added++;
     return { added, ...viewOf(c, v.id) };
