@@ -1011,6 +1011,33 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 
 
+// OUT OF DATE: editing, rewording or deleting a passage of a hemmed scene marks its hem out of date.
+// Derived on read from the scene's prose, so the three ways in are driven through the routes and db.
+{
+  const t = db.createStory(me, { title: 'Changed after', premise: 'A ferry town.' }) as any;
+  const off = { summarise: false, remember: false, extract: false, retire: false };
+  const hemOne = async (body: string) => {
+    const ch = (db.chapters(t.id).at(-1) as any);
+    const p = db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch.id, body }) as any;
+    await routes['POST /api/chapter/end'](ctx({ storyId: t.id, ...off }));
+    await hemSettled(t.id);
+    assert.strictEqual(sceneOf(await viewNow(t.id), ch.id).hem?.outOfDate, false, `  "${body}" is in date once hemmed`);
+    return { ch: ch.id, p: typeof p === 'string' ? p : p.id };
+  };
+  const stale = async (ch: string) => sceneOf(await viewNow(t.id), ch).hem?.outOfDate;
+  const edited = await hemOne('The river rose in the night.');
+  await routes['POST /api/passage'](ctx({ storyId: t.id, id: edited.p, body: 'The river fell in the night.' }));
+  assert.strictEqual(await stale(edited.ch), true, 'HEM-STALE-EDIT: an edit marks the hem out of date');
+  const reworded = await hemOne('The bell was green with damp.');
+  db.addVariant(t.id, reworded.p, 'The bell was black with soot.');
+  assert.strictEqual(await stale(reworded.ch), true, 'HEM-STALE-REWORD: a reworded passage marks it out of date');
+  const deleted = await hemOne('Nobody crossed after dark.');
+  await routes['DELETE /api/passage'](ctx({ storyId: t.id, id: deleted.p }));
+  assert.strictEqual(await stale(deleted.ch), true, 'HEM-STALE-DELETE: a deleted passage marks it out of date');
+  ok('editing, rewording or deleting a passage of a hemmed scene marks its hem out of date');
+}
+
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several
