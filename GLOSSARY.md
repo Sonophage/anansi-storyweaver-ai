@@ -90,10 +90,12 @@ story lives on are strings, and everything else lives in threads. (Decided 2026-
 _Avoid_: synopsis, plot, blurb, story arc
 
 **The tale's thread**:
-The one thread about the tale itself. Its Always true is the premise and setting; its pockets are
-the text the writer gives the model for the whole tale: Voice first, then the tale's rules, then
-the writer's own. Spice, the cast choices and the model stay settings. It has no Over time.
-(Decided 2026-10-26; not built.)
+The one thread about the tale itself. Its Always true is the setting; its pockets are the text the
+writer gives the model for the whole tale: Voice first, then the tale's rules, then the writer's
+own. Its Over time is where the tale stands now, one paragraph each hem writes and the writer sews
+in; from the first hem on, the model reads that instead of the premise, which stays as how the tale
+began. Spice, the cast choices and the model stay settings. (Decided 2026-10-26; where it stands
+2026-10-28, ADR 0010; not built.)
 _Avoid_: story card, tale instructions, author's note
 
 **Rule**:
