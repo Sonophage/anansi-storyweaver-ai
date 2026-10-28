@@ -150,10 +150,13 @@ thread's own text says about it, and leave out a pocket its text gives you nothi
 /** #84 · NEVER WHAT HAPPENS NEXT. A spark cast wrote "he does not take the money" as a pocket, and the
  *  model read it as an order that steered the tale to an ending the writer never chose (#81). One
  *  sentence, in every wizard prompt that writes a thread (the cast, a one-thread re-roll, which is
- *  the cast again, and Try it on), so they all forbid the same thing. NOT MEASURED. */
+ *  the cast again, Try it on, Talk during setup, and the lookups), so they all forbid the same thing.
+ *  #117 · Its example is a shape now, for POCKET_FORM's reason: the model copies quoted examples.
+ *  NOT MEASURED. */
 export const NO_OUTCOMES =
 `NEVER WRITE WHAT HAPPENS NEXT. A thread says who or what it is and how to write it, never what it
-will do, decide or end up as: "he does not take the money" is the story's to find, not a pocket's.`;
+will do, decide or end up as: "<he does or does not do the thing the tale turns on>" is the story's
+to find, not a pocket's. The angle brackets show the form only.`;
 
 /** #84 · THE HANDS-OFF CHARACTER'S VOICE POCKET, added by the spark cast route itself and never asked
  *  of the model. `context.ts` sends a Hands-off character's voice pocket bare, so this reaches the
@@ -606,7 +609,16 @@ Infer the spice level from the idea; use 2 when there is no signal.`;
  *
  *  THE KINDS ARE THE WRITER'S, and "none" is a real answer the old shape could not express: the
  *  schema required at least two characters, so a book that wanted three places and no people had to
- *  be given people and have them unticked. */
+ *  be given people and have them unticked.
+ *
+ *  #117 · ALWAYS TRUE IS IDENTITY ONLY (Seth, 2026-10-28). It asked for "what it wants or does, what
+ *  it costs, and how it stands towards the others" there, so a want met or a secret told at scene
+ *  thirty was still "always true" (ADR 0005 says only the writer changes it), and "what it costs" is
+ *  arc language (ADR 0009). Wants and secrets go in interiority, how it stands towards another in
+ *  relationships, and where it stands as the tale opens in `stands`, which Create writes as its
+ *  first Over time entry. "Every pocket its kind can have" became the ones the premise and setting
+ *  give material for, so it agrees with POCKET_FORM's "leave out a pocket its text gives you nothing
+ *  for". NOT MEASURED. */
 export const CAST =
 `Populate a story that already exists. Its skeleton is below; it was written or approved by the
 writer, and you are not revising it.
@@ -622,17 +634,26 @@ the premise names is one of them, the one it is about first.
   rule       a law of this world, or of this story, that holds until it is broken. Write a rule only
              when the idea needs one: a tale with no rules is the usual answer.
 
-Each entry is a name, its kind, a body and its pockets, written to be READ BY A MODEL on every
-call: dense and specific.
+Each entry is a name, its kind, a body, where it stands, and its pockets, written to be READ BY A
+MODEL on every call: dense and specific.
 
-The body is its Always true, twenty to forty words: who or what it is for the whole story, what it
-wants or does, what it costs, and how it stands towards at least one of the others. Never its looks,
-its clothes or its voice: those are pockets. Facts, not atmosphere — "a mysterious past" is nothing;
-"struck off the register in '09 and still signs the forms" is something. Never a finished sentence
-of the book: it will be in the prompt while the book is written, and a phrase that reads as prose
-gets lifted whole.
+The body is its Always true, twenty to forty words, and it is identity only: who or what it is,
+which does not change through the tale (what they are, their age, their trade, where they come
+from; what a place or thing is). Never what they want, a secret, or how they stand towards the
+others: those change, so they go below. Never its looks, its clothes or its voice: those are
+pockets. Facts, not atmosphere: "a mysterious past" is nothing; "<a plain fact with a date or a
+number in it>" is something. Never a finished sentence of the book: it will be in the prompt while
+the book is written, and a phrase that reads as prose gets lifted whole.
 
-The pockets are every pocket its kind can have, each with a short title of its own:
+stands is where it stands as the tale opens, one or two clauses: what a person wants right now and
+what is in their way; what state a place or thing is in. It is the thread's first entry in Over
+time, so it can change as the tale is written. Never what they will do.
+
+Its wants and secrets go in its interiority pocket, as what they will not say out loud. How it
+stands towards another goes in its relationships pocket.
+
+The pockets are those of its kind that the premise and setting give material for, each with a
+short title of its own:
 
     character  appearance, voice, interiority, relationships, outfit
     place      appearance, atmosphere, who_is_here
@@ -958,6 +979,9 @@ export const castSchema = (kinds: string[]) => ({
           // No maxLength, per F25: the converter honours it and closes the string mid-word with
           // the JSON still valid, so a body ending "and she signs the" would look finished.
           body: { type: 'string' },
+          // #117 · WHERE IT STANDS AS THE TALE OPENS: its first Over time entry, so what a thread
+          // wants now can change (Always true holds identity only). Required, like EXTRACT_SCHEMA's.
+          stands: { type: 'string' },
           // FULLY FLESHED FROM THE START: its pockets, as plain descriptions. The route keeps only the
           // ones the entry's kind can have.
           pockets: { type: 'array', items: { type: 'object', properties: {
@@ -966,7 +990,7 @@ export const castSchema = (kinds: string[]) => ({
             body: { type: 'string' },
           }, required: ['slot', 'name', 'body'] } },
         },
-        required: ['name', 'kind', 'body', 'pockets'],
+        required: ['name', 'kind', 'body', 'stands', 'pockets'],
       },
     },
   },
@@ -1409,25 +1433,29 @@ whatever is in it becomes true by repetition.
 WRITE IT FROM INSIDE THE WORLD, not from outside it. This is the writer's own register and it is
 not negotiable:
 
-    RIGHT   (Ferrus Manus) also called the Gorgon, Primarch of the X Legion, the Iron Hands,
-             raised on Medusa, hands of living metal to the elbow
-    WRONG   (Paul Atreides) he is a fictional character in the Dune universe created by Frank
-             Herbert, appearing in the 1965 novel
+    RIGHT   <another name they go by>, <what they are in their world>, <where they were raised>,
+             <the one thing about them seen first>
+    WRONG   <name> is a fictional character in <the work> created by <its author>, appearing in
+             <a publication and its year>
 
 Never "is a fictional character", never "in the X universe", never "main character in", never the
 author's name, a novel's title as a publication, a film, a game, an edition or a date — unless the
-subject IS an author, in which case their works are the point. "Returns in Children of Dune" is a
-fact about a book; "went into the desert and came back as The Preacher" is a fact about him. An
-encyclopedia describes a story from the outside; a card is used from the inside, by a model writing
-a scene, and it can no more mention the novel than a person can mention their own author.
+subject IS an author, in which case their works are the point. "<returns in a named sequel>" is
+a fact about a book, and never on the card. An encyclopedia describes a story from the outside; a
+card is used from the inside, by a model writing a scene, and it can no more mention the novel than
+a person can mention their own author.
+
+The card is what they are and what they are like, never what the published story later does to
+them: the writer's tale outranks the world it is set in, and finds that out for itself.
+
+${NO_OUTCOMES}
 
 IF THE SUBJECT IS A WORK — a novel, a game, a setting, a franchise — the card is about the WORLD it
 holds and never about the product. Not the studio, the publisher, the platform, the price, the
-release date, the reviews, the awards, the art style, or how it plays. "Sunless Sea" is not a 2D
-Victorian Gothic RPG released on Steam: it is the Unterzee under a fallen London, a lightless ocean
-where captains run out of fuel and their crews start eating each other, and where terror is a thing
-a ship accumulates. Write the second card. If the results only describe the product, take from them
-the world they describe and leave the rest.
+release date, the reviews, the awards, the art style, or how it plays. Not "<a kind of game> released
+on <a platform>", but "<the place it is>, <what life there is like>, <the one thing that makes it
+itself>". Write the second card. If the results only describe the product, take from them the
+world they describe and leave the rest. The angle brackets show the form only.
 
     title  The subject's own name, spelled as the best source spells it.
     body   A plain description, with no brackets and not the subject's name in front: the title
@@ -1961,6 +1989,8 @@ ${PREMISE_FORM}
 - thread.new: its title, its type, and its Always true as text.
 - thread.set: the thread by its name, the room (none for its Always true), and the whole new text.
 - thread.remove: the thread by its name.
+
+${NO_OUTCOMES}
 
 When you offered threads before and they say yes or "add them", that is a request: each one is a
 thread.new.

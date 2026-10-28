@@ -2255,8 +2255,13 @@ export function tidyPockets(existing: any[], answer: unknown, kinds: string[], l
 
 /** ONE SPARK THREAD, as the cast and Try it on both return it: Always true in the body, which
  *  POST /api/stories moves into `facts`, and its pockets as rooms, switched on, from its kind's list
- *  only (`writeRooms` writes them as the tale is made). */
-function sparkThread(rawName: string, kind: string, rawBody: string, pockets: unknown) {
+ *  only (`writeRooms` writes them as the tale is made).
+ *
+ *  #117 · `stands`, where it stands as the tale opens, plain, which `writeCast` makes its first Over
+ *  time entry. And ONLY A PERSON STARTS ALWAYS ON: a place, lore, an item or a rule wakes on its own
+ *  name. Every spark thread was Always on, so a scene-1 detail of a laundromat or forty dollars on a
+ *  table rode in every scene's canon (setup prompt audit, 2026-10-28, problem F). */
+function sparkThread(rawName: string, kind: string, rawBody: string, pockets: unknown, rawStands: unknown = '') {
   const here = slotsFor(kind).map((sl) => sl.name), rooms: Record<string, any> = {};
   for (const pk of (Array.isArray(pockets) ? pockets : []) as any[]) {
     const slot = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
@@ -2267,8 +2272,10 @@ function sparkThread(rawName: string, kind: string, rawBody: string, pockets: un
   // thread's Always true, so it is the description only. The model often starts the body with the
   // name already, and wrapped it once read "[Seth: Seth: The Witness…]" (2026-10-27, #81).
   const name = String(rawName).trim();
-  return { title: name, entryType: kind, activation: 'always_on', body: plain(rawBody, wrapperNames('facts', name)), keys: [name],
-           ...(Object.keys(rooms).length ? { rooms } : {}) };
+  const stands = db.plainStands(rawStands, [name]);
+  return { title: name, entryType: kind, activation: kind === 'character' ? 'always_on' : 'triggered',
+           body: plain(rawBody, wrapperNames('facts', name)), keys: [name],
+           ...(stands ? { stands } : {}), ...(Object.keys(rooms).length ? { rooms } : {}) };
 }
 
 function writeRooms(storyId: string, entryId: string, kind: string, rooms: any, label: string) {
@@ -2322,9 +2329,12 @@ function writeCast(storyId: string, owner: string, cast: any[]): string[] {
     const body = String(e.body ?? '').trim();
     const hasOwnFacts = !!String(e.rooms?.facts?.body ?? e.rooms?.facts ?? '').trim();
     const moveToFacts = !!body && !hasOwnFacts;
-    // Written with an EMPTY body, so Anansi's first chapter-end update has the room it expects and
-    // nothing to overwrite. The card's own screen draws facts above Info for this reason already.
-    const id = db.upsertEntry(storyId, owner, moveToFacts ? { ...e, body: '' } : e);
+    // #117 · ITS OWN TEXT IS WHERE IT STANDS AS THE TALE OPENS (`stands`), its first Over time entry,
+    // so a want or a state can change from a later scene on. Empty when the thread brought none: a
+    // hem's Over time entry starts from the next scene, so it never overwrites this one.
+    const { stands: _s, ...thread } = e;
+    const opens = moveToFacts ? db.plainStands(e.stands, [e.title]) : '';
+    const id = db.upsertEntry(storyId, owner, moveToFacts ? { ...thread, body: opens } : thread);
     const rooms = moveToFacts ? { ...(e.rooms ?? {}), facts: { body } } : e.rooms;
     if (id && rooms) notes.push(...writeRooms(storyId, id, e.entryType ?? 'character', rooms, e.title).notes);
     // A ROOM MARKED `on` IS SWITCHED ON: the new tale's cast (POST /api/spark/cast) marks the
@@ -3103,7 +3113,7 @@ export const routes: Record<string, Handler> = {
     // braces, and it costs one comparison.
     const entries = (r.data.entries as any[])
       .filter((e) => e?.name?.trim() && e?.body?.trim() && kinds.includes(e.kind))
-      .map((e) => sparkThread(e.name, e.kind, e.body, e.pockets));
+      .map((e) => sparkThread(e.name, e.kind, e.body, e.pockets, e.stands));
     // A CHARACTER THE WRITER DESCRIBED is in the tale from the start, whether or not the model wrote
     // them: their thread is made from the writer's own words. Not on a re-roll that names them taken.
     if (you.persona && about

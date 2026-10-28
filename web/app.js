@@ -5946,8 +5946,9 @@ function sparkReview() {
     ? `${row('setting', 'Where it opens', s.setting,
          'Lore written later can replace this. It is the place the first scene stands in.')}
        ${cast.length ? `<div class="hint push-10">Everyone you kept is in the tale
-         from the first line &mdash; a spark cast is always-on. Who is in a given SCENE is that
-         scene's own question, and the scene's screen asks it.</div>` : ''}`
+         from the first line &mdash; the people always on, and places and things when their name
+         comes up. Who is in a given SCENE is that scene's own question, and the scene's screen
+         asks it.</div>` : ''}`
     : key === 'opening'
     // THE OPENING.
     ? `<label style="display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--mute)">
@@ -5960,7 +5961,7 @@ function sparkReview() {
          creates all of this at once.</div>
        ${[[`${esc(s.title || 'Untitled')}`, 'the tale, with its premise, voice and flavour'],
           [`${cast.length} ${cast.length === 1 ? 'thread' : 'threads'}`,
-           cast.length ? 'in the tale, always on' : 'no threads yet'],
+           cast.length ? 'people always on, the rest on their names' : 'no threads yet'],
           [(() => { const w = sparkWorld(); return w ? esc(w[0].toUpperCase() + w.slice(1)) : 'No World'; })(),
            'the World it follows'],
           [s.persona ? esc(s.persona) : 'Nobody', 'the one you play'],

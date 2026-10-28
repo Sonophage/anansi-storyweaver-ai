@@ -189,11 +189,13 @@ const srv = createServer((req, res) => {
       }
       : asksForCast ? { entries: [
         { name: 'Vel', kind: 'character', body: 'Speaks for the dead god. Owes nothing and says so.',
+          stands: 'Vel: waits on the stair for a debtor who is late.',
           pockets: [{ slot: 'voice', name: 'The Murmur', body: 'Write her lines short and flat; she never asks a question.' },
                     { slot: 'atmosphere', name: 'x', body: 'A person has no atmosphere pocket, so this is dropped.' }] },
         // The real model starts a body with the name it was given (2026-10-27: "Seth: Seth: The
         // Witness"), so this one does.
-        { name: 'The Long Stair', kind: 'lore', body: 'The Long Stair: a stair with no landing, cut into the rock.' },
+        { name: 'The Long Stair', kind: 'lore', body: 'The Long Stair: a stair with no landing, cut into the rock.',
+          stands: 'Half its lamps are out.' },
         // A kind nobody asked for. The grammar makes this unreachable from a real model; the route
         // drops it anyway, and this is what proves the belt exists as well as the braces.
         { name: 'The Bell', kind: 'item', body: 'Rung once a year, badly.' },
@@ -616,6 +618,20 @@ ok('a kind that does not exist is refused rather than assembled');
   const vel: any = db.entriesOf(tale.id).find((e: any) => e.title === 'Vel');
   const voice: any = (db.addonsOf(tale.id) as any[]).find((a) => a.entry_id === vel?.id && a.slot === 'voice');
   assert.ok(voice?.active, 'CAST-ON: made into a tale, its pockets are written and on, so they reach the model');
+  // #117 · WHERE EACH STANDS AS THE TALE OPENS is its first Over time entry (the thread's own text),
+  // with no name in front; Always true keeps who it is. Only a person starts Always on: a place, lore
+  // or an item wakes on its name, so a scene-1 detail is not in every scene's canon.
+  assert.strictEqual(r.entries[0].stands, 'waits on the stair for a debtor who is late.', 'CAST-STANDS: the cast hands back where each stands, plain');
+  assert.strictEqual(vel.body, 'waits on the stair for a debtor who is late.', 'CAST-STANDS: made, it is the thread\'s first Over time entry');
+  assert.match(String((db.addonsOf(tale.id) as any[]).find((a) => a.entry_id === vel.id && a.slot === 'facts')?.body), /Speaks for the dead god/,
+    '  and Always true keeps who it is');
+  const stair: any = db.entriesOf(tale.id).find((e: any) => e.title === 'The Long Stair');
+  assert.strictEqual(stair.body, 'Half its lamps are out.', '  for every kind');
+  assert.deepStrictEqual(r.entries.map((e: any) => e.activation), ['always_on', 'triggered'],
+    'CAST-WAKE: a person starts Always on; lore wakes on a word');
+  assert.strictEqual(vel.activation, 'always_on', 'CAST-WAKE: made, the person is Always on');
+  assert.strictEqual(stair.activation, 'triggered', '  and the lore is on a word');
+  assert.deepStrictEqual(JSON.parse(stair.keys), ['The Long Stair'], '  its name');
 
   // #86 · WHO YOU PLAY IS THE WRITER'S, decided a step before the threads. The fake still names a
   // persona and somebody not in the cast; neither reaches the wizard, because the model was not asked.
@@ -997,6 +1013,39 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.doesNotMatch(both.match(/^OPEN QUESTIONS.*$/m)?.[0] ?? '', /letter under the floor/, 'BRIEF-PROMISE: and not as an open question');
   assert.match(both, /^OPEN QUESTIONS[^\n]*Whether the debt is real$/m, '  while the question stays a question');
   ok('the scene brief keeps the open questions open and presses the promises, each on its own line');
+}
+
+// ---- #117 · NEW TALE'S THREADS ARE FULL FROM THE START, AND CAN CHANGE
+// Seth, 2026-10-28: Always true holds identity only; wants and secrets go in interiority, and each
+// new thread gets a scene-1 Over time entry (where it stands at the opening) so they can change.
+// The cast asked for "what it costs" (arc language) and "every pocket its kind can have", which
+// clashed with POCKET_FORM's "leave out a pocket its text gives you nothing for". Checked on the text
+// only; the wording is NOT MEASURED.
+{
+  const { CAST, castSchema, NO_OUTCOMES, TALK_SETUP, FROM_WEB, REVIEW } = await import('../src/prompts.ts') as any;
+  assert.doesNotMatch(CAST, /what it costs/i, 'CAST-NO-COST: the cast no longer asks what it costs');
+  assert.doesNotMatch(CAST, /every pocket its kind can have/i, 'CAST-MATERIAL: it no longer asks for every pocket');
+  assert.match(CAST, /premise and setting give/i, '  but for the pockets the premise and setting give material for');
+  assert.match(CAST, /Always true[^.]*identity|identity only/i, 'CAST-IDENTITY: Always true is identity only');
+  assert.match(CAST, /wants? and (?:their )?secrets?[^.]*interiority/i, 'CAST-WANTS: wants and secrets go in interiority');
+  assert.match(CAST, /stands[^.]*as the tale opens/i, 'CAST-STANDS: it asks where each thread stands as the tale opens');
+  assert.ok(castSchema(['character']).properties.entries.items.required.includes('stands'),
+    'CAST-STANDS: and the schema requires it');
+  // NO_OUTCOMES gave an outcome as its example ("he does not take the money"): a shape now.
+  assert.doesNotMatch(NO_OUTCOMES, /money/, 'NO-OUTCOMES-SHAPE: its old outcome is gone');
+  const quoted = [...NO_OUTCOMES.matchAll(/"([^"]*)"/g)].map((m: any) => m[1]);
+  assert.ok(quoted.length > 0, 'NO-OUTCOMES-SHAPE: it still shows the form');
+  for (const q of quoted) assert.match(q, /<[^>]+>/, `NO-OUTCOMES-SHAPE: a quoted example is a shape: "${q}"`);
+  // Every prompt that writes a thread at setup forbids what happens next (audit, problem I and J).
+  for (const [name, text] of [['CAST', CAST], ['REVIEW', REVIEW], ['TALK_SETUP', TALK_SETUP],
+    ['FROM_WEB', FROM_WEB('character', 'Paul Atreides', ['voice'])]] as const)
+    assert.ok(text.includes(NO_OUTCOMES), `NO-OUTCOMES-ONE: ${name} carries NO_OUTCOMES`);
+  // FROM_WEB's register examples were real subjects, and one taught a published fate as a fact to
+  // write ("came back as The Preacher"). They are shapes now.
+  const web = FROM_WEB('character', 'Paul Atreides', ['voice']);
+  assert.doesNotMatch(web, /Preacher|Ferrus|Gorgon|Unterzee/, 'FROM-WEB-SHAPE: no real subject is left as an example');
+  assert.match(web, /RIGHT\s+<[^>]+>/, 'FROM-WEB-SHAPE: its RIGHT example is a shape');
+  ok('the cast asks for identity in Always true, wants in interiority, where each stands at the opening, and no outcomes');
 }
 
 // ---- #118 · THE LEDGER REGISTER GIVES A SHAPE, NOT A CHARACTER TO COPY
