@@ -1357,6 +1357,27 @@ ok('no interiority pocket for the played or Hands-off character');
 }
 
 
+// THE NEXT SCENE IS SUGGESTED FROM THE SCENE THAT CLOSED. A hem runs it last, and by then the writer
+// may be writing the new scene; its prose must not stand in for where the closed scene ended.
+{
+  const t = db.createStory(me, { title: 'Read the closed scene', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'Oren tied the ferry up for the winter.' });
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id, summarise: false, remember: false, extract: false, retire: false }));
+  await hemSettled(t.id);
+  const ch1 = (db.chapters(t.id).at(-1) as any);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch1.id, body: 'Mara rang the bell in the new scene.' });
+  tidied = { ...NEXT };
+  await routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next' }));
+  await hemSettled(t.id);
+  tidied = {};
+  const ask = askOf(prompts.CHAPTER);
+  assert.ok(ask.user.includes('Oren tied the ferry up'), 'HEM-NEXT-TAIL: the closed scene\'s prose reaches the ask');
+  assert.ok(!ask.user.includes('Mara rang the bell'), 'HEM-NEXT-TAIL: and the new scene\'s prose does not');
+  ok('the next scene is suggested from the closed scene\'s prose, not the new scene\'s');
+}
+
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several

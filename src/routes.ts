@@ -1179,13 +1179,17 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
  *  Reads the summaries and the tail of the prose rather than the whole book: what it needs is
  *  where the story has got to, and the chapter it is naming has nothing in it yet by definition. */
 async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?: unknown) {
-const v = bookOf(storyId);
-const ch = v.chapters.find((x: any) => x.id === chapterId) ?? v.currentChapter;
+  const v = bookOf(storyId);
+  const ch = v.chapters.find((x: any) => x.id === chapterId) ?? v.currentChapter;
   // A STALE SUMMARY STAYS OUT, as it does from the writing prompt: it describes prose that moved.
   const before = v.chapters.filter((x: any) => x.index < ch.index && summaryReaches(x));
   // The tail of the previous chapter, narration only. Dialogue may lie, and this is being asked
   // where the story has GOT to — the same rule extract and remember follow.
-  const tail = narrationOnly(v.passages.filter((p: any) => !p.isBreak)
+  // ONLY THE CHAPTERS BEFORE THIS ONE. A hem asks last, when the writer may already be writing the
+  // new scene, and a hem again can name a scene with later scenes written after it: their prose is
+  // not where the closed scene ended.
+  const earlier = new Set(v.chapters.filter((x: any) => x.index < ch.index).map((x: any) => x.id));
+  const tail = narrationOnly(v.passages.filter((p: any) => !p.isBreak && earlier.has(p.chapterId))
     .slice(-6).map((p: any) => p.body).join('\n\n')).slice(-2400);
   const body = [
     `THE BOOK: ${v.story.title}. ${v.story.premise ?? ''}`,
