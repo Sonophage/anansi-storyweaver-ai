@@ -562,6 +562,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'spfold', 'spdroppocket', 'spaddpocket', 'spdropthread', 'spundo', 'spvoicefix', 'spaddtp', 'spdroptp',
   // #117. A contradiction Try it on found: take its fix, or leave it.
   'spfix', 'spleave',
+  // #123. The Voice the spark wrote, taken in place of the writer's own.
+  'spvoiceoffer',
   'applylib', 'savelib', 'dellib', 'setvoice', 'setanansi',
   'seedpick',
   // The forge: open one prompt and copy it. A forged thread comes back in through New thread's box.
@@ -5792,6 +5794,7 @@ function sparkReview() {
          replaced; the cast is not.</div>` : ''}
        ${area('writingStyle', 'Voice', s.writingStyle,
          'How the narration behaves, as instructions.', 150)}
+       ${sparkVoiceOffer(s)}
        ${S.prompts?.voice ? `<div style="display:flex; gap:7px; margin:-4px 0 10px">
          <button class="btn ghost fill fs-115" data-spvoice="mine">Use your voice</button>
          <button class="btn ghost fill fs-115" data-spvoice="shipped">Use Anansi's voice</button>
@@ -5977,8 +5980,10 @@ function sparkReview() {
     : key === 'scene'
     // THE FIRST SCENE. It asked for "Where this is going" as well until 2026-08-30, when that
     // field came out of the whole app — Seth: "no ones going to use it. ive asked."
-    ? `${row('setting', 'Where it opens', s.setting,
-         'Lore written later can replace this. It is the place the first scene stands in.')}
+    // #121: the setting is the place for the whole tale; the moment the scene opens in is its own box.
+    ? `${row('setting', 'Setting', s.setting,
+         'What stays true of the place for the whole tale. Lore written later can replace this.')}
+       ${sparkOpensWith(area)}
        ${cast.length ? `<div class="hint push-10">Everyone you kept is in the tale
          from the first line &mdash; the people always on, and places and things when their name
          comes up. Who is in a given SCENE is that scene's own question, and the scene's screen
@@ -6076,6 +6081,29 @@ function sparkClashes() {
         <button class="btn ghost small-btn" data-spleave="${i}">Leave it</button></div></div>`).join('')}`;
 }
 
+/** #123 · THE VOICE THE SPARK WROTE, OFFERED. The tale starts with the writer's own Voice from
+ *  their Account (the server sets it); the one the spark wrote rides beside it as `voiceOffer` and
+ *  is shown marked against the box, with Use this. Nothing applies it but that press, which is
+ *  undone like the preview's changes. Hidden once the box already says the same. */
+function sparkVoiceOffer(s) {
+  const offer = String(S.spark?.voiceOffer ?? '').trim();
+  const now = String(s.writingStyle ?? '').trim();
+  if (offer && offer !== now) return `<div class="card below-10 gap-6">
+      <div class="kind">The Voice Anansi wrote for this tale</div>
+      <div class="hint flush">Marked against the Voice above. Nothing changes unless you use it.</div>
+      ${diffHTML(now, offer)}
+      <div class="line"><button class="btn ghost small-btn" data-spvoiceoffer="1">Use this</button></div></div>`;
+  return S.spark?.undo?.voiceOffer
+    ? `<button class="btn ghost below-10" data-spundo="1">Undo ${esc(S.spark.undo.what)}</button>` : '';
+}
+
+/** #121 · HOW THE FIRST SCENE OPENS: the weather, the light and the hour the spark returned apart
+ *  from the setting, as an editable box. Create writes it to scene 1's Opens with, which Anansi reads
+ *  only until the scene has prose; the setting is read for the whole tale. On the preview and on the
+ *  first scene's step, from the one field (`S.spark.story.opensWith`, harvested by `data-sp`). */
+const sparkOpensWith = (area) => area('opensWith', 'How the first scene opens', S.spark?.story?.opensWith,
+  'The weather, the light and the time as the tale begins. Anansi reads it until the first passage is written.', 60);
+
 function sparkPreview(s, { row, area }) {
   const kept = (S.spark.entries ?? []).map((e, i) => [e, i])
     .filter(([e]) => e.keep !== false && (e.title ?? '').trim());
@@ -6150,6 +6178,8 @@ function sparkPreview(s, { row, area }) {
         <span class="base-8"><input type="checkbox" data-spquestion="${i}"${q.keep === false ? '' : ' checked'}>
           <span class="name-14">${esc(q.title)}</span></span>
         <span class="note">${esc(q.line)}</span></label>`).join('')}` : ''}
+    <div class="lbl sect">The first scene</div>
+    ${sparkOpensWith(area)}
     ${ipWorld ? `<div class="lbl sect">From your World, ${esc(ipWorld.title)} &middot;
         <span class="tnum">${ipWorld.people.length}</span></div>
       <div class="hint lead-6">This tale follows it, so its people come in with it. They are the World's
@@ -13005,7 +13035,9 @@ document.addEventListener('click', async (e) => {
       // #103. The IP last looked up (`ipFollow`), and the writer's World of that name, if any.
       ipAsked: '', ipWorld: null,
       // ADR 0009. The open questions, offered ticked in the preview (`sparkQuestions`).
-      questions: questionsOf(r) };
+      questions: questionsOf(r),
+      // #123. The Voice the spark wrote, offered beside the writer's own (`sparkVoiceOffer`).
+      voiceOffer: r.voiceOffer ?? '' };
     S.sparkStep = 1;
     if (S.prompts === null) loadPrompts();   // step 5 offers the writer's own voice
     paint();
@@ -13201,6 +13233,15 @@ document.addEventListener('click', async (e) => {
     paint();
     return toast(`${p.name} removed. Nothing is saved yet.`);
   }
+  if (d.spvoiceoffer) {
+    harvestSpark();
+    const offer = String(S.spark.voiceOffer ?? '').trim();
+    if (!offer) return;
+    S.spark.undo = { what: 'the offered Voice', writingStyle: S.spark.story.writingStyle ?? '', voiceOffer: true };
+    S.spark.story.writingStyle = offer;
+    paint();
+    return toast('The Voice Anansi wrote is in the box.');
+  }
   if (d.spvoicefix) {
     harvestSpark();
     const was = S.spark.story.writingStyle ?? '';
@@ -13242,6 +13283,9 @@ document.addEventListener('click', async (e) => {
                       lockedCharacter: S.spark.story.lockedCharacter };
     // The open questions belong to the premise they came with, so they are replaced with it.
     S.spark.questions = questionsOf(r);
+    // #123. And the Voice it offers belongs to it too. The box gets the writer's own back, as the
+    // hint under Reweave says: what is typed on this step is replaced.
+    S.spark.voiceOffer = r.voiceOffer ?? '';
     paint();
     return toast('Another skeleton, from the same idea.');
   }
@@ -13406,6 +13450,8 @@ document.addEventListener('click', async (e) => {
       talePockets: S.spark.talePockets ?? [],
       // ADR 0009. The open questions ticked in the preview, made as strings.
       strings: sparkQuestions(),
+      // #121. The moment the tale opens in, written to scene 1's Opens with.
+      opensWith: s.opensWith || '',
       // #84. Tells the create route to settle the yours pocket on whoever is Hands off now.
       spark: true,
       entries: keep,

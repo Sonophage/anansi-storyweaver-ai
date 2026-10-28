@@ -30,6 +30,8 @@ const IDEAS = ['Vel finds the moneylender\'s ledger open on the stair, at his pa
   'Aldis comes up the stair with the money, and it is not enough.'];
 
 // ADR 0009 · the open questions a spark returns beside the premise.
+// #121 · the moment the tale opens in, which the spark returns apart from the setting.
+const OPENS = 'The lower stair, an hour before dawn; rain off the rock, the lamps guttering.';
 const QUESTIONS = [{ title: 'Whether the debt is real', line: 'Nobody has seen the ledger but the moneylender.' },
   { title: 'Who sent the letter', line: 'It came under the door with no name on it.' }];
 
@@ -234,6 +236,7 @@ const srv = createServer((req, res) => {
       }
       : props.premise ? { title: 'The Rust Year', premise: PREMISE, genre: 'noir, gothic',
         setting: 'Sutera', pov: 'third limited, past tense', spice: 2, writingStyle: VOICE,
+        ...(props.opensWith ? { opensWith: `  ${OPENS}  ` } : {}),
         // ADR 0009. The open questions, and one with nothing in it that the route must drop.
         ...(props.questions ? { questions: [...QUESTIONS, { title: '  ', line: 'nothing' }] } : {}),
         characters: [{ name: 'Vel', role: 'the Murmur', description: 'Speaks for the dead god.' },
@@ -867,7 +870,7 @@ ok('a kind that does not exist is refused rather than assembled');
 // regress here on their own: the prompt asking for a line again, the room it is asked for in, and
 // the retry that a longer answer makes worth having. All three are asserted.
 {
-  const { SPARK, SPARK_SCHEMA } = await import('../src/prompts.ts');
+  const { SPARK, SPARK_SCHEMA, DEFAULT_VOICE } = await import('../src/prompts.ts');
   calls = [];
   const spark = (idea: string) => routes['POST /api/spark']({
     body: { idea }, query: new URLSearchParams(), owner: me,
@@ -879,7 +882,18 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.strictEqual(skel.story.premise, PREMISE,
     'the premise arrives whole — a cap on the field would close it mid-word with the JSON still '
     + 'valid, which is F25 and would look like a finished answer');
-  assert.strictEqual(skel.story.writingStyle, VOICE, 'and so does the voice of the weave');
+  // #123 · THE TALE STARTS WITH THE WRITER'S OWN VOICE. The one the spark wrote comes back apart
+  // from the story, offered, and is never the tale's unless the writer chooses it.
+  assert.strictEqual(skel.voiceOffer, VOICE, 'VOICE-OFFER: the voice the spark wrote arrives whole, as an offer');
+  assert.strictEqual(skel.story.writingStyle, DEFAULT_VOICE,
+    'VOICE-START: with no Account Voice set, the tale starts with the shipped one');
+  const ACCOUNT = 'Narrate close and cold. Never name a feeling the weather can show.';
+  db.setPrompt(me, 'voice', ACCOUNT);
+  const mine = await spark('A broke ex-sergeant owes a moneylender more than he can pay.');
+  db.setPrompt(me, 'voice', '');
+  assert.strictEqual(mine.story.writingStyle, ACCOUNT, 'VOICE-START: the tale starts with the Account Voice');
+  assert.strictEqual(mine.voiceOffer, VOICE, '  and the spark\'s is still offered beside it');
+  ok('VOICE-START: a new tale starts with the Account Voice, and the spark\'s Voice is only offered');
 
   // #21 §2. THE CEILING CAME DOWN WITH THE ASK, and this check came down with it. The spark asked
   // for the cast as well until 2026-08-29 — roughly 800 words in one object, which is why the floor
@@ -978,6 +992,23 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.match(SPARK, /open questions/i, 'QUESTIONS-ASK: the spark asks for them');
   for (const q of [...SPARK.matchAll(/"([^"]*)"/g)].map((m) => m[1]).filter((q) => /question|line/i.test(q)))
     assert.match(q, /<[^>]+>/, `QUESTIONS-SHAPE: quoted as a shape: "${q}"`);
+  // #121 · THE SETTING HOLDS THE PLACE, THE FIRST SCENE HOLDS THE MOMENT. The setting is sent on
+  // every call for the life of the tale, so weather, light or the hour written there hold forever.
+  const settingAsk = /The setting is[\s\S]*?(?=\n\n)/.exec(SPARK)?.[0] ?? '';
+  assert.ok(settingAsk, 'SETTING-ASK: the spark still asks for a setting');
+  assert.doesNotMatch(settingAsk, /weather|light|hour|time of (?:day|night)|season/i,
+    'SETTING-STAYS: the setting asks for no weather, light or hour');
+  assert.match(settingAsk, /whole tale/i, 'SETTING-STAYS: it asks for what holds for the whole tale');
+  const opens = SPARK_SCHEMA.properties.opensWith;
+  assert.ok(opens && opens.type === 'string' && (SPARK_SCHEMA.required as readonly string[]).includes('opensWith'),
+    'OPENS-SCHEMA: the spark returns the moment the tale opens in, as its own field');
+  const opensAsk = /The opening moment is[\s\S]*?(?=\n\n)/.exec(SPARK)?.[0] ?? '';
+  assert.match(opensAsk, /weather/i, 'OPENS-ASK: the weather goes to the opening moment');
+  assert.match(opensAsk, /light/i, 'OPENS-ASK: and the light');
+  assert.match(opensAsk, /time/i, 'OPENS-ASK: and the time');
+  const opensQuoted = [...opensAsk.matchAll(/"([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(opensQuoted.length > 0, 'OPENS-SHAPE: the opening moment is given a shape');
+  for (const q of opensQuoted) assert.match(q, /<[^>]+>/, `OPENS-SHAPE: quoted as a shape: "${q}"`);
 
   // The re-roll sends the same wording on the wire, and the spark hands the questions back.
   calls = [];
@@ -1012,6 +1043,25 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.match(String(refused.error), /nothing was made/, 'QUESTIONS-ROLLBACK: a refused copy fails the Create');
   assert.strictEqual(owned(), before, 'QUESTIONS-ROLLBACK: and its strings go with it');
   ok('the ticked open questions become strings at Create, inside its rollback');
+
+  // #121 · THE OPENING MOMENT COMES BACK WITH THE SKELETON AND BECOMES SCENE 1'S OPENS WITH AT CREATE,
+  // inside the one create's rollback. Opens with is sent only until the scene has prose, which is
+  // the right lifetime for the weather, the light and the hour.
+  assert.strictEqual(sk.story.opensWith, OPENS, 'OPENS-BACK: the spark hands back the opening moment, trimmed');
+  const opened: any = mk({ title: 'Opens', premise: PREMISE, setting: 'Sutera', entries: [], opensWith: `  ${OPENS}\n` });
+  assert.ok(!opened.error, opened.error);
+  assert.strictEqual((db.chapters(opened.id)[0] as any).opens_with, OPENS,
+    "OPENS-SCENE: Create writes the opening moment to scene 1's Opens with");
+  assert.strictEqual(db.getStory(opened.id).setting, 'Sutera', 'OPENS-SCENE: and leaves the setting as it was sent');
+  const blank: any = mk({ title: 'Opens Blank', premise: PREMISE, entries: [], opensWith: '   ' });
+  assert.strictEqual((db.chapters(blank.id)[0] as any).opens_with, null, 'OPENS-NONE: a blank one writes no Opens with');
+  const tales = () => (db.listStories(me) as any[]).length;
+  const had = tales();
+  const nope: any = mk({ title: 'Opens Refused', premise: PREMISE, entries: [], opensWith: OPENS,
+    seed: [{ storyId: 'no-such-tale', entryId: 'no-such-thread' }] });
+  assert.match(String(nope.error), /nothing was made/, 'OPENS-ROLLBACK: a refused copy fails the Create');
+  assert.strictEqual(tales(), had, 'OPENS-ROLLBACK: and takes the scene and its Opens with with the tale');
+  ok("the opening moment comes back apart from the setting and becomes scene 1's Opens with at Create");
 
   // THE SCENE BRIEF KEEPS THE QUESTIONS OPEN AND PRESSES THE PROMISES (#124). Every open string went
   // as "UNPAID PROMISES" to be pressed on, which pushed the tale's own questions to an answer through
@@ -2359,6 +2409,27 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(calls.length, 1, `IDEA-NORETRY: a cut answer is not retried (${calls.length} calls)`);
   assert.ok(cut.error, 'IDEA-CUT: and it says so, rather than handing back no ideas');
   ok('✦ asks the book\'s model for three ideas in one call, weaving off, on a small cap, and writes nothing');
+}
+
+// #120 · THE STYLE NOTE IS PROSE ONLY. It is sent on every prose call, and asked "what its chapters
+// are shaped like", one came back "chapters end on the choice to trust, still unmade" — plot, in the
+// one block that is meant to hold how the sentences read. NOT MEASURED: this checks the wording only.
+{
+  const { STYLE_NOTE } = await import('../src/prompts.ts');
+  assert.doesNotMatch(STYLE_NOTE, /shaped like|what its chapters/i, 'STYLE-NO-SHAPE: it never asks what the chapters are shaped like');
+  for (const [asks, what] of [[/sentence/i, 'sentence length'], [/distance|how close the narration sits/i, 'distance'], [/notices/i, 'what the narration notices'],
+      [/unsaid/i, 'what it leaves unsaid'], [/dialogue/i, 'how much is dialogue']] as const)
+    assert.match(STYLE_NOTE, asks, `STYLE-PROSE: it asks for ${what}`);
+  assert.match(STYLE_NOTE, /never[^.]*chapter[^.]*end/i, 'STYLE-NO-PLOT: it forbids chapter shape and endings');
+  assert.match(STYLE_NOTE, /never reuse the premise's images/i, "STYLE-NO-IMAGES: it forbids the premise's images");
+  assert.match(STYLE_NOTE, /<[a-z][^<>]*>/, 'STYLE-SHAPE: it shows the form with angle-bracket placeholders');
+  // A quoted span is a shape only if it holds a placeholder; any other quote of four words or more
+  // is an example sentence the model will copy.
+  const quotes = STYLE_NOTE.match(/"[^"]*"/g) ?? [];
+  assert.ok(quotes.some((q) => q.includes('<')), 'STYLE-SHAPE-QUOTED: the shape is given as a quoted form');
+  assert.deepStrictEqual(quotes.filter((q) => !q.includes('<') && q.split(/\s+/).length >= 4), [],
+    'STYLE-NO-EXAMPLE: no quoted example sentence to copy');
+  ok('the style note asks for how the prose reads, never chapter shape, endings or the premise\'s images');
 }
 
 srv.close();

@@ -599,12 +599,21 @@ No marketing language, no rhetorical questions.`;
  *  time and cheaply.
  *
  *  So this asks for the book and stops. The cast is CAST below, run after the writer has said which
- *  kinds of card they want — including none. */
+ *  kinds of card they want — including none.
+ *
+ *  #121 · THE SETTING HOLDS THE PLACE, THE OPENING MOMENT HOLDS THE HOUR. The setting asked for
+ *  "what the weather and the light are doing", and the setting is the tale's thread's Always true,
+ *  sent on every call for the life of the tale: a tale set "at three in the morning" in the rain
+ *  stayed at three in the morning in the rain. So the setting asks only for what stays true of the
+ *  place, and the weather, the light and the time come back as `opensWith`, which Create writes to
+ *  scene 1's Opens with: sent only until that scene has prose, the right lifetime for a moment.
+ *  NOT MEASURED: no control run says the model writes a setting free of the moment more often. */
 export const SPARK =
 `Turn this idea into a story skeleton.
 
-Return: a title, a premise, a genre as a comma-separated list of two or three tags, a setting, a
-point of view, a spice level from 1 to 5, the voice the prose is written in, and the open questions.
+Return: a title, a premise, a genre as a comma-separated list of two or three tags, a setting, the
+opening moment, a point of view, a spice level from 1 to 5, the voice the prose is written in, and
+the open questions.
 
 NO CHARACTERS. They are asked for separately, once the writer has said what kinds of thing this
 book needs. Do not name a cast, and do not write the premise as though one has been chosen for you.
@@ -615,17 +624,23 @@ The open questions are two to four things the tale will keep the reader asking a
 answered: kept apart from the premise, and never answered here. Each is a short title and one line.
 Shape: title "<the question, in a few words>", line "<what is not known yet, and who it is between>".
 
-The setting is four to eight sentences, and it is a PLACE rather than a genre: where this happens,
-when, what the weather and the light are doing, what the buildings are made of, who holds power in
-it and how that is visible on the street, and one thing about it that would not be true anywhere
-else. Name it. A setting that could be lifted into another book is not this book's setting.
+The setting is four to eight sentences, and it is a PLACE rather than a genre. It is read on every
+call for the whole tale, so write only what stays true of the place for the whole tale: where this
+happens, in what era, what the buildings are made of, who holds power in it and how that is visible
+on the street, and one thing about it that would not be true anywhere else. Name it. A setting that
+could be lifted into another book is not this book's setting. Nothing that passes belongs here:
+that goes in the opening moment.
+
+The opening moment is one or two sentences: the weather, the light and the time as the first scene
+opens, and where in the place it opens. It is read only until the first passage is written.
+Shape: "<where in the place>, <the time>; <the weather>, <the light>."
 
 The writing style is the voice of the weave, and a model has to be able to match it from what you
 write — so a hundred words or so, not a label. Say how the sentences run and how long they are,
 what the narration notices and what it will not say outright, how much dialogue there is, what the
-tense and the distance are. It is a description of PROSE: "short sentences, weather does the
-feeling, nobody's interior is ever stated" is the voice; "literary noir" is a genre and is no use
-here.
+tense and the distance are. It is a description of PROSE, in the shape "<how the sentences run>; <what carries
+the feeling>; <what the narration never states>", never a genre label, which is no use here. The
+angle brackets are never written.
 
 Infer the spice level from the idea; use 2 when there is no signal.`;
 
@@ -996,6 +1011,9 @@ export const SPARK_SCHEMA = {
     premise: { type: 'string' },
     genre:   { type: 'string' },
     setting: { type: 'string' },
+    // #121. The weather, light and time the first scene opens in, apart from the setting: Create
+    // writes it to scene 1's Opens with, which is sent only until that scene has prose.
+    opensWith: { type: 'string' },
     pov:     { type: 'string' },
     // The GBNF converter ignores numeric minimum/maximum but honours enums, so the range
     // is spelled out as literals rather than stated as bounds it would drop.
@@ -1017,7 +1035,7 @@ export const SPARK_SCHEMA = {
   // #21 §2. `characters`, `persona` and `lockedCharacter` were HERE and were REQUIRED — which is
   // why "no characters at this point" was unreachable without a schema change. The cast moved to
   // CAST_SCHEMA, asked for separately; who you play is the writer's, chosen before it (#84).
-  required: ['title', 'premise', 'genre', 'setting', 'pov', 'spice', 'writingStyle', 'questions'],
+  required: ['title', 'premise', 'genre', 'setting', 'opensWith', 'pov', 'spice', 'writingStyle', 'questions'],
 } as const;
 
 /** #21 §2 · WHAT THE CAST CALL RETURNS. Built per request rather than declared once, because the
@@ -1243,19 +1261,33 @@ Present tense. State facts flat. Output the summary and nothing else.`;
  *  the COUNCIL-04 #5 failure that split them apart in the first place.
  *
  *  Short on purpose: the block caps at 200 tokens and a note that overruns is a note that gets cut
- *  mid-sentence in the prompt, where nobody sees it happen. */
+ *  mid-sentence in the prompt, where nobody sees it happen.
+ *
+ *  #120 · PROSE ONLY, NEVER THE STORY. It asked "what its chapters are shaped like" and a note came
+ *  back "chapters end on the choice to trust, still unmade", with the premise's own car and key in
+ *  it. STYLE rides every prose call, so that is plot steering every passage. It now asks for how the
+ *  sentences read, as a shape with placeholders, and forbids chapter shape, endings and the
+ *  premise's images. NOT MEASURED. */
 export const STYLE_NOTE =
 `Write the house style for one book, in three sentences or fewer.
 
-You are given its genre and its premise. Say what a book OF THAT KIND does on the page: the texture
-its scenes have, what it lingers on, what it hurries past, what its chapters are shaped like.
+You are given its genre and its premise. Say how the prose of a book OF THAT KIND reads, and
+nothing else: how long its sentences run and how they move, how close the narration sits to the one
+it follows, what the narration notices and what it leaves unsaid, and how much of a scene is
+dialogue. Shape: "<how the sentences run>; <how close the narration sits>; it notices <what>, and
+leaves <what> unsaid; <how much is dialogue>." The shape shows the FORM only; the angle brackets
+are never written.
+
+NOT THE STORY. Never say how chapters are shaped or how they end, how the book ends, what anyone
+chooses or what happens. This note is read before every passage, and plot in it steers the story.
+Never reuse the premise's images, objects, places or names: write the kind of book, not this one.
 
 DO NOT WRITE ABOUT REGISTER. Not tense, not person, not contractions, not how dialogue is
 punctuated, not how explicit it is. Those belong to the writer's voice and are set elsewhere; a
 style note that repeats them makes two instructions argue over one sentence of prose.
 
-Do not name the premise back. Do not name characters. Do not address the writer, do not say "this
-book" or "the story" — write the instruction itself, the way a style sheet is written.
+Do not address the writer, do not say "this book" or "the story" — write the instruction itself,
+the way a style sheet is written.
 
 Three sentences at the most, and fewer is better.`;
 

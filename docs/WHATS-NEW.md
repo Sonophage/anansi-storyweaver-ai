@@ -18,6 +18,17 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-28 · A new tale starts at its opening
 
+### A new tale starts in your own Voice
+A tale you start from an idea now begins with the Voice you set in your Account, or Anansi's own
+when you have not set one. The Voice Anansi wrote for the idea is shown under yours, with what it
+would change marked, and a Use this button. It is only used if you press it, and Undo puts yours
+back.
+### The setting holds the place, and the first scene holds the weather
+New tale's setting now says only what stays true of the place for the whole tale. The weather,
+the light and the time of day come back on their own, as how the first scene opens, in a box you
+can edit on the preview. Anansi reads that until the first passage is written, so a tale that
+opens on a rainy night does not stay on a rainy night forever.
+
 ### The premise is the opening, and the open questions are strings
 New tale's premise is now one paragraph that opens the story: who we are with, where and when,
 what they want now and what is in their way now. It never says how it ends, what it costs or what
@@ -26,6 +37,18 @@ or asking Talk to change it, keeps the same shape. The questions the story lives
 their own, ticked, in the preview. Each one you keep ticked becomes a string from the first scene,
 and Anansi is told not to answer it yet. Tales you already have are not changed.
 
+### A Hands-off narrator gets one rule, not two
+When the character you keep Hands off is also the one telling the story, in first or second person,
+Anansi was told two things at once: to write what they decide, and never to write what they think
+or decide. Now it is told one thing. It writes what they see, hear and remember, goes around what
+you wrote for them, and stops where they would speak, act or choose. What they say, do and decide is
+yours. This applies to the tales you already have.
+
+### A new style note is about the sentences, not the story
+When Anansi writes a style note for a new tale, it now says how the prose reads: how long the
+sentences run, how close the telling sits, what it notices and leaves unsaid, and how much is
+dialogue. It no longer says how chapters end or reuses the premise's images, which steered every
+passage toward one ending. Style notes you already have are not changed.
 ### New tale's threads start where they stand, and Try it on finds what disagrees
 Each thread New tale makes now says who or what it is in Always true, and keeps what they want and
 what they hide in their inner life, so those can change as the tale goes on. Each one also says where

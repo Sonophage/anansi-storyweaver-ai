@@ -588,7 +588,11 @@ let worldDown = 0;
     : url.startsWith('/api/spark') ? { story: { title: 'The Winter Signature', genre: 'political fantasy',
         premise: 'Six houses have one winter to sign a peace none of them wants.',
         setting: 'Ashfall Hall', pov: 'third limited, past tense', spice: 2,
-        writingStyle: 'Cold, spare.', persona: 'Ilva Marren' },
+        writingStyle: 'Cold, spare.', persona: 'Ilva Marren',
+        // #121. The moment the tale opens in, apart from the setting.
+        opensWith: 'The east gallery, the first frost; snow on the leads, a grey morning.' },
+        // #123. The Voice the spark wrote, offered beside the writer's own and never in the story.
+        voiceOffer: 'Cold, spare. Long sentences, and the frost in every one.',
         entries: [{ title: 'Ilva Marren', entryType: 'character', body: 'A envoy with nothing to trade.' }],
         // ADR 0009. The open questions, beside the story and not in it.
         questions: [{ title: 'Who signs first', line: 'Each house waits for another to sign.' },
@@ -3501,6 +3505,27 @@ ok('a cover can be drawn: the book seeds the words, the writer owns them, and th
 }
 ok('sparking replaces the screen with the wizard rather than sitting it beside an empty box');
 
+// #123 · THE TALE STARTS WITH THE WRITER'S OWN VOICE, and the one the spark wrote is offered beside
+// it as a diff with Use this. It is the tale's only when chosen, and taking it is undone like the rest.
+{
+  const voiceBox = (h: string) => h.slice(h.indexOf('data-sp="writingStyle"'), h.indexOf('</textarea>', h.indexOf('data-sp="writingStyle"')));
+  let pv = html('page');
+  assert.match(voiceBox(pv), />Cold, spare\.$/, 'VOICE-START: the Voice box holds the Voice the tale started with');
+  assert.doesNotMatch(voiceBox(pv), /frost/, '  and not the one the spark wrote');
+  assert.match(pv, /data-spvoiceoffer="1"/, 'VOICE-OFFER: the spark\'s Voice is offered with Use this');
+  assert.match(pv, /<div class="diff">[\s\S]*<ins>[^<]*Long sentences/, '  as a diff against the writer\'s own');
+  click({ spvoiceoffer: '1' });
+  pv = html('page');
+  assert.match(voiceBox(pv), /frost in every one\.$/, 'VOICE-USE: Use this puts the offered Voice in the box');
+  assert.doesNotMatch(pv, /data-spvoiceoffer="1"/, '  and the offer, now taken, is gone');
+  assert.match(pv, /data-spundo="1">Undo the offered Voice/, '  and an undo is right there');
+  click({ spundo: '1' });
+  pv = html('page');
+  assert.match(voiceBox(pv), />Cold, spare\.$/, 'VOICE-USE: and it is undone like the rest');
+  assert.match(pv, /data-spvoiceoffer="1"/, '  with the offer back');
+}
+ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'s as a diff with Use this');
+
 // #88 · THE WIZARD ASKS WHO YOU PLAY FIRST AND ENDS IN A PREVIEW. Driven from the wizard the block
 // above left on screen. Nothing may post but the spark calls until Start writing, and Start writing
 // must carry the draft as the preview left it.
@@ -3570,6 +3595,14 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
     click({ sparkstep: '5' });
     onScreen = {};
     assert.match(html('page'), /<input type="checkbox" data-spquestion="1">/, 'WIZ-QUESTIONS: an unticked one stays unticked');
+    // #121 · THE OPENING MOMENT, an editable box of its own on the preview, apart from the setting.
+    const opensBox = /<textarea[^>]*data-sp="opensWith"[^>]*>([^<]*)<\/textarea>/.exec(pv);
+    assert.ok(opensBox, 'WIZ-OPENS: the preview shows how the first scene opens as an editable box');
+    assert.strictEqual(opensBox![1], 'The east gallery, the first frost; snow on the leads, a grey morning.',
+      '  holding the moment the spark returned');
+    onScreen = { '[data-sp]': [{ dataset: { sp: 'opensWith' }, value: 'The east gallery at noon; thaw.' }] };
+    click({ sparkstep: '5' });
+    onScreen = {};
     for (const t of ['Ilva Marren', 'Mara Voss', 'Teodor Ash', 'Road dust', 'Their lines are yours', 'Envoy', 'Fear', 'The fine'])
       assert.ok(pv.includes(t.replace(/'/g, '&#39;')), `WIZ-PREVIEW: every thread and pocket is listed: ${t}`);
     assert.doesNotMatch(pv, /Write her lines formal and short/, 'WIZ-FOLD: folded to its name and Always true');
@@ -3655,6 +3688,7 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
     const made = POSTED.find((p) => p.url === '/api/stories');
     assert.ok(made, 'WIZ-CREATE: Start writing works with the warning showing');
     assert.match(made.body.writingStyle, /first person/, '  and keeps the Voice as the writer left it');
+    assert.doesNotMatch(made.body.writingStyle, /frost/, 'VOICE-OFFER: the offered Voice is not sent when it was not chosen');
     assert.deepStrictEqual(made.body.entries.map((e: any) => e.title), ['Ilva Marren', 'Mara Voss', 'Teodor Ash'],
       'WIZ-CREATE: the draft goes as the preview left it, the removed thread too');
     const ilva = made.body.entries[2];
@@ -3669,6 +3703,8 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
       "WIZ-CREATE: and the tale's own pockets as the preview left them");
     assert.deepStrictEqual(made.body.strings, [{ title: 'Who signs first', line: 'Each house waits for another to sign.' }],
       'WIZ-CREATE-QUESTIONS: only the ticked open questions are sent, to be made as strings');
+    assert.strictEqual(made.body.opensWith, 'The east gallery at noon; thaw.',
+      "WIZ-CREATE-OPENS: the opening moment goes as the writer left it, for scene 1's Opens with");
     await new Promise((r) => setTimeout(r, 60));
   } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
 }
