@@ -408,6 +408,18 @@ ok('ONE-SIDED-PAIR: every operation that can be applied is one the route writes'
     assert.ok(body.includes(`ch.op === '${op}'`), `applyChange does not write ${op}`);
 });
 
+ok('POCKET-WORDS: what a writer reads says pocket, never room (GLOSSARY)', () => {
+  const whys = [
+    ch.checkAsked({ op: 'thread.set', thread: 'Talia Venn', room: 'nonsense', text: 'x' }, tale),
+    ch.checkUndo({ op: 'thread.set', thread: 'e-talia', room: 'facts', addon: 'a-gone', text: 'x', wrote: 'x' }, tale),
+    ch.checkUndo({ op: 'room.unmake', thread: 'e-talia', addon: 'a-gone', text: 'x' }, tale),
+  ].map((r: any) => { assert.ok(!r.ok); return r.why; });
+  for (const w of whys) {
+    assert.doesNotMatch(w, /\brooms?\b/i, `a writer reads "room": ${w}`);
+    assert.match(w, /pocket/i, `and it names the pocket: ${w}`);
+  }
+});
+
 ok('the change slice never reaches for the database itself', () => {
   const src = readFileSync(new URL('../src/changes.ts', import.meta.url), 'utf8');
   assert.ok(!/from '\.\/db\.ts'/.test(src), 'src/changes.ts must not import db.ts');

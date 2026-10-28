@@ -172,7 +172,7 @@ const roomFor = (t: Thread, slot: string) => {
 
 const hasRoom = (t: Thread, slot: string) => slotsFor(t.entryType).some((s) => s.name === slot);
 const noRoom = (t: Thread, slot: string) => ALL_SLOTS.includes(slot)
-  ? `${an(t.entryType)} has no ${roomLabel(slot)}` : `there is no ${roomLabel(slot)} on a thread`;
+  ? `${an(t.entryType)} has no ${roomLabel(slot)}` : `a thread has no ${roomLabel(slot)} pocket`;
 
 /** One change the model returned, checked against the tale. */
 export function checkAsked(raw: any, tale: Tale): Checked {
@@ -364,7 +364,7 @@ function setOn(t: Thread, slot: string, text: string, said: string, undo: boolea
   // A put-back names the pocket it writes over. With none named it would make one, and making a
   // pocket is a request's, checked as one; an Undo of a pocket Talk made is `room.unmake`.
   if (undo && !addon) return { ok: false, said, why: 'that Undo names no pocket to put back' };
-  if (undo && !cur) return { ok: false, said, why: 'that room is no longer in this tale' };
+  if (undo && !cur) return { ok: false, said, why: 'that pocket is no longer in this tale' };
   if (undo && cur && !stillWrote(wrote, cur.body)) return { ok: false, said, why: SINCE };
   if (!undo && !text) return { ok: false, said, why: 'it came with no text' };
   if (!undo && cur && cur.body.trim() === text) return { ok: false, said,
@@ -415,7 +415,7 @@ export function checkUndo(raw: any, tale: Tale): Checked {
     return { ok: true, change: { op, thread: t.id, title: t.title, state: st.id, from: st.fromChapter } };
   }
   const a = (t.addons ?? []).find((x) => x.id === String(raw.addon ?? ''));
-  if (!a) return { ok: false, said, why: 'that room is no longer in this tale' };
+  if (!a) return { ok: false, said, why: 'that pocket is no longer in this tale' };
   if (a.body.trim() !== text.trim()) return { ...changed, why: `${t.title}'s ${roomLabel(a.slot)} has changed since Talk made it` };
   return { ok: true, change: { op: 'room.unmake', thread: t.id, title: t.title, addon: a.id, room: a.slot } };
 }
