@@ -219,6 +219,9 @@ function wakeOn(t: Thread, raw: any, said: string, undo: boolean): Checked {
   if (activation !== 'always_on' && activation !== 'triggered') return { ok: false, said,
     why: 'a thread is Always on or On a word' };
   const had = { activation: t.activation ?? 'always_on', keys: t.keys ?? [] };
+  const w = raw?.wrote;
+  if (undo && !(w && w.activation === had.activation && Array.isArray(w.keys) && sameKeys(keysOf(w.keys), had.keys)))
+    return { ok: false, said, why: SINCE };
   const given = keysOf(raw.keys);
   const keys = undo ? given : given.length ? given : had.keys;
   if (!undo && activation === 'triggered' && !keys.length) return { ok: false, said,
@@ -244,6 +247,8 @@ function overtimeOn(tale: Tale, t: Thread, raw: any, said: string, undo: boolean
   if (undo) {
     const st = (t.states ?? []).find((s) => s.id === String(raw.state ?? ''));
     if (!st) return { ok: false, said, why: 'that Over time entry is no longer in this tale' };
+    const w = raw.wrote;
+    if (!w || !stillWrote(w.body, st.body) || (w.label ?? null) !== (st.label ?? null)) return { ok: false, said, why: SINCE };
     const from = Number(raw.scene) || st.fromChapter;
     const beforeMode = raw.beforeMode === 'hint' ? 'hint' : 'hide';
     return { ok: true, change: { op: 'thread.overtime', thread: t.id, title: t.title, from, text, label, beforeMode,
@@ -286,6 +291,13 @@ function retireOn(tale: Tale, t: Thread, raw: any, said: string): Checked {
 const followed = (t: Thread, said: string): Checked => ({ ok: false, said,
   why: `${t.title} belongs to ${t.sharedFrom}, which this tale follows. Change it there` });
 
+/** AN UNDO PUTS BACK ONLY WHAT TALK WROTE. Each put-back Undo carries `wrote`, the value Talk left
+ *  there, and is refused when the thing no longer holds it: the writer changed it since, and an Undo
+ *  that put the old value back would write over their edit. The unmake operations compare `text` the
+ *  same way. An Undo with no `wrote` proves nothing about what is there, so it is refused too. */
+const SINCE = 'it has been changed since';
+const stillWrote = (wrote: unknown, now: unknown) => typeof wrote === 'string' && String(now ?? '').trim() === wrote.trim();
+
 /** #98 · THE TALE'S PREMISE OR SETTING. Shared by a request and an Undo; an Undo may put back an
  *  empty field, because that is what was there. */
 function taleSet(tale: Tale, raw: any, said: string, undo: boolean): Checked {
@@ -294,6 +306,7 @@ function taleSet(tale: Tale, raw: any, said: string, undo: boolean): Checked {
     why: `Talk changes the tale's premise or its setting, not its ${field || 'nothing'}` };
   const text = String(raw.text ?? '').trim();
   const before = String((tale.story as any)?.[field] ?? '');
+  if (undo && !stillWrote(raw.wrote, before)) return { ok: false, said, why: SINCE };
   if (!undo && !text) return { ok: false, said, why: 'it came with no text' };
   if (!undo && before.trim() === text) return { ok: false, said, why: `the tale's ${field} already says that` };
   return { ok: true, change: { op: 'tale.set', field, text, before: undo ? text : before,
@@ -313,6 +326,7 @@ function sceneSet(tale: Tale, raw: any, said: string, undo: boolean): Checked {
   if (!sc) return { ok: false, said, why: undo ? 'that scene is no longer in this tale' : noScene(tale, raw.scene) };
   const text = String(raw.text ?? '').trim();
   const before = String((field === 'title' ? sc.title : sc.authorsNote) ?? '');
+  if (undo && !stillWrote(raw.wrote, before)) return { ok: false, said, why: SINCE };
   if (!undo && !text) return { ok: false, said, why: 'it came with no text' };
   if (!undo && before.trim() === text) return { ok: false, said,
     why: `scene ${sc.index}'s ${field === 'title' ? 'title' : 'Heads toward'} already says that` };
@@ -329,11 +343,13 @@ const noScene = (tale: Tale, n: unknown) =>
 
 /** A thread.set, once its thread is known. Shared by a request and an Undo, so the two cannot
  *  disagree about which rooms a thread has or which room a change lands in. */
-function setOn(t: Thread, slot: string, text: string, said: string, undo: boolean, addon?: string | null): Checked {
+function setOn(t: Thread, slot: string, text: string, said: string, undo: boolean, addon?: string | null,
+               wrote?: unknown): Checked {
   if (t.sharedFrom) return followed(t, said);
   if (!hasRoom(t, slot)) return { ok: false, said, why: noRoom(t, slot) };
   const cur = undo ? (t.addons ?? []).find((a) => a.id === addon && a.slot === slot) ?? null : roomFor(t, slot);
   if (undo && addon && !cur) return { ok: false, said, why: 'that room is no longer in this tale' };
+  if (undo && cur && !stillWrote(wrote, cur.body)) return { ok: false, said, why: SINCE };
   if (!undo && !text) return { ok: false, said, why: 'it came with no text' };
   if (!undo && cur && cur.body.trim() === text) return { ok: false, said,
     why: `${t.title}'s ${roomLabel(slot)} already says that` };
@@ -353,7 +369,7 @@ export function checkUndo(raw: any, tale: Tale): Checked {
   const t = tale.entries.find((e) => e.id === String(raw.thread ?? ''));
   if (!t) return { ok: false, said, why: 'that thread is no longer in this tale' };
   const text = String(raw.text ?? '');
-  if (op === 'thread.set') return setOn(t, roomOf(raw.room), text, said, true, raw.addon ?? null);
+  if (op === 'thread.set') return setOn(t, roomOf(raw.room), text, said, true, raw.addon ?? null, raw.wrote);
   if (op === 'thread.wake') return wakeOn(t, raw, said, true);
   if (op === 'thread.overtime') return overtimeOn(tale, t, raw, said, true);
   // TAKEN AWAY ONLY WHILE IT IS AS TALK MADE IT. The text it was made with rides in the Undo and is
@@ -567,13 +583,15 @@ export function undoFor(c: Change, made: { thread?: string; addon?: string; stat
   if (c.op === 'thread.retire') return { op: 'retire.unmake', thread: c.thread, event: made.event };
   if (c.op === 'thread.overtime') return c.before
     ? { op: 'thread.overtime', thread: c.thread, state: c.state, scene: c.from, text: c.before.body,
-        label: c.before.label, beforeMode: c.before.beforeMode }
+        label: c.before.label, beforeMode: c.before.beforeMode, wrote: { body: c.text, label: c.label } }
     : { op: 'state.unmake', thread: c.thread, state: made.state, text: c.text };
-  if (c.op === 'tale.set') return { op: 'tale.set', field: c.field, text: c.before };
-  if (c.op === 'scene.set') return { op: 'scene.set', chapter: c.chapter, field: c.field, text: c.before };
-  if (c.op === 'thread.wake') return { op: 'thread.wake', thread: c.thread, ...c.before };
+  // `wrote` on each of these is what Talk left there, which the Undo checks is still there.
+  if (c.op === 'tale.set') return { op: 'tale.set', field: c.field, text: c.before, wrote: c.text };
+  if (c.op === 'scene.set') return { op: 'scene.set', chapter: c.chapter, field: c.field, text: c.before, wrote: c.text };
+  if (c.op === 'thread.wake') return { op: 'thread.wake', thread: c.thread, ...c.before,
+    wrote: { activation: c.activation, keys: c.keys } };
   if (c.op !== 'thread.set') return null;
   if (c.before == null) return { op: 'room.unmake', thread: c.thread, addon: made.addon, text: c.text };
-  return { op: 'thread.set', thread: c.thread, room: c.room, addon: c.addon, text: c.before };
+  return { op: 'thread.set', thread: c.thread, room: c.room, addon: c.addon, text: c.before, wrote: c.text };
 }
 

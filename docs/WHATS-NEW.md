@@ -45,6 +45,9 @@ Each one has Undo, which puts back what was there: the old premise, the old name
 it was, the old wake words, or the thread back in the tale. If you name a scene the tale does not
 have, he says so and changes nothing.
 
+If you have changed something yourself since he changed it, its Undo says so and leaves your
+change alone.
+
 ### Anansi chooses his own searches
 The switch under Talk now reads **Anansi may search**, and it remembers what you set it to. With
 it on, Anansi decides when a question needs the web, and writes the searches himself: a name, or a

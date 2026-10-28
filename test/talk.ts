@@ -1258,6 +1258,77 @@ ok('emptying the box gives her back the voice she shipped with');
   ok('asked to get rid of a thread, Talk retires it and never deletes it, and Undo brings it back as it was');
 }
 
+// ---- 6f2 · AN UNDO NEVER WRITES OVER A LATER EDIT ----
+//
+// Each Undo carries what Talk wrote. When the thing no longer holds it, because the writer changed it
+// since, the Undo is refused and the writer's edit stays. The unmake operations already worked this
+// way; this is the same rule for the five that put an old value back.
+{
+  const tale = db.createStory(me, { title: 'The Weir', premise: 'A weir on a dead river.', chapterTitle: 'The Bank' }) as any;
+  const ctxOf = (body: any) => ({ body: { storyId: tale.id, ...body }, query: new URLSearchParams(),
+    owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+  const say = (said: string) => { calls = []; return routes['POST /api/talk'](ctxOf({ said })) as Promise<any>; };
+  const undo = (u: any) => routes['POST /api/talk/undo'](ctxOf({ undo: u })) as any;
+  const talia = db.upsertEntry(tale.id, me, { title: 'Talia', body: '', activation: 'always_on' });
+  db.upsertAddon(tale.id, talia, { slot: 'facts', name: 'facts', body: 'Talia is twenty.' });
+  db.endChapter(tale.id, tale.branchId, 'Mid-river');
+  db.endChapter(tale.id, tale.branchId, 'Far bank');
+  const letter = db.upsertEntry(tale.id, me, { title: 'The letter', entryType: 'item', body: 'Sealed.',
+    activation: 'triggered', keys: ['letter'] });
+  db.upsertEntry(tale.id, me, { title: 'Charon', body: 'Old.', activation: 'always_on', keys: [] });
+  const vel = db.upsertEntry(tale.id, me, { title: 'Vel', body: 'Vel is dry.', activation: 'always_on' });
+  const hand = db.upsertState(tale.id, vel, { fromChapter: 2, body: 'Vel is soaked.', label: 'Fell in' });
+  const row = (id: string) => (db.entriesOf(tale.id) as any[]).find((e) => e.id === id);
+  const refusedSince = (r: any, what: string) =>
+    assert.match(String(r.error), /^Not undone: it has been changed since/, `UNDO-LATER: ${what} is refused (${JSON.stringify(r.error)})`);
+
+  // thread.set
+  const age = await say('CHANGE-AGE: make Talia thirty');
+  const facts = (db.addonsOf(tale.id) as any[]).find((a) => a.entry_id === talia && a.slot === 'facts');
+  db.upsertAddon(tale.id, talia, { id: facts.id, slot: 'facts', name: 'facts', body: 'Talia is forty.' });
+  refusedSince(undo(age.changes[0].undo), 'an Always true the writer changed since');
+  assert.strictEqual((db.addonsOf(tale.id) as any[]).find((a) => a.id === facts.id).body, 'Talia is forty.',
+    'UNDO-LATER: and the writer\'s Always true stays');
+
+  // tale.set
+  const dark = await say('CHANGE-PREMISE: make the premise darker');
+  db.updateStory(tale.id, { premise: 'The writer\'s own premise.' });
+  refusedSince(undo(dark.changes[0].undo), 'a premise the writer changed since');
+  assert.strictEqual((db.getStory(tale.id) as any).premise, 'The writer\'s own premise.', 'UNDO-LATER: and the premise stays');
+
+  // scene.set: the title the writer changed is refused; where it heads, untouched, still goes back.
+  const sc = await say('CHANGE-SCENE: rename scene 1 The Ford, and send this one toward the far bank');
+  db.updateChapter(tale.id, tale.chapterId, { title: 'The Writer\'s Ford' });
+  const [title, heads] = [sc.changes.find((x: any) => /title/.test(x.words)), sc.changes.find((x: any) => /heads/.test(x.words))];
+  refusedSince(undo(title.undo), 'a scene title the writer changed since');
+  assert.strictEqual((db.chapters(tale.id) as any[]).find((x) => x.id === tale.chapterId).title, 'The Writer\'s Ford',
+    'UNDO-LATER: and the title stays');
+  assert.ok(!undo(heads.undo).error, 'UNDO-LATER: what nobody changed since is still undone');
+
+  // thread.wake: the writer put the letter back on its word by hand; Charon is untouched.
+  const wake = await say('CHANGE-WAKE: keep the letter always on, and Charon only on his name');
+  db.upsertEntry(tale.id, me, { id: letter, title: 'The letter', entryType: 'item', body: 'Sealed.',
+    activation: 'triggered', keys: ['letter', 'seal'] });
+  const [wl, wc] = [wake.changes.find((x: any) => /letter/.test(x.words)), wake.changes.find((x: any) => /Charon/.test(x.words))];
+  refusedSince(undo(wl.undo), 'how a thread wakes, changed by the writer since');
+  assert.deepStrictEqual(JSON.parse(row(letter).keys), ['letter', 'seal'], 'UNDO-LATER: and the writer\'s wake words stay');
+  assert.ok(!undo(wc.undo).error, 'UNDO-LATER: Charon, untouched, is still undone');
+
+  // thread.overtime: the entry from scene 2 Talk wrote over, written again by the writer.
+  const ot = await say('CHANGE-OVERTIME: from scene 3 Vel is blind in one eye');
+  db.upsertState(tale.id, vel, { id: hand, fromChapter: 2, body: 'Vel is drowned.', label: 'Fell in' });
+  const over = ot.changes.find((x: any) => /scene 2/.test(x.words));
+  refusedSince(undo(over.undo), 'an Over time entry the writer changed since');
+  assert.strictEqual((db.statesForStory(tale.id).get(vel) ?? []).find((s: any) => s.id === hand)?.body, 'Vel is drowned.',
+    'UNDO-LATER: and the writer\'s Over time stays');
+
+  // A forged Undo that leaves out what Talk wrote proves nothing, and is refused the same way.
+  const { wrote: _w, ...bare } = heads.undo;
+  refusedSince(undo(bare), 'an Undo that does not say what Talk wrote');
+  ok('an Undo of a thread room, the premise, a scene, how a thread wakes or its Over time never writes over a later edit');
+}
+
 // ---- 6g · ANANSI CHOOSES HIS OWN SEARCHES (#99) ----
 //
 // With the switch on and search set up, one small call asks for up to three short queries, or none.

@@ -47,7 +47,7 @@ ok('CHANGE-SET-FACTS: Always true by the thread\'s exact name, and the old text 
   assert.match(ch.wordsFor(c), /Talia Venn.*Always true.*Talia is thirty\./);
   const undo = ch.undoFor(c, {});
   assert.deepStrictEqual(undo, { op: 'thread.set', thread: 'e-talia', room: 'facts', addon: 'a-tf',
-    text: 'Talia is twenty.' });
+    text: 'Talia is twenty.', wrote: 'Talia is thirty.' }, 'the Undo carries what Talk wrote, to check it is still there');
 });
 
 ok('CHANGE-NEAR-NAME: a name that is part of exactly one thread\'s name finds it', () => {
@@ -143,11 +143,15 @@ ok('CHANGE-CLOSED-LIST: no delete, no prose, and nothing an Undo alone may do', 
 
 ok('UNDO-SET: an Undo puts back the exact text, by id, and only on this tale\'s thread', () => {
   const c = done(ch.checkUndo({ op: 'thread.set', thread: 'e-talia', room: 'facts', addon: 'a-tf',
-    text: 'Talia is twenty.' }, tale));
+    text: 'Talia is twenty.', wrote: 'Talia is twenty.' }, tale));
   assert.strictEqual(c.before, 'Talia is twenty.', 'the text it puts back is what was there');
   assert.match(ch.wordsFor(c), /Put back Talia Venn's Always true/);
   // An Undo restoring an EMPTY Always true is exact too; a request with no text is not one.
-  assert.ok(ch.checkUndo({ op: 'thread.set', thread: 'e-talia', room: 'facts', addon: 'a-tf', text: '' }, tale).ok);
+  assert.ok(ch.checkUndo({ op: 'thread.set', thread: 'e-talia', room: 'facts', addon: 'a-tf', text: '',
+    wrote: 'Talia is twenty.' }, tale).ok);
+  // What Talk wrote is no longer there: the writer's later edit is not written over.
+  refused(ch.checkUndo({ op: 'thread.set', thread: 'e-talia', room: 'facts', addon: 'a-tf', text: 'x',
+    wrote: 'Talia is thirty.' }, tale), /changed since/i);
   refused(ch.checkUndo({ op: 'thread.set', thread: 'e-alice', room: 'facts', addon: 'a-tf', text: 'x' }, tale),
     /no longer in this tale/i);
   refused(ch.checkUndo({ op: 'thread.set', thread: 'e-talia', room: 'facts', addon: 'a-mr1', text: 'x' }, tale),
@@ -187,12 +191,14 @@ ok('TALE-SET: the premise or the setting, with the old one for Undo', () => {
   assert.strictEqual(c.field, 'premise');
   assert.strictEqual(c.before, 'A river between the living and the dead.');
   assert.match(ch.wordsFor(c), /tale's premise.*A river nobody crosses twice\./);
-  assert.deepStrictEqual(ch.undoFor(c, {}), { op: 'tale.set', field: 'premise', text: 'A river between the living and the dead.' });
+  assert.deepStrictEqual(ch.undoFor(c, {}), { op: 'tale.set', field: 'premise', text: 'A river between the living and the dead.',
+    wrote: 'A river nobody crosses twice.' });
   // An empty setting is a setting not yet written; Undo puts the empty one back.
   const s = done(ch.checkAsked({ op: 'tale.set', field: 'Setting', text: 'A grey delta.' }, whole));
   assert.strictEqual(s.field, 'setting', 'the field as a writer says it');
   assert.strictEqual(ch.undoFor(s, {})!.text, '');
-  const u = done(ch.checkUndo({ op: 'tale.set', field: 'setting', text: '' }, whole));
+  const u = done(ch.checkUndo({ op: 'tale.set', field: 'setting', text: '', wrote: '' }, whole));
+  refused(ch.checkUndo({ op: 'tale.set', field: 'setting', text: '', wrote: 'A grey delta.' }, whole), /changed since/i);
   assert.match(ch.wordsFor(u), /Put back the tale's setting/);
 });
 
@@ -210,14 +216,15 @@ ok('SCENE-SET: a scene\'s title or where it heads, by its number, with the old t
   assert.strictEqual(c.chapter, 'c-1');
   assert.strictEqual(c.before, 'The Bank');
   assert.match(ch.wordsFor(c), /scene 1's title.*The Ford/);
-  assert.deepStrictEqual(ch.undoFor(c, {}), { op: 'scene.set', chapter: 'c-1', field: 'title', text: 'The Bank' });
+  assert.deepStrictEqual(ch.undoFor(c, {}), { op: 'scene.set', chapter: 'c-1', field: 'title', text: 'The Bank', wrote: 'The Ford' });
   const h = done(ch.checkAsked({ op: 'scene.set', scene: 2, field: 'Heads toward', text: 'The far bank, at dusk.' }, whole));
   assert.strictEqual(h.field, 'heads_toward', 'the field as a writer says it');
   assert.strictEqual(h.before, '', 'where it heads was empty, and Undo puts the empty one back');
   assert.match(ch.wordsFor(h), /where scene 2 heads.*far bank/);
   // No scene named is the scene the writer is in.
   assert.strictEqual(done(ch.checkAsked({ op: 'scene.set', field: 'title', text: 'Mid-stream' }, whole)).chapter, 'c-2');
-  const u = done(ch.checkUndo({ op: 'scene.set', chapter: 'c-2', field: 'heads_toward', text: '' }, whole));
+  const u = done(ch.checkUndo({ op: 'scene.set', chapter: 'c-2', field: 'heads_toward', text: '', wrote: '' }, whole));
+  refused(ch.checkUndo({ op: 'scene.set', chapter: 'c-1', field: 'title', text: 'x', wrote: 'The Ford' }, whole), /changed since/i);
   assert.match(ch.wordsFor(u), /Put back where scene 2 heads/);
 });
 
@@ -242,7 +249,8 @@ ok('THREAD-WAKE: Always on, or On a word with its wake words, with the old ones 
   assert.strictEqual(c.activation, 'always_on');
   assert.deepStrictEqual(c.keys, ['letter'], 'Always on with no words given keeps the words it had');
   assert.match(ch.wordsFor(c), /The letter is Always on now/);
-  assert.deepStrictEqual(ch.undoFor(c, {}), { op: 'thread.wake', thread: 'e-letter', activation: 'triggered', keys: ['letter'] });
+  assert.deepStrictEqual(ch.undoFor(c, {}), { op: 'thread.wake', thread: 'e-letter', activation: 'triggered', keys: ['letter'],
+    wrote: { activation: 'always_on', keys: ['letter'] } });
   const w = done(ch.checkAsked({ op: 'thread.wake', thread: 'Vel', activation: 'triggered', keys: ['Vel', ' the blind one '] }, waking));
   assert.deepStrictEqual(w.keys, ['Vel', 'the blind one']);
   assert.strictEqual(w.activation, 'triggered', 'the writer asked, so a character may wait for its word');
@@ -250,7 +258,10 @@ ok('THREAD-WAKE: Always on, or On a word with its wake words, with the old ones 
   // New words for a thread already On a word.
   const k = done(ch.checkAsked({ op: 'thread.wake', thread: 'letter', activation: 'triggered', keys: ['envelope'] }, waking));
   assert.deepStrictEqual(ch.undoFor(k, {})!.keys, ['letter']);
-  const u = done(ch.checkUndo({ op: 'thread.wake', thread: 'e-vel', activation: 'always_on', keys: [] }, waking));
+  const u = done(ch.checkUndo({ op: 'thread.wake', thread: 'e-vel', activation: 'always_on', keys: [],
+    wrote: { activation: 'always_on', keys: [] } }, waking));
+  refused(ch.checkUndo({ op: 'thread.wake', thread: 'e-vel', activation: 'always_on', keys: [],
+    wrote: { activation: 'triggered', keys: ['Vel'] } }, waking), /changed since/i);
   assert.match(ch.wordsFor(u), /Put back how Vel wakes/);
 });
 
@@ -283,11 +294,14 @@ ok('THREAD-OVERTIME: a dated entry from a scene; a new one is taken away by Undo
   assert.strictEqual(o.state, 'st-2');
   assert.match(ch.wordsFor(o), /Changed Vel's Over time from scene 2/);
   assert.deepStrictEqual(ch.undoFor(o, { state: 'st-2' }), { op: 'thread.overtime', thread: 'e-vel', state: 'st-2',
-    scene: 2, text: 'Vel is soaked.', label: 'Fell in', beforeMode: 'hint' });
+    scene: 2, text: 'Vel is soaked.', label: 'Fell in', beforeMode: 'hint',
+    wrote: { body: 'Vel is soaked and cold.', label: 'Fell in' } });
   // No scene named is the scene the writer is in.
   assert.strictEqual(done(ch.checkAsked({ op: 'thread.overtime', thread: 'Vel', text: 'Vel is dry.' }, dated)).from, 2);
   const u = done(ch.checkUndo({ op: 'thread.overtime', thread: 'e-vel', state: 'st-2', scene: 2, text: 'Vel is soaked.',
-    label: 'Fell in', beforeMode: 'hint' }, dated));
+    label: 'Fell in', beforeMode: 'hint', wrote: { body: 'Vel is soaked.', label: 'Fell in' } }, dated));
+  refused(ch.checkUndo({ op: 'thread.overtime', thread: 'e-vel', state: 'st-2', scene: 2, text: 'x',
+    wrote: { body: 'Vel is soaked and cold.', label: 'Fell in' } }, dated), /changed since/i);
   assert.match(ch.wordsFor(u), /Put back Vel's Over time from scene 2/);
   assert.match(ch.wordsFor(done(ch.checkUndo({ op: 'state.unmake', thread: 'e-vel', state: 'st-2', text: 'Vel is soaked.' }, dated))),
     /Took away Vel's Over time from scene 2/);
