@@ -2515,6 +2515,9 @@ function hemBefore(p) {
   return (pockets.find((a) => a.id === p.target) ?? pockets.find((a) => a.slot === p.field))?.body ?? null;
 }
 
+/** A chalked row's one line while its fold is shut: the first 90 characters. */
+const peek = (s) => `${esc(String(s ?? '').slice(0, 90))}${String(s ?? '').length > 90 ? '&hellip;' : ''}`;
+
 /** #92 · ONE HEMMED SCENE'S CARD, in the spec's order: what state the hem is in, the summary
  *  (editable; saving it makes it the writer's, #46), each changed thread before and after, threads
  *  to retire, new threads, the threads past the cap, and the next scene's suggestion. Every thread
@@ -2535,7 +2538,6 @@ function hemCardParts(c) {
       ch.summaryAuthor === 'human' ? 'Your summary' : 'The summary'}</label>
     <textarea class="field" id="hemsum-${id}" data-hemsumtext="${id}" aria-label="The summary of ${esc(c.title)}"
       placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>`;
-  const peek = (s) => `${esc(String(s ?? '').slice(0, 90))}${String(s ?? '').length > 90 ? '&hellip;' : ''}`;
   const fold = ([k, rows]) => `<details class="decksec" data-hemthread="${esc(k)}">
     <summary><span class="lbl flush">${esc(rows[0].title)}</span><span class="deckpeek">${peek(rows[0].body)}</span></summary>
     ${rows.map((p) => {
@@ -2655,7 +2657,7 @@ function deckCard(c, i, top) {
       : p.entryType === 'retire' ? 'Retire' : !p.entryId ? 'The thread' : 'Where it stands';
     body = c.ps.map((p) => `<details class="decksec"${c.ps.length === 1 ? ' open' : ''}>
       <summary><span class="lbl flush">${label(p)}</span>
-        <span class="deckpeek">${esc(String(p.body ?? '').slice(0, 90))}${String(p.body ?? '').length > 90 ? '&hellip;' : ''}</span></summary>
+        <span class="deckpeek">${peek(p.body)}</span></summary>
       ${deckRow(p)}</details>`).join('');
     right = `<button class="btn" data-deckall="accept" data-ids="${esc(ids)}" data-deckright="1">Sew it in &rarr;</button>`;
     left = `<button class="btn ghost" data-deckall="reject" data-ids="${esc(ids)}" data-deckleft="1">&larr; Reject</button>`;
@@ -5740,6 +5742,7 @@ function setupPanel() {
   const missedHere = missedPasses(justClosed).length;
   const runningHere = justClosed?.hem?.state === 'running';
   const keptHere = justClosed?.hem?.keptSummary && justClosed.summaryAuthor === 'human';
+  const onBench = queue.length + (sceneCard ? sceneRows(justClosed).length : 0);
   const closedRow = justClosed && justClosed.id !== ch.id ? `<button data-panel="ritual" style="display:flex;
     align-items:center; gap:9px; width:100%; padding:9px 11px; margin-bottom:15px; text-align:left;
     border-radius:var(--r); border:1px solid var(--chip); background:transparent">
@@ -5750,8 +5753,7 @@ function setupPanel() {
         ? 'closed &middot; still hemming, and its card will wait on the Workbench'
         : missedHere ? `closed &middot; ${missedHere === 1 ? 'one pass' : `${missedHere} passes`} did not run`
         : `hemmed${justClosed.summary ? (keptHere ? ', kept your summary' : ', summarised') : ''}`}${
-        queue.length + (sceneCard ? sceneRows(justClosed).length : 0)
-          ? ` &middot; ${queue.length + (sceneCard ? sceneRows(justClosed).length : 0)} on the workbench` : ''}</span>
+        onBench ? ` &middot; ${onBench} on the workbench` : ''}</span>
     <span class="row-label">what it found</span></button>` : '';
 
   // ---- 1 · WHAT IT LEFT. The chapter that just closed, as decisions and nothing else.

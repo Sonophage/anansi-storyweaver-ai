@@ -1722,6 +1722,9 @@ export function summaryCover(chapterId: string): { passages: any[]; through: num
  *  as `summaryStale` hashes it. An edit, a reweave or a delete in the scene changes it. */
 const scenePrint = (chapterId: string) => proseHash(passagesOfChapter(chapterId).map((p: any) => p.body));
 
+/** A hem row's JSON column, read: null when empty or unreadable, so a bad column never throws. */
+const hemJSON = (t: string | null) => { try { return t ? JSON.parse(t) : null; } catch { return null; } };
+
 /** A hem starts: the row is written, or replaced by a hem again, before any pass runs. Returns the
  *  run's number, which `finishHem` is handed back. */
 export function beginHem(storyId: string, chapterId: string): number {
@@ -1743,8 +1746,8 @@ export function finishHem(storyId: string, chapterId: string, run: number,
          suggestion?: { title: string; note: string; opens: string } | null }) {
   const was = q('SELECT passes, kept, suggestion FROM hems WHERE chapter_id = ? AND story_id = ?')
     .get(chapterId, storyId) as any;
-  let before: Record<string, string | null> = {};
-  try { before = JSON.parse(was?.passes ?? '{}') ?? {}; } catch { /* a bad report is replaced whole */ }
+  // A bad report is replaced whole.
+  const before: Record<string, string | null> = hemJSON(was?.passes ?? null) ?? {};
   const kept = r.kept === undefined ? !!was?.kept : r.kept;
   const suggestion = r.suggestion === undefined ? (was?.suggestion ?? null)
     : r.suggestion ? JSON.stringify(r.suggestion) : null;
@@ -1773,18 +1776,26 @@ export const hemOverflow = (storyId: string, chapterId: string, names: string[])
   q('UPDATE hems SET overflow = ? WHERE chapter_id = ? AND story_id = ?')
     .run(JSON.stringify(names), chapterId, storyId);
 
-/** Every hemmed scene of a tale, by chapter id, as the story view shows it. `outOfDate` is derived
- *  here, on read: the scene's prose now against its fingerprint when the hem started. */
+/** A hem row as the story view shows it. `outOfDate` is derived here, on read: the scene's prose
+ *  now against its fingerprint when the hem started. */
+const hemView = (h: any) => ({
+  state: h.finished_at == null ? 'running' : 'done',
+  startedAt: h.started_at, finishedAt: h.finished_at ?? null,
+  passes: hemJSON(h.passes) ?? {}, keptSummary: !!h.kept, suggestion: hemJSON(h.suggestion),
+  overflow: hemJSON(h.overflow) ?? [],
+  outOfDate: scenePrint(h.chapter_id) !== h.prose_hash,
+});
+
+/** Every hemmed scene of a tale, by chapter id, as the story view shows it. */
 export function hemsOf(storyId: string): Map<string, any> {
   const rows = q('SELECT * FROM hems WHERE story_id = ?').all(storyId) as any[];
-  const json = (t: string | null) => { try { return t ? JSON.parse(t) : null; } catch { return null; } };
-  return new Map(rows.map((h) => [h.chapter_id, {
-    state: h.finished_at == null ? 'running' : 'done',
-    startedAt: h.started_at, finishedAt: h.finished_at ?? null,
-    passes: json(h.passes) ?? {}, keptSummary: !!h.kept, suggestion: json(h.suggestion),
-    overflow: json(h.overflow) ?? [],
-    outOfDate: scenePrint(h.chapter_id) !== h.prose_hash,
-  }]));
+  return new Map(rows.map((h) => [h.chapter_id, hemView(h)]));
+}
+
+/** One hemmed scene, as `hemsOf` shows it; null when the scene has no hem in this story. */
+export function hemOf(storyId: string, chapterId: string) {
+  const h = q('SELECT * FROM hems WHERE chapter_id = ? AND story_id = ?').get(chapterId, storyId);
+  return h ? hemView(h) : null;
 }
 
 /** A SUMMARY SAVED BY HAND (#43). It is checked against the chapter's prose as it is now: the
