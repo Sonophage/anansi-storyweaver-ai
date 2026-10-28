@@ -2320,6 +2320,23 @@ async function storyInNewWorld(c: Ctx) {
   } catch (e) { db.delStory(world.id, c.owner); throw e; }
 }
 
+/** #105 · THE WORLD'S PEOPLE AT CREATE, after the tale is made and follows its World, inside the
+ *  create's rollback. Those the preview marked in the opening are pinned to the first scene, force
+ *  in, by the thread the tale reads under that name: the World's own, so it keeps following (or the
+ *  tale's, where the tale has one). Answers an error, and the create then makes nothing. */
+function worldPeopleAtCreate(made: any, body: any): string | null {
+  const read = db.entriesFor(made.id) as any[];
+  const named = (name: string) => read.find((e) => String(e.title).trim().toLowerCase() === name.toLowerCase());
+  for (const raw of (Array.isArray(body.inOpening) ? body.inOpening : []).slice(0, 60)) {
+    const name = String(raw ?? '').trim();
+    if (!name) continue;
+    const e = named(name);
+    if (!e || !db.setPin(made.id, made.chapterId, e.id, 'force_in'))
+      return `${name} is not in the World this tale follows, so nothing was made.`;
+  }
+  return null;
+}
+
 function ledgerInto(c: Ctx, from: string, into: string) {
   const src = db.getStory(from) as any;
   if (!src) return null;
@@ -2775,6 +2792,8 @@ export const routes: Record<string, Handler> = {
           db.delStory(made.id, c.owner);
           return { error: 'a thread you picked could not be brought over, so nothing was made. Untick it, or try again.' };
         }
+      const refused = worldPeopleAtCreate(made, c.body);
+      if (refused) { db.delStory(made.id, c.owner); return { error: refused }; }
       return { ...made, ...(roomNotes.length ? { notes: roomNotes } : {}) };
     } catch (e) { db.delStory(made.id, c.owner); throw e; }
   },
