@@ -1179,6 +1179,47 @@ for (const lockoutOn of [true, false]) {
 ok('no interiority pocket for the played or Hands-off character');
 
 
+// A WORLD PERSON IN THE TALE. A person the tale follows from its World is considered too, and its
+// change is chalked as a new thread of the same name in the tale, never against the World's thread.
+// The tale's own thread of a World name takes its change as any tale thread does (ADR 0006).
+{
+  const w = db.createStory(me, { title: 'The Lands Between', premise: 'p' }) as any;
+  const morgott = db.upsertEntry(w.id, me, { title: 'Morgott', body: '[Morgott: holds the capital alone]', entryType: 'character', keys: ['Morgott'] });
+  db.setAddonActive(w.id, db.upsertAddon(w.id, morgott, { slot: 'facts', name: 'facts', body: '[Morgott: the Omen King]' })!, true);
+  const worldRennala = db.upsertEntry(w.id, me, { title: 'Rennala', body: '[Rennala: in the academy]', entryType: 'character', keys: ['Rennala'] });
+  db.upsertEntry(w.id, me, { title: 'Leyndell', body: '[Leyndell: the capital]', entryType: 'place', keys: ['Leyndell'] });
+  const t = db.storyFollowing(me, w.id, 'Kia\'s tale') as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const rennala = db.upsertEntry(t.id, me, { title: 'Rennala', body: '[Rennala: queen of the moon, in this tale]', entryType: 'character', keys: ['Rennala'] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Morgott knelt in Leyndell and took Rennala\'s hand as his queen.' });
+  answer = [
+    { name: 'Morgott', stands: '[Morgott: holds the capital, and has taken Rennala as his queen]', label: 'took a queen',
+      line: 'Morgott knelt in Leyndell', always: '', pockets: [] },
+    { name: 'Rennala', stands: '[Rennala: queen of the moon, and now Morgott\'s queen]', label: 'a queen again',
+      line: 'took Rennala\'s hand', always: '', pockets: [] },
+    { name: 'Leyndell', stands: '[Leyndell: the capital, where a king knelt]', label: 'a king knelt', line: 'knelt in Leyndell', always: '', pockets: [] },
+  ];
+  asked = null;
+  await routes['POST /api/remember'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  answer = [];
+  assert.ok(asked.user.includes('Morgott (character)'), 'CHALK-WORLD-ASKED: a World person the scene names is in the ask');
+  assert.ok(!asked.user.includes('Leyndell (place)'), '  and a World thread that is not a person is not');
+  const mine = db.proposalsOf(t.id) as any[];
+  assert.ok(!mine.some((p) => p.entry_id === morgott || p.entry_id === worldRennala), 'CHALK-WORLD-UNTOUCHED: nothing targets a World thread');
+  const m = mine.find((p) => p.title === 'Morgott');
+  assert.strictEqual(m?.kind, 'new', `CHALK-WORLD-NEW: a World person's change is a new tale-own thread (${m?.kind})`);
+  assert.strictEqual(m?.body, '[Morgott: the Omen King]', '  carrying the World thread\'s Always true');
+  assert.match(JSON.parse(m?.rooms ?? '{}').stands?.body ?? '', /taken Rennala/, '  with the change as its first Over time entry');
+  assert.ok(mine.some((p) => p.entry_id === rennala && p.entry_type === 'state'), 'CHALK-WORLD-TALE-WINS: the tale\'s own thread of a World name takes its change');
+  await routes['POST /api/proposal'](ctx({ storyId: t.id, id: m.id, accept: true }));
+  const own = (db.entriesOf(t.id) as any[]).find((e) => e.title === 'Morgott');
+  assert.match(own?.body ?? '', /taken Rennala/, 'CHALK-WORLD-SEWN: sewn in, the tale has its own Morgott');
+  assert.match((db.entriesOf(w.id) as any[]).find((e) => e.id === morgott).body, /alone/, '  and the World\'s is as it was');
+  ok("a World person's change lands as a new thread in the tale, never on the World");
+}
+
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several

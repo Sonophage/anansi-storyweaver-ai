@@ -1025,6 +1025,9 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   }
 }
 
+/** #90. The most threads one hem chalks changes for. The rest are named on the hem's card. */
+const HEM_THREADS = 6;
+
 /** What the scene just hemmed did to the threads it names, as chalked proposals (#73, ADR 0005).
  *
  *  Proposals, not writes: a memory that edits canon behind you is a memory you cannot audit, and the
@@ -1043,8 +1046,6 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
  *  ponytail: one model call for every named thread at once, and the whole scene's narration in the
  *  prompt. Whether one call per thread places changes better is the #73 measurement; and a scene long
  *  enough to overflow the slot returns the overflow error rather than a partial memory. */
-/** #90. The most threads one hem chalks changes for. The rest are named on the hem's card. */
-const HEM_THREADS = 6;
 async function remember(c: Ctx, storyId: string, chapterId: string, scene?: string) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
@@ -1052,8 +1053,11 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
   if (!ps.length) return { remembered: 0 };
 
   const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
-  const named = v.entries.filter((e: any) => !e.sharedFrom && !retiredAt(e, ch.index)
-    && fires({ ...e, keys: [...(e.keys ?? []), e.title] }, text).length);
+  // #90 · A WORLD PERSON TOO: the tale follows its World's people, so what a scene does to one of
+  // them is the tale's to keep. Only people; a World's places and lore stay the World's. A tale
+  // thread of the same name has already hidden the World's (`entriesFor`), so the tale's wins.
+  const named = v.entries.filter((e: any) => (!e.sharedFrom || e.entryType === 'character')
+    && !retiredAt(e, ch.index) && fires({ ...e, keys: [...(e.keys ?? []), e.title] }, text).length);
   if (!named.length) return { remembered: 0 };
 
   const inForce = named.map((e: any) => [`${e.title} (${e.entryType})`,
@@ -1090,7 +1094,8 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
   for (const m of r.data.threads as any[]) {
     if (!m?.name?.trim()) continue;
     // Match on the title, exactly as classify() resolves an entry, and never invent a thread here:
-    // this pass updates what exists and extraction is what adds something.
+    // this pass updates what exists and extraction is what adds something. The one new thread it
+    // chalks is a World person's, below, and that thread exists already in the World.
     const who = named.find((e: any) => norm(e.title) === norm(m.name));
     if (!who) continue;
     if (taken.size >= HEM_THREADS && !taken.has(who.id)) { over(who); continue; }
@@ -1098,6 +1103,20 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     // One card per thread from this route; one card per scene from a hem, which hands `scene` in (#89).
     const grp = scene ?? `hem:${ch.id}:${who.id}`, line = quoted(m.line);
     const delta = (m.label ?? '').trim().slice(0, 60) || 'changed by this scene';
+    // #90 · A WORLD PERSON'S CHANGE IS A NEW THREAD IN THE TALE, never a change to the World's
+    // thread, which other tales follow (ADR 0006). Always true is copied from the World's, and the
+    // change rides as its first Over time entry, the way a new thread from the scene carries it.
+    // ponytail: only the Over time entry crosses; pockets the model gave a World person are dropped.
+    // Trigger: a writer missing them on the new thread; then carry them as rooms, as `extract` does.
+    if (who.sharedFrom) {
+      const stands = String(m.stands ?? '').trim();
+      const always = alwaysTrue(who) || String(m.always ?? '').trim() || `[${who.title}]`;
+      if (stands && !/^none[.\s]*$/i.test(stands) && norm(stands) !== norm(resolveBody(who, ch.index))
+        && db.addProposal(storyId, { kind: 'new', entry_id: null, chapterId: ch.id, title: who.title, body: always,
+          entryType: who.entryType, field: 'facts', keys: who.keys ?? [], delta, grp, line,
+          rooms: { stands: { body: stands } } })) { remembered++; taken.add(who.id); }
+      continue;
+    }
     // WHERE IT STANDS. Whole, and not "none" (the model has put the field's vocabulary in the body
     // before), and not the text it already has.
     const stands = String(m.stands ?? '').trim();

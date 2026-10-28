@@ -16,6 +16,9 @@ Everything below this line was written by that model call, before it was removed
 When you hem a scene, Anansi now offers a change only for a thread the scene acts on, never for one
 it only mentions, and only what is new about it. It no longer fills out pockets nothing in the
 scene touched. The character you play and the Hands-off character are seen from the outside only.
+It offers changes for six threads at most, and names the rest. When a scene changes a person from
+the World your tale follows, the change becomes that person's own thread in your tale, and the
+World stays as it was.
 
 ### The next scene opens as soon as you press Hem this scene
 Anansi now writes the summary, reads what changed for each thread, and finds new threads and
