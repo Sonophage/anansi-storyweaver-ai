@@ -14,6 +14,15 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+
+## 2026-10-27 · Steer the next scene, and ask for something else
+
+### A direction for Anansi, and Something else
+In This scene, and on a hemmed scene's card for the scene after it, there is a box for a direction
+("she stays, he runs") and a Something else button. Anansi writes the title, opening and where the
+scene is going again, following your direction and steering away from what is there now. On the
+card the new version is saved straight into the next scene; in This scene it waits for Save.
+
 ## 2026-10-27 · No more contradiction check
 
 ### Anansi no longer checks each passage for contradictions

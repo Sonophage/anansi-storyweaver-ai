@@ -3651,6 +3651,27 @@ ok('a card face reads body, then what is on, then what is not — and finishing 
 }
 ok('every scene in Scenes has a delete beside it');
 
+// ---- THIS SCENE: A DIRECTION, AND SOMETHING ELSE (2026-10-27) ----
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'chapter' });
+  const panel = html('sideBody');
+  assert.match(panel, /data-chsteer="1"/, 'CH-STEER: This scene takes a direction for Anansi');
+  assert.match(panel, /data-chbrief="again"[^>]*>↻ Something else/, '  and offers something else once the scene has its own');
+  const doc = (globalThis as any).document, wasQS = doc.querySelector;
+  doc.querySelector = (sel: string) => /data-chsteer/.test(sel) ? { value: 'She stays.' }
+    : /data-chapter-title/.test(sel) ? { value: 'The Envoy' } : /data-chapter-opens/.test(sel) ? { value: '' }
+    : /data-chapter-note/.test(sel) ? { value: 'Somewhere.' } : wasQS?.call(doc, sel) ?? null;
+  click({ chbrief: 'again' });
+  await new Promise((r) => setTimeout(r, 60));
+  doc.querySelector = wasQS;
+  const ask = POSTED.filter((p: any) => p.url === '/api/chapter/propose').at(-1);
+  assert.deepStrictEqual([ask?.body?.steer, ask?.body?.avoid], ['She stays.', { title: 'The Envoy', opens: '', note: 'Somewhere.' }],
+    'CH-AGAIN: Something else sends the direction and what the boxes held, to be steered away from');
+}
+ok('This scene takes a direction and asks for something else');
+
 // ---- THE TALE'S MENU, SHORTER AND WHOLE (Seth, 2026-10-27): two columns, every row still there.
 {
   click({ open: 's-1' });
@@ -5658,6 +5679,22 @@ const hemCardOf = (side: string) => {
   assert.deepStrictEqual(chapterSaves().at(-1)?.body, { storyId: 's-1', chapterId: nextId,
     chapter: { title: 'The Rust Year, again', authorsNote: 'By the end the debt is paid.', opensWith: 'Rain.' } },
     '  with all three boxes as they stand');
+
+  // SOMETHING ELSE, with a direction, away from what the boxes hold, saved into the next scene (2026-10-27).
+  assert.match(card, new RegExp(`data-hemsteer="${nextId}"`), 'HEM-STEER: the card takes a direction for Anansi');
+  assert.match(card, new RegExp(`data-hemreroll="${nextId}"[^>]*>↻ Something else`), '  and asks again for something else');
+  const wasQS = doc.querySelector;
+  doc.querySelector = (sel: string) => /data-hemsteer/.test(sel) ? { value: 'He swims after it.' }
+    : /data-hemnext="title"/.test(sel) ? { value: 'The Envoy' } : /data-hemnext="note"/.test(sel) ? { value: 'Old note.' }
+    : /data-hemnext="opens"/.test(sel) ? { value: 'Old opening.' } : wasQS?.call(doc, sel) ?? null;
+  const proposesBefore = POSTED.filter((p: any) => p.url === '/api/chapter/propose').length;
+  click({ hemreroll: nextId }); await settle(); await settle();
+  doc.querySelector = wasQS;
+  const ask = POSTED.filter((p: any) => p.url === '/api/chapter/propose');
+  assert.strictEqual(ask.length, proposesBefore + 1, 'HEM-REROLL: Something else asks once');
+  assert.deepStrictEqual(ask.at(-1).body, { storyId: 's-1', chapterId: nextId, steer: 'He swims after it.',
+    avoid: { title: 'The Envoy', note: 'Old note.', opens: 'Old opening.' } }, '  with the direction, away from what the boxes held');
+  assert.strictEqual(chapterSaves().at(-1)?.body?.chapter?.title, 'The Rust Year', '  and the answer is saved into the next scene');
 
   // USE THESE: the new scene's three boxes hold the suggestion, and nothing is saved yet.
   const saves = chapterSaves().length;

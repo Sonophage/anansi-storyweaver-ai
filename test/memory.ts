@@ -991,6 +991,25 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 
 
+// ---- THE NEXT SCENE, STEERED AND ASKED AGAIN AWAY FROM THE LAST (2026-10-27) ----
+// Seth: "I'd need a way to enter direction for the ai and a way to re roll away from what it's
+// suggesting". The writer's direction goes in last; the last suggestion goes in as one not to repeat.
+{
+  const t = db.createStory(me, { title: 'Steered', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The ferry left without him.' });
+  tidied = { ...NEXT };
+  const r: any = await routes['POST /api/chapter/propose'](ctx({ storyId: t.id, chapterId: ch0.id,
+    steer: 'He swims after it.', avoid: { title: 'The Ferry at Dusk', note: 'Oren crosses back.', opens: 'The river was low.' } }));
+  assert.ok(!r.error, r.error);
+  const user = String(asked?.user ?? '');
+  assert.match(user, /NOT THIS AGAIN[\s\S]*The Ferry at Dusk[\s\S]*Oren crosses back\./, 'STEER-AWAY: the last suggestion is sent as one not to repeat');
+  assert.match(user, /THE WRITER WANTS THIS CHAPTER TO: He swims after it\./, 'STEER-WANT: and the writer\'s direction is sent');
+  assert.ok(user.indexOf('NOT THIS AGAIN') < user.indexOf('THE WRITER WANTS'), '  with the direction last, closest to the ask');
+  tidied = {};
+}
+ok('the next scene can be asked again with a direction, away from the last suggestion');
+
 // ---- NEW THREADS, SIX AT MOST PER HEM (2026-10-27) ----
 // One hem of Seth's chalked 8 characters, 6 places and 2 items. The rest are held, named on the card,
 // and "Chalk these too" puts them in without asking the model again.

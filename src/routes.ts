@@ -1192,7 +1192,7 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
  *
  *  Reads the summaries and the tail of the prose rather than the whole book: what it needs is
  *  where the story has got to, and the chapter it is naming has nothing in it yet by definition. */
-async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?: unknown) {
+async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?: unknown, avoid?: any) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x: any) => x.id === chapterId) ?? v.currentChapter;
   // A STALE SUMMARY STAYS OUT, as it does from the writing prompt: it describes prose that moved.
@@ -1214,6 +1214,11 @@ async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?:
       ? `UNPAID PROMISES: ${(v.strings ?? []).filter((x: any) => x.status === 'open')
           .map((x: any) => x.title).join('; ')}` : '',
     tail.trim() ? `THE PROSE ENDS:\n${tail.trim()}` : '',
+    // ASKED AGAIN, AWAY FROM THE LAST (2026-10-27): what was suggested before, so the new answer is a
+    // different scene and not the same one reworded. Before the writer's steer, which stays last.
+    avoid && (avoid.title || avoid.note || avoid.opens) ? `NOT THIS AGAIN (it was already suggested; give a different scene):\n${
+      [avoid.title && `Title: ${String(avoid.title).slice(0, 200)}`, avoid.opens && `Opens: ${String(avoid.opens).slice(0, 600)}`,
+       avoid.note && `Heads toward: ${String(avoid.note).slice(0, 1200)}`].filter(Boolean).join('\n')}` : '',
     // The writer's own steer, LAST and closest to the instruction, which is where this repo's
     // measured findings put anything that has to be obeyed. Optional: the button asked for a
     // suggestion with no way to say what it should be about until 2026-08-30.
@@ -2813,7 +2818,8 @@ export const routes: Record<string, Handler> = {
 
   /** What the scene about to be written should be called, and what it has to do. The body is
    *  `suggestScene`, which a hem also runs (#89); this route stays for the client's own button. */
-  'POST /api/chapter/propose': (c: Ctx) => suggestScene(c, c.body.storyId, c.body.chapterId, c.body.steer),
+  'POST /api/chapter/propose': (c: Ctx) => suggestScene(c, c.body.storyId, c.body.chapterId, c.body.steer,
+    c.body.avoid && typeof c.body.avoid === 'object' ? c.body.avoid : undefined),
   /** #91 · RUN A HEM'S PASSES AGAIN, from the scene's Workbench card. `pass` names one pass of the
    *  report (try again): only that pass runs, and only its line changes. With no `pass` it is HEM
    *  AGAIN: a new record on the prose as it is now (so the scene is in date), and every pass again.

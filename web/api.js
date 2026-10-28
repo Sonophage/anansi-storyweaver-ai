@@ -139,7 +139,8 @@ export const api = {
   endChapter:   (storyId, o)     => j('/api/chapter/end', 'POST', { storyId, ...o }),
   // What the chapter about to be written should be called and what it has to do. Proposes only —
   // the setup panel fills its two fields with this and nothing is saved until you press Save.
-  proposeChapter: (storyId, chapterId, steer) => j('/api/chapter/propose', 'POST', { storyId, chapterId, steer }),
+  // `avoid`: the last suggestion, so asking again gives a different scene (2026-10-27).
+  proposeChapter: (storyId, chapterId, steer, avoid) => j('/api/chapter/propose', 'POST', { storyId, chapterId, steer, avoid }),
   // #91. Run a hem's passes again: `pass` tries one again, `names` asks for threads past the cap,
   // neither hems the scene again. The view comes back with the hem running.
   hemAgain:     (storyId, chapterId, o) => j('/api/chapter/hem', 'POST', { storyId, chapterId, ...o }),

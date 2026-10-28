@@ -582,7 +582,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #79. Over time: take a dated wardrobe or retirement event out. #80: make a Lore thread a place.
   'delevent', 'makeplace',
   // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
-  'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra',
+  'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra', 'hemreroll',
   // #92. A hemmed scene's card: run its passes again, use its next-scene suggestion.
   'hemagain', 'usehem',
   // #75. The tale's own thread.
@@ -1850,11 +1850,18 @@ async function nameChapter(chapterId, auto = false) {
  *
  *  NOT SAVED. Every other thing Anansi offers in this app fills the field and stops; Save is the
  *  press that keeps it. */
-async function chapterBrief() {
+async function chapterBrief(again = false) {
   if (S.naming || !V) return;
   const ch = V.currentChapter;
+  // A DIRECTION, AND AWAY FROM WHAT IS THERE (Seth, 2026-10-27: "a way to enter direction for the ai
+  // and a way to re roll away from what it's suggesting"). Read before the repaint rebuilds the boxes.
+  const val = (sel) => String(document.querySelector(sel)?.value ?? '').trim();
+  const steer = val('[data-chsteer]') || undefined;
+  const avoid = again ? { title: val('[data-chapter-title]'), opens: val('[data-chapter-opens]'),
+    note: val('[data-chapter-note]') } : undefined;
+  S.chSteer = steer ?? '';
   S.naming = true; drawSide();
-  const r = await withRing(() => api.proposeChapter(S.storyId, ch.id));
+  const r = await withRing(() => api.proposeChapter(S.storyId, ch.id, steer, avoid));
   S.naming = false;
   if (r.error || !r.title) { drawSide(); return toast(r.error || 'nothing usable came back'); }
   // READ AFTER THE CALL, not before: drawSide() above rebuilt the panel, so a reference taken
@@ -1863,6 +1870,11 @@ async function chapterBrief() {
   const box = (sel) => document.querySelector(sel);
   const t = box('[data-chapter-title]'), o = box('[data-chapter-opens]'), n = box('[data-chapter-note]');
   const blank = (el) => el && !String(el.value ?? '').trim();
+  // SOMETHING ELSE replaces all three: the writer asked for a different scene. Still not saved.
+  if (again) {
+    if (t) t.value = r.title; if (o) o.value = r.opens ?? ''; if (n) n.value = r.note ?? '';
+    return toast('Something else, from Anansi. Nothing is saved until you press Save.');
+  }
   const kept = [];
   if (t && numbered(t.value, ch.index)) t.value = r.title;
   else if (t) kept.push('the name');
@@ -2620,7 +2632,11 @@ function hemCardParts(c) {
     <textarea class="field grow min-52" data-hemnext="opens" data-ch="${esc(next.id)}" aria-label="How the next scene opens"
       placeholder="How it opens">${esc(given(next.opensWith, s.opens))}</textarea>
     <div class="hint flush">Saves when you leave a box.</div>
-    <button class="btn ghost push-8" data-usehem="${id}">Use these</button>` : '';
+    <input class="field push-8" data-hemsteer="${esc(next.id)}" aria-label="A direction for Anansi"
+      placeholder="A direction for Anansi, if you want one">
+    <div class="btnrow">
+      <button class="btn ghost fill" data-hemreroll="${esc(next.id)}">↻ Something else</button>
+      <button class="btn ghost fill" data-usehem="${id}">Use these</button></div>` : '';
   const ids = esc(ps.map((p) => p.id).join(','));
   return {
     body: `${state.join('')}${summary}${threads}${overflow}${held}${suggestion}`,
@@ -4323,6 +4339,10 @@ const PANELS = {
           style="font-size:11px; letter-spacing:.1em; text-transform:uppercase;
           color:var(--gold-dim)">${S.naming ? 'Asking&hellip;' : '↻ Have Anansi write these'}</button>
       </div>
+      <input class="field" data-chsteer="1" aria-label="A direction for Anansi" value="${esc(S.chSteer ?? '')}"
+        placeholder="A direction for Anansi, if you want one: she stays, he runs">
+      ${(ch.title && !numbered(ch.title, ch.index)) || (ch.authorsNote ?? '').trim() || (ch.opensWith ?? '').trim()
+        ? `<button class="btn ghost push-6" data-chbrief="again" ${S.naming ? 'disabled' : ''}>↻ Something else</button>` : ''}
       <input class="field" id="f-chapter-title" data-chapter-title="1" value="${esc(ch.title ?? '')}"
         placeholder="Scene ${ch.index}">
       <!-- TWO BOXES, NOT ONE. It was a single "This chapter must end with", and that one line rode
@@ -10574,7 +10594,7 @@ document.addEventListener('click', async (e) => {
   // chapter the model has stopped seeing — `keep_whole` has been honoured by the engine since it
   // was written and had no control anywhere.
   if (d.name) { await nameChapter(d.name); return; }
-  if (d.chbrief) { await chapterBrief(); return; }
+  if (d.chbrief) { await chapterBrief(d.chbrief === 'again'); return; }
   if (d.pullback) {
     const r = await api.saveChapter(S.storyId, d.pullback, { keepWhole: d.on === '1' });
     if (r.error) return toast(r.error);
@@ -12231,6 +12251,21 @@ document.addEventListener('click', async (e) => {
   // #92 · A HEMMED SCENE'S PASSES AGAIN (#91). `pass` is Try again for one pass; `names` asks for
   // the threads past the cap; neither is Hem again, which drops what is still chalked on the card
   // (what was sewn in or rejected stays), so it asks first.
+  // SOMETHING ELSE, for the next scene, from its hem card (2026-10-27): away from what the boxes
+  // hold, with the writer's direction, and saved into them, as the boxes save as you go.
+  if (d.hemreroll) {
+    const ch = d.hemreroll;
+    const box = (k) => String(document.querySelector(`[data-hemnext="${k}"][data-ch="${ch}"]`)?.value ?? '').trim();
+    const steer = String(document.querySelector(`[data-hemsteer="${ch}"]`)?.value ?? '').trim() || undefined;
+    const r = await whileWorking(t, 'Asking…', () => api.proposeChapter(S.storyId, ch, steer,
+      { title: box('title'), note: box('note'), opens: box('opens') }));
+    if (!r) return;
+    if (r.error || !r.title) return toast(r.error || 'nothing usable came back');
+    const w = await api.saveChapter(S.storyId, ch, { title: r.title, authorsNote: r.note ?? '', opensWith: r.opens ?? '' });
+    if (w.error) return toast(w.error);
+    V = await api.story(S.storyId, V?.currentChapter?.id); paint();
+    return toast('Something else, saved to the next scene. Change any box to make it yours.');
+  }
   if (d.hemextra) {
     const r = await api.hemAgain(S.storyId, d.hemextra, { extra: true });
     if (r.error) return toast(r.error);
