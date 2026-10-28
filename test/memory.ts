@@ -1152,6 +1152,30 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
   ok('a hem chalks six threads at most and keeps the rest as overflow names');
 }
 
+// ASKED FOR BY NAME (#91's route), the threads the writer chose are all reviewed, past six or not,
+// and the overflow on the hem keeps only the names that were not asked for.
+{
+  const t = db.createStory(me, { title: 'Asked past six', premise: 'p' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const names = ['Ada', 'Bram', 'Cora', 'Dov', 'Esk', 'Fen', 'Gil', 'Hob'];
+  const ids = names.map((title) => db.upsertEntry(t.id, me, { title, body: `[${title}: on the quay]`, entryType: 'character', keys: [title] }));
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: `${names.join(', ')} were all pushed off the quay.` });
+  answer = names.map((name) => ({ name, stands: `[${name}: soaked, and out of the water]`, label: 'pushed in',
+    line: 'pushed off the quay', always: '', pockets: [] }));
+  tidied = { overflow: [] };
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id, summarise: false, remember: false, extract: false, retire: false }));
+  await hemSettled(t.id);
+  db.hemOverflow(t.id, ch0.id, names);
+  await routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, names: names.slice(0, 7) }));
+  await hemSettled(t.id);
+  answer = []; tidied = {};
+  const chalked = new Set((db.proposalsOf(t.id) as any[]).filter((p) => p.entry_type === 'state').map((p) => p.entry_id));
+  assert.deepStrictEqual([...chalked].sort(), ids.slice(0, 7).sort(), `CHALK-ASKED-ALL: all seven asked for are chalked (${chalked.size})`);
+  assert.deepStrictEqual(sceneOf(await viewNow(t.id), ch0.id).hem?.overflow, ['Hob'],
+    'CHALK-ASKED-OVERFLOW: the overflow keeps only the name not asked for');
+  ok('threads asked for by name are all reviewed, and leave the overflow');
+}
+
 
 // OUTSIDE ONLY: no interiority pocket for the character the writer plays, nor for the Hands-off one
 // while the switch is on. With the switch off, the Hands-off character is hemmed like anyone else.
@@ -1217,6 +1241,119 @@ ok('no interiority pocket for the played or Hands-off character');
   assert.match(own?.body ?? '', /taken Rennala/, 'CHALK-WORLD-SEWN: sewn in, the tale has its own Morgott');
   assert.match((db.entriesOf(w.id) as any[]).find((e) => e.id === morgott).body, /alone/, '  and the World\'s is as it was');
   ok("a World person's change lands as a new thread in the tale, never on the World");
+}
+
+
+// ---- #91 · RUN A HEM'S PASSES AGAIN ----
+//
+// TRY AGAIN ONE PASS: the new-thread pass failed; asked again, only that pass asks the model, its
+// line in the report clears, and the other lines are as they were.
+{
+  const t = db.createStory(me, { title: 'Try again', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Oren cut the bell down from the ferry post and carried it home.' });
+  answer = [{ name: 'Oren', stands: '[Oren: the ferryman, who has taken the ferry bell home]', label: 'took the bell',
+    line: 'Oren cut the bell down from the ferry post', always: '', pockets: [] }];
+  found = [{ title: 'The Ferry Bell', body: 'Bronze, green with river damp.', type: 'item', keys: ['bell'] }];
+  tidied = { ...NEXT };
+  failIf = (system) => system.startsWith(prompts.EXTRACT.slice(0, 80));
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
+  await hemSettled(t.id);
+  failIf = null;
+  const failed = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.ok(failed?.passes?.facts, '  the facts pass failed first');
+  const from = asks.length;
+  const r: any = await routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'facts' }));
+  assert.ok(!r.error, r.error);
+  await hemSettled(t.id);
+  tidied = {};
+  const again = asks.slice(from);
+  assert.ok(again.length > 0 && again.every((a) => a.system.startsWith(prompts.EXTRACT.slice(0, 80))),
+    `HEM-RETRY-ONE: only the facts pass asked the model (${again.length} asks)`);
+  const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.strictEqual(hem?.state, 'done', '  and the hem is done again');
+  assert.strictEqual(hem.passes.facts, null, `HEM-RETRY-CLEARS: the facts line clears (${hem.passes.facts})`);
+  assert.deepStrictEqual(Object.keys(hem.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary'],
+    '  and the other lines are still in the report');
+  assert.deepStrictEqual(hem.suggestion, NEXT, '  and the suggestion is kept');
+  const bell = (db.proposalsOf(t.id) as any[]).find((p) => p.title === 'The Ferry Bell');
+  assert.strictEqual(bell?.grp, `scene:${ch0.id}`, '  and what it found is chalked into the scene group');
+  ok('try again runs one failed pass, clears its line, and leaves the rest of the report');
+}
+
+
+// HEM AGAIN after an edit: what was sewn in or rejected stays, what was still chalked is replaced,
+// and the scene is in date again.
+{
+  const t = db.createStory(me, { title: 'Hem again', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'] });
+  const p = db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Oren cut the bell down from the ferry post and carried it home.' }) as any;
+  answer = [{ name: 'Oren', stands: '[Oren: the ferryman, who has taken the ferry bell home]', label: 'took the bell',
+    line: 'Oren cut the bell down from the ferry post', always: '', pockets: [] }];
+  found = [{ title: 'The Ferry Bell', body: 'Bronze, green with river damp.', type: 'item', keys: ['bell'] }];
+  finished = [{ card: 'Oren', quote: 'Oren cut the bell down from the ferry post' }];
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
+  await hemSettled(t.id);
+  const first = db.proposalsOf(t.id) as any[];
+  const sewn = first.find((x) => x.entry_type === 'state'), rejected = first.find((x) => x.title === 'The Ferry Bell');
+  const open = first.find((x) => x.entry_type === 'retire');
+  assert.ok(sewn && rejected && open, `  the first hem chalked three rows (${first.map((x) => x.title)})`);
+  db.setProposalStatus(t.id, sewn.id, 'accepted');
+  db.setProposalStatus(t.id, rejected.id, 'rejected');
+  await routes['POST /api/passage'](ctx({ storyId: t.id, id: typeof p === 'string' ? p : p.id,
+    body: 'Oren cut the bell down, then the rope, and carried both home.' }));
+  assert.strictEqual(sceneOf(await viewNow(t.id), ch0.id).hem?.outOfDate, true, '  the edit put the scene out of date');
+  found = [{ title: 'The Ferry Rope', body: 'Hemp, frayed where it met the post.', type: 'item', keys: ['rope'] }];
+  finished = [];
+  const r: any = await routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  assert.ok(!r.error, r.error);
+  await hemSettled(t.id);
+  assert.strictEqual(db.proposal(t.id, sewn.id)?.status, 'accepted', 'HEM-AGAIN-KEEPS: a row sewn in stays');
+  assert.strictEqual(db.proposal(t.id, rejected.id)?.status, 'rejected', 'HEM-AGAIN-KEEPS: a row rejected stays');
+  assert.strictEqual(db.proposal(t.id, open.id), undefined, 'HEM-AGAIN-DROPS: a row still chalked is dropped');
+  const rope = (db.proposalsOf(t.id) as any[]).find((x) => x.title === 'The Ferry Rope');
+  assert.strictEqual(rope?.grp, `scene:${ch0.id}`, '  and what the new hem found is chalked in the scene group');
+  const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.strictEqual(hem?.state, 'done', '  and the hem is done');
+  assert.strictEqual(hem.outOfDate, false, 'HEM-AGAIN-IN-DATE: the scene is no longer out of date');
+  ok('hem again keeps what was sewn in and rejected, replaces what was chalked, and is in date');
+}
+
+
+// THE THREADS PAST THE CAP: asked for by name, only those threads are reviewed and chalked, into the
+// same scene group. The fake answers for both threads, so only the ask can keep Oren out.
+{
+  const t = db.createStory(me, { title: 'Past the cap', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'] });
+  db.upsertEntry(t.id, me, { title: 'Mara', body: '[Mara: the toll-keeper]', entryType: 'character', keys: ['Mara'] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Oren cut the bell down while Mara counted the tolls twice.' });
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id, summarise: false, remember: false, extract: false, retire: false }));
+  await hemSettled(t.id);
+  answer = [
+    { name: 'Oren', stands: '[Oren: the ferryman, who took the bell]', label: 'took the bell',
+      line: 'Oren cut the bell down', always: '', pockets: [] },
+    { name: 'Mara', stands: '[Mara: the toll-keeper, who no longer trusts the count]', label: 'counts twice',
+      line: 'Mara counted the tolls twice', always: '', pockets: [] }];
+  const from = asks.length;
+  const r: any = await routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, names: ['Mara'] }));
+  assert.ok(!r.error, r.error);
+  await hemSettled(t.id);
+  const again = asks.slice(from);
+  assert.ok(again.length > 0 && again.every((a) => a.system.startsWith(prompts.MEMORY.slice(0, 80))),
+    `  only the thread-change pass asked (${again.length} asks)`);
+  assert.ok(again.at(-1).user.includes('Mara: the toll-keeper') && !again.at(-1).user.includes('Oren: the ferryman'),
+    'HEM-OVERFLOW-ASK: only the named thread is offered to the model');
+  const chalked = db.proposalsOf(t.id) as any[];
+  assert.deepStrictEqual(chalked.map((x) => x.title), ['Mara'], `HEM-OVERFLOW-ONLY: only Mara is chalked (${chalked.map((x) => x.title)})`);
+  assert.strictEqual(chalked[0].grp, `scene:${ch0.id}`, 'HEM-OVERFLOW-GROUP: into the same scene group');
+  assert.strictEqual(sceneOf(await viewNow(t.id), ch0.id).hem?.passes?.memory, null, '  and the thread-change line reads as run');
+  ok('asking for the threads past the cap chalks only those threads, into the scene group');
 }
 
 

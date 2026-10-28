@@ -1422,6 +1422,26 @@ async function bootServer(port: number, env: Record<string, string>) {
   ok("delete-after's first press names exactly the summaries of yours its delete clears");
 }
 
+/* ---- #91 · RUN A HEM AGAIN, naming her scene from his own book. The gate resolves `storyId` only,
+ * so the chapter id is the route's to check: refused before anything is queued, and her scene's
+ * chalked row is still there, which a hem again would have dropped. */
+{
+  const herScene = (db.chapters(aStory.id)[0] as any).id;
+  db.beginHem(aStory.id, herScene);
+  db.finishHem(aStory.id, herScene, { passes: { facts: 'down' } });
+  db.addProposal(aStory.id, { kind: 'new', chapterId: herScene, title: 'Her Chalk', body: 'Still open.',
+    entryType: 'lore', keys: [], grp: `scene:${herScene}` });
+  const chalk = () => (db.proposalsOf(aStory.id) as any[]).filter((p) => p.title === 'Her Chalk').length;
+  assert.strictEqual(chalk(), 1, '  her scene has a row still chalked');
+  for (const body of [{}, { pass: 'facts' }, { names: ['Secret'] }]) {
+    const r: any = routes['POST /api/chapter/hem'](ctxI(bob, { storyId: bStory.id, chapterId: herScene, ...body }));
+    assert.ok(r?.error, `HEM-ROUTE-SCOPE: his book naming her scene is refused (${JSON.stringify(body)})`);
+  }
+  assert.strictEqual(chalk(), 1, '  and her chalked row is still there');
+  assert.strictEqual(db.hemsOf(aStory.id).get(herScene)?.state, 'done', '  and her hem was not reopened');
+  ok("a hem again naming another writer's scene from your own book is refused by the route");
+}
+
 {
   const PORT = 5187;
   // A model address where nothing listens, so ✦'s control below can never reach the real router.
@@ -1459,6 +1479,12 @@ async function bootServer(port: number, env: Record<string, string>) {
     const sumForeign = await post('/api/summary', { storyId: aStory.id, chapterId: aCh.id, summary: 'BOB' });
     assert.strictEqual(sumForeign.status, 404, "a summary save naming another writer's story is refused");
     assert.strictEqual((db.chapters(aStory.id)[0] as any).summary, aCh.summary, 'and her summary is as it was');
+
+    // #91. Run a hem again, on her story as bob: the gate refuses before the route reads a field.
+    const hemForeign = await post('/api/chapter/hem', { storyId: aStory.id, chapterId: aCh.id });
+    assert.strictEqual(hemForeign.status, 404, "a hem again on another writer's story is refused");
+    const hemOwn = await post('/api/chapter/hem', { storyId: bStory.id, chapterId: aCh.id });
+    assert.strictEqual(hemOwn.status, 200, '  and on his own story it passes the gate, and the route answers');
 
     // An act save, #44's route, aimed at alice's book. Her act is created here rather than found,
     // so the refusal below is a refusal of a real act and not of an id that never existed.

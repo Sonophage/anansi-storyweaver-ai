@@ -1724,12 +1724,33 @@ export const beginHem = (storyId: string, chapterId: string) =>
   q(`INSERT OR REPLACE INTO hems (chapter_id, story_id, started_at, finished_at, prose_hash, passes, kept, suggestion)
      VALUES (?, ?, ?, NULL, ?, NULL, 0, NULL)`).run(chapterId, storyId, now(), scenePrint(chapterId));
 
-/** A hem ends, with its pass report and the next-scene suggestion (null when that pass gave none). */
-export const finishHem = (storyId: string, chapterId: string,
-    r: { passes: Record<string, string | null>; kept: boolean; suggestion: { title: string; note: string; opens: string } | null }) =>
+/** A hem ends, with its pass report and the next-scene suggestion (null when that pass gave none).
+ *  #91. The report is MERGED into the one stored: a try-again of one pass hands in that pass's line
+ *  only, and every other line stays. `beginHem` empties the report, so a full hem still replaces it.
+ *  `kept` and `suggestion` left undefined keep what is stored: those passes did not run this time. */
+export function finishHem(storyId: string, chapterId: string,
+    r: { passes: Record<string, string | null>; kept?: boolean;
+         suggestion?: { title: string; note: string; opens: string } | null }) {
+  const was = q('SELECT passes, kept, suggestion FROM hems WHERE chapter_id = ? AND story_id = ?')
+    .get(chapterId, storyId) as any;
+  let before: Record<string, string | null> = {};
+  try { before = JSON.parse(was?.passes ?? '{}') ?? {}; } catch { /* a bad report is replaced whole */ }
+  const kept = r.kept === undefined ? !!was?.kept : r.kept;
+  const suggestion = r.suggestion === undefined ? (was?.suggestion ?? null)
+    : r.suggestion ? JSON.stringify(r.suggestion) : null;
   q('UPDATE hems SET finished_at = ?, passes = ?, kept = ?, suggestion = ? WHERE chapter_id = ? AND story_id = ?')
-    .run(now(), JSON.stringify(r.passes), r.kept ? 1 : 0, r.suggestion ? JSON.stringify(r.suggestion) : null,
-      chapterId, storyId);
+    .run(now(), JSON.stringify({ ...before, ...r.passes }), kept ? 1 : 0, suggestion, chapterId, storyId);
+}
+
+/** #91. HEM AGAIN drops what the last hem left chalked in the scene's group, and only that: a row
+ *  sewn in or rejected is the writer's decision and stays. */
+export const dropChalked = (storyId: string, grp: string) =>
+  q("DELETE FROM proposals WHERE story_id = ? AND grp = ? AND status = 'open'").run(storyId, grp);
+
+/** #91. A try-again starts: the hem shows running again, with its fingerprint and report as they
+ *  were. False when the scene has no hem in this story, which is the route's refusal. */
+export const reopenHem = (storyId: string, chapterId: string) =>
+  q('UPDATE hems SET finished_at = NULL WHERE chapter_id = ? AND story_id = ?').run(chapterId, storyId).changes > 0;
 
 /** #90. The threads the thread-change pass found changed past its cap of six, by name, for the card.
  *  Written by that pass when a hem runs it; a hem again starts the row with none. */
