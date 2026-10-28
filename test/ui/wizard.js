@@ -1,4 +1,6 @@
-// The five-step wizard, driven without the model.
+// The spark wizard, driven without the model. #84 (2026-10-27) put You before the threads and a
+// preview after Try it on; this file was updated for it without being run (no browser checks that
+// round), so its first run is owed.
 //
 //   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/wizard.js
 //
@@ -18,7 +20,7 @@ await page.goto(B + "/");
 await wait(700);
 
 // A canned skeleton, in the shape POST /api/spark really returns. Anansi proposes a persona and a
-// locked character, which is what the server polices and what step 4 has to offer.
+// locked character; since #84 the wizard ignores them, because You is chosen before the cast.
 await page.eval(`(() => {
   window.__spark = 0; window.__cast = 0; window.__review = 0; window.__style = 0;
   // The last cast request's body, so the steer and the do-not-repeat list can be asserted as having
@@ -108,7 +110,8 @@ await wait(1200);
 ok(`  a double press on Spark sends ONE request (${await page.eval("window.__spark")})`,
    (await page.eval("window.__spark")) === 1);
 
-// SEVEN STEPS, and they are asserted BY NAME because that is now what the app keys off.
+// EIGHT STEPS, and they are asserted BY NAME because that is now what the app keys off. #84 moved
+// You ahead of the threads (the cast call is told who you play) and added the preview.
 //
 // The order, after #40 on 2026-09-01: the book, the threads, a second look, you, the first scene,
 // the opening, begin. What changed from eight: the idea screen went — Seth, "skip step one it's just
@@ -151,12 +154,12 @@ const stepNames = JSON.parse(await page.eval(
   `JSON.stringify([...document.querySelectorAll('[data-sparkstep][aria-label]')]
      .map(e => e.getAttribute('aria-label')))`));
 ok(`the skeleton arrives as steps, not one scroll (${stepNames.length} step controls)`,
-   stepNames.length === 7);
+   stepNames.length === 8);
 // THE ORDER ITSELF, asserted. It is the thing #40 changed and the thing a later reorder would
 // change again by accident — the array in app.js is now the only place it lives.
 ok(`  in order: ${stepNames.join(' -> ')}`,
-   JSON.stringify(stepNames) === JSON.stringify(['The tale', 'The threads', 'Try it on',
-     'You', 'The first scene', 'The opening', 'Begin']));
+   JSON.stringify(stepNames) === JSON.stringify(['The tale', 'You', 'The threads', 'Try it on',
+     'The preview', 'The first scene', 'The opening', 'Begin']));
 // AND THE IDEA SCREEN IS GONE, which is the ask. Asserted as an absence so putting it back is a red.
 ok('  the idea is no longer a screen of its own', !stepNames.includes('Your idea'));
 
@@ -265,8 +268,15 @@ ok("  an edit survives leaving the step and coming back",
 // step leaves nothing to pick from, which is the shape a book with no ledger has.
 await go("You");
 await wait(400);
-ok("  step 4 is a field you type into while the cast step has been skipped",
+ok("  You is a field you type into, offering the cast so far",
    (await page.eval("document.querySelector('[data-sp=\"persona\"]')?.tagName")) === 'INPUT');
+// #84 · WHO YOU PLAY, BEFORE THE THREADS. Named here and held with one press, so the cast call below
+// is told who you play and writes them from the outside.
+await page.eval(`(() => { document.querySelector('[data-sp="persona"]').value = 'Ilva Marren'; return 1; })()`);
+await page.click('[data-splock="1"]');
+await wait(400);
+ok("  and holding the one you play is one press",
+   (await page.eval(`document.querySelector('[data-sp="lockedCharacter"]')?.value`)) === 'Ilva Marren');
 
 /* CHARACTERS ONLY FROM HERE DOWN, and this is a fixture decision rather than a behaviour change.
  *
@@ -293,6 +303,9 @@ await wait(600);
 ok("  writing the threads is its own call, and the button asks again",
    (await page.eval("window.__cast")) === 2);
 ok("  step 3 is the cast", (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 2);
+ok("  and the cast call was told who you play, and who is Hands off",
+   /"persona":"Ilva Marren"/.test(await page.eval("JSON.stringify((window.__castBody || {}).story || {})"))
+   && /"lockedCharacter":"Ilva Marren"/.test(await page.eval("JSON.stringify((window.__castBody || {}).story || {})")));
 
 // #28 · THE STEER REACHES THE CALL. Seth: "i should be able to reroll characters or direct it based
 // on my input." A box the writer types into that never leaves the browser is the failure this
@@ -394,12 +407,11 @@ ok("  the cast step can also pull threads out of books you already have",
      /1 chosen/.test(await page.eval("document.getElementById('seeds')?.innerText || ''")));
 }
 
-// And once there IS a cast, step 4 becomes a pick over it — which is now the ORDINARY path rather
-// than the one you reach by walking backwards.
+// And once there IS a cast, You offers it: a second visit picks from the threads so far.
 await go("You");
 await wait(400);
-ok("  and once there is one, step 4 becomes a pick over it",
-   (await page.eval("document.querySelector('[data-sp=\"persona\"]')?.tagName")) === 'SELECT');
+ok("  and once there is one, You offers it",
+   (await page.eval(`[...document.querySelectorAll('#f-sp-cast option')].map(o => o.value).join('|')`)) === 'Ilva Marren|Kade Ashford');
 
 {
   const sparksBefore = await page.eval("window.__spark");
@@ -477,14 +489,14 @@ await page.eval("(() => { document.querySelector('[data-spcast=\"2\"]').checked 
 await page.eval("(() => { document.querySelector('[data-spcast=\"1\"]').checked = false; return 1; })()");
 await go("You");
 await wait(400);
-const offered = await page.eval(`(() => [...document.querySelectorAll('[data-sp="persona"] option')]
+const offered = await page.eval(`(() => [...document.querySelectorAll('#f-sp-cast option')]
   .map(o => o.value).filter(Boolean).join('|'))()`);
-ok(`  step 4 offers only the cast you kept (${offered})`, offered === 'Ilva Marren');
-ok("  and Nobody stays available, because a story can be narrated from outside",
-   (await page.eval(`document.querySelectorAll('[data-sp="persona"] option').length`)) === 2);
+ok(`  You offers only the cast you kept (${offered})`, offered === 'Ilva Marren');
+ok("  and nobody stays available, because a story can be narrated from outside",
+   /nobody/.test(await page.eval(`document.querySelector('[data-sp="persona"]')?.placeholder || ''`)));
 
 // The cast is EDITABLE, and renaming somebody there has to carry what points at them. The cast call
-// proposed Ilva for both persona and locked character; renaming her must not leave step 4 offering
+// was told Ilva for both persona and locked character; renaming her must not leave You offering
 // a name the cast no longer contains and silently falling back to Nobody.
 await go("The threads");
 await wait(400);
@@ -502,7 +514,7 @@ ok("  writing one of your own gives you a field to type in, not a row called Unt
    && (await page.eval("document.querySelector('[data-spname=\"3\"]')?.value")) === '');
 await go("You");
 await wait(400);
-const afterRename = await page.eval(`(() => [...document.querySelectorAll('[data-sp="persona"] option')]
+const afterRename = await page.eval(`(() => [...document.querySelectorAll('#f-sp-cast option')]
   .map(o => o.value).filter(Boolean).join('|'))()`);
 ok(`  a rename on step 3 reaches step 4 (${afterRename})`, afterRename === 'Ilva Vane');
 ok("  and the persona followed her rather than falling back to Nobody",
@@ -571,6 +583,19 @@ const unticked = await page.eval(`(() => { const b = document.querySelector('[da
 ok("  and the switch can be turned off before the book exists", unticked === true);
 await wait(300);
 
+// #84 · THE PREVIEW: everything that will be made, on one page, and nothing made yet.
+await go("The preview");
+await wait(500);
+{
+  const pv = await page.eval("document.querySelector('#page')?.innerText || ''");
+  ok("  the preview opens on the tale's own thread", /The tale's own thread/.test(pv));
+  ok("  and lists the threads you kept, folded to their name",
+     /Ilva Vane/.test(pv) && (await page.eval("document.querySelectorAll('[data-spfold]').length")) >= 1);
+  const none = await page.eval(`(async () => { const r = await (await fetch('/api/stories')).json();
+    return r.stories.filter(x => x.title === 'The Drowned Ledger').length; })()`);
+  ok(`  and nothing has been created yet (${none})`, none === 0);
+}
+
 // #21 §3 · STEP 8 SAYS WHAT ACCEPTING WILL WRITE, before it is pressed.
 await go("Begin");
 await wait(400);
@@ -603,7 +628,7 @@ if (made) {
   ok(`  the kept cast and the picked thread were written, and nothing else (${made.names})`,
      made.entries === 2 && made.names === 'Ilva Vane|Vantic law');
   ok("  the persona survived the rename", made.persona === 'Ilva Vane');
-  // Anansi proposed Ilva for both. She stayed, so both stand — the drop only fires on a name that
+  // The writer chose Ilva for both on You. She stayed, so both stand — the drop only fires on a name that
   // left the cast, which is what the server's proposedCast list is for.
   ok("  and the locked character with it", made.locked === 'Ilva Vane');
   // #40. Switched off on step 4 and it stayed off. False, not undefined and not true: the column

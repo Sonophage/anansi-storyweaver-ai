@@ -531,6 +531,20 @@ let stubTalk: any = null, stubInvent: any = null;
         yours: {}, voice: { shipped: 'The shipped voice.', mine: null, inUse: 'The shipped voice.' },
         library: { voice: [{ name: 'Noir', text: 'Wet streets. Nobody explains themselves.' }],
                    style: [] } }
+    // #88. The cast, in the shape POST /api/spark/cast returns: the writer's character written from
+    // outside with the yours pocket, another with pockets of her own, and a Rule.
+    : url.startsWith('/api/spark/cast') ? { persona: 'Mara Voss', lockedCharacter: 'Mara Voss', entries: [
+        { title: 'Mara Voss', entryType: 'character', activation: 'always_on', keys: ['Mara Voss'],
+          body: '[Mara Voss: a courier who owes the envoy]',
+          rooms: { appearance: { name: 'Road dust', body: 'Show the dust on her boots first.', on: true },
+                   voice: { name: 'Their lines are yours', body: "Mara Voss's lines are the writer's.", on: true } } },
+        { title: 'Teodor Ash', entryType: 'character', activation: 'always_on', keys: ['Teodor Ash'],
+          body: '[Teodor Ash: a clerk who counts the dead]',
+          rooms: { voice: { name: 'Envoy', body: 'Write her lines formal and short.', on: true },
+                   interiority: { name: 'Fear', body: 'Never let her say she is afraid.', on: true } } },
+        { title: 'Ring Law', entryType: 'rule', activation: 'always_on', keys: ['writ'],
+          body: '[Ring Law: nobody descends without a writ]',
+          rooms: { consequences: { name: 'The fine', body: 'Show the fine paid in public.', on: true } } }] }
     : url.startsWith('/api/spark') ? { story: { title: 'The Winter Signature', genre: 'political fantasy',
         premise: 'Six houses have one winter to sign a peace none of them wants.',
         setting: 'Ashfall Hall', pov: 'third limited, past tense', spice: 2,
@@ -3319,6 +3333,114 @@ ok('a cover can be drawn: the book seeds the words, the writer owns them, and th
   // check above it passes, which is what a redundant guard looks like.)
 }
 ok('sparking replaces the screen with the wizard rather than sitting it beside an empty box');
+
+// #88 · THE WIZARD ASKS WHO YOU PLAY FIRST AND ENDS IN A PREVIEW. Driven from the wizard the block
+// above left on screen. Nothing may post but the spark calls until Start writing, and Start writing
+// must carry the draft as the preview left it.
+{
+  const doc = (globalThis as any).document;
+  const wasQSA = doc.querySelectorAll, wasQS = doc.querySelector;
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  // What the wizard reads off the screen when it harvests: a list per selector, nothing by default.
+  let onScreen: Record<string, any[]> = {};
+  doc.querySelectorAll = (sel: string) => onScreen[sel] ?? [];
+  try {
+    const steps = [...html('page').matchAll(/data-sparkstep="\d+"[^>]*?aria-label="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepStrictEqual(steps, ['The tale', 'You', 'The threads', 'Try it on', 'The preview',
+      'The first scene', 'The opening', 'Begin'], 'WIZ-ORDER: You comes before the threads, and the preview after Try it on');
+
+    POSTED.length = 0;
+    click({ sparkstep: '2' });
+    await settle(/data-sp="persona"/);
+    assert.match(html('page'), /data-sp="persona"/, 'WIZ-YOU: the You step asks who you play');
+    assert.match(html('page'), /data-sp="personaAbout"/, '  and who they are, if they are new');
+
+    // A new character, described, and held. Leaving You for the threads asks for them.
+    onScreen = { '[data-sp]': [{ dataset: { sp: 'persona' }, value: 'Mara Voss' },
+      { dataset: { sp: 'personaAbout' }, value: 'a courier who owes the envoy' },
+      { dataset: { sp: 'lockedCharacter' }, value: 'Mara Voss' }] };
+    click({ sparkstep: '3' });
+    onScreen = {};
+    await settle(/a courier who owes the envoy/);
+    const cast = POSTED.find((p) => p.url === '/api/spark/cast');
+    assert.ok(cast, 'WIZ-CAST: arriving at the threads asks for them');
+    assert.strictEqual(cast.body.story.persona, 'Mara Voss', 'WIZ-CAST: with who you play');
+    assert.strictEqual(cast.body.story.lockedCharacter, 'Mara Voss', '  and who is Hands off');
+    assert.strictEqual(cast.body.story.personaAbout, 'a courier who owes the envoy', '  and what you said of them');
+
+    click({ sparkstep: '5' });
+    await settle(/The tale's own thread/);
+    let pv = html('page');
+    assert.match(pv, /The tale's own thread/, "WIZ-PREVIEW: the tale's own thread is at the top");
+    assert.ok(pv.indexOf("The tale's own thread") < pv.indexOf('Teodor Ash'), '  above the threads');
+    assert.match(pv, /Six houses have one winter/, '  with its premise');
+    assert.ok(pv.indexOf('Ring Law') < pv.indexOf('Teodor Ash'), '  and a Rule is in it, not among the threads');
+    for (const t of ['Ilva Marren', 'Mara Voss', 'Teodor Ash', 'Road dust', 'Their lines are yours', 'Envoy', 'Fear', 'The fine'])
+      assert.ok(pv.includes(t.replace(/'/g, '&#39;')), `WIZ-PREVIEW: every thread and pocket is listed: ${t}`);
+    assert.doesNotMatch(pv, /Write her lines formal and short/, 'WIZ-FOLD: folded to its name and Always true');
+    assert.doesNotMatch(pv, /data-spvoicefix/, 'WIZ-WARN: a Voice that agrees is not warned about');
+
+    // Unfold Teodor (index 2: the spark's own Ilva is 0), edit his voice, take off her interiority, undo, take it off again, add an outfit.
+    click({ spfold: '2' });
+    assert.match(html('page'), /data-sppocket="2:voice"/, 'WIZ-UNFOLD: unfolded, his pockets can be edited');
+    onScreen = { '[data-sppocket]': [{ dataset: { sppocket: '2:voice' }, value: 'Write her lines formal, and shorter.' }] };
+    click({ spdroppocket: '2:interiority' });
+    onScreen = {};
+    pv = html('page');
+    assert.doesNotMatch(pv, /Never let her say she is afraid/, 'WIZ-REMOVE: a removed pocket is gone');
+    assert.match(pv, /formal, and shorter/, 'WIZ-EDIT: an edit stays');
+    assert.match(pv, /data-spundo="1"/, '  and the removal can be undone');
+    click({ spundo: '1' });
+    assert.match(html('page'), /Never let her say she is afraid|Fear/, 'WIZ-UNDO: undo brings it back');
+    assert.match(html('page'), /formal, and shorter/, '  and keeps the edit made before it');
+    click({ spdroppocket: '2:interiority' });
+    doc.querySelector = (sel: string) => sel === '[data-spnewslot="2"]' ? { value: 'outfit' }
+      : sel === '[data-spnewpocket="2"]' ? { value: 'Dress her in grey wool.' } : null;
+    click({ spaddpocket: '2' });
+    doc.querySelector = wasQS;
+    assert.match(html('page'), /Dress her in grey wool/, 'WIZ-ADD: an added pocket is in the draft');
+    // Remove the Rule, undo, remove it again.
+    click({ spdropthread: '3' });
+    assert.doesNotMatch(html('page'), /nobody descends without a writ/, 'WIZ-DROP: a removed thread is gone');
+    click({ spundo: '1' });
+    assert.match(html('page'), /nobody descends without a writ/, 'WIZ-UNDO: undo brings the thread back');
+    click({ spdropthread: '3' });
+
+    // THE VOICE AGAINST THE POINT OF VIEW: warned, fixed, undone, and Start writing still works.
+    onScreen = { '[data-sp]': [{ dataset: { sp: 'writingStyle' }, value: 'Cold, spare. Narrate in first person, present tense.' }] };
+    click({ sparkstep: '5' });
+    onScreen = {};
+    pv = html('page');
+    assert.match(pv, /data-spvoicefix="1"/, 'WIZ-WARN: a Voice in first person over a third-person tale is warned about');
+    assert.match(pv, /first person, present tense/, '  naming what it says');
+    click({ spvoicefix: '1' });
+    assert.doesNotMatch(html('page'), /data-spvoicefix/, 'WIZ-FIX: the fix ends the warning');
+    assert.match(html('page'), />Cold, spare\.</, '  and leaves the rest of the Voice');
+    click({ spundo: '1' });
+    assert.match(html('page'), /data-spvoicefix="1"/, '  and is undone like the rest');
+
+    assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
+      `WIZ-NOTHING: nothing is posted before Start writing (${POSTED.map((p) => p.url).join(', ')})`);
+    doc.querySelector = (sel: string) => sel === '[data-sp-open]' ? { checked: false } : null;
+    click({ acceptSpark: '1' });
+    doc.querySelector = wasQS;
+    for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
+    const made = POSTED.find((p) => p.url === '/api/stories');
+    assert.ok(made, 'WIZ-CREATE: Start writing works with the warning showing');
+    assert.match(made.body.writingStyle, /first person/, '  and keeps the Voice as the writer left it');
+    assert.deepStrictEqual(made.body.entries.map((e: any) => e.title), ['Ilva Marren', 'Mara Voss', 'Teodor Ash'],
+      'WIZ-CREATE: the draft goes as the preview left it, the removed thread too');
+    const ilva = made.body.entries[2];
+    assert.strictEqual(ilva.rooms.voice.body, 'Write her lines formal, and shorter.', '  with the edited pocket');
+    assert.ok(!ilva.rooms.interiority, '  without the removed one');
+    assert.strictEqual(ilva.rooms.outfit.body, 'Dress her in grey wool.', '  with the added one');
+    assert.strictEqual(made.body.entries[1].rooms.voice.name, 'Their lines are yours', "  and the yours pocket on Mara's thread");
+    assert.strictEqual(made.body.persona, 'Mara Voss', '  who you play');
+    assert.strictEqual(made.body.lockedCharacter, 'Mara Voss', '  and Hands off');
+    await new Promise((r) => setTimeout(r, 60));
+  } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
+}
+ok('the wizard asks who you play before the threads, and ends in a preview that edits only the draft');
 
 // #24 · WHAT CHANGED IS A FILE NOW. Seth, 2026-08-29: "lets just have it show case from one file we
 // serve that we update after each commit and we remove the need for a local model to do it."
