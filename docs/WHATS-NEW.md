@@ -29,6 +29,22 @@ If he cannot do what you asked, because there is no thread by that name or that 
 has no such pocket, his answer says so. What he suggests without being asked is still chalked, as
 before. He never deletes a thread, and he never writes or changes prose.
 
+### The tale, its scenes, and what changes over time
+Talk can now change more when you ask:
+
+- The tale's premise or setting: "make the premise darker".
+- A scene's name, or where it heads: "call scene 3 The Ford".
+- A thread's Over time: "from scene 4 Vel is blind in one eye" adds that change from scene 4, and
+  the scenes before it stay as they were.
+- When a thread reaches Anansi: "keep the letter always on", or "bring in Charon only when someone
+  says ferryman".
+- Retirement: "get rid of the letter" retires it from the next scene. It is not deleted, and you
+  can bring it back.
+
+Each one has Undo, which puts back what was there: the old premise, the old name, the Over time as
+it was, the old wake words, or the thread back in the tale. If you name a scene the tale does not
+have, he says so and changes nothing.
+
 ## 2026-10-28 · No blink when Anansi finishes
 
 ### The page holds still when a passage lands

@@ -90,9 +90,10 @@ export const HELP = {
     title: 'Anansi',
     body: `<p>He has kept every thread of the tale and can be asked about it. He answers from the
       threads, the scene summaries and the recent passages, and he names what he drew on.</p>
-      <p>What you ask him to change in a thread, or a thread you ask him to add, he does at once.
-      Each change shows in the conversation with Undo, which puts back what was there. He never
-      writes prose.</p>
+      <p>What you ask him to change, he does at once: a thread, a new thread, a thread's Over time
+      or wake words, the tale's premise or setting, or a scene's name or where it heads. Each change
+      shows in the conversation with Undo, which puts back what was there. Asked to get rid of a
+      thread, he retires it; he never deletes one. He never writes prose.</p>
       <p>What he offers without being asked is chalked: suggested and not yet in the tale. A thread
       he offers waits on the Workbench until you sew it in; a directive he writes lands in the
       composer unsent.</p>`,
