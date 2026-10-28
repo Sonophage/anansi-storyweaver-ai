@@ -1104,8 +1104,10 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     if (stands && !/^none[.\s]*$/i.test(stands) && norm(stands) !== norm(resolveBody(who, ch.index))
       && db.addProposal(storyId, { kind: 'memory', entry_id: who.id, chapterId: ch.id, title: who.title,
         body: stands, entryType: 'state', delta, keys: [String(ch.index + 1)], grp, line })) remembered++;
-    // POCKETS: from the thread's own kind only, never Always true, never what it already says.
-    const kinds = slotsFor(who.entryType).map((sl) => sl.name);
+    // POCKETS: from the thread's own kind only, never Always true, never what it already says, and
+    // never the inside of a character hemmed from the outside (#90): the prompt says so, this holds it.
+    const kinds = slotsFor(who.entryType).map((sl) => sl.name)
+      .filter((k) => !(k === 'interiority' && outside.some((o) => norm(o) === norm(who.title))));
     for (const pk of (Array.isArray(m.pockets) ? m.pockets : []) as any[]) {
       const field = String(pk?.slot ?? '');
       let body = String(pk?.body ?? '').trim();

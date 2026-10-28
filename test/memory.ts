@@ -1153,6 +1153,32 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 
 
+// OUTSIDE ONLY: no interiority pocket for the character the writer plays, nor for the Hands-off one
+// while the switch is on. With the switch off, the Hands-off character is hemmed like anyone else.
+for (const lockoutOn of [true, false]) {
+  const t = db.createStory(me, { title: 'Outside only', premise: 'p', persona: 'Seth', lockedCharacter: 'Halloran', lockoutOn }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const id: Record<string, string> = {};
+  for (const title of ['Seth', 'Halloran', 'Ilse'])
+    id[title] = db.upsertEntry(t.id, me, { title, body: `[${title}: on the quay]`, entryType: 'character', keys: [title] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'Seth pushed Halloran off the quay, and Ilse pulled him out.' });
+  const inner = (name: string) => ({ slot: 'interiority', name: 'What he hides', body: `Never let ${name} say he is ashamed; show it in his hands.` });
+  answer = ['Seth', 'Halloran', 'Ilse'].map((name) => ({ name, stands: '', label: 'the quay', line: '', always: '',
+    pockets: [inner(name), { slot: 'voice', name: 'Wet and short', body: `Write ${name} short of breath and short of words.` }] }));
+  asked = null;
+  await routes['POST /api/remember'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  answer = [];
+  const has = (who: string, slot: string) => (db.proposalsOf(t.id) as any[]).some((p) => p.entry_id === id[who] && p.field === slot);
+  assert.ok(!has('Seth', 'interiority'), 'CHALK-OUTSIDE-PLAYED: no interiority pocket for the played character');
+  assert.ok(has('Seth', 'voice'), '  and his other pockets still land');
+  assert.strictEqual(has('Halloran', 'interiority'), !lockoutOn,
+    `CHALK-OUTSIDE-HANDS-OFF: no interiority pocket for the Hands-off character while the switch is ${lockoutOn ? 'on' : 'off, so it lands'}`);
+  assert.strictEqual(/OUTSIDE ONLY: Seth, Halloran/.test(asked.user), lockoutOn, '  and the ask names him only while it is on');
+  assert.ok(has('Ilse', 'interiority'), '  and anyone else gets theirs');
+}
+ok('no interiority pocket for the played or Hands-off character');
+
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several
