@@ -25,6 +25,9 @@ scene and Scenes, then Prose search, Threads and the Workbench. Strings, Talk to
 reads have left the menu: strings wait on the Workbench, Talk is the quill held down, and What he
 reads is "what is in it" on the strip under the header.
 
+Search is a bar across both columns: type and press Enter to search the tale. The Anansi name at the
+top of the tale's menu is gone, and the button that closes the menu sits beside the model.
+
 ## 2026-10-27 · Steer the next scene, and ask for something else
 
 ### A direction for Anansi, and Something else

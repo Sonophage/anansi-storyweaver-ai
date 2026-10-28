@@ -1600,8 +1600,17 @@ textarea.field { resize:vertical; min-height:70px; }
 #rail.tale3 { width:420px; }
 html[data-ui-rail="closed"] #rail.tale3 { width:76px; }
 @media (max-width:719px) { #rail.tale3, html[data-ui-rail="closed"] #rail.tale3 { width:auto; } }   /* the sheet is the whole screen */
-.talemodel > button[data-modelmenu] { border-top:0 !important; border-bottom:1px solid var(--line); margin-top:0 !important; }
-.tale3 { display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(0, 2fr); gap:10px; flex:1; min-height:0; padding-top:10px; }
+.talemodel { position:relative; flex:0 0 auto; padding-top:env(safe-area-inset-top, 0px); }
+.talemodel > button[data-modelmenu] { border-top:0 !important; border-bottom:1px solid var(--line); margin-top:0 !important;
+  padding-right:60px !important; padding-top:18px !important; }
+.talemodel > .railclose { position:absolute; top:calc(14px + env(safe-area-inset-top, 0px)); right:10px; }
+.railclose { color:var(--faint); display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; }
+.railsearch { grid-column:1 / -1; margin:2px 0 4px; }
+.tale3 { display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(0, 2fr); grid-template-rows:minmax(0, 1fr);
+  gap:10px; flex:1; min-height:0; height:100%; padding-top:10px; }
+/* The list around the columns must not scroll itself, or the scenes column never has to. */
+#rail.tale3 .scroll:has(> .tale3) { overflow:hidden; }
+#rail .scroll > .tale3 { flex:1 1 0; min-height:0; }
 .tale3scenes { min-height:0; max-height:100%; overflow-y:auto; border-right:1px solid var(--line); padding-right:6px; }
 .tale3scenes .railhead { padding-top:4px; }
 /* Whole scene names in their column, wrapping, not cut to "The Long W…". */

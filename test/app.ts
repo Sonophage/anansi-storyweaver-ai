@@ -830,7 +830,7 @@ assert.ok(!/list chapters|Chapters/.test(html('rail')),
   'and the chapter list goes with it — it named a book you are no longer looking at');
 click({ railview: 'story' });
 assert.match(html('rail'), /Storyteller/, "the story's name must bring its own menu back");
-assert.match(html('rail'), /Anansi<\/span>/, 'which is where Anansi lives');
+assert.match(html('rail'), /class="railclose"/, 'with its close beside the model (the wordmark left the tale menu on 2026-10-28)');
 ok('the menu and the story name are two doors onto one rail');
 
 // Three layers of look, and the one that must never happen is a book's theme becoming yours.
@@ -3682,8 +3682,13 @@ ok('This scene takes a direction and asks for something else');
     'TALE3-MODEL: the model sits above the columns');
   const tiles = rail.match(/<div class="taletiles">([\s\S]*)/)?.[1] ?? '';
   assert.deepStrictEqual([...tiles.matchAll(/data-nav="([a-z]+)"/g)].map((m) => m[1]),
-    ['story', 'teller', 'chapter', 'chapters', 'search', 'threads', 'waiting'],
+    ['story', 'teller', 'chapter', 'chapters', 'threads', 'waiting'],
     'TALE3-TILES: Tale and Storyteller first, then This scene and Scenes, then the rest');
+  assert.match(tiles, /class="field railsearch" data-railsearch="1"/, 'TALE3-SEARCH: search is a bar across both columns, not a tile');
+  assert.ok(tiles.indexOf('data-railsearch') > tiles.indexOf('data-nav="chapters"') && tiles.indexOf('data-railsearch') < tiles.indexOf('data-nav="threads"'),
+    '  where its tile was');
+  assert.doesNotMatch(rail, /<span class="serif txt"[^>]*>Anansi<\/span>/, 'TALE3-NOLOGO: no Anansi wordmark in the tale menu');
+  assert.match(rail, /<div class="talemodel">[\s\S]*data-modelmenu[\s\S]*class="railclose"/, 'TALE3-CLOSE: the close sits with the model');
   assert.doesNotMatch(rail, /data-nav="(strings|anansi|context)"/, '  and Strings, Talk to Anansi and What he reads are off the menu');
   const scenes = [...(rail.match(/<div class="tale3scenes scroll">([\s\S]*?)<div class="taletiles">/)?.[1] ?? '')
     .matchAll(/data-chapter="([^"]+)"/g)].map((m) => m[1]);

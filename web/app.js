@@ -913,8 +913,15 @@ function drawRail() {
    * is the quill held down, and What he reads is "what is in it" on the strip under the header.
    * Their panels and links stay. The workspace menu is unchanged. */
   $('rail').classList.toggle('tale3', !!storyMenu);
+  // THE ANANSI WORDMARK GOES FROM THE TALE'S MENU, and its close moves beside the model (Seth,
+  // 2026-10-28: "Remove the anansi text logo and do the menu exit on the right side of the model
+  // selector so we can reclaim that space"). The workspace menu keeps both.
+  const closeBtn = `<button data-rail="1" class="railclose"
+        aria-label="${S.rail ? 'Close the menu' : 'Open the menu'}"
+        ><span style="display:flex; transform:rotate(${phone() ? 90 : (S.rail ? 180 : 0)}deg);
+          transition:transform var(--t-slow) var(--ease-out)">${mark('chevron', 16)}</span></button>`;
   $('rail').innerHTML = `
-    <div style="display:flex; align-items:center; gap:10px; padding:26px 20px 20px; flex:0 0 auto">
+    ${storyMenu ? '' : `<div style="display:flex; align-items:center; gap:10px; padding:26px 20px 20px; flex:0 0 auto">
       <button data-home="1" aria-label="Anansi — back to the library"
         style="display:flex; align-items:center; gap:10px; padding:0; text-align:left">
         <!-- Issue #6 — the logo carried a background plate on every theme.
@@ -929,14 +936,10 @@ function drawRail() {
              icon, where an opaque plate is correct: an app icon has no page behind it to inherit. -->
         <span class="serif txt" style="font-size:26px; color:var(--ink-bright)">Anansi</span>
       </button>
-      <button data-rail="1" style="margin-left:auto; color:var(--faint); display:flex;
-        align-items:center; justify-content:center; padding:6px 8px"
-        aria-label="${S.rail ? 'Close the menu' : 'Open the menu'}"
-        ><span style="display:flex; transform:rotate(${phone() ? 90 : (S.rail ? 180 : 0)}deg);
-          transition:transform var(--t-slow) var(--ease-out)">${mark('chevron', 16)}</span></button>
-    </div>
+      <span style="margin-left:auto"></span>${closeBtn}
+    </div>`}
     ${back}
-    ${storyMenu ? `<div class="talemodel">${modelBlock}</div>` : ''}
+    ${storyMenu ? `<div class="talemodel">${modelBlock}${closeBtn}</div>` : ''}
     <!-- flex:1 with min-height:0 is what makes overflow-y:auto actually engage. A flex child's
          min-height is auto by default, so it refuses to shrink below its content and GROWS instead
          of scrolling — the list ran off the bottom of a rail that is overflow:hidden, and on a
@@ -947,7 +950,13 @@ function drawRail() {
             icon over word. Six rows tall instead of ten. The workspace menu keeps its list. */
         storyMenu && !V?.story?.is_world
           ? `<div class="tale3"><div class="tale3scenes scroll">${tail}</div>
-              <div class="taletiles">${TALE_MENU.map((k) => rows.find(([key]) => key === k)).filter(Boolean).map(item).join('')}</div></div>`
+              <div class="taletiles">${TALE_MENU.map((k) => k === 'search'
+                // A SEARCH BAR ACROSS BOTH COLUMNS, not a tile (2026-10-28): Enter opens Prose search
+                // with what was typed.
+                ? `<input type="search" class="field railsearch" data-railsearch="1" enterkeyhint="search"
+                    aria-label="Search this tale" placeholder="Search this tale" value="${esc(S.query ?? '')}">`
+                : (rows.find(([key]) => key === k) ?? null)).filter(Boolean)
+                .map((r) => typeof r === 'string' ? r : item(r)).join('')}</div></div>`
           : storyMenu ? `<div class="navgrid">${rows.map(item).join('')}</div>${tail}`
           : `${rows.map(item).join('')}${tail}`}</div>
 ${storyMenu ? '' : modelBlock}`;
@@ -14203,6 +14212,7 @@ document.addEventListener('input', (e) => {
     if ($('thlist')) $('thlist').innerHTML = threadRows();
     return;
   }
+  if (e.target.dataset?.railsearch) { S.query = e.target.value; return; }
   if (e.target.id === 'q') {
     S.query = e.target.value;
     clearTimeout(searchT);
@@ -14212,6 +14222,18 @@ document.addEventListener('input', (e) => {
       if ($('hits')) $('hits').innerHTML = searchHits();
     }, 220);
   }
+});
+/** THE MENU'S SEARCH BAR (2026-10-28): Enter opens Prose search on what was typed, and runs it. */
+document.addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter' || !e.target?.dataset?.railsearch) return;
+  e.preventDefault();
+  S.query = String(e.target.value ?? '').trim();
+  S.panel = 'search'; if (overlay()) S.rail = false;
+  syncHash(); paint();
+  if (!S.query) return void $('q')?.focus();
+  const r = await api.search(S.query, S.searchAll ? undefined : S.storyId);
+  HITS = r.error ? [] : (r.results ?? []);
+  if ($('hits')) $('hits').innerHTML = searchHits();
 });
 matchMedia('(max-width:1099px)').addEventListener('change', () => { S.rail = !overlay(); paint(); });
 
