@@ -945,6 +945,27 @@ ok('a kind that does not exist is refused rather than assembled');
     'QUESTIONS-BACK: the open questions come back beside the skeleton');
   assert.ok(!('questions' in sk.story), 'QUESTIONS-APART: and not inside the story, so they never land in the premise');
   ok('the premise is asked for as the opening in one wording everywhere, and the open questions come back apart from it');
+
+  // THE TICKED QUESTIONS ARE MADE AS STRINGS AT CREATE, from scene 1, summoned so they reach the
+  // model with the order not to resolve them, and inside the one create's rollback.
+  const mk = (body: any) => routes['POST /api/stories']({ body, query: new URLSearchParams(), owner: me } as any) as any;
+  const tale: any = mk({ title: 'Open Questions', premise: PREMISE, spark: true, entries: [],
+    strings: [QUESTIONS[0], { title: '   ', line: 'a question with no title is none' }] });
+  assert.ok(!tale.error, tale.error);
+  const made = db.stringsOf(tale.id);
+  assert.deepStrictEqual(made.map((x: any) => [x.title, x.body, x.from_chapter, x.status, x.summoned]),
+    [[QUESTIONS[0].title, QUESTIONS[0].line, 1, 'open', 1]],
+    'QUESTIONS-STRINGS: each one sent is a summoned, open string from scene 1; a blank one is not');
+  const plain: any = mk({ title: 'No Questions', premise: PREMISE, entries: [] });
+  assert.deepStrictEqual(db.stringsOf(plain.id), [], 'QUESTIONS-NONE: a create that sends none makes none');
+  // A Create that fails after the strings are written leaves none of them behind.
+  const owned = () => (db.listStories(me) as any[]).flatMap((s) => db.stringsOf(s.id)).length;
+  const before = owned();
+  const refused: any = mk({ title: 'Refused', premise: PREMISE, entries: [], strings: QUESTIONS,
+    seed: [{ storyId: 'no-such-tale', entryId: 'no-such-thread' }] });
+  assert.match(String(refused.error), /nothing was made/, 'QUESTIONS-ROLLBACK: a refused copy fails the Create');
+  assert.strictEqual(owned(), before, 'QUESTIONS-ROLLBACK: and its strings go with it');
+  ok('the ticked open questions become strings at Create, inside its rollback');
 }
 
 // ---- 7. ANANSI READS THE BOOK; THE BOOK DOES NOT SET HER REGISTER

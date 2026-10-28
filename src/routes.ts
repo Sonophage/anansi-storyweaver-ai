@@ -2343,6 +2343,14 @@ function openQuestions(raw: unknown): { title: string; line: string }[] {
     .filter((q) => q.title);
 }
 
+/** ADR 0009 · THE TICKED OPEN QUESTIONS, MADE AS STRINGS AT CREATE: owed from scene 1, and summoned,
+ *  because only a summoned string reaches the model, with the order not to resolve it yet. Called
+ *  inside POST /api/stories's rollback, so a Create that fails later takes them with the tale. */
+function writeOpenQuestions(storyId: string, raw: unknown) {
+  for (const q of openQuestions(raw))
+    db.upsertString(storyId, { title: q.title, body: q.line, fromChapter: 1, summoned: true });
+}
+
 /** #104 · A NEW TALE SET IN AN IP THE WRITER HAS NO WORLD FOR, at Create. Each ticked name is pulled
  *  by the fromweb lookup (`pullThread`), searched in the World's name, or from memory when the list
  *  said so or the search is off, fails or finds nothing. ALL OF THEM BEFORE ANYTHING IS WRITTEN, so
@@ -2873,6 +2881,8 @@ export const routes: Record<string, Handler> = {
         cast.push(own);
       }
       roomNotes.push(...writeCast(made.id, c.owner, cast));
+      // ADR 0009 · THE OPEN QUESTIONS THE WRITER TICKED, as strings, inside this rollback.
+      writeOpenQuestions(made.id, c.body.strings);
       // #84 · THE TALE'S OWN POCKETS from the wizard's preview (#75's `instruction` slot), switched on,
       // as the tale's own thread adds them one at a time. A blank one is not a pocket.
       for (const p of (Array.isArray(c.body.talePockets) ? c.body.talePockets : []).slice(0, 24) as any[]) {
