@@ -3525,9 +3525,12 @@ export const routes: Record<string, Handler> = {
       : [],
     entry:   c.query.get('entry')   ? db.entryHistory(c.query.get('story')!, c.query.get('entry')!)     : [],
   }),
+  // A refusal says so (#111): a pocket since deleted has nothing to put its text back into, and the
+  // page showed "Put back." over a change that did not happen.
   'POST /api/revert':      (c) => {
-    if (c.body.passageId) db.revertPassage(c.body.storyId, c.body.passageId, c.body.revisionId);
-    else db.revertEntryField(c.body.storyId, c.body.entryId, c.body.revisionId);
+    const done = c.body.passageId ? db.revertPassage(c.body.storyId, c.body.passageId, c.body.revisionId)
+      : db.revertEntryField(c.body.storyId, c.body.entryId, c.body.revisionId);
+    if (!done) return { error: 'That version could not be put back: what it belonged to is gone.' };
     return viewOf(c, c.body.storyId);
   },
   // Gated: it copies every tenant's book and returns the host path, and twelve presses

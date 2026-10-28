@@ -7509,7 +7509,7 @@ function entryEditor() {
     ${S.fieldHistory ? `<div class="lbl sect">Earlier versions</div>
       ${S.fieldHistory.length ? S.fieldHistory.map((h) => `<div class="card" style="margin-bottom:8px">
         <div class="line">
-          <span class="kind">${esc(h.field)}</span>
+          <span class="kind">${esc(h.label ?? h.field)}</span>
           <span class="count-sm">${h.replaced_at ? ago(h.replaced_at) : ''}${
             h.replaced_by ? ` &middot; ${esc(h.replaced_by)}` : ''}</span></div>
         <div class="clamp note-tight">${esc(h.previous_value ?? '')}</div>

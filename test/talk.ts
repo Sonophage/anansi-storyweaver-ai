@@ -1103,6 +1103,26 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.match(back.undone, /Put back Talia Venn's Always true/, `UNDO-EXACT: and says so (${back.undone})`);
   ok('asked to change a thread\'s Always true, Talk changes it, and Undo puts back the exact old text');
 
+  // #111 · TALK'S CHANGE AND ITS UNDO ARE BOTH IN THE THREAD'S HISTORY, so the history agrees with
+  // what Undo did: the text Talk wrote over, then the text Undo wrote over. Putting Talk's text back
+  // from the history is a revert like any other, and Talk's Undo still applies to it after.
+  const hist = () => (routes['GET /api/history']({ ...ctxOf(tale.id, {}),
+    query: new URLSearchParams({ story: tale.id, entry: talia }) }) as any).entry as any[];
+  const talkKept = hist().filter((r) => r.label === 'Always true').map((r) => r.previous_value);
+  assert.deepStrictEqual(talkKept, ['Talia is thirty.', 'Talia is twenty.'],
+    `TALK-HIST: Talk's change and its Undo each keep the text they wrote over, newest first (${JSON.stringify(talkKept)})`);
+  const revert = (revisionId: string) => routes['POST /api/revert'](ctxOf(tale.id, { entryId: talia, revisionId })) as any;
+  const r1 = revert(hist().find((r) => r.previous_value === 'Talia is thirty.').id);
+  assert.ok(!r1.error, r1.error);
+  assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is thirty.', 'TALK-HIST-REVERT: the history puts Talk\'s text back');
+  const reUndo: any = undo(age.changes[0].undo);
+  assert.ok(!reUndo.error, reUndo.error);
+  assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is twenty.', 'TALK-HIST-UNDO: and Talk\'s Undo still takes it off');
+  assert.strictEqual(hist().filter((r) => r.label === 'Always true').length, 4, '  and both are kept');
+  const refused = revert('er-no-such-row');
+  assert.match(String(refused.error), /could not be put back/, `REVERT-SAYS: a revert that is refused says so (${JSON.stringify(refused.error)})`);
+  ok('Talk\'s change and its Undo are both in the thread\'s history, and the history and Undo agree');
+
   // One room, and the rest of the thread left alone.
   const voice = await say('CHANGE-VOICE: give Morgott a slow, formal voice');
   assert.ok(!voice.error, voice.error);

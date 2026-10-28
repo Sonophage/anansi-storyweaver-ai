@@ -357,6 +357,8 @@ let stubRefuse: any = null;
 let stubTalk: any = null, stubInvent: any = null, stubUndo: any = null;
 // #100. The setup Talk's answer.
 let stubSparkTalk: any = null;
+// #111. A thread's history (Alterations), as `GET /api/history` answers it.
+let stubHistory: any = null;
 // #103. How many World lookups fail before one answers, as a dropped connection would.
 let worldDown = 0;
 (globalThis as any).fetch = async (url: string, init?: any) => {
@@ -576,6 +578,7 @@ let worldDown = 0;
     : url.startsWith('/api/after?') ? (afterAsked = new URLSearchParams(url.split('?')[1]).get('id'),
         { yours: afterYours })
     : url.startsWith('/api/manifest') ? MANIFEST
+    : url.startsWith('/api/history') ? (stubHistory ?? {})
     : url.startsWith('/api/talk/undo') ? (stubUndo ?? { undone: "Put back Marek's Always true.", ...STORY })
     : url.startsWith('/api/talk') ? (stubTalk ?? { reply: 'It is about a debt.', seconds: 1, tokens: 10 })
     : url.startsWith('/api/invent') ? (stubInvent ?? { title: 'The Rust Choir', duplicate: false })
@@ -4649,6 +4652,32 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   assert.ok(before(shared, 'entry=e-shared', 'The Ambersand'), 'above its name');
   click({ backentry: '1' });
   ok('a thread with a picture shows it at the top of the list, both faces and the form');
+}
+
+// #111 · A POCKET'S OR AN ALWAYS TRUE'S EARLIER VERSION, IN ALTERATIONS, under the name the writer
+// knows it by. The row's field is `pocket:<id>`, which is the code's and never shown.
+{
+  stubHistory = { entry: [
+    { id: 'er-1', field: 'pocket:ad-9', label: 'Always true', previous_value: 'a ferryman, forty', replaced_at: 1, replaced_by: 'human' },
+    { id: 'er-2', field: 'title', label: null, previous_value: 'Sereth', replaced_at: 1, replaced_by: 'human' }] };
+  click({ panel: 'threads' });
+  await new Promise((r) => setTimeout(r, 30));
+  click({ entry: 'e-1' });
+  await new Promise((r) => setTimeout(r, 30));
+  click({ cardview: 'form' });
+  click({ cardtab: 'more' });
+  click({ fieldhistory: '1' });
+  await new Promise((r) => setTimeout(r, 30));
+  const more = html('sideBody');
+  assert.match(more, /<span class="kind">Always true<\/span>/, 'POCKET-SHOWN: the Always true is named as itself');
+  assert.match(more, /a ferryman, forty/, '  with its old text');
+  assert.ok(!more.includes('pocket:'), 'POCKET-SHOWN: and the code\'s name for it is not on the screen');
+  assert.match(more, /<span class="kind">title<\/span>/, '  a field of the thread\'s own keeps its name');
+  stubHistory = null;
+  click({ fieldhistory: '1' });
+  click({ cardview: null });
+  click({ backentry: '1' });
+  ok('Alterations names a pocket\'s earlier version as the writer knows it');
 }
 
 // ---- AND ON THE PAGE THAT SPANS THE SHELF, from that page's own data.

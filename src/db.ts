@@ -2643,13 +2643,22 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
       .get(a.id, storyId) as any;
     const from = 'fromChapter' in a ? (a.fromChapter ?? null) : (cur?.from_chapter ?? null);
     const till = 'retiredAtChapter' in a ? (a.retiredAtChapter ?? null) : (cur?.retired_at_chapter ?? null);
-    const wasBody = String((q('SELECT body FROM addons WHERE id = ?').get(a.id) as any)?.body ?? '');
+    const was = q('SELECT body, entry_id FROM addons WHERE id = ?').get(a.id) as any;
+    const wasBody = String(was?.body ?? '');
+    // #111 · THE OLD TEXT IS KEPT, in the thread's own history beside its title and its text, under
+    // `pocket:<id>`, so Alterations shows it and `revertEntryField` puts it back. Here because every
+    // writer of a pocket or an Always true crosses here: the writer's save, Talk and its Undo, accept,
+    // the lookups. A tale's own pocket hangs off no thread, and the history is a thread's, so it is
+    // not kept.
+    if (was?.entry_id && a.body != null && String(a.body) !== wasBody)
+      q('INSERT INTO entry_revisions (id,entry_id,field,previous_value,replaced_at,replaced_by) VALUES (?,?,?,?,?,?)')
+        .run(uid('er-'), was.entry_id, `pocket:${a.id}`, wasBody, t, 'human');
     q(`UPDATE addons SET name = ?, body = ?, keys = ?, from_chapter = ?, retired_at_chapter = ?
        WHERE id = ? AND story_id = ?`)
       .run(a.name, a.body, keys, from, till, a.id, storyId);
     // Since the body moved into `facts` on 2026-08-29 the ROOMS are where a card's facts live, so
     // a room edit stales a summary on exactly the same rule as a body edit. Read before the write,
-    // because after it the old text is gone -- addons have no revision table.
+    // because after it the old text is gone from the row.
     staleSummariesFor(storyId, wasBody, String(a.body ?? ''));
     touch(storyId);
     return a.id;
@@ -3197,10 +3206,15 @@ export const passageTakes = (storyId: string, id: string) => {
              ORDER BY p.variant_index`).all(storyId, cur.chapter_id, cur.slot_key) as any[])
     .map(({ model, ...t }) => ({ ...t, remote: isRemote(model) }));
 };
+/** A thread's history: its own fields, and since #111 its pockets and Always true (`pocket:<id>`),
+ *  which carry `label`, the name the writer knows them by. A pocket since deleted is labelled so. */
 export const entryHistory = (storyId: string, id: string) => q(
-  `SELECT r.id, r.field, r.previous_value, r.replaced_at, r.replaced_by
+  `SELECT r.id, r.field, r.previous_value, r.replaced_at, r.replaced_by,
+     CASE WHEN r.field NOT LIKE 'pocket:%' THEN NULL WHEN a.id IS NULL THEN 'A pocket since deleted'
+       WHEN a.slot = 'facts' THEN 'Always true' ELSE COALESCE(NULLIF(TRIM(a.name), ''), a.slot) END AS label
    FROM entry_revisions r JOIN entries e ON e.id = r.entry_id
-   WHERE r.entry_id = ? AND e.story_id = ? ORDER BY r.replaced_at DESC`).all(id, storyId) as any[];
+   LEFT JOIN addons a ON r.field LIKE 'pocket:%' AND a.id = substr(r.field, 8) AND a.entry_id = r.entry_id
+   WHERE r.entry_id = ? AND e.story_id = ? ORDER BY r.replaced_at DESC, r.rowid DESC`).all(id, storyId) as any[];
 
 /** Restoring is an edit, so the current text is itself kept. Nothing is ever lost. */
 export function revertPassage(storyId: string, passageId: string, revisionId: string) {
@@ -3219,13 +3233,24 @@ export function revertEntryField(storyId: string, entryId: string, revisionId: s
                  WHERE r.id = ? AND r.entry_id = ? AND e.story_id = ?`)
     .get(revisionId, entryId, storyId) as any;
   if (!rev) return false;
+  // #111 · A POCKET OR AN ALWAYS TRUE goes back through `upsertAddon`, the save every writer of one
+  // crosses: it keeps the text it writes over, stores it plain and stales summaries by the same rule.
+  // Only while that pocket is still on this thread.
+  if (String(rev.field).startsWith('pocket:')) {
+    const a = q('SELECT * FROM addons WHERE id = ? AND entry_id = ? AND story_id = ?')
+      .get(rev.field.slice('pocket:'.length), entryId, storyId) as any;
+    if (!a) return false;
+    return !!upsertAddon(storyId, entryId, { id: a.id, slot: a.slot, name: a.name,
+      body: rev.previous_value ?? '', keys: JSON.parse(a.keys || '[]') });
+  }
+  // The column name is interpolated, so it is whitelisted rather than trusted — the value
+  // comes from our own rows today, but a column name can never be a bound parameter. Checked
+  // BEFORE the current text is logged, so a refused revert leaves no row behind.
+  if (!['title', 'body', 'keys', 'notes'].includes(rev.field)) return false;
   const cur = q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId) as any;
   if (!cur) return false;
   q('INSERT INTO entry_revisions (id,entry_id,field,previous_value,replaced_at,replaced_by) VALUES (?,?,?,?,?,?)')
     .run(uid('er-'), entryId, rev.field, cur[rev.field], now(), 'human');
-  // The column name is interpolated, so it is whitelisted rather than trusted — the value
-  // comes from our own rows today, but a column name can never be a bound parameter.
-  if (!['title', 'body', 'keys', 'notes'].includes(rev.field)) return false;
   q(`UPDATE entries SET ${rev.field} = ?, updated_at = ? WHERE id = ? AND story_id = ?`)
     .run(rev.previous_value, now(), entryId, storyId);
   return true;

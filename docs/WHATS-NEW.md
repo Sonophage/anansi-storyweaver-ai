@@ -93,6 +93,15 @@ Threads you already have are cleaned once, when the update starts: the brackets 
 front come off, and nothing else in the text changes. A copy of your library is kept first, and
 each tale's update report lists every box that was cleaned.
 
+### Every change to Always true or a pocket can be put back
+When Always true or a pocket changes, the text it had before is kept. That is true when you change
+it, when Talk changes it, when Talk's Undo puts it back, and when you accept a change Anansi
+offered. The earlier versions are with the thread's others: open the thread, choose Earlier
+versions, and each one is named as you know it (Always true, or the pocket's name). Put this back
+returns it, and the text it replaces is kept too. Talk's Undo still works as before, and what it
+does shows here as well. A pocket you have deleted cannot be put back, and Anansi says so. A tale's
+own pockets are not kept this way yet.
+
 ## 2026-10-28 · Anansi changes what you ask him to
 
 ### Ask in Talk, and it is done

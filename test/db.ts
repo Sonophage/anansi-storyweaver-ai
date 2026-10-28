@@ -3867,6 +3867,53 @@ ok('a pocket or an Always true is stored without the bracket wrapper or the name
   db.delStory(t.id);
 });
 
+// #111 · EVERY CHANGE TO A POCKET OR AN ALWAYS TRUE KEEPS THE OLD TEXT, in the thread's own history
+// (Alterations), beside its title and its text, and the one revert puts it back. Putting back is
+// itself a change, so the text it writes over is kept too.
+ok('a pocket\'s or an Always true\'s old text is kept, and revert puts it back', () => {
+  const t = db.createStory(o, { title: 'Kept', premise: 'p' });
+  const e = db.upsertEntry(t.id, o, { title: 'Marek', body: '', entryType: 'character' })!;
+  const body = (id: string) => (db.addonsOf(t.id) as any[]).find((a) => a.id === id)?.body;
+  const facts = db.upsertAddon(t.id, e, { slot: 'facts', name: 'facts', body: 'a ferryman, forty' })!;
+  const voice = db.upsertAddon(t.id, e, { slot: 'voice', name: 'How he talks', body: 'short, flat' })!;
+  assert.strictEqual(db.entryHistory(t.id, e).length, 0, 'POCKET-HIST-NEW: making a pocket replaces no text, so nothing is logged');
+  db.upsertAddon(t.id, e, { slot: 'facts', name: 'facts', body: 'a ferryman, fifty' });
+  db.upsertAddon(t.id, e, { id: voice, slot: 'voice', name: 'How he talks', body: 'slow, formal' });
+  db.upsertAddon(t.id, e, { id: voice, slot: 'voice', name: 'How he talks', body: 'slow, formal' });
+  const h = db.entryHistory(t.id, e) as any[];
+  assert.strictEqual(h.length, 2, `POCKET-HIST-LOG: one row per change, none for a save that changed nothing (${JSON.stringify(h)})`);
+  const was = (v: string) => h.find((r) => r.previous_value === v);
+  assert.ok(was('a ferryman, forty'), 'POCKET-HIST-ALWAYS: the old Always true is kept');
+  assert.ok(was('short, flat'), 'POCKET-HIST-POCKET: and the old pocket text');
+  assert.strictEqual(was('a ferryman, forty').label, 'Always true', 'POCKET-HIST-LABEL: named as the writer knows it');
+  assert.strictEqual(was('short, flat').label, 'How he talks', '  and a pocket by its name');
+  assert.ok(db.revertEntryField(t.id, e, was('short, flat').id), 'POCKET-REVERT: the revert takes it');
+  assert.strictEqual(body(voice), 'short, flat', 'POCKET-REVERT: the old pocket text is back');
+  assert.ok(db.revertEntryField(t.id, e, was('a ferryman, forty').id));
+  assert.strictEqual(body(facts), 'a ferryman, forty', 'POCKET-REVERT: and the old Always true');
+  const after = db.entryHistory(t.id, e) as any[];
+  assert.ok(after.some((r) => r.previous_value === 'slow, formal') && after.some((r) => r.previous_value === 'a ferryman, fifty'),
+    'POCKET-REVERT-KEPT: the text a revert writes over is kept in turn');
+  // A pocket that is gone has nothing to put the text back into, and the revert says no.
+  db.delAddon(t.id, voice);
+  assert.strictEqual(db.revertEntryField(t.id, e, was('short, flat').id), false, 'POCKET-REVERT-GONE: a deleted pocket is not put back');
+  db.delStory(t.id);
+});
+
+// A REFUSED REVERT LEAVES NO ROW. The field whitelist was checked after the current text was logged,
+// so a row naming a column the revert may not write left a junk row in the history each time.
+ok('a revert that is refused writes nothing to the history', () => {
+  const t = db.createStory(o, { title: 'Junk', premise: 'p' });
+  const e = db.upsertEntry(t.id, o, { title: 'Ines', body: 'b', entryType: 'character' })!;
+  const raw = new RawDb('/tmp/anansi-test.db');
+  raw.prepare('INSERT INTO entry_revisions (id,entry_id,field,previous_value,replaced_at,replaced_by) VALUES (?,?,?,?,?,?)')
+    .run('er-forged', e, 'activation', 'triggered', Date.now(), 'human');
+  raw.close();
+  assert.strictEqual(db.revertEntryField(t.id, e, 'er-forged'), false, 'REVERT-REFUSED: a column off the list is refused');
+  assert.strictEqual(db.entryHistory(t.id, e).length, 1, 'REVERT-NO-JUNK: and no row is added for it');
+  db.delStory(t.id);
+});
+
 // #110 · THE UPDATE TAKES THE WRAPPERS OFF THE LIBRARY ONCE. Built on a copy made here, never the live
 // file: rows written past the floor, as an old server wrote them, then two boots of the real module.
 ok('the update strips old wrappers once, after a backup, names each, and leaves clean text alone', () => {
