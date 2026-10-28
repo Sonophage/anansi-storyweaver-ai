@@ -373,18 +373,19 @@ for (const [where, go] of [["the shelf", async () => { await page.goto(B + "/");
   // pass with the main menu missing and the story menu present twice.
   // THE RULE IS "YOU CAN REACH THE MAIN MENU FROM HERE", not "the header has a button". Seth,
   // 2026-08-29, took the word Anansi out of the header: on the shelf the header name still opens
-  // the main menu in one tap, and INSIDE A STORY it is deliberately two — the ⋯ (the story's name until #71 round two) opens
-  // the story menu, and the Anansi word at the top of that menu opens the main one. Counting header
-  // doors called that zero and it is not; the path is walked instead, which is the thing that would
-  // actually be broken if this regressed.
+  // the main menu in one tap, and INSIDE A STORY it is deliberately two. Counting header doors
+  // called that zero and it is not; the path is walked instead, which is the thing that would
+  // actually be broken if this regressed. The two were the tale menu's door and the Anansi word at
+  // the top of that menu until 2026-10-28, when the tale's menu lost the wordmark ("Remove the
+  // anansi text logo"). Since then they are the ‹, back to the library, and the library's ☰.
+  const own = await page.eval("document.querySelectorAll('#bar [data-railview=\"story\"]').length");
   let doors = await page.eval("document.querySelectorAll('#bar [data-railview=\"workspace\"]').length");
-  if (!doors) {
-    await page.click('#bar [data-railview="story"]');
-    await wait(500);
-    doors = await page.eval("document.querySelectorAll('#rail [data-home]').length");
+  if (!doors && await page.eval("!!document.querySelector('#bar [data-home]')")) {
+    await page.click('#bar [data-home]');
+    await wait(800);
+    doors = await page.eval("document.querySelectorAll('#bar [data-railview=\"workspace\"]').length");
   }
   ok(`  a way into the menu on ${where} (${doors})`, doors >= 1);
-  const own = await page.eval("document.querySelectorAll('#bar [data-railview=\"story\"]').length");
   // Two in a story from 2026-10-25 (the title and R1's ⋯), and one since #71's second round: the
   // title opens the tale's Threads now and the ⋯ is the menu's door.
   ok(`  and the story's own menu door is there only in a story (${own})`,
