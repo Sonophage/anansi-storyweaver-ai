@@ -760,6 +760,9 @@ function applyChange(storyId: string, owner: string, ch: Change):
   if (ch.op === 'state.unmake') { db.delState(storyId, ch.state); return {}; }
   // The retirement taken out of its Over time, the way the ✕ on that line takes it out by hand.
   if (ch.op === 'retire.unmake') return db.delEvent(storyId, ch.event) ? {} : null;
+  // #101 · A take-over handed back through the thread's own Hand back press, keeping the World's
+  // version: the copy goes, with its pockets, Over time and dated events, and the World's is read.
+  if (ch.op === 'takeover.unmake') return db.relinkEntry(storyId, owner, ch.thread, 'theirs') ? {} : null;
   return null;
 }
 
