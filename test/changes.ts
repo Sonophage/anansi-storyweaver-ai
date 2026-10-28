@@ -134,6 +134,15 @@ ok('CHANGE-NEW-REFUSED: no name, a kind nobody defined, or a name the tale alrea
     /already a thread called Talia Venn/);
 });
 
+ok('CHANGE-NEW-NO-TEXT: a new thread with no Always true is not made, on a tale or on a draft', () => {
+  // The route made the thread, wrote no Always true, and said "Made a new thread".
+  for (const text of [undefined, '', '   ', 'https://myth.example/charon/1'])
+    refused(ch.checkAsked({ op: 'thread.new', title: 'The ferryman', type: 'character', text }, tale), /no Always true/i);
+  const draft = { story: { title: 'T' }, entries: [{ title: 'Ilva', entryType: 'character', body: '[Ilva: low.]' }] };
+  for (const text of [undefined, '', '  '])
+    refused(ch.checkDraft({ op: 'thread.new', title: 'The ferryman', type: 'character', text }, draft), /no Always true/i);
+});
+
 ok('CHANGE-CLOSED-LIST: no delete, no prose, and nothing an Undo alone may do', () => {
   for (const op of ['thread.delete', 'passage.set', 'prose.write', 'thread.unmake', 'room.unmake', '', undefined])
     refused(ch.checkAsked({ op, thread: 'Talia', text: 'x', addon: 'a-tf', title: 'Talia Venn' }, tale),

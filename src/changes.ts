@@ -207,8 +207,11 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   return setOn(hit, roomOf(raw.room), String(raw.text ?? '').trim(), said, false);
 }
 
-/** A NEW THREAD'S NAME AND KIND, checked the one way for a tale and a draft: it has a name, its kind
- *  is a kind, and no thread already has that name. */
+/** A NEW THREAD'S NAME, KIND AND ALWAYS TRUE, checked the one way for a tale and a draft: it has a
+ *  name, its kind is a kind, no thread already has that name, and it comes with an Always true. A
+ *  thread with none would be made with nothing the model is told about it, and the reply would still
+ *  say it was made. The text is read after the link is taken out and without a name in front of it,
+ *  so a link or the name alone is no text. */
 function newThread(raw: any, tale: Tale): { title: string; type: string } | { why: string } {
   const title = String(raw.title ?? raw.thread ?? '').trim();
   const type = String(raw.type ?? '').trim();
@@ -217,6 +220,7 @@ function newThread(raw: any, tale: Tale): { title: string; type: string } | { wh
     return { why: `"${type || 'nothing'}" is not a kind of thread. A thread is ${KINDS.join(', ')}` };
   const twin = tale.entries.find((e) => norm(e.title) === norm(title));
   if (twin) return { why: `there is already a thread called ${twin.title}` };
+  if (!alwaysOf(title, raw.text)) return { why: `it came with no Always true for ${title}` };
   return { title, type };
 }
 
