@@ -3515,6 +3515,23 @@ ok("a tale following a World names it in its World field, and the two never disa
     "another writer's World does not put its name in her tale");
 });
 
+// #107 · RENAMING A WORLD RENAMES THE WORLD FIELD OF EVERY TALE THAT FOLLOWS IT. Otherwise the pair
+// splits the other way round: the tale follows "The Lands Between" while its field still says
+// "Elden Ring", and the model is told two settings.
+ok('renaming a World renames the World field of the tales that follow it, and no other', () => {
+  const kia = db.owner('kia-107-rename');
+  const ring = db.createWorld(kia, { title: 'Elden Ring' });
+  const one = db.storyFollowing(kia, ring.id, 'The Lands Between')!;
+  const two = db.storyFollowing(kia, ring.id, 'A Second Tarnished')!;
+  const own = db.createStory(kia, { title: 'Its own' });
+  db.updateStory(own.id, { world: 'Elden Ring' });   // names the IP, follows nothing
+  db.updateStory(ring.id, { title: 'The Lands Between (World)' });
+  const field = (id: string) => (db.getStory(id) as any).world;
+  assert.deepStrictEqual([field(one.id), field(two.id)], ['The Lands Between (World)', 'The Lands Between (World)'],
+    'RENAME-FOLLOWERS: both tales that follow it name it by its new title');
+  assert.strictEqual(field(own.id), 'Elden Ring', 'RENAME-ONLY-FOLLOWERS: a tale that only names the IP keeps its field');
+});
+
 // #102. A SCENE PIN CAN HOLD A THREAD OF THE WORLD THE TALE FOLLOWS. The thread stays the World's: it
 // is pinned by its own id, it is not copied into the tale, and it reaches the model for that scene.
 // Margit's wake word never appears in the scene, so the pin is the only way she can be sent.

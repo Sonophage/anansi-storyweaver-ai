@@ -45,7 +45,8 @@ Go on with no World: the tale keeps the name and follows nothing.
 
 ### A tale's universe always names the World it follows
 When a tale follows a World, the universe or IP in its Tale settings is that World's name, so the
-two never say different things.
+two never say different things. Rename the World, and every tale that follows it takes the new
+name too.
 
 ### Bring in a thread of the World your tale follows
 In a scene's setup, you can now tick a person or place from the World your tale follows, the same

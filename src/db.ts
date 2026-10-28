@@ -3063,6 +3063,11 @@ export function updateStory(id: string, s: any) {
       pair.world,
       p('worldNote', 'world_note') ?? null,
       now(), id);
+  // #107 · A WORLD RENAMED RENAMES THE FIELD OF EVERY TALE THAT FOLLOWS IT, through `followPair`,
+  // so the rule for what the field says stays in one place.
+  if (cur.is_world && s.title !== undefined && s.title !== cur.title)
+    for (const f of q('SELECT * FROM stories WHERE lore_from = ?').all(id) as any[])
+      q('UPDATE stories SET world = ? WHERE id = ?').run(followPair(f, f.lore_from, f.world).world, f.id);
 }
 /** Partial save. `undefined` means "leave it", which `updateStory` above has done since it was
  *  written and this did not: it wrote `c.keepWhole ? 1 : 0` unconditionally, and both callers send
