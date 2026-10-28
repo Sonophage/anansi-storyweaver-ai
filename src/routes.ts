@@ -706,11 +706,20 @@ function applyChange(storyId: string, owner: string, ch: Change): { thread?: str
     if (!ch.addon && !ch.keys.length) db.setAddonActive(storyId, id, true);
     return { addon: id };
   }
+  // #98. The premise or the setting, through the save the tale's own panel makes. Only the one
+  // field is named, and `updateStory` leaves every field it is not handed as it was.
+  if (ch.op === 'tale.set') { db.updateStory(storyId, { [ch.field]: ch.text }); return {}; }
   // The two an Undo alone may do, each only on a thread or room Talk made and nobody has changed
   // since — `checkUndo` refused anything else before this was reached.
   if (ch.op === 'thread.unmake') { db.delEntry(storyId, ch.thread); return {}; }
-  db.delAddon(storyId, ch.addon); return {};
+  if (ch.op === 'room.unmake') { db.delAddon(storyId, ch.addon); return {}; }
+  return null;
 }
+
+/** #98 · THE TALE A CHANGE IS CHECKED AGAINST, read through the gate as it stands now: its threads,
+ *  its premise and setting, its scenes, and the scene the writer is in. */
+const taleOf = (id: string) => { const v = bookOf(id);
+  return { entries: v.entries as any[], story: v.story, chapters: v.chapters, at: v.currentChapter?.index ?? 1 }; };
 
 /** WHICH ROOM A PROPOSED CHANGE LANDS IN, asked once for every pass that can name one.
  *
@@ -3503,7 +3512,7 @@ export const routes: Record<string, Handler> = {
     const changes: { words: string; undo: any }[] = [];
     const notDone: { said: string; why: string }[] = [];
     for (const raw of (Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4)) {
-      const k = checkAsked(raw, { entries: bookOf(v.id).entries as any[] });
+      const k = checkAsked(raw, taleOf(v.id));
       if (!k.ok) { notDone.push({ said: k.said, why: k.why }); continue; }
       const made = applyChange(v.id, c.owner, k.change);
       if (!made) { notDone.push({ said: wordsFor(k.change), why: 'the tale refused it' }); continue; }
@@ -3525,7 +3534,7 @@ export const routes: Record<string, Handler> = {
    *  text or taking away a thread or room Talk made while it is still exactly as Talk made it. */
   'POST /api/talk/undo': (c: Ctx) => {
     const v = bookOf(c.body.storyId);
-    const k = checkUndo(c.body.undo, { entries: v.entries as any[] });
+    const k = checkUndo(c.body.undo, taleOf(v.id));
     if (!k.ok) return { error: `Not undone: ${k.why}.` };
     if (!applyChange(v.id, c.owner, k.change)) return { error: 'Not undone: the tale refused it.' };
     return { undone: wordsFor(k.change), ...viewOf(c, v.id) };

@@ -78,6 +78,9 @@ const srv = createServer((req, res) => {
                   { op: 'thread.set', thread: 'Ring Law', room: 'voice', text: 'Loud.' },
                   { op: 'thread.delete', thread: 'Talia' },
                   { op: 'passage.set', text: 'The rain stopped.' }] },
+      // #98 · the rest of the list.
+      PREMISE: { reply: 'The premise is darker now.',
+        changes: [{ op: 'tale.set', field: 'premise', text: 'A river nobody crosses twice.' }] },
     };
     const answer = asked && CHANGES[asked] ? CHANGES[asked]
       : asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
@@ -1016,7 +1019,7 @@ ok('emptying the box gives her back the voice she shipped with');
   const age = await say('CHANGE-AGE: make Talia thirty, not twenty');
   assert.ok(!age.error, age.error);
   const ops = calls[0].response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum;
-  assert.deepStrictEqual(ops, ['thread.new', 'thread.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
+  assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'tale.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
 
   // Always true, changed at once.
   assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is thirty.', 'CHANGE-DONE: Talia\'s Always true is changed');
@@ -1105,6 +1108,32 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual((db.addonsOf(other.id) as any[])[0].body, 'Hers alone.', 'UNDO-SCOPE: and hers is as it was');
   assert.ok((db.entriesOf(other.id) as any[]).some((e) => e.id === hers), 'UNDO-SCOPE: still there');
   ok('an Undo cannot reach a thread of another tale');
+}
+
+// ---- 6f · THE REST OF WHAT TALK CHANGES WHEN ASKED (#98) ----
+//
+// The tale's premise and setting, a scene's title and where it heads, a thread's Over time, how it
+// wakes, and its retirement. Each through the function a hand edit uses, each with an Undo that puts
+// back exactly what was there, and nothing ever deleted.
+{
+  const tale = db.createStory(me, { title: 'The Delta', premise: 'A river between the living and the dead.',
+    chapterTitle: 'The Bank' }) as any;
+  const ctxOf = (body: any) => ({ body: { storyId: tale.id, ...body }, query: new URLSearchParams(),
+    owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+  const say = (said: string) => { calls = []; return routes['POST /api/talk'](ctxOf({ said })) as Promise<any>; };
+  const undo = (u: any) => routes['POST /api/talk/undo'](ctxOf({ undo: u })) as any;
+  const story = () => db.getStory(tale.id) as any;
+
+  const dark = await say('CHANGE-PREMISE: make the premise darker');
+  assert.ok(!dark.error, dark.error);
+  assert.strictEqual(story().premise, 'A river nobody crosses twice.', 'TALE-SET: the premise is changed');
+  assert.strictEqual(story().title, 'The Delta', 'TALE-SET: and nothing else of the tale');
+  assert.match(dark.changes[0]?.words ?? '', /tale's premise/, `TALE-SET: the line says so (${JSON.stringify(dark.changes)})`);
+  const back: any = undo(dark.changes[0].undo);
+  assert.ok(!back.error, back.error);
+  assert.strictEqual(story().premise, 'A river between the living and the dead.', 'UNDO-TALE: the old premise, word for word');
+  ok('asked to change the premise, Talk changes it, and Undo puts back the old one');
 }
 
 // ---- 6d · THE WRITER MOVES A PROPOSAL, AND THE WRITER OUTRANKS THE MODEL ----

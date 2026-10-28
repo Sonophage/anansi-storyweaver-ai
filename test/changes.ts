@@ -173,6 +173,38 @@ ok('UNDO-UNMAKE: a thread or room Talk made is taken away only while it is as Ta
   refused(ch.checkUndo({ op: 'thread.new', title: 'X', type: 'lore', text: 'y' }, made), /not something Undo can do/i);
 });
 
+// ---- #98 · the rest of what Talk changes: the tale, a scene, Over time, wake words, retirement ----
+//
+// The tale as the route hands it over: its threads, its premise and setting, its scenes, and the
+// scene the writer is in.
+const whole = { ...tale, story: { premise: 'A river between the living and the dead.', setting: '' },
+  chapters: [{ id: 'c-1', index: 1, title: 'The Bank', authorsNote: 'Toward the crossing.' },
+             { id: 'c-2', index: 2, title: 'Mid-river', authorsNote: '' }],
+  at: 2 };
+
+ok('TALE-SET: the premise or the setting, with the old one for Undo', () => {
+  const c = done(ch.checkAsked({ op: 'tale.set', field: 'premise', text: 'A river nobody crosses twice.' }, whole));
+  assert.strictEqual(c.field, 'premise');
+  assert.strictEqual(c.before, 'A river between the living and the dead.');
+  assert.match(ch.wordsFor(c), /tale's premise.*A river nobody crosses twice\./);
+  assert.deepStrictEqual(ch.undoFor(c, {}), { op: 'tale.set', field: 'premise', text: 'A river between the living and the dead.' });
+  // An empty setting is a setting not yet written; Undo puts the empty one back.
+  const s = done(ch.checkAsked({ op: 'tale.set', field: 'Setting', text: 'A grey delta.' }, whole));
+  assert.strictEqual(s.field, 'setting', 'the field as a writer says it');
+  assert.strictEqual(ch.undoFor(s, {})!.text, '');
+  const u = done(ch.checkUndo({ op: 'tale.set', field: 'setting', text: '' }, whole));
+  assert.match(ch.wordsFor(u), /Put back the tale's setting/);
+});
+
+ok('TALE-SET-REFUSED: a field that is not the premise or setting, no text, or the same text', () => {
+  refused(ch.checkAsked({ op: 'tale.set', field: 'title', text: 'The Crossing II' }, whole), /premise or its setting/i);
+  refused(ch.checkAsked({ op: 'tale.set', field: 'genre', text: 'Horror' }, whole), /premise or its setting/i);
+  refused(ch.checkAsked({ op: 'tale.set', field: 'premise', text: ' ' }, whole), /no text/i);
+  refused(ch.checkAsked({ op: 'tale.set', field: 'premise', text: 'A river between the living and the dead.' }, whole),
+    /already says/i);
+  refused(ch.checkUndo({ op: 'tale.set', field: 'spice', text: '5' }, whole), /premise or its setting/i);
+});
+
 ok('the change slice never reaches for the database itself', () => {
   const src = readFileSync(new URL('../src/changes.ts', import.meta.url), 'utf8');
   assert.ok(!/from '\.\/db\.ts'/.test(src), 'src/changes.ts must not import db.ts');

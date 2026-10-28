@@ -1652,6 +1652,7 @@ done the moment you answer, so a thing they did not ask for is never a change; o
 - thread.set: the thread by its name, the room (none for its Always true), and the whole new text
   of that room as it should read.
 - thread.new: its title, its type, its Always true as text, and its keys.
+- tale.set: the field (premise or setting) and its whole new text.
 
 Say in the reply what you changed. You never write or change prose, here or anywhere in Talk.
 

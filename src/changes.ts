@@ -23,10 +23,17 @@
  */
 import { ALL_SLOTS, KINDS, slotsFor } from './slots.ts';
 
-/** What the model may ask for. #97 cuts the path with these two; the later tickets add to it. */
-export const ASKED = ['thread.new', 'thread.set'] as const;
+/** What the model may ask for. #97 cut the path with the first two; #98 adds the rest. */
+export const ASKED = ['thread.new', 'thread.set', 'tale.set'] as const;
 /** What only an Undo may do, beside putting back old text. */
 const UNMAKE = ['thread.unmake', 'room.unmake'] as const;
+/** What an Undo may put back as it was: the asked operations that write over a value, by id. */
+const PUT_BACK = ['thread.set', 'tale.set'] as const;
+
+/** THE TALE'S OWN FIELDS TALK MAY CHANGE. Until the tale's thread is built (GLOSSARY), its premise
+ *  and setting are the story's own columns, and these are the two. Rules are rule threads today, so
+ *  they are changed through the thread operations. */
+const TALE_FIELDS = ['premise', 'setting'] as const;
 
 /** The schema fragment Talk's answer carries. Flat, one object per change: the grammar cannot say
  *  "these fields for this operation", and the checks below are what enforce that. */
@@ -47,6 +54,8 @@ export const CHANGES_SCHEMA = {
       type: { type: 'string', enum: [...KINDS] },
       keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
       activation: { type: 'string', enum: ['always_on', 'triggered'] },
+      // tale.set: which of the tale's own fields.
+      field: { type: 'string', enum: [...TALE_FIELDS] },
     },
     required: ['op'],
   },
@@ -54,7 +63,10 @@ export const CHANGES_SCHEMA = {
 
 type Room = { id: string; slot: string; name: string; body: string; keys: string[]; active: boolean };
 type Thread = { id: string; title: string; entryType: string; addons?: Room[]; sharedFrom?: string | null };
-export type Tale = { entries: Thread[] };
+/** The tale as the route read it through the gate: its threads, and since #98 its own fields, its
+ *  scenes and the scene the writer is in. The later three are optional so a check that needs only
+ *  threads can be handed only threads. */
+export type Tale = { entries: Thread[]; story?: { premise?: string | null; setting?: string | null } };
 
 export type Change =
   | { op: 'thread.new'; title: string; type: string; always: string; keys: string[]; activation: string }
@@ -63,10 +75,13 @@ export type Change =
   | { op: 'thread.set'; thread: string; title: string; type: string; room: string; addon: string | null;
       name: string; keys: string[]; text: string; before: string | null; undo?: true }
   | { op: 'thread.unmake'; thread: string; title: string }
-  | { op: 'room.unmake'; thread: string; title: string; addon: string; room: string };
+  | { op: 'room.unmake'; thread: string; title: string; addon: string; room: string }
+  /** `before` is the field's text before the change; on an Undo, the text being put back. */
+  | { op: 'tale.set'; field: string; text: string; before: string; undo?: true };
 export type Checked = { ok: true; change: Change } | { ok: false; said: string; why: string };
 
-const NOT_TALK = 'that is not something Talk can do. It changes threads; it does not delete them or touch prose.';
+const NOT_TALK = 'that is not something Talk can do. It changes the tale, its threads and its scenes; '
+  + 'it does not delete anything or touch prose.';
 
 /** A name as both sides of a comparison read it: case, punctuation and a leading article gone. */
 const norm = (t: unknown) => String(t ?? '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
@@ -133,9 +148,24 @@ export function checkAsked(raw: any, tale: Tale): Checked {
     const activation = type !== 'character' && raw.activation === 'triggered' && keys.length ? 'triggered' : 'always_on';
     return { ok: true, change: { op, title, type, always: String(raw.text ?? '').trim(), keys, activation } };
   }
+  if (op === 'tale.set') return taleSet(tale, raw, said, false);
   const { hit, why } = threadNamed(tale, raw.thread);
   if (!hit) return { ok: false, said, why: why! };
   return setOn(hit, roomOf(raw.room), String(raw.text ?? '').trim(), said, false);
+}
+
+/** #98 · THE TALE'S PREMISE OR SETTING. Shared by a request and an Undo; an Undo may put back an
+ *  empty field, because that is what was there. */
+function taleSet(tale: Tale, raw: any, said: string, undo: boolean): Checked {
+  const field = String(raw?.field ?? '').trim().toLowerCase();
+  if (!(TALE_FIELDS as readonly string[]).includes(field)) return { ok: false, said,
+    why: `Talk changes the tale's premise or its setting, not its ${field || 'nothing'}` };
+  const text = String(raw.text ?? '').trim();
+  const before = String((tale.story as any)?.[field] ?? '');
+  if (!undo && !text) return { ok: false, said, why: 'it came with no text' };
+  if (!undo && before.trim() === text) return { ok: false, said, why: `the tale's ${field} already says that` };
+  return { ok: true, change: { op: 'tale.set', field, text, before: undo ? text : before,
+    ...(undo ? { undo: true as const } : {}) } };
 }
 
 /** A thread.set, once its thread is known. Shared by a request and an Undo, so the two cannot
@@ -161,8 +191,9 @@ function setOn(t: Thread, slot: string, text: string, said: string, undo: boolea
 export function checkUndo(raw: any, tale: Tale): Checked {
   const op = String(raw?.op ?? '');
   const said = 'Undo';
-  if (op !== 'thread.set' && !(UNMAKE as readonly string[]).includes(op))
+  if (!(PUT_BACK as readonly string[]).includes(op) && !(UNMAKE as readonly string[]).includes(op))
     return { ok: false, said, why: 'that is not something Undo can do' };
+  if (op === 'tale.set') return taleSet(tale, raw, said, true);
   const t = tale.entries.find((e) => e.id === String(raw.thread ?? ''));
   if (!t) return { ok: false, said, why: 'that thread is no longer in this tale' };
   const text = String(raw.text ?? '');
@@ -188,6 +219,8 @@ export function wordsFor(c: Change): string {
   if (c.op === 'thread.new') return `Made a new thread: ${c.title}, ${an(c.type)}.`;
   if (c.op === 'thread.unmake') return `Took away ${c.title}.`;
   if (c.op === 'room.unmake') return `Took away ${c.title}'s ${roomLabel(c.room)}.`;
+  if (c.op === 'tale.set') return c.undo ? `Put back the tale's ${c.field}.`
+    : `Changed the tale's ${c.field}: “${clip(c.text)}”`;
   if (c.undo) return `Put back ${c.title}'s ${roomLabel(c.room)}.`;
   return `Changed ${c.title}'s ${roomLabel(c.room)}: “${clip(c.text)}”`;
 }
@@ -196,6 +229,7 @@ export function wordsFor(c: Change): string {
 function saidOf(raw: any): string {
   const name = String(raw?.thread ?? raw?.title ?? '').trim();
   if (raw?.op === 'thread.new') return `Make a new thread${name ? `: ${name}` : ''}`;
+  if (raw?.op === 'tale.set') return `Change the tale's ${String(raw?.field ?? '').trim() || 'premise or setting'}`;
   if (raw?.op === 'thread.set') return `Change ${name || 'a thread'}${raw?.room && roomOf(raw.room) !== 'facts'
     ? `'s ${roomLabel(roomOf(raw.room))}` : ''}`;
   return `${String(raw?.op ?? 'something') || 'something'}${name ? ` on ${name}` : ''}`;
@@ -205,6 +239,7 @@ function saidOf(raw: any): string {
  *  minted, which nothing knows before it. Returned with the change, and sent back by the Undo. */
 export function undoFor(c: Change, made: { thread?: string; addon?: string }) {
   if (c.op === 'thread.new') return { op: 'thread.unmake', thread: made.thread, title: c.title, text: c.always };
+  if (c.op === 'tale.set') return { op: 'tale.set', field: c.field, text: c.before };
   if (c.op !== 'thread.set') return null;
   if (c.before == null) return { op: 'room.unmake', thread: c.thread, addon: made.addon, text: c.text };
   return { op: 'thread.set', thread: c.thread, room: c.room, addon: c.addon, text: c.before };
