@@ -28,6 +28,10 @@ reads is "what is in it" on the strip under the header.
 Search is a bar across both columns: type and press Enter to search the tale. The Anansi name at the
 top of the tale's menu is gone, and the button that closes the menu sits beside the model.
 
+The main menu has the same shape: the model at the top, your tales down the left (most recent first),
+and the menu as tiles beside them. The Workbench has its own icon, a bench, instead of sharing the
+threads' rings.
+
 ## 2026-10-27 · Steer the next scene, and ask for something else
 
 ### A direction for Anansi, and Something else

@@ -409,7 +409,7 @@ const SNAV = [
   ['search', 'search', 'Prose search'],
   ['threads', 'threads', 'Threads'],
   // Everything this book is waiting on, in one place — see the panel for why one place matters.
-  ['waiting', 'threads', 'Workbench'],
+  ['waiting', 'workbench', 'Workbench'],
   ['strings', 'strings', 'Strings'],
   // BACK ON THIS LIST, 2026-10-26. It came off on 2026-08-27 for a door on the composer row, which
   // became his web in the header; the web opens this menu now, so the Talk drawer's door is here.
@@ -912,7 +912,7 @@ function drawRail() {
    * Anansi and What he reads left this menu the same day: strings are cards on the Workbench, Talk
    * is the quill held down, and What he reads is "what is in it" on the strip under the header.
    * Their panels and links stay. The workspace menu is unchanged. */
-  $('rail').classList.toggle('tale3', !!storyMenu);
+  $('rail').classList.toggle('tale3', true);
   // THE ANANSI WORDMARK GOES FROM THE TALE'S MENU, and its close moves beside the model (Seth,
   // 2026-10-28: "Remove the anansi text logo and do the menu exit on the right side of the model
   // selector so we can reclaim that space"). The workspace menu keeps both.
@@ -921,25 +921,10 @@ function drawRail() {
         ><span style="display:flex; transform:rotate(${phone() ? 90 : (S.rail ? 180 : 0)}deg);
           transition:transform var(--t-slow) var(--ease-out)">${mark('chevron', 16)}</span></button>`;
   $('rail').innerHTML = `
-    ${storyMenu ? '' : `<div style="display:flex; align-items:center; gap:10px; padding:26px 20px 20px; flex:0 0 auto">
-      <button data-home="1" aria-label="Anansi — back to the library"
-        style="display:flex; align-items:center; gap:10px; padding:0; text-align:left">
-        <!-- Issue #6 — the logo carried a background plate on every theme.
-             web/icon.svg paints a rect filled #0A0A0C behind the web and strokes it in #D9B26A.
-             Both are Obsidian's values, baked into a file that eight of the nine themes do not
-             share: on Cyberpunk the plate is a near-black box a shade off the page and the gold is
-             not the teal accent; on Parchment and Novelist a dark box sits on cream paper. An img
-             element cannot inherit any of it, which is why it never tracked the theme.
-             Inlined here instead, with no plate and currentColor for the stroke, so the mark is
-             drawn in whatever the theme's accent resolved --gold to and the page shows through
-             behind it. The FILE stays exactly as it is and is still the favicon and the installed
-             icon, where an opaque plate is correct: an app icon has no page behind it to inherit. -->
-        <span class="serif txt" style="font-size:26px; color:var(--ink-bright)">Anansi</span>
-      </button>
-      <span style="margin-left:auto"></span>${closeBtn}
-    </div>`}
+    ${'' /* THE WORDMARK ROW LEFT BOTH MENUS on 2026-10-28; the close sits with the model, and the
+           Library row is the way home. */}
     ${back}
-    ${storyMenu ? `<div class="talemodel">${modelBlock}${closeBtn}</div>` : ''}
+    <div class="talemodel">${modelBlock}${closeBtn}</div>
     <!-- flex:1 with min-height:0 is what makes overflow-y:auto actually engage. A flex child's
          min-height is auto by default, so it refuses to shrink below its content and GROWS instead
          of scrolling — the list ran off the bottom of a rail that is overflow:hidden, and on a
@@ -958,8 +943,18 @@ function drawRail() {
                 : (rows.find(([key]) => key === k) ?? null)).filter(Boolean)
                 .map((r) => typeof r === 'string' ? r : item(r)).join('')}</div></div>`
           : storyMenu ? `<div class="navgrid">${rows.map(item).join('')}</div>${tail}`
-          : `${rows.map(item).join('')}${tail}`}</div>
-${storyMenu ? '' : modelBlock}`;
+          // THE MAIN MENU IN THE SAME SHAPE (Seth, 2026-10-28: "a similar setup for the main menu but
+          // instead of scenes it's stories"): the model on top, the tales down the left (most recent
+          // first, folded ones last, scrolling on their own), the menu's rows as tiles beside them.
+          : `<div class="tale3"><div class="tale3scenes scroll"><div class="txt railhead">Tales</div>${
+              shelfOrder((LIB ?? []).filter((b) => !b.is_world)).sort((a, b) =>
+                (a.status === 'archived') - (b.status === 'archived')).map((b) => `<button data-open="${esc(b.id)}"
+                ${b.id === S.storyId ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px; border-radius:var(--r); width:100%;
+                color:${b.id === S.storyId ? 'var(--ink-bright)' : b.status === 'archived' ? 'var(--dim)' : 'var(--faint)'}"><span class="txt"
+                style="display:block">${esc(b.title || 'Untitled')}</span></button>`).join('')
+              || '<div class="hint flush" style="padding:0 12px">No tales yet.</div>'}</div>
+              <div class="taletiles">${rows.map(item).join('')}${tail}</div></div>`}</div>
+`;
 }
 
 // ---------- header ----------

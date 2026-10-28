@@ -3693,10 +3693,17 @@ ok('This scene takes a direction and asks for something else');
   const scenes = [...(rail.match(/<div class="tale3scenes scroll">([\s\S]*?)<div class="taletiles">/)?.[1] ?? '')
     .matchAll(/data-chapter="([^"]+)"/g)].map((m) => m[1]);
   assert.deepStrictEqual(scenes, [...STORY.chapters].reverse().map((c: any) => c.id), 'TALE3-SCENES: the scenes, newest first, in their own column');
+  // THE MAIN MENU IN THE SAME SHAPE (2026-10-28): the model on top, the tales down the left, the rows as tiles.
   click({ railview: 'workspace' });
-  assert.doesNotMatch(html('rail'), /class="tale3"/, 'and the main menu stays a list');
+  const main = html('rail');
+  assert.ok(main.indexOf('class="talemodel"') >= 0 && main.indexOf('class="talemodel"') < main.indexOf('class="tale3"'),
+    'MAIN3: the main menu has the model on top too');
+  const tales = [...(main.match(/<div class="tale3scenes scroll">([\s\S]*?)<div class="taletiles">/)?.[1] ?? '').matchAll(/data-open="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(tales.length > 0 && tales.includes('s-1'), `MAIN3-TALES: the tales are listed down the left (${tales})`);
+  assert.match(main.match(/<div class="taletiles">([\s\S]*)/)?.[1] ?? '', /data-nav="stories"[\s\S]*data-nav="account"/, '  and the menu rows are the tiles');
+  assert.doesNotMatch(main, /<span class="serif txt"[^>]*>Anansi<\/span>/, '  with no wordmark');
 }
-ok("the tale's menu: the model on top, scenes newest first, and two columns of tiles");
+ok("both menus: the model on top, a list down the left (scenes, or tales), and two columns of tiles");
 
 // ---- THE ACCOUNT, FIVE PAGES (Seth, 2026-10-27): you, your key and model, the look, your writing,
 // your books; Import, Export and What you have written left the menu for it.
