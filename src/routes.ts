@@ -1110,7 +1110,8 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     const delta = (m.label ?? '').trim().slice(0, 60) || 'changed by this scene';
     // #90 · A WORLD PERSON'S CHANGE IS A NEW THREAD IN THE TALE, never a change to the World's
     // thread, which other tales follow (ADR 0006). Always true is copied from the World's, and the
-    // change rides as its first Over time entry, the way a new thread from the scene carries it.
+    // change rides as an Over time entry from the next scene, as a tale thread's change is anchored
+    // below; `before` is where the World had them in this scene, so earlier scenes still read it.
     // ponytail: only the Over time entry crosses; pockets the model gave a World person are dropped.
     // Trigger: a writer missing them on the new thread; then carry them as rooms, as `extract` does.
     if (who.sharedFrom) {
@@ -1119,7 +1120,9 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
       if (stands && !/^none[.\s]*$/i.test(stands) && norm(stands) !== norm(resolveBody(who, ch.index))
         && db.addProposal(storyId, { kind: 'new', entry_id: null, chapterId: ch.id, title: who.title, body: always,
           entryType: who.entryType, field: 'facts', keys: who.keys ?? [], delta, grp, line,
-          rooms: { stands: { body: stands } } })) { remembered++; taken.add(who.id); }
+          rooms: { stands: { body: stands, from: ch.index + 1, before: resolveBody(who, ch.index).trim() } } })) {
+        remembered++; taken.add(who.id);
+      }
       continue;
     }
     // WHERE IT STANDS. Whole, and not "none" (the model has put the field's vocabulary in the body
@@ -4263,7 +4266,14 @@ export const routes: Record<string, Handler> = {
             // A NEW THREAD'S FIRST OVER TIME ENTRY (#73): where the scene left it. The thread's own
             // text is Over time from its start, and it did not exist before this scene.
             const rooms = JSON.parse(p.rooms);
-            if (asAlways && String(rooms?.stands?.body ?? '').trim()) db.appendInfo(p.story_id, made, String(rooms.stands.body));
+            // #90 · UNLESS IT CARRIES A SCENE: a World person's change, from the scene after the one
+            // it happened in. Before that the thread reads where the World had them.
+            const st = rooms?.stands, from = Number(st?.from);
+            if (asAlways && String(st?.body ?? '').trim() && Number.isInteger(from) && from > 1) {
+              db.appendInfo(p.story_id, made, String(st.before ?? ''));
+              db.upsertState(p.story_id, made, { fromChapter: from, body: String(st.body).trim(),
+                label: p.delta || null, beforeMode: 'hide' });
+            } else if (asAlways && String(st?.body ?? '').trim()) db.appendInfo(p.story_id, made, String(st.body));
             delete rooms?.stands;
             writeRooms(p.story_id, made, p.entry_type, rooms, p.title);
             /* AND THEY REACH THE MODEL. `writeRooms` does not switch a room on — the forge's paste

@@ -1237,8 +1237,13 @@ ok('no interiority pocket for the played or Hands-off character');
   assert.match(JSON.parse(m?.rooms ?? '{}').stands?.body ?? '', /taken Rennala/, '  with the change as its first Over time entry');
   assert.ok(mine.some((p) => p.entry_id === rennala && p.entry_type === 'state'), 'CHALK-WORLD-TALE-WINS: the tale\'s own thread of a World name takes its change');
   await routes['POST /api/proposal'](ctx({ storyId: t.id, id: m.id, accept: true }));
-  const own = (db.entriesOf(t.id) as any[]).find((e) => e.title === 'Morgott');
-  assert.match(own?.body ?? '', /taken Rennala/, 'CHALK-WORLD-SEWN: sewn in, the tale has its own Morgott');
+  const own = (viewNow(t.id).entries as any[]).find((e) => e.title === 'Morgott');
+  assert.ok(own && !own.sharedFrom, 'CHALK-WORLD-SEWN: sewn in, the tale has its own Morgott');
+  // FROM THE SCENE AFTER, as `remember` anchors any thread's change: the scene it happened in, and
+  // every scene before it, still read where he stood.
+  assert.match(resolveBody(own, ch0.idx + 1), /taken Rennala/, 'CHALK-WORLD-ANCHORED: the change is in force from the next scene');
+  assert.doesNotMatch(resolveBody(own, ch0.idx), /taken Rennala/, 'CHALK-WORLD-ANCHORED: and not in the scene it happened in');
+  assert.match(resolveBody(own, ch0.idx), /alone/, '  which reads where the World had him then');
   assert.match((db.entriesOf(w.id) as any[]).find((e) => e.id === morgott).body, /alone/, '  and the World\'s is as it was');
   ok("a World person's change lands as a new thread in the tale, never on the World");
 }
