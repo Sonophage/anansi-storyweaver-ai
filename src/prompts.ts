@@ -263,7 +263,9 @@ export const MEMORY_SCHEMA = {
  *  is chalked: nothing changes until the writer sews it in.
  *  #114 · Where it stands is asked for as a plain description, no longer "one bracket": the code frames
  *  it for the model (context.ts `framedStands`). NOT MEASURED against the bracket form it replaced.
- *  #114 · It merges overlapping pockets of one kind and names each it replaces. NOT MEASURED.
+ *  #114 · It merges overlapping pockets of one kind and names each it replaces, and it checks Always
+ *  true against where it stands and says which it kept. NOT MEASURED: the trial on the real model
+ *  left "34" against "30s" in place, and this wording has not been run against it since.
  */
 export const TIDY =
 `Below is one thread from a story, as it stands: its Always true, where it stands now, and its
@@ -283,7 +285,13 @@ pockets. Sort what it says into the three parts a thread has, and change nothing
 
 Keep every fact it already holds, in one of the three; drop nothing and add nothing. Where two
 parts disagree (an age, a job, a name), the LATER and more specific one is true: write only that
-one, and never both. Always true holds identity only: no clothes, no events, no mood, no voice.
+one, and never both. Check Always true and where it stands against each other above all: "34"
+in one and "in his 30s" in the other disagree, and "34" is the more specific. Change the part that
+loses, even when that is Always true. Always true holds identity only: no clothes, no events, no
+mood, no voice.
+
+  kept     one sentence saying what disagreed and which you kept, and why: "Kept 34 from Always
+           true over 30s in where it stands: it is the more specific." "" when nothing did.
 
 Rewrite EVERY pocket it already has as a plain description, even when it was written as an
 instruction: "Write her dialogue with a Jersey snap. Never have the narration name the accent."
@@ -300,6 +308,8 @@ export const TIDY_SCHEMA = {
   properties: {
     always: { type: 'string' },
     stands: { type: 'string' },
+    // #114 · What disagreed and which was kept, for the writer: the card shows it.
+    kept: { type: 'string' },
     pockets: { type: 'array', items: { type: 'object', properties: {
       slot: { type: 'string', enum: ['appearance', 'atmosphere', 'consequences', 'interiority',
               'outfit', 'relationships', 'voice', 'what_it_does', 'who_is_here'] },
@@ -309,7 +319,7 @@ export const TIDY_SCHEMA = {
       replaces: { type: 'array', items: { type: 'string' } },
     }, required: ['slot', 'name', 'body', 'replaces'] } },
   },
-  required: ['always', 'stands', 'pockets'],
+  required: ['always', 'stands', 'kept', 'pockets'],
 } as const;
 
 /** #74 · ANANSI EDITS ONE SECTION of a Workbench card, on the writer's steer or none. It keeps the

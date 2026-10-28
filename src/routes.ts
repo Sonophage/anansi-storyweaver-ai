@@ -4840,13 +4840,18 @@ export const routes: Record<string, Handler> = {
     const r = await structuredRetry(TIDY, ask, TIDY_SCHEMA, { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
     if (!r.data) return { error: r.error ?? 'the tidy returned nothing usable' };
     const grp = `tidy:${e.id}:${Date.now()}`, chapterId = v.currentChapter?.id ?? null;
+    // #114 · WHICH SIDE OF A CONTRADICTION IT KEPT rides on every row of the card, which shows it.
+    const kept = String(r.data.kept ?? '').trim().slice(0, 300) || null;
     const base = { kind: 'tidy', entry_id: e.id, chapterId, title: e.title, entryType: e.entryType, keys: [], grp,
-      delta: 'tidied' };
+      delta: 'tidied', line: kept };
     let added = 0;
-    const always = String(r.data.always ?? '').trim();
-    if (always && always !== alwaysTrue(e) && db.addProposal(v.id, { ...base, body: always, field: 'facts' })) added++;
-    const stands = String(r.data.stands ?? '').trim();
-    if (stands && stands !== resolveBody(e, at).trim() && db.addProposal(v.id, { ...base, body: stands })) added++;
+    // #114 · COMPARED AS THEY WOULD BE STORED, so an answer that only wraps the same text is no change,
+    // and one that changes it is chalked even when it is Always true.
+    const always = plain(r.data.always, wrapperNames('facts', e.title));
+    if (always && always !== plain(alwaysTrue(e), wrapperNames('facts', e.title))
+      && db.addProposal(v.id, { ...base, body: always, field: 'facts' })) added++;
+    const stands = db.plainStands(r.data.stands, [e.title]);
+    if (stands && stands !== db.plainStands(resolveBody(e, at), [e.title]) && db.addProposal(v.id, { ...base, body: stands })) added++;
     const kinds = slotsFor(e.entryType).map((sl) => sl.name), replaced = new Set<string>();
     for (const pk of (Array.isArray(r.data.pockets) ? r.data.pockets : []) as any[]) {
       const field = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();

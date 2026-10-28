@@ -33,6 +33,11 @@ When a thread has two pockets of one kind that overlap, such as two about the sa
 offers one pocket that holds both. The card says which other pocket it replaces, and sewing it in
 leaves one pocket where there were two.
 
+### Tidy settles Always true against where a thread stands
+If Always true and where the thread stands disagree, such as an age of 34 in one and "in his 30s"
+in the other, Tidy keeps the later or more exact one, offers the change to the other, and the card
+says which it kept and why. That can mean a change to Always true, which you sew in or not.
+
 ## 2026-10-28 · Holding the one you play, in New tale
 
 ### Anansi writes pockets the way you would

@@ -970,6 +970,40 @@ ok('the house style is written from the genre and the premise, and never from th
   ok('Tidy merges overlapping pockets of one kind into one, replacing both');
 }
 
+// #114 · TIDY RESOLVES A CONTRADICTION BETWEEN ALWAYS TRUE AND WHERE IT STANDS, AND SAYS WHICH IT KEPT.
+// The trial: Always true said 34 and a web developer, where it stands said 30s, and nothing changed.
+// The fake stands in for the model's answer, so this proves what the route does with it: the part that
+// changed is chalked, the one that only lost its wrapper is not, and the card carries which was kept.
+{
+  assert.match(prompts.TIDY, /Always true and where it stands/i, 'KEPT-ASK: the prompt names the two parts that can disagree');
+  assert.match(prompts.TIDY, /\bkept\b/, '  and asks which it kept');
+  assert.ok((prompts.TIDY_SCHEMA as any).required.includes('kept'), 'KEPT-SCHEMA: the answer carries which it kept');
+  const t = db.createStory(me, { title: 'Contradiction', premise: 'p' }) as any;
+  const seth = db.upsertEntry(t.id, me, { title: 'Seth', entryType: 'character', body: '30s; a stranger Ashley meets on the street' })!;
+  db.upsertAddon(t.id, seth, { slot: 'facts', name: 'facts', body: '34; a web developer' });
+  const kept = 'Kept 34 from Always true over "30s" in where it stands: it is the more specific.';
+  tidied = { always: '[Seth: 34; a web developer]', stands: 'A stranger Ashley meets on the street.', kept, pockets: [] };
+  await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: seth }));
+  tidied = {};
+  const chalked = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === seth);
+  assert.ok(!chalked.some((p) => p.field === 'facts'), 'KEPT-SAME-ALWAYS: an Always true that differs only by its wrapper is not a change');
+  assert.ok(chalked.some((p) => !p.field && /stranger Ashley/.test(p.body) && !/30s/.test(p.body)), 'KEPT-STANDS: where it stands, without the losing side, is chalked');
+  const card = (viewNow(t.id).proposals as any[]).filter((p) => p.entryId === seth);
+  assert.ok(card.some((p) => p.line === kept), `KEPT-SAID: the card says which it kept (${card.map((p) => p.line).join(' | ')})`);
+  for (const p of chalked) await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
+
+  // The other way round: where it stands is the later one, so Always true changes, and sewn in, it does.
+  tidied = { always: '35; a web developer', stands: '', kept: 'Kept 35 from where it stands: it is the later.', pockets: [] };
+  await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: seth }));
+  tidied = {};
+  const always = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === seth && p.field === 'facts');
+  assert.strictEqual(always.length, 1, 'KEPT-ALWAYS: an Always true that differs is chalked');
+  await routes['POST /api/proposal'](ctx({ storyId: t.id, id: always[0].id, accept: true }));
+  assert.strictEqual((db.addonsOf(t.id) as any[]).find((a) => a.entry_id === seth && a.slot === 'facts')?.body, '35; a web developer',
+    'KEPT-APPLIED: sewn in, Always true is changed');
+  ok('Tidy resolves Always true against where it stands, chalks the change, and says which it kept');
+}
+
 // #114 · THE LOCK POCKET IS NEVER SENT TO TIDY AND NEVER REPLACED BY IT. A trial tidy rewrote the
 // Hands-off thread's "his lines are the writer's" into a description of how he speaks, with the lock
 // sentence buried in it. Two shapes: the Hands-off thread's voice pocket, whatever it holds, and any
