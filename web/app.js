@@ -835,8 +835,7 @@ function drawRail() {
     : storyMenu
     // The rail IS the menu, and the menu is excepted — see tipCard. Its rows were never uppercased;
     // this heading was the only thing in here that was.
-    ? `<div class="txt" style="padding:26px 12px 10px; font-size:11px; letter-spacing:.2em;
-         color:var(--dim)">Scenes</div>
+    ? `<div class="txt railhead">Scenes</div>
        ${V.chapters.map((c) => `<button data-chapter="${c.id}"${
          c.id === V.currentChapter.id ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px;
          border-radius:var(--r); width:100%;

@@ -1586,6 +1586,12 @@ textarea.field { resize:vertical; min-height:70px; }
    tile shape has to say !important. Only while the rail is open: the desk's closed rail is 76px of
    icons, and there the list stays a list. On a phone the closed rail is off-screen at full width. */
 .navgrid { display:flex; flex-direction:column; }
+/* NOTHING IN THE RAIL'S LIST MAY SHRINK (2026-10-27, Seth: the Scenes heading under the tale menu was
+   "a littttttle cut off"). The list is a flex column that scrolls, so when the grid and a long run
+   of scenes overflow it the browser squeezes its children to fit before it scrolls, and the heading
+   lost the bottom of its line. They keep their own height and the list scrolls instead. */
+#rail .scroll > * { flex-shrink:0; }
+.railhead { padding:26px 12px 12px; font-size:11px; line-height:1.4; letter-spacing:.2em; color:var(--dim); }
 html:not([data-ui-rail="closed"]) .navgrid { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
 @media (max-width:719px) { .navgrid { display:grid; grid-template-columns:1fr 1fr; gap:4px; } }
 html:not([data-ui-rail="closed"]) .navgrid > button { flex-direction:column; justify-content:center; gap:5px !important; margin:0 !important;

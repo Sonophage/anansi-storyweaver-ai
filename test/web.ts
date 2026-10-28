@@ -297,8 +297,10 @@ const ok = (m: string, fn?: unknown) => {
      *
      * The rail's rows were never uppercased and are not asserted: there is nothing to keep them
      * from, and an assertion about markup that has never had the property is one that cannot fail. */
-    const railHead = js.match(/padding:26px 12px 10px;[^"]*/)?.[0] ?? '';
-    assert.ok(railHead, "the rail's Chapters heading is still drawn");
+    // The heading's style moved into the `.railhead` rule on 2026-10-27; the check reads it there.
+    assert.match(js, /<div class="txt railhead">Scenes<\/div>/, "the rail's Scenes heading is still drawn");
+    const railHead = read('app.html').match(/\.railhead \{[^}]*\}/)?.[0] ?? '';
+    assert.ok(railHead, "and its rule is in the stylesheet");
     assert.doesNotMatch(railHead, /uppercase/,
       "the rail is the menu, and the menu is excepted — its Chapters heading stays as written");
     // THE TITLE'S OWN STYLE, matched exactly rather than a window of characters after `tipCard`.
