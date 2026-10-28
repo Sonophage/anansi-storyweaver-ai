@@ -53,6 +53,8 @@ In a scene's setup, you can now tick a person or place from the World your tale 
 way you tick one of the tale's own. Before, Anansi said "that scene or thread is not in this tale".
 The thread is sent for that scene and stays the World's: a change to it in the World reaches the
 scene. Your pins from before are all still there.
+If the tale stops following that World, or follows another, its ticks on the old World's
+threads come off. Its own threads stay ticked.
 
 ## 2026-10-28 · Anansi changes what you ask him to
 

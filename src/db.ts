@@ -3063,6 +3063,13 @@ export function updateStory(id: string, s: any) {
       pair.world,
       p('worldNote', 'world_note') ?? null,
       now(), id);
+  // #107 · A TALE THAT STOPS FOLLOWING A WORLD LOSES ITS PINS ON THAT WORLD'S THREADS. They name
+  // threads it no longer reads, so they do nothing, and following again would bring them back unasked.
+  // `PINNABLE` admits only its own threads and the followed World's, so a pin on a thread that is
+  // not the tale's own is a World pin.
+  if (cur.lore_from && pair.loreFrom !== cur.lore_from)
+    q(`DELETE FROM chapter_pins WHERE story_id = ?
+       AND entry_id NOT IN (SELECT id FROM entries WHERE story_id = ?)`).run(id, id);
   // #107 · A WORLD RENAMED RENAMES THE FIELD OF EVERY TALE THAT FOLLOWS IT, through `followPair`,
   // so the rule for what the field says stays in one place.
   if (cur.is_world && s.title !== undefined && s.title !== cur.title)

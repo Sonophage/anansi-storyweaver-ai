@@ -3608,6 +3608,28 @@ ok('a pin on an unfollowed World or another writer\'s thread is refused, and a W
   assert.deepStrictEqual(pins(), [], 'PIN-GONE-THREAD: deleting the World thread removes the pin');
 });
 
+// #107 · A TALE THAT STOPS FOLLOWING ITS WORLD LOSES ITS WORLD PINS. They name threads the tale no
+// longer reads, so they did nothing, and following the World again would bring them back unasked.
+ok('a tale that stops following its World loses its World pins and keeps its own', () => {
+  const me = db.owner('pin-unfollow');
+  const world = db.createWorld(me, { title: 'Stormveil', premise: 'p' });
+  const other = db.createWorld(me, { title: 'Liurnia', premise: 'p' });
+  const margit = db.upsertEntry(world.id, me, { title: 'Margit', body: '[Margit]', activation: 'triggered', keys: ['omen'] })!;
+  const tale = db.storyFollowing(me, world.id, 'Road')!;
+  const nepheli = db.upsertEntry(tale.id, me, { title: 'Nepheli', body: '[Nepheli]', activation: 'triggered', keys: ['axe'] })!;
+  const pins = () => db.pinsOf(tale.id).map((p: any) => p.entry_id).sort();
+  db.setPin(tale.id, tale.chapterId, margit, 'force_in');
+  db.setPin(tale.id, tale.chapterId, nepheli, 'force_in');
+  db.updateStory(tale.id, { title: 'Road, renamed' });
+  assert.deepStrictEqual(pins(), [margit, nepheli].sort(), 'UNFOLLOW-KEEP-SAVE: a save that keeps the World keeps its pins');
+  db.updateStory(tale.id, { loreFrom: other.id });
+  assert.deepStrictEqual(pins(), [nepheli], 'UNFOLLOW-OTHER: following another World drops the old World\'s pins');
+  db.updateStory(tale.id, { loreFrom: world.id });
+  db.setPin(tale.id, tale.chapterId, margit, 'force_out');
+  db.updateStory(tale.id, { loreFrom: null });
+  assert.deepStrictEqual(pins(), [nepheli], 'UNFOLLOW-NONE: following nothing drops the World pins, and the tale\'s own stays');
+});
+
 /* #102. A LIBRARY FROM BEFORE IS REBUILT, and its pins come through unchanged. The old library is a
  * copy of this one with chapter_pins put back in the shape it had: the thread keyed (entry_id,
  * story_id), so a pin could only hold the tale's own thread. A server is then started on it the way
