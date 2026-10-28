@@ -699,7 +699,14 @@ function applyChange(storyId: string, owner: string, ch: Change):
     const id = db.upsertEntry(storyId, owner, { title: ch.title, body: '', entryType: ch.type,
       activation: ch.activation, keys: ch.keys, lastEditor: 'human' });
     if (!id) return null;
-    if (ch.always) db.upsertAddon(storyId, id, { slot: 'facts', name: 'facts', body: ch.always });
+    // NEVER HALF MADE. A thread Talk was asked to make with an Always true and left without one is a
+    // thread the writer did not ask for: its line would say "made" and its Undo would not match. So
+    // when the Always true is refused, or the write throws, the thread is taken away again and the
+    // change is not done.
+    let facts: string | null = null;
+    try { facts = ch.always ? db.upsertAddon(storyId, id, { slot: 'facts', name: 'facts', body: ch.always }) : id; }
+    catch { facts = null; }
+    if (!facts) { db.delEntry(storyId, id); return null; }
     return { thread: id };
   }
   if (ch.op === 'thread.set') {

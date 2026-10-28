@@ -1113,6 +1113,25 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(db.entriesOf(tale.id).length, before, 'UNDO-NEW: and the tale has the threads it had');
   ok('asked to add a thread, Talk makes it, and Undo removes it');
 
+  // A new thread whose Always true the database will not take is not left behind with none. The
+  // refusal is a trigger on a connection of its own, so nothing in src/ is bent to make it happen.
+  {
+    const { DatabaseSync } = await import('node:sqlite');
+    const raw = new DatabaseSync(DB);
+    raw.exec(`CREATE TRIGGER no_ferry BEFORE INSERT ON addons WHEN NEW.body = 'Rows the dead across for a coin.'
+      BEGIN SELECT RAISE(ABORT, 'refused for the test'); END`);
+    try {
+      const n = db.entriesOf(tale.id).length;
+      const half: any = await say('CHANGE-NEW: add the ferryman as a character');
+      assert.ok(!half.error, `NEW-HALF: the answer still comes back (${half.error})`);
+      assert.strictEqual(db.entriesOf(tale.id).length, n,
+        'NEW-HALF: a thread whose Always true could not be written is not left in the tale with none');
+      assert.strictEqual(half.changes.length, 0, 'NEW-HALF: and it is not shown as done');
+      assert.match(half.reply, /Not done\. Made a new thread: The ferryman/, `NEW-HALF: the reply says so:\n${half.reply}`);
+    } finally { raw.exec('DROP TRIGGER no_ferry'); raw.close(); }
+  }
+  ok('a new thread whose Always true cannot be written is taken away again, and the reply says it was not done');
+
   // The writer changes what Talk made; its Undo no longer takes it away.
   const again = await say('CHANGE-NEW: add the ferryman as a character');
   const ferry2 = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'The ferryman');
