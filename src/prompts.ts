@@ -1680,6 +1680,10 @@ done the moment you answer, so a thing they did not ask for is never a change; o
 - scene.set: the scene by its number (none for the scene being written), the field (title or
   heads_toward) and its whole new text.
 
+When the tale follows a World, a change to a thread also says to: world when it is the canon of the
+IP, for every tale that follows the World, or tale when it is the writer's own version, for this
+tale only. When you cannot tell which, leave to out.
+
 Say in the reply what you changed. You never write or change prose, here or anywhere in Talk.
 
 Offer nothing you were not asked for. A question wants an answer, not a queue of work. Somebody

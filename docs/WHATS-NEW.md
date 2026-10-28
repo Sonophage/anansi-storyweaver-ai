@@ -25,6 +25,14 @@ until you went to another step and came back.
 
 ## 2026-10-28 · Tales set in a story or game, through your Worlds
 
+### Talk knows the story or game from your own version of it
+In a tale that follows a World, ask Anansi in Talk to change someone, and he puts the change
+where it belongs. A fact of the story or game itself goes to the World, so every tale that follows
+it has it. Your own version goes to this tale only: the tale gets its own copy of that thread, and
+the World keeps its version. Each change has Undo, as before. When he cannot tell which you mean,
+he changes nothing and asks you in one line. Only you change your own Worlds; a writer you called
+into a tale cannot change them through Talk.
+
 ### Name the IP, and the new tale follows your World
 The first step of New tale now asks whether the tale is set in a story or game that already
 exists. Name it. If you already have a World with that name (in any capitals), the new tale

@@ -116,6 +116,16 @@ const srv = createServer((req, res) => {
       SETUPWEB: { reply: 'Charon is in.',
         changes: [{ op: 'thread.new', title: 'Charon', type: 'character',
           text: 'Ferries the dead for an obol (https://myth.example/charon/1).', sources: [1] }] },
+      // #101 · in a tale that follows a World: canon, the writer's version, and one the model did
+      // not place, beside a premise change that must wait with it.
+      CANON: { reply: 'Morgott speaks slowly in the canon now.',
+        changes: [{ op: 'thread.set', thread: 'Morgott', room: 'voice', text: 'Slow, formal, never a contraction.', to: 'world' },
+                  { op: 'thread.new', title: 'Malenia', type: 'character', text: 'Blade of Miquella.', to: 'world' }] },
+      MINE: { reply: 'In your tale he has a queen.',
+        changes: [{ op: 'thread.set', thread: 'Morgott', room: 'none', text: 'Morgott has taken Rennala as his queen.', to: 'tale' }] },
+      UNSURE: { reply: 'Done, he is blind.',
+        changes: [{ op: 'thread.set', thread: 'Morgott', room: 'none', text: 'Morgott is blind.' },
+                  { op: 'tale.set', field: 'premise', text: 'Ash over Leyndell.' }] },
       RETIRE: { reply: 'The letter is gone.',
         changes: [{ op: 'thread.retire', thread: 'The letter' }, { op: 'thread.delete', thread: 'The letter' }] },
     };
@@ -1786,6 +1796,96 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.deepStrictEqual(rows(), had, 'IP-TWICE: and makes nothing');
     ok('a failure at Create, before or after the World is made, leaves no World, thread or tale behind');
   } finally { delete process.env.ANANSI_SEARCH; web.close(); }
+}
+
+// ---- #101 · TALK AND AN IP: CANON TO THE WORLD, THE WRITER'S VERSION TO THE TALE ----
+//
+// In a tale that follows a World, an asked change to the IP's canon is written to the World's thread
+// and every tale that follows it has it; the writer's own version is written to the tale, which takes
+// the thread over so the World keeps its own. Both have an Undo, through the same route. A change the
+// model did not place is not applied, and nothing else in that answer is either: the reply asks in
+// one line. Only the World's owner changes it.
+{
+  const ring = db.createWorld(me, { title: 'Elden Ring' });
+  const wMorgott = db.upsertEntry(ring.id, me, { title: 'Morgott', body: '', entryType: 'character', activation: 'triggered', keys: ['Morgott'] });
+  db.upsertAddon(ring.id, wMorgott, { slot: 'facts', name: 'facts', body: 'The Omen King, alone.' });
+  const tale = db.storyFollowing(me, ring.id, 'The Lands Between')!;
+  const ctxOf = (body: any, owner = me) => ({ body: { storyId: tale.id, ...body }, query: new URLSearchParams(),
+    owner, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+  const say = (said: string, owner = me) => { calls = []; return routes['POST /api/talk'](ctxOf({ said }, owner)) as Promise<any>; };
+  const undo = (u: any, owner = me) => routes['POST /api/talk/undo'](ctxOf({ undo: u }, owner)) as any;
+  const pockets = (storyId: string, entry: string) => (db.addonsOf(storyId) as any[]).filter((a) => a.entry_id === entry)
+    .map((a) => [a.slot, a.body]).sort();
+  const own = () => (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'Morgott');
+  const seen = () => (routes['GET /api/story']({ ...ctxOf({}), query: new URLSearchParams({ story: tale.id }) }) as any)
+    .entries.find((e: any) => e.title === 'Morgott');
+  const both = () => JSON.stringify([db.entriesOf(ring.id), db.addonsOf(ring.id), db.entriesOf(tale.id), db.addonsOf(tale.id),
+    (db.getStory(tale.id) as any).premise]);
+
+  // CANON: the World's Morgott gets the voice, and a new thread of the canon is made in the World.
+  const canon = await say('CHANGE-CANON: in Elden Ring Morgott speaks slowly, and add Malenia');
+  assert.ok(!canon.error, canon.error);
+  assert.match(String(calls.at(-1).messages[1].content), /follows the World Elden Ring/,
+    'IP-TOLD: Anansi is told which World the tale follows');
+  assert.deepStrictEqual(pockets(ring.id, wMorgott), [['facts', 'The Omen King, alone.'], ['voice', 'Slow, formal, never a contraction.']],
+    'IP-CANON: the voice is written to the World\'s Morgott');
+  assert.ok(!own(), 'IP-CANON: and the tale has no Morgott of its own');
+  const malenia = (db.entriesOf(ring.id) as any[]).find((e) => e.title === 'Malenia');
+  assert.ok(malenia, 'IP-CANON-NEW: a new thread of the canon is made in the World');
+  assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'Malenia'), 'IP-CANON-NEW: not in the tale');
+  assert.strictEqual(canon.changes.length, 2, `IP-CANON: two changes, two lines (${canon.reply})`);
+  assert.match(canon.changes[0].words, /Morgott's voice.*Elden Ring/, `IP-CANON-LINE: the line names the World (${canon.changes[0].words})`);
+  for (const c of [...canon.changes].reverse()) { const r = undo(c.undo); assert.ok(!r.error, r.error); }
+  assert.deepStrictEqual(pockets(ring.id, wMorgott), [['facts', 'The Omen King, alone.']], 'IP-CANON-UNDO: Undo takes the voice back off the World');
+  assert.ok(!(db.entriesOf(ring.id) as any[]).some((e) => e.title === 'Malenia'), 'IP-CANON-UNDO: and the new World thread away');
+  ok('an asked change to canon goes to the World, and Undo takes it back');
+
+  // THE WRITER'S VERSION: the tale takes Morgott over, and the World keeps its own.
+  const mine = await say('CHANGE-MINE: in my tale Morgott has taken Rennala as his queen');
+  assert.ok(!mine.error, mine.error);
+  assert.ok(own(), 'IP-MINE: the tale has its own Morgott now');
+  assert.strictEqual(own().origin_id, wMorgott, 'IP-MINE: taken over from the World\'s, not made beside it');
+  assert.deepStrictEqual(pockets(tale.id, own().id), [['facts', 'Morgott has taken Rennala as his queen.']],
+    'IP-MINE: with the writer\'s version');
+  assert.deepStrictEqual(pockets(ring.id, wMorgott), [['facts', 'The Omen King, alone.']], 'IP-MINE: and the World\'s is untouched');
+  assert.ok(!seen().sharedFrom, 'IP-MINE: the tale reads its own Morgott');
+  assert.match(mine.changes[0].words, /this tale's own/, `IP-MINE-LINE: the line says it is the tale's own now (${mine.changes[0].words})`);
+  const back = undo(mine.changes[0].undo);
+  assert.ok(!back.error, back.error);
+  assert.ok(!own(), 'IP-MINE-UNDO: Undo hands the thread back');
+  assert.strictEqual(seen().sharedFrom, 'Elden Ring', 'IP-MINE-UNDO: and the tale reads the World\'s Morgott again');
+  assert.deepStrictEqual(pockets(ring.id, wMorgott), [['facts', 'The Omen King, alone.']], 'IP-MINE-UNDO: which is as it was');
+  ok('an asked change to the writer\'s version goes to the tale, taking the thread over, and Undo hands it back');
+
+  // UNCLEAR: nothing in the answer is applied, the premise beside it either, and the reply asks once.
+  const was = both();
+  const unsure = await say('CHANGE-UNSURE: Morgott is blind, and the premise is ash');
+  assert.ok(!unsure.error, unsure.error);
+  assert.strictEqual(both(), was, 'IP-UNSURE: nothing is applied, in the World or the tale');
+  assert.deepStrictEqual(unsure.changes, [], 'IP-UNSURE: no change line comes back');
+  const asks = String(unsure.reply).split('\n').filter((l) => /\?$/.test(l.trim()));
+  assert.strictEqual(asks.length, 1, `IP-UNSURE: the reply asks in one line:\n${unsure.reply}`);
+  assert.match(asks[0], /Morgott.*Elden Ring.*this tale/, 'IP-UNSURE: naming the thread, the World and the tale');
+  ok('an unclear change is not applied, nor anything beside it, and the reply asks which in one line');
+
+  // ONLY THE WORLD'S OWNER: a writer called into the tale cannot change the World through Talk.
+  const bob = db.owner('bob-101');
+  db.addWriter(tale.id, bob);
+  const theirs = await say('CHANGE-CANON: in Elden Ring Morgott speaks slowly', bob);
+  assert.ok(!theirs.error, theirs.error);
+  assert.deepStrictEqual(pockets(ring.id, wMorgott), [['facts', 'The Omen King, alone.']], 'IP-OWNER: the World is untouched');
+  assert.ok(!(db.entriesOf(ring.id) as any[]).some((e) => e.title === 'Malenia'), 'IP-OWNER: and nothing is made in it');
+  assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'Malenia'), 'IP-OWNER: nor in the tale, which was not asked for');
+  assert.match(theirs.reply, /Not done/, 'IP-OWNER: and the reply says so');
+  // And an Undo naming a World cannot reach one this tale does not follow.
+  const other = db.createWorld(me, { title: 'Dune' });
+  const spice = db.upsertEntry(other.id, me, { title: 'Spice', body: '', entryType: 'lore', activation: 'always_on' });
+  db.upsertAddon(other.id, spice, { slot: 'facts', name: 'facts', body: 'It flows.' });
+  const forged = undo({ op: 'thread.unmake', thread: spice, title: 'Spice', text: 'It flows.', world: other.id });
+  assert.match(String(forged.error), /^Not undone/, `IP-UNDO-SCOPE: refused (${JSON.stringify(forged.error)})`);
+  assert.ok(db.entriesOf(other.id).length === 1, 'IP-UNDO-SCOPE: and that World keeps its thread');
+  ok('only the World\'s owner changes it through Talk, and an Undo reaches only the World the tale follows');
 }
 
 // ---- 6d · THE WRITER MOVES A PROPOSAL, AND THE WRITER OUTRANKS THE MODEL ----
