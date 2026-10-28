@@ -436,11 +436,20 @@ export function resolveBody(e: Entry, chapter: number): string {
 }
 
 /** #77 · WHO OR WHAT THE THREAD IS, which does not change through the tale (ADR 0005). Stored as the
- *  `facts` addon, so this is the one reader of it as Always true. It reads BARE: a facts body IS the
- *  card format (`[Seth: protagonist…]`), and wrapping it once produced `[You: [You: …]]`. Not
+ *  `facts` addon, so this is the one reader of it as Always true. It returns the stored text; the
+ *  prompt reads it through `framedAlwaysTrue` below (#109). A body stored the old way IS the card
+ *  format (`[Seth: protagonist…]`), and wrapping that once produced `[You: [You: …]]`. Not
  *  switched or woken like a pocket: a thread's Always true goes wherever the thread goes. */
 export const alwaysTrue = (e: Entry): string =>
   ((e.addons ?? []).find((a) => a.slot === 'facts')?.body ?? '').trim();
+
+/** #109 · ALWAYS TRUE AS THE MODEL READS IT (ADR 0008): the stored description, framed with the
+ *  thread's name. `alwaysTrue` above stays the stored text, for the prompts that show it to be
+ *  edited. NOT MEASURED: the frame is owed an A/B against the bare form before it is called a fix. */
+const framedAlwaysTrue = (e: Entry): string => {
+  const body = alwaysTrue(e);
+  return body ? `[What is always true of ${(e.title || '').trim() || 'this thread'}: ${body}]` : '';
+};
 
 /** THE CARD AS THE MODEL SEES IT: what is in force at this chapter, plus every room switched on.
  *
@@ -454,7 +463,7 @@ export const alwaysTrue = (e: Entry): string =>
  *  With no window, only rooms that are switched ON are included; pass the chapter's text and rooms
  *  whose keys fire come too, which is what the prompt builder wants and a cast list does not. */
 export const cardText = (e: Entry, at: number, window = '', locked = '') =>
-  [alwaysTrue(e), resolveBody(e, at), ...rooms(e, at, window, locked)].map((x) => x.trim()).filter(Boolean).join('\n');
+  [framedAlwaysTrue(e), resolveBody(e, at), ...rooms(e, at, window, locked)].map((x) => x.trim()).filter(Boolean).join('\n');
 
 // The proximity bound is BUILT (2026-08-25) — see `fires` below. The marker that stood here said
 // to build it "when a real ledger actually false-fires", and COUNCIL-04 recorded two, from a

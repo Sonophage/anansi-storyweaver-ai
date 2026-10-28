@@ -1426,6 +1426,15 @@ ok('  and a real label is still the writer\'s, not overridden', () => {
   assert.match(b.text, /\[What she is here to do: the one who pays late\]/);
 });
 
+// ---- #109 · EVERY POCKET KIND REACHES THE MODEL FRAMED, FROM A PLAIN DESCRIPTION (ADR 0008). The
+// writer stores only a description; the renderer names the thread and says what the text is for.
+const AT = { title: 'Aldis Fen' } as any;
+ok('Always true reaches the model framed, naming the thread', () => {
+  const b = withAddons([room({ slot: 'facts', body: 'ex-Watch sergeant, owes everyone', active: true })], AT);
+  assert.match(b.text, /\[What is always true of Aldis Fen: ex-Watch sergeant, owes everyone\]/,
+    'FRAME-FACTS: a plain Always true names the thread');
+});
+
 ok('  and a voice nobody switched on stays out, like any other room', () => {
   // The guard that makes the two above mean anything. Asserted rather than assumed: five of the
   // six live voice rooms are `active=0` with no keys, so this branch is the one they take.
