@@ -1043,7 +1043,9 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
  *  ponytail: one model call for every named thread at once, and the whole scene's narration in the
  *  prompt. Whether one call per thread places changes better is the #73 measurement; and a scene long
  *  enough to overflow the slot returns the overflow error rather than a partial memory. */
-async function remember(c: Ctx, storyId: string, chapterId: string, scene?: string) {
+async function remember(c: Ctx, storyId: string, chapterId: string, scene?: string, names?: string[]) {
+  // #91. `names` keeps the review to the threads asked for by title: the ones past the cap.
+  const only = names?.length ? new Set(names.map((n) => n.trim().toLowerCase())) : null;
   const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
@@ -1051,6 +1053,7 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
 
   const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
   const named = v.entries.filter((e: any) => !e.sharedFrom && !retiredAt(e, ch.index)
+    && (!only || only.has(String(e.title).trim().toLowerCase()))
     && fires({ ...e, keys: [...(e.keys ?? []), e.title] }, text).length);
   if (!named.length) return { remembered: 0 };
 
@@ -1205,7 +1208,8 @@ function queueHem(storyId: string, job: () => Promise<void>) {
   void mine.then(() => { if (hemQueue.get(storyId) === mine) hemQueue.delete(storyId); });
 }
 
-async function hemPasses(c: Ctx, storyId: string, closing: string, opened: string | undefined, want: HemWant) {
+async function hemPasses(c: Ctx, storyId: string, closing: string, opened: string | undefined, want: HemWant,
+    names?: string[]) {
   /** WHICH OF THE PASSES DID NOT RUN, and why. Issue #32: "Facts are not being written
    *  based on the last chapter anymore."
    *
@@ -1243,7 +1247,7 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   const keptSummary = summed?.kept === true;
   if (keptSummary) passes.summary = null;
   // The character memory, on the same terms: a chapter must be able to close with the model down.
-  await run('memory', want.memory, () => remember(c, storyId, closing, scene));
+  await run('memory', want.memory, () => remember(c, storyId, closing, scene, names));
   // And read it for facts. The comment above summarise applies to this word for word: the ledger
   // is the only tier that survives compaction — prose falls out of the chapter window, summaries
   // roll into arcs, and entries are re-sent on every call forever — so leaving the tier that
@@ -2662,6 +2666,7 @@ export const routes: Record<string, Handler> = {
   /** #91 · RUN A HEM'S PASSES AGAIN, from the scene's Workbench card. `pass` names one pass of the
    *  report (try again): only that pass runs, and only its line changes. With no `pass` it is HEM
    *  AGAIN: a new record on the prose as it is now (so the scene is in date), and every pass again.
+   *  `names` asks for the threads past the cap: the thread-change pass again, for those threads only.
    *  Detached and queued like the hem itself; the answer is the view, with the hem shown running. */
   'POST /api/chapter/hem': (c: Ctx) => {
     const storyId = String(c.body.storyId), chapterId = String(c.body.chapterId ?? '');
@@ -2670,7 +2675,10 @@ export const routes: Record<string, Handler> = {
     const at = chs.findIndex((x: any) => x.id === chapterId);
     if (at < 0) return { error: 'That scene is not in this book.' };
     const opened = chs[at + 1]?.id;
-    if (c.body.pass == null) {
+    const names = Array.isArray(c.body.names) ? c.body.names.map(String).filter((n: string) => n.trim()) : null;
+    // An empty list is a refusal, never a hem again: that one drops what is chalked.
+    if (names && !names.length) return { error: 'Name the threads to ask for.' };
+    if (c.body.pass == null && !names) {
       db.beginHem(storyId, chapterId);
       // Dropped inside the queue, not here: a hem still running on the tale may yet chalk into it.
       queueHem(storyId, async () => {
@@ -2680,11 +2688,11 @@ export const routes: Record<string, Handler> = {
       });
       return viewOf(c, storyId);
     }
-    const pass = String(c.body.pass);
+    const pass = names ? 'memory' : String(c.body.pass);
     if (!(HEM_PASSES as readonly string[]).includes(pass)) return { error: `There is no pass called "${pass}".` };
     if (!db.reopenHem(storyId, chapterId)) return { error: 'This scene has not been hemmed yet.' };
     const want = Object.fromEntries(HEM_PASSES.map((k) => [k, k === pass])) as HemWant;
-    queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want));
+    queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want, names ?? undefined));
     return viewOf(c, storyId);
   },
   'POST /api/chapter/end': async (c) => {

@@ -1165,6 +1165,39 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 
 
+// THE THREADS PAST THE CAP: asked for by name, only those threads are reviewed and chalked, into the
+// same scene group. The fake answers for both threads, so only the ask can keep Oren out.
+{
+  const t = db.createStory(me, { title: 'Past the cap', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'] });
+  db.upsertEntry(t.id, me, { title: 'Mara', body: '[Mara: the toll-keeper]', entryType: 'character', keys: ['Mara'] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Oren cut the bell down while Mara counted the tolls twice.' });
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id, summarise: false, remember: false, extract: false, retire: false }));
+  await hemSettled(t.id);
+  answer = [
+    { name: 'Oren', stands: '[Oren: the ferryman, who took the bell]', label: 'took the bell',
+      line: 'Oren cut the bell down', always: '', pockets: [] },
+    { name: 'Mara', stands: '[Mara: the toll-keeper, who no longer trusts the count]', label: 'counts twice',
+      line: 'Mara counted the tolls twice', always: '', pockets: [] }];
+  const from = asks.length;
+  const r: any = await routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, names: ['Mara'] }));
+  assert.ok(!r.error, r.error);
+  await hemSettled(t.id);
+  const again = asks.slice(from);
+  assert.ok(again.length > 0 && again.every((a) => a.system.startsWith(prompts.MEMORY.slice(0, 80))),
+    `  only the thread-change pass asked (${again.length} asks)`);
+  assert.ok(again.at(-1).user.includes('Mara: the toll-keeper') && !again.at(-1).user.includes('Oren: the ferryman'),
+    'HEM-OVERFLOW-ASK: only the named thread is offered to the model');
+  const chalked = db.proposalsOf(t.id) as any[];
+  assert.deepStrictEqual(chalked.map((x) => x.title), ['Mara'], `HEM-OVERFLOW-ONLY: only Mara is chalked (${chalked.map((x) => x.title)})`);
+  assert.strictEqual(chalked[0].grp, `scene:${ch0.id}`, 'HEM-OVERFLOW-GROUP: into the same scene group');
+  assert.strictEqual(sceneOf(await viewNow(t.id), ch0.id).hem?.passes?.memory, null, '  and the thread-change line reads as run');
+  ok('asking for the threads past the cap chalks only those threads, into the scene group');
+}
+
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several
