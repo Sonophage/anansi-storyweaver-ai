@@ -339,18 +339,12 @@ const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
       // ONE STRIP FOR EVERY WRAPPED ROOM. 43 of the live library's non-facts rooms are stored as
       // `[short sentences; …]` — that is the form `src/forge.ts` teaches a foreign model to write a
       // card in, so it is the normal case and not a data error. Wrapping the wrapper gives
-      // `[How she got here: [bought The Monarch…]]`, which is the `[You: [You: …]]` defect the
-      // facts branch above was written to avoid, arriving through eleven other slots instead.
-      //
-      // ONLY WHEN THE BRACKETS ACTUALLY PAIR AS AN OUTER WRAPPER, which is what the `indexOf`
-      // asks: the first `]` has to be the last character. `[a] and [b]` has its first `]` in the
-      // middle, so a greedy `^\[(.*)\]$` would eat it into `a] and [b` — a body corrupted on its
-      // way into the prompt, silently. Refusing anything ambiguous costs a stray pair of brackets
-      // and cannot damage a body.
-      const raw = a.body.trim();
-      const body = raw.startsWith('[') && raw.indexOf(']') === raw.length - 1
-        ? raw.slice(1, -1).trim() : raw;
+      // `[How she got here: [bought The Monarch…]]`, which is the `[You: [You: …]]` defect Always
+      // true was written to avoid, arriving through eleven other slots instead. `plain` is the one
+      // strip, Always true's and every pocket's, and it says why it refuses anything ambiguous.
       const label = (a.name || '').trim();
+      const body = plain(a.body, [who, label, a.slot, a.slot.replace(/_/g, ' '),
+        ...(a.slot === 'outfit' ? ['wearing', 'wears'] : [])]);
 
       if (a.slot === 'outfit') return `[${who || 'They'} wears: ${body}]`;
       // VOICE IS THE SECOND SLOT WHERE THE ROOM'S NAME IS NOT WHAT THE MODEL NEEDS TO BE TOLD, and

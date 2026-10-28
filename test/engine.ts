@@ -1445,6 +1445,20 @@ ok('  and one still stored in the old [Name: …] wrapper is not framed twice', 
     'UNWRAP-FOLDED: each line loses its brackets; a label that is not the name stays');
 });
 
+ok('  and a pocket in the old [label: …] or [Name: …] wrapper keeps only its own frame', () => {
+  // The forms the lookup and the cast taught a model to write (`src/prompts.ts`): `[wearing: …]`,
+  // `[interiority: …]`, and the thread's own name in front.
+  const one = (o: any) => withAddons([room({ active: true, ...o })], AT).text;
+  assert.match(one({ slot: 'outfit', body: '[wearing: wool, shiny cuffs]' }),
+    /\[Aldis Fen wears: wool, shiny cuffs\]/, 'UNWRAP-OUTFIT: "wearing:" goes');
+  assert.match(one({ slot: 'interiority', body: '[interiority: counts doorways]' }),
+    /— her fear: counts doorways\]/, 'UNWRAP-KIND: the kind as a label goes');
+  assert.match(one({ slot: 'voice', body: '[Aldis Fen: clipped, never swears]' }),
+    /write the dialogue this way: clipped, never swears\./, 'UNWRAP-NAME: the thread\'s name goes');
+  assert.match(one({ slot: 'interiority', name: 'Debt', body: '[Debt: counts doorways]' }),
+    /— Debt: counts doorways\]/, 'UNWRAP-LABEL: the pocket\'s own label is said once');
+});
+
 ok('  and a voice nobody switched on stays out, like any other room', () => {
   // The guard that makes the two above mean anything. Asserted rather than assumed: five of the
   // six live voice rooms are `active=0` with no keys, so this branch is the one they take.
