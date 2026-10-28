@@ -5319,6 +5319,11 @@ const hemCardOf = (side: string) => {
   STORY.currentChapter = { ...STORY.chapters[0] } as any;
   card = await show({ ...HEM_DONE, overflow: [] }, []);
   assert.strictEqual(card, '', 'a hem with nothing left to decide has no card');
+  // OUT OF DATE BRINGS IT BACK (story 19): the scene changed after its hem, so Hem again needs a
+  // card to sit on even with nothing chalked, and Leave it moves on without hemming.
+  card = await show({ ...HEM_DONE, overflow: [], outOfDate: true }, []);
+  assert.match(card, /<button[^>]*data-hemagain="c-1">Hem again</, 'HEM-STALE-CARD: an out-of-date scene keeps its card, with Hem again');
+  assert.match(card, /data-deckmove="1"[^>]*>&larr; Leave it</, '  and a way to move on');
   STORY.currentChapter = wasCurrent;
 
   (globalThis as any).fetch = canned;

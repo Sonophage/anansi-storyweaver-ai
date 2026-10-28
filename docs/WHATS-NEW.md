@@ -36,7 +36,8 @@ setup, and nothing is saved until you press Save.
 
 The card says when Anansi is still hemming, and it fills in on its own when he is done. If a part
 did not run, the card names it and Try again runs that part alone. If you change the scene after
-it was hemmed, the card says it is out of date, and Hem again reads it afresh; what you already
+it was hemmed, the card says it is out of date (it comes back if you had cleared it), and Hem again
+reads it afresh; what you already
 sewed in or rejected stays as you left it. Cards from before this change are as they were.
 
 ## 2026-10-27 · A character's voice no longer hides who they are

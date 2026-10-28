@@ -2496,10 +2496,10 @@ const hemNext = (ch) => {
   return n && n.id === V.currentChapter?.id && n.status !== 'closed' ? n : null;
 };
 /** Whether a hemmed scene's card is on the deck: while it runs, while anything it chalked is
- *  undecided, while a pass did not run, and while its suggestion waits for the scene being written.
- *  OUT OF DATE ALONE DOES NOT BRING IT BACK: with nothing chalked left there is nothing to sew in from
- *  text that is gone, and the summary's own upkeep card already says when it is out of date. */
-const hemShows = (ch, ps) => ch.hem.state === 'running' || ps.length > 0
+ *  undecided, while a pass did not run, while its suggestion waits for the scene being written, and
+ *  while it is out of date. OUT OF DATE ALONE BRINGS IT BACK (story 19): Hem again lives on the card,
+ *  so with nothing chalked left it would have nowhere to appear. Leave it moves on without hemming. */
+const hemShows = (ch, ps) => ch.hem.state === 'running' || ps.length > 0 || !!ch.hem.outOfDate
   || missedPasses(ch).length > 0 || !!(ch.hem.suggestion && hemNext(ch));
 
 /** What a chalked row would change, as it stands now: the Over time entry in force for a row about
