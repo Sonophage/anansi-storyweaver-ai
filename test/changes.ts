@@ -205,6 +205,33 @@ ok('TALE-SET-REFUSED: a field that is not the premise or setting, no text, or th
   refused(ch.checkUndo({ op: 'tale.set', field: 'spice', text: '5' }, whole), /premise or its setting/i);
 });
 
+ok('SCENE-SET: a scene\'s title or where it heads, by its number, with the old text for Undo', () => {
+  const c = done(ch.checkAsked({ op: 'scene.set', scene: 1, field: 'title', text: 'The Ford' }, whole));
+  assert.strictEqual(c.chapter, 'c-1');
+  assert.strictEqual(c.before, 'The Bank');
+  assert.match(ch.wordsFor(c), /scene 1's title.*The Ford/);
+  assert.deepStrictEqual(ch.undoFor(c, {}), { op: 'scene.set', chapter: 'c-1', field: 'title', text: 'The Bank' });
+  const h = done(ch.checkAsked({ op: 'scene.set', scene: 2, field: 'Heads toward', text: 'The far bank, at dusk.' }, whole));
+  assert.strictEqual(h.field, 'heads_toward', 'the field as a writer says it');
+  assert.strictEqual(h.before, '', 'where it heads was empty, and Undo puts the empty one back');
+  assert.match(ch.wordsFor(h), /where scene 2 heads.*far bank/);
+  // No scene named is the scene the writer is in.
+  assert.strictEqual(done(ch.checkAsked({ op: 'scene.set', field: 'title', text: 'Mid-stream' }, whole)).chapter, 'c-2');
+  const u = done(ch.checkUndo({ op: 'scene.set', chapter: 'c-2', field: 'heads_toward', text: '' }, whole));
+  assert.match(ch.wordsFor(u), /Put back where scene 2 heads/);
+});
+
+ok('SCENE-SET-REFUSED: a scene the tale does not have, another field, no text, or the same text', () => {
+  refused(ch.checkAsked({ op: 'scene.set', scene: 7, field: 'title', text: 'Later' }, whole), /no scene 7/i);
+  refused(ch.checkAsked({ op: 'scene.set', scene: 0, field: 'title', text: 'Before' }, whole), /no scene 0/i);
+  refused(ch.checkAsked({ op: 'scene.set', scene: 1, field: 'opens_with', text: 'Fog.' }, whole), /title or where it heads/i);
+  refused(ch.checkAsked({ op: 'scene.set', scene: 1, field: 'summary', text: 'Fog.' }, whole), /title or where it heads/i);
+  refused(ch.checkAsked({ op: 'scene.set', scene: 1, field: 'title', text: '' }, whole), /no text/i);
+  refused(ch.checkAsked({ op: 'scene.set', scene: 1, field: 'title', text: 'The Bank' }, whole),
+    /already says/i);
+  refused(ch.checkUndo({ op: 'scene.set', chapter: 'c-other', field: 'title', text: 'Mine' }, whole), /no longer in this tale/i);
+});
+
 ok('the change slice never reaches for the database itself', () => {
   const src = readFileSync(new URL('../src/changes.ts', import.meta.url), 'utf8');
   assert.ok(!/from '\.\/db\.ts'/.test(src), 'src/changes.ts must not import db.ts');

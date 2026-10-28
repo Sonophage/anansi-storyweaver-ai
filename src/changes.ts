@@ -24,16 +24,19 @@
 import { ALL_SLOTS, KINDS, slotsFor } from './slots.ts';
 
 /** What the model may ask for. #97 cut the path with the first two; #98 adds the rest. */
-export const ASKED = ['thread.new', 'thread.set', 'tale.set'] as const;
+export const ASKED = ['thread.new', 'thread.set', 'tale.set', 'scene.set'] as const;
 /** What only an Undo may do, beside putting back old text. */
 const UNMAKE = ['thread.unmake', 'room.unmake'] as const;
 /** What an Undo may put back as it was: the asked operations that write over a value, by id. */
-const PUT_BACK = ['thread.set', 'tale.set'] as const;
+const PUT_BACK = ['thread.set', 'tale.set', 'scene.set'] as const;
 
 /** THE TALE'S OWN FIELDS TALK MAY CHANGE. Until the tale's thread is built (GLOSSARY), its premise
  *  and setting are the story's own columns, and these are the two. Rules are rule threads today, so
  *  they are changed through the thread operations. */
 const TALE_FIELDS = ['premise', 'setting'] as const;
+/** A SCENE'S FIELDS TALK MAY CHANGE: its title and Heads toward (`authors_note` in the column). Opens
+ *  with is not on it: the ticket names these two, and an opening is the writer's first beat. */
+const SCENE_FIELDS = ['title', 'heads_toward'] as const;
 
 /** The schema fragment Talk's answer carries. Flat, one object per change: the grammar cannot say
  *  "these fields for this operation", and the checks below are what enforce that. */
@@ -54,8 +57,10 @@ export const CHANGES_SCHEMA = {
       type: { type: 'string', enum: [...KINDS] },
       keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
       activation: { type: 'string', enum: ['always_on', 'triggered'] },
-      // tale.set: which of the tale's own fields.
-      field: { type: 'string', enum: [...TALE_FIELDS] },
+      // tale.set: which of the tale's own fields. scene.set: which of the scene's.
+      field: { type: 'string', enum: [...TALE_FIELDS, ...SCENE_FIELDS] },
+      // scene.set: the scene by its number; none is the scene the writer is in.
+      scene: { type: 'integer', minimum: 1 },
     },
     required: ['op'],
   },
@@ -66,7 +71,9 @@ type Thread = { id: string; title: string; entryType: string; addons?: Room[]; s
 /** The tale as the route read it through the gate: its threads, and since #98 its own fields, its
  *  scenes and the scene the writer is in. The later three are optional so a check that needs only
  *  threads can be handed only threads. */
-export type Tale = { entries: Thread[]; story?: { premise?: string | null; setting?: string | null } };
+type Scene = { id: string; index: number; title?: string | null; authorsNote?: string | null };
+export type Tale = { entries: Thread[]; story?: { premise?: string | null; setting?: string | null };
+  chapters?: Scene[]; at?: number };
 
 export type Change =
   | { op: 'thread.new'; title: string; type: string; always: string; keys: string[]; activation: string }
@@ -77,7 +84,8 @@ export type Change =
   | { op: 'thread.unmake'; thread: string; title: string }
   | { op: 'room.unmake'; thread: string; title: string; addon: string; room: string }
   /** `before` is the field's text before the change; on an Undo, the text being put back. */
-  | { op: 'tale.set'; field: string; text: string; before: string; undo?: true };
+  | { op: 'tale.set'; field: string; text: string; before: string; undo?: true }
+  | { op: 'scene.set'; chapter: string; index: number; field: string; text: string; before: string; undo?: true };
 export type Checked = { ok: true; change: Change } | { ok: false; said: string; why: string };
 
 const NOT_TALK = 'that is not something Talk can do. It changes the tale, its threads and its scenes; '
@@ -149,6 +157,7 @@ export function checkAsked(raw: any, tale: Tale): Checked {
     return { ok: true, change: { op, title, type, always: String(raw.text ?? '').trim(), keys, activation } };
   }
   if (op === 'tale.set') return taleSet(tale, raw, said, false);
+  if (op === 'scene.set') return sceneSet(tale, raw, said, false);
   const { hit, why } = threadNamed(tale, raw.thread);
   if (!hit) return { ok: false, said, why: why! };
   return setOn(hit, roomOf(raw.room), String(raw.text ?? '').trim(), said, false);
@@ -167,6 +176,33 @@ function taleSet(tale: Tale, raw: any, said: string, undo: boolean): Checked {
   return { ok: true, change: { op: 'tale.set', field, text, before: undo ? text : before,
     ...(undo ? { undo: true as const } : {}) } };
 }
+
+/** #98 · A SCENE'S TITLE OR WHERE IT HEADS. A request names the scene by its number, the way the
+ *  writer does, and no number is the scene they are in; an Undo names it by id. A number the tale has
+ *  no scene for is refused, never read as the nearest one. */
+function sceneSet(tale: Tale, raw: any, said: string, undo: boolean): Checked {
+  const field = String(raw?.field ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (!(SCENE_FIELDS as readonly string[]).includes(field)) return { ok: false, said,
+    why: 'Talk changes a scene\'s title or where it heads, nothing else of it' };
+  const scenes = tale.chapters ?? [];
+  const sc = undo ? scenes.find((x) => x.id === String(raw.chapter ?? ''))
+    : sceneAt(tale, raw.scene, tale.at);
+  if (!sc) return { ok: false, said, why: undo ? 'that scene is no longer in this tale' : noScene(tale, raw.scene) };
+  const text = String(raw.text ?? '').trim();
+  const before = String((field === 'title' ? sc.title : sc.authorsNote) ?? '');
+  if (!undo && !text) return { ok: false, said, why: 'it came with no text' };
+  if (!undo && before.trim() === text) return { ok: false, said,
+    why: `scene ${sc.index}'s ${field === 'title' ? 'title' : 'Heads toward'} already says that` };
+  return { ok: true, change: { op: 'scene.set', chapter: sc.id, index: sc.index, field, text,
+    before: undo ? text : before, ...(undo ? { undo: true as const } : {}) } };
+}
+/** The scene a number names, or `dflt`'s when none is given. Never the nearest one. */
+const sceneAt = (tale: Tale, n: unknown, dflt?: number) => {
+  const want = n == null || n === '' ? dflt : Number(n);
+  return (tale.chapters ?? []).find((x) => x.index === want);
+};
+const noScene = (tale: Tale, n: unknown) =>
+  `there is no scene ${n ?? ''} in this tale; it has ${(tale.chapters ?? []).length}`;
 
 /** A thread.set, once its thread is known. Shared by a request and an Undo, so the two cannot
  *  disagree about which rooms a thread has or which room a change lands in. */
@@ -194,6 +230,7 @@ export function checkUndo(raw: any, tale: Tale): Checked {
   if (!(PUT_BACK as readonly string[]).includes(op) && !(UNMAKE as readonly string[]).includes(op))
     return { ok: false, said, why: 'that is not something Undo can do' };
   if (op === 'tale.set') return taleSet(tale, raw, said, true);
+  if (op === 'scene.set') return sceneSet(tale, raw, said, true);
   const t = tale.entries.find((e) => e.id === String(raw.thread ?? ''));
   if (!t) return { ok: false, said, why: 'that thread is no longer in this tale' };
   const text = String(raw.text ?? '');
@@ -221,6 +258,9 @@ export function wordsFor(c: Change): string {
   if (c.op === 'room.unmake') return `Took away ${c.title}'s ${roomLabel(c.room)}.`;
   if (c.op === 'tale.set') return c.undo ? `Put back the tale's ${c.field}.`
     : `Changed the tale's ${c.field}: “${clip(c.text)}”`;
+  if (c.op === 'scene.set') return c.field === 'title'
+    ? c.undo ? `Put back scene ${c.index}'s title.` : `Changed scene ${c.index}'s title: “${clip(c.text)}”`
+    : c.undo ? `Put back where scene ${c.index} heads.` : `Changed where scene ${c.index} heads: “${clip(c.text)}”`;
   if (c.undo) return `Put back ${c.title}'s ${roomLabel(c.room)}.`;
   return `Changed ${c.title}'s ${roomLabel(c.room)}: “${clip(c.text)}”`;
 }
@@ -229,6 +269,7 @@ export function wordsFor(c: Change): string {
 function saidOf(raw: any): string {
   const name = String(raw?.thread ?? raw?.title ?? '').trim();
   if (raw?.op === 'thread.new') return `Make a new thread${name ? `: ${name}` : ''}`;
+  if (raw?.op === 'scene.set') return `Change scene ${raw?.scene ?? 'this one'}`;
   if (raw?.op === 'tale.set') return `Change the tale's ${String(raw?.field ?? '').trim() || 'premise or setting'}`;
   if (raw?.op === 'thread.set') return `Change ${name || 'a thread'}${raw?.room && roomOf(raw.room) !== 'facts'
     ? `'s ${roomLabel(roomOf(raw.room))}` : ''}`;
@@ -240,6 +281,7 @@ function saidOf(raw: any): string {
 export function undoFor(c: Change, made: { thread?: string; addon?: string }) {
   if (c.op === 'thread.new') return { op: 'thread.unmake', thread: made.thread, title: c.title, text: c.always };
   if (c.op === 'tale.set') return { op: 'tale.set', field: c.field, text: c.before };
+  if (c.op === 'scene.set') return { op: 'scene.set', chapter: c.chapter, field: c.field, text: c.before };
   if (c.op !== 'thread.set') return null;
   if (c.before == null) return { op: 'room.unmake', thread: c.thread, addon: made.addon, text: c.text };
   return { op: 'thread.set', thread: c.thread, room: c.room, addon: c.addon, text: c.before };

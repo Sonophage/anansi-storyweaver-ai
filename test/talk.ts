@@ -81,6 +81,10 @@ const srv = createServer((req, res) => {
       // #98 · the rest of the list.
       PREMISE: { reply: 'The premise is darker now.',
         changes: [{ op: 'tale.set', field: 'premise', text: 'A river nobody crosses twice.' }] },
+      SCENE: { reply: 'Scene 1 is The Ford now, and this one heads for the far bank.',
+        changes: [{ op: 'scene.set', scene: 1, field: 'title', text: 'The Ford' },
+                  { op: 'scene.set', field: 'heads_toward', text: 'The far bank, at dusk.' },
+                  { op: 'scene.set', scene: 9, field: 'title', text: 'Later' }] },
     };
     const answer = asked && CHANGES[asked] ? CHANGES[asked]
       : asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
@@ -1019,7 +1023,7 @@ ok('emptying the box gives her back the voice she shipped with');
   const age = await say('CHANGE-AGE: make Talia thirty, not twenty');
   assert.ok(!age.error, age.error);
   const ops = calls[0].response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum;
-  assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'tale.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
+  assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'tale.set', 'scene.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
 
   // Always true, changed at once.
   assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is thirty.', 'CHANGE-DONE: Talia\'s Always true is changed');
@@ -1134,6 +1138,22 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.ok(!back.error, back.error);
   assert.strictEqual(story().premise, 'A river between the living and the dead.', 'UNDO-TALE: the old premise, word for word');
   ok('asked to change the premise, Talk changes it, and Undo puts back the old one');
+
+  // A second scene, which the writer is in. "This one" is scene 2; scene 1 is named by number.
+  const c2 = (db.endChapter(tale.id, tale.branchId, 'Mid-river') as any).opened;
+  const scene = (id: string) => (db.chapters(tale.id) as any[]).find((x) => x.id === id);
+  const sc = await say('CHANGE-SCENE: rename scene 1 The Ford, and send this one toward the far bank');
+  assert.ok(!sc.error, sc.error);
+  assert.strictEqual(scene(tale.chapterId).title, 'The Ford', 'SCENE-SET: scene 1 is renamed');
+  assert.strictEqual(scene(c2).authors_note, 'The far bank, at dusk.', 'SCENE-SET: the scene the writer is in heads there');
+  assert.strictEqual(scene(c2).title, 'Mid-river', 'SCENE-SET: and its title is left alone');
+  assert.strictEqual(sc.changes.length, 2, `SCENE-SET: two done (${JSON.stringify(sc.changes)})`);
+  assert.match(sc.reply, /Not done.*no scene 9/, `SCENE-MISSING: the reply says scene 9 is not there:\n${sc.reply}`);
+  assert.strictEqual((db.chapters(tale.id) as any[]).length, 2, 'SCENE-MISSING: and no scene was made for it');
+  for (const x of sc.changes) assert.ok(!undo(x.undo).error);
+  assert.strictEqual(scene(tale.chapterId).title, 'The Bank', 'UNDO-SCENE: the old title');
+  assert.strictEqual(scene(c2).authors_note ?? '', '', 'UNDO-SCENE: and where it heads is empty again, as it was');
+  ok('asked to rename a scene or change where it heads, Talk does, refuses a scene that is not there, and Undo puts both back');
 }
 
 // ---- 6d · THE WRITER MOVES A PROPOSAL, AND THE WRITER OUTRANKS THE MODEL ----

@@ -709,6 +709,11 @@ function applyChange(storyId: string, owner: string, ch: Change): { thread?: str
   // #98. The premise or the setting, through the save the tale's own panel makes. Only the one
   // field is named, and `updateStory` leaves every field it is not handed as it was.
   if (ch.op === 'tale.set') { db.updateStory(storyId, { [ch.field]: ch.text }); return {}; }
+  // A scene's title or Heads toward, through the scene panel's own save, which is partial the same way.
+  if (ch.op === 'scene.set') {
+    db.updateChapter(storyId, ch.chapter, ch.field === 'title' ? { title: ch.text } : { authorsNote: ch.text });
+    return {};
+  }
   // The two an Undo alone may do, each only on a thread or room Talk made and nobody has changed
   // since — `checkUndo` refused anything else before this was reached.
   if (ch.op === 'thread.unmake') { db.delEntry(storyId, ch.thread); return {}; }
