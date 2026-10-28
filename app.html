@@ -2221,6 +2221,8 @@ html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
    pre-wrap keeps the writer's line breaks; anywhere lets a long word wrap on a 390px phone. */
 .diff { font-size:12.5px; line-height:1.55; color:var(--mute); white-space:pre-wrap; overflow-wrap:anywhere; }
 .diff del { color:var(--bad); text-decoration:line-through; background:color-mix(in srgb, var(--bad) 13%, transparent); border-radius:2px; }
+/* A removal straight before its addition gets a little room, so the two words read as two. */
+.diff del + ins { margin-left:.25em; }
 .diff ins { color:var(--good); text-decoration:underline; text-underline-offset:2px; background:color-mix(in srgb, var(--good) 15%, transparent); border-radius:2px; }
 .deckredo { display:flex; gap:7px; align-items:center; margin-top:8px; }
 .deckbar { display:flex; gap:8px; margin-top:4px; }

@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-28 · Tidy this thread, made safe to use on a whole library
 
+### See exactly what changed, word by word
+When a thread changes, you now see which words went and which came in. Words that were taken out
+are struck through. Words that were put in are underlined. This shows in a thread's Earlier
+versions, where each old version is set against the one that replaced it. It also shows on
+Workbench cards, where what is there now is set against what Anansi chalked. And it shows under
+each change Talk made, beside its Undo. It reads on a phone and in every theme.
+
 ### Tidy leaves "their lines are yours" alone
 Tidying the character you play, or the one you keep Hands off, no longer touches the pocket that
 says their lines are yours. Anansi does not read it and does not offer a new voice in its place.

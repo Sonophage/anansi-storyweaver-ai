@@ -7,7 +7,8 @@
 // the kept and added pieces spell the new text exactly. The cases are the ones a word diff is not
 // written for: punctuation, a repeated word, a moved sentence, an empty side, identical text.
 import assert from 'node:assert';
-const { wordDiff, diffHTML, historyPairs } = await import('../web/model.js');
+import { readFileSync } from 'node:fs';
+const { wordDiff, diffHTML, historyPairs, THEMES, themeVars } = await import('../web/model.js');
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -133,6 +134,31 @@ ok('DIFF-HTML: removed words are <del>, added are <ins>, and the text is escaped
   assert.ok(!/<del>|<ins>/.test(diffHTML('same', 'same')), 'identical text has no marks');
   // A screen reader hears which is which: the marks carry words, not only a colour.
   assert.ok(/<del>/.test(diffHTML('a', '')) && /<ins>/.test(diffHTML('', 'a')));
+});
+
+// IN EVERY THEME: the marks are coloured from the theme's own bad (removed) and good (added), and
+// each must read against the theme's paper and its card sheet. 3:1 is the WCAG floor for text that
+// carries meaning beside other marks (the strike and the underline carry it too). Measured over every
+// theme in the table, including the light ones it was not tuned on.
+ok('DIFF-THEMES: removed and added words read against the paper and the sheet of every theme', () => {
+  const lum = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((v) => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+    .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  assert.match(css, /\.diff del \{[^}]*color:var\(--bad\)/, 'removed words take the theme\'s bad');
+  assert.match(css, /\.diff ins \{[^}]*color:var\(--good\)/, 'added words take the theme\'s good');
+  assert.doesNotMatch(css.match(/\.diff[^{]*\{[^}]*\}/g)!.join(''), /#[0-9a-f]{3,8}\b|rgba?\(/i, 'and no literal colour');
+  const low: string[] = [];
+  for (const [k, t] of Object.entries(THEMES) as [string, any][]) {
+    const v = themeVars(k);
+    assert.strictEqual(v['--bad'], t.warn); assert.strictEqual(v['--good'], t.good);
+    for (const [mark, c] of [['removed', t.warn], ['added', t.good]]) for (const bg of [t.paper, t.sheet]) {
+      const r = ratio(c, bg);
+      if (r < 3) low.push(`${k} ${mark} ${c} on ${bg}: ${r.toFixed(2)}`);
+    }
+  }
+  assert.deepStrictEqual(low, [], 'every theme clears 3:1');
 });
 
 // ALTERATIONS: each earlier version against the one that replaced it. The rows come newest first,
