@@ -6,7 +6,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TIDY, TIDY_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
-import { ALL_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine } from './slots.ts';
+import { ALL_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultModePrompts, trimToSentence,
@@ -952,13 +952,10 @@ async function pullThread(using: string, subject: string, kind: string, world: s
        * negation. */
       return v.length >= 15 && !EMPTY.test(v) && !ABOUT_SOURCES.test(v);
     }));
-  /* BRACKET FORM, WRAPPED HERE IF THE MODEL DID NOT. Every card in this app carries it and the
-   * context window renders it; the paste route has wrapped a bare body since #29 for exactly this
-   * reason, and this route needed the same. Measured 2026-09-02: told to write a WORLD rather than
-   * a product, the model followed the prose example in that instruction and dropped the brackets
-   * with it — a formatting miss, not a bad card, and the same repair applies. */
-  let cardBody = String(r.data.body ?? '').trim();
-  if (cardBody && !cardBody.startsWith('[')) cardBody = `[${title}: ${cardBody}]`;
+  /* #110 · A PLAIN DESCRIPTION (ADR 0008). This wrapped a bare body as `[Name: …]` until #110, and a
+   * body the model had started with the name already came out `[Leyndell: Leyndell: …]`. The
+   * wrapper and the name in front come off by the one rule (`slots.plain`); the prompt frames it. */
+  const cardBody = plain(r.data.body, [title]);
   return { title, body: cardBody, keys: (r.data.keys ?? []) as string[], rooms: filled, sources, data: r.data,
            seconds: +((Date.now() - t0) / 1000).toFixed(1) };
 }
@@ -1522,7 +1519,7 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     // ponytail: only the Over time entry crosses; pockets the model gave a World person are dropped.
     // Trigger: a writer missing them on the new thread; then carry them as rooms, as `extract` does.
     if (who.sharedFrom) {
-      const always = alwaysTrue(who) || String(m.always ?? '').trim() || `[${who.title}]`;
+      const always = alwaysTrue(who) || String(m.always ?? '').trim() || who.title;
       if (stands && db.addProposal(storyId, { kind: 'new', entry_id: null, chapterId: ch.id, title: who.title, body: always,
           entryType: who.entryType, field: 'facts', keys: who.keys ?? [], delta, grp, line,
           rooms: { stands: { body: stands, from: ch.index + 1, before: said.trim() } } })) {
@@ -2203,12 +2200,11 @@ function sparkThread(rawName: string, kind: string, rawBody: string, pockets: un
     if (slot !== 'facts' && here.includes(slot) && body && !rooms[slot])
       rooms[slot] = { name: String(pk?.name ?? '').trim() || slot, body, on: true };
   }
-  // ONE NAME AT THE FRONT. The model often starts the body with the name already, and wrapped
-  // again it read "[Seth: Seth: The Witness…]" on every call (2026-10-27, #81).
+  // NO NAME AT THE FRONT, AND NO BRACKETS (#110, ADR 0008): the setup draft shows this text as the
+  // thread's Always true, so it is the description only. The model often starts the body with the
+  // name already, and wrapped it once read "[Seth: Seth: The Witness…]" (2026-10-27, #81).
   const name = String(rawName).trim();
-  const own = String(rawBody).trim().replace(/^\[|\]$/g, '').trim();
-  const said = own.toLowerCase().startsWith(name.toLowerCase() + ':') ? own.slice(name.length + 1).trim() : own;
-  return { title: name, entryType: kind, activation: 'always_on', body: `[${name}: ${said}]`, keys: [name],
+  return { title: name, entryType: kind, activation: 'always_on', body: plain(rawBody, wrapperNames('facts', name)), keys: [name],
            ...(Object.keys(rooms).length ? { rooms } : {}) };
 }
 
@@ -2233,7 +2229,7 @@ function writeRooms(storyId: string, entryId: string, kind: string, rooms: any, 
     const facts: any = (rooms as any).facts;
     const own = String((facts && typeof facts === 'object') ? facts.body ?? '' : facts ?? '').trim();
     rooms = { ...rooms, facts: { ...(facts && typeof facts === 'object' ? facts : {}),
-      body: [own && (own.startsWith('[') ? own : `[${own}]`), ...folded].filter(Boolean).join('\n') } };
+      body: [own, ...folded].filter(Boolean).join('\n') } };
   }
   rooms = Object.fromEntries(Object.entries(rooms ?? {}).filter(([slot]) => !FOLDED.includes(slot)));
   for (const [slot, val] of Object.entries(rooms ?? {})) {
@@ -2246,7 +2242,7 @@ function writeRooms(storyId: string, entryId: string, kind: string, rooms: any, 
     if (!body) continue;
     const id = db.upsertAddon(storyId, entryId, {
       slot, name: String(o.name ?? slot.replace(/_/g, ' ')).trim() || slot,
-      body: body.startsWith('[') ? body : `[${body}]`,
+      body,
       keys: Array.isArray(o.keys) ? o.keys : [],
     });
     if (id) made++;
@@ -2772,9 +2768,9 @@ export const routes: Record<string, Handler> = {
        * which is the exact defect `facts` was added for on 2026-08-29: "theres no place to keep the
        * characters main facts that doesnt get overwritten."
        *
-       * `facts` renders BARE and directly under the body (context.ts `rooms`), so this moves the text
-       * without changing a byte of what the model is sent on the first call. What changes is what
-       * survives chapter one.
+       * `facts` is Always true: it reaches the model first, framed with the thread's name, ahead of
+       * the body (context.ts `cardText`, #109). So the text moves out of the body that chapter one
+       * rewrites and into the part no pass rewrites. What changes is what survives chapter one.
        *
        * NOT BOTH, and that was checked before it was chosen: facts renders IN ADDITION to the body, so
        * filling both would send the same sentence to the model twice on every call until the first
@@ -4464,11 +4460,9 @@ export const routes: Record<string, Handler> = {
       }
       const title = String(raw.title ?? raw.name ?? '').trim();
       if (!title) { notes.push(`Skipped a ${kind} with no title${where}.`); continue; }
-      // The bracket form is what every card in this app carries and what the register asks for. A
-      // model that answered in plain prose gets wrapped rather than refused; the brackets are the
-      // convention, and one that arrives without them is a formatting miss, not a bad card.
-      let body = String(raw.body ?? '').trim();
-      if (body && !body.startsWith('[')) body = `[${title}: ${body}]`;
+      // #110 · A PLAIN DESCRIPTION (ADR 0008): a pasted body in the old `[Name: …]` card form comes
+      // in without it, by the rule a pocket is stored by (`slots.plain`). It is not wrapped any more.
+      const body = plain(raw.body, [title]);
       /* AN ID IN THE PASTE UPDATES THAT CARD, and this is what makes the Card-as-JSON export a
        * round trip rather than a duplicator — Seth, 2026-09-02: "be able to reupload". Without it,
        * putting a card's own file back made a second copy of it beside the first.
@@ -4480,7 +4474,7 @@ export const routes: Record<string, Handler> = {
       const claimed = String(raw.id ?? '').trim();
       const known = claimed && (v.entries ?? []).some((x: any) => x.id === claimed);
       const id = db.upsertEntry(v.id, c.owner, {
-        id: known ? claimed : '', title, body: body || `[${title}: ]`,
+        id: known ? claimed : '', title, body,
         entryType: kind,
         activation: raw.activation === 'triggered' ? 'triggered' : 'always_on',
         keys: Array.isArray(raw.keys) ? raw.keys : [],

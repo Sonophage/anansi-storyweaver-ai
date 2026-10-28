@@ -1841,12 +1841,12 @@ async function bootServer(port: number, env: Record<string, string>) {
     'Info is left EMPTY, so the first chapter-end update has nothing to overwrite');
   const factsOf = (e: any) => (e.addons ?? []).filter((a: any) => a.slot === 'facts')
     .map((a: any) => String(a.body ?? '').trim());
-  assert.deepStrictEqual(factsOf(aldis), ['[Aldis Fen: 34, ex-Watch sergeant, owes Marek eleven crowns]'],
-    'and the description is in facts, which no pass rewrites');
+  assert.deepStrictEqual(factsOf(aldis), ['34, ex-Watch sergeant, owes Marek eleven crowns'],
+    'and the description is in facts, which no pass rewrites, stored plain (#110)');
 
   // The one that brought its own keeps it, and its body is NOT moved on top of it.
   const marek = v.entries.find((e: any) => e.title === 'Marek Vale');
-  assert.deepStrictEqual(factsOf(marek), ['[Marek Vale: patient, never raises her voice]'],
+  assert.deepStrictEqual(factsOf(marek), ['patient, never raises her voice'],
     'an explicit rooms.facts wins over the body — a paste does not lose what it carried');
   assert.strictEqual(String(marek.body ?? '').trim(), '[Marek Vale: a moneylender]',
     'and that entry keeps its body, because nothing was moved out of it');
@@ -2212,7 +2212,7 @@ async function bootServer(port: number, env: Record<string, string>) {
   // #73: and a new thread's own text is its Always true, so Info starts as the history alone.
   assert.deepStrictEqual(rooms.map((a) => a.slot).sort(), ['appearance', 'facts'],
     'and the room it arrived with, plus its text as Always true; history is not a room');
-  assert.strictEqual(rooms.find((a) => a.slot === 'facts').body, '[Ferrus Manus: Primarch of the Iron Hands]',
+  assert.strictEqual(rooms.find((a) => a.slot === 'facts').body, 'Primarch of the Iron Hands',
     'NEW-ALWAYS: a new thread\'s text is its Always true');
   assert.match(card.body, /^\[History: Raised on Medusa, later known as the Headless\]$/,
     'FOLD-PULLED: a pulled card\'s history lands in Over time under its label');
@@ -2236,7 +2236,7 @@ async function bootServer(port: number, env: Record<string, string>) {
   const lock: any = db.proposalsOf(st.id).find((x: any) => x.field === 'facts' && x.status === 'open');
   await routes['POST /api/proposal'](ctxI(alice, { storyId: st.id, id: lock.id, accept: true }));
   const after = (db.addonsOf(st.id) as any[]).find((a) => a.entry_id === card.id && a.slot === 'facts');
-  assert.strictEqual(after?.body, '[Ferrus Manus: Primarch of the Iron Hands]', 'LOCK-UNTOUCHED: a chalked change does not rewrite it');
+  assert.strictEqual(after?.body, 'Primarch of the Iron Hands', 'LOCK-UNTOUCHED: a chalked change does not rewrite it');
   const st8: any[] = db.statesForStory(st.id).get(card.id) ?? [];
   assert.strictEqual(st8.length, 1, 'LOCK-OVER-TIME: it is an Over time entry instead');
   assert.match(st8[0].body, /Raised on Medusa[\s\S]*left-handed/,
@@ -2253,7 +2253,7 @@ async function bootServer(port: number, env: Record<string, string>) {
   const pull: any = db.proposalsOf(st.id).find((x: any) => x.entry_id === 'e-vulkan' && x.status === 'open');
   await routes['POST /api/proposal'](ctxI(alice, { storyId: st.id, id: pull.id, accept: true }));
   const vf = (db.addonsOf(st.id) as any[]).filter((a) => a.entry_id === 'e-vulkan');
-  assert.deepStrictEqual(vf.filter((a) => a.slot === 'facts').map((a) => a.body), ['[Vulkan: the writer\'s own]'],
+  assert.deepStrictEqual(vf.filter((a) => a.slot === 'facts').map((a) => a.body), ['the writer\'s own'],
     'LOCK-PULLED: a pulled card does not write Always true onto a thread that exists');
   assert.ok((db.statesForStory(st.id).get('e-vulkan') ?? []).some((x: any) => /a smith/.test(x.body)),
     '  it is an Over time entry instead');

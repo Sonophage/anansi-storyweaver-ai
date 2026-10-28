@@ -578,9 +578,9 @@ ok('a kind that does not exist is refused rather than assembled');
     'only the kinds that were asked for survive');
   assert.deepStrictEqual(castSchema(['character', 'lore']).properties.entries.items.properties.kind.enum,
     ['character', 'lore'], 'and the schema says so where the grammar can read it');
-  assert.match(r.entries[0].body, /^\[Vel: /, 'bodies arrive in the bracket format the ledger uses');
+  assert.ok(r.entries[0].body && !/^\[|^Vel:/.test(r.entries[0].body), `bodies arrive as a plain description, no brackets and no name in front (#110): ${r.entries[0].body}`);
   assert.deepStrictEqual(r.entries[0].keys, ['Vel'], 'and fire on their own name');
-  assert.strictEqual(r.entries[1].body, '[The Long Stair: a stair with no landing, cut into the rock.]',
+  assert.strictEqual(r.entries[1].body, 'a stair with no landing, cut into the rock.',
     'CAST-NAME-ONCE: a body that starts with its own name is not given the name twice');
   // FULLY FLESHED FROM THE START (Seth, 2026-10-26): the cast arrives with its pockets, as
   // instructions, and only the ones its kind can have.
@@ -663,7 +663,7 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.match(String(lastAsk().messages[1].content), /THE WRITER PLAYS: Mara — a courier who owes Aldis a favour/,
     'SPARK-NEW: the description reaches the ask');
   const m = mara.entries.find((e: any) => e.title === 'Mara');
-  assert.strictEqual(m?.body, '[Mara: a courier who owes Aldis a favour]', '  and she gets a thread from it');
+  assert.strictEqual(m?.body, 'a courier who owes Aldis a favour', '  and she gets a thread from it');
   assert.strictEqual(m?.rooms?.voice?.body, YOURS_VOICE('Mara'), '  with the yours pocket');
 
   // A RE-ROLL KEEPS WHO YOU PLAY: the one-thread re-roll is the same route with `replacing`.
@@ -722,7 +722,7 @@ ok('a kind that does not exist is refused rather than assembled');
   const maraA = (db.addonsOf(bare.id) as any[]).filter((a) => a.entry_id === maraT.id);
   assert.match(maraA.find((a) => a.slot === 'facts')?.body ?? '', /a courier who owes Aldis a favour/, '  written from the description');
   const yv = maraA.find((a) => a.slot === 'voice');
-  assert.strictEqual(yv?.body, `[${YOURS_VOICE('Mara')}]`, '  with the yours pocket');
+  assert.strictEqual(yv?.body, YOURS_VOICE('Mara'), '  with the yours pocket');
   assert.ok(yv?.active, '  switched on');
   const twice: any = mk({ title: 'Courier 2', premise: PREMISE, persona: 'Mara', personaAbout: 'a courier',
     entries: [{ title: 'Mara', entryType: 'character', body: '[Mara: the cast wrote her]' }] });
@@ -744,7 +744,7 @@ ok('a kind that does not exist is refused rather than assembled');
   const byTitle = (t: string) => { const id = (db.entriesOf(moved.id) as any[]).find((e) => e.title === t)?.id;
     return (db.addonsOf(moved.id) as any[]).filter((a) => a.entry_id === id); };
   assert.ok(!byTitle('Vel').some((a) => a.slot === 'voice'), 'CREATE-HELD: the yours pocket leaves the one no longer held');
-  assert.strictEqual(byTitle('Aldis').find((a) => a.slot === 'voice')?.body, `[${YOURS_VOICE('Aldis')}]`, '  and goes to the one held now');
+  assert.strictEqual(byTitle('Aldis').find((a) => a.slot === 'voice')?.body, YOURS_VOICE('Aldis'), '  and goes to the one held now');
   assert.ok(!byTitle('Aldis').some((a) => a.slot === 'interiority'), '  written from outside');
 
   // THE TALE'S OWN POCKETS ride through Create (#75's instruction slot), switched on; a blank one does not.
@@ -781,7 +781,7 @@ ok('a kind that does not exist is refused rather than assembled');
   // AND NEVER A THREAD THE CAST ALREADY HAS. The prompt says so; this is what enforces it.
   assert.deepStrictEqual(r.entries.map((e: any) => e.title), ['The Quay Office'],
     'a name already in the cast is dropped rather than proposed twice');
-  assert.match(r.entries[0].body, /^\[The Quay Office: /, 'in the bracket format the ledger uses');
+  assert.strictEqual(r.entries[0].body, 'A room of ledgers above the water.', 'as a plain description, no brackets (#110)');
 
   // IT IS GIVEN THE CAST AS WELL AS THE BOOK, which is the only reason it can notice they disagree.
   const asked = calls.find((x: any) => /say what you would change/.test(String(x.messages?.[0]?.content ?? '')))!;

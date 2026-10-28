@@ -193,7 +193,9 @@ For each thread the scene CHANGED, return:
            scene: what happened goes in stands. Never repeat what the thread already says. Its name
            is a short title of its own, two or three words naming what it is about, never the
            slot's word and never the thread's name. Most threads get no pockets.
-  always   ONLY when its Always true is empty: who or what it is, in one bracket. Otherwise "".
+  always   ONLY when its Always true is empty: who or what it is, as a plain description, with
+           no brackets and not its name in front.
+           Otherwise "".
 
 ${POCKET_FORM}
 
@@ -254,7 +256,8 @@ export const TIDY =
 `Below is one thread from a story, as it stands: its Always true, where it stands now, and its
 pockets. Sort what it says into the three parts a thread has, and change nothing else:
 
-  always   who or what it is, for the whole story: what does not change. One bracket.
+  always   who or what it is, for the whole story: what does not change. A plain description,
+           with no brackets and not its name in front.
   stands   where it stands now: what has happened to it and what is at stake. One bracket. No
            looks, no clothes, no voice: those are pockets.
   pockets  one per part of how to write it, each from its kind's list, as an INSTRUCTION. For each
@@ -299,7 +302,7 @@ it belongs to. Write that part again, in the same form and for the same place in
 
   where it stands   the WHOLE of where the thread stands from that scene on, not only a change
   a pocket          an INSTRUCTION for the next scene (see below), for that one pocket only
-  Always true       who or what it is, in one bracket
+  Always true       who or what it is, as a plain description, with no brackets
 
 If the writer says what should change, do that and keep the rest. If they say nothing, write it
 again better: closer to the thread, more specific, no longer.
@@ -751,15 +754,16 @@ since forgotten. Your job is to turn it into a thread — a piece of reference t
 every call from now on.
 
     title  What the thing is called. A name, not a description of it.
-    body   [Name: fact, fact, fact] — what is TRUE because of this passage. Sixty to a hundred and
+    body   fact, fact, fact — what is TRUE because of this passage, as a plain description with no
+           brackets and not the name in front. Sixty to a hundred and
            forty words. Facts somebody could contradict: who did what, what changed, what is owed,
            what is broken, where a thing ended up.
     keys   single words that would really appear in the prose when this matters — a name, a place,
            an object. Not the title again.
 
 WRITE IT AS FACTS, NOT AS PROSE. Take no sentence from the passage whole. If the passage says "the
-wrist gave under the weight and she did not cry out", the thread says [left wrist: broken, strapped,
-she will not say so]. A body that reads like a line of the book is a body the model will put back
+wrist gave under the weight and she did not cry out", the thread says: left wrist broken, strapped,
+she will not say so. A body that reads like a line of the book is a body the model will put back
 into the book word for word, which is the one failure this must not have.
 
 Do not invent. Everything in the thread has to be in the passage or already in the canon above.`;
@@ -1047,7 +1051,7 @@ Present tense. State facts flat. Output the summary and nothing else.`;
  *  this card, so a model that wanders is corrected rather than trusted. A prompt is an instruction;
  *  the filter is the guarantee.
  *
- *  Everything else — the bracket body, the keyword rule, the activation rule and the room rule —
+ *  Everything else — the plain body, the keyword rule, the activation rule and the room rule —
  *  is EXTRACT's, appended below, so the two cannot drift about what a proposal looks like. */
 /** THE BOOK'S GENRE FLAVOUR, WRITTEN FROM THE BOOK. #18 §2's re-roll.
  *
@@ -1107,8 +1111,8 @@ export const EXTRACT =
 Propose only facts that are now permanently true. Skip anything that reads as temporary,
 or as one scene's mood. A character lying or being wrong is not a fact.
 
-For each: title, type (character | place | lore | item | rule), a body in the bracket format
-[Name: attribute, attribute, relation], and up to 4 keywords.
+For each: title, type (character | place | lore | item | rule), a body as a plain description
+(attribute, attribute, relation; no brackets and not the name in front), and up to 4 keywords.
 
 ${LEDGER_REGISTER}
 
@@ -1151,7 +1155,7 @@ leave their description alone.
 FULLY FLESHED. A NEW thread is a whole thread, not a line: its body is its Always true, who or what
 it is and nothing else (a name, an age, what they are, where they are from; where two things
 disagree, the later one), never looks, clothes, voice or what has happened: those are pockets.
-"[Vel: 31; a ferry pilot from the north shore; Aldis's older sister]" is a whole body. And
+"31; a ferry pilot from the north shore; Aldis's older sister" is a whole body. And
 pockets fills every pocket its kind can have that the chapter gives you enough for, each with a
 short title of its own, two or three words naming what it is about, never the slot's word:
 
@@ -1310,10 +1314,10 @@ whatever is in it becomes true by repetition.
 WRITE IT FROM INSIDE THE WORLD, not from outside it. This is the writer's own register and it is
 not negotiable:
 
-    RIGHT   [Ferrus Manus: also called the Gorgon, Primarch of the X Legion, the Iron Hands,
-             raised on Medusa, hands of living metal to the elbow]
-    WRONG   [Paul Atreides: he is a fictional character in the Dune universe created by Frank
-             Herbert, appearing in the 1965 novel]
+    RIGHT   (Ferrus Manus) also called the Gorgon, Primarch of the X Legion, the Iron Hands,
+             raised on Medusa, hands of living metal to the elbow
+    WRONG   (Paul Atreides) he is a fictional character in the Dune universe created by Frank
+             Herbert, appearing in the 1965 novel
 
 Never "is a fictional character", never "in the X universe", never "main character in", never the
 author's name, a novel's title as a publication, a film, a game, an edition or a date — unless the
@@ -1331,8 +1335,8 @@ a ship accumulates. Write the second card. If the results only describe the prod
 the world they describe and leave the rest.
 
     title  The subject's own name, spelled as the best source spells it.
-    body   Bracket form, and the label inside the bracket is THE SUBJECT'S NAME — not the word
-           "Name". Sixty to a hundred and forty words, densest first: what they are, the two or
+    body   A plain description, with no brackets and not the subject's name in front: the title
+           already names it. Sixty to a hundred and forty words, densest first: what they are, the two or
            three things that would change a scene they walk into, who they are to other named
            figures.
 ${rooms.length ? `    rooms  What the results say about each of these, in the same register, or an empty string
@@ -1405,11 +1409,11 @@ ${about.startsWith('outfit')
 `
     + `          "Court plate", "Travelling". Not a sentence, and not her name.
 `
-    + `    body  Only what is WORN, bracket form, forty to eighty words:
+    + `    body  Only what is WORN, a plain description with no brackets, forty to eighty words:
 `
-    + `          [wearing: black oilcloth to the ankle, seams let out and resewn by hand,
+    + `          black oilcloth to the ankle, seams let out and resewn by hand,
 `
-    + `           tarnished silver at the collar, gloves kept on indoors, no scripture showing]
+    + `          tarnished silver at the collar, gloves kept on indoors, no scripture showing
 
 `
     + `The body is added to her entry while the outfit is on, so it must NOT say who she is — the `
@@ -1419,11 +1423,11 @@ ${about.startsWith('outfit')
 `
     + `          not their name again.
 `
-    + `    body  Bracket form, FORTY TO EIGHTY WORDS, and only this room's own subject:
+    + `    body  A plain description with no brackets, FORTY TO EIGHTY WORDS, and only this room's
 `
-    + `          [interiority: counts doorways when she is lying, will not sit with her back to
+    + `          own subject: counts doorways when she is lying, will not sit with her back to
 `
-    + `           a window, keeps the debt in round numbers so it sounds smaller]
+    + `          a window, keeps the debt in round numbers so it sounds smaller
 `
     + `    keys  single words that would really appear in the prose — a name, a place, an object.
 `
@@ -1443,19 +1447,19 @@ ${about.startsWith('outfit')
 ${POCKET_FORM}`
   : `    title  What the thing is called. A name, not a description of it.
 `
-    + `    body   [Name: attribute, attribute, attribute, what it does, what it wants, what it
+    + `    body   attribute, attribute, attribute, what it does, what it wants, what it costs,
 `
-    + `            costs, relation to someone already in the ledger] — enough of them that a
+    + `           relation to someone already in the ledger — a plain description with no brackets
 `
-    + `            scene could be written from the bracket alone.
+    + `           and not the name in front, enough that a scene could be written from it alone.
 `
     + `    keys   single words that would really appear in the prose — a name, a place, an object.
 `
     + `           Not the title again, not two words joined by a slash, not the word "attribute".
 
 `
-    + `Bracket form, a hundred and twenty to two hundred words. Long enough that a scene could be `
-    + `written from the bracket alone, which is the actual test — not one sentence, and not a `
+    + `A hundred and twenty to two hundred words. Long enough that a scene could be `
+    + `written from the body alone, which is the actual test — not one sentence, and not a `
     + `paragraph of atmosphere either. Every clause has to carry a fact somebody could contradict: `
     + `a name, a number, a habit, a debt, a thing they carry, a thing they refuse. No adjective `
     + `doing the work of a fact, and no clause that could be true of anyone.`}
@@ -1480,8 +1484,9 @@ ${sources
     + `ledger.`
   : ''}`;
 
-/** Bodies are bracket-form because that is what the ledger holds and what the context window
- *  renders — the same shape EXTRACT proposes and the entry editor's own hint asks for.
+/** #110 · BODIES ARE PLAIN DESCRIPTIONS (ADR 0008): no brackets and no name in front, the same shape
+ *  EXTRACT proposes. They were bracket-form until #110; the prompt frames each kind now (context.ts).
+ *  The wording change is NOT MEASURED against the bracket form it replaced.
  *
  *  NO maxLength on a body, and this is F25 again, found a second time in the first four real calls
  *  of this route: a 400-cap closed an outfit at `stitched with the same Old Script that binds *W`
