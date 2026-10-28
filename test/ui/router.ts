@@ -42,6 +42,21 @@ const srv = createServer((req, res) => {
         'The second fake idea: someone is already inside.',
         'The third fake idea: the key will not turn back.'] }) }, finish_reason: 'stop' }],
         usage: { prompt_tokens: 10, completion_tokens: 30 } });
+    // #100 · TALK WHILE A TALE IS SET UP, told apart by its own operation list (only the draft can
+    // remove a thread). Answered by the writer's words: "darker" asks for a change to the premise;
+    // anything else is a question, answered with one thread offered.
+    const ops = body.response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum ?? [];
+    if (!body.stream && ops.includes('thread.remove')) {
+      // The writer's words are the last paragraph of the ask; earlier turns ride above them.
+      const said = String(body.messages?.at(-1)?.content ?? '').split('\n\n').at(-1) ?? '';
+      const answer = /darker/i.test(said)
+        ? { reply: 'The premise is darker now.',
+            changes: [{ op: 'tale.set', field: 'premise', text: 'The fake router made this premise darker.' }] }
+        : { reply: 'The fake router answers: the harbour needs a keeper.',
+            entries: [{ title: 'The Harbour Keeper', type: 'character', body: 'Keeps the harbour lamps lit.' }] };
+      return json({ choices: [{ message: { content: JSON.stringify(answer) }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 10, completion_tokens: 30 } });
+    }
     if (!body.stream) return json({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 10, completion_tokens: 1 } });
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });

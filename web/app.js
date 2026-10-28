@@ -2413,6 +2413,9 @@ function drawSide() {
   // A shut drawer stays in the page at width 0; inert keeps Tab out of it, as for the menu.
   side.inert = side.hidden;
   if (side.hidden) return;
+  // #100 · TALK DURING SETUP has no Talk explainer: that one is about a tale, where an offer waits on
+  // the Workbench. Here an offer has its own Add, under the answer that made it.
+  const setupTalking = S.panel === 'anansi' && onSetup();
   // THE THREADS LIST CARRIES ITS COUNT AND ITS + UP HERE (v2 redesign, 2026-10-25). The + was a
   // full-width "+ Thread, or read the scene" button above the list, and on the Titan's 360x360 it
   // and the filters took the whole screen before the first thread. The + opens the same tray with
@@ -2443,13 +2446,13 @@ function drawSide() {
     ${/* OUTSIDE the heading span, and deliberately: decode() writes textContent on that span, so a
           button inside it is destroyed on the next repaint. Its body goes at the top of #sideBody
           instead, because the span is nowrap and would clip it. */
-      PANEL_HELP[S.panel] ? helpMark(PANEL_HELP[S.panel]) : ''}
+      PANEL_HELP[S.panel] && !setupTalking ? helpMark(PANEL_HELP[S.panel]) : ''}
     <span class="fill"></span>
     ${thList ? `<button data-newlore="1" class="headadd" aria-label="Add a thread, or read the scene"
       title="Add a thread, or read the scene"><span>${mark('create', 16)}</span></button>` : ''}
     <button class="caps-btn" data-panel="">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
-  $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead && !isAltering() && !(S.panel === 'threads' && S.lore && !S.entryId)
+  $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !setupTalking && !thRead && !isAltering() && !(S.panel === 'threads' && S.lore && !S.entryId)
     ? helpBody(PANEL_HELP[S.panel]) : '')
     + (PANELS[S.panel] ?? (() => ''))();
   // After the markup, because a textarea has no scrollHeight until it is in the document.
