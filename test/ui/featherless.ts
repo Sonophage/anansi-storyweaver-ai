@@ -106,12 +106,19 @@ const srv = createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     const f = (o: unknown) => res.write(`data: ${JSON.stringify(o)}\n\n`);
     if (plan) res.write(`data: ${JSON.stringify({ choices: [{ delta: { reasoning: plan } }] })}\n\n`);
-    // Past the cap (#62): a word a chunk, a sentence every seventh, twice as many as were asked for.
+    // A RUNAWAY (#62): a word a chunk, a sentence every seventh, and no end of its own. It sized
+    // itself from `max_tokens` until 2026-10-27, when a remote call stopped carrying one and this
+    // wrote nothing at all; the server's word guard is what stops it now, by closing the stream.
+    // Bounded all the same, so a broken guard is a long passage and not a fake that never ends.
     if (how === 'overcap') {
-      const n = Number(body.max_tokens) * 2;
-      for (let k = 0; k < n; k++) f({ choices: [{ delta: { content: k % 7 === 6 ? 'end. ' : 'word ' } }] });
-      f({ choices: [{ delta: {}, finish_reason: 'length' }] });
-      return res.end('data: [DONE]\n\n');
+      let k = 0;
+      const more = () => {
+        if (res.destroyed) return;
+        if (k >= 50_000) { f({ choices: [{ delta: {}, finish_reason: 'length' }] }); return void res.end('data: [DONE]\n\n'); }
+        for (const end = k + 200; k < end; k++) f({ choices: [{ delta: { content: k % 7 === 6 ? 'end. ' : 'word ' } }] });
+        setImmediate(more);
+      };
+      return more();
     }
     // Some words, then the failure in-band after the 200.
     if (how === 'midstream') {

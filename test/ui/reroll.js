@@ -91,7 +91,18 @@ const lands = (where, r, words) => {
   ok(`remote: a passage to re-roll (${g.error ?? "written"})`, !g.error && !!g.prose);
   lands("remote", await reroll(), /^The fake wrote this\.$/);
   lands("remote, in pieces", await reroll("pieces"), /^The fake wrote this in pieces\.$/);
-  lands("remote, cut at the cap", await reroll("overcap"), /^(word ){6}end\./);
+  // The fake runs on for 50,000 words unless the server's runaway guard closes the stream at three
+  // times the length slider. The slider is set to its lowest length for this one take: off, the
+  // guard is 4,000 words, and the page writes a backlog at about a word a frame, so 4,000 words
+  // outlast the twenty seconds `reroll` waits for the take to be done.
+  const was = (await call("/api/settings", { storyId: sid })).gen?.target_words ?? 0;
+  const set = (await call("/api/settings", { storyId: sid, target_words: 150 })).gen?.target_words;
+  ok(`remote, cut at the cap: the slider is at 150 words (${set})`, set === 150);
+  const cut = await reroll("overcap");
+  await call("/api/settings", { storyId: sid, target_words: was });
+  lands("remote, cut at the cap", cut, /^(word ){6}end\./);
+  const words = String(cut.after.at(-1)?.body ?? "").split(/\s+/).filter(Boolean).length;
+  ok(`remote, cut at the cap: stopped at the guard, three times the slider (${words} words)`, words > 0 && words <= 450);
   lands("remote, after an at-capacity answer", await reroll("capacity"), /^The fake wrote this\.$/);
   lands("remote, one word", await reroll("one"), /^She$/);
   lands("remote, planned first", await reroll("plan"), /^The fake planned this\.$/);
