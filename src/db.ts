@@ -390,6 +390,8 @@ function migrate() {
   add('proposals', 'grp', 'TEXT');
   add('proposals', 'line', 'TEXT');
   add('proposals', 'pocket', 'TEXT');
+  // #114. The other pockets a tidy's merged pocket replaces (JSON, addon ids): sewn in, they go.
+  add('proposals', 'merges', 'TEXT');
   /* WHICH WORLD OR INTELLECTUAL PROPERTY A BOOK BELONGS TO, and what is true in it (2026-09-02).
    * Seth: "Is there a way in the story under the world tab I could add what world or ip it belongs
    * to? And have it hold some info about the world that way".
@@ -4087,12 +4089,14 @@ export function addProposal(storyId: string, p: any) {
   // first version of this lane was `retire`-only, which fixed one case of a general defect and left
   // the rest of it standing.
   const hash = createHash('sha256')
-    .update([subject, p.entry_id ?? '', proposalTarget({ ...p, entry_type: p.entryType ?? p.entry_type })]
-      .join('\u0000')).digest('hex').slice(0, 32);
+    // #114 · AND THE POCKET IT REPLACES, when it names one: a tidy that rewrites two relationships
+    // pockets is two places, and the second was dropped as a repeat of the first.
+    .update([subject, p.entry_id ?? '', proposalTarget({ ...p, entry_type: p.entryType ?? p.entry_type }),
+      ...(p.target ? [p.target] : [])].join('\u0000')).digest('hex').slice(0, 32);
   try {
     q(`INSERT INTO proposals (id,story_id,chapter_id,entry_id,title,body,entry_type,keys,kind,delta,
-        field,activation,target,content_hash,source,rooms,grp,line,pocket,created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        field,activation,target,content_hash,source,rooms,grp,line,pocket,merges,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(uid('pp-'), storyId, p.chapterId ?? null, p.entry_id ?? null, p.title, p.body,
         p.entryType ?? 'lore', JSON.stringify(p.keys ?? []), p.kind, p.delta ?? null,
         // A slot this proposal aims at, or null for the card's own body. Validated here rather
@@ -4108,6 +4112,7 @@ export function addProposal(storyId: string, p: any) {
           : null,
         p.rooms && typeof p.rooms === 'object' ? JSON.stringify(p.rooms) : null,
         p.grp ?? null, p.line ?? null, p.pocket ?? null,
+        Array.isArray(p.merges) && p.merges.length ? JSON.stringify(p.merges.map(String)) : null,
         now());
     return true;
   } catch { return false; }   // unique index: already proposed, not an error

@@ -4847,13 +4847,19 @@ export const routes: Record<string, Handler> = {
     if (always && always !== alwaysTrue(e) && db.addProposal(v.id, { ...base, body: always, field: 'facts' })) added++;
     const stands = String(r.data.stands ?? '').trim();
     if (stands && stands !== resolveBody(e, at).trim() && db.addProposal(v.id, { ...base, body: stands })) added++;
-    const kinds = slotsFor(e.entryType).map((sl) => sl.name);
+    const kinds = slotsFor(e.entryType).map((sl) => sl.name), replaced = new Set<string>();
     for (const pk of (Array.isArray(r.data.pockets) ? r.data.pockets : []) as any[]) {
       const field = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
       if (field === 'facts' || !kinds.includes(field) || !body || (lock && field === 'voice')) continue;
-      const was = (e.addons ?? []).find((a: any) => a.slot === field
-        && String(a.name).toLowerCase() === String(pk?.replaces ?? '').trim().toLowerCase());
-      if (db.addProposal(v.id, { ...base, body, field, target: was?.id ?? null,
+      // #114 · A MERGE NAMES EVERY POCKET IT REPLACES: the first is rewritten, the rest go when it is
+      // sewn in. Only this thread's pockets of the same kind, each once, and never one already taken
+      // by an earlier pocket of this answer.
+      const names = (Array.isArray(pk?.replaces) ? pk.replaces : [pk?.replaces])
+        .map((n: unknown) => String(n ?? '').trim().toLowerCase()).filter(Boolean);
+      const was = [...new Set(names)].map((n) => (e.addons ?? []).find((a: any) => a.slot === field
+        && String(a.name).trim().toLowerCase() === n && !replaced.has(a.id))).filter(Boolean) as any[];
+      for (const a of was) replaced.add(a.id);
+      if (db.addProposal(v.id, { ...base, body, field, target: was[0]?.id ?? null, merges: was.slice(1).map((a) => a.id),
         pocket: String(pk?.name ?? '').trim().slice(0, 60) || null })) added++;
     }
     return { added, ...viewOf(c, v.id) };
@@ -4936,6 +4942,12 @@ export const routes: Record<string, Handler> = {
         const onto = (c.body.replace || p.kind === 'tidy') && p.target ? String(p.target) : '';
         const id = db.upsertAddon(p.story_id, p.entry_id,
           { id: onto, slot: p.field, name: p.pocket || p.title, body: c.body.body ?? p.body, keys });
+        // #114 · A TIDY'S MERGE: the other pockets it stands in for go, once it has landed. Only
+        // pockets of the same thread and kind, in this tale (`delAddon` is scoped to the story).
+        if (id && p.kind === 'tidy' && p.merges) {
+          const mine = (db.addonsOf(p.story_id) as any[]).filter((a) => a.entry_id === p.entry_id && a.slot === p.field && a.id !== id);
+          for (const m of JSON.parse(p.merges) as string[]) if (mine.some((a) => a.id === m)) db.delAddon(p.story_id, m);
+        }
         // A ROOM WITH NO KEYS THAT NOBODY PINNED ON NEVER REACHES THE MODEL. That is the same
         // darkness `src/import.ts:127` refuses for an entry — keys or always-on, never neither —
         // and it is worse here, because the room looks filled in on the card while being invisible

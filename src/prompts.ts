@@ -263,6 +263,7 @@ export const MEMORY_SCHEMA = {
  *  is chalked: nothing changes until the writer sews it in.
  *  #114 · Where it stands is asked for as a plain description, no longer "one bracket": the code frames
  *  it for the model (context.ts `framedStands`). NOT MEASURED against the bracket form it replaced.
+ *  #114 · It merges overlapping pockets of one kind and names each it replaces. NOT MEASURED.
  */
 export const TIDY =
 `Below is one thread from a story, as it stands: its Always true, where it stands now, and its
@@ -274,8 +275,11 @@ pockets. Sort what it says into the three parts a thread has, and change nothing
            description, with no brackets and not its name in front. No looks, no clothes, no
            voice: those are pockets.
   pockets  one per part of how to write it, each from its kind's list, as a plain description. For each
-           pocket it already has, say which one it replaces (its name), or "" for a new one.
-           Its name is a short title of its own, never the slot's word or the thread's name.
+           pocket it already has, say which one it replaces (its name in replaces), or an empty
+           list for a new one. Where two pockets of the same kind say overlapping things (two about
+           one person, two about how they talk), MERGE them into one pocket that keeps what each
+           says, and name both in replaces. Its name is a short title of its own, never the slot's
+           word or the thread's name.
 
 Keep every fact it already holds, in one of the three; drop nothing and add nothing. Where two
 parts disagree (an age, a job, a name), the LATER and more specific one is true: write only that
@@ -301,7 +305,8 @@ export const TIDY_SCHEMA = {
               'outfit', 'relationships', 'voice', 'what_it_does', 'who_is_here'] },
       name: { type: 'string' },
       body: { type: 'string' },
-      replaces: { type: 'string' },
+      // #114 · A LIST, so a merged pocket can name every pocket it replaces.
+      replaces: { type: 'array', items: { type: 'string' } },
     }, required: ['slot', 'name', 'body', 'replaces'] } },
   },
   required: ['always', 'stands', 'pockets'],

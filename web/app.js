@@ -2742,7 +2742,11 @@ document.addEventListener('change', async (e) => {
 /** One chalked section as the deck draws it: the shared `proposalCard`, what a new thread arrives
  *  with, and Anansi edits. One renderer for the per-thread cards and the scene cards. */
 function deckRow(p) {
+  // #114 · A TIDY'S MERGE says which other pockets go when it is sewn in.
+  const also = (p.merges ?? []).map((id) => (V.entries ?? []).find((x) => x.id === p.entryId)?.addons
+    ?.find((a) => a.id === id)?.name).filter(Boolean);
   return `${proposalCard(p)}
+      ${also.length ? `<div class="hint trail-6">Sewn in, this also replaces ${also.map((n) => `&ldquo;${esc(n)}&rdquo;`).join(' and ')}.</div>` : ''}
       ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint trail-6">It arrives with these:</div>
         ${Object.entries(p.rooms).map(([slot, r]) => `<div style="font-size:12px; line-height:1.45; color:var(--mute); margin-top:4px">
           <span class="lbl flush">${slot === 'stands' ? 'Where it stands' : esc(pocketTitle(slot))}${r?.name && r.name !== slot ? ` &middot; ${esc(r.name)}` : ''}</span>

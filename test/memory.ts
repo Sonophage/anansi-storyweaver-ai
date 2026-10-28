@@ -928,6 +928,48 @@ ok('the house style is written from the genre and the premise, and never from th
   ok('the prompts ask for where a thread stands as a plain description, never a bracket');
 }
 
+// #114 · TIDY MERGES POCKETS OF ONE KIND THAT OVERLAP INTO ONE, AND IT REPLACES BOTH. The trial left two
+// relationships pockets about Ashley as two. A merge names every pocket it replaces; sewn in, the first
+// is rewritten and the rest are gone. A third pocket of the same kind, rewritten on its own, still lands.
+{
+  const t = db.createStory(me, { title: 'Merge', premise: 'p' }) as any;
+  const seth = db.upsertEntry(t.id, me, { title: 'Seth', entryType: 'character', body: '30s' })!;
+  const ash = db.upsertAddon(t.id, seth, { slot: 'relationships', name: 'Ashley', body: 'drawn to Ashley' })!;
+  const stranger = db.upsertAddon(t.id, seth, { slot: 'relationships', name: 'The stranger', body: 'a stranger to Ashley, and patient with her' })!;
+  const marcus = db.upsertAddon(t.id, seth, { slot: 'relationships', name: 'Marcus', body: 'dislikes Marcus' })!;
+  assert.match(prompts.TIDY, /merge/i, 'MERGE-ASK: the prompt asks for overlapping pockets of one kind to be merged');
+  assert.strictEqual((prompts.TIDY_SCHEMA as any).properties.pockets.items.properties.replaces.type, 'array',
+    'MERGE-SCHEMA: and a pocket can name more than one it replaces');
+  tidied = { always: '', stands: '', kept: '', pockets: [
+    { slot: 'relationships', name: 'Ashley', body: 'A stranger to Ashley, drawn to her and patient.', replaces: ['Ashley', 'The stranger'] },
+    { slot: 'relationships', name: 'Marcus', body: 'Wary of Marcus, and does not hide it.', replaces: ['Marcus'] }] };
+  await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: seth }));
+  tidied = {};
+  const chalked = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === seth && p.field === 'relationships');
+  assert.strictEqual(chalked.length, 2, `MERGE-CHALKS: the merge and the rewrite are both chalked (${chalked.length})`);
+  const shown = (viewNow(t.id).proposals as any[]).find((p) => p.target === ash);
+  assert.deepStrictEqual(shown?.merges, [stranger], 'MERGE-SHOWN: the card is told which other pocket the merge replaces');
+  for (const p of chalked) await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
+  const rel = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === seth && a.slot === 'relationships');
+  assert.deepStrictEqual(rel.map((a) => a.id).sort(), [ash, marcus].sort(), `MERGE-REPLACES-BOTH: sewn in, the two about Ashley are one (${rel.map((a) => a.name).join(', ')})`);
+  assert.match(rel.find((a) => a.id === ash).body, /drawn to her and patient/, '  holding the merged text');
+  assert.match(rel.find((a) => a.id === marcus).body, /Wary of Marcus/, '  and the other pocket of the kind is rewritten on its own');
+  assert.ok(!rel.some((a) => a.id === stranger), '  and the second is gone');
+
+  // A name that is not one of this thread's pockets of that kind merges nothing away.
+  const other = db.upsertEntry(t.id, me, { title: 'Ashley', entryType: 'character', body: '28' })!;
+  const hers = db.upsertAddon(t.id, other, { slot: 'relationships', name: 'Seth', body: 'wary of Seth' })!;
+  tidied = { always: '', stands: '', kept: '', pockets: [
+    { slot: 'relationships', name: 'Seth', body: 'Wary of Seth.', replaces: ['Seth', 'Marcus', 'Nobody'] }] };
+  await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: other }));
+  tidied = {};
+  for (const p of (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === other))
+    await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
+  assert.ok((db.addonsOf(t.id) as any[]).some((a) => a.id === marcus), 'MERGE-OWN-ONLY: a pocket of another thread is never merged away');
+  assert.ok((db.addonsOf(t.id) as any[]).some((a) => a.id === hers && /Wary of Seth/.test(a.body)), '  while its own is rewritten');
+  ok('Tidy merges overlapping pockets of one kind into one, replacing both');
+}
+
 // #114 · THE LOCK POCKET IS NEVER SENT TO TIDY AND NEVER REPLACED BY IT. A trial tidy rewrote the
 // Hands-off thread's "his lines are the writer's" into a description of how he speaks, with the lock
 // sentence buried in it. Two shapes: the Hands-off thread's voice pocket, whatever it holds, and any

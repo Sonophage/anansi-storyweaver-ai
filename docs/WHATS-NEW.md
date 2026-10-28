@@ -28,6 +28,11 @@ description: no square brackets and no name in front, the same as pockets and Al
 writes them that way, tidying and hemming included, and adds the thread's name when he reads them.
 Ones you already have were cleaned once, after a backup, and the update report names each one.
 
+### Tidy joins two pockets that say the same thing
+When a thread has two pockets of one kind that overlap, such as two about the same person, Tidy
+offers one pocket that holds both. The card says which other pocket it replaces, and sewing it in
+leaves one pocket where there were two.
+
 ## 2026-10-28 · Holding the one you play, in New tale
 
 ### Anansi writes pockets the way you would
