@@ -589,6 +589,8 @@ let worldDown = 0;
         premise: 'Six houses have one winter to sign a peace none of them wants.',
         setting: 'Ashfall Hall', pov: 'third limited, past tense', spice: 2,
         writingStyle: 'Cold, spare.', persona: 'Ilva Marren' },
+        // #123. The Voice the spark wrote, offered beside the writer's own and never in the story.
+        voiceOffer: 'Cold, spare. Long sentences, and the frost in every one.',
         entries: [{ title: 'Ilva Marren', entryType: 'character', body: 'A envoy with nothing to trade.' }],
         // ADR 0009. The open questions, beside the story and not in it.
         questions: [{ title: 'Who signs first', line: 'Each house waits for another to sign.' },
@@ -3501,6 +3503,27 @@ ok('a cover can be drawn: the book seeds the words, the writer owns them, and th
 }
 ok('sparking replaces the screen with the wizard rather than sitting it beside an empty box');
 
+// #123 · THE TALE STARTS WITH THE WRITER'S OWN VOICE, and the one the spark wrote is offered beside
+// it as a diff with Use this. It is the tale's only when chosen, and taking it is undone like the rest.
+{
+  const voiceBox = (h: string) => h.slice(h.indexOf('data-sp="writingStyle"'), h.indexOf('</textarea>', h.indexOf('data-sp="writingStyle"')));
+  let pv = html('page');
+  assert.match(voiceBox(pv), />Cold, spare\.$/, 'VOICE-START: the Voice box holds the Voice the tale started with');
+  assert.doesNotMatch(voiceBox(pv), /frost/, '  and not the one the spark wrote');
+  assert.match(pv, /data-spvoiceoffer="1"/, 'VOICE-OFFER: the spark\'s Voice is offered with Use this');
+  assert.match(pv, /<div class="diff">[\s\S]*<ins>[^<]*Long sentences/, '  as a diff against the writer\'s own');
+  click({ spvoiceoffer: '1' });
+  pv = html('page');
+  assert.match(voiceBox(pv), /frost in every one\.$/, 'VOICE-USE: Use this puts the offered Voice in the box');
+  assert.doesNotMatch(pv, /data-spvoiceoffer="1"/, '  and the offer, now taken, is gone');
+  assert.match(pv, /data-spundo="1">Undo the offered Voice/, '  and an undo is right there');
+  click({ spundo: '1' });
+  pv = html('page');
+  assert.match(voiceBox(pv), />Cold, spare\.$/, 'VOICE-USE: and it is undone like the rest');
+  assert.match(pv, /data-spvoiceoffer="1"/, '  with the offer back');
+}
+ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'s as a diff with Use this');
+
 // #88 · THE WIZARD ASKS WHO YOU PLAY FIRST AND ENDS IN A PREVIEW. Driven from the wizard the block
 // above left on screen. Nothing may post but the spark calls until Start writing, and Start writing
 // must carry the draft as the preview left it.
@@ -3655,6 +3678,7 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
     const made = POSTED.find((p) => p.url === '/api/stories');
     assert.ok(made, 'WIZ-CREATE: Start writing works with the warning showing');
     assert.match(made.body.writingStyle, /first person/, '  and keeps the Voice as the writer left it');
+    assert.doesNotMatch(made.body.writingStyle, /frost/, 'VOICE-OFFER: the offered Voice is not sent when it was not chosen');
     assert.deepStrictEqual(made.body.entries.map((e: any) => e.title), ['Ilva Marren', 'Mara Voss', 'Teodor Ash'],
       'WIZ-CREATE: the draft goes as the preview left it, the removed thread too');
     const ilva = made.body.entries[2];

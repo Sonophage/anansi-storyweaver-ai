@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-28 · A new tale starts at its opening
 
+### A new tale starts in your own Voice
+A tale you start from an idea now begins with the Voice you set in your Account, or Anansi's own
+when you have not set one. The Voice Anansi wrote for the idea is shown under yours, with what it
+would change marked, and a Use this button. It is only used if you press it, and Undo puts yours
+back.
+
 ### The premise is the opening, and the open questions are strings
 New tale's premise is now one paragraph that opens the story: who we are with, where and when,
 what they want now and what is in their way now. It never says how it ends, what it costs or what

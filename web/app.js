@@ -562,6 +562,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'spfold', 'spdroppocket', 'spaddpocket', 'spdropthread', 'spundo', 'spvoicefix', 'spaddtp', 'spdroptp',
   // #117. A contradiction Try it on found: take its fix, or leave it.
   'spfix', 'spleave',
+  // #123. The Voice the spark wrote, taken in place of the writer's own.
+  'spvoiceoffer',
   'applylib', 'savelib', 'dellib', 'setvoice', 'setanansi',
   'seedpick',
   // The forge: open one prompt and copy it. A forged thread comes back in through New thread's box.
@@ -5776,6 +5778,7 @@ function sparkReview() {
          replaced; the cast is not.</div>` : ''}
        ${area('writingStyle', 'Voice', s.writingStyle,
          'How the narration behaves, as instructions.', 150)}
+       ${sparkVoiceOffer(s)}
        ${S.prompts?.voice ? `<div style="display:flex; gap:7px; margin:-4px 0 10px">
          <button class="btn ghost fill fs-115" data-spvoice="mine">Use your voice</button>
          <button class="btn ghost fill fs-115" data-spvoice="shipped">Use Anansi's voice</button>
@@ -6058,6 +6061,22 @@ function sparkClashes() {
       <div class="kind">Fix: ${clashPlace(c.fix)}</div><div class="note">${esc(c.fix.text)}</div>
       <div class="line"><button class="btn ghost small-btn" data-spfix="${i}">Use this</button>
         <button class="btn ghost small-btn" data-spleave="${i}">Leave it</button></div></div>`).join('')}`;
+}
+
+/** #123 · THE VOICE THE SPARK WROTE, OFFERED. The tale starts with the writer's own Voice from
+ *  their Account (the server sets it); the one the spark wrote rides beside it as `voiceOffer` and
+ *  is shown marked against the box, with Use this. Nothing applies it but that press, which is
+ *  undone like the preview's changes. Hidden once the box already says the same. */
+function sparkVoiceOffer(s) {
+  const offer = String(S.spark?.voiceOffer ?? '').trim();
+  const now = String(s.writingStyle ?? '').trim();
+  if (offer && offer !== now) return `<div class="card below-10 gap-6">
+      <div class="kind">The Voice Anansi wrote for this tale</div>
+      <div class="hint flush">Marked against the Voice above. Nothing changes unless you use it.</div>
+      ${diffHTML(now, offer)}
+      <div class="line"><button class="btn ghost small-btn" data-spvoiceoffer="1">Use this</button></div></div>`;
+  return S.spark?.undo?.voiceOffer
+    ? `<button class="btn ghost below-10" data-spundo="1">Undo ${esc(S.spark.undo.what)}</button>` : '';
 }
 
 function sparkPreview(s, { row, area }) {
@@ -12989,7 +13008,9 @@ document.addEventListener('click', async (e) => {
       // #103. The IP last looked up (`ipFollow`), and the writer's World of that name, if any.
       ipAsked: '', ipWorld: null,
       // ADR 0009. The open questions, offered ticked in the preview (`sparkQuestions`).
-      questions: questionsOf(r) };
+      questions: questionsOf(r),
+      // #123. The Voice the spark wrote, offered beside the writer's own (`sparkVoiceOffer`).
+      voiceOffer: r.voiceOffer ?? '' };
     S.sparkStep = 1;
     if (S.prompts === null) loadPrompts();   // step 5 offers the writer's own voice
     paint();
@@ -13185,6 +13206,15 @@ document.addEventListener('click', async (e) => {
     paint();
     return toast(`${p.name} removed. Nothing is saved yet.`);
   }
+  if (d.spvoiceoffer) {
+    harvestSpark();
+    const offer = String(S.spark.voiceOffer ?? '').trim();
+    if (!offer) return;
+    S.spark.undo = { what: 'the offered Voice', writingStyle: S.spark.story.writingStyle ?? '', voiceOffer: true };
+    S.spark.story.writingStyle = offer;
+    paint();
+    return toast('The Voice Anansi wrote is in the box.');
+  }
   if (d.spvoicefix) {
     harvestSpark();
     const was = S.spark.story.writingStyle ?? '';
@@ -13226,6 +13256,9 @@ document.addEventListener('click', async (e) => {
                       lockedCharacter: S.spark.story.lockedCharacter };
     // The open questions belong to the premise they came with, so they are replaced with it.
     S.spark.questions = questionsOf(r);
+    // #123. And the Voice it offers belongs to it too. The box gets the writer's own back, as the
+    // hint under Reweave says: what is typed on this step is replaced.
+    S.spark.voiceOffer = r.voiceOffer ?? '';
     paint();
     return toast('Another skeleton, from the same idea.');
   }
