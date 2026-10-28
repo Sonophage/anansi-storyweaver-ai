@@ -3815,6 +3815,11 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
     assert.match(pv, /the Omen King/, '  each with their Always true');
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
       `IP-NOTHING: nothing is made before Start writing (${POSTED.map((p) => p.url).join(', ')})`);
+    // #107 · THE BEGIN STEP SAYS WHICH WORLD THE TALE FOLLOWS, beside everything else it will make.
+    click({ sparkstep: '8' });
+    await settle(/What gets written|creates all of this/);
+    assert.match(html('page'), /Elden Ring<\/span>\s*<span[^>]*>the World it follows/,
+      'BEGIN-WORLD: the Begin step names the World the tale follows');
     const sent = await create();
     const made = sent.find((p) => p.url === '/api/stories');
     assert.strictEqual(made?.body.loreFrom, 'w-ring', 'IP-CREATE: Start writing makes the tale follow the World');
@@ -3856,6 +3861,10 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
 
     // A blank IP: an original tale, as today.
     await startWizard();
+    click({ sparkstep: '8' });
+    await settle(/creates all of this/);
+    assert.match(html('page'), /No World<\/span>\s*<span[^>]*>the World it follows/,
+      'BEGIN-NO-WORLD: with no IP the Begin step says the tale follows no World');
     const blank = (await create()).find((p) => p.url === '/api/stories');
     assert.deepStrictEqual([blank?.body.world ?? null, blank?.body.loreFrom ?? null], [null, null],
       'IP-BLANK: a blank IP starts an original tale, following nothing');
@@ -3925,6 +3934,10 @@ ok('a new tale naming an IP the writer has a World for follows it, shows its peo
     assert.doesNotMatch(page, /The desert planet/, 'IP-PREVIEW: and not Arrakis, who was unticked');
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
       `IP-NOTHING: nothing is made before Start writing (${POSTED.map((p) => p.url).join(', ')})`);
+    click({ sparkstep: '8' });
+    await settle(/creates all of this/);
+    assert.match(html('page'), /A new World, Dune, of 3 threads<\/span>\s*<span[^>]*>the World it follows/,
+      'BEGIN-NEW-WORLD: the Begin step names the new World and how many threads it gets');
     const sent = await create();
     const made = sent.find((p) => p.url === '/api/stories');
     assert.deepStrictEqual(made?.body.newWorld, { title: 'Dune', threads: [

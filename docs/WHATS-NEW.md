@@ -22,7 +22,8 @@ Everything below this line was written by that model call, before it was removed
 The first step of New tale now asks whether the tale is set in a story or game that already
 exists. Name it. If you already have a World with that name (in any capitals), the new tale
 follows it, and the preview lists that World's people coming in with it. They are the World's
-threads, not copies: change one in the World and it changes in every tale that follows it.
+threads, not copies: change one in the World and it changes in every tale that follows it. The
+Begin step names the World the tale will follow, or says No World.
 
 Nothing is made until you press Start writing, and if starting fails, nothing is left half made.
 Only your own Worlds are found. Leave the box empty for a tale of your own, as before. A name you

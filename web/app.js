@@ -5541,6 +5541,16 @@ const ipTicked = () => {
   return nw && !nw.without && !S.spark.follow ? nw.found.filter((f) => f.keep) : [];
 };
 
+/** #107 · THE WORLD THE NEW TALE WILL FOLLOW, in words, or null: a new one of the ticked names, or
+ *  one the writer has. One reader for the Begin step and the line Create says when it is done. */
+const sparkWorld = () => {
+  const ipNew = ipTicked();
+  if (ipNew.length) return `a new World, ${S.spark.ipNew.title}, of ${plural(ipNew.length, 'thread', 'threads')}`;
+  if (!S.spark?.follow) return null;
+  return (S.spark.ipWorld?.id === S.spark.follow ? S.spark.ipWorld.title
+    : (LIB ?? []).find((b) => b.id === S.spark.follow)?.title) ?? 'that world';
+};
+
 /** #104 · THE NEW WORLD ON THE THREADS STEP: the list to tick, ask for more, add a name, or go on
  *  without. "From memory, not looked up" is said here and in the preview, never in a thread. */
 function ipNewList() {
@@ -5918,6 +5928,8 @@ function sparkReview() {
        ${[[`${esc(s.title || 'Untitled')}`, 'the tale, with its premise, voice and flavour'],
           [`${cast.length} ${cast.length === 1 ? 'thread' : 'threads'}`,
            cast.length ? 'in the tale, always on' : 'no threads yet'],
+          [(() => { const w = sparkWorld(); return w ? esc(w[0].toUpperCase() + w.slice(1)) : 'No World'; })(),
+           'the World it follows'],
           [s.persona ? esc(s.persona) : 'Nobody', 'the one you play'],
           [s.lockedCharacter ? esc(s.lockedCharacter) : 'Nobody', 'hands off: the model leaves them to you'],
           [S.spark.autoOpen === false ? 'You write it' : 'Anansi writes it', 'the first passage']]
@@ -13267,11 +13279,7 @@ document.addEventListener('click', async (e) => {
      *
      * Reported separately from the copies: following and copying are different answers to
      * "bring your own threads" and a writer who did both should be told about both. */
-    const ipNew = ipTicked();   // #104, read before the draft is let go
-    const followed = ipNew.length ? `a new World, ${S.spark.ipNew.title}, of ${plural(ipNew.length, 'thread', 'threads')}`
-      : !S.spark.follow ? null
-      : (S.spark.ipWorld?.id === S.spark.follow ? S.spark.ipWorld.title
-        : (LIB ?? []).find((b) => b.id === S.spark.follow)?.title) ?? 'that world';
+    const followed = sparkWorld();   // #104, read before the draft is let go
 
     const wantOpen = S.spark.autoOpen !== false;
     S.spark = null; S.sparkStep = 1; S.seedQ = '';
