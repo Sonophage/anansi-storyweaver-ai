@@ -983,6 +983,34 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 
 
+// A PASS THAT FAILS IS NAMED, and the others still run: the model refuses the new-thread ask only.
+{
+  const t = db.createStory(me, { title: 'One pass down', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Oren cut the bell down from the ferry post and carried it home.' });
+  answer = [{ name: 'Oren', stands: '[Oren: the ferryman, who has taken the ferry bell home]', label: 'took the bell',
+    line: 'Oren cut the bell down from the ferry post', always: '', pockets: [] }];
+  found = [{ title: 'The Ferry Bell', body: 'Bronze, green with river damp.', type: 'item', keys: ['bell'] }];
+  tidied = { ...NEXT };
+  failIf = (system) => system.startsWith(prompts.EXTRACT.slice(0, 80));
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
+  await hemSettled(t.id);
+  failIf = null; tidied = {};
+  const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.strictEqual(hem?.state, 'done', 'the hem still finishes');
+  assert.ok(typeof hem.passes.facts === 'string' && hem.passes.facts.length > 0,
+    `HEM-FAILED-NAMED: the failed pass is named with a reason (${hem.passes.facts})`);
+  assert.strictEqual(hem.passes.memory, null, 'HEM-OTHERS-RUN: the thread changes still ran');
+  assert.strictEqual(hem.passes.next, null, '  and the next-scene suggestion');
+  assert.deepStrictEqual(hem.suggestion, NEXT, '  which arrived');
+  assert.ok((db.proposalsOf(t.id) as any[]).some((p) => p.entry_type === 'state'), '  and the thread change was chalked');
+  assert.ok(!(db.proposalsOf(t.id) as any[]).some((p) => p.title === 'The Ferry Bell'), '  and the failed pass chalked nothing');
+  ok('a pass that fails is named in the hem report, and the others still run');
+}
+
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several
