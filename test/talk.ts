@@ -1084,6 +1084,15 @@ ok('a kind that does not exist is refused rather than assembled');
   await routes['POST /api/chapter/propose'](ctx({ storyId: tale.id, chapterId: db.chapters(tale.id).at(-1)!.id }));
   const both = String(calls.at(-1).messages[1].content);
   assert.match(both, /^UNPAID PROMISES: The letter under the floor$/m, 'BRIEF-PROMISE: a promise is sent as an unpaid promise, as before #116');
+  // #125 · AND IT IS GIVEN WHERE THE TALE STANDS, NOT THE PREMISE, once a hem has written one.
+  const lastCh: any = db.chapters(tale.id).at(-1);
+  const tt = db.taleThread(tale.id)!;
+  db.upsertState(tale.id, tt, { fromChapter: Number(lastCh.idx), body: 'Vel holds the ledger now, and the stair is watched.', label: 'the ledger' });
+  calls = [];
+  await routes['POST /api/chapter/propose'](ctx({ storyId: tale.id, chapterId: db.chapters(tale.id).at(-1)!.id }));
+  const stood = String(calls.at(-1).messages[1].content);
+  assert.match(stood, /THE BOOK:[^\n]*Vel holds the ledger now/, 'BRIEF-STANDS: the scene brief reads where the tale stands');
+  assert.ok(!stood.includes(String(db.getStory(tale.id).premise).slice(0, 40)), 'BRIEF-STANDS: and not the premise');
   assert.doesNotMatch(both.match(/^OPEN QUESTIONS.*$/m)?.[0] ?? '', /letter under the floor/, 'BRIEF-PROMISE: and not as an open question');
   assert.match(both, /^OPEN QUESTIONS[^\n]*Whether the debt is real$/m, '  while the question stays a question');
   ok('the scene brief keeps the open questions open and presses the promises, each on its own line');

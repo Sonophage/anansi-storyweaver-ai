@@ -1646,7 +1646,10 @@ async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?:
   const tail = narrationOnly(v.passages.filter((p: any) => !p.isBreak && earlier.has(p.chapterId))
     .slice(-6).map((p: any) => p.body).join('\n\n')).slice(-2400);
   const body = [
-    `THE BOOK: ${v.story.title}. ${v.story.premise ?? ''}`,
+    // #125 · WHERE THE TALE STANDS, once a hem has written it, in the premise's place, as the
+    // writing prompt does (ADR 0010): the premise is how the tale began, true on page one only.
+    `THE BOOK: ${v.story.title}. ${(v as any).taleThread
+      ? (resolveBody((v as any).taleThread, ch.index).trim() || v.story.premise || '') : (v.story.premise ?? '')}`,
     v.story.setting ? `SETTING: ${v.story.setting}` : '',
     before.length ? `WHAT HAS HAPPENED:\n${before.map((x: any) =>
       `Chapter ${x.index}${x.title ? ` — ${x.title}` : ''}: ${x.summary}`).join('\n')}` : '',
