@@ -5,7 +5,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TALE_STANDS, TALE_STANDS_SCHEMA, TIDY, TIDY_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TALE_STANDS, TALE_STANDS_SCHEMA, TIDY, TIDY_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -13,7 +13,7 @@ import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultMode
          voiceOf, anansiOf, estimate } from './story.ts';
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
-import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, narrationOnly, quotedSpans, retirable, numbersIn, fires, summaryReaches,
+import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, narrationOnly, retirable, fires, summaryReaches,
          weaveFit, actSpan } from './context.ts';
 import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
@@ -122,7 +122,7 @@ const need = <T,>(v: T, msg: string): NonNullable<T> => {
 /** A book's view as the background work reads it: no writer, so no model resolved for one. */
 const bookOf = (id: string, chapter?: string) => need(view(id, chapter), 'no such tale');
 /** THE ROLES THAT WEAVE, AND THE ROOM EACH IS GIVEN, the only list of them. A call whose role is not
- *  here is sent weaving off whatever its book says: summaries, the canon check, memory and
+ *  here is sent weaving off whatever its book says: summaries, memory and
  *  extraction are background work, and F23 measured a structured call that planned first
  *  truncating its own JSON on 3 calls in 5. Talk and Invent are on it with their room on top of
  *  their own caps, the raised budget F23 says any future use needs. `bench/weave-json.ts` is the
@@ -385,7 +385,7 @@ const writerModel = (c: Ctx, v: { story: any; owner?: string }) =>
  *  and roll-ups, the book-creation sparks, and the card passes (extraction, the one-card scan,
  *  memory, retiring). The writer's model, except one that ALWAYS weaves: these calls run on short
  *  caps (a summary is 280 tokens) that a plan would eat whole (F5, F23), so such a book keeps them
- *  on the local default. The canon check is not on the list; it passes no model and stays local.
+ *  on the local default.
  *  `v.story` is null for the sparks, which run before there is a book: the writer's default. */
 const backgroundModel = (c: Ctx, v: { story: any; owner?: string }) =>
   alwaysWeaves(c, v) ? model() : writerModel(c, v);
@@ -632,36 +632,6 @@ const MEMO_TOKENS = 1200;
 
 /** Up to twelve notes with a sentence each, plus a headline. Larger than it sounds, because the
  *  material is forty commit messages and the model is being asked to throw most of them away. */
-
-/** One detector, two callers. The check on a saved passage and the repair of a passage on its
- *  way to the page have to agree about what a contradiction is, and when they were two copies of
- *  this filter they would have drifted on the first change to either. */
-async function contradictionsIn(facts: { id: string; body: string }[], text: string) {
-  if (!facts.length) return { found: [] as any[] };
-  const numbered = facts.map((f, i) => `${i + 1}. ${f.body}`).join('\n');
-  const r = await structuredRetry(CHECK, `CANON:\n${numbered}\n\nPASSAGE:\n${text}`,
-    checkSchema(facts.length));
-  if (!r.data) return { found: [] as any[], error: r.error ?? 'the check returned nothing usable' };
-
-  // Only narration commits the story to a fact. A character may lie, be wrong, guess, or
-  // speak figuratively — the prompt says so and the model flags it anyway, so the filter is
-  // here rather than left to instruction. Deterministic, and it costs nothing.
-  // The spans come from `context.ts` now. This built them with its own copy of the pattern and
-  // carried the same defect: an unterminated final line was not a span, so a contradiction found
-  // inside it passed this filter and was reported as something the narrator committed.
-  const spans = quotedSpans(text);
-  const inDialogue = (quote: string) => {
-    const at = text.indexOf(quote.slice(0, 40));
-    return at >= 0 && spans.some(([a, b]) => at >= a && at < b);
-  };
-  const found = (r.data.contradictions ?? []).filter((x: any) => {
-    if (!x?.quote) return false;
-    if (!text.includes(String(x.quote).slice(0, 30))) return false;  // must be in the passage
-    if (inDialogue(String(x.quote))) return false;                   // speech is not narration
-    return (x.confidence ?? 1) >= 0.6;
-  });
-  return { found };
-}
 
 /** WHICH ROOM A PROPOSAL WOULD STAND IN FOR, or `said` when there is nothing to offer.
  *
@@ -1168,43 +1138,6 @@ export function withoutEcho(body: string, card: string) {
   return kept.join(' ').trim();
 }
 
-/** The canon this call was actually shown, as facts. Both the check and the repair judge a
- *  passage against what reached ITS prompt, never against the whole ledger — a triggered entry
- *  that never fired is not something the model was told. */
-/** The canon a passage is judged against.
- *
- *  `all: true` takes the WHOLE ledger and marks each fact with whether it reached the prompt;
- *  otherwise only the facts that did. The difference is the difference between the two callers.
- *  The repair judges the model against what it was TOLD — asking it to honour canon it never saw
- *  is asking it to guess — while the check judges the PASSAGE, and a fact the engine failed to
- *  send is still a fact the book now contradicts.
- */
-const factsFor = (v: any, manifest: any, chapterIndex: number, all = false) => {
-  const reached = new Set(manifest.blocks
-    .filter((b: any) => b.kind.startsWith('CANON') && b.state === 'included').map((b: any) => b.id));
-  const text = new Map(manifest.blocks.filter((b: any) => b.kind.startsWith('CANON'))
-    .map((b: any) => [b.id, b.text]));
-  return v.entries.filter((e: any) => all || reached.has(e.id))
-    // THE CARD AS THE MODEL SAW IT, rooms included. This read the body alone, so a fact living in a
-    // room — her voice, one relationship, and now `facts` — reached the model and was never checked
-    // against. That was already wrong and it becomes load-bearing the moment a card's permanent
-    // half moves OUT of the body: an entry whose body is empty was dropped by the filter below and
-    // stopped being checked at all, silently.
-    //
-    // The manifest's own block text IS body-plus-open-rooms — it is what `bodyOf` built and what
-    // was sent — so an entry that reached the model is judged against exactly that. One that did
-    // not reach it has no block, so the body in force at this chapter plus its open rooms is
-    // assembled here instead.
-    // The chapter matters: an entry with a chapter state has a different body in chapter 6 than in
-    // chapter 1, and a passage is judged against the body in force where IT sits.
-    .map((e: any) => ({
-      id: e.id,
-      body: text.get(e.id) ?? cardText(e, chapterIndex),
-      reached: reached.has(e.id),
-    }))
-    .filter((f: any) => f.body.trim());
-};
-
 /** A RE-ROLL RE-RUNS THE INSTRUCTION THAT WROTE THE PASSAGE. Mode, speaker and directive, which
  *  are exactly the three fields `db.addVariant` already copies onto a new take — a take is another
  *  answer to the same question, so it has to be asked the same question.
@@ -1372,16 +1305,6 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     // trimmed rather than left to wonder where the rest went.
     const cut = r.finish === 'length';
     const prose = cut ? trimToSentence(clean(r.prose)) : clean(r.prose);
-    // THE CONTRADICTION CHECK DOES NOT BLOCK THIS PATH ANY MORE. It was a blocking `mend` here on
-    // every generation: F30 measured a flat 1,456 ms of it — about a third of a warm take — firing 0
-    // repairs in 6. It also ran on every variant, which is the thing SPEC §8.4 says not to do.
-    // It runs detached now, through `checkLanded` on the take that lands below, and files a flag.
-    // Seth, 2026-08-31: "remove it from the critical path. instead just add a flag after ... if
-    // the writer keeps writing then it can silently be ignored."
-    //
-    // The repair went with it, and that is a real loss stated plainly: a rewrite cannot happen once
-    // the prose is on the page. `mend` and the MEND prompt are in git if the fix is ever wanted as
-    // a button ON the flag rather than as a wait before the passage.
     /* PERSISTED HERE, UNCLAIMED, WHEN SOMEBODY IS WATCHING — bugs.md #9.
      *
      * Seth: "i should be able to send and go elsewhere since the command already sent." Until now
@@ -1413,7 +1336,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
             // passage it drew the reply as that character's own speech (2026-10-27).
             body: prose, author: 'model', speaker: null,
             mode, directive: directive ?? null, claimed: false });
-      if (landed) { db.tieGeneration(String(genId), String(landed)); checkLanded(c, v.id, String(landed)); }
+      if (landed) db.tieGeneration(String(genId), String(landed));
       // A re-roll away from a take is a judgement about the take, not just a replacement — the same
       // rule `accept` follows.
       if (c.body.regenerateOf && c.body.rejected !== false) db.rejectTake(v.id, String(c.body.regenerateOf));
@@ -2089,123 +2012,6 @@ export function classify(existing: any[], p: any) {
     delta: kind === 'conflict'
       ? `Would overwrite a body you wrote: "${hit.body.slice(0, 70)}…"`
       : `Was: "${hit.body.slice(0, 70)}…"` };
-}
-
-/** CHECK THE LANDED TAKE — the one call site for it, shared by `POST /api/accept` and the
- *  streamed `generate`, which persists its own passage and so never reaches accept. Until #69 the
- *  check lived in accept alone, and from 2026-09-01, when streamed passages began landing
- *  server-side, it ran on none of them: 0 flags over 627 generations. Two copies is how one of
- *  them goes quiet, so there is one.
- *
- *  On the take that LANDS, which SPEC §8.4 asks for: a re-roll checks its new take, and the take
- *  it passed over is not checked again. Detached — a flag is not worth making the writer wait, and
- *  it appears on the next refresh. Background work, so it names no model and runs on the local
- *  default (ADR 0001). */
-// OFF SINCE 2026-10-27, AND MARKED FOR DELETION (Seth: "turn off conflict check and mark it for
-// deletion, we may not need it"). It flagged Kia's own version of Elden Ring as mistakes, its knots
-// repainted the page after every passage, and its corrections rewrote prose. Knots already found
-// stay on the Workbench; no new ones are looked for. ANANSI_CANON_CHECK=1 turns it back on (the
-// suite that tests it sets it).
-// ponytail: dead code kept for one decision (#94). Trigger: Seth deciding to delete it; then remove
-// `check`, `checkLanded`, POST /api/check and /api/repair, the violations table and the knot cards.
-const CANON_CHECK_ON = () => process.env.ANANSI_CANON_CHECK === '1';
-function checkLanded(c: Ctx, storyId: string, passageId: string) {
-  if (!CANON_CHECK_ON()) return;
-  void check(c, storyId, passageId).catch(() => {});
-}
-
-/** Check one passage against the canon that reached the prompt for it.
- *
- *  Runs on a SELECTED passage, not on every variant — checking takes are wasted calls on
- *  prose the writer may never keep. Flags only; nothing is rewritten. */
-async function check(c: Ctx, storyId: string, passageId: string) {
-  const v = bookOf(storyId);
-  const passage = v.passages.find((p) => p.id === passageId);
-  if (!passage) return { error: 'no such passage' };
-
-  // SPEC §8.4: the input is "the manifest's included canon entries" — not the whole ledger.
-  //
-  // This was checking every entry in the story, which blames the writer for the engine's
-  // omissions: a triggered entry that never fired was still checked, so a passage could be
-  // flagged for contradicting canon it was never shown. It also gets worse as the ledger
-  // grows, because every extra fact is another chance to reach.
-  //
-  // Rebuilding the manifest as of this passage gives exactly what it saw — the right
-  // entries, with the right state in force for its chapter.
-  const asOf = assemble(v, c.slot, 'direct', undefined, passage.ordinal);
-  const chapter = v.chapters.find((ch) => ch.id === passage.chapterId) ?? v.currentChapter;
-  // THE WHOLE LEDGER, not only what fired. Firing used to decide both what the model was told and
-  // what got verified — one rule doing two jobs, failing together — so a character who did not
-  // fire could be contradicted freely and nothing caught it (COUNCIL-04 #7). Each flag now
-  // records which it is, because "you contradicted canon" and "the engine never sent this canon"
-  // are different faults and the second one is fixed with a keyword, not a rewrite.
-  // MUTED ENTRIES NEVER REACH THE MODEL. The checker runs on every new passage, so an entry that
-  // has drifted out of step with the prose is raised again on the next passage and the next; the
-  // writer muted it because the chapter is still moving. Dropping the fact here rather than
-  // filtering the result is what makes the mute free: no tokens spent asking about it, and no row
-  // to dismiss afterwards. Filtering BEFORE the call also keeps `facts[x.canon - 1]` honest — the
-  // model numbers against the list it was actually given.
-  const mutes = db.mutedIn(storyId, chapter.id);
-  const facts = factsFor(v, asOf.manifest, chapter.index, true)
-    .filter((f: any) => !f.id || !mutes.has(f.id));
-  if (!facts.length) return { checked: 0, found: 0, violations: [] };
-
-  const { found, error } = await contradictionsIn(facts, passage.body);
-  if (error) return { error };
-
-  // THE NUMERIC PASS. F43 measured the checker at 0 of 4 wrong counts while catching 4 of 4 of
-  // everything else, and a rule telling it to look bought nothing — it is not failing to be told,
-  // it is failing to compare. So the comparison happens in code and the model is asked only about
-  // pairs that already disagree.
-  //
-  // NARRATION ONLY, and here it does deterministically what the prompt asks for in words: a boy
-  // guessing "six crowns, maybe seven" is dialogue and never reaches the pairing at all.
-  //
-  // The pairing is GENEROUS on purpose — one word after the number, folded — because a pair that
-  // is never made is a contradiction nobody ever sees, while a pair that should not have been made
-  // is one cheap question. `NUMBERS` is that question, and the trap it names is the reason this is
-  // not a plain assertion: "owes eleven crowns" and "had two crowns in his coat" are both true.
-  const said = numbersIn(narrationOnly(passage.body));
-  const pairs: { canon: number; fact: any; want: number; got: number; unit: string }[] = [];
-  for (const [i, f] of facts.entries()) {
-    for (const c of numbersIn(f.body)) {
-      for (const p of said) {
-        if (p.unit !== c.unit || p.value === c.value) continue;
-        if (pairs.some((x) => x.canon === i && x.want === c.value && x.got === p.value)) continue;
-        pairs.push({ canon: i, fact: f, want: c.value, got: p.value, unit: c.unit });
-      }
-    }
-  }
-  if (pairs.length) {
-    const ask = pairs.map((p, i) =>
-      `${i + 1}. canon: ${p.fact.body}\n   passage says ${p.got} ${p.unit} where canon says ${p.want}`)
-      .join('\n\n');
-    const r = await structuredRetry(NUMBERS, `${ask}\n\n---\n\nPASSAGE:\n${narrationOnly(passage.body)}`,
-      numbersSchema(pairs.length) as any, { max_tokens: 500 });
-    const flat = (x: string) => String(x ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
-    const prose = flat(narrationOnly(passage.body));
-    for (const v of r.data?.verdicts ?? []) {
-      const p = pairs[Number(v?.pair) - 1];
-      // THE QUOTE HAS TO BE IN THE PROSE, the same lookup F42 put in front of the retirement scan.
-      if (!p || !v?.contradicts || flat(v.quote).length < 8 || !prose.includes(flat(v.quote))) continue;
-      if (found.some((x: any) => flat(x.quote) === flat(v.quote))) continue;   // already caught
-      found.push({ canon: p.canon + 1, quote: String(v.quote), why: String(v.why ?? ''),
-                   confidence: 0.9 });
-    }
-  }
-
-  db.clearViolations(passageId);   // re-checking replaces, it does not accumulate
-
-  for (const x of found) {
-    const f = facts[x.canon - 1];
-    db.addViolation(storyId, { passageId, entryId: f?.id, quote: x.quote,
-      reason: x.why, confidence: x.confidence, reached: f?.reached !== false });
-  }
-  // Same shape the view uses, so a caller never has to know a row from a record.
-  return { checked: facts.length, found: found.length,
-    violations: db.violationsOf(storyId).map((x: any) => ({ id: x.id, passageId: x.passage_id,
-      entryId: x.entry_id, quote: x.quote, reason: x.reason, confidence: x.confidence,
-      reached: x.reached !== 0 })) };
 }
 
 /** THE ROOMS OF A FORGED CARD, WRITTEN. One definition, two callers — `POST /api/thread/paste` and
@@ -3884,7 +3690,6 @@ export const routes: Record<string, Handler> = {
     if (id && c.body.genId) db.tieGeneration(String(c.body.genId), String(id));
     // Regenerating away from a take is a judgement about it, not just a replacement.
     if (c.body.variantOf && c.body.rejected) db.rejectTake(v.id, String(c.body.variantOf));
-    if (id && c.body.check !== false) checkLanded(c, v.id, id);
     return viewOf(c, v.id);
   },
   'POST /api/variant':   (c) => { db.selectVariant(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
@@ -3908,135 +3713,6 @@ export const routes: Record<string, Handler> = {
   'POST /api/branch':    (c) => {
     if (!db.setActiveBranch(c.body.storyId, c.body.id)) return { error: 'no such branch' };
     return viewOf(c, c.body.storyId);
-  },
-  /** REPAIR ONE PASSAGE, BECAUSE THE WRITER PRESSED IT. Issue #9, option 2, chosen by Seth on
-   *  2026-09-01 out of three: leave it, a button on the flag, or back on the critical path.
-   *
-   *  WHY IT IS A PRESS. The repair WAS automatic and blocking on every generation until 2026-08-31.
-   *  F30 measured it at a flat 1,456 ms — about a third of a warm take — firing 0 repairs in 6, and
-   *  Seth's instruction was *"remove it from the critical path. instead just add a flag after."*
-   *  That removal stands; nothing waits on this. What the 12 recorded runs in the live library say
-   *  about the repair itself is the other half of the argument: 21 contradictions found, 7 mended,
-   *  14 surviving their own repair, and **2 of 12 with `mended: -1`** — the second look found MORE
-   *  than the first, so the repair introduced one. A thing that helps a quarter of the time and
-   *  occasionally makes it worse is a thing the writer chooses, not a thing that happens to them.
-   *
-   *  IT LANDS AS A VARIANT, NOT AS AN OVERWRITE, and that is the one design decision here. The
-   *  passage is already kept and already on the page — the writer's own prose in every sense that
-   *  matters — so a repair that replaced it in place would be the model editing something a person
-   *  accepted, with the original gone. `addVariant` is the mechanism History and the take switcher
-   *  already use: the original take stays, the repair becomes the selected one, and one press on
-   *  History puts it back. No new table and no new way to lose prose.
-   *
-   *  THE SECOND LOOK IS NOT OPTIONAL. `mended: found.length` was the original defect — a claim the
-   *  repair worked, asserted from the fact one was attempted. The fixed prose goes back through the
-   *  same detector, `db.clearViolations` + re-flag leaves exactly what survived on the board, and
-   *  `unchecked` is recorded when the detector could not answer, because a zero is not an absence.
-   *
-   *  `contradictionsIn` FAILS TWO WAYS and both are handled: it throws on a dead router and it
-   *  RETURNS `{found: [], error}` on an unparseable answer — the same shape a clean passage makes.
-   *  Reading only the thrown one would report "the contradiction is gone" off a reply nobody could
-   *  parse, one line from the writer being told their prose was fixed when nothing had been read. */
-  'POST /api/repair': async (c) => {
-    const storyId = String(c.body.storyId);
-    const v = bookOf(storyId);
-    const passageId = String(c.body.passageId ?? '');
-    const passage = v.passages.find((p: any) => p.id === passageId);
-    if (!passage) return { error: 'no such passage' };
-    if (passage.isBreak) return { error: 'a scene break has nothing to mend' };
-
-    // The canon this passage was actually shown, as of its own ordinal — the same rebuild `check`
-    // does, and for the same reason: checking a passage against canon it never saw blames the
-    // writer for the engine's omissions.
-    const asOf = assemble(v, c.slot, 'direct', undefined, passage.ordinal);
-    const chapter = v.chapters.find((ch: any) => ch.id === passage.chapterId) ?? v.currentChapter;
-    const mutes = db.mutedIn(storyId, chapter.id);
-    const facts = factsFor(v, asOf.manifest, chapter.index, true)
-      .filter((f: any) => !f.id || !mutes.has(f.id));
-    if (!facts.length) return { error: 'no thread reached this passage, so there is nothing to check it against' };
-
-    const before = await contradictionsIn(facts, passage.body).catch(() => null);
-    if (!before || before.error) return { error: 'the knot check could not answer, so nothing was changed' };
-    if (!before.found.length) return { found: 0, mended: 0, unfixed: 0, nothing: true };
-
-    const broken = before.found.map((x: any) =>
-      `- Canon: ${facts[x.canon - 1]?.body}\n  You wrote: "${x.quote}"`).join('\n');
-    const using = writerModel(c, v);
-    const t0 = Date.now();
-    const genId = db.logGeneration({ storyId, chapterId: chapter.id, model: using, role: 'repair',
-      manifest: asOf.manifest, latencyMs: 0, error: null });
-    let r;
-    try {
-      r = await chat(MEND, `${broken}\n\nPASSAGE:\n${passage.body}`,
-        { temperature: 0.3, max_tokens: Math.max(600, asOf.reserved ?? 900), model: using,
-          chat_template_kwargs: { enable_thinking: false } });
-    } catch {
-      return { error: 'the model could not be reached, so nothing was changed' };
-    }
-    const fixed = clean(r.prose);
-
-    // ponytail: a length floor is the whole guard against a repair that REWRITES instead of
-    // correcting. It catches the empty answer, the refusal and the one-line summary; it cannot see
-    // a same-length rewrite, and the live library is full of exactly that shape. Compare
-    // sentence-by-sentence if it turns out to matter. A refusal writes nothing and says so.
-    if (fixed.length < passage.body.length * 0.6) {
-      const m = { found: before.found.length, mended: 0, unfixed: before.found.length,
-                  refused: true, unchecked: false };
-      db.noteMend(String(genId), { ...m, latencyMs: Date.now() - t0 });
-      return { ...m, error: 'the repair came back shorter than the passage, so it was a rewrite '
-        + 'rather than a correction. Nothing was changed.' };
-    }
-
-    const after = await contradictionsIn(facts, fixed).catch(() => null);
-    const left = after && !after.error ? after.found.length : null;
-    const m = { found: before.found.length,
-                mended: left === null ? 0 : before.found.length - left,
-                unfixed: left ?? before.found.length,
-                refused: false, unchecked: left === null };
-    db.noteMend(String(genId), { ...m, latencyMs: Date.now() - t0 });
-
-    // The repair becomes the selected take and the original stays in History.
-    const variant = db.addVariant(storyId, passageId, fixed);
-    if (!variant) return { ...m, error: 'the repair could not be saved, so nothing was changed' };
-
-    // WHAT SURVIVED, ON THE BOARD. Re-flagging against the NEW take is what makes the number
-    // honest — the flags the writer is looking at are the ones still true of the prose on screen.
-    db.clearViolations(variant);
-    if (left !== null) {
-      for (const x of after!.found) {
-        const f = facts[x.canon - 1];
-        db.addViolation(storyId, { passageId: variant, entryId: f?.id, quote: x.quote,
-          reason: x.why, confidence: x.confidence, reached: f?.reached !== false });
-      }
-    } else {
-      // THE CHECKER COULD NOT ANSWER, SO THE FLAGS COME FORWARD UNCHANGED — and this is not
-      // tidiness, it is the whole of #9 in one branch. `db.violationsOf` lists flags on the
-      // SELECTED take only, so a repair that lands a new take and files nothing against it EMPTIES
-      // THE BOARD: the writer sees no red line and reads that as fixed. That is precisely the
-      // silence this issue is about — "a repair that failed looked exactly like a passage with
-      // nothing wrong" — and I reintroduced it here until `test/check.ts` caught it.
-      //
-      // So nothing is claimed and nothing is lost: the contradictions it went in with are carried
-      // onto the take now on screen. A zero is not an absence, and neither is an unread reply.
-      for (const x of before.found) {
-        const f = facts[x.canon - 1];
-        db.addViolation(storyId, { passageId: variant, entryId: f?.id, quote: x.quote,
-          reason: x.why, confidence: x.confidence, reached: f?.reached !== false });
-      }
-    }
-    return { ...m, passageId: variant, view: viewOf(c, storyId) };
-  },
-
-  'POST /api/check':     (c) => check(c, c.body.storyId, c.body.passageId),
-  'POST /api/violation': (c) => { db.setViolationStatus(c.body.storyId, c.body.id, c.body.status ?? 'dismissed');
-    return viewOf(c, c.body.storyId); },
-  // Quiet this entry for this chapter, or lift it. Dismiss handles one flag; this handles the
-  // stream of them that one drifting entry produces while a chapter is still being written.
-  'POST /api/mute': (c) => {
-    const ref = `${c.body.chapterId}:${c.body.entryId}`;
-    if (c.body.off) db.unmute(c.body.storyId, 'mute', ref);
-    else db.dismiss(c.body.storyId, 'mute', ref);
-    return viewOf(c, c.body.storyId, c.body.chapterId);
   },
   'POST /api/passage':   (c) => { db.editPassage(c.body.storyId, c.body.id, c.body.body); return viewOf(c, c.body.storyId); },
   'DELETE /api/passage': (c) => {
@@ -5302,7 +4978,6 @@ export const routes: Record<string, Handler> = {
   'GET /api/activity': (c) => {
     const rows = db.recentGenerations(c.query.get('story')!);
     const t = (r: any) => { try { return JSON.parse(r.timings || '{}'); } catch { return {}; } };
-    const m = (r: any) => { try { return r.mend ? JSON.parse(r.mend) : null; } catch { return null; } };
     const prefills = rows.map(t).map((x) => x.prompt_ms).filter((x) => x > 0);
     return {
       runs: rows.map((r) => ({
@@ -5311,34 +4986,9 @@ export const routes: Record<string, Handler> = {
         seconds: r.latency_ms == null ? null : +(r.latency_ms / 1000).toFixed(1),
         prefillSeconds: t(r).prompt_ms ? +(t(r).prompt_ms / 1000).toFixed(2) : null,
         prefillRate: t(r).prompt_per_second ? Math.round(t(r).prompt_per_second) : null,
-        // #9. WHAT A REPAIR DID, on the row that paid for it. `recentGenerations` has selected this
-        // column all along and nothing mapped it, which is the shape of the original defect: the
-        // counts were returned to a browser that ignored them and stored nowhere, so for four days
-        // nobody could say how often the repair fired or how often it worked.
-        mend: m(r),
       })),
       worstPrefillSeconds: prefills.length ? +(Math.max(...prefills) / 1000).toFixed(2) : null,
       failures: rows.filter((r) => r.error).length,
-      /** HOW OFTEN THE REPAIR WORKS, over the takes where something WAS wrong.
-       *
-       *  The informative denominator, not a rate over every call — F10's rule, and here it is the
-       *  difference between "the repair works 2% of the time" and "the repair works a quarter of the
-       *  time it is asked". A repair is only ever asked for on a passage that is already flagged.
-       *
-       *  `clean` counts the ones where nothing survived; `worse` counts the ones where the second
-       *  look found MORE than the first, which is `mended` going negative. Two of the twelve rows in
-       *  the live library are `worse`, and a summary that hid that would be the wrong summary. */
-      repairs: (() => {
-        const runs = rows.map(m).filter((x: any) => x && typeof x.found === 'number');
-        if (!runs.length) return null;
-        return { asked: runs.length,
-                 clean: runs.filter((x: any) => x.unfixed === 0 && !x.unchecked && !x.refused).length,
-                 worse: runs.filter((x: any) => x.mended < 0).length,
-                 refused: runs.filter((x: any) => x.refused).length,
-                 unchecked: runs.filter((x: any) => x.unchecked).length,
-                 found: runs.reduce((a: number, x: any) => a + x.found, 0),
-                 mended: runs.reduce((a: number, x: any) => a + x.mended, 0) };
-      })(),
     };
   },
 

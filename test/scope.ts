@@ -62,6 +62,12 @@ const ok = (m: string, fn?: unknown) => {
 const gated = Object.keys(routes).filter((k) => !OPEN_ROUTES.has(k));
 ok(`${gated.length} routes are gated, ${OPEN_ROUTES.size} deliberately open`);
 
+// #94. The contradiction check was deleted (Seth, 2026-10-28). Its four routes are gone from the
+// table serve.ts dispatches through, so a call to any of them answers 404 "not found".
+for (const k of ['POST /api/check', 'POST /api/repair', 'POST /api/violation', 'POST /api/mute'])
+  assert.ok(!(k in routes) && !OPEN_ROUTES.has(k), `NO-CHECK: ${k} is gone`);
+ok('the contradiction check has no routes (#94)');
+
 // 2. The gate can find the story id in every shape a route uses.
 for (const [body, query, want] of [
   [{ storyId: 'S' }, '', 'S'],

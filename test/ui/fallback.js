@@ -31,7 +31,7 @@ const write = async (model, variantOf) => {
   await call("/api/model", { model, storyId: sid });
   const g = await call("/api/generate", { storyId: sid, mode: "continue" });
   const v = await call("/api/accept", { storyId: sid, body: g.prose, mode: "continue", genId: g.genId,
-    check: false, ...(variantOf ? { variantOf, rejected: false } : {}) });
+    ...(variantOf ? { variantOf, rejected: false } : {}) });
   return { g, v };
 };
 const far = await write(REMOTE);

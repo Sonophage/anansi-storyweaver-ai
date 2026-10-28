@@ -771,11 +771,7 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   const declared = [...routeSrc.matchAll(/^\s*'(GET|POST|DELETE) (\/api\/[a-z/]+)'/gm)]
     .map((m) => m[2]);
   assert.ok(declared.length > 40, `only ${declared.length} routes parsed`);
-  const NO_CLIENT: Record<string, string> = {
-    // Driven by bench/checker.ts, which is how the contradiction checker is measured. The app
-    // reaches the same code through accept, not through this route.
-    '/api/check': 'bench/checker.ts drives it; the app runs the checker through accept',
-  };
+  const NO_CLIENT: Record<string, string> = {};
   const unreachable = [...new Set(declared)].filter((path) =>
     !api.includes(`'${path}'`) && !api.includes(`\`${path}`) && !api.includes(`${path}?`)
     && !(path in NO_CLIENT));

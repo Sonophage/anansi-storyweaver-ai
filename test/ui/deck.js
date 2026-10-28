@@ -47,7 +47,7 @@ await page.eval(`(async () => { await fetch('/api/string', { method: 'POST', hea
   body: JSON.stringify({ storyId: ${JSON.stringify(sid)}, string: { title: 'The debt nobody has called in', body: 'Owed since the spring.' } }) }); return 1; })()`);
 await page.goto(B + "/#" + sid + "/waiting");
 await until("!!document.querySelector('.deckcard:not([hidden])')");
-const before = (await view(sid)).proposals.length + (await view(sid)).violations.length + (await view(sid)).strings.filter((x) => x.status === 'open').length;
+const before = (await view(sid)).proposals.length + (await view(sid)).strings.filter((x) => x.status === 'open').length;
 const swiped = await page.eval(`(async () => {
   const card = document.querySelector('.deckcard:not([hidden])');
   const from = card.querySelector('summary, .decktitle') ?? card;
@@ -59,7 +59,7 @@ const swiped = await page.eval(`(async () => {
   ev('pointerup', x0 - 240);
   return lean; })()`);
 await wait(1200);
-const after = (await view(sid)).proposals.length + (await view(sid)).violations.length + (await view(sid)).strings.filter((x) => x.status === 'open').length;
+const after = (await view(sid)).proposals.length + (await view(sid)).strings.filter((x) => x.status === 'open').length;
 ok(`a swipe left from a section's heading leans the card and says no (lean ${swiped}, ${before} -> ${after} waiting)`,
    swiped === 'left' && after === before - 1);
 
@@ -70,18 +70,6 @@ await page.eval(`(async () => { await fetch('/api/string', { method: 'POST', hea
 await page.goto(B + "/#" + sid + "/waiting");
 await until("!!document.querySelector('.deckcard:not([hidden])')");
 const topTitle = () => page.eval("document.querySelector('.deckcard:not([hidden]) .decktitle')?.innerText ?? ''");
-// The knot below rides in on the story view the summon fetches; see there.
-const kv = await view(sid);
-const ke = kv.entries.find((x) => x.entryType === 'character');
-await page.eval(`(() => { const real = window.fetch;
-  window.fetch = async (...a) => { const r = await real(...a);
-    if (!/\\/api\\/(story|mute)/.test(String(a[0]))) return r;
-    const j = await r.clone().json().catch(() => null);
-    if (!j || !Array.isArray(j.violations)) return r;
-    j.violations.push({ id: 'v-planted', entryId: ${JSON.stringify(ke.id)}, passageId: ${JSON.stringify(kv.passages[0].id)},
-      quote: 'a line the thread disagrees with', status: 'open' });
-    return new Response(JSON.stringify(j), { headers: { 'content-type': 'application/json' } }); };
-  return 1; })()`);
 for (let i = 0; i < 12 && (await topTitle()) !== 'The letter in the drawer'; i++) {
   await page.eval("(() => { document.querySelector('[data-deckmove=\"1\"]:not([disabled])')?.click(); return 1; })()"); await wait(150); }
 ok("the string is on the deck", (await topTitle()) === 'The letter in the drawer');
@@ -91,18 +79,5 @@ const letter = (await view(sid)).strings.find((x) => x.title === 'The letter in 
 ok("a summon from the deck summons it", !!letter?.summoned);
 ok("  and leaves the deck, so the next card is on top",
    !(await page.eval("[...document.querySelectorAll('.deckcard .decktitle')].some((t) => t.innerText === 'The letter in the drawer')")));
-
-// A KNOT, IGNORED, LEAVES TOO: its thread is muted, and the knot stayed on top saying Ignore. The
-// fixture has no knot and nothing without a model makes one, so the page's story view was given
-// one before the summon above, whose fetch brought it in.
-await until("!!document.querySelector('.deckcard[data-deckkind=\"knot\"]')", 20);
-for (let i = 0; i < 12 && !(await page.eval("document.querySelector('.deckcard:not([hidden])')?.dataset.deckkind === 'knot'")); i++) {
-  await page.eval("(() => { document.querySelector('[data-deckmove=\"1\"]:not([disabled])')?.click(); return 1; })()"); await wait(150); }
-ok("the planted knot is on the deck", await page.eval("document.querySelector('.deckcard:not([hidden])')?.dataset.deckkind === 'knot'"));
-await page.eval("(() => { document.querySelector('.deckcard:not([hidden]) [data-deckleft]')?.click(); return 1; })()");
-await wait(1200);
-ok("  and Ignore moves on from it", !(await page.eval("[...document.querySelectorAll('.deckcard')].some((c) => c.dataset.deckkind === 'knot')")));
-await page.eval(`(async () => { await fetch('/api/mute', { method: 'POST', headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ storyId: ${JSON.stringify(sid)}, chapterId: ${JSON.stringify(kv.currentChapter.id)}, entryId: ${JSON.stringify(ke.id)}, off: true }) }); return 1; })()`);
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

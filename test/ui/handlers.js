@@ -487,7 +487,7 @@ const firstId = (await pass()).find((p) => !p.isBreak)?.id;
 for (const line of ['A second take.', 'A third take.']) {
   await page.eval("(async () => { await fetch('/api/accept', { method:'POST',"
     + " headers:{'Content-Type':'application/json'}, body: JSON.stringify({ storyId:'" + sid + "',"
-    + " variantOf:'" + firstId + "', body:" + JSON.stringify(line) + ", check:false }) }); })()");
+    + " variantOf:'" + firstId + "', body:" + JSON.stringify(line) + " }) }); })()");
   await wait(500);
 }
 await page.goto(B + "/#" + sid);

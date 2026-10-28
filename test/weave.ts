@@ -34,14 +34,14 @@ const srv = createServer((req, res) => {
       res.end(JSON.stringify(o)); };
     // Short, so the exact count never refuses; the budget is what this file reads, not the count.
     if (req.url === '/tokenize') return send({ tokens: Array.from({ length: 200 }, (_, i) => i) });
-    // A structured call is named by its schema: Talk's has a reply, Invent's a title, the check's
-    // its contradictions. Anything else with a grammar is counted as a check, which is background.
+    // A structured call is named by its schema: Talk's has a reply, Invent's a title. Anything else
+    // with a grammar is background work, extraction among it.
     const props = b.response_format?.json_schema?.schema?.properties ?? {};
-    const kind = b.response_format ? (props.reply ? 'talk' : props.title ? 'invent' : 'check')
+    const kind = b.response_format ? (props.reply ? 'talk' : props.title ? 'invent' : 'background')
       : b.max_tokens === 1 ? 'warm' : 'prose';
     calls.push({ kind, weaving: b.chat_template_kwargs?.enable_thinking, maxTokens: b.max_tokens,
       user: String(b.messages?.[1]?.content ?? '') });
-    if (kind === 'check') return send({ choices: [{ message: { content: JSON.stringify({ contradictions: [] }) } }],
+    if (kind === 'background') return send({ choices: [{ message: { content: JSON.stringify({ entries: [] }) } }],
       usage: { prompt_tokens: 200, completion_tokens: 5 } });
     const cut = cutNext && (kind === 'talk' || kind === 'invent');
     if (cut) cutNext = false;
@@ -116,21 +116,19 @@ const ok = (m: string, fn?: unknown) => {
   ok('a passage in a weaving book weaves with its cap raised by 5,000, and one in any other book does not');
 }
 
-// ---- 2. THE BACKGROUND NEVER WEAVES, in the same weaving book. The canon check is the one a writer
-// sets off by keeping a take, and it is structured: F23 measured a structured call that planned
-// first returning unparseable JSON on 3 calls in 5.
+// ---- 2. THE BACKGROUND NEVER WEAVES, in the same weaving book. Extraction is structured, and F23
+// measured a structured call that planned first returning unparseable JSON on 3 calls in 5.
 {
-  const passageId = db.addPassage({ ...woven, storyId: woven.id, body: 'She walks into the light.' })!;
+  db.addPassage({ ...woven, storyId: woven.id, body: 'She walks into the light.' });
   calls = [];
-  const r: any = await routes['POST /api/check'](ctx({ storyId: woven.id, passageId }));
-  assert.ok(!r.error, r.error);
-  const check = calls.filter((x) => x.kind === 'check');
-  assert.ok(check.length >= 1, `the check reached the model: ${JSON.stringify(calls)}`);
-  for (const x of check) {
+  await routes['POST /api/extract'](ctx({ storyId: woven.id, chapterId: (db.chapters(woven.id)[0] as any).id }));
+  const bg = calls.filter((x) => x.kind === 'background');
+  assert.ok(bg.length >= 1, `the extraction reached the model: ${JSON.stringify(calls)}`);
+  for (const x of bg) {
     assert.strictEqual(x.weaving, false, 'a background call in a weaving book is sent weaving off');
     assert.ok(x.maxTokens < 5000, `and with its own cap, nothing added (${x.maxTokens})`);
   }
-  ok('the canon check in a weaving book is sent weaving off, with its own cap');
+  ok('extraction in a weaving book is sent weaving off, with its own cap');
 }
 
 // ---- 3. THE BUDGET THE PANEL SHOWS IS THE BUDGET THE CALL USES. The raised cap is reserved in the

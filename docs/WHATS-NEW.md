@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-28 · A new tale starts at its opening
 
+### Knots are gone
+Anansi no longer reads each passage for places where it disagrees with your threads. It marked a
+tale's own version of its world as mistakes, and its Mend rewrote prose you had kept. The red knot
+lines under passages, the knot cards on the Workbench, and Mend, Ignore and Watch it again are
+gone with it. Your prose and your threads are not changed. The next time Anansi starts, the knots
+it had already found are removed, and your tale's update report says how many.
 ### A new tale starts in your own Voice
 A tale you start from an idea now begins with the Voice you set in your Account, or Anansi's own
 when you have not set one. The Voice Anansi wrote for the idea is shown under yours, with what it

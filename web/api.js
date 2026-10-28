@@ -218,12 +218,6 @@ export const api = {
   delString:    (storyId, id)    => j('/api/string', 'DELETE', { storyId, id }),
   prompts:      ()               => j('/api/prompts'),
   savePrompt:   (key, text)      => j('/api/prompts', 'POST', { key, text }),
-  dismissFlag:  (storyId, id)    => j('/api/violation', 'POST', { storyId, id, status: 'dismissed' }),
-  // Quiet one canon entry for one chapter, or lift it. Dismiss clears a flag; this stops the
-  // stream of them a drifting entry produces while the chapter is still moving.
-  mute: (storyId, chapterId, entryId, off) => j('/api/mute', 'POST', { storyId, chapterId, entryId, off }),
-  // Issue #9: correct one passage against canon, on demand. A model call, so it is slow.
-  repair:       (o)              => j('/api/repair', 'POST', o),
   // #36. A followed card, per card: take it over, hand it back, or take it out of this book.
   takeover:     (o)              => j('/api/entry/unlink', 'POST', o),
   relink:       (o)              => j('/api/entry/relink', 'POST', o),

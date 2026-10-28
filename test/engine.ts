@@ -2,7 +2,7 @@
 //   node --experimental-strip-types test/engine.ts
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
-import { buildContext, resolveBody, fires, retirable, numbersIn, narrationOnly, quotedSpans, factsIn, factsLost,
+import { buildContext, resolveBody, fires, retirable, narrationOnly, quotedSpans, factsIn, factsLost,
          weaveFit } from '../src/context.ts';
 import type { Input, Entry } from '../src/context.ts';
 import { render } from '../src/render.ts';
@@ -727,9 +727,8 @@ ok('a passage that stops mid-line does not hand its dialogue back as narration',
   assert.doesNotMatch(narrationOnly(broken), /crush your throat/,
     'a speech broken across two lines is one quoted span, not narration on the second line');
 
-  // THE OFFSETS AGREE WITH THE STRIP, which is the whole reason they share a pattern. routes.ts
-  // filters the checker's findings by these spans; if they disagreed, a line could be stripped
-  // here and reported as narration there.
+  // THE OFFSETS AGREE WITH THE STRIP, which is the whole reason they share a pattern. bench/cast.ts
+  // reads these spans; if they disagreed, a line could be stripped here and read as narration there.
   const spans = quotedSpans(cut);
   assert.strictEqual(spans.length, 2, `both speeches must be spans, got ${JSON.stringify(spans)}`);
   assert.strictEqual(cut.slice(spans[1][0], spans[1][1]), '"It was never',
@@ -1706,45 +1705,6 @@ ok('THE POINT-OF-VIEW CHARACTER IS NEVER ASKED ABOUT', () => {
     .map((e) => e.title), [], 'matched the way isPov matches — trimmed and folded to lower case');
   assert.deepStrictEqual(retirable([card('Marek', { keys: ['Marek'] })], CHAPTER, 'Aldis')
     .map((e) => e.title), ['Marek'], 'and somebody else being the persona changes nothing');
-});
-
-// ---- F43: pulling the numbers out, so the model is asked a lookup and not a judgement --------
-
-const nums = (t: string) => numbersIn(t).map((x) => `${x.value} ${x.unit}`);
-
-ok('words and digits are the same number', () => {
-  // "4 crowns contradicts eleven crowns" is the case F43 measured the checker missing, and a
-  // digits-only reader would miss half of them on its own.
-  assert.deepStrictEqual(nums('owes Marek eleven crowns'), ['11 crown']);
-  assert.deepStrictEqual(nums('the ledger said 4 crowns against his name'), ['4 crown']);
-  assert.deepStrictEqual(nums('1,200 crowns'), ['1200 crown'], 'thousands separators are not two numbers');
-});
-
-ok('compound numbers compose, hyphenated or not', () => {
-  assert.deepStrictEqual(nums('twenty-one crowns'), ['21 crown']);
-  assert.deepStrictEqual(nums('twenty one crowns'), ['21 crown']);
-  // A bare ten is still a ten. Without this, "twenty crowns" reads as 20 and then loses its unit
-  // to the lookahead that was hoping for a one.
-  assert.deepStrictEqual(nums('twenty crowns'), ['20 crown']);
-});
-
-ok('the unit is folded, so plurals pair with singulars', () => {
-  // The whole point is PAIRING canon against a passage, and canon says "crowns" while a passage
-  // may say "crown". Unfolded, they never meet and the contradiction is invisible.
-  assert.deepStrictEqual(nums('one crown'), ['1 crown']);
-  assert.strictEqual(numbersIn('eleven crowns')[0]!.unit, numbersIn('one crown')[0]!.unit);
-});
-
-ok('a number with nothing to count is not a fact', () => {
-  // A trailing number, or one followed by something too short to be a noun, would otherwise pair
-  // with anything that happened to share an empty unit.
-  assert.deepStrictEqual(nums('he counted to eleven'), []);
-  assert.deepStrictEqual(nums('eleven'), []);
-});
-
-ok('a decimal is not a count', () => {
-  // "3.5 crowns" is a measure, not a tally, and pretending otherwise invites a pair nobody meant.
-  assert.deepStrictEqual(nums('3.5 crowns'), []);
 });
 
 // ---- the rejected take is not sent: F44 measured it flat, and the arm was deleted 2026-10-25 ----

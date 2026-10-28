@@ -506,8 +506,9 @@ const framedStands = (e: Entry, at: number): string => {
 /** THE CARD AS THE MODEL SEES IT: what is in force at this chapter, plus every room switched on.
  *
  *  This exists because reading `resolveBody` alone stopped being the same thing as reading the card
- *  on 2026-08-29, when every body in the library moved into a `facts` room. `factsFor` was fixed
- *  that morning and the other three callers were not, so the memory pass spent a chapter end asking
+ *  on 2026-08-29, when every body in the library moved into a `facts` room. The canon check's reader
+ *  (deleted 2026-10-28) was fixed that morning and the other three callers were not, so the memory
+ *  pass spent a chapter end asking
  *  the model what had changed about "Halloran: " — the name, a colon, and nothing. It answered by
  *  writing a whole description and filing it under `facts`, which is the correct answer to the
  *  question it was actually asked. The defect read as the model ignoring its instructions.
@@ -533,13 +534,8 @@ export const cardText = (e: Entry, at: number, window = '', locked = '', tells =
  *  Dialogue may lie, a character may be wrong, and only the narrator commits the story to a fact.
  *  Ignoring that produced a long run of false positives in the quality checks — a place name,
  *  another character's name, a line of dialogue read as a POV break — so anything reading a chapter
- *  to decide what is TRUE reads this instead of the raw text.
- *
- *  The checker in routes.ts still does a different JOB — it keeps the text whole and filters the
- *  quotes the model came back with, because it needs the offsets — but it no longer carries its
- *  own copy of the pattern. It had one until 2026-08-30 and inherited this function's bug with it,
- *  which is what a duplicated regex is for. `quotedSpans` below is the shared half; what each
- *  caller does with the spans is still its own. */
+ *  to decide what is TRUE reads this instead of the raw text. `quotedSpans` below is the shared
+ *  half for a caller that needs the offsets; what each caller does with the spans is its own. */
 /** ONE PATTERN, TWO SHAPES, because the bug was in the pattern and it was written out twice.
  *
  *  A generation that hits the token ceiling stops mid-line, leaving an opening quote with no
@@ -559,8 +555,7 @@ export const cardText = (e: Entry, at: number, window = '', locked = '', tells =
 const QUOTED = () => /["“][^"”]*(?:["”]|$)/g;
 
 /** The quoted spans as offsets, for a caller that needs to know WHERE rather than get the text
- *  back without them. `routes.ts` had its own copy of the pattern for this and inherited the same
- *  defect: a contradiction found inside the final unterminated line was reported as narration. */
+ *  back without them (`bench/cast.ts`). One pattern, so the offsets and the strip cannot disagree. */
 export const quotedSpans = (text: string): [number, number][] =>
   [...String(text ?? '').matchAll(QUOTED())].map((m) => [m.index!, m.index! + m[0].length]);
 
@@ -573,11 +568,6 @@ export const narrationOnly = (text: string) =>
  *  wording? `bench/compact.ts` asks it of a rewrite, to refuse one that dropped a name while
  *  shortening. `db.staleSummariesFor` asks it of a card edit, to decide whether the chapter
  *  summaries describing that card are now lying.
- *
- *  NOT `numbersIn`, and the difference is worth stating rather than blending. That function pairs
- *  a value with the unit word that follows it, which is what a contradiction check needs and
- *  exactly wrong here: rewriting "34, owes Marek" as "34, owed to Marek" changes the pair while
- *  changing no fact, and this would report it as a change on every edit.
  *
  *  ponytail: lexical, so it catches a DROP and not a DISTORTION. "thirty-four" for "34" reads as
  *  a change; a fact restated in other words reads as no change. The upgrade path is a model call
@@ -773,66 +763,6 @@ export function weaveFit(normal: Manifest, woven: Manifest): { drops: Block[]; o
   const kept = new Set(normal.blocks.filter((b) => b.state === 'included').map((b) => `${b.kind}\u0000${b.id}`));
   const drops = woven.blocks.filter((b) => b.state !== 'included' && kept.has(`${b.kind}\u0000${b.id}`));
   return drops.length || woven.overflowed ? { drops, overflows: woven.overflowed } : null;
-}
-
-/** Every number in a text, with the thing it counts. F43.
- *
- *  The checker is BLIND to numbers — 0 of 4 wrong counts against 4 of 4 of everything else — and a
- *  rule telling it to look bought exactly nothing, because it is not failing to be told. It reads
- *  "limp in the left knee ... owes Marek eleven crowns", catches the limp and misses the crowns.
- *  It is failing to COMPARE, so the comparison stops being its job: this pulls the numbers out and
- *  the model is asked only about pairs that already disagree. The same move that took the
- *  retirement scan to zero in F42 — stop asking for a judgement, ask for a lookup.
- *
- *  WORDS AND DIGITS ARE ONE NUMBER, because "4 crowns" against "eleven crowns" is the case F43
- *  measured and a digits-only reader would miss half of them. Twenty-one and twenty one both
- *  compose; nothing above a thousand does, and nothing needs to yet.
- *
- *  THE UNIT IS THE NEXT REAL WORD, which is crude and is meant to be: it exists to PAIR a canon
- *  number with a passage number, and a pair that should not have been made is a question the model
- *  answers cheaply. A pair that is never made is a contradiction nobody ever sees, so this leans
- *  towards offering too many. */
-const ONES: Record<string, number> = {
-  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
-  ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
-  seventeen: 17, eighteen: 18, nineteen: 19,
-};
-const TENS: Record<string, number> = {
-  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
-};
-export function numbersIn(text: string): { value: number; unit: string }[] {
-  const words = (String(text ?? '').toLowerCase().match(/[\p{L}\p{N}'.,-]+/gu) ?? [])
-    .map((w) => w.replace(/^[.,'-]+|[.,'-]+$/g, '')).filter(Boolean);
-  const out: { value: number; unit: string }[] = [];
-  const valueAt = (i: number): { value: number; used: number } | null => {
-    const w = words[i]!;
-    // A digit run, with thousands separators taken out. Not a decimal: "3.5 crowns" is not a
-    // count and pretending it is one invites a pair nobody meant.
-    if (/^\d[\d,]*$/.test(w)) return { value: Number(w.replace(/,/g, '')), used: 1 };
-    // twenty-one, arriving as one token because the hyphen is inside the class above.
-    const hyph = /^([a-z]+)-([a-z]+)$/.exec(w);
-    if (hyph && TENS[hyph[1]!] != null && ONES[hyph[2]!] != null)
-      return { value: TENS[hyph[1]!]! + ONES[hyph[2]!]!, used: 1 };
-    if (TENS[w] != null) {
-      const next = words[i + 1];
-      if (next && ONES[next] != null && ONES[next]! < 10) return { value: TENS[w]! + ONES[next]!, used: 2 };
-      return { value: TENS[w]!, used: 1 };
-    }
-    if (ONES[w] != null) return { value: ONES[w]!, used: 1 };
-    return null;
-  };
-  for (let i = 0; i < words.length; i++) {
-    const v = valueAt(i);
-    if (!v) continue;
-    // The next word that is not itself part of a number. "eleven crowns" and "twenty one crowns"
-    // both land on `crowns`.
-    let j = i + v.used;
-    while (j < words.length && valueAt(j)) j += valueAt(j)!.used;
-    const unit = words[j];
-    if (unit && unit.length >= 3) out.push({ value: v.value, unit: fold(unit) });
-    i = j - 1;
-  }
-  return out;
 }
 
 /** The cards a closing chapter may be ASKED to finish. PLAN-08 Phase 4.

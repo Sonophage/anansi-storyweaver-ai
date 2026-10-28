@@ -35,7 +35,7 @@ const fresh = async (model) => {
   await call("/api/story", { id: sid, story: { model } });
   await call("/api/model", { model, storyId: sid });
   const g = await call("/api/generate", { storyId: sid, mode: "continue" });
-  await call("/api/accept", { storyId: sid, body: g.prose, mode: "continue", genId: g.genId, check: false });
+  await call("/api/accept", { storyId: sid, body: g.prose, mode: "continue", genId: g.genId });
   return g;
 };
 /** Re-roll the last passage from the row under it, the way a writer does, with the fake told how

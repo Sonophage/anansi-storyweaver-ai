@@ -44,7 +44,7 @@ const srv = createServer((req, res) => {
     const b = JSON.parse(raw || '{}');
     calls.push(b);
     const cut = breakFirst && calls.length === 1;
-    // Answer by the shape of the schema asked for, the same way test/check.ts does: an outfit wants
+    // Answer by the shape of the schema asked for: an outfit wants
     // a name and a body, a ledger entry wants a title and keys, everything else is a reply.
     const props = b.response_format?.json_schema?.schema?.properties ?? {};
     // Keyed on the QUESTION, not on the schema: TALK_SCHEMA always carries `strings` now, so a

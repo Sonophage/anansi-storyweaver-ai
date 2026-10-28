@@ -517,7 +517,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  carries `data-tip` like every other folded explanation — one mark, one handler, one
   //  state. A name left here would match nothing and read as a live action.)
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'ctxtoggle', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home',
-  're', 'del', 'ed', 'hi', 'vp', 'vn', 'flagx', 'mute', 'unmute', 'hwkb', 'bigin',
+  're', 'del', 'ed', 'hi', 'vp', 'vn', 'hwkb', 'bigin',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'delbranch', 'newthread', 'entry',
   'carryon',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
@@ -549,7 +549,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
   // #43. A chapter summary edited or written by hand.
   'editsum', 'savesum', 'cancelsum',
-  'dismiss', 'goflag', 'dropflag', 'repair', 'modelmenu', 'choosemodel', 'editsave', 'editx', 'sumtab', 'findtag', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
+  'dismiss', 'modelmenu', 'choosemodel', 'editsave', 'editx', 'sumtab', 'findtag', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
   // genre before the book exists.
@@ -724,8 +724,8 @@ function armed(t, key, ask) {
  *  the web, the four chapter-end passes, naming a chapter, the wizard. Those are the LONG ones.
  *
  *  ONLY IF NOTHING HAS CLAIMED IT. The composer raises it with the accent of the press that is
- *  writing, and a repair runs detached on accept — so this must not repaint the ring the passage it
- *  is checking put up. Lowered only while it is still ours, for the same reason.
+ *  writing — so this must not repaint the ring that press put up. Lowered only while it is still
+ *  ours, for the same reason.
  *
  *  The finally is the whole point: a call that throws must not leave the ring glowing for the life
  *  of the page. */
@@ -754,10 +754,8 @@ async function whileWorking(t, label, fn) {
  *  and a small light up top in accent color that glows over the screen."
  *
  *  ONE DEFINITION FOR BOTH, because a row that lights and a glow that does not — or the reverse —
- *  is two answers to one question. Proposals and unpaid promises only: flags are deliberately not
- *  counted, the same call `waiting()` in model.js makes. Seth, 2026-08-31: "that flag can be opened
- *  but it can be silently ignored ... if the writer keeps writing then it can silently be ignored."
- *  A contradiction is worth finding when you go looking; it is not worth a light. */
+ *  is two answers to one question. Proposals and unpaid promises, the same call `waiting()` in
+ *  model.js makes. */
 const owedHere = () => (V?.proposals ?? []).length
   + (V?.strings ?? []).filter((x) => x.status === 'open').length;
 /** And anywhere. `waiting()` already collapses the shelf to one row per kind and leaves archived
@@ -1375,7 +1373,6 @@ function passageHTML(p, newest, opening) {
   // so this is the same comparison `db.delAfter` makes, and a count that disagreed with what the
   // press removes would be worse than no count.
   const below = (V.passages ?? []).filter((x) => x.ordinal > p.ordinal).length;
-  const flags = (V.violations ?? []).filter((f) => f.passageId === p.id);
   const v = p.variants ?? [];
   const at = v.findIndex((x) => x.selected) + 1;
   // THE ⋯ IS GONE, 2026-08-27. A double tap opens the tray and has since F34's fix, so the dot
@@ -1461,35 +1458,6 @@ function passageHTML(p, newest, opening) {
          // textContent over <p> children concatenates with nothing between them, and a save would
          // glue the whole passage into one line.
          bookParagraphs(p.body).map((para) => `<p>${esc(para)}</p>`).join('')}</div>`;
-  const flagged = flags.map((f) => {
-    const e = V.entries.find((x) => x.id === f.entryId);
-    // The reason is whatever the checker returned, and a reasoning model has put 3,321
-    // characters in one. Clamped in CSS and expandable, never trusted to be a sentence.
-    // Two different faults wear the same red line otherwise. `reached: false` means the engine
-    // never sent that entry for this passage — the model could not have honoured it, and the fix
-    // is a trigger word or always-on, not a rewrite. Saying "contradiction" there blames the
-    // writer for the engine's omission.
-    const unseen = f.reached === false;
-    // THE WAY OUT IS A BUTTON, NOT A MODIFIER. Dismissing used to be shift-click on this line, and
-    // a phone has no shift key — so on the surface Seth writes on there was no way to clear a flag
-    // at all without opening the Waiting panel. Expanding reveals two real presses instead.
-    // Buttons cannot nest, so the flag stays the expander and the actions are its sibling.
-    return `<button class="flag" data-flagx="${f.id}" aria-expanded="false" title="Show what to do about it">
-      <span style="width:5px; height:5px; border-radius:50%; flex:0 0 auto; margin-top:6px;
-        background:${unseen ? 'var(--warn)' : 'var(--bad)'}"></span>
-      <span class="warned"${unseen ? '' : ''}>${unseen
-        ? `Never sent · ${esc(e?.title ?? 'a thread')} knots with this, and the model was not shown it`
-        : `Knot · ${esc(e?.title ?? 'a thread')}`}${f.reason ? ` — ${esc(f.reason)}` : ''}</span></button>
-      <div class="flagacts">
-        <!-- Issue #9, and only on a contradiction the model was actually SHOWN. A never-sent flag
-             is fixed with a trigger word or always-on, not with a rewrite: asking the model to
-             correct prose against canon it was never given is asking it to guess, and the line
-             above already says whose fault it is. -->
-        ${unseen ? '' : `<button data-repair="${f.passageId}">Mend</button>`}
-        <button data-dropflag="${f.id}">Clear this knot</button>
-        ${f.entryId ? `<button data-mute="${f.entryId}">Ignore ${esc(e?.title ?? 'it')} in this scene</button>` : ''}
-      </div>`;
-  }).join('');
   // #14. The press that made it, down the margin. Null on everything written before 2026-08-29 —
   // Seth: "old ones neutral is fine" — and those fall through to the faint outline the newest
   // passage has always had.
@@ -1597,7 +1565,7 @@ function passageHTML(p, newest, opening) {
       <button data-editsave="${esc(p.id)}" class="rwside rwgo" aria-label="Save"
         >${mark('send', 18)}<span class="btnword">Save</span></button>
     </div></div>` : '';
-  return `<div class="${cls}">${from}${body}${away}${acts}${flagged}${rr}${pe}</div>${carry}`;
+  return `<div class="${cls}">${from}${body}${away}${acts}${rr}${pe}</div>${carry}`;
 }
 
 // What is typed in the Alter box survives a repaint: drawDoc draws the box from S.passEdit.
@@ -1807,8 +1775,8 @@ function drawDoc() {
   // 'instant': #read has scroll-behavior:smooth, so assigning scrollTop GLIDES, and a glide still
   // running when Anansi's first word lands is the page moving under the words (Seth, 2026-10-26).
   // A REPAINT THAT CHANGED NOTHING LEAVES THE PAGE EXACTLY WHERE IT WAS. It went to the bottom
-  // whenever you were near it, so the repaint that follows a passage landing (the contradiction
-  // check's result arriving on the live channel, a few seconds later) threw the page down past the
+  // whenever you were near it, so a repaint that followed a passage landing (a result arriving on
+  // the live channel, a few seconds later) threw the page down past the
   // words you were reading, into the room held under them. Seth, 2026-10-27: "as soon as it's done
   // it moves the text to the bottom and it's really annoying". Only a new chapter goes to the
   // bottom now, and only a passage that arrived pins the seam.
@@ -2505,8 +2473,8 @@ const pageBar = (mode) => (S.place === 'story' ? ''
 
 /** #74 · THE WORKBENCH DECK (ADR 0003, spec #74): everything that wants the writer, one card at a
  *  time. A card is one thread's chalked group (hem chalks a whole Over time entry and its pockets
- *  together), one knot, or one open string. Swipe right, or press the right button, to say yes —
- *  sew it in, Mend the line, summon the string; left to say no — reject, ignore, let go.
+ *  together), or one open string. Swipe right, or press the right button, to say yes — sew it in,
+ *  summon the string; left to say no — reject, let go.
  *
  *  EVERY CARD IS IN THE PAGE, and only the top one shows: the others are `hidden`, so their
  *  controls exist for a keyboard, a screen reader and the checks, and a swipe never has to wait on
@@ -2595,19 +2563,13 @@ function deckCards(only = null) {
   const chalk = [...groups.values()].map((ps) => ({ kind: 'chalk', key: ps.map((p) => p.id).join(','),
     title: ps[0].title, sub: what(ps), line: ps.find((p) => p.line)?.line ?? '', ps,
     right: 'Sew it in', left: 'Reject' }));
-  // EVERY YES AND NO MOVES ON (Seth, 2026-10-26). A knot on a thread ignored for this scene is the
-  // "Ignored in this scene" card's from then on; left here, Ignore kept it on top with nothing changed.
-  const knots = (V?.violations ?? []).filter((f) => f.status !== 'dismissed' && !(V.muted ?? []).includes(f.entryId))
-    .map((f) => ({ kind: 'knot', key: f.id, f,
-    title: V.entries.find((x) => x.id === f.entryId)?.title ?? 'a thread', sub: f.reached === false ? 'Never sent' : 'Knot',
-    line: f.quote ?? '', right: 'Mend', left: 'Ignore' }));
   // A string summoned or dismissed from the deck stays open (it is still owed), so it is decided for
   // this sitting by `S.deckDone` and not by its status; the Strings tab still has it.
   const strings = (V?.strings ?? []).filter((x) => x.status === 'open' && !S.deckDone?.has(x.id)).map((x) => ({ kind: 'string', key: x.id, x,
     title: x.title, sub: x.summoned ? 'String · summoned' : 'String', line: '', right: x.summoned ? 'Dismiss' : 'Summon',
     left: 'Let go' }));
-  // ONLY THESE, for the hem page: the chalked cards of the scene just hemmed, and no knots or strings.
-  return only ? [...hems, ...chalk] : [...hems, ...chalk, ...knots, ...strings, ...upkeepCards()];
+  // ONLY THESE, for the hem page: the chalked cards of the scene just hemmed, and no strings.
+  return only ? [...hems, ...chalk] : [...hems, ...chalk, ...strings, ...upkeepCards()];
 }
 
 /** #92 · THE SCENE AFTER A HEMMED ONE, while it is the scene being written: the one the hem's
@@ -2805,12 +2767,8 @@ function upkeepCards() {
     title: `${h.chapters} scene${h.chapters === 1 ? '' : 's'} no longer reach the model`,
     body: `Scenes ${h.from} to ${h.to}. Their summaries do not fit any more; gathering a run of them into a chapter makes them fit.`,
     right: `<button class="btn" data-sumtab="1" data-deckright="1">Open Chapters &rarr;</button>`, left: notNow('horizon', String(h.to)) });
-  // THE WAY BACK from a mute and from a retirement, as cards: a quiet you cannot see is deafness,
-  // and a retired thread is drawn like a live one everywhere else.
-  for (const m of (V?.muted ?? []).map((id) => V.entries.find((x) => x.id === id)).filter(Boolean))
-    out.push({ kind: 'upkeep', key: `muted:${m.id}`, sub: 'Ignored in this scene', title: m.title,
-      body: 'Knots with this thread are not looked for while the scene moves on.',
-      right: `<button class="btn" data-unmute="${esc(m.id)}" data-deckright="1">Watch it again &rarr;</button>`, left: leave });
+  // THE WAY BACK from a retirement, as a card: a retired thread is drawn like a live one everywhere
+  // else.
   for (const e of (V?.entries ?? []).filter((x) => x.retiredAtChapter != null))
     out.push({ kind: 'upkeep', key: `retired:${e.id}`, sub: 'Retired', title: e.title,
       body: `Not sent from scene ${e.retiredAtChapter} on; every scene before it still has it.`,
@@ -2836,20 +2794,6 @@ function deckCard(c, i, top) {
     left = `<button class="btn ghost" data-deckall="reject" data-ids="${esc(ids)}" data-deckleft="1">&larr; Reject</button>`;
   } else if (c.kind === 'hem') {
     ({ body, right, left } = hemCardParts(c));
-  } else if (c.kind === 'knot') {
-    const f = c.f;
-    body = `<details class="decksec"><summary><span class="lbl flush">The line and the thread</span></summary>
-      ${f.reason ? `<div class="note">${esc(f.reason)}</div>` : ''}
-      <div class="btnrow push-8 wraps">
-        <button class="btn ghost fill" data-goflag="${esc(f.passageId)}">Show me the passage</button>
-        ${f.entryId ? `<button class="btn ghost fill" data-entry="${esc(f.entryId)}">The thread is wrong</button>` : ''}
-        ${/* MUTING THE THREAD IS ITS OWN PRESS, named. It was the card's Ignore, so ignoring one knot
-              ignored every knot about that character for the scene (Seth, 2026-10-27). */
-          f.entryId ? `<button class="btn ghost fill" data-mute="${esc(f.entryId)}">Ignore every knot about ${
-            esc(V?.entries?.find((e) => e.id === f.entryId)?.title ?? 'this thread')} in this scene</button>` : ''}</div></details>`;
-    right = f.reached === false ? '' : `<button class="btn" data-repair="${esc(f.passageId)}" data-deckright="1">Mend &rarr;</button>`;
-    // IGNORE IS THIS ONE KNOT: set aside, the prose untouched (the old Clear, which it replaces).
-    left = `<button class="btn ghost" data-dropflag="${esc(f.id)}" data-deckleft="1">&larr; Ignore this knot</button>`;
   } else if (c.kind === 'upkeep') {
     body = `<div class="note">${esc(c.body)}</div>`;
     right = c.right; left = c.left;
@@ -3559,7 +3503,7 @@ const PANELS = {
     // is four journeys to answer "does anything want me" — the thing this panel exists to end. Each
     // chalked section is the SAME `proposalCard` the tale has always used, inside the deck's cards,
     // so Sew it in here and anywhere else are one behaviour rather than two that drift.
-    // #74 · THE DECK: chalked things, knots, strings and upkeep, one card at a time (deckHTML).
+    // #74 · THE DECK: chalked things, strings and upkeep, one card at a time (deckHTML).
     const rows = [];
     const deck = deckHTML();
     if (deck) rows.push(deck);
@@ -3569,13 +3513,12 @@ const PANELS = {
       // from a broken one.
       return `<div class="card" style="gap:6px">
         <div class="kind">the workbench is clear</div>
-        <div class="prose-note">Nothing is owed and
-          nothing is arguing with itself. The tale is quiet &mdash; which is not the same as
-          done. Go and make me something to worry about.</div></div>`;
+        <div class="prose-note">Nothing is owed. The tale is quiet &mdash; which is not the
+          same as done. Go and make me something to worry about.</div></div>`;
     }
 
     return `<div class="hint flush">The Workbench is where everything that wants you
-        collects: chalked things, strings not tied off, knots and out-of-date summaries.</div>
+        collects: chalked things, strings not tied off and out-of-date summaries.</div>
       ${rows.join('')}`;
   },
   setup: setupPanel,
@@ -4206,7 +4149,7 @@ const PANELS = {
         <p><strong>A branch is not this.</strong> Branches of one tale share its threads &mdash;
         change who somebody is on one path and they change on every path. That is the point of a
         branch and it is why it cannot give you a separate set.</p>
-        <p>Knots, old versions and anyone else you write with stay with the original.</p>`)}
+        <p>Old versions and anyone else you write with stay with the original.</p>`)}
       <div class="push-7 line-2">
         <button class="btn ghost fill" data-dupbook="1">Make a copy of this whole
           tale</button>
@@ -5018,31 +4961,6 @@ const PANELS = {
         || '<div class="hint">No calls logged for this tale yet.</div>'}
       ${ACT?.worstPrefillSeconds ? `<div class="row"><span class="inked">Worst prefill</span>
         <span class="tnum count">${ACT.worstPrefillSeconds}s</span></div>` : ''}
-      ${(() => {
-        // ISSUE #9 · HOW OFTEN CORRECTING ACTUALLY WORKS, in this book, from this book's own calls.
-        //
-        // Over the takes where something WAS wrong, never over every call — a repair is only ever
-        // asked for on a passage that is already flagged, and a rate over all generations would say
-        // "2%" about a thing that works a quarter of the time it is asked. This is the row that
-        // could not exist before: the counts were returned to a browser that ignored them and
-        // written nowhere, so for four days nobody could say whether the repair did anything while
-        // eighteen contradictions reached the flags table.
-        const r = ACT?.repairs;
-        if (!r) return '';
-        // WORSE IS ITS OWN NUMBER and is never folded into "did nothing". Two of the twelve runs
-        // recorded before the repair came off the critical path made the passage worse, and that is
-        // the single strongest argument for this being a press rather than a default.
-        const parts = [`${r.clean} of ${r.asked} came out clean`];
-        if (r.worse) parts.push(`${r.worse} made it worse`);
-        if (r.refused) parts.push(`${r.refused} refused as a rewrite`);
-        if (r.unchecked) parts.push(`${r.unchecked} unverified`);
-        return `<div class="row"><span class="inked">Mends</span>
-          <span class="tnum count">${esc(parts.join(' · '))}</span></div>
-          <div class="hint push-0">Counted over the ${r.asked} ${
-            r.asked === 1 ? 'version' : 'versions'} you asked to mend, not over every call — that is the
-            only denominator the number means anything against. ${r.found} knots went in and
-            ${r.mended} came out mended.</div>`;
-      })()}
       </div>`;
   },
 };
@@ -9992,7 +9910,7 @@ let OPEN_WANTED = null;
 /** Ask for the opening passage through the ORDINARY generate path.
  *
  *  Nothing about this is a second engine: it is the Continue button, pressed for you. The passage
- *  streams with the writing head, the budget check and the contradiction repair, because it IS the
+ *  streams with the writing head and the budget check, because it IS the
  *  one generation path rather than a copy of it that would drift the day either changed. */
 async function openingPassage() {
   const want = OPEN_WANTED;
@@ -10274,26 +10192,11 @@ function weaveRefused(r, again, where = 'dock') {
   announce(r.weaveFit.message);
 }
 
-/** #9 · WHAT THE CONTRADICTION REPAIR DID TO THIS TAKE, said at the take.
- *
- *  Seth: *"Contradictions are still showing up and they show up late."* They were showing up as
- *  flags AFTER accept, and the reason was not that nothing checked — the repair has run before
- *  delivery since 2026-08-25. It ran, it returned its counts, and **the browser threw them away**,
- *  so a repair that failed looked exactly like a passage with nothing wrong.
- *
- *  Late is the complaint, so this is said now: at the take, in the window the writer is already
- *  reading it in. Silence still means the common case — most passages contradict nothing, `mend`
- *  returns null, and there is no toast about a thing that did not happen.
- *
- *  A REPAIR THAT FAILED IS THE ONE WORTH INTERRUPTING FOR. It is the case where the prose on the
- *  page is known to be wrong, and until now the only sign was a red line appearing later. */
+/** WHAT IS WORTH SAYING ABOUT THIS TAKE, said at the take, in the window the writer is already
+ *  reading it in. Silence is the common case: no toast about a thing that did not happen. */
 function takeToast(r) {
   // A take that ran into the ceiling is a fact about the prose on the page, and for five days the
   // only sign was a paragraph that stopped mid-word — 41 of 181 of them, with nothing on screen.
-  //
-  // The contradiction half of this used to live here too, reporting what the blocking repair in
-  // `generate` had done. That repair is gone (2026-08-31): the check runs detached on accept now
-  // and files a flag, so there is nothing to say at this moment and nothing to interrupt for.
   return r?.cut ? 'This version ran to the ceiling and was cut short, then trimmed back to its '
     + 'last whole sentence. Reweave it, or raise Passage length.' : null;
 }
@@ -10582,7 +10485,7 @@ const touchOnly = () => matchMedia('(hover:none)').matches;
 document.addEventListener('click', (e) => {
   if (!touchOnly()) return;
   const blk = e.target.closest?.('#col .block');
-  if (!blk || e.target.closest('.acts, button, a, input, select, textarea, [contenteditable], .flag, .rerollbox')) return;
+  if (!blk || e.target.closest('.acts, button, a, input, select, textarea, [contenteditable], .rerollbox')) return;
   if (globalThis.getSelection?.()?.isCollapsed === false) return;
   openTray(blk);
   TRAY_AT = Date.now();
@@ -11665,73 +11568,9 @@ document.addEventListener('click', async (e) => {
     const at = v.findIndex((x) => x.selected); const next = v[at + (d.vn ? 1 : -1)];
     if (next) { await api.pickVariant(S.storyId, next.id); V = await api.story(S.storyId);
       paint(); refreshHistory(); } return; }
-  if (d.goflag) {
-    // The passage the flag is about, marked when you land on it — the same road a search hit takes.
-    S.found = d.goflag; S.panel = null; syncHash(); paint();
-    setTimeout(() => document.querySelector(`[data-edit="${d.goflag}"]`)
-      ?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
-    return;
-  }
-  /** ISSUE #9 · THE REPAIR, AS A PRESS. Seth chose this out of three on 2026-09-01: leave the
-   *  flags alone, put the repair on the flag, or put it back on the critical path.
-   *
-   *  It was automatic and blocking on every generation until 2026-08-31 — F30 measured a flat
-   *  1,456 ms of it, a third of a warm take, for 0 repairs in 6 — and the 12 runs the live library
-   *  recorded before it was removed say why it should not be automatic: 21 contradictions found, 7
-   *  mended, 14 surviving their own repair, and 2 of 12 where the second look found MORE than the
-   *  first. It helps about a quarter of the time and sometimes makes things worse.
-   *
-   *  WHICH IS WHY THE TOAST SAYS WHAT HAPPENED, in numbers, every time. "Corrected" over a repair
-   *  that fixed one of three is the exact lie this issue is about: a failed repair used to look
-   *  identical to a passage with nothing wrong. Four outcomes, four sentences.
-   *
-   *  The repair lands as a new TAKE, so the original is one press away in History. */
-  if (d.repair) {
-    const r = await whileWorking(t, 'Correcting&hellip;',
-      () => api.repair({ storyId: S.storyId, passageId: d.repair }));
-    if (!r) return;
-    if (r.error) return toast(r.error);
-    if (r.nothing) return toast('Nothing to mend — the threads and the prose agree.');
-    V = r.view ?? await api.story(S.storyId, V.currentChapter.id);
-    paint();
-    // A detector that could not answer says nothing either way, and the flags are left standing.
-    // Reporting "fixed" here off an unparseable reply is one line from telling the writer their
-    // prose is clean on no evidence at all.
-    return toast(r.unchecked
-      ? 'Mended, but the knot check could not read the result, so nothing is claimed — the knots '
-        + 'below are the ones it went in with, carried over.'
-      : r.unfixed === 0
-      ? `Mended. ${r.found === 1 ? 'The knot is' : `All ${r.found} are`} gone, and the `
-        + 'version before it is in Alterations.'
-      : r.mended > 0
-      ? `${r.mended} of ${r.found} mended. ${r.unfixed === 1 ? 'One knot is'
-          : `${r.unfixed} knots are`} still there — the ones below are what survived.`
-      : 'The mend changed nothing that mattered: it still contradicts a thread. The version before '
-        + 'it is in Alterations.');
-  }
-  if (d.dropflag) {
-    const r = await api.dismissFlag(S.storyId, d.dropflag);
-    if (r.error) return toast(r.error);
-    V = await api.story(S.storyId, V.currentChapter.id); paint();
-    return toast('Dismissed. The prose is untouched.');
-  }
-  if (d.flagx) {
-    // Expanding is all this does now. Dismissing was shift-click here, which no touch screen can
-    // reach; it is a labelled button in the row the expander opens.
-    t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');
-    return;
-  }
   if (d.hwkb) { setHwkb(!hwkb); drawAppearance(); return toast(hwkb
     ? 'Your cursor goes back to the writing box on this device.' : 'Your cursor stays where you put it.'); }
   if (d.bigin) { S.bigInput = !S.bigInput; drawDock(); syncTray(); $('input')?.focus(); return; }
-  if (d.mute) {
-    V = await api.mute(S.storyId, V.currentChapter.id, d.mute, false); paint();
-    return toast('Ignored for this scene. Watch it again on the Workbench.');
-  }
-  if (d.unmute) {
-    V = await api.mute(S.storyId, V.currentChapter.id, d.unmute, true); paint();
-    return toast('Listening again.');
-  }
 
   // PLAN-08 Phase 4. A THRESHOLD, not a delete: the card stops reaching the model from the chapter
   // named and every chapter before it still has them, which is what makes going back to revise

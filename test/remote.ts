@@ -818,14 +818,6 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
     assert.strictEqual(went.local.length, 0, `BACKGROUND-REMOTE: ${name} does not touch the local router`);
   }
 
-  // THE CANON CHECK STAYS LOCAL. It runs on every passage, so on Featherless it would take a unit
-  // from whoever writes next.
-  const passageId = (db.passagesOf(story.id).at(-1) as any).id;
-  const c0 = mark();
-  await routes['POST /api/check'](ctx(me, { storyId: story.id, passageId }));
-  assert.strictEqual(since(c0).fl.length, 0, 'CHECK-LOCAL: the canon check never reaches Featherless');
-  assert.ok(work(since(c0).local).length >= 1, 'CHECK-LOCAL: it went to the local router');
-
   // A MODEL THAT ALWAYS WEAVES keeps its writer's background work local: a 280-token summary is
   // room for a plan and nothing else.
   const weaver = db.owner('always-weaver');
@@ -840,13 +832,13 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
   assert.strictEqual(since(w).fl.length, 0, 'ALWAYS-WEAVES-LOCAL: its summary stays off Featherless');
   assert.strictEqual(work(since(w).local).length, 1, 'ALWAYS-WEAVES-LOCAL: and goes to the local router');
 
-  // EVERY MODEL CALL IN routes.ts NAMES ITS MODEL, except the canon check's two. A background call
-  // added later with no model would quietly go local; this is the line that notices.
+  // EVERY MODEL CALL IN routes.ts NAMES ITS MODEL. A background call added later with no model would
+  // quietly go local; this is the line that notices.
   const routesSrc = (await import('node:fs')).readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8');
   // `structured` too since ✦ (#71), the one route that calls it without the retry.
   const calls = [...routesSrc.matchAll(/await (?:chat|structuredRetry|structured)\(([A-Z_]+)[\s\S]*?\);/g)];
   const unnamed = calls.filter((x) => !/\bmodel:/.test(x[0])).map((x) => x[1]).sort();
-  assert.deepStrictEqual(unnamed, ['CHECK', 'NUMBERS'], 'NAMED: only the canon check passes no model');
+  assert.deepStrictEqual(unnamed, [], 'NAMED: every call passes its model');
   assert.ok(calls.length >= 20, `NAMED: and the scan saw the calls (${calls.length})`);
 
   // Talk is something the writer asked for, so it follows the writer's model — structured, with the
@@ -1213,7 +1205,7 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
     const g = await routes['POST /api/generate'](ctx(me, { storyId: book.id, mode: 'continue' }));
     assert.ok(!g.error, g.error);
     const v = await routes['POST /api/accept'](ctx(me, { storyId: book.id, body: g.prose,
-      mode: 'continue', genId: g.genId, check: false }));
+      mode: 'continue', genId: g.genId }));
     return v.passages.at(-1).id;
   };
   const far = await write();

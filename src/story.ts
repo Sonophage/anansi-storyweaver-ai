@@ -147,9 +147,9 @@ export function view(storyId: string, focusChapterId?: string) {
     writers: db.writersOf(storyId),
     turn: s.turn ?? null,
     // What the Waiting panel lists that is not already on the view: stale summaries and
-    // out-of-date acts, less the ones the writer waved away. Proposals, strings and flags are read
-    // straight off `proposals`, `strings` and `violations`. Counts of those three sat here until
-    // 2026-10-24, read by nothing, and the strings one counted differently from the panel.
+    // out-of-date acts, less the ones the writer waved away. Proposals and strings are read
+    // straight off `proposals` and `strings`. Counts of those sat here until 2026-10-24, read by
+    // nothing, and the strings one counted differently from the panel.
     waiting: (() => {
       const off = db.dismissed(storyId);
       const stale = chapters.filter((c: any) => c.summary && c.summaryStale
@@ -267,13 +267,6 @@ export function view(storyId: string, focusChapterId?: string) {
       childId: e.child_id, confidence: e.confidence, keys: JSON.parse(e.keys || '[]') })),
     arcs: arcs.map((a: any) => ({ id: a.id, fromChapter: a.from_chapter, toChapter: a.to_chapter,
       title: a.title, summary: a.summary, outOfDate: outOfDate(a) })),
-    violations: db.violationsOf(storyId).map((v: any) => ({
-      id: v.id, passageId: v.passage_id, entryId: v.entry_id, quote: v.quote,
-      reason: v.reason, confidence: v.confidence, reached: v.reached !== 0,
-    })),
-    // What the writer has quieted in the chapter they are in. It ships with the view so the panel
-    // can offer the way back — a mute you cannot see is one you cannot lift.
-    muted: [...db.mutedIn(storyId, (chapters.find((c) => c.id === focusChapterId) ?? chapters.at(-1)!).id)],
     strings: db.stringsOf(storyId).map((x: any) => ({
       id: x.id, title: x.title, body: x.body ?? '', fromChapter: x.from_chapter,
       owedBy: x.owed_by, status: x.status, summoned: !!x.summoned, kind: x.kind ?? 'promise',
