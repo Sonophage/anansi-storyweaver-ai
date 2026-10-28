@@ -11,6 +11,16 @@ Everything below this line was written by that model call, before it was removed
 2026-08-29. Kept because it is the app's history and the notes were true when written.
 
 
+
+## 2026-10-27 · Remote models are not cut short
+
+### Only the length slider shapes a remote passage
+A model on Featherless is no longer given a word limit for anything: a passage, Talk, hemming, the
+cast. The length slider is the one thing that asks for a length. If a remote model runs away, a
+passage is stopped at three times the slider's length (or about 4,000 words with the slider off)
+and marked as cut, and any other call is stopped after five minutes. The model on this computer
+keeps its limits, which are what let two writers share it.
+
 ## 2026-10-27 · Anansi's words land as they were written
 
 ### No more reformatting when he finishes

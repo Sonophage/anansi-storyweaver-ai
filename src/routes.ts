@@ -584,8 +584,8 @@ const REVIEW_TOKENS = 1600;
 // RAISED 2026-10-27, 1800 to 4000: a hem asks once for every named thread (#82), and on Seth's tale
 // the remote model ran past 1800 twice (the ask and its retry) and the pass reported "the answer ran
 // past its length and was cut", so the hem chalked no thread changes at all. Six whole restatements
-// plus their pockets is the shape to leave room for now. A remote answer past its cap is treated as
-// cut (#64), so too small a cap costs the whole pass, not just its tail.
+// plus their pockets is the shape to leave room for now. Since the same day a remote call carries no
+// cap at all (llama.ts, `featherless`), so these two now bound the local model only.
 const MEMORY_TOKENS = 4000;
 // The new-threads pass had no cap of its own and took `structured`'s 1000 (2000 on the retry): cut the
 // same way on the same hem. Several new threads, each with a body and pockets.
@@ -1900,7 +1900,7 @@ function warmModel(c: Ctx) {
   modelWarmedAt.set(c.owner, Date.now());
   void (async () => {
     try {
-      await chat(SYSTEM, 'ok', { model: using, max_tokens: 1, temperature: 0,
+      await chat(SYSTEM, 'ok', { model: using, max_tokens: 1, remoteCap: true, temperature: 0,
         chat_template_kwargs: { enable_thinking: false } });
     } catch { /* a warm that fails costs the writer nothing; the real call reports for itself */ }
     finally { warming = false; }
@@ -1928,7 +1928,7 @@ function prewarm(c: Ctx, v: any) {
       // would send a prompt the server rejects and teach the cache nothing.
       if (manifest.overflowed) return;
       await chat(SYSTEM, prompt.slice(SYSTEM.length),
-        { model: using, max_tokens: 1, temperature: 0,
+        { model: using, max_tokens: 1, remoteCap: true, temperature: 0,
           chat_template_kwargs: { enable_thinking: false } });
     } catch { /* a warm that fails costs the writer nothing, and the real call reports for itself */ }
     finally { warming = false; }
@@ -2075,7 +2075,7 @@ export const routes: Record<string, Handler> = {
     // refused again, the model is stored as taking no switch and every call after leaves it off.
     // Any other failure, or a model that refuses both ways, fails the add with the first answer.
     const probe = (send: boolean) => chat('Answer in one word.', 'Say ok.', { model: id, max_tokens: 24,
-      temperature: 0, chat_template_kwargs: { enable_thinking: false }, weaveSwitch: send });
+      remoteCap: true, temperature: 0, chat_template_kwargs: { enable_thinking: false }, weaveSwitch: send });
     let answer, takes = true;
     try { answer = await probe(true); }
     catch (e: any) {

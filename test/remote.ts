@@ -9,10 +9,21 @@
 import assert from 'node:assert';
 import { createServer } from 'node:http';
 import { unlinkSync, writeFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 
 const DB = '/tmp/anansi-remote.db';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync(DB + f); } catch {} }
 process.env.ANANSI_DB = DB;
+/** The room a call was PLANNED with, from its generation row: since 2026-10-27 it is no longer sent
+ *  to a remote model, so the body cannot show it. */
+const plannedRoom = (sid: string, role = 'prose') => {
+  const d = new DatabaseSync(DB, { readOnly: true });
+  try {
+    const r = d.prepare('SELECT params FROM generations WHERE story_id = ? AND role = ? ORDER BY created_at DESC, rowid DESC LIMIT 1')
+      .get(sid, role) as any;
+    return Number(JSON.parse(String(r?.params ?? '{}')).max_tokens);
+  } finally { d.close(); }
+};
 
 // A key that is easy to find in anything it must not be in.
 const KEY = 'fl-TEST-KEY-7f3a9c-do-not-echo';
@@ -123,15 +134,16 @@ const flSrv = createServer((req, res) => {
       // for JSON gets JSON that PARSES, so a check that only reads the parse cannot see the overrun.
       // WEAVING, PAST THE CAP: the plan counts against it, as it does on the server (F5), and comes
       // back in `reasoning`, beside the prose. Half the cap is plan, the whole cap is prose.
+      // Since 2026-10-27 nothing remote carries a cap, so the sizes are fixed: OVER is past the
+      // passage guard the tests set (3 x 100 words), AT is exactly on it.
       if (!body.stream && how === 'overcapplan') {
-        const cap = Number(body.max_tokens);
+        const cap = 1000;
         const words = Array.from({ length: cap }, (_, k) => (k % 7 === 6 ? 'end.' : 'word')).join(' ');
         return json(200, { choices: [{ message: { content: words, reasoning: Array(cap / 2).fill('plan').join(' ') },
           finish_reason: 'length' }], usage: { prompt_tokens: 321, completion_tokens: cap * 1.5 } });
       }
       if (!body.stream && (how === 'overcap' || how === 'atcap')) {
-        const cap = Number(body.max_tokens);
-        const n = how === 'overcap' ? cap * 2 : cap;
+        const n = how === 'overcap' ? 1000 : 300;
         const words = Array.from({ length: n }, (_, k) => (k % 7 === 6 ? 'end.' : 'word')).join(' ');
         return json(200, { choices: [{ message: { content: body.response_format
           ? JSON.stringify({ note: words }) : words }, finish_reason: how === 'overcap' ? 'length' : 'stop' }],
@@ -154,8 +166,7 @@ const flSrv = createServer((req, res) => {
       // seventh, written a few at a time so a reader that stops early can be told from one that
       // read it all. `atcap` stops on its own at exactly the cap, the case that must be left alone.
       if (how === 'overcap' || how === 'atcap') {
-        const cap = Number(body.max_tokens);
-        Object.assign(long, { sent: 0, meant: how === 'overcap' ? cap * 2 : cap, closedEarly: false });
+        Object.assign(long, { sent: 0, meant: how === 'overcap' ? 1000 : 300, closedEarly: false });
         let done = false;
         res.on('close', () => { if (!done) long.closedEarly = true; });
         const next = () => {
@@ -614,91 +625,91 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('a refusal or a mid-stream failure is reported with the key cut out, and never falls back');
 }
 
-// ---- 5b. a remote stream that runs past its cap is cut at the cap, as a capped passage is (#62) ----
+// ---- 5b. a remote passage carries no token cap, and its runaway guard is 3 x the slider (2026-10-27) ----
+// Seth: "We can remove token counts for remote ai. The only thing that should influence the response
+// is the slider." What stops a runaway (F62's Anubis-70B) is a word guard: 3 x the length slider, or
+// 4,000 words with the slider off. The slider is set to 100 words here, so the guard is 300.
+const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.gen, target_words: 100 }; return c; };
 {
   const m = mark();
   script.push('overcap');
-  const { deltas, last } = await streamed({ storyId: story.id, mode: 'continue' });
+  const out: any[] = [];
+  const h = await routes['POST /api/generate'](guarded({ storyId: story.id, mode: 'continue', stream: true }));
+  const last = await h.__stream((o: unknown) => out.push(o));
+  const deltas = out.map((o) => o.d).filter(Boolean);
   assert.ok(!last.error, last.error);
-  const cap = Number(since(m).fl.at(-1)!.body.max_tokens);
-  assert.ok(cap > 0, 'the call carried a cap');
-  assert.ok(deltas.length <= cap, `CAP-READ: no more than the cap reached the page (${deltas.length} of a ${cap} cap)`);
-  // The close travels over a socket, so it is not instant. A bounded wait rather than a sleep.
+  assert.ok(!('max_tokens' in since(m).fl.at(-1)!.body), 'UNCAPPED: no token cap is sent to Featherless');
+  assert.ok(deltas.length <= 300, `GUARD-READ: no more than the guard reached the page (${deltas.length} of 300)`);
   for (let i = 0; i < 100 && !long.closedEarly; i++) await new Promise((r) => setTimeout(r, 20));
-  assert.ok(long.closedEarly, 'CAP-ABORT: the upstream request was closed before Featherless finished');
-  assert.ok(long.sent < long.meant, `and Featherless did not get to send all ${long.meant}`);
-  assert.strictEqual(last.cut, true, 'CAP-FLAG: the passage is recorded as cut, as a capped one is');
+  assert.ok(long.closedEarly, 'GUARD-ABORT: the upstream request was closed before Featherless finished');
+  assert.strictEqual(last.cut, true, 'GUARD-FLAG: the passage is recorded as cut');
   assert.ok(/end\.$/.test(last.prose), 'and trimmed back to the last whole sentence');
   assert.ok(last.passageId, 'and it still lands in the book');
 
-  // The same call stopping on its own at exactly the cap is untouched: whole, and not cut.
+  // Exactly on the guard is untouched: whole, and not cut.
   script.push('atcap');
-  const at = await streamed({ storyId: story.id, mode: 'continue' });
-  assert.ok(!at.last.error, at.last.error);
-  assert.strictEqual(at.deltas.length, cap, 'UNDER-CAP: every chunk of a stream that stopped at the cap arrived');
-  assert.strictEqual(at.last.cut, false, 'UNDER-CAP: and it is not recorded as cut');
-  assert.ok(!long.closedEarly, 'and nothing closed it early');
+  const at: any[] = [];
+  const h2 = await routes['POST /api/generate'](guarded({ storyId: story.id, mode: 'continue', stream: true }));
+  const l2 = await h2.__stream((o: unknown) => at.push(o));
+  assert.strictEqual(at.map((o) => o.d).filter(Boolean).length, 300, 'UNDER-GUARD: every word of a passage on the guard arrived');
+  assert.strictEqual(l2.cut, false, 'UNDER-GUARD: and it is not recorded as cut');
+
+  // With the slider off the guard is 4,000 words, so the same 1,000-word run is whole.
+  script.push('overcap');
+  const free = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.strictEqual(free.deltas.length, 1000, 'GUARD-OFF: with the slider off, 1,000 words all arrive');
+  assert.ok(!long.closedEarly, '  and Anansi did not stop it (the fake still ends it as `length`, its own limit)');
 
   const plain = await streamed({ storyId: story.id, mode: 'continue' });
   assert.strictEqual(plain.last.prose, 'The remote streamed this.', 'a short take is whole');
-  assert.strictEqual(plain.last.cut, false, 'and not cut');
-  ok('a remote stream past its cap is stopped there, trimmed and flagged; one that stops itself is untouched');
+  ok('a remote passage carries no cap; past 3 x the slider it is stopped, trimmed and flagged');
 }
 
-// ---- 5c. a remote answer that is not streamed keeps its cap too (#64) ----
+// ---- 5c. the same guard on a remote passage that arrives whole, and JSON is never capped ----
 {
   let m = mark();
   script.push('overcap');
-  const r = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  const r = await routes['POST /api/generate'](guarded({ storyId: story.id, mode: 'continue' }));
   assert.ok(!r.error, r.error);
-  const cap = Number(since(m).fl.at(-1)!.body.max_tokens);
-  assert.ok(cap > 0, 'the call carried a cap');
+  assert.ok(!('max_tokens' in since(m).fl.at(-1)!.body), 'UNCAPPED: no token cap is sent');
   const words = r.prose.split(/\s+/).length;
-  assert.ok(words <= cap, `WAITED-CAP: no more than the cap lands (${words} words of a ${cap} cap)`);
-  assert.strictEqual(r.cut, true, 'WAITED-FLAG: the passage is recorded as cut, as a capped one is');
+  assert.ok(words <= 300, `WAITED-GUARD: no more than the guard lands (${words} words of 300)`);
+  assert.strictEqual(r.cut, true, 'WAITED-FLAG: the passage is recorded as cut');
   assert.ok(/end\.$/.test(r.prose), 'and trimmed back to the last whole sentence');
 
-  // THE PLAN IS PART OF WHAT WAS OVER. Cutting the prose as if it were all of the count kept two
-  // thirds of the cap in prose on top of half a cap of plan; it keeps the cap less the plan.
+  // THE PLAN DOES NOT COUNT: the guard is on the prose a writer reads.
   script.push('overcapplan');
-  const pl = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  const pl = await routes['POST /api/generate'](guarded({ storyId: story.id, mode: 'continue' }));
   const plw = pl.prose.split(/\s+/).length;
-  assert.ok(plw <= cap / 2 && plw > cap / 2 - 8, `WAITED-PLAN: the plan counts against the cap (${plw} words of prose, cap ${cap}, plan ${cap / 2})`);
+  assert.ok(plw <= 300 && plw > 292, `WAITED-PLAN: the guard counts prose only (${plw} words)`);
 
   script.push('atcap');
-  const at = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
-  assert.strictEqual(at.prose.split(/\s+/).length, cap, 'WAITED-UNDER: an answer that stopped at the cap is whole');
+  const at = await routes['POST /api/generate'](guarded({ storyId: story.id, mode: 'continue' }));
+  assert.strictEqual(at.prose.split(/\s+/).length, 300, 'WAITED-UNDER: an answer on the guard is whole');
   assert.strictEqual(at.cut, false, 'WAITED-UNDER: and not cut');
 
-  // A structured answer past its cap is a cut answer, even when what came back parses: it is tried
-  // again with the room doubled, exactly as an answer the cap cut mid-object is, and never handed on.
+  // JSON CARRIES NO CAP AND NO GUARD. If Featherless still ends one on its own limit (`length`), it
+  // is a cut answer and is asked again, as before; the cap it asks with is never sent.
   const { structuredRetry } = await import('../src/llama.ts');
   const NOTE = { type: 'object', properties: { note: { type: 'string' } }, required: ['note'] };
   m = mark();
   script.push('overcap', 'atcap');
   const s1 = await structuredRetry('s', 'b', NOTE, { model: ID, max_tokens: 50 });
   const tried = since(m).fl;
-  assert.strictEqual(tried.length, 2, 'STRUCT-CAP: an answer past its cap is not taken; it is asked again');
-  assert.strictEqual(tried[1].body.max_tokens, 2000, 'with the room a cut answer gets (double, never under 2,000)');
-  assert.strictEqual(s1.data?.note?.split(' ').length, 2000, 'and the answer that kept its cap is the one used');
+  assert.ok(tried.every((t: any) => !('max_tokens' in t.body)), 'STRUCT-UNCAPPED: no structured call carries a cap');
+  assert.strictEqual(tried.length, 2, 'STRUCT-CUT: an answer Featherless itself cut is asked again');
+  assert.strictEqual(s1.data?.note?.split(' ').length, 300, 'and the whole one is used');
 
-  script.push('overcap', 'overcap');
-  const s2 = await structuredRetry('s', 'b', NOTE, { model: ID, max_tokens: 50 });
-  assert.strictEqual(s2.data, null, 'STRUCT-REFUSED: past its cap twice, no JSON is handed on');
-  assert.match(String(s2.error), /past its length/, 'STRUCT-REFUSED: and the error says why');
-
-  // Local calls are untouched: the router keeps its own cap, so its count is not second-guessed.
-  // The fake router always says 10 tokens, here against a cap of 5.
+  // Local calls are untouched: the router keeps its own cap.
   m = mark();
   const LOCAL = 'Qwen3.6-WNTH-35B-A3B-NN';
   const loc = await structuredRetry('s', 'b', NOTE, { model: LOCAL, max_tokens: 5 });
-  assert.ok(loc.data, 'LOCAL-UNCHANGED: a local structured answer over its count is still taken');
+  assert.ok(loc.data, 'LOCAL-UNCHANGED: a local structured answer is still taken');
   assert.strictEqual(since(m).local.length, 1, 'LOCAL-UNCHANGED: and not asked again');
-  const { chat } = await import('../src/llama.ts');
-  const said = await chat('s', 'b', { model: LOCAL, max_tokens: 5 });
-  assert.strictEqual(said.prose, JSON.stringify({ characters: [], entries: [] }), 'LOCAL-UNCHANGED: a local answer is whole');
-  ok('a remote answer that is not streamed keeps its cap: prose is cut and flagged, JSON is asked again');
+  assert.strictEqual(since(m).local.at(-1).body.max_tokens, 5, 'LOCAL-CAPPED: and a local call keeps its cap');
+  ok('a remote passage that arrives whole has the same guard; JSON is never capped; local keeps its cap');
 }
+
 
 // ---- 6. a cold model is slow, not failed ----
 {
@@ -1455,11 +1466,15 @@ const mark = () => ({ fl: fl.length, local: local.length });
   fl.length = 0;
   const g = await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue' }));
   assert.ok(!g.error, g.error);
-  assert.strictEqual(chats().at(-1)!.body.max_tokens, 5400,
-    'ALWAYS-WEAVES: a passage is sent the writer\'s 400 plus 5,000 with the switch off');
+  // Since 2026-10-27 the room is not SENT to a remote model (no cap goes there); it is still the
+  // room the call is planned with, and the generation row records it (`plannedRoom`).
+  assert.ok(!('max_tokens' in chats().at(-1)!.body), 'UNCAPPED: the room is not sent to Featherless');
+  assert.strictEqual(plannedRoom(book.id), 5400,
+    'ALWAYS-WEAVES: a passage is planned with the writer\'s 400 plus 5,000 with the switch off');
   fl.length = 0;
   await routes['POST /api/talk'](ctx(w, { storyId: book.id, said: 'What is this story about?' }));
-  assert.strictEqual(chats()[0]?.body.max_tokens, 7400, 'ALWAYS-WEAVES: and so is Talk, 2,400 plus 5,000');
+  assert.ok(!('max_tokens' in (chats()[0]?.body ?? {})), 'UNCAPPED: nor is Talk\'s');
+  assert.strictEqual(plannedRoom(book.id, 'talk'), 7400, 'ALWAYS-WEAVES: and Talk is planned with 2,400 plus 5,000');
   const bg = await routes['POST /api/manifest'](ctx(w, { storyId: book.id, mode: 'continue' }));
   assert.strictEqual(bg.manifest.totals.budget, v.budget, 'the Context panel reserves the room the view does');
 
@@ -1469,7 +1484,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.strictEqual(plain.weaves, false, 'a model that can switch, with the switch off, does not weave');
   fl.length = 0;
   await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue' }));
-  assert.strictEqual(chats().at(-1)!.body.max_tokens, 400, 'and its passage is sent the writer\'s 400');
+  assert.strictEqual(plannedRoom(book.id), 400, 'and its passage is planned with the writer\'s 400');
   ok('a model that always weaves gets the raised cap with the switch off, in the view, a passage and Talk');
 }
 
@@ -1489,7 +1504,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
     fl.length = 0;
     const g = await routes['POST /api/generate'](ctx(w, { storyId: book.id, mode: 'continue' }));
     assert.ok(!g.error, g.error);
-    return Number(chats().at(-1)!.body.max_tokens);
+    return plannedRoom(book.id);
   };
   await set({ model: HUGE, weaving: true });
   assert.strictEqual(await sent(), 10400, 'ROOMY: a weaving passage on a 262k model gets 400 plus 10,000');
@@ -1618,7 +1633,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   const calls = since(m).fl;
   assert.strictEqual(calls.length, 2, 'NO-SWITCH: one call a passage, nothing tried and refused first');
   assert.ok(calls.every((r) => !('chat_template_kwargs' in r.body)), 'NO-SWITCH: neither carries the field');
-  assert.strictEqual(calls[1].body.max_tokens, 400, 'and a passage gets no weaving room');
+  assert.ok(calls.every((r) => !('max_tokens' in r.body)), 'and neither carries a cap');
   // Talk is a structured call, and this fake answers it with prose, so it is refused as unparseable
   // after its one retry. What matters here is that Featherless never answered it with a 400.
   m = mark();

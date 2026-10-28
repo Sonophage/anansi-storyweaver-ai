@@ -149,6 +149,15 @@ async function featherless(path: string, body: Record<string, any>, signal?: Abo
   if (!key) throw new Error("Featherless isn't set up for this writer — there is no key file");
   const payload = Object.fromEntries(Object.entries(body).filter(([k]) => DOCUMENTED.has(k)));
   payload.model = remoteName(String(body.model));
+  // NO TOKEN CAP TO A REMOTE MODEL (Seth, 2026-10-27: "We can remove token counts for remote ai. The
+  // only thing that should influence the response is the slider"). A cap there cost whole passes: a
+  // remote answer past it is a cut answer (#64), so a wordy model failed a hem's thread changes twice.
+  // Featherless bills by concurrency, not tokens. What stops a runaway instead: the passage's word
+  // guard (`runawayWords`, in `chat`) and a five-minute ceiling on every other call (`post`).
+  // The exceptions say so with `remoteCap` (never sent): the probe on add and the cache warms, which
+  // ask for one or a few tokens and are not answers anyone reads. Uncapped, a warm would write a
+  // whole passage nobody asked for.
+  if (!body.remoteCap) delete payload.max_tokens;
   if (!(body.weaveSwitch ?? takesSwitch(String(body.model)))) delete payload.chat_template_kwargs;
   // `first` and the `attempt` on the answer let a caller that finds capacity INSIDE the stream go on
   // with the same schedule rather than start a fresh one (#64).
@@ -208,26 +217,24 @@ export async function reach(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
-/** #64 · A REMOTE ANSWER THAT WAS NOT STREAMED KEEPS ITS CAP TOO. A streamed one is stopped at the
- *  cap in `readSSE`; this is the same rule for the answer that arrives whole, as one did at 1,213
- *  tokens of a 900 cap (F62). It has no token boundaries to cut on, only the count Featherless
- *  reports, so the text is cut in proportion to it and ends as the streamed one does: `length`.
- *  `generate` trims that to the last sentence and flags it, and `structured` treats it as a cut
- *  answer, never as JSON. No usage, nothing to measure against, and the answer is left alone.
- *  ponytail: proportional cut, approximate by a few tokens either way; cut on the tokenizer's
- *  boundaries if a writer ever sees a capped passage land visibly long or short. */
-function keepCap(r: any, cap: number) {
-  const used = Number(r?.usage?.completion_tokens);
+/** THE RUNAWAY GUARD FOR A REMOTE PASSAGE, in words (2026-10-27). Three times the length slider,
+ *  or 4,000 words when the slider leaves the length to the model: far past anything asked for, so it
+ *  only ever catches a model that has run away (F62's Anubis-70B ran on, repeating). Stopped there,
+ *  the passage is kept and flagged as cut, as a capped one was. */
+export const runawayWords = (target: number) => (target > 0 ? 3 * target : 4000);
+/** Every other remote call (a hem's passes, Talk, the cast, a summary) ends at five minutes, not the
+ *  local fifteen, since it has no token cap: one that runs on would hold a unit of the plan two
+ *  writers share. */
+export const REMOTE_CEILING_MS = 300_000;
+/** A remote answer that arrives whole: only a passage (it carries `target_words`) has a word guard,
+ *  trimmed at the guard and ended as `length`, which `generate` trims to the last sentence and flags. */
+function keepWords(r: any, target: number | null) {
   const m = r?.choices?.[0]?.message;
-  if (!(cap > 0) || !(used > cap) || typeof m?.content !== 'string') return r;
-  // THE PLAN COUNTS, as `readSSE` counts it: a weaving answer's count is plan and prose together,
-  // and the plan came first, so what is over is the end of the prose. The plan's share is the count
-  // the server gives for it, or else its share of the text.
-  const plan = String(m.reasoning_content ?? m.reasoning ?? '');
-  const told = Number(r?.usage?.completion_tokens_details?.reasoning_tokens);
-  const planned = told >= 0 ? told : plan ? used * plan.length / (plan.length + m.content.length) : 0;
-  const keep = Math.max(0, cap - planned) / Math.max(1, used - planned);
-  m.content = m.content.slice(0, Math.floor(m.content.length * Math.min(1, keep)));
+  if (target == null || typeof m?.content !== 'string') return r;
+  const limit = runawayWords(target);
+  const words = m.content.match(/\S+\s*/g) ?? [];
+  if (words.length <= limit) return r;
+  m.content = words.slice(0, limit).join('').trimEnd();
   r.choices[0].finish_reason = 'length';
   return r;
 }
@@ -235,8 +242,9 @@ function keepCap(r: any, cap: number) {
 async function post(path: string, body: any, ms = 900_000): Promise<any> {
   // A remote model's call goes to Featherless, whose paths are the router's without the `/v1`.
   if (isRemote(body?.model))
-    return keepCap(await (await featherless(path.replace(/^\/v1/, ''), body, AbortSignal.timeout(ms))).json(),
-      Number(body.max_tokens));
+    return keepWords(await (await featherless(path.replace(/^\/v1/, ''), body,
+      AbortSignal.timeout(Math.min(ms, REMOTE_CEILING_MS)))).json(),
+      body.target_words === undefined ? null : Number(body.target_words) || 0);
   const res = await reach(HOST + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -375,10 +383,10 @@ export const forgetSlot = () => { known = SLOT_FALLBACK; askedAt = -Infinity; };
  *  Exported for `test/stream.ts`, which drives it from a fake server: a `data:` line split
  *  across two network reads is the classic way a hand-written SSE reader loses a token, and
  *  that case cannot be produced by asking the real model nicely. */
-export async function readSSE(res: Response, onDelta: (d: string) => void, cap = Infinity) {
+export async function readSSE(res: Response, onDelta: (d: string) => void, wordCap = Infinity) {
   const out = { prose: '', reasoning: '', usage: {} as any, timings: {} as any, finish: '' };
   const reader = res.body!.getReader();
-  let chunks = 0;
+  let spaces = 0;   // the words written so far, counted by the gaps between them as they arrive
   const dec = new TextDecoder();
   let buf = '';
   for (;;) {
@@ -400,20 +408,12 @@ export async function readSSE(res: Response, onDelta: (d: string) => void, cap =
       if (o.error) throw Object.assign(new Error(o.error.message ?? JSON.stringify(o.error)),
         { code: o.error.code });
       const d = o.choices?.[0]?.delta ?? {};
-      // #62 · PAST THE CAP, THE STREAM IS OVER, and it ends the way the server ending it at the cap
-      // would have: `length`, which `generate` already trims to the last sentence and flags as cut.
-      // Cancelling the body closes the connection, so the far end stops writing too. Counted in
-      // chunks, one per token as a streaming server sends them: the stream carries no running
-      // token count, and `usage` arrives only at the end, too late to stop anything. A server that
-      // packs several tokens into one chunk is stopped later than the cap, never sooner, so a take
-      // that ends on its own under the cap is never cut by this.
-      //
-      // THE PLAN'S CHUNKS COUNT TOO, as a server counts the plan against `max_tokens` (F5). A
-      // weaving call's cap already carries the plan's room, added once in `replyFor`; counting the
-      // prose alone made the plan free and gave the prose that room on top of its own cap.
       // The plan, under either name: llama-server says `reasoning_content`, Featherless `reasoning`.
       const plan = d.reasoning_content ?? d.reasoning;
-      if ((d.content || plan) && ++chunks > cap) {
+      // THE RUNAWAY GUARD COUNTS WORDS OF PROSE (2026-10-27), not chunks against a token cap: a
+      // remote call carries no cap now, and the plan is the model's own business. Past the guard
+      // the stream ends as a capped one did: `length`, trimmed to the last sentence and flagged.
+      if (d.content && (spaces += (d.content.match(/\s+/g) ?? []).length) > wordCap) {
         out.finish = 'length';
         await reader.cancel().catch(() => {});
         return { ...out, prose: out.prose.trim() };
@@ -473,11 +473,11 @@ export async function chat(system: string, body: string, opts: Record<string, un
       if (remote) tries = (res as any).attempt;
       let wrote = false;
       enter(on);
-      // The cap is Anansi's to keep only on a remote call: Featherless was seen running past it
-      // (#62), and the local router honours it itself, so a local stream is read to its end.
+      // The guard is Anansi's to keep only on a remote call, which carries no cap: the local router
+      // keeps its own `max_tokens`, so a local stream is read to its end.
       try {
         return await readSSE(res, (d) => { wrote = true; onDelta(d); },
-          remote ? Number(payload.max_tokens) || 900 : Infinity);
+          remote ? runawayWords(Number(payload.target_words) || 0) : Infinity);
       } catch (e: any) {
         if (!remote || e?.name === 'AbortError' || stop?.aborted) throw e;
         if (!wrote && atCapacity(e)) {

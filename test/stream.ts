@@ -127,19 +127,18 @@ await ok('every delta arrives, in order, and the prose is their concatenation', 
   assert.strictEqual(r.timings.predicted_per_second, 31.5, 'so do the timings');
 });
 
-/* THE PLAN SPENDS THE CAP TOO. A weaving call's cap is the role's own cap plus the plan's room,
- * added once, in `replyFor`, and a server counts every token it generates against it, the plan's
- * included: that is how a plan at a prose cap ate the whole reply (F5). Anansi's cut on a remote
- * stream must count the same way, or the plan is free and the prose gets the plan's room as well. */
-await ok('a capped stream counts the plan against its cap, not only the prose', async () => {
+/* THE RUNAWAY GUARD COUNTS PROSE WORDS ONLY (2026-10-27). A remote call carries no token cap now; the
+ * guard is on the words a writer reads, so a plan before them costs nothing against it. It replaced
+ * "the plan spends the cap too", which counted plan chunks against a cap that is no longer sent. */
+await ok('the runaway guard counts prose words, not the plan', async () => {
   const plan = (reasoning: string) => frame({ choices: [{ delta: { reasoning } }] });
   const url = await serve([...Array.from({ length: 6 }, () => plan('think ')),
                            ...Array.from({ length: 20 }, () => delta('word '))]);
   const seen: string[] = [];
   const r = await readSSE(await fetch(url, { method: 'POST' }), (d) => seen.push(d), 10);
-  assert.strictEqual(seen.length, 4, `PLAN-COUNTS: 6 plan tokens and a cap of 10 leave 4 for the prose, not ${seen.length}`);
-  assert.strictEqual(r.finish, 'length', 'and the cut stream ends as one the server capped');
-  assert.strictEqual(r.reasoning, 'think '.repeat(6), 'with the plan kept, as it is under the cap');
+  assert.strictEqual(seen.length, 10, `GUARD-WORDS: a guard of 10 words lets 10 words through, plan or no plan (${seen.length})`);
+  assert.strictEqual(r.finish, 'length', 'and the stopped stream ends as a capped one did');
+  assert.strictEqual(r.reasoning, 'think '.repeat(6), 'with the plan kept');
 });
 
 await ok('a frame split across two reads is not dropped', async () => {
