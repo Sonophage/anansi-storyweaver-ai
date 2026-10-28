@@ -1013,6 +1013,27 @@ ok('the house style is written from the genre and the premise, and never from th
   ok('Tidy resolves Always true against where it stands, chalks the change, and says which it kept');
 }
 
+// #114 · WITH AN OVER TIME ENTRY IN FORCE, TIDY'S "WHERE IT STANDS" REWRITES THAT ENTRY. It wrote the
+// thread's own text, which an entry in force hides, so the change never reached the scene being written,
+// and the text from scene 1 was rewritten with what is true later. The entry keeps its label.
+{
+  const t = db.createStory(me, { title: 'In force', premise: 'p' }) as any;
+  const seth = db.upsertEntry(t.id, me, { title: 'Seth', entryType: 'character', body: 'a stranger on the street' })!;
+  const st = db.upsertState(t.id, seth, { fromChapter: 1, body: 'has met Ashley; 30s', label: 'met Ashley', beforeMode: 'hide' });
+  tidied = { always: '', stands: 'Has met Ashley at the diner.', kept: '', pockets: [] };
+  await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: seth }));
+  tidied = {};
+  const chalked = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === seth);
+  assert.strictEqual(chalked.length, 1, `  one row chalked (${chalked.length})`);
+  await routes['POST /api/proposal'](ctx({ storyId: t.id, id: chalked[0].id, accept: true }));
+  const states = db.statesForStory(t.id).get(seth) ?? [];
+  assert.deepStrictEqual(states.map((s: any) => [s.id, s.body, s.label]), [[st, 'Has met Ashley at the diner.', 'met Ashley']],
+    `STANDS-IN-FORCE: sewn in, the entry in force is rewritten and keeps its label (${JSON.stringify(states)})`);
+  assert.strictEqual((db.entriesOf(t.id) as any[]).find((e) => e.id === seth).body, 'a stranger on the street',
+    'STANDS-BASE-KEPT: and the thread\'s own text, from scene 1, is left as it was');
+  ok('Tidy rewrites the Over time entry in force, not the text it stands in for');
+}
+
 // #114 · THE LOCK POCKET IS NEVER SENT TO TIDY AND NEVER REPLACED BY IT. A trial tidy rewrote the
 // Hands-off thread's "his lines are the writer's" into a description of how he speaks, with the lock
 // sentence buried in it. Two shapes: the Hands-off thread's voice pocket, whatever it holds, and any

@@ -13,7 +13,7 @@ import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultMode
          voiceOf, anansiOf, estimate } from './story.ts';
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
-import { resolveBody, cardText, alwaysTrue, retiredAt, narrationOnly, quotedSpans, retirable, numbersIn, fires, summaryReaches,
+import { resolveBody, stateInForce, cardText, alwaysTrue, retiredAt, narrationOnly, quotedSpans, retirable, numbersIn, fires, summaryReaches,
          weaveFit, actSpan } from './context.ts';
 import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
@@ -4851,8 +4851,13 @@ export const routes: Record<string, Handler> = {
     const always = plain(r.data.always, wrapperNames('facts', e.title));
     if (always && always !== plain(alwaysTrue(e), wrapperNames('facts', e.title))
       && db.addProposal(v.id, { ...base, body: always, field: 'facts' })) added++;
-    const stands = db.plainStands(r.data.stands, [e.title]);
-    if (stands && stands !== db.plainStands(resolveBody(e, at), [e.title]) && db.addProposal(v.id, { ...base, body: stands })) added++;
+    // #114 · WITH AN OVER TIME ENTRY IN FORCE, the change is to that entry: chalked as a state at its
+    // scene, which `upsertState` rewrites in place. The thread's own text is scene 1's, which the
+    // entry hides, so writing it there never reached the scene being written.
+    const stands = db.plainStands(r.data.stands, [e.title]), inForce = stateInForce(e, at);
+    if (stands && stands !== db.plainStands(inForce?.body ?? e.body, [e.title]) && db.addProposal(v.id, inForce
+      ? { ...base, body: stands, entryType: 'state', keys: [String(inForce.fromChapter)], delta: inForce.label || 'tidied' }
+      : { ...base, body: stands })) added++;
     const kinds = slotsFor(e.entryType).map((sl) => sl.name), replaced = new Set<string>();
     for (const pk of (Array.isArray(r.data.pockets) ? r.data.pockets : []) as any[]) {
       const field = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
@@ -4902,11 +4907,16 @@ export const routes: Record<string, Handler> = {
       if (c.body.accept && target === 'state') {
         // A state is not an entry either. The chapter it comes into force in rides in `keys`, and
         // the label — four words for the timeline — rode in `delta`.
+        // #114 · A TIDY REWRITES AN ENTRY THAT IS THERE, so it keeps that entry's label and how it
+        // shows before its scene; only its text changes.
+        const fromChapter = Number(JSON.parse(p.keys || '[]')[0]) || 1;
+        const was = p.kind === 'tidy' ? (db.statesForStory(p.story_id).get(p.entry_id) ?? [])
+          .find((s: any) => s.from_chapter === fromChapter) : null;
         db.upsertState(p.story_id, p.entry_id, {
-          fromChapter: Number(JSON.parse(p.keys || '[]')[0]) || 1,
+          fromChapter,
           body: c.body.body ?? p.body,
-          label: p.delta || null,
-          beforeMode: 'hide',
+          label: was ? was.label : p.delta || null,
+          beforeMode: was?.before_mode ?? 'hide',
         });
       } else if (c.body.accept && target === 'retire') {
         // A THRESHOLD, never a delete and never a body: not one word of the card changes, only the

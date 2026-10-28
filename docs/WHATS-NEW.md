@@ -34,6 +34,10 @@ offers one pocket that holds both. The card says which other pocket it replaces,
 leaves one pocket where there were two. The pocket that goes is kept in the thread's Alterations,
 and putting it back from there makes it again, switched off.
 
+### Tidy changes where a thread stands now, not where it started
+When a thread has an Over time entry for the scene you are on, Tidy's change to where it stands now
+goes into that entry, under its own label. Before, it rewrote the thread's text from scene 1.
+
 ### A deleted pocket can be put back
 In a thread's Alterations, an old version of a pocket that has since been deleted can now be put
 back. The pocket comes back switched off, under its old name; one deleted before today comes back
