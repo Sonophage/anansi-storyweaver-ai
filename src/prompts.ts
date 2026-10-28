@@ -1816,6 +1816,30 @@ export const TALK_SCHEMA = {
   required: ['reply'],
 } as const;
 
+/** #99 · WHAT ANANSI SEARCHES FOR, when the writer lets him. A small first call, before the answer:
+ *  it reads the question and returns up to three short queries, or none when the tale and what he
+ *  already knows answer it. The query is the bare subject, because that is what was measured on
+ *  2026-09-02 for `/api/fromweb`: a name alone found the wikis, and a name with descriptive words
+ *  added found blogs and film criticism. The route narrows each query by the tale's world after,
+ *  the same way that route does, so the model is not asked to. */
+export const TALK_QUERIES =
+`The writer asked you a question about their tale, and you may look things up on the web before
+you answer. Decide whether the answer needs the web. A question about their own tale, its people
+or its prose does not: the tale answers it. A question about something real, or a name from a
+book, a game, a myth or a history, may.
+
+If it does not, return no queries. If it does, return up to three, each the bare name of what to
+look up: a person, a place, a thing, an event. "Charon", "Radahn", "the Battle of Hastings". No
+other words: no "wiki", no "appearance", no "history of", no question.`;
+
+export const TALK_QUERIES_SCHEMA = {
+  type: 'object',
+  properties: {
+    queries: { type: 'array', maxItems: 3, items: { type: 'string', maxLength: 80 } },
+  },
+  required: ['queries'],
+} as const;
+
 /** ✦ (#71) · ANANSI'S IDEAS FOR WHAT COMES NEXT. Three directions for the next beat, in one call,
  *  asked for when the writer taps ✦. Three because Seth asked for choices rather than one answer to
  *  take or leave (2026-10-25). The one the writer picks lands in the composer in Direct mode, unsent,

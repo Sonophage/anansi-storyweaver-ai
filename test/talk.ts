@@ -93,10 +93,22 @@ const srv = createServer((req, res) => {
                   { op: 'thread.overtime', thread: 'Vel', scene: 2, text: 'Vel is soaked and cold.' },
                   { op: 'thread.overtime', thread: 'Vel', scene: 7, text: 'Vel is gone.' }] },
       // "Get rid of the letter": a model may reach for a delete; only the retirement is on the list.
+      // #99 · a thread made and a thread changed from two pages Anansi read. The model names the
+      // page by its number in `sources`, and pastes a link into the text as well, which it must not.
+      FROMWEB: { reply: 'The ferryman is Charon, and Talia paid him twice.',
+        changes: [{ op: 'thread.new', title: 'Charon', type: 'character', keys: ['Charon'], activation: 'triggered',
+                    text: 'Ferries the dead across the Styx for an obol (https://myth.example/charon-greek-myth/1).', sources: [1] },
+                  { op: 'thread.set', thread: 'Talia', room: 'none', text: 'Talia paid the ferryman twice.', sources: [2] }] },
       RETIRE: { reply: 'The letter is gone.',
         changes: [{ op: 'thread.retire', thread: 'The letter' }, { op: 'thread.delete', thread: 'The letter' }] },
     };
-    const answer = asked && CHANGES[asked] ? CHANGES[asked]
+    // #99 · THE QUERY CALL, told apart by its own one-field schema and answered by the writer's
+    // words: none, one, or more than the cap of three.
+    const QUERIES: Record<string, string[]> = { NONE: [], WHO: ['Charon'],
+      MANY: ['Charon', 'the Styx', 'obol', 'Hades', 'Cerberus'] };
+    const wantsSearch = /SEARCH-(\w+)/.exec(String(b.messages?.[1]?.content ?? ''))?.[1] ?? 'NONE';
+    const answer = props.queries ? { queries: QUERIES[wantsSearch] ?? [] }
+      : asked && CHANGES[asked] ? CHANGES[asked]
       : asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
         entries: [{ title: 'Vel', type: 'character', field: 'interiority',
                     body: 'She is more afraid of being right than of being wrong.', keys: ['Vel'] }] }
@@ -1227,6 +1239,103 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(events(), eventsBefore, 'UNDO-RETIRE: its Over time has no retirement in it, as before');
   assert.strictEqual(retiredCol(), null, 'UNDO-RETIRE: and it is not retired at any scene');
   ok('asked to get rid of a thread, Talk retires it and never deletes it, and Undo brings it back as it was');
+}
+
+// ---- 6g · ANANSI CHOOSES HIS OWN SEARCHES (#99) ----
+//
+// With the switch on and search set up, one small call asks for up to three short queries, or none.
+// They run against the server's search (a fake here, never the web), and the answer reads what came
+// back. Every page read is returned with its link. A thread made or changed from a page gets the
+// link in its notes, which never reach a model, and never in its text.
+{
+  const searched: string[] = [];
+  const web = createServer((req, res) => {
+    const q = new URL(String(req.url), 'http://x').searchParams.get('q') ?? '';
+    searched.push(q);
+    const slug = q.toLowerCase().replace(/[^a-z]+/g, '-');
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ results: [1, 2].map((i) => ({ title: `${q} page ${i}`,
+      url: `https://myth.example/${slug}/${i}`, content: `What the page says about ${q}, part ${i}.` })) }));
+  });
+  await new Promise<void>((r) => web.listen(0, '127.0.0.1', r));
+  const SEARCH = `http://127.0.0.1:${(web.address() as any).port}/search?q={q}&format=json`;
+  process.env.ANANSI_SEARCH = SEARCH;
+
+  const tale = db.createStory(me, { title: 'The Styx', premise: 'A ferry for the dead.' }) as any;
+  db.updateStory(tale.id, { world: 'Greek myth' });
+  const talia = db.upsertEntry(tale.id, me, { title: 'Talia', body: '', notes: 'Her own note.', activation: 'always_on' });
+  db.upsertAddon(tale.id, talia, { slot: 'facts', name: 'facts', body: 'Talia is twenty.' });
+  const ctxOf = (body: any) => ({ body: { storyId: tale.id, ...body }, query: new URLSearchParams(),
+    owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+  const say = (said: string, search?: boolean) => { calls = []; searched.length = 0;
+    return routes['POST /api/talk'](ctxOf({ said, search })) as Promise<any>; };
+  const undo = (u: any) => routes['POST /api/talk/undo'](ctxOf({ undo: u })) as any;
+  const queryCalls = () => calls.filter((x) => x.response_format?.json_schema?.schema?.properties?.queries);
+  const wire = () => calls.map((x) => (x.messages ?? []).map((m: any) => m.content).join('\n')).join('\n');
+  const notesOf = (title: string) => (db.entriesOf(tale.id) as any[]).find((e) => e.title === title)?.notes;
+
+  // A question that needs the web: Anansi's own short query, narrowed by the tale's world.
+  const who = await say('SEARCH-WHO: who is the ferryman in the old stories?', true);
+  assert.ok(!who.error, who.error);
+  assert.strictEqual(queryCalls().length, 1, 'SEARCH-QUERY: one small call asks for the searches');
+  assert.strictEqual(queryCalls()[0].response_format.json_schema.schema.properties.queries.maxItems, 3,
+    'SEARCH-CAP: and it may ask for three at most');
+  assert.deepStrictEqual(searched, ['Charon Greek myth'],
+    `SEARCH-QUERY: the search is Anansi's own short query, narrowed by the tale's world, not the writer's words (${searched})`);
+  assert.match(String(calls.at(-1).messages[1].content), /What the page says about Charon Greek myth, part 2/,
+    'SEARCH-READS: the answer reads what the search found');
+  assert.deepStrictEqual(who.sources, [
+    { title: 'Charon Greek myth page 1', url: 'https://myth.example/charon-greek-myth/1' },
+    { title: 'Charon Greek myth page 2', url: 'https://myth.example/charon-greek-myth/2' }],
+    'SEARCH-SOURCES: every page read comes back with its title and link');
+  ok('a question that needs the web makes Anansi\'s own short search, and every page read comes back with its link');
+
+  const none = await say('SEARCH-NONE: how old is Talia?', true);
+  assert.ok(!none.error, none.error);
+  assert.strictEqual(searched.length, 0, 'SEARCH-NONE: a question that does not need the web searches nothing');
+  assert.deepStrictEqual(none.sources, [], 'SEARCH-NONE: and lists no page');
+  const many = await say('SEARCH-MANY: tell me everything about the underworld', true);
+  assert.ok(!many.error, many.error);
+  assert.strictEqual(searched.length, 3, `SEARCH-CAP: five queries asked for, three searched (${searched})`);
+  ok('a question that does not need the web searches nothing, and no reply makes more than three searches');
+
+  const off = await say('SEARCH-WHO: who is the ferryman in the old stories?', false);
+  assert.ok(!off.error, off.error);
+  assert.strictEqual(queryCalls().length, 0, 'SEARCH-OFF: with the switch off, no query call');
+  assert.strictEqual(searched.length, 0, 'SEARCH-OFF: and no search');
+  delete process.env.ANANSI_SEARCH;
+  const unset = await say('SEARCH-WHO: who is the ferryman in the old stories?', true);
+  process.env.ANANSI_SEARCH = SEARCH;
+  assert.ok(!unset.error, `SEARCH-UNSET: search not set up is an answer without searching, not an error (${unset.error})`);
+  assert.strictEqual(queryCalls().length, 0, 'SEARCH-UNSET: no query call');
+  assert.strictEqual(searched.length, 0, 'SEARCH-UNSET: and no search');
+  assert.strictEqual(unset.searchable, false, 'SEARCH-UNSET: and the answer says search is not set up');
+  ok('with the switch off, or search not set up, no query call and no search is made');
+
+  // A thread made, and a thread changed, from a page: the link in the notes, never in the text.
+  const fw = await say('SEARCH-WHO CHANGE-FROMWEB: add the ferryman, and Talia paid him twice', true);
+  assert.ok(!fw.error, fw.error);
+  assert.strictEqual(fw.changes.length, 2, `both changes are done (${JSON.stringify(fw.notDone)})`);
+  assert.match(String(notesOf('Charon')), /https:\/\/myth\.example\/charon-greek-myth\/1/,
+    `LINK-NOTES: the thread made from page 1 has its link in its notes (${notesOf('Charon')})`);
+  assert.doesNotMatch(String(notesOf('Charon')), /charon-greek-myth\/2/, 'LINK-NOTES: and not a page it was not made from');
+  assert.match(String(notesOf('Talia')), /^Her own note\./, 'LINK-NOTES: the writer\'s own notes are kept');
+  assert.match(String(notesOf('Talia')), /https:\/\/myth\.example\/charon-greek-myth\/2/,
+    'LINK-NOTES: and the thread changed from page 2 has that link added');
+  for (const e of db.entriesOf(tale.id) as any[]) assert.doesNotMatch(String(e.body), /https?:|myth\.example/, `LINK-NOT-TEXT: ${e.title}'s text`);
+  for (const a of db.addonsOf(tale.id) as any[]) assert.doesNotMatch(String(a.body), /https?:|myth\.example/,
+    `LINK-NOT-TEXT: no room carries a link (${a.body})`);
+  await say('What does Charon want?', false);
+  assert.doesNotMatch(wire(), /myth\.example/, 'LINK-NOT-SENT: the link in the notes never reaches the model');
+  const talias = fw.changes.find((x: any) => /Talia/.test(x.words));
+  const back: any = undo(talias.undo);
+  assert.ok(!back.error, back.error);
+  assert.strictEqual(notesOf('Talia'), 'Her own note.', 'UNDO-LINK: Undo puts the notes back as they were');
+  ok('a thread made or changed from a page has the link in its notes, never in its text, and Undo takes it out');
+
+  delete process.env.ANANSI_SEARCH;
+  web.close();
 }
 
 // ---- 6d · THE WRITER MOVES A PROPOSAL, AND THE WRITER OUTRANKS THE MODEL ----

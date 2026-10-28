@@ -68,6 +68,9 @@ export const CHANGES_SCHEMA = {
       // scene.set: the scene by its number. thread.overtime: the scene it holds from. None is the
       // scene the writer is in. thread.retire: the scene it is retired from; none is the next one.
       scene: { type: 'integer', minimum: 1 },
+      // #99 · the search results this change was made from, by their numbers. The route puts their
+      // links in the thread's notes; they never go in its text.
+      sources: { type: 'array', maxItems: 3, items: { type: 'integer', minimum: 1 } },
     },
     required: ['op'],
   },
@@ -124,6 +127,8 @@ const roomOf = (r: unknown) => {
 };
 export const roomLabel = (slot: string) => slot === 'facts' ? 'Always true' : slot.replace(/_/g, ' ');
 const clip = (t: string, n = 160) => t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t;
+/** A web link, with the brackets a model puts round one. */
+const LINK = /\s*[(\[<]?https?:\/\/[^\s)\]>]+[)\]>]?/g;
 const an = (kind: string) => (/^[aeiou]/.test(kind) ? 'an ' : 'a ') + kind;
 
 /** WHICH THREAD A NAME MEANS. The exact name first. Failing that, a thread whose name holds every
@@ -160,6 +165,11 @@ const noRoom = (t: Thread, slot: string) => ALL_SLOTS.includes(slot)
 
 /** One change the model returned, checked against the tale. */
 export function checkAsked(raw: any, tale: Tale): Checked {
+  // NO LINK IN THE TEXT (#99). A change made from a web page keeps that page's link in the thread's
+  // notes, which the route writes from `sources`; a link the model pasted into the text itself is
+  // taken out here, so it cannot ride into every prompt the thread reaches. Seth, 2026-09-01: "i dont
+  // need anansi to post where the information is coming from like the url links."
+  if (raw && typeof raw.text === 'string') raw = { ...raw, text: raw.text.replace(LINK, '').trim() };
   const op = String(raw?.op ?? '');
   const said = saidOf(raw);
   if (!(ASKED as readonly string[]).includes(op)) return { ok: false, said, why: NOT_TALK };
