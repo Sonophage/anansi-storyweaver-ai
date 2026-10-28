@@ -1,6 +1,6 @@
 // The spark wizard, driven without the model. #84 (2026-10-27) put You before the threads and a
-// preview after Try it on; this file was updated for it without being run (no browser checks that
-// round), so its first run is owed.
+// preview after Try it on; this file was updated for it without being run, and its first run
+// (#95, 2026-10-28) found that the press to hold who you play never appeared.
 //
 //   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/wizard.js
 //
@@ -272,7 +272,10 @@ ok("  You is a field you type into, offering the cast so far",
    (await page.eval("document.querySelector('[data-sp=\"persona\"]')?.tagName")) === 'INPUT');
 // #84 · WHO YOU PLAY, BEFORE THE THREADS. Named here and held with one press, so the cast call below
 // is told who you play and writes them from the outside.
-await page.eval(`(() => { document.querySelector('[data-sp="persona"]').value = 'Ilva Marren'; return 1; })()`);
+// Typed, then left, as a writer does: the field's `change` is what draws the press (#95).
+await page.eval(`(() => { const i = document.querySelector('[data-sp="persona"]'); i.value = 'Ilva Marren';
+  i.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+await wait(300);
 await page.click('[data-splock="1"]');
 await wait(400);
 ok("  and holding the one you play is one press",
@@ -589,7 +592,8 @@ await go("The preview");
 await wait(500);
 {
   const pv = await page.eval("document.querySelector('#page')?.innerText || ''");
-  ok("  the preview opens on the tale's own thread", /The tale's own thread/.test(pv));
+  // `i`: innerText is the text as drawn, and the heading is drawn in capitals.
+  ok("  the preview opens on the tale's own thread", /The tale's own thread/i.test(pv));
   ok("  and lists the threads you kept, folded to their name",
      /Ilva Vane/.test(pv) && (await page.eval("document.querySelectorAll('[data-spfold]').length")) >= 1);
   const none = await page.eval(`(async () => { const r = await (await fetch('/api/stories')).json();
