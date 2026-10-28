@@ -664,6 +664,43 @@ ok('a preset id in the 2026-08-27 convention decodes to purpose, weaving, decens
 }
 ok('every preset on the box has a blurb, and every blurb still belongs to a preset');
 
+// #87 · THE VOICE AGAINST THE POINT OF VIEW. A Voice that names a person or a tense the tale's point
+// of view does not tells the model two things (#81). Planted cases in both directions, and run against
+// text it was not written for: the shipped Voice, under every point of view the screens offer.
+{
+  const { voiceClash, withoutClash } = await import('../web/model.js');
+  const { DEFAULT_VOICE } = await import('../src/prompts.ts');
+  const THIRD = 'third limited, past tense';
+  const clash = 'Narrate in first person, present tense.';
+  const v = `Short sentences. ${clash} Weather does the feeling.`;
+  assert.deepStrictEqual(voiceClash(v, THIRD).map((c: any) => c.sentence), [clash],
+    'VOICE-CLASH: a Voice that states another person and tense is named, that sentence only');
+  assert.strictEqual(withoutClash(v, THIRD), 'Short sentences. Weather does the feeling.',
+    'VOICE-FIX: the fix takes out that sentence and nothing else');
+  assert.deepStrictEqual(voiceClash('You write in close third.', 'first person, present tense').length, 1,
+    'VOICE-CLASH: close third against first person');
+  assert.deepStrictEqual(voiceClash('Keep it in the present tense.', THIRD).length, 1,
+    'VOICE-CLASH: a tense alone is enough');
+  // AND WHERE IT MUST STAY QUIET.
+  const quiet = [
+    'Give her one line a scene, and let it be "you never listen".',          // "you" once, in dialogue
+    'You are the narrator. You keep the sentences short.',                    // "you" is the model
+    '"Write it in first person," the editor said, and nobody did.',           // a person named only inside quotes
+    'Never slip into second person.',                                          // named to forbid it
+    'Write in third person, past tense.',                                      // agrees
+    'Describe what the point of view allows, and no more.',
+  ];
+  for (const q of quiet) assert.deepStrictEqual(voiceClash(q, THIRD), [], `VOICE-QUIET: "${q}"`);
+  assert.strictEqual(withoutClash(quiet.join(' '), THIRD), quiet.join(' '), 'VOICE-FIX: and a quiet Voice is left byte for byte');
+  const POVS = ['first person, present tense', 'first person, past tense', 'second person, present tense',
+    'third limited, present tense', 'third limited, past tense', 'third omniscient, past tense'];
+  for (const pov of POVS) assert.deepStrictEqual(voiceClash(DEFAULT_VOICE, pov), [], `VOICE-SHIPPED: the shipped Voice under ${pov}`);
+  // A list Voice: the clashing line goes, its neighbours stay.
+  const list = 'Craft:\n- Stay close.\n- Write in the second person.\n- One image a line.';
+  assert.strictEqual(withoutClash(list, THIRD), 'Craft:\n- Stay close.\n- One image a line.', 'VOICE-FIX: a list item goes whole');
+}
+ok('a Voice that disagrees with the point of view is named, and the fix takes out only that sentence');
+
 // The writing head is a run of glyphs APPENDED after the prose, never a scramble of the prose
 // itself. The first version rewrote the last sixteen characters of the text on every delta: the
 // prose moved after it had settled, and the effect ran at the model's token rate, which is uneven.
