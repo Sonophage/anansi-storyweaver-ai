@@ -1541,6 +1541,21 @@ export function createWorld(ownerId: string, s: any) {
   return made;
 }
 
+/** #103 · THE WORLD THIS WRITER ALREADY HAS FOR AN IP, by its name: the title, trimmed, in any
+ *  case. Only a World (`is_world`), never a tale of the same name, and only one the writer OWNS:
+ *  not `MINE()`, because being called in to write in a book is not owning its World, and
+ *  `entriesFor` reads a followed World only when the owners match. Writes nothing. With two of the
+ *  same name, the one changed last. */
+export function worldNamed(ownerId: string, name: string): { id: string; title: string } | null {
+  const want = String(name ?? '').trim().toLowerCase();
+  if (!want) return null;
+  // Compared here and not with SQLite's lower(), which folds ASCII only: "POKÉMON" would miss
+  // "Pokémon". A writer has a handful of Worlds, so reading their titles costs nothing.
+  return (q(`SELECT id, title FROM stories WHERE owner_id = ? AND is_world = 1
+    ORDER BY updated_at DESC`).all(ownerId) as any[])
+    .find((w) => String(w.title ?? '').trim().toLowerCase() === want) ?? null;
+}
+
 /** The books that would lose cards if this one went. */
 export const followersOf = (id: string) =>
   q('SELECT id, title FROM stories WHERE lore_from = ?').all(id) as any[];

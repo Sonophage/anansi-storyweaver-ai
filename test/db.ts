@@ -3462,4 +3462,22 @@ ok('a tale keeps its cover blur and flip, a partial save leaves them, and a copy
   assert.deepStrictEqual([view(cid).cover_blur, view(cid).cover_flip], [8, 1], 'a copy of the tale carries them');
 });
 
+// #103 · A NEW TALE NAMING AN IP FOLLOWS THE WORLD ITS WRITER ALREADY HAS BY THAT NAME. The match
+// is the title, trimmed and in any case, and only among that writer's own Worlds.
+ok('a World is found by its name for its own writer, and never for another', () => {
+  const kia = db.owner('kia-103'), seth = db.owner('seth-103');
+  const hers = db.createWorld(kia, { title: 'Elden Ring' });
+  db.createStory(kia, { title: 'Dune' });   // a tale, not a World: never followed by name
+  assert.strictEqual(db.worldNamed(kia, '  elden RING ')?.id, hers.id, 'any case, trimmed');
+  assert.strictEqual(db.worldNamed(kia, 'Elden'), null, 'the whole name, not part of it');
+  const poke = db.createWorld(kia, { title: 'Pokémon' });
+  assert.strictEqual(db.worldNamed(kia, 'POKÉMON')?.id, poke.id, 'any case, past ASCII too');
+  assert.strictEqual(db.worldNamed(kia, 'dune'), null, 'a tale of that name is not a World');
+  assert.strictEqual(db.worldNamed(kia, '   '), null, 'a blank name finds nothing');
+  assert.strictEqual(db.worldNamed(seth, 'Elden Ring'), null, "another writer's World is never found");
+  const his = db.createWorld(seth, { title: 'elden ring' });
+  assert.strictEqual(db.worldNamed(seth, 'Elden Ring')?.id, his.id, 'and his own is');
+  assert.strictEqual(db.worldNamed(kia, 'Elden Ring')?.id, hers.id, 'while hers stays hers');
+});
+
 console.log(`\n${n} checks passed`);
