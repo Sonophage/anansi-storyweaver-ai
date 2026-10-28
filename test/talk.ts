@@ -1347,6 +1347,9 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(age.changes?.length, 1, `CHANGE-LINE: one change comes back (${JSON.stringify(age.changes)})`);
   assert.match(age.changes[0].words, /Talia Venn.*Always true.*Talia is thirty/,
     `CHANGE-LINE: in the writer's words, naming the thread, the room and the text (${age.changes[0].words})`);
+  // #122 · and the text before and after it, which the line draws as a diff under its Undo.
+  assert.deepStrictEqual(age.changes[0].diff, { before: 'Talia is twenty.', after: 'Talia is thirty.' },
+    'CHANGE-DIFF: the line carries what the Always true said before and what it says now');
   // Offers are still chalked: the place nobody asked for is on the Workbench, not in the tale.
   assert.strictEqual(age.proposed, 1, 'CHANGE-OFFER: the unasked place is chalked');
   assert.ok((db.proposalsOf(tale.id) as any[]).some((p) => p.title === 'The Quay' && p.status === 'open'),
@@ -1403,6 +1406,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(room(ferry.id, 'facts')[0]?.body, 'Rows the dead across for a coin.', 'CHANGE-NEW: with his Always true');
   assert.strictEqual(ferry.activation, 'always_on', 'CHANGE-NEW: a character Talk makes is always on');
   assert.match(made.changes[0].words, /new thread.*The ferryman/i);
+  assert.strictEqual(made.changes[0].diff ?? null, null, 'CHANGE-DIFF: a new thread replaced no text, so its line has no diff');
   const gone: any = undo(made.changes[0].undo);
   assert.ok(!gone.error, gone.error);
   assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'The ferryman'),

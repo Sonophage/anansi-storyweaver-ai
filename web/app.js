@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash } from './model.js';
+import { inkParagraphs, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -2657,11 +2657,7 @@ function hemCardParts(c) {
       placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>`;
   const fold = ([k, rows]) => `<details class="decksec" data-hemthread="${esc(k)}">
     <summary><span class="lbl flush">${esc(rows[0].title)}</span><span class="deckpeek">${peek(rows[0].body)}</span></summary>
-    ${rows.map((p) => {
-      const was = hemBefore(p);
-      return `${was == null ? '' : `<div class="hint lead-8"><span class="lbl flush">Before</span> ${esc(was)}</div>
-        <div class="hint flush"><span class="lbl flush">After</span></div>`}${deckRow(p)}`;
-    }).join('')}</details>`;
+    ${rows.map(deckRow).join('')}</details>`;
   const section = (label, rows) => {
     const by = new Map();
     for (const p of rows) { const k = p.entryId || p.title; by.set(k, [...(by.get(k) ?? []), p]); }
@@ -2747,7 +2743,13 @@ function deckRow(p) {
   // #114 · A TIDY'S MERGE says which other pockets go when it is sewn in.
   const also = (p.merges ?? []).map((id) => (V.entries ?? []).find((x) => x.id === p.entryId)?.addons
     ?.find((a) => a.id === id)?.name).filter(Boolean);
-  return `${proposalCard(p)}
+  // #122 · WHAT IT WOULD CHANGE, word by word: what is there now against what is chalked, on every
+  // card that chalks over something (a hem's thread, a Tidy, a chalked change). It reads what is
+  // chalked as it came; an edit in the box below is the writer's own and is what gets sewn in.
+  const was = hemBefore(p);
+  return `${was == null ? '' : `<div class="lbl sub-lbl">What changes</div>
+      <div data-deckdiff="${esc(p.id)}">${diffHTML(was, p.body ?? '')}</div>`}
+      ${proposalCard(p)}
       ${also.length ? `<div class="hint trail-6">Sewn in, this also replaces ${also.map((n) => `&ldquo;${esc(n)}&rdquo;`).join(' and ')}.</div>` : ''}
       ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint trail-6">It arrives with these:</div>
         ${Object.entries(p.rooms).map(([slot, r]) => `<div style="font-size:12px; line-height:1.45; color:var(--mute); margin-top:4px">
@@ -4662,10 +4664,13 @@ const PANELS = {
                   .filter((s) => /^https?:\/\//i.test(s.url ?? ''))
                   .map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noreferrer"
                     style="color:var(--mute)">${esc(s.title || s.url)}</a>`).join('')}</div>` : ''}
-              ${(turn.changes ?? []).map((ch, j) => `<div class="line-2" style="align-items:center; gap:8px">
+              ${/* #122 · UNDER EACH LINE AND ITS UNDO, what it changed, word by word (`diff` is the text
+                   before and after; none for a change that rewrote no text). */
+                (turn.changes ?? []).map((ch, j) => `<div class="line-2" style="align-items:center; gap:8px">
                 <span style="font-size:12.5px; line-height:1.45; color:var(--ink-bright); flex:1">${esc(ch.words)}</span>
                 ${ch.undone ? '<span class="caption">Undone</span>' : ch.refused || !ch.undo ? ''
-                  : `<button class="tag" data-talkundo="${i}:${j}" style="cursor:pointer">Undo</button>`}</div>`).join('')}
+                  : `<button class="tag" data-talkundo="${i}:${j}" style="cursor:pointer">Undo</button>`}</div>${
+                  ch.diff && !ch.refused ? diffHTML(ch.diff.before, ch.diff.after) : ''}`).join('')}
               ${/* #100 · WHAT HE OFFERED during setup, each with Add: one press puts it in the draft,
                    and it then has a line and an Undo like any change. */
                 (turn.offers ?? []).map((o, j) => `<div class="line-2" style="align-items:flex-start; gap:8px">
@@ -5313,6 +5318,12 @@ function applyDraft(ch) {
   return { op: ch.op, title: ch.title, prev, after: JSON.stringify([e.body, e.rooms ?? null]) };
 }
 
+/** #122 · What a draft change rewrote, before and after, for its line's diff: the tale's field, or
+ *  the thread's Always true or pocket, as the server checked them (`checkDraft` sends `before`). Null
+ *  for a thread made or taken away, which rewrote no text. */
+const draftDiff = (ch) => ch.op === 'tale.set' || ch.op === 'thread.set'
+  ? { before: ch.before ?? '', after: ch.text ?? '' } : null;
+
 /** Put one applied change back, or say why not: only while what it made is still as it made it,
  *  so an Undo never takes away what the writer did since. */
 function undoDraft(u) {
@@ -5363,7 +5374,7 @@ async function talkSetup(said) {
     const why = typedHere(x.change, said);
     if (why) return { words: `Not done. ${why}`, refused: true };
     const undo = applyDraft(x.change);
-    return undo ? { words: x.words, undo }
+    return undo ? { words: x.words, undo, diff: draftDiff(x.change) }
       : { words: `Not done. ${x.words} The draft changed while he answered.`, refused: true };
   });
   t.turns = [...t.turns, { you: false, text: r.reply || '(nothing came back)', sources: r.sources ?? [],
@@ -7567,12 +7578,15 @@ function entryEditor() {
     </div>
     <div class="pane"${tab === 'more' ? '' : ' hidden'}>
     ${S.fieldHistory ? `<div class="lbl sect">Earlier versions</div>
-      ${S.fieldHistory.length ? S.fieldHistory.map((h) => `<div class="card" style="margin-bottom:8px">
+      ${/* #122 · EACH VERSION AGAINST THE ONE THAT REPLACED IT, word by word: what this change took out
+           is struck through, what it put in is underlined. A pocket since deleted has nothing after
+           it, so its old text stands alone. */''}
+      ${S.fieldHistory.length ? historyPairs(S.fieldHistory, e).map((h) => `<div class="card" style="margin-bottom:8px" data-histrow="${esc(h.id)}">
         <div class="line">
           <span class="kind">${esc(h.label ?? h.field)}</span>
           <span class="count-sm">${h.replaced_at ? ago(h.replaced_at) : ''}${
             h.replaced_by ? ` &middot; ${esc(h.replaced_by)}` : ''}</span></div>
-        <div class="clamp note-tight">${esc(h.previous_value ?? '')}</div>
+        ${h.now == null ? `<div class="clamp note-tight">${esc(h.was)}</div>` : diffHTML(h.was, h.now)}
         <button class="btn ghost push-6" data-revertfield="${h.id}">Put this back</button></div>`).join('')
         : '<div class="hint">No earlier versions of any field.</div>'}` : ''}
     ${connections(e)}
