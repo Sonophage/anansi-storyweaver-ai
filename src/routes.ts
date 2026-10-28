@@ -2297,11 +2297,15 @@ async function storyInNewWorld(c: Ctx) {
   if (!ticked.length) return { error: 'tick someone for the World, or go on without one' };
   const using = writerModel(c, { story: null });
   const threads: any[] = [];
+  // #105 · THE TITLE EACH TICKED NAME CAME BACK AS, so who is played, held or in the opening, named
+  // as the writer ticked them, finds their thread.
+  const titleOf = new Map<string, string>();
   // ONE AT A TIME. F13: the model has two slots and oversubscribing the shared cache does not queue,
   // both requests die with an HTTP 500. The story screen's pull loop is sequential for the same reason.
   for (const t of ticked) {
     const p = await pullThread(using, t.name, t.kind, title, { memory: t.memory, fallback: true });
     if ('error' in p) return { error: `${t.name} could not be written: ${p.error}. Untick them, or try again.` };
+    titleOf.set(t.name.toLowerCase(), p.title);
     // Two names for one thing come back with one title: one thread.
     if (threads.some((e) => e.title.toLowerCase() === p.title.toLowerCase())) continue;
     threads.push({ title: p.title, entryType: t.kind, body: p.body,
@@ -2314,6 +2318,9 @@ async function storyInNewWorld(c: Ctx) {
   try {
     writeCast(world.id, c.owner, threads);
     const { newWorld: _n, ...rest } = c.body;
+    const as = (n: unknown) => typeof n === 'string' ? titleOf.get(n.trim().toLowerCase()) ?? n : n;
+    for (const k of ['persona', 'lockedCharacter']) if (k in rest) rest[k] = as(rest[k]);
+    if (Array.isArray(rest.inOpening)) rest.inOpening = rest.inOpening.map(as);
     const made: any = routes['POST /api/stories']({ ...c, body: { ...rest, loreFrom: world.id } });
     if (made?.error) db.delStory(world.id, c.owner);
     return made?.error ? made : { ...made, newWorld: world.id };
