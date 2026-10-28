@@ -232,6 +232,38 @@ ok('SCENE-SET-REFUSED: a scene the tale does not have, another field, no text, o
   refused(ch.checkUndo({ op: 'scene.set', chapter: 'c-other', field: 'title', text: 'Mine' }, whole), /no longer in this tale/i);
 });
 
+const waking = { ...whole, entries: [...tale.entries,
+  { id: 'e-letter', title: 'The letter', entryType: 'item', activation: 'triggered', keys: ['letter'], addons: [] },
+  { id: 'e-vel', title: 'Vel', entryType: 'character', activation: 'always_on', keys: [], addons: [] }] };
+
+ok('THREAD-WAKE: Always on, or On a word with its wake words, with the old ones for Undo', () => {
+  const c = done(ch.checkAsked({ op: 'thread.wake', thread: 'the letter', activation: 'always_on' }, waking));
+  assert.strictEqual(c.thread, 'e-letter');
+  assert.strictEqual(c.activation, 'always_on');
+  assert.deepStrictEqual(c.keys, ['letter'], 'Always on with no words given keeps the words it had');
+  assert.match(ch.wordsFor(c), /The letter is Always on now/);
+  assert.deepStrictEqual(ch.undoFor(c, {}), { op: 'thread.wake', thread: 'e-letter', activation: 'triggered', keys: ['letter'] });
+  const w = done(ch.checkAsked({ op: 'thread.wake', thread: 'Vel', activation: 'triggered', keys: ['Vel', ' the blind one '] }, waking));
+  assert.deepStrictEqual(w.keys, ['Vel', 'the blind one']);
+  assert.strictEqual(w.activation, 'triggered', 'the writer asked, so a character may wait for its word');
+  assert.match(ch.wordsFor(w), /Vel is On a word now: Vel, the blind one/);
+  // New words for a thread already On a word.
+  const k = done(ch.checkAsked({ op: 'thread.wake', thread: 'letter', activation: 'triggered', keys: ['envelope'] }, waking));
+  assert.deepStrictEqual(ch.undoFor(k, {})!.keys, ['letter']);
+  const u = done(ch.checkUndo({ op: 'thread.wake', thread: 'e-vel', activation: 'always_on', keys: [] }, waking));
+  assert.match(ch.wordsFor(u), /Put back how Vel wakes/);
+});
+
+ok('THREAD-WAKE-REFUSED: On a word with no words, no change, a followed thread, or no such way to wake', () => {
+  refused(ch.checkAsked({ op: 'thread.wake', thread: 'Vel', activation: 'triggered', keys: [] }, waking), /wake words/i);
+  refused(ch.checkAsked({ op: 'thread.wake', thread: 'Vel', activation: 'always_on' }, waking), /already/i);
+  refused(ch.checkAsked({ op: 'thread.wake', thread: 'letter', activation: 'triggered', keys: ['Letter'] }, waking), /already/i);
+  refused(ch.checkAsked({ op: 'thread.wake', thread: 'The Erdtree', activation: 'triggered', keys: ['tree'] }, waking),
+    /Lands Between/);
+  refused(ch.checkAsked({ op: 'thread.wake', thread: 'Vel', activation: 'keyed', keys: ['x'] }, waking), /Always on or On a word/i);
+  refused(ch.checkAsked({ op: 'thread.wake', thread: 'Nobody', activation: 'always_on' }, waking), /no thread called/i);
+});
+
 ok('the change slice never reaches for the database itself', () => {
   const src = readFileSync(new URL('../src/changes.ts', import.meta.url), 'utf8');
   assert.ok(!/from '\.\/db\.ts'/.test(src), 'src/changes.ts must not import db.ts');

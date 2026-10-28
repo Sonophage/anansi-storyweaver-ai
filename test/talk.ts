@@ -85,6 +85,9 @@ const srv = createServer((req, res) => {
         changes: [{ op: 'scene.set', scene: 1, field: 'title', text: 'The Ford' },
                   { op: 'scene.set', field: 'heads_toward', text: 'The far bank, at dusk.' },
                   { op: 'scene.set', scene: 9, field: 'title', text: 'Later' }] },
+      WAKE: { reply: 'The letter is always there now, and the ferryman waits for his name.',
+        changes: [{ op: 'thread.wake', thread: 'the letter', activation: 'always_on' },
+                  { op: 'thread.wake', thread: 'Charon', activation: 'triggered', keys: ['Charon', 'ferryman'] }] },
     };
     const answer = asked && CHANGES[asked] ? CHANGES[asked]
       : asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
@@ -1023,7 +1026,7 @@ ok('emptying the box gives her back the voice she shipped with');
   const age = await say('CHANGE-AGE: make Talia thirty, not twenty');
   assert.ok(!age.error, age.error);
   const ops = calls[0].response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum;
-  assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'tale.set', 'scene.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
+  assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'thread.wake', 'tale.set', 'scene.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
 
   // Always true, changed at once.
   assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is thirty.', 'CHANGE-DONE: Talia\'s Always true is changed');
@@ -1154,6 +1157,26 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(scene(tale.chapterId).title, 'The Bank', 'UNDO-SCENE: the old title');
   assert.strictEqual(scene(c2).authors_note ?? '', '', 'UNDO-SCENE: and where it heads is empty again, as it was');
   ok('asked to rename a scene or change where it heads, Talk does, refuses a scene that is not there, and Undo puts both back');
+
+  // How a thread wakes. The letter waits for its word; Charon is always on.
+  const letter = db.upsertEntry(tale.id, me, { title: 'The letter', entryType: 'item', body: 'Sealed, unread.',
+    activation: 'triggered', keys: ['letter', 'envelope'], lastEditor: 'model' });
+  const charon = db.upsertEntry(tale.id, me, { title: 'Charon', body: 'Old.', activation: 'always_on', keys: [] });
+  const row = (id: string) => (db.entriesOf(tale.id) as any[]).find((e) => e.id === id);
+  const was = { letter: { ...row(letter) }, charon: { ...row(charon) } };
+  const wake = await say('CHANGE-WAKE: keep the letter always on, and Charon only on his name');
+  assert.ok(!wake.error, wake.error);
+  assert.strictEqual(row(letter).activation, 'always_on', 'THREAD-WAKE: the letter is Always on');
+  assert.deepStrictEqual(JSON.parse(row(letter).keys), ['letter', 'envelope'], 'THREAD-WAKE: and keeps its wake words');
+  assert.strictEqual(row(charon).activation, 'triggered', 'THREAD-WAKE: Charon is On a word');
+  assert.deepStrictEqual(JSON.parse(row(charon).keys), ['Charon', 'ferryman'], 'THREAD-WAKE: with the words asked for');
+  assert.strictEqual(row(letter).body, 'Sealed, unread.', 'THREAD-WAKE: and nothing else of the thread is written');
+  assert.match(wake.changes.map((x: any) => x.words).join(' | '), /The letter is Always on now.*Charon is On a word now: Charon, ferryman/);
+  for (const x of wake.changes) assert.ok(!undo(x.undo).error);
+  for (const [id, before] of [[letter, was.letter], [charon, was.charon]] as const)
+    for (const col of ['activation', 'keys', 'title', 'body', 'entry_type', 'last_editor'])
+      assert.strictEqual(row(id)[col], before[col], `UNDO-WAKE: ${before.title}'s ${col} is as it was`);
+  ok('asked to change how a thread wakes, Talk does, and Undo puts back the old way and the old wake words');
 }
 
 // ---- 6d · THE WRITER MOVES A PROPOSAL, AND THE WRITER OUTRANKS THE MODEL ----

@@ -24,11 +24,11 @@
 import { ALL_SLOTS, KINDS, slotsFor } from './slots.ts';
 
 /** What the model may ask for. #97 cut the path with the first two; #98 adds the rest. */
-export const ASKED = ['thread.new', 'thread.set', 'tale.set', 'scene.set'] as const;
+export const ASKED = ['thread.new', 'thread.set', 'thread.wake', 'tale.set', 'scene.set'] as const;
 /** What only an Undo may do, beside putting back old text. */
 const UNMAKE = ['thread.unmake', 'room.unmake'] as const;
 /** What an Undo may put back as it was: the asked operations that write over a value, by id. */
-const PUT_BACK = ['thread.set', 'tale.set', 'scene.set'] as const;
+const PUT_BACK = ['thread.set', 'thread.wake', 'tale.set', 'scene.set'] as const;
 
 /** THE TALE'S OWN FIELDS TALK MAY CHANGE. Until the tale's thread is built (GLOSSARY), its premise
  *  and setting are the story's own columns, and these are the two. Rules are rule threads today, so
@@ -55,6 +55,7 @@ export const CHANGES_SCHEMA = {
       // thread.new only.
       title: { type: 'string', maxLength: 80 },
       type: { type: 'string', enum: [...KINDS] },
+      // thread.new, and thread.wake: Always on or On a word, and the wake words.
       keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
       activation: { type: 'string', enum: ['always_on', 'triggered'] },
       // tale.set: which of the tale's own fields. scene.set: which of the scene's.
@@ -67,11 +68,12 @@ export const CHANGES_SCHEMA = {
 } as const;
 
 type Room = { id: string; slot: string; name: string; body: string; keys: string[]; active: boolean };
-type Thread = { id: string; title: string; entryType: string; addons?: Room[]; sharedFrom?: string | null };
+type Thread = { id: string; title: string; entryType: string; addons?: Room[]; sharedFrom?: string | null;
+  activation?: string; keys?: string[] };
+type Scene = { id: string; index: number; title?: string | null; authorsNote?: string | null };
 /** The tale as the route read it through the gate: its threads, and since #98 its own fields, its
  *  scenes and the scene the writer is in. The later three are optional so a check that needs only
  *  threads can be handed only threads. */
-type Scene = { id: string; index: number; title?: string | null; authorsNote?: string | null };
 export type Tale = { entries: Thread[]; story?: { premise?: string | null; setting?: string | null };
   chapters?: Scene[]; at?: number };
 
@@ -85,7 +87,10 @@ export type Change =
   | { op: 'room.unmake'; thread: string; title: string; addon: string; room: string }
   /** `before` is the field's text before the change; on an Undo, the text being put back. */
   | { op: 'tale.set'; field: string; text: string; before: string; undo?: true }
-  | { op: 'scene.set'; chapter: string; index: number; field: string; text: string; before: string; undo?: true };
+  | { op: 'scene.set'; chapter: string; index: number; field: string; text: string; before: string; undo?: true }
+  /** `before` is how it woke before the change; on an Undo, how it is being put back. */
+  | { op: 'thread.wake'; thread: string; title: string; activation: string; keys: string[];
+      before: { activation: string; keys: string[] }; undo?: true };
 export type Checked = { ok: true; change: Change } | { ok: false; said: string; why: string };
 
 const NOT_TALK = 'that is not something Talk can do. It changes the tale, its threads and its scenes; '
@@ -160,8 +165,45 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   if (op === 'scene.set') return sceneSet(tale, raw, said, false);
   const { hit, why } = threadNamed(tale, raw.thread);
   if (!hit) return { ok: false, said, why: why! };
+  if (op === 'thread.wake') return wakeOn(hit, raw, said, false);
   return setOn(hit, roomOf(raw.room), String(raw.text ?? '').trim(), said, false);
 }
+
+const keysOf = (k: unknown) => (Array.isArray(k) ? k : []).map((x) => String(x ?? '').trim()).filter(Boolean);
+const sameKeys = (a: string[], b: string[]) =>
+  [...new Set(a.map(norm))].sort().join('\n') === [...new Set(b.map(norm))].sort().join('\n');
+const wakeWords = (activation: string, keys: string[]) => activation === 'triggered'
+  ? `On a word${keys.length ? `: ${keys.join(', ')}` : ''}` : 'Always on';
+
+/** #98 · HOW A THREAD WAKES: Always on, or On a word with its wake words. Shared by a request and an
+ *  Undo. A request for On a word must leave the thread with words, its own or the ones it gave, or
+ *  the thread never reaches the model again and looks fine on the screen (`upsertEntry`'s floor
+ *  would quietly turn it Always on instead, and the line would say otherwise). Always on with no
+ *  words given keeps the words it had, as the hand switch does. An Undo puts back exactly what was
+ *  there, a thread on a word with none included, because that is what the writer had.
+ *
+ *  A CHARACTER MAY BE PUT ON A WORD HERE, unlike in a thread Talk makes: there the model chose; here
+ *  the writer asked for it in so many words, as they could with the switch on the thread. */
+function wakeOn(t: Thread, raw: any, said: string, undo: boolean): Checked {
+  if (t.sharedFrom) return followed(t, said);
+  const activation = String(raw?.activation ?? '');
+  if (activation !== 'always_on' && activation !== 'triggered') return { ok: false, said,
+    why: 'a thread is Always on or On a word' };
+  const had = { activation: t.activation ?? 'always_on', keys: t.keys ?? [] };
+  const given = keysOf(raw.keys);
+  const keys = undo ? given : given.length ? given : had.keys;
+  if (!undo && activation === 'triggered' && !keys.length) return { ok: false, said,
+    why: `On a word needs wake words, and ${t.title} has none. Say which words` };
+  if (!undo && activation === had.activation && sameKeys(keys, had.keys)) return { ok: false, said,
+    why: `${t.title} is already ${wakeWords(had.activation, had.keys)}` };
+  return { ok: true, change: { op: 'thread.wake', thread: t.id, title: t.title, activation, keys,
+    before: undo ? { activation, keys } : had, ...(undo ? { undo: true as const } : {}) } };
+}
+
+/** A THREAD THE TALE FOLLOWS lives in its World and is changed there. The screen draws it read-only
+ *  here for the same reason; a change written through would change every tale that follows it. */
+const followed = (t: Thread, said: string): Checked => ({ ok: false, said,
+  why: `${t.title} belongs to ${t.sharedFrom}, which this tale follows. Change it there` });
 
 /** #98 · THE TALE'S PREMISE OR SETTING. Shared by a request and an Undo; an Undo may put back an
  *  empty field, because that is what was there. */
@@ -207,11 +249,7 @@ const noScene = (tale: Tale, n: unknown) =>
 /** A thread.set, once its thread is known. Shared by a request and an Undo, so the two cannot
  *  disagree about which rooms a thread has or which room a change lands in. */
 function setOn(t: Thread, slot: string, text: string, said: string, undo: boolean, addon?: string | null): Checked {
-  // A THREAD THE TALE FOLLOWS lives in its World and is changed there. The screen draws it
-  // read-only here for the same reason; a change written through would change every tale that
-  // follows that World.
-  if (t.sharedFrom) return { ok: false, said, why: `${t.title} belongs to ${t.sharedFrom}, which this tale `
-    + 'follows. Change it there' };
+  if (t.sharedFrom) return followed(t, said);
   if (!hasRoom(t, slot)) return { ok: false, said, why: noRoom(t, slot) };
   const cur = undo ? (t.addons ?? []).find((a) => a.id === addon && a.slot === slot) ?? null : roomFor(t, slot);
   if (undo && addon && !cur) return { ok: false, said, why: 'that room is no longer in this tale' };
@@ -235,6 +273,7 @@ export function checkUndo(raw: any, tale: Tale): Checked {
   if (!t) return { ok: false, said, why: 'that thread is no longer in this tale' };
   const text = String(raw.text ?? '');
   if (op === 'thread.set') return setOn(t, roomOf(raw.room), text, said, true, raw.addon ?? null);
+  if (op === 'thread.wake') return wakeOn(t, raw, said, true);
   // TAKEN AWAY ONLY WHILE IT IS AS TALK MADE IT. The text it was made with rides in the Undo and is
   // compared with what is there now: a thread or room the writer has changed since is theirs, and
   // an Undo that claims Talk made a thread the writer wrote does not match its text.
@@ -258,6 +297,8 @@ export function wordsFor(c: Change): string {
   if (c.op === 'room.unmake') return `Took away ${c.title}'s ${roomLabel(c.room)}.`;
   if (c.op === 'tale.set') return c.undo ? `Put back the tale's ${c.field}.`
     : `Changed the tale's ${c.field}: “${clip(c.text)}”`;
+  if (c.op === 'thread.wake') return c.undo ? `Put back how ${c.title} wakes: ${wakeWords(c.activation, c.keys)}.`
+    : c.activation === 'triggered' ? `${c.title} is On a word now: ${c.keys.join(', ')}.` : `${c.title} is Always on now.`;
   if (c.op === 'scene.set') return c.field === 'title'
     ? c.undo ? `Put back scene ${c.index}'s title.` : `Changed scene ${c.index}'s title: “${clip(c.text)}”`
     : c.undo ? `Put back where scene ${c.index} heads.` : `Changed where scene ${c.index} heads: “${clip(c.text)}”`;
@@ -270,6 +311,7 @@ function saidOf(raw: any): string {
   const name = String(raw?.thread ?? raw?.title ?? '').trim();
   if (raw?.op === 'thread.new') return `Make a new thread${name ? `: ${name}` : ''}`;
   if (raw?.op === 'scene.set') return `Change scene ${raw?.scene ?? 'this one'}`;
+  if (raw?.op === 'thread.wake') return `Change how ${name || 'a thread'} wakes`;
   if (raw?.op === 'tale.set') return `Change the tale's ${String(raw?.field ?? '').trim() || 'premise or setting'}`;
   if (raw?.op === 'thread.set') return `Change ${name || 'a thread'}${raw?.room && roomOf(raw.room) !== 'facts'
     ? `'s ${roomLabel(roomOf(raw.room))}` : ''}`;
@@ -282,6 +324,7 @@ export function undoFor(c: Change, made: { thread?: string; addon?: string }) {
   if (c.op === 'thread.new') return { op: 'thread.unmake', thread: made.thread, title: c.title, text: c.always };
   if (c.op === 'tale.set') return { op: 'tale.set', field: c.field, text: c.before };
   if (c.op === 'scene.set') return { op: 'scene.set', chapter: c.chapter, field: c.field, text: c.before };
+  if (c.op === 'thread.wake') return { op: 'thread.wake', thread: c.thread, ...c.before };
   if (c.op !== 'thread.set') return null;
   if (c.before == null) return { op: 'room.unmake', thread: c.thread, addon: made.addon, text: c.text };
   return { op: 'thread.set', thread: c.thread, room: c.room, addon: c.addon, text: c.before };

@@ -1652,6 +1652,7 @@ done the moment you answer, so a thing they did not ask for is never a change; o
 - thread.set: the thread by its name, the room (none for its Always true), and the whole new text
   of that room as it should read.
 - thread.new: its title, its type, its Always true as text, and its keys.
+- thread.wake: the thread, always_on or triggered (On a word), and the wake words as keys.
 - tale.set: the field (premise or setting) and its whole new text.
 - scene.set: the scene by its number (none for the scene being written), the field (title or
   heads_toward) and its whole new text.

@@ -709,6 +709,17 @@ function applyChange(storyId: string, owner: string, ch: Change): { thread?: str
   // #98. The premise or the setting, through the save the tale's own panel makes. Only the one
   // field is named, and `updateStory` leaves every field it is not handed as it was.
   if (ch.op === 'tale.set') { db.updateStory(storyId, { [ch.field]: ch.text }); return {}; }
+  // How a thread wakes, through the thread's own save. `upsertEntry` writes the whole row, so the
+  // rest of it is handed back as it stands. `last_editor` is left as it was: how a thread wakes is
+  // not its text, and keeping it is what lets the Undo put the row back exactly. `allowNoKeys` only
+  // ever matters to an Undo putting back a thread that was On a word with none, which is what the
+  // writer had; a request for On a word with no words was refused in `src/changes.ts`.
+  if (ch.op === 'thread.wake') {
+    const cur = db.entriesOf(storyId).find((e: any) => e.id === ch.thread);
+    if (!cur) return null;
+    return db.upsertEntry(storyId, owner, { id: cur.id, title: cur.title, body: cur.body, entryType: cur.entry_type,
+      activation: ch.activation, keys: ch.keys, lastEditor: cur.last_editor, allowNoKeys: !!ch.undo }) ? {} : null;
+  }
   // A scene's title or Heads toward, through the scene panel's own save, which is partial the same way.
   if (ch.op === 'scene.set') {
     db.updateChapter(storyId, ch.chapter, ch.field === 'title' ? { title: ch.text } : { authorsNote: ch.text });
