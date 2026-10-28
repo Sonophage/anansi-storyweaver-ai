@@ -6550,16 +6550,16 @@ const outfitOwner = () => S.entryId || null;
  *  The slot list comes from `V.slots`, which the server already ships from `src/slots.ts` — a second
  *  copy in here is the drift that module exists to stop. */
 const SLOT_HINT = {
-  facts:         ['[What is always true]', '[Halloran: forty, a clerk, two fingers gone from the left hand]'],
-  outfit:        ['[Borrowed Sleepwear]', '[wearing: oversized black sweatpants, faded white t-shirt]'],
-  appearance:    ['[As she is now]', '[grey at the temple, the limp worse in the cold]'],
-  interiority:   ['[What she will not say]', '[will not cross the bridge at night, and says so to nobody]'],
-  relationships: ['[Her and the Ambersand]', '[owes them nine hundred, called in last winter]'],
-  voice:         ['[How she sounds]', '[short sentences, never raises it, answers a question with a question]'],
-  atmosphere:    ['[What it is like now]', '[lamps out along the bank, wet stone, nobody about]'],
-  who_is_here:   ['[Who you find there]', '[the porter, and whoever is owed money that week]'],
-  what_it_does:  ['[What it does]', '[opens the lower records vault and nothing else]'],
-  consequences:  ['[What breaking it costs]', '[the Watch cuts off a hand, or calls in the debt]'],
+  facts:         ['[What is always true]', 'forty, a clerk, two fingers gone from the left hand'],
+  outfit:        ['[Borrowed Sleepwear]', 'oversized black sweatpants, faded white t-shirt'],
+  appearance:    ['[As she is now]', 'grey at the temple, the limp worse in the cold'],
+  interiority:   ['[What she will not say]', 'will not cross the bridge at night, and says so to nobody'],
+  relationships: ['[Her and the Ambersand]', 'owes them nine hundred, called in last winter'],
+  voice:         ['[How she sounds]', 'short sentences, never raises it, answers a question with a question'],
+  atmosphere:    ['[What it is like now]', 'lamps out along the bank, wet stone, nobody about'],
+  who_is_here:   ['[Who you find there]', 'the porter, and whoever is owed money that week'],
+  what_it_does:  ['[What it does]', 'opens the lower records vault and nothing else'],
+  consequences:  ['[What breaking it costs]', 'the Watch cuts off a hand, or calls in the debt'],
 };
 // The `facts` slot is ALWAYS TRUE on every screen (#77, ADR 0005); the code keeps its name.
 const slotLabel = (slot) => (slot === 'facts' ? 'always true' : String(slot).replace(/_/g, ' '));
@@ -6569,7 +6569,7 @@ const pocketTitle = (slot) => { const l = slotLabel(slot); return l.charAt(0).to
  *  fold and pressed a pill, so a THIRD press to reach a name box is the overwhelm Seth named ("right
  *  now it looks like alot to fill out"), not an answer to it. */
 function roomForm(who, slot = 'outfit', openMine = false) {
-  const [namePh, bodyPh] = SLOT_HINT[slot] ?? ['[What it is called]', '[what the model reads]'];
+  const [namePh, bodyPh] = SLOT_HINT[slot] ?? ['[What it is called]', 'what the model reads'];
   return `
     ${inventTray(slot, `Have Anansi write ${esc(who.title)}'s ${esc(slotLabel(slot))}`,
                  'mourning, or travelling light, or whatever you already had in mind')}
