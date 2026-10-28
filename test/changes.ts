@@ -313,6 +313,40 @@ ok('THREAD-OVERTIME-REFUSED: a scene the tale does not have, scene 1, no text, t
     /changed since/i);
 });
 
+const retiring = { ...whole, entries: [...tale.entries,
+  { id: 'e-letter', title: 'The letter', entryType: 'item', addons: [], events: [] },
+  { id: 'e-coin', title: 'The coin', entryType: 'item', addons: [],
+    events: [{ id: 'ev-1', kind: 'retire', fromChapter: 1 }] },
+  { id: 'e-old', title: 'The old way', entryType: 'lore', addons: [], retiredAtChapter: 1 }] };
+
+ok('THREAD-RETIRE: retired from a scene, from the next one when none is named, and Undo brings it back', () => {
+  const c = done(ch.checkAsked({ op: 'thread.retire', thread: 'the letter' }, retiring));
+  assert.strictEqual(c.thread, 'e-letter');
+  assert.strictEqual(c.from, 3, 'none named is the scene after the one the writer is in, as the hand press does');
+  assert.match(ch.wordsFor(c), /Retired The letter from scene 3/);
+  assert.deepStrictEqual(ch.undoFor(c, { event: 'ev-new' }), { op: 'retire.unmake', thread: 'e-letter', event: 'ev-new' });
+  assert.strictEqual(done(ch.checkAsked({ op: 'thread.retire', thread: 'letter', scene: 1 }, retiring)).from, 1);
+  const retired = { ...retiring, entries: [...retiring.entries.filter((e) => e.id !== 'e-letter'),
+    { id: 'e-letter', title: 'The letter', entryType: 'item', addons: [], events: [{ id: 'ev-new', kind: 'retire', fromChapter: 3 }] }] };
+  const u = done(ch.checkUndo({ op: 'retire.unmake', thread: 'e-letter', event: 'ev-new' }, retired));
+  assert.match(ch.wordsFor(u), /Brought back The letter/);
+});
+
+ok('THREAD-RETIRE-REFUSED: a scene the tale does not have, a thread already retired, a followed thread, or a forged Undo', () => {
+  refused(ch.checkAsked({ op: 'thread.retire', thread: 'letter', scene: 6 }, retiring), /no scene 6/i);
+  refused(ch.checkAsked({ op: 'thread.retire', thread: 'coin', scene: 2 }, retiring), /already retired/i);
+  refused(ch.checkAsked({ op: 'thread.retire', thread: 'the old way' }, retiring), /already retired/i);
+  refused(ch.checkAsked({ op: 'thread.retire', thread: 'The Erdtree' }, retiring), /Lands Between/);
+  // Only a retirement can be taken back this way, and only one of this thread's.
+  refused(ch.checkUndo({ op: 'retire.unmake', thread: 'e-letter', event: 'ev-1' }, retiring), /no longer in this tale/i);
+  const worn = { entries: [{ id: 'e-vel', title: 'Vel', entryType: 'character', addons: [],
+    events: [{ id: 'ev-w', kind: 'wear', fromChapter: 2 }, { id: 'ev-r', kind: 'return', fromChapter: 2 }] }] };
+  refused(ch.checkUndo({ op: 'retire.unmake', thread: 'e-vel', event: 'ev-w' }, worn), /no longer in this tale/i);
+  refused(ch.checkUndo({ op: 'retire.unmake', thread: 'e-vel', event: 'ev-r' }, worn), /no longer in this tale/i);
+  for (const op of ['thread.delete', 'thread.remove', 'retire.unmake'])
+    refused(ch.checkAsked({ op, thread: 'letter', event: 'ev-1' }, retiring), /not something Talk can do/i);
+});
+
 ok('the change slice never reaches for the database itself', () => {
   const src = readFileSync(new URL('../src/changes.ts', import.meta.url), 'utf8');
   assert.ok(!/from '\.\/db\.ts'/.test(src), 'src/changes.ts must not import db.ts');

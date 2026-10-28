@@ -691,7 +691,8 @@ function roomOffer(onto: any, field: string | null, body: string): string | null
  *  follows: a room with no words that nobody pinned on never reaches the model, and looks filled in
  *  on the thread while it does nothing. A new thread is made the way accepting a chalked one makes
  *  it: its text is its Always true, and it is the writer's (`last_editor` human), because they asked. */
-function applyChange(storyId: string, owner: string, ch: Change): { thread?: string; addon?: string; state?: string } | null {
+function applyChange(storyId: string, owner: string, ch: Change):
+  { thread?: string; addon?: string; state?: string; event?: string } | null {
   if (ch.op === 'thread.new') {
     const id = db.upsertEntry(storyId, owner, { title: ch.title, body: '', entryType: ch.type,
       activation: ch.activation, keys: ch.keys, lastEditor: 'human' });
@@ -727,6 +728,14 @@ function applyChange(storyId: string, owner: string, ch: Change): { thread?: str
       label: ch.label, beforeMode: ch.beforeMode });
     return id ? { state: id } : null;
   }
+  // Retired through the Retire press's own door, dated. The event it wrote is what its Undo takes
+  // back: the newest retirement of this thread from that scene, which `setRetired` just made.
+  if (ch.op === 'thread.retire') {
+    if (!db.setRetired(storyId, ch.thread, ch.from)) return null;
+    const ev = (db.eventsForStory(storyId).get(ch.thread) ?? [])
+      .filter((x: any) => x.kind === 'retire' && x.from_chapter === ch.from).at(-1);
+    return ev ? { event: ev.id } : null;
+  }
   // A scene's title or Heads toward, through the scene panel's own save, which is partial the same way.
   if (ch.op === 'scene.set') {
     db.updateChapter(storyId, ch.chapter, ch.field === 'title' ? { title: ch.text } : { authorsNote: ch.text });
@@ -737,6 +746,8 @@ function applyChange(storyId: string, owner: string, ch: Change): { thread?: str
   if (ch.op === 'thread.unmake') { db.delEntry(storyId, ch.thread); return {}; }
   if (ch.op === 'room.unmake') { db.delAddon(storyId, ch.addon); return {}; }
   if (ch.op === 'state.unmake') { db.delState(storyId, ch.state); return {}; }
+  // The retirement taken out of its Over time, the way the ✕ on that line takes it out by hand.
+  if (ch.op === 'retire.unmake') return db.delEvent(storyId, ch.event) ? {} : null;
   return null;
 }
 

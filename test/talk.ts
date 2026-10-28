@@ -92,6 +92,9 @@ const srv = createServer((req, res) => {
         changes: [{ op: 'thread.overtime', thread: 'Vel', scene: 3, text: 'Vel is blind in one eye.', label: 'Lost an eye' },
                   { op: 'thread.overtime', thread: 'Vel', scene: 2, text: 'Vel is soaked and cold.' },
                   { op: 'thread.overtime', thread: 'Vel', scene: 7, text: 'Vel is gone.' }] },
+      // "Get rid of the letter": a model may reach for a delete; only the retirement is on the list.
+      RETIRE: { reply: 'The letter is gone.',
+        changes: [{ op: 'thread.retire', thread: 'The letter' }, { op: 'thread.delete', thread: 'The letter' }] },
     };
     const answer = asked && CHANGES[asked] ? CHANGES[asked]
       : asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
@@ -1030,7 +1033,7 @@ ok('emptying the box gives her back the voice she shipped with');
   const age = await say('CHANGE-AGE: make Talia thirty, not twenty');
   assert.ok(!age.error, age.error);
   const ops = calls[0].response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum;
-  assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
+  assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire', 'tale.set', 'scene.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
 
   // Always true, changed at once.
   assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is thirty.', 'CHANGE-DONE: Talia\'s Always true is changed');
@@ -1206,6 +1209,24 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(JSON.stringify(states()), statesBefore,
     'UNDO-OVERTIME: the new entry is gone and the old one is back, body, label and hint alike');
   ok('asked to record a change Over time, Talk dates it, refuses a scene that is not there, and Undo puts the record back');
+
+  // Get rid of the letter. The writer is in scene 3, so it is retired from scene 4, and kept.
+  const events = () => JSON.stringify(db.eventsForStory(tale.id).get(letter) ?? []);
+  const eventsBefore = events();
+  const retiredCol = () => (db.entriesOf(tale.id) as any[]).find((e) => e.id === letter)?.retired_at_chapter ?? null;
+  const rid = await say('CHANGE-RETIRE: get rid of the letter');
+  assert.ok(!rid.error, rid.error);
+  assert.ok((db.entriesOf(tale.id) as any[]).some((e) => e.id === letter), 'THREAD-RETIRE: the letter is still a thread of the tale');
+  assert.strictEqual(retiredCol(), 4, 'THREAD-RETIRE: retired from the scene after the one the writer is in');
+  assert.strictEqual(rid.changes.length, 1, 'THREAD-RETIRE: the retirement is done, and the delete is not');
+  assert.match(rid.changes[0].words, /Retired The letter from scene 4/);
+  assert.match(rid.reply, /Not done.*not something Talk can do/, 'THREAD-RETIRE: and the reply says the delete was not done');
+  const brought: any = undo(rid.changes[0].undo);
+  assert.ok(!brought.error, brought.error);
+  assert.match(brought.undone, /Brought back The letter/);
+  assert.strictEqual(events(), eventsBefore, 'UNDO-RETIRE: its Over time has no retirement in it, as before');
+  assert.strictEqual(retiredCol(), null, 'UNDO-RETIRE: and it is not retired at any scene');
+  ok('asked to get rid of a thread, Talk retires it and never deletes it, and Undo brings it back as it was');
 }
 
 // ---- 6d · THE WRITER MOVES A PROPOSAL, AND THE WRITER OUTRANKS THE MODEL ----

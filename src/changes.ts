@@ -22,11 +22,13 @@
  * remove a thread the writer wrote. The unmake operations are refused from the model by name.
  */
 import { ALL_SLOTS, KINDS, slotsFor } from './slots.ts';
+import { retiredAt } from './context.ts';
 
 /** What the model may ask for. #97 cut the path with the first two; #98 adds the rest. */
-export const ASKED = ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set'] as const;
+export const ASKED = ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire',
+  'tale.set', 'scene.set'] as const;
 /** What only an Undo may do, beside putting back old text. */
-const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake'] as const;
+const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake', 'retire.unmake'] as const;
 /** What an Undo may put back as it was: the asked operations that write over a value, by id. */
 const PUT_BACK = ['thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set'] as const;
 
@@ -64,7 +66,7 @@ export const CHANGES_SCHEMA = {
       // tale.set: which of the tale's own fields. scene.set: which of the scene's.
       field: { type: 'string', enum: [...TALE_FIELDS, ...SCENE_FIELDS] },
       // scene.set: the scene by its number. thread.overtime: the scene it holds from. None is the
-      // scene the writer is in.
+      // scene the writer is in. thread.retire: the scene it is retired from; none is the next one.
       scene: { type: 'integer', minimum: 1 },
     },
     required: ['op'],
@@ -73,7 +75,8 @@ export const CHANGES_SCHEMA = {
 
 type Room = { id: string; slot: string; name: string; body: string; keys: string[]; active: boolean };
 type Thread = { id: string; title: string; entryType: string; addons?: Room[]; sharedFrom?: string | null;
-  activation?: string; keys?: string[]; states?: State[] };
+  activation?: string; keys?: string[]; states?: State[];
+  events?: { id: string; kind: string; fromChapter: number }[]; retiredAtChapter?: number | null };
 type State = { id: string; fromChapter: number; body: string; label?: string | null; beforeMode?: string | null };
 type Scene = { id: string; index: number; title?: string | null; authorsNote?: string | null };
 /** The tale as the route read it through the gate: its threads, and since #98 its own fields, its
@@ -101,7 +104,10 @@ export type Change =
   | { op: 'thread.overtime'; thread: string; title: string; from: number; text: string; label: string | null;
       beforeMode: string; state: string | null; before: { body: string; label: string | null; beforeMode: string } | null;
       undo?: true }
-  | { op: 'state.unmake'; thread: string; title: string; state: string; from: number };
+  | { op: 'state.unmake'; thread: string; title: string; state: string; from: number }
+  | { op: 'thread.retire'; thread: string; title: string; from: number }
+  /** The retirement Talk dated, taken out of the thread's Over time: the thread is back as it was. */
+  | { op: 'retire.unmake'; thread: string; title: string; event: string };
 export type Checked = { ok: true; change: Change } | { ok: false; said: string; why: string };
 
 const NOT_TALK = 'that is not something Talk can do. It changes the tale, its threads and its scenes; '
@@ -178,6 +184,7 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   if (!hit) return { ok: false, said, why: why! };
   if (op === 'thread.wake') return wakeOn(hit, raw, said, false);
   if (op === 'thread.overtime') return overtimeOn(tale, hit, raw, said, false);
+  if (op === 'thread.retire') return retireOn(tale, hit, raw, said);
   return setOn(hit, roomOf(raw.room), String(raw.text ?? '').trim(), said, false);
 }
 
@@ -243,6 +250,24 @@ function overtimeOn(tale: Tale, t: Thread, raw: any, said: string, undo: boolean
   return { ok: true, change: { op: 'thread.overtime', thread: t.id, title: t.title, from: sc.index, text,
     label: label ?? at?.label ?? null, beforeMode, state: at?.id ?? null,
     before: at ? { body: at.body, label: at.label ?? null, beforeMode } : null } };
+}
+
+/** #98 · RETIRED, NEVER DELETED (ADR 0007). "Get rid of the letter" lands here: the thread stops
+ *  reaching the model from a scene on, and every scene before it still has it. No scene named is the
+ *  one after the scene the writer is in, the scene the Retire press on the thread uses, because what
+ *  ends the thread happens during the scene being written. A scene named must be one the tale has,
+ *  or that same next one. A thread already retired at that scene, by the engine's own rule, is
+ *  refused: a second retirement would change nothing the writer could see, and its Undo would take
+ *  away the wrong one. */
+function retireOn(tale: Tale, t: Thread, raw: any, said: string): Checked {
+  if (t.sharedFrom) return followed(t, said);
+  const next = (tale.at ?? 1) + 1;
+  const named = raw?.scene == null || raw.scene === '' ? null : Number(raw.scene);
+  const from = named ?? next;
+  if (named != null && named !== next && !sceneAt(tale, named)) return { ok: false, said, why: noScene(tale, raw.scene) };
+  if (retiredAt(t as any, from) != null) return { ok: false, said,
+    why: `${t.title} is already retired by scene ${from}` };
+  return { ok: true, change: { op: 'thread.retire', thread: t.id, title: t.title, from } };
 }
 
 /** A THREAD THE TALE FOLLOWS lives in its World and is changed there. The screen draws it read-only
@@ -332,6 +357,13 @@ export function checkUndo(raw: any, tale: Tale): Checked {
       || (t.states ?? []).length) return changed;
     return { ok: true, change: { op, thread: t.id, title: t.title } };
   }
+  // A retirement is taken back by its own dated event, and only a retirement: never an outfit, and
+  // never a return the writer pressed. The thread is then as it was before Talk retired it.
+  if (op === 'retire.unmake') {
+    const ev = (t.events ?? []).find((x) => x.id === String(raw.event ?? '') && x.kind === 'retire');
+    if (!ev) return { ok: false, said, why: 'that retirement is no longer in this tale' };
+    return { ok: true, change: { op, thread: t.id, title: t.title, event: ev.id } };
+  }
   if (op === 'state.unmake') {
     const st = (t.states ?? []).find((s) => s.id === String(raw.state ?? ''));
     if (!st) return { ok: false, said, why: 'that Over time entry is no longer in this tale' };
@@ -351,6 +383,8 @@ export function wordsFor(c: Change): string {
   if (c.op === 'thread.unmake') return `Took away ${c.title}.`;
   if (c.op === 'room.unmake') return `Took away ${c.title}'s ${roomLabel(c.room)}.`;
   if (c.op === 'state.unmake') return `Took away ${c.title}'s Over time from scene ${c.from}.`;
+  if (c.op === 'thread.retire') return `Retired ${c.title} from scene ${c.from}. It is kept, and can be brought back.`;
+  if (c.op === 'retire.unmake') return `Brought back ${c.title}.`;
   if (c.op === 'thread.overtime') return c.undo ? `Put back ${c.title}'s Over time from scene ${c.from}.`
     : `${c.state ? 'Changed' : 'Added to'} ${c.title}'s Over time from scene ${c.from}: “${clip(c.text)}”`;
   if (c.op === 'tale.set') return c.undo ? `Put back the tale's ${c.field}.`
@@ -370,6 +404,7 @@ function saidOf(raw: any): string {
   if (raw?.op === 'thread.new') return `Make a new thread${name ? `: ${name}` : ''}`;
   if (raw?.op === 'scene.set') return `Change scene ${raw?.scene ?? 'this one'}`;
   if (raw?.op === 'thread.wake') return `Change how ${name || 'a thread'} wakes`;
+  if (raw?.op === 'thread.retire') return `Retire ${name || 'a thread'}`;
   if (raw?.op === 'thread.overtime') return `Add to ${name || 'a thread'}'s Over time${raw?.scene ? ` from scene ${raw.scene}` : ''}`;
   if (raw?.op === 'tale.set') return `Change the tale's ${String(raw?.field ?? '').trim() || 'premise or setting'}`;
   if (raw?.op === 'thread.set') return `Change ${name || 'a thread'}${raw?.room && roomOf(raw.room) !== 'facts'
@@ -379,8 +414,9 @@ function saidOf(raw: any): string {
 
 /** THE CHANGE THAT PUTS THIS ONE BACK, built once it is applied: `made` holds the ids the write
  *  minted, which nothing knows before it. Returned with the change, and sent back by the Undo. */
-export function undoFor(c: Change, made: { thread?: string; addon?: string; state?: string }) {
+export function undoFor(c: Change, made: { thread?: string; addon?: string; state?: string; event?: string }) {
   if (c.op === 'thread.new') return { op: 'thread.unmake', thread: made.thread, title: c.title, text: c.always };
+  if (c.op === 'thread.retire') return { op: 'retire.unmake', thread: c.thread, event: made.event };
   if (c.op === 'thread.overtime') return c.before
     ? { op: 'thread.overtime', thread: c.thread, state: c.state, scene: c.from, text: c.before.body,
         label: c.before.label, beforeMode: c.before.beforeMode }

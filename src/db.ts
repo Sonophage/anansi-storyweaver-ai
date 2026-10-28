@@ -3725,7 +3725,15 @@ export const eventsForStory = (storyId: string) => {
   return map;
 };
 export const delEvent = (storyId: string, id: string) => {
+  const ev = q('SELECT entry_id, kind FROM entry_events WHERE id = ? AND story_id = ?').get(id, storyId) as any;
   const r = q('DELETE FROM entry_events WHERE id = ? AND story_id = ?').run(id, storyId);
+  // THE COLUMN FOLLOWS THE TIMELINE, as `setRetired` keeps it. A thread with no retire or return
+  // events left is read off `retired_at_chapter` alone (`context.retiredAt`), so taking out its only
+  // retirement used to leave the column saying retired, and the thread stayed out of the prompt with
+  // nothing on its Over time to say why (#98 found it: Talk's Undo of a retirement goes through here).
+  if (r.changes && (ev?.kind === 'retire' || ev?.kind === 'return'))
+    q('UPDATE entries SET retired_at_chapter = ? WHERE id = ? AND story_id = ?')
+      .run(retiredNow(ev.entry_id, Number.MAX_SAFE_INTEGER), ev.entry_id, storyId);
   if (r.changes) touch(storyId);
   return !!r.changes;
 };

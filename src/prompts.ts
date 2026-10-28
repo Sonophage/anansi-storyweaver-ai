@@ -1655,6 +1655,8 @@ done the moment you answer, so a thing they did not ask for is never a change; o
 - thread.overtime: the thread, the scene it holds from, the whole of where the thread stands from
   that scene on as text, and a label of a few words for what changed.
 - thread.wake: the thread, always_on or triggered (On a word), and the wake words as keys.
+- thread.retire: the thread, and the scene it stops from (none for the next scene). "Get rid of it"
+  means this: you never delete a thread.
 - tale.set: the field (premise or setting) and its whole new text.
 - scene.set: the scene by its number (none for the scene being written), the field (title or
   heads_toward) and its whole new text.
