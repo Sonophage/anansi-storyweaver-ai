@@ -43,6 +43,11 @@ one is marked "from memory, not looked up" in the list and the preview, so you k
 check. The mark is never in the thread itself. If the lookup fails, or you would rather not, press
 Go on with no World: the tale keeps the name and follows nothing.
 
+### Threads you bring in are part of starting the tale
+The threads you pick from your other tales on New tale, and turning off "Anansi writes the first
+passage", are now part of Start writing itself. If a picked thread cannot be brought over, the tale
+is not made and your draft is still there; before, the tale was made without it.
+
 ### A tale's universe always names the World it follows
 When a tale follows a World, the universe or IP in its Tale settings is that World's name, so the
 two never say different things. Rename the World, and every tale that follows it takes the new

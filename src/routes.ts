@@ -2765,6 +2765,16 @@ export const routes: Record<string, Handler> = {
         if (id) db.setAddonActive(made.id, id, true);
       }
       if (c.body.opening) db.addPassage({ ...made, storyId: made.id, body: c.body.opening, author: 'model' });
+      // #107 · THE WIZARD'S OPEN SWITCH AND THE THREADS PICKED FROM THE LIBRARY, in this Create and
+      // so inside its rollback. `autoOpen` is only ever sent as false: on is the column's default.
+      if (c.body.autoOpen === false) db.updateStory(made.id, { autoOpen: false });
+      // Through `db.copyEntry`, the one copy path, which refuses unless both tales are the writer's.
+      // A refused copy fails the Create: a tale missing a thread the writer picked is a half-made one.
+      for (const s of (Array.isArray(c.body.seed) ? c.body.seed : []).slice(0, 200) as any[])
+        if (!db.copyEntry(String(s?.storyId ?? ''), made.id, c.owner, String(s?.entryId ?? ''))) {
+          db.delStory(made.id, c.owner);
+          return { error: 'a thread you picked could not be brought over, so nothing was made. Untick it, or try again.' };
+        }
       return { ...made, ...(roomNotes.length ? { notes: roomNotes } : {}) };
     } catch (e) { db.delStory(made.id, c.owner); throw e; }
   },

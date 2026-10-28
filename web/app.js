@@ -5479,6 +5479,12 @@ const forgeCopy = (key, label) => {
 const sparkCast = () => (S.spark?.entries ?? [])
   .filter((e) => e.keep !== false && (e.title ?? '').trim());
 
+/** #28 · THE THREADS PICKED FROM THE LIBRARY, each named by the tale it lives in. #107: they ride the
+ *  create, which copies them through `db.copyEntry` (it refuses unless both tales are the writer's)
+ *  inside its rollback, so a refused copy makes no tale rather than a half-made one. */
+const sparkSeed = () => (S.spark?.seed ?? []).map((id) => (LEDGER ?? []).find((e) => e.id === id))
+  .filter(Boolean).map((e) => ({ storyId: e.story, entryId: e.id }));
+
 /** #103 · THE IP NAMED ON THE TALE'S OWN STEP, MATCHED TO A WORLD THE WRITER ALREADY HAS. Asked
  *  once per name, on every move and at Create, through POST /api/spark/world, which writes nothing
  *  and finds only the writer's own Worlds. A match makes the draft follow that World (the same
@@ -13192,8 +13198,8 @@ document.addEventListener('click', async (e) => {
    *
    *  TWO GUARDS, COVERING DIFFERENT HALVES OF THE SAME PRESS. `whileWorking` holds the button while
    *  `createStory` is in flight, which is the moment the second book gets made — and it releases as
-   *  soon as that call answers, while this handler goes on for several more awaits: a saveStory, one
-   *  copyEntry per picked thread, then loadLibrary and openStory. A press landing in THAT window
+   *  soon as that call answers, while this handler goes on for several more awaits: loadLibrary,
+   *  openStory and the opening passage. A press landing in THAT window
    *  would start a second create with the button no longer busy, so `S.spark.accepting` holds the
    *  whole sequence.
    *
@@ -13243,31 +13249,17 @@ document.addEventListener('click', async (e) => {
       // #104. A new World of the IP, made first; any failure there makes nothing at all.
       ...(ipTicked().length ? { newWorld: { title: S.spark.ipNew.title,
         threads: ipTicked().map((f) => ({ name: f.name, kind: f.kind, memory: !!f.memory })) } } : {}),
+      seed: sparkSeed(),
+      // #107. auto_open defaults on in the column, so it is only ever sent to turn it OFF.
+      ...(S.spark.autoOpen === false ? { autoOpen: false } : {}),
     }));
     // `whileWorking` answers null on a re-entrant press and the state guard above should already
     // have refused it — this is the belt to that braces, and it must not clear `accepting`, or the
     // press that IS working would be unguarded from here on.
     if (!r) return;
     if (r.error) { S.spark.accepting = false; return toast(r.error); }
-    // auto_open defaults on in the column, so this is only ever a call to turn it OFF.
-    if (S.spark.autoOpen === false) await api.saveStory(r.id, { autoOpen: false });
-
-    // #28 · THE PICKED THREADS COME OVER AFTER THE BOOK EXISTS, one call each through the route a
-    // single card already uses — `db.copyEntry` refuses unless both books belong to the caller, and
-    // a second copy path here would be a second place for that check to be forgotten. Lifted from
-    // the blank-start form, which has done it this way since #20 §4.
-    //
-    // A failure is REPORTED AND THE REST STILL RUN. The book is made by this point, so stopping on
-    // the first refusal would leave a story half seeded with nothing on screen saying which half.
-    const wanted = S.spark.seed ?? [];
-    let seeded = 0;
-    for (const id of wanted) {
-      const from = (LEDGER ?? []).find((e) => e.id === id);
-      if (!from) continue;
-      const cp = await api.copyEntry(from.story, r.id, id);
-      if (!cp?.error) seeded++;
-    }
-    if (wanted.length) LEDGER = null;   // the new book's copies are not in the cached list
+    const seeded = sparkSeed().length;   // read before the cached list and the draft are let go
+    if (seeded) LEDGER = null;   // the new book's copies are not in the cached list
 
     /* #40 stage 3. AND WHAT IT IS SET IN. `loreFrom` is the same column "Start a book here" writes,
      * so a book followed from the wizard and a book followed from the Threads page are the same
@@ -13288,12 +13280,9 @@ document.addEventListener('click', async (e) => {
     await loadLibrary();
     await openStory(r.id);
     if (wantOpen) OPEN_WANTED = r.id;
-    // One line, and it says what actually happened rather than what was asked for. A partial copy
-    // is named as one: Council 09 §2 is that a toast which fires unconditionally is a toast that
-    // lies.
-    const brought = !wanted.length ? ''
-      : seeded === wanted.length ? `, and ${plural(seeded, 'thread', 'threads')} brought over`
-      : `, and ${seeded} of ${wanted.length} brought over — the rest were refused`;
+    // One line, and it says what actually happened. A refused copy fails the whole create (#107), so
+    // a tale that exists has every picked thread.
+    const brought = !seeded ? '' : `, and ${plural(seeded, 'thread', 'threads')} brought over`;
     // #40 stage 3. Following is a different answer from copying and gets its own clause: a writer
     // who did both should be told about both, and a writer who followed a world book has done the
     // most consequential thing on that screen.
