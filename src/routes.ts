@@ -1043,6 +1043,8 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
  *  ponytail: one model call for every named thread at once, and the whole scene's narration in the
  *  prompt. Whether one call per thread places changes better is the #73 measurement; and a scene long
  *  enough to overflow the slot returns the overflow error rather than a partial memory. */
+/** #90. The most threads one hem chalks changes for. The rest are named on the hem's card. */
+const HEM_THREADS = 6;
 async function remember(c: Ctx, storyId: string, chapterId: string, scene?: string) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
@@ -1080,12 +1082,19 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
   const quoted = (l: string) => { const t = String(l ?? '').trim();
     return t && norm(text).includes(norm(t)) ? t.slice(0, 240) : null; };
   let remembered = 0;
+  // #90 · SIX AT MOST. The prompt asks for the largest six first; code holds the cap, counting the
+  // threads that chalked anything, so a thread whose answer was all repeats does not use a place.
+  // The rest go to the hem's card by name: the model's own overflow and any thread past the six.
+  const taken = new Set<string>(), overflow: string[] = [];
+  const over = (e: any) => { if (!taken.has(e.id) && !overflow.includes(e.title)) overflow.push(e.title); };
   for (const m of r.data.threads as any[]) {
     if (!m?.name?.trim()) continue;
     // Match on the title, exactly as classify() resolves an entry, and never invent a thread here:
     // this pass updates what exists and extraction is what adds something.
     const who = named.find((e: any) => norm(e.title) === norm(m.name));
     if (!who) continue;
+    if (taken.size >= HEM_THREADS && !taken.has(who.id)) { over(who); continue; }
+    const before = remembered;
     // One card per thread from this route; one card per scene from a hem, which hands `scene` in (#89).
     const grp = scene ?? `hem:${ch.id}:${who.id}`, line = quoted(m.line);
     const delta = (m.label ?? '').trim().slice(0, 60) || 'changed by this scene';
@@ -1120,8 +1129,16 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
       && db.addProposal(storyId, { kind: 'changed', entry_id: who.id, chapterId: ch.id, title: who.title,
         body: always, entryType: who.entryType, field: 'facts', keys: [], grp, line,
         delta: 'who or what it is' })) remembered++;
+    if (remembered > before) taken.add(who.id);
   }
-  return { remembered, chapter: ch.index };
+  // Only names of threads this scene was asked about: a name the ask did not hold is the model's.
+  for (const x of (Array.isArray(r.data.overflow) ? r.data.overflow : []) as any[]) {
+    const who = named.find((e: any) => norm(e.title) === norm(String(x ?? '')));
+    if (who) over(who);
+  }
+  // A hem hands `scene` in; the record is the hem's, so only a hem writes it.
+  if (scene) db.hemOverflow(storyId, ch.id, overflow);
+  return { remembered, chapter: ch.index, overflow };
 }
 
 /** What the chapter about to be written should be called, and what it has to do.

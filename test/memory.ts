@@ -1130,6 +1130,29 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 
 
+// SIX AT MOST. The model returns seven changed threads and names an eighth as overflow: the first
+// six are chalked, and the hem record keeps the seventh and eighth names for the card.
+{
+  const t = db.createStory(me, { title: 'Six at most', premise: 'p' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const names = ['Ada', 'Bram', 'Cora', 'Dov', 'Esk', 'Fen', 'Gil', 'Hob'];
+  const ids = names.map((title) => db.upsertEntry(t.id, me, { title, body: `[${title}: on the quay]`, entryType: 'character', keys: [title] }));
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: `${names.join(', ')} were all pushed off the quay.` });
+  answer = names.slice(0, 7).map((name) => ({ name, stands: `[${name}: soaked, and out of the water]`, label: 'pushed in',
+    line: 'pushed off the quay', always: '', pockets: [] }));
+  tidied = { overflow: ['Hob', 'Nobody Here'] };
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id, summarise: false, extract: false, retire: false }));
+  await hemSettled(t.id);
+  answer = []; tidied = {};
+  const chalked = new Set((db.proposalsOf(t.id) as any[]).filter((p) => p.entry_type === 'state').map((p) => p.entry_id));
+  assert.deepStrictEqual([...chalked].sort(), ids.slice(0, 6).sort(), `CHALK-SIX: six threads are chalked (${chalked.size})`);
+  const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.deepStrictEqual(hem?.overflow, ['Gil', 'Hob'],
+    `CHALK-OVERFLOW: the seventh and the model's overflow name are kept on the hem, and a name the scene has not is not (${hem?.overflow})`);
+  ok('a hem chalks six threads at most and keeps the rest as overflow names');
+}
+
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several

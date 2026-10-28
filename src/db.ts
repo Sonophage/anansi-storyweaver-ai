@@ -546,6 +546,8 @@ function migrate() {
   // #61. Whether the model's chat template takes the weaving switch. NULL on rows added before the
   // probe asked, which were all added with the switch sent and answered, so NULL reads as yes.
   add('shortlist', 'takes_switch', 'INTEGER');
+  // #90. The names of threads a hem's thread-change pass found changed past its cap of six.
+  add('hems', 'overflow', 'TEXT');
   backfillActPrints();
 
   if ((db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type = 'table' AND name = 'outfits'")
@@ -764,13 +766,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS proposals_dedupe ON proposals(story_id, conten
 -- finished, the fingerprint of the scene's prose when it started (proseHash, the one summaryCover
 -- uses), which pass did not run and why (#32, JSON), whether the writer's own summary was kept,
 -- and the next-scene suggestion (JSON: title, note, opens). Running is finished_at NULL. Out of date
--- is derived on read and never stored. A hem again replaces the row.
+-- is derived on read and never stored. A hem again replaces the row. overflow (#90, JSON) holds
+-- the names of threads that changed past the thread-change pass's cap of six.
 CREATE TABLE IF NOT EXISTS hems (
   chapter_id TEXT PRIMARY KEY REFERENCES chapters(id) ON DELETE CASCADE,
   story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   started_at INTEGER NOT NULL, finished_at INTEGER,
   prose_hash TEXT NOT NULL,
-  passes TEXT, kept INTEGER DEFAULT 0, suggestion TEXT);
+  passes TEXT, kept INTEGER DEFAULT 0, suggestion TEXT, overflow TEXT);
 CREATE INDEX IF NOT EXISTS hems_story ON hems(story_id);
 
 -- SPEC 7.1. Per-chapter overrides on the ledger: force a fact in for a scene where it
@@ -1728,6 +1731,12 @@ export const finishHem = (storyId: string, chapterId: string,
     .run(now(), JSON.stringify(r.passes), r.kept ? 1 : 0, r.suggestion ? JSON.stringify(r.suggestion) : null,
       chapterId, storyId);
 
+/** #90. The threads the thread-change pass found changed past its cap of six, by name, for the card.
+ *  Written by that pass when a hem runs it; a hem again starts the row with none. */
+export const hemOverflow = (storyId: string, chapterId: string, names: string[]) =>
+  q('UPDATE hems SET overflow = ? WHERE chapter_id = ? AND story_id = ?')
+    .run(JSON.stringify(names), chapterId, storyId);
+
 /** Every hemmed scene of a tale, by chapter id, as the story view shows it. `outOfDate` is derived
  *  here, on read: the scene's prose now against its fingerprint when the hem started. */
 export function hemsOf(storyId: string): Map<string, any> {
@@ -1737,6 +1746,7 @@ export function hemsOf(storyId: string): Map<string, any> {
     state: h.finished_at == null ? 'running' : 'done',
     startedAt: h.started_at, finishedAt: h.finished_at ?? null,
     passes: json(h.passes) ?? {}, keptSummary: !!h.kept, suggestion: json(h.suggestion),
+    overflow: json(h.overflow) ?? [],
     outOfDate: scenePrint(h.chapter_id) !== h.prose_hash,
   }]));
 }
