@@ -610,9 +610,9 @@ Shape: "<where in the place>, <the time>; <the weather>, <the light>."
 The writing style is the voice of the weave, and a model has to be able to match it from what you
 write — so a hundred words or so, not a label. Say how the sentences run and how long they are,
 what the narration notices and what it will not say outright, how much dialogue there is, what the
-tense and the distance are. It is a description of PROSE: "short sentences, weather does the
-feeling, nobody's interior is ever stated" is the voice; "literary noir" is a genre and is no use
-here.
+tense and the distance are. It is a description of PROSE, in the shape "<how the sentences run>; <what carries
+the feeling>; <what the narration never states>", never a genre label, which is no use here. The
+angle brackets are never written.
 
 Infer the spice level from the idea; use 2 when there is no signal.`;
 
