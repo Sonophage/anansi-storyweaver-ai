@@ -271,7 +271,10 @@ function overtimeOn(tale: Tale, t: Thread, raw: any, said: string, undo: boolean
     if (!st) return { ok: false, said, why: 'that Over time entry is no longer in this tale' };
     const w = raw.wrote;
     if (!w || !stillWrote(w.body, st.body) || (w.label ?? null) !== (st.label ?? null)) return { ok: false, said, why: SINCE };
-    const from = Number(raw.scene) || st.fromChapter;
+    // The entry goes back at its own scene. The scene in the body is not read: a real Undo names
+    // the one the entry has, and a forged one naming another could move it to scene 1, or onto a
+    // scene that already has an entry, leaving two dated from one scene.
+    const from = st.fromChapter;
     const beforeMode = raw.beforeMode === 'hint' ? 'hint' : 'hide';
     return { ok: true, change: { op: 'thread.overtime', thread: t.id, title: t.title, from, text, label, beforeMode,
       state: st.id, before: { body: text, label, beforeMode }, undo: true } };

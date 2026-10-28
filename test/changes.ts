@@ -327,6 +327,18 @@ ok('THREAD-OVERTIME-REFUSED: a scene the tale does not have, scene 1, no text, t
     /changed since/i);
 });
 
+ok('UNDO-OVERTIME-SCENE: an Over time put-back restores the entry at its own scene, whatever scene the Undo names', () => {
+  // A real Undo names the scene the entry already has. A forged one may name scene 1, or scene 3
+  // where another entry could already stand; neither may move the entry, or two entries end up
+  // dated from one scene.
+  const wrote = { body: 'Vel is soaked.', label: 'Fell in' };
+  for (const scene of [1, 3, 99, undefined]) {
+    const u = done(ch.checkUndo({ op: 'thread.overtime', thread: 'e-vel', state: 'st-2', scene, text: 'Vel is wet.',
+      label: 'Fell in', beforeMode: 'hint', wrote }, dated));
+    assert.strictEqual(u.from, 2, `an Undo naming scene ${scene} still puts the entry back at scene 2`);
+  }
+});
+
 const retiring = { ...whole, entries: [...tale.entries,
   { id: 'e-letter', title: 'The letter', entryType: 'item', addons: [], events: [] },
   { id: 'e-coin', title: 'The coin', entryType: 'item', addons: [],
