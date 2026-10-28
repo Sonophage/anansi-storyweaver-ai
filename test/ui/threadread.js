@@ -83,7 +83,8 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   ok(`  and the reach tag draws the list's own mark for this thread (${face?.look} = ${listLook})`,
      !!face?.look && face.look === listLook && /Tap to/.test(face.reachLabel));
   ok(`  then the thread's text, without the bracket (${face?.text.slice(0, 30)})`,
-     /^Moneylender, courteous/.test(face?.text ?? ''));
+     // #114: stored plain now, so it shows as stored; the capital came only from taking the bracket off.
+     /^moneylender, courteous/i.test(face?.text ?? ''));
 
   // ---- Each pocket a card, with its switch on the card
   const pocketCards = await page.eval(`JSON.stringify([...document.querySelectorAll('#sideBody .readface .card')]
