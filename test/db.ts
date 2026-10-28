@@ -3480,4 +3480,39 @@ ok('a World is found by its name for its own writer, and never for another', () 
   assert.strictEqual(db.worldNamed(kia, 'Elden Ring')?.id, hers.id, 'while hers stays hers');
 });
 
+// #103 · THE TALE'S WORLD FIELD AND WHAT IT FOLLOWS ARE ONE ANSWER. The field rides in every call
+// beside the genre and narrows a web search, so a tale following one World while its field names
+// another would tell the model two different settings.
+ok("a tale following a World names it in its World field, and the two never disagree", () => {
+  const kia = db.owner('kia-103-pair'), seth = db.owner('seth-103-pair');
+  const ring = db.createWorld(kia, { title: 'Elden Ring' });
+  const dune = db.createWorld(kia, { title: 'Dune' });
+  const tale = db.createStory(kia, { title: 'The Lands Between' });
+  const view = () => db.getStory(tale.id) as any;
+  db.updateStory(tale.id, { world: 'elden ring', loreFrom: ring.id });
+  assert.deepStrictEqual([view().lore_from, view().world], [ring.id, 'Elden Ring'],
+    "following a World names it, in the World's own words");
+  db.updateStory(tale.id, { world: 'Dark Souls' });
+  assert.strictEqual(view().world, 'Elden Ring', 'a save naming another IP does not split the pair');
+  db.updateStory(tale.id, { loreFrom: dune.id });
+  assert.deepStrictEqual([view().lore_from, view().world], [dune.id, 'Dune'], 'following another World moves both');
+  db.updateStory(tale.id, { loreFrom: null });
+  assert.deepStrictEqual([view().lore_from, view().world], [null, 'Dune'],
+    'following nothing keeps the IP named, and the field is the writer\'s again');
+  db.updateStory(tale.id, { world: 'Dark Souls' });
+  assert.strictEqual(view().world, 'Dark Souls', 'and it saves');
+  // A tale is not a World: following one leaves the field alone.
+  const book = db.createStory(kia, { title: 'Another tale' });
+  db.updateStory(tale.id, { loreFrom: book.id });
+  assert.strictEqual(view().world, 'Dark Souls', 'following a tale that is not a World leaves the field');
+  // "Start a book here" on Threads is the other way a tale comes to follow a World.
+  const started = db.storyFollowing(kia, ring.id, 'A Second Tarnished')!;
+  assert.strictEqual((db.getStory(started.id) as any).world, 'Elden Ring', 'a tale started from a World names it');
+  // Another writer's World never names itself in Kia's tale, even where the column can point at it.
+  const his = db.createWorld(seth, { title: 'His Secret World' });
+  db.updateStory(book.id, { loreFrom: his.id });
+  assert.notStrictEqual((db.getStory(book.id) as any).world, 'His Secret World',
+    "another writer's World does not put its name in her tale");
+});
+
 console.log(`\n${n} checks passed`);

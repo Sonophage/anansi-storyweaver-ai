@@ -1528,7 +1528,8 @@ export function storyFollowing(ownerId: string, sourceId: string, title: string)
     pov: w.pov ?? 'third', spice: w.spice, writingStyle: w.writing_style ?? '',
     styleNote: w.style_note ?? '',
   });
-  q('UPDATE stories SET lore_from = ? WHERE id = ?').run(sourceId, id.id);
+  // Through `updateStory`, never a bare UPDATE: `followPair` sets the World field with it (#103).
+  updateStory(id.id, { loreFrom: sourceId });
   return id;
 }
 
@@ -2956,10 +2957,34 @@ export function endChapter(storyId: string, branchId: string, nextTitle?: string
  *  answered 500. Absent keys now keep what is already stored; an explicit null still clears. */
 /** The most the cover behind the prose can be blurred, in pixels. Past this it is a colour wash. */
 export const MAX_COVER_BLUR = 24;
+/** #103 · WHAT A TALE FOLLOWS AND ITS WORLD FIELD, DECIDED TOGETHER, and only here. Every write of
+ *  `lore_from` goes through `updateStory`, which asks this: the wizard's Create, Tale settings,
+ *  and "Start a book here" on Threads. (`duplicateStory` copies the pair as it stands, so it
+ *  agrees already; import never writes `lore_from`.) The field rides in every call beside the genre and narrows
+ *  a web search, so a tale following one World while its field names another would tell the model
+ *  two settings. While the tale follows a World of the same owner, the field is that World's
+ *  title, whatever was asked; following a tale that is not a World, or nothing, leaves the field
+ *  as asked. Another writer's World never gives its name: the column can point at one (an import,
+ *  a book changing hands), and `entriesFor` refuses to read it for the same reason.
+ *
+ *  A book cannot follow itself, and cannot follow a book that follows it: one hop means the pair is
+ *  the only cycle possible, so refusing it here is cheaper than a walk. An explicit null clears it;
+ *  an INVALID one leaves what is stored alone. Returning null on a refusal would have made "follow
+ *  yourself" a way to silently unfollow the book you were actually following, which is a partial
+ *  save destroying a setting it was not asked about. */
+function followPair(cur: any, wanted: string | null, world: string | null) {
+  const loreFrom = !wanted ? null
+    : wanted === cur.id ? (cur.lore_from ?? null)
+    : (() => { const other = getStory(wanted) as any;
+        return other && other.lore_from !== cur.id ? wanted : (cur.lore_from ?? null); })();
+  const src = loreFrom ? getStory(loreFrom) as any : null;
+  return { loreFrom, world: src?.is_world && src.owner_id === cur.owner_id ? src.title : world };
+}
 export function updateStory(id: string, s: any) {
   const cur = getStory(id);
   if (!cur) return;
   const p = (k: string, col: string) => (s[k] !== undefined ? s[k] : cur[col]);
+  const pair = followPair(cur, p('loreFrom', 'lore_from') || null, p('world', 'world') ?? null);
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       spice=?,spice_note=?,max_context=?,status=?,model=?,
       locked_character=?,lockout_on=?,weaving=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,
@@ -2986,25 +3011,16 @@ export function updateStory(id: string, s: any) {
       // A boolean over the wire, an integer in the column, and `undefined` means "leave it" —
       // p() already resolves that to the current value, so a partial save cannot switch it off.
       Number(p('autoOpen', 'auto_open') ? 1 : 0),
-      // A book cannot follow itself, and cannot follow a book that follows it: one hop means the
-      // pair is the only cycle possible, so refusing it here is cheaper than a walk. Placed to
+      // What it follows, decided with the World field by `followPair`. Placed to
       // match the COLUMN ORDER above — written two slots early once, every value after it shifted,
       // and `test/db.ts` caught it as an unrelated field refusing to save.
-      (() => { const w = p('loreFrom', 'lore_from') || null;
-        // An explicit null clears it; an INVALID one leaves what is stored alone. Returning null on
-        // a refusal would have made "follow yourself" a way to silently unfollow the book you were
-        // actually following, which is a partial save destroying a setting it was not asked about
-        // — the exact thing the note above this function exists to prevent.
-        if (!w) return null;
-        if (w === id) return cur.lore_from ?? null;
-        const other = getStory(w) as any;
-        return other && other.lore_from !== id ? w : (cur.lore_from ?? null); })(),
+      pair.loreFrom,
       p('styleNote', 'style_note') ?? null,
       // The world this book belongs to, and what is true in it. Placed to MATCH THE COLUMN ORDER
       // above, which the note four lines up records getting wrong once — a value written two slots
       // early shifts every one after it, and test/db.ts caught that as an unrelated field refusing
       // to save.
-      p('world', 'world') ?? null,
+      pair.world,
       p('worldNote', 'world_note') ?? null,
       now(), id);
 }
