@@ -5541,6 +5541,22 @@ const ipTicked = () => {
   return nw && !nw.without && !S.spark.follow ? nw.found.filter((f) => f.keep) : [];
 };
 
+/** #105 · THE WORLD'S PEOPLE THIS DRAFT BRINGS IN, by name: those of the World the IP matched, while
+ *  the tale follows it, or the people ticked for a new one. One reader for You, which offers them to
+ *  play and to keep Hands off, and for the preview, which marks who is in the opening. */
+const worldPeople = () => {
+  const sp = S.spark;
+  if (sp?.ipWorld && sp.follow === sp.ipWorld.id) return sp.ipWorld.people.map((e) => e.title);
+  return ipTicked().filter((f) => f.kind !== 'place').map((f) => f.name);
+};
+
+/** #105 · WHO IS IN THE OPENING: the World's people marked on the preview, still in the draft.
+ *  Create pins them to the first scene, and they stay the World's threads. */
+const sparkOpening = () => worldPeople().filter((n) => S.spark?.opening?.[n.toLowerCase()]);
+const openingMark = (name) => !worldPeople().includes(name) ? '' : `<label class="hint flush" style="display:flex; gap:7px; align-items:center;
+  cursor:pointer"><input type="checkbox" data-spopening="${esc(name)}" ${S.spark?.opening?.[name.toLowerCase()]
+  ? 'checked' : ''}> In the opening: always sent for the first scene</label>`;
+
 /** #107 · THE WORLD THE NEW TALE WILL FOLLOW, in words, or null: a new one of the ticked names, or
  *  one the writer has. One reader for the Begin step and the line Create says when it is done. */
 const sparkWorld = () => {
@@ -5653,6 +5669,9 @@ function sparkReview() {
   // You play and Hands off are people. The cast list offered a place ("Gull Rock") as someone to
   // play (second usability check, 2026-10-25).
   const people = cast.filter((e) => (e.entryType ?? 'character') === 'character');
+  // #105 · And the World's people, offered beside them on You: one played or held there is made
+  // this tale's own thread at Create.
+  const names = [...new Set([...people.map((e) => e.title), ...worldPeople()])];
   // #40. What the writer has ticked and unticked on the threads step. `keep === false` is an
   // explicit untick; anything else is kept, which is what a freshly proposed thread arrives as.
   const kept = (S.spark.entries ?? []).filter((e) => e.keep !== false).length;
@@ -5749,13 +5768,13 @@ function sparkReview() {
        ${helpBody('persona')}
        <input class="field" id="f-sp-persona" data-sp="persona" list="f-sp-cast" value="${esc(s.persona ?? '')}"
          placeholder="A name, or leave it empty to play nobody">
-       <datalist id="f-sp-cast">${people.map((e) => `<option value="${esc(e.title)}"></option>`).join('')}</datalist>
-       <div class="hint">${people.length ? 'One of the threads so far, or somebody new.'
+       <datalist id="f-sp-cast">${names.map((n) => `<option value="${esc(n)}"></option>`).join('')}</datalist>
+       <div class="hint">${names.length ? 'One of the threads so far, or somebody new.'
          : 'Somebody new, or nobody. Anansi writes the threads next, with them in.'}</div>
        ${area('personaAbout', 'If they are new, who they are', s.personaAbout,
          'A line or two. Their thread is written from it.', 56)}
        ${pickOne('lockedCharacter', `Hands off${helpMark('locked')}`,
-           [...new Set([s.persona, ...people.map((e) => e.title)].filter(Boolean))], s.lockedCharacter,
+           [...new Set([s.persona, ...names].filter(Boolean))], s.lockedCharacter,
            LOCKED_NONE, `${lockoutHint(s.lockedCharacter, s.lockoutOn !== false)} ${LOCKED_ASIDE}`,
            helpBody('locked'))}
        ${s.lockedCharacter ? holdBack(s.lockedCharacter, s.lockoutOn !== false, 'data-sp') : ''}
@@ -6049,7 +6068,8 @@ function sparkPreview(s, { row, area }) {
         threads, not copies: change one there and it changes here. Your tale's own thread of the same
         name wins in this tale.</div>
       ${ipWorld.people.length ? ipWorld.people.map((e) => `<div class="card below-8 gap-6">
-        <span class="name-14">${esc(e.title)}</span><span class="note">${esc(e.body ?? '')}</span></div>`).join('')
+        <span class="name-14">${esc(e.title)}</span><span class="note">${esc(e.body ?? '')}</span>
+        ${openingMark(e.title)}</div>`).join('')
         : '<div class="hint flush">Nobody in it yet.</div>'}` : ''}
     ${ipNew.length ? `<div class="lbl sect">A new World, ${esc(S.spark.ipNew.title)} &middot;
         <span class="tnum">${ipNew.length}</span></div>
@@ -6057,7 +6077,8 @@ function sparkPreview(s, { row, area }) {
         follows it. Anansi writes each one then, one at a time.</div>
       ${ipNew.map((f) => `<div class="card below-8 gap-6">
         <span class="name-14">${esc(f.name)}</span>${f.memory
-          ? '<span class="hint flush">from memory, not looked up</span>' : ''}<span class="note">${esc(f.line ?? '')}</span></div>`).join('')}` : ''}
+          ? '<span class="hint flush">from memory, not looked up</span>' : ''}<span class="note">${esc(f.line ?? '')}</span>
+        ${openingMark(f.name)}</div>`).join('')}` : ''}
     <div class="lbl sect">Rules &middot; <span class="tnum">${rules.length}</span></div>
     ${rules.length ? rules.map(card).join('') : '<div class="hint flush">None. A tale needs a rule only when the idea does.</div>'}
     <div class="lbl sect">Your own</div>
@@ -10699,6 +10720,11 @@ document.addEventListener('change', (e) => {
     paint();
     return;
   }
+  // #105. A World person marked in the opening on the preview. On state, as the tick below is.
+  if (el?.dataset?.spopening !== undefined && S.spark) {
+    (S.spark.opening ??= {})[el.dataset.spopening.toLowerCase()] = !!el.checked;
+    return;
+  }
   // #104. A tick on the new World's list. On state, so it survives a repaint; the box shows itself.
   if (el?.dataset?.ippick !== undefined && S.spark?.ipNew) {
     const f = S.spark.ipNew.found[Number(el.dataset.ippick)];
@@ -13262,6 +13288,8 @@ document.addEventListener('click', async (e) => {
       ...(ipTicked().length ? { newWorld: { title: S.spark.ipNew.title,
         threads: ipTicked().map((f) => ({ name: f.name, kind: f.kind, memory: !!f.memory })) } } : {}),
       seed: sparkSeed(),
+      // #105. The World's people marked in the opening, pinned to the first scene at Create.
+      inOpening: sparkOpening(),
       // #107. auto_open defaults on in the column, so it is only ever sent to turn it OFF.
       ...(S.spark.autoOpen === false ? { autoOpen: false } : {}),
     }));

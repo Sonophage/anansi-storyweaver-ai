@@ -44,6 +44,15 @@ one is marked "from memory, not looked up" in the list and the preview, so you k
 check. The mark is never in the thread itself. If the lookup fails, or you would rather not, press
 Go on with no World: the tale keeps the name and follows nothing.
 
+### Mark who of the World is in the opening, and play one of them
+In the preview, each person of the World has a box: In the opening. The people you mark are always
+sent for the first scene, even when nobody names them, and after it they come in like everyone
+else. They stay the World's threads, so a fix in the World still reaches the tale.
+
+On You, the World's people are offered to play and to keep Hands off. When you play one, or keep
+one Hands off, this tale gets its own thread for them, made from the World's. The one you keep
+Hands off is written from the outside in this tale only. The World's thread does not change.
+
 ### Threads you bring in are part of starting the tale
 The threads you pick from your other tales on New tale, and turning off "Anansi writes the first
 passage", are now part of Start writing itself. If a picked thread cannot be brought over, the tale
