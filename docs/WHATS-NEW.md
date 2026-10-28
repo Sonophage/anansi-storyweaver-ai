@@ -16,7 +16,7 @@ Everything below this line was written by that model call, before it was removed
 
 
 
-## 2026-10-28 · A tale set in a story or game you already have a World for
+## 2026-10-28 · Tales set in a story or game, through your Worlds
 
 ### Name the IP, and the new tale follows your World
 The first step of New tale now asks whether the tale is set in a story or game that already
@@ -31,6 +31,12 @@ have no World for is kept as the tale's universe, as before.
 ### A tale's universe always names the World it follows
 When a tale follows a World, the universe or IP in its Tale settings is that World's name, so the
 two never say different things.
+
+### Bring in a thread of the World your tale follows
+In a scene's setup, you can now tick a person or place from the World your tale follows, the same
+way you tick one of the tale's own. Before, Anansi said "that scene or thread is not in this tale".
+The thread is sent for that scene and stays the World's: a change to it in the World reaches the
+scene. Your pins from before are all still there.
 
 ## 2026-10-28 · Anansi changes what you ask him to
 

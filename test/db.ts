@@ -2948,7 +2948,7 @@ ok('a passage can land unclaimed, survives editing and re-rolling, and the next 
 // on entries would ride in every view, every ledger page and every prompt assembly whether or not
 // anything drew it.
 //
-// AND KEYED (entry_id, story_id), matching chapter_pins and entry_states. That composite is what
+// AND KEYED (entry_id, story_id), as chapter_pins was until #102. That composite is what
 // closes SPEC 7.1's cross-story leak, and a picture reachable through the wrong book would be
 // exactly that leak wearing a new column.
 ok('a thread can carry an optional picture, scoped to its own book', () => {
@@ -3513,6 +3513,144 @@ ok("a tale following a World names it in its World field, and the two never disa
   db.updateStory(book.id, { loreFrom: his.id });
   assert.notStrictEqual((db.getStory(book.id) as any).world, 'His Secret World',
     "another writer's World does not put its name in her tale");
+});
+
+// #102. A SCENE PIN CAN HOLD A THREAD OF THE WORLD THE TALE FOLLOWS. The thread stays the World's: it
+// is pinned by its own id, it is not copied into the tale, and it reaches the model for that scene.
+// Margit's wake word never appears in the scene, so the pin is the only way she can be sent.
+const pinnedIn = (t: any) => (storyMod.assemble(storyMod.view(t.id)!, { global: 100096, slots: 4, perSlot: 25024 },
+  'direct').manifest.blocks as any[]).filter((b) => b.state === 'included' && b.firedBy?.includes('pinned')).map((b) => b.id);
+ok('a pin on a thread of the followed World is kept, stays the World\'s, and is sent for that scene', () => {
+  const me = db.owner('pin-world');
+  const world = db.createWorld(me, { title: 'The Lands Between', premise: 'A broken ring.' });
+  const margit = db.upsertEntry(world.id, me, { title: 'Margit', body: '[Margit: the Fell Omen]',
+    activation: 'triggered', keys: ['omen'] })!;
+  const tale = db.storyFollowing(me, world.id, 'A Tarnished Road')!;
+  db.addPassage({ ...tale, storyId: tale.id, body: 'The bridge was empty in the rain.' });
+  assert.deepStrictEqual(pinnedIn(tale), [], 'WORLD-PIN-BASE: nothing is pinned to begin with');
+
+  assert.strictEqual(db.setPin(tale.id, tale.chapterId, margit, 'force_in'), true, 'WORLD-PIN-KEPT: the pin is accepted');
+  assert.deepStrictEqual(db.pinsOf(tale.id).map((p: any) => [p.chapter_id, p.entry_id, p.mode]),
+    [[tale.chapterId, margit, 'force_in']], 'WORLD-PIN-STORED: the pin names the World thread itself');
+  assert.strictEqual(db.entriesOf(tale.id).length, 0, 'WORLD-PIN-NO-COPY: the tale has no copy of her');
+  assert.deepStrictEqual(pinnedIn(tale), [margit], 'WORLD-PIN-SENT: she reaches the model for that scene');
+
+  // She keeps following: a fix in the World is what the pinned scene sends.
+  db.upsertEntry(world.id, me, { id: margit, title: 'Margit', body: '[Margit: Morgott in disguise]',
+    activation: 'triggered', keys: ['omen'] });
+  const sent = storyMod.assemble(storyMod.view(tale.id)!, { global: 100096, slots: 4, perSlot: 25024 }, 'direct');
+  assert.ok(JSON.stringify(sent).includes('Morgott in disguise'), 'WORLD-PIN-FOLLOWS: the World\'s new text is sent');
+
+  // A copy of the tale follows the same World, so it keeps the pin on the same thread.
+  const copy = db.duplicateStory(me, tale.id, 'A Tarnished Road, again') as any;
+  assert.deepStrictEqual(db.pinsOf(copy.id).map((p: any) => p.entry_id), [margit],
+    'WORLD-PIN-COPIED: a copy of the tale keeps its pin on the World thread');
+});
+
+// #102. WHAT A TALE MAY NOT PIN, and what takes a World pin away. The other writer's World is
+// followed through a `lore_from` written past the screens, the way an import or a source changing
+// hands would leave it: `entriesFor` refuses to read through it, and a pin must refuse the same.
+ok('a pin on an unfollowed World or another writer\'s thread is refused, and a World pin goes when it should', () => {
+  const me = db.owner('pin-refuse'), them = db.owner('pin-refuse-other');
+  const world = db.createWorld(me, { title: 'Limgrave', premise: 'p' });
+  const other = db.createWorld(me, { title: 'Caelid', premise: 'p' });
+  const theirs = db.createWorld(them, { title: 'Their Limgrave', premise: 'p' });
+  const at = (w: any, title: string) => db.upsertEntry(w.id, w === theirs ? them : me,
+    { title, body: `[${title}]`, activation: 'triggered', keys: ['nothing-says-this'] })!;
+  const margit = at(world, 'Margit'), radahn = at(other, 'Radahn'), godrick = at(theirs, 'Godrick');
+  const theirTale = db.createStory(them, { title: 'Their tale', premise: 'p' });
+  const theirThread = db.upsertEntry(theirTale.id, them, { title: 'Melina', body: '[Melina]' })!;
+  const tale = db.storyFollowing(me, world.id, 'Road')!;
+  const pins = () => db.pinsOf(tale.id).map((p: any) => p.entry_id);
+
+  assert.strictEqual(db.setPin(tale.id, tale.chapterId, radahn, 'force_in'), false,
+    'PIN-REFUSE-UNFOLLOWED: a thread of a World the tale does not follow is refused');
+  assert.strictEqual(db.setPin(tale.id, tale.chapterId, theirThread, 'force_in'), false,
+    'PIN-REFUSE-OTHER-TALE: a thread of another writer\'s tale is refused');
+  db.updateStory(tale.id, { loreFrom: theirs.id });
+  assert.strictEqual((db.getStory(tale.id) as any).lore_from, theirs.id, "the column names their World");
+  assert.strictEqual(db.setPin(tale.id, tale.chapterId, godrick, 'force_in'), false,
+    'PIN-REFUSE-OTHER-WORLD: another writer\'s World is refused even when the column names it');
+  db.updateStory(tale.id, { loreFrom: world.id });
+  assert.deepStrictEqual(pins(), [], 'and none of the three left a pin');
+
+  // Unpinning takes it away.
+  db.setPin(tale.id, tale.chapterId, margit, 'force_in');
+  db.setPin(tale.id, tale.chapterId, margit, null);
+  assert.deepStrictEqual(pins(), [], 'PIN-GONE-UNPIN: unpinning removes the World pin');
+  // Deleting the scene takes it away. A second scene is opened first: a tale keeps one open scene.
+  const two = db.endChapter(tale.id, tale.branchId) as any;
+  db.setPin(tale.id, tale.chapterId, margit, 'force_in');
+  assert.deepStrictEqual(pins(), [margit], 'the pin is back before the scene goes');
+  assert.ok(db.delChapter(tale.id, tale.chapterId).deleted, 'the first scene is deleted');
+  assert.deepStrictEqual(pins(), [], 'PIN-GONE-SCENE: deleting the scene removes the World pin');
+  // Deleting the thread in the World takes it away.
+  db.setPin(tale.id, two.opened, margit, 'force_out');
+  assert.deepStrictEqual(pins(), [margit], 'pinned on the second scene');
+  db.delEntry(world.id, margit);
+  assert.deepStrictEqual(pins(), [], 'PIN-GONE-THREAD: deleting the World thread removes the pin');
+});
+
+/* #102. A LIBRARY FROM BEFORE IS REBUILT, and its pins come through unchanged. The old library is a
+ * copy of this one with chapter_pins put back in the shape it had: the thread keyed (entry_id,
+ * story_id), so a pin could only hold the tale's own thread. A server is then started on it the way
+ * a boot does, by loading db.ts in a process of its own, twice. Never the live library. */
+ok('an old library\'s pins survive the rebuild unchanged, with one backup, and a second boot does nothing', () => {
+  const me = db.owner('pin-migrate');
+  const t = db.createStory(me, { title: 'Old pins', premise: 'p' });
+  const a = db.upsertEntry(t.id, me, { title: 'Ranni', body: '[Ranni]' })!;
+  const b = db.upsertEntry(t.id, me, { title: 'Blaidd', body: '[Blaidd]' })!;
+  db.setPin(t.id, t.chapterId, a, 'force_in');
+  db.setPin(t.id, t.chapterId, b, 'force_out');
+  const dir = mkdtempSync('/tmp/anansi-pins-');
+  try {
+    const file = join(dir, 'old.db');
+    db.snapshot(file);
+    const old = new RawDb(file);
+    old.exec(`ALTER TABLE chapter_pins RENAME TO pins_now;
+      CREATE TABLE chapter_pins (
+        chapter_id TEXT NOT NULL, entry_id TEXT NOT NULL, story_id TEXT NOT NULL,
+        mode TEXT NOT NULL, created_at INTEGER NOT NULL,
+        PRIMARY KEY (chapter_id, entry_id),
+        FOREIGN KEY (chapter_id, story_id) REFERENCES chapters(id, story_id) ON DELETE CASCADE,
+        FOREIGN KEY (entry_id, story_id)   REFERENCES entries(id, story_id)  ON DELETE CASCADE);
+      -- The pins the old shape could hold: on the tale's own threads. World pins made above cannot be.
+      INSERT INTO chapter_pins SELECT chapter_id, entry_id, story_id, mode, created_at FROM pins_now p
+        WHERE EXISTS (SELECT 1 FROM entries e WHERE e.id = p.entry_id AND e.story_id = p.story_id);
+      DROP TABLE pins_now;`);
+    const rows = (c: any) => c.prepare('SELECT * FROM chapter_pins ORDER BY chapter_id, entry_id').all()
+      .map((r: any) => ({ ...r }));
+    const keys = (c: any) => c.prepare('PRAGMA foreign_key_list(chapter_pins)').all()
+      .filter((k: any) => k.table === 'entries').map((k: any) => k.from).sort();
+    const before = rows(old);
+    assert.ok(before.some((r: any) => r.entry_id === a) && before.some((r: any) => r.entry_id === b),
+      'the old library holds both pins');
+    assert.deepStrictEqual(keys(old), ['entry_id', 'story_id'], 'and is in the old shape');
+    old.close();
+
+    const boot = () => {
+      const r = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
+        `await import(${JSON.stringify(new URL('../src/db.ts', import.meta.url).href)});`],
+        { env: { ...process.env, ANANSI_DB: file }, encoding: 'utf8' });
+      assert.strictEqual(r.status, 0, `the boot failed: ${r.stderr}`);
+      return r.stdout;
+    };
+    const backups = () => existsSync(join(dir, 'backups'))
+      ? readdirSync(join(dir, 'backups')).filter((f) => f.startsWith('pre-update-')) : [];
+    boot();
+    const now = new RawDb(file, { readOnly: true });
+    assert.deepStrictEqual(keys(now), ['entry_id'], 'PIN-MIGRATE-SHAPE: the thread is keyed by its id alone');
+    assert.deepStrictEqual(rows(now), before, 'PIN-MIGRATE-KEPT: every pin is exactly what it was');
+    now.close();
+    assert.strictEqual(backups().length, 1, 'PIN-MIGRATE-BACKUP: one backup was taken before the rebuild');
+
+    boot();
+    assert.strictEqual(backups().length, 1, 'PIN-MIGRATE-ONCE: a second boot takes no backup');
+    const again = new RawDb(file, { readOnly: true });
+    assert.deepStrictEqual(rows(again), before, 'PIN-MIGRATE-IDEMPOTENT: and changes no pin');
+    again.close();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+  db.delStory(t.id);
 });
 
 console.log(`\n${n} checks passed`);

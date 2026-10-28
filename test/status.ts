@@ -68,6 +68,31 @@ ok('a library whose schema is older than the code is named as older and left as 
   assert.doesNotMatch(status(), /schema\s+OLDER/, 'a library that matches the code gets no schema line');
 });
 
+/* #102. A KEY THAT CHANGED IS A SCHEMA THAT IS OLDER, though no column did. chapter_pins kept its
+ * columns and changed what its thread is keyed to, so a comparison of columns alone called the old
+ * library current. The copy is put back in the old shape: the thread keyed (entry_id, story_id). */
+ok('a library whose pins are keyed the old way is named as older, by the key', () => {
+  const OLD = '/tmp/anansi-status-pins.db';
+  for (const f of ['', '-wal', '-shm']) { try { unlinkSync(OLD + f); } catch {} }
+  copyFileSync(DB, OLD);
+  const raw = new DatabaseSync(OLD);
+  raw.exec(`DROP TABLE chapter_pins;
+    CREATE TABLE chapter_pins (
+      chapter_id TEXT NOT NULL, entry_id TEXT NOT NULL, story_id TEXT NOT NULL,
+      mode TEXT NOT NULL, created_at INTEGER NOT NULL,
+      PRIMARY KEY (chapter_id, entry_id),
+      FOREIGN KEY (chapter_id, story_id) REFERENCES chapters(id, story_id) ON DELETE CASCADE,
+      FOREIGN KEY (entry_id, story_id)   REFERENCES entries(id, story_id)  ON DELETE CASCADE);`);
+  raw.close();
+  const before = createHash('sha256').update(readFileSync(OLD)).digest('hex');
+  const out = status(OLD);
+  assert.strictEqual(createHash('sha256').update(readFileSync(OLD)).digest('hex'), before, 'status migrated the older file');
+  assert.match(out, /schema\s+OLDER THAN THE CODE.*missing chapter_pins key \(entry_id\) → entries\(id\)/,
+    'STATUS-KEY-MISSING: it names the key the code has and the file does not');
+  assert.match(out, /schema\s+OLDER THAN THE CODE.*still has chapter_pins key \(entry_id, story_id\) → entries\(id, story_id\)/,
+    'STATUS-KEY-EXTRA: and the old key the file still has');
+});
+
 
 /* A RECORDED CHECK THAT WRITES NOTHING IS NAMED, not read as clean. The canon check wrote 0 rows
  * over 627 generations for 52 days (#69), and nothing said so: a check that never runs and a check

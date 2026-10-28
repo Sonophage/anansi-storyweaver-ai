@@ -179,6 +179,54 @@ export function foldAlwaysTrue() {
   } catch (err) { db.exec('ROLLBACK'); throw err; }
 }
 
+/** SCENE PINS (SPEC 7.1), the one statement for the table, used by the schema below and by
+ *  `pinsHoldFollowed` when it rebuilds an old library.
+ *
+ *  #102. THE THREAD IS KEYED BY ITS ID ALONE, so a pin can hold a thread of the World the tale
+ *  follows as well as one of its own. The scene keeps its composite key: a pin can only name a scene
+ *  of its own tale. Which threads a tale may pin is `PINNABLE`, checked by every insert, because a
+ *  single-column key cannot say it; without that check a pin could point at another writer's
+ *  thread, a cross-user leak. Deleting the thread, wherever it lives, or the scene takes the pin. */
+const PINS_TABLE = `CREATE TABLE IF NOT EXISTS chapter_pins (
+  chapter_id TEXT NOT NULL, entry_id TEXT NOT NULL, story_id TEXT NOT NULL,
+  mode TEXT NOT NULL,                      -- force_in | force_out
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (chapter_id, entry_id),
+  FOREIGN KEY (chapter_id, story_id) REFERENCES chapters(id, story_id) ON DELETE CASCADE,
+  FOREIGN KEY (entry_id)             REFERENCES entries(id)            ON DELETE CASCADE);`;
+
+/** #102. THE THREADS A TALE MAY PIN: its own, and those of the World it follows when that World has
+ *  the same owner (the rule `entriesFor` reads by). Two placeholders: the tale, then the thread. */
+const PINNABLE = `EXISTS (SELECT 1 FROM entries pe JOIN stories pt ON pt.id = ?
+  WHERE pe.id = ? AND (pe.story_id = pt.id OR (pe.story_id = pt.lore_from
+    AND EXISTS (SELECT 1 FROM stories pw WHERE pw.id = pt.lore_from AND pw.owner_id = pt.owner_id))))`;
+
+/** #102 · PINS HOLD FOLLOWED THREADS. A library from before keys a pin's thread (entry_id, story_id),
+ *  so it can hold only the tale's own thread. SQLite cannot change a foreign key in place, so the
+ *  table is rebuilt into `PINS_TABLE` and every row is copied across as it is: each one satisfied
+ *  the old key, so each satisfies the new one.
+ *
+ *  ONCE BY ITS SHAPE: it acts only while the old key is there, so a later boot does nothing. A backup
+ *  comes first (`beforeRewrite`, which throws, so no backup means no rebuild), and it is all one
+ *  transaction. Nothing a writer sees changes, so it writes no update line. Its own statements, like
+ *  `foldAlwaysTrue`: it runs inside `migrate()`. Returns whether it rebuilt. */
+export function pinsHoldFollowed() {
+  const keys = db.prepare('PRAGMA foreign_key_list(chapter_pins)').all() as any[];
+  if (!keys.some((k) => k.table === 'entries' && k.from === 'story_id')) return false;
+  beforeRewrite();
+  db.exec('BEGIN');
+  try {
+    db.exec('ALTER TABLE chapter_pins RENAME TO chapter_pins_old');
+    db.exec(PINS_TABLE);
+    db.exec(`INSERT INTO chapter_pins (chapter_id, entry_id, story_id, mode, created_at)
+             SELECT chapter_id, entry_id, story_id, mode, created_at FROM chapter_pins_old`);
+    db.exec('DROP TABLE chapter_pins_old');
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  console.log('  rebuilt chapter_pins — a pin can hold a thread of the World its tale follows');
+  return true;
+}
+
 // Migrations. `CREATE TABLE IF NOT EXISTS` cannot alter an existing table or replace an index,
 // so anything that changes shape has to be stated here and be safe to run twice. Without this
 // a fresh clone and a live database drift apart silently.
@@ -545,6 +593,7 @@ function migrate() {
   // somebody's novel is in, which is the whole reason that guard exists.
   repairStrandedChapters();
   try { foldAlwaysTrue(); } catch (e: any) { console.log(`  Always true was NOT folded: ${e?.message}`); }
+  try { pinsHoldFollowed(); } catch (e: any) { console.log(`  chapter_pins was NOT rebuilt: ${e?.message}`); }
   // #47. What each act was built from. Existing acts get their chapters as they are now; see
   // `backfillActPrints` for what that does and does not promise.
   add('arcs', 'summaries_hash', 'TEXT');
@@ -712,9 +761,9 @@ CREATE TABLE IF NOT EXISTS entries (
 -- writing, so chapter 3 cannot leak what chapter 7 established. before_mode decides what
 -- happens ahead of a state opening: hide it, or tell the model something exists it does
 -- not yet know.
--- Parent key for the composite foreign key on chapter_pins. Without it SQLite accepts the
--- CREATE and then fails every insert with "SQL logic error", which is a confusing way to
--- learn that a composite FK needs a unique index on exactly those columns.
+-- Parent key for the composite foreign key on entry_images (and on chapter_pins until #102).
+-- Without it SQLite accepts the CREATE and then fails every insert with "SQL logic error", which
+-- is a confusing way to learn that a composite FK needs a unique index on exactly those columns.
 CREATE UNIQUE INDEX IF NOT EXISTS entries_scope ON entries(id, story_id);
 
 CREATE TABLE IF NOT EXISTS entry_states (
@@ -793,18 +842,9 @@ CREATE TABLE IF NOT EXISTS hems (
 CREATE INDEX IF NOT EXISTS hems_story ON hems(story_id);
 
 -- SPEC 7.1. Per-chapter overrides on the ledger: force a fact in for a scene where it
--- matters but nobody says its keyword, or force one out to keep a reveal sealed.
---
--- The scope rule cannot be a CHECK (it references another table), so it is a composite
--- foreign key against (id, story_id) on both sides. Without it a pin can point at another
--- story's entry, which is a cross-user leak rather than a coherence bug.
-CREATE TABLE IF NOT EXISTS chapter_pins (
-  chapter_id TEXT NOT NULL, entry_id TEXT NOT NULL, story_id TEXT NOT NULL,
-  mode TEXT NOT NULL,                      -- force_in | force_out
-  created_at INTEGER NOT NULL,
-  PRIMARY KEY (chapter_id, entry_id),
-  FOREIGN KEY (chapter_id, story_id) REFERENCES chapters(id, story_id) ON DELETE CASCADE,
-  FOREIGN KEY (entry_id, story_id)   REFERENCES entries(id, story_id)  ON DELETE CASCADE);
+-- matters but nobody says its keyword, or force one out to keep a reveal sealed. The table is
+-- PINS_TABLE, above migrate(), which also rebuilds an old library into it.
+${PINS_TABLE}
 
 -- SPEC 8.4. No shipping product checks its own output against the story bible; the input
 -- list is already sitting in generations.context_manifest, so this costs one cheap call.
@@ -1006,9 +1046,9 @@ CREATE TABLE IF NOT EXISTS story_covers (
 -- assembly whether or not anything drew it. The view is told the set_at only, which keys an
 -- immutable URL the browser can cache.
 --
--- (id, story_id) AND NOT id ALONE, matching the composite key every other entry-scoped table
--- uses: chapter_pins and entry_states both reference entries that way, and it is what closes
--- SPEC 7.1's cross-story leak. A picture on a thread must not be reachable through another book.
+-- (id, story_id) AND NOT id ALONE: a composite key is what closed SPEC 7.1's cross-story leak for
+-- scene pins until #102 let a pin hold a followed World's thread (see PINNABLE). It closes
+-- the same leak here. A picture on a thread must not be reachable through another book.
 CREATE TABLE IF NOT EXISTS entry_images (
   entry_id TEXT PRIMARY KEY,
   story_id TEXT NOT NULL,
@@ -2622,7 +2662,7 @@ export function linkEntries(storyId: string, parentId: string, childId: string, 
   if (parentId === childId) return null;
   // BOTH ends checked against THIS story. One end checked is how an edge ends up pointing at
   // another writer's card, which is a leak rather than a coherence bug -- the same reasoning as
-  // the composite foreign key on chapter_pins.
+  // `PINNABLE` on chapter_pins.
   const owns = (id: string) => q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(id, storyId);
   if (!owns(parentId) || !owns(childId)) return null;
   const id = uid('lk-');
@@ -3557,14 +3597,15 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
           p2.claimed, p2.created_at);
     }
 
-    // Both ends remapped. A pin needs the chapter AND the card, and the composite foreign keys on
-    // this table refuse it if either belongs to another story — which is the check doing the work
-    // if one of these maps is ever wrong.
+    // Both ends remapped. A pin needs the chapter AND the card: the scene's composite key refuses a
+    // chapter of another story, and `PINNABLE` a card the copy may not pin — which is the check
+    // doing the work if one of these maps is ever wrong. #102: a card that is not in the map is a
+    // thread of the World the tale follows, and the copy follows the same World, so it keeps its id.
     for (const pin of q('SELECT * FROM chapter_pins WHERE story_id = ?').all(storyId) as any[]) {
-      const nch = chapterMap.get(pin.chapter_id), ne = cards.get(pin.entry_id);
-      if (!nch || !ne) continue;
-      q('INSERT INTO chapter_pins (chapter_id,entry_id,story_id,mode,created_at) VALUES (?,?,?,?,?)')
-        .run(nch, ne, made.id, pin.mode, pin.created_at);
+      const nch = chapterMap.get(pin.chapter_id), ne = cards.get(pin.entry_id) ?? pin.entry_id;
+      if (!nch) continue;
+      q(`INSERT INTO chapter_pins (chapter_id,entry_id,story_id,mode,created_at) SELECT ?,?,?,?,?
+         WHERE ${PINNABLE}`).run(nch, ne, made.id, pin.mode, pin.created_at, made.id, ne);
     }
 
     for (const a of q('SELECT * FROM arcs WHERE story_id = ?').all(storyId) as any[]) {
@@ -3803,13 +3844,13 @@ export function setPin(storyId: string, chapterId: string, entryId: string, mode
       .run(chapterId, entryId, storyId);
     return true;
   }
-  // The composite FKs refuse a chapter or entry from another story. That is the intended
-  // outcome, but a raw constraint error is not a useful answer to give a caller.
+  // A thread outside `PINNABLE` writes no row; the scene's composite key refuses a scene from
+  // another tale. Both are the intended outcome, but a raw constraint error is not a useful answer.
   try {
-    q(`INSERT INTO chapter_pins (chapter_id,entry_id,story_id,mode,created_at) VALUES (?,?,?,?,?)
+    return q(`INSERT INTO chapter_pins (chapter_id,entry_id,story_id,mode,created_at)
+       SELECT ?,?,?,?,? WHERE ${PINNABLE}
        ON CONFLICT(chapter_id,entry_id) DO UPDATE SET mode = excluded.mode`)
-      .run(chapterId, entryId, storyId, mode, now());
-    return true;
+      .run(chapterId, entryId, storyId, mode, now(), storyId, entryId).changes > 0;
   } catch { return false; }
 }
 
