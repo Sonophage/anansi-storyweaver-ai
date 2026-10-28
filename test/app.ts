@@ -6349,6 +6349,44 @@ const hemCardOf = (side: string) => {
   ok('a hemmed scene is one Workbench card: summary first, before and after, Sew all and Reject all (#92)');
 }
 
+// ---- #125 · WHERE THE TALE STANDS: ON THE HEM'S CARD AS A DIFF, AND IN THE TALE'S SETTINGS ----
+{
+  const canned = (globalThis as any).fetch;
+  (globalThis as any).fetch = hemFetch(canned);
+  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const { diffHTML } = await import('../web/model.js');
+  const NOW = 'Five houses now; the sixth has burned.';
+  const TALE = { id: 'e-tale', title: 'The tale', body: 'Six houses.', entryType: 'tale', keys: [], addons: [],
+    states: [], nowStateId: null };
+  const row = { id: 'ht-1', entryId: 'e-tale', title: 'The tale', body: NOW, entryType: 'state', kind: 'memory',
+    keys: ['2'], delta: 'where the tale stands', chapterId: 'c-1', grp: 'scene:c-1' };
+  HEM_VIEW = { ...hemView({ ...HEM_DONE, passes: { ...HEM_DONE.passes, tale: 'the model did not answer' } }, [row]),
+    taleThread: TALE };
+  click({ open: 's-1' }); await settle();
+  click({ panel: 'waiting' }); await settle();
+  const card = hemCardOf(html('sideBody'));
+  assert.ok(card.includes(`data-deckdiff="ht-1">${diffHTML('Six houses.', NOW)}`),
+    "TALE-DIFF: the hem's card shows where the tale stands against the premise, as a diff");
+  assert.match(card, /where the tale stands<\/span> did not run/, 'TALE-PASS: and names the pass when it did not run');
+
+  // THE TALE'S SETTINGS: the premise is how the tale began; where it stands now shows once one is sewn in.
+  const book = () => html('sideBody').match(/data-group="book"[\s\S]*?data-group="world"/)?.[0] ?? '';
+  click({ panel: 'story' }); await settle();
+  assert.match(book(), /<label class="lbl" for="f-story-premise">How the tale began/, 'TALE-BEGAN: the premise is how the tale began');
+  assert.doesNotMatch(book(), /Where it stands now/, '  and with nothing sewn in there is no other paragraph');
+  HEM_VIEW = { ...HEM_VIEW, taleThread: { ...TALE, nowStateId: 'ts-1', states: [{ id: 'ts-1', fromChapter: 2, body: NOW }] } };
+  click({ open: 's-1' }); await settle();
+  click({ panel: 'story' }); await settle();
+  assert.match(book(), new RegExp(`Where it stands now[\\s\\S]*?${NOW}`), 'TALE-NOW: and where it stands now, once sewn in');
+  click({ taleopen: '1' }); await settle();
+  assert.match(html('sideBody'), /How the tale began[\s\S]*?Where it stands now[\s\S]*?the sixth has burned/,
+    "TALE-OWN: the tale's own thread shows both too");
+  click({ taleclose: '1' });
+  (globalThis as any).fetch = canned;
+  click({ open: 's-1' }); await settle();
+  ok("where the tale stands is a diff on the hem's card, and the tale's settings show how it began and where it stands now");
+}
+
 // ---- #92 · THE CARD'S STATES, and the presses each one offers: running, a pass that did not run
 // (Try again for that pass), out of date (Hem again), and the threads past the cap (asked for by
 // name). Each press goes to `POST /api/chapter/hem` (#91) with what it names, and nothing else.

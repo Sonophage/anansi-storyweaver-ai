@@ -96,7 +96,9 @@ writer gives the model for the whole tale: Voice first, then the tale's rules, t
 own. Its Over time is where the tale stands now, one paragraph each hem writes and the writer sews
 in; from the first hem on, the model reads that instead of the premise, which stays as how the tale
 began. Spice, the cast choices and the model stay settings. (Decided 2026-10-26; where it stands
-2026-10-28, ADR 0010; not built.)
+2026-10-28, ADR 0010. Built in #125 as a thread of kind `tale`, one per tale, made at its first
+hem: Always true the setting, its first Over time entry the premise. Its pockets are still where
+#75 put them.)
 _Avoid_: story card, tale instructions, author's note
 
 **Rule**:

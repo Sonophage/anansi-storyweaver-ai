@@ -35,6 +35,14 @@ Try it on now reads every thread whole, pockets included, and lists each place w
 a thread and the premise, disagree: both places, what each says, and a fix. Use this puts the fix in
 the draft; Leave it keeps what you have. Nothing is saved until you start the tale.
 
+### Anansi reads where the tale stands, not how it began
+Each time you hem a scene, Anansi also writes one paragraph on where the tale stands now: the
+situation and what is in play, never what comes next. It is on the scene's card on the Workbench,
+with what changed from the last one marked word by word, and you sew it in or reject it. Once one
+is sewn in, Anansi reads it in place of the premise for every scene after, and Talk does too. The
+premise stays in the tale's settings as how the tale began, with where it stands now beneath it.
+Tales you already have change at their next hem.
+
 ### Your promises are pressed, the tale's questions are kept open
 A string is now one of two kinds. The open questions New tale makes are kept open: when Anansi
 suggests a scene, he may complicate one but never answer it. The promises you set up yourself, and

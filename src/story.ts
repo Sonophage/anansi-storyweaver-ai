@@ -250,9 +250,12 @@ export function view(storyId: string, focusChapterId?: string) {
     // setting), its own text (the premise, where the tale stood as it opened) and its Over time, in
     // the shape every thread has. Not in `entries`: it reaches the model in SPINE, not as a thread.
     taleThread: (() => { const t = db.taleThreadOf(storyId);
-      return t ? { ...toEntry(t, states.get(t.id) ?? []), addons: addons.filter((a: any) => a.entry_id === t.id)
-        .map((a: any) => ({ id: a.id, slot: a.slot, name: a.name, body: a.body, keys: JSON.parse(a.keys || '[]'), active: !!a.active })) }
-        : null; })(),
+      if (!t) return null;
+      // `nowStateId` as every thread has it: the entry in force at the scene this view is open at.
+      const at = (chapters.find((c) => c.id === focusChapterId) ?? chapters.at(-1))?.index ?? 1;
+      const e = toEntry(t, states.get(t.id) ?? []);
+      return { ...e, nowStateId: stateInForce(e, at)?.id ?? null, addons: addons.filter((a: any) => a.entry_id === t.id)
+        .map((a: any) => ({ id: a.id, slot: a.slot, name: a.name, body: a.body, keys: JSON.parse(a.keys || '[]'), active: !!a.active })) }; })(),
     // #75. The tale's own pockets: instructions for the whole tale, on its thread at the top of Threads.
     talePockets: addons.filter((a: any) => !a.entry_id && a.slot === 'instruction').map((a: any) => ({
       id: a.id, name: a.name, body: a.body, active: !!a.active })),

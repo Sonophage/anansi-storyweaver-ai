@@ -2518,8 +2518,17 @@ const pageBar = (mode) => (S.place === 'story' ? ''
  *  whole tale. Its Always true is the premise and the setting; its pockets are the Voice, the tale's
  *  Rules, and any instruction of the writer's own. Stored where each always was — the premise,
  *  setting and Voice on the tale, a Rule as a thread of kind rule, an instruction as a pocket of the
- *  tale — so what the model is sent, and where in the prompt, does not move. It has no Over time:
- *  the scene summaries are the tale's record. */
+ *  tale — so what the model is sent, and where in the prompt, does not move. Its Over time is where
+ *  the tale stands (#125, ADR 0010), written at each hem and sewn in, and read in the premise's place
+ *  from then on; the premise stays as how the tale began. */
+/** #125 · WHERE THE TALE STANDS NOW: the tale's thread's Over time entry in force at this scene, or
+ *  nothing while none is sewn in (the premise is then what is sent). Read-only: a hem writes it. */
+function taleNowBox() {
+  const now = V?.taleThread ? standsNow(V.taleThread) : null;
+  return now ? `<div class="lbl sub-lbl">${esc(nowWords())}</div>
+    <div class="note" data-talenow="1">${esc(now.body)}</div>
+    <div class="hint flush">Written at each hem and sewn in from its card. Anansi reads this, not the premise.</div>` : '';
+}
 function taleThread() {
   const st = V.story;
   const rules = (V.entries ?? []).filter((e) => e.entryType === 'rule');
@@ -2530,8 +2539,9 @@ function taleThread() {
     <div class="talebanner tbhead" style="${taleArt()}"><h2 class="readname">${esc(st.title || 'This tale')}</h2></div>
     <div class="hint lead-10">The tale's own thread: what Anansi is told about the whole tale, every time.</div>
     <div class="lbl wide">Always true</div>
-    <label class="lbl push-4" for="f-tale-premise">Premise</label>
+    <label class="lbl push-4" for="f-tale-premise">How the tale began</label>
     <textarea class="field grow" id="f-tale-premise" data-story="premise">${esc(st.premise ?? '')}</textarea>
+    ${taleNowBox()}
     <label class="lbl" for="f-tale-setting">Setting</label>
     <input class="field" id="f-tale-setting" data-story="setting" value="${esc(st.setting ?? '')}">
     <div class="lbl wide push-18">Voice</div>
@@ -2616,7 +2626,8 @@ const hemShows = (ch, ps) => ch.hem.state === 'running' || ps.length > 0 || (!ch
  *  where the thread stands, the pocket it lands in for a pocket row. Null when there is nothing
  *  before it (a new thread, a retirement, an empty pocket). */
 function hemBefore(p) {
-  const e = p.entryId ? (V.entries ?? []).find((x) => x.id === p.entryId) : null;
+  // #125 · The tale's own thread is not among the threads, and its row reads the same way.
+  const e = p.entryId ? [...(V.entries ?? []), ...(V.taleThread ? [V.taleThread] : [])].find((x) => x.id === p.entryId) : null;
   if (!e || p.entryType === 'retire') return null;
   if (p.entryType === 'state') return standsNow(e)?.body ?? e.body ?? null;
   if (!p.field) return e.body ?? null;
@@ -3903,10 +3914,15 @@ const PANELS = {
     // written the other way, which is the check doing its job.
     const body = `${f.k === 'writingStyle' ? helpText('voice') : ''}${
       f.hint ? `<p>${esc(f.hint)}</p>` : ''}`;
-    return `<label class="lbl" for="f-story-${f.k}">${f.label}${body ? tipMark(k, f.label) : ''}</label>
-        ${body ? tipCard(k, f.label, body) : ''}
+    // #125 · ADR 0010. THE PREMISE IS HOW THE TALE BEGAN, and once a hem's paragraph is sewn in it is
+    // no longer sent: where the tale stands now is, shown beneath it. Written at each hem and sewn in
+    // from its card, so it is read here, not typed.
+    const label = f.k === 'premise' ? 'How the tale began' : f.label;
+    return `<label class="lbl" for="f-story-${f.k}">${label}${body ? tipMark(k, label) : ''}</label>
+        ${body ? tipCard(k, label, body) : ''}
         ${f.area ? `<textarea class="field" id="f-story-${f.k}" data-story="${f.k}">${esc(V.story[f.k] ?? '')}</textarea>`
                  : `<input class="field" id="f-story-${f.k}" data-story="${f.k}" value="${esc(V.story[f.k] ?? '')}">`}
+        ${f.k === 'premise' ? taleNowBox() : ''}
         <!-- #18 §2. The one field with a re-roll, because it is the one written FROM two others.
              Voice is yours and a book's premise cannot guess it; the house style is what a book of
              this genre does on the page, which the genre and the premise between them do say.
@@ -6222,7 +6238,7 @@ const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next scene'], [
  *  for; one whose value is null ran; one with a string failed and the string is why. Since #89 the
  *  report is on the scene's hem (`ch.hem.passes`), so it survives a reload; #92 reads it there.
  */
-const PASSES = [['summary', 'the summary'], ['memory', 'the character memory'],
+const PASSES = [['summary', 'the summary'], ['tale', 'where the tale stands'], ['memory', 'the character memory'],
                 ['facts', 'the threads pass'], ['finished', 'the scan for threads to retire'],
                 ['next', "Anansi's title and note for the next scene"]];
 
