@@ -4027,6 +4027,68 @@ ok('a new IP is looked up, ticked, added to and previewed, and only the ticked n
 }
 ok('the picked threads and the open switch are sent in the one create, and nothing after it');
 
+// #105 · WORLD PEOPLE IN THE OPENING, AND WORLD PEOPLE ON YOU. The preview marks who of the World's
+// people is in the opening, for a World the writer has and for a new one, and Start writing sends the
+// marked names in the create. You offers the World's people to play and to keep Hands off.
+{
+  const doc = (globalThis as any).document;
+  const wasQSA = doc.querySelectorAll;
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
+  let onScreen: Record<string, any[]> = {};
+  const startIn = async (ip: string, step: string) => {
+    click({ railview: 'workspace' });
+    await new Promise((r) => setTimeout(r, 30));
+    click({ nav: 'create' });
+    await new Promise((r) => setTimeout(r, 30));
+    doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
+    try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
+    finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
+    onScreen = { '[data-sp]': [{ dataset: { sp: 'world' }, value: ip }] };
+    click({ sparkstep: step });
+    onScreen = {};
+  };
+  const create = async () => {
+    const n = POSTED.length;
+    click({ acceptSpark: '1' });
+    for (let i = 0; i < 40 && !POSTED.slice(n).some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
+    await new Promise((r) => setTimeout(r, 60));
+    return POSTED.slice(n).find((p) => p.url === '/api/stories');
+  };
+  doc.querySelectorAll = (sel: string) => onScreen[sel] ?? [];
+  try {
+    // A World the writer has: Morgott is offered on You, then marked in the opening on the preview.
+    await startIn('Elden Ring', '2');
+    for (let i = 0; i < 40 && !/<option value="Morgott"/.test(html('page')); i++) {
+      await new Promise((r) => setTimeout(r, 25)); click({ sparkstep: '2' }); }
+    assert.match(html('page'), /id="f-sp-cast">[\s\S]*<option value="Morgott">/, 'YOU-WORLD: You play offers the World\'s people');
+    assert.match(html('page'), /id="f-sp-lockedCharacter"[\s\S]*<option value="Morgott"/, 'YOU-WORLD-HELD: and so does Hands off');
+    click({ sparkstep: '5' });
+    await settle(/data-spopening="Morgott"/);
+    assert.match(html('page'), /<input type="checkbox" data-spopening="Morgott"\s*>/, 'OPENING-MARK: the preview offers to mark him in the opening, unmarked');
+    changeIn({ dataset: { spopening: 'Morgott' }, checked: true });
+    click({ sparkstep: '5' });
+    await settle(/data-spopening="Morgott" checked/);
+    assert.match(html('page'), /data-spopening="Morgott" checked/, 'OPENING-KEPT: the mark is kept across a repaint');
+    assert.deepStrictEqual((await create())?.body.inOpening, ['Morgott'], 'OPENING-SENT: Start writing sends him as in the opening');
+
+    // A new World: its ticked people can be marked, and an unmarked or unticked one is not sent.
+    await startIn('Dune', '5');
+    await settle(/data-spopening="Paul Atreides"/);
+    assert.doesNotMatch(html('page'), /data-spopening="Arrakis"/, 'OPENING-PEOPLE: a place is not offered as in the opening');
+    changeIn({ dataset: { spopening: 'Paul Atreides' }, checked: true });
+    const dune = await create();
+    assert.deepStrictEqual(dune?.body.inOpening, ['Paul Atreides'], 'OPENING-NEW-WORLD: a new World\'s marked person is sent');
+    assert.ok(dune?.body.newWorld, '  with the new World');
+
+    // Nothing marked: nobody is sent.
+    await startIn('Dune', '5');
+    await settle(/data-spopening="Paul Atreides"/);
+    assert.deepStrictEqual((await create())?.body.inOpening, [], 'OPENING-NONE: nobody marked, nobody sent');
+  } finally { doc.querySelectorAll = wasQSA; }
+}
+ok('World people can be played, held and marked in the opening, and the marked ones ride the create');
+
 // #24 · WHAT CHANGED IS A FILE NOW. Seth, 2026-08-29: "lets just have it show case from one file we
 // serve that we update after each commit and we remove the need for a local model to do it."
 //

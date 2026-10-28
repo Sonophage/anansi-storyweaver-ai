@@ -3652,6 +3652,84 @@ ok('taking over a pinned World thread moves the pin to the tale\'s own thread, a
   assert.deepStrictEqual(pinnedIn(tale), [own], 'TAKEOVER-SENT: his own thread is sent for the pinned scene');
 });
 
+// #105 · WORLD PEOPLE IN THE OPENING. The wizard's preview marks them and Create pins them to the
+// first scene, force in. They stay the World's threads: nothing is copied, and a fix in the World is
+// what the scene sends. Their wake words never appear, so the pin is the only way they are sent, and
+// the scene after it does not send them.
+const { routes: createRoutes } = await import('../src/routes.ts');
+const createTale = (me: string, body: any) => createRoutes['POST /api/stories']({ body: { title: 'New', spark: true,
+  entries: [], ...body }, owner: me, query: new URLSearchParams(), slot: { perSlot: 50048 }, gen: {} } as any) as any;
+ok('World people marked in the opening are pinned to the first scene, stay the World\'s, and are sent there only', () => {
+  const me = db.owner('opening-world');
+  const world = db.createWorld(me, { title: 'Stormveil', premise: 'p' });
+  const at = (title: string) => db.upsertEntry(world.id, me, { title, body: `[${title}: of Stormveil]`,
+    activation: 'triggered', keys: [`${title.toLowerCase()}-never-said`] })!;
+  const margit = at('Margit'), godrick = at('Godrick');
+  const made = createTale(me, { world: 'Stormveil', loreFrom: world.id, inOpening: ['margit '] });
+  assert.ok(made?.id && !made.error, made?.error);
+  const tale = { ...made, storyId: made.id };
+  assert.deepStrictEqual(db.pinsOf(tale.id).map((p: any) => [p.chapter_id, p.entry_id, p.mode]),
+    [[tale.chapterId, margit, 'force_in']], 'OPENING-PIN: she is pinned to the first scene, force in, by her World thread');
+  assert.strictEqual(db.entriesOf(tale.id).length, 0, 'OPENING-NO-COPY: the tale has no copy of her');
+  db.addPassage({ ...tale, body: 'The gate was shut against the wind.' });
+  assert.deepStrictEqual(pinnedIn(tale), [margit], 'OPENING-SENT: she reaches the model for the first scene, and Godrick does not');
+  db.upsertEntry(world.id, me, { id: margit, title: 'Margit', body: '[Margit: Morgott in disguise]',
+    activation: 'triggered', keys: ['margit-never-said'] });
+  assert.ok(JSON.stringify(storyMod.assemble(storyMod.view(tale.id)!, { global: 100096, slots: 4, perSlot: 25024 }, 'direct'))
+    .includes('Morgott in disguise'), 'OPENING-FOLLOWS: a fix in the World is what the first scene sends');
+  const two = db.endChapter(tale.id, tale.branchId) as any;
+  db.addPassage({ storyId: tale.id, branchId: tale.branchId, chapterId: two.opened, body: 'Rain on the steps.' });
+  assert.deepStrictEqual(pinnedIn(tale), [], 'OPENING-ONCE: the next scene does not send her by the pin');
+  assert.ok(godrick, 'Godrick was written');
+
+  // A name the tale cannot reach is refused, and nothing is made.
+  const other = db.createWorld(me, { title: 'Caelid', premise: 'p' });
+  db.upsertEntry(other.id, me, { title: 'Radahn', body: '[Radahn]', activation: 'triggered', keys: ['radahn-never-said'] });
+  const before = db.listStories(me).length;
+  const refused = createTale(me, { world: 'Stormveil', loreFrom: world.id, inOpening: ['Radahn'] });
+  assert.match(String(refused?.error), /Radahn/, 'OPENING-REFUSED: a person of a World the tale does not follow fails the Create, named');
+  assert.strictEqual(db.listStories(me).length, before, 'OPENING-NOTHING: and nothing is made');
+});
+
+// #105 · PLAYING A WORLD PERSON, OR KEEPING ONE HANDS OFF, GIVES THIS TALE ITS OWN THREAD FOR THEM: a
+// take-over, so the lock's outside-only pockets are written on the tale's copy and the World's thread
+// is not rewritten. The one played keeps their pockets; the one held loses voice and interiority and
+// gets the yours pocket. A line about who they are does not make a second thread beside the copy.
+ok('playing or holding a World person gives the tale its own thread for them, and the World\'s is unchanged', () => {
+  const me = db.owner('play-world');
+  const world = db.createWorld(me, { title: 'Leyndell', premise: 'p' });
+  const person = (title: string) => {
+    const id = db.upsertEntry(world.id, me, { title, body: '', activation: 'triggered', keys: [title] })!;
+    for (const [slot, b] of [['facts', `${title} of Leyndell.`], ['voice', `${title} speaks in short commands.`],
+        ['interiority', `${title} doubts the Erdtree.`]]) {
+      const a = db.upsertAddon(world.id, id, { slot, name: slot, body: `[${b}]` })!;
+      db.setAddonActive(world.id, a, true);
+    }
+    return id;
+  };
+  const morgott = person('Morgott'), margit = person('Margit');
+  const pockets = (story: string, entry: string) => (db.addonsOf(story) as any[]).filter((a) => a.entry_id === entry)
+    .map((a) => [a.slot, a.body, a.active]).sort();
+  const worldBefore = [pockets(world.id, morgott), pockets(world.id, margit), db.entriesOf(world.id)];
+  const made = createTale(me, { world: 'Leyndell', loreFrom: world.id, persona: 'morgott',
+    personaAbout: 'The Omen King, in this tale a husband.', lockedCharacter: 'Margit', inOpening: ['Margit'] });
+  assert.ok(made?.id && !made.error, made?.error);
+  const own = db.entriesOf(made.id) as any[];
+  const copy = (origin: string) => own.find((e) => e.origin_id === origin);
+  assert.deepStrictEqual(own.map((e) => e.title).sort(), ['Margit', 'Morgott'],
+    'PLAY-OWN: the tale has its own thread for each, and no second one from the line about him');
+  assert.ok(copy(morgott) && copy(margit), 'PLAY-TAKEOVER: each is a take-over of the World\'s thread');
+  assert.deepStrictEqual(pockets(made.id, copy(morgott).id).map((p) => p[0]), ['facts', 'interiority', 'voice'],
+    'PLAY-KEEPS: the one played keeps his pockets');
+  const held = pockets(made.id, copy(margit).id);
+  assert.deepStrictEqual(held.filter((p) => p[0] !== 'facts'), [['voice', `[${prompts.YOURS_VOICE('Margit')}]`, 1]],
+    'HOLD-OUTSIDE: the one held has the yours pocket on, and no voice or interiority of her own');
+  assert.deepStrictEqual([pockets(world.id, morgott), pockets(world.id, margit), db.entriesOf(world.id)], worldBefore,
+    'HOLD-WORLD-UNCHANGED: the World\'s threads and pockets are not rewritten');
+  assert.deepStrictEqual(db.pinsOf(made.id).map((p: any) => p.entry_id), [copy(margit).id],
+    'HOLD-PIN: in the opening, the pin is on the tale\'s own thread for her');
+});
+
 /* #102. A LIBRARY FROM BEFORE IS REBUILT, and its pins come through unchanged. The old library is a
  * copy of this one with chapter_pins put back in the shape it had: the thread keyed (entry_id,
  * story_id), so a pin could only hold the tale's own thread. A server is then started on it the way

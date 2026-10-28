@@ -137,7 +137,8 @@ const srv = createServer((req, res) => {
            { name: 'Godfrey', kind: 'character', line: 'The first Elden Lord.' },
            { name: 'Leyndell', kind: 'place', line: 'The royal capital under the Erdtree.' },
            { name: 'morgott', kind: 'character', line: 'Twice.' }] }
-      : pulled && props.rooms ? { title: pulled[2] === 'Nobody' ? '' : pulled[2],
+      // #105 · Melina comes back under a longer title than the name ticked for her.
+      : pulled && props.rooms ? { title: pulled[2] === 'Nobody' ? '' : pulled[2] === 'Melina' ? 'Melina, the Maiden' : pulled[2],
         body: `${pulled[2]}: the one the Lands Between remember`, keys: [pulled[2].split(' ')[0]],
         rooms: Object.fromEntries(Object.keys(props.rooms.properties ?? {}).map((slot) => [slot,
           slot === 'voice' ? 'Formal, and he calls everyone Tarnished.'
@@ -1755,6 +1756,21 @@ ok('emptying the box gives her back the voice she shipped with');
       assert.doesNotMatch(`${t.title ?? ''} ${t.body}`, /memory|looked up|https?:/i, `IP-CREATE-NO-MARK: no mark or link in the text (${t.body})`);
     assert.ok(db.entriesFor(made.id).some((e: any) => e.title === 'Morgott'), 'IP-CREATE-REACHES: the World\'s people reach the tale');
     ok('Create makes the writer\'s World of the ticked names only, in the normal thread shape, and the tale follows it');
+
+    // #105 · A NEW WORLD'S PEOPLE IN THE OPENING, PLAYED AND HELD. They are named as they were ticked,
+    // and Melina's thread comes back under a longer title: she is still the one played, held and
+    // pinned. Rennala is pinned and stays the World's; Melina is taken over into the tale.
+    const lv = await create({ world: 'Liurnia', persona: 'Melina', lockedCharacter: 'Melina', inOpening: ['Melina', 'Rennala'],
+      newWorld: { title: 'Liurnia', threads: [{ name: 'Melina', kind: 'character' }, { name: 'Rennala', kind: 'character' }] } });
+    assert.ok(lv && !lv.error, lv?.error);
+    const liurnia = db.worldNamed(me, 'Liurnia')!;
+    const inWorld = (t: string) => (db.entriesOf(liurnia.id) as any[]).find((e) => e.title === t)?.id;
+    const melina = (db.entriesOf(lv.id) as any[]).find((e) => e.origin_id === inWorld('Melina, the Maiden'));
+    assert.ok(melina, 'NEW-WORLD-HELD: the tale takes over the thread of the one it plays and holds');
+    assert.deepStrictEqual(db.pinsOf(lv.id).map((p: any) => [p.chapter_id, p.mode, p.entry_id]).sort(),
+      [[lv.chapterId, 'force_in', melina.id], [lv.chapterId, 'force_in', inWorld('Rennala')]].sort(),
+      'NEW-WORLD-OPENING: both are pinned to the first scene, Rennala by the World\'s own thread');
+    ok('a new World\'s people marked in the opening are pinned, and the one played and held is the tale\'s own');
 
     // A FAILURE AT CREATE LEAVES NOTHING: a name that cannot be written, and a step after the World is made.
     const had = rows();
