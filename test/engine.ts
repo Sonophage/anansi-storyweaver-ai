@@ -1361,11 +1361,8 @@ ok('  and a body whose brackets do not pair is left exactly alone', () => {
     'an ambiguous pair costs a stray bracket; eating one costs the writer their text');
 });
 
-ok('  and facts keeps its own brackets, because the body IS the card format', () => {
-  const b = withAddons([room({ slot: 'facts', body: '[Aldis Fen: 34, ex-Watch sergeant]',
-    active: true })]);
-  assert.match(b.text, /\[Aldis Fen: 34, ex-Watch sergeant\]/, 'facts is not unwrapped');
-});
+// (Facts kept its own brackets here, as "the card format", until #109: Always true is framed by the
+//  renderer now, and its old wrapper is taken off — see "Always true reaches the model framed" below.)
 
 ok('an interiority room reaches the prompt naming what it is for', () => {
   // ROOM_MEANING defines the room as "what they will not say out loud, and what they do instead of
@@ -1433,6 +1430,19 @@ ok('Always true reaches the model framed, naming the thread', () => {
   const b = withAddons([room({ slot: 'facts', body: 'ex-Watch sergeant, owes everyone', active: true })], AT);
   assert.match(b.text, /\[What is always true of Aldis Fen: ex-Watch sergeant, owes everyone\]/,
     'FRAME-FACTS: a plain Always true names the thread');
+});
+
+ok('  and one still stored in the old [Name: …] wrapper is not framed twice', () => {
+  // 47 pockets and Always trues carry the wrapper until #110 cleans them. Stripped at render only.
+  const b = withAddons([room({ slot: 'facts', body: '[Aldis Fen: ex-Watch sergeant, owes everyone]',
+    active: true })], AT);
+  assert.match(b.text, /\[What is always true of Aldis Fen: ex-Watch sergeant, owes everyone\]/,
+    'UNWRAP-FACTS: the name and the brackets go, the description stays');
+  // A folded pocket (`foldLine`) is a second line under its own label: the label is the writer's.
+  const two = withAddons([room({ slot: 'facts', body: '[Aldis Fen: 34]\n[Role: the one who pays late]',
+    active: true })], AT);
+  assert.match(two.text, /\[What is always true of Aldis Fen: 34\nRole: the one who pays late\]/,
+    'UNWRAP-FOLDED: each line loses its brackets; a label that is not the name stays');
 });
 
 ok('  and a voice nobody switched on stays out, like any other room', () => {
@@ -1841,7 +1851,7 @@ ok("the locked character's voice pocket reads bare, and every other voice keeps 
 // NORMAL shape for every freshly made book rather than a corner case — and nothing asserted what
 // the prompt looks like in that shape. An empty bracket or a stray blank line in the canon block
 // would be on every new book's every call.
-ok('a card with no body renders its facts bare, with no empty bracket left behind', () => {
+ok('a card with no body renders its facts framed once, with no empty bracket left behind', () => {
   const b = base();
   const out = render(buildContext({ ...b,
     entries: [{ id: 'e1', title: 'Aldis Fen', body: '', entryType: 'character',
@@ -1850,11 +1860,11 @@ ok('a card with no body renders its facts bare, with no empty bracket left behin
                            body: '[Aldis Fen: 34, ex-Watch sergeant]' }] }],
   } as any, count));
 
-  assert.match(out, /\[Aldis Fen: 34, ex-Watch sergeant\]/,
+  assert.match(out, /\[What is always true of Aldis Fen: 34, ex-Watch sergeant\]/,
     'the facts room reaches the prompt, which is the whole point of moving it there');
-  // BARE, not wrapped. `rooms()` special-cases facts so it reads where the body read; wrapping it
-  // produced "[You: [You: protagonist" on migrated cards once already.
-  assert.doesNotMatch(out, /\[facts: /, 'and reads bare, not labelled as a room');
+  // FRAMED ONCE (#109, ADR 0008). Wrapping the stored wrapper produced "[You: [You: protagonist" on
+  // migrated cards once already, so the old `[Aldis Fen: …]` is taken off before the frame goes on.
+  assert.doesNotMatch(out, /\[facts: |\[Aldis Fen: /, 'not labelled as a room, and not wrapped twice');
   // The empty body must leave NOTHING behind.
   assert.doesNotMatch(out, /\[\s*\]/, 'no empty bracket where the body would have been');
   assert.doesNotMatch(out, /\n\n\n/, 'and no gap left by the missing body');

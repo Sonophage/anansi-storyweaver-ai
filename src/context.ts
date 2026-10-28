@@ -302,6 +302,29 @@ export function retiredAt(e: Entry, at: number): number | null {
   return last?.kind === 'retire' ? last.fromChapter : null;
 }
 
+/** #109 · A STORED DESCRIPTION WITH THE OLD WRAPPER TAKEN OFF, so the frame is the only one (ADR 0008).
+ *  Until #110 cleans the library, pockets and Always trues still hold `[Aldis Fen: …]`, `[wearing: …]`
+ *  or `[short sentences; …]`, and framing those as they are gives `[What …: [Aldis Fen: …]]`.
+ *  Line by line, because a folded pocket (`foldLine`) is a second bracketed line under its label.
+ *
+ *  ONLY WHEN THE BRACKETS ACTUALLY PAIR AS AN OUTER WRAPPER, which is what the `indexOf` asks: the
+ *  first `]` has to be the last character. `[a] and [b]` has its first `]` in the middle, so a greedy
+ *  `^\[(.*)\]$` would eat it into `a] and [b`, a body corrupted on its way into the prompt, silently.
+ *  And a leading `Name:` goes only from inside such a wrapper, and only when it is one of `names`
+ *  (the thread's title, the pocket's label or kind): a label the writer chose, like `Role:`, stays.
+ *  Read-only: what is stored does not change. */
+const plain = (body: string, names: string[]): string => {
+  const known = new Set(names.map((n) => n.trim().toLowerCase()).filter(Boolean));
+  return String(body ?? '').trim().split('\n').map((l) => {
+    const line = l.trim();
+    if (!(line.startsWith('[') && line.indexOf(']') === line.length - 1)) return line;
+    const inner = line.slice(1, -1).trim();
+    const colon = inner.indexOf(':');
+    return colon > 0 && known.has(inner.slice(0, colon).trim().toLowerCase())
+      ? inner.slice(colon + 1).trim() : inner;
+  }).filter(Boolean).join('\n');
+};
+
 const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
   (e.addons ?? [])
     // ALWAYS TRUE IS NOT A POCKET (#77, ADR 0005). It is stored as the `facts` addon and read by
@@ -447,8 +470,9 @@ export const alwaysTrue = (e: Entry): string =>
  *  thread's name. `alwaysTrue` above stays the stored text, for the prompts that show it to be
  *  edited. NOT MEASURED: the frame is owed an A/B against the bare form before it is called a fix. */
 const framedAlwaysTrue = (e: Entry): string => {
-  const body = alwaysTrue(e);
-  return body ? `[What is always true of ${(e.title || '').trim() || 'this thread'}: ${body}]` : '';
+  const who = (e.title || '').trim();
+  const body = plain(alwaysTrue(e), [who, 'facts', 'always true']);
+  return body ? `[What is always true of ${who || 'this thread'}: ${body}]` : '';
 };
 
 /** THE CARD AS THE MODEL SEES IT: what is in force at this chapter, plus every room switched on.
