@@ -167,6 +167,30 @@ const srv = createServer((req, res) => {
       : asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
         entries: [{ title: 'Vel', type: 'character', field: 'interiority',
                     body: 'She is more afraid of being right than of being wrong.', keys: ['Vel'] }] }
+      : asksForReview && /Hiding in the lower tiers/.test(String(b.messages?.[1]?.content ?? '')) ? {
+        changes: [], entries: [],
+        contradictions: [
+          { one: { thread: 'Vel', part: 'stands', says: 'Waits on the stair for Aldis.' },
+            other: { thread: 'aldis', part: 'stands', says: 'Hiding in the lower tiers.' },
+            fix: { thread: 'Aldis', part: 'stands', text: 'Climbing the stair to meet Vel, late.' },
+            why: 'She waits for him on the stair while he hides below.' },
+          // A thread the draft does not have.
+          { one: { thread: 'Nobody', part: 'always_true', says: 'x' }, other: { thread: 'Vel', part: 'stands', says: 'y' },
+            fix: { thread: 'Nobody', part: 'always_true', text: 'z' }, why: 'No such thread.' },
+          // A fix to neither of the two places it names.
+          { one: { thread: 'Vel', part: 'always_true', says: 'x' }, other: { thread: '', part: 'premise', says: 'y' },
+            fix: { thread: 'Aldis', part: 'stands', text: 'z' }, why: 'Elsewhere.' },
+          // The held character's inside: the model never writes it (#84), so no fix may either.
+          { one: { thread: 'Vel', part: 'interiority', says: 'x' }, other: { thread: 'Aldis', part: 'stands', says: 'y' },
+            fix: { thread: 'Vel', part: 'interiority', text: 'She hates him.' }, why: 'Held.' },
+          { one: { thread: '', part: 'premise', says: 'Aldis owes the moneylender.' },
+            other: { thread: 'Vel', part: 'interiority', says: 'She will forgive the debt.' },
+            fix: { thread: '', part: 'premise', text: 'Aldis, on the stair, owes Vel more than he can pay.' },
+            why: 'The premise names another lender.' },
+          // An empty fix is no fix.
+          { one: { thread: 'Vel', part: 'stands', says: 'a' }, other: { thread: 'Aldis', part: 'stands', says: 'b' },
+            fix: { thread: 'Aldis', part: 'stands', text: '  ' }, why: 'Nothing.' },
+        ] }
       : asksForReview ? {
         changes: [
           { field: 'title', value: 'The Tide Clerk', why: 'The premise counts; the title salts.' },
@@ -1046,6 +1070,47 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.doesNotMatch(web, /Preacher|Ferrus|Gorgon|Unterzee/, 'FROM-WEB-SHAPE: no real subject is left as an example');
   assert.match(web, /RIGHT\s+<[^>]+>/, 'FROM-WEB-SHAPE: its RIGHT example is a shape');
   ok('the cast asks for identity in Always true, wants in interiority, where each stands at the opening, and no outcomes');
+
+  // TRY IT ON CHECKS THE THREADS AGAINST EACH OTHER AND THE PREMISE (#81: Seth "accepts the forty
+  // dollars" while the forty-dollars thread says he does not). It is sent each thread's Always true,
+  // where it stands and its pockets, and hands back each contradiction with both places and one fix.
+  // A fix must change one of the two places it names, in a thread the draft has. Code finds what it
+  // can on its own (an age given two ways in one thread) and puts those first.
+  const { agesSaid } = await import('../src/contradictions.ts');
+  for (const [text, want] of [['Temple clerk; 28; speaks for the dead god.', [28]], ['A 34-year-old face, lined early.', [34]],
+    ['aged 40, and tired', [40]], ['She is 19 years old.', [19]], ['28', [28]],
+    // Numbers that are not ages, which the detector was not written around.
+    ['owes 40; still unpaid', []], ['Room 12; damp', []], ['forty dollars on the table', []],
+    ['arrived in 1909 with 3 sisters', []], ['the 2-year lease', []]] as [string, number[]][])
+    assert.deepStrictEqual(agesSaid(text), want, `AGES: ${JSON.stringify(text)} gives ${JSON.stringify(want)}`);
+  calls = [];
+  const draft = { story: { title: 'The Rust Year', premise: PREMISE, setting: 'Sutera', persona: 'Vel', lockedCharacter: 'Vel' },
+    entries: [
+      { title: 'Vel', entryType: 'character', body: 'Temple clerk; 28; speaks for the dead god.', stands: 'Waits on the stair for Aldis.',
+        rooms: { interiority: { name: 'Debt', body: 'She will forgive the debt, and hides that she already has.' },
+                 appearance: { name: 'Face', body: 'A 34-year-old face, lined early.' } } },
+      { title: 'Aldis', entryType: 'character', body: 'A debtor; 50; a ferryman once.', stands: 'Hiding in the lower tiers.' }] };
+  const rv: any = await routes['POST /api/spark/review']({ body: draft, query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any);
+  assert.ok(!rv.error, rv.error);
+  const reviewAsk = String(calls.find((x: any) => /say what you would change/.test(String(x.messages?.[0]?.content ?? ''))).messages[1].content);
+  assert.match(reviewAsk, /Hiding in the lower tiers/, 'REVIEW-READS: Try it on is sent where each thread stands');
+  assert.match(reviewAsk, /She will forgive the debt/, '  and its pockets');
+  assert.match(REVIEW, /contradict/i, 'REVIEW-ASKS: and asked for contradictions');
+  assert.deepStrictEqual(rv.contradictions, [
+    { one: { thread: 'Vel', part: 'always_true', says: '28' }, other: { thread: 'Vel', part: 'appearance', says: '34' },
+      fix: { thread: 'Vel', part: 'appearance', text: 'A 28-year-old face, lined early.' },
+      why: 'Vel\'s age is given two ways.', by: 'code' },
+    { one: { thread: 'Vel', part: 'stands', says: 'Waits on the stair for Aldis.' },
+      other: { thread: 'Aldis', part: 'stands', says: 'Hiding in the lower tiers.' },
+      fix: { thread: 'Aldis', part: 'stands', text: 'Climbing the stair to meet Vel, late.' },
+      why: 'She waits for him on the stair while he hides below.', by: 'model' },
+    { one: { thread: null, part: 'premise', says: 'Aldis owes the moneylender.' },
+      other: { thread: 'Vel', part: 'interiority', says: 'She will forgive the debt.' },
+      fix: { thread: null, part: 'premise', text: 'Aldis, on the stair, owes Vel more than he can pay.' },
+      why: 'The premise names another lender.', by: 'model' },
+  ], 'REVIEW-CONTRADICTIONS: code first, then the model\'s; a fix to a thread the draft lacks, to neither place, or to the held one\'s inside, is dropped');
+  ok('Try it on reads every thread whole and hands back each contradiction with both places and one fix');
 }
 
 // ---- #118 · THE LEDGER REGISTER GIVES A SHAPE, NOT A CHARACTER TO COPY

@@ -19,6 +19,7 @@ import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
 import { checkAsked, checkUndo, undoFor, wordsFor, checkDraft, draftWords, aimOf, askWhich, fingerprint } from './changes.ts';
 import type { Change } from './changes.ts';
+import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
 
@@ -2253,6 +2254,16 @@ export function tidyPockets(existing: any[], answer: unknown, kinds: string[], l
   return out.map(({ replaces: _r, ...p }) => p);
 }
 
+/** #117 · A DRAFT THREAD WHOLE, as Try it on reads it: Always true, where it stands as the tale
+ *  opens, and each pocket by its kind, so it can find two of them that disagree. It was sent the
+ *  Always true alone, and could not see a pocket at all (setup prompt audit, problem I). */
+function draftThreadText(e: any): string {
+  const pockets = Object.entries(e.rooms ?? {}).filter(([slot, p]: [string, any]) => slot !== 'facts' && String(p?.body ?? '').trim())
+    .map(([slot, p]: [string, any]) => `    ${slot}${p.name && p.name !== slot ? ` (${p.name})` : ''}: ${String(p.body).trim()}`);
+  return [`- ${e.title} (${e.entryType ?? 'character'})`, `    always_true: ${e.body ?? ''}`,
+    String(e.stands ?? '').trim() ? `    stands: ${String(e.stands).trim()}` : '', ...pockets].filter(Boolean).join('\n');
+}
+
 /** ONE SPARK THREAD, as the cast and Try it on both return it: Always true in the body, which
  *  POST /api/stories moves into `facts`, and its pockets as rooms, switched on, from its kind's list
  *  only (`writeRooms` writes them as the tale is made).
@@ -3177,9 +3188,7 @@ export const routes: Record<string, Handler> = {
       `Setting: ${st.setting ?? ''}`,
       `Premise: ${st.premise ?? ''}`,
       `Voice: ${st.writingStyle ?? ''}`,
-      cast.length
-        ? `Cast:\n${cast.map((e: any) => `- ${e.title} (${e.entryType}): ${e.body}`).join('\n')}`
-        : 'Cast: nobody yet.',
+      cast.length ? `Cast:\n${cast.map(draftThreadText).join('\n')}` : 'Cast: nobody yet.',
       you.persona ? `THE WRITER PLAYS: ${you.persona}` : '',
       you.held ? `HANDS OFF: ${you.held}` : '',
     ].filter(Boolean).join('\n\n');
@@ -3191,9 +3200,14 @@ export const routes: Record<string, Handler> = {
     // Hands-off floor the cast has, so a proposed thread for the held character is written from outside.
     const proposed = (r.data.entries ?? [])
       .filter((e: any) => e?.name?.trim() && e?.body?.trim() && !have.has(String(e.name).trim().toLowerCase()))
-      .map((e: any) => sparkThread(e.name, e.kind, e.body, e.pockets));
+      .map((e: any) => sparkThread(e.name, e.kind, e.body, e.pockets, e.stands));
     outsideOnly(proposed, you.held);
+    // #117 · WHERE THE DRAFT CONTRADICTS ITSELF: code's floor first, then the model's, each checked
+    // against the draft (src/contradictions.ts).
+    const found = codeContradictions(cast);
+    found.push(...modelContradictions(r.data.contradictions, cast, you.held, found));
     return {
+      contradictions: found,
       changes: (r.data.changes ?? [])
         .filter((x: any) => APPLIABLE.includes(x?.field) && String(x?.value ?? '').trim())
         // A "change" that returns the field unchanged is not one, and it is the shape a model

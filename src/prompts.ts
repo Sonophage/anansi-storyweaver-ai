@@ -2,6 +2,7 @@
 // rev-2 wordings the councils asked for.
 import { ALL_SLOTS } from './slots.ts';
 import { CHANGES_SCHEMA, DRAFT_CHANGES_SCHEMA } from './changes.ts';
+import { PARTS } from './contradictions.ts';
 
 /** Every pocket a spark thread may carry: the one slot list, less Always true (`facts`), which is
  *  the thread's body and not a pocket. For the schemas #84 touched; older ones still spell it out. */
@@ -711,11 +712,21 @@ premise that tells how the tale ends, what it costs or what anyone will do is a 
 
 ${PREMISE_FORM}
 
+THEN READ THE THREADS AGAINST EACH OTHER AND AGAINST THE PREMISE: each thread's Always true, where
+it stands as the tale opens, and each of its pockets. A contradiction is two places that cannot both
+be true as the tale opens: an age given two ways, a person in two places at once, a want in one
+thread that another thread's text says is already settled. For each one: the two places (the
+thread's name, or none for the premise, and which part: premise, always_true, stands, or the
+pocket's kind) with what each says, then ONE fix: which of those two places to change, and its whole
+new text, in the same form as what it replaces. Two places that can both be true are not a
+contradiction; an empty list is the right answer when the draft agrees with itself.
+
 You may also propose entries the skeleton implies and the cast is missing: someone the premise
 names who is not there, the place it happens in, the thing everyone wants. Each is a name, a kind,
-a body and its pockets. The body is its Always true, twenty to forty words in the same dense style
-as the cast: who or what it is for the whole story, facts, not atmosphere, and never a finished
-sentence of the book. Its pockets are from its kind's list:
+a body, where it stands, and its pockets. The body is its Always true, twenty to forty words in the
+same dense style as the cast: who or what it is, identity only, facts, not atmosphere, and never a
+finished sentence of the book. Where it stands is as the tale opens. Its pockets are from its kind's
+list:
 
     character  appearance, voice, interiority, relationships, outfit
     place      appearance, atmosphere, who_is_here
@@ -730,6 +741,11 @@ ${NO_OUTCOMES}
 Do not propose an entry that is already in the cast under any name. If the writer says who they
 play, change nothing about who that is; if somebody is HANDS OFF, propose nothing that has the
 model write for them.`;
+
+/** #117 · One place in a draft, for Try it on's contradictions: a thread by name (empty for the
+ *  premise), the part of it, and what it says there. */
+const PLACE_SCHEMA = { type: 'object', properties: { thread: { type: 'string' }, part: { type: 'string', enum: PARTS },
+  says: { type: 'string' } }, required: ['thread', 'part', 'says'] } as const;
 
 export const REVIEW_SCHEMA = {
   type: 'object',
@@ -757,6 +773,8 @@ export const REVIEW_SCHEMA = {
           name: { type: 'string' },
           kind: { type: 'string', enum: ['character', 'place', 'lore', 'item', 'rule'] },
           body: { type: 'string' },
+          // #117 · Where it stands as the tale opens, as the cast's are.
+          stands: { type: 'string' },
           // #84. Its pockets, as the cast's are; the route keeps only the ones its kind can have.
           pockets: { type: 'array', items: { type: 'object', properties: {
             slot: { type: 'string', enum: POCKET_SLOTS },
@@ -764,11 +782,26 @@ export const REVIEW_SCHEMA = {
             body: { type: 'string' },
           }, required: ['slot', 'name', 'body'] } },
         },
-        required: ['name', 'kind', 'body', 'pockets'],
+        required: ['name', 'kind', 'body', 'stands', 'pockets'],
+      },
+    },
+    // #117 · Where the draft contradicts itself: two places and one fix to one of them. The route
+    // checks every place against the draft (`modelContradictions`), so a wrong one is dropped.
+    contradictions: {
+      type: 'array', maxItems: 6,
+      items: {
+        type: 'object',
+        properties: {
+          one: PLACE_SCHEMA, other: PLACE_SCHEMA,
+          fix: { type: 'object', properties: { thread: { type: 'string' }, part: { type: 'string', enum: PARTS },
+            text: { type: 'string' } }, required: ['thread', 'part', 'text'] },
+          why: { type: 'string' },
+        },
+        required: ['one', 'other', 'fix', 'why'],
       },
     },
   },
-  required: ['changes', 'entries'],
+  required: ['changes', 'entries', 'contradictions'],
 } as const;
 
 /** The next chapter's name and its beat, proposed the moment the chapter opens.
