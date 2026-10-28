@@ -3481,13 +3481,16 @@ ok('a tale keeps its cover blur and flip, a partial save leaves them, and a copy
   const t = db.createStory(o, { title: 'Cover', premise: 'p' });
   const { view } = { view: (id: string) => db.getStory(id) as any };
   assert.strictEqual(view(t.id).cover_blur, 0, 'off on a new tale');
-  db.updateStory(t.id, { coverBlur: true, coverFlip: true });
-  assert.deepStrictEqual([view(t.id).cover_blur, view(t.id).cover_flip], [1, 1], 'both save');
+  db.updateStory(t.id, { coverBlur: 8, coverFlip: true });
+  assert.deepStrictEqual([view(t.id).cover_blur, view(t.id).cover_flip], [8, 1], 'both save, the blur as an amount');
   db.updateStory(t.id, { title: 'Cover again' });
-  assert.deepStrictEqual([view(t.id).cover_blur, view(t.id).cover_flip], [1, 1], 'a save that does not name them leaves them');
+  assert.deepStrictEqual([view(t.id).cover_blur, view(t.id).cover_flip], [8, 1], 'a save that does not name them leaves them');
+  db.updateStory(t.id, { coverBlur: 999 });
+  assert.strictEqual(view(t.id).cover_blur, db.MAX_COVER_BLUR, 'and the blur is capped');
+  db.updateStory(t.id, { coverBlur: 8 });
   const copy = db.duplicateStory(o, t.id, 'Cover copy') as any;
   const cid = copy?.id ?? copy;
-  assert.deepStrictEqual([view(cid).cover_blur, view(cid).cover_flip], [1, 1], 'a copy of the tale carries them');
+  assert.deepStrictEqual([view(cid).cover_blur, view(cid).cover_flip], [8, 1], 'a copy of the tale carries them');
 });
 
 console.log(`\n${n} checks passed`);

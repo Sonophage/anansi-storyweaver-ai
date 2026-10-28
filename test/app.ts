@@ -830,11 +830,12 @@ ok('a chapter wears the book cover as its plate, and the title moves onto it');
   nodes.get('backdrop').innerHTML = drawn + '<!--kept-->';
   click({ panel: 'chapters' }); await new Promise((r) => setTimeout(r, 20));
   assert.match(html('backdrop'), /<!--kept-->/, 'a repaint with nothing changed leaves the picture alone');
-  STORY.story.coverBlur = true; STORY.story.coverFlip = true;
+  (STORY.story as any).coverBlur = 6; STORY.story.coverFlip = true;
   click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
   assert.doesNotMatch(html('backdrop'), /<!--kept-->/, 'a change to it does redraw it');
   assert.strictEqual(nodes.get('backdrop').className, 'blur flip', 'blurred and flipped when the tale asks');
-  STORY.story.coverBlur = false; STORY.story.coverFlip = false;
+  assert.match(html('backdrop'), /filter:blur\(6px\); inset:-12px/, 'by the amount the tale asks');
+  (STORY.story as any).coverBlur = 0; STORY.story.coverFlip = false;
   // The plate and the backdrop are two treatments of one picture and must never both be on: the
   // cover would appear twice, once scrolling and once not.
   assert.doesNotMatch(html('col'), /class="plate(?: [^"]*)?"/,

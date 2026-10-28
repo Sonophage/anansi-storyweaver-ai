@@ -1623,9 +1623,10 @@ function drawDoc() {
       const key = [S.storyId, V.cover, strength, V.story.coverBlur, V.story.coverFlip].join('|');
       if (back.dataset.key !== key) {
         back.dataset.key = key;
-        back.className = `${V.story.coverBlur ? 'blur' : ''} ${V.story.coverFlip ? 'flip' : ''}`.trim();
+        const blur = Math.max(0, Number(V.story.coverBlur) || 0);
+        back.className = `${blur ? 'blur' : ''} ${V.story.coverFlip ? 'flip' : ''}`.trim();
         back.innerHTML = `<i style="background-image:url('${api.coverUrl(S.storyId, V.cover)}');
-          opacity:${strength / 100}"></i><u style="--reach:${((strength - 30) / 70).toFixed(3)}"></u>`;
+          opacity:${strength / 100}${blur ? `; filter:blur(${blur}px); inset:-${blur * 2}px` : ''}"></i><u style="--reach:${((strength - 30) / 70).toFixed(3)}"></u>`;
       }
     } else { back.innerHTML = ''; back.dataset.key = ''; }
   }
@@ -3745,9 +3746,12 @@ const PANELS = {
             data-story="coverOpacity" value="${V.story.coverOpacity ?? 30}">
           <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
             >${V.story.coverOpacity ?? 30}%</span></div>
-        <label class="line pressable push-12">
-          <input type="checkbox" data-story="coverBlur" ${V.story.coverBlur ? 'checked' : ''}>
-          <span class="body-ink">Blur it</span></label>
+        <label class="lbl wide push-12" for="f-story-coverBlur">How much it is blurred</label>
+        <div class="line-12">
+          <input class="fill" type="range" min="0" max="24" step="1" id="f-story-coverBlur"
+            data-story="coverBlur" value="${Number(V.story.coverBlur) || 0}">
+          <span class="tnum" style="font-size:12px; color:var(--faint); width:38px; text-align:right"
+            >${Number(V.story.coverBlur) ? `${Number(V.story.coverBlur)}px` : 'none'}</span></div>
         <label class="line pressable push-8">
           <input type="checkbox" data-story="coverFlip" ${V.story.coverFlip ? 'checked' : ''}>
           <span class="body-ink">Show it on the right, fading to the left</span></label>

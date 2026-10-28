@@ -44,7 +44,7 @@ const toStory = (r: any) => ({
   chapterHero: !!r.chapter_hero,
   chapterSticky: !!r.chapter_sticky,
   coverOpacity: r.cover_opacity == null ? 30 : Number(r.cover_opacity),
-  coverBlur: !!r.cover_blur,
+  coverBlur: Number(r.cover_blur ?? 0),
   coverFlip: !!r.cover_flip,
 });
 const toChapter = (c: any) => ({

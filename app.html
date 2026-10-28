@@ -719,10 +719,10 @@ input[type="checkbox"]:focus-visible { outline:2px solid var(--gold); outline-of
 #backdrop > u { position:absolute; inset:0; display:block;
   background:linear-gradient(var(--fade-dir, 90deg), transparent 0%,
     var(--doc-bg) clamp(20%, calc(62% + var(--reach, 0) * 33%), 98%)); }
-/* Flipped: the picture whole down the right, the page taking over toward the left. Blurred: softened,
-   and pulled past the edges so the blur has no pale rim. (2026-10-27) */
+/* Flipped: the picture whole down the right, the page taking over toward the left. (2026-10-27) The
+   blur is set on the picture itself by drawDoc, by the tale's own amount, and pulled past the edges
+   by twice that so it has no pale rim. */
 #backdrop.flip { --fade-dir:270deg; }
-#backdrop.blur > i { filter:blur(10px); inset:-24px; }
 /* The prose sits above it, and #read must not paint its own ground over the picture.
    `position:relative` with NO z-index, deliberately. A positioned element with a z-index other
    than auto creates a STACKING CONTEXT, and the ⋯ tray is `position:fixed; z-index:32` inside

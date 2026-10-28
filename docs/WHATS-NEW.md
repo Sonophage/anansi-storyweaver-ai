@@ -13,8 +13,8 @@ Everything below this line was written by that model call, before it was removed
 ## 2026-10-27 · The picture behind the prose
 
 ### Blur it, or put it on the right
-With a tale's picture kept behind the prose, two new switches: Blur it, and Show it on the right,
-fading to the left.
+With a tale's picture kept behind the prose, two new settings: a slider for how much it is blurred,
+and a switch to show it on the right, fading to the left.
 
 ### How much of it shows now reaches further across
 The slider used to change only how strong the picture was, so past a fifth of the way it seemed to

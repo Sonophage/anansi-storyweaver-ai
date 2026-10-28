@@ -404,8 +404,9 @@ function migrate() {
   // under text is unreadable and one at nothing is not there, so this is the control that makes
   // the treatment usable at all rather than a nice idea. 30 is a default that reads as atmosphere.
   add('stories', 'cover_opacity', 'INTEGER DEFAULT 30');
-  // Two more ways to set the cover behind the prose (Seth, 2026-10-27): blurred, and the picture
-  // whole down the RIGHT side with the gradient running the other way. Off on every tale until set.
+  // Two more ways to set the cover behind the prose (Seth, 2026-10-27): how much it is blurred, in
+  // pixels (0 is sharp, a slider since Seth asked for "how much blur"), and the picture whole down
+  // the RIGHT side with the gradient running the other way. Both off on every tale until set.
   add('stories', 'cover_blur', 'INTEGER DEFAULT 0');
   add('stories', 'cover_flip', 'INTEGER DEFAULT 0');
   // The character the model must not write: no dialogue, no action, no interior. Null on every
@@ -2841,6 +2842,8 @@ export function endChapter(storyId: string, branchId: string, nextTitle?: string
  *  This was a full-row UPDATE, so saving from a panel holding one field bound `undefined` to
  *  every other column and threw: the Trajectory panel's Save, whose only field is `direction`,
  *  answered 500. Absent keys now keep what is already stored; an explicit null still clears. */
+/** The most the cover behind the prose can be blurred, in pixels. Past this it is a colour wash. */
+export const MAX_COVER_BLUR = 24;
 export function updateStory(id: string, s: any) {
   const cur = getStory(id);
   if (!cur) return;
@@ -2865,7 +2868,7 @@ export function updateStory(id: string, s: any) {
       Number(p('chapterSticky', 'chapter_sticky') ? 1 : 0),
       Math.max(0, Math.min(100, Number(p('coverOpacity', 'cover_opacity')) || 0)),
       // Booleans over the wire, integers in the columns, in the columns' own slots.
-      Number(p('coverBlur', 'cover_blur') ? 1 : 0),
+      Math.max(0, Math.min(MAX_COVER_BLUR, Math.round(Number(p('coverBlur', 'cover_blur')) || 0))),
       Number(p('coverFlip', 'cover_flip') ? 1 : 0),
       // A boolean over the wire, an integer in the column, and `undefined` means "leave it" —
       // p() already resolves that to the current value, so a partial save cannot switch it off.
