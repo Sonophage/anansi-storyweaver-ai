@@ -271,6 +271,34 @@ export const MEMORY_SCHEMA = {
   required: ['threads', 'overflow'],
 } as const;
 
+/** #125 · ADR 0010. WHERE THE TALE STANDS, written at each hem as the tale's thread's next Over time
+ *  entry: the same `stands` MEMORY asks of any thread, for the whole tale. The model reads it in the
+ *  premise's place from the scene after, so it describes the present and never the future: a premise
+ *  that says what the tale is heading for is what made the model keep ending the story (ADR 0009).
+ *  Shapes, not example sentences: the real model copies examples (ADR 0009).
+ *  NOT MEASURED: none of this wording has been run against the real model, and the swap it feeds is
+ *  owed an A/B against the premise-only prompt before anyone calls it better (ADR 0010). */
+export const TALE_STANDS =
+`Below is what a story is, where it stood before its latest scene, and that scene's narration.
+
+Write where the story stands now, after this scene: ONE paragraph, a plain description in the
+present tense. The situation now and what is in play: who is where, what each of them wants now,
+what is in their way now, and what is still open. The WHOLE of it, not only what changed:
+everything in "where it stood" that is still true, with this scene folded in. It replaces that
+text from the next scene on, so anything you leave out is lost from then on.
+
+Never what comes next. Not what anyone will do, means to do or must do; not how anything turns
+out; not what it means or what it is building toward. No ending, no warning, no lesson.
+
+Only the narration commits the story. Dialogue has been removed already; do not infer from what is
+missing. No names in front, no brackets, no headings, no list.`;
+
+export const TALE_STANDS_SCHEMA = {
+  type: 'object',
+  properties: { tale: { type: 'string' } },
+  required: ['tale'],
+} as const;
+
 /** #73 · TIDY THIS THREAD. An old thread is often one box holding who it is, what it wears and what
  *  has happened to it (Halsey's Info did all three), with pockets written as descriptions. This sorts
  *  ONE thread, which the writer chose, into the three parts ADR 0005 gives it. Everything it returns

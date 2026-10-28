@@ -45,6 +45,9 @@ let calls = 0;
 let tidied: any = {};
 /** And what REDO returns (#74): one section written again. */
 let redone = '';
+/** And what the where-the-tale-stands pass returns (#125). Empty, so every hem before its own block
+ *  chalks nothing for the tale. */
+let taleSays = '';
 
 /** #89. A fake that HOLDS its answer while `gate` is pending: how a test proves the hem answers
  *  before its passes do, and that a second hem waits for the first. `inflight` counts asks being
@@ -76,7 +79,7 @@ const srv = createServer((req, res) => {
     if (summed !== null) return send({ choices: [{ message: { content: summed } }],
       usage: { prompt_tokens: 200, completion_tokens: 60 } });
     send({ choices: [{ message: { content: JSON.stringify({ ...tidied, body: redone, threads: answer, entries: found,
-                                                            finished, style: styled }) } }],
+                                                            finished, style: styled, tale: taleSays }) } }],
            usage: { prompt_tokens: 200, completion_tokens: 60 } });
   });
 });
@@ -1242,7 +1245,7 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
   tidied = {}; finished = [];
   const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.strictEqual(hem?.state, 'done', 'HEM-DONE: and done once the passes settle');
-  assert.deepStrictEqual(Object.keys(hem.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary'],
+  assert.deepStrictEqual(Object.keys(hem.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary', 'tale'],
     `  with a report on every pass (${Object.keys(hem.passes)})`);
   assert.deepStrictEqual(hem.suggestion, NEXT, 'HEM-NEXT: and the next-scene suggestion');
   assert.strictEqual(hem.outOfDate, false, '  and nothing has changed since');
@@ -1633,7 +1636,7 @@ ok('no interiority pocket for the played or Hands off character');
   const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.strictEqual(hem?.state, 'done', '  and the hem is done again');
   assert.strictEqual(hem.passes.facts, null, `HEM-RETRY-CLEARS: the facts line clears (${hem.passes.facts})`);
-  assert.deepStrictEqual(Object.keys(hem.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary'],
+  assert.deepStrictEqual(Object.keys(hem.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary', 'tale'],
     '  and the other lines are still in the report');
   assert.deepStrictEqual(hem.suggestion, NEXT, '  and the suggestion is kept');
   const bell = (db.proposalsOf(t.id) as any[]).find((p) => p.title === 'The Ferry Bell');
@@ -1767,6 +1770,67 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   ok(`a run finishes only its own record: a ${label} waiting behind a hem shows running`);
 }
 
+
+// ---- #125 · WHERE THE TALE STANDS: CHALKED AT EACH HEM, SEWN IN, READ IN THE PREMISE'S PLACE ----
+{
+  const { assemble } = await import('../src/story.ts');
+  const PREMISE = 'Mara keeps the lighthouse alone and wants the supply boat to come.';
+  const NOW = 'Mara is out of oil, and the supply boat has turned back.';
+  const LATER = 'The lamp is dark. Mara has rowed for the mainland in the dinghy.';
+  const t = db.createStory(me, { title: 'The tale stands', premise: PREMISE, setting: 'A rock in the North Sea.' }) as any;
+  const ch1 = db.chapters(t.id)[0] as any;
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch1.id,
+    body: `Mara burned the last of the oil and watched the boat turn back. "${SPOKEN}," she said.` });
+  const spine = (focus?: string) => assemble(view(t.id, focus) as any,
+    { global: 8192, slots: 1, perSlot: 8192 }, 'continue').manifest.blocks.find((b: any) => b.kind === 'SPINE')!.text;
+  const sew = (id: string) => routes['POST /api/proposal'](ctx({ storyId: t.id, id, accept: true }));
+
+  taleSays = NOW;
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
+  await hemSettled(t.id);
+  // This tale's ask: another tale's hem may still be running on the same fake.
+  const taleAsk = (said: string) => asks.findLast((a) => a.system.startsWith(prompts.TALE_STANDS.slice(0, 80)) && a.user.includes(said));
+  const ask = taleAsk('burned the last of the oil');
+  assert.ok(ask, 'TALE-ASKED: the hem asks where the tale stands');
+  assert.ok(ask.user.includes(PREMISE), '  from where it stood before: the premise, for the first hem');
+  assert.ok(ask.user.includes('A rock in the North Sea'), "  with what the tale is: its thread's Always true, the setting");
+  assert.ok(ask.user.includes('burned the last of the oil') && !ask.user.includes(SPOKEN), '  reading the narration and not the dialogue');
+  const tale = db.taleThreadOf(t.id);
+  assert.ok(tale, "TALE-THREAD: the first hem makes the tale's thread");
+  const p = (db.proposalsOf(t.id) as any[]).find((x) => x.entry_id === tale.id);
+  assert.ok(p, 'TALE-CHALKED: and chalks where the tale stands on it');
+  assert.strictEqual(p.entry_type, 'state', "  as an Over time entry, like any thread's");
+  assert.deepStrictEqual(JSON.parse(p.keys), ['2'], '  in force from the next scene');
+  assert.strictEqual(p.grp, `scene:${ch1.id}`, "  on the hem's card");
+  assert.strictEqual(p.body, NOW, '  saying where it stands');
+  assert.match(spine(), /wants the supply boat to come/, 'TALE-NOT-YET: chalked is not sewn in, so the premise is still sent');
+  ok("a hem chalks where the tale stands on the tale's thread, onto its card, and nothing is sent until it is sewn in");
+
+  sew(p.id);
+  const s2 = spine();
+  assert.ok(s2.includes(NOW), 'TALE-SENT: sewn in, the prompt carries where the tale stands');
+  assert.ok(!s2.includes(PREMISE), 'TALE-NOT-PREMISE: and not the premise');
+  assert.ok(spine(ch1.id).includes(PREMISE), 'TALE-BEFORE: writing the first scene again still reads the premise');
+  // TALK READS IT TOO: its prompt is assembled the same way.
+  await routes['POST /api/talk'](ctx({ storyId: t.id, said: 'Where are we now?' }));
+  const talk = asks.findLast((a) => a.user.includes('Where are we now?'));
+  assert.ok(talk?.user.includes(NOW) && !talk.user.includes(PREMISE), 'TALE-TALK: Talk reads where the tale stands, not the premise');
+  ok("sewn in, the prompt and Talk read where the tale stands in the premise's place; the scene before it reads the premise");
+
+  // The next hem reads the entry in force and chalks the next one; both are kept.
+  const ch2 = db.chapters(t.id).at(-1) as any;
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch2.id, body: 'Mara rowed the dinghy toward the mainland.' });
+  taleSays = LATER;
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
+  await hemSettled(t.id);
+  assert.ok(taleAsk('rowed the dinghy')?.user.includes(NOW), 'TALE-NEXT-ASK: the next hem starts from the entry in force');
+  sew((db.proposalsOf(t.id) as any[]).find((x) => x.entry_id === tale.id).id);
+  assert.deepStrictEqual((db.statesForStory(t.id).get(tale.id) ?? []).map((x: any) => x.body), [NOW, LATER],
+    'TALE-HISTORY: every entry sewn in is kept, in order');
+  assert.ok(spine().includes(LATER) && !spine().includes(NOW), 'TALE-LATEST: and the latest in force is the one sent');
+  taleSays = '';
+  ok('each hem chalks the next entry from the one in force, and every entry is kept');
+}
 
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter

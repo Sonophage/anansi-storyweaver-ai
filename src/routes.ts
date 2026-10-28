@@ -5,7 +5,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TIDY, TIDY_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TALE_STANDS, TALE_STANDS_SCHEMA, TIDY, TIDY_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -1587,6 +1587,43 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
   return { remembered, chapter: ch.index };
 }
 
+/** #125 · ADR 0010. A paragraph is about 200 words; the floor keeps a long one whole. */
+const TALE_TOKENS = 800;
+
+/** #125 · ADR 0010. WHERE THE TALE STANDS AFTER THE SCENE JUST HEMMED, chalked as the next Over time
+ *  entry of the tale's thread, in force from the next scene, on the hem's card. It is the proposal
+ *  `remember` chalks for any thread's where it stands, so it is sewn in, shown as a diff, kept and
+ *  read the same way. The first hem makes the tale's thread (from the premise and the setting),
+ *  which changes nothing the model reads until an entry is sewn in.
+ *
+ *  ITS OWN CALL, NOT A THREAD IN MEMORY: MEMORY reviews only the threads the narration names, six at
+ *  most, and the tale changes at every scene. Narration only, as `remember` reads it.
+ *  NOT MEASURED: see TALE_STANDS. */
+async function taleStands(c: Ctx, storyId: string, chapterId: string, scene?: string) {
+  const id = db.taleThread(storyId);
+  const v = bookOf(storyId);
+  const tale = (v as any).taleThread;
+  if (!id || !tale) return { error: 'this tale has no thread of its own' };
+  const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
+  const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
+  if (!ps.length) return { chalked: 0 };
+  const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
+  const was = resolveBody(tale, ch.index).trim();
+  const r = await structuredRetry(TALE_STANDS, [
+    `WHAT THE STORY IS: ${alwaysTrue(tale) || '(not written)'}`,
+    `WHERE IT STOOD BEFORE THIS SCENE: ${was || '(nothing yet)'}`,
+    `THE SCENE:\n${text}`].join('\n\n'), TALE_STANDS_SCHEMA,
+    { model: backgroundModel(c, v), max_tokens: TALE_TOKENS });
+  if (!r.data) return { error: r.error ?? 'nothing usable came back' };
+  // Plain, as it will be stored; not "none", and not the text already in force.
+  const stands = db.plainStands(r.data.tale, [tale.title]);
+  if (!stands || /^none[.\s]*$/i.test(stands) || stands === db.plainStands(was, [tale.title])) return { chalked: 0 };
+  const added = db.addProposal(storyId, { kind: 'memory', entry_id: id, chapterId: ch.id, title: tale.title,
+    body: stands, entryType: 'state', delta: 'where the tale stands', keys: [String(ch.index + 1)],
+    grp: scene ?? `hem:${ch.id}:${id}` });
+  return { chalked: added ? 1 : 0 };
+}
+
 /** What the chapter about to be written should be called, and what it has to do.
  *
  *  PROPOSES, writes nothing. The setup panel fills its two fields with this and the writer edits
@@ -1674,7 +1711,7 @@ const hemQueue = new Map<string, Promise<void>>();
 export const hemSettled = (storyId: string): Promise<void> => hemQueue.get(storyId) ?? Promise.resolve();
 
 /** The passes a hem reports on, by the names its report uses. */
-const HEM_PASSES = ['summary', 'memory', 'facts', 'finished', 'next'] as const;
+const HEM_PASSES = ['summary', 'tale', 'memory', 'facts', 'finished', 'next'] as const;
 type HemWant = Record<typeof HEM_PASSES[number], boolean>;
 /** #91. The one queue every hem job goes through, so a try-again or a hem again never runs beside
  *  another hem on the same tale. */
@@ -1728,6 +1765,9 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   const summed = await pass('summary', want.summary, () => summarise(c, storyId, closing));
   const keptSummary = summed?.kept === true;
   if (keptSummary) passes.summary = null;
+  // #125 · Where the tale stands, after the summary and before the threads: one entry on the tale's
+  // own thread, chalked on this scene's card.
+  await pass('tale', want.tale, () => taleStands(c, storyId, closing, scene));
   // The character memory, on the same terms: a chapter must be able to close with the model down.
   await pass('memory', want.memory, () => remember(c, storyId, closing, scene, names));
   // And read it for facts. The comment above summarise applies to this word for word: the ledger
@@ -3636,7 +3676,7 @@ export const routes: Record<string, Handler> = {
     const r = db.endChapter(v.id, v.branchId!, c.body.nextTitle);
     // #89. THE PASSES RUN AFTER THE ANSWER: the writer starts the next scene while they work, and
     // the view shows the hem running, then done.
-    const want: HemWant = { summary: c.body.summarise !== false, memory: c.body.remember !== false,
+    const want: HemWant = { summary: c.body.summarise !== false, tale: true, memory: c.body.remember !== false,
       facts: c.body.extract !== false, finished: c.body.retire !== false, next: true };
     const run = db.beginHem(v.id, closing);
     queueHem(v.id, () => hemPasses(c, v.id, closing, r.opened, want, run));

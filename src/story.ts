@@ -1,6 +1,6 @@
 // Story service. Maps database rows to the engine's plain-object Input and back.
 // The engine never sees a row; the routes never see SQL.
-import { buildContext, stateInForce, wornAt, retiredAt } from './context.ts';
+import { buildContext, stateInForce, wornAt, retiredAt, resolveBody } from './context.ts';
 import type { Input, Entry } from './context.ts';
 import { render, entryText, SYSTEM } from './render.ts';
 import { SLOTS } from './slots.ts';
@@ -246,6 +246,13 @@ export function view(storyId: string, focusChapterId?: string) {
         const worn = wornAt(e, at);
         return { ...e, nowStateId: stateInForce(e, at)?.id ?? null, retiredAtChapter: retiredAt(e, at) ?? undefined,
           outfits: e.outfits.map((o: any) => ({ ...o, active: o.id === worn })) }; }),
+    // #125 · ADR 0010. THE TALE'S THREAD, or null until a hem first needs it: Always true (the
+    // setting), its own text (the premise, where the tale stood as it opened) and its Over time, in
+    // the shape every thread has. Not in `entries`: it reaches the model in SPINE, not as a thread.
+    taleThread: (() => { const t = db.taleThreadOf(storyId);
+      return t ? { ...toEntry(t, states.get(t.id) ?? []), addons: addons.filter((a: any) => a.entry_id === t.id)
+        .map((a: any) => ({ id: a.id, slot: a.slot, name: a.name, body: a.body, keys: JSON.parse(a.keys || '[]'), active: !!a.active })) }
+        : null; })(),
     // #75. The tale's own pockets: instructions for the whole tale, on its thread at the top of Threads.
     talePockets: addons.filter((a: any) => !a.entry_id && a.slot === 'instruction').map((a: any) => ({
       id: a.id, name: a.name, body: a.body, active: !!a.active })),
@@ -417,7 +424,11 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
   const withVoice = { ...v.story,
     writingStyle: (v.story as any).writingStyle?.trim() || voiceOf((v as any).owner),
     // #75. The tale's own pockets that are switched on.
-    pockets: ((v as any).talePockets ?? []).filter((a: any) => a.active).map((a: any) => a.body) };
+    pockets: ((v as any).talePockets ?? []).filter((a: any) => a.active).map((a: any) => a.body),
+    // #125 · WHERE THE TALE STANDS at the scene being written: the tale's thread's Over time entry in
+    // force there, by the rule every thread's is read by. Its scene-1 text is the premise, so a tale
+    // with nothing sewn in, or no thread yet, sends the premise as before.
+    stands: (v as any).taleThread ? resolveBody((v as any).taleThread, v.currentChapter.index) : undefined };
   const inp: Input = {
     story: withVoice as any, chapters: v.chapters, passages, arcs: v.arcs,
     entries: v.entries.map((e) => ({ ...e, body: entryText(e) })),
