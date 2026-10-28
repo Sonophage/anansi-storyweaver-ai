@@ -58,7 +58,29 @@ const srv = createServer((req, res) => {
     const asksForCast = /Populate a story that already exists/.test(String(b.messages?.[0]?.content ?? ''));
     // #21 §3 step 5. Its own role again, keyed on its own words.
     const asksForReview = /say what you would change about it/.test(String(b.messages?.[0]?.content ?? ''));
-    const answer = asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
+    // #97 · A REQUEST TO CHANGE THE TALE, keyed on the writer's own words like the branches above.
+    // Each answer is what a model asked that question would return in `changes`; the route is what
+    // decides which of them are done.
+    const asked = /CHANGE-(\w+)/.exec(String(b.messages?.[1]?.content ?? ''))?.[1];
+    const CHANGES: Record<string, any> = {
+      AGE: { reply: 'Done: she is thirty now.',
+        changes: [{ op: 'thread.set', thread: 'Talia', room: 'none', text: 'Talia is thirty.' }],
+        // And, unasked, a place. An offer, so it is chalked and not made.
+        entries: [{ title: 'The Quay', type: 'place', body: 'Where the ferry ties up.', keys: ['quay'], field: 'none' }] },
+      VOICE: { reply: 'He speaks slowly now.',
+        changes: [{ op: 'thread.set', thread: 'Morgott', room: 'voice', text: 'Slow, formal, never a contraction.' }] },
+      NEW: { reply: 'The ferryman is in the tale.',
+        changes: [{ op: 'thread.new', title: 'The ferryman', type: 'character',
+          text: 'Rows the dead across for a coin.', keys: ['ferryman'], activation: 'triggered' }] },
+      // Everything here is something the route must refuse, and the reply claims all of it was done.
+      BAD: { reply: 'Done, all of it.',
+        changes: [{ op: 'thread.set', thread: 'Nobody', text: 'Old.' },
+                  { op: 'thread.set', thread: 'Ring Law', room: 'voice', text: 'Loud.' },
+                  { op: 'thread.delete', thread: 'Talia' },
+                  { op: 'passage.set', text: 'The rain stopped.' }] },
+    };
+    const answer = asked && CHANGES[asked] ? CHANGES[asked]
+      : asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
         entries: [{ title: 'Vel', type: 'character', field: 'interiority',
                     body: 'She is more afraid of being right than of being wrong.', keys: ['Vel'] }] }
       : asksForReview ? {
@@ -964,6 +986,125 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.match(TC2, /Cite what you are drawing on/,
     'citing the entry, the summary or the passage is not what was being removed');
   ok('no URL is pasted into a card body, and citing her own ledger still is asked for');
+}
+
+// ---- 6e · ASKED MEANS DONE, WITH UNDO (#97, ADR 0007) ----
+//
+// What the writer asks Talk to change is changed at once, through the same db functions a hand edit
+// uses, and comes back as a line in the writer's words with an Undo. The Undo puts back exactly
+// what was there, or takes away what Talk made. What Anansi offers unasked is still chalked. A
+// change the tale cannot take is not applied, and the reply says so. Prose is never touched.
+{
+  const tale = db.createStory(me, { title: 'The Crossing', premise: 'A river between the living and the dead.' });
+  const talia = db.upsertEntry(tale.id, me, { title: 'Talia Venn', body: '', activation: 'always_on' });
+  db.upsertAddon(tale.id, talia, { slot: 'facts', name: 'facts', body: 'Talia is twenty.' });
+  const morgott = db.upsertEntry(tale.id, me, { title: 'Morgott', body: '', activation: 'always_on' });
+  db.upsertEntry(tale.id, me, { title: 'Ring Law', entryType: 'rule', body: '', activation: 'always_on' });
+  db.addPassage({ ...tale, storyId: tale.id, body: 'The ferry left without her.' });
+  const ctxOf = (storyId: string, body: any) => ({ body: { storyId, ...body }, query: new URLSearchParams(),
+    owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+  const say = (said: string) => { calls = []; return routes['POST /api/talk'](ctxOf(tale.id, { said })) as Promise<any>; };
+  const undo = (u: any, storyId = tale.id) => routes['POST /api/talk/undo'](ctxOf(storyId, { undo: u })) as any;
+  const room = (entry: string, slot: string) =>
+    (db.addonsOf(tale.id) as any[]).filter((a) => a.entry_id === entry && a.slot === slot);
+  const prose = () => (db.passagesOf(tale.id) as any[]).map((p) => p.body).join('|');
+  const proseBefore = prose();
+
+  // THE ANSWER CAN CARRY CHANGES, and only the operations on the list. Read off the wire, because
+  // the schema the model is held to is the one sent, not the constant.
+  const age = await say('CHANGE-AGE: make Talia thirty, not twenty');
+  assert.ok(!age.error, age.error);
+  const ops = calls[0].response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum;
+  assert.deepStrictEqual(ops, ['thread.new', 'thread.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
+
+  // Always true, changed at once.
+  assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is thirty.', 'CHANGE-DONE: Talia\'s Always true is changed');
+  assert.strictEqual(room(talia, 'facts').length, 1, 'CHANGE-DONE: in place, not as a second Always true');
+  assert.strictEqual(age.changes?.length, 1, `CHANGE-LINE: one change comes back (${JSON.stringify(age.changes)})`);
+  assert.match(age.changes[0].words, /Talia Venn.*Always true.*Talia is thirty/,
+    `CHANGE-LINE: in the writer's words, naming the thread, the room and the text (${age.changes[0].words})`);
+  // Offers are still chalked: the place nobody asked for is on the Workbench, not in the tale.
+  assert.strictEqual(age.proposed, 1, 'CHANGE-OFFER: the unasked place is chalked');
+  assert.ok((db.proposalsOf(tale.id) as any[]).some((p) => p.title === 'The Quay' && p.status === 'open'),
+    'CHANGE-OFFER: and it is on the Workbench');
+  assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'The Quay'), 'CHANGE-OFFER: and not in the tale');
+
+  // Undo puts back exactly what was there.
+  const back: any = undo(age.changes[0].undo);
+  assert.ok(!back.error, back.error);
+  assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is twenty.', 'UNDO-EXACT: the old Always true, word for word');
+  assert.match(back.undone, /Put back Talia Venn's Always true/, `UNDO-EXACT: and says so (${back.undone})`);
+  ok('asked to change a thread\'s Always true, Talk changes it, and Undo puts back the exact old text');
+
+  // One room, and the rest of the thread left alone.
+  const voice = await say('CHANGE-VOICE: give Morgott a slow, formal voice');
+  assert.ok(!voice.error, voice.error);
+  const v1 = room(morgott, 'voice');
+  assert.strictEqual(v1.length, 1, 'CHANGE-ROOM: Morgott has a voice');
+  assert.strictEqual(v1[0].body, 'Slow, formal, never a contraction.');
+  assert.strictEqual(v1[0].active, 1, 'CHANGE-ROOM: switched on, or it never reaches the model (it has no wake words)');
+  assert.strictEqual(room(morgott, 'facts').length, 0, 'CHANGE-ROOM: and nothing else of his was written');
+  assert.match(voice.changes[0].words, /Morgott's voice/);
+  undo(voice.changes[0].undo);
+  assert.strictEqual(room(morgott, 'voice').length, 0, 'UNDO-ROOM: a room Talk made is taken away by its Undo');
+  ok('asked to change one room, Talk makes that room alone, and Undo takes it away again');
+
+  // A new thread.
+  const before = db.entriesOf(tale.id).length;
+  const made = await say('CHANGE-NEW: add the ferryman as a character');
+  assert.ok(!made.error, made.error);
+  const ferry = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'The ferryman');
+  assert.ok(ferry, 'CHANGE-NEW: the ferryman is a thread of the tale');
+  assert.strictEqual(ferry.entry_type, 'character');
+  assert.strictEqual(room(ferry.id, 'facts')[0]?.body, 'Rows the dead across for a coin.', 'CHANGE-NEW: with his Always true');
+  assert.strictEqual(ferry.activation, 'always_on', 'CHANGE-NEW: a character Talk makes is always on');
+  assert.match(made.changes[0].words, /new thread.*The ferryman/i);
+  const gone: any = undo(made.changes[0].undo);
+  assert.ok(!gone.error, gone.error);
+  assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'The ferryman'),
+    'UNDO-NEW: undoing a thread Talk made removes it');
+  assert.strictEqual(db.entriesOf(tale.id).length, before, 'UNDO-NEW: and the tale has the threads it had');
+  ok('asked to add a thread, Talk makes it, and Undo removes it');
+
+  // The writer changes what Talk made; its Undo no longer takes it away.
+  const again = await say('CHANGE-NEW: add the ferryman as a character');
+  const ferry2 = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'The ferryman');
+  db.upsertAddon(tale.id, ferry2.id, { slot: 'facts', name: 'facts', body: 'Rows the dead. Hates the living.' });
+  const kept: any = undo(again.changes[0].undo);
+  assert.match(String(kept.error), /changed since/, 'UNDO-CHANGED: a thread the writer changed since is theirs');
+  assert.ok((db.entriesOf(tale.id) as any[]).some((e) => e.id === ferry2.id), 'UNDO-CHANGED: and it is still there');
+  ok('an Undo does not take away a thread the writer has changed since Talk made it');
+
+  // What the tale cannot take is not done, and the reply says so, whatever the model claimed.
+  const entriesBefore = JSON.stringify(db.entriesOf(tale.id));
+  const roomsBefore = JSON.stringify(db.addonsOf(tale.id));
+  const bad = await say('CHANGE-BAD: do all of these');
+  assert.ok(!bad.error, bad.error);
+  assert.strictEqual(bad.changes.length, 0, 'CHANGE-REFUSED: none of these is done');
+  assert.strictEqual(JSON.stringify(db.entriesOf(tale.id)), entriesBefore, 'CHANGE-REFUSED: no thread changed, none deleted');
+  assert.strictEqual(JSON.stringify(db.addonsOf(tale.id)), roomsBefore, 'CHANGE-REFUSED: no room changed');
+  assert.match(bad.reply, /no thread called "Nobody"/, `CHANGE-REFUSED: the reply names the thread that is not there:\n${bad.reply}`);
+  assert.match(bad.reply, /a rule has no voice/, 'CHANGE-REFUSED: and the room the kind does not have');
+  assert.strictEqual(bad.reply.match(/not something Talk can do/g)?.length, 2,
+    'CHANGE-REFUSED: and each operation that is not on the list: a delete, and prose');
+  assert.strictEqual(bad.notDone?.length, 4, 'CHANGE-REFUSED: four asked, four not done');
+  assert.strictEqual(prose(), proseBefore, 'CHANGE-NO-PROSE: not one passage changed in this whole block');
+  ok('a change naming no thread, a room the kind lacks, or an operation off the list is refused, and the reply says so');
+
+  // AN UNDO REACHES NOTHING A REQUEST COULD NOT: another tale's thread, named from your own tale,
+  // resolves to nothing. The dispatcher's half — another writer's tale id — is test/scope.ts's.
+  const other = db.createStory(db.owner('stranger'), { title: 'Not yours' });
+  const hers = db.upsertEntry(other.id, db.owner('stranger'), { title: 'Hers', body: '' });
+  db.upsertAddon(other.id, hers, { slot: 'facts', name: 'facts', body: 'Hers alone.' });
+  const herFacts = (db.addonsOf(other.id) as any[])[0];
+  const cross: any = undo({ op: 'thread.set', thread: hers, room: 'facts', addon: herFacts.id, text: 'BOB WAS HERE' });
+  assert.match(String(cross.error), /no longer in this tale/, 'UNDO-SCOPE: another tale\'s thread is not in this one');
+  const crossGone: any = undo({ op: 'thread.unmake', thread: hers, title: 'Hers', text: 'Hers alone.' });
+  assert.ok(crossGone.error, 'UNDO-SCOPE: nor can it be taken away from here');
+  assert.strictEqual((db.addonsOf(other.id) as any[])[0].body, 'Hers alone.', 'UNDO-SCOPE: and hers is as it was');
+  assert.ok((db.entriesOf(other.id) as any[]).some((e) => e.id === hers), 'UNDO-SCOPE: still there');
+  ok('an Undo cannot reach a thread of another tale');
 }
 
 // ---- 6d · THE WRITER MOVES A PROPOSAL, AND THE WRITER OUTRANKS THE MODEL ----

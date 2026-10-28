@@ -16,6 +16,19 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-28 · Anansi changes what you ask him to
+
+### Ask in Talk, and it is done
+Tell Anansi "make Talia thirty", "give Morgott a slow, formal voice" or "add the ferryman as a
+character", and he does it at once. You no longer find a chalked card on the Workbench and sew it
+in. Each change shows in the conversation, naming the thread and what changed, with Undo beside
+it. Undo puts back exactly what was there, or takes away a thread he made. A thread you have
+changed since he made it stays.
+
+If he cannot do what you asked, because there is no thread by that name or that kind of thread
+has no such pocket, his answer says so. What he suggests without being asked is still chalked, as
+before. He never deletes a thread, and he never writes or changes prose.
+
 ## 2026-10-28 · No blink when Anansi finishes
 
 ### The page holds still when a passage lands

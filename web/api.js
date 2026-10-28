@@ -252,6 +252,8 @@ export const api = {
   models:       ()               => j('/api/models'),
   stats:        ()               => j('/api/stats?tzo=' + new Date().getTimezoneOffset()),
   talk:         (storyId, o)     => j('/api/talk', 'POST', { storyId, ...o }),
+  // #97. Puts back one change Talk made: `undo` is that change's own, as the server returned it.
+  talkUndo:     (storyId, undo)  => j('/api/talk/undo', 'POST', { storyId, undo }),
   // ✦ (#71). Three ideas for the next beat, for the writer to pick from. Writes nothing.
   idea:         (storyId)        => j('/api/idea', 'POST', { storyId }),
   bug:          (o)              => j('/api/bug', 'POST', o),

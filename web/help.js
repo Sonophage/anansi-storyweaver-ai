@@ -90,8 +90,11 @@ export const HELP = {
     title: 'Anansi',
     body: `<p>He has kept every thread of the tale and can be asked about it. He answers from the
       threads, the scene summaries and the recent passages, and he names what he drew on.</p>
-      <p>He chalks and never writes. Chalked means suggested and not yet in the tale: a thread he
-      offers waits on the Workbench until you sew it in; a directive he writes lands in the
+      <p>What you ask him to change in a thread, or a thread you ask him to add, he does at once.
+      Each change shows in the conversation with Undo, which puts back what was there. He never
+      writes prose.</p>
+      <p>What he offers without being asked is chalked: suggested and not yet in the tale. A thread
+      he offers waits on the Workbench until you sew it in; a directive he writes lands in the
       composer unsent.</p>`,
   },
 };

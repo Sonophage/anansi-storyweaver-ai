@@ -1,6 +1,7 @@
 // Prompt text for the non-prose roles. PROMPTS.md §5 is the source; these are the
 // rev-2 wordings the councils asked for.
 import { ALL_SLOTS } from './slots.ts';
+import { CHANGES_SCHEMA } from './changes.ts';
 
 /** Every pocket a spark thread may carry: the one slot list, less Always true (`facts`), which is
  *  the thread's body and not a pocket. For the schemas #84 touched; older ones still spell it out. */
@@ -1644,6 +1645,16 @@ You may also offer, when the writer's message calls for it and not otherwise:
   directive somewhere the writer cannot use it from, and it reads as you telling them how to write
   their book.
 
+WHAT THE WRITER ASKS YOU TO CHANGE, you change, in changes, and nowhere else. Only what they asked
+for in so many words: "make Talia thirty", "give Morgott a slow voice", "add the ferryman". Each is
+done the moment you answer, so a thing they did not ask for is never a change; offer it instead.
+
+- thread.set: the thread by its name, the room (none for its Always true), and the whole new text
+  of that room as it should read.
+- thread.new: its title, its type, its Always true as text, and its keys.
+
+Say in the reply what you changed. You never write or change prose, here or anywhere in Talk.
+
 Offer nothing you were not asked for. A question wants an answer, not a queue of work. Somebody
 asking who a character is has asked one thing; answering it and also filing two entries for the
 ledger is work handed back to them for asking.`;
@@ -1766,6 +1777,10 @@ export const TALK_SCHEMA = {
         required: ['title', 'fromChapter'],
       },
     },
+    // #97 · WHAT THE WRITER ASKED TO BE CHANGED, done at once. The operations are a closed list
+    // owned by `src/changes.ts`, which also checks each one against the tale before it is applied;
+    // the enum here only keeps the model on the list.
+    changes: CHANGES_SCHEMA,
     entries: {
       type: 'array', maxItems: 4,
       items: {

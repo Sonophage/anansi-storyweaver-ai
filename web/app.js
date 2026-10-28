@@ -536,7 +536,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // out of Talk.
   'dockopen', 'dockfold', 'idea', 'ideapick', 'dockwrite', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'lbook',
-  'ask', 'usedraft', 'copydraft', 'clearchat', 'copyentry', 'delcover', 'drawcover', 'usecover',
+  'ask', 'usedraft', 'copydraft', 'clearchat', 'talkundo', 'copyentry', 'delcover', 'drawcover', 'usecover',
   // A cover found on the web rather than drawn, 2026-09-01.
   'findcover', 'takeweb',
   // Another batch of the same search — see moreRows for why it deduplicates.
@@ -4615,9 +4615,11 @@ const PANELS = {
   // The conversation. Ephemeral by choice: turns live in S.talk and go nowhere else, so there is
   // no table, no export question, and nothing for the round-trip invariant to cover.
   //
-  // Nothing here writes. A thread goes to the proposals queue and waits; a directive is HANDED to
-  // the composer, unsent and editable, because a conversation that could send is a conversation
-  // that can write your book while you are thinking out loud.
+  // What the writer ASKED to be changed in a thread is already done when the answer arrives (#97,
+  // ADR 0007), and each change is a line here with its Undo. Everything else waits: a thread Anansi
+  // offers goes to the proposals queue; a directive is HANDED to the composer, unsent and editable,
+  // because a conversation that could send is a conversation that can write your book while you
+  // are thinking out loud.
   anansi() {
     // `searchable` comes off the story view, so the checkbox is right the moment the panel
     // opens. It used to start null and only learn the truth from the first answer, which meant
@@ -4625,7 +4627,7 @@ const PANELS = {
     const t = { ...S.talk, searchable: V?.searchable ?? S.talk.searchable };
     return `<div style="display:flex; flex-direction:column; height:100%">
       <div style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding-bottom:10px">
-        ${t.turns.length ? t.turns.map((turn) => turn.you
+        ${t.turns.length ? t.turns.map((turn, i) => turn.you
           ? `<div style="align-self:flex-end; max-width:88%; padding:9px 13px; border-radius:var(--r) 14px 4px 14px;
               background:rgba(217,178,106,.10); border:1px solid rgba(217,178,106,.22);
               font-size:13px; line-height:1.5; color:var(--ink)">${esc(turn.text)}</div>`
@@ -4636,6 +4638,10 @@ const PANELS = {
                    looked something up for, which is provenance nobody asked for and the widest
                    thing on a phone. The search still happens and still reaches him; the writer just
                    is not handed the bibliography. -->
+              ${(turn.changes ?? []).map((ch, j) => `<div class="line-2" style="align-items:center; gap:8px">
+                <span style="font-size:12.5px; line-height:1.45; color:var(--ink-bright); flex:1">${esc(ch.words)}</span>
+                ${ch.undone ? '<span class="caption">Undone</span>'
+                  : `<button class="tag" data-talkundo="${i}:${j}" style="cursor:pointer">Undo</button>`}</div>`).join('')}
               ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
                 border-color:var(--edge-lit); color:var(--ink-bright)">${turn.proposed} chalked &mdash; under This scene</button>` : ''}
               ${turn.meta ? `<div class="caption">${esc(turn.meta)}</div>` : ''}
@@ -9805,11 +9811,11 @@ async function talk(said, mentions, anyway = false) {
   if (r.error) { drawSide(); return toast(r.error); }
   S.talk.searchable = r.searchable ?? S.talk.searchable;
   S.talk.turns = [...S.talk.turns, { you: false, text: r.reply || '(nothing came back)',
-    sources: r.sources ?? [], proposed: r.proposed ?? 0,
+    sources: r.sources ?? [], proposed: r.proposed ?? 0, changes: r.changes ?? [],
     meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens read` }];
   S.talk.draft = r.directive || null;
-  // A thread that landed is a proposal, and the queue lives under Chapter.
-  if (r.proposed) V = await api.story(S.storyId);
+  // A thread that landed is a proposal, and the queue lives under Chapter. A change is in the tale.
+  if (r.proposed || r.changes?.length) V = await api.story(S.storyId);
   paint();
   const b = $('askBox'); if (b) { b.value = ''; b.focus(); }
 }
@@ -11693,6 +11699,19 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (d.clearchat) { S.talk = { ...S.talk, turns: [], draft: null }; drawSide(); return; }
+  // #97 · UNDO ONE CHANGE TALK MADE. The server says whether it could: a thread the writer has
+  // changed since is theirs, and the line keeps its Undo so the refusal is not mistaken for a press
+  // that did nothing.
+  if (d.talkundo) {
+    const [i, j] = String(d.talkundo).split(':').map(Number);
+    const ch = S.talk.turns[i]?.changes?.[j];
+    if (!ch || ch.undone) return;
+    const r = await api.talkUndo(S.storyId, ch.undo);
+    if (r.error) return toast(r.error);
+    ch.undone = true;
+    V = r; paint();
+    return toast(r.undone || 'Undone.');
+  }
   if (d.storymodel !== undefined) { return; }   // handled on change, below
   // #25. The row names a model; the panel is where it is read and where it is switched.
   if (d.modelinfo) {

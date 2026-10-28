@@ -1516,6 +1516,27 @@ async function bootServer(port: number, env: Record<string, string>) {
     // Past the gate it meets a model that is not there, which is any answer but the gate's 404.
     assert.notStrictEqual(ideaOwn.status, 404, `✦ on his own book passes the gate (${ideaOwn.status}; the 404 above is the gate)`);
 
+    // #97 · TALK'S UNDO, aimed at alice's book as bob. It writes a thread, so the gate has to refuse
+    // before the slice reads a field. The control is his own book naming her thread: past the gate,
+    // and the route refuses, because her thread is not in his tale.
+    const herRooms = JSON.stringify(db.addonsOf(aStory.id));
+    const herThreads = JSON.stringify(db.entriesOf(aStory.id));
+    const undoHers = { op: 'thread.set', thread: aEntry, room: 'facts', addon: null, text: 'BOB WAS HERE' };
+    const undoForeign = await post('/api/talk/undo', { storyId: aStory.id, undo: undoHers });
+    assert.strictEqual(undoForeign.status, 404, "TALK-UNDO-GATE: Talk's Undo must refuse another writer's story id");
+    const undoOwn = await post('/api/talk/undo', { storyId: bStory.id, undo: undoHers });
+    assert.strictEqual(undoOwn.status, 200, `TALK-UNDO-GATE: on his own book it passes the gate (${undoOwn.status})`);
+    assert.match(String((await undoOwn.json()).error), /no longer in this tale/,
+      'TALK-UNDO-SCOPE: and the route refuses her thread named from his book');
+    const unmakeOwn = await post('/api/talk/undo', { storyId: bStory.id,
+      undo: { op: 'thread.unmake', thread: aEntry, title: 'Secret', text: '' } });
+    assert.ok((await unmakeOwn.json()).error, 'TALK-UNDO-SCOPE: nor can her thread be taken away from his book');
+    // Talk itself, on her book: refused before anything is read into a prompt.
+    const talkForeign = await post('/api/talk', { storyId: aStory.id, said: 'make Secret public' });
+    assert.strictEqual(talkForeign.status, 404, "TALK-GATE: Talk must refuse another writer's story id");
+    assert.strictEqual(JSON.stringify(db.addonsOf(aStory.id)), herRooms, 'TALK-UNDO-SCOPE: her rooms are as they were');
+    assert.strictEqual(JSON.stringify(db.entriesOf(aStory.id)), herThreads, 'TALK-UNDO-SCOPE: and her threads');
+
     // A gated route naming no story at all: the gate cannot resolve an owner, so it fails closed.
     const nameless = await post('/api/write', { body: 'no story named' });
     assert.strictEqual(nameless.status, 400, 'a gated route naming no story must be refused');

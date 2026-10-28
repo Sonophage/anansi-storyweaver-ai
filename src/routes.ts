@@ -17,6 +17,8 @@ import { resolveBody, cardText, alwaysTrue, retiredAt, narrationOnly, quotedSpan
          weaveFit, actSpan } from './context.ts';
 import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
+import { checkAsked, checkUndo, undoFor, wordsFor } from './changes.ts';
+import type { Change } from './changes.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
 
@@ -678,6 +680,36 @@ function roomOffer(onto: any, field: string | null, body: string): string | null
   // at most one live by construction; a plural slot is a judgement, and the newest is the one the
   // writer most recently cared about.
   return (already.find((a: any) => a.active) ?? already.at(-1))?.id ?? null;
+}
+
+/** #97 · ONE CHECKED CHANGE, WRITTEN. `src/changes.ts` decided what it is and that this tale can take
+ *  it; this is the execution half, and it goes through the functions a hand edit goes through, so
+ *  the writer's own save and Talk's write the same rows the same way. Answers the ids the write
+ *  minted, which the Undo needs, or null when the db refused it.
+ *
+ *  A ROOM TALK MAKES IS SWITCHED ON when it has no wake words, the rule accepting a chalked room
+ *  follows: a room with no words that nobody pinned on never reaches the model, and looks filled in
+ *  on the thread while it does nothing. A new thread is made the way accepting a chalked one makes
+ *  it: its text is its Always true, and it is the writer's (`last_editor` human), because they asked. */
+function applyChange(storyId: string, owner: string, ch: Change): { thread?: string; addon?: string } | null {
+  if (ch.op === 'thread.new') {
+    const id = db.upsertEntry(storyId, owner, { title: ch.title, body: '', entryType: ch.type,
+      activation: ch.activation, keys: ch.keys, lastEditor: 'human' });
+    if (!id) return null;
+    if (ch.always) db.upsertAddon(storyId, id, { slot: 'facts', name: 'facts', body: ch.always });
+    return { thread: id };
+  }
+  if (ch.op === 'thread.set') {
+    const id = db.upsertAddon(storyId, ch.thread, { id: ch.addon ?? undefined, slot: ch.room,
+      name: ch.name, body: ch.text, keys: ch.keys });
+    if (!id) return null;
+    if (!ch.addon && !ch.keys.length) db.setAddonActive(storyId, id, true);
+    return { addon: id };
+  }
+  // The two an Undo alone may do, each only on a thread or room Talk made and nobody has changed
+  // since — `checkUndo` refused anything else before this was reached.
+  if (ch.op === 'thread.unmake') { db.delEntry(storyId, ch.thread); return {}; }
+  db.delAddon(storyId, ch.addon); return {};
 }
 
 /** WHICH ROOM A PROPOSED CHANGE LANDS IN, asked once for every pass that can name one.
@@ -3299,9 +3331,11 @@ export const routes: Record<string, Handler> = {
   /** Anansi: the conversation. Ephemeral — turns come from the client and are never stored, so
    *  there is no table, no export question and nothing for the round-trip invariant to cover.
    *
-   *  Three possible outputs and NONE of them lands here: the reply is returned, threads go to the
-   *  proposals queue where they wait like every other proposal, and the directive is handed back
-   *  for the composer to hold unsent. This route writes nothing to the story itself. */
+   *  Four outputs, and since #97 one of them lands here. The reply is returned; threads Anansi
+   *  OFFERS go to the proposals queue where they wait like every other proposal; the directive is
+   *  handed back for the composer to hold unsent. What the writer ASKED to be changed (`changes`)
+   *  is written at once, each with the Undo that puts it back (ADR 0007: asked means done, offered
+   *  means chalked). No prose is ever written here. */
   'POST /api/talk': async (c: Ctx) => {
     const v = viewOf(c, c.body.storyId);
     const said = String(c.body.said ?? '').trim().slice(0, 2000);
@@ -3461,10 +3495,40 @@ export const routes: Record<string, Handler> = {
         activation: e.activation, field, target })) proposed++;
     }
 
-    return { reply: r.data.reply ?? '', directive: r.data.directive || null,
+    // #97 · WHAT THE WRITER ASKED FOR IS DONE NOW (ADR 0007). Each change is checked against the
+    // tale as it stands after the ones before it, so "add the ferryman, and give him a voice" can
+    // land in one answer. A change the tale cannot take is not done, and the reply says so in
+    // Anansi's own answer: the model may have said it did it, and the writer must not be left
+    // believing that. No operation on the list deletes anything or touches prose.
+    const changes: { words: string; undo: any }[] = [];
+    const notDone: { said: string; why: string }[] = [];
+    for (const raw of (Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4)) {
+      const k = checkAsked(raw, { entries: bookOf(v.id).entries as any[] });
+      if (!k.ok) { notDone.push({ said: k.said, why: k.why }); continue; }
+      const made = applyChange(v.id, c.owner, k.change);
+      if (!made) { notDone.push({ said: wordsFor(k.change), why: 'the tale refused it' }); continue; }
+      changes.push({ words: wordsFor(k.change), undo: undoFor(k.change, made) });
+    }
+    const answer = String(r.data.reply ?? '') + (notDone.length ? `\n\n${notDone
+      .map((x) => `Not done. ${x.said}: ${x.why}.`).join('\n')}` : '');
+
+    return { reply: answer.trim(), directive: r.data.directive || null, changes, notDone,
              proposed, sources: sources.map((x) => ({ title: x.title, url: x.url })),
              seconds: +((Date.now() - t0) / 1000).toFixed(1),
              tokens: manifest.totals.used, searchable: searchConfigured() };
+  },
+
+  /** #97 · UNDO ONE CHANGE TALK MADE. The client holds the `undo` each change came back with and
+   *  sends it here; nothing about the conversation is stored. It goes through the same slice and
+   *  the same writes as the request did, so it reaches nothing a request could not: by id, on this
+   *  tale's own threads (the gate has already said the tale is the writer's), putting back the old
+   *  text or taking away a thread or room Talk made while it is still exactly as Talk made it. */
+  'POST /api/talk/undo': (c: Ctx) => {
+    const v = bookOf(c.body.storyId);
+    const k = checkUndo(c.body.undo, { entries: v.entries as any[] });
+    if (!k.ok) return { error: `Not undone: ${k.why}.` };
+    if (!applyChange(v.id, c.owner, k.change)) return { error: 'Not undone: the tale refused it.' };
+    return { undone: wordsFor(k.change), ...viewOf(c, v.id) };
   },
 
   /** ✦ (#71) · ANANSI'S IDEAS FOR WHAT COMES NEXT, three in one call, asked for when the writer taps

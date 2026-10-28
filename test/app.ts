@@ -354,7 +354,7 @@ let streamGate: Promise<void> | null = null, endGate: Promise<void> | null = nul
 // #56. When set, the stubbed generation answers with this one line and no prose: a refusal.
 let stubRefuse: any = null;
 // #56. The same for a Talk reply and an invention, which are plain JSON calls.
-let stubTalk: any = null, stubInvent: any = null;
+let stubTalk: any = null, stubInvent: any = null, stubUndo: any = null;
 (globalThis as any).fetch = async (url: string, init?: any) => {
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
   /* A GENERATION, AS THE NDJSON STREAM THE REAL ROUTE SENDS. Until 2026-09-01 this stub answered
@@ -550,6 +550,7 @@ let stubTalk: any = null, stubInvent: any = null;
     : url.startsWith('/api/after?') ? (afterAsked = new URLSearchParams(url.split('?')[1]).get('id'),
         { yours: afterYours })
     : url.startsWith('/api/manifest') ? MANIFEST
+    : url.startsWith('/api/talk/undo') ? (stubUndo ?? { undone: "Put back Marek's Always true.", ...STORY })
     : url.startsWith('/api/talk') ? (stubTalk ?? { reply: 'It is about a debt.', seconds: 1, tokens: 10 })
     : url.startsWith('/api/invent') ? (stubInvent ?? { title: 'The Rust Choir', duplicate: false })
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
@@ -2875,6 +2876,52 @@ ok('the Context panel carries the weaving refusal the press would get, and nothi
   }
 }
 ok('a refused Talk or invention gets the same row where it was asked, and each button asks again');
+
+// #97 · WHAT TALK CHANGED, IN THE CONVERSATION, WITH UNDO. Each change the server made comes back as a
+// line in the writer's words; Undo sends that change's own `undo` back, untouched, and the line then
+// says it was undone. A failed Undo says why and leaves the line as it was.
+{
+  const UNDO = { op: 'thread.set', thread: 'e-1', room: 'facts', addon: 'a-1', text: 'Marek is twenty.' };
+  try {
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    click({ panel: 'anansi' });
+    await new Promise((r) => setTimeout(r, 30));
+    stubTalk = { reply: 'Done: he is thirty now.', seconds: 1, tokens: 10,
+      changes: [{ words: "Changed Marek's Always true: “Marek is thirty.”", undo: UNDO }] };
+    POSTED.length = 0;
+    (document as any).getElementById('askBox').value = 'Make Marek thirty';
+    click({ ask: '1' });
+    await new Promise((r) => setTimeout(r, 80));
+    const side = html('sideBody');
+    assert.ok(side.includes('Changed Marek&#39;s Always true') || side.includes("Changed Marek's Always true"),
+      `TALK-CHANGE-LINE: the change shows in the conversation, in the writer's words:\n${side.slice(0, 600)}`);
+    const btn = side.match(/<button[^>]*data-talkundo="([^"]+)"[^>]*>([^<]*)</);
+    assert.ok(btn, 'TALK-CHANGE-UNDO: with an Undo beside it');
+    assert.match(btn![2], /Undo/, 'TALK-CHANGE-UNDO: labelled Undo');
+
+    // A refused Undo says why, and the line keeps its Undo.
+    stubUndo = { error: 'Not undone: Marek has changed since Talk made it.' };
+    POSTED.length = 0;
+    click({ talkundo: btn![1] });
+    await new Promise((r) => setTimeout(r, 60));
+    const sent = POSTED.filter((p: any) => p.url === '/api/talk/undo');
+    assert.strictEqual(sent.length, 1, 'TALK-UNDO-SENDS: one press, one Undo');
+    assert.deepStrictEqual(sent[0].body.undo, UNDO, 'TALK-UNDO-SENDS: the change\'s own undo, as the server gave it');
+    assert.strictEqual(sent[0].body.storyId, 's-1', 'TALK-UNDO-SENDS: on this tale');
+    assert.match(html('sideBody'), /data-talkundo=/, 'TALK-UNDO-REFUSED: a refused Undo leaves the line undoable');
+
+    stubUndo = null;
+    click({ talkundo: btn![1] });
+    await new Promise((r) => setTimeout(r, 60));
+    assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/talk/undo').length, 2,
+      'TALK-UNDO-REFUSED: and a second press tries again');
+    const after = html('sideBody');
+    assert.doesNotMatch(after, /data-talkundo=/, 'TALK-UNDO-DONE: once undone, the Undo is gone');
+    assert.match(after, /Undone/, `TALK-UNDO-DONE: and the line says it was undone:\n${after.slice(0, 600)}`);
+  } finally { stubTalk = null; stubUndo = null; }
+}
+ok('a change Talk made shows in the conversation with Undo, and Undo sends that change back');
 
 // #58 · WHAT THE TALK PANEL SAYS WHILE IT WAITS. Weaving when the book weaves (the server's
 // `weaves`, which a model that always weaves sets too), and Asking otherwise. Never Thinking: the
