@@ -221,8 +221,9 @@ function wakeOn(t: Thread, raw: any, said: string, undo: boolean): Checked {
 
 /** #98 · AN OVER TIME ENTRY: where the thread stands from a scene on, the whole of it, with a short
  *  label. A request names the scene by number (none is the scene the writer is in), and it must be a
- *  scene the tale has: an entry dated after the last scene is not refused by the database and would
- *  sit there unread, which is the change the writer thinks happened and did not. Not scene 1: what
+ *  scene the tale has (the ticket's rule). The database would take any number, and an entry dated
+ *  past the last scene reaches no scene written so far, so the writer would read "done" for a change
+ *  nothing they have written sees. Not scene 1: what
  *  holds from scene 1 is the thread itself, which thread.set changes. An entry already dated from
  *  that scene is written over, as `upsertState` does for the hand edit, and its Undo puts all of it
  *  back. An Undo names the entry by id. */
