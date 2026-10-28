@@ -63,7 +63,8 @@ Hands off is written from the outside in this tale only. The World's thread does
 ### Threads you bring in are part of starting the tale
 The threads you pick from your other tales on New tale, and turning off "Anansi writes the first
 passage", are now part of Start writing itself. If a picked thread cannot be brought over, the tale
-is not made and your draft is still there; before, the tale was made without it.
+is not made and your draft is still there; before, the tale was made without it. Start blank works
+the same way now.
 
 ### A tale's universe always names the World it follows
 When a tale follows a World, the universe or IP in its Tale settings is that World's name, so the
@@ -77,7 +78,9 @@ The thread is sent for that scene and stays the World's: a change to it in the W
 scene. Your pins from before are all still there.
 If the tale stops following that World, or follows another, its ticks on the old World's
 threads come off. Its own threads stay ticked. If you make the tale's own copy of a World thread
-you ticked, the tick moves to the copy, so the scene still gets that person.
+you ticked, the tick moves to the copy, so the scene still gets that person. Give the copy back to
+the World, and the tick moves back to the World's thread. Remove a World thread from the tale, and
+its ticks in that tale come off.
 
 ## 2026-10-28 · Anansi changes what you ask him to
 
