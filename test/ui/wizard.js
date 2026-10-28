@@ -379,9 +379,10 @@ ok("  and the cast call was told who you play, and who is Hands off",
     return 1; })()`);
   await page.click('[data-spwritecast="1"]');
   await wait(700);
-  ok("  unticking everything and asking again is a different cast, not more of it",
+  // #84: Ilva is who you play, so her tick stays and she rides as taken; the rest is rewritten.
+  ok("  unticking everything and asking again rewrites all but the one you play",
      (await page.eval(`(() => [...document.querySelectorAll('[data-spname]')]
-       .map(n => n.value).join('|'))()`)) === 'Ilva Marren|Kade Ashford');
+       .map(n => n.value).join('|'))()`)) === 'Ilva Marren|Ossian Rede');
 }
 
 // #28 · AND THE LIBRARY IS ON THIS STEP. Seth: "i should be abel to set up lore books or pull from
@@ -411,7 +412,7 @@ ok("  the cast step can also pull threads out of books you already have",
 await go("You");
 await wait(400);
 ok("  and once there is one, You offers it",
-   (await page.eval(`[...document.querySelectorAll('#f-sp-cast option')].map(o => o.value).join('|')`)) === 'Ilva Marren|Kade Ashford');
+   (await page.eval(`[...document.querySelectorAll('#f-sp-cast option')].map(o => o.value).join('|')`)) === 'Ilva Marren|Ossian Rede');
 
 {
   const sparksBefore = await page.eval("window.__spark");

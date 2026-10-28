@@ -533,7 +533,7 @@ let stubTalk: any = null, stubInvent: any = null;
                    style: [] } }
     // #88. The cast, in the shape POST /api/spark/cast returns: the writer's character written from
     // outside with the yours pocket, another with pockets of her own, and a Rule.
-    : url.startsWith('/api/spark/cast') ? { persona: 'Mara Voss', lockedCharacter: 'Mara Voss', entries: [
+    : url.startsWith('/api/spark/cast') ? { entries: [
         { title: 'Mara Voss', entryType: 'character', activation: 'always_on', keys: ['Mara Voss'],
           body: '[Mara Voss: a courier who owes the envoy]',
           rooms: { appearance: { name: 'Road dust', body: 'Show the dust on her boots first.', on: true },
@@ -700,12 +700,15 @@ ok('every preset on the box has a blurb, and every blurb still belongs to a pres
     'VOICE-CLASH: a statement beside a forbidden person still counts');
   assert.strictEqual(voiceClash('Do not head-hop; stay in close third, past tense.', 'first person, present tense').length, 1,
     'VOICE-CLASH: a negation in one clause does not hide the next');
+  assert.strictEqual(voiceClash('First person present tense with no filter words.', THIRD)[0]?.said, 'first person, present tense',
+    'VOICE-CLASH: a negation hides only what follows it, not what it comes after');
   // AND WHERE IT MUST STAY QUIET.
   const quiet = [
     'Give her one line a scene, and let it be "you never listen".',          // "you" once, in dialogue
     'You are the narrator. You keep the sentences short.',                    // "you" is the model
     '"Write it in first person," the editor said, and nobody did.',           // a person named only inside quotes
     'Never slip into second person.',                                          // named to forbid it
+    'Write in third person, with no filter words.',                            // a negation after an agreeing statement
     'Write in third person, past tense.',                                      // agrees
     'Describe what the point of view allows, and no more.',
   ];
@@ -3373,8 +3376,13 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
     assert.strictEqual(cast.body.story.lockedCharacter, 'Mara Voss', '  and who is Hands off');
     assert.strictEqual(cast.body.story.personaAbout, 'a courier who owes the envoy', '  and what you said of them');
 
+    // THE THREAD YOU PLAY CANNOT BE UNTICKED on the threads step either (round-two review).
+    onScreen = { '[data-spcast]': [{ dataset: { spcast: '1' }, checked: false }] };
+    click({ sparkstep: '4' });
+    onScreen = {};
     click({ sparkstep: '5' });
     await settle(/The tale's own thread/);
+    assert.match(html('page'), /a courier who owes the envoy/, 'WIZ-KEEP-YOU: unticking the thread you play keeps it');
     let pv = html('page');
     assert.match(pv, /The tale's own thread/, "WIZ-PREVIEW: the tale's own thread is at the top");
     assert.ok(pv.indexOf("The tale's own thread") < pv.indexOf('Teodor Ash'), '  above the threads');

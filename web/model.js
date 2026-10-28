@@ -144,11 +144,12 @@ const PERSON = [['first', /\bfirst[\s-]+person\b/i], ['second', /\bsecond[\s-]+p
   ['third', /\bthird[\s-]+person\b|\b(?:close|limited)\s+third\b|\bthird[\s-]+(?:limited|omniscient)\b/i]];
 const TENSE = [['present', /\bpresent[\s-]+tense\b/i], ['past', /\bpast[\s-]+tense\b/i]];
 const sentencesOf = (line) => line.split(/(?<=[.!?])\s+(?=\S)/);
-// Clause by clause: a negation silences its own clause ("never second person"), not the sentence.
+// Clause by clause, and within a clause only what follows a negation is silenced: "never second
+// person" says nothing, "first person with no filter words" still says first person.
 function says(sentence) {
   const out = { person: null, tense: null };
-  for (const clause of sentence.replace(/"[^"]*"|\u201c[^\u201d]*\u201d/g, ' ').split(/[,;:]/)) {
-    if (/\b(?:never|not|no|avoid|don't)\b/i.test(clause)) continue;
+  for (let clause of sentence.replace(/"[^"]*"|\u201c[^\u201d]*\u201d/g, ' ').split(/[,;:]/)) {
+    clause = clause.split(/\b(?:never|not|no|avoid|don't)\b/i)[0];
     out.person ??= PERSON.find(([, re]) => re.test(clause))?.[0] ?? null;
     out.tense ??= TENSE.find(([, re]) => re.test(clause))?.[0] ?? null;
   }
@@ -169,8 +170,7 @@ export function voiceClash(voice, pov) {
 /** The fix: the Voice without the sentences `voiceClash` names, and otherwise as it was. A line left
  *  with nothing but its list mark goes too. */
 export function withoutClash(voice, pov) {
-  const text = String(voice ?? '');
-  const lines = text.split('\n');
+  const lines = String(voice ?? '').split('\n');
   return lines.map((line) => {
     const kept = sentencesOf(line).filter((sn) => !voiceClash(sn, pov).length);
     return kept.length === sentencesOf(line).length ? line : kept.join(' ');

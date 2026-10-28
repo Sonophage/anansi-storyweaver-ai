@@ -62,6 +62,7 @@ landed. It is now drawn again only when you change it.
 
 ### A bigger head on a scene with a picture
 The picture at the head of each scene, and the scene's name on it, are a little bigger.
+
 ## 2026-10-27 · A character's voice no longer hides who they are
 
 ### Voice pockets that describe a whole person work again

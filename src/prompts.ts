@@ -1,6 +1,10 @@
 // Prompt text for the non-prose roles. PROMPTS.md §5 is the source; these are the
 // rev-2 wordings the councils asked for.
 import { ALL_SLOTS } from './slots.ts';
+
+/** Every pocket a spark thread may carry: the one slot list, less Always true (`facts`), which is
+ *  the thread's body and not a pocket. For the schemas #84 touched; older ones still spell it out. */
+const POCKET_SLOTS = ALL_SLOTS.filter((s) => s !== 'facts');
 /** MEASURED (F18): the word count has to read as a CEILING, not a target. "180 words" made the
  *  model pad — a 160-character chapter came back as 1,269 characters of invention — and made it
  *  explain rather than record: "This action confirms his intent to leave permanently." "Under 180
@@ -637,8 +641,7 @@ export const REVIEW_SCHEMA = {
           body: { type: 'string' },
           // #84. Its pockets, as the cast's are; the route keeps only the ones its kind can have.
           pockets: { type: 'array', items: { type: 'object', properties: {
-            slot: { type: 'string', enum: ['appearance', 'atmosphere', 'consequences', 'interiority',
-                    'outfit', 'relationships', 'voice', 'what_it_does', 'who_is_here'] },
+            slot: { type: 'string', enum: POCKET_SLOTS },
             name: { type: 'string' },
             body: { type: 'string' },
           }, required: ['slot', 'name', 'body'] } },
@@ -840,8 +843,7 @@ export const castSchema = (kinds: string[]) => ({
           // FULLY FLESHED FROM THE START: its pockets, as instructions. The route keeps only the
           // ones the entry's kind can have.
           pockets: { type: 'array', items: { type: 'object', properties: {
-            slot: { type: 'string', enum: ['appearance', 'atmosphere', 'consequences', 'interiority',
-                    'outfit', 'relationships', 'voice', 'what_it_does', 'who_is_here'] },
+            slot: { type: 'string', enum: POCKET_SLOTS },
             name: { type: 'string' },
             body: { type: 'string' },
           }, required: ['slot', 'name', 'body'] } },

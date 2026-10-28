@@ -2014,6 +2014,17 @@ export const routes: Record<string, Handler> = {
     // written from outside when they are Hands off. Never a second one beside the cast's.
     const cast = [...(Array.isArray(c.body.entries) ? c.body.entries : [])];
     const you = playsOf(c.body), about = String(c.body.personaAbout ?? '').trim().slice(0, 600);
+    // A SPARK CREATE ALSO SETTLES WHO IS HELD NOW: Hands off may have changed on You after the
+    // threads were written, so the yours pocket comes off a thread no longer held and the one held
+    // now is written from outside. Only the wizard's create: a pasted book's pockets are as they came.
+    if (c.body.spark) {
+      for (const e of cast) if (e?.rooms?.voice?.body === YOURS_VOICE(String(e.title ?? '').trim())
+          && String(e.title ?? '').trim().toLowerCase() !== (you.held ?? '').toLowerCase()) {
+        const { voice: _v, ...rest } = e.rooms;
+        e.rooms = rest;
+      }
+      outsideOnly(cast, you.held);
+    }
     if (you.persona && about && !cast.some((e: any) =>
         String(e?.title ?? '').trim().toLowerCase() === you.persona!.toLowerCase())) {
       const own = sparkThread(you.persona, 'character', about, []);
@@ -2037,8 +2048,8 @@ export const routes: Record<string, Handler> = {
     }
     // #84 · THE TALE'S OWN POCKETS from the wizard's preview (#75's `instruction` slot), switched on,
     // as the tale's own thread adds them one at a time. A blank one is not a pocket.
-    for (const p of (Array.isArray(c.body.talePockets) ? c.body.talePockets : []) as any[]) {
-      const body = String(p?.body ?? '').trim();
+    for (const p of (Array.isArray(c.body.talePockets) ? c.body.talePockets : []).slice(0, 24) as any[]) {
+      const body = String(p?.body ?? '').trim().slice(0, 4000);
       if (!body) continue;
       const id = db.upsertAddon(made.id, null, { slot: 'instruction', name: String(p?.name ?? '').trim() || 'Your own', body });
       if (id) db.setAddonActive(made.id, id, true);
@@ -2235,9 +2246,9 @@ export const routes: Record<string, Handler> = {
       entries.unshift(sparkThread(you.persona, 'character', about, []));
     if (!entries.length) return { error: 'nothing came back in the kinds you asked for' };
     outsideOnly(entries, you.held);
-    // WHO YOU PLAY GOES BACK AS IT CAME. The model is no longer asked to choose: the writer did, a
-    // step earlier, and a cast that reassigned it would undo the lock its pockets were written for.
-    return { entries, persona: you.persona, lockedCharacter: String(st.lockedCharacter ?? '').trim() || null };
+    // WHO YOU PLAY IS NOT RETURNED. The model is no longer asked to choose: the writer did, a step
+    // earlier, and the wizard keeps that choice.
+    return { entries };
   },
 
   /** THE HOUSE STYLE, BEFORE THERE IS A BOOK TO READ IT OFF. Seth, 2026-08-30: *"the genre voice
@@ -2300,6 +2311,12 @@ export const routes: Record<string, Handler> = {
       { model: backgroundModel(c, { story: null }), max_tokens: REVIEW_TOKENS });
     if (!r.data) return { error: r.error ?? 'the second look returned nothing usable' };
     const have = new Set(cast.map((e: any) => String(e.title ?? '').trim().toLowerCase()));
+    // Never one the cast already has — the prompt says so and this is what enforces it. And the
+    // Hands-off floor the cast has, so a proposed thread for the held character is written from outside.
+    const proposed = (r.data.entries ?? [])
+      .filter((e: any) => e?.name?.trim() && e?.body?.trim() && !have.has(String(e.name).trim().toLowerCase()))
+      .map((e: any) => sparkThread(e.name, e.kind, e.body, e.pockets));
+    outsideOnly(proposed, you.held);
     return {
       changes: (r.data.changes ?? [])
         .filter((x: any) => APPLIABLE.includes(x?.field) && String(x?.value ?? '').trim())
@@ -2307,12 +2324,7 @@ export const routes: Record<string, Handler> = {
         // reaching for something to say produces.
         .filter((x: any) => String(x.value).trim() !== String(st[x.field] ?? '').trim())
         .map((x: any) => ({ field: x.field, value: String(x.value).trim(), why: String(x.why ?? '').trim() })),
-      // And never one the cast already has — the prompt says so and this is what enforces it.
-      entries: (r.data.entries ?? [])
-        .filter((e: any) => e?.name?.trim() && e?.body?.trim()
-          && !have.has(String(e.name).trim().toLowerCase()))
-        .map((e: any) => sparkThread(e.name, e.kind, e.body, e.pockets))
-        .map((e: any) => (outsideOnly([e], you.held), e)),
+      entries: proposed,
     };
   },
 

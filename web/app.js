@@ -4950,9 +4950,10 @@ function harvestSpark() {
     if (el.type === 'checkbox') { S.spark.story[k] = el.checked; continue; }
     S.spark.story[k] = k === 'spice' ? Number(el.value) || 2 : el.value;
   }
+  // The thread you play stays ticked while you play them (#84): unticking it would drop it at Create.
   for (const c of document.querySelectorAll('[data-spcast]')) {
     const e = S.spark.entries[Number(c.dataset.spcast)];
-    if (e) e.keep = c.checked;
+    if (e) e.keep = c.checked || playsThis(e);
   }
   for (const t of document.querySelectorAll('[data-spbody]')) {
     const e = S.spark.entries[Number(t.dataset.spbody)];
@@ -4971,8 +4972,8 @@ function harvestSpark() {
       const p = S.spark.entries[Number(i)]?.rooms?.[slot];
       if (p) p[field] = t.value;
     }
-  // Renaming somebody here has to carry what points AT them, or the next step offers a name the
-  // cast no longer contains and the persona quietly becomes Nobody. Same failure the server fixes
+  // Renaming somebody here has to carry what points AT them, or who you play names somebody the
+  // cast no longer contains and their thread is lost from under them. Same failure the server fixes
   // for a rename after the story exists; this is the half hour before it exists.
   for (const n of document.querySelectorAll('[data-spname]')) {
     const e = S.spark.entries[Number(n.dataset.spname)];
@@ -8445,7 +8446,7 @@ async function loadLedger() {
   const r = await api.ledger();
   LEDGER = r.error ? [] : (r.entries ?? []);
   // The pockets each kind can have, the server's own SLOTS: the wizard's preview offers them.
-  LEDGER_SLOTS = r.error ? LEDGER_SLOTS : (r.slots ?? LEDGER_SLOTS);
+  LEDGER_SLOTS = r.slots ?? LEDGER_SLOTS;
   // drawBar too: the header's line under "Threads" counts the ledger, and said "reading…" until
   // something else repainted the header (usability check, 2026-10-24).
   // And New tale, whose Start blank form offers the threads to start from.
@@ -12530,8 +12531,9 @@ document.addEventListener('click', async (e) => {
       // #84. What the writer said of a new character on You: Create makes their thread from it when
       // the cast made none. And the tale's own pockets from the preview.
       personaAbout: s.personaAbout || null,
-      talePockets: (S.spark.talePockets ?? []).filter((p) => String(p.body ?? '').trim())
-        .map((p) => ({ name: p.name, body: p.body })),
+      talePockets: S.spark.talePockets ?? [],
+      // #84. Tells the create route to settle the yours pocket on whoever is Hands off now.
+      spark: true,
       entries: keep,
     }));
     // `whileWorking` answers null on a re-entrant press and the state guard above should already

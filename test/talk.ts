@@ -99,7 +99,7 @@ const srv = createServer((req, res) => {
           pockets: [{ slot: 'voice', name: 'Debtor', body: 'Write his lines as apologies that never finish.' }] }] : []),
       ].map((e: any) => e.name === 'Vel' && /HANDS OFF:/.test(String(b.messages?.[1]?.content ?? '')) ? { ...e, pockets: [...e.pockets,
           { slot: 'interiority', name: 'Fear', body: 'Never let her say she is afraid; she counts instead.' }] } : e),
-        persona: 'Vel', lockedCharacter: 'Somebody Who Is Not In The Cast' }
+      }
       : props.premise ? { title: 'The Rust Year', premise: PREMISE, genre: 'noir, gothic',
         setting: 'Sutera', pov: 'third limited, past tense', spice: 2, writingStyle: VOICE,
         characters: [{ name: 'Vel', role: 'the Murmur', description: 'Speaks for the dead god.' },
@@ -507,8 +507,7 @@ ok('a kind that does not exist is refused rather than assembled');
 
   // #86 · WHO YOU PLAY IS THE WRITER'S, decided a step before the threads. The fake still names a
   // persona and somebody not in the cast; neither reaches the wizard, because the model was not asked.
-  assert.strictEqual(r.persona, null, 'CAST-NO-PICK: the cast never chooses who you play');
-  assert.strictEqual(r.lockedCharacter, null, '  or who is Hands off');
+  assert.ok(!('persona' in r) && !('lockedCharacter' in r), 'CAST-NO-PICK: the cast never chooses who you play, or who is Hands off');
 
   // IT IS GIVEN THE SKELETON AS IT STANDS, which is what makes the cast belong to the book the
   // writer has read and edited rather than to the sentence it started from — and what makes
@@ -558,8 +557,6 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.match(aldis?.rooms?.voice?.body ?? '', /apologies/, 'SPARK-YOURS-ONE: every other thread keeps its own voice pocket');
   assert.strictEqual(r.entries.filter((e: any) => e.rooms?.voice?.body === YOURS_VOICE('Vel')).length, 1,
     '  the yours pocket is on one thread only');
-  assert.strictEqual(r.persona, 'Vel', 'the choice comes back as it was sent');
-  assert.strictEqual(r.lockedCharacter, 'Vel');
 
   // A WRITER WHO PLAYS NOBODY GETS TODAY'S CAST: nothing named, nothing held, nothing stripped.
   calls = [];
@@ -647,6 +644,20 @@ ok('a kind that does not exist is refused rather than assembled');
   const looseM: any = db.entriesOf(free3.id).find((e: any) => e.title === 'Mara');
   assert.ok(!(db.addonsOf(free3.id) as any[]).some((a) => a.entry_id === looseM?.id && a.slot === 'voice'),
     'CREATE-YOU-LOOSE: no yours pocket when nobody is held');
+
+  // WHO IS HANDS OFF CAN CHANGE AFTER THE THREADS ARE WRITTEN: a spark Create moves the yours pocket
+  // to the thread held now, written from outside, and takes it off the one held before.
+  const moved: any = mk({ title: 'Moved', premise: PREMISE, persona: 'Aldis', lockedCharacter: 'Aldis', spark: true, entries: [
+    { title: 'Vel', entryType: 'character', body: '[Vel: the Murmur]',
+      rooms: { voice: { name: 'Their lines are yours', body: YOURS_VOICE('Vel'), on: true } } },
+    { title: 'Aldis', entryType: 'character', body: '[Aldis: a debtor]',
+      rooms: { voice: { name: 'Debtor', body: 'Write his lines as apologies.', on: true },
+               interiority: { name: 'Shame', body: 'Never let him say it.', on: true } } }] });
+  const byTitle = (t: string) => { const id = (db.entriesOf(moved.id) as any[]).find((e) => e.title === t)?.id;
+    return (db.addonsOf(moved.id) as any[]).filter((a) => a.entry_id === id); };
+  assert.ok(!byTitle('Vel').some((a) => a.slot === 'voice'), 'CREATE-HELD: the yours pocket leaves the one no longer held');
+  assert.strictEqual(byTitle('Aldis').find((a) => a.slot === 'voice')?.body, `[${YOURS_VOICE('Aldis')}]`, '  and goes to the one held now');
+  assert.ok(!byTitle('Aldis').some((a) => a.slot === 'interiority'), '  written from outside');
 
   // THE TALE'S OWN POCKETS ride through Create (#75's instruction slot), switched on; a blank one does not.
   const own: any = mk({ title: 'Own', premise: PREMISE, entries: [],
