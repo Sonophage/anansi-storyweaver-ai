@@ -431,9 +431,13 @@ const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
       // what kind of fact it is, which is what a canon room needs — these are what is TRUE, and
       // SYSTEM's "canon is what is true, never how to say it" is why they get a label and not an
       // instruction the way voice and interiority do.
+      //
+      // #109 · AND IT NAMES THE THREAD (ADR 0008). This is where the writer's own pockets and the
+      // folded kinds land: no kind says what the text is for, so the plain frame is the thread and
+      // the label. NOT MEASURED: owed an A/B against the bare `[label: text]` form it replaced.
       const frame = !label || (who && label.toLowerCase() === who.toLowerCase())
         ? a.slot.replace(/_/g, ' ') : label;
-      return `[${frame}: ${body}]`;
+      return `[${who ? `${who} — ` : ''}${frame}: ${body}]`;
     });
 
 /** The body as it stands at a given chapter.

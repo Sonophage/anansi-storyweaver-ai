@@ -1349,7 +1349,7 @@ ok('  and the unwrapping is every room, not just voice', () => {
   // belongs in the shared path or ten other rooms keep the defect voice was fixed for.
   const b = withAddons([room({ slot: 'history', name: 'How she got here',
     body: '[bought The Monarch three years ago]', active: true })]);
-  assert.match(b.text, /\[How she got here: bought The Monarch three years ago\]/);
+  assert.match(b.text, / — How she got here: bought The Monarch three years ago\]/);
 });
 
 ok('  and a body whose brackets do not pair is left exactly alone', () => {
@@ -1357,7 +1357,7 @@ ok('  and a body whose brackets do not pair is left exactly alone', () => {
   // "[a] and [b]" into "a] and [b" — a body corrupted on the way into the prompt, silently.
   const b = withAddons([room({ slot: 'history', name: 'Two places',
     body: '[the mill] and [the bridge]', active: true })]);
-  assert.match(b.text, /\[Two places: \[the mill\] and \[the bridge\]\]/,
+  assert.match(b.text, / — Two places: \[the mill\] and \[the bridge\]\]/,
     'an ambiguous pair costs a stray bracket; eating one costs the writer their text');
 });
 
@@ -1408,7 +1408,7 @@ ok('a room labelled with its own card title falls back to the room, not the name
   // hooded…]" from role, with nothing saying which was which.
   const b = withAddons([room({ slot: 'role', name: 'Aldis Fen', body: 'the one who pays late',
     active: true })], { title: 'Aldis Fen' } as any);
-  assert.match(b.text, /\[role: the one who pays late\]/, 'the room names itself instead');
+  assert.match(b.text, /\[Aldis Fen — role: the one who pays late\]/, 'the room names itself instead');
   // The card's own body opens `[Aldis Fen: 34, ex-Watch sergeant]` and is SUPPOSED to — that is the
   // card format. What must not happen is the room opening a second block under the same name, which
   // is what the live `role` rooms on Seth and Halsey were doing.
@@ -1420,7 +1420,7 @@ ok('a room labelled with its own card title falls back to the room, not the name
 ok('  and a real label is still the writer\'s, not overridden', () => {
   const b = withAddons([room({ slot: 'role', name: 'What she is here to do',
     body: 'the one who pays late', active: true })], { title: 'Aldis Fen' } as any);
-  assert.match(b.text, /\[What she is here to do: the one who pays late\]/);
+  assert.match(b.text, / — What she is here to do: the one who pays late\]/);
 });
 
 // ---- #109 · EVERY POCKET KIND REACHES THE MODEL FRAMED, FROM A PLAIN DESCRIPTION (ADR 0008). The
@@ -1478,6 +1478,15 @@ ok('every other kind in SLOTS reaches the model framed, naming the thread', () =
   assert.match(one('No Iron Indoors', { slot: 'consequences', name: 'consequences', body: 'the house turns' }),
     /\[What follows when No Iron Indoors is broken: the house turns\]/,
     'FRAME-CONSEQUENCES: a label that only repeats the kind is dropped');
+});
+
+ok("a pocket of no framed kind reads under the thread's name and its own label", () => {
+  // The writer's own pockets, and the folded kinds (role, history) a thread can still carry: there is
+  // no kind to say what the text is for, so the frame names the thread and the writer's label.
+  const b = withAddons([room({ slot: 'role', name: 'What she is here to do',
+    body: 'the one who pays late', active: true })], AT);
+  assert.match(b.text, /\[Aldis Fen — What she is here to do: the one who pays late\]/,
+    'FRAME-OWN: the thread and the label, both named');
 });
 
 ok('  and a voice nobody switched on stays out, like any other room', () => {
