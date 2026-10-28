@@ -6192,15 +6192,20 @@ const hemCardOf = (side: string) => {
     'the summary comes first on the card, in a box, before any thread');
   assert.match(card, /data-hemsumtext="c-1"[^>]*>Ilva arrives\./, '  holding the scene summary');
   assert.doesNotMatch(card, /<button[^>]*data-hemsum="c-1"/, '  and no Save press: it saves as you go (ADR 0004)');
-  // BEFORE AND AFTER: the Over time entry in force, then the chalked text.
-  // Read against the row's own box, not the fold's one-line peek, which repeats the chalked text.
-  assert.ok(card.indexOf('She waits by the door, gloved.') > 0
-    && card.indexOf('She waits by the door, gloved.') < card.indexOf('data-pbody="hs-1"')
-    && /data-pbody="hs-1"[^>]*>She has stopped waiting\./.test(card),
-    'an Over time row shows the entry in force before the chalked text');
-  assert.ok(card.indexOf('Flat, unhurried.') > 0
-    && card.indexOf('Flat, unhurried.') < card.indexOf('data-pbody="hs-2"'),
-    'a pocket row shows the pocket as it is before the chalked text');
+  // BEFORE AND AFTER, AS ONE DIFF (#122): the Over time entry in force against the chalked text,
+  // drawn by the one renderer, above the row's own box.
+  const { diffHTML } = await import('../web/model.js');
+  const diffAt = (id: string, was: string) => {
+    const at = card.indexOf(`data-deckdiff="${id}">`);
+    const body = card.match(new RegExp(`data-pbody="${id}"[^>]*>([^<]*)<`))?.[1] ?? '';
+    return at > 0 && at < card.indexOf(`data-pbody="${id}"`)
+      && card.slice(at + `data-deckdiff="${id}">`.length).startsWith(diffHTML(was, body)) && /<del>/.test(diffHTML(was, body));
+  };
+  assert.match(card, /data-pbody="hs-1"[^>]*>She has stopped waiting\./, 'the chalked text is in its own box');
+  assert.ok(diffAt('hs-1', 'She waits by the door, gloved.'),
+    'an Over time row shows the entry in force against the chalked text, as a diff, before the box');
+  assert.ok(diffAt('hs-2', 'Flat, unhurried.'),
+    'a pocket row shows the pocket as it is against the chalked text, as a diff, before the box');
   // SEW ALL / REJECT ALL, over every row on the card.
   assert.match(card, /data-deckall="accept" data-ids="hs-1,hs-2,hs-3,hs-4"[^>]*>Sew all/,
     'Sew all takes every row on the card');
@@ -6221,6 +6226,11 @@ const hemCardOf = (side: string) => {
   // THE OLD PER-THREAD CARD, as it always was.
   assert.match(side, /Hemming found[\s\S]*?data-deckall="accept" data-ids="hp-1"[^>]*>Sew it in/,
     'an old per-thread hem card is drawn as before');
+  // A CHALKED CHANGE OUTSIDE A HEM shows the same diff (#122): the thread's text against the chalk.
+  assert.ok(side.includes(`data-deckdiff="hp-1">${diffHTML('[comes at six]', 'He came at five, not six.')}`),
+    'a chalk card reads what is there now against what is chalked, with the one renderer');
+  // And a row with nothing before it (a new thread, a retirement) has no diff to read.
+  assert.doesNotMatch(side, /data-deckdiff="hs-[34]"/, '  and a new thread or a retirement has none');
   (globalThis as any).fetch = canned;
   click({ open: 's-1' }); await settle();
   ok('a hemmed scene is one Workbench card: summary first, before and after, Sew all and Reject all (#92)');

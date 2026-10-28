@@ -2655,11 +2655,7 @@ function hemCardParts(c) {
       placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>`;
   const fold = ([k, rows]) => `<details class="decksec" data-hemthread="${esc(k)}">
     <summary><span class="lbl flush">${esc(rows[0].title)}</span><span class="deckpeek">${peek(rows[0].body)}</span></summary>
-    ${rows.map((p) => {
-      const was = hemBefore(p);
-      return `${was == null ? '' : `<div class="hint lead-8"><span class="lbl flush">Before</span> ${esc(was)}</div>
-        <div class="hint flush"><span class="lbl flush">After</span></div>`}${deckRow(p)}`;
-    }).join('')}</details>`;
+    ${rows.map(deckRow).join('')}</details>`;
   const section = (label, rows) => {
     const by = new Map();
     for (const p of rows) { const k = p.entryId || p.title; by.set(k, [...(by.get(k) ?? []), p]); }
@@ -2745,7 +2741,13 @@ function deckRow(p) {
   // #114 · A TIDY'S MERGE says which other pockets go when it is sewn in.
   const also = (p.merges ?? []).map((id) => (V.entries ?? []).find((x) => x.id === p.entryId)?.addons
     ?.find((a) => a.id === id)?.name).filter(Boolean);
-  return `${proposalCard(p)}
+  // #122 · WHAT IT WOULD CHANGE, word by word: what is there now against what is chalked, on every
+  // card that chalks over something (a hem's thread, a Tidy, a chalked change). It reads what is
+  // chalked as it came; an edit in the box below is the writer's own and is what gets sewn in.
+  const was = hemBefore(p);
+  return `${was == null ? '' : `<div class="lbl sub-lbl">What changes</div>
+      <div data-deckdiff="${esc(p.id)}">${diffHTML(was, p.body ?? '')}</div>`}
+      ${proposalCard(p)}
       ${also.length ? `<div class="hint trail-6">Sewn in, this also replaces ${also.map((n) => `&ldquo;${esc(n)}&rdquo;`).join(' and ')}.</div>` : ''}
       ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint trail-6">It arrives with these:</div>
         ${Object.entries(p.rooms).map(([slot, r]) => `<div style="font-size:12px; line-height:1.45; color:var(--mute); margin-top:4px">
