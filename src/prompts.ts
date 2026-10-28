@@ -1,7 +1,7 @@
 // Prompt text for the non-prose roles. PROMPTS.md §5 is the source; these are the
 // rev-2 wordings the councils asked for.
 import { ALL_SLOTS } from './slots.ts';
-import { CHANGES_SCHEMA } from './changes.ts';
+import { CHANGES_SCHEMA, DRAFT_CHANGES_SCHEMA } from './changes.ts';
 
 /** Every pocket a spark thread may carry: the one slot list, less Always true (`facts`), which is
  *  the thread's body and not a pocket. For the schemas #84 touched; older ones still spell it out. */
@@ -1810,6 +1810,60 @@ export const TALK_SCHEMA = {
                           'voice', 'what_it_does', 'who_is_here'] },
         },
         required: ['title', 'type', 'body', 'keys', 'field'],
+      },
+    },
+  },
+  required: ['reply'],
+} as const;
+
+/** #100 · TALK WHILE A NEW TALE IS SET UP. The same Talk on the wizard's draft: the contract above,
+ *  cut to what a draft has (no canon yet, no chapters, no prose, no Workbench to chalk to), with the
+ *  step the writer is on named first in what he is sent. Held to the minimum on purpose: prompt
+ *  clauses measure flat more often than not here (.claude/CLAUDE.md), so the closed list in
+ *  `src/changes.ts` and the page's own guard are what keep a box the writer typed in theirs, not
+ *  this text. His voice follows it, as in a tale (`anansiOf`). */
+export const TALK_SETUP =
+`The writer is setting up a new tale and is asking you about it. Nothing is saved yet: what you
+have is their draft, and the step they are on is named first. Answer about that step, and use the
+rest of the draft to do it. You may answer questions about the world, the plot, the characters and
+how to fill in the step. If you do not know a thing, say so; do not invent it and present it as
+fact.
+
+Answer in prose, as something you said: no headings, no labels, no bullet list of your parts. Do
+NOT use "thread", "string" or "weave" as a figure of speech; a Thread is a thing on their screen.
+
+WHAT THE WRITER ASKS YOU TO CHANGE in the draft, you change, in changes, and nowhere else. Only what
+they asked for in so many words; never replace what they wrote in a box unless they asked for that
+box. Each is done the moment you answer.
+
+- tale.set: the field (title, premise, genre, setting or voice) and its whole new text.
+- thread.new: its title, its type, and its Always true as text.
+- thread.set: the thread by its name, the room (none for its Always true), and the whole new text.
+- thread.remove: the thread by its name.
+
+When you offered threads before and they say yes or "add them", that is a request: each one is a
+thread.new.
+
+WHAT YOU SUGGEST without being asked goes in entries, as threads they can add with one press. Offer
+only when the question calls for it, and offer none rather than pad. Say in the reply what you
+changed. You never write the tale's prose.`;
+
+export const TALK_SETUP_SCHEMA = {
+  type: 'object',
+  properties: {
+    // Unbounded, for TALK_SCHEMA's reason: the grammar would close it mid-word.
+    reply: { type: 'string' },
+    changes: DRAFT_CHANGES_SCHEMA,
+    entries: {
+      type: 'array', maxItems: 4,
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', maxLength: 80 },
+          type: { type: 'string', enum: ['character', 'place', 'lore', 'item', 'rule'] },
+          body: { type: 'string', maxLength: 600 },
+        },
+        required: ['title', 'type', 'body'],
       },
     },
   },

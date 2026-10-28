@@ -58,6 +58,20 @@ the thread itself, so it never reaches the model. Undo takes the link out of the
 
 If web search is not set up where Anansi runs, the switch says so.
 
+### Talk while you set up a new tale
+Every step of a new tale now has a **Talk** button. It opens the same Talk window your tales have,
+and Anansi reads your whole draft, with the step you are on first. Ask him about the world, the
+plot, the characters, or how to fill in the step. He says nothing until you ask.
+
+Ask him to change the draft ("make the premise darker", "remove the innkeeper", "give Ilva a slow
+voice") and it is done at once, with Undo beside it, and the step shows the change. What he
+suggests without being asked has an **Add** button, and "add them" in your next message adds them
+too. If you typed in a box on this step, he does not change it unless you name it: "change the
+premise" does.
+
+He may search the web here too, when you let him. Nothing is saved until you start the tale, and
+Discard throws the conversation away with the draft.
+
 ## 2026-10-28 · No blink when Anansi finishes
 
 ### The page holds still when a passage lands

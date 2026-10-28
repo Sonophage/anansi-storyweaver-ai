@@ -99,6 +99,23 @@ const srv = createServer((req, res) => {
         changes: [{ op: 'thread.new', title: 'Charon', type: 'character', keys: ['Charon'], activation: 'triggered',
                     text: 'Ferries the dead across the Styx for an obol (https://myth.example/charon-greek-myth/1).', sources: [1] },
                   { op: 'thread.set', thread: 'Talia', room: 'none', text: 'Talia paid the ferryman twice.', sources: [2] }] },
+      // #100 · TALK WHILE A TALE IS SET UP, on the draft. What a model asked these would return.
+      SETUP: { reply: 'Darker, and the innkeeper is gone. Ilva speaks low now, and the ferryman is in.',
+        changes: [{ op: 'tale.set', field: 'premise', text: 'Six houses, one winter, and every one of them lies.' },
+                  { op: 'thread.remove', thread: 'the innkeeper' },
+                  { op: 'thread.set', thread: 'Ilva', room: 'voice', text: 'Low and slow; she never asks.' },
+                  { op: 'thread.new', title: 'The Ferryman', type: 'character', text: 'Rows the dead across for a coin.' }] },
+      SETUPBAD: { reply: 'Done, all of it.',
+        changes: [{ op: 'thread.set', thread: 'Nobody', text: 'Old.' },
+                  { op: 'scene.set', scene: 1, field: 'title', text: 'The Ford' },
+                  { op: 'thread.remove', thread: 'Mara Voss' },
+                  { op: 'thread.set', thread: 'Gull Rock', room: 'voice', text: 'Loud.' }] },
+      SETUPASK: { reply: 'Three houses matter most: the Marrens, the Ashes and the crown.',
+        entries: [{ title: 'House Marren', type: 'lore', body: 'Holds the northern passes.', keys: ['Marren'], field: 'none' },
+                  { title: 'Ilva Marren', type: 'character', body: 'Already in the draft.', keys: ['Ilva'], field: 'none' }] },
+      SETUPWEB: { reply: 'Charon is in.',
+        changes: [{ op: 'thread.new', title: 'Charon', type: 'character',
+          text: 'Ferries the dead for an obol (https://myth.example/charon/1).', sources: [1] }] },
       RETIRE: { reply: 'The letter is gone.',
         changes: [{ op: 'thread.retire', thread: 'The letter' }, { op: 'thread.delete', thread: 'The letter' }] },
     };
@@ -1336,6 +1353,128 @@ ok('emptying the box gives her back the voice she shipped with');
 
   delete process.env.ANANSI_SEARCH;
   web.close();
+}
+
+// ---- 6h · TALK WHILE A TALE IS SET UP, ON THE DRAFT (#100) ----
+//
+// There is no tale yet, so the route names none and is open like the Spark routes. It takes the
+// draft, the step the writer is on and the turns, and answers in Talk's shape. It writes nothing:
+// the changes come back for the page to apply to its own draft, each checked against that draft.
+{
+  const { DatabaseSync } = await import('node:sqlite');
+  const { OPEN_ROUTES } = await import('../src/routes.ts');
+  // Every row of every table, read through a connection of its own, so a write anywhere shows.
+  const rows = () => {
+    const raw = new DatabaseSync(DB, { readOnly: true });
+    try {
+      const names = (raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as any[]).map((r) => r.name);
+      return Object.fromEntries(names.map((t) => [t, (raw.prepare(`SELECT count(*) AS n FROM "${t}"`).get() as any).n]));
+    } finally { raw.close(); }
+  };
+  const draft = {
+    story: { title: 'The Winter Signature', genre: 'political fantasy', premise: 'Six houses have one winter to sign a peace.',
+      setting: 'Kesh, under snow', writingStyle: 'Cold, spare, third person.', persona: 'Mara Voss' },
+    entries: [
+      { title: 'Ilva Marren', entryType: 'character', body: '[Ilva Marren: the envoy nobody trusts]', keys: ['Ilva'],
+        rooms: { voice: { name: 'Envoy', body: 'Formal and short.', on: true } } },
+      { title: 'The Innkeeper', entryType: 'character', body: '[The Innkeeper: keeps every secret for a price]', keys: ['innkeeper'] },
+      { title: 'Mara Voss', entryType: 'character', body: '[Mara Voss: a courier]', keys: ['Mara'] },
+      { title: 'Gull Rock', entryType: 'lore', body: '[Gull Rock: where the houses meet]', keys: ['Gull Rock'] },
+      // Unticked on the threads step: not in the draft, so nothing can be done to it.
+      { title: 'The Old King', entryType: 'character', body: '[The Old King: dead]', keys: ['king'], keep: false },
+    ],
+  };
+  const STEP = 'The threads: What this tale needs, if anything.';
+  const setup = (said: string, more: any = {}) => { calls = [];
+    return routes['POST /api/spark/talk']({ body: { draft, step: STEP, said, ...more }, query: new URLSearchParams(),
+      owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {}, setGen: () => {},
+      defaultModel: null } as any) as Promise<any>; };
+
+  assert.ok(OPEN_ROUTES.has('POST /api/spark/talk'), 'SETUP-OPEN: the setup Talk names no tale, so it is open like Spark');
+
+  const before = rows();
+  const r = await setup('CHANGE-SETUP: make it darker, lose the innkeeper, Ilva speaks low, and add the ferryman',
+    { turns: [{ you: true, text: 'Who matters in Kesh?' }, { you: false, text: 'The houses, mostly.' }] });
+  assert.ok(!r.error, r.error);
+  const ask = String(calls.at(-1).messages[1].content);
+  assert.ok(ask.indexOf(STEP) >= 0 && ask.indexOf(STEP) < ask.indexOf('Six houses have one winter'),
+    `SETUP-STEP-FIRST: the step the writer is on is named before the draft:\n${ask.slice(0, 400)}`);
+  for (const seen of ['The Winter Signature', 'political fantasy', 'Kesh, under snow', 'Cold, spare, third person.',
+    'the envoy nobody trusts', 'Formal and short.', 'Mara Voss', 'The houses, mostly.'])
+    assert.ok(ask.includes(seen), `SETUP-SEES-DRAFT: Anansi sees the whole draft and the turns: ${seen}`);
+  assert.ok(!ask.includes('The Old King'), 'SETUP-SEES-DRAFT: a thread the writer unticked is not in the draft');
+
+  const by = (op: string) => r.changes.filter((x: any) => x.change.op === op);
+  assert.strictEqual(r.changes.length, 4, `SETUP-CHANGES: all four asked changes come back (${JSON.stringify(r.notDone)})`);
+  assert.deepStrictEqual(by('tale.set')[0].change, { op: 'tale.set', field: 'premise',
+    text: 'Six houses, one winter, and every one of them lies.', before: 'Six houses have one winter to sign a peace.' },
+    'SETUP-FIELD: the premise, with what it said before, for Undo');
+  assert.deepStrictEqual(by('thread.remove')[0].change, { op: 'thread.remove', title: 'The Innkeeper' },
+    'SETUP-REMOVE: a draft thread is removed, named as the draft names it');
+  assert.deepStrictEqual(by('thread.set')[0].change, { op: 'thread.set', title: 'Ilva Marren', room: 'voice',
+    text: 'Low and slow; she never asks.', before: 'Formal and short.' }, 'SETUP-SET: one room of a draft thread');
+  const made = by('thread.new')[0].change;
+  assert.strictEqual(made.thread.title, 'The Ferryman', 'SETUP-NEW: a new draft thread');
+  assert.strictEqual(made.thread.entryType, 'character');
+  assert.match(made.thread.body, /Rows the dead across for a coin/, 'SETUP-NEW: with its Always true');
+  for (const x of r.changes) assert.ok(String(x.words ?? '').trim(), 'SETUP-WORDS: each change says what it did');
+  assert.match(r.reply, /^Darker/, 'SETUP-REPLY: the reply is Anansi\'s');
+  assert.deepStrictEqual(rows(), before, 'SETUP-WRITES-NOTHING: not one row anywhere in the database');
+  ok('setup Talk names the step first, sees the whole draft, and returns the asked changes without writing anything');
+
+  // The model it uses is the one Spark uses.
+  calls = [];
+  await routes['POST /api/spark']({ body: { idea: 'Six houses have one winter to sign a peace.' }, query: new URLSearchParams(),
+    owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {}, setGen: () => {}, defaultModel: null } as any);
+  const sparkModel = calls[0].model;
+  await setup('How should I start?');
+  assert.strictEqual(calls.at(-1).model, sparkModel, `SETUP-MODEL: Spark's model (${sparkModel}), not ${calls.at(-1).model}`);
+  ok('setup Talk asks the model Spark asks');
+
+  const bad = await setup('CHANGE-SETUPBAD: do all of this');
+  assert.ok(!bad.error, bad.error);
+  assert.strictEqual(bad.changes.length, 0, `SETUP-REFUSED: nothing the draft cannot take is done (${JSON.stringify(bad.changes)})`);
+  assert.strictEqual(bad.notDone.length, 4, 'SETUP-REFUSED: and each is said');
+  assert.match(bad.reply, /Not done\. .*no thread called "Nobody"/, 'SETUP-REFUSED: a thread the draft does not have');
+  assert.match(bad.reply, /Not done\. [^\n]*(scene|not something)/i, 'SETUP-REFUSED: a scene, which a draft does not have yet');
+  assert.match(bad.reply, /Not done\. [^\n]*you play Mara Voss/i, 'SETUP-REFUSED: the thread you play stays while you play them');
+  assert.match(bad.reply, /Not done\. [^\n]*a lore has no voice/i, 'SETUP-REFUSED: a room the thread\'s kind does not have');
+  ok('setup Talk refuses what the draft cannot take, and says each in the reply');
+
+  const offer = await setup('CHANGE-SETUPASK: who are the big houses?');
+  assert.ok(!offer.error, offer.error);
+  assert.strictEqual(offer.changes.length, 0, 'SETUP-OFFER: a question changes nothing');
+  assert.deepStrictEqual(offer.entries.map((e: any) => e.title), ['House Marren'],
+    'SETUP-OFFER: what he offers comes back to be added, never one the draft already has');
+  assert.match(offer.entries[0].body, /northern passes/, 'SETUP-OFFER: in the shape a draft thread has');
+  assert.strictEqual(offer.entries[0].entryType, 'lore');
+  ok('a question gets an answer and offers, and changes nothing');
+
+  // Search, as in a tale: Anansi's own queries, the pages listed, a link in the notes, not the text.
+  const searched: string[] = [];
+  const web = createServer((req, res) => {
+    const q = new URL(String(req.url), 'http://x').searchParams.get('q') ?? '';
+    searched.push(q);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ results: [{ title: `${q} page`, url: 'https://myth.example/charon/1', content: `About ${q}.` }] }));
+  });
+  await new Promise<void>((ok2) => web.listen(0, '127.0.0.1', ok2));
+  process.env.ANANSI_SEARCH = `http://127.0.0.1:${(web.address() as any).port}/search?q={q}&format=json`;
+  try {
+    const off = await setup('SEARCH-WHO CHANGE-SETUPWEB: add the ferryman of the dead');
+    assert.strictEqual(searched.length, 0, 'SETUP-SEARCH-OFF: without the switch, no search');
+    assert.strictEqual(off.searchable, true, 'SETUP-SEARCH: the answer says search is set up');
+    const fw = await setup('SEARCH-WHO CHANGE-SETUPWEB: add the ferryman of the dead', { search: true });
+    assert.ok(!fw.error, fw.error);
+    assert.deepStrictEqual(searched, ['Charon'], `SETUP-SEARCH: Anansi's own query (${searched})`);
+    assert.deepStrictEqual(fw.sources, [{ title: 'Charon page', url: 'https://myth.example/charon/1' }],
+      'SETUP-SEARCH: the page read comes back with its link');
+    const charon = fw.changes[0]?.change?.thread;
+    assert.doesNotMatch(String(charon?.body), /https?:/, 'SETUP-LINK-NOT-TEXT: no link in the thread\'s text');
+    assert.match(String(charon?.notes), /https:\/\/myth\.example\/charon\/1/, 'SETUP-LINK-NOTES: the link is in its notes');
+    assert.deepStrictEqual(rows(), before, 'SETUP-WRITES-NOTHING: searching writes nothing either');
+  } finally { delete process.env.ANANSI_SEARCH; web.close(); }
+  ok('setup Talk searches only when allowed, lists the page, and keeps its link in the notes');
 }
 
 // ---- 6d · THE WRITER MOVES A PROPOSAL, AND THE WRITER OUTRANKS THE MODEL ----

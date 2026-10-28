@@ -536,7 +536,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // out of Talk.
   'dockopen', 'dockfold', 'idea', 'ideapick', 'dockwrite', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'lbook',
-  'ask', 'usedraft', 'copydraft', 'clearchat', 'talkundo', 'copyentry', 'delcover', 'drawcover', 'usecover',
+  'ask', 'usedraft', 'copydraft', 'clearchat', 'talkundo', 'talkadd', 'copyentry', 'delcover', 'drawcover', 'usecover',
   // A cover found on the web rather than drawn, 2026-09-01.
   'findcover', 'takeweb',
   // Another batch of the same search — see moreRows for why it deduplicates.
@@ -2407,7 +2407,9 @@ function drawSide() {
   // The model panel is the exception: it is about the box rather than about a book, and the rail
   // footer that opens it is on screen outside a story too. Every other panel reads V. Find a model
   // is the same kind of panel, opened from the same footer.
-  side.hidden = !S.panel || (S.place !== 'story' && S.panel !== 'model' && S.panel !== 'findmodel');
+  // And Talk while a tale is set up (#100): it reads the draft, not a book.
+  side.hidden = !S.panel || (S.place !== 'story' && S.panel !== 'model' && S.panel !== 'findmodel'
+    && !(S.panel === 'anansi' && onSetup()));
   // A shut drawer stays in the page at width 0; inert keeps Tab out of it, as for the menu.
   side.inert = side.hidden;
   if (side.hidden) return;
@@ -4624,7 +4626,12 @@ const PANELS = {
     // `searchable` comes off the story view, so the checkbox is right the moment the panel
     // opens. It used to start null and only learn the truth from the first answer, which meant
     // offering a switch that could not work and then taking it away.
-    const t = { ...S.talk, searchable: V?.searchable ?? S.talk.searchable };
+    //
+    // #100 · WHILE A TALE IS SET UP it is the same window on the draft's own conversation, which goes
+    // with the draft. The search switch is the writer's one stored permission either way.
+    const setup = onSetup();
+    const t = setup ? { ...setupTalk(), search: S.talk.search, searchable: S.talk.searchable }
+      : { ...S.talk, searchable: V?.searchable ?? S.talk.searchable };
     return `<div style="display:flex; flex-direction:column; height:100%">
       <div style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding-bottom:10px">
         ${t.turns.length ? t.turns.map((turn, i) => turn.you
@@ -4646,8 +4653,16 @@ const PANELS = {
                     style="color:var(--mute)">${esc(s.title || s.url)}</a>`).join('')}</div>` : ''}
               ${(turn.changes ?? []).map((ch, j) => `<div class="line-2" style="align-items:center; gap:8px">
                 <span style="font-size:12.5px; line-height:1.45; color:var(--ink-bright); flex:1">${esc(ch.words)}</span>
-                ${ch.undone ? '<span class="caption">Undone</span>'
+                ${ch.undone ? '<span class="caption">Undone</span>' : ch.refused ? ''
                   : `<button class="tag" data-talkundo="${i}:${j}" style="cursor:pointer">Undo</button>`}</div>`).join('')}
+              ${/* #100 · WHAT HE OFFERED during setup, each with Add: one press puts it in the draft,
+                   and it then has a line and an Undo like any change. */
+                (turn.offers ?? []).map((o, j) => `<div class="line-2" style="align-items:flex-start; gap:8px">
+                <span style="font-size:12.5px; line-height:1.45; color:var(--mute); flex:1"><span class="inked">${
+                  esc(o.title)}</span> &middot; ${esc(KIND_PLURAL[o.entryType] ?? o.entryType)} &middot; ${
+                  esc(String(o.body ?? '').replace(/^\[[^:]*:\s*|\]$/g, ''))}</span>
+                ${o.added ? '<span class="caption">Added</span>'
+                  : `<button class="tag" data-talkadd="${i}:${j}" style="cursor:pointer">Add</button>`}</div>`).join('')}
               ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
                 border-color:var(--edge-lit); color:var(--ink-bright)">${turn.proposed} chalked &mdash; under This scene</button>` : ''}
               ${turn.meta ? `<div class="caption">${esc(turn.meta)}</div>` : ''}
@@ -4661,9 +4676,14 @@ const PANELS = {
             // Tapping one FILLS the box and does not send it — the panel's own rule is that
             // nothing happens until you choose it, and a suggestion that sent itself would be the
             // first thing to break it.
-            const cast = (V.entries ?? []).filter((e) => e.entryType === 'character');
+            const cast = setup ? [] : (V.entries ?? []).filter((e) => e.entryType === 'character');
             const who = cast[0]?.title;
-            const asks = [
+            // During setup (#100): the step, the premise, and who else the tale needs.
+            const asks = setup ? [
+              ['chapter', 'How should I fill in this step?'],
+              ['search', 'Is this premise any good?'],
+              ['threads', 'Who else belongs in this tale?'],
+            ] : [
               ['strings', 'What has this tale set up and not tied off?'],
               who && ['threads', `Who is ${who}, and what do we know for certain?`],
               ['search', 'What has the tale never said outright?'],
@@ -5204,6 +5224,142 @@ const STEPS = [
  *  arrow. Named lookup and not a literal: `S.sparkStep = 2` meant "the book" until 2026-09-01
  *  reordered the array above, and then it silently meant "the threads". */
 const stepAt = (k) => Math.max(1, STEPS.findIndex(([x]) => x === k) + 1);
+/** The step the writer is on, clamped as `sparkReview` clamps it. */
+const stepNow = () => STEPS[Math.min(Math.max(Number(S.sparkStep) || 1, 1), STEPS.length) - 1];
+
+/* #100 · TALK WHILE A TALE IS SET UP. The same Talk window as in a tale (`PANELS.anansi`), opened
+ * from every step, working on the draft (`S.spark`) through POST /api/spark/talk, which writes
+ * nothing. What comes back asked for is applied here, to the draft, at once; each change keeps
+ * what it replaced so its Undo, held by this page and nowhere else, puts exactly that back. What
+ * comes back offered has an Add press. The conversation lives on the draft (`S.spark.talk`), so
+ * Discard takes it with everything else, and nothing is saved until Start.
+ *
+ * A BOX THE WRITER TYPED IN IS NOT CHANGED UNLESS THEY ASKED. The contract tells the model so; this
+ * is the floor under it, because a prompt clause is the weak half here (.claude/CLAUDE.md). The
+ * simplest honest guard: a box is "typed in" when an input event came from it on this step (the
+ * listener below marks the field, or the thread, with the step's key), and a change to it is
+ * applied only when the writer's words that turn NAME it: the field ("premise", "voice"...) or the
+ * thread (its name, or a long word of it). Otherwise the line says it was not done and why, and
+ * asking for it by name does it. It reads words, not meaning, so "make it darker" right after
+ * typing the premise is refused once and costs the writer one sentence; the other way round
+ * would cost them what they typed. */
+const onSetup = () => S.place !== 'story' && S.wpage === 'create' && !!S.spark;
+const setupTalk = () => (S.spark.talk ??= { turns: [], busy: false });
+const DRAFT_KEY = { title: 'title', premise: 'premise', genre: 'genre', setting: 'setting', voice: 'writingStyle' };
+const draftNamed = (title) => (S.spark?.entries ?? [])
+  .find((e) => e.keep !== false && String(e.title ?? '').trim() === title);
+const draftCopy = (o) => JSON.parse(JSON.stringify(o));
+const kindWord = (k) => `${/^[aeiou]/.test(k ?? '') ? 'an' : 'a'} ${k ?? 'thread'}`;
+/** Whether the writer's words name any of `words`, as a word. */
+const saidNames = (said, words) => words.filter(Boolean).some((w) =>
+  new RegExp(`(^|[^\\p{L}])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'iu').test(said));
+
+document.addEventListener('input', (e) => {
+  const d = e.target?.dataset;
+  if (!d || !S.spark) return;
+  const key = stepNow()[0];
+  if (d.sp) (S.spark.typed ??= {})[d.sp] = key;
+  const i = d.spbody ?? d.spname ?? String(d.sppocket ?? d.sppname ?? '').split(':')[0];
+  if (i !== undefined && i !== '' && S.spark.entries?.[Number(i)]) S.spark.entries[Number(i)].typed = key;
+});
+
+/** Why a change to a box the writer typed in this step is not done, or null when it may be. */
+function typedHere(ch, said) {
+  const key = stepNow()[0];
+  if (ch.op === 'tale.set' && S.spark.typed?.[DRAFT_KEY[ch.field]] === key
+      && !saidNames(said, ch.field === 'voice' ? ['voice', 'style'] : [ch.field]))
+    return `You wrote the ${ch.field} yourself on this step, and did not ask for it to change. Ask for the ${ch.field} by name and it will be.`;
+  if ((ch.op === 'thread.set' || ch.op === 'thread.remove') && draftNamed(ch.title)?.typed === key
+      && !saidNames(said, [ch.title, ...ch.title.split(/\s+/).filter((w) => w.length > 3)]))
+    return `You wrote ${ch.title} yourself on this step, and did not ask for it to change. Ask for ${ch.title} by name and it will be.`;
+  return null;
+}
+
+/** One checked change, applied to the draft. Returns what its Undo needs, or null when the draft
+ *  no longer holds what the change was checked against (the writer changed it while he answered). */
+function applyDraft(ch) {
+  const list = S.spark.entries ?? (S.spark.entries = []);
+  if (ch.op === 'tale.set') {
+    const k = DRAFT_KEY[ch.field];
+    const before = String(S.spark.story[k] ?? '');
+    if (!k || before.trim() !== String(ch.before ?? '').trim()) return null;
+    S.spark.story[k] = ch.text;
+    return { op: ch.op, key: k, before, text: ch.text };
+  }
+  if (ch.op === 'thread.new') {
+    if (draftNamed(ch.thread?.title)) return null;
+    list.push({ ...draftCopy(ch.thread), keep: true });
+    return { op: ch.op, title: ch.thread.title, body: ch.thread.body };
+  }
+  const at = list.findIndex((e) => e.keep !== false && String(e.title ?? '').trim() === ch.title);
+  if (at < 0) return null;
+  if (ch.op === 'thread.remove') return { op: ch.op, at, prev: list.splice(at, 1)[0] };
+  const e = list[at], prev = draftCopy(e);
+  if (ch.room === 'facts') e.body = `[${ch.title}: ${ch.text}]`;
+  else e.rooms = { ...(e.rooms ?? {}), [ch.room]: { ...(e.rooms?.[ch.room] ?? { name: ch.room, on: true }), body: ch.text } };
+  // #99 · the page it came from, in its notes: writer-only, never in its text.
+  if (ch.notes) e.notes = [e.notes, ch.notes].filter(Boolean).join('\n');
+  return { op: ch.op, title: ch.title, prev, after: JSON.stringify([e.body, e.rooms ?? null]) };
+}
+
+/** Put one applied change back, or say why not: only while what it made is still as it made it,
+ *  so an Undo never takes away what the writer did since. */
+function undoDraft(u) {
+  const list = S.spark.entries ?? [];
+  if (u.op === 'tale.set') {
+    if (String(S.spark.story[u.key] ?? '') !== u.text) return 'it has been changed since';
+    S.spark.story[u.key] = u.before;
+    return null;
+  }
+  if (u.op === 'thread.new') {
+    const at = list.findIndex((e) => e.keep !== false && e.title === u.title && e.body === u.body);
+    if (at < 0) return `${u.title} has been changed since`;
+    list.splice(at, 1);
+    return null;
+  }
+  if (u.op === 'thread.remove') {
+    if (draftNamed(u.prev.title)) return `there is a thread called ${u.prev.title} again`;
+    list.splice(Math.min(u.at, list.length), 0, u.prev);
+    return null;
+  }
+  const at = list.findIndex((e) => e.keep !== false && String(e.title ?? '').trim() === u.title);
+  if (at < 0 || JSON.stringify([list[at].body, list[at].rooms ?? null]) !== u.after) return `${u.title} has been changed since`;
+  list[at] = u.prev;
+  return null;
+}
+
+/** A turn as it is sent back: Anansi's offers ride with his words, so "add them" can be asked for. */
+const setupTurnText = (x) => x.text + ((x.offers ?? []).filter((o) => !o.added).length
+  ? `\nOffered: ${x.offers.filter((o) => !o.added).map((o) => `${o.title} (${o.entryType}): ${o.body}`).join('; ')}` : '');
+
+/** Ask, during setup. The question is already on the window as yours. */
+async function talkSetup(said) {
+  const t = setupTalk();
+  harvestSpark();
+  const [, name, hint] = stepNow();
+  t.busy = true;
+  drawSide(); working('direct');
+  const r = await api.sparkTalk({ said, step: `${name}: ${hint}`, search: S.talk.search || undefined,
+    turns: t.turns.slice(0, -1).map((x) => ({ you: x.you, text: setupTurnText(x) })),
+    draft: { story: S.spark.story, entries: S.spark.entries } });
+  working(null);
+  t.busy = false;
+  // Discarded, or started, while he answered: this answer is about a draft that is gone.
+  if (S.spark?.talk !== t) return;
+  if (r.error) { drawSide(); return toast(r.error); }
+  S.talk.searchable = r.searchable ?? S.talk.searchable;
+  const changes = (r.changes ?? []).map((x) => {
+    const why = typedHere(x.change, said);
+    if (why) return { words: `Not done. ${why}`, refused: true };
+    const undo = applyDraft(x.change);
+    return undo ? { words: x.words, undo }
+      : { words: `Not done. ${x.words} The draft changed while he answered.`, refused: true };
+  });
+  t.turns = [...t.turns, { you: false, text: r.reply || '(nothing came back)', sources: r.sources ?? [],
+    changes, offers: r.entries ?? [], meta: `${r.seconds}s` }];
+  paint();
+  const b = $('askBox'); if (b) { b.value = ''; b.focus(); }
+}
 
 /** Read whatever this step has on screen back into state. Called before every move, including
  *  Accept: an edit on the step you are standing on is lost otherwise. */
@@ -5673,7 +5829,13 @@ function sparkReview() {
       <button data-sparkstep="${i + 1}" aria-pressed="${step === i + 1}" style="flex:1; height:5px;
         border-radius:99px; background:${i + 1 <= step ? 'var(--ink-bright)' : 'var(--chip)'}"
         aria-label="${esc(t)}"></button>`).join('')}</div>
-    <div class="lbl flush wide">${step} of ${STEPS.length} &middot; ${esc(STEPS[step - 1][1])}</div>
+    <div class="line-8">
+      <div class="lbl flush wide">${step} of ${STEPS.length} &middot; ${esc(STEPS[step - 1][1])}</div>
+      <!-- #100 · TALK, ON EVERY STEP: the same window a tale has, working on this draft. He speaks
+           only when asked, so this opens it and asks nothing. -->
+      <button class="tag" data-panel="anansi" style="margin-left:auto; cursor:pointer"
+        aria-label="Talk to Anansi about this step">Talk</button>
+    </div>
     <div class="hint" style="margin:2px 0 12px">${esc(STEPS[step - 1][2])}</div>
     ${body}
     <div style="display:flex; gap:8px; margin-top:18px">
@@ -11677,6 +11839,13 @@ document.addEventListener('click', async (e) => {
     // De-duplicated: naming the same thread twice in one question, or picking it, deleting the
     // word and picking it again, would otherwise put its whole body in front of him twice.
     // One filter for the two boxes that send to Talk (#71): see `mentionsSaid`.
+    // #100. During setup, the draft's own conversation, and no mentions: there is no tale to name.
+    if (onSetup()) {
+      const t = setupTalk();
+      if (t.busy) return;
+      t.turns = [...t.turns, { you: true, text: said }];
+      return talkSetup(said);
+    }
     const mentions = mentionsSaid(said, S.talk.mentions);
     S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true, draft: null,
       mentions: [] };
@@ -11706,10 +11875,37 @@ document.addEventListener('click', async (e) => {
     catch { toast('Could not reach the clipboard — select it and copy by hand.'); }
     return;
   }
-  if (d.clearchat) { S.talk = { ...S.talk, turns: [], draft: null }; drawSide(); return; }
+  if (d.clearchat) {
+    if (onSetup()) setupTalk().turns = [];
+    else S.talk = { ...S.talk, turns: [], draft: null };
+    drawSide(); return;
+  }
+  // #100 · ADD ONE OFFER to the draft: the same as a thread Talk was asked to add, so it gets a line
+  // and an Undo of its own.
+  if (d.talkadd) {
+    if (!onSetup()) return;
+    const [i, j] = String(d.talkadd).split(':').map(Number);
+    const turn = setupTalk().turns[i], o = turn?.offers?.[j];
+    if (!o || o.added) return;
+    const undo = applyDraft({ op: 'thread.new', thread: o });
+    if (!undo) return toast(`There is already a thread called ${o.title}.`);
+    o.added = true;
+    turn.changes = [...(turn.changes ?? []), { words: `Added a thread: ${o.title}, ${kindWord(o.entryType)}.`, undo }];
+    paint(); return;
+  }
   // #97 · UNDO ONE CHANGE TALK MADE. The server says whether it could: a thread the writer has
   // changed since is theirs, and the line keeps its Undo so the refusal is not mistaken for a press
   // that did nothing.
+  if (d.talkundo && onSetup()) {
+    // #100 · the page holds this Undo: nothing was saved, so nothing is asked of the server.
+    const [i, j] = String(d.talkundo).split(':').map(Number);
+    const ch = setupTalk().turns[i]?.changes?.[j];
+    if (!ch?.undo || ch.undone) return;
+    const why = undoDraft(ch.undo);
+    if (why) return toast(`Not undone: ${why}.`);
+    ch.undone = true;
+    paint(); return;
+  }
   if (d.talkundo) {
     const [i, j] = String(d.talkundo).split(':').map(Number);
     const ch = S.talk.turns[i]?.changes?.[j];
@@ -12758,7 +12954,8 @@ document.addEventListener('click', async (e) => {
     paint();
     return toast('Another skeleton, from the same idea.');
   }
-  if (d.dropSpark) { S.spark = null; S.sparkStep = 1; paint(); return; }
+  // Talk goes with the draft (#100): its conversation is on it, and its window shuts.
+  if (d.dropSpark) { S.spark = null; S.sparkStep = 1; if (S.panel === 'anansi') S.panel = null; paint(); return; }
   // Every move harvests first: a step that is not rendered is not in the DOM, so an edit on the
   // step being left would be lost the moment it stops being drawn.
   /* #40 stage 2. One field of the skeleton, asked again.
@@ -12937,6 +13134,8 @@ document.addEventListener('click', async (e) => {
 
     const wantOpen = S.spark.autoOpen !== false;
     S.spark = null; S.sparkStep = 1; S.seedQ = '';
+    // The setup's Talk window shuts with the draft (#100); the tale's own Talk is a new conversation.
+    if (S.panel === 'anansi') S.panel = null;
     await loadLibrary();
     await openStory(r.id);
     if (wantOpen) OPEN_WANTED = r.id;

@@ -355,6 +355,8 @@ let streamGate: Promise<void> | null = null, endGate: Promise<void> | null = nul
 let stubRefuse: any = null;
 // #56. The same for a Talk reply and an invention, which are plain JSON calls.
 let stubTalk: any = null, stubInvent: any = null, stubUndo: any = null;
+// #100. The setup Talk's answer.
+let stubSparkTalk: any = null;
 (globalThis as any).fetch = async (url: string, init?: any) => {
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
   /* A GENERATION, AS THE NDJSON STREAM THE REAL ROUTE SENDS. Until 2026-09-01 this stub answered
@@ -527,6 +529,7 @@ let stubTalk: any = null, stubInvent: any = null, stubUndo: any = null;
                    style: [] } }
     // #88. The cast, in the shape POST /api/spark/cast returns: the writer's character written from
     // outside with the yours pocket, another with pockets of her own, and a Rule.
+    : url.startsWith('/api/spark/talk') ? (stubSparkTalk ?? { reply: 'Ask me anything.', seconds: 1 })
     : url.startsWith('/api/spark/cast') ? { entries: [
         { title: 'Mara Voss', entryType: 'character', activation: 'always_on', keys: ['Mara Voss'],
           body: '[Mara Voss: a courier who owes the envoy]',
@@ -3592,6 +3595,122 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
   } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
 }
 ok('the wizard asks who you play before the threads, and ends in a preview that edits only the draft');
+
+// #100 · TALK WHILE A TALE IS SET UP. The same Talk window, on the draft: what comes back as asked is
+// applied to the draft at once, each with an Undo the page holds; what is offered has an Add press;
+// a box the writer typed in on this step is changed only when that turn named it; and nothing posts
+// but the spark calls, so Discard leaves nothing behind.
+{
+  const doc = (globalThis as any).document;
+  const wasQSA = doc.querySelectorAll;
+  let onScreen: Record<string, any[]> = {};
+  const settle = async (re: RegExp, id = 'page') => { for (let i = 0; i < 40 && !re.test(html(id)); i++) await new Promise((r) => setTimeout(r, 25)); };
+  const sparkTalks = () => POSTED.filter((p) => p.url === '/api/spark/talk');
+  const ask = async (said: string) => {
+    (document as any).getElementById('askBox').value = said;
+    const n = sparkTalks().length;
+    click({ ask: '1' });
+    for (let i = 0; i < 40 && sparkTalks().length === n; i++) await new Promise((r) => setTimeout(r, 25));
+    await new Promise((r) => setTimeout(r, 40));
+    return sparkTalks().at(-1);
+  };
+  const ORIGINAL = 'Six houses have one winter to sign a peace none of them wants.';
+  const DARKER = 'Six houses, one winter, and every one of them lies.';
+  const FERRY = { title: 'The Ferryman', entryType: 'character', activation: 'always_on',
+    body: '[The Ferryman: rows the dead across for a coin]', keys: ['The Ferryman'] };
+  click({ railview: 'workspace' });
+  await new Promise((r) => setTimeout(r, 30));
+  click({ nav: 'create' });
+  await new Promise((r) => setTimeout(r, 30));
+  doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
+  try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
+  finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
+  doc.querySelectorAll = (sel: string) => onScreen[sel] ?? [];
+  POSTED.length = 0;
+  try {
+    assert.match(html('page'), /data-panel="anansi"/, 'SETUP-TALK-OPEN: the setup step has a Talk press');
+    click({ panel: 'anansi' });
+    await settle(/askBox/, 'sideBody');
+    assert.strictEqual(nodes.get('side').hidden, false, 'SETUP-TALK-OPEN: Talk opens beside the setup step');
+    assert.match(html('sideBody'), /id="askBox"/, 'SETUP-TALK-OPEN: the same Talk window, with its ask box');
+
+    // ASKED: a premise change and a new thread, applied to the draft at once; and an offer.
+    stubSparkTalk = { reply: 'Darker, and the ferryman is in.', seconds: 1,
+      changes: [{ words: 'Changed the premise: “Six houses, one winter, and every one of them lies.”',
+                  change: { op: 'tale.set', field: 'premise', text: DARKER, before: ORIGINAL } },
+                { words: 'Added a thread: The Ferryman, a character.', change: { op: 'thread.new', thread: FERRY } }],
+      entries: [{ title: 'House Marren', entryType: 'lore', activation: 'always_on',
+        body: '[House Marren: holds the northern passes]', keys: ['House Marren'] }] };
+    const sent = await ask('Make the premise darker and add the ferryman');
+    assert.ok(sent, 'SETUP-TALK-SENDS: the ask goes to the setup route');
+    assert.strictEqual(sent.body.storyId, undefined, 'SETUP-TALK-SENDS: naming no tale');
+    assert.strictEqual(sent.body.draft.story.premise, ORIGINAL, 'SETUP-TALK-SENDS: with the draft');
+    assert.match(sent.body.step, /^The tale/, `SETUP-TALK-SENDS: and the step the writer is on (${sent.body.step})`);
+    assert.match(html('page'), new RegExp(DARKER), 'SETUP-TALK-APPLIED: the setup step shows the new premise at once');
+    const side = html('sideBody');
+    assert.match(side, /Changed the premise/, 'SETUP-TALK-LINES: each change is a line in the conversation');
+    assert.match(side, /data-talkundo="1:0"/, 'SETUP-TALK-LINES: with its Undo');
+    const add = side.match(/data-talkadd="([^"]+)"/);
+    assert.ok(add, `SETUP-TALK-ADD: the offer has an Add press:\n${side.slice(0, 900)}`);
+    assert.match(side, /House Marren/, 'SETUP-TALK-ADD: naming what is offered');
+
+    // UNDO: the premise goes back to exactly what it was.
+    click({ talkundo: '1:0' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.doesNotMatch(html('page'), new RegExp(DARKER), 'SETUP-TALK-UNDO: Undo takes the change back');
+    assert.match(html('page'), new RegExp(ORIGINAL), 'SETUP-TALK-UNDO: and puts back exactly what was there');
+    assert.match(html('sideBody'), /Undone/, 'SETUP-TALK-UNDO: and the line says so');
+
+    // What was offered and not added rides back in the turns, so "add them" can be asked for later.
+    stubSparkTalk = { reply: 'Yes.', seconds: 1 };
+    let next = await ask('Tell me about them');
+    assert.match(next.body.turns.map((t: any) => t.text).join('\n'), /Offered: House Marren \(lore\): \[House Marren: holds/,
+      'SETUP-TALK-OFFERED: what was offered rides in the turns, so "add them" can be asked for later');
+
+    // ADD: the offer goes into the draft; its own Undo takes it out again.
+    click({ talkadd: add![1] });
+    await new Promise((r) => setTimeout(r, 30));
+    next = await ask('Does that hold together?');
+    let titles = next.body.draft.entries.map((e: any) => e.title);
+    assert.ok(titles.includes('House Marren'), `SETUP-TALK-ADD: Add puts the offer in the draft (${titles})`);
+    assert.ok(titles.includes('The Ferryman'), `SETUP-TALK-APPLIED: and the thread Talk added is in it (${titles})`);
+    const addLine = html('sideBody').match(/Added a thread: House Marren[\s\S]*?data-talkundo="([^"]+)"/);
+    assert.ok(addLine, 'SETUP-TALK-ADD: the Add is a line with its own Undo');
+    click({ talkundo: addLine![1] });
+    await new Promise((r) => setTimeout(r, 30));
+    next = await ask('And now?');
+    titles = next.body.draft.entries.map((e: any) => e.title);
+    assert.ok(!titles.includes('House Marren'), `SETUP-TALK-ADD-UNDO: Undo takes the added thread out (${titles})`);
+    assert.ok(titles.includes('The Ferryman'), 'SETUP-TALK-ADD-UNDO: and nothing else');
+
+    // A BOX THE WRITER TYPED IN on this step is not changed by a turn that did not name it...
+    // Typed: an input event from the premise box, and the box holding what was typed when it is read.
+    const typed = { dataset: { sp: 'premise' }, value: 'My own premise, typed.', id: 'f-sp-premise', rows: 1,
+      scrollHeight: 0, style: {}, closest: () => null, getBoundingClientRect: () => ({ top: 0, bottom: 0, height: 0 }) };
+    (listeners.input ?? []).forEach((f: Function) => f({ target: typed }));
+    onScreen = { '[data-sp]': [typed] };
+    stubSparkTalk = { reply: 'Here is a better one.', seconds: 1,
+      changes: [{ words: 'Changed the premise: “Better.”', change: { op: 'tale.set', field: 'premise', text: 'Better.',
+        before: 'My own premise, typed.' } }] };
+    await ask('Who is in this tale?');
+    onScreen = {};
+    assert.match(html('page'), /My own premise, typed\./, 'SETUP-TALK-TYPED: a box the writer typed in is kept');
+    assert.doesNotMatch(html('page'), />Better\.</, 'SETUP-TALK-TYPED: and the change is not applied');
+    assert.match(html('sideBody'), /Not done[^<]*premise/, 'SETUP-TALK-TYPED: and the conversation says why');
+    // ...and is changed by one that asks for it.
+    await ask('Rewrite my premise, please');
+    assert.match(html('page'), />Better\.</, 'SETUP-TALK-TYPED-ASKED: asked for by name, it is changed');
+
+    // DISCARD: nothing was ever posted but the spark calls, and Talk goes with the draft.
+    assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
+      `SETUP-TALK-NOTHING: nothing is saved before Start (${POSTED.map((p) => p.url).join(', ')})`);
+    click({ dropSpark: '1' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.strictEqual(nodes.get('side').hidden, true, 'SETUP-TALK-DISCARD: Talk closes with the draft');
+    assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')), 'SETUP-TALK-DISCARD: and Discard posts nothing');
+  } finally { doc.querySelectorAll = wasQSA; stubSparkTalk = null; }
+}
+ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed box, and saves nothing');
 
 // #24 · WHAT CHANGED IS A FILE NOW. Seth, 2026-08-29: "lets just have it show case from one file we
 // serve that we update after each commit and we remove the need for a local model to do it."

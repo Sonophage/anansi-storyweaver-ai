@@ -123,6 +123,9 @@ export const api = {
   // #21 §3 step 5. Reads the whole skeleton back and says what it would change. Proposes
   // only — there is no story yet for it to write to.
   sparkReview:  (story, entries) => j('/api/spark/review', 'POST', { story, entries }),
+  // #100. Talk while a tale is set up: the draft, the step and the turns. Writes nothing; the page
+  // applies the changes that come back to its own draft.
+  sparkTalk:    (o)              => j('/api/spark/talk', 'POST', o),
   // `into` sends the book's threads to another of yours before it goes. The prose is the book and
   // goes with it; a cast and a city are work that outlives the story they were written for.
   deleteStory:  (id, into)       => j('/api/stories', 'DELETE', { id, ...(into ? { into } : {}) }),

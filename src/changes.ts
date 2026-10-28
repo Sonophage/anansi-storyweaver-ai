@@ -423,6 +423,143 @@ function saidOf(raw: any): string {
   return `${String(raw?.op ?? 'something') || 'something'}${name ? ` on ${name}` : ''}`;
 }
 
+/* #100 · THE DRAFT, WHILE A NEW TALE IS SET UP. The same rule, asked means done, on a tale that
+ * does not exist yet: the wizard's draft, which the page holds and sends. Nothing here is written
+ * anywhere; a checked change goes back to the page, which applies it to its own draft and holds
+ * the Undo. So the list is the draft's own, and it is short:
+ *
+ *   - tale.set: the draft's title, premise, genre, setting or voice. Not the setting's scene: there
+ *     are no scenes yet.
+ *   - thread.new, thread.set: as on a tale, against the draft's threads and their rooms.
+ *   - thread.remove: removing a draft thread is allowed here, where a tale only retires one,
+ *     because nothing has been saved: the thread is the page's, the press is one Undo away, and
+ *     Discard throws the whole draft away anyway. The thread the writer plays stays while they play
+ *     it, the rule the preview's own remove follows.
+ *
+ * A draft thread's Always true is its `body`, in the `[Name: text]` form the cast writes it in
+ * (POST /api/stories moves it into `facts` at Start); its other rooms are `rooms[slot]`. */
+const DRAFT_OPS = ['tale.set', 'thread.new', 'thread.set', 'thread.remove'] as const;
+const DRAFT_FIELDS = ['title', 'premise', 'genre', 'setting', 'voice'] as const;
+/** The draft's own name for each field: the voice is `writingStyle` in the wizard and the column. */
+const DRAFT_KEY: Record<string, string> = { title: 'title', premise: 'premise', genre: 'genre', setting: 'setting',
+  voice: 'writingStyle' };
+
+/** The schema fragment the setup Talk's answer carries. Flat, as `CHANGES_SCHEMA` is, for the same
+ *  reason. */
+export const DRAFT_CHANGES_SCHEMA = {
+  type: 'array', maxItems: 4,
+  items: {
+    type: 'object',
+    properties: {
+      op: { type: 'string', enum: [...DRAFT_OPS] },
+      // tale.set: which of the draft's fields.
+      field: { type: 'string', enum: [...DRAFT_FIELDS] },
+      // thread.set, thread.remove: the thread by its name.
+      thread: { type: 'string', maxLength: 80 },
+      // thread.set: the room, or `none` for its Always true.
+      room: { type: 'string', enum: ['none', ...ALL_SLOTS] },
+      // tale.set and thread.set: the whole new text. thread.new: its Always true.
+      text: { type: 'string', maxLength: 1200 },
+      // thread.new only.
+      title: { type: 'string', maxLength: 80 },
+      type: { type: 'string', enum: [...KINDS] },
+      // The search results this change was made from, by their numbers (#99).
+      sources: { type: 'array', maxItems: 3, items: { type: 'integer', minimum: 1 } },
+    },
+    required: ['op'],
+  },
+} as const;
+
+type DraftThread = { title: string; entryType?: string; body?: string; keys?: string[];
+  rooms?: Record<string, { name?: string; body?: string; on?: boolean }>; keep?: boolean; notes?: string };
+export type Draft = { story?: Record<string, any>; entries?: DraftThread[] };
+export type DraftChange =
+  /** `before` is the field's text before the change, for the page's Undo. */
+  | { op: 'tale.set'; field: string; text: string; before: string }
+  /** The thread as it goes into the draft, in the shape the cast writes one. */
+  | { op: 'thread.new'; thread: { title: string; entryType: string; activation: string; body: string; keys: string[] } }
+  /** `room` is `facts` for its Always true; `before` is that room's text, null when there was none. */
+  | { op: 'thread.set'; title: string; room: string; text: string; before: string | null }
+  | { op: 'thread.remove'; title: string };
+export type DraftChecked = { ok: true; change: DraftChange } | { ok: false; said: string; why: string };
+
+/** The draft's threads as `threadNamed` reads a tale's: the ones the writer kept, with a kind. An
+ *  unticked thread is not in the draft, so a request cannot reach it. */
+const draftTale = (d: Draft): Tale => ({ entries: (d.entries ?? []).filter((e) => e && e.keep !== false
+  && String(e.title ?? '').trim()).map((e) => ({ id: e.title, title: String(e.title).trim(),
+  entryType: String(e.entryType ?? 'character') })) });
+/** A draft thread's Always true, out of the `[Name: text]` it is written in. */
+const alwaysOf = (t: DraftThread) => {
+  const own = String(t.body ?? '').trim().replace(/^\[|\]$/g, '').trim();
+  const name = String(t.title ?? '').trim();
+  return own.toLowerCase().startsWith(name.toLowerCase() + ':') ? own.slice(name.length + 1).trim() : own;
+};
+/** And back into that form, with one name at the front however the text arrived. */
+export const draftBody = (title: string, text: string) => {
+  const t = { title, body: text };
+  return `[${title}: ${alwaysOf(t)}]`;
+};
+
+/** One change the model returned during setup, checked against the draft the page sent. */
+export function checkDraft(raw: any, draft: Draft): DraftChecked {
+  if (raw && typeof raw.text === 'string') raw = { ...raw, text: raw.text.replace(LINK, '').trim() };
+  const op = String(raw?.op ?? '');
+  const said = op === 'thread.remove' ? `Remove ${String(raw?.thread ?? '').trim() || 'a thread'}`
+    : op === 'tale.set' ? `Change the ${String(raw?.field ?? '').trim() || 'draft'}` : saidOf(raw);
+  if (!(DRAFT_OPS as readonly string[]).includes(op)) return { ok: false, said,
+    why: 'that is not something Talk can do while a tale is set up. It changes the draft\'s title, premise, '
+      + 'genre, setting and voice, and its threads; there are no scenes or prose yet' };
+  const st = draft.story ?? {};
+  const text = String(raw.text ?? '').trim();
+  if (op === 'tale.set') {
+    const field = String(raw.field ?? '').trim().toLowerCase();
+    if (!(DRAFT_FIELDS as readonly string[]).includes(field)) return { ok: false, said,
+      why: `Talk changes the title, premise, genre, setting or voice, not the ${field || 'nothing'}` };
+    const before = String(st[DRAFT_KEY[field]] ?? '');
+    if (!text) return { ok: false, said, why: 'it came with no text' };
+    if (before.trim() === text) return { ok: false, said, why: `the ${field} already says that` };
+    return { ok: true, change: { op: 'tale.set', field, text, before } };
+  }
+  const tale = draftTale(draft);
+  if (op === 'thread.new') {
+    const title = String(raw.title ?? raw.thread ?? '').trim();
+    const type = String(raw.type ?? '').trim();
+    if (!title) return { ok: false, said, why: 'the new thread had no name' };
+    if (!(KINDS as string[]).includes(type)) return { ok: false, said,
+      why: `"${type || 'nothing'}" is not a kind of thread. A thread is ${KINDS.join(', ')}` };
+    const twin = tale.entries.find((e) => norm(e.title) === norm(title));
+    if (twin) return { ok: false, said, why: `there is already a thread called ${twin.title}` };
+    // ALWAYS ON, keyed by its name, the way every thread the cast writes arrives: the preview tells
+    // the writer a spark cast is always on, and a draft thread on a word the model chose would be the
+    // one exception they were not told about.
+    return { ok: true, change: { op: 'thread.new', thread: { title, entryType: type, activation: 'always_on',
+      body: draftBody(title, text), keys: [title] } } };
+  }
+  const { hit, why } = threadNamed(tale, raw.thread);
+  if (!hit) return { ok: false, said, why: why!.replace('in this tale', 'in the draft') };
+  const t = (draft.entries ?? []).find((e) => e.keep !== false && String(e.title ?? '').trim() === hit.title)!;
+  if (op === 'thread.remove') {
+    const plays = String(st.persona ?? '').trim();
+    if (plays && norm(plays) === norm(hit.title)) return { ok: false, said,
+      why: `you play ${hit.title}, so their thread stays while you play them` };
+    return { ok: true, change: { op: 'thread.remove', title: hit.title } };
+  }
+  const slot = roomOf(raw.room);
+  if (!hasRoom(hit, slot)) return { ok: false, said, why: noRoom(hit, slot) };
+  if (!text) return { ok: false, said, why: 'it came with no text' };
+  const before = slot === 'facts' ? alwaysOf(t) || null : String(t.rooms?.[slot]?.body ?? '') || null;
+  if ((before ?? '').trim() === text) return { ok: false, said, why: `${hit.title}'s ${roomLabel(slot)} already says that` };
+  return { ok: true, change: { op: 'thread.set', title: hit.title, room: slot, text, before } };
+}
+
+/** What a draft change did, in the writer's words: one line in the conversation. */
+export function draftWords(c: DraftChange): string {
+  if (c.op === 'tale.set') return `Changed the ${c.field}: “${clip(c.text)}”`;
+  if (c.op === 'thread.new') return `Added a thread: ${c.thread.title}, ${an(c.thread.entryType)}.`;
+  if (c.op === 'thread.remove') return `Removed ${c.title} from the draft.`;
+  return `Changed ${c.title}'s ${roomLabel(c.room)}: “${clip(c.text)}”`;
+}
+
 /** THE CHANGE THAT PUTS THIS ONE BACK, built once it is applied: `made` holds the ids the write
  *  minted, which nothing knows before it. Returned with the change, and sent back by the Undo. */
 export function undoFor(c: Change, made: { thread?: string; addon?: string; state?: string; event?: string }) {
