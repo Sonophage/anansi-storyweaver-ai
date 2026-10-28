@@ -1150,19 +1150,33 @@ Present tense. State facts flat. Output the summary and nothing else.`;
  *  the COUNCIL-04 #5 failure that split them apart in the first place.
  *
  *  Short on purpose: the block caps at 200 tokens and a note that overruns is a note that gets cut
- *  mid-sentence in the prompt, where nobody sees it happen. */
+ *  mid-sentence in the prompt, where nobody sees it happen.
+ *
+ *  #120 · PROSE ONLY, NEVER THE STORY. It asked "what its chapters are shaped like" and a note came
+ *  back "chapters end on the choice to trust, still unmade", with the premise's own car and key in
+ *  it. STYLE rides every prose call, so that is plot steering every passage. It now asks for how the
+ *  sentences read, as a shape with placeholders, and forbids chapter shape, endings and the
+ *  premise's images. NOT MEASURED. */
 export const STYLE_NOTE =
 `Write the house style for one book, in three sentences or fewer.
 
-You are given its genre and its premise. Say what a book OF THAT KIND does on the page: the texture
-its scenes have, what it lingers on, what it hurries past, what its chapters are shaped like.
+You are given its genre and its premise. Say how the prose of a book OF THAT KIND reads, and
+nothing else: how long its sentences run and how they move, how close the narration sits to the one
+it follows, what the narration notices and what it leaves unsaid, and how much of a scene is
+dialogue. Shape: "<how the sentences run>; <how close the narration sits>; it notices <what>, and
+leaves <what> unsaid; <how much is dialogue>." The shape shows the FORM only; the angle brackets
+are never written.
+
+NOT THE STORY. Never say how chapters are shaped or how they end, how the book ends, what anyone
+chooses or what happens. This note is read before every passage, and plot in it steers the story.
+Never reuse the premise's images, objects, places or names: write the kind of book, not this one.
 
 DO NOT WRITE ABOUT REGISTER. Not tense, not person, not contractions, not how dialogue is
 punctuated, not how explicit it is. Those belong to the writer's voice and are set elsewhere; a
 style note that repeats them makes two instructions argue over one sentence of prose.
 
-Do not name the premise back. Do not name characters. Do not address the writer, do not say "this
-book" or "the story" — write the instruction itself, the way a style sheet is written.
+Do not address the writer, do not say "this book" or "the story" — write the instruction itself,
+the way a style sheet is written.
 
 Three sentences at the most, and fewer is better.`;
 

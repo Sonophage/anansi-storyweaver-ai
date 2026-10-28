@@ -33,6 +33,12 @@ or decide. Now it is told one thing. It writes what they see, hear and remember,
 you wrote for them, and stops where they would speak, act or choose. What they say, do and decide is
 yours. This applies to the tales you already have.
 
+### A new style note is about the sentences, not the story
+When Anansi writes a style note for a new tale, it now says how the prose reads: how long the
+sentences run, how close the telling sits, what it notices and leaves unsaid, and how much is
+dialogue. It no longer says how chapters end or reuses the premise's images, which steered every
+passage toward one ending. Style notes you already have are not changed.
+
 ## 2026-10-28 · Tidy this thread, made safe to use on a whole library
 
 ### Tidy leaves "their lines are yours" alone
