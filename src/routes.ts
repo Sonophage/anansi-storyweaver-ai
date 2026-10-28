@@ -2320,11 +2320,37 @@ async function storyInNewWorld(c: Ctx) {
   } catch (e) { db.delStory(world.id, c.owner); throw e; }
 }
 
+/** #105 · THE FOLLOWED WORLD'S THREAD OF THAT NAME, while the tale has none of its own by it. */
+const followedThread = (taleId: string, name: string) => (db.entriesFor(taleId) as any[])
+  .find((e) => e.shared_from_id && String(e.title).trim().toLowerCase() === name.trim().toLowerCase());
+
 /** #105 · THE WORLD'S PEOPLE AT CREATE, after the tale is made and follows its World, inside the
- *  create's rollback. Those the preview marked in the opening are pinned to the first scene, force
- *  in, by the thread the tale reads under that name: the World's own, so it keeps following (or the
- *  tale's, where the tale has one). Answers an error, and the create then makes nothing. */
-function worldPeopleAtCreate(made: any, body: any): string | null {
+ *  create's rollback.
+ *
+ *  WHO YOU PLAY AND WHO IS HANDS OFF, WHEN THEY ARE THE WORLD'S, ARE TAKEN OVER (`db.unlinkEntry`):
+ *  the tale gets its own thread for them, which wins in this tale, and the World's thread is not
+ *  rewritten. The one held is then written from outside on the copy, as `outsideOnly` writes a new
+ *  tale's cast: its voice and interiority pockets go, and the yours pocket comes on.
+ *
+ *  THOSE THE PREVIEW MARKED IN THE OPENING are pinned to the first scene, force in, by the thread
+ *  the tale reads under that name: the World's own, so it keeps following, or the tale's copy where
+ *  it took one over. Answers an error, and the create then makes nothing. */
+function worldPeopleAtCreate(made: any, owner: string, body: any): string | null {
+  const you = playsOf(body);
+  for (const name of new Set([you.persona, you.held].filter(Boolean).map((n) => n!.toLowerCase()))) {
+    const theirs = followedThread(made.id, name);
+    if (!theirs) continue;
+    const copy = db.unlinkEntry(made.id, owner, theirs.id);
+    if (!copy) return `${theirs.title} could not be made this tale's own, so nothing was made.`;
+    const outside = { title: theirs.title, entryType: theirs.entry_type, rooms: {} as any };
+    outsideOnly([outside], you.held);
+    if (!outside.rooms.voice) continue;
+    for (const a of db.addonsOf(made.id) as any[])
+      if (a.entry_id === copy && (a.slot === 'voice' || a.slot === 'interiority')) db.delAddon(made.id, a.id);
+    const v = outside.rooms.voice;
+    const id = db.upsertAddon(made.id, copy, { slot: 'voice', name: v.name, body: `[${v.body}]` });
+    if (id) db.setAddonActive(made.id, id, true);
+  }
   const read = db.entriesFor(made.id) as any[];
   const named = (name: string) => read.find((e) => String(e.title).trim().toLowerCase() === name.toLowerCase());
   for (const raw of (Array.isArray(body.inOpening) ? body.inOpening : []).slice(0, 60)) {
@@ -2766,7 +2792,8 @@ export const routes: Record<string, Handler> = {
         }
         outsideOnly(cast, you.held);
       }
-      if (you.persona && about && !cast.some((e: any) =>
+      // #105 · Not for a person of the followed World: the tale takes theirs over instead.
+      if (you.persona && about && !followedThread(made.id, you.persona) && !cast.some((e: any) =>
           String(e?.title ?? '').trim().toLowerCase() === you.persona!.toLowerCase())) {
         const own = sparkThread(you.persona, 'character', about, []);
         outsideOnly([own], you.held);
@@ -2792,7 +2819,7 @@ export const routes: Record<string, Handler> = {
           db.delStory(made.id, c.owner);
           return { error: 'a thread you picked could not be brought over, so nothing was made. Untick it, or try again.' };
         }
-      const refused = worldPeopleAtCreate(made, c.body);
+      const refused = worldPeopleAtCreate(made, c.owner, c.body);
       if (refused) { db.delStory(made.id, c.owner); return { error: refused }; }
       return { ...made, ...(roomNotes.length ? { notes: roomNotes } : {}) };
     } catch (e) { db.delStory(made.id, c.owner); throw e; }
