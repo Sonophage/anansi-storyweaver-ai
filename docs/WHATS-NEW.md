@@ -60,6 +60,10 @@ he looks a thing up online, writes a new tale's people, makes a World, changes a
 or sews in a change from the end of a scene. While you set up a new tale, the box under each name
 shows only the description. Anansi still tells the model how to use each one when he writes.
 
+Threads you already have are cleaned once, when the update starts: the brackets and the name in
+front come off, and nothing else in the text changes. A copy of your library is kept first, and
+each tale's update report lists every box that was cleaned.
+
 ## 2026-10-28 · Anansi changes what you ask him to
 
 ### Ask in Talk, and it is done

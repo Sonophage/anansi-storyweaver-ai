@@ -3681,4 +3681,64 @@ ok('a pocket or an Always true is stored without the bracket wrapper or the name
   db.delStory(t.id);
 });
 
+// #110 · THE UPDATE TAKES THE WRAPPERS OFF THE LIBRARY ONCE. Built on a copy made here, never the live
+// file: rows written past the floor, as an old server wrote them, then two boots of the real module.
+ok('the update strips old wrappers once, after a backup, names each, and leaves clean text alone', () => {
+  const me = db.owner('plain-update');
+  const t = db.createStory(me, { title: 'Old wrappers', premise: 'p' });
+  const e = db.upsertEntry(t.id, me, { title: 'Aldis Fen', body: '[Aldis Fen: at the docks]', entryType: 'character' })!;
+  const dir = mkdtempSync('/tmp/anansi-plain-');
+  try {
+    const file = join(dir, 'old.db');
+    db.snapshot(file);
+    const old = new RawDb(file);
+    const put = (id: string, entry: string | null, slot: string, name: string, body: string) =>
+      old.prepare(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,created_at)
+        VALUES (?,?,?,?,?,?,'[]',1,1)`).run(id, t.id, entry, slot, name, body);
+    put('a-p-facts', e, 'facts', 'facts', '[Aldis Fen: Aldis Fen: 34, ex-Watch sergeant]');
+    put('a-p-voice', e, 'voice', 'How he talks', '[short sentences; never swears]');
+    put('a-p-coat', e, 'outfit', 'Coat', '[wearing: black oilcloth]');
+    put('a-p-clean', e, 'interiority', 'Debt', 'Never says the number out loud.');
+    put('a-p-own', e, 'relationships', 'Marek', '[a] owes [b], and both know it');
+    put('a-p-tale', null, 'instruction', 'Tone', '[Tone: dry]');
+    old.close();
+    const bodies = () => { const c = new RawDb(file, { readOnly: true });
+      const r = Object.fromEntries((c.prepare("SELECT id, body FROM addons WHERE id LIKE 'a-p-%'").all() as any[])
+        .map((x) => [x.id, x.body]));
+      c.close(); return r; };
+    const lines = () => { const c = new RawDb(file, { readOnly: true });
+      const r = (c.prepare('SELECT entry_id, line, backup FROM update_lines WHERE story_id = ? ORDER BY rowid').all(t.id) as any[])
+        .map((x) => ({ ...x }));
+      c.close(); return r; };
+    const backups = () => existsSync(join(dir, 'backups'))
+      ? readdirSync(join(dir, 'backups')).filter((f) => f.startsWith('pre-update-')) : [];
+    const boot = () => {
+      const r = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
+        `await import(${JSON.stringify(new URL('../src/db.ts', import.meta.url).href)});`],
+        { env: { ...process.env, ANANSI_DB: file }, encoding: 'utf8' });
+      assert.strictEqual(r.status, 0, `the boot failed: ${r.stderr}`);
+    };
+    const before = lines().length;
+
+    boot();
+    assert.deepStrictEqual(bodies(), {
+      'a-p-facts': '34, ex-Watch sergeant', 'a-p-voice': 'short sentences; never swears', 'a-p-coat': 'black oilcloth',
+      'a-p-clean': 'Never says the number out loud.', 'a-p-own': '[a] owes [b], and both know it', 'a-p-tale': 'dry',
+    }, 'PLAIN-UPDATE: every wrapper and name in front is gone, and clean text is untouched');
+    assert.strictEqual(backups().length, 1, 'PLAIN-UPDATE-BACKUP: one backup was taken first');
+    const said = lines().slice(before);
+    assert.strictEqual(said.length, 4, `PLAIN-UPDATE-REPORT: one line for each pocket it changed (${said.map((l: any) => l.line).join(' | ')})`);
+    assert.ok(said.every((l: any) => l.backup && l.backup.includes('pre-update-')), '  each naming the backup');
+    assert.ok(said.some((l: any) => l.entry_id === e && /Always true/.test(l.line)), '  Always true is named as itself');
+    assert.ok(said.some((l: any) => l.entry_id === e && /How he talks/.test(l.line)), '  and a pocket by its name');
+    assert.ok(said.some((l: any) => l.entry_id === null && /Tone/.test(l.line)), '  and the tale\'s own pocket, on the tale');
+
+    boot();
+    assert.strictEqual(backups().length, 1, 'PLAIN-UPDATE-ONCE: a second boot takes no backup');
+    assert.strictEqual(lines().length, before + 4, '  writes no second report');
+    assert.strictEqual(bodies()['a-p-facts'], '34, ex-Watch sergeant', '  and changes nothing');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+  db.delStory(t.id);
+});
+
 console.log(`\n${n} checks passed`);

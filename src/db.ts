@@ -179,6 +179,37 @@ export function foldAlwaysTrue() {
   } catch (err) { db.exec('ROLLBACK'); throw err; }
 }
 
+/** #110 · UPDATE DAY FOR PLAIN DESCRIPTIONS (ADR 0008). A pocket or an Always true stored the old way
+ *  (`[Aldis Fen: …]`, `[wearing: …]`, a name in front) is stored again without it, by the rule
+ *  `upsertAddon` stores every new one by (`slots.plain`), and the tale's update report names each
+ *  one. Text that is already plain is not touched.
+ *
+ *  ONCE BY ITS DATA: `plain` of its own answer is that answer, so a later boot finds nothing to change,
+ *  takes no backup and writes no line. A backup comes first (`beforeRewrite`), only when there is
+ *  something to change, and it is all one transaction. Its own statements, like `foldAlwaysTrue`: it
+ *  runs inside `migrate()`. Runs after `foldAlwaysTrue`, whose folded lines are bracketed. */
+export function plainAddons() {
+  const P = (sql: string) => db.prepare(sql);
+  const rows = (P(`SELECT a.id, a.story_id, a.entry_id, a.slot, a.name, a.body, e.title FROM addons a
+    LEFT JOIN entries e ON e.id = a.entry_id ORDER BY a.story_id, a.entry_id, a.created_at, a.rowid`).all() as any[])
+    .map((a) => ({ ...a, now: plain(a.body, wrapperNames(a.slot, String(a.title ?? ''), String(a.name ?? ''))) }))
+    .filter((a) => a.now !== String(a.body ?? ''));
+  if (!rows.length) return 0;
+  beforeRewrite();
+  db.exec('BEGIN');
+  try {
+    for (const a of rows) {
+      P('UPDATE addons SET body = ? WHERE id = ?').run(a.now, a.id);
+      const which = a.slot === 'facts' ? 'Its Always true' : `The pocket "${String(a.name ?? '').trim() || a.slot.replace(/_/g, ' ')}"`;
+      noteUpdate(a.story_id, `${which} had square brackets or a name in front. They were taken off, so the box `
+        + 'shows only the description. Anansi still tells the model how to use it.', a.entry_id ?? null);
+    }
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  console.log(`  took the old brackets off ${rows.length} pocket${rows.length === 1 ? '' : 's'}`);
+  return rows.length;
+}
+
 /** SCENE PINS (SPEC 7.1), the one statement for the table, used by the schema below and by
  *  `pinsHoldFollowed` when it rebuilds an old library.
  *
@@ -593,6 +624,7 @@ function migrate() {
   // somebody's novel is in, which is the whole reason that guard exists.
   repairStrandedChapters();
   try { foldAlwaysTrue(); } catch (e: any) { console.log(`  Always true was NOT folded: ${e?.message}`); }
+  try { plainAddons(); } catch (e: any) { console.log(`  the old brackets were NOT taken off: ${e?.message}`); }
   try { pinsHoldFollowed(); } catch (e: any) { console.log(`  chapter_pins was NOT rebuilt: ${e?.message}`); }
   // #47. What each act was built from. Existing acts get their chapters as they are now; see
   // `backfillActPrints` for what that does and does not promise.
