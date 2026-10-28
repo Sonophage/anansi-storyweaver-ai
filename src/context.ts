@@ -484,6 +484,20 @@ const framedAlwaysTrue = (e: Entry): string => {
   return body ? `[What is always true of ${who || 'this thread'}: ${body}]` : '';
 };
 
+/** #114 · WHERE IT STANDS AS THE MODEL READS IT (ADR 0008): the thread's own text, or the Over time
+ *  entry in force, framed `[Seth: …]` with the thread's name. That is the form the finders stored it
+ *  in until #114, so a thread the update took the wrapper off reads to the model exactly as it did;
+ *  one stored plain all along gains the frame. NOT MEASURED: the frame on those is owed an A/B
+ *  against the bare form before it is called a fix. A body still stored wrapped (a copy from before
+ *  the update) is unwrapped first, so it is never framed twice. The hints `resolveBody` adds for
+ *  entries not yet open follow it, unframed, as they always did. */
+const framedStands = (e: Entry, at: number): string => {
+  const who = (e.title || '').trim();
+  const body = unwrapped(stateInForce(e, at)?.body ?? e.body ?? '', [who]);
+  const hints = resolveBody({ ...e, body: '', states: (e.states ?? []).map((s) => ({ ...s, body: '' })) }, at).trim();
+  return [body ? `[${who ? `${who}: ` : ''}${body}]` : '', hints].filter(Boolean).join(' ');
+};
+
 /** THE CARD AS THE MODEL SEES IT: what is in force at this chapter, plus every room switched on.
  *
  *  This exists because reading `resolveBody` alone stopped being the same thing as reading the card
@@ -496,7 +510,7 @@ const framedAlwaysTrue = (e: Entry): string => {
  *  With no window, only rooms that are switched ON are included; pass the chapter's text and rooms
  *  whose keys fire come too, which is what the prompt builder wants and a cast list does not. */
 export const cardText = (e: Entry, at: number, window = '', locked = '') =>
-  [framedAlwaysTrue(e), resolveBody(e, at), ...rooms(e, at, window, locked)].map((x) => x.trim()).filter(Boolean).join('\n');
+  [framedAlwaysTrue(e), framedStands(e, at), ...rooms(e, at, window, locked)].map((x) => x.trim()).filter(Boolean).join('\n');
 
 // The proximity bound is BUILT (2026-08-25) — see `fires` below. The marker that stood here said
 // to build it "when a real ledger actually false-fires", and COUNCIL-04 recorded two, from a

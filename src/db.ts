@@ -210,6 +210,44 @@ export function plainAddons() {
   return rows.length;
 }
 
+/** #114 · UPDATE DAY FOR WHERE A THREAD STANDS (ADR 0008). The thread's own text and each Over time
+ *  entry stored the old way (`[Seth: 30s; …]`, the name in front) is stored again without it, by the
+ *  rule the floor stores every new one by (`plainStands`), and the tale's update report names each.
+ *  The model still reads it framed (`context.ts`). Text that is already plain is not touched, and
+ *  neither is text that differs only by the spaces around it.
+ *
+ *  ONCE BY ITS DATA: `plain` of its own answer is that answer, so a later boot finds nothing to change,
+ *  takes no backup and writes no line. A backup comes first (`beforeRewrite`), only when there is
+ *  something to change, and it is all one transaction. Its own statements, like `plainAddons`: it
+ *  runs inside `migrate()`, after `foldAlwaysTrue`, whose history lines are bracketed. */
+export function plainStandsAll() {
+  const P = (sql: string) => db.prepare(sql);
+  const changed = (rows: any[]) => rows.map((r) => ({ ...r, now: plainStands(r.body, [r.title]) }))
+    .filter((r) => r.now !== String(r.body ?? '').trim());
+  const own = changed(P('SELECT id, story_id, title, body FROM entries ORDER BY story_id, title').all() as any[]);
+  const later = changed(P(`SELECT s.id, s.entry_id, s.from_chapter, s.body, e.story_id, e.title FROM entry_states s
+    JOIN entries e ON e.id = s.entry_id ORDER BY e.story_id, e.title, s.from_chapter`).all() as any[]);
+  if (!own.length && !later.length) return 0;
+  beforeRewrite();
+  db.exec('BEGIN');
+  try {
+    for (const r of own) {
+      P('UPDATE entries SET body = ? WHERE id = ?').run(r.now, r.id);
+      noteUpdate(r.story_id, 'Where it stands (shown as Info) had square brackets or its name in front. They were '
+        + 'taken off, so the box shows only the description. Anansi still tells the model whose it is.', r.id);
+    }
+    for (const r of later) {
+      P('UPDATE entry_states SET body = ? WHERE id = ?').run(r.now, r.id);
+      noteUpdate(r.story_id, `Its Over time entry from scene ${r.from_chapter} had square brackets or its name in front. `
+        + 'They were taken off, so the box shows only the description. Anansi still tells the model whose it is.', r.entry_id);
+    }
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  const n = own.length + later.length;
+  console.log(`  took the old brackets off where ${n} thread text${n === 1 ? '' : 's'} stand${n === 1 ? 's' : ''}`);
+  return n;
+}
+
 /** SCENE PINS (SPEC 7.1), the one statement for the table, used by the schema below and by
  *  `pinsHoldFollowed` when it rebuilds an old library.
  *
@@ -625,6 +663,7 @@ function migrate() {
   repairStrandedChapters();
   try { foldAlwaysTrue(); } catch (e: any) { console.log(`  Always true was NOT folded: ${e?.message}`); }
   try { plainAddons(); } catch (e: any) { console.log(`  the old brackets were NOT taken off: ${e?.message}`); }
+  try { plainStandsAll(); } catch (e: any) { console.log(`  the old brackets were NOT taken off where threads stand: ${e?.message}`); }
   try { pinsHoldFollowed(); } catch (e: any) { console.log(`  chapter_pins was NOT rebuilt: ${e?.message}`); }
   // #47. What each act was built from. Existing acts get their chapters as they are now; see
   // `backfillActPrints` for what that does and does not promise.
@@ -2401,6 +2440,12 @@ export const keysOf = (k: unknown, cap = Infinity): string[] => {
  *  list is the only thing that says so — see the floor at the top of `upsertEntry`. */
 const ACTIVATIONS = ['always_on', 'triggered'] as const;
 
+/** #114 · WHERE IT STANDS AS IT IS STORED: the thread's own text and each Over time entry, a plain
+ *  description with the old `[Seth: …]` wrapper and the thread's name in front taken off, by
+ *  `slots.plain`, the rule a pocket is stored by. The one rule for the floor below and the update
+ *  (`plainStandsAll`); `context.ts` frames it for the model. */
+export function plainStands(body: unknown, titles: unknown[]) { return plain(body, titles.map((t) => String(t ?? ''))); }
+
 export function upsertEntry(storyId: string, o: string, e: any) {
   // THE ONE FLOOR FOR AN ACTIVATION (Seth, 2026-10-25: refuse anything else). The column stored
   // whatever it was handed — test/db.ts wrote 'keyed' for weeks, which the engine read as on a word
@@ -2425,6 +2470,8 @@ export function upsertEntry(storyId: string, o: string, e: any) {
   // known id previously took the UPDATE path against a row that was never inserted and
   // silently wrote nothing.
   const cur = e.id ? q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(e.id, storyId) as any : null;
+  // #114 · WHERE IT STANDS IS A PLAIN DESCRIPTION (ADR 0008), by the rule a pocket's floor uses.
+  e = { ...e, body: plainStands(e.body, [e.title, cur?.title]) };
 
   /* #36 · EDITING A FOLLOWED CARD EDITS IT WHERE IT LIVES. This is the bidirectional half of the
    * issue, and it is a redirect rather than a mirror: there is one card, so it cannot drift.
@@ -3260,10 +3307,10 @@ export function revertEntryField(storyId: string, entryId: string, revisionId: s
 /** #77. Add to the end of a thread's own text: where it stands from scene 1, the start of Over time.
  *  A pasted or pulled card's history lands here (`slots.TO_OVER_TIME`). */
 export function appendInfo(storyId: string, entryId: string, text: string) {
-  const e = q('SELECT body FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId) as any;
+  const e = q('SELECT title, body FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId) as any;
   if (!e || !String(text ?? '').trim()) return;
   q('UPDATE entries SET body = ?, updated_at = ? WHERE id = ?')
-    .run([String(e.body ?? '').trim(), String(text).trim()].filter(Boolean).join('\n'), now(), entryId);
+    .run([String(e.body ?? '').trim(), plainStands(text, [e.title])].filter(Boolean).join('\n'), now(), entryId);
   touch(storyId);
 }
 
@@ -3977,7 +4024,10 @@ export const statesForStory = (storyId: string) => {
 };
 export function upsertState(storyId: string, entryId: string, st: any) {
   // The entry must belong to this story, or a state can be hung off someone else's canon.
-  if (!q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId)) return null;
+  const owner = q('SELECT title FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId) as any;
+  if (!owner) return null;
+  // #114 · AN OVER TIME ENTRY IS A PLAIN DESCRIPTION, like the thread's own text it stands in for.
+  st = { ...st, body: plainStands(st.body, [owner.title]) };
   if (st.id) {
     // The entry is scoped above; the STATE was not, so a foreign state id could be
     // overwritten while still attached to its owner's entry.

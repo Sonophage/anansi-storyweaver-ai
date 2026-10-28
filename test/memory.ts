@@ -915,6 +915,19 @@ ok('the house style is written from the genre and the premise, and never from th
   ok('Tidy this thread chalks one card that sorts it into its three parts, replacing old pockets');
 }
 
+// #114 · NO PROMPT THAT WRITES WHERE A THREAD STANDS ASKS FOR A BRACKET. TIDY asked for "one bracket"
+// and the trial tidy kept `[Seth: 30s; …]`; the code frames it for the model now (context.ts).
+{
+  for (const [name, text] of Object.entries({ TIDY: prompts.TIDY, MEMORY: prompts.MEMORY, REDO: prompts.REDO, EXTRACT: prompts.EXTRACT })) {
+    assert.doesNotMatch(text, /one bracket/i, `STANDS-ASK-${name}: it no longer asks for where it stands in one bracket`);
+    const line = text.split('\n').findIndex((l) => /^\s*(stands|where it stands)\s/.test(l) || /^And stands/.test(l));
+    assert.ok(line >= 0, `  ${name} has a line asking for where it stands`);
+    assert.match(text.split('\n').slice(line, line + 4).join(' '), /plain description/,
+      `STANDS-PLAIN-${name}: and asks for it as a plain description`);
+  }
+  ok('the prompts ask for where a thread stands as a plain description, never a bracket');
+}
+
 // #114 · THE LOCK POCKET IS NEVER SENT TO TIDY AND NEVER REPLACED BY IT. A trial tidy rewrote the
 // Hands-off thread's "his lines are the writer's" into a description of how he speaks, with the lock
 // sentence buried in it. Two shapes: the Hands-off thread's voice pocket, whatever it holds, and any
@@ -1196,7 +1209,7 @@ ok('a hem chalks six new threads at most, and the rest wait by name until asked 
   assert.match(prompts.MEMORY, /six/i, 'CHALK-CAP: the prompt carries the cap of six');
   assert.match(asked.user, /OUTSIDE ONLY: Seth, Halloran/, 'CHALK-OUTSIDE-NAMED: the ask names the played and Hands off characters');
   assert.match(prompts.MEMORY, /OUTSIDE ONLY/, '  and the prompt says what that means');
-  assert.ok(asked.user.includes('Where it stands now: [Seth: on the quay]'), 'CHALK-IN-FORCE: each thread arrives with the entry in force');
+  assert.ok(asked.user.includes('Where it stands now: on the quay'), 'CHALK-IN-FORCE: each thread arrives with the entry in force, stored plain (#114)');
   ok('the hem prompt carries the acting rule, the in-force entries, the outside-only rule and the cap of six');
 }
 // ONE NAME ONCE: the character the writer plays may also be the Hands off one.
@@ -1473,7 +1486,7 @@ ok('no interiority pocket for the played or Hands off character');
   const again = asks.slice(from);
   assert.ok(again.length > 0 && again.every((a) => a.system.startsWith(prompts.MEMORY.slice(0, 80))),
     `  only the thread-change pass asked (${again.length} asks)`);
-  assert.ok(again.at(-1).user.includes('Mara: the toll-keeper') && !again.at(-1).user.includes('Oren: the ferryman'),
+  assert.ok(again.at(-1).user.includes('the toll-keeper') && !again.at(-1).user.includes('the ferryman'),
     'HEM-OVERFLOW-ASK: only the named thread is offered to the model');
   const chalked = db.proposalsOf(t.id) as any[];
   assert.deepStrictEqual(chalked.map((x) => x.title), ['Mara'], `HEM-OVERFLOW-ONLY: only Mara is chalked (${chalked.map((x) => x.title)})`);

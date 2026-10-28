@@ -1524,7 +1524,8 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     // WHERE IT STANDS. Whole, and not "none" (the model has put the field's vocabulary in the body
     // before), and not the text it already has. Empty when there is no such change.
     const said = resolveBody(who, ch.index);
-    let stands = String(m.stands ?? '').trim();
+    // #114 · Plain, as it will be stored, so "Ilse: poles the ferry" is the same as what she has.
+    let stands = db.plainStands(m.stands, [who.title]);
     if (/^none[.\s]*$/i.test(stands) || norm(stands) === norm(said)) stands = '';
     // #90 · A WORLD PERSON'S CHANGE IS A NEW THREAD IN THE TALE, never a change to the World's
     // thread, which other tales follow (ADR 0006). Always true is copied from the World's, and the

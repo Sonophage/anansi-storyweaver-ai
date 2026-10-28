@@ -22,6 +22,12 @@ Everything below this line was written by that model call, before it was removed
 Tidying the character you play, or the one you keep Hands off, no longer touches the pocket that
 says their lines are yours. Anansi does not read it and does not offer a new voice in its place.
 
+### Where a thread stands is plain text now
+The box that says where a thread stands (Info), and each Over time entry, now hold only the
+description: no square brackets and no name in front, the same as pockets and Always true. Anansi
+writes them that way, tidying and hemming included, and adds the thread's name when he reads them.
+Ones you already have were cleaned once, after a backup, and the update report names each one.
+
 ## 2026-10-28 · Holding the one you play, in New tale
 
 ### Anansi writes pockets the way you would

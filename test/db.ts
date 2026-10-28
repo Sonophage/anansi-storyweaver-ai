@@ -3867,6 +3867,30 @@ ok('a pocket or an Always true is stored without the bracket wrapper or the name
   db.delStory(t.id);
 });
 
+// #114 · WHERE IT STANDS IS STORED AS A PLAIN DESCRIPTION TOO (ADR 0008): the thread's own text and
+// every Over time entry. The trial tidy kept `[Seth: 30s; a stranger …]` because nothing took it off.
+// The same rule as a pocket's floor, with the thread's name as the one name that comes off in front.
+ok('where it stands and an Over time entry are stored without the bracket wrapper or the name in front', () => {
+  const t = db.createStory(o, { title: 'Plain stands', premise: 'p' });
+  const e = db.upsertEntry(t.id, o, { title: 'Seth', entryType: 'character',
+    body: '[Seth: 30s; a stranger Ashley meets on the street]' })!;
+  const body = () => (db.entriesOf(t.id) as any[]).find((x) => x.id === e).body;
+  assert.strictEqual(body(), '30s; a stranger Ashley meets on the street', 'STANDS-FLOOR: a new thread\'s text loses the wrapper and its name');
+  db.upsertEntry(t.id, o, { id: e, title: 'Seth', entryType: 'character', body: 'Seth: from Chicago' });
+  assert.strictEqual(body(), 'from Chicago', 'STANDS-FLOOR-EDIT: an edit crosses the same floor, a name in front with no bracket too');
+  db.appendInfo(t.id, e, '[Seth: has a silver ring]');
+  assert.strictEqual(body(), 'from Chicago\nhas a silver ring', 'STANDS-FLOOR-APPEND: and text added to it');
+  const own = 'Role: a stranger\n[a] and [b] stay';
+  db.upsertEntry(t.id, o, { id: e, title: 'Seth', entryType: 'character', body: own });
+  assert.strictEqual(body(), own, 'STANDS-FLOOR-KEEPS: a label the writer chose and brackets that do not wrap stay');
+  const st = db.upsertState(t.id, e, { fromChapter: 2, body: '[Seth: Seth: 30s; has met Ashley]', beforeMode: 'hide' });
+  const state = () => (db.statesForStory(t.id).get(e) ?? []).find((x: any) => x.id === st)?.body;
+  assert.strictEqual(state(), '30s; has met Ashley', 'STATES-FLOOR: an Over time entry is stored plain');
+  db.upsertState(t.id, e, { id: st, fromChapter: 2, body: '[left Chicago]', beforeMode: 'hide' });
+  assert.strictEqual(state(), 'left Chicago', 'STATES-FLOOR-EDIT: and an edit of one');
+  db.delStory(t.id);
+});
+
 // #111 · EVERY CHANGE TO A POCKET OR AN ALWAYS TRUE KEEPS THE OLD TEXT, in the thread's own history
 // (Alterations), beside its title and its text, and the one revert puts it back. Putting back is
 // itself a change, so the text it writes over is kept too.
@@ -3970,6 +3994,67 @@ ok('the update strips old wrappers once, after a backup, names each, and leaves 
     assert.strictEqual(backups().length, 1, 'PLAIN-UPDATE-ONCE: a second boot takes no backup');
     assert.strictEqual(lines().length, before + 4, '  writes no second report');
     assert.strictEqual(bodies()['a-p-facts'], '34, ex-Watch sergeant', '  and changes nothing');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+  db.delStory(t.id);
+});
+
+// #114 · THE UPDATE TAKES THE WRAPPERS OFF WHERE EACH THREAD STANDS, ONCE: its own text and every Over
+// time entry. Built on a copy made here, never the live file: rows written past the floor, as an old
+// server wrote them, then two boots of the real module. The trial thread's text was `[Seth: 30s; …]`.
+ok('the update strips old wrappers off where a thread stands once, after a backup, names each, and leaves clean text alone', () => {
+  const me = db.owner('stands-update');
+  const t = db.createStory(me, { title: 'Old stands', premise: 'p' });
+  const seth = db.upsertEntry(t.id, me, { title: 'Seth', body: 'placeholder', entryType: 'character' })!;
+  const ash = db.upsertEntry(t.id, me, { title: 'Ashley', body: 'placeholder', entryType: 'character' })!;
+  const dir = mkdtempSync('/tmp/anansi-stands-');
+  try {
+    const file = join(dir, 'old.db');
+    db.snapshot(file);
+    const old = new RawDb(file);
+    old.prepare('UPDATE entries SET body = ? WHERE id = ?').run('[Seth: 30s; a stranger Ashley meets on the street]', seth);
+    old.prepare('UPDATE entries SET body = ? WHERE id = ?').run('A singer; [a] and [b] stay.', ash);
+    const put = (id: string, entry: string, from: number, body: string) =>
+      old.prepare(`INSERT INTO entry_states (id,entry_id,from_chapter,body,before_mode,label,created_at)
+        VALUES (?,?,?,?,'hide',null,1)`).run(id, entry, from, body);
+    put('st-p-wrapped', seth, 2, '[Seth: Seth: 30s; has met Ashley]');
+    put('st-p-front', seth, 3, 'Seth: 30s; has left Chicago');
+    put('st-p-clean', ash, 2, 'Has left Marcus.');
+    old.close();
+    const read = () => { const c = new RawDb(file, { readOnly: true });
+      const r = {
+        seth: (c.prepare('SELECT body FROM entries WHERE id = ?').get(seth) as any).body,
+        ash: (c.prepare('SELECT body FROM entries WHERE id = ?').get(ash) as any).body,
+        ...Object.fromEntries((c.prepare("SELECT id, body FROM entry_states WHERE id LIKE 'st-p-%'").all() as any[])
+          .map((x) => [x.id, x.body])) };
+      c.close(); return r; };
+    const lines = () => { const c = new RawDb(file, { readOnly: true });
+      const r = (c.prepare('SELECT entry_id, line, backup FROM update_lines WHERE story_id = ? ORDER BY rowid').all(t.id) as any[])
+        .map((x) => ({ ...x }));
+      c.close(); return r; };
+    const backups = () => existsSync(join(dir, 'backups'))
+      ? readdirSync(join(dir, 'backups')).filter((f) => f.startsWith('pre-update-')) : [];
+    const boot = () => {
+      const r = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
+        `await import(${JSON.stringify(new URL('../src/db.ts', import.meta.url).href)});`],
+        { env: { ...process.env, ANANSI_DB: file }, encoding: 'utf8' });
+      assert.strictEqual(r.status, 0, `the boot failed: ${r.stderr}`);
+    };
+    const before = lines().length;
+
+    boot();
+    assert.deepStrictEqual(read(), {
+      seth: '30s; a stranger Ashley meets on the street', ash: 'A singer; [a] and [b] stay.',
+      'st-p-wrapped': '30s; has met Ashley', 'st-p-front': '30s; has left Chicago', 'st-p-clean': 'Has left Marcus.',
+    }, 'STANDS-UPDATE: every wrapper and name in front is gone from the thread\'s text and its Over time, and clean text is untouched');
+    assert.strictEqual(backups().length, 1, 'STANDS-UPDATE-BACKUP: one backup was taken first');
+    const said = lines().slice(before);
+    assert.strictEqual(said.length, 3, `STANDS-UPDATE-REPORT: one line for each text it changed (${said.map((l: any) => l.line).join(' | ')})`);
+    assert.ok(said.every((l: any) => l.entry_id === seth && l.backup && l.backup.includes('pre-update-')), '  each on the thread, naming the backup');
+
+    boot();
+    assert.strictEqual(backups().length, 1, 'STANDS-UPDATE-ONCE: a second boot takes no backup');
+    assert.strictEqual(lines().length, before + 3, '  writes no second report');
+    assert.strictEqual(read().seth, '30s; a stranger Ashley meets on the street', '  and changes nothing');
   } finally { rmSync(dir, { recursive: true, force: true }); }
   db.delStory(t.id);
 });

@@ -176,6 +176,8 @@ export const YOURS_VOICE = (name: string) =>
  *  one call chalked 2 threads, one call per thread chalked 4 (2 of them the same change repeated on
  *  a character's alias threads), at about ten times the prompt tokens. So it stays one call until
  *  it is measured on the real model.
+ *  #114 · Where it stands is now asked for as a plain description with no brackets: the code frames
+ *  it for the model (context.ts `framedStands`). NOT MEASURED against the wording before it.
  */
 export const MEMORY =
 `Below is a scene's narration, then the threads it names: people, places, lore, items and rules.
@@ -187,10 +189,11 @@ change: a thread that is named, remembered, looked at or merely present is left 
 
 For each thread the scene CHANGED, return:
 
-  stands   the WHOLE of where it stands now, after this scene: everything in "where it stands
-           now" that is still true, with the change folded in. It replaces that text from the next
-           scene on, so anything you leave out is lost from then on. If nothing in it differs from
-           the entry in force, the thread did not change: leave it out.
+  stands   the WHOLE of where it stands now, after this scene, as a plain description with no
+           brackets and not its name in front: everything in "where it stands now" that is still
+           true, with the change folded in. It replaces that text from the next scene on, so
+           anything you leave out is lost from then on. If nothing in it differs from the entry in
+           force, the thread did not change: leave it out.
   name     the thread's name exactly as it is given, without the kind in brackets.
   label    four words at most, for the timeline: "arm broken", "no longer trusts Vel".
   line     the shortest phrase of the narration where the change happens, copied exactly.
@@ -257,15 +260,19 @@ export const MEMORY_SCHEMA = {
 /** #73 · TIDY THIS THREAD. An old thread is often one box holding who it is, what it wears and what
  *  has happened to it (Halsey's Info did all three), with pockets written as descriptions. This sorts
  *  ONE thread, which the writer chose, into the three parts ADR 0005 gives it. Everything it returns
- *  is chalked: nothing changes until the writer sews it in. */
+ *  is chalked: nothing changes until the writer sews it in.
+ *  #114 · Where it stands is asked for as a plain description, no longer "one bracket": the code frames
+ *  it for the model (context.ts `framedStands`). NOT MEASURED against the bracket form it replaced.
+ */
 export const TIDY =
 `Below is one thread from a story, as it stands: its Always true, where it stands now, and its
 pockets. Sort what it says into the three parts a thread has, and change nothing else:
 
   always   who or what it is, for the whole story: what does not change. A plain description,
            with no brackets and not its name in front.
-  stands   where it stands now: what has happened to it and what is at stake. One bracket. No
-           looks, no clothes, no voice: those are pockets.
+  stands   where it stands now: what has happened to it and what is at stake. A plain
+           description, with no brackets and not its name in front. No looks, no clothes, no
+           voice: those are pockets.
   pockets  one per part of how to write it, each from its kind's list, as a plain description. For each
            pocket it already has, say which one it replaces (its name), or "" for a new one.
            Its name is a short title of its own, never the slot's word or the thread's name.
@@ -301,12 +308,16 @@ export const TIDY_SCHEMA = {
 } as const;
 
 /** #74 · ANANSI EDITS ONE SECTION of a Workbench card, on the writer's steer or none. It keeps the
- *  section's own form: a whole "where it stands", a pocket as a plain description, or Always true. */
+ *  section's own form: a whole "where it stands", a pocket as a plain description, or Always true.
+ *  #114 · Where it stands is now asked for as a plain description with no brackets: the code frames
+ *  it for the model (context.ts `framedStands`). NOT MEASURED against the wording before it.
+ */
 export const REDO =
 `Below is one part of a thread from a story, chalked for the writer to decide on, with the thread
 it belongs to. Write that part again, in the same form and for the same place in the thread:
 
-  where it stands   the WHOLE of where the thread stands from that scene on, not only a change
+  where it stands   the WHOLE of where the thread stands from that scene on, not only a change,
+                    as a plain description, with no brackets
   a pocket          a plain description (see below), for that one pocket only
   Always true       who or what it is, as a plain description, with no brackets
 
@@ -1111,6 +1122,8 @@ never written down.
 
 `;
 
+/** #114 · EXTRACT's `stands` for a new thread is asked for as a plain description, no longer "in one
+ *  bracket": the code frames it for the model (context.ts `framedStands`). NOT MEASURED. */
 export const EXTRACT =
 `Read this chapter and propose entries for the story bible.
 
@@ -1175,8 +1188,9 @@ Leave out a pocket the chapter says nothing for rather than invent it. For a thr
 exists, pockets is empty: use field, as above.
 
 And stands, for a NEW thread: where it stands at the end of this chapter, what has happened to it
-and what is at stake, in one bracket. Never who it is, never looks or clothes. "" when the chapter
-does not say, and always "" for a thread that already exists.
+and what is at stake, as a plain description with no brackets and not its name in front. Never who
+it is, never looks or clothes. "" when the chapter does not say, and always "" for a thread that
+already exists.
 
 ${POCKET_FORM}
 

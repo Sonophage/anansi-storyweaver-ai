@@ -1848,8 +1848,8 @@ async function bootServer(port: number, env: Record<string, string>) {
   const marek = v.entries.find((e: any) => e.title === 'Marek Vale');
   assert.deepStrictEqual(factsOf(marek), ['patient, never raises her voice'],
     'an explicit rooms.facts wins over the body — a paste does not lose what it carried');
-  assert.strictEqual(String(marek.body ?? '').trim(), '[Marek Vale: a moneylender]',
-    'and that entry keeps its body, because nothing was moved out of it');
+  assert.strictEqual(String(marek.body ?? '').trim(), 'a moneylender',
+    'and that entry keeps its body, because nothing was moved out of it, stored plain (#114)');
 
   ok('a new cast lands in facts, Info stays empty, and an explicit facts is not overwritten (#39)');
 }
@@ -1868,7 +1868,7 @@ async function bootServer(port: number, env: Record<string, string>) {
   const before = [db.listStories(alice).length, db.listStories(bob).length, db.ledgerOf(alice).length];
   const hers: any = routes['POST /api/spark/world'](ctx(alice, { name: '  elden ring ' }));
   assert.deepStrictEqual(hers.world, { id: ring.id, title: 'Elden Ring' }, 'alice finds her own World by its name');
-  assert.deepStrictEqual(hers.people.map((e: any) => [e.title, e.body]), [['Morgott', '[Morgott: the Omen King]']],
+  assert.deepStrictEqual(hers.people.map((e: any) => [e.title, e.body]), [['Morgott', 'the Omen King']],
     'with its people, and only its people');
   const his: any = routes['POST /api/spark/world'](ctx(bob, { name: 'Elden Ring' }));
   assert.deepStrictEqual([his.world, his.people], [null, []], "bob naming the same IP never finds alice's World");
@@ -2214,8 +2214,8 @@ async function bootServer(port: number, env: Record<string, string>) {
     'and the room it arrived with, plus its text as Always true; history is not a room');
   assert.strictEqual(rooms.find((a) => a.slot === 'facts').body, 'Primarch of the Iron Hands',
     'NEW-ALWAYS: a new thread\'s text is its Always true');
-  assert.match(card.body, /^\[History: Raised on Medusa, later known as the Headless\]$/,
-    'FOLD-PULLED: a pulled card\'s history lands in Over time under its label');
+  assert.match(card.body, /^History: Raised on Medusa, later known as the Headless$/,
+    'FOLD-PULLED: a pulled card\'s history lands in Over time under its label, stored plain (#114)');
   assert.match(rooms.find((a) => a.slot === 'appearance').body, /living metal/,
     'with the text the pull found');
   // AND SWITCHED ON. A room with no trigger words that nobody pinned reaches no prompt at all —
