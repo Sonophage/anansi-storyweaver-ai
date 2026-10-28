@@ -40,7 +40,7 @@ ok("  and Trajectory, What the chapter added and Branches are no longer rows of 
 // ---- 2. every row opens a panel with content in it. A nav row pointing at a panel that no
 // longer exists renders an empty tray, which is exactly what a rename gets wrong.
 for (const [k, label] of [['story', 'Tale'], ['chapter', 'This scene'], ['threads', 'Threads'],
-                          ['context', 'What he reads'], ['search', 'Prose search'], ['teller', 'Storyteller']]) {
+                          ['chapters', 'Scenes'], ['search', 'Prose search'], ['teller', 'Storyteller']]) {
   await page.click(`[data-nav="${k}"]`);
   await wait(500);
   const body = (await page.text('#sideBody') || '').replace(/\s+/g, ' ').trim();

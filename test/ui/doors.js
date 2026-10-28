@@ -79,7 +79,7 @@ ok(`  and her web for the tale's menu, with no ⋯ (${JSON.stringify(more)})`, !
 await page.click('#bar .pill[data-railview="story"]');
 await wait(500);
 ok("  and the web opens the menu", await railOpen());
-ok("  which has a row for the Talk drawer", await page.eval("!!document.querySelector('[data-nav=\"anansi\"]')"));
+ok("  which has no row for Talk: it is the quill held down (2026-10-28)", await page.eval("!document.querySelector('[data-nav=\"anansi\"]')"));
 await page.eval("(() => { document.getElementById('scrim').click(); return 1; })()");
 await wait(500);
 

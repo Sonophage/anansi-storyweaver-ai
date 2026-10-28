@@ -417,6 +417,9 @@ const SNAV = [
   ['context', 'context', 'What he reads'],
   ['teller', 'teller', 'Storyteller'],
 ];
+/** What the tale's menu shows, in its order: two columns of tiles beside the scenes (2026-10-28).
+ *  SNAV stays the list of a tale's panels, for their titles and their links. */
+const TALE_MENU = ['story', 'teller', 'chapter', 'chapters', 'search', 'threads', 'waiting'];
 // Deep links and bookmarks still carry the old names, and so does a browser tab left open across
 // the change. Cheaper to map them than to serve a blank panel.
 const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queue: 'chapter', branches: 'chapter' };
@@ -832,7 +835,7 @@ function drawRail() {
     // The rail IS the menu, and the menu is excepted — see tipCard. Its rows were never uppercased;
     // this heading was the only thing in here that was.
     ? `<div class="txt railhead">Scenes</div>
-       ${V.chapters.map((c) => `<button data-chapter="${c.id}"${
+       ${[...V.chapters].reverse().map((c) => `<button data-chapter="${c.id}"${
          c.id === V.currentChapter.id ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px;
          border-radius:var(--r); width:100%;
          color:${c.id === V.currentChapter.id ? 'var(--ink-bright)' : 'var(--faint)'}"><span class="txt"
@@ -843,38 +846,7 @@ function drawRail() {
     // open option in the main menu that should be removed."
     : demoRow;
 
-  $('rail').innerHTML = `
-    <div style="display:flex; align-items:center; gap:10px; padding:26px 20px 20px; flex:0 0 auto">
-      <button data-home="1" aria-label="Anansi — back to the library"
-        style="display:flex; align-items:center; gap:10px; padding:0; text-align:left">
-        <!-- Issue #6 — the logo carried a background plate on every theme.
-             web/icon.svg paints a rect filled #0A0A0C behind the web and strokes it in #D9B26A.
-             Both are Obsidian's values, baked into a file that eight of the nine themes do not
-             share: on Cyberpunk the plate is a near-black box a shade off the page and the gold is
-             not the teal accent; on Parchment and Novelist a dark box sits on cream paper. An img
-             element cannot inherit any of it, which is why it never tracked the theme.
-             Inlined here instead, with no plate and currentColor for the stroke, so the mark is
-             drawn in whatever the theme's accent resolved --gold to and the page shows through
-             behind it. The FILE stays exactly as it is and is still the favicon and the installed
-             icon, where an opaque plate is correct: an app icon has no page behind it to inherit. -->
-        <span class="serif txt" style="font-size:26px; color:var(--ink-bright)">Anansi</span>
-      </button>
-      <button data-rail="1" style="margin-left:auto; color:var(--faint); display:flex;
-        align-items:center; justify-content:center; padding:6px 8px"
-        aria-label="${S.rail ? 'Close the menu' : 'Open the menu'}"
-        ><span style="display:flex; transform:rotate(${phone() ? 90 : (S.rail ? 180 : 0)}deg);
-          transition:transform var(--t-slow) var(--ease-out)">${mark('chevron', 16)}</span></button>
-    </div>
-    ${back}
-    <!-- flex:1 with min-height:0 is what makes overflow-y:auto actually engage. A flex child's
-         min-height is auto by default, so it refuses to shrink below its content and GROWS instead
-         of scrolling — the list ran off the bottom of a rail that is overflow:hidden, and on a
-         phone, where the rail is the whole screen, the chapters simply were not reachable. -->
-    <div class="scroll" style="flex:1; min-height:0; padding:0 16px; display:flex; flex-direction:column"
-      >${/* THE TALE'S MENU IN TWO COLUMNS (Seth, 2026-10-27: "can we somehow shorten it without
-            losing whats there"). Same rows, same order: Tale across the top, the other nine as tiles,
-            icon over word. Six rows tall instead of ten. The workspace menu keeps its list. */
-        storyMenu ? `<div class="navgrid">${rows.map(item).join('')}</div>` : rows.map(item).join('')}${tail}</div>
+  const modelBlock = `
     <!-- The model, and the place to change it. It was a label: the one thing on this rail that
          named something you can act on and could not be acted on. The router's stop and restart
          left the screen with Preferences (#23) — this is the switch, where you are already looking
@@ -933,6 +905,52 @@ function drawRail() {
         margin-top:6px; border-radius:var(--r); border:1px solid var(--line); width:100%;
         text-align:left; font-size:12.5px; color:var(--gold-lit)">Find a model&hellip;</button>` : ''}
     </div>` : ''}`;
+  /* THE TALE'S MENU, MODEL FIRST AND THREE COLUMNS (Seth, 2026-10-28: "Let's do the model up top then
+   * were going to do three columns under that the first column will be scenes and that should be
+   * scrollable, invert the order so the latest scene is up top and then for the other two we do the
+   * icon menu but put tale and storyteller up top then This scene and scenes"). Strings, Talk to
+   * Anansi and What he reads left this menu the same day: strings are cards on the Workbench, Talk
+   * is the quill held down, and What he reads is "what is in it" on the strip under the header.
+   * Their panels and links stay. The workspace menu is unchanged. */
+  $('rail').classList.toggle('tale3', !!storyMenu);
+  $('rail').innerHTML = `
+    <div style="display:flex; align-items:center; gap:10px; padding:26px 20px 20px; flex:0 0 auto">
+      <button data-home="1" aria-label="Anansi — back to the library"
+        style="display:flex; align-items:center; gap:10px; padding:0; text-align:left">
+        <!-- Issue #6 — the logo carried a background plate on every theme.
+             web/icon.svg paints a rect filled #0A0A0C behind the web and strokes it in #D9B26A.
+             Both are Obsidian's values, baked into a file that eight of the nine themes do not
+             share: on Cyberpunk the plate is a near-black box a shade off the page and the gold is
+             not the teal accent; on Parchment and Novelist a dark box sits on cream paper. An img
+             element cannot inherit any of it, which is why it never tracked the theme.
+             Inlined here instead, with no plate and currentColor for the stroke, so the mark is
+             drawn in whatever the theme's accent resolved --gold to and the page shows through
+             behind it. The FILE stays exactly as it is and is still the favicon and the installed
+             icon, where an opaque plate is correct: an app icon has no page behind it to inherit. -->
+        <span class="serif txt" style="font-size:26px; color:var(--ink-bright)">Anansi</span>
+      </button>
+      <button data-rail="1" style="margin-left:auto; color:var(--faint); display:flex;
+        align-items:center; justify-content:center; padding:6px 8px"
+        aria-label="${S.rail ? 'Close the menu' : 'Open the menu'}"
+        ><span style="display:flex; transform:rotate(${phone() ? 90 : (S.rail ? 180 : 0)}deg);
+          transition:transform var(--t-slow) var(--ease-out)">${mark('chevron', 16)}</span></button>
+    </div>
+    ${back}
+    ${storyMenu ? `<div class="talemodel">${modelBlock}</div>` : ''}
+    <!-- flex:1 with min-height:0 is what makes overflow-y:auto actually engage. A flex child's
+         min-height is auto by default, so it refuses to shrink below its content and GROWS instead
+         of scrolling — the list ran off the bottom of a rail that is overflow:hidden, and on a
+         phone, where the rail is the whole screen, the chapters simply were not reachable. -->
+    <div class="scroll" style="flex:1; min-height:0; padding:0 16px; display:flex; flex-direction:column"
+      >${/* THE TALE'S MENU IN TWO COLUMNS (Seth, 2026-10-27: "can we somehow shorten it without
+            losing whats there"). Same rows, same order: Tale across the top, the other nine as tiles,
+            icon over word. Six rows tall instead of ten. The workspace menu keeps its list. */
+        storyMenu && !V?.story?.is_world
+          ? `<div class="tale3"><div class="tale3scenes scroll">${tail}</div>
+              <div class="taletiles">${TALE_MENU.map((k) => rows.find(([key]) => key === k)).filter(Boolean).map(item).join('')}</div></div>`
+          : storyMenu ? `<div class="navgrid">${rows.map(item).join('')}</div>${tail}`
+          : `${rows.map(item).join('')}${tail}`}</div>
+${storyMenu ? '' : modelBlock}`;
 }
 
 // ---------- header ----------

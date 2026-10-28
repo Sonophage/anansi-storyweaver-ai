@@ -814,7 +814,7 @@ for (const id of ['rail', 'bar', 'col', 'dockCol', 'sideBody']) {
 }
 ok('the story surface renders with no undefined fields');
 
-assert.match(html('rail'), /What he reads/, 'the rail must switch to the story nav');
+assert.match(html('rail'), /Storyteller/, 'the rail must switch to the story nav');
 assert.match(html('rail'), /The Envoy/, 'and list chapters by title');
 assert.ok(!/>Library</.test(html('rail')), 'and drop the workspace nav');
 ok('the rail swaps navigation when a story opens');
@@ -829,7 +829,7 @@ assert.match(html('rail'), /Library/,
 assert.ok(!/list chapters|Chapters/.test(html('rail')),
   'and the chapter list goes with it — it named a book you are no longer looking at');
 click({ railview: 'story' });
-assert.match(html('rail'), /What he reads/, "the story's name must bring its own menu back");
+assert.match(html('rail'), /Storyteller/, "the story's name must bring its own menu back");
 assert.match(html('rail'), /Anansi<\/span>/, 'which is where Anansi lives');
 ok('the menu and the story name are two doors onto one rail');
 
@@ -3672,20 +3672,26 @@ ok('every scene in Scenes has a delete beside it');
 }
 ok('This scene takes a direction and asks for something else');
 
-// ---- THE TALE'S MENU, SHORTER AND WHOLE (Seth, 2026-10-27): two columns, every row still there.
+// ---- THE TALE'S MENU: THE MODEL ON TOP, THEN SCENES BESIDE TWO COLUMNS OF TILES (Seth, 2026-10-28).
 {
   click({ open: 's-1' });
   await new Promise((r) => setTimeout(r, 40));
   click({ railview: 'story' });
-  const grid = html('rail').match(/<div class="navgrid">([\s\S]*?)<\/div>\s*<\/div>/)?.[1] ?? html('rail');
-  assert.match(html('rail'), /<div class="navgrid">/, 'the tale\'s menu is the two-column grid');
-  assert.deepStrictEqual([...grid.matchAll(/data-nav="([a-z]+)"/g)].map((m) => m[1]),
-    ['story', 'chapter', 'chapters', 'search', 'threads', 'waiting', 'strings', 'anansi', 'context', 'teller'],
-    'with every row it had, in the same order');
+  const rail = html('rail');
+  assert.ok(rail.indexOf('class="talemodel"') > 0 && rail.indexOf('class="talemodel"') < rail.indexOf('class="tale3"'),
+    'TALE3-MODEL: the model sits above the columns');
+  const tiles = rail.match(/<div class="taletiles">([\s\S]*)/)?.[1] ?? '';
+  assert.deepStrictEqual([...tiles.matchAll(/data-nav="([a-z]+)"/g)].map((m) => m[1]),
+    ['story', 'teller', 'chapter', 'chapters', 'search', 'threads', 'waiting'],
+    'TALE3-TILES: Tale and Storyteller first, then This scene and Scenes, then the rest');
+  assert.doesNotMatch(rail, /data-nav="(strings|anansi|context)"/, '  and Strings, Talk to Anansi and What he reads are off the menu');
+  const scenes = [...(rail.match(/<div class="tale3scenes scroll">([\s\S]*?)<div class="taletiles">/)?.[1] ?? '')
+    .matchAll(/data-chapter="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepStrictEqual(scenes, [...STORY.chapters].reverse().map((c: any) => c.id), 'TALE3-SCENES: the scenes, newest first, in their own column');
   click({ railview: 'workspace' });
-  assert.doesNotMatch(html('rail'), /class="navgrid"/, 'and the main menu stays a list');
+  assert.doesNotMatch(html('rail'), /class="tale3"/, 'and the main menu stays a list');
 }
-ok("the tale's menu is two columns with nothing lost");
+ok("the tale's menu: the model on top, scenes newest first, and two columns of tiles");
 
 // ---- THE ACCOUNT, FIVE PAGES (Seth, 2026-10-27): you, your key and model, the look, your writing,
 // your books; Import, Export and What you have written left the menu for it.

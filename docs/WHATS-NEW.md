@@ -15,6 +15,16 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+
+## 2026-10-28 · The tale's menu, rearranged
+
+### Model on top, scenes beside the menu
+Inside a tale, the menu now shows the model at the top. Under it, the scenes run down the left,
+newest first, and scroll on their own; beside them, two columns: Tale and Storyteller, then This
+scene and Scenes, then Prose search, Threads and the Workbench. Strings, Talk to Anansi and What he
+reads have left the menu: strings wait on the Workbench, Talk is the quill held down, and What he
+reads is "what is in it" on the strip under the header.
+
 ## 2026-10-27 · Steer the next scene, and ask for something else
 
 ### A direction for Anansi, and Something else
