@@ -248,7 +248,9 @@ const book = await page.eval(`(async () => { const r = await (await fetch('/api/
 ok(`accepting writes the book, its cast and their rooms (${JSON.stringify(book)})`, !!book);
 if (book) {
   ok("  all three cards", book.entries === 3);
-  ok(`  the pasted rooms survived Accept (${book.sellaRooms})`, book.sellaRooms === 'facts');
+  // AND HER VOICE POCKET, since #84/#86: the pasted book holds Sella Hands off, and a New tale's
+  // create gives the Hands-off thread the "their lines are yours" voice pocket (`outsideOnly`).
+  ok(`  the pasted rooms survived Accept (${book.sellaRooms})`, book.sellaRooms === 'facts|voice');
   /* BOTH ROOMS, since #39 on 2026-09-01. This read `=== 'what_it_does'` and now expects facts
    * beside it: story creation moves a new card's DESCRIPTION into the evergreen facts room, because
    * the chapter-end pass rewrites the body and has never been able to touch a room.
