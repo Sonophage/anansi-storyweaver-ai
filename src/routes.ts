@@ -2334,6 +2334,15 @@ function writeCast(storyId: string, owner: string, cast: any[]): string[] {
   return notes;
 }
 
+/** ADR 0009 · THE TALE'S OPEN QUESTIONS, as the spark returns them and as Create receives the
+ *  ticked ones: a title and one line each, a blank title dropped, both clamped. One reader for both
+ *  ends, so what the wizard is offered and what Create takes are the same shape. */
+function openQuestions(raw: unknown): { title: string; line: string }[] {
+  return (Array.isArray(raw) ? raw : []).slice(0, 8)
+    .map((q: any) => ({ title: String(q?.title ?? '').trim().slice(0, 120), line: String(q?.line ?? '').trim().slice(0, 600) }))
+    .filter((q) => q.title);
+}
+
 /** #104 · A NEW TALE SET IN AN IP THE WRITER HAS NO WORLD FOR, at Create. Each ticked name is pulled
  *  by the fromweb lookup (`pullThread`), searched in the World's name, or from memory when the list
  *  said so or the search is off, fails or finds nothing. ALL OF THEM BEFORE ANYTHING IS WRITTEN, so
@@ -2973,6 +2982,9 @@ export const routes: Record<string, Handler> = {
         persona: null, lockedCharacter: null,
       },
       entries: [],
+      // ADR 0009. Beside the story, never in it: they are offered as strings, not written into the
+      // premise.
+      questions: openQuestions(d.questions),
     };
   },
 

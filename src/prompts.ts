@@ -522,6 +522,26 @@ Dialogue:
 - A line moves information or deepens what is not said. A plainly functional exchange is
   legitimate; do not inflate one into significance.`;
 
+/** ADR 0009 · THE PREMISE IS THE OPENING (Seth, 2026-10-28). It asked for eight to twelve sentences
+ *  of who wants what, what it costs them and who else wants something incompatible: a story arc. The
+ *  premise is sent whole at the top of every prompt and never trimmed, so the model wrote every
+ *  passage with the ending in view and kept steering towards it. Now it is the first scene's
+ *  situation and nothing after it; the questions the story lives on come back apart, as strings,
+ *  and the rest lives in threads.
+ *
+ *  ONE WORDING, in every prompt that writes a premise (SPARK, SPARK_FIELD's re-roll and TALK_SETUP),
+ *  so a re-roll or a change asked in Talk cannot bring the arc back. The shape has angle-bracket
+ *  slots, never a quoted sentence: the real model copies quoted examples word for word (see the
+ *  SHAPES, NOT EXAMPLES note on POCKET_FORM). `test/talk.ts` checks all three carry it.
+ *  NOT MEASURED: no control run yet says this keeps the model off the ending better than the old
+ *  wording did. Owed one before anyone calls it better. */
+export const PREMISE_FORM =
+`The premise is ONE paragraph, three to five sentences, and it is the OPENING of the tale: who we
+are with, where and when, what they want right now and what is in their way right now. Never how
+it ends, what it costs or what anyone will do: the tale finds that out as it is written. Shape:
+"<who we are with>, <where and when>. <what they want now>. <what is in their way now>." A premise,
+not a blurb. No marketing language, no rhetorical questions.`;
+
 /** #21 §2 · THE SCAFFOLD, AND NOT THE CAST. Split out of one 3,400-token object on 2026-08-29.
  *
  *  One call returned the whole skeleton, cast included, and three things were wrong with that. The
@@ -537,7 +557,7 @@ export const SPARK =
 `Turn this idea into a story skeleton.
 
 Return: a title, a premise, a genre as a comma-separated list of two or three tags, a setting, a
-point of view, a spice level from 1 to 5, and the voice the prose is written in.
+point of view, a spice level from 1 to 5, the voice the prose is written in, and the open questions.
 
 NO CHARACTERS. They are asked for separately, once the writer has said what kinds of thing this
 book needs. Do not name a cast, and do not write the premise as though one has been chosen for you.
@@ -546,10 +566,11 @@ EVERY FIELD BELOW IS SOMETHING THE WRITER STARTS FROM AND SOMETHING THE MODEL RE
 FOR THE LIFE OF THE BOOK. A line is not enough for either. Where a length is given, it is a floor
 as much as a ceiling: come back short and the writer has to do the work again from a blank field.
 
-The premise is eight to twelve sentences and it is what the writer writes from: who wants what,
-what stands in the way, what it costs them, who else wants something incompatible, what has
-already happened before page one, and where the story opens. Write it as a premise, not a blurb.
-No marketing language, no rhetorical questions.
+${PREMISE_FORM}
+
+The open questions are two to four things the tale will keep the reader asking and has not
+answered: kept apart from the premise, and never answered here. Each is a short title and one line.
+Shape: title "<the question, in a few words>", line "<what is not known yet, and who it is between>".
 
 The setting is four to eight sentences, and it is a PLACE rather than a genre: where this happens,
 when, what the weather and the light are doing, what the buildings are made of, who holds power in
@@ -839,10 +860,9 @@ The rules for the field you are writing are the same ones the skeleton was writt
 
   title    a real title, not a description of the book. No subtitle, no colon.
   genre    two or three tags, comma separated, lowercase.
-  premise  eight to twelve sentences, and it is what the writer writes from: who wants what, what
-           stands in the way, what it costs them, who else wants something incompatible, what has
-           already happened before page one, and where the story opens. A premise, not a blurb: no
-           marketing language and no rhetorical questions.
+  premise  as below.
+
+${PREMISE_FORM}
 
 COME BACK DIFFERENT. The writer pressed this because they did not want what was there — so a
 rewrite that says the same thing in other words has failed, even if it is good.`;
@@ -876,11 +896,23 @@ export const SPARK_SCHEMA = {
     // is spelled out as literals rather than stated as bounds it would drop.
     spice:   { type: 'integer', enum: [1, 2, 3, 4, 5] },
     writingStyle: { type: 'string' },
+    // ADR 0009. The questions the tale lives on, apart from the premise: the wizard offers them
+    // ticked, and the ticked ones are made as strings at Create. Bounded, unlike the two long
+    // fields above, because they are a title and a line and an unbounded string is where a
+    // reasoning model writes an essay (F18).
+    questions: {
+      type: 'array', minItems: 2, maxItems: 4,
+      items: {
+        type: 'object',
+        properties: { title: { type: 'string', maxLength: 80 }, line: { type: 'string', maxLength: 240 } },
+        required: ['title', 'line'],
+      },
+    },
   },
   // #21 §2. `characters`, `persona` and `lockedCharacter` were HERE and were REQUIRED — which is
   // why "no characters at this point" was unreachable without a schema change. The cast moved to
   // CAST_SCHEMA, asked for separately; who you play is the writer's, chosen before it (#84).
-  required: ['title', 'premise', 'genre', 'setting', 'pov', 'spice', 'writingStyle'],
+  required: ['title', 'premise', 'genre', 'setting', 'pov', 'spice', 'writingStyle', 'questions'],
 } as const;
 
 /** #21 §2 · WHAT THE CAST CALL RETURNS. Built per request rather than declared once, because the
@@ -1901,7 +1933,8 @@ box. Each is done the moment you answer.
 
 - tale.set: the field (title, premise, genre, setting or voice) and its whole new text. When they
   say the tale is set in a story or game that exists, the field is world and the text its name;
-  its people come from its World, so make and offer none of them.
+  its people come from its World, so make and offer none of them. A new premise keeps this shape:
+${PREMISE_FORM}
 - thread.new: its title, its type, and its Always true as text.
 - thread.set: the thread by its name, the room (none for its Always true), and the whole new text.
 - thread.remove: the thread by its name.
