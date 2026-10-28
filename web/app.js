@@ -5239,10 +5239,11 @@ const stepNow = () => STEPS[Math.min(Math.max(Number(S.sparkStep) || 1, 1), STEP
  *
  * A BOX THE WRITER TYPED IN IS NOT CHANGED UNLESS THEY ASKED. The contract tells the model so; this
  * is the floor under it, because a prompt clause is the weak half here (.claude/CLAUDE.md). The
- * simplest honest guard: a box is "typed in" when an input event came from it on this step (the
- * listener below marks the field, or the thread, with the step's key), and a change to it is
- * applied only when the writer's words that turn NAME it: the field ("premise", "voice"...) or the
- * thread (its name, or a long word of it). Otherwise the line says it was not done and why, and
+ * simplest honest guard: a box is "typed in" when an input event came from it on ANY step (the
+ * listener below marks the field, or the thread), and a change to it is applied only when the
+ * writer's words that turn NAME it. Any step, not only this one: a premise typed on the first
+ * step is still the writer's when they ask from the threads step. It is NAMED by the field
+ * ("premise", "voice"...) or the thread (its name, or a long word of it). Otherwise the line says it was not done and why, and
  * asking for it by name does it. It reads words, not meaning, so "make it darker" right after
  * typing the premise is refused once and costs the writer one sentence; the other way round
  * would cost them what they typed. */
@@ -5260,21 +5261,19 @@ const saidNames = (said, words) => words.filter(Boolean).some((w) =>
 document.addEventListener('input', (e) => {
   const d = e.target?.dataset;
   if (!d || !S.spark) return;
-  const key = stepNow()[0];
-  if (d.sp) (S.spark.typed ??= {})[d.sp] = key;
+  if (d.sp) (S.spark.typed ??= {})[d.sp] = true;
   const i = d.spbody ?? d.spname ?? String(d.sppocket ?? d.sppname ?? '').split(':')[0];
-  if (i !== undefined && i !== '' && S.spark.entries?.[Number(i)]) S.spark.entries[Number(i)].typed = key;
+  if (i !== undefined && i !== '' && S.spark.entries?.[Number(i)]) S.spark.entries[Number(i)].typed = true;
 });
 
-/** Why a change to a box the writer typed in this step is not done, or null when it may be. */
+/** Why a change to a box the writer typed in is not done, or null when it may be. */
 function typedHere(ch, said) {
-  const key = stepNow()[0];
-  if (ch.op === 'tale.set' && S.spark.typed?.[DRAFT_KEY[ch.field]] === key
+  if (ch.op === 'tale.set' && S.spark.typed?.[DRAFT_KEY[ch.field]]
       && !saidNames(said, ch.field === 'voice' ? ['voice', 'style'] : [ch.field]))
-    return `You wrote the ${ch.field} yourself on this step, and did not ask for it to change. Ask for the ${ch.field} by name and it will be.`;
-  if ((ch.op === 'thread.set' || ch.op === 'thread.remove') && draftNamed(ch.title)?.typed === key
+    return `You wrote the ${ch.field} yourself, and did not ask for it to change. Ask for the ${ch.field} by name and it will be.`;
+  if ((ch.op === 'thread.set' || ch.op === 'thread.remove') && draftNamed(ch.title)?.typed
       && !saidNames(said, [ch.title, ...ch.title.split(/\s+/).filter((w) => w.length > 3)]))
-    return `You wrote ${ch.title} yourself on this step, and did not ask for it to change. Ask for ${ch.title} by name and it will be.`;
+    return `You wrote ${ch.title} yourself, and did not ask for it to change. Ask for ${ch.title} by name and it will be.`;
   return null;
 }
 

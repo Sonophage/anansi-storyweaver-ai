@@ -3701,6 +3701,24 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
     await ask('Rewrite my premise, please');
     assert.match(html('page'), />Better\.</, 'SETUP-TALK-TYPED-ASKED: asked for by name, it is changed');
 
+    // ...on ANY step: typed on the tale's step, then the writer moved on, and the box is still theirs.
+    const typed2 = { ...typed, value: 'Typed, then I moved on.' };
+    (listeners.input ?? []).forEach((f: Function) => f({ target: typed2 }));
+    onScreen = { '[data-sp]': [typed2] };
+    click({ sparkstep: '3' });
+    await new Promise((r) => setTimeout(r, 30));
+    onScreen = {};
+    stubSparkTalk = { reply: 'A sharper one.', seconds: 1,
+      changes: [{ words: 'Changed the premise: “Worse.”', change: { op: 'tale.set', field: 'premise', text: 'Worse.',
+        before: 'Typed, then I moved on.' } }] };
+    const elsewhere = await ask('Who else is in it?');
+    assert.match(elsewhere.body.step, /^The threads/, `SETUP-TALK-TYPED-ANY-STEP: asked from another step (${elsewhere.body.step})`);
+    assert.match(html('sideBody'), /A sharper one\.[\s\S]*Not done[^<]*premise/, 'SETUP-TALK-TYPED-ANY-STEP: the conversation says why');
+    stubSparkTalk = { reply: 'Yes.', seconds: 1 };
+    const after = await ask('Anything else?');
+    assert.strictEqual(after.body.draft.story.premise, 'Typed, then I moved on.',
+      'SETUP-TALK-TYPED-ANY-STEP: a box typed in on an earlier step is not changed unasked');
+
     // DISCARD: nothing was ever posted but the spark calls, and Talk goes with the draft.
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
       `SETUP-TALK-NOTHING: nothing is saved before Start (${POSTED.map((p) => p.url).join(', ')})`);

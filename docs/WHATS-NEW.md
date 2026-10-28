@@ -70,7 +70,7 @@ plot, the characters, or how to fill in the step. He says nothing until you ask.
 Ask him to change the draft ("make the premise darker", "remove the innkeeper", "give Ilva a slow
 voice") and it is done at once, with Undo beside it, and the step shows the change. What he
 suggests without being asked has an **Add** button, and "add them" in your next message adds them
-too. If you typed in a box on this step, he does not change it unless you name it: "change the
+too. If you typed in a box, on any step, he does not change it unless you name it: "change the
 premise" does.
 
 He may search the web here too, when you let him. Nothing is saved until you start the tale, and
