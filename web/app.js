@@ -5789,7 +5789,7 @@ function sparkReview() {
              value="${esc(e.title)}" placeholder="Their name"
              style="margin:0; font-size:14px; color:var(--ink-bright)">
            <span class="tag keep">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></div>
-         <textarea class="field" data-spbody="${i}" aria-label="What thread ${i + 1} says" placeholder="[Name: what they are, what they want, what it costs]"
+         <textarea class="field" data-spbody="${i}" aria-label="What thread ${i + 1} says" placeholder="What they are, what they want, what it costs"
            style="margin:0; min-height:64px; font-size:12.5px; line-height:1.45"
            >${esc(e.body ?? '')}</textarea>
          <div class="line-8">

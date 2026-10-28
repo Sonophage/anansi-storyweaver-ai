@@ -3361,7 +3361,7 @@ ok('Always true is one row per thread, written switched on, whoever writes it', 
   const rows = (db.addonsOf(t.id) as any[]).filter((x) => x.entry_id === 'e-one-true' && x.slot === 'facts');
   assert.strictEqual(rows.length, 1, 'ONE-TRUE: a second Always true edits the first');
   assert.strictEqual(b, a, '  and says it is the same one');
-  assert.strictEqual(rows[0].body, '[Ilse: a ferrywoman, forty]', '  with the newer text');
+  assert.strictEqual(rows[0].body, 'a ferrywoman, forty', '  with the newer text, stored plain (#110)');
   assert.strictEqual(rows[0].active, 1, 'ONE-TRUE-ON: and it is on, with nobody pressing a switch');
   const lines = db.updatesOf(t.id).length;
   db.foldAlwaysTrue();
@@ -3650,6 +3650,34 @@ ok('an old library\'s pins survive the rebuild unchanged, with one backup, and a
     assert.deepStrictEqual(rows(again), before, 'PIN-MIGRATE-IDEMPOTENT: and changes no pin');
     again.close();
   } finally { rmSync(dir, { recursive: true, force: true }); }
+  db.delStory(t.id);
+});
+
+// #110 · A POCKET AND AN ALWAYS TRUE ARE STORED AS A PLAIN DESCRIPTION (ADR 0008). Every writer of one
+// crosses `upsertAddon`, so the floor is there: a leading bracket wrapper comes off, and with it the
+// thread's name, the pocket's name or its kind in front, however many times it was repeated. Text
+// that is not wrapped stays exactly as written, and so does a label the writer chose.
+ok('a pocket or an Always true is stored without the bracket wrapper or the name in front', () => {
+  const t = db.createStory(o, { title: 'Plain', premise: 'p' });
+  const e = db.upsertEntry(t.id, o, { title: 'Leyndell', body: '', entryType: 'place' })!;
+  const body = (id: string | null) => (db.addonsOf(t.id) as any[]).find((a) => a.id === id)?.body;
+  const facts = db.upsertAddon(t.id, e, { slot: 'facts', name: 'facts', body: '[Leyndell: Leyndell: the Royal Capital]' });
+  assert.strictEqual(body(facts), 'the Royal Capital', 'FLOOR-ALWAYS: the wrapper and the doubled name come off Always true');
+  const feel = db.upsertAddon(t.id, e, { slot: 'atmosphere', name: 'Ash', body: '[Ash: golden ash falls on everything]' });
+  assert.strictEqual(body(feel), 'golden ash falls on everything', 'FLOOR-POCKET: and off a pocket, by its own name');
+  const kind = db.upsertAddon(t.id, e, { slot: 'appearance', name: 'Walls', body: '[appearance: white walls, gold dome]' });
+  assert.strictEqual(body(kind), 'white walls, gold dome', 'FLOOR-KIND: and by its kind');
+  const bare = db.upsertAddon(t.id, e, { slot: 'who_is_here', name: 'Guards', body: '[knights in gold, never at rest]' });
+  assert.strictEqual(body(bare), 'knights in gold, never at rest', 'FLOOR-BARE: a wrapper with no name comes off too');
+  const front = db.upsertAddon(t.id, e, { slot: 'facts', name: 'facts', body: 'Leyndell: the Royal Capital, under the Erdtree' });
+  assert.strictEqual(body(front), 'the Royal Capital, under the Erdtree', 'FLOOR-FRONT: the name in front comes off with no bracket at all');
+  db.upsertAddon(t.id, e, { id: feel, slot: 'atmosphere', name: 'Ash', body: '[Ash: ash, and the smell of it]' });
+  assert.strictEqual(body(feel), 'ash, and the smell of it', 'FLOOR-EDIT: an edit crosses the same floor');
+  const own = 'Role: the seat of the Golden Order\n\n[a] and [b] stay as they are\nLeyndell: a line further down keeps its name';
+  db.upsertAddon(t.id, e, { slot: 'facts', name: 'facts', body: own });
+  assert.strictEqual(body(facts), own, 'FLOOR-KEEPS: a label the writer chose, a blank line, brackets that do not wrap the line, and a later line stay as written');
+  const tale = db.upsertAddon(t.id, null, { slot: 'instruction', name: 'Tone', body: '[Tone: dry, never cruel]' });
+  assert.strictEqual(body(tale), 'dry, never cruel', 'FLOOR-TALE: and off the tale\'s own pockets');
   db.delStory(t.id);
 });
 

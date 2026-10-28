@@ -53,6 +53,13 @@ way you tick one of the tale's own. Before, Anansi said "that scene or thread is
 The thread is sent for that scene and stays the World's: a change to it in the World reaches the
 scene. Your pins from before are all still there.
 
+### A thread's boxes hold only what it is
+Always true and every pocket now hold a plain description, and nothing else: no square brackets,
+and no thread name in front. That is true of what you type, and of what Anansi writes there when
+he looks a thing up online, writes a new tale's people, makes a World, changes a thread in Talk,
+or sews in a change from the end of a scene. While you set up a new tale, the box under each name
+shows only the description. Anansi still tells the model how to use each one when he writes.
+
 ## 2026-10-28 · Anansi changes what you ask him to
 
 ### Ask in Talk, and it is done

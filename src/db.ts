@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 // The slot names live in one module because `entries.field_editors` keys provenance by them and
 // the partial unique index below names them as a literal. Three copies of one list is the drift
 // `src/blocks.ts` exists to stop for the block order; this is the same rule for slots.
-import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, TO_OVER_TIME, foldLine } from './slots.ts';
+import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import { factsLost } from './context.ts';
 import { isRemote } from './llama.ts';
 
@@ -2584,6 +2584,14 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
   // A story-level addon has no entry; an entry-level one must point at an entry in THIS story, or
   // a row can be hung off another writer's card. Same shape as `wearOutfit`'s ownership check.
   if (entryId && !q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId)) return null;
+  // #110 · A PLAIN DESCRIPTION, AND NOTHING ELSE (ADR 0008). Every writer of a pocket or an Always
+  // true crosses here (the lookup, the cast, Talk, hemming, import, paste, the writer's own save), so
+  // the wrapper and the name in front come off here, by the rule the prompt frames by (`slots.plain`).
+  if (a.body != null) {
+    const owner = entryId ?? (a.id ? (q('SELECT entry_id FROM addons WHERE id = ? AND story_id = ?').get(a.id, storyId) as any)?.entry_id : null);
+    const title = owner ? String((q('SELECT title FROM entries WHERE id = ?').get(owner) as any)?.title ?? '') : '';
+    a = { ...a, body: plain(a.body, wrapperNames(slot, title, String(a.name ?? ''))) };
+  }
   const keys = JSON.stringify(keysOf(a.keys));
   // #77 · ONE ALWAYS TRUE PER THREAD, AND ON. Always true is stored as the `facts` addon and is not a
   // pocket: a second one is an edit of the first, and it is never written switched off. Here, where
