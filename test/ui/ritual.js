@@ -119,8 +119,8 @@ if (owed) {
   ok("  and a chapter that proposed nothing offers no queue to decide",
      !(await page.visible('[data-panel="waiting"]')));
 }
-// The way back when the router was asleep at the close. Four passes, four buttons, one row.
-// #92: a scene hemmed in the background runs each pass again through its hem (Try again).
+// The way back when the router was asleep at the close: one Try again for each of the five passes.
+// #92: a scene hemmed in the background runs each pass again through its hem.
 ok("  and every pass can be run again from the report", await page.visible('[data-hemagain][data-pass="summary"]')
    && await page.visible('[data-hemagain][data-pass="memory"]') && await page.visible('[data-hemagain][data-pass="facts"]')
    && await page.visible('[data-hemagain][data-pass="finished"]') && await page.visible('[data-hemagain][data-pass="next"]'));

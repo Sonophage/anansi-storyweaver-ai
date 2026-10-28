@@ -138,7 +138,7 @@ thread's own text says about it, and leave out a pocket its text gives you nothi
  *  "FLESH IT OUT" rule asked for pockets where nothing had changed, so a writer met a Workbench of
  *  restatements. Four rules now: a thread counts only when the narration shows it acting or acted
  *  on; only what differs from the entry in force; pockets only from the kind's list, as
- *  instructions; the played and Hands-off characters (named in the ask as OUTSIDE ONLY) from the
+ *  instructions; the played and Hands off characters (named in the ask as OUTSIDE ONLY) from the
  *  outside. And six threads at most, largest change first, the rest as names. Code enforces each
  *  rule it can check (`remember` in routes.ts); the prompt is the half code cannot check.
  *  NOT MEASURED: none of this wording has been run against the real model. It is owed a control
@@ -146,7 +146,11 @@ thread's own text says about it, and leave out a pocket its text gives you nothi
  *
  *  One call for every thread rather than one per thread: the scene is the expensive half of the
  *  prompt and this way it is prefilled once. Whether one per thread lands more changes in the right
- *  place is the #73 measurement, owed before this is called settled (ADR 0005).
+ *  place is the #73 measurement, owed before this is called settled (ADR 0005). Compared by hand on
+ *  2026-10-27 with Claude standing in for the model, not the production model, on one real scene:
+ *  one call chalked 2 threads, one call per thread chalked 4 (2 of them the same change repeated on
+ *  a character's alias threads), at about ten times the prompt tokens. So it stays one call until
+ *  it is measured on the real model.
  */
 export const MEMORY =
 `Below is a scene's narration, then the threads it names: people, places, lore, items and rules.

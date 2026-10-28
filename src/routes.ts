@@ -1069,10 +1069,12 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     `  Pockets it has: ${(e.addons ?? []).filter((a: any) => a.slot !== 'facts').map((a: any) => `${a.slot} (${a.name})`).join(', ') || 'none'}`,
     `  Pockets its kind can have: ${slotsFor(e.entryType).map((sl) => sl.name).filter((n) => n !== 'facts').join(', ')}`,
   ].join('\n')).join('\n\n');
-  // #90 · OUTSIDE ONLY: the character the writer plays, and the Hands-off one while the switch is on.
-  // Neither is the hem's to get inside of. Named by title, as the story stores them.
+  // #90 · OUTSIDE ONLY: the character the writer plays, and the Hands off one while the switch is on.
+  // Neither is the hem's to get inside of. Named by title, as the story stores them, and once: the
+  // played character can be the Hands off one too.
   const outside = [v.story.persona, v.story.lockoutOn ? v.story.lockedCharacter : null]
-    .map((x) => String(x ?? '').trim()).filter(Boolean);
+    .map((x) => String(x ?? '').trim()).filter((x, i, all) => x
+      && all.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
   const outsideLine = outside.length ? `\n\nOUTSIDE ONLY: ${outside.join(', ')}` : '';
 
   const r = await structuredRetry(MEMORY, `${text}\n\n---\n\n${inForce}${outsideLine}`, MEMORY_SCHEMA,
@@ -1283,6 +1285,11 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
    *  common silent case silent. Since #89 the report is stored on the hem's row, not returned.
    */
   // #89. Everything this hem chalks is one Workbench card: the scene's group.
+  // ponytail: each pass reads the tale once, before its model call, and checks the answer against
+  // that copy. A row the writer sews in while the call is out (an older card, the same thread) is
+  // not seen, so the hem can chalk the same change again. Ceiling: a writer deciding cards while a
+  // hem runs, which the background hem invites. Trigger: a hem chalking a change just sewn in; then
+  // read the threads again after the model answers and check against that.
   const scene = `scene:${closing}`;
   const passes: Record<string, string | null> = {};
   const pass = async (name: string, on: boolean, fn: () => Promise<any>) => {
@@ -1319,9 +1326,9 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // The end-chapter ritual used to make this call itself as its own step 3. It must not again:
   // the scene would be read twice, and the surface would report on a pass that did not land.
   await pass('facts', want.facts, () => extract(c, storyId, closing, scene));
-  // And ask which of them the chapter FINISHED. Last of the four deliberately: it is the only
-  // step that takes something away, and a writer reading the queue should meet what the chapter
-  // added before what it ended. Nothing is written here either — a retirement is a proposal, and
+  // And ask which of them the chapter FINISHED. After the three that add, deliberately: it is the
+  // only step that takes something away, and a writer reading the queue should meet what the
+  // chapter added before what it ended. Nothing is written here either — a retirement is a proposal, and
   // accepting one is the only decision in the app that changes what the model is told for the
   // rest of the book.
   await pass('finished', want.finished, () => retire(c, storyId, closing, scene));

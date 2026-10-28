@@ -1103,10 +1103,21 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
   assert.doesNotMatch(prompts.MEMORY, /FLESH IT OUT/, 'CHALK-NO-FLESH: the prompt no longer asks for pockets where nothing changed');
   assert.match(prompts.MEMORY, /never an\s+outcome/i, 'CHALK-POCKET-FORM: pockets are instructions, never outcomes');
   assert.match(prompts.MEMORY, /six/i, 'CHALK-CAP: the prompt carries the cap of six');
-  assert.match(asked.user, /OUTSIDE ONLY: Seth, Halloran/, 'CHALK-OUTSIDE-NAMED: the ask names the played and Hands-off characters');
+  assert.match(asked.user, /OUTSIDE ONLY: Seth, Halloran/, 'CHALK-OUTSIDE-NAMED: the ask names the played and Hands off characters');
   assert.match(prompts.MEMORY, /OUTSIDE ONLY/, '  and the prompt says what that means');
   assert.ok(asked.user.includes('Where it stands now: [Seth: on the quay]'), 'CHALK-IN-FORCE: each thread arrives with the entry in force');
   ok('the hem prompt carries the acting rule, the in-force entries, the outside-only rule and the cap of six');
+}
+// ONE NAME ONCE: the character the writer plays may also be the Hands off one.
+{
+  const t = db.createStory(me, { title: 'Played and held', premise: 'p', persona: 'Seth', lockedCharacter: 'seth' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.upsertEntry(t.id, me, { title: 'Seth', body: '[Seth: on the quay]', entryType: 'character', keys: ['Seth'] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'Seth stepped off the quay.' });
+  answer = []; asked = null;
+  await routes['POST /api/remember'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  assert.match(asked.user, /OUTSIDE ONLY: Seth$/m, `CHALK-OUTSIDE-ONCE: a name both played and Hands off is named once (${asked.user.split('\n').at(-1)})`);
+  ok('the outside-only line names a character once, even when played and Hands off');
 }
 
 
@@ -1177,8 +1188,8 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 
 
-// OUTSIDE ONLY: no interiority pocket for the character the writer plays, nor for the Hands-off one
-// while the switch is on. With the switch off, the Hands-off character is hemmed like anyone else.
+// OUTSIDE ONLY: no interiority pocket for the character the writer plays, nor for the Hands off one
+// while the switch is on. With the switch off, the Hands off character is hemmed like anyone else.
 for (const lockoutOn of [true, false]) {
   const t = db.createStory(me, { title: 'Outside only', premise: 'p', persona: 'Seth', lockedCharacter: 'Halloran', lockoutOn }) as any;
   const ch0 = (db.chapters(t.id)[0] as any);
@@ -1196,11 +1207,11 @@ for (const lockoutOn of [true, false]) {
   assert.ok(!has('Seth', 'interiority'), 'CHALK-OUTSIDE-PLAYED: no interiority pocket for the played character');
   assert.ok(has('Seth', 'voice'), '  and his other pockets still land');
   assert.strictEqual(has('Halloran', 'interiority'), !lockoutOn,
-    `CHALK-OUTSIDE-HANDS-OFF: no interiority pocket for the Hands-off character while the switch is ${lockoutOn ? 'on' : 'off, so it lands'}`);
+    `CHALK-OUTSIDE-HANDS-OFF: no interiority pocket for the Hands off character while the switch is ${lockoutOn ? 'on' : 'off, so it lands'}`);
   assert.strictEqual(/OUTSIDE ONLY: Seth, Halloran/.test(asked.user), lockoutOn, '  and the ask names him only while it is on');
   assert.ok(has('Ilse', 'interiority'), '  and anyone else gets theirs');
 }
-ok('no interiority pocket for the played or Hands-off character');
+ok('no interiority pocket for the played or Hands off character');
 
 
 // A WORLD PERSON IN THE TALE. A person the tale follows from its World is considered too, and its

@@ -1772,9 +1772,10 @@ async function nameChapter(chapterId, auto = false) {
   // all. Found by the stub DOM answering this route with {}, which is exactly what a route that
   // half-fails does.
   // ASKED ON ITS OWN, IT FAILS QUIETLY. The panel asks as it opens, which used to be straight after
-  // a hem (since #92 it does not ask when the hem brings a suggestion); with the model down that toast landed on top of the hem's own report and read as the hem
-  // failing (usability check, 2026-10-24). So the reason sits under the button that asks again,
-  // and a toast is kept for the press.
+  // a hem (since #92 it does not ask when the hem brings a suggestion); with the model down that
+  // toast landed on top of the hem's own report and read as the hem failing (usability check,
+  // 2026-10-24). So the reason sits under the button that asks again, and a toast is kept for the
+  // press.
   if (r.error || !r.title) {
     const why = r.error || 'nothing usable came back';
     if (auto) { S.nameError = { chapterId, why }; drawSide(); return; }
@@ -2557,7 +2558,7 @@ function hemCardParts(c) {
     <button class="btn ghost" data-hemagain="${id}" data-names="${esc(JSON.stringify(past))}">Ask for ${
       past.length === 1 ? 'it' : 'these'}</button>` : '';
   const s = h.suggestion, next = s && hemNext(ch);
-  const suggestion = next ? `<div class="lbl sub-lbl">${esc(sceneName(next))}, as Anansi suggests it</div>
+  const suggestion = next ? `<div class="lbl sub-lbl">Anansi's title and note for ${esc(sceneName(next))}</div>
     <div class="serif">${esc(s.title)}</div>
     ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
     ${s.opens ? `<div class="hint flush">Opens with: ${esc(s.opens)}</div>` : ''}
@@ -5549,7 +5550,7 @@ const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next scene'], [
  */
 const PASSES = [['summary', 'the summary'], ['memory', 'the character memory'],
                 ['facts', 'the threads pass'], ['finished', 'the scan for threads to retire'],
-                ['next', "the next scene's suggestion"]];
+                ['next', "Anansi's title and note for the next scene"]];
 
 /** Which of them did not run on this scene's hem, in the order they run in. Empty when everything
  *  ran, which is the normal case — so every caller can treat length as "is there anything to say". */

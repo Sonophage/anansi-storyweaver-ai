@@ -13,10 +13,11 @@ Everything below this line was written by that model call, before it was removed
 ## 2026-10-27 · Hemming no longer makes you wait
 
 ### Hemming chalks less
-When you hem a scene, Anansi now offers a change only for a thread the scene acts on, never for one
-it only mentions, and only what is new about it. It no longer fills out pockets nothing in the
-scene touched. The character you play and the Hands-off character are seen from the outside only.
-It offers changes for six threads at most, and names the rest. When a scene changes a person from
+When you hem a scene, Anansi is now asked to offer a change only for a thread the scene acts on,
+not for one it only mentions, and to leave alone pockets nothing in the scene touched. A change
+that only says what the thread already says is dropped. Anansi is asked to see the character you
+play and the Hands off character from the outside only, and nothing about what they think or feel
+is offered. It offers changes for six threads at most, and names the rest. When a scene changes a person from
 the World your tale follows, the change becomes that person's own thread in your tale, from the
 next scene on, and the World stays as it was.
 
