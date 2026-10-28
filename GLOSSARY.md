@@ -177,6 +177,14 @@ making prose.
 _Avoid_: accept, weave it in, woven in, add beside it, tie it, drop, dismiss, throw it back
 _In code_: `decide` accept / reject
 
+**Talk**:
+The conversation with Anansi about a tale. What the writer asks him in so many words to change, he
+changes at once, and it can be undone; what he offers unasked is chalked. He does not write prose
+there. He may look things up on the web when the writer lets him, and names every page he used.
+(Decided 2026-10-28.)
+_Avoid_: chat, Anansi chat, ask Anansi
+_In code_: `/api/talk`
+
 **Knot**:
 A line of narration that contradicts a thread, found after a passage lands.
 _Avoid_: contradiction, flag, the checker, violation
