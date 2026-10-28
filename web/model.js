@@ -348,6 +348,34 @@ export function wordDiff(a, b) {
 export const diffHTML = (a, b) => `<div class="diff">${wordDiff(a, b).map((p) =>
   p.op === '=' ? esc(p.text) : p.op === '-' ? `<del>${esc(p.text)}</del>` : `<ins>${esc(p.text)}</ins>`).join('')}</div>`;
 
+/** #122 · A THREAD'S ALTERATIONS AS PAIRS: each earlier version (`was`) and the version that replaced
+ *  it (`now`). `rows` is `db.entryHistory`, newest first, so a field's next version is the nearest
+ *  newer row for that field, else the thread as it stands. Wake words are stored as JSON and read
+ *  here as the words. `now` is null when there is nothing to read against: a pocket since deleted,
+ *  or no thread in hand. */
+export function historyPairs(rows, e) {
+  const list = Array.isArray(rows) ? rows : [];
+  const shown = (field, v) => {
+    if (v == null) return null;
+    if (field !== 'keys') return String(v);
+    if (Array.isArray(v)) return v.join(', ');
+    try { const k = JSON.parse(v); return Array.isArray(k) ? k.join(', ') : String(v); } catch { return String(v); }
+  };
+  const current = (field) => {
+    if (!e) return null;
+    if (String(field).startsWith('pocket:')) {
+      const id = String(field).slice(7);
+      return [...(e.addons ?? []), ...(e.outfits ?? [])].find((a) => a.id === id)?.body ?? null;
+    }
+    return typeof e[field] === 'string' || Array.isArray(e[field]) ? e[field] : null;
+  };
+  return list.map((h, k) => {
+    let next;
+    for (let j = k - 1; j >= 0; j--) if (list[j].field === h.field) { next = list[j].previous_value; break; }
+    return { ...h, was: shown(h.field, h.previous_value) ?? '', now: shown(h.field, next === undefined ? current(h.field) : next) };
+  });
+}
+
 // The router answers with two kinds of id and both read as machine noise on a page about a book:
 // short aliases from presets.ini — write-nt-qwen36-h — and raw Hugging Face paths like
 // HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF:32K, which is 64 characters of it.

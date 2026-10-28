@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash } from './model.js';
+import { inkParagraphs, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -7515,12 +7515,15 @@ function entryEditor() {
     </div>
     <div class="pane"${tab === 'more' ? '' : ' hidden'}>
     ${S.fieldHistory ? `<div class="lbl sect">Earlier versions</div>
-      ${S.fieldHistory.length ? S.fieldHistory.map((h) => `<div class="card" style="margin-bottom:8px">
+      ${/* #122 · EACH VERSION AGAINST THE ONE THAT REPLACED IT, word by word: what this change took out
+           is struck through, what it put in is underlined. A pocket since deleted has nothing after
+           it, so its old text stands alone. */''}
+      ${S.fieldHistory.length ? historyPairs(S.fieldHistory, e).map((h) => `<div class="card" style="margin-bottom:8px" data-histrow="${esc(h.id)}">
         <div class="line">
           <span class="kind">${esc(h.label ?? h.field)}</span>
           <span class="count-sm">${h.replaced_at ? ago(h.replaced_at) : ''}${
             h.replaced_by ? ` &middot; ${esc(h.replaced_by)}` : ''}</span></div>
-        <div class="clamp note-tight">${esc(h.previous_value ?? '')}</div>
+        ${h.now == null ? `<div class="clamp note-tight">${esc(h.was)}</div>` : diffHTML(h.was, h.now)}
         <button class="btn ghost push-6" data-revertfield="${h.id}">Put this back</button></div>`).join('')
         : '<div class="hint">No earlier versions of any field.</div>'}` : ''}
     ${connections(e)}

@@ -7,7 +7,7 @@
 // the kept and added pieces spell the new text exactly. The cases are the ones a word diff is not
 // written for: punctuation, a repeated word, a moved sentence, an empty side, identical text.
 import assert from 'node:assert';
-const { wordDiff, diffHTML } = await import('../web/model.js');
+const { wordDiff, diffHTML, historyPairs } = await import('../web/model.js');
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -133,6 +133,39 @@ ok('DIFF-HTML: removed words are <del>, added are <ins>, and the text is escaped
   assert.ok(!/<del>|<ins>/.test(diffHTML('same', 'same')), 'identical text has no marks');
   // A screen reader hears which is which: the marks carry words, not only a colour.
   assert.ok(/<del>/.test(diffHTML('a', '')) && /<ins>/.test(diffHTML('', 'a')));
+});
+
+// ALTERATIONS: each earlier version against the one that replaced it. The rows come newest first,
+// as `db.entryHistory` sends them, so a field's next version is the nearest NEWER row for the same
+// field, or the thread as it is now. Written against rows shaped like the database's, mixed fields.
+ok('HIST-PAIRS: each version is read against the one that came after it', () => {
+  const e = { title: 'Wren', body: 'She keeps the iron key.', keys: ['Wren', 'the girl'],
+    addons: [{ id: 'a1', slot: 'voice', body: 'Clipped, dry.' }], outfits: [{ id: 'o1', slot: 'outfit', body: 'A grey coat.' }] };
+  const rows = [
+    { id: 'r1', field: 'body', previous_value: 'She keeps the silver key.' },
+    { id: 'r2', field: 'pocket:a1', previous_value: 'Clipped.' },
+    { id: 'r3', field: 'keys', previous_value: '["Wren"]' },
+    { id: 'r4', field: 'body', previous_value: 'She keeps a key.' },
+    { id: 'r5', field: 'pocket:gone', previous_value: 'Hums when nervous.' },
+    { id: 'r6', field: 'pocket:o1', previous_value: 'A red coat.' },
+    { id: 'r7', field: 'title', previous_value: 'Wren Halloway' },
+    { id: 'r8', field: 'body', previous_value: 'A key.' },
+  ];
+  const h = historyPairs(rows, e);
+  assert.deepStrictEqual(h.map((x: any) => x.id), rows.map((r) => r.id), 'every row, in the order given');
+  const by = Object.fromEntries(h.map((x: any) => [x.id, [x.was, x.now]]));
+  assert.deepStrictEqual(by.r1, ['She keeps the silver key.', 'She keeps the iron key.'], 'newest body against the thread now');
+  assert.deepStrictEqual(by.r4, ['She keeps a key.', 'She keeps the silver key.'], 'older body against the newer version, not the thread now');
+  assert.deepStrictEqual(by.r8, ['A key.', 'She keeps a key.'], 'the oldest against the NEAREST newer version');
+  assert.deepStrictEqual(by.r2, ['Clipped.', 'Clipped, dry.'], 'a pocket against the pocket now');
+  assert.deepStrictEqual(by.r6, ['A red coat.', 'A grey coat.'], 'an outfit is a pocket too');
+  assert.deepStrictEqual(by.r3, ['Wren', 'Wren, the girl'], 'wake words read as words, not JSON');
+  assert.deepStrictEqual(by.r7, ['Wren Halloway', 'Wren'], 'the name');
+  assert.deepStrictEqual(by.r5, ['Hums when nervous.', null], 'a deleted pocket has nothing after it to read against');
+  assert.deepStrictEqual(historyPairs([], e), []);
+  assert.deepStrictEqual(historyPairs(null, e), []);
+  // No thread in hand (it was deleted under the screen): every row stands alone, none invented.
+  assert.deepStrictEqual(historyPairs([rows[0]], null).map((x: any) => x.now), [null]);
 });
 
 console.log(`\n  ${n} diff checks passed`);
