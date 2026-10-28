@@ -3494,4 +3494,48 @@ ok('a pin on a thread of the followed World is kept, stays the World\'s, and is 
     'WORLD-PIN-COPIED: a copy of the tale keeps its pin on the World thread');
 });
 
+// #102. WHAT A TALE MAY NOT PIN, and what takes a World pin away. The other writer's World is
+// followed through a `lore_from` written past the screens, the way an import or a source changing
+// hands would leave it: `entriesFor` refuses to read through it, and a pin must refuse the same.
+ok('a pin on an unfollowed World or another writer\'s thread is refused, and a World pin goes when it should', () => {
+  const me = db.owner('pin-refuse'), them = db.owner('pin-refuse-other');
+  const world = db.createWorld(me, { title: 'Limgrave', premise: 'p' });
+  const other = db.createWorld(me, { title: 'Caelid', premise: 'p' });
+  const theirs = db.createWorld(them, { title: 'Their Limgrave', premise: 'p' });
+  const at = (w: any, title: string) => db.upsertEntry(w.id, w === theirs ? them : me,
+    { title, body: `[${title}]`, activation: 'triggered', keys: ['nothing-says-this'] })!;
+  const margit = at(world, 'Margit'), radahn = at(other, 'Radahn'), godrick = at(theirs, 'Godrick');
+  const theirTale = db.createStory(them, { title: 'Their tale', premise: 'p' });
+  const theirThread = db.upsertEntry(theirTale.id, them, { title: 'Melina', body: '[Melina]' })!;
+  const tale = db.storyFollowing(me, world.id, 'Road')!;
+  const pins = () => db.pinsOf(tale.id).map((p: any) => p.entry_id);
+
+  assert.strictEqual(db.setPin(tale.id, tale.chapterId, radahn, 'force_in'), false,
+    'PIN-REFUSE-UNFOLLOWED: a thread of a World the tale does not follow is refused');
+  assert.strictEqual(db.setPin(tale.id, tale.chapterId, theirThread, 'force_in'), false,
+    'PIN-REFUSE-OTHER-TALE: a thread of another writer\'s tale is refused');
+  db.updateStory(tale.id, { loreFrom: theirs.id });
+  assert.strictEqual((db.getStory(tale.id) as any).lore_from, theirs.id, "the column names their World");
+  assert.strictEqual(db.setPin(tale.id, tale.chapterId, godrick, 'force_in'), false,
+    'PIN-REFUSE-OTHER-WORLD: another writer\'s World is refused even when the column names it');
+  db.updateStory(tale.id, { loreFrom: world.id });
+  assert.deepStrictEqual(pins(), [], 'and none of the three left a pin');
+
+  // Unpinning takes it away.
+  db.setPin(tale.id, tale.chapterId, margit, 'force_in');
+  db.setPin(tale.id, tale.chapterId, margit, null);
+  assert.deepStrictEqual(pins(), [], 'PIN-GONE-UNPIN: unpinning removes the World pin');
+  // Deleting the scene takes it away. A second scene is opened first: a tale keeps one open scene.
+  const two = db.endChapter(tale.id, tale.branchId) as any;
+  db.setPin(tale.id, tale.chapterId, margit, 'force_in');
+  assert.deepStrictEqual(pins(), [margit], 'the pin is back before the scene goes');
+  assert.ok(db.delChapter(tale.id, tale.chapterId).deleted, 'the first scene is deleted');
+  assert.deepStrictEqual(pins(), [], 'PIN-GONE-SCENE: deleting the scene removes the World pin');
+  // Deleting the thread in the World takes it away.
+  db.setPin(tale.id, two.opened, margit, 'force_out');
+  assert.deepStrictEqual(pins(), [margit], 'pinned on the second scene');
+  db.delEntry(world.id, margit);
+  assert.deepStrictEqual(pins(), [], 'PIN-GONE-THREAD: deleting the World thread removes the pin');
+});
+
 console.log(`\n${n} checks passed`);
