@@ -26,6 +26,11 @@ or asking Talk to change it, keeps the same shape. The questions the story lives
 their own, ticked, in the preview. Each one you keep ticked becomes a string from the first scene,
 and Anansi is told not to answer it yet. Tales you already have are not changed.
 
+### No more borrowed details in your characters
+Anansi's own note on how to write a thread used to show one made-up character as its example, and
+Anansi sometimes copied her into yours: charcoal on the fingertips, hair she cuts herself. The note
+now shows only the form, so the details in a new thread come from your tale.
+
 ## 2026-10-28 · Tidy this thread, made safe to use on a whole library
 
 ### Tidy leaves "their lines are yours" alone

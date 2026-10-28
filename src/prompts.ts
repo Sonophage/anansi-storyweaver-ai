@@ -27,20 +27,25 @@ const POCKET_SLOTS = ALL_SLOTS.filter((s) => s !== 'facts');
  *  Named forms rather than a category, which is F37's shape: "notes, not prose" on its own bought
  *  nothing when the same idea was tried as an adjective. The example carries the semicolons.
  *
+ *  #118 · A SHAPE, NOT A CHARACTER (2026-10-28). The example was a whole character, and the real
+ *  model copied it into real threads word for word (six live pockets carried its "charcoal on the
+ *  fingertips"). It is now angle-bracket slots, as POCKET_FORM's are, and the line asking to keep
+ *  the name label in front is gone: ADR 0008 says a stored text has no name in front. Its slots
+ *  are a character's; a place or item fills the same semicolon form with its own parts.
+ *  NOT MEASURED against the old wording.
+ *
  *  NOT MEASURED as prose quality. What is measured is that the old form cost 178 words a room
  *  across 436 imported rooms, and that a compacted room kept every name and number it started
  *  with. Whether the book reads better is unknown and is not claimed. */
 export const LEDGER_REGISTER =
 `A ledger body is NOTES, not prose. Clauses divided by semicolons or commas; no connective
-sentences; no "she is" or "he has" where the bare fact stands on its own:
+sentences; no "she is" or "he has" where the bare fact stands on its own. The shape:
 
-    [Mara: The Initiator. 28; sharp features; hair she cuts herself, uneven; charcoal on the
-     fingertips; wants to break the silence, terrified of being ordinary to him; will not make
-     the first move, engineers the situation instead]
+    <what they are>; <age>; <the one thing seen first>; <a habit or mark>
 
-Keep the opening label — the name and what they are — it is a fact. Write no sentence you would
-be willing to see printed in the book: a model reads this on every call that reaches the card and
-lifts finished English straight into the prose.`;
+The angle brackets show the form only and are never written; no brackets and not the name in
+front. Write no sentence you would be willing to see printed in the book: a model reads this on
+every call that reaches the card and lifts finished English straight into the prose.`;
 
 export const SUMMARY = (maxWords: number) =>
 `Summarize this chapter for a story bible. Under ${maxWords} words. Shorter is better; a short

@@ -10,7 +10,7 @@
 //   node --experimental-strip-types test/talk.ts
 import assert from 'node:assert';
 import { createServer } from 'node:http';
-import { unlinkSync } from 'node:fs';
+import { unlinkSync, readFileSync } from 'node:fs';
 
 const DB = '/tmp/anansi-talk.db';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync(DB + f); } catch {} }
@@ -988,6 +988,26 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.match(shownBrief, /OPEN QUESTIONS[^\n]*never answer[^\n]*Whether the debt is real/,
     'BRIEF-OPEN: it is shown them as open questions, with the order never to answer one');
   ok('the scene brief keeps the open questions open, and no longer names a destination');
+}
+
+// ---- #118 · THE LEDGER REGISTER GIVES A SHAPE, NOT A CHARACTER TO COPY
+// Its example was a whole character ("Mara: The Initiator", sharp features, self-cut hair, charcoal on
+// the fingertips, "engineers the situation"), and the real model copied it into real threads: six
+// pockets in the live library carried "charcoal". It rides in CAST, MEMORY, TIDY, REDO, EXTRACT,
+// INVENT and forge, so hemming and Tidy could put it back. It also said to keep the name label in
+// front, which ADR 0008 forbids. Checked on the text only; the wording is NOT MEASURED.
+{
+  const { LEDGER_REGISTER } = await import('../src/prompts.ts');
+  for (const phrase of [/Mara/, /charcoal/i, /cuts herself/i, /engineers the situation/i, /ordinary to him/i, /Initiator/])
+    assert.doesNotMatch(LEDGER_REGISTER, phrase, `LEDGER-SHAPE: no phrase of the old example is left (${phrase})`);
+  assert.doesNotMatch(LEDGER_REGISTER, /opening label|Keep the .{0,20}label/i, 'LEDGER-NO-LABEL: it no longer asks for the name label in front (ADR 0008)');
+  assert.doesNotMatch(LEDGER_REGISTER, /\[/, 'LEDGER-NO-BRACKET: and its example has no brackets');
+  assert.match(LEDGER_REGISTER, /<[^>]+>;\s*<[^>]+>/, 'LEDGER-SHAPE: its example is angle-bracket slots divided by semicolons');
+  // Nothing else in the prompts quotes the old example either: it is sent from one place.
+  const src = readFileSync(new URL('../src/prompts.ts', import.meta.url), 'utf8') + readFileSync(new URL('../src/forge.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, ''), /charcoal on the|hair she cuts herself|engineers the situation/i,
+    'LEDGER-SHAPE: no prompt quotes the old example');
+  ok('the ledger register gives a shape with no name label, and no prompt quotes the old example');
 }
 
 // ---- 7. ANANSI READS THE BOOK; THE BOOK DOES NOT SET HER REGISTER
