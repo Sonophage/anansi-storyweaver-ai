@@ -959,9 +959,9 @@ ok('a kind that does not exist is refused rather than assembled');
     strings: [QUESTIONS[0], { title: '   ', line: 'a question with no title is none' }] });
   assert.ok(!tale.error, tale.error);
   const made = db.stringsOf(tale.id);
-  assert.deepStrictEqual(made.map((x: any) => [x.title, x.body, x.from_chapter, x.status, x.summoned]),
-    [[QUESTIONS[0].title, QUESTIONS[0].line, 1, 'open', 1]],
-    'QUESTIONS-STRINGS: each one sent is a summoned, open string from scene 1; a blank one is not');
+  assert.deepStrictEqual(made.map((x: any) => [x.title, x.body, x.from_chapter, x.status, x.summoned, x.kind]),
+    [[QUESTIONS[0].title, QUESTIONS[0].line, 1, 'open', 1, 'question']],
+    'QUESTIONS-STRINGS: each one sent is a summoned, open question from scene 1; a blank one is not');
   const plain: any = mk({ title: 'No Questions', premise: PREMISE, entries: [] });
   assert.deepStrictEqual(db.stringsOf(plain.id), [], 'QUESTIONS-NONE: a create that sends none makes none');
   // A Create that fails after the strings are written leaves none of them behind.
@@ -973,21 +973,30 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.strictEqual(owned(), before, 'QUESTIONS-ROLLBACK: and its strings go with it');
   ok('the ticked open questions become strings at Create, inside its rollback');
 
-  // THE SCENE BRIEF KEEPS THEM OPEN. It was sent every open string as "UNPAID PROMISES" and told to
-  // press on one, which would push the tale's own questions to an answer through the brief that
-  // rides every call; and it named a destination field removed on 2026-08-30.
+  // THE SCENE BRIEF KEEPS THE QUESTIONS OPEN AND PRESSES THE PROMISES (#124). Every open string went
+  // as "UNPAID PROMISES" to be pressed on, which pushed the tale's own questions to an answer through
+  // the brief that rides every call; #116 then sent every string as a question, which left a writer's
+  // own promise with nothing pressing it toward payment. Each kind now has its own line.
   const { CHAPTER } = await import('../src/prompts.ts');
   assert.doesNotMatch(CHAPTER, /destination\s+is\s+set/, 'CHAPTER-NO-DESTINATION: no field that no longer exists');
-  assert.doesNotMatch(CHAPTER, /pressed\s+on|unpaid\s+promise/i, 'CHAPTER-OPEN: nothing tells it to press a string towards payment');
-  assert.match(CHAPTER, /complicate\s+it,\s+never\s+answer\s+it/, 'CHAPTER-OPEN: an open question may be complicated, never answered');
+  assert.match(CHAPTER, /unpaid\s+promise[^.]*pressed\s+on/i, 'CHAPTER-PROMISE: an unpaid promise in play may be pressed on, as before #116');
+  assert.match(CHAPTER, /open\s+questions[^.]*complicate\s+it,\s+never\s+answer\s+it/i, 'CHAPTER-OPEN: an open question may be complicated, never answered');
   calls = [];
   const brief: any = await routes['POST /api/chapter/propose'](ctx({ storyId: tale.id, chapterId: db.chapters(tale.id).at(-1)!.id }));
   assert.ok(!brief.error, brief.error);
   const shownBrief = String(calls.at(-1).messages[1].content);
-  assert.doesNotMatch(shownBrief, /UNPAID PROMISES/, 'BRIEF-OPEN: the brief no longer calls them debts');
+  assert.doesNotMatch(shownBrief, /UNPAID PROMISES/, 'BRIEF-OPEN: a tale with only questions is sent no promises');
   assert.match(shownBrief, /OPEN QUESTIONS[^\n]*never answer[^\n]*Whether the debt is real/,
     'BRIEF-OPEN: it is shown them as open questions, with the order never to answer one');
-  ok('the scene brief keeps the open questions open, and no longer names a destination');
+  // The writer adds a promise of her own: it goes on its own line, and not among the questions.
+  db.upsertString(tale.id, { title: 'The letter under the floor', fromChapter: 1 });
+  calls = [];
+  await routes['POST /api/chapter/propose'](ctx({ storyId: tale.id, chapterId: db.chapters(tale.id).at(-1)!.id }));
+  const both = String(calls.at(-1).messages[1].content);
+  assert.match(both, /^UNPAID PROMISES: The letter under the floor$/m, 'BRIEF-PROMISE: a promise is sent as an unpaid promise, as before #116');
+  assert.doesNotMatch(both.match(/^OPEN QUESTIONS.*$/m)?.[0] ?? '', /letter under the floor/, 'BRIEF-PROMISE: and not as an open question');
+  assert.match(both, /^OPEN QUESTIONS[^\n]*Whether the debt is real$/m, '  while the question stays a question');
+  ok('the scene brief keeps the open questions open and presses the promises, each on its own line');
 }
 
 // ---- #118 · THE LEDGER REGISTER GIVES A SHAPE, NOT A CHARACTER TO COPY

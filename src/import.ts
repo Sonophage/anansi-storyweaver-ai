@@ -64,7 +64,8 @@ export interface Incoming {
 const tiedStrings = (inc: Incoming) => (inc.strings ?? []).slice(0, MAX_ENTRIES)
   .filter((x) => clip(x.title, 200))
   .map((x) => ({ title: clip(x.title, 200), body: clip(x.body, 1000),
-    fromChapter: x.fromChapter ?? null, owedBy: x.owedBy ?? null, status: x.status ?? 'open' }));
+    fromChapter: x.fromChapter ?? null, owedBy: x.owedBy ?? null, status: x.status ?? 'open',
+    kind: x.kind === 'question' ? 'question' : 'promise' }));
 
 /** Split a keys field. AI Dungeon writes "a, b, c"; cards write ["a","b"]. The rule itself lives in
  *  `db.keysOf`, which is the write path every route reaches and which now normalises and dedupes.
@@ -140,7 +141,7 @@ export function fromExport(file: string): Incoming {
       // are the only record of what is still owed.
       strings: cap(strings, MAX_ENTRIES, 'unpaid promises', notes).map((x: any) => ({
         title: clip(x.title, 200), body: clip(x.body, 1000), fromChapter: x.from_chapter,
-        owedBy: x.owed_by, status: x.status,
+        owedBy: x.owed_by, status: x.status, kind: x.kind ?? 'promise',
         // summoned is deliberately NOT carried. It means "in play in the scene I am writing now",
         // which is about the session rather than the book.
       })),

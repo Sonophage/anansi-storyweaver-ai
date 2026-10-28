@@ -26,6 +26,12 @@ or asking Talk to change it, keeps the same shape. The questions the story lives
 their own, ticked, in the preview. Each one you keep ticked becomes a string from the first scene,
 and Anansi is told not to answer it yet. Tales you already have are not changed.
 
+### Your promises are pressed, the tale's questions are kept open
+A string is now one of two kinds. The open questions New tale makes are kept open: when Anansi
+suggests a scene, he may complicate one but never answer it. The promises you set up yourself, and
+the ones Anansi chalks, are pressed toward paying off again, as they were before. Every string you
+already have is a promise.
+
 ### No more borrowed details in your characters
 Anansi's own note on how to write a thread used to show one made-up character as its example, and
 Anansi sometimes copied her into yours: charcoal on the fingertips, hair she cuts herself. The note

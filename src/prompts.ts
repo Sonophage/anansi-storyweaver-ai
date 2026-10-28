@@ -781,15 +781,18 @@ came before; say where it goes next.
            now — so write the destination, not an instruction to arrive at it. Nothing in it may
            read as "end the chapter here".
 
-Follow what the story is already doing. The open questions are what the tale lives on: keep each
-one in view, and this chapter may complicate it, never answer it. Nothing here may contradict the
-canon or the summaries above.`;
+Follow what the story is already doing. If an unpaid promise is in play, this is where it can be
+pressed on. The open questions are what the tale lives on: keep each one in view, and this chapter
+may complicate it, never answer it. Nothing here may contradict the canon or the summaries above.`;
 // ADR 0009 (2026-10-28). The last paragraph said "if a destination is set, this chapter is a step
 // towards it", naming the direction field removed on 2026-08-30, so the model had to guess one and
 // the premise was the nearest; and "if an unpaid promise is in play, this is where it can be
 // pressed on", which pushed the tale's own open questions (strings made at New tale) to an answer
 // through the beat that rides every call. The string block in the writing prompt already says
 // "do not resolve one"; this now agrees with it. NOT MEASURED.
+// #124 (2026-10-28). Strings have a kind now, and the brief sends each on its own line, so the
+// promise sentence is back for the writer's own promises (UNPAID PROMISES), and the open-question
+// sentence speaks only to New tale's questions (OPEN QUESTIONS). NOT MEASURED.
 
 export const CHAPTER_SCHEMA = {
   type: 'object',

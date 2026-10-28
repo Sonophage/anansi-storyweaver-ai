@@ -1612,11 +1612,11 @@ async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?:
     v.story.setting ? `SETTING: ${v.story.setting}` : '',
     before.length ? `WHAT HAS HAPPENED:\n${before.map((x: any) =>
       `Chapter ${x.index}${x.title ? ` — ${x.title}` : ''}: ${x.summary}`).join('\n')}` : '',
-    // ADR 0009. Every open string, summoned or not, as a question to keep open: they were sent as
-    // "UNPAID PROMISES" to be pressed on, which pushed the tale's own questions to an answer.
-    (v.strings ?? []).filter((x: any) => x.status === 'open').length
-      ? `OPEN QUESTIONS (keep them in view; complicate one, never answer it): ${(v.strings ?? [])
-          .filter((x: any) => x.status === 'open').map((x: any) => x.title).join('; ')}` : '',
+    // #124 · EACH KIND OF OPEN STRING ON ITS OWN LINE, summoned or not. A promise (the writer's, or
+    // chalked) is sent as it was before #116, to be pressed toward payment; an open question (New
+    // tale's, ADR 0009) is sent to be kept open, so the brief that rides every call never pushes the
+    // tale's own questions to an answer.
+    ...openStringLines(v.strings ?? []),
     tail.trim() ? `THE PROSE ENDS:\n${tail.trim()}` : '',
     // ASKED AGAIN, AWAY FROM THE LAST (2026-10-27): what was suggested before, so the new answer is a
     // different scene and not the same one reworded. Before the writer's steer, which stays last.
@@ -2350,7 +2350,18 @@ function openQuestions(raw: unknown): { title: string; line: string }[] {
  *  inside POST /api/stories's rollback, so a Create that fails later takes them with the tale. */
 function writeOpenQuestions(storyId: string, raw: unknown) {
   for (const q of openQuestions(raw))
-    db.upsertString(storyId, { title: q.title, body: q.line, fromChapter: 1, summoned: true });
+    db.upsertString(storyId, { title: q.title, body: q.line, fromChapter: 1, summoned: true, kind: 'question' });
+}
+
+/** #124 · The scene brief's lines for a tale's open strings: the unpaid promises, then the open
+ *  questions, each line only when it has one. Kind is read through `db.stringKind`, so a string
+ *  with no kind is a promise. NOT MEASURED: the two wordings are the pre-#116 and #116 ones. */
+function openStringLines(strings: any[]): string[] {
+  const open = strings.filter((x: any) => x.status === 'open');
+  const promises = open.filter((x: any) => db.stringKind(x.kind) !== 'question').map((x: any) => x.title);
+  const questions = open.filter((x: any) => db.stringKind(x.kind) === 'question').map((x: any) => x.title);
+  return [promises.length ? `UNPAID PROMISES: ${promises.join('; ')}` : '',
+    questions.length ? `OPEN QUESTIONS (keep them in view; complicate one, never answer it): ${questions.join('; ')}` : ''];
 }
 
 /** #104 · A NEW TALE SET IN AN IP THE WRITER HAS NO WORLD FOR, at Create. Each ticked name is pulled

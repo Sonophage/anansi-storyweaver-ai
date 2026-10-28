@@ -33,7 +33,7 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   db.upsertEntry(s.id, owner, { title: 'The Key', body: '[brass, not silver]', activation: 'triggered', keys: ['key'] });
   db.addPassage({ ...s, storyId: s.id, body: 'He turned the key.' });
   db.upsertString(s.id, { title: 'The letter he has not opened', body: 'Sent by his brother',
-    fromChapter: 6, owedBy: 20, summoned: true });
+    fromChapter: 6, owedBy: 20, summoned: true, kind: 'question' });
   const { file } = db.exportStory(s.id, owner, '/tmp/anansi-import-out');
   const back = imp.absorb(owner, imp.fromExport(file));
   assert.notStrictEqual(back.storyId, s.id, 'an import must be a new story, not the same id');
@@ -49,6 +49,7 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   assert.strictEqual(str.title, 'The letter he has not opened');
   assert.strictEqual(str.from_chapter, 6, 'with the chapter that made it');
   assert.strictEqual(str.owed_by, 20, 'and the chapter it is owed by');
+  assert.strictEqual(str.kind, 'question', 'STRING-KIND-TRIP: and its kind (#124): an open question stays one');
   assert.strictEqual(str.summoned, 0,
     'and OUT of play: summoned means "in the scene I am writing now", which belongs to the '
     + 'session rather than to the book');

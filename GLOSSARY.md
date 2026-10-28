@@ -138,10 +138,13 @@ _Avoid_: finished, hemmed (for a thread)
 _In code_: `retired_at_chapter`
 
 **String**:
-A promise the tale owes and has not kept: something set up that must pay off later. Summoned
-strings reach the model, which is told not to resolve them yet.
+Something the tale keeps open. It has a kind. A **promise** is set up to pay off later: the
+writer's own, or chalked, and the scene brief may press it toward payment. An **open question** is
+one the story lives on, made by New tale, and the scene brief may complicate it but never answer
+it. A string made before kinds existed is a promise. Summoned strings reach the model, which is
+told not to resolve them yet. (Kinds decided 2026-10-28, #124.)
 _Avoid_: owed item
-_In code_: string
+_In code_: string; `strings.kind` = `promise` / `question`
 
 **Summon / Dismiss**:
 Put a string in front of the model / take it away again.
