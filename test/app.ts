@@ -3827,6 +3827,11 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
     assert.match(pv, /the Omen King/, '  each with their Always true');
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
       `IP-NOTHING: nothing is made before Start writing (${POSTED.map((p) => p.url).join(', ')})`);
+    // #107 · THE BEGIN STEP SAYS WHICH WORLD THE TALE FOLLOWS, beside everything else it will make.
+    click({ sparkstep: '8' });
+    await settle(/What gets written|creates all of this/);
+    assert.match(html('page'), /Elden Ring<\/span>\s*<span[^>]*>the World it follows/,
+      'BEGIN-WORLD: the Begin step names the World the tale follows');
     const sent = await create();
     const made = sent.find((p) => p.url === '/api/stories');
     assert.strictEqual(made?.body.loreFrom, 'w-ring', 'IP-CREATE: Start writing makes the tale follow the World');
@@ -3868,6 +3873,10 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
 
     // A blank IP: an original tale, as today.
     await startWizard();
+    click({ sparkstep: '8' });
+    await settle(/creates all of this/);
+    assert.match(html('page'), /No World<\/span>\s*<span[^>]*>the World it follows/,
+      'BEGIN-NO-WORLD: with no IP the Begin step says the tale follows no World');
     const blank = (await create()).find((p) => p.url === '/api/stories');
     assert.deepStrictEqual([blank?.body.world ?? null, blank?.body.loreFrom ?? null], [null, null],
       'IP-BLANK: a blank IP starts an original tale, following nothing');
@@ -3937,6 +3946,10 @@ ok('a new tale naming an IP the writer has a World for follows it, shows its peo
     assert.doesNotMatch(page, /The desert planet/, 'IP-PREVIEW: and not Arrakis, who was unticked');
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
       `IP-NOTHING: nothing is made before Start writing (${POSTED.map((p) => p.url).join(', ')})`);
+    click({ sparkstep: '8' });
+    await settle(/creates all of this/);
+    assert.match(html('page'), /A new World, Dune, of 3 threads<\/span>\s*<span[^>]*>the World it follows/,
+      'BEGIN-NEW-WORLD: the Begin step names the new World and how many threads it gets');
     const sent = await create();
     const made = sent.find((p) => p.url === '/api/stories');
     assert.deepStrictEqual(made?.body.newWorld, { title: 'Dune', threads: [
@@ -3979,6 +3992,40 @@ ok('a new tale naming an IP the writer has a World for follows it, shows its peo
   } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
 }
 ok('a new IP is looked up, ticked, added to and previewed, and only the ticked names become the World at Start');
+
+// #107 · WHAT START WRITING BRINGS FROM THE LIBRARY, AND THE OPEN SWITCH, RIDE THE ONE CREATE. They
+// were separate calls after the tale was made, outside its rollback, so a failure there left a
+// half-made tale. Now the create carries both and nothing is posted after it.
+{
+  const doc = (globalThis as any).document;
+  const wasQS = doc.querySelector;
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  click({ railview: 'workspace' });
+  await new Promise((r) => setTimeout(r, 30));
+  click({ nav: 'create' });
+  await new Promise((r) => setTimeout(r, 30));
+  doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
+  try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
+  finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
+  click({ sparkstep: '3' });   // the threads step reads the library for its picker
+  await new Promise((r) => setTimeout(r, 80));
+  click({ seedpick: 'e-1' });
+  doc.querySelector = (sel: string) => sel === '[data-sp-open]' ? { checked: false } : wasQS.call(doc, sel);
+  try {
+    const n = POSTED.length;
+    click({ acceptSpark: '1' });
+    for (let i = 0; i < 40 && !POSTED.slice(n).some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
+    await new Promise((r) => setTimeout(r, 80));
+    const sent = POSTED.slice(n);
+    const made = sent.find((p) => p.url === '/api/stories');
+    assert.deepStrictEqual(made?.body.seed, [{ storyId: 's-1', entryId: 'e-1' }],
+      'CREATE-SEED: the picked thread rides the create, named by the tale it lives in');
+    assert.strictEqual(made?.body.autoOpen, false, 'CREATE-OPEN: and so does Anansi writes it, turned off');
+    assert.deepStrictEqual(sent.filter((p) => p.url === '/api/entry/copy' || p.url === '/api/story').map((p) => p.url), [],
+      'CREATE-ONE: nothing is copied or saved after the create');
+  } finally { doc.querySelector = wasQS; }
+}
+ok('the picked threads and the open switch are sent in the one create, and nothing after it');
 
 // #24 · WHAT CHANGED IS A FILE NOW. Seth, 2026-08-29: "lets just have it show case from one file we
 // serve that we update after each commit and we remove the need for a local model to do it."
