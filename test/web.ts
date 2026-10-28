@@ -1002,7 +1002,12 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
 
   const rAt = routes.indexOf("'POST /api/world/cast'");
   assert.ok(rAt > 0, 'the route must exist');
-  const rBody = routes.slice(rAt, routes.indexOf("'POST /api/", rAt + 30));
+  // The route, and the lookup it shares with a new tale's IP (#104, `castNames`): together they are
+  // the whole of what the list does, so both are read.
+  const lAt = routes.indexOf('async function castNames');
+  assert.ok(lAt > 0, 'the lookup must exist');
+  const rBody = routes.slice(rAt, routes.indexOf("'POST /api/", rAt + 30))
+    + routes.slice(lAt, routes.indexOf('\n}\n', lAt));
   // MEASURED: a world's name is a product's name, so bare returns the shop — Amazon for Warhammer,
   // Steam and GOG for Sunless Sea, IMDb for Dune. With "wiki" all three land on the fandom wikis.
   assert.match(rBody, /webSearch\(`\$\{world\} wiki`/,

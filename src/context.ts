@@ -3,6 +3,7 @@
 
 import { ORDER, CAPS, CANON_KINDS, CANON_CAP_FRAC, EARLIER_CEILING_FRAC, PROSE_CEILING_FRAC } from './blocks.ts';
 import type { Block, Kind } from './blocks.ts';
+import { EXCLUSIVE_SLOTS } from './slots.ts';
 
 interface EntryState {
   fromChapter: number;             // the chapter this state opens at
@@ -302,6 +303,43 @@ export function retiredAt(e: Entry, at: number): number | null {
   return last?.kind === 'retire' ? last.fromChapter : null;
 }
 
+/** #109 · A STORED DESCRIPTION WITH THE OLD WRAPPER TAKEN OFF, so the frame is the only one (ADR 0008).
+ *  Until #110 cleans the library, pockets and Always trues still hold `[Aldis Fen: …]`, `[wearing: …]`
+ *  or `[short sentences; …]`, and framing those as they are gives `[What …: [Aldis Fen: …]]`.
+ *  Line by line, because a folded pocket (`foldLine`) is a second bracketed line under its label.
+ *
+ *  ONLY WHEN THE BRACKETS ACTUALLY PAIR AS AN OUTER WRAPPER, which is what the `indexOf` asks: the
+ *  first `]` has to be the last character. `[a] and [b]` has its first `]` in the middle, so a greedy
+ *  `^\[(.*)\]$` would eat it into `a] and [b`, a body corrupted on its way into the prompt, silently.
+ *  And a leading `Name:` goes only from inside such a wrapper, and only when it is one of `names`
+ *  (the thread's title, the pocket's label or kind): a label the writer chose, like `Role:`, stays.
+ *  Read-only: what is stored does not change. */
+const plain = (body: string, names: string[]): string => {
+  const known = new Set(names.map((n) => n.trim().toLowerCase()).filter(Boolean));
+  return String(body ?? '').trim().split('\n').map((l) => {
+    const line = l.trim();
+    if (!(line.startsWith('[') && line.indexOf(']') === line.length - 1)) return line;
+    const inner = line.slice(1, -1).trim();
+    const colon = inner.indexOf(':');
+    return colon > 0 && known.has(inner.slice(0, colon).trim().toLowerCase())
+      ? inner.slice(colon + 1).trim() : inner;
+  }).filter(Boolean).join('\n');
+};
+
+/** #109 · THE FRAME EACH POCKET KIND READS UNDER, for the kinds in `SLOTS` that had none (outfit,
+ *  voice and interiority are framed in `rooms` itself). NOT MEASURED, every one: owed an A/B
+ *  against the generic `[label: text]` form before anyone calls it an improvement. */
+const FRAMES: Record<string, (who: string) => string> = {
+  appearance:    (who) => `What ${who} looks like`,
+  relationships: (who) => `How ${who} stands with others`,
+  atmosphere:    (who) => `The feel of ${who}`,
+  who_is_here:   (who) => `Who is found at ${who}`,
+  what_it_does:  (who) => `What ${who} does`,
+  consequences:  (who) => `What follows when ${who} is broken`,
+};
+/** The framed kinds that are exclusive in `SLOTS`: one per thread, so a label tells nothing apart. */
+const SOLO = new Set(EXCLUSIVE_SLOTS);
+
 const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
   (e.addons ?? [])
     // ALWAYS TRUE IS NOT A POCKET (#77, ADR 0005). It is stored as the `facts` addon and read by
@@ -316,18 +354,12 @@ const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
       // ONE STRIP FOR EVERY WRAPPED ROOM. 43 of the live library's non-facts rooms are stored as
       // `[short sentences; …]` — that is the form `src/forge.ts` teaches a foreign model to write a
       // card in, so it is the normal case and not a data error. Wrapping the wrapper gives
-      // `[How she got here: [bought The Monarch…]]`, which is the `[You: [You: …]]` defect the
-      // facts branch above was written to avoid, arriving through eleven other slots instead.
-      //
-      // ONLY WHEN THE BRACKETS ACTUALLY PAIR AS AN OUTER WRAPPER, which is what the `indexOf`
-      // asks: the first `]` has to be the last character. `[a] and [b]` has its first `]` in the
-      // middle, so a greedy `^\[(.*)\]$` would eat it into `a] and [b` — a body corrupted on its
-      // way into the prompt, silently. Refusing anything ambiguous costs a stray pair of brackets
-      // and cannot damage a body.
-      const raw = a.body.trim();
-      const body = raw.startsWith('[') && raw.indexOf(']') === raw.length - 1
-        ? raw.slice(1, -1).trim() : raw;
+      // `[How she got here: [bought The Monarch…]]`, which is the `[You: [You: …]]` defect Always
+      // true was written to avoid, arriving through eleven other slots instead. `plain` is the one
+      // strip, Always true's and every pocket's, and it says why it refuses anything ambiguous.
       const label = (a.name || '').trim();
+      const body = plain(a.body, [who, label, a.slot, a.slot.replace(/_/g, ' '),
+        ...(a.slot === 'outfit' ? ['wearing', 'wears'] : [])]);
 
       if (a.slot === 'outfit') return `[${who || 'They'} wears: ${body}]`;
       // VOICE IS THE SECOND SLOT WHERE THE ROOM'S NAME IS NOT WHAT THE MODEL NEEDS TO BE TOLD, and
@@ -380,6 +412,18 @@ const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
         return `[What ${who || 'they'} will not say, and what they do instead${tail}: ${body}]`;
       }
 
+      // #109 · EVERY OTHER KIND IN `SLOTS` HAS ITS OWN FRAME (ADR 0008): the thread's name and what
+      // the text is for, in the shape of the three above. Exclusive kinds drop the label, as voice
+      // does; the rest keep it after a dash, as interiority does, and for interiority's reason.
+      // NOT MEASURED: each is owed an A/B against the generic `[label: text]` form as a control.
+      const head = FRAMES[a.slot];
+      if (head) {
+        const own = label.toLowerCase();
+        const tail = !SOLO.has(a.slot) && label && own !== who.toLowerCase()
+          && own !== a.slot && own !== a.slot.replace(/_/g, ' ') ? ` — ${label}` : '';
+        return `[${head(who || 'this thread')}${tail}: ${body}]`;
+      }
+
       // A LABEL THAT REPEATS THE CARD'S OWN TITLE IS NOT A LABEL. Two `role` rooms in the live
       // library are named after their character, so Seth's card arrived carrying `[Seth: protagonist,
       // a loner…]` from facts and `[Seth: abducted; hooded; dragged from apartment…]` from role,
@@ -387,9 +431,13 @@ const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
       // what kind of fact it is, which is what a canon room needs — these are what is TRUE, and
       // SYSTEM's "canon is what is true, never how to say it" is why they get a label and not an
       // instruction the way voice and interiority do.
+      //
+      // #109 · AND IT NAMES THE THREAD (ADR 0008). This is where the writer's own pockets and the
+      // folded kinds land: no kind says what the text is for, so the plain frame is the thread and
+      // the label. NOT MEASURED: owed an A/B against the bare `[label: text]` form it replaced.
       const frame = !label || (who && label.toLowerCase() === who.toLowerCase())
         ? a.slot.replace(/_/g, ' ') : label;
-      return `[${frame}: ${body}]`;
+      return `[${who ? `${who} — ` : ''}${frame}: ${body}]`;
     });
 
 /** The body as it stands at a given chapter.
@@ -436,11 +484,21 @@ export function resolveBody(e: Entry, chapter: number): string {
 }
 
 /** #77 · WHO OR WHAT THE THREAD IS, which does not change through the tale (ADR 0005). Stored as the
- *  `facts` addon, so this is the one reader of it as Always true. It reads BARE: a facts body IS the
- *  card format (`[Seth: protagonist…]`), and wrapping it once produced `[You: [You: …]]`. Not
+ *  `facts` addon, so this is the one reader of it as Always true. It returns the stored text; the
+ *  prompt reads it through `framedAlwaysTrue` below (#109). A body stored the old way IS the card
+ *  format (`[Seth: protagonist…]`), and wrapping that once produced `[You: [You: …]]`. Not
  *  switched or woken like a pocket: a thread's Always true goes wherever the thread goes. */
 export const alwaysTrue = (e: Entry): string =>
   ((e.addons ?? []).find((a) => a.slot === 'facts')?.body ?? '').trim();
+
+/** #109 · ALWAYS TRUE AS THE MODEL READS IT (ADR 0008): the stored description, framed with the
+ *  thread's name. `alwaysTrue` above stays the stored text, for the prompts that show it to be
+ *  edited. NOT MEASURED: the frame is owed an A/B against the bare form before it is called a fix. */
+const framedAlwaysTrue = (e: Entry): string => {
+  const who = (e.title || '').trim();
+  const body = plain(alwaysTrue(e), [who, 'facts', 'always true']);
+  return body ? `[What is always true of ${who || 'this thread'}: ${body}]` : '';
+};
 
 /** THE CARD AS THE MODEL SEES IT: what is in force at this chapter, plus every room switched on.
  *
@@ -454,7 +512,7 @@ export const alwaysTrue = (e: Entry): string =>
  *  With no window, only rooms that are switched ON are included; pass the chapter's text and rooms
  *  whose keys fire come too, which is what the prompt builder wants and a cast list does not. */
 export const cardText = (e: Entry, at: number, window = '', locked = '') =>
-  [alwaysTrue(e), resolveBody(e, at), ...rooms(e, at, window, locked)].map((x) => x.trim()).filter(Boolean).join('\n');
+  [framedAlwaysTrue(e), resolveBody(e, at), ...rooms(e, at, window, locked)].map((x) => x.trim()).filter(Boolean).join('\n');
 
 // The proximity bound is BUILT (2026-08-25) — see `fires` below. The marker that stood here said
 // to build it "when a real ledger actually false-fires", and COUNCIL-04 recorded two, from a

@@ -603,7 +603,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // A thread pulled off the web, in the subject's own canon.
   'fromweb',
   // Threads pulled out of a world: look, tick, pull.
-  'worldlook', 'worldpull'].map((k) => `[data-${k}]`).join(',');
+  'worldlook', 'worldpull',
+  // #104. A new tale's new World: look again or for more, add a name, go on without, change back.
+  'iplook', 'ipadd', 'ipwithout', 'ipagain'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -5483,9 +5485,10 @@ const sparkCast = () => (S.spark?.entries ?? [])
  *  `follow` the threads step's picker sets), and the preview lists its people. A changed or emptied
  *  name lets go of the World an earlier name followed, and never of one picked by hand.
  *
- *  No World of that name keeps today's behaviour: the name is the tale's World field and nothing
- *  is followed. #104 looks a NEW IP up from here, where `r.world` is null. */
-async function ipFollow() {
+ *  #104 · NO WORLD OF THAT NAME: the IP is looked up (`ipLook`) for a new World, which the threads
+ *  step lists and Create makes from the ticked names. Not at Create itself (`look` false): a lookup
+ *  nobody will see is a model call for nothing, and the tale keeps the name as its World field. */
+async function ipFollow(look = true) {
   if (!S.spark) return;
   const sp = S.spark, name = String(sp.story?.world ?? '').trim();
   if (name.toLowerCase() === String(sp.ipAsked ?? '').toLowerCase()) return;
@@ -5498,7 +5501,67 @@ async function ipFollow() {
   if (sp.ipWorld && sp.follow === sp.ipWorld.id) sp.follow = null;
   sp.ipWorld = r?.world ? { ...r.world, people: r.people ?? [] } : null;
   if (sp.ipWorld) sp.follow = sp.ipWorld.id;
+  sp.ipNew = !sp.ipWorld && name
+    ? { title: name, found: [], memory: false, busy: false, failed: null, without: false } : null;
   paint();
+  if (sp.ipNew && look) void ipLook();
+}
+
+/** #104 · A NEW IP, LOOKED UP through POST /api/spark/world/cast, which writes nothing: people and
+ *  places with a line each, ticked to begin with, as the story screen's World pull ticks them. `more`
+ *  sends the names already listed and adds what comes back. A first lookup that fails says why, and
+ *  the threads step offers it again or going on with no World. */
+async function ipLook(more = false) {
+  const sp = S.spark, nw = sp?.ipNew;
+  if (!nw || nw.busy) return;
+  nw.busy = true; nw.failed = null;
+  paint();
+  const r = await api.sparkWorldCast(nw.title, more ? nw.found.map((f) => f.name) : undefined);
+  nw.busy = false;
+  if (S.spark !== sp || sp.ipNew !== nw) return;
+  if (r?.error) { if (more) toast(r.error); else nw.failed = r.error; }
+  else {
+    if (!more) nw.memory = !!r.memory;
+    for (const f of r.found ?? []) if (!nw.found.some((g) => g.name.toLowerCase() === f.name.toLowerCase()))
+      nw.found.push({ name: f.name, kind: f.kind, line: f.line ?? '', memory: !!f.memory, keep: true });
+  }
+  paint();
+}
+
+/** #104 · THE NAMES CREATE MAKES THE NEW WORLD OF: ticked, while the writer has not gone on without
+ *  it or picked another World to follow by hand. One reader for the preview and Create. */
+const ipTicked = () => {
+  const nw = S.spark?.ipNew;
+  return nw && !nw.without && !S.spark.follow ? nw.found.filter((f) => f.keep) : [];
+};
+
+/** #104 · THE NEW WORLD ON THE THREADS STEP: the list to tick, ask for more, add a name, or go on
+ *  without. "From memory, not looked up" is said here and in the preview, never in a thread. */
+function ipNewList() {
+  const nw = S.spark?.ipNew;
+  if (!nw || S.spark.follow) return '';
+  const memo = '<span class="hint flush" style="display:inline; margin-left:6px">from memory, not looked up</span>';
+  if (nw.without) return `<div class="lbl sect">${esc(nw.title)}</div>
+    <div class="hint">No World: this tale keeps the name only.</div>
+    <button class="btn ghost small-btn below-10" data-ipagain="1">Make a World of it after all</button>`;
+  return `<div class="lbl sect">A new World, ${esc(nw.title)}</div>
+    <div class="hint lead-6">You have no World by that name. Tick who comes in: the ticked ones are
+      written as the World's threads when you start the tale, one at a time, and this tale follows it.</div>
+    ${nw.found.map((f, i) => `<label style="display:flex; align-items:flex-start; gap:9px; padding:6px 0; cursor:pointer">
+      <input type="checkbox" data-ippick="${i}" ${f.keep ? 'checked' : ''}>
+      <span class="fill body-ink">${esc(f.name)}
+        <span class="kind" style="margin-left:6px">${f.kind === 'place' ? 'place' : 'person'}</span>${f.memory ? memo : ''}
+        <span class="note" style="display:block">${esc(f.line ?? '')}</span></span></label>`).join('')}
+    ${nw.busy ? '<div class="hint">Looking it up&hellip;</div>' : ''}
+    ${nw.failed ? `<div class="hint">Could not look it up: ${esc(nw.failed)}</div>
+      <button class="btn ghost small-btn" data-iplook="again">Try again</button>` : ''}
+    ${nw.found.length ? `<button class="btn ghost below-6" data-iplook="more" ${nw.busy ? 'disabled' : ''}>Ask for more</button>` : ''}
+    <div class="btnrow">
+      <input class="field flush fill" data-ipname aria-label="Add someone to the new World by name" placeholder="Add someone by name">
+      <select class="field flush" data-ipkind aria-label="A person or a place"><option value="character">Person</option><option value="place">Place</option></select>
+      <button class="btn ghost btn-side-16" data-ipadd="1">Add</button>
+    </div>
+    <button class="btn ghost below-10" data-ipwithout="1">Go on with no World</button>`;
 }
 
 /** #28 · WRITE THIS BOOK'S HOUSE STYLE FROM ITS GENRE AND PREMISE.
@@ -5636,7 +5699,8 @@ function sparkReview() {
        ${rerollField('genre')}
        ${row('world', 'Set in a story or game that already exists',  s.world, S.spark.ipWorld
          ? `You have a World called ${esc(S.spark.ipWorld.title)}. This tale follows it, and its people come in with it.`
-         : 'Name it, or leave it empty for a tale of your own. If you have a World by that name, this tale follows it.')}
+         : S.spark.ipNew ? `You have no World called ${esc(S.spark.ipNew.title)}. Anansi looks it up, and on The threads you tick who comes in.`
+         : 'Name it, or leave it empty for a tale of your own. If you have a World by that name, this tale follows it; if not, Anansi looks it up.')}
        ${area('premise', 'Premise', s.premise, 'Anansi reads it every time he writes.', 110)}
        ${rerollField('premise')}
        ${forgeCopy('premise', 'Copy the premise pattern')}
@@ -5703,7 +5767,7 @@ function sparkReview() {
     // The steer, a re-roll on each card, and the library. Setting up a lore book needed nothing
     // new — `lore` has been one of the kind chips since #21 §2, so asking for places instead of
     // people was already a press.
-    ? `<div class="lead-10 row-6 wraps">
+    ? `${ipNewList()}<div class="lead-10 row-6 wraps">
          ${KINDS.map((k) => {
            const on = (S.spark.kinds ?? KINDS).includes(k);
            // aria-pressed, added 2026-09-01: it is a toggle and every other toggle in this app says
@@ -5905,6 +5969,8 @@ function sparkPreview(s, { row, area }) {
   const clash = voiceClash(s.writingStyle, s.pov);
   // #103. The World the IP matched, while the tale still follows it (the picker can change that).
   const ipWorld = S.spark.ipWorld && S.spark.follow === S.spark.ipWorld.id ? S.spark.ipWorld : null;
+  // #104. The new World's ticked names, made at Create.
+  const ipNew = ipTicked();
   const card = ([e, i]) => {
     const open = !!S.spark.unfolded?.[i];
     const rooms = Object.entries(e.rooms ?? {}).filter(([slot]) => slot !== 'facts');
@@ -5967,6 +6033,13 @@ function sparkPreview(s, { row, area }) {
       ${ipWorld.people.length ? ipWorld.people.map((e) => `<div class="card below-8 gap-6">
         <span class="name-14">${esc(e.title)}</span><span class="note">${esc(e.body ?? '')}</span></div>`).join('')
         : '<div class="hint flush">Nobody in it yet.</div>'}` : ''}
+    ${ipNew.length ? `<div class="lbl sect">A new World, ${esc(S.spark.ipNew.title)} &middot;
+        <span class="tnum">${ipNew.length}</span></div>
+      <div class="hint lead-6">Made when you start the tale, with these as its threads, and this tale
+        follows it. Anansi writes each one then, one at a time.</div>
+      ${ipNew.map((f) => `<div class="card below-8 gap-6">
+        <span class="name-14">${esc(f.name)}</span>${f.memory
+          ? '<span class="hint flush">from memory, not looked up</span>' : ''}<span class="note">${esc(f.line ?? '')}</span></div>`).join('')}` : ''}
     <div class="lbl sect">Rules &middot; <span class="tnum">${rules.length}</span></div>
     ${rules.length ? rules.map(card).join('') : '<div class="hint flush">None. A tale needs a rule only when the idea does.</div>'}
     <div class="lbl sect">Your own</div>
@@ -10617,6 +10690,12 @@ document.addEventListener('change', (e) => {
     paint();
     return;
   }
+  // #104. A tick on the new World's list. On state, so it survives a repaint; the box shows itself.
+  if (el?.dataset?.ippick !== undefined && S.spark?.ipNew) {
+    const f = S.spark.ipNew.found[Number(el.dataset.ippick)];
+    if (f) f.keep = !!el.checked;
+    return;
+  }
   if (!S.storyId) return;
   // The sampler's own path: a different route, and it reads the whole panel rather than one field.
   if (el?.dataset?.gen !== undefined) return void commitGen();
@@ -13075,6 +13154,26 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
+  // #104 · THE NEW WORLD'S LIST: look again or for more, add a name, go on without, or change back.
+  if (d.iplook) { harvestSpark(); return void ipLook(d.iplook === 'more'); }
+  if (d.ipadd) {
+    const nw = S.spark?.ipNew;
+    const name = document.querySelector('[data-ipname]')?.value?.trim() ?? '';
+    if (!nw || !name) return toast('Say who to add first.');
+    harvestSpark();
+    if (nw.found.some((f) => f.name.toLowerCase() === name.toLowerCase())) return toast(`${name} is on the list already.`);
+    const kind = document.querySelector('[data-ipkind]')?.value === 'place' ? 'place' : 'character';
+    // Looked up at Create like the rest, or from memory when the list was.
+    nw.found.push({ name, kind, line: '', memory: nw.memory, keep: true });
+    return paint();
+  }
+  if (d.ipwithout || d.ipagain) {
+    if (!S.spark?.ipNew) return;
+    harvestSpark();
+    S.spark.ipNew.without = !!d.ipwithout;
+    if (d.ipagain && !S.spark.ipNew.found.length) void ipLook();
+    return paint();
+  }
   if (d.spadd) {
     harvestSpark();
     S.spark.entries.push({ title: '', body: '', entryType: 'character',
@@ -13119,7 +13218,7 @@ document.addEventListener('click', async (e) => {
     // From STATE, not from the DOM: accept is available on every step, so most of these fields are
     // not on screen when it is pressed. harvestSpark folds in whatever is.
     harvestSpark();
-    await ipFollow();   // #103: Skip may beat the lookup
+    await ipFollow(false);   // #103: Skip may beat the lookup
     if (!S.spark) return;
     const openBox = document.querySelector('[data-sp-open]');
     if (openBox) S.spark.autoOpen = openBox.checked;
@@ -13150,6 +13249,9 @@ document.addEventListener('click', async (e) => {
       // (`followPair`) and refuses a World that is not the writer's before it makes anything.
       world: String(s.world ?? '').trim() || null,
       loreFrom: S.spark.follow || null,
+      // #104. A new World of the IP, made first; any failure there makes nothing at all.
+      ...(ipTicked().length ? { newWorld: { title: S.spark.ipNew.title,
+        threads: ipTicked().map((f) => ({ name: f.name, kind: f.kind, memory: !!f.memory })) } } : {}),
     }));
     // `whileWorking` answers null on a re-entrant press and the state guard above should already
     // have refused it — this is the belt to that braces, and it must not clear `accepting`, or the
@@ -13182,7 +13284,9 @@ document.addEventListener('click', async (e) => {
      *
      * Reported separately from the copies: following and copying are different answers to
      * "bring your own threads" and a writer who did both should be told about both. */
-    const followed = !S.spark.follow ? null
+    const ipNew = ipTicked();   // #104, read before the draft is let go
+    const followed = ipNew.length ? `a new World, ${S.spark.ipNew.title}, of ${plural(ipNew.length, 'thread', 'threads')}`
+      : !S.spark.follow ? null
       : (S.spark.ipWorld?.id === S.spark.follow ? S.spark.ipWorld.title
         : (LIB ?? []).find((b) => b.id === S.spark.follow)?.title) ?? 'that world';
 

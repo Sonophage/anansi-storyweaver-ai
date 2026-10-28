@@ -534,6 +534,19 @@ let worldDown = 0;
     : url.startsWith('/api/spark/talk') ? (stubSparkTalk ?? { reply: 'Ask me anything.', seconds: 1 })
     // #103. The writer's own World for a new tale's IP, in the shape POST /api/spark/world returns:
     // one World, Elden Ring, matched as the server matches (trimmed, any case); nothing else.
+    // #104. A new IP looked up, in the shape POST /api/spark/world/cast returns: Dune names a person
+    // and a place with a line each, and one more when asked; Sunless Sea is from memory; Nowhere fails.
+    : url.startsWith('/api/spark/world/cast') ? (() => {
+        const b = JSON.parse(init?.body ?? '{}');
+        const mem = b.world === 'Sunless Sea';
+        return b.world === 'Nowhere' ? { error: 'search failed: no engines are up' }
+          : b.more?.length ? { world: b.world, found: [{ name: 'Chani', kind: 'character', line: 'A Fremen of Sietch Tabr.' }] }
+          : { world: b.world, ...(mem ? { memory: true } : {}), found: (mem
+            ? [{ name: 'The Captain', kind: 'character', line: 'Runs a steamer on the Zee.' },
+               { name: 'Fallen London', kind: 'place', line: 'The city under the earth.' }]
+            : [{ name: 'Paul Atreides', kind: 'character', line: 'Heir of House Atreides.' },
+               { name: 'Arrakis', kind: 'place', line: 'The desert planet.' }]).map((f) => mem ? { ...f, memory: true } : f) };
+      })()
     : url.startsWith('/api/spark/world') && worldDown > 0 ? (worldDown--, { error: 'the server did not answer' })
     : url.startsWith('/api/spark/world')
       ? (String(JSON.parse(init?.body ?? '{}').name ?? '').trim().toLowerCase() === 'elden ring'
@@ -3861,6 +3874,111 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
   } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
 }
 ok('a new tale naming an IP the writer has a World for follows it, shows its people, and makes nothing until Start');
+
+// #104 · AN IP WITH NO WORLD OF THAT NAME IS LOOKED UP. The threads step lists its people and places
+// with a line each, ticked; more can be asked for and a name added; the preview shows the ticked
+// ones; nothing is made until Start writing, which sends the ticked names as the new World. Names
+// from memory are marked so in the list and the preview. A failed lookup offers going on without.
+{
+  const doc = (globalThis as any).document;
+  const wasQSA = doc.querySelectorAll, wasQS = doc.querySelector;
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
+  let onScreen: Record<string, any[]> = {};
+  const startWizard = async () => {
+    click({ railview: 'workspace' });
+    await new Promise((r) => setTimeout(r, 30));
+    click({ nav: 'create' });
+    await new Promise((r) => setTimeout(r, 30));
+    doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
+    try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
+    finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
+  };
+  const create = async () => {
+    const n = POSTED.length;
+    click({ acceptSpark: '1' });
+    for (let i = 0; i < 40 && !POSTED.slice(n).some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
+    await new Promise((r) => setTimeout(r, 60));
+    return POSTED.slice(n);
+  };
+  const nameIp = async (name: string) => {
+    onScreen = { '[data-sp]': [{ dataset: { sp: 'world' }, value: name }] };
+    click({ sparkstep: '3' });
+    onScreen = {};
+  };
+  const casts = () => POSTED.filter((p) => p.url === '/api/spark/world/cast');
+  doc.querySelectorAll = (sel: string) => onScreen[sel] ?? [];
+  try {
+    await startWizard();
+    POSTED.length = 0;
+    await nameIp('Dune');
+    await settle(/Arrakis/);
+    let page = html('page');
+    assert.strictEqual(casts()[0]?.body.world, 'Dune', 'IP-LOOKUP: an IP with no World of that name is looked up');
+    assert.match(page, /A new World, Dune/, 'IP-LIST: the threads step offers a new World of it');
+    assert.match(page, /Paul Atreides[\s\S]*Heir of House Atreides/, '  each name with its line');
+    assert.match(page, /data-ippick="1" checked/, '  ticked to begin with');
+    assert.doesNotMatch(page, /from memory/, '  and a looked-up name is not marked from memory');
+    click({ iplook: 'more' });
+    await settle(/Chani/);
+    assert.deepStrictEqual(casts().at(-1)?.body.more, ['Paul Atreides', 'Arrakis'], 'IP-MORE: asking for more names what is listed');
+    assert.match(html('page'), /Chani/, '  and adds what comes back');
+    doc.querySelector = (sel: string) => sel === '[data-ipname]' ? { value: 'Duncan Idaho' }
+      : sel === '[data-ipkind]' ? { value: 'character' } : wasQS.call(doc, sel);
+    click({ ipadd: '1' });
+    doc.querySelector = wasQS;
+    await settle(/Duncan Idaho/);
+    assert.match(html('page'), /Duncan Idaho/, 'IP-ADD: a name can be added by hand');
+    changeIn({ dataset: { ippick: '1' }, checked: false });
+    click({ sparkstep: '5' });
+    await settle(/A new World, Dune/);
+    page = html('page');
+    for (const n of ['Paul Atreides', 'Chani', 'Duncan Idaho']) assert.match(page, new RegExp(n), `IP-PREVIEW: the preview shows ${n}`);
+    assert.doesNotMatch(page, /The desert planet/, 'IP-PREVIEW: and not Arrakis, who was unticked');
+    assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
+      `IP-NOTHING: nothing is made before Start writing (${POSTED.map((p) => p.url).join(', ')})`);
+    const sent = await create();
+    const made = sent.find((p) => p.url === '/api/stories');
+    assert.deepStrictEqual(made?.body.newWorld, { title: 'Dune', threads: [
+      { name: 'Paul Atreides', kind: 'character', memory: false }, { name: 'Chani', kind: 'character', memory: false },
+      { name: 'Duncan Idaho', kind: 'character', memory: false }] },
+      'IP-CREATE: Start writing sends the ticked names, and only those, as the new World');
+    assert.deepStrictEqual([made?.body.world, made?.body.loreFrom ?? null], ['Dune', null], '  in the one create');
+
+    // FROM MEMORY: marked in the list and the preview, and sent so.
+    await startWizard();
+    await nameIp('Sunless Sea');
+    await settle(/Fallen London/);
+    assert.strictEqual((html('page').match(/from memory, not looked up/g) ?? []).length, 2,
+      'IP-MEMORY: each name from memory is marked so in the list');
+    click({ sparkstep: '5' });
+    await settle(/A new World, Sunless Sea/);
+    assert.strictEqual((html('page').match(/from memory, not looked up/g) ?? []).length, 2, 'IP-MEMORY: and in the preview');
+    const mem = (await create()).find((p) => p.url === '/api/stories');
+    assert.deepStrictEqual(mem?.body.newWorld?.threads.map((t: any) => t.memory), [true, true], 'IP-MEMORY: and sent so');
+
+    // A FAILED LOOKUP: a press goes on with no World, and the tale starts without one.
+    await startWizard();
+    await nameIp('Nowhere');
+    await settle(/Go on with no World/);
+    assert.match(html('page'), /no engines are up/, 'IP-FAILED: a failed lookup says why');
+    click({ ipwithout: '1' });
+    await settle(/keeps the name only/);
+    assert.match(html('page'), /keeps the name only/, 'IP-WITHOUT: the press says the tale goes on with no World');
+    const without = (await create()).find((p) => p.url === '/api/stories');
+    assert.deepStrictEqual([without?.body.world, without?.body.loreFrom ?? null, without?.body.newWorld ?? null], ['Nowhere', null, null],
+      'IP-WITHOUT: going on with no World starts the tale without one');
+    // And with a list on screen: the press drops the ticked names.
+    await startWizard();
+    await nameIp('Dune');
+    await settle(/Arrakis/);
+    click({ ipwithout: '1' });
+    const dropped = (await create()).find((p) => p.url === '/api/stories');
+    assert.deepStrictEqual([dropped?.body.world, dropped?.body.newWorld ?? null], ['Dune', null],
+      'IP-WITHOUT: going on with no World sends no World, even with names ticked');
+  } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
+}
+ok('a new IP is looked up, ticked, added to and previewed, and only the ticked names become the World at Start');
 
 // #24 · WHAT CHANGED IS A FILE NOW. Seth, 2026-08-29: "lets just have it show case from one file we
 // serve that we update after each commit and we remove the need for a local model to do it."

@@ -307,6 +307,8 @@ export const OPEN_ROUTES = new Set([
   'POST /api/world',
   // #103. The New tale's IP, looked up among the writer's own Worlds. No story yet; owner-scoped.
   'POST /api/spark/world',
+  // #104. And looked up when the writer has no World of that name. No story yet; writes nothing.
+  'POST /api/spark/world/cast',
   // Looking at the demo library names no story, and it is how you get BACK from it too.
   'POST /api/demo',
   // Names no story and cannot reach another writer's generation — see the route.
@@ -819,6 +821,222 @@ async function talkSearch(about: string, world: string, turns: string, said: str
     catch (e: any) { failed ??= String(e?.message ?? e); }
   }
   return { sources: sources.filter((x, i) => sources.findIndex((y) => y.url === x.url) === i), failed };
+}
+
+/** A THREAD PULLED OFF THE WEB, IN ITS OWN CANON: the search and the call `POST /api/fromweb`
+ *  makes for one subject, and the clean-up of what comes back. Writes nothing. The route proposes
+ *  the card; a new tale's World (#104) writes it at Create. `world` narrows the search. `logged`
+ *  records the call where the caller keeps such things. */
+async function pullThread(using: string, subject: string, kind: string, world: string,
+    o: { memory?: boolean; fallback?: boolean; logged?: (error: string | null, latencyMs: number) => void } = {}) {
+  /* THE BARE SUBJECT, AND THAT IS A MEASUREMENT, not a default. Seth asked for the search to
+   * "look for things that can go in cards or rooms", so the first version appended the room names
+   * to the query — role, appearance, outfit, interiority, relationships, voice, history. Compared
+   * on 2026-09-02, same engine, eight results each:
+   *
+   *   Paul Atreides, bare        dune.fandom, en.wikipedia, dune.fandom  — the canon
+   *   Paul Atreides, + rooms     kajmeister.com, thefulcrum.ca, thefilmexperience.net, medium,
+   *                              wordpress, reactormag — blogs and film criticism, no wiki
+   *   Ferrus Manus, bare         warhammer40k.fandom, lexicanum, warhammer.com
+   *   Ferrus Manus, + rooms      fanfiction.net, allthetropes, sufficientvelocity forums
+   *
+   * The room words turn a name into an essay query, and the pull came back talking about "an
+   * impossible role in every adaptation" and "belabored voice-over narration" — which was in the
+   * SOURCES it was given, faithfully. So the room material is asked for in the PROMPT, where it
+   * belongs, and the query stays the thing the writer typed. A wiki article about a primarch
+   * already contains his appearance, his history and his brothers.
+   *
+   * EIGHT RESULTS, where the other callers take five: this is the only evidence in the call, and
+   * the answer has rooms to fill as well as a body. */
+  /* THE BOOK'S WORLD NARROWS THE QUERY, and this one IS measured — unlike the room names above,
+   * which broadened it into essays. Same engine, six results each, 2026-09-02:
+   *
+   *   Medusa, bare              wikipedia, reddit, vanderbilt.edu, britannica, metmuseum,
+   *                             greekmythology.com — the Gorgon, entirely wrong for a 40k book
+   *   Medusa + Warhammer 40,000 warhammer40k.fandom x2, wh40k.lexicanum x2 — the Iron Hands
+   *                             homeworld, which is what a writer in that world meant
+   *   Arrakis, bare             wikipedia, dune.fandom x2, and arrakistechnologies.ai
+   *   Arrakis + Dune            the junk drops off
+   *   the Unterzee              unambiguous either way
+   *
+   * A world name says WHICH domain; a room name says what kind of essay. That is the difference,
+   * and it is why one is in the query and the other is in the prompt.
+   *
+   * THE SUBJECT STILL COMES FIRST so a `site:` prefix keeps working — webSearch reads one off the
+   * front — and so the engine still ranks on the name. */
+  const rooms = slotsFor(kind).map((sl) => sl.name);
+  const q = narrowed(subject, world);
+  let sources: { title: string; url: string; text: string }[] = [];
+  // #104 · A NAME LISTED FROM MEMORY IS WRITTEN FROM MEMORY, and is not searched. `fallback` turns a
+  // search that is off, fails or finds nothing into the same, as the new tale's list does.
+  if (!o.memory && (searchConfigured() || !o.fallback)) {
+    try {
+      sources = await webSearch(q, 8);
+      // AND THE BARE NAME IF THAT FOUND NOTHING. A world that narrows to zero results is a book
+      // whose world field is a phrase the engine has never seen, and a pull that fails for that
+      // reason would look like the feature being broken.
+      if (!sources.length && q !== subject) sources = await webSearch(subject, 8);
+    } catch (e: any) { if (!o.fallback) return { error: `search failed: ${e?.message ?? e}` }; }
+  }
+  if (!sources.length && !o.memory && !o.fallback) return { error: `nothing came back for ${JSON.stringify(subject)}` };
+  const memory = !sources.length;
+
+  const body = memory ? `No search results. Write it from what you already know of ${subject}${world ? ` in ${world}` : ''}.`
+    : sources.map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${String(x.text ?? '').slice(0, 1400)}`).join('\n\n');
+  const t0 = Date.now();
+  const r = await structuredRetry(FROM_WEB(kind, subject, rooms, memory), body, fromWebSchema(kind, rooms),
+    // COLD, at 0.2. Every other creative call in this app runs hot because invention is the
+    // point; this one is transcription and a warm model is a model that embroiders.
+    { model: using, temperature: 0.2, max_tokens: INVENT_TOKENS });
+  o.logged?.(r.error ?? null, Date.now() - t0);
+  if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
+
+  /* AN EMPTY TITLE IS A REAL ANSWER, and the prompt asks for one when the results are about
+   * something else or say too little. Reporting it as itself beats writing a card nobody can
+   * trust — this is the one route where "I could not" is the useful outcome.
+   *
+   * ponytail: MEASURED AND IT DOES NOT HOLD. Asked for "purple teacup monday regulations" on
+   * 2026-09-02, the model wrote a card rather than an empty title — a faithful one, describing a
+   * blog party it had actually found, so the grounding held and only the refusal failed. Qwen3.6
+   * would rather describe than decline. The ceiling is therefore: this route can propose a card
+   * about the WRONG SUBJECT, never an invented one.
+   *
+   * LEFT AS IT IS ON PURPOSE. Everything here lands in the proposals queue, so the cost of that
+   * miss is one Ignore and nothing reaches canon; the fix would be a second call asking "do these
+   * results describe a <kind> called X" before the first, which doubles the cost of every pull to
+   * catch a case the queue already absorbs. Worth building when a wrong-subject card gets
+   * accepted by accident, and not before.
+   *
+   * ponytail: #104 WRITES WITHOUT THE QUEUE. A new tale's World writes each name the writer ticked
+   * straight into the World at Create, so there the tick on a listed name is the only check, and a
+   * card written from memory can be wrong as well as off-subject (the list and preview mark those).
+   * Ceiling: a wrong card in a new World until the writer reads it. Revisit when one is found. */
+  const title = String(r.data.title ?? '').trim();
+  if (!title) {
+    return { error: `the results for ${JSON.stringify(subject)} did not say enough to make a thread`,
+             sources: sources.map((x) => x.url) };
+  }
+  /* EMPTY ROOMS ARE DROPPED HERE. The model is asked to return every room as a key so it can
+   * say "the results do not cover this" out loud; an empty one has nothing to write. */
+  /* AND "Information insufficient" IS AN EMPTY ROOM. The prompt asks for an empty string where
+   * the results say nothing, and on 2026-09-02 the model wrote the words instead — twice in one
+   * answer, for outfit and voice. Left alone that becomes a room on the card reading "Information
+   * insufficient", which then reaches the model on every call that card is sent. So the shapes it
+   * reaches for are treated as the empty string they were meant to be, and anything under fifteen
+   * characters goes with them: no room worth sending is shorter than that. */
+  /* A ROOM THAT ANNOUNCES AN ABSENCE IS AN EMPTY ROOM. The prompt asks for an empty string where
+   * the results say nothing, and the model keeps finding new ways to write the sentence instead:
+   * "Information insufficient" (twice in one answer), then "No specific clothing described". So
+   * this is a SHAPE and not a list of phrasings — a negation within a few words of a verb about
+   * describing or providing — because the list was losing to it one wording at a time.
+   * Two rooms of a Paul Atreides pull were caught by this on 2026-09-02, and neither belonged on
+   * a card: a room reaches the model on every call that card is sent. */
+  const EMPTY = /\b(no|not|none|nothing|never|insufficient|lacking|absent|un(specified|described|available|known))\b[^.]{0,44}\b(describ|specif|mention|given|stated|provided|listed|available|information|detail)|\b(information|detail)s?\b[^.]{0,20}\b(insufficient|lacking|absent|unavailable)/i;
+  /* A ROOM THAT TALKS ABOUT THE SEARCH IS NOT A ROOM. Measured 2026-09-02: Paul's appearance came
+   * back as "Height is listed in the 2021 film wiki entry but no specific measurement is provided
+   * in the results" — the model narrating its own evidence. A room is read by a model writing a
+   * scene, which has never seen these pages, so a sentence about them is worse than nothing: it
+   * would reach every call that card is sent on. The prompt says so too; this is the guard for
+   * when it does it anyway, which is the same shape as the empty-title ceiling above. */
+  const ABOUT_SOURCES = /(in the results|from the results|the (search )?results (do|say|list|provide)|no specific [^.]*provided|not (provided|listed|specified|stated) in|wiki entry|the sources)/i;
+  const filled = Object.fromEntries(Object.entries((r.data as any).rooms ?? {})
+    .filter(([, t]) => {
+      const v = String(t ?? '').trim();
+      /* THE REVERSE ORDER IS NOT TESTED, deliberately. A pattern for "describes no armour" —
+       * a describing verb followed by a negation — ate "Speaks in a low, gravelly register and
+       * states nothing he cannot prove", which is a voice room this writer would actually write;
+       * his own cards are full of "has never spliced a memory she was asked to remove".
+       * The trade is one-sided: a missed absence is one room he deletes in a press, and a
+       * swallowed real room is a fact that vanishes without saying so. So this errs toward
+       * keeping, which is why the checks above are shapes of ANNOUNCEMENT rather than of
+       * negation. */
+      return v.length >= 15 && !EMPTY.test(v) && !ABOUT_SOURCES.test(v);
+    }));
+  /* BRACKET FORM, WRAPPED HERE IF THE MODEL DID NOT. Every card in this app carries it and the
+   * context window renders it; the paste route has wrapped a bare body since #29 for exactly this
+   * reason, and this route needed the same. Measured 2026-09-02: told to write a WORLD rather than
+   * a product, the model followed the prose example in that instruction and dropped the brackets
+   * with it — a formatting miss, not a bad card, and the same repair applies. */
+  let cardBody = String(r.data.body ?? '').trim();
+  if (cardBody && !cardBody.startsWith('[')) cardBody = `[${title}: ${cardBody}]`;
+  return { title, body: cardBody, keys: (r.data.keys ?? []) as string[], rooms: filled, sources, data: r.data,
+           seconds: +((Date.now() - t0) / 1000).toFixed(1) };
+}
+
+/** #104 · A NEW TALE'S IP IS LISTED AS PEOPLE AND PLACES, the two kinds a writer ticks from. */
+const IP_KINDS = ['character', 'place'];
+
+/** WHAT IS IN A WORLD: the World cast's lookup, for the story screen's pull (`POST /api/world/cast`)
+ *  and a new tale's IP (#104, `POST /api/spark/world/cast`). It searches, asks for names and
+ *  answers with them; it writes nothing. `logged` records the call where the caller keeps such
+ *  things. `fallback` (the new tale only) names them from what the model knows when search is off,
+ *  fails or finds nothing, and says so with `memory`; the story screen keeps its error instead. */
+type Named = { name: string; kind: string; line?: string; memory?: true };
+async function castNames(world: string, using: string, o: { kinds: string[]; want: number; max_tokens: number;
+    ask?: string; skip?: string[]; lines?: boolean; fallback?: boolean;
+    logged?: (error: string | null, latencyMs: number) => void })
+  : Promise<{ found: Named[]; sources: Source[]; memory: boolean; seconds: number } | { error: string; raw?: string }> {
+  /* "wiki" ON THE END, and this is measured. A world's name IS a product's name, so searching it
+   * bare returns the shop. Same engine, six results each, 2026-09-03:
+   *
+   *   Sunless Sea, bare       store.steampowered.com, failbettergames.com, gog.com, youtube x2
+   *   Sunless Sea + wiki      sunlesssea.fandom x4, en.wikipedia
+   *   Warhammer 40,000, bare  warhammer.com, warhammer40000.com, AMAZON, facebook
+   *   Warhammer 40,000 + wiki warhammer40k.fandom, wh40k.lexicanum x2
+   *   Dune, bare              en.wikipedia x2, imdb, youtube, dunenovels, dunemovie
+   *   Dune + wiki             dune.fandom x4, en.wikipedia x2
+   *
+   * Without it the first list out of Sunless Sea named "Failbetter Games" — the studio — and
+   * "Victorian Gothic" as a rule. Garbage in: there was nothing else in a Steam page to list.
+   * "setting lore" was tried in the same sitting and is worse than "wiki" on all three.
+   *
+   * THE PER-CARD PULL DOES NOT DO THIS, deliberately: its subject is usually a thing INSIDE the
+   * world — Arrakis, Ferrus Manus — where bare already lands on the fandom wikis, and that was
+   * measured too. This call is the one whose subject is always the name on the box. */
+  let sources: Source[] = [];
+  if (searchConfigured()) {
+    try {
+      sources = await webSearch(`${world} wiki`, 8);
+      // A world with no wiki anywhere is still a world: falling back rather than failing, the same
+      // way the pull falls back off its world-scoped query.
+      if (!sources.length) sources = await webSearch(world, 8);
+    } catch (e: any) { if (!o.fallback) return { error: `search failed: ${e?.message ?? e}` }; }
+  }
+  if (!sources.length && !o.fallback) return { error: `nothing came back for ${JSON.stringify(world)}` };
+  const memory = !sources.length;
+
+  const body = memory ? `No search results. Name them from what you already know of ${world}.` : sources
+    .map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${String(x.text ?? '').slice(0, 1400)}`)
+    .join('\n\n');
+  const t0 = Date.now();
+  const r = await structuredRetry(WORLD_CAST(world, o.kinds, o.want, { ask: o.ask, lines: o.lines, memory, skip: o.skip }),
+    body, worldCastSchema(o.kinds, o.want, o.lines),
+    // Cold, like the pull: this is a reading of what the results name, not an invention.
+    { model: using, temperature: 0.2, max_tokens: o.max_tokens });
+  o.logged?.(r.error ?? null, Date.now() - t0);
+  if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
+
+  const seen = new Set<string>();
+  const found = ((r.data as any).found ?? [])
+    .map((x: any) => ({ name: String(x.name ?? '').trim(), kind: String(x.kind ?? '').trim(),
+      ...(o.lines ? { line: String(x.line ?? '').trim() } : {}), ...(memory ? { memory: true } : {}) }))
+    // The schema's kinds, so a kind the pull could not honour cannot come back from here.
+    .filter((x: any) => x.name && o.kinds.includes(x.kind))
+    /* AND NEVER THE WORLD ITSELF. It came back as its own first row — "Warhammer 40,000 (lore)"
+     * inside a book set in Warhammer 40,000, measured 2026-09-03 — which is a card that says
+     * nothing and a model call to write it. The prompt says so now; this is certain where the
+     * prompt is likely, and the comparison has to be loose because "Warhammer 40k", "WH40K" and
+     * "Warhammer 40,000" are the same answer. */
+    .filter((x: any) => {
+      const tidy = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '');
+      return tidy(x.name) !== tidy(world) && !tidy(world).startsWith(tidy(x.name));
+    })
+    // The prompt forbids duplicates and this is the guard for when it does it anyway: two rows
+    // with one name would be two identical calls and one refused proposal.
+    .filter((x: any) => { const k = x.name.toLowerCase();
+                          if (seen.has(k)) return false; seen.add(k); return true; }) as Named[];
+  if (!found.length) return { error: `the results for ${JSON.stringify(world)} did not name anything usable` };
+  return { found, sources, memory, seconds: +((Date.now() - t0) / 1000).toFixed(1) };
 }
 
 /** THE EARLIER TURNS, for both Talk routes: the last six, each capped. Each exchange is context for
@@ -2036,6 +2254,72 @@ function writeRooms(storyId: string, entryId: string, kind: string, rooms: any, 
   return { made, notes };
 }
 
+/** A NEW BOOK'S THREADS, as POST /api/stories writes them: what each one is in Always true (see
+ *  #39 there), its pockets written, and a pocket marked `on` switched on. For a new tale, and for a
+ *  new tale's new World (#104). Answers the notes `writeRooms` leaves. */
+function writeCast(storyId: string, owner: string, cast: any[]): string[] {
+  const notes: string[] = [];
+  for (const e of cast) {
+    const body = String(e.body ?? '').trim();
+    const hasOwnFacts = !!String(e.rooms?.facts?.body ?? e.rooms?.facts ?? '').trim();
+    const moveToFacts = !!body && !hasOwnFacts;
+    // Written with an EMPTY body, so Anansi's first chapter-end update has the room it expects and
+    // nothing to overwrite. The card's own screen draws facts above Info for this reason already.
+    const id = db.upsertEntry(storyId, owner, moveToFacts ? { ...e, body: '' } : e);
+    const rooms = moveToFacts ? { ...(e.rooms ?? {}), facts: { body } } : e.rooms;
+    if (id && rooms) notes.push(...writeRooms(storyId, id, e.entryType ?? 'character', rooms, e.title).notes);
+    // A ROOM MARKED `on` IS SWITCHED ON: the new tale's cast (POST /api/spark/cast) marks the
+    // pockets it wrote, because a pocket with no wake words that is off never reaches the model.
+    // A pasted or imported card's rooms stay as they came; the writer turns those on.
+    if (id && rooms) for (const a of db.addonsOf(storyId) as any[])
+      if (a.entry_id === id && !a.active && rooms[a.slot]?.on) db.setAddonActive(storyId, a.id, true);
+  }
+  return notes;
+}
+
+/** #104 · A NEW TALE SET IN AN IP THE WRITER HAS NO WORLD FOR, at Create. Each ticked name is pulled
+ *  by the fromweb lookup (`pullThread`), searched in the World's name, or from memory when the list
+ *  said so or the search is off, fails or finds nothing. ALL OF THEM BEFORE ANYTHING IS WRITTEN, so
+ *  a name that cannot be written fails the Create with nothing made. Then the World is made, its
+ *  threads written, and the tale made through the create route itself, following the World
+ *  (`followPair` sets its World field). A failure after the World is made takes the World back.
+ *  The source pages go in each thread's notes, which never reach a model; "from memory" is the
+ *  list's and the preview's, never the thread's. */
+async function storyInNewWorld(c: Ctx) {
+  const title = String(c.body.newWorld?.title ?? '').trim().slice(0, 120);
+  if (!title) return { error: 'a World needs a name' };
+  if (db.worldNamed(c.owner, title)) return { error: `you already have a World called ${title}` };
+  const seen = new Set<string>();
+  const ticked = (Array.isArray(c.body.newWorld?.threads) ? c.body.newWorld.threads : []).slice(0, 60)
+    .map((t: any) => ({ name: String(t?.name ?? '').trim().slice(0, 200),
+      kind: IP_KINDS.includes(String(t?.kind)) ? String(t.kind) : 'character', memory: t?.memory === true }))
+    .filter((t: any) => t.name && !seen.has(t.name.toLowerCase()) && seen.add(t.name.toLowerCase()));
+  if (!ticked.length) return { error: 'tick someone for the World, or go on without one' };
+  const using = writerModel(c, { story: null });
+  const threads: any[] = [];
+  // ONE AT A TIME. F13: the model has two slots and oversubscribing the shared cache does not queue,
+  // both requests die with an HTTP 500. The story screen's pull loop is sequential for the same reason.
+  for (const t of ticked) {
+    const p = await pullThread(using, t.name, t.kind, title, { memory: t.memory, fallback: true });
+    if ('error' in p) return { error: `${t.name} could not be written: ${p.error}. Untick them, or try again.` };
+    // Two names for one thing come back with one title: one thread.
+    if (threads.some((e) => e.title.toLowerCase() === p.title.toLowerCase())) continue;
+    threads.push({ title: p.title, entryType: t.kind, body: p.body,
+      // ON A WORD, like a World's threads: they reach a tale when it names them. Its name always wakes it.
+      activation: 'triggered', keys: [...new Set([p.title, ...p.keys])],
+      notes: p.sources.map(noteLine).join('\n'),
+      rooms: Object.fromEntries(Object.entries(p.rooms).map(([slot, body]) => [slot, { body, on: true }])) });
+  }
+  const world = db.createWorld(c.owner, { title });
+  try {
+    writeCast(world.id, c.owner, threads);
+    const { newWorld: _n, ...rest } = c.body;
+    const made: any = routes['POST /api/stories']({ ...c, body: { ...rest, loreFrom: world.id } });
+    if (made?.error) db.delStory(world.id, c.owner);
+    return made?.error ? made : { ...made, newWorld: world.id };
+  } catch (e) { db.delStory(world.id, c.owner); throw e; }
+}
+
 function ledgerInto(c: Ctx, from: string, into: string) {
   const src = db.getStory(from) as any;
   if (!src) return null;
@@ -2403,6 +2687,8 @@ export const routes: Record<string, Handler> = {
     } catch (e: any) { return { error: e?.message ?? 'could not switch model' }; }
   },
   'POST /api/stories':   (c) => {
+    // #104 · A NEW WORLD FOR THE IP, made with the tale. Its own path, because it waits on the model.
+    if (c.body.newWorld) return storyInNewWorld(c);
     // #103 · WHAT IT FOLLOWS IS ASKED BEFORE ANYTHING IS MADE. Only a book this writer owns: the
     // gate never runs on this open route, and `entriesFor` would refuse to read another writer's
     // World anyway, so following one would be a tale that silently follows nothing.
@@ -2469,21 +2755,7 @@ export const routes: Record<string, Handler> = {
         outsideOnly([own], you.held);
         cast.push(own);
       }
-      for (const e of cast) {
-        const body = String(e.body ?? '').trim();
-        const hasOwnFacts = !!String(e.rooms?.facts?.body ?? e.rooms?.facts ?? '').trim();
-        const moveToFacts = !!body && !hasOwnFacts;
-        // Written with an EMPTY body, so Anansi's first chapter-end update has the room it expects and
-        // nothing to overwrite. The card's own screen draws facts above Info for this reason already.
-        const id = db.upsertEntry(made.id, c.owner, moveToFacts ? { ...e, body: '' } : e);
-        const rooms = moveToFacts ? { ...(e.rooms ?? {}), facts: { body } } : e.rooms;
-        if (id && rooms) roomNotes.push(...writeRooms(made.id, id, e.entryType ?? 'character', rooms, e.title).notes);
-        // A ROOM MARKED `on` IS SWITCHED ON: the new tale's cast (POST /api/spark/cast) marks the
-        // pockets it wrote, because a pocket with no wake words that is off never reaches the model.
-        // A pasted or imported card's rooms stay as they came; the writer turns those on.
-        if (id && rooms) for (const a of db.addonsOf(made.id) as any[])
-          if (a.entry_id === id && !a.active && rooms[a.slot]?.on) db.setAddonActive(made.id, a.id, true);
-      }
+      roomNotes.push(...writeCast(made.id, c.owner, cast));
       // #84 · THE TALE'S OWN POCKETS from the wizard's preview (#75's `instruction` slot), switched on,
       // as the tale's own thread adds them one at a time. A blank one is not a pocket.
       for (const p of (Array.isArray(c.body.talePockets) ? c.body.talePockets : []).slice(0, 24) as any[]) {
@@ -2898,7 +3170,7 @@ export const routes: Record<string, Handler> = {
    *  wizard's preview. Writes nothing: the tale follows it only at Create. Their own Worlds only
    *  (`db.worldNamed`), so another writer's World of the same name is never found. No World of that
    *  name answers `world: null`, and the wizard keeps the name as the tale's World field alone.
-   *  #104 looks a NEW IP up from that null. */
+   *  #104: from that null the wizard looks the IP up (`POST /api/spark/world/cast`). */
   'POST /api/spark/world': (c: Ctx) => {
     const world = db.worldNamed(c.owner, String(c.body.name ?? ''));
     if (!world) return { world: null, people: [] };
@@ -4012,77 +4284,41 @@ export const routes: Record<string, Handler> = {
     // Eight is the ceiling the schema enforces too. More than that is a screen nobody reads, and
     // every extra name is a model call the writer has to decide about.
     const want = Math.max(1, Math.min(8, Number(c.body.n) || 6));
-
-    /* "wiki" ON THE END, and this is measured. A world's name IS a product's name, so searching it
-     * bare returns the shop. Same engine, six results each, 2026-09-03:
-     *
-     *   Sunless Sea, bare       store.steampowered.com, failbettergames.com, gog.com, youtube x2
-     *   Sunless Sea + wiki      sunlesssea.fandom x4, en.wikipedia
-     *   Warhammer 40,000, bare  warhammer.com, warhammer40000.com, AMAZON, facebook
-     *   Warhammer 40,000 + wiki warhammer40k.fandom, wh40k.lexicanum x2
-     *   Dune, bare              en.wikipedia x2, imdb, youtube, dunenovels, dunemovie
-     *   Dune + wiki             dune.fandom x4, en.wikipedia x2
-     *
-     * Without it the first list out of Sunless Sea named "Failbetter Games" — the studio — and
-     * "Victorian Gothic" as a rule. Garbage in: there was nothing else in a Steam page to list.
-     * "setting lore" was tried in the same sitting and is worse than "wiki" on all three.
-     *
-     * THE PER-CARD PULL DOES NOT DO THIS, deliberately: its subject is usually a thing INSIDE the
-     * world — Arrakis, Ferrus Manus — where bare already lands on the fandom wikis, and that was
-     * measured too. This call is the one whose subject is always the name on the box. */
-    let sources: { title: string; url: string; text: string }[] = [];
-    try { sources = await webSearch(`${world} wiki`, 8); }
-    catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
-    // A world with no wiki anywhere is still a world: falling back rather than failing, the same
-    // way the pull falls back off its world-scoped query.
-    if (!sources.length) {
-      try { sources = await webSearch(world, 8); }
-      catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
-    }
-    if (!sources.length) return { error: `nothing came back for ${JSON.stringify(world)}` };
-
-    const body = sources
-      .map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${String(x.text ?? '').slice(0, 1400)}`)
-      .join('\n\n');
-    const t0 = Date.now();
-    // `KINDS_ALL` is Object.keys(SLOTS) — the same list the cast call answers for, so a kind the
-    // pull could not honour cannot come back from here.
-    const r = await structuredRetry(WORLD_CAST(world, KINDS_ALL, want), body,
-      worldCastSchema(KINDS_ALL, want),
-      // Cold, like the pull: this is a reading of what the results name, not an invention.
-      { model: writerModel(c, v), temperature: 0.2, max_tokens: 700 });
-    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id,
-      model: writerModel(c, v), role: 'worldcast',
-      latencyMs: Date.now() - t0, error: r.error ?? null });
-    if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
-
+    const r = await castNames(world, writerModel(c, v), { kinds: KINDS_ALL, want, max_tokens: 700,
+      logged: (error, latencyMs) => db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id,
+        model: writerModel(c, v), role: 'worldcast', latencyMs, error }) });
+    if ('error' in r) return r;
     /* WHAT THE LEDGER ALREADY HOLDS IS MARKED, NOT DROPPED. A writer pulling from Warhammer for the
      * third time should see that Ferrus Manus is already written down rather than be quietly handed
      * a shorter list — the dedupe on the pull itself would refuse it later anyway, and a name that
      * silently vanished from a list reads as the model forgetting it. */
     const have = new Set((db.entriesOf(v.id) as any[])
       .map((e) => String(e.title ?? '').trim().toLowerCase()));
-    const seen = new Set<string>();
-    const found = ((r.data as any).found ?? [])
-      .map((x: any) => ({ name: String(x.name ?? '').trim(), kind: String(x.kind ?? '').trim() }))
-      .filter((x: any) => x.name && KINDS_ALL.includes(x.kind))
-      /* AND NEVER THE WORLD ITSELF. It came back as its own first row — "Warhammer 40,000 (lore)"
-       * inside a book set in Warhammer 40,000, measured 2026-09-03 — which is a card that says
-       * nothing and a model call to write it. The prompt says so now; this is certain where the
-       * prompt is likely, and the comparison has to be loose because "Warhammer 40k", "WH40K" and
-       * "Warhammer 40,000" are the same answer. */
-      .filter((x: any) => {
-        const tidy = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '');
-        return tidy(x.name) !== tidy(world) && !tidy(world).startsWith(tidy(x.name));
-      })
-      // The prompt forbids duplicates and this is the guard for when it does it anyway: two rows
-      // with one name would be two identical calls and one refused proposal.
-      .filter((x: any) => { const k = x.name.toLowerCase();
-                            if (seen.has(k)) return false; seen.add(k); return true; })
-      .map((x: any) => ({ ...x, already: have.has(x.name.toLowerCase()) }));
-    if (!found.length) return { error: `the results for ${JSON.stringify(world)} did not name anything usable` };
-    return { world, found, sources: sources.map((x) => x.url),
-             seconds: +((Date.now() - t0) / 1000).toFixed(1) };
+    const found = r.found.map((x) => ({ name: x.name, kind: x.kind, already: have.has(x.name.toLowerCase()) }));
+    return { world, found, sources: r.sources.map((x) => x.url), seconds: r.seconds };
+  },
+
+  /** #104 · A NEW TALE'S IP, LOOKED UP: the World cast's own lookup (`castNames`), for a World that
+   *  is not made yet, so it names no story and is open like the other Spark routes. Writes nothing;
+   *  the ticked names are written at Create (POST /api/stories, `newWorld`). About twelve people and
+   *  six places, one line each; `more` lists the names already shown and asks for others. With
+   *  search off, failing or finding nothing, the model names them from what it knows, and each is
+   *  marked `memory` for the list and the preview, never for the thread text. */
+  'POST /api/spark/world/cast': async (c: Ctx) => {
+    const world = String(c.body.world ?? '').trim().slice(0, 120);
+    if (!world) return { error: 'name the story or game first' };
+    const listed = [...new Set((Array.isArray(c.body.more) ? c.body.more : [])
+      .map((x: any) => String(x ?? '').trim()).filter(Boolean))].slice(0, 60) as string[];
+    const more = listed.length > 0;
+    const r = await castNames(world, writerModel(c, { story: null }), { kinds: IP_KINDS, want: more ? 9 : 18,
+      max_tokens: 1400, lines: true, fallback: true, skip: listed,
+      ask: more ? 'about six more people and three more places' : 'about twelve people and six places' });
+    if ('error' in r) return r;
+    const shown = new Set(listed.map((x) => x.toLowerCase()));
+    const found = r.found.filter((x) => !shown.has(x.name.toLowerCase()));
+    if (!found.length) return { error: more ? `nothing more came back for ${JSON.stringify(world)}`
+      : `the results for ${JSON.stringify(world)} did not name anything usable` };
+    return { world, found, memory: r.memory };
   },
 
   /* A CARD PULLED OFF THE WEB, IN ITS OWN CANON (2026-09-02).
@@ -4118,146 +4354,23 @@ export const routes: Record<string, Handler> = {
     if (!SLOTS[kind as keyof typeof SLOTS]) return { error: `there is nothing called a "${kind}"` };
     if (!searchConfigured()) return { error: 'web search is not configured on this server — set ANANSI_SEARCH' };
 
-    /* THE BARE SUBJECT, AND THAT IS A MEASUREMENT, not a default. Seth asked for the search to
-     * "look for things that can go in cards or rooms", so the first version appended the room names
-     * to the query — role, appearance, outfit, interiority, relationships, voice, history. Compared
-     * on 2026-09-02, same engine, eight results each:
-     *
-     *   Paul Atreides, bare        dune.fandom, en.wikipedia, dune.fandom  — the canon
-     *   Paul Atreides, + rooms     kajmeister.com, thefulcrum.ca, thefilmexperience.net, medium,
-     *                              wordpress, reactormag — blogs and film criticism, no wiki
-     *   Ferrus Manus, bare         warhammer40k.fandom, lexicanum, warhammer.com
-     *   Ferrus Manus, + rooms      fanfiction.net, allthetropes, sufficientvelocity forums
-     *
-     * The room words turn a name into an essay query, and the pull came back talking about "an
-     * impossible role in every adaptation" and "belabored voice-over narration" — which was in the
-     * SOURCES it was given, faithfully. So the room material is asked for in the PROMPT, where it
-     * belongs, and the query stays the thing the writer typed. A wiki article about a primarch
-     * already contains his appearance, his history and his brothers.
-     *
-     * EIGHT RESULTS, where the other callers take five: this is the only evidence in the call, and
-     * the answer has rooms to fill as well as a body. */
-    /* THE BOOK'S WORLD NARROWS THE QUERY, and this one IS measured — unlike the room names above,
-     * which broadened it into essays. Same engine, six results each, 2026-09-02:
-     *
-     *   Medusa, bare              wikipedia, reddit, vanderbilt.edu, britannica, metmuseum,
-     *                             greekmythology.com — the Gorgon, entirely wrong for a 40k book
-     *   Medusa + Warhammer 40,000 warhammer40k.fandom x2, wh40k.lexicanum x2 — the Iron Hands
-     *                             homeworld, which is what a writer in that world meant
-     *   Arrakis, bare             wikipedia, dune.fandom x2, and arrakistechnologies.ai
-     *   Arrakis + Dune            the junk drops off
-     *   the Unterzee              unambiguous either way
-     *
-     * A world name says WHICH domain; a room name says what kind of essay. That is the difference,
-     * and it is why one is in the query and the other is in the prompt.
-     *
-     * THE SUBJECT STILL COMES FIRST so a `site:` prefix keeps working — webSearch reads one off the
-     * front — and so the engine still ranks on the name. */
-    const rooms = slotsFor(kind).map((sl) => sl.name);
-    const world = String((v.story as any).world ?? '').trim();
-    const q = narrowed(subject, world);
-    let sources: { title: string; url: string; text: string }[] = [];
-    try { sources = await webSearch(q, 8); }
-    catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
-    // AND THE BARE NAME IF THAT FOUND NOTHING. A world that narrows to zero results is a book
-    // whose world field is a phrase the engine has never seen, and a pull that fails for that
-    // reason would look like the feature being broken.
-    if (!sources.length && q !== subject) {
-      try { sources = await webSearch(subject, 8); }
-      catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
-    }
-    if (!sources.length) return { error: `nothing came back for ${JSON.stringify(subject)}` };
-
-    const body = sources
-      .map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${String(x.text ?? '').slice(0, 1400)}`)
-      .join('\n\n');
-    const t0 = Date.now();
-    const r = await structuredRetry(FROM_WEB(kind, subject, rooms), body, fromWebSchema(kind, rooms),
-      // COLD, at 0.2. Every other creative call in this app runs hot because invention is the
-      // point; this one is transcription and a warm model is a model that embroiders.
-      { model: writerModel(c, v), temperature: 0.2, max_tokens: INVENT_TOKENS });
-    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id,
-      model: writerModel(c, v), role: `fromweb:${kind}`,
-      latencyMs: Date.now() - t0, error: r.error ?? null });
-    if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
-
-    /* AN EMPTY TITLE IS A REAL ANSWER, and the prompt asks for one when the results are about
-     * something else or say too little. Reporting it as itself beats writing a card nobody can
-     * trust — this is the one route where "I could not" is the useful outcome.
-     *
-     * ponytail: MEASURED AND IT DOES NOT HOLD. Asked for "purple teacup monday regulations" on
-     * 2026-09-02, the model wrote a card rather than an empty title — a faithful one, describing a
-     * blog party it had actually found, so the grounding held and only the refusal failed. Qwen3.6
-     * would rather describe than decline. The ceiling is therefore: this route can propose a card
-     * about the WRONG SUBJECT, never an invented one.
-     *
-     * LEFT AS IT IS ON PURPOSE. Everything here lands in the proposals queue, so the cost of that
-     * miss is one Ignore and nothing reaches canon; the fix would be a second call asking "do these
-     * results describe a <kind> called X" before the first, which doubles the cost of every pull to
-     * catch a case the queue already absorbs. Worth building when a wrong-subject card gets
-     * accepted by accident, and not before. */
-    const title = String(r.data.title ?? '').trim();
-    if (!title) {
-      return { error: `the results for ${JSON.stringify(subject)} did not say enough to make a thread`,
-               sources: sources.map((x) => x.url) };
-    }
-    const cls = classify(db.entriesOf(v.id), r.data);
-    if (!cls) return { error: `the threads already say exactly that about ${title}` };
+    const p = await pullThread(writerModel(c, v), subject, kind, String((v.story as any).world ?? '').trim(), {
+      logged: (error, latencyMs) => db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id,
+        model: writerModel(c, v), role: `fromweb:${kind}`, latencyMs, error }) });
+    if ('error' in p) return p;
+    const cls = classify(db.entriesOf(v.id), p.data);
+    if (!cls) return { error: `the threads already say exactly that about ${p.title}` };
     /* THE ROOMS RIDE WITH THE CARD, and are written when it is accepted rather than now. A room
      * belongs to an entry and this entry does not exist yet, so they cannot be proposed
      * separately — accepting a room proposal needs a card to hang it on. Kept on the row as JSON
      * and spent in one press, which is also what Seth asked for: "I would be able to choose what
-     * and when it gets pulled" is one decision about a whole subject, not nine.
-     * EMPTY ROOMS ARE DROPPED HERE. The model is asked to return every room as a key so it can
-     * say "the results do not cover this" out loud; an empty one has nothing to write. */
-    /* AND "Information insufficient" IS AN EMPTY ROOM. The prompt asks for an empty string where
-     * the results say nothing, and on 2026-09-02 the model wrote the words instead — twice in one
-     * answer, for outfit and voice. Left alone that becomes a room on the card reading "Information
-     * insufficient", which then reaches the model on every call that card is sent. So the shapes it
-     * reaches for are treated as the empty string they were meant to be, and anything under fifteen
-     * characters goes with them: no room worth sending is shorter than that. */
-    /* A ROOM THAT ANNOUNCES AN ABSENCE IS AN EMPTY ROOM. The prompt asks for an empty string where
-     * the results say nothing, and the model keeps finding new ways to write the sentence instead:
-     * "Information insufficient" (twice in one answer), then "No specific clothing described". So
-     * this is a SHAPE and not a list of phrasings — a negation within a few words of a verb about
-     * describing or providing — because the list was losing to it one wording at a time.
-     * Two rooms of a Paul Atreides pull were caught by this on 2026-09-02, and neither belonged on
-     * a card: a room reaches the model on every call that card is sent. */
-    const EMPTY = /\b(no|not|none|nothing|never|insufficient|lacking|absent|un(specified|described|available|known))\b[^.]{0,44}\b(describ|specif|mention|given|stated|provided|listed|available|information|detail)|\b(information|detail)s?\b[^.]{0,20}\b(insufficient|lacking|absent|unavailable)/i;
-    /* A ROOM THAT TALKS ABOUT THE SEARCH IS NOT A ROOM. Measured 2026-09-02: Paul's appearance came
-     * back as "Height is listed in the 2021 film wiki entry but no specific measurement is provided
-     * in the results" — the model narrating its own evidence. A room is read by a model writing a
-     * scene, which has never seen these pages, so a sentence about them is worse than nothing: it
-     * would reach every call that card is sent on. The prompt says so too; this is the guard for
-     * when it does it anyway, which is the same shape as the empty-title ceiling above. */
-    const ABOUT_SOURCES = /(in the results|from the results|the (search )?results (do|say|list|provide)|no specific [^.]*provided|not (provided|listed|specified|stated) in|wiki entry|the sources)/i;
-    const filled = Object.fromEntries(Object.entries((r.data as any).rooms ?? {})
-      .filter(([, t]) => {
-        const v = String(t ?? '').trim();
-        /* THE REVERSE ORDER IS NOT TESTED, deliberately. A pattern for "describes no armour" —
-         * a describing verb followed by a negation — ate "Speaks in a low, gravelly register and
-         * states nothing he cannot prove", which is a voice room this writer would actually write;
-         * his own cards are full of "has never spliced a memory she was asked to remove".
-         * The trade is one-sided: a missed absence is one room he deletes in a press, and a
-         * swallowed real room is a fact that vanishes without saying so. So this errs toward
-         * keeping, which is why the checks above are shapes of ANNOUNCEMENT rather than of
-         * negation. */
-        return v.length >= 15 && !EMPTY.test(v) && !ABOUT_SOURCES.test(v);
-      }));
-    /* BRACKET FORM, WRAPPED HERE IF THE MODEL DID NOT. Every card in this app carries it and the
-     * context window renders it; the paste route has wrapped a bare body since #29 for exactly this
-     * reason, and this route needed the same. Measured 2026-09-02: told to write a WORLD rather than
-     * a product, the model followed the prose example in that instruction and dropped the brackets
-     * with it — a formatting miss, not a bad card, and the same repair applies. */
-    let cardBody = String(r.data.body ?? '').trim();
-    if (cardBody && !cardBody.startsWith('[')) cardBody = `[${title}: ${cardBody}]`;
+     * and when it gets pulled" is one decision about a whole subject, not nine. */
     const ok = db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id,
-      title, body: cardBody, entryType: kind,
-      keys: r.data.keys ?? [], source: sources.map((x) => x.url),
-      rooms: Object.keys(filled).length ? filled : null });
-    return { ...viewOf(c, v.id), proposed: ok ? 1 : 0, title, duplicate: !ok,
-             sources: sources.map((x) => x.url), rooms: Object.keys(filled),
-             seconds: +((Date.now() - t0) / 1000).toFixed(1) };
+      title: p.title, body: p.body, entryType: kind,
+      keys: p.keys, source: p.sources.map((x) => x.url),
+      rooms: Object.keys(p.rooms).length ? p.rooms : null });
+    return { ...viewOf(c, v.id), proposed: ok ? 1 : 0, title: p.title, duplicate: !ok,
+             sources: p.sources.map((x) => x.url), rooms: Object.keys(p.rooms), seconds: p.seconds };
   },
 
   'POST /api/thread/paste': (c: Ctx) => {
