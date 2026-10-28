@@ -4116,4 +4116,39 @@ ok('the update strips old wrappers off where a thread stands once, after a backu
   db.delStory(t.id);
 });
 
+// #125 · ADR 0010. THE TALE'S THREAD, made the way New tale makes a thread (#117): Always true is
+// what the tale is (the setting), its Over time opens with where it stands as the tale opens (the
+// premise), and each hem's entry is an ordinary Over time entry on it. Made when first needed.
+ok('the tale has one thread of its own, made from its premise and setting, and not a card', () => {
+  const t = db.createStory(o, { title: 'Tale thread', premise: 'Ilse poles the ferry at dusk.', setting: 'A drowned valley.' });
+  assert.strictEqual(db.taleThreadOf(t.id), null, 'TALE-LAZY: a tale has none until it is needed');
+  const id = db.taleThread(t.id);
+  assert.ok(id, 'TALE-MADE: asking for it makes it');
+  assert.strictEqual(db.taleThread(t.id), id, 'TALE-ONE: and asking again finds the same one');
+  const e = db.taleThreadOf(t.id);
+  assert.strictEqual(e.entry_type, 'tale', 'TALE-KIND: of its own kind');
+  assert.strictEqual(e.body, 'Ilse poles the ferry at dusk.', 'TALE-BEGAN: its first Over time entry is the premise');
+  const facts = (db.addonsOf(t.id) as any[]).find((a) => a.entry_id === id && a.slot === 'facts');
+  assert.strictEqual(facts?.body, 'A drowned valley.', 'TALE-ALWAYS: its Always true is the setting');
+  assert.ok(!db.entriesOf(t.id).some((x: any) => x.id === id), 'TALE-NOT-A-CARD: it is not among the threads');
+
+  // A premise or setting saved in Tale settings is saved on the thread too, through the same floor,
+  // so the old text is kept in its history.
+  db.updateStory(t.id, { premise: 'Ilse poles the ferry at dawn.', setting: 'A flooded valley.' });
+  assert.strictEqual(db.taleThreadOf(t.id).body, 'Ilse poles the ferry at dawn.', 'TALE-SYNC: the premise follows Tale settings');
+  assert.strictEqual((db.addonsOf(t.id) as any[]).find((a) => a.entry_id === id && a.slot === 'facts')?.body,
+    'A flooded valley.', 'TALE-SYNC-ALWAYS: and so does the setting');
+  assert.ok(db.entryHistory(t.id, id).some((r: any) => r.field === 'body' && r.previous_value === 'Ilse poles the ferry at dusk.'),
+    'TALE-HISTORY: the premise it replaced is kept');
+
+  // A copy of the tale keeps where it stands.
+  db.upsertState(t.id, id, { fromChapter: 2, body: 'Ilse has lost the ferry.', label: 'the ferry lost' });
+  const copy = db.duplicateStory(o, t.id, 'Tale thread, again')!;
+  const there = db.taleThreadOf(copy.id);
+  assert.ok(there && there.id !== id, 'TALE-COPY: a copied tale has a tale thread of its own');
+  assert.deepStrictEqual((db.statesForStory(copy.id).get(there.id) ?? []).map((x: any) => x.body), ['Ilse has lost the ferry.'],
+    'TALE-COPY-OVER-TIME: with its Over time');
+  db.delStory(copy.id); db.delStory(t.id);
+});
+
 console.log(`\n${n} checks passed`);

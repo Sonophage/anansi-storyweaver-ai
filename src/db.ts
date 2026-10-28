@@ -1562,8 +1562,13 @@ export const passagesOf = (id: string) => q(
  *  is why this is a shared fragment and not a condition written out four times: the fifth reader is
  *  the one nobody remembers.
  *
- *  Prefix it with the alias when the query has one — `LIVE('e.')`. */
-const LIVE = (a = '') => `(${a}sync IS NULL OR ${a}sync != 'dropped')`;
+ *  Prefix it with the alias when the query has one — `LIVE('e.')`.
+ *
+ *  #125 · NOR IS THE TALE'S OWN THREAD (`taleThread`). It is a thread, with an Always true and an
+ *  Over time like any other, but it reaches the model in SPINE in the premise's place, never as a
+ *  thread of the tale's cast, and it is not listed, searched, counted or copied with the threads.
+ *  Its one reader is `taleThreadOf`. */
+const LIVE = (a = '') => `((${a}sync IS NULL OR ${a}sync != 'dropped') AND ${a}entry_type IS NOT 'tale')`;
 
 /** Cards this book OWNS. Read by DELETE, copy, export and the ownership checks — see `entriesFor`
  *  for why that matters.
@@ -1575,6 +1580,29 @@ const LIVE = (a = '') => `(${a}sync IS NULL OR ${a}sync != 'dropped')`;
  *  them. */
 export const entriesOf = (id: string) => q(
   `SELECT * FROM entries WHERE story_id = ? AND ${LIVE()} ORDER BY rowid`).all(id) as any[];
+
+/** #125 · ADR 0010. THE TALE'S THREAD: one per tale, of its own kind, `tale`. Made the way New tale
+ *  makes a thread (#117): its Always true is what the tale is (the setting), its own text is where
+ *  the tale stands as it opens (the premise), and every later entry is an ordinary Over time entry
+ *  (`entry_states`), chalked at a hem and sewn in like any thread's. Null until it is first needed. */
+export const taleThreadOf = (storyId: string) => q(
+  "SELECT * FROM entries WHERE story_id = ? AND entry_type = 'tale' ORDER BY rowid LIMIT 1").get(storyId) as any ?? null;
+/** The tale's thread, made from the premise and the setting the first time it is needed (a hem's
+ *  where-the-tale-stands pass). An existing tale changes nothing by having one: at scene 1 it reads
+ *  the premise, as the tale did before. Through `upsertEntry` and `upsertAddon`, the floors every
+ *  thread crosses.
+ *  ponytail: made lazily, not at New tale or in a migration. Trigger: a reader that needs the thread
+ *  before any hem; then make it in `createStory`, and in `migrate()` after a backup for old tales. */
+export function taleThread(storyId: string): string | null {
+  const have = taleThreadOf(storyId);
+  if (have) return have.id;
+  const st = getStory(storyId);
+  if (!st) return null;
+  const id = upsertEntry(storyId, st.owner_id, { title: 'The tale', body: String(st.premise ?? ''),
+    entryType: 'tale', activation: 'always_on', keys: [], lastEditor: 'human' });
+  if (id && String(st.setting ?? '').trim()) upsertAddon(storyId, id, { slot: 'facts', name: 'facts', body: String(st.setting) });
+  return id;
+}
 
 /** #36. The origins this book has taken over or thrown out: any local row that CLAIMS a followed
  *  card, whether it is a copy of it or a tombstone against it. `entriesFor` uses this to stop the
@@ -3207,6 +3235,15 @@ export function updateStory(id: string, s: any) {
   if (cur.is_world && s.title !== undefined && s.title !== cur.title)
     for (const f of q('SELECT * FROM stories WHERE lore_from = ?').all(id) as any[])
       q('UPDATE stories SET world = ? WHERE id = ?').run(followPair(f, f.lore_from, f.world).world, f.id);
+  // #125 · THE TALE'S THREAD HOLDS THE PREMISE AND THE SETTING TOO, once it exists: saved here, the one
+  // save Tale settings, Talk and the importers cross, through the thread's own floors, so the text it
+  // replaces is kept in the thread's history and the two never disagree.
+  const tale = taleThreadOf(id);
+  if (tale && s.premise !== undefined && String(s.premise ?? '') !== String(cur.premise ?? ''))
+    upsertEntry(id, cur.owner_id, { id: tale.id, title: tale.title, body: String(s.premise ?? ''),
+      entryType: 'tale', activation: tale.activation, keys: [], lastEditor: 'human' });
+  if (tale && s.setting !== undefined && String(s.setting ?? '') !== String(cur.setting ?? ''))
+    upsertAddon(id, tale.id, { slot: 'facts', name: 'facts', body: String(s.setting ?? '') });
 }
 /** Partial save. `undefined` means "leave it", which `updateStory` above has done since it was
  *  written and this did not: it wrote `c.keepWhole ? 1 : 0` unconditionally, and both callers send
@@ -3672,6 +3709,10 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
 
   const ledger = copyLedger(storyId, made.id, ownerId);
   const cards = ledger?.map ?? new Map<string, string>();
+  // #125 · THE TALE'S THREAD, which `copyLedger` does not see (it is not a card): the copy is the same
+  // tale, so it keeps where it stands. In `cards`, so its Over time is copied with the threads' below.
+  const tale = taleThreadOf(storyId), taleTo = tale ? copyEntry(storyId, made.id, ownerId, tale.id) : null;
+  if (tale && taleTo) cards.set(tale.id, taleTo);
 
   const t = now();
   const branchMap = new Map<string, string>();
