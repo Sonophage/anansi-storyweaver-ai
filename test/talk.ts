@@ -1337,9 +1337,11 @@ ok('emptying the box gives her back the voice she shipped with');
 // link in its notes, which never reach a model, and never in its text.
 {
   const searched: string[] = [];
+  let webDown = false;   // the search server answers 500, as a SearXNG with no engines up does
   const web = createServer((req, res) => {
     const q = new URL(String(req.url), 'http://x').searchParams.get('q') ?? '';
     searched.push(q);
+    if (webDown) { res.writeHead(500); res.end(); return; }
     const slug = q.toLowerCase().replace(/[^a-z]+/g, '-');
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ results: [1, 2].map((i) => ({ title: `${q} page ${i}`,
@@ -1400,6 +1402,17 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(searched.length, 0, 'SEARCH-UNSET: and no search');
   assert.strictEqual(unset.searchable, false, 'SEARCH-UNSET: and the answer says search is not set up');
   ok('with the switch off, or search not set up, no query call and no search is made');
+
+  // A search that fails is a question answered without the web, as a failed query call is.
+  webDown = true;
+  const broke = await say('SEARCH-WHO: who is the ferryman in the old stories?', true);
+  webDown = false;
+  assert.ok(!broke.error, `SEARCH-FAILED: a failed search is an answer without the web, not an error (${broke.error})`);
+  assert.strictEqual(searched.length, 1, 'SEARCH-FAILED: the search was tried');
+  assert.ok(broke.reply.startsWith(LONG), 'SEARCH-FAILED: Anansi still answers');
+  assert.match(broke.reply, /search failed/i, `SEARCH-FAILED: and the reply says the search failed:\n${broke.reply.slice(-200)}`);
+  assert.deepStrictEqual(broke.sources, [], 'SEARCH-FAILED: and lists no page');
+  ok('a search that fails is answered without the web, and the reply says the search failed');
 
   // A thread made, and a thread changed, from a page: the link in the notes, never in the text.
   const fw = await say('SEARCH-WHO CHANGE-FROMWEB: add the ferryman, and Talia paid him twice', true);
@@ -1523,9 +1536,11 @@ ok('emptying the box gives her back the voice she shipped with');
 
   // Search, as in a tale: Anansi's own queries, the pages listed, a link in the notes, not the text.
   const searched: string[] = [];
+  let webDown = false;
   const web = createServer((req, res) => {
     const q = new URL(String(req.url), 'http://x').searchParams.get('q') ?? '';
     searched.push(q);
+    if (webDown) { res.writeHead(500); res.end(); return; }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ results: [{ title: `${q} page`, url: 'https://myth.example/charon/1', content: `About ${q}.` }] }));
   });
@@ -1544,6 +1559,11 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.doesNotMatch(String(charon?.body), /https?:/, 'SETUP-LINK-NOT-TEXT: no link in the thread\'s text');
     assert.match(String(charon?.notes), /https:\/\/myth\.example\/charon\/1/, 'SETUP-LINK-NOTES: the link is in its notes');
     assert.deepStrictEqual(rows(), before, 'SETUP-WRITES-NOTHING: searching writes nothing either');
+    webDown = true;
+    const broke = await setup('SEARCH-WHO: who ferries the dead?', { search: true });
+    webDown = false;
+    assert.ok(!broke.error, `SETUP-SEARCH-FAILED: a failed search is an answer without the web (${broke.error})`);
+    assert.match(String(broke.reply), /search failed/i, 'SETUP-SEARCH-FAILED: and the reply says the search failed');
   } finally { delete process.env.ANANSI_SEARCH; web.close(); }
   ok('setup Talk searches only when allowed, lists the page, and keeps its link in the notes');
 }

@@ -784,7 +784,7 @@ const narrowed = (subject: string, world: string) =>
  *  the query call where the caller keeps such things: a tale logs it, the setup route writes nothing. */
 type Source = { title: string; url: string; text: string };
 async function talkSearch(about: string, world: string, turns: string, said: string, using: string,
-                          logged: (error: string | null) => void): Promise<{ sources: Source[] } | { error: string }> {
+                          logged: (error: string | null) => void): Promise<{ sources: Source[]; failed: string | null }> {
   const q = await structured(TALK_QUERIES, [
     about,
     turns && `Earlier in this conversation:\n${turns.split('\n').slice(-2).join('\n')}`,
@@ -795,16 +795,29 @@ async function talkSearch(about: string, world: string, turns: string, said: str
   // A query call that failed is a question answered without the web, not a question refused.
   const queries = [...new Set(((q.data as any)?.queries ?? []).map((x: any) => String(x ?? '').trim())
     .filter(Boolean))].slice(0, 3) as string[];
+  // A SEARCH THAT FAILS is the same: the answer goes ahead with what the other searches found, and
+  // `failed` says why, for the reply to tell the writer. It used to refuse the whole answer, which
+  // turned a search server with no engines up into a Talk that could not answer anything.
   const sources: Source[] = [];
+  let failed: string | null = null;
   for (const subject of queries) {
     // ponytail: three results a query, so three queries read nine pages at most where one search
     // read five. Ceiling: a subject whose answer is on its fourth page. Raise it if Talk is seen
     // to miss what a wiki plainly has.
     try { sources.push(...await webSearch(narrowed(subject.slice(0, 200), world), 3)); }
-    catch (e: any) { return { error: `search failed: ${e?.message ?? e}` }; }
+    catch (e: any) { failed ??= String(e?.message ?? e); }
   }
-  return { sources: sources.filter((x, i) => sources.findIndex((y) => y.url === x.url) === i) };
+  return { sources: sources.filter((x, i) => sources.findIndex((y) => y.url === x.url) === i), failed };
 }
+
+/** WHAT TALK SAYS BACK, for a tale and for setup alike: Anansi's reply, then one line for each
+ *  change that was not done (the model may have said it did it, and the writer must not be left
+ *  believing that), then a line when a web search failed, so an answer without the web is not
+ *  mistaken for one that looked and found nothing. */
+const talkReply = (reply: unknown, notDone: { said: string; why: string }[], searchFailed: string | null) =>
+  [String(reply ?? '').trim(), notDone.map((x) => `Not done. ${x.said}: ${x.why}.`).join('\n'),
+   searchFailed ? `The web search failed (${searchFailed}), so this answer does not use the web.` : '']
+    .filter(Boolean).join('\n\n');
 
 /** #98 · THE TALE A CHANGE IS CHECKED AGAINST, read through the gate as it stands now: its threads,
  *  its premise and setting, its scenes, and the scene the writer is in. */
@@ -2743,11 +2756,12 @@ export const routes: Record<string, Handler> = {
     // #99's search, with the writer's permission and only when it is set up. The draft has no world
     // yet (naming one is #85's step), so a query is not narrowed by one.
     let sources: Source[] = [];
+    let searchFailed: string | null = null;
     if (c.body.search && searchConfigured()) {
       const found = await talkSearch(`The tale: ${String(st.title ?? '').trim() || 'not named yet'}.`, '',
         turns, said, using, () => {});
-      if ('error' in found) return found;
       sources = found.sources;
+      searchFailed = found.failed;
     }
 
     const clip = (x: unknown, n: number) => String(x ?? '').trim().slice(0, n);
@@ -2806,8 +2820,7 @@ export const routes: Record<string, Handler> = {
         && !have.has(String(e.title).trim().toLowerCase()))
       .map((e) => sparkThread(e.title, e.type, e.body, []));
     outsideOnly(entries, you.held);
-    const answer = String(r.data.reply ?? '') + (notDone.length ? `\n\n${notDone
-      .map((x) => `Not done. ${x.said}: ${x.why}.`).join('\n')}` : '');
+    const answer = talkReply(r.data.reply, notDone, searchFailed);
     return { reply: answer.trim(), changes, notDone, entries,
              sources: sources.map((x) => ({ title: x.title, url: x.url })),
              seconds: +((Date.now() - t0) / 1000).toFixed(1), searchable: searchConfigured() };
@@ -3557,13 +3570,14 @@ export const routes: Record<string, Handler> = {
     // either, no call is made and nothing leaves the machine. What comes back is a stranger's
     // text: it is framed as source material, never as instruction, and each result keeps its URL.
     let sources: Source[] = [];
+    let searchFailed: string | null = null;
     if (c.body.search && searchConfigured()) {
       const world = String((v.story as any).world ?? '').trim();
       const found = await talkSearch(`The tale: ${v.story.title}${world ? `, set in ${world}` : ''}.`, world,
         turns, said, writerModel(c, v), (error) => db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id,
           model: writerModel(c, v), role: 'talk-search', params: { max_tokens: 200 }, error }));
-      if ('error' in found) return found;
       sources = found.sources;
+      searchFailed = found.failed;
     }
 
     // WHAT THE WRITER POINTED AT. `@` in the ask box inserts a name; this is the thing behind it.
@@ -3726,8 +3740,7 @@ export const routes: Record<string, Handler> = {
       const undo = undoFor(k.change, made);
       changes.push({ words: wordsFor(k.change), undo: noted.length && undo ? { ...undo, noted } : undo });
     }
-    const answer = String(r.data.reply ?? '') + (notDone.length ? `\n\n${notDone
-      .map((x) => `Not done. ${x.said}: ${x.why}.`).join('\n')}` : '');
+    const answer = talkReply(r.data.reply, notDone, searchFailed);
 
     return { reply: answer.trim(), directive: r.data.directive || null, changes, notDone,
              proposed, sources: sources.map((x) => ({ title: x.title, url: x.url })),

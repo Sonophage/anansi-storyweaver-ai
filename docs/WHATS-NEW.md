@@ -59,7 +59,8 @@ Every page he read is listed under his answer, with its link. When he makes or c
 from a page, that page's link goes in the thread's notes, which only you see. It never goes in
 the thread itself, so it never reaches the model. Undo takes the link out of the notes again.
 
-If web search is not set up where Anansi runs, the switch says so.
+If web search is not set up where Anansi runs, the switch says so. If a search fails, Anansi still answers,
+without the web, and says the search failed.
 
 ### Talk while you set up a new tale
 Every step of a new tale now has a **Talk** button. It opens the same Talk window your tales have,
