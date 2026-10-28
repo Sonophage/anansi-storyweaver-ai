@@ -4662,10 +4662,13 @@ const PANELS = {
                   .filter((s) => /^https?:\/\//i.test(s.url ?? ''))
                   .map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noreferrer"
                     style="color:var(--mute)">${esc(s.title || s.url)}</a>`).join('')}</div>` : ''}
-              ${(turn.changes ?? []).map((ch, j) => `<div class="line-2" style="align-items:center; gap:8px">
+              ${/* #122 · UNDER EACH LINE AND ITS UNDO, what it changed, word by word (`diff` is the text
+                   before and after; none for a change that rewrote no text). */
+                (turn.changes ?? []).map((ch, j) => `<div class="line-2" style="align-items:center; gap:8px">
                 <span style="font-size:12.5px; line-height:1.45; color:var(--ink-bright); flex:1">${esc(ch.words)}</span>
                 ${ch.undone ? '<span class="caption">Undone</span>' : ch.refused || !ch.undo ? ''
-                  : `<button class="tag" data-talkundo="${i}:${j}" style="cursor:pointer">Undo</button>`}</div>`).join('')}
+                  : `<button class="tag" data-talkundo="${i}:${j}" style="cursor:pointer">Undo</button>`}</div>${
+                  ch.diff && !ch.refused ? diffHTML(ch.diff.before, ch.diff.after) : ''}`).join('')}
               ${/* #100 · WHAT HE OFFERED during setup, each with Add: one press puts it in the draft,
                    and it then has a line and an Undo like any change. */
                 (turn.offers ?? []).map((o, j) => `<div class="line-2" style="align-items:flex-start; gap:8px">
@@ -5313,6 +5316,12 @@ function applyDraft(ch) {
   return { op: ch.op, title: ch.title, prev, after: JSON.stringify([e.body, e.rooms ?? null]) };
 }
 
+/** #122 · What a draft change rewrote, before and after, for its line's diff: the tale's field, or
+ *  the thread's Always true or pocket, as the server checked them (`checkDraft` sends `before`). Null
+ *  for a thread made or taken away, which rewrote no text. */
+const draftDiff = (ch) => ch.op === 'tale.set' || ch.op === 'thread.set'
+  ? { before: ch.before ?? '', after: ch.text ?? '' } : null;
+
 /** Put one applied change back, or say why not: only while what it made is still as it made it,
  *  so an Undo never takes away what the writer did since. */
 function undoDraft(u) {
@@ -5363,7 +5372,7 @@ async function talkSetup(said) {
     const why = typedHere(x.change, said);
     if (why) return { words: `Not done. ${why}`, refused: true };
     const undo = applyDraft(x.change);
-    return undo ? { words: x.words, undo }
+    return undo ? { words: x.words, undo, diff: draftDiff(x.change) }
       : { words: `Not done. ${x.words} The draft changed while he answered.`, refused: true };
   });
   t.turns = [...t.turns, { you: false, text: r.reply || '(nothing came back)', sources: r.sources ?? [],

@@ -2917,7 +2917,8 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
     click({ panel: 'anansi' });
     await new Promise((r) => setTimeout(r, 30));
     stubTalk = { reply: 'Done: he is thirty now.', seconds: 1, tokens: 10,
-      changes: [{ words: "Changed Marek's Always true: “Marek is thirty.”", undo: UNDO }] };
+      changes: [{ words: "Changed Marek's Always true: “Marek is thirty.”", undo: UNDO,
+        diff: { before: 'Marek is twenty.', after: 'Marek is thirty.' } }] };
     POSTED.length = 0;
     (document as any).getElementById('askBox').value = 'Make Marek thirty';
     click({ ask: '1' });
@@ -2928,6 +2929,11 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
     const btn = side.match(/<button[^>]*data-talkundo="([^"]+)"[^>]*>([^<]*)</);
     assert.ok(btn, 'TALK-CHANGE-UNDO: with an Undo beside it');
     assert.match(btn![2], /Undo/, 'TALK-CHANGE-UNDO: labelled Undo');
+    // #122 · UNDER THE LINE AND ITS UNDO, what changed, word by word, drawn by the one renderer.
+    const { diffHTML: talkDiff } = await import('../web/model.js');
+    const drawn = talkDiff('Marek is twenty.', 'Marek is thirty.');
+    assert.ok(side.includes(drawn) && side.indexOf(drawn) > side.indexOf('data-talkundo='),
+      'TALK-CHANGE-DIFF: the line shows the old text against the new under its Undo');
 
     // A refused Undo says why, and the line keeps its Undo.
     stubUndo = { error: 'Not undone: Marek has changed since Talk made it.' };
@@ -3688,6 +3694,11 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
     const side = html('sideBody');
     assert.match(side, /Changed the premise/, 'SETUP-TALK-LINES: each change is a line in the conversation');
     assert.match(side, /data-talkundo="1:0"/, 'SETUP-TALK-LINES: with its Undo');
+    // #122 · the premise line shows the premise before against the premise now; the new thread
+    // replaced nothing, so the conversation holds that one diff and no other.
+    const { diffHTML: setupDiff } = await import('../web/model.js');
+    assert.ok(side.includes(setupDiff(ORIGINAL, DARKER)), 'SETUP-TALK-DIFF: the premise line is a diff of the premise');
+    assert.strictEqual([...side.matchAll(/class="diff"/g)].length, 1, 'SETUP-TALK-DIFF: and the new thread has none');
     const add = side.match(/data-talkadd="([^"]+)"/);
     assert.ok(add, `SETUP-TALK-ADD: the offer has an Add press:\n${side.slice(0, 900)}`);
     assert.match(side, /House Marren/, 'SETUP-TALK-ADD: naming what is offered');
@@ -3767,6 +3778,9 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
     ].map((k: any) => { assert.ok(k.ok, `ONE-MAPPING: the server takes it (${k.why})`); return k.change; });
     stubSparkTalk = { reply: 'Done.', seconds: 1, changes: checked.map((change: any) => ({ words: 'Changed.', change })) };
     await ask('Change the Ferryman and the voice');
+    // #122 · the Always true line reads the old Always true against the new, as the server checked them.
+    assert.ok(html('sideBody').includes(setupDiff(checked[0].before ?? '', 'rows twice for a liar.')),
+      'SETUP-TALK-DIFF: a thread change\'s line is a diff of the text the server checked');
     stubSparkTalk = { reply: 'Yes.', seconds: 1 };
     const mapped = (await ask('And?')).body.draft;
     const ferry = mapped.entries.find((e: any) => e.title === 'The Ferryman');
