@@ -32,6 +32,10 @@ The main menu has the same shape: the model at the top, your tales down the left
 and the menu as tiles beside them. The Workbench has its own icon, a bench, instead of sharing the
 threads' rings.
 
+A tale with a picture shows it behind its row in the main menu, and behind each of its scenes in
+the tale's menu, under a dark wash and fainter the further down the list it is. The search bar sits
+at the foot of the tale menu's two right-hand columns.
+
 ## 2026-10-27 · Steer the next scene, and ask for something else
 
 ### A direction for Anansi, and Something else

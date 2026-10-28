@@ -3685,8 +3685,10 @@ ok('This scene takes a direction and asks for something else');
     ['story', 'teller', 'chapter', 'chapters', 'threads', 'waiting'],
     'TALE3-TILES: Tale and Storyteller first, then This scene and Scenes, then the rest');
   assert.match(tiles, /class="field railsearch" data-railsearch="1"/, 'TALE3-SEARCH: search is a bar across both columns, not a tile');
-  assert.ok(tiles.indexOf('data-railsearch') > tiles.indexOf('data-nav="chapters"') && tiles.indexOf('data-railsearch') < tiles.indexOf('data-nav="threads"'),
-    '  where its tile was');
+  assert.ok(tiles.indexOf('data-railsearch') > tiles.indexOf('data-nav="waiting"'), '  at the foot, below every tile');
+  // EACH SCENE ROW WEARS THE TALE'S PICTURE, fainter down the list (2026-10-28), when the tale has one.
+  const fades = [...rail.matchAll(/class="rowart"[^>]*opacity:([\d.]+)/g)].map((m) => Number(m[1]));
+  assert.ok(fades.length >= 2 && fades.every((o, k) => k === 0 || o <= fades[k - 1]), `TALE3-ART: the scenes wear the cover, fading down (${fades})`);
   assert.doesNotMatch(rail, /<span class="serif txt"[^>]*>Anansi<\/span>/, 'TALE3-NOLOGO: no Anansi wordmark in the tale menu');
   assert.match(rail, /<div class="talemodel">[\s\S]*data-modelmenu[\s\S]*class="railclose"/, 'TALE3-CLOSE: the close sits with the model');
   assert.doesNotMatch(rail, /data-nav="(strings|anansi|context)"/, '  and Strings, Talk to Anansi and What he reads are off the menu');

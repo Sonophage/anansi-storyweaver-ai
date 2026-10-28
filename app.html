@@ -1605,7 +1605,16 @@ html[data-ui-rail="closed"] #rail.tale3 { width:76px; }
   padding-right:60px !important; padding-top:18px !important; }
 .talemodel > .railclose { position:absolute; top:calc(14px + env(safe-area-inset-top, 0px)); right:10px; }
 .railclose { color:var(--faint); display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; }
-.railsearch { grid-column:1 / -1; margin:2px 0 4px; }
+.taleside { display:flex; flex-direction:column; min-height:0; }
+.taleside > .railsearch { margin:auto 0 8px; flex:0 0 auto; }
+.taleside > .taletiles { flex:0 1 auto; overflow-y:auto; min-height:0; }
+/* A row's picture under a dark wash (rowArt in web/app.js). The words sit above both. */
+.arted { position:relative; overflow:hidden; isolation:isolate; margin-bottom:4px; min-height:44px; }
+.arted > .rowart { position:absolute; inset:0; z-index:-2; background-size:cover; background-position:center; }
+.arted::after { content:''; position:absolute; inset:0; z-index:-1; background:rgba(0,0,0,.55); pointer-events:none; }
+.arted .txt { color:var(--ink); text-shadow:0 1px 3px rgba(0,0,0,.6); }
+.arted[aria-current] { box-shadow:inset 2px 0 0 var(--ink-bright); }
+.arted[aria-current] .txt { color:var(--ink-bright); }
 .tale3 { display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(0, 2fr); grid-template-rows:minmax(0, 1fr);
   gap:10px; flex:1; min-height:0; height:100%; padding-top:10px; }
 /* The list around the columns must not scroll itself, or the scenes column never has to. */

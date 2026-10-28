@@ -419,7 +419,13 @@ const SNAV = [
 ];
 /** What the tale's menu shows, in its order: two columns of tiles beside the scenes (2026-10-28).
  *  SNAV stays the list of a tale's panels, for their titles and their links. */
-const TALE_MENU = ['story', 'teller', 'chapter', 'chapters', 'search', 'threads', 'waiting'];
+const TALE_MENU = ['story', 'teller', 'chapter', 'chapters', 'threads', 'waiting'];
+/** A ROW'S PICTURE, under a dark wash, fainter down the list (Seth, 2026-10-28: "for any story that
+ *  uses images use it in the background ... with a dark overlay ... and let the opacity of the image
+ *  get less and less"). The tale's cover on each of its scenes, each tale's own on the main menu.
+ *  Single quotes inside, as everywhere a URL rides in a style attribute. */
+const rowArt = (url, i) => url ? `<i class="rowart" aria-hidden="true"
+  style="background-image:url('${url}'); opacity:${Math.max(0.1, 0.62 - i * 0.07).toFixed(2)}"></i>` : '';
 // Deep links and bookmarks still carry the old names, and so does a browser tab left open across
 // the change. Cheaper to map them than to serve a blank panel.
 const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queue: 'chapter', branches: 'chapter' };
@@ -835,12 +841,13 @@ function drawRail() {
     // The rail IS the menu, and the menu is excepted — see tipCard. Its rows were never uppercased;
     // this heading was the only thing in here that was.
     ? `<div class="txt railhead">Scenes</div>
-       ${[...V.chapters].reverse().map((c) => `<button data-chapter="${c.id}"${
+       ${[...V.chapters].reverse().map((c, i) => `<button data-chapter="${c.id}"${
+         V.cover ? ' class="arted"' : ''}${
          c.id === V.currentChapter.id ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px;
          border-radius:var(--r); width:100%;
          color:${c.id === V.currentChapter.id ? 'var(--ink-bright)' : 'var(--faint)'}"><span class="txt"
          style="display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${
-         esc(sceneName(c))}</span></button>`).join('')}`
+         esc(sceneName(c))}</span>${rowArt(V.cover ? api.coverUrl(S.storyId, V.cover) : '', i)}</button>`).join('')}`
     // NO "Open" LIST HERE, only the demo switch. It reprinted the first four books in a rail whose first row is already
     // My stories (Library, now), which is the same door with a complete list behind it. Seth, 2026-08-31: "the
     // open option in the main menu that should be removed."
@@ -935,23 +942,22 @@ function drawRail() {
             icon over word. Six rows tall instead of ten. The workspace menu keeps its list. */
         storyMenu && !V?.story?.is_world
           ? `<div class="tale3"><div class="tale3scenes scroll">${tail}</div>
-              <div class="taletiles">${TALE_MENU.map((k) => k === 'search'
-                // A SEARCH BAR ACROSS BOTH COLUMNS, not a tile (2026-10-28): Enter opens Prose search
-                // with what was typed.
-                ? `<input type="search" class="field railsearch" data-railsearch="1" enterkeyhint="search"
-                    aria-label="Search this tale" placeholder="Search this tale" value="${esc(S.query ?? '')}">`
-                : (rows.find(([key]) => key === k) ?? null)).filter(Boolean)
-                .map((r) => typeof r === 'string' ? r : item(r)).join('')}</div></div>`
+              <div class="taleside"><div class="taletiles">${TALE_MENU.map((k) => rows.find(([key]) => key === k))
+                .filter(Boolean).map(item).join('')}</div>
+              ${/* THE SEARCH BAR, the foot of the two tile columns (Seth, 2026-10-28: "Put the search
+                    below all the icons in the footer"). Enter opens Prose search on what was typed. */ ''}
+              <input type="search" class="field railsearch" data-railsearch="1" enterkeyhint="search"
+                aria-label="Search this tale" placeholder="Search this tale" value="${esc(S.query ?? '')}"></div></div>`
           : storyMenu ? `<div class="navgrid">${rows.map(item).join('')}</div>${tail}`
           // THE MAIN MENU IN THE SAME SHAPE (Seth, 2026-10-28: "a similar setup for the main menu but
           // instead of scenes it's stories"): the model on top, the tales down the left (most recent
           // first, folded ones last, scrolling on their own), the menu's rows as tiles beside them.
           : `<div class="tale3"><div class="tale3scenes scroll"><div class="txt railhead">Tales</div>${
               shelfOrder((LIB ?? []).filter((b) => !b.is_world)).sort((a, b) =>
-                (a.status === 'archived') - (b.status === 'archived')).map((b) => `<button data-open="${esc(b.id)}"
-                ${b.id === S.storyId ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px; border-radius:var(--r); width:100%;
+                (a.status === 'archived') - (b.status === 'archived')).map((b, i) => `<button data-open="${esc(b.id)}"
+                ${b.cover ? ' class="arted"' : ''}${b.id === S.storyId ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px; border-radius:var(--r); width:100%;
                 color:${b.id === S.storyId ? 'var(--ink-bright)' : b.status === 'archived' ? 'var(--dim)' : 'var(--faint)'}"><span class="txt"
-                style="display:block">${esc(b.title || 'Untitled')}</span></button>`).join('')
+                style="display:block">${esc(b.title || 'Untitled')}</span>${rowArt(b.cover ? api.coverUrl(b.id, b.cover) : '', i)}</button>`).join('')
               || '<div class="hint flush" style="padding:0 12px">No tales yet.</div>'}</div>
               <div class="taletiles">${rows.map(item).join('')}${tail}</div></div>`}</div>
 `;
