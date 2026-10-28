@@ -2948,7 +2948,7 @@ ok('a passage can land unclaimed, survives editing and re-rolling, and the next 
 // on entries would ride in every view, every ledger page and every prompt assembly whether or not
 // anything drew it.
 //
-// AND KEYED (entry_id, story_id), matching chapter_pins and entry_states. That composite is what
+// AND KEYED (entry_id, story_id), as chapter_pins was until #102. That composite is what
 // closes SPEC 7.1's cross-story leak, and a picture reachable through the wrong book would be
 // exactly that leak wearing a new column.
 ok('a thread can carry an optional picture, scoped to its own book', () => {
@@ -3460,6 +3460,38 @@ ok('a tale keeps its cover blur and flip, a partial save leaves them, and a copy
   const copy = db.duplicateStory(o, t.id, 'Cover copy') as any;
   const cid = copy?.id ?? copy;
   assert.deepStrictEqual([view(cid).cover_blur, view(cid).cover_flip], [8, 1], 'a copy of the tale carries them');
+});
+
+// #102. A SCENE PIN CAN HOLD A THREAD OF THE WORLD THE TALE FOLLOWS. The thread stays the World's: it
+// is pinned by its own id, it is not copied into the tale, and it reaches the model for that scene.
+// Margit's wake word never appears in the scene, so the pin is the only way she can be sent.
+const pinnedIn = (t: any) => (storyMod.assemble(storyMod.view(t.id)!, { global: 100096, slots: 4, perSlot: 25024 },
+  'direct').manifest.blocks as any[]).filter((b) => b.state === 'included' && b.firedBy?.includes('pinned')).map((b) => b.id);
+ok('a pin on a thread of the followed World is kept, stays the World\'s, and is sent for that scene', () => {
+  const me = db.owner('pin-world');
+  const world = db.createWorld(me, { title: 'The Lands Between', premise: 'A broken ring.' });
+  const margit = db.upsertEntry(world.id, me, { title: 'Margit', body: '[Margit: the Fell Omen]',
+    activation: 'triggered', keys: ['omen'] })!;
+  const tale = db.storyFollowing(me, world.id, 'A Tarnished Road')!;
+  db.addPassage({ ...tale, storyId: tale.id, body: 'The bridge was empty in the rain.' });
+  assert.deepStrictEqual(pinnedIn(tale), [], 'WORLD-PIN-BASE: nothing is pinned to begin with');
+
+  assert.strictEqual(db.setPin(tale.id, tale.chapterId, margit, 'force_in'), true, 'WORLD-PIN-KEPT: the pin is accepted');
+  assert.deepStrictEqual(db.pinsOf(tale.id).map((p: any) => [p.chapter_id, p.entry_id, p.mode]),
+    [[tale.chapterId, margit, 'force_in']], 'WORLD-PIN-STORED: the pin names the World thread itself');
+  assert.strictEqual(db.entriesOf(tale.id).length, 0, 'WORLD-PIN-NO-COPY: the tale has no copy of her');
+  assert.deepStrictEqual(pinnedIn(tale), [margit], 'WORLD-PIN-SENT: she reaches the model for that scene');
+
+  // She keeps following: a fix in the World is what the pinned scene sends.
+  db.upsertEntry(world.id, me, { id: margit, title: 'Margit', body: '[Margit: Morgott in disguise]',
+    activation: 'triggered', keys: ['omen'] });
+  const sent = storyMod.assemble(storyMod.view(tale.id)!, { global: 100096, slots: 4, perSlot: 25024 }, 'direct');
+  assert.ok(JSON.stringify(sent).includes('Morgott in disguise'), 'WORLD-PIN-FOLLOWS: the World\'s new text is sent');
+
+  // A copy of the tale follows the same World, so it keeps the pin on the same thread.
+  const copy = db.duplicateStory(me, tale.id, 'A Tarnished Road, again') as any;
+  assert.deepStrictEqual(db.pinsOf(copy.id).map((p: any) => p.entry_id), [margit],
+    'WORLD-PIN-COPIED: a copy of the tale keeps its pin on the World thread');
 });
 
 console.log(`\n${n} checks passed`);

@@ -365,7 +365,7 @@ assert.strictEqual(db.outfitsOf(aStory.id).length, 0, "alice's character has no 
 ok('an outfit cannot be hung off another story\'s entry, nor worn through one');
 
 db.setPin(bStory.id, bStory.chapterId, aEntry, 'force_in');
-assert.strictEqual(db.pinsOf(bStory.id).length, 0, 'the composite FK refused it');
+assert.strictEqual(db.pinsOf(bStory.id).length, 0, 'PINNABLE refused it');
 ok('a pin cannot point at another story\'s entry');
 
 db.addVariant(bStory.id, aPassage, 'a variant on someone else\'s prose');
@@ -2007,7 +2007,7 @@ async function bootServer(port: number, env: Record<string, string>) {
  * The gate already refuses another writer's storyId, so what is left to prove is the half INSIDE a
  * book you do own: a thread id from a DIFFERENT book must not be given a picture through this one,
  * and must not be readable through it either. `entry_images` is keyed (entry_id, story_id) for
- * exactly that, the same composite chapter_pins and entry_states use to close SPEC 7.1's leak.
+ * exactly that, the composite that closed SPEC 7.1's leak (chapter_pins used it until #102).
  */
 {
   const mine = db.upsertEntry(aStory.id, alice, { title: 'Alice thread', body: '[hers]' })!;
