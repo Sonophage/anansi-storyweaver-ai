@@ -558,6 +558,11 @@ function migrate() {
   add('hems', 'overflow', 'TEXT');
   // The run that owns the row: a hem again or a try again takes the next number (see finishHem).
   add('hems', 'run', 'INTEGER DEFAULT 0');
+  // Which pass a running hem is on and since when (2026-10-27): a slow remote model read as a hem
+  // doing nothing. And the new threads past six, held whole until the writer asks for them.
+  add('hems', 'pass', 'TEXT');
+  add('hems', 'pass_at', 'INTEGER');
+  add('hems', 'extra', 'TEXT');
   backfillActPrints();
 
   if ((db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type = 'table' AND name = 'outfits'")
@@ -1760,8 +1765,8 @@ export function finishHem(storyId: string, chapterId: string, run: number,
   const suggestion = r.suggestion === undefined ? (was?.suggestion ?? null)
     : r.suggestion ? JSON.stringify(r.suggestion) : null;
   q(`UPDATE hems SET finished_at = CASE WHEN run = ? THEN ? ELSE finished_at END, passes = ?, kept = ?,
-       suggestion = ? WHERE chapter_id = ? AND story_id = ?`)
-    .run(run, now(), JSON.stringify({ ...before, ...r.passes }), kept ? 1 : 0, suggestion, chapterId, storyId);
+       suggestion = ?, pass = CASE WHEN run = ? THEN NULL ELSE pass END WHERE chapter_id = ? AND story_id = ?`)
+    .run(run, now(), JSON.stringify({ ...before, ...r.passes }), kept ? 1 : 0, suggestion, run, chapterId, storyId);
 }
 
 /** #91. HEM AGAIN drops what the last hem left chalked in the scene's group, and only that: a row
@@ -1780,6 +1785,20 @@ export function reopenHem(storyId: string, chapterId: string): number | null {
 
 /** #90. The threads the thread-change pass found changed past its cap of six, by name, for the card.
  *  Written by that pass when a hem runs it; a hem again starts the row with none. */
+/** The pass a hem's run has reached, and when; a stale run never overwrites a newer one's. */
+export const hemAt = (storyId: string, chapterId: string, run: number, pass: string) =>
+  q('UPDATE hems SET pass = ?, pass_at = ? WHERE chapter_id = ? AND story_id = ? AND run = ?')
+    .run(pass, now(), chapterId, storyId, run);
+/** The new threads a hem found past six, held whole (each a proposal as `addProposal` takes it). */
+export const hemHold = (storyId: string, chapterId: string, held: any[]) =>
+  q('UPDATE hems SET extra = ? WHERE chapter_id = ? AND story_id = ?')
+    .run(held.length ? JSON.stringify(held) : null, chapterId, storyId);
+/** Hand back the held ones and clear them: the writer asked for them. */
+export function hemTakeHeld(storyId: string, chapterId: string): any[] {
+  const h = q('SELECT extra FROM hems WHERE chapter_id = ? AND story_id = ?').get(chapterId, storyId) as any;
+  q('UPDATE hems SET extra = NULL WHERE chapter_id = ? AND story_id = ?').run(chapterId, storyId);
+  return hemJSON(h?.extra ?? null) ?? [];
+}
 export const hemOverflow = (storyId: string, chapterId: string, names: string[]) =>
   q('UPDATE hems SET overflow = ? WHERE chapter_id = ? AND story_id = ?')
     .run(JSON.stringify(names), chapterId, storyId);
@@ -1788,6 +1807,8 @@ export const hemOverflow = (storyId: string, chapterId: string, names: string[])
  *  now against its fingerprint when the hem started. */
 const hemView = (h: any) => ({
   state: h.finished_at == null ? 'running' : 'done',
+  current: h.finished_at == null && h.pass ? { pass: h.pass, since: h.pass_at } : null,
+  extra: (hemJSON(h.extra) ?? []).map((x: any) => String(x?.title ?? '')),
   startedAt: h.started_at, finishedAt: h.finished_at ?? null,
   passes: hemJSON(h.passes) ?? {}, keptSummary: !!h.kept, suggestion: hemJSON(h.suggestion),
   overflow: hemJSON(h.overflow) ?? [],

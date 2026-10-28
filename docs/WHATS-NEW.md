@@ -15,6 +15,14 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-27 · The Workbench, easier to move through
 
+### A hem says what it is doing
+While a scene is being hemmed, its card says which part Anansi is on and for how long, such as
+"Writing the character memory… 3 min", so a slow model no longer looks stuck.
+
+### Six new threads at most from one hem
+A hem now chalks up to six new threads. Any more it found are named on the card, and Chalk these too
+adds them without asking Anansi again.
+
 ### Change the next scene on the hem card
 A hemmed scene's card now has boxes for the next scene's title, where it is going, and how it opens,
 holding what it already has or Anansi's suggestion. Change any of them and it saves when you leave

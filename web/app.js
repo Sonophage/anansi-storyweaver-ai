@@ -582,7 +582,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #79. Over time: take a dated wardrobe or retirement event out. #80: make a Lore thread a place.
   'delevent', 'makeplace',
   // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
-  'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit',
+  'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra',
   // #92. A hemmed scene's card: run its passes again, use its next-scene suggestion.
   'hemagain', 'usehem',
   // #75. The tale's own thread.
@@ -2556,7 +2556,15 @@ const peek = (s) => `${esc(String(s ?? '').slice(0, 90))}${String(s ?? '').lengt
 function hemCardParts(c) {
   const ch = c.ch, h = ch.hem, id = esc(ch.id), running = h.state === 'running';
   const state = [];
-  if (running) state.push(`<div class="note">Anansi is still hemming this scene. What it finds lands on this card.</div>`);
+  // WHICH PASS AND FOR HOW LONG (2026-10-27): a slow remote model read as nothing happening. The card
+  // is read again every few seconds while the hem runs, so the minutes move.
+  if (running) {
+    const cur = h.current, label = cur && PASSES.find(([k]) => k === cur.pass)?.[1];
+    const mins = cur?.since ? Math.max(0, Math.floor((Date.now() - cur.since) / 60000)) : 0;
+    state.push(`<div class="note">Anansi is still hemming this scene. What it finds lands on this card.</div>${
+      label ? `<div class="hint flush" data-hemnow="${id}">Writing ${esc(label)}&hellip; ${
+        mins < 1 ? 'under a minute' : `${mins} min`}</div>` : ''}`);
+  }
   if (!running && h.outOfDate) state.push(`<div class="note warned">Out of date: the scene changed after it
     was hemmed, so what is still chalked here was read from text that is gone. What you sewed in or
     rejected stays.</div>
@@ -2589,6 +2597,11 @@ function hemCardParts(c) {
     ${past.map(esc).join(', ')}.</div>
     <button class="btn ghost" data-hemagain="${id}" data-names="${esc(JSON.stringify(past))}">Ask for ${
       past.length === 1 ? 'it' : 'these'}</button>` : '';
+  // THE NEW THREADS PAST SIX, held whole on the hem; one press chalks them, no model call.
+  const heldNew = h.extra ?? [];
+  const held = heldNew.length ? `<div class="hint push-8">Also new in this scene, past the six:
+    ${heldNew.map(esc).join(', ')}.</div>
+    <button class="btn ghost" data-hemextra="${id}">Chalk ${heldNew.length === 1 ? 'it' : 'these'} too</button>` : '';
   const s = h.suggestion, next = s && hemNext(ch);
   // EDITED HERE, saved as you go (Seth, 2026-10-27: "I can't edit the next scenes info from the
   // worktable"). Three boxes for the scene the hem opened, holding what that scene has already been
@@ -2610,7 +2623,7 @@ function hemCardParts(c) {
     <button class="btn ghost push-8" data-usehem="${id}">Use these</button>` : '';
   const ids = esc(ps.map((p) => p.id).join(','));
   return {
-    body: `${state.join('')}${summary}${threads}${overflow}${suggestion}`,
+    body: `${state.join('')}${summary}${threads}${overflow}${held}${suggestion}`,
     right: ps.length ? `<button class="btn" data-deckall="accept" data-ids="${ids}" data-deckright="1">Sew all &rarr;</button>` : '',
     // DISMISS, not Leave it, once nothing is left to decide (Seth, 2026-10-27): Leave it only moved on
     // for the session. The existing set-aside row, keyed to this hem; Hem again brings it back.
@@ -12218,6 +12231,12 @@ document.addEventListener('click', async (e) => {
   // #92 · A HEMMED SCENE'S PASSES AGAIN (#91). `pass` is Try again for one pass; `names` asks for
   // the threads past the cap; neither is Hem again, which drops what is still chalked on the card
   // (what was sewn in or rejected stays), so it asks first.
+  if (d.hemextra) {
+    const r = await api.hemAgain(S.storyId, d.hemextra, { extra: true });
+    if (r.error) return toast(r.error);
+    V = r; paint();
+    return toast('Chalked. They are on the card.');
+  }
   if (d.hemagain) {
     const o = d.pass ? { pass: d.pass } : d.names ? { names: JSON.parse(d.names) } : {};
     if (!d.pass && !d.names && !armed(t, `hem:${d.hemagain}`,

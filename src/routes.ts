@@ -587,6 +587,8 @@ const REVIEW_TOKENS = 1600;
 // plus their pockets is the shape to leave room for now. Since the same day a remote call carries no
 // cap at all (llama.ts, `featherless`), so these two now bound the local model only.
 const MEMORY_TOKENS = 4000;
+/** The most new threads one hem chalks; the rest wait on its card by name. */
+const HEM_NEW_CAP = 6;
 // The new-threads pass had no cap of its own and took `structured`'s 1000 (2000 on the retry): cut the
 // same way on the same hem. Several new threads, each with a body and pockets.
 const EXTRACT_TOKENS = 3000;
@@ -1297,6 +1299,7 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   const passes: Record<string, string | null> = {};
   const pass = async (name: string, on: boolean, fn: () => Promise<any>) => {
     if (!on) return null;
+    db.hemAt(storyId, closing, run, name);   // the card says which pass, and since when
     try {
       const out = await fn();
       passes[name] = out?.error ?? null;
@@ -1366,6 +1369,12 @@ async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string
   const r = await structuredRetry(EXTRACT, text, EXTRACT_SCHEMA, { model: backgroundModel(c, v), max_tokens: EXTRACT_TOKENS });
   if (!r.data?.entries) return { error: r.error ?? 'extraction returned nothing usable' };
   let added = 0;
+  // SIX NEW THREADS AT MOST FROM A HEM (2026-10-27): one hem of Seth's chalked sixteen. The rest are
+  // held whole on the hem and named on its card; "Chalk these too" adds them with no second ask.
+  // Changes to threads the tale has are not counted. Only a hem's own pass (a scene group) is capped.
+  const capped = !!grp?.startsWith('scene:');
+  const held: any[] = [];
+  let fresh = 0;
   for (const e of r.data.entries) {
     if (!e?.title?.trim() || !e?.body?.trim()) continue;
     const cls = classify(existing, e);
@@ -1390,12 +1399,15 @@ async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string
     }
     // AND WHERE IT STANDS, its first Over time entry, riding as `stands` (not a pocket) to the accept.
     if (!cls.entry_id && String(e.stands ?? '').trim()) rooms.stands = { body: String(e.stands).trim() };
-    if (db.addProposal(v.id, { ...cls, chapterId: ch.id, title: e.title.trim(),
+    const one = { ...cls, chapterId: ch.id, title: e.title.trim(),
       body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
       activation: e.activation, field: cls.entry_id ? field : 'facts', target,
-      rooms: Object.keys(rooms).length ? rooms : undefined, grp })) added++;
+      rooms: Object.keys(rooms).length ? rooms : undefined, grp };
+    if (capped && !cls.entry_id && ++fresh > HEM_NEW_CAP) { held.push(one); continue; }
+    if (db.addProposal(v.id, one)) added++;
   }
-  return { added, chapter: ch.index, proposals: db.proposalsOf(v.id) };
+  if (capped) db.hemHold(v.id, ch.id, held);
+  return { added, held: held.length, chapter: ch.index, proposals: db.proposalsOf(v.id) };
 }
 
 /** THE WHOLE BOOK, READ FOR ONE THREAD. #27, and checks.md: *"the scan chapter of facts, should
@@ -2804,6 +2816,11 @@ export const routes: Record<string, Handler> = {
     const chs = db.chapters(storyId);
     const at = chs.findIndex((x: any) => x.id === chapterId);
     if (at < 0) return { error: 'That scene is not in this book.' };
+    // "Chalk these too": the new threads held past six go in as they were found, with no model call.
+    if (c.body.extra) {
+      for (const one of db.hemTakeHeld(storyId, chapterId)) db.addProposal(storyId, one);
+      return viewOf(c, storyId);
+    }
     const opened = chs[at + 1]?.id;
     const names = Array.isArray(c.body.names) ? c.body.names.map(String).filter((n: string) => n.trim()) : null;
     // An empty list is a refusal, never a hem again: that one drops what is chalked.

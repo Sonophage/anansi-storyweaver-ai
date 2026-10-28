@@ -5599,6 +5599,12 @@ const hemCardOf = (side: string) => {
   assert.strictEqual(card, '', '  and a dismissed hem with nothing chalked leaves the deck');
   card = await show({ ...HEM_DONE, overflow: [], outOfDate: true, dismissed: true }, HEM_ROWS);
   assert.notStrictEqual(card, '', '  but never hides threads still waiting to be sewn in or rejected');
+  // WHICH PASS, FOR HOW LONG, and the new threads held past six (2026-10-27).
+  card = await show({ ...HEM_DONE, state: 'running', finishedAt: null, overflow: [],
+    current: { pass: 'memory', since: Date.now() - 3 * 60000 - 5000 } }, []);
+  assert.match(card, /data-hemnow="c-1">Writing the character memory&hellip; 3 min</, 'HEM-NOW: a running hem says which pass and for how long');
+  card = await show({ ...HEM_DONE, overflow: [], extra: ['Keeper 7', 'Keeper 8'] }, HEM_ROWS);
+  assert.match(card, /Keeper 7, Keeper 8[\s\S]*data-hemextra="c-1">Chalk these too</, 'HEM-HELD: new threads past six are named, with Chalk these too');
   STORY.currentChapter = wasCurrent;
 
   (globalThis as any).fetch = canned;

@@ -962,6 +962,10 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
   assert.notStrictEqual(r, 'held', 'HEM-AT-ONCE: the hem answers while the model is still holding its first ask');
   assert.notStrictEqual(r.currentChapter?.id, ch0.id, '  with the next scene open');
   assert.strictEqual(sceneOf(r, ch0.id).hem?.state, 'running', 'HEM-RUNNING: the view shows the hem running');
+  // WHICH PASS, AND SINCE WHEN (2026-10-27): a slow remote model looked like nothing happening.
+  const cur = sceneOf(await viewNow(t.id), ch0.id).hem?.current;
+  assert.strictEqual(cur?.pass, 'summary', 'HEM-CURRENT: the view says which pass is running');
+  assert.ok(cur?.since > 0, '  and since when');
   release(); gate = null;
   await hemSettled(t.id);
   tidied = {}; finished = [];
@@ -983,8 +987,33 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
   const set = routes['POST /api/dismiss'](ctx({ storyId: t.id, kind: 'hem', ref: `${ch0.id}:${hem.startedAt}` }));
   assert.strictEqual(sceneOf(set, ch0.id).hem?.dismissed, true, 'HEM-DISMISSED: a dismissed hem says so in the view');
   ok('  and it can be dismissed, by the existing set-aside route');
+  assert.strictEqual(sceneOf(await viewNow(t.id), ch0.id).hem?.current, null, '  and a finished hem has no current pass');
 }
 
+
+// ---- NEW THREADS, SIX AT MOST PER HEM (2026-10-27) ----
+// One hem of Seth's chalked 8 characters, 6 places and 2 items. The rest are held, named on the card,
+// and "Chalk these too" puts them in without asking the model again.
+{
+  const t = db.createStory(me, { title: 'Crowded hem', premise: 'A market.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Nine stalls stood in the square, each with its own keeper.' });
+  answer = []; finished = []; tidied = {};
+  found = Array.from({ length: 9 }, (_, k) => ({ title: `Keeper ${k + 1}`, body: `Keeps stall ${k + 1}.`, type: 'character', keys: [`keeper${k + 1}`] }));
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
+  await hemSettled(t.id);
+  const fresh = () => (db.proposalsOf(t.id) as any[]).filter((p) => p.grp === `scene:${ch0.id}` && p.status === 'open' && !p.entry_id);
+  assert.strictEqual(fresh().length, 6, `NEW-CAP: six new threads are chalked, not nine (${fresh().length})`);
+  const held = sceneOf(await viewNow(t.id), ch0.id).hem?.extra;
+  assert.deepStrictEqual(held, ['Keeper 7', 'Keeper 8', 'Keeper 9'], '  and the rest are named on the card');
+  const v = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, extra: true }));
+  assert.ok(!v.error, v.error);
+  assert.strictEqual(fresh().length, 9, 'NEW-EXTRA: Chalk these too puts the held ones in');
+  assert.deepStrictEqual(sceneOf(await viewNow(t.id), ch0.id).hem?.extra ?? [], [], '  and none are held after');
+  found = [];
+}
+ok('a hem chalks six new threads at most, and the rest wait by name until asked for');
 
 // A PASS THAT FAILS IS NAMED, and the others still run: the model refuses the new-thread ask only.
 {
