@@ -317,7 +317,6 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
 const NOT_CARRIED: Record<string, string> = {
   branches: 'an import is a NEW story on a fresh primary branch — forks do not travel',
   generations: 'the call log belongs to the machine that made the calls, not to the book',
-  violations: 'flags are re-derived by the checker against the imported prose',
   proposals: 'an unaccepted proposal is a queue, not canon — carrying it would be accepting it for you',
   chapter_pins: 'a pin names a chapter, and chapters do not survive the trip — see chapters',
   arcs: 'act-level summaries cover chapter ranges, which do not survive the trip',
@@ -338,7 +337,6 @@ const NOT_CARRIED: Record<string, string> = {
   for (let i = 0; i < 3; i++) {
     const p = db.addPassage({ storyId: src.id, branchId: src.branchId, chapterId: ch, body: `passage ${i}` });
     db.setPin(src.id, ch, e, 'force_in');
-    if (i === 0) db.addViolation(src.id, { passageId: p, entryId: e, quote: 'q', reason: 'r', confidence: 0.7 });
     if (i === 1) db.addProposal(src.id, { chapterId: ch, title: 'A fact', body: '[new]', entryType: 'lore', kind: 'new' });
     if (i < 2) ch = db.endChapter(src.id, src.branchId).opened;
   }

@@ -99,6 +99,32 @@ export function repairStrandedChapters(): { storyId: string; idx: number }[] {
   return done;
 }
 
+/** #94 · THE KNOTS GO. Seth deleted the contradiction check on 2026-10-28: it marked a tale's own
+ *  version of its world as mistakes, and its Mend rewrote kept prose. Its table goes, and so do the
+ *  per-scene mutes in `dismissals`, which only it read. Each tale that had knots gets one line on its
+ *  update report saying how many went; the prose and the threads are not touched.
+ *
+ *  ONCE BY ITS DATA: it acts only while the table exists, and nothing creates it any more, so a later
+ *  boot finds none and writes nothing. A backup comes first (`beforeRewrite`, which throws, so no
+ *  backup means no drop), and it is all one transaction. Its own statements, like
+ *  `repairStrandedChapters`: it runs inside `migrate()`. */
+export function dropKnots() {
+  const P = (sql: string) => db.prepare(sql);
+  if (!(P("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'violations'").get() as any).n) return;
+  beforeRewrite();
+  const per = P(`SELECT v.story_id, COUNT(*) AS n FROM violations v JOIN stories s ON s.id = v.story_id
+    GROUP BY v.story_id`).all() as any[];
+  db.exec('BEGIN');
+  try {
+    for (const r of per) noteUpdate(r.story_id, `The check that looked for knots is gone, and the ${r.n} `
+      + `knot${r.n === 1 ? '' : 's'} it had found in this tale went with it. Your prose and threads are unchanged.`);
+    P("DELETE FROM dismissals WHERE kind = 'mute'").run();
+    db.exec('DROP TABLE violations');
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  console.log(`  dropped violations — #94: the contradiction check is deleted`);
+}
+
 /** #77 · UPDATE DAY FOR ALWAYS TRUE (ADR 0005). A thread's Facts row is its Always true, which is
  *  always sent, so one that was switched off is switched on, and a second one is added to the first.
  *  Role, provenance and scope are appended to Always true, and history to the thread's own text (the
@@ -550,13 +576,9 @@ function migrate() {
   // decision about a book — some you want a way in to, some you have already heard the first line of.
   //
   // Nothing is generated server-side for it. The surface reads this and fires the Continue it
-  // already has, so the opening streams through the one generate path with its budget check, its
-  // contradiction repair and its writing head, rather than arriving whole from a second engine
-  // that would need all three again.
+  // already has, so the opening streams through the one generate path with its budget check and
+  // its writing head, rather than arriving whole from a second engine that would need both again.
   add('stories', 'auto_open', 'INTEGER DEFAULT 1');
-  // Existing flags were all raised against canon that had fired — that was the only kind the
-  // checker could see — so the default of 1 is true for every row already stored.
-  add('violations', 'reached', 'INTEGER DEFAULT 1');
   // The dedupe index used to cover every row, so a subject once accepted or rejected could
   // never be proposed again. Scoped to open proposals now.
   try {
@@ -623,8 +645,8 @@ function migrate() {
     (sql) => db.exec(sql),
   );
 
-  // #9. On a database that already exists the CREATE above does not add it.
-  add('generations', 'mend', 'TEXT');
+  // #94. The contradiction check is deleted (Seth, 2026-10-28): its repair record goes too.
+  drop('generations', 'mend', '#94: the contradiction repair is deleted');
   // THE WRITER'S OWN MODEL, kept across restarts. It lived in a Map in serve.ts, so every restart
   // of the server put both writers back on the process default — and since 2026-08-31 it also
   // decides which model is woken when they open the app, which is a decision worth surviving a
@@ -670,6 +692,7 @@ function migrate() {
   // before the first drop by the same guard the column drops use — this rewrites the file
   // somebody's novel is in, which is the whole reason that guard exists.
   repairStrandedChapters();
+  try { dropKnots(); } catch (e: any) { console.log(`  the knots were NOT dropped: ${e?.message}`); }
   try { foldAlwaysTrue(); } catch (e: any) { console.log(`  Always true was NOT folded: ${e?.message}`); }
   try { plainAddons(); } catch (e: any) { console.log(`  the old brackets were NOT taken off: ${e?.message}`); }
   try { plainStandsAll(); } catch (e: any) { console.log(`  the old brackets were NOT taken off where threads stand: ${e?.message}`); }
@@ -927,32 +950,11 @@ CREATE INDEX IF NOT EXISTS hems_story ON hems(story_id);
 -- PINS_TABLE, above migrate(), which also rebuilds an old library into it.
 ${PINS_TABLE}
 
--- SPEC 8.4. No shipping product checks its own output against the story bible; the input
--- list is already sitting in generations.context_manifest, so this costs one cheap call.
--- Flags only, never a rewrite: the model does not get to silently correct the book.
-CREATE TABLE IF NOT EXISTS violations (
-  id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
-  passage_id TEXT NOT NULL, entry_id TEXT, quote TEXT, reason TEXT, confidence REAL,
-  -- Whether the entry it contradicts actually REACHED the prompt for that passage. The two are
-  -- different faults and want different fixes: 1 is the model contradicting what it was told,
-  -- 0 is the engine never having told it. See check() in routes.ts.
-  reached INTEGER DEFAULT 1,
-  status TEXT DEFAULT 'open',              -- open | dismissed | fixed
-  created_at INTEGER NOT NULL);
-CREATE INDEX IF NOT EXISTS violations_p ON violations(passage_id);
-CREATE INDEX IF NOT EXISTS violations_s ON violations(story_id, status);
-
 CREATE TABLE IF NOT EXISTS generations (
   id TEXT PRIMARY KEY, story_id TEXT, chapter_id TEXT, passage_id TEXT,
   model TEXT, role TEXT, params TEXT, manifest TEXT,
   prompt_tokens INTEGER, completion_tokens INTEGER, timings TEXT,
-  latency_ms INTEGER, error TEXT, created_at INTEGER NOT NULL,
-  -- #9. What the contradiction repair did to this take, as JSON: how many the check found, how
-  -- many were gone when the fixed prose was checked again, and how many survived. NULL is "the
-  -- repair never ran", which is most calls and is not the same as zero — the whole point of
-  -- recording it is that "it fires and it works" was believed for four days without a number
-  -- anywhere to read it off.
-  mend TEXT);
+  latency_ms INTEGER, error TEXT, created_at INTEGER NOT NULL);
 -- generations is the fastest-growing table and recentGenerations sorts it by time.
 CREATE INDEX IF NOT EXISTS generations_story ON generations(story_id, created_at);
 
@@ -1083,7 +1085,7 @@ CREATE TABLE IF NOT EXISTS writer_look (
 -- over the git log. The five batches it held were written into that file first — they are the
 -- app's history and they were true when written.)
 
--- What a writer has waved away. Proposals, strings and flags are ROWS and are dismissed by their
+-- What a writer has waved away. Proposals and strings are ROWS and are dismissed by their
 -- own status; these two are COMPUTED — a summary is stale because its prose moved, and the horizon
 -- is the chapters that no longer fit — so there is nothing to mark and they would nag forever.
 --
@@ -1093,17 +1095,10 @@ CREATE TABLE IF NOT EXISTS writer_look (
 -- range ends somewhere new; both come back, which is the difference between quiet and deaf.
 -- An out-of-date act (#47) is a third computed kind, keyed on the act and a hash of what its
 -- chapters' summaries say now, so the next change to one of them brings it back.
---
--- A mute is the third, and it is here rather than on violations.status for the same reason: the
--- checker runs on EVERY new passage, so one entry that has drifted out of step with the prose is
--- raised again on the next passage, and the next. Dismissing rows one at a time never ends —
--- there is always another row coming. A mute is keyed on the CHAPTER, ref chapterId:entryId,
--- and check() drops those facts before it asks, so no tokens are spent and no row is written.
--- Chapter-scoped on purpose: canon and prose fall out of step while a chapter is moving and agree
--- again once it settles, so the mute ends where the drift does. Lift it and the flags come back.
+
 CREATE TABLE IF NOT EXISTS dismissals (
   story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
-  kind TEXT NOT NULL,               -- stale | horizon | act | mute
+  kind TEXT NOT NULL,               -- stale | horizon | act | hem
   ref TEXT NOT NULL,
   at INTEGER NOT NULL,
   PRIMARY KEY (story_id, kind, ref));
@@ -1234,8 +1229,8 @@ export const loginOf = (ownerId: string): string | null =>
 
 /** The shelf, and what is waiting in each book on it.
  *
- *  The three `waiting` counts are the reason this grew: everything a writer left half-done lives
- *  INSIDE a story — a proposal not accepted, a promise not paid, a flag not looked at — and from the
+ *  The `waiting` counts are the reason this grew: everything a writer left half-done lives
+ *  INSIDE a story — a proposal not accepted, a promise not paid — and from the
  *  shelf all of it was invisible. Counted per story rather than as one total, so the strip can send
  *  you to the book it is about rather than making you go and look.
  *
@@ -1284,8 +1279,6 @@ export const listStories = (o: string) => q(`
          (SELECT COUNT(*) FROM entries e WHERE e.story_id = s.id AND ${LIVE('e.')}) AS entries,
          (SELECT COUNT(*) FROM proposals pr WHERE pr.story_id = s.id AND pr.status = 'open') AS proposed,
          (SELECT COUNT(*) FROM strings st WHERE st.story_id = s.id AND st.status = 'open') AS unpaid,
-         (SELECT COUNT(*) FROM violations v JOIN passages p ON p.id = v.passage_id
-           WHERE v.story_id = s.id AND v.status = 'open' AND p.selected = 1) AS flags,
          (SELECT sc.set_at FROM story_covers sc WHERE sc.story_id = s.id) AS cover,
          tip.body AS last_body, ch.idx AS last_chapter_idx, ch.title AS last_chapter_title,
          (SELECT COUNT(*) FROM chapters c
@@ -1436,18 +1429,6 @@ export const dismiss = (storyId: string, kind: string, ref: string) =>
 export const dismissed = (storyId: string): Set<string> =>
   new Set((q('SELECT kind, ref FROM dismissals WHERE story_id = ?').all(storyId) as any[])
     .map((r) => `${r.kind}:${r.ref}`));
-
-/** Entry ids muted for one chapter. check() drops these facts before it asks the model, so a mute
- *  costs nothing and writes nothing — unlike a dismissal, which is a row that already exists. */
-export const mutedIn = (storyId: string, chapterId: string): Set<string> =>
-  new Set((q("SELECT ref FROM dismissals WHERE story_id = ? AND kind = 'mute'").all(storyId) as any[])
-    .map((r) => String(r.ref).split(':'))
-    .filter((parts) => parts[0] === chapterId)
-    .map((parts) => parts.slice(1).join(':')));
-
-/** The way back. A mute nobody can lift is deafness, not quiet. */
-export const unmute = (storyId: string, kind: string, ref: string) =>
-  q('DELETE FROM dismissals WHERE story_id = ? AND kind = ? AND ref = ?').run(storyId, kind, String(ref));
 
 // (`notesFor`, `newestNoted`, `allNotes` and `setNotes` lived here. Removed 2026-08-29 with #24 —
 // see the note where the table was declared.)
@@ -2155,9 +2136,6 @@ export function editPassage(storyId: string, id: string, body: string) {
   q('INSERT INTO passage_revisions (id,passage_id,body,replaced_at) VALUES (?,?,?,?)')
     .run(uid('pr-'), id, cur.body, now());
   q('UPDATE passages SET body = ? WHERE id = ?').run(body, id);
-  // Flags quote the old text. Once it is edited they describe prose that no longer exists,
-  // so they go rather than linger as wrong answers.
-  q('DELETE FROM violations WHERE passage_id = ?').run(id);
   touch(cur.story_id);
 }
 /** DELETE A CHAPTER, AND EVERYTHING THAT WAS ONLY EVER ABOUT IT. Seth, 2026-08-30: "we also need
@@ -2168,10 +2146,9 @@ export function editPassage(storyId: string, id: string, body: string) {
  *  dropping the row takes the prose, its edit history and its pins. `PRAGMA foreign_keys = ON` is
  *  set at the top of this file, so that is real rather than decorative.
  *
- *  What does NOT cascade is what has to be written out: `violations.passage_id` and
- *  `proposals.chapter_id` carry no foreign key — deliberately, in both cases, because a flag can
- *  outlive the variant it was raised against and a proposal can outlive the chapter that proposed
- *  it. Neither survives the chapter itself being gone, so both are explicit here. `generations` is
+ *  What does NOT cascade is what has to be written out: `proposals.chapter_id` carries no foreign
+ *  key — deliberately, because a proposal can outlive the chapter that proposed it. It does not
+ *  survive the chapter itself being gone, so it is explicit here. `generations` is
  *  a log of what was asked of the model and is deliberately left: it is a record of the request,
  *  not of the book.
  *
@@ -2218,8 +2195,6 @@ export function delChapter(storyId: string, chapterId: string): { deleted: numbe
   db.exec('BEGIN');
   try {
     if (reopen) q("UPDATE chapters SET status = 'open' WHERE id = ? AND story_id = ?").run(reopen.id, storyId);
-    q(`DELETE FROM violations WHERE story_id = ? AND passage_id IN
-         (SELECT id FROM passages WHERE chapter_id = ?)`).run(storyId, chapterId);
     q('DELETE FROM proposals WHERE story_id = ? AND chapter_id = ?').run(storyId, chapterId);
     q('DELETE FROM chapters WHERE id = ? AND story_id = ?').run(chapterId, storyId);
     db.exec('COMMIT');
@@ -2266,9 +2241,6 @@ export function delAfter(storyId: string, passageId: string):
   if (!doomed.length) return { deleted: 0 };
   db.exec('BEGIN');
   try {
-    q(`DELETE FROM violations WHERE story_id = ? AND passage_id IN
-         (SELECT id FROM passages WHERE story_id = ? AND branch_id = ? AND ordinal > ?)`)
-      .run(storyId, storyId, cur.branch_id, cur.ordinal);
     q('DELETE FROM passages WHERE story_id = ? AND branch_id = ? AND ordinal > ?')
       .run(storyId, cur.branch_id, cur.ordinal);
     for (const id of chapters) clearSummary(storyId, id);
@@ -2316,16 +2288,12 @@ export function yoursClearedBy(storyId: string, passageId: string): { id: string
              ORDER BY idx`).all(storyId, ...cut.chapters) as any[];
 }
 
-/** Flags belong to the passage. SQLite will not cascade here — violations.passage_id has no
- *  foreign key, because a flag can outlive the variant it was raised against — so the delete
- *  is explicit. Without it, deleting a passage left its flags on screen forever. */
 export function delPassage(storyId: string, id: string) {
   const cur = q('SELECT chapter_id, slot_key, selected FROM passages WHERE id = ? AND story_id = ?')
     .get(id, storyId) as any;
   if (!cur) return;
   db.exec('BEGIN');
   try {
-    q('DELETE FROM violations WHERE passage_id = ? AND story_id = ?').run(id, storyId);
     q('DELETE FROM passages WHERE id = ? AND story_id = ?').run(id, storyId);
     // Deleting the SELECTED take left the slot with no selected row at all, and every read of the
     // book — passagesOfChapter, view(), the context window — filters on selected = 1. So the other
@@ -2356,7 +2324,6 @@ export function delSlot(storyId: string, id: string) {
   try {
     const ids = (q('SELECT id FROM passages WHERE chapter_id = ? AND slot_key = ? AND story_id = ?')
       .all(cur.chapter_id, cur.slot_key, storyId) as any[]).map((r) => r.id);
-    for (const pid of ids) q('DELETE FROM violations WHERE passage_id = ? AND story_id = ?').run(pid, storyId);
     q('DELETE FROM passages WHERE chapter_id = ? AND slot_key = ? AND story_id = ?')
       .run(cur.chapter_id, cur.slot_key, storyId);
     db.exec('COMMIT');
@@ -2378,11 +2345,6 @@ export const passageAsked = (storyId: string, id: string):
 /** Just the instruction, which is what the surface asks for. One row-reader, above. */
 export const passageDirective = (storyId: string, id: string): string | null =>
   passageAsked(storyId, id)?.directive ?? null;
-
-/** Sweep flags whose passage is gone, or which no longer clear the confidence floor. */
-export const pruneViolations = (floor = 0.6) => q(
-  `DELETE FROM violations WHERE passage_id NOT IN (SELECT id FROM passages)
-      OR confidence IS NULL OR confidence < ?`).run(floor).changes;
 
 /** The writer's own wording for a mode, replacing the shipped one outright.
  *
@@ -3587,7 +3549,7 @@ export function exportStory(storyId: string, ownerId: string, dir = join(dirname
  *  What is copied: chapters up to the fork, the SELECTED passage of each slot up to the fork,
  *  the pins on those chapters, and any arc wholly inside the range.
  *  What is not: canon (story-scoped, deliberately shared — a fact is true on every path),
- *  discarded variants, revision history, flags and generations. Those belong to the passages
+ *  discarded variants, revision history and generations. Those belong to the passages
  *  they were raised against, and the fork's passages are new rows.
  */
 export function forkBranch(storyId: string, fromBranchId: string, atOrdinal: number, name: string) {
@@ -3672,7 +3634,7 @@ export function forkBranch(storyId: string, fromBranchId: string, atOrdinal: num
  *  `retired_at_chapter` travel here and must not be lifted out of this function into any path that
  *  copies between two different books.
  *
- *  WHAT DOES NOT COME, on purpose: passage revisions, generation logs, raised flags and open
+ *  WHAT DOES NOT COME, on purpose: passage revisions, generation logs and open
  *  proposals — workbench state about how the original got written rather than the book — and
  *  `story_writers`, because a copy belongs to whoever pressed the button until they invite
  *  somebody into it.
@@ -3896,8 +3858,8 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
  *  branches."
  *
  *  Its chapters go, and the cascade takes their prose, every take, the edit history and the pins
- *  (`delChapter` says why each of those is a real cascade). Written out, as there: the flags on its
- *  passages and the proposals its chapters made, which carry no foreign key; and its acts, which
+ *  (`delChapter` says why each of those is a real cascade). Written out, as there: the proposals
+ *  its chapters made, which carry no foreign key; and its acts, which
  *  hang off the branch. Canon stays: a thread is the tale's, on every path. `generations` stays: it
  *  is the log of what was asked, not the book.
  *
@@ -3913,8 +3875,6 @@ export function delBranch(storyId: string, branchId: string): { deleted: number;
     error: 'This is the branch you are on. Switch to another branch first, then this one can go.' };
   db.exec('BEGIN');
   try {
-    q(`DELETE FROM violations WHERE story_id = ? AND passage_id IN
-         (SELECT id FROM passages WHERE branch_id = ?)`).run(storyId, branchId);
     q(`DELETE FROM proposals WHERE story_id = ? AND chapter_id IN
          (SELECT id FROM chapters WHERE branch_id = ?)`).run(storyId, branchId);
     q('DELETE FROM arcs WHERE story_id = ? AND branch_id = ?').run(storyId, branchId);
@@ -4065,30 +4025,6 @@ export function setPin(storyId: string, chapterId: string, entryId: string, mode
       .run(chapterId, entryId, storyId, mode, now(), storyId, entryId).changes > 0;
   } catch { return false; }
 }
-
-// ---- violations ----
-export function addViolation(storyId: string, v: any) {
-  q(`INSERT INTO violations (id,story_id,passage_id,entry_id,quote,reason,confidence,reached,created_at)
-     VALUES (?,?,?,?,?,?,?,?,?)`).run(uid('v-'), storyId, v.passageId, v.entryId ?? null,
-    v.quote ?? null, v.reason ?? null, v.confidence ?? null, v.reached === false ? 0 : 1, now());
-}
-/** Open flags on passages that are actually on the page.
- *
- *  The `selected = 1` join is the fix for a flag you can see the count of and never the flag: rolling
- *  a passage again leaves the old take in the database unselected, and its flags stayed open on prose
- *  that is no longer in the book. The shelf counted one, the document rendered none, and there was
- *  nothing to press.
- *
- *  Filtered rather than deleted, deliberately. An unselected take is one you can switch back to, and
- *  if you do, its flag is true again — so this hides it rather than losing it. */
-export const violationsOf = (storyId: string) => q(
-  `SELECT v.* FROM violations v JOIN passages p ON p.id = v.passage_id
-    WHERE v.story_id = ? AND v.status = 'open' AND p.selected = 1
-    ORDER BY v.created_at DESC`).all(storyId) as any[];
-export const clearViolations = (passageId: string) =>
-  q('DELETE FROM violations WHERE passage_id = ?').run(passageId);
-export const setViolationStatus = (storyId: string, id: string, status: string) =>
-  q('UPDATE violations SET status = ? WHERE id = ? AND story_id = ?').run(status, id, storyId);
 
 // ---- canon over time ----
 export const statesForStory = (storyId: string) => {
@@ -4334,27 +4270,8 @@ export function writerStats(o: string, tzo = 0) {
 /** What the model has actually been doing. PLAN-02 §7.2's budget-engine trigger is stated in
  *  terms of prefill time and prefix churn, and neither is knowable until something reads this. */
 export const recentGenerations = (storyId: string, limit = 40) => q(
-  `SELECT id, role, model, prompt_tokens, completion_tokens, latency_ms, timings, error, created_at,
-          mend
+  `SELECT id, role, model, prompt_tokens, completion_tokens, latency_ms, timings, error, created_at
    FROM generations WHERE story_id = ? ORDER BY created_at DESC LIMIT ?`).all(storyId, limit) as any[];
-
-/** #9. What the repair did, written onto the row the generation already has.
- *
- *  A second statement rather than an argument to `logGeneration`, because the log happens BEFORE
- *  the repair — the id has to exist so the take can be tied to it, and a generation that succeeded
- *  must stay logged even if the repair throws. */
-/** WHAT A REPAIR DID, on the generation row that paid for it. Issue #9.
- *
- *  Restored 2026-09-01 with the repair button. The counts existed once and were returned to a
- *  browser that ignored them and written nowhere, so for four days nobody could say how often the
- *  repair fired or how often it worked while eighteen contradictions reached the flags table.
- *
- *  A CLEAN RUN RECORDS NOTHING AT ALL, not a zero: this is only called when something WAS wrong,
- *  which is the informative denominator. `mended` is `found - left`, so it goes NEGATIVE when the
- *  second look finds more than the first — 2 of the 12 rows in the live library do, which is the
- *  repair having introduced a contradiction. That is a fact worth keeping, not a number to clamp. */
-export const noteMend = (id: string, m: unknown) =>
-  q('UPDATE generations SET mend = ? WHERE id = ?').run(JSON.stringify(m), id);
 
 export function logGeneration(g: any) {
   const gid = uid('g-');

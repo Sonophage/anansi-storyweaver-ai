@@ -6270,7 +6270,7 @@ const hemView = (hem: any, rows: any[]) => ({ ...STORY,
   // Envoy Sereth has an Over time entry in force: that is the "before" of her state row.
   entries: STORY.entries.map((e: any) => e.id === 'e-1' ? { ...e, nowStateId: 'st-1',
     states: [{ id: 'st-1', fromChapter: 1, body: 'She waits by the door, gloved.' }] } : e),
-  proposals: rows, violations: [], strings: [] });
+  proposals: rows, strings: [] });
 const hemFetch = (canned: any) => async (url: string, init?: any) => {
   const body = init?.body ? JSON.parse(init.body) : null;
   const reply = (o: any) => ({ ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) });
@@ -6568,7 +6568,7 @@ const hemCardOf = (side: string) => {
   // have already opened a `c-3`, so reusing one would pass without the rule under test.
   const c3 = { id: 'c-hem3', index: 3, title: 'Scene 3', summary: null, authorsNote: null, opensWith: null,
     status: 'open', coversThrough: null, summaryStale: false, keepWhole: false, hem: null };
-  const after = (hem: any, rows: any[]) => ({ ...STORY, violations: [], strings: [], proposals: rows,
+  const after = (hem: any, rows: any[]) => ({ ...STORY, strings: [], proposals: rows,
     chapters: [{ ...STORY.chapters[0], hem: null }, { ...STORY.chapters[1], status: 'closed', hem }, c3],
     currentChapter: { ...c3 } });
   const running = { ...HEM_DONE, state: 'running', finishedAt: null, suggestion: null, overflow: [],

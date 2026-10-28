@@ -815,8 +815,8 @@ ok('the lines the council struck stay struck, and say why', () => {
 // produces a card body, a summary, a beat or a story field, and every one of those is re-sent to
 // the WRITING model on later calls — so a persona in them is not a style choice, it is
 // contamination. F36 measured what finished English in a prompt does: it is lifted verbatim into
-// the prose. Her register would reach the book through the ledger, and by a route the
-// contradiction checker cannot see.
+// the prose. Her register would reach the book through the ledger, and no check reads the ledger
+// for it.
 ok('the persona is in the chat prompt and in no other', () => {
   const marks: [RegExp, string][] = [
     [/civilisations rise and fall/i, 'the scholar framing'],
@@ -954,10 +954,8 @@ ok('a book is never written with no voice at all', () => {
 });
 
 ok('firing decides what the model is TOLD — and since COUNCIL-04 #7, only that', () => {
-  // It used to decide what gets VERIFIED as well: one rule doing two jobs, failing together, so a
-  // character who never fired could be contradicted freely. The check reads the whole ledger now
-  // and marks each flag with whether the entry reached the prompt (see test/check.ts §3). What is
-  // asserted here is the half that did not change: the MANIFEST still carries only what fired.
+  // It used to decide what got VERIFIED as well, by the contradiction check deleted on 2026-10-28.
+  // What is asserted here is the half that remains: the MANIFEST carries only what fired.
   const s6 = db.createStory(o, { title: 'C' });
   db.addPassage({ ...s6, storyId: s6.id, body: 'He kept his hand on the coat all the way down.' });
   db.upsertEntry(s6.id, o, { title: 'the key', body: '[the key: brass]',
@@ -973,17 +971,6 @@ ok('firing decides what the model is TOLD — and since COUNCIL-04 #7, only that
   const fired = v.entries.find((e) => e.id === reached[0])!;
   assert.strictEqual(fired.title, 'the key');
   db.delStory(s6.id);
-});
-
-ok('deleting a passage takes its canon flags with it', () => {
-  const s4 = db.createStory(o, { title: 'F' });
-  const pid = db.addPassage({ ...s4, storyId: s4.id, body: 'the key was silver' });
-  db.addViolation(s4.id, { passageId: pid, entryId: 'e-x', quote: 'silver',
-    reason: 'canon says brass', confidence: 1 });
-  assert.strictEqual(db.violationsOf(s4.id).length, 1);
-  db.delPassage(s4.id, pid);
-  assert.strictEqual(db.violationsOf(s4.id).length, 0, 'a flag must not outlive its passage');
-  db.delStory(s4.id);
 });
 
 ok('deleting the selected take promotes a sibling instead of hiding the slot', () => {
@@ -1008,27 +995,6 @@ ok('deleting the selected take promotes a sibling instead of hiding the slot', (
   db.delPassage(s9.id, base);
   assert.strictEqual(db.passagesOfChapter(s9.chapterId).length, 0, 'deleting every take empties it');
   db.delStory(s9.id);
-});
-
-ok('a flag records whether the canon it contradicts ever reached the model', () => {
-  const s8 = db.createStory(o, { title: 'Reached' });
-  const pid = db.addPassage({ ...s8, storyId: s8.id, body: 'the key was silver' });
-  db.addViolation(s8.id, { passageId: pid, entryId: 'e-1', quote: 'silver', reason: 'brass',
-    confidence: 1, reached: true });
-  db.addViolation(s8.id, { passageId: pid, entryId: 'e-2', quote: 'silver', reason: 'never sent',
-    confidence: 1, reached: false });
-  const rows = db.violationsOf(s8.id);
-  assert.strictEqual(rows.length, 2);
-  assert.strictEqual(rows.find((r: any) => r.entry_id === 'e-1').reached, 1,
-    'canon the model was shown and contradicted anyway');
-  assert.strictEqual(rows.find((r: any) => r.entry_id === 'e-2').reached, 0,
-    'canon the engine never sent — a different fault, fixed with a keyword rather than a rewrite');
-  // Old rows predate the column and were all raised against canon that had fired, which is the
-  // only kind the checker could see. The default has to say so rather than leave them null.
-  db.addViolation(s8.id, { passageId: pid, entryId: 'e-3', quote: 'x', reason: 'y', confidence: 1 });
-  assert.strictEqual(db.violationsOf(s8.id).find((r: any) => r.entry_id === 'e-3').reached, 1,
-    'unspecified means it reached, which is what every stored row was');
-  db.delStory(s8.id);
 });
 
 ok('ending a chapter is both writes or neither', () => {
@@ -1130,17 +1096,6 @@ ok('an old library gains the string kind, and its strings are promises', () => {
     assert.deepStrictEqual(rows, [{ title: 'The debt', kind: 'promise' }], 'STRING-KIND-MIGRATE: an existing string is a promise');
   } finally { rmSync(dir, { recursive: true, force: true }); }
   db.delStory(t.id);
-});
-
-ok('the sweep removes orphans and anything under the confidence floor', () => {
-  const s5 = db.createStory(o, { title: 'S' });
-  const pid = db.addPassage({ ...s5, storyId: s5.id, body: 'x' });
-  db.addViolation(s5.id, { passageId: pid, quote: 'a', reason: 'r', confidence: 0.2 });
-  db.addViolation(s5.id, { passageId: pid, quote: 'b', reason: 'r', confidence: 0.9 });
-  db.addViolation(s5.id, { passageId: 'p-gone', quote: 'c', reason: 'r', confidence: 0.9 });
-  assert.strictEqual(db.pruneViolations(0.6), 2, 'the low one and the orphan');
-  assert.strictEqual(db.violationsOf(s5.id).length, 1);
-  db.delStory(s5.id);
 });
 
 // Entity resolution. Exercised directly because model output is not reproducible.
@@ -1697,31 +1652,6 @@ ok('weaving is off by default, turns on through the story save, survives a parti
   assert.strictEqual(read().weaving, false, 'and off is a value too');
 });
 
-ok('a flag on a take you rolled away from is not counted and not shown', () => {
-  const me = db.owner('flag-test');
-  const st = db.createStory(me, { title: 'The Flagged' });
-  const first = db.addPassage({ ...st, storyId: st.id, body: 'She was the Murmur still.' });
-  db.addViolation(st.id, { passageId: first, quote: 'She was the Murmur still.',
-    reason: 'canon says otherwise', confidence: 0.9 });
-
-  assert.strictEqual(db.violationsOf(st.id).length, 1, 'a flag on the passage on the page is shown');
-  const counted = () => (db.listStories(me).find((r: any) => r.id === st.id) as any).flags;
-  assert.strictEqual(counted(), 1, 'and counted on the shelf');
-
-  // Roll it again: the old take stays in the database, unselected, and its flag goes with it. This
-  // is the bug Seth hit — the shelf said one flag and the document had nothing to show, because the
-  // prose it was about is no longer in the book.
-  db.addVariant(st.id, first, 'She was no longer the Murmur.');
-  const still = db.passagesOf(st.id).find((p: any) => p.id === first);
-  assert.ok(!still, 'the old take is no longer the selected one');
-  assert.strictEqual(db.violationsOf(st.id).length, 0, 'so its flag is not shown');
-  assert.strictEqual(counted(), 0, 'and the shelf agrees with what the page can show');
-
-  // Hidden, NOT deleted: an unselected take is one you can switch back to, and its flag is true
-  // again if you do. Sweeping it would be the easy fix and the wrong one.
-  assert.strictEqual(db.pruneViolations(0), 0, 'nothing swept it — it is filtered, not lost');
-});
-
 // The cover. The reason it is a side table and not a column is that listStories selects s.* — so
 // the assertion that matters is not "it came back", it is "the shelf listing does not carry the
 // bytes". Falsified by selecting sc.jpeg into that listing rather than sc.set_at: the shelf then
@@ -1988,35 +1918,6 @@ ok('a take inherits the instruction, and a slot can be deleted whole', () => {
     'a foreign passage id yields no instruction');
   assert.strictEqual(db.delSlot(st.id, theirs), 0, 'and no foreign slot can be deleted through it');
   assert.strictEqual(db.passagesOf(other.id).length, 1, 'theirs is untouched');
-});
-
-// A mute is "not for this chapter", never "never again". That scope IS the feature: canon and
-// prose fall out of step while a chapter is moving and agree again once it settles, so silencing
-// an entry everywhere would hide a real contradiction in chapter nine because chapter three was
-// messy. If this ever stops being chapter-scoped the checker goes quiet on a book-wide fact and
-// nothing else in the suite would notice.
-ok('a mute quiets one entry in one chapter, and neither the next chapter nor a lift keeps it', () => {
-  const st = db.createStory(db.owner('muter'), { title: 'Drift' });
-  db.addPassage({ ...st, storyId: st.id, body: 'The chapter has to have prose before it can end.' });
-  db.endChapter(st.id, st.branchId, 'Two');
-  const chapTwo = db.chapters(st.id).map((c: any) => c.id).find((id: string) => id !== st.chapterId);
-  assert.ok(chapTwo, 'the fixture needs two distinct chapters or it proves nothing about scope');
-
-  db.dismiss(st.id, 'mute', `${st.chapterId}:e-aldi`);
-  assert.deepStrictEqual([...db.mutedIn(st.id, st.chapterId)], ['e-aldi'],
-    'the entry is quiet in the chapter it was muted in');
-  assert.deepStrictEqual([...db.mutedIn(st.id, chapTwo)], [],
-    'and NOT in the next chapter — a mute that leaked forward would hide a real contradiction '
-    + 'in a chapter the writer never silenced');
-
-  // Another writer's mute is not yours, on the same chapter id shape.
-  const other = db.createStory(db.owner('mute-stranger'), { title: 'Theirs' });
-  db.dismiss(other.id, 'mute', `${other.chapterId}:e-aldi`);
-  assert.deepStrictEqual([...db.mutedIn(st.id, chapTwo)], [], 'and never across stories');
-
-  db.unmute(st.id, 'mute', `${st.chapterId}:e-aldi`);
-  assert.deepStrictEqual([...db.mutedIn(st.id, st.chapterId)], [],
-    'lifting it restores the checker — quiet, not deaf');
 });
 
 // PLAN-06 §2f. Three parsers existed and the AUTHORITATIVE one — the write path every route
@@ -3993,6 +3894,65 @@ ok('a revert that is refused writes nothing to the history', () => {
   assert.strictEqual(db.revertEntryField(t.id, e, 'er-forged'), false, 'REVERT-REFUSED: a column off the list is refused');
   assert.strictEqual(db.entryHistory(t.id, e).length, 1, 'REVERT-NO-JUNK: and no row is added for it');
   db.delStory(t.id);
+});
+
+// #94 · THE UPDATE DROPS THE KNOTS ONCE. The contradiction check was deleted (Seth, 2026-10-28), so its
+// table, the repair record on generations and the per-scene mutes go with it. Built on a copy made
+// here, never the live file: the old table and rows written as an old server wrote them, then two
+// boots of the real module.
+ok('the update drops the knots once, after a backup, says how many on each tale, and keeps other dismissals', () => {
+  const me = db.owner('knot-update');
+  const t = db.createStory(me, { title: 'Old knots' });
+  const quiet = db.createStory(me, { title: 'No knots' });
+  const dir = mkdtempSync('/tmp/anansi-knots-');
+  try {
+    const file = join(dir, 'old.db');
+    db.snapshot(file);
+    const old = new RawDb(file);
+    old.exec(`CREATE TABLE IF NOT EXISTS violations (
+      id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+      passage_id TEXT NOT NULL, entry_id TEXT, quote TEXT, reason TEXT, confidence REAL,
+      reached INTEGER DEFAULT 1, status TEXT DEFAULT 'open', created_at INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS violations_p ON violations(passage_id);
+      CREATE INDEX IF NOT EXISTS violations_s ON violations(story_id, status);`);
+    if (!(old.prepare('PRAGMA table_info(generations)').all() as any[]).some((c) => c.name === 'mend'))
+      old.exec('ALTER TABLE generations ADD COLUMN mend TEXT');
+    const knot = old.prepare("INSERT INTO violations (id, story_id, passage_id, created_at) VALUES (?, ?, 'p', 1)");
+    knot.run('v-k1', t.id); knot.run('v-k2', t.id);
+    old.prepare("INSERT INTO dismissals (story_id, kind, ref, at) VALUES (?, 'mute', 'c:e', 1)").run(t.id);
+    old.prepare("INSERT INTO dismissals (story_id, kind, ref, at) VALUES (?, 'stale', 'h', 1)").run(t.id);
+    old.close();
+    const read = <T,>(fn: (c: any) => T) => { const c = new RawDb(file, { readOnly: true }); try { return fn(c); } finally { c.close(); } };
+    const tables = () => read((c) => (c.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'violations%'").all() as any[]).map((x) => x.name));
+    const mend = () => read((c) => (c.prepare('PRAGMA table_info(generations)').all() as any[]).some((x) => x.name === 'mend'));
+    const kinds = () => read((c) => (c.prepare('SELECT kind FROM dismissals WHERE story_id = ? ORDER BY kind').all(t.id) as any[]).map((x) => x.kind));
+    const lines = (id: string) => read((c) => (c.prepare('SELECT line, backup FROM update_lines WHERE story_id = ? ORDER BY rowid').all(id) as any[]).map((x) => ({ ...x })));
+    const backups = () => existsSync(join(dir, 'backups'))
+      ? readdirSync(join(dir, 'backups')).filter((f) => f.startsWith('pre-update-')) : [];
+    const boot = () => {
+      const r = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
+        `await import(${JSON.stringify(new URL('../src/db.ts', import.meta.url).href)});`],
+        { env: { ...process.env, ANANSI_DB: file }, encoding: 'utf8' });
+      assert.strictEqual(r.status, 0, `the boot failed: ${r.stderr}`);
+    };
+    const before = lines(t.id).length;
+
+    boot();
+    assert.deepStrictEqual(tables(), [], 'KNOTS-DROPPED: the violations table and its indexes are gone');
+    assert.strictEqual(mend(), false, '  and so is the repair record on generations');
+    assert.deepStrictEqual(kinds(), ['stale'], 'KNOTS-MUTES: the mutes are gone and other dismissals stay');
+    assert.strictEqual(backups().length, 1, 'KNOTS-BACKUP: one backup was taken first');
+    const said = lines(t.id).slice(before);
+    assert.strictEqual(said.length, 1, `KNOTS-REPORT: one line on the tale that had knots (${said.map((l: any) => l.line).join(' | ')})`);
+    assert.match(said[0].line, /\b2 knots\b/, '  naming how many');
+    assert.ok(said[0].backup?.includes('pre-update-'), '  and the backup');
+    assert.strictEqual(lines(quiet.id).length, 0, '  and none on a tale that had none');
+
+    boot();
+    assert.strictEqual(backups().length, 1, 'KNOTS-ONCE: a second boot takes no backup');
+    assert.strictEqual(lines(t.id).length, before + 1, '  and writes no second line');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+  db.delStory(t.id); db.delStory(quiet.id);
 });
 
 // #110 · THE UPDATE TAKES THE WRAPPERS OFF THE LIBRARY ONCE. Built on a copy made here, never the live

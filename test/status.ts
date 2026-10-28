@@ -93,42 +93,4 @@ ok('a library whose pins are keyed the old way is named as older, by the key', (
     'STATUS-KEY-EXTRA: and the old key the file still has');
 });
 
-
-/* A RECORDED CHECK THAT WRITES NOTHING IS NAMED, not read as clean. The canon check wrote 0 rows
- * over 627 generations for 52 days (#69), and nothing said so: a check that never runs and a check
- * that finds nothing look the same in the table. Status prints each recorded check's rows for the
- * last seven days beside the calls that should have produced them, and SILENT when there were more
- * than 20 calls and no rows. Both directions: silent, and then not. */
-ok('a recorded check with no rows against many calls is named SILENT, and one with rows is not', () => {
-  const LIVE = '/tmp/anansi-status-live.db';
-  for (const f of ['', '-wal', '-shm']) { try { unlinkSync(LIVE + f); } catch {} }
-  copyFileSync(DB, LIVE);
-  const raw = new DatabaseSync(LIVE);
-  const now = Date.now();
-  const gen = raw.prepare('INSERT INTO generations (id, story_id, role, created_at, mend) VALUES (?, ?, ?, ?, ?)');
-  for (let i = 0; i < 21; i++) gen.run(`g-p${i}`, s.id, 'prose', now - i * 60_000, null);
-  for (let i = 0; i < 21; i++) gen.run(`g-r${i}`, s.id, 'repair', now - i * 60_000, null);
-  // Old rows are outside the window and must not count for it.
-  raw.prepare("INSERT INTO violations (id, story_id, passage_id, created_at) VALUES ('v-old', ?, 'p', ?)")
-    .run(s.id, now - 30 * 86_400_000);
-  raw.close();
-  const silent = status(LIVE);
-  assert.match(silent, /canon check\s+SILENT\b.*21 prose/, 'SILENT-CANON: no flags against 21 prose calls is named');
-  assert.match(silent, /repair record\s+SILENT\b.*21 repair/, 'SILENT-MEND: 21 repairs with no record is named');
-
-  const w = new DatabaseSync(LIVE);
-  w.prepare("INSERT INTO violations (id, story_id, passage_id, created_at) VALUES ('v-new', ?, 'p', ?)").run(s.id, now);
-  w.prepare("UPDATE generations SET mend = '{}' WHERE id = 'g-r0'").run();
-  w.close();
-  const heard = status(LIVE);
-  assert.match(heard, /canon check\s+1 flag.*21 prose/, 'and one flag in the window is counted, not called silent');
-  assert.match(heard, /repair record\s+1 record.*21 repair/, 'and one repair record is counted');
-  // A row's value starts at column 28. Matched there and not anywhere, because the commit line
-  // prints the last commit's subject, which can say SILENT itself.
-  const SILENT = /^ {2}.{26}SILENT/m;
-  assert.doesNotMatch(heard, SILENT, 'with no SILENT row anywhere');
-  // A quiet week is not a silent one: under the threshold, nothing is named.
-  assert.doesNotMatch(status(), SILENT, 'a library with almost no calls is never called silent');
-});
-
 console.log(`\n${n} checks passed`);

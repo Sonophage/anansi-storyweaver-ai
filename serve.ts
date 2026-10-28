@@ -533,8 +533,6 @@ const handler = async (req: any, res: any) => {
     + (shelves.length > 1 ? ` · ${shelves.map((w) => `${w.login} ${w.n}`).join(', ')}` : ''));
   // A snapshot on boot and every 30 minutes. The database is the only copy of the book,
   // and PLAN-02 deleted Neon without booking anything to replace its durability.
-  const swept = db.pruneViolations();
-  if (swept) console.log(`  swept         ${swept} orphaned or low-confidence flags`);
   const snapshot = () => { try { const b = db.backup();
     console.log(`  backup        ${(b.bytes / 1024).toFixed(0)} KB, keeping 12`);
   } catch (e: any) { console.error('  backup failed:', e?.message); } };
