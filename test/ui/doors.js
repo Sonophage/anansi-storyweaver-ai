@@ -44,14 +44,24 @@ await wait(600);
 
 // ---- every menu page's header fits a phone. The second review (2026-10-25) measured the bar at
 // 446px on a 390px screen on every page but the library: Carry on writing pushed the titles to "Threa…".
-const over = [];
-for (const nav of ['canon', 'prefs', 'forge', 'create', 'import', 'news']) {
-  await page.eval(`(() => { document.querySelector('[data-nav="${nav}"]').click(); return 1; })()`);
+// Import, Export and What you have written have no menu row since 2026-10-27: their doors are in
+// Account → Your books, so the walk opens that tab before each of them.
+const over = [], heads = new Set();
+const press = (sel) => page.eval(`(() => { document.querySelector(${JSON.stringify(sel)}).click(); return 1; })()`);
+for (const nav of ['canon', 'account', 'prefs', 'forge', 'create', 'import', 'news', 'bug']) {
+  if (['prefs', 'forge', 'import'].includes(nav)) {
+    await press('[data-nav="account"]'); await wait(500);
+    await press('[data-accttab="books"]'); await wait(300);
+  }
+  await press(`[data-nav="${nav}"]`);
   await wait(500);
   const o = await page.eval("(() => { const b = document.getElementById('bar'); return b.scrollWidth - b.clientWidth; })()");
   if (o > 0) over.push(`${nav} +${o}px`);
+  heads.add(await page.eval("document.getElementById('bar').textContent.replace(/\\s+/g, ' ').trim()"));
 }
 ok(`every menu page's header fits on a phone (${JSON.stringify(over)})`, over.length === 0);
+// Eight different headers, or a press missed and the same page was measured twice.
+ok(`  and it measured eight different pages (${heads.size})`, heads.size === 8);
 
 // ---- Start blank reads the threads it offers. It said "Reading your threads…" for ever.
 await page.eval("(() => { document.querySelector('[data-nav=\"create\"]').click(); return 1; })()");
