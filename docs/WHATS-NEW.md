@@ -54,7 +54,8 @@ way you tick one of the tale's own. Before, Anansi said "that scene or thread is
 The thread is sent for that scene and stays the World's: a change to it in the World reaches the
 scene. Your pins from before are all still there.
 If the tale stops following that World, or follows another, its ticks on the old World's
-threads come off. Its own threads stay ticked.
+threads come off. Its own threads stay ticked. If you make the tale's own copy of a World thread
+you ticked, the tick moves to the copy, so the scene still gets that person.
 
 ## 2026-10-28 · Anansi changes what you ask him to
 

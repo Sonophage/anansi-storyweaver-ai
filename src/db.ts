@@ -2783,6 +2783,9 @@ export function unlinkEntry(storyId: string, o: string, originId: string) {
   if (!made) return null;
   q("UPDATE entries SET origin_id = ?, sync = 'off' WHERE id = ? AND story_id = ?")
     .run(originId, made, storyId);
+  // #107 · ITS PINS ON THE WORLD THREAD MOVE TO THE TAKEN-OVER COPY. The tale reads the copy from
+  // now on, so a pin left on the World thread's id would send nothing for that scene.
+  q('UPDATE chapter_pins SET entry_id = ? WHERE story_id = ? AND entry_id = ?').run(made, storyId, originId);
   return made;
 }
 
