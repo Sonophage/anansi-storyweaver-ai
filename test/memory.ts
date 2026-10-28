@@ -1085,6 +1085,46 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 
 
+// ---- #91 · RUN A HEM'S PASSES AGAIN ----
+//
+// TRY AGAIN ONE PASS: the new-thread pass failed; asked again, only that pass asks the model, its
+// line in the report clears, and the other lines are as they were.
+{
+  const t = db.createStory(me, { title: 'Try again', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Oren cut the bell down from the ferry post and carried it home.' });
+  answer = [{ name: 'Oren', stands: '[Oren: the ferryman, who has taken the ferry bell home]', label: 'took the bell',
+    line: 'Oren cut the bell down from the ferry post', always: '', pockets: [] }];
+  found = [{ title: 'The Ferry Bell', body: 'Bronze, green with river damp.', type: 'item', keys: ['bell'] }];
+  tidied = { ...NEXT };
+  failIf = (system) => system.startsWith(prompts.EXTRACT.slice(0, 80));
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
+  await hemSettled(t.id);
+  failIf = null;
+  const failed = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.ok(failed?.passes?.facts, '  the facts pass failed first');
+  const from = asks.length;
+  const r: any = await routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'facts' }));
+  assert.ok(!r.error, r.error);
+  await hemSettled(t.id);
+  tidied = {};
+  const again = asks.slice(from);
+  assert.ok(again.length > 0 && again.every((a) => a.system.startsWith(prompts.EXTRACT.slice(0, 80))),
+    `HEM-RETRY-ONE: only the facts pass asked the model (${again.length} asks)`);
+  const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.strictEqual(hem?.state, 'done', '  and the hem is done again');
+  assert.strictEqual(hem.passes.facts, null, `HEM-RETRY-CLEARS: the facts line clears (${hem.passes.facts})`);
+  assert.deepStrictEqual(Object.keys(hem.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary'],
+    '  and the other lines are still in the report');
+  assert.deepStrictEqual(hem.suggestion, NEXT, '  and the suggestion is kept');
+  const bell = (db.proposalsOf(t.id) as any[]).find((p) => p.title === 'The Ferry Bell');
+  assert.strictEqual(bell?.grp, `scene:${ch0.id}`, '  and what it found is chalked into the scene group');
+  ok('try again runs one failed pass, clears its line, and leaves the rest of the report');
+}
+
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several

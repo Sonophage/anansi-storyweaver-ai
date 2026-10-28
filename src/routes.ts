@@ -1190,15 +1190,22 @@ const hemQueue = new Map<string, Promise<void>>();
 /** Settles when every hem queued on this tale has finished. Tests wait on it; nothing else should. */
 export const hemSettled = (storyId: string): Promise<void> => hemQueue.get(storyId) ?? Promise.resolve();
 
-type HemWant = { summary: boolean; memory: boolean; facts: boolean; finished: boolean };
-function hem(c: Ctx, storyId: string, closing: string, opened: string, want: HemWant) {
+/** The passes a hem reports on, by the names its report uses. */
+const HEM_PASSES = ['summary', 'memory', 'facts', 'finished', 'next'] as const;
+type HemWant = { summary: boolean; memory: boolean; facts: boolean; finished: boolean; next: boolean };
+function hem(c: Ctx, storyId: string, closing: string, opened: string | undefined, want: HemWant) {
   db.beginHem(storyId, closing);
-  const mine = hemSettled(storyId).then(() => hemPasses(c, storyId, closing, opened, want)).catch(() => {});
+  queueHem(storyId, () => hemPasses(c, storyId, closing, opened, want));
+}
+/** #91. The one queue every hem job goes through, so a try-again or a hem again never runs beside
+ *  another hem on the same tale. */
+function queueHem(storyId: string, job: () => Promise<void>) {
+  const mine = hemSettled(storyId).then(job).catch(() => {});
   hemQueue.set(storyId, mine);
   void mine.then(() => { if (hemQueue.get(storyId) === mine) hemQueue.delete(storyId); });
 }
 
-async function hemPasses(c: Ctx, storyId: string, closing: string, opened: string, want: HemWant) {
+async function hemPasses(c: Ctx, storyId: string, closing: string, opened: string | undefined, want: HemWant) {
   /** WHICH OF THE PASSES DID NOT RUN, and why. Issue #32: "Facts are not being written
    *  based on the last chapter anymore."
    *
@@ -1256,9 +1263,10 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // rest of the book.
   await run('finished', want.finished, () => retire(c, storyId, closing, scene));
   // The next scene's suggestion, last: it reads the summary the first pass just wrote.
-  const next = await run('next', true, () => suggestScene(c, storyId, opened));
-  db.finishHem(storyId, closing, { passes, kept: keptSummary,
-    suggestion: next?.title ? { title: next.title, note: next.note, opens: next.opens } : null });
+  const next = await run('next', want.next, () => suggestScene(c, storyId, opened));
+  // A pass that did not run this time leaves its line, the kept flag and the suggestion as stored (#91).
+  db.finishHem(storyId, closing, { passes, kept: want.summary ? keptSummary : undefined,
+    suggestion: !want.next ? undefined : next?.title ? { title: next.title, note: next.note, opens: next.opens } : null });
 }
 
 /** Read a chapter for facts and put them in the queue as PROPOSALS.
@@ -2651,6 +2659,23 @@ export const routes: Record<string, Handler> = {
   /** What the scene about to be written should be called, and what it has to do. The body is
    *  `suggestScene`, which a hem also runs (#89); this route stays for the client's own button. */
   'POST /api/chapter/propose': (c: Ctx) => suggestScene(c, c.body.storyId, c.body.chapterId, c.body.steer),
+  /** #91 · RUN A HEM'S PASSES AGAIN, from the scene's Workbench card. `pass` names one pass of the
+   *  report (try again): only that pass runs, and only its line changes. Detached and queued like
+   *  the hem itself; the answer is the view, with the hem shown running. */
+  'POST /api/chapter/hem': (c: Ctx) => {
+    const storyId = String(c.body.storyId), chapterId = String(c.body.chapterId ?? '');
+    // The gate resolves `storyId` only, never the chapter id: the chapter must be in this story.
+    const chs = db.chapters(storyId);
+    const at = chs.findIndex((x: any) => x.id === chapterId);
+    if (at < 0) return { error: 'That scene is not in this book.' };
+    const opened = chs[at + 1]?.id;
+    const pass = String(c.body.pass ?? '');
+    if (!(HEM_PASSES as readonly string[]).includes(pass)) return { error: `There is no pass called "${pass}".` };
+    if (!db.reopenHem(storyId, chapterId)) return { error: 'This scene has not been hemmed yet.' };
+    const want = Object.fromEntries(HEM_PASSES.map((k) => [k, k === pass])) as HemWant;
+    queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want));
+    return viewOf(c, storyId);
+  },
   'POST /api/chapter/end': async (c) => {
     // Closing a chapter is standing behind everything in it.
     db.claimPassages(c.body.storyId);
@@ -2663,7 +2688,7 @@ export const routes: Record<string, Handler> = {
     // #89. THE PASSES RUN AFTER THE ANSWER: the writer starts the next scene while they work, and
     // the view shows the hem running, then done.
     hem(c, v.id, closing, r.opened, { summary: c.body.summarise !== false, memory: c.body.remember !== false,
-      facts: c.body.extract !== false, finished: c.body.retire !== false });
+      facts: c.body.extract !== false, finished: c.body.retire !== false, next: true });
     return { ...r, ...viewOf(c, v.id) };
   },
 
