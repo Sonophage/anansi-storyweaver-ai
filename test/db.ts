@@ -3538,4 +3538,66 @@ ok('a pin on an unfollowed World or another writer\'s thread is refused, and a W
   assert.deepStrictEqual(pins(), [], 'PIN-GONE-THREAD: deleting the World thread removes the pin');
 });
 
+/* #102. A LIBRARY FROM BEFORE IS REBUILT, and its pins come through unchanged. The old library is a
+ * copy of this one with chapter_pins put back in the shape it had: the thread keyed (entry_id,
+ * story_id), so a pin could only hold the tale's own thread. A server is then started on it the way
+ * a boot does, by loading db.ts in a process of its own, twice. Never the live library. */
+ok('an old library\'s pins survive the rebuild unchanged, with one backup, and a second boot does nothing', () => {
+  const me = db.owner('pin-migrate');
+  const t = db.createStory(me, { title: 'Old pins', premise: 'p' });
+  const a = db.upsertEntry(t.id, me, { title: 'Ranni', body: '[Ranni]' })!;
+  const b = db.upsertEntry(t.id, me, { title: 'Blaidd', body: '[Blaidd]' })!;
+  db.setPin(t.id, t.chapterId, a, 'force_in');
+  db.setPin(t.id, t.chapterId, b, 'force_out');
+  const dir = mkdtempSync('/tmp/anansi-pins-');
+  try {
+    const file = join(dir, 'old.db');
+    db.snapshot(file);
+    const old = new RawDb(file);
+    old.exec(`ALTER TABLE chapter_pins RENAME TO pins_now;
+      CREATE TABLE chapter_pins (
+        chapter_id TEXT NOT NULL, entry_id TEXT NOT NULL, story_id TEXT NOT NULL,
+        mode TEXT NOT NULL, created_at INTEGER NOT NULL,
+        PRIMARY KEY (chapter_id, entry_id),
+        FOREIGN KEY (chapter_id, story_id) REFERENCES chapters(id, story_id) ON DELETE CASCADE,
+        FOREIGN KEY (entry_id, story_id)   REFERENCES entries(id, story_id)  ON DELETE CASCADE);
+      -- The pins the old shape could hold: on the tale's own threads. World pins made above cannot be.
+      INSERT INTO chapter_pins SELECT chapter_id, entry_id, story_id, mode, created_at FROM pins_now p
+        WHERE EXISTS (SELECT 1 FROM entries e WHERE e.id = p.entry_id AND e.story_id = p.story_id);
+      DROP TABLE pins_now;`);
+    const rows = (c: any) => c.prepare('SELECT * FROM chapter_pins ORDER BY chapter_id, entry_id').all()
+      .map((r: any) => ({ ...r }));
+    const keys = (c: any) => c.prepare('PRAGMA foreign_key_list(chapter_pins)').all()
+      .filter((k: any) => k.table === 'entries').map((k: any) => k.from).sort();
+    const before = rows(old);
+    assert.ok(before.some((r: any) => r.entry_id === a) && before.some((r: any) => r.entry_id === b),
+      'the old library holds both pins');
+    assert.deepStrictEqual(keys(old), ['entry_id', 'story_id'], 'and is in the old shape');
+    old.close();
+
+    const boot = () => {
+      const r = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
+        `await import(${JSON.stringify(new URL('../src/db.ts', import.meta.url).href)});`],
+        { env: { ...process.env, ANANSI_DB: file }, encoding: 'utf8' });
+      assert.strictEqual(r.status, 0, `the boot failed: ${r.stderr}`);
+      return r.stdout;
+    };
+    const backups = () => existsSync(join(dir, 'backups'))
+      ? readdirSync(join(dir, 'backups')).filter((f) => f.startsWith('pre-update-')) : [];
+    boot();
+    const now = new RawDb(file, { readOnly: true });
+    assert.deepStrictEqual(keys(now), ['entry_id'], 'PIN-MIGRATE-SHAPE: the thread is keyed by its id alone');
+    assert.deepStrictEqual(rows(now), before, 'PIN-MIGRATE-KEPT: every pin is exactly what it was');
+    now.close();
+    assert.strictEqual(backups().length, 1, 'PIN-MIGRATE-BACKUP: one backup was taken before the rebuild');
+
+    boot();
+    assert.strictEqual(backups().length, 1, 'PIN-MIGRATE-ONCE: a second boot takes no backup');
+    const again = new RawDb(file, { readOnly: true });
+    assert.deepStrictEqual(rows(again), before, 'PIN-MIGRATE-IDEMPOTENT: and changes no pin');
+    again.close();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+  db.delStory(t.id);
+});
+
 console.log(`\n${n} checks passed`);

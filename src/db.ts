@@ -201,6 +201,32 @@ const PINNABLE = `EXISTS (SELECT 1 FROM entries pe JOIN stories pt ON pt.id = ?
   WHERE pe.id = ? AND (pe.story_id = pt.id OR (pe.story_id = pt.lore_from
     AND EXISTS (SELECT 1 FROM stories pw WHERE pw.id = pt.lore_from AND pw.owner_id = pt.owner_id))))`;
 
+/** #102 · PINS HOLD FOLLOWED THREADS. A library from before keys a pin's thread (entry_id, story_id),
+ *  so it can hold only the tale's own thread. SQLite cannot change a foreign key in place, so the
+ *  table is rebuilt into `PINS_TABLE` and every row is copied across as it is: each one satisfied
+ *  the old key, so each satisfies the new one.
+ *
+ *  ONCE BY ITS SHAPE: it acts only while the old key is there, so a later boot does nothing. A backup
+ *  comes first (`beforeRewrite`, which throws, so no backup means no rebuild), and it is all one
+ *  transaction. Nothing a writer sees changes, so it writes no update line. Its own statements, like
+ *  `foldAlwaysTrue`: it runs inside `migrate()`. Returns whether it rebuilt. */
+export function pinsHoldFollowed() {
+  const keys = db.prepare('PRAGMA foreign_key_list(chapter_pins)').all() as any[];
+  if (!keys.some((k) => k.table === 'entries' && k.from === 'story_id')) return false;
+  beforeRewrite();
+  db.exec('BEGIN');
+  try {
+    db.exec('ALTER TABLE chapter_pins RENAME TO chapter_pins_old');
+    db.exec(PINS_TABLE);
+    db.exec(`INSERT INTO chapter_pins (chapter_id, entry_id, story_id, mode, created_at)
+             SELECT chapter_id, entry_id, story_id, mode, created_at FROM chapter_pins_old`);
+    db.exec('DROP TABLE chapter_pins_old');
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  console.log('  rebuilt chapter_pins — a pin can hold a thread of the World its tale follows');
+  return true;
+}
+
 // Migrations. `CREATE TABLE IF NOT EXISTS` cannot alter an existing table or replace an index,
 // so anything that changes shape has to be stated here and be safe to run twice. Without this
 // a fresh clone and a live database drift apart silently.
@@ -567,6 +593,7 @@ function migrate() {
   // somebody's novel is in, which is the whole reason that guard exists.
   repairStrandedChapters();
   try { foldAlwaysTrue(); } catch (e: any) { console.log(`  Always true was NOT folded: ${e?.message}`); }
+  try { pinsHoldFollowed(); } catch (e: any) { console.log(`  chapter_pins was NOT rebuilt: ${e?.message}`); }
   // #47. What each act was built from. Existing acts get their chapters as they are now; see
   // `backfillActPrints` for what that does and does not promise.
   add('arcs', 'summaries_hash', 'TEXT');
