@@ -108,6 +108,9 @@ export const api = {
   sparkStyle:   (genre, premise) => j('/api/spark/style', 'POST', { genre, premise }),
   // #103. The World the writer already has for the IP a new tale names, and its people. Writes nothing.
   sparkWorld:   (name)           => j('/api/spark/world', 'POST', { name }),
+  // #104. An IP with no World of that name, looked up: people and places, a line each. `more` lists
+  // the names already shown, to ask for others. Writes nothing.
+  sparkWorldCast: (world, more)  => j('/api/spark/world/cast', 'POST', { world, more }),
   /* #40. ONE field of the skeleton, asked again — title, genre or premise. Sent the skeleton the
    * writer has KEPT and their own idea, so a re-rolled title belongs to the book on screen rather
    * than to a better one the model would rather have been given. */

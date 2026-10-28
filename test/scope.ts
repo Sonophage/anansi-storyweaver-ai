@@ -1897,6 +1897,19 @@ async function bootServer(port: number, env: Record<string, string>) {
     talePockets: [{ name: boom, body: 'x' }] })), /cannot be read/, 'a step after the tale is made fails');
   assert.deepStrictEqual(count(alice), aliceHad, '  and nothing that Create made is left behind');
   ok("Create follows the writer's own World with the tale, never another's, and a failure leaves nothing");
+
+  // #104 · A NEW IP IS LOOKED UP AND MADE A WORLD AT CREATE. The list names no story, so it is open;
+  // the World is the writer's own and checked by name per writer, before any model call is made.
+  assert.ok(OPEN_ROUTES.has('POST /api/spark/world/cast'), 'the IP list names no story, so it is open and writes nothing');
+  const had = count(alice);
+  const again: any = await routes['POST /api/stories'](ctx(alice, { title: 'Twice', world: 'Elden Ring',
+    newWorld: { title: 'ELDEN RING', threads: [{ name: 'Margit', kind: 'character' }] } }));
+  assert.match(String(again.error), /already have a World/, "alice cannot make a second World of a name she has");
+  const empty: any = await routes['POST /api/stories'](ctx(bob, { title: 'Nobody ticked', world: 'Limgrave',
+    newWorld: { title: 'Limgrave', threads: [] } }));
+  assert.ok(empty.error, 'a new World with nobody ticked is refused');
+  assert.deepStrictEqual([count(alice), count(bob)], [had, bobHad], '  and neither refusal makes anything');
+  ok('a new World at Create is checked against the writer\'s own Worlds, and a refusal makes nothing');
 }
 
 // The cover arrives as a data URL in a JSON body, which means the prefix is a claim the sender

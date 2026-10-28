@@ -124,7 +124,25 @@ const srv = createServer((req, res) => {
     const QUERIES: Record<string, string[]> = { NONE: [], WHO: ['Charon'],
       MANY: ['Charon', 'the Styx', 'obol', 'Hades', 'Cerberus'] };
     const wantsSearch = /SEARCH-(\w+)/.exec(String(b.messages?.[1]?.content ?? ''))?.[1] ?? 'NONE';
-    const answer = props.queries ? { queries: QUERIES[wantsSearch] ?? [] }
+    // #104 · A NEW IP'S NAMES LIST and ONE THREAD PULLED FOR IT, told apart by their own schemas. The
+    // list names the World itself and one name twice, which the route drops; asked for more, it
+    // names one already listed again. A pull of "Nobody" says too little to make a thread.
+    const sys = String(b.messages?.[0]?.content ?? '');
+    const pulled = /Write ONE (\w+) card for "([^"]+)"/.exec(sys);
+    const answer = props.found ? { found: /Already on the list/.test(sys)
+        ? [{ name: 'Malenia', kind: 'character', line: 'Blade of Miquella, never known defeat.' },
+           { name: 'Morgott', kind: 'character', line: 'The Omen King, again.' }]
+        : [{ name: 'Morgott', kind: 'character', line: 'The Omen King, who guards Leyndell.' },
+           { name: 'Elden Ring', kind: 'place', line: 'The world itself.' },
+           { name: 'Godfrey', kind: 'character', line: 'The first Elden Lord.' },
+           { name: 'Leyndell', kind: 'place', line: 'The royal capital under the Erdtree.' },
+           { name: 'morgott', kind: 'character', line: 'Twice.' }] }
+      : pulled && props.rooms ? { title: pulled[2] === 'Nobody' ? '' : pulled[2],
+        body: `${pulled[2]}: the one the Lands Between remember`, keys: [pulled[2].split(' ')[0]],
+        rooms: Object.fromEntries(Object.keys(props.rooms.properties ?? {}).map((slot) => [slot,
+          slot === 'voice' ? 'Formal, and he calls everyone Tarnished.'
+          : slot === 'atmosphere' ? 'Let the gold leaves fall through every scene here.' : ''])) }
+      : props.queries ? { queries: QUERIES[wantsSearch] ?? [] }
       : asked && CHANGES[asked] ? CHANGES[asked]
       : asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
         entries: [{ title: 'Vel', type: 'character', field: 'interiority',
@@ -1614,6 +1632,144 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.match(String(broke.reply), /search failed/i, 'SETUP-SEARCH-FAILED: and the reply says the search failed');
   } finally { delete process.env.ANANSI_SEARCH; web.close(); }
   ok('setup Talk searches only when allowed, lists the page, and keeps its link in the notes');
+}
+
+// ---- 6i · A NEW IP IS LOOKED UP, AND ITS TICKED PEOPLE BECOME A WORLD (#104) ----
+//
+// The names list is the World cast's lookup, opened for a tale that is not made yet: it searches,
+// names about twelve people and six places with one line each, and writes nothing. With search off,
+// failing or finding nothing, the names come from what the model knows, each marked from memory.
+{
+  const { DatabaseSync } = await import('node:sqlite');
+  const { OPEN_ROUTES } = await import('../src/routes.ts');
+  const rows = () => {
+    const raw = new DatabaseSync(DB, { readOnly: true });
+    try {
+      const names = (raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as any[]).map((r) => r.name)
+        // The search index's own storage: an insert taken back leaves its segments, not its rows.
+        .filter((t) => !/^fts_.*_(data|idx)$/.test(t));
+      return Object.fromEntries(names.map((t) => [t, (raw.prepare(`SELECT count(*) AS n FROM "${t}"`).get() as any).n]));
+    } finally { raw.close(); }
+  };
+  const searched: string[] = [];
+  let webDown = false, webEmpty = false;
+  const web = createServer((req, res) => {
+    const q = new URL(String(req.url), 'http://x').searchParams.get('q') ?? '';
+    searched.push(q);
+    if (webDown) { res.writeHead(500); res.end(); return; }
+    const slug = q.toLowerCase().replace(/[^a-z]+/g, '-');
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ results: webEmpty ? [] : [{ title: `${q} page`, url: `https://ring.example/${slug}`,
+      content: `What the wiki says about ${q}.` }] }));
+  });
+  await new Promise<void>((r) => web.listen(0, '127.0.0.1', r));
+  const SEARCH = `http://127.0.0.1:${(web.address() as any).port}/search?q={q}&format=json`;
+  process.env.ANANSI_SEARCH = SEARCH;
+  const ctxOf = (body: any, owner = me) => ({ body, query: new URLSearchParams(), owner,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {}, setGen: () => {}, defaultModel: null }) as any;
+  const look = (body: any) => { calls = []; searched.length = 0;
+    return routes['POST /api/spark/world/cast'](ctxOf(body)) as Promise<any>; };
+  const listCall = () => calls.find((x) => x.response_format?.json_schema?.schema?.properties?.found);
+  const listed = (r: any) => (r.found ?? []).map((f: any) => [f.name, f.kind, f.line, !!f.memory]);
+  try {
+    assert.ok(OPEN_ROUTES.has('POST /api/spark/world/cast'), 'IP-LIST-OPEN: the list names no tale, so it is open like Spark');
+    const before = rows();
+    const r = await look({ world: 'Elden Ring' });
+    assert.ok(!r.error, r.error);
+    assert.deepStrictEqual(listed(r), [
+      ['Morgott', 'character', 'The Omen King, who guards Leyndell.', false],
+      ['Godfrey', 'character', 'The first Elden Lord.', false],
+      ['Leyndell', 'place', 'The royal capital under the Erdtree.', false]],
+      'IP-LIST: people and places, one line each, never the World itself and never one name twice');
+    assert.deepStrictEqual(searched, ['Elden Ring wiki'], `IP-LIST-SEARCH: the World cast's own search (${searched})`);
+    const schema = listCall()?.response_format.json_schema.schema;
+    assert.strictEqual(schema?.properties.found.maxItems, 18, 'IP-LIST-SIZE: eighteen at most');
+    assert.deepStrictEqual(schema?.properties.found.items.properties.kind.enum, ['character', 'place'],
+      'IP-LIST-KINDS: people and places only');
+    assert.ok(schema?.properties.found.items.required.includes('line'), 'IP-LIST-LINE: each with its line');
+    assert.match(String(listCall()?.messages[0].content), /about twelve people and six places/,
+      'IP-LIST-SIZE: the ask is about twelve people and six places');
+    assert.deepStrictEqual(rows(), before, 'IP-LIST-WRITES-NOTHING: the list writes nothing');
+    ok('a new IP is looked up through the World cast: twelve people and six places asked for, one line each, nothing written');
+
+    // ASK FOR MORE: the names already shown are named in the ask, and never come back.
+    const more = await look({ world: 'Elden Ring', more: ['Morgott', 'Godfrey', 'Leyndell'] });
+    assert.ok(!more.error, more.error);
+    assert.match(String(listCall()?.messages[0].content), /Already on the list, so name none of these again: Morgott, Godfrey, Leyndell/,
+      'IP-MORE: the ask names what is already listed');
+    assert.deepStrictEqual(listed(more), [['Malenia', 'character', 'Blade of Miquella, never known defeat.', false]],
+      'IP-MORE: and a name already listed is not offered twice');
+    ok('asking for more names what is listed, and offers only new names');
+
+    // FROM MEMORY: search off, failing, or finding nothing. Each name is marked; nothing is written.
+    for (const [why, set] of [['off', () => { delete process.env.ANANSI_SEARCH; }],
+        ['failing', () => { webDown = true; }], ['empty', () => { webEmpty = true; }]] as const) {
+      set();
+      const mem = await look({ world: 'Elden Ring' });
+      process.env.ANANSI_SEARCH = SEARCH; webDown = false; webEmpty = false;
+      assert.ok(!mem.error, `IP-MEMORY (${why}): a search ${why} is not an error (${mem.error})`);
+      assert.deepStrictEqual(listed(mem).map((x: any) => x[3]), [true, true, true],
+        `IP-MEMORY (${why}): every name is marked from memory`);
+      assert.strictEqual(mem.memory, true, `IP-MEMORY (${why}): and the answer says so`);
+      assert.match(String(listCall()?.messages[0].content), /There are no search results\. From what you already know/,
+        `IP-MEMORY (${why}): the model is asked from what it knows`);
+    }
+    assert.deepStrictEqual(rows(), before, 'IP-MEMORY: from memory writes nothing either');
+    ok('search off, failing or finding nothing gives names from memory, each marked, nothing written');
+
+    // CREATE: the World is made with the ticked names only, written as threads in the shape of every
+    // other thread, and the tale follows it. Godfrey was listed and not ticked, so he is not sent.
+    const create = (body: any) => { calls = []; searched.length = 0;
+      return routes['POST /api/stories'](ctxOf({ title: 'The Lands Between', spark: true, entries: [], ...body })) as Promise<any>; };
+    // Another writer's World of the same name is theirs: it neither stops this one nor is followed.
+    const other = db.owner('another-writer');
+    const theirs = db.createWorld(other, { title: 'Elden Ring' });
+    const made = await create({ world: 'Elden Ring', newWorld: { title: 'Elden Ring', threads: [
+      { name: 'Morgott', kind: 'character' }, { name: 'Leyndell', kind: 'place', memory: true }] } });
+    assert.ok(made && !made.error, made?.error);
+    const ring = db.worldNamed(me, 'Elden Ring');
+    assert.ok(ring && db.storyOwner(ring.id) === me, 'IP-CREATE-MINE: a World of that name is made, owned by the writer');
+    assert.notStrictEqual(ring!.id, theirs.id, 'IP-CREATE-MINE: not the other writer\'s World of that name');
+    assert.strictEqual(db.entriesOf(theirs.id).length, 0, 'IP-CREATE-MINE: and nothing is written into theirs');
+    const tale = db.getStory(made.id) as any;
+    assert.deepStrictEqual([tale.lore_from, tale.world], [ring!.id, 'Elden Ring'], 'IP-CREATE-FOLLOWS: the tale follows it, named');
+    const threads = db.entriesOf(ring!.id) as any[];
+    assert.deepStrictEqual(threads.map((e) => e.title).sort(), ['Leyndell', 'Morgott'],
+      'IP-CREATE-TICKED: only the ticked names are written, as the World\'s threads');
+    const pocketsOf = (title: string) => (db.addonsOf(ring!.id) as any[]).filter((a) => a.entry_id === threads.find((e) => e.title === title).id);
+    const morgott = threads.find((e) => e.title === 'Morgott');
+    assert.match(String(pocketsOf('Morgott').find((a) => a.slot === 'facts')?.body), /the one the Lands Between remember/,
+      'IP-CREATE-SHAPE: what he is goes in Always true');
+    assert.ok(pocketsOf('Morgott').some((a) => a.slot === 'voice' && a.active && /calls everyone Tarnished/.test(a.body)),
+      'IP-CREATE-SHAPE: and his pockets are written and switched on');
+    assert.ok(pocketsOf('Leyndell').some((a) => a.slot === 'atmosphere' && a.active), 'IP-CREATE-SHAPE: a place\'s pockets too');
+    assert.strictEqual(morgott.activation, 'triggered', 'IP-CREATE-WAKES: a World thread wakes on its words');
+    assert.ok(JSON.parse(morgott.keys).includes('Morgott'), 'IP-CREATE-WAKES: and his name is one of them');
+    assert.deepStrictEqual(searched, ['Morgott Elden Ring'],
+      `IP-CREATE-SEARCH: a looked-up name is searched in its World, a name from memory is not (${searched})`);
+    const asked = calls.filter((x) => /Write ONE \w+ card for/.test(String(x.messages?.[0]?.content)));
+    assert.match(String(asked.find((x) => /"Leyndell"/.test(x.messages[0].content))?.messages[0].content),
+      /There are no search results/, 'IP-CREATE-MEMORY: a name from memory is written from what the model knows');
+    assert.match(String(morgott.notes), /https:\/\/ring\.example\/morgott-elden-ring/, 'IP-CREATE-LINK: the page read is in his notes');
+    for (const t of [...threads, ...db.addonsOf(ring!.id) as any[]])
+      assert.doesNotMatch(`${t.title ?? ''} ${t.body}`, /memory|looked up|https?:/i, `IP-CREATE-NO-MARK: no mark or link in the text (${t.body})`);
+    assert.ok(db.entriesFor(made.id).some((e: any) => e.title === 'Morgott'), 'IP-CREATE-REACHES: the World\'s people reach the tale');
+    ok('Create makes the writer\'s World of the ticked names only, in the normal thread shape, and the tale follows it');
+
+    // A FAILURE AT CREATE LEAVES NOTHING: a name that cannot be written, and a step after the World is made.
+    const had = rows();
+    const bad = await create({ world: 'Limgrave', newWorld: { title: 'Limgrave', threads: [
+      { name: 'Margit', kind: 'character' }, { name: 'Nobody', kind: 'character' }] } });
+    assert.match(String(bad?.error), /Nobody/, `IP-FAIL: the error names the one that could not be written (${bad?.error})`);
+    assert.deepStrictEqual(rows(), had, 'IP-FAIL: and no World, thread or tale is left behind');
+    await assert.rejects(create({ world: 'Limgrave', entries: [null], newWorld: { title: 'Limgrave', threads: [
+      { name: 'Margit', kind: 'character' }] } }), 'IP-FAIL-LATE: a step after the World is made fails');
+    assert.deepStrictEqual(rows(), had, 'IP-FAIL-LATE: and the World and its threads go with the tale');
+    const twice = await create({ world: 'Elden Ring', newWorld: { title: 'elden ring', threads: [{ name: 'Margit', kind: 'character' }] } });
+    assert.match(String(twice?.error), /already have a World/, 'IP-TWICE: a second World of a name the writer has is refused');
+    assert.deepStrictEqual(rows(), had, 'IP-TWICE: and makes nothing');
+    ok('a failure at Create, before or after the World is made, leaves no World, thread or tale behind');
+  } finally { delete process.env.ANANSI_SEARCH; web.close(); }
 }
 
 // ---- 6d · THE WRITER MOVES A PROPOSAL, AND THE WRITER OUTRANKS THE MODEL ----

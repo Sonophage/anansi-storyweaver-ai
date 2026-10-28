@@ -26,7 +26,22 @@ threads, not copies: change one in the World and it changes in every tale that f
 
 Nothing is made until you press Start writing, and if starting fails, nothing is left half made.
 Only your own Worlds are found. Leave the box empty for a tale of your own, as before. A name you
-have no World for is kept as the tale's universe, as before.
+have no World for is looked up, as the next entry says.
+
+### A new story or game becomes a World of the people you choose
+Name a story or game you have no World for, and Anansi looks it up. On The threads he lists about
+twelve people and six places, one line each, all ticked. Untick who you do not want, ask for more,
+or add someone by name. The preview shows who will come in.
+
+When you press Start writing, Anansi makes a World with that name, writes each ticked person and
+place as one of its threads (what they are, and how to write them), and your tale follows it.
+Only the ticked ones are written, one at a time, so a long list takes a while. If any of it
+fails, nothing is made, and your draft is still there to try again.
+
+If the search is off, fails or finds nothing, the names come from what Anansi already knows. Each
+one is marked "from memory, not looked up" in the list and the preview, so you know which to
+check. The mark is never in the thread itself. If the lookup fails, or you would rather not, press
+Go on with no World: the tale keeps the name and follows nothing.
 
 ### A tale's universe always names the World it follows
 When a tale follows a World, the universe or IP in its Tale settings is that World's name, so the
