@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-28 · A new tale starts at its opening
 
+### The setting holds the place, and the first scene holds the weather
+New tale's setting now says only what stays true of the place for the whole tale. The weather,
+the light and the time of day come back on their own, as how the first scene opens, in a box you
+can edit on the preview. Anansi reads that until the first passage is written, so a tale that
+opens on a rainy night does not stay on a rainy night forever.
+
 ### The premise is the opening, and the open questions are strings
 New tale's premise is now one paragraph that opens the story: who we are with, where and when,
 what they want now and what is in their way now. It never says how it ends, what it costs or what
