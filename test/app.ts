@@ -555,6 +555,24 @@ let worldDown = 0;
         ? { world: { id: 'w-ring', title: 'Elden Ring' },
             people: [{ title: 'Morgott', body: '[Morgott: the Omen King]' }] }
         : { world: null, people: [] })
+    // #117 · Try it on's contradictions: both places, one fix each, of every part a fix can change.
+    : url.startsWith('/api/spark/review') ? { changes: [], entries: [], contradictions: [
+        { one: { thread: 'Teodor Ash', part: 'always_true', says: 'a clerk who counts the dead' },
+          other: { thread: null, part: 'premise', says: 'Six houses have one winter' },
+          fix: { thread: 'Teodor Ash', part: 'always_true', text: 'A clerk of House Marren who counts the dead.' },
+          why: 'The premise has six houses, and Teodor belongs to none.', by: 'model' },
+        { one: { thread: 'Teodor Ash', part: 'interiority', says: 'never says she is afraid' },
+          other: { thread: 'Mara Voss', part: 'stands', says: 'on the road' },
+          fix: { thread: 'Mara Voss', part: 'stands', text: 'Waits at the hall gate for Teodor.' },
+          why: 'She cannot be on the road and at the gate.', by: 'model' },
+        { one: { thread: null, part: 'premise', says: 'a peace none of them wants' },
+          other: { thread: 'Ilva Marren', part: 'always_true', says: 'nothing to trade' },
+          fix: { thread: null, part: 'premise', text: 'Six houses, and Ilva carries the seal.' },
+          why: 'An envoy with nothing to trade cannot carry the seal.', by: 'model' },
+        { one: { thread: 'Teodor Ash', part: 'voice', says: 'formal and short' },
+          other: { thread: 'Teodor Ash', part: 'always_true', says: 'a clerk' },
+          fix: { thread: 'Teodor Ash', part: 'voice', text: 'Formal, and he counts aloud.' },
+          why: 'A clerk who counts speaks in numbers.', by: 'model' }] }
     : url.startsWith('/api/spark/cast') ? { entries: [
         { title: 'Mara Voss', entryType: 'character', activation: 'always_on', keys: ['Mara Voss'],
           body: '[Mara Voss: a courier who owes the envoy]',
@@ -3649,6 +3667,71 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
   } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
 }
 ok('the wizard asks who you play before the threads, and ends in a preview that edits only the draft');
+
+// #117 · TRY IT ON'S CONTRADICTIONS, with Use this and Leave it, on the draft. Each shows both places
+// and the fix; Use this changes the one place the fix names (Always true, where it stands, a pocket,
+// or the premise) and nothing else; Leave it changes nothing; both take it off the list. Shown on Try
+// it on and again on the preview. Nothing posts but the spark calls until Start writing.
+{
+  const doc = (globalThis as any).document;
+  const wasQS = doc.querySelector;
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  click({ railview: 'workspace' });
+  await new Promise((r) => setTimeout(r, 30));
+  click({ nav: 'create' });
+  await new Promise((r) => setTimeout(r, 30));
+  doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
+  try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
+  finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
+  POSTED.length = 0;
+  click({ sparkstep: '3' });
+  await settle(/Teodor Ash/);
+  click({ sparkstep: '4' });
+  click({ spreview: '1' });
+  await settle(/data-spfix/);
+  let pg = html('page');
+  assert.strictEqual((pg.match(/data-spfix="/g) ?? []).length, 4, 'CLASH-SHOWN: Try it on lists each contradiction with Use this');
+  assert.strictEqual((pg.match(/data-spleave="/g) ?? []).length, 4, '  and Leave it');
+  assert.match(pg, /Teodor Ash[^<]*Always true[\s\S]*a clerk who counts the dead[\s\S]*The premise[\s\S]*Six houses have one winter/,
+    'CLASH-PLACES: both places, each with what it says');
+  assert.match(pg, /The premise has six houses[\s\S]*Fix: Teodor Ash[^<]*Always true[\s\S]*A clerk of House Marren who counts the dead\./, '  why, and the fix');
+  click({ sparkstep: '5' });
+  await settle(/The tale's own thread/);
+  pg = html('page');
+  assert.strictEqual((pg.match(/data-spfix="/g) ?? []).length, 4, 'CLASH-PREVIEW: and the preview shows them too');
+  click({ spfix: '0' });   // Teodor's Always true
+  click({ spfix: '0' });   // Mara's where it stands
+  click({ spleave: '0' }); // the premise: left
+  click({ spfix: '0' });   // Teodor's voice pocket
+  pg = html('page');
+  assert.doesNotMatch(pg, /data-spfix=|data-spleave=/, 'CLASH-DONE: each one pressed leaves the list');
+  assert.match(pg, /A clerk of House Marren who counts the dead\./, 'CLASH-USE: Use this changes the Always true it names');
+  assert.match(pg, /Six houses have one winter to sign a peace none of them wants\./, 'CLASH-LEAVE: Leave it changes nothing');
+  click({ spfold: '1' });
+  assert.match(html('page'), /data-spstands="1"[^>]*>Waits at the hall gate for Teodor\.</, 'CLASH-USE: where she stands is changed, and shown to edit');
+  click({ spfold: '1' });
+  // Where a thread stands is the writer's to edit in the preview, like the rest of it.
+  const wasQSA = doc.querySelectorAll;
+  doc.querySelectorAll = (sel: string) => sel === '[data-spstands]' ? [{ dataset: { spstands: '2' }, value: 'Counting the dead at the gate.' }] : [];
+  click({ spfold: '2' });
+  doc.querySelectorAll = wasQSA;
+  assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')), `CLASH-NOTHING: nothing posts but the spark calls (${POSTED.map((p) => p.url).join(', ')})`);
+  doc.querySelector = (sel: string) => sel === '[data-sp-open]' ? { checked: false } : null;
+  click({ acceptSpark: '1' });
+  doc.querySelector = wasQS;
+  for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
+  const made = POSTED.find((p) => p.url === '/api/stories');
+  assert.ok(made, 'CLASH-CREATE: the tale is made');
+  const by = (t: string) => made.body.entries.find((e: any) => e.title === t);
+  assert.strictEqual(by('Teodor Ash').body, 'A clerk of House Marren who counts the dead.', 'CLASH-CREATE: with the fixed Always true');
+  assert.strictEqual(by('Teodor Ash').rooms.voice.body, 'Formal, and he counts aloud.', '  the fixed pocket');
+  assert.strictEqual(by('Teodor Ash').rooms.voice.name, 'Envoy', '  its name kept');
+  assert.strictEqual(by('Mara Voss').stands, 'Waits at the hall gate for Teodor.', '  and where she stands');
+  assert.strictEqual(by('Teodor Ash').stands, 'Counting the dead at the gate.', 'CLASH-EDIT: where a thread stands, edited in the preview, is sent');
+  assert.strictEqual(made.body.premise, 'Six houses have one winter to sign a peace none of them wants.', '  and the premise left alone');
+  await new Promise((r) => setTimeout(r, 60));
+}
+ok("Try it on's contradictions are shown with both places and a fix, and Use this changes only the draft");
 
 // #100 · TALK WHILE A TALE IS SET UP. The same Talk window, on the draft: what comes back as asked is
 // applied to the draft at once, each with an Undo the page holds; what is offered has an Add press;

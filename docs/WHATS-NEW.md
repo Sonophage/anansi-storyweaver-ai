@@ -26,6 +26,15 @@ or asking Talk to change it, keeps the same shape. The questions the story lives
 their own, ticked, in the preview. Each one you keep ticked becomes a string from the first scene,
 and Anansi is told not to answer it yet. Tales you already have are not changed.
 
+### New tale's threads start where they stand, and Try it on finds what disagrees
+Each thread New tale makes now says who or what it is in Always true, and keeps what they want and
+what they hide in their inner life, so those can change as the tale goes on. Each one also says where
+it stands as the tale opens, which you can read and change in the preview, and which becomes its
+first entry in Over time. People are always on; places, lore and things come in when their name does.
+Try it on now reads every thread whole, pockets included, and lists each place where two of them, or
+a thread and the premise, disagree: both places, what each says, and a fix. Use this puts the fix in
+the draft; Leave it keeps what you have. Nothing is saved until you start the tale.
+
 ### Your promises are pressed, the tale's questions are kept open
 A string is now one of two kinds. The open questions New tale makes are kept open: when Anansi
 suggests a scene, he may complicate one but never answer it. The promises you set up yourself, and

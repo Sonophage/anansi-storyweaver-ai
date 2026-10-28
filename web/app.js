@@ -560,6 +560,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'spfollow',
   // #84. The preview: fold a thread, remove or add a pocket, remove a thread, undo, fix the Voice.
   'spfold', 'spdroppocket', 'spaddpocket', 'spdropthread', 'spundo', 'spvoicefix', 'spaddtp', 'spdroptp',
+  // #117. A contradiction Try it on found: take its fix, or leave it.
+  'spfix', 'spleave',
   'applylib', 'savelib', 'dellib', 'setvoice', 'setanansi',
   'seedpick',
   // The forge: open one prompt and copy it. A forged thread comes back in through New thread's box.
@@ -5408,6 +5410,11 @@ function harvestSpark() {
     const e = S.spark.entries[Number(t.dataset.spbody)];
     if (e) e.body = t.value;
   }
+  // #117 · Where a thread stands as the tale opens: its first Over time entry at Create.
+  for (const t of document.querySelectorAll('[data-spstands]')) {
+    const e = S.spark.entries[Number(t.dataset.spstands)];
+    if (e) e.stands = t.value;
+  }
   // #84 · A POCKET EDITED IN THE PREVIEW, keyed `index:slot`: its words, and its name.
   // And the tale's own pockets ("Your own"), keyed by their place in the list.
   for (const [sel, key, field] of [['[data-sptpbody]', 'sptpbody', 'body'], ['[data-sptpname]', 'sptpname', 'name']])
@@ -5922,8 +5929,8 @@ function sparkReview() {
          first point where the tale can be read as a whole &mdash; the premise was written before
          the cast existed, and the cast from a premise you may have rewritten since. Skipping it
          costs nothing.</div>`
-       : (S.spark.review.changes.length || S.spark.review.entries.length)
-       ? `${S.spark.review.changes.map((ch, i) => `<div class="card below-8 gap-6">
+       : (S.spark.review.changes.length || S.spark.review.entries.length || sparkClashCount())
+       ? `${sparkClashes()}${S.spark.review.changes.map((ch, i) => `<div class="card below-8 gap-6">
            <div class="kind">${esc(ch.field)}</div>
            <div class="note">${esc(ch.value)}</div>
            <div class="hint flush">${esc(ch.why)}</div>
@@ -6022,6 +6029,26 @@ const questionsOf = (r) => (Array.isArray(r?.questions) ? r.questions : [])
 const sparkQuestions = () => (S.spark?.questions ?? []).filter((q) => q.keep !== false)
   .map(({ title, line }) => ({ title, line }));
 
+/** #117 · WHERE THE DRAFT CONTRADICTS ITSELF, as Try it on found it: both places, each with what it
+ *  says, the fix and why, with Use this and Leave it. On Try it on and again on the preview, from the
+ *  one list, so a press on either takes it off both. */
+const sparkClashCount = () => (S.spark?.review?.contradictions ?? []).length;
+const clashPart = (part) => part === 'premise' ? 'The premise' : part === 'always_true' ? 'Always true'
+  : part === 'stands' ? 'Where it stands as the tale opens' : `${pocketTitle(part)} pocket`;
+const clashPlace = (p) => `${p.thread ? `${esc(p.thread)} &middot; ` : ''}${clashPart(p.part)}`;
+function sparkClashes() {
+  const list = S.spark?.review?.contradictions ?? [];
+  if (!list.length) return '';
+  return `<div class="lbl wide push-14">Where it disagrees with itself</div>
+    ${list.map((c, i) => `<div class="card below-8 gap-6" role="alert">
+      <div class="kind">${clashPlace(c.one)}</div><div class="note">&ldquo;${esc(c.one.says)}&rdquo;</div>
+      <div class="kind">${clashPlace(c.other)}</div><div class="note">&ldquo;${esc(c.other.says)}&rdquo;</div>
+      <div class="hint flush">${esc(c.why)}</div>
+      <div class="kind">Fix: ${clashPlace(c.fix)}</div><div class="note">${esc(c.fix.text)}</div>
+      <div class="line"><button class="btn ghost small-btn" data-spfix="${i}">Use this</button>
+        <button class="btn ghost small-btn" data-spleave="${i}">Leave it</button></div></div>`).join('')}`;
+}
+
 function sparkPreview(s, { row, area }) {
   const kept = (S.spark.entries ?? []).map((e, i) => [e, i])
     .filter(([e]) => e.keep !== false && (e.title ?? '').trim());
@@ -6050,6 +6077,8 @@ function sparkPreview(s, { row, area }) {
       <input class="field flush" data-spname="${i}" aria-label="Name of ${esc(e.title)}" value="${esc(e.title)}">
       <label class="lbl" for="f-sp-at-${i}">Always true</label>
       <textarea class="field grow flush min-52" id="f-sp-at-${i}" data-spbody="${i}">${esc(e.body ?? '')}</textarea>
+      <label class="lbl" for="f-sp-st-${i}">Where it stands as the tale opens</label>
+      <textarea class="field grow flush min-52" id="f-sp-st-${i}" data-spstands="${i}">${esc(e.stands ?? '')}</textarea>
       ${rooms.map(([slot, p]) => `<div class="card snug gap-6">
         <div class="line">
           <input class="field flush name-field" data-sppname="${i}:${esc(slot)}" value="${esc(p.name ?? '')}"
@@ -6071,6 +6100,7 @@ function sparkPreview(s, { row, area }) {
     </div>`;
   };
   return `${S.spark.undo ? `<button class="btn ghost below-10" data-spundo="1">Undo ${esc(S.spark.undo.what)}</button>` : ''}
+    ${sparkClashes()}
     ${clash.length ? `<div class="card below-10 gap-6" role="alert">
       <div class="kind">The Voice and the point of view disagree</div>
       <div class="note">Your Voice says ${esc(clash.map((c) => c.said).join('; '))}, and the point of view
@@ -13031,9 +13061,9 @@ document.addEventListener('click', async (e) => {
     const r = await withRing(() => api.sparkReview(S.spark.story, sparkCast()));
     S.spark.reviewing = false;
     if (r.error) { paint(); return toast(r.error); }
-    S.spark.review = { changes: r.changes ?? [], entries: r.entries ?? [] };
+    S.spark.review = { changes: r.changes ?? [], entries: r.entries ?? [], contradictions: r.contradictions ?? [] };
     paint();
-    return toast(S.spark.review.changes.length || S.spark.review.entries.length
+    return toast(S.spark.review.changes.length || S.spark.review.entries.length || sparkClashCount()
       ? 'He tried it on. Nothing is applied until you press it.'
       : 'He would not change anything.');
   }
@@ -13047,6 +13077,27 @@ document.addEventListener('click', async (e) => {
     S.spark.review.changes = S.spark.review.changes.filter((_, i) => i !== Number(d.spapply));
     paint();
     return toast(`${ch.field} replaced. It is still yours to alter.`);
+  }
+  /* #117 · A CONTRADICTION'S FIX, on the draft: the one place it names, and nothing else. A pocket
+   * keeps its name and switch; one the thread lacks is added, on. Leave it changes nothing. Either
+   * takes it off the list. */
+  if (d.spfix !== undefined || d.spleave !== undefined) {
+    harvestSpark();
+    const i = Number(d.spfix ?? d.spleave), c = S.spark.review?.contradictions?.[i];
+    if (!c) return;
+    S.spark.review.contradictions = S.spark.review.contradictions.filter((_, j) => j !== i);
+    if (d.spleave !== undefined) { paint(); return; }
+    const { thread, part, text } = c.fix;
+    if (part === 'premise') S.spark.story.premise = text;
+    else {
+      const e = (S.spark.entries ?? []).find((x) => (x.title ?? '').trim().toLowerCase() === String(thread ?? '').trim().toLowerCase());
+      if (!e) { paint(); return toast(`${thread} is no longer in the draft.`); }
+      if (part === 'always_true') e.body = text;
+      else if (part === 'stands') e.stands = text;
+      else e.rooms = { ...(e.rooms ?? {}), [part]: { ...(e.rooms?.[part] ?? { name: pocketTitle(part), on: true }), body: text } };
+    }
+    paint();
+    return toast(`${clashPart(part)}${thread ? ` of ${thread}` : ''} changed. It is still yours to alter.`);
   }
   if (d.spaddone !== undefined) {
     harvestSpark();

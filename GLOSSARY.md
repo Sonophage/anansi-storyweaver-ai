@@ -279,7 +279,9 @@ _Avoid_: cut a new tale, create a story, new story, start it yourself, forge the
 _In code_: spark, blank
 
 **Try it on**:
-The step of a new tale where Anansi reads it back and says what he would change.
+The step of a new tale where Anansi reads it back and says what he would change, and lists each
+place where two threads, or a thread and the premise, disagree, with a fix the writer can use or
+leave. (Contradictions added 2026-10-28, #117.)
 _Avoid_: a second look, read back
 _In code_: `spark/review`
 
