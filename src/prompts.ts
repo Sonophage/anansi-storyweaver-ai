@@ -106,7 +106,12 @@ export const EXTRACT_SCHEMA = {
   required: ['entries'],
 } as const;
 
-/** #73 · A POCKET IS A PLAIN DESCRIPTION, AND THE CODE MAKES IT AN INSTRUCTION (ADR 0008, Seth,
+/** SHAPES, NOT EXAMPLES (2026-10-28). The quoted examples here were copied into real threads word for
+ *  word: Ashley Vane's outfit was the example's "black slip dress, one strap…", her voice its "aye for
+ *  yes", and a Tidy trial added its "answers a question with a question" to her. The model copies
+ *  quoted examples (a known trap here), so the examples are now shapes with angle-bracket slots.
+ *
+ *  #73 · A POCKET IS A PLAIN DESCRIPTION, AND THE CODE MAKES IT AN INSTRUCTION (ADR 0008, Seth,
  *  2026-10-28: "The instructions for how to use it should be code side and just the description
  *  should be in the user facing box"). It was an instruction starting with a verb (ADR 0005), and
  *  the writer then read and edited wording meant for the model. The instruction now lives in the
@@ -123,18 +128,18 @@ instruction for whoever writes the scene, so never write it as an instruction: n
 "Never", no brackets, and not the thread's name in front. Never a bare list of traits. Kinds:
 
     voice          how their dialogue sounds: sentence length, words they use and never use, how
-                   they dodge a question. "Short, clipped lines; says aye for yes; answers a
-                   question with a question."
-    outfit         what they have on and what of it shows, as clothes. "A black slip dress, one
-                   strap that will not stay up."
-    interiority    what they will not say out loud, and what they do instead of saying it. "Afraid
-                   of him, and talks faster and touches his arm instead of saying so."
+                   they dodge a question. Shape: "<how long their lines run>; <a word they
+                   always use>; <what they do instead of answering>."
+    outfit         what they have on and what of it shows, as clothes. Shape: "<the garment>,
+                   <the one detail of it that shows>."
+    interiority    what they will not say out loud, and what they do instead of saying it.
+                   Shape: "<what they feel>, and <what they do> instead of saying so."
     relationships  how they are around that one person, and what stands between them.
     appearance     the one or two things another character notices first.
     atmosphere, who_is_here, what_it_does, consequences
                    what this place, object or rule is like when it is in a scene.
 
-The quoted lines above show the FORM only. Never copy their words: write each pocket from what this
+The quoted shapes above show the FORM only; the angle brackets are never written. Write each pocket from what this
 thread's own text says about it, and leave out a pocket its text gives you nothing for.`;
 
 /** #84 · NEVER WHAT HAPPENS NEXT. A spark cast wrote "he does not take the money" as a pocket, and the
@@ -294,8 +299,8 @@ mood, no voice.
            true over 30s in where it stands: it is the more specific." "" when nothing did.
 
 Rewrite EVERY pocket it already has as a plain description, even when it was written as an
-instruction: "Write her dialogue with a Jersey snap. Never have the narration name the accent."
-becomes "A Jersey snap: dropped r's, 'ya' for you, orders not requests." Where the thread's text holds what
+instruction: "Write <how they talk>. Never <what to avoid>." becomes "<how they talk>; never <what
+they avoid>." Where the thread's text holds what
 belongs in a pocket of its kind that it does not have yet (how they talk, what they wear, who they
 are to someone), make that pocket too. Never leave a pocket a list of traits.
 
