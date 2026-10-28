@@ -1253,8 +1253,8 @@ export const hemSettled = (storyId: string): Promise<void> => hemQueue.get(story
 const HEM_PASSES = ['summary', 'memory', 'facts', 'finished', 'next'] as const;
 type HemWant = { summary: boolean; memory: boolean; facts: boolean; finished: boolean; next: boolean };
 function hem(c: Ctx, storyId: string, closing: string, opened: string | undefined, want: HemWant) {
-  db.beginHem(storyId, closing);
-  queueHem(storyId, () => hemPasses(c, storyId, closing, opened, want));
+  const run = db.beginHem(storyId, closing);
+  queueHem(storyId, () => hemPasses(c, storyId, closing, opened, want, run));
 }
 /** #91. The one queue every hem job goes through, so a try-again or a hem again never runs beside
  *  another hem on the same tale. */
@@ -1265,7 +1265,7 @@ function queueHem(storyId: string, job: () => Promise<void>) {
 }
 
 async function hemPasses(c: Ctx, storyId: string, closing: string, opened: string | undefined, want: HemWant,
-    names?: string[]) {
+    run: number, names?: string[]) {
   /** WHICH OF THE PASSES DID NOT RUN, and why. Issue #32: "Facts are not being written
    *  based on the last chapter anymore."
    *
@@ -1282,7 +1282,7 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // #89. Everything this hem chalks is one Workbench card: the scene's group.
   const scene = `scene:${closing}`;
   const passes: Record<string, string | null> = {};
-  const run = async (name: string, on: boolean, fn: () => Promise<any>) => {
+  const pass = async (name: string, on: boolean, fn: () => Promise<any>) => {
     if (!on) return null;
     try {
       const out = await fn();
@@ -1299,11 +1299,11 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // YOURS IS KEPT (#46). No `replace` here, so `summarise` refuses over a summary the writer
   // saved by hand. That is the pass doing its job, not failing: it is reported as `keptSummary`
   // and not in `passes`, which the surface reads as "did not run".
-  const summed = await run('summary', want.summary, () => summarise(c, storyId, closing));
+  const summed = await pass('summary', want.summary, () => summarise(c, storyId, closing));
   const keptSummary = summed?.kept === true;
   if (keptSummary) passes.summary = null;
   // The character memory, on the same terms: a chapter must be able to close with the model down.
-  await run('memory', want.memory, () => remember(c, storyId, closing, scene, names));
+  await pass('memory', want.memory, () => remember(c, storyId, closing, scene, names));
   // And read it for facts. The comment above summarise applies to this word for word: the ledger
   // is the only tier that survives compaction — prose falls out of the chapter window, summaries
   // roll into arcs, and entries are re-sent on every call forever — so leaving the tier that
@@ -1315,17 +1315,17 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   //
   // The end-chapter ritual used to make this call itself as its own step 3. It must not again:
   // the scene would be read twice, and the surface would report on a pass that did not land.
-  await run('facts', want.facts, () => extract(c, storyId, closing, scene));
+  await pass('facts', want.facts, () => extract(c, storyId, closing, scene));
   // And ask which of them the chapter FINISHED. Last of the four deliberately: it is the only
   // step that takes something away, and a writer reading the queue should meet what the chapter
   // added before what it ended. Nothing is written here either — a retirement is a proposal, and
   // accepting one is the only decision in the app that changes what the model is told for the
   // rest of the book.
-  await run('finished', want.finished, () => retire(c, storyId, closing, scene));
+  await pass('finished', want.finished, () => retire(c, storyId, closing, scene));
   // The next scene's suggestion, last: it reads the summary the first pass just wrote.
-  const next = await run('next', want.next, () => suggestScene(c, storyId, opened));
+  const next = await pass('next', want.next, () => suggestScene(c, storyId, opened));
   // A pass that did not run this time leaves its line, the kept flag and the suggestion as stored (#91).
-  db.finishHem(storyId, closing, { passes, kept: want.summary ? keptSummary : undefined,
+  db.finishHem(storyId, closing, run, { passes, kept: want.summary ? keptSummary : undefined,
     suggestion: !want.next ? undefined : next?.title ? { title: next.title, note: next.note, opens: next.opens } : null });
 }
 
@@ -2735,20 +2735,21 @@ export const routes: Record<string, Handler> = {
     // An empty list is a refusal, never a hem again: that one drops what is chalked.
     if (names && !names.length) return { error: 'Name the threads to ask for.' };
     if (c.body.pass == null && !names) {
-      db.beginHem(storyId, chapterId);
+      const run = db.beginHem(storyId, chapterId);
       // Dropped inside the queue, not here: a hem still running on the tale may yet chalk into it.
       queueHem(storyId, async () => {
         db.dropChalked(storyId, `scene:${chapterId}`);
         await hemPasses(c, storyId, chapterId, opened,
-          Object.fromEntries(HEM_PASSES.map((k) => [k, true])) as HemWant);
+          Object.fromEntries(HEM_PASSES.map((k) => [k, true])) as HemWant, run);
       });
       return viewOf(c, storyId);
     }
     const pass = names ? 'memory' : String(c.body.pass);
     if (!(HEM_PASSES as readonly string[]).includes(pass)) return { error: `There is no pass called "${pass}".` };
-    if (!db.reopenHem(storyId, chapterId)) return { error: 'This scene has not been hemmed yet.' };
+    const run = db.reopenHem(storyId, chapterId);
+    if (run == null) return { error: 'This scene has not been hemmed yet.' };
     const want = Object.fromEntries(HEM_PASSES.map((k) => [k, k === pass])) as HemWant;
-    queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want, names ?? undefined));
+    queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want, run, names ?? undefined));
     return viewOf(c, storyId);
   },
   'POST /api/chapter/end': async (c) => {

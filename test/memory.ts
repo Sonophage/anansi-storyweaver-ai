@@ -1378,6 +1378,38 @@ ok('no interiority pocket for the played or Hands-off character');
 }
 
 
+// A RUN FINISHES ONLY ITS OWN RECORD. A hem again or a try again pressed while an earlier run on the
+// scene is still going waits in the queue; when the earlier run ends, the scene must still show the
+// waiting run as running, or the card says done and stops looking.
+for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]] as const) {
+  const t = db.createStory(me, { title: `Overlap, ${label}`, premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'Oren tied the ferry up for the winter.' });
+  const held = () => { let release!: () => void; gate = new Promise<void>((r) => { release = r; }); return release; };
+  // Held means asked and not yet answered: the ask count has passed `n` and an ask is in flight.
+  const waitHeld = async (n: number) => {
+    for (let i = 0; i < 150 && !(asks.length > n && inflight > 0); i++) await new Promise((r) => setTimeout(r, 20)); };
+  // A full answer, so the suggestion asks once and its retry does not read as the waiting run.
+  tidied = { ...NEXT };
+  const first = held();
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id, summarise: false, remember: false, extract: false, retire: false }));
+  await waitHeld(asks.length - 1);
+  await routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, ...again }));
+  const second = held(), from = asks.length;
+  first();
+  // The waiting run has asked: the earlier run has ended, and its record is written.
+  await waitHeld(from);
+  assert.ok(asks.length > from, '  the waiting run reached the model');
+  assert.strictEqual(sceneOf(await viewNow(t.id), ch0.id).hem?.state, 'running',
+    `HEM-OWN-RECORD: after the earlier run ends, the ${label} still shows running`);
+  second(); gate = null;
+  await hemSettled(t.id);
+  tidied = {};
+  assert.strictEqual(sceneOf(await viewNow(t.id), ch0.id).hem?.state, 'done', `  and done once the ${label} ends`);
+  ok(`a run finishes only its own record: a ${label} waiting behind a hem shows running`);
+}
+
+
 srv.close();
 // #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
 // end on 2026-08-29: all three characters came back with field "facts" and a body holding several

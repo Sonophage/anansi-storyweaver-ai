@@ -548,6 +548,8 @@ function migrate() {
   add('shortlist', 'takes_switch', 'INTEGER');
   // #90. The names of threads a hem's thread-change pass found changed past its cap of six.
   add('hems', 'overflow', 'TEXT');
+  // The run that owns the row: a hem again or a try again takes the next number (see finishHem).
+  add('hems', 'run', 'INTEGER DEFAULT 0');
   backfillActPrints();
 
   if ((db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type = 'table' AND name = 'outfits'")
@@ -767,13 +769,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS proposals_dedupe ON proposals(story_id, conten
 -- uses), which pass did not run and why (#32, JSON), whether the writer's own summary was kept,
 -- and the next-scene suggestion (JSON: title, note, opens). Running is finished_at NULL. Out of date
 -- is derived on read and never stored. A hem again replaces the row. overflow (#90, JSON) holds
--- the names of threads that changed past the thread-change pass's cap of six.
+-- the names of threads that changed past the thread-change pass's cap of six. run counts the runs
+-- begun on the row, so only the latest one marks it finished.
 CREATE TABLE IF NOT EXISTS hems (
   chapter_id TEXT PRIMARY KEY REFERENCES chapters(id) ON DELETE CASCADE,
   story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   started_at INTEGER NOT NULL, finished_at INTEGER,
   prose_hash TEXT NOT NULL,
-  passes TEXT, kept INTEGER DEFAULT 0, suggestion TEXT, overflow TEXT);
+  passes TEXT, kept INTEGER DEFAULT 0, suggestion TEXT, overflow TEXT, run INTEGER DEFAULT 0);
 CREATE INDEX IF NOT EXISTS hems_story ON hems(story_id);
 
 -- SPEC 7.1. Per-chapter overrides on the ledger: force a fact in for a scene where it
@@ -1719,16 +1722,23 @@ export function summaryCover(chapterId: string): { passages: any[]; through: num
  *  as `summaryStale` hashes it. An edit, a reweave or a delete in the scene changes it. */
 const scenePrint = (chapterId: string) => proseHash(passagesOfChapter(chapterId).map((p: any) => p.body));
 
-/** A hem starts: the row is written, or replaced by a hem again, before any pass runs. */
-export const beginHem = (storyId: string, chapterId: string) =>
-  q(`INSERT OR REPLACE INTO hems (chapter_id, story_id, started_at, finished_at, prose_hash, passes, kept, suggestion)
-     VALUES (?, ?, ?, NULL, ?, NULL, 0, NULL)`).run(chapterId, storyId, now(), scenePrint(chapterId));
+/** A hem starts: the row is written, or replaced by a hem again, before any pass runs. Returns the
+ *  run's number, which `finishHem` is handed back. */
+export function beginHem(storyId: string, chapterId: string): number {
+  const run = ((q('SELECT run FROM hems WHERE chapter_id = ?').get(chapterId) as any)?.run ?? 0) + 1;
+  q(`INSERT OR REPLACE INTO hems (chapter_id, story_id, started_at, finished_at, prose_hash, passes, kept, suggestion, run)
+     VALUES (?, ?, ?, NULL, ?, NULL, 0, NULL, ?)`).run(chapterId, storyId, now(), scenePrint(chapterId), run);
+  return run;
+}
 
 /** A hem ends, with its pass report and the next-scene suggestion (null when that pass gave none).
  *  #91. The report is MERGED into the one stored: a try-again of one pass hands in that pass's line
  *  only, and every other line stays. `beginHem` empties the report, so a full hem still replaces it.
- *  `kept` and `suggestion` left undefined keep what is stored: those passes did not run this time. */
-export function finishHem(storyId: string, chapterId: string,
+ *  `kept` and `suggestion` left undefined keep what is stored: those passes did not run this time.
+ *  ONLY THE LATEST RUN MARKS IT FINISHED. A hem again or a try again pressed while an earlier run is
+ *  going begins a new run and waits in the queue; the earlier run still merges its report, but if it
+ *  stamped the row finished the scene would read done while the newer run waits. */
+export function finishHem(storyId: string, chapterId: string, run: number,
     r: { passes: Record<string, string | null>; kept?: boolean;
          suggestion?: { title: string; note: string; opens: string } | null }) {
   const was = q('SELECT passes, kept, suggestion FROM hems WHERE chapter_id = ? AND story_id = ?')
@@ -1738,8 +1748,9 @@ export function finishHem(storyId: string, chapterId: string,
   const kept = r.kept === undefined ? !!was?.kept : r.kept;
   const suggestion = r.suggestion === undefined ? (was?.suggestion ?? null)
     : r.suggestion ? JSON.stringify(r.suggestion) : null;
-  q('UPDATE hems SET finished_at = ?, passes = ?, kept = ?, suggestion = ? WHERE chapter_id = ? AND story_id = ?')
-    .run(now(), JSON.stringify({ ...before, ...r.passes }), kept ? 1 : 0, suggestion, chapterId, storyId);
+  q(`UPDATE hems SET finished_at = CASE WHEN run = ? THEN ? ELSE finished_at END, passes = ?, kept = ?,
+       suggestion = ? WHERE chapter_id = ? AND story_id = ?`)
+    .run(run, now(), JSON.stringify({ ...before, ...r.passes }), kept ? 1 : 0, suggestion, chapterId, storyId);
 }
 
 /** #91. HEM AGAIN drops what the last hem left chalked in the scene's group, and only that: a row
@@ -1748,9 +1759,13 @@ export const dropChalked = (storyId: string, grp: string) =>
   q("DELETE FROM proposals WHERE story_id = ? AND grp = ? AND status = 'open'").run(storyId, grp);
 
 /** #91. A try-again starts: the hem shows running again, with its fingerprint and report as they
- *  were. False when the scene has no hem in this story, which is the route's refusal. */
-export const reopenHem = (storyId: string, chapterId: string) =>
-  q('UPDATE hems SET finished_at = NULL WHERE chapter_id = ? AND story_id = ?').run(chapterId, storyId).changes > 0;
+ *  were, and the try-again is the row's new run. Null when the scene has no hem in this story,
+ *  which is the route's refusal. */
+export function reopenHem(storyId: string, chapterId: string): number | null {
+  if (!q('UPDATE hems SET finished_at = NULL, run = run + 1 WHERE chapter_id = ? AND story_id = ?')
+    .run(chapterId, storyId).changes) return null;
+  return (q('SELECT run FROM hems WHERE chapter_id = ?').get(chapterId) as any).run;
+}
 
 /** #90. The threads the thread-change pass found changed past its cap of six, by name, for the card.
  *  Written by that pass when a hem runs it; a hem again starts the row with none. */

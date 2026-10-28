@@ -1427,8 +1427,8 @@ async function bootServer(port: number, env: Record<string, string>) {
  * chalked row is still there, which a hem again would have dropped. */
 {
   const herScene = (db.chapters(aStory.id)[0] as any).id;
-  db.beginHem(aStory.id, herScene);
-  db.finishHem(aStory.id, herScene, { passes: { facts: 'down' } });
+  const herRun = db.beginHem(aStory.id, herScene);
+  db.finishHem(aStory.id, herScene, herRun, { passes: { facts: 'down' } });
   db.addProposal(aStory.id, { kind: 'new', chapterId: herScene, title: 'Her Chalk', body: 'Still open.',
     entryType: 'lore', keys: [], grp: `scene:${herScene}` });
   const chalk = () => (db.proposalsOf(aStory.id) as any[]).filter((p) => p.title === 'Her Chalk').length;
