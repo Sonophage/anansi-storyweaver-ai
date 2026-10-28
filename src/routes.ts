@@ -5,7 +5,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TIDY, TIDY_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, CHECK, checkSchema, MEND, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TIDY, TIDY_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, NUMBERS, numbersSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
 import { ALL_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -1531,6 +1531,33 @@ function lockToOverTime(p: any, text: string) {
     label: p.delta || null, beforeMode: 'hide' });
 }
 
+/** #84 · WHO THE WRITER PLAYS, read off the skeleton the wizard sends: the persona, and the
+ *  Hands-off character only while Hands off is on. One reader for the cast and Try it on. */
+function playsOf(st: any): { persona: string | null; held: string | null } {
+  const persona = String(st?.persona ?? '').trim() || null;
+  const held = st?.lockoutOn === false ? null : String(st?.lockedCharacter ?? '').trim() || null;
+  return { persona, held };
+}
+
+/** ONE SPARK THREAD, as the cast and Try it on both return it: Always true in the body, which
+ *  POST /api/stories moves into `facts`, and its pockets as rooms, switched on, from its kind's list
+ *  only (`writeRooms` writes them as the tale is made). */
+function sparkThread(rawName: string, kind: string, rawBody: string, pockets: unknown) {
+  const here = slotsFor(kind).map((sl) => sl.name), rooms: Record<string, any> = {};
+  for (const pk of (Array.isArray(pockets) ? pockets : []) as any[]) {
+    const slot = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
+    if (slot !== 'facts' && here.includes(slot) && body && !rooms[slot])
+      rooms[slot] = { name: String(pk?.name ?? '').trim() || slot, body, on: true };
+  }
+  // ONE NAME AT THE FRONT. The model often starts the body with the name already, and wrapped
+  // again it read "[Seth: Seth: The Witness…]" on every call (2026-10-27, #81).
+  const name = String(rawName).trim();
+  const own = String(rawBody).trim().replace(/^\[|\]$/g, '').trim();
+  const said = own.toLowerCase().startsWith(name.toLowerCase() + ':') ? own.slice(name.length + 1).trim() : own;
+  return { title: name, entryType: kind, activation: 'always_on', body: `[${name}: ${said}]`, keys: [name],
+           ...(Object.keys(rooms).length ? { rooms } : {}) };
+}
+
 function writeRooms(storyId: string, entryId: string, kind: string, rooms: any, label: string) {
   const notes: string[] = [];
   let made = 0;
@@ -2159,8 +2186,13 @@ export const routes: Record<string, Handler> = {
     const steer = String(c.body.steer ?? '').trim().slice(0, 600);
     const replacing = (Array.isArray(c.body.replacing) ? c.body.replacing : [])
       .map((x: any) => String(x ?? '').trim()).filter(Boolean).slice(0, 12);
+    // #84 · WHO YOU PLAY, decided on the step before this one and sent with the skeleton.
+    const you = playsOf(st);
+    const about = String(st.personaAbout ?? '').trim().slice(0, 600);
     const r = await structuredRetry(CAST,
       [`${skeleton}\n\nKINDS WANTED: ${kinds.join(', ')}`,
+       you.persona ? `THE WRITER PLAYS: ${you.persona}${about ? ` — ${about}` : ''}` : '',
+       you.held ? `HANDS OFF: ${you.held}` : '',
        replacing.length ? `ALREADY IN THIS BOOK, and not to be proposed again under any name: ${
          replacing.join('; ')}` : '',
        steer ? `THE WRITER WANTS THIS CAST TO: ${steer}` : '',
@@ -2171,29 +2203,25 @@ export const routes: Record<string, Handler> = {
     // braces, and it costs one comparison.
     const entries = (r.data.entries as any[])
       .filter((e) => e?.name?.trim() && e?.body?.trim() && kinds.includes(e.kind))
-      .map((e) => {
-        // ITS POCKETS RIDE AS ROOMS, which POST /api/stories writes (`writeRooms`) as the tale is made.
-        const kinds = slotsFor(e.kind).map((sl) => sl.name), rooms: Record<string, any> = {};
-        for (const pk of (Array.isArray(e.pockets) ? e.pockets : []) as any[]) {
-          const slot = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
-          if (slot !== 'facts' && kinds.includes(slot) && body && !rooms[slot])
-            rooms[slot] = { name: String(pk?.name ?? '').trim() || slot, body, on: true };
-        }
-        // ONE NAME AT THE FRONT. The model often starts the body with the name already, and wrapped
-        // again it read "[Seth: Seth: The Witness…]" on every call (2026-10-27, #81).
-        const name = e.name.trim();
-        const own = e.body.trim().replace(/^\[|\]$/g, '').trim();
-        const said = own.toLowerCase().startsWith(name.toLowerCase() + ':') ? own.slice(name.length + 1).trim() : own;
-        return { title: name, entryType: e.kind, activation: 'always_on',
-                 body: `[${name}: ${said}]`, keys: [name],
-                 ...(Object.keys(rooms).length ? { rooms } : {}) };
-      });
+      .map((e) => sparkThread(e.name, e.kind, e.body, e.pockets));
+    // A CHARACTER THE WRITER DESCRIBED is in the tale from the start, whether or not the model wrote
+    // them: their thread is made from the writer's own words. Not on a re-roll that names them taken.
+    if (you.persona && about && kinds.includes('character')
+        && !entries.some((e) => e.title.toLowerCase() === you.persona!.toLowerCase())
+        && !replacing.some((x: string) => x.toLowerCase() === you.persona!.toLowerCase()))
+      entries.unshift(sparkThread(you.persona, 'character', about, []));
     if (!entries.length) return { error: 'nothing came back in the kinds you asked for' };
-    // Proposals, not decisions, and only ever a name that is in the cast this call produced —
-    // POST /api/stories checks them again against what actually gets created.
-    const named = new Set(entries.filter((e) => e.entryType === 'character').map((e) => e.title));
-    const pick = (v: unknown) => (named.has(String(v ?? '')) ? String(v) : null);
-    return { entries, persona: pick(r.data.persona), lockedCharacter: pick(r.data.lockedCharacter) };
+    // THE HANDS-OFF THREAD, FROM OUTSIDE (#84). The prompt asks for no voice and no interiority for
+    // them; this is the floor under that ask, and the "their lines are yours" pocket is added here, to
+    // that thread and no other, from the one constant that holds its text.
+    for (const e of entries) if (you.held && e.entryType === 'character'
+        && e.title.toLowerCase() === you.held.toLowerCase()) {
+      const { voice: _v, interiority: _i, ...outside } = (e as any).rooms ?? {};
+      (e as any).rooms = { ...outside, voice: { name: 'Their lines are yours', body: YOURS_VOICE(e.title), on: true } };
+    }
+    // WHO YOU PLAY GOES BACK AS IT CAME. The model is no longer asked to choose: the writer did, a
+    // step earlier, and a cast that reassigned it would undo the lock its pockets were written for.
+    return { entries, persona: you.persona, lockedCharacter: String(st.lockedCharacter ?? '').trim() || null };
   },
 
   /** THE HOUSE STYLE, BEFORE THERE IS A BOOK TO READ IT OFF. Seth, 2026-08-30: *"the genre voice
@@ -2238,6 +2266,8 @@ export const routes: Record<string, Handler> = {
     const cast = Array.isArray(c.body.entries) ? c.body.entries : [];
     if (!String(st.premise ?? '').trim()) return { error: 'there is no premise to try on' };
     const APPLIABLE = ['title', 'premise', 'setting'];
+    // #84. Read with who you play already chosen, so what it proposes respects it.
+    const you = playsOf(st);
     const body = [
       `Title: ${st.title ?? ''}`,
       `Genre: ${st.genre ?? ''}`,
@@ -2247,7 +2277,9 @@ export const routes: Record<string, Handler> = {
       cast.length
         ? `Cast:\n${cast.map((e: any) => `- ${e.title} (${e.entryType}): ${e.body}`).join('\n')}`
         : 'Cast: nobody yet.',
-    ].join('\n\n');
+      you.persona ? `THE WRITER PLAYS: ${you.persona}` : '',
+      you.held ? `HANDS OFF: ${you.held}` : '',
+    ].filter(Boolean).join('\n\n');
     const r = await structuredRetry(REVIEW, body, REVIEW_SCHEMA,
       { model: backgroundModel(c, { story: null }), max_tokens: REVIEW_TOKENS });
     if (!r.data) return { error: r.error ?? 'the second look returned nothing usable' };
@@ -2263,8 +2295,7 @@ export const routes: Record<string, Handler> = {
       entries: (r.data.entries ?? [])
         .filter((e: any) => e?.name?.trim() && e?.body?.trim()
           && !have.has(String(e.name).trim().toLowerCase()))
-        .map((e: any) => ({ title: e.name.trim(), entryType: e.kind, activation: 'always_on',
-                            body: `[${e.name.trim()}: ${e.body.trim()}]`, keys: [e.name.trim()] })),
+        .map((e: any) => sparkThread(e.name, e.kind, e.body, e.pockets)),
     };
   },
 

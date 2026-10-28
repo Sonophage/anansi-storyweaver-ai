@@ -126,6 +126,20 @@ to do — Write, Show, Give, Keep, Let, Never — and is never a list of traits.
 The quoted lines above show the FORM only. Never copy their words: write each pocket from what this
 thread's own text says about it, and leave out a pocket its text gives you nothing for.`;
 
+/** #84 · NEVER WHAT HAPPENS NEXT. A spark cast wrote "he does not take the money" as a pocket, and the
+ *  model read it as an order that steered the tale to an ending the writer never chose (#81). One
+ *  sentence, in every wizard prompt that writes a thread (the cast, a one-thread re-roll, which is
+ *  the cast again, and Try it on), so they all forbid the same thing. NOT MEASURED. */
+export const NO_OUTCOMES =
+`NEVER WRITE WHAT HAPPENS NEXT. A thread says who or what it is and how to write it, never what it
+will do, decide or end up as: "he does not take the money" is the story's to find, not a pocket's.`;
+
+/** #84 · THE HANDS-OFF CHARACTER'S VOICE POCKET, added by the spark cast route itself and never asked
+ *  of the model. `context.ts` sends a Hands-off character's voice pocket bare, so this reaches the
+ *  model as written. Text in one place. NOT MEASURED. */
+export const YOURS_VOICE = (name: string) =>
+  `${name}'s lines are the writer's. Never write what ${name} says, does, thinks or decides.`;
+
 /** What a scene did to the threads it names (#73, ADR 0005). Every kind, not only people: a place
  *  burns, an item breaks, a rule stops holding.
  *
@@ -507,7 +521,8 @@ the premise names is one of them, the one it is about first.
   place      a place: a city, a building, a room, a road
   lore       an institution, a faction, a history, a custom
   item       an object that matters
-  rule       a law of this world, or of this story, that holds until it is broken
+  rule       a law of this world, or of this story, that holds until it is broken. Write a rule only
+             when the idea needs one: a tale with no rules is the usual answer.
 
 Each entry is a name, its kind, a body and its pockets, written to be READ BY A MODEL on every
 call: dense and specific.
@@ -529,17 +544,18 @@ The pockets are every pocket its kind can have, each with a short title of its o
 
 ${POCKET_FORM}
 
+${NO_OUTCOMES}
+
 ${LEDGER_REGISTER}
 
-If characters were asked for, also name two of them, or neither:
+If the writer says below who they play, that character is one of the threads, under exactly that
+name, written from what the writer says of them.
 
-- persona: the one the writer will speak as. The story's centre, the one with the most to lose.
-- lockedCharacter: the one the writing model must never write for, because the writer will. Usually
-  the same as persona, and different only when the idea has an obvious second lead.
-
-Spell both exactly as they appear in your own list, or return the empty string. The empty string is
-a real answer: a story narrated from outside has no persona, and inventing one points the writer's
-byline at somebody who is not in their book. Never name anybody not on that list.`;
+If the writer names somebody as HANDS OFF, the model never writes that character: no dialogue, no
+action, no thought. Write their thread from the OUTSIDE ONLY: Always true is who they are as the
+others know them, and their pockets are only what others can see of them (appearance, outfit) and
+how others stand towards them (relationships). Give them no voice pocket and no interiority pocket,
+and nothing that says what they do, think or decide.`;
 
 /** #21 §3 · STEP FIVE. Anansi reads the whole skeleton back and says what he would change.
  *
@@ -575,10 +591,23 @@ same length and in the same voice as what it replaces.
 
 You may also propose entries the skeleton implies and the cast is missing: someone the premise
 names who is not there, the place it happens in, the thing everyone wants. Each is a name, a kind,
-and a body of forty to eighty words in the same dense style as the cast — facts, not atmosphere,
-and never a finished sentence of the book.
+a body and its pockets. The body is its Always true, twenty to forty words in the same dense style
+as the cast: who or what it is for the whole story, facts, not atmosphere, and never a finished
+sentence of the book. Its pockets are from its kind's list:
 
-Do not propose an entry that is already in the cast under any name.`;
+    character  appearance, voice, interiority, relationships, outfit
+    place      appearance, atmosphere, who_is_here
+    lore       appearance, atmosphere, who_is_here
+    item       appearance, what_it_does
+    rule       consequences
+
+${POCKET_FORM}
+
+${NO_OUTCOMES}
+
+Do not propose an entry that is already in the cast under any name. If the writer says who they
+play, change nothing about who that is; if somebody is HANDS OFF, propose nothing that has the
+model write for them.`;
 
 export const REVIEW_SCHEMA = {
   type: 'object',
@@ -606,8 +635,15 @@ export const REVIEW_SCHEMA = {
           name: { type: 'string' },
           kind: { type: 'string', enum: ['character', 'place', 'lore', 'item', 'rule'] },
           body: { type: 'string' },
+          // #84. Its pockets, as the cast's are; the route keeps only the ones its kind can have.
+          pockets: { type: 'array', items: { type: 'object', properties: {
+            slot: { type: 'string', enum: ['appearance', 'atmosphere', 'consequences', 'interiority',
+                    'outfit', 'relationships', 'voice', 'what_it_does', 'who_is_here'] },
+            name: { type: 'string' },
+            body: { type: 'string' },
+          }, required: ['slot', 'name', 'body'] } },
         },
-        required: ['name', 'kind', 'body'],
+        required: ['name', 'kind', 'body', 'pockets'],
       },
     },
   },
@@ -776,8 +812,8 @@ export const SPARK_SCHEMA = {
     writingStyle: { type: 'string' },
   },
   // #21 §2. `characters`, `persona` and `lockedCharacter` were HERE and were REQUIRED — which is
-  // why "no characters at this point" was unreachable without a schema change. They moved to
-  // CAST_SCHEMA, which is asked for separately and only for the kinds the writer wants.
+  // why "no characters at this point" was unreachable without a schema change. The cast moved to
+  // CAST_SCHEMA, asked for separately; who you play is the writer's, chosen before it (#84).
   required: ['title', 'premise', 'genre', 'setting', 'pov', 'spice', 'writingStyle'],
 } as const;
 
@@ -786,9 +822,8 @@ export const SPARK_SCHEMA = {
  *  wanted places and no people cannot be handed a character by a model that felt like writing one.
  *  The old shape could only ask for characters, and required two of them.
  *
- *  `persona` and `lockedCharacter` ride here rather than on the scaffold for the same reason they
- *  are checked again in POST /api/stories: a name that is not in the cast points the writer's
- *  byline at nobody, and the cast is what this call decides. */
+ *  It no longer carries `persona` and `lockedCharacter` (#84): the writer chooses who they play on
+ *  the step before the threads, and the call is told, rather than asked. */
 export const castSchema = (kinds: string[]) => ({
   type: 'object',
   properties: {
@@ -814,10 +849,8 @@ export const castSchema = (kinds: string[]) => ({
         required: ['name', 'kind', 'body', 'pockets'],
       },
     },
-    persona: { type: 'string' },
-    lockedCharacter: { type: 'string' },
   },
-  required: ['entries', 'persona', 'lockedCharacter'],
+  required: ['entries'],
 }) as const;
 
 /** The check. Runs on a passage the writer has selected, against the canon entries that
