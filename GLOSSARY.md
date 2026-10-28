@@ -21,8 +21,10 @@ _In code_: story
 
 **World**:
 A collection of threads that tales draw on, holding no prose of its own. A tale can be cut from a
-world and follow it.
-_Avoid_: world book, world bible, bolt
+world and follow it. A world can be made from an existing story or game (an IP), its people and
+places looked up for it; a second tale in the same IP follows the same world. (Decided 2026-10-27;
+not built.)
+_Avoid_: world book, world bible, bolt, source, franchise
 _In code_: a story with `is_world`; a tale follows one through `lore_from`
 
 **Account**:
