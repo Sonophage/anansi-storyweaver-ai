@@ -88,7 +88,7 @@ export const EXTRACT_SCHEMA = {
                    enum: ['none', 'appearance', 'atmosphere', 'consequences', 'facts',
                           'interiority', 'outfit', 'relationships',
                           'voice', 'what_it_does', 'who_is_here'] },
-          // FULLY FLESHED (Seth, 2026-10-26): a NEW thread's pockets, each an instruction, from the
+          // FULLY FLESHED (Seth, 2026-10-26): a NEW thread's pockets, each a plain description, from the
           // kind's own list. The route drops any its kind cannot have, and any for a thread that exists.
           pockets: { type: 'array', items: { type: 'object', properties: {
             slot: { type: 'string', enum: ['appearance', 'atmosphere', 'consequences', 'interiority',
@@ -106,27 +106,33 @@ export const EXTRACT_SCHEMA = {
   required: ['entries'],
 } as const;
 
-/** #73 · A POCKET IS AN INSTRUCTION ON USE, NEVER TEXT TO REPEAT (ADR 0005). Halsey's voice pocket said
- *  "voice remains thick Jersey accent even in digital text" and the narration said "the letters thick
- *  with her accent even in digital form": a description in the prompt is a sentence for the prose.
- *  One paragraph, in every prompt that writes a pocket, so they all ask for the same shape.
- *  NOT MEASURED YET: owed a control run before anyone calls it a fix (the voice A/B in #73). */
+/** #73 · A POCKET IS A PLAIN DESCRIPTION, AND THE CODE MAKES IT AN INSTRUCTION (ADR 0008, Seth,
+ *  2026-10-28: "The instructions for how to use it should be code side and just the description
+ *  should be in the user facing box"). It was an instruction starting with a verb (ADR 0005), and
+ *  the writer then read and edited wording meant for the model. The instruction now lives in the
+ *  frame `src/context.ts` builds per kind ("When Talia speaks, write the dialogue this way: …"), so
+ *  a pocket written as an instruction would reach the model as an instruction inside an instruction.
+ *  ADR 0005's reason still holds for the CONTENT: a pocket says how something comes across, not a
+ *  sentence for the prose, which is why the voice frame keeps "the narration never names how they
+ *  sound". One paragraph, in every prompt that writes a pocket, so they all ask for the same shape.
+ *  NOT MEASURED: owed a control run before anyone calls it better or worse than the instruction form. */
 export const POCKET_FORM =
-`A pocket is an INSTRUCTION to whoever writes the next scene: how to use this part of the thread,
-never a description to copy into the prose. EVERY POCKET STARTS WITH A VERB telling the writer what
-to do — Write, Show, Give, Keep, Let, Never — and is never a list of traits. Directions:
+`A pocket is a plain DESCRIPTION of one part of the thread, in a sentence or two, the way the
+writer would note it: what it is like, specific enough to write from. Anansi turns it into the
+instruction for whoever writes the scene, so never write it as an instruction: no "Write", "Show",
+"Never", no brackets, and not the thread's name in front. Never a bare list of traits. Kinds:
 
-    voice          how their dialogue is written: sentence length, words they use and never use,
-                   how they dodge a question. "Write her lines short and clipped; she says aye for
-                   yes. Show the accent only in what she says; the narration never names it."
-    outfit         what they have on and what of it shows in a scene, as clothes, not as who they are.
-                   "Dress her in the black slip dress; let one strap fall when she leans in." 
-    interiority    what they will not say out loud, and what they do instead of saying it.
-                   "Never let her say she is afraid; show it as her talking faster and touching him."
-    relationships  how they act around that one person, and what stands between them.
-    appearance     the one or two things another character notices first, and when to show them.
+    voice          how their dialogue sounds: sentence length, words they use and never use, how
+                   they dodge a question. "Short, clipped lines; says aye for yes; answers a
+                   question with a question."
+    outfit         what they have on and what of it shows, as clothes. "A black slip dress, one
+                   strap that will not stay up."
+    interiority    what they will not say out loud, and what they do instead of saying it. "Afraid
+                   of him, and talks faster and touches his arm instead of saying so."
+    relationships  how they are around that one person, and what stands between them.
+    appearance     the one or two things another character notices first.
     atmosphere, who_is_here, what_it_does, consequences
-                   what to put on the page when this place, object or rule is in the scene.
+                   what this place, object or rule is like when it is in a scene.
 
 The quoted lines above show the FORM only. Never copy their words: write each pocket from what this
 thread's own text says about it, and leave out a pocket its text gives you nothing for.`;
@@ -151,13 +157,13 @@ export const YOURS_VOICE = (name: string) =>
  *  Seeded with where each thread stands now and asked for the WHOLE of it back, because an Over time
  *  entry REPLACES the text before it — see resolveBody. A delta-shaped answer ("her arm is broken")
  *  would silently drop her debts from that scene on, and it would read as the model forgetting.
- *  Its pockets come back as instructions (POCKET_FORM), and Always true only where it is empty.
+ *  Its pockets come back as plain descriptions (POCKET_FORM), and Always true only where it is empty.
  *
  *  #90 · IT CHALKS LESS. A hem chalked a card for nearly every thread the scene named, and the old
  *  "FLESH IT OUT" rule asked for pockets where nothing had changed, so a writer met a Workbench of
  *  restatements. Four rules now: a thread counts only when the narration shows it acting or acted
  *  on; only what differs from the entry in force; pockets only from the kind's list, as
- *  instructions; the played and Hands off characters (named in the ask as OUTSIDE ONLY) from the
+ *  plain descriptions; the played and Hands off characters (named in the ask as OUTSIDE ONLY) from the
  *  outside. And six threads at most, largest change first, the rest as names. Code enforces each
  *  rule it can check (`remember` in routes.ts); the prompt is the half code cannot check.
  *  NOT MEASURED: none of this wording has been run against the real model. It is owed a control
@@ -189,7 +195,7 @@ For each thread the scene CHANGED, return:
   label    four words at most, for the timeline: "arm broken", "no longer trusts Vel".
   line     the shortest phrase of the narration where the change happens, copied exactly.
   pockets  only pockets this scene gives the thread something NEW for, and only from its kind's
-           list. Each is an instruction on how to write it from now on, never an outcome of the
+           list. Each is a plain description of how it comes across from now on, never an outcome of the
            scene: what happened goes in stands. Never repeat what the thread already says. Its name
            is a short title of its own, two or three words naming what it is about, never the
            slot's word and never the thread's name. Most threads get no pockets.
@@ -260,7 +266,7 @@ pockets. Sort what it says into the three parts a thread has, and change nothing
            with no brackets and not its name in front.
   stands   where it stands now: what has happened to it and what is at stake. One bracket. No
            looks, no clothes, no voice: those are pockets.
-  pockets  one per part of how to write it, each from its kind's list, as an INSTRUCTION. For each
+  pockets  one per part of how to write it, each from its kind's list, as a plain description. For each
            pocket it already has, say which one it replaces (its name), or "" for a new one.
            Its name is a short title of its own, never the slot's word or the thread's name.
 
@@ -268,9 +274,9 @@ Keep every fact it already holds, in one of the three; drop nothing and add noth
 parts disagree (an age, a job, a name), the LATER and more specific one is true: write only that
 one, and never both. Always true holds identity only: no clothes, no events, no mood, no voice.
 
-Rewrite EVERY pocket it already has as an instruction, even when it was a description: "Jersey
-accent, commanding tone" becomes "Write her dialogue with a Jersey snap: dropped r's, 'ya' for you,
-orders not requests. Never have the narration name the accent." Where the thread's text holds what
+Rewrite EVERY pocket it already has as a plain description, even when it was written as an
+instruction: "Write her dialogue with a Jersey snap. Never have the narration name the accent."
+becomes "A Jersey snap: dropped r's, 'ya' for you, orders not requests." Where the thread's text holds what
 belongs in a pocket of its kind that it does not have yet (how they talk, what they wear, who they
 are to someone), make that pocket too. Never leave a pocket a list of traits.
 
@@ -295,13 +301,13 @@ export const TIDY_SCHEMA = {
 } as const;
 
 /** #74 · ANANSI EDITS ONE SECTION of a Workbench card, on the writer's steer or none. It keeps the
- *  section's own form: a whole "where it stands", a pocket as an instruction, or Always true. */
+ *  section's own form: a whole "where it stands", a pocket as a plain description, or Always true. */
 export const REDO =
 `Below is one part of a thread from a story, chalked for the writer to decide on, with the thread
 it belongs to. Write that part again, in the same form and for the same place in the thread:
 
   where it stands   the WHOLE of where the thread stands from that scene on, not only a change
-  a pocket          an INSTRUCTION for the next scene (see below), for that one pocket only
+  a pocket          a plain description (see below), for that one pocket only
   Always true       who or what it is, as a plain description, with no brackets
 
 If the writer says what should change, do that and keep the rest. If they say nothing, write it
@@ -866,7 +872,7 @@ export const castSchema = (kinds: string[]) => ({
           // No maxLength, per F25: the converter honours it and closes the string mid-word with
           // the JSON still valid, so a body ending "and she signs the" would look finished.
           body: { type: 'string' },
-          // FULLY FLESHED FROM THE START: its pockets, as instructions. The route keeps only the
+          // FULLY FLESHED FROM THE START: its pockets, as plain descriptions. The route keeps only the
           // ones the entry's kind can have.
           pockets: { type: 'array', items: { type: 'object', properties: {
             slot: { type: 'string', enum: POCKET_SLOTS },
@@ -1357,8 +1363,8 @@ ${rooms.map((r) => `             ${r}`).join('\n')}
            things that change a scene. Each room is what the body did NOT say. If a room would only
            restate the body, leave that room empty.
 
-           facts is the one room that is not an instruction: who or what they are. Every other room
-           is written as the instruction below, from what the results say.
+           facts is who or what they are. Every other room is a plain description of its part, as
+           below, from what the results say.
 
 ${POCKET_FORM}
 ` : ''}    keys   Single words that would really appear in prose about them — a name, a place, a work, an

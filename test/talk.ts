@@ -597,11 +597,12 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.deepStrictEqual(r.entries[0].keys, ['Vel'], 'and fire on their own name');
   assert.strictEqual(r.entries[1].body, 'a stair with no landing, cut into the rock.',
     'CAST-NAME-ONCE: a body that starts with its own name is not given the name twice');
-  // FULLY FLESHED FROM THE START (Seth, 2026-10-26): the cast arrives with its pockets, as
-  // instructions, and only the ones its kind can have.
+  // FULLY FLESHED FROM THE START (Seth, 2026-10-26): the cast arrives with its pockets, and only the
+  // ones its kind can have. Asked for as plain descriptions since ADR 0008; the fake answers as it does.
   assert.deepStrictEqual(Object.keys(r.entries[0].rooms ?? {}), ['voice'], 'CAST-POCKETS: a cast thread arrives with its pockets, its kind\'s only');
   assert.match(r.entries[0].rooms.voice.body, /^Write her lines/, '  each one an instruction');
-  assert.match(CAST, /STARTS WITH A VERB/, '  because the cast is asked for them in the instruction form');
+  assert.match(CAST, /plain DESCRIPTION/, '  and the cast is asked for them as plain descriptions (ADR 0008)');
+  assert.doesNotMatch(CAST, /STARTS WITH A VERB/, '  not in the instruction form, which the code now adds');
   const tale: any = routes['POST /api/stories']({ body: { title: 'Cast Pockets', premise: PREMISE, entries: r.entries },
     query: new URLSearchParams(), owner: me } as any);
   const vel: any = db.entriesOf(tale.id).find((e: any) => e.title === 'Vel');

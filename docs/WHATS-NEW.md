@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-28 · Holding the one you play, in New tale
 
+### Anansi writes pockets the way you would
+When Anansi makes or tidies a pocket, he now writes a plain description ("short, clipped lines;
+says aye for yes"), not an instruction to himself. The instruction is added when the scene is
+written, so your boxes hold only what the thread is like.
+
 ### "Also keep … off the model" appears as soon as you name who you play
 On the You step of New tale, typing who you play now shows the button that keeps them off the
 model, and offers them under Hands off, as soon as you leave the box. Before, neither appeared
