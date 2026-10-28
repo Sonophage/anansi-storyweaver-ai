@@ -2372,5 +2372,26 @@ ok('emptying the box gives her back the voice she shipped with');
   ok('✦ asks the book\'s model for three ideas in one call, weaving off, on a small cap, and writes nothing');
 }
 
+// #120 · THE STYLE NOTE IS PROSE ONLY. It is sent on every prose call, and asked "what its chapters
+// are shaped like", one came back "chapters end on the choice to trust, still unmade" — plot, in the
+// one block that is meant to hold how the sentences read. NOT MEASURED: this checks the wording only.
+{
+  const { STYLE_NOTE } = await import('../src/prompts.ts');
+  assert.doesNotMatch(STYLE_NOTE, /shaped like|what its chapters/i, 'STYLE-NO-SHAPE: it never asks what the chapters are shaped like');
+  for (const [asks, what] of [[/sentence/i, 'sentence length'], [/distance|how close the narration sits/i, 'distance'], [/notices/i, 'what the narration notices'],
+      [/unsaid/i, 'what it leaves unsaid'], [/dialogue/i, 'how much is dialogue']] as const)
+    assert.match(STYLE_NOTE, asks, `STYLE-PROSE: it asks for ${what}`);
+  assert.match(STYLE_NOTE, /never[^.]*chapter[^.]*end/i, 'STYLE-NO-PLOT: it forbids chapter shape and endings');
+  assert.match(STYLE_NOTE, /never reuse the premise's images/i, "STYLE-NO-IMAGES: it forbids the premise's images");
+  assert.match(STYLE_NOTE, /<[a-z][^<>]*>/, 'STYLE-SHAPE: it shows the form with angle-bracket placeholders');
+  // A quoted span is a shape only if it holds a placeholder; any other quote of four words or more
+  // is an example sentence the model will copy.
+  const quotes = STYLE_NOTE.match(/"[^"]*"/g) ?? [];
+  assert.ok(quotes.some((q) => q.includes('<')), 'STYLE-SHAPE-QUOTED: the shape is given as a quoted form');
+  assert.deepStrictEqual(quotes.filter((q) => !q.includes('<') && q.split(/\s+/).length >= 4), [],
+    'STYLE-NO-EXAMPLE: no quoted example sentence to copy');
+  ok('the style note asks for how the prose reads, never chapter shape, endings or the premise\'s images');
+}
+
 srv.close();
 console.log(`\n${n} checks passed`);

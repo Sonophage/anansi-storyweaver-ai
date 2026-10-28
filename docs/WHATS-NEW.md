@@ -32,6 +32,18 @@ or asking Talk to change it, keeps the same shape. The questions the story lives
 their own, ticked, in the preview. Each one you keep ticked becomes a string from the first scene,
 and Anansi is told not to answer it yet. Tales you already have are not changed.
 
+### A Hands-off narrator gets one rule, not two
+When the character you keep Hands off is also the one telling the story, in first or second person,
+Anansi was told two things at once: to write what they decide, and never to write what they think
+or decide. Now it is told one thing. It writes what they see, hear and remember, goes around what
+you wrote for them, and stops where they would speak, act or choose. What they say, do and decide is
+yours. This applies to the tales you already have.
+
+### A new style note is about the sentences, not the story
+When Anansi writes a style note for a new tale, it now says how the prose reads: how long the
+sentences run, how close the telling sits, what it notices and leaves unsaid, and how much is
+dialogue. It no longer says how chapters end or reuses the premise's images, which steered every
+passage toward one ending. Style notes you already have are not changed.
 ### New tale's threads start where they stand, and Try it on finds what disagrees
 Each thread New tale makes now says who or what it is in Always true, and keeps what they want and
 what they hide in their inner life, so those can change as the tale goes on. Each one also says where
