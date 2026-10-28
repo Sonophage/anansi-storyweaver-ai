@@ -1071,6 +1071,18 @@ function drawMeter() {
     ${toggle}`;
 }
 
+/** THE HEADERS ARE REWRITTEN ONLY WHEN WHAT THEY SAY CHANGED (2026-10-28). Every paint rebuilt #bar
+ *  and #sideHead, and their children carry an entrance `fade` (app.html), so each repaint blinked the
+ *  header: the one Seth saw when Anansi finished writing ("the screen still blinks after the ai is
+ *  done"), found by recording animations around a landing in a browser. Same markup as last time
+ *  means nothing is replaced and nothing replays. `sameOrSet(id).innerHTML = html` reads as the
+ *  assignment it replaces. */
+const LAST_HEAD = new Map();
+const sameOrSet = (id) => ({ set innerHTML(html) {
+  const el = $(id); if (!el) return;
+  if (LAST_HEAD.get(id) === html && el.childElementCount) return;
+  LAST_HEAD.set(id, html); el.innerHTML = html;
+} });
 function drawBar() {
   syncLayers();
   const inStory = S.place === 'story' && V;
@@ -1090,7 +1102,7 @@ function drawBar() {
   const [title, sub] = inStory
     ? [V.story.title, sceneName(V.currentChapter)]
     : (WTITLES[S.wpage] || WTITLES.stories)();
-  $('bar').innerHTML = `
+  sameOrSet('bar').innerHTML = `
     <!-- THE MAIN MENU IS THE LOGO NOW. Seth, 2026-08-28: "the maine menu moveing forward will be
          the anansi logo on the left or the header of any main menu item. only the name of the story
          will open the story menu." His mark, drawn the way the rail's header draws it — no plate,
@@ -1770,7 +1782,14 @@ function drawDoc() {
   // 'instant' HERE TOO. Assigning scrollTop glides on #read, so the page jumped when the ghost came
   // out and then slid back: Seth, 2026-10-26, "still a transition after the ai has stopped writing
   // that resets the reading position".
-  if (HOLD_SCROLL != null) { read.scrollTo({ top: HOLD_SCROLL, behavior: 'instant' }); HOLD_SCROLL = null; }
+  // AND THE PAGE IS LONG ENOUGH TO STAY THERE (2026-10-28). The landed passage can be a line shorter
+  // than the one being written was, and at the foot of the page the browser then pulls the prose
+  // down by the difference (measured: 16px, every landing). The column's foot takes up the slack.
+  if (HOLD_SCROLL != null) {
+    const short = HOLD_SCROLL - (read.scrollHeight - read.clientHeight);
+    if (short > 0) col.style.paddingBottom = `${(parseFloat(col.style.paddingBottom) || 20) + Math.ceil(short)}px`;
+    read.scrollTo({ top: HOLD_SCROLL, behavior: 'instant' }); HOLD_SCROLL = null;
+  }
   // 'instant': #read has scroll-behavior:smooth, so assigning scrollTop GLIDES, and a glide still
   // running when Anansi's first word lands is the page moving under the words (Seth, 2026-10-26).
   // A REPAINT THAT CHANGED NOTHING LEAVES THE PAGE EXACTLY WHERE IT WAS. It went to the bottom
@@ -2029,7 +2048,10 @@ function holdLearned() {
  *  NO BACKTICKS IN THE HTML COMMENTS BELOW: they are inside a template literal. */
 function nextBar(last) {
   const busy = !!S.busy;
-  const hint = holdHint() && !S.dockTalk && !busy;
+  // THE HINT KEEPS ITS ROOM WHILE ANANSI WRITES, hidden rather than taken out: it appeared the moment a
+  // passage landed, the bar grew 18px, the page under it shrank, and the prose jumped up by that much
+  // (2026-10-28, measured in a browser: the view went 674px to 656px at the landing).
+  const hint = holdHint() && !S.dockTalk;
   const open = !!S.dockOpen;
   return `<div id="nextbar">
     <div id="nextrow">
@@ -2037,7 +2059,7 @@ function nextBar(last) {
         title="Reweave the last passage"><span class="serif">↻</span></button>
       <div class="quillcell">
         ${/* ABOVE the circle (Seth, 2026-10-25): a thumb on the circle covers what is under it. */ ''}
-        ${hint ? `<small class="holdhint">${hwkb ? 'hold, or Alt+T, to talk' : 'hold to talk'}</small>` : ''}
+        ${hint ? `<small class="holdhint"${busy ? ' style="visibility:hidden" aria-hidden="true"' : ''}>${hwkb ? 'hold, or Alt+T, to talk' : 'hold to talk'}</small>` : ''}
         ${/* #55's planning count came OFF the bar on 2026-10-27 (Seth: "remove the thinking from above
               the middle circle"). It went on 2026-10-26; the count still shows in the passage being
               written, above its first word, and beside the open box. */ ''}
@@ -2394,16 +2416,16 @@ function drawSide() {
   // AND ONE THREAD BEING ALTERED: Cancel on the left, Save on the right, and nothing else — no
   // Close, because shutting the drawer from here would throw away what was typed without asking.
   // Cancel goes back to Read, asking first if anything has changed (alterDirty).
-  if (isAltering()) $('sideHead').innerHTML = threadBar('alter');
+  if (isAltering()) sameOrSet('sideHead').innerHTML = threadBar('alter');
   // NEW THREAD: "‹ Threads" back to the list (the same data-newlore press that opened it), and Close.
-  else if (S.panel === 'threads' && S.lore && !S.entryId) $('sideHead').innerHTML = `
+  else if (S.panel === 'threads' && S.lore && !S.entryId) sameOrSet('sideHead').innerHTML = `
     <button data-newlore="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
       class="serif">Threads</span></button>
     <span class="fill"></span>
     <button class="caps-btn" data-panel="">Close</button>`;
-  else if (thRead) $('sideHead').innerHTML = `${threadBar('read')}
+  else if (thRead) sameOrSet('sideHead').innerHTML = `${threadBar('read')}
     <button class="caps-btn" data-panel="">Close</button>`;
-  else $('sideHead').innerHTML = `
+  else sameOrSet('sideHead').innerHTML = `
     <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis">${esc(TITLES[S.panel] ?? '')}</span>
     ${/* Outside the heading span, for the reason given for the mark below. */

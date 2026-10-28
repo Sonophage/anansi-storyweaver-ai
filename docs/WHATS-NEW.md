@@ -16,6 +16,13 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-28 · No blink when Anansi finishes
+
+### The page holds still when a passage lands
+When Anansi stopped writing, the header above the page faded in again and the prose slid up a
+line. Now the header is left alone when nothing in it changed, the hint under the buttons keeps
+its place while he writes, and the page stays where you were reading.
+
 ## 2026-10-28 · The tale's menu, rearranged
 
 ### Model on top, scenes beside the menu
