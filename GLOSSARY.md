@@ -86,7 +86,8 @@ _In code_: addon, slot
 **Premise**:
 One paragraph that opens the tale: who we are with, where and when, what they want now and what
 is in their way now. Never how it ends, what it costs or what anyone will do; the questions the
-story lives on are strings, and everything else lives in threads. (Decided 2026-10-28, ADR 0009.)
+story lives on are strings, and everything else lives in threads. The model reads it until the
+first hem; after that it reads where the tale stands. (Decided 2026-10-28, ADRs 0009 and 0010.)
 _Avoid_: synopsis, plot, blurb, story arc
 
 **The tale's thread**:
