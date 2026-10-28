@@ -5477,6 +5477,28 @@ const forgeCopy = (key, label) => {
 const sparkCast = () => (S.spark?.entries ?? [])
   .filter((e) => e.keep !== false && (e.title ?? '').trim());
 
+/** #103 · THE IP NAMED ON THE TALE'S OWN STEP, MATCHED TO A WORLD THE WRITER ALREADY HAS. Asked
+ *  once per name, on every move and at Create, through POST /api/spark/world, which writes nothing
+ *  and finds only the writer's own Worlds. A match makes the draft follow that World (the same
+ *  `follow` the threads step's picker sets), and the preview lists its people. A changed or emptied
+ *  name lets go of the World an earlier name followed, and never of one picked by hand.
+ *
+ *  No World of that name keeps today's behaviour: the name is the tale's World field and nothing
+ *  is followed. #104 looks a NEW IP up from here, where `r.world` is null. */
+async function ipFollow() {
+  if (!S.spark) return;
+  const sp = S.spark, name = String(sp.story?.world ?? '').trim();
+  if (name.toLowerCase() === String(sp.ipAsked ?? '').toLowerCase()) return;
+  sp.ipAsked = name;
+  const r = name ? await api.sparkWorld(name) : { world: null, people: [] };
+  // The writer may have typed another name, or discarded the draft, while this was out.
+  if (S.spark !== sp || sp.ipAsked !== name) return;
+  if (sp.ipWorld && sp.follow === sp.ipWorld.id) sp.follow = null;
+  sp.ipWorld = r?.world ? { ...r.world, people: r.people ?? [] } : null;
+  if (sp.ipWorld) sp.follow = sp.ipWorld.id;
+  paint();
+}
+
 /** #28 · WRITE THIS BOOK'S HOUSE STYLE FROM ITS GENRE AND PREMISE.
  *
  *  The Story panel has had this since #18 (`data-restyle`), reading the two facts off a story that
@@ -5610,6 +5632,9 @@ function sparkReview() {
        ${rerollField('title')}
        ${row('genre', 'Genre', s.genre, 'Comma separated. Each one becomes its own tag in the library.')}
        ${rerollField('genre')}
+       ${row('world', 'Set in a story or game that already exists',  s.world, S.spark.ipWorld
+         ? `You have a World called ${esc(S.spark.ipWorld.title)}. This tale follows it, and its people come in with it.`
+         : 'Name it, or leave it empty for a tale of your own. If you have a World by that name, this tale follows it.')}
        ${area('premise', 'Premise', s.premise, 'Anansi reads it every time he writes.', 110)}
        ${rerollField('premise')}
        ${forgeCopy('premise', 'Copy the premise pattern')}
@@ -5876,6 +5901,8 @@ function sparkPreview(s, { row, area }) {
   const rules = kept.filter(([e]) => e.entryType === 'rule');
   const threads = kept.filter(([e]) => e.entryType !== 'rule');
   const clash = voiceClash(s.writingStyle, s.pov);
+  // #103. The World the IP matched, while the tale still follows it (the picker can change that).
+  const ipWorld = S.spark.ipWorld && S.spark.follow === S.spark.ipWorld.id ? S.spark.ipWorld : null;
   const card = ([e, i]) => {
     const open = !!S.spark.unfolded?.[i];
     const rooms = Object.entries(e.rooms ?? {}).filter(([slot]) => slot !== 'facts');
@@ -5930,6 +5957,14 @@ function sparkPreview(s, { row, area }) {
     ${row('setting', 'Setting', s.setting)}
     ${area('writingStyle', 'Voice', s.writingStyle, `How the narration sounds, as instructions. Point of
       view: ${esc(s.pov ?? 'not set')}.`, 120)}
+    ${ipWorld ? `<div class="lbl sect">From your World, ${esc(ipWorld.title)} &middot;
+        <span class="tnum">${ipWorld.people.length}</span></div>
+      <div class="hint lead-6">This tale follows it, so its people come in with it. They are the World's
+        threads, not copies: change one there and it changes here. Your tale's own thread of the same
+        name wins in this tale.</div>
+      ${ipWorld.people.length ? ipWorld.people.map((e) => `<div class="card below-8 gap-6">
+        <span class="name-14">${esc(e.title)}</span><span class="note">${esc(e.body ?? '')}</span></div>`).join('')
+        : '<div class="hint flush">Nobody in it yet.</div>'}` : ''}
     <div class="lbl sect">Rules &middot; <span class="tnum">${rules.length}</span></div>
     ${rules.length ? rules.map(card).join('') : '<div class="hint flush">None. A tale needs a rule only when the idea does.</div>'}
     <div class="lbl sect">Your own</div>
@@ -12739,7 +12774,9 @@ document.addEventListener('click', async (e) => {
       // "asked, and he would change nothing" are different screens.
       reviewing: false, review: null,
       // #84. The tale's own pockets ("Your own"), added in the preview and made at Create.
-      talePockets: [] };
+      talePockets: [],
+      // #103. The IP last looked up (`ipFollow`), and the writer's World of that name, if any.
+      ipAsked: '', ipWorld: null };
     S.sparkStep = 1;
     if (S.prompts === null) loadPrompts();   // step 5 offers the writer's own voice
     paint();
@@ -12993,6 +13030,7 @@ document.addEventListener('click', async (e) => {
     const was = STEPS[Math.min(Math.max(Number(S.sparkStep) || 1, 1), STEPS.length) - 1][0];
     S.sparkStep = Number(d.sparkstep);
     paint();
+    void ipFollow();
     // AT THE TOP OF THE STEP. A reviewer saw step 2 open at its own bottom on a phone (second
     // usability check, 2026-10-25). NOT REPRODUCED here: in the driver every step already opens at
     // the top, so this is a guard with no test that can fail without it. If it happens again,
@@ -13070,6 +13108,8 @@ document.addEventListener('click', async (e) => {
     // From STATE, not from the DOM: accept is available on every step, so most of these fields are
     // not on screen when it is pressed. harvestSpark folds in whatever is.
     harvestSpark();
+    await ipFollow();   // #103: Skip may beat the lookup
+    if (!S.spark) return;
     const openBox = document.querySelector('[data-sp-open]');
     if (openBox) S.spark.autoOpen = openBox.checked;
     const s = S.spark.story;
@@ -13095,6 +13135,10 @@ document.addEventListener('click', async (e) => {
       // #84. Tells the create route to settle the yours pocket on whoever is Hands off now.
       spark: true,
       entries: keep,
+      // #103. The IP, and what the tale follows, IN the create: the route sets both in one place
+      // (`followPair`) and refuses a World that is not the writer's before it makes anything.
+      world: String(s.world ?? '').trim() || null,
+      loreFrom: S.spark.follow || null,
     }));
     // `whileWorking` answers null on a re-entrant press and the state guard above should already
     // have refused it — this is the belt to that braces, and it must not clear `accepting`, or the
@@ -13123,16 +13167,13 @@ document.addEventListener('click', async (e) => {
 
     /* #40 stage 3. AND WHAT IT IS SET IN. `loreFrom` is the same column "Start a book here" writes,
      * so a book followed from the wizard and a book followed from the Threads page are the same
-     * thing — one behaviour for one word, and `db.updateStory` already refuses a cycle and a book
-     * that is not yours.
+     * thing. #103: it rides the create itself now, so a refused follow makes no tale at all.
      *
-     * AFTER the copies, and reported separately: following and copying are different answers to
+     * Reported separately from the copies: following and copying are different answers to
      * "bring your own threads" and a writer who did both should be told about both. */
-    let followed = null;
-    if (S.spark.follow) {
-      const fr = await api.saveStory(r.id, { loreFrom: S.spark.follow });
-      if (!fr?.error) followed = (LIB ?? []).find((b) => b.id === S.spark.follow)?.title ?? 'that world';
-    }
+    const followed = !S.spark.follow ? null
+      : (S.spark.ipWorld?.id === S.spark.follow ? S.spark.ipWorld.title
+        : (LIB ?? []).find((b) => b.id === S.spark.follow)?.title) ?? 'that world';
 
     const wantOpen = S.spark.autoOpen !== false;
     S.spark = null; S.sparkStep = 1; S.seedQ = '';

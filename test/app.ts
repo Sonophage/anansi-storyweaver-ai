@@ -530,6 +530,13 @@ let stubSparkTalk: any = null;
     // #88. The cast, in the shape POST /api/spark/cast returns: the writer's character written from
     // outside with the yours pocket, another with pockets of her own, and a Rule.
     : url.startsWith('/api/spark/talk') ? (stubSparkTalk ?? { reply: 'Ask me anything.', seconds: 1 })
+    // #103. The writer's own World for a new tale's IP, in the shape POST /api/spark/world returns:
+    // one World, Elden Ring, matched as the server matches (trimmed, any case); nothing else.
+    : url.startsWith('/api/spark/world')
+      ? (String(JSON.parse(init?.body ?? '{}').name ?? '').trim().toLowerCase() === 'elden ring'
+        ? { world: { id: 'w-ring', title: 'Elden Ring' },
+            people: [{ title: 'Morgott', body: '[Morgott: the Omen King]' }] }
+        : { world: null, people: [] })
     : url.startsWith('/api/spark/cast') ? { entries: [
         { title: 'Mara Voss', entryType: 'character', activation: 'always_on', keys: ['Mara Voss'],
           body: '[Mara Voss: a courier who owes the envoy]',
@@ -3747,6 +3754,85 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
   } finally { doc.querySelectorAll = wasQSA; stubSparkTalk = null; }
 }
 ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed box, and saves nothing');
+
+// #103 · AN IP THE WRITER ALREADY HAS A WORLD FOR. Named on the tale's own step, it makes the new
+// tale follow that World; the preview lists the World's people; nothing posts but the spark calls
+// until Start writing, and Start writing sends the follow in the one create, not a second save. An
+// IP with no World of that name is kept as the World field alone, and a blank IP sends neither.
+{
+  const doc = (globalThis as any).document;
+  const wasQSA = doc.querySelectorAll, wasQS = doc.querySelector;
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  let onScreen: Record<string, any[]> = {};
+  const startWizard = async () => {
+    click({ railview: 'workspace' });
+    await new Promise((r) => setTimeout(r, 30));
+    click({ nav: 'create' });
+    await new Promise((r) => setTimeout(r, 30));
+    doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
+    try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
+    finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
+  };
+  const create = async () => {
+    const n = POSTED.length;
+    click({ acceptSpark: '1' });
+    for (let i = 0; i < 40 && !POSTED.slice(n).some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
+    await new Promise((r) => setTimeout(r, 60));
+    return POSTED.slice(n);
+  };
+  doc.querySelectorAll = (sel: string) => onScreen[sel] ?? [];
+  try {
+    await startWizard();
+    POSTED.length = 0;
+    assert.match(html('page'), /data-sp="world"/, 'IP-ASK: the tale\'s own step asks whether it is set somewhere that exists');
+    onScreen = { '[data-sp]': [{ dataset: { sp: 'world' }, value: '  elden RING ' }] };
+    click({ sparkstep: '2' });
+    onScreen = {};
+    for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/spark/world'); i++) await new Promise((r) => setTimeout(r, 25));
+    assert.strictEqual(POSTED.find((p) => p.url === '/api/spark/world')?.body.name, 'elden RING',
+      'IP-LOOK: leaving the step looks the IP up among the writer\'s Worlds');
+    click({ sparkstep: '5' });
+    await settle(/Morgott/);
+    const pv = html('page');
+    assert.match(pv, /Elden Ring/, 'IP-PREVIEW: the preview names the World the tale follows');
+    assert.match(pv, /Morgott/, '  and lists its people');
+    assert.match(pv, /the Omen King/, '  each with their Always true');
+    assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
+      `IP-NOTHING: nothing is made before Start writing (${POSTED.map((p) => p.url).join(', ')})`);
+    const sent = await create();
+    const made = sent.find((p) => p.url === '/api/stories');
+    assert.strictEqual(made?.body.loreFrom, 'w-ring', 'IP-CREATE: Start writing makes the tale follow the World');
+    assert.strictEqual(made?.body.world, 'elden RING', '  and names the IP');
+    assert.ok(!sent.some((p) => p.body?.loreFrom !== undefined && p.url !== '/api/stories'),
+      'IP-ONE: the follow rides the one create, not a second save after it');
+
+    // An IP with no World of that name: the World field alone, as before #103. #104 looks it up.
+    await startWizard();
+    onScreen = { '[data-sp]': [{ dataset: { sp: 'world' }, value: 'Dune' }] };
+    click({ sparkstep: '5' });
+    onScreen = {};
+    await settle(/The tale's own thread/);
+    await new Promise((r) => setTimeout(r, 40));
+    assert.doesNotMatch(html('page'), /Morgott/, 'IP-NONE: an IP with no World of that name brings nobody in');
+    const none = (await create()).find((p) => p.url === '/api/stories');
+    assert.deepStrictEqual([none?.body.world, none?.body.loreFrom ?? null], ['Dune', null],
+      '  and is kept as the World field, following nothing');
+
+    // Skip from the tale's own step: no move looked the IP up, so Create does.
+    await startWizard();
+    onScreen = { '[data-sp]': [{ dataset: { sp: 'world' }, value: 'Elden Ring' }] };
+    const skipped = (await create()).find((p) => p.url === '/api/stories');
+    onScreen = {};
+    assert.strictEqual(skipped?.body.loreFrom, 'w-ring', 'IP-SKIP: Skip from the first step still follows the World');
+
+    // A blank IP: an original tale, as today.
+    await startWizard();
+    const blank = (await create()).find((p) => p.url === '/api/stories');
+    assert.deepStrictEqual([blank?.body.world ?? null, blank?.body.loreFrom ?? null], [null, null],
+      'IP-BLANK: a blank IP starts an original tale, following nothing');
+  } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
+}
+ok('a new tale naming an IP the writer has a World for follows it, shows its people, and makes nothing until Start');
 
 // #24 · WHAT CHANGED IS A FILE NOW. Seth, 2026-08-29: "lets just have it show case from one file we
 // serve that we update after each commit and we remove the need for a local model to do it."

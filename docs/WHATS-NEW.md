@@ -16,6 +16,22 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-28 · A tale set in a story or game you already have a World for
+
+### Name the IP, and the new tale follows your World
+The first step of New tale now asks whether the tale is set in a story or game that already
+exists. Name it. If you already have a World with that name (in any capitals), the new tale
+follows it, and the preview lists that World's people coming in with it. They are the World's
+threads, not copies: change one in the World and it changes in every tale that follows it.
+
+Nothing is made until you press Start writing, and if starting fails, nothing is left half made.
+Only your own Worlds are found. Leave the box empty for a tale of your own, as before. A name you
+have no World for is kept as the tale's universe, as before.
+
+### A tale's universe always names the World it follows
+When a tale follows a World, the universe or IP in its Tale settings is that World's name, so the
+two never say different things.
+
 ## 2026-10-28 · Anansi changes what you ask him to
 
 ### Ask in Talk, and it is done

@@ -305,6 +305,8 @@ export const OPEN_ROUTES = new Set([
   'GET /api/stories', 'POST /api/stories', 'POST /api/spark', 'POST /api/spark/cast',
   // Making a world book names no story yet, the same as making an ordinary one.
   'POST /api/world',
+  // #103. The New tale's IP, looked up among the writer's own Worlds. No story yet; owner-scoped.
+  'POST /api/spark/world',
   // Looking at the demo library names no story, and it is how you get BACK from it too.
   'POST /api/demo',
   // Names no story and cannot reach another writer's generation — see the route.
@@ -2401,85 +2403,98 @@ export const routes: Record<string, Handler> = {
     } catch (e: any) { return { error: e?.message ?? 'could not switch model' }; }
   },
   'POST /api/stories':   (c) => {
+    // #103 · WHAT IT FOLLOWS IS ASKED BEFORE ANYTHING IS MADE. Only a book this writer owns: the
+    // gate never runs on this open route, and `entriesFor` would refuse to read another writer's
+    // World anyway, so following one would be a tale that silently follows nothing.
+    const follow = String(c.body.loreFrom ?? '').trim();
+    if (follow && db.storyOwner(follow) !== c.owner) return { error: 'that World is not yours to follow' };
     // Blank means "no opinion", and a new story with no opinion about its own prose gets the
     // model's house voice. Supplied here rather than in createStory because db.ts stores what it is
     // given and should not know what a prompt is — and because import supplies its own, as do the
     // fixtures, and neither should be quietly restyled.
     const made = db.createStory(c.owner,
       { ...c.body, writingStyle: String(c.body.writingStyle ?? '').trim() || voiceOf(c.owner) });
-    // AN ENTRY MAY CARRY ITS ROOMS. The spark's own cast never does — the model that writes it is
-    // asked for a body and nothing else — but a book forged elsewhere and pasted on the create page
-    // arrives complete, and dropping the rooms on the way in would make "one command" a half one.
-    // Same writer as the paste route, so the drop-do-not-coerce rule has one home.
-    /* ISSUE #39 · A NEW CARD'S DESCRIPTION GOES IN `facts`, NOT IN THE BODY.
-     *
-     * Seth, 2026-09-01: "On story creation facts should be filled in [not] info since info is what
-     * anansi uses to update the character. Facts are basically ever green."
-     *
-     * WHY THIS IS RIGHT AND NOT A PREFERENCE. The chapter-end memory pass REWRITES the body — that
-     * is what it is for — and it has never been able to touch a room. So a cast written at creation
-     * into the body is a cast whose description is overwritten by the first chapter that closes,
-     * which is the exact defect `facts` was added for on 2026-08-29: "theres no place to keep the
-     * characters main facts that doesnt get overwritten."
-     *
-     * `facts` renders BARE and directly under the body (context.ts `rooms`), so this moves the text
-     * without changing a byte of what the model is sent on the first call. What changes is what
-     * survives chapter one.
-     *
-     * NOT BOTH, and that was checked before it was chosen: facts renders IN ADDITION to the body, so
-     * filling both would send the same sentence to the model twice on every call until the first
-     * chapter closed.
-     *
-     * AN EXPLICIT `rooms.facts` WINS. A book forged elsewhere may have written one on purpose, and
-     * silently replacing it with the body would be the paste losing information it carried. */
-    const roomNotes: string[] = [];
-    // #84 · A CHARACTER THE WRITER DESCRIBED ON YOU is in the tale from the start, even when the cast
-    // step never ran (Skip the other steps, or no kinds asked for): a thread from their own words,
-    // written from outside when they are Hands off. Never a second one beside the cast's.
-    const cast = [...(Array.isArray(c.body.entries) ? c.body.entries : [])];
-    const you = playsOf(c.body), about = String(c.body.personaAbout ?? '').trim().slice(0, 600);
-    // A SPARK CREATE ALSO SETTLES WHO IS HELD NOW: Hands off may have changed on You after the
-    // threads were written, so the yours pocket comes off a thread no longer held and the one held
-    // now is written from outside. Only the wizard's create: a pasted book's pockets are as they came.
-    if (c.body.spark) {
-      for (const e of cast) if (e?.rooms?.voice?.body === YOURS_VOICE(String(e.title ?? '').trim())
-          && String(e.title ?? '').trim().toLowerCase() !== (you.held ?? '').toLowerCase()) {
-        const { voice: _v, ...rest } = e.rooms;
-        e.rooms = rest;
+    // #103 · A CREATE THAT FAILS PARTWAY LEAVES NOTHING BEHIND. Everything below writes into the tale
+    // just made, so taking the tale back takes its threads, pockets and passage with it (they
+    // cascade). The error still goes up, so the writer is told; the wizard keeps the draft.
+    try {
+      // The IP and what the tale follows, in the one place that keeps them agreeing (`followPair`).
+      if (follow || c.body.world !== undefined)
+        db.updateStory(made.id, { world: String(c.body.world ?? '').trim() || null, loreFrom: follow || null });
+      // AN ENTRY MAY CARRY ITS ROOMS. The spark's own cast never does — the model that writes it is
+      // asked for a body and nothing else — but a book forged elsewhere and pasted on the create page
+      // arrives complete, and dropping the rooms on the way in would make "one command" a half one.
+      // Same writer as the paste route, so the drop-do-not-coerce rule has one home.
+      /* ISSUE #39 · A NEW CARD'S DESCRIPTION GOES IN `facts`, NOT IN THE BODY.
+       *
+       * Seth, 2026-09-01: "On story creation facts should be filled in [not] info since info is what
+       * anansi uses to update the character. Facts are basically ever green."
+       *
+       * WHY THIS IS RIGHT AND NOT A PREFERENCE. The chapter-end memory pass REWRITES the body — that
+       * is what it is for — and it has never been able to touch a room. So a cast written at creation
+       * into the body is a cast whose description is overwritten by the first chapter that closes,
+       * which is the exact defect `facts` was added for on 2026-08-29: "theres no place to keep the
+       * characters main facts that doesnt get overwritten."
+       *
+       * `facts` renders BARE and directly under the body (context.ts `rooms`), so this moves the text
+       * without changing a byte of what the model is sent on the first call. What changes is what
+       * survives chapter one.
+       *
+       * NOT BOTH, and that was checked before it was chosen: facts renders IN ADDITION to the body, so
+       * filling both would send the same sentence to the model twice on every call until the first
+       * chapter closed.
+       *
+       * AN EXPLICIT `rooms.facts` WINS. A book forged elsewhere may have written one on purpose, and
+       * silently replacing it with the body would be the paste losing information it carried. */
+      const roomNotes: string[] = [];
+      // #84 · A CHARACTER THE WRITER DESCRIBED ON YOU is in the tale from the start, even when the cast
+      // step never ran (Skip the other steps, or no kinds asked for): a thread from their own words,
+      // written from outside when they are Hands off. Never a second one beside the cast's.
+      const cast = [...(Array.isArray(c.body.entries) ? c.body.entries : [])];
+      const you = playsOf(c.body), about = String(c.body.personaAbout ?? '').trim().slice(0, 600);
+      // A SPARK CREATE ALSO SETTLES WHO IS HELD NOW: Hands off may have changed on You after the
+      // threads were written, so the yours pocket comes off a thread no longer held and the one held
+      // now is written from outside. Only the wizard's create: a pasted book's pockets are as they came.
+      if (c.body.spark) {
+        for (const e of cast) if (e?.rooms?.voice?.body === YOURS_VOICE(String(e.title ?? '').trim())
+            && String(e.title ?? '').trim().toLowerCase() !== (you.held ?? '').toLowerCase()) {
+          const { voice: _v, ...rest } = e.rooms;
+          e.rooms = rest;
+        }
+        outsideOnly(cast, you.held);
       }
-      outsideOnly(cast, you.held);
-    }
-    if (you.persona && about && !cast.some((e: any) =>
-        String(e?.title ?? '').trim().toLowerCase() === you.persona!.toLowerCase())) {
-      const own = sparkThread(you.persona, 'character', about, []);
-      outsideOnly([own], you.held);
-      cast.push(own);
-    }
-    for (const e of cast) {
-      const body = String(e.body ?? '').trim();
-      const hasOwnFacts = !!String(e.rooms?.facts?.body ?? e.rooms?.facts ?? '').trim();
-      const moveToFacts = !!body && !hasOwnFacts;
-      // Written with an EMPTY body, so Anansi's first chapter-end update has the room it expects and
-      // nothing to overwrite. The card's own screen draws facts above Info for this reason already.
-      const id = db.upsertEntry(made.id, c.owner, moveToFacts ? { ...e, body: '' } : e);
-      const rooms = moveToFacts ? { ...(e.rooms ?? {}), facts: { body } } : e.rooms;
-      if (id && rooms) roomNotes.push(...writeRooms(made.id, id, e.entryType ?? 'character', rooms, e.title).notes);
-      // A ROOM MARKED `on` IS SWITCHED ON: the new tale's cast (POST /api/spark/cast) marks the
-      // pockets it wrote, because a pocket with no wake words that is off never reaches the model.
-      // A pasted or imported card's rooms stay as they came; the writer turns those on.
-      if (id && rooms) for (const a of db.addonsOf(made.id) as any[])
-        if (a.entry_id === id && !a.active && rooms[a.slot]?.on) db.setAddonActive(made.id, a.id, true);
-    }
-    // #84 · THE TALE'S OWN POCKETS from the wizard's preview (#75's `instruction` slot), switched on,
-    // as the tale's own thread adds them one at a time. A blank one is not a pocket.
-    for (const p of (Array.isArray(c.body.talePockets) ? c.body.talePockets : []).slice(0, 24) as any[]) {
-      const body = String(p?.body ?? '').trim().slice(0, 4000);
-      if (!body) continue;
-      const id = db.upsertAddon(made.id, null, { slot: 'instruction', name: String(p?.name ?? '').trim() || 'Your own', body });
-      if (id) db.setAddonActive(made.id, id, true);
-    }
-    if (c.body.opening) db.addPassage({ ...made, storyId: made.id, body: c.body.opening, author: 'model' });
-    return { ...made, ...(roomNotes.length ? { notes: roomNotes } : {}) };
+      if (you.persona && about && !cast.some((e: any) =>
+          String(e?.title ?? '').trim().toLowerCase() === you.persona!.toLowerCase())) {
+        const own = sparkThread(you.persona, 'character', about, []);
+        outsideOnly([own], you.held);
+        cast.push(own);
+      }
+      for (const e of cast) {
+        const body = String(e.body ?? '').trim();
+        const hasOwnFacts = !!String(e.rooms?.facts?.body ?? e.rooms?.facts ?? '').trim();
+        const moveToFacts = !!body && !hasOwnFacts;
+        // Written with an EMPTY body, so Anansi's first chapter-end update has the room it expects and
+        // nothing to overwrite. The card's own screen draws facts above Info for this reason already.
+        const id = db.upsertEntry(made.id, c.owner, moveToFacts ? { ...e, body: '' } : e);
+        const rooms = moveToFacts ? { ...(e.rooms ?? {}), facts: { body } } : e.rooms;
+        if (id && rooms) roomNotes.push(...writeRooms(made.id, id, e.entryType ?? 'character', rooms, e.title).notes);
+        // A ROOM MARKED `on` IS SWITCHED ON: the new tale's cast (POST /api/spark/cast) marks the
+        // pockets it wrote, because a pocket with no wake words that is off never reaches the model.
+        // A pasted or imported card's rooms stay as they came; the writer turns those on.
+        if (id && rooms) for (const a of db.addonsOf(made.id) as any[])
+          if (a.entry_id === id && !a.active && rooms[a.slot]?.on) db.setAddonActive(made.id, a.id, true);
+      }
+      // #84 · THE TALE'S OWN POCKETS from the wizard's preview (#75's `instruction` slot), switched on,
+      // as the tale's own thread adds them one at a time. A blank one is not a pocket.
+      for (const p of (Array.isArray(c.body.talePockets) ? c.body.talePockets : []).slice(0, 24) as any[]) {
+        const body = String(p?.body ?? '').trim().slice(0, 4000);
+        if (!body) continue;
+        const id = db.upsertAddon(made.id, null, { slot: 'instruction', name: String(p?.name ?? '').trim() || 'Your own', body });
+        if (id) db.setAddonActive(made.id, id, true);
+      }
+      if (c.body.opening) db.addPassage({ ...made, storyId: made.id, body: c.body.opening, author: 'model' });
+      return { ...made, ...(roomNotes.length ? { notes: roomNotes } : {}) };
+    } catch (e) { db.delStory(made.id, c.owner); throw e; }
   },
 /** Copy one book's ledger into another, minting the other if `into` is the literal `new`.
  *
@@ -2877,6 +2892,20 @@ export const routes: Record<string, Handler> = {
     if (!title) return { error: 'a world needs a name' };
     const made = db.createWorld(c.owner, { title, premise: c.body.premise ?? '' });
     return { id: made.id };
+  },
+
+  /** #103 · THE WORLD THIS WRITER ALREADY HAS FOR THE IP A NEW TALE NAMES, and its people, for the
+   *  wizard's preview. Writes nothing: the tale follows it only at Create. Their own Worlds only
+   *  (`db.worldNamed`), so another writer's World of the same name is never found. No World of that
+   *  name answers `world: null`, and the wizard keeps the name as the tale's World field alone.
+   *  #104 looks a NEW IP up from that null. */
+  'POST /api/spark/world': (c: Ctx) => {
+    const world = db.worldNamed(c.owner, String(c.body.name ?? ''));
+    if (!world) return { world: null, people: [] };
+    const people = (db.entriesOf(world.id) as any[])
+      .filter((e) => (e.entry_type ?? 'character') === 'character')
+      .map((e) => ({ title: e.title, body: e.body ?? '' }));
+    return { world: { id: world.id, title: world.title }, people };
   },
 
   /** A book that follows another book's threads. It FOLLOWS rather than copies — see

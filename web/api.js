@@ -106,6 +106,8 @@ export const api = {
   // The house style before the book exists. Same prompt as `styleNote`, which reads it off a story
   // that has been created; this one is handed the two facts directly.
   sparkStyle:   (genre, premise) => j('/api/spark/style', 'POST', { genre, premise }),
+  // #103. The World the writer already has for the IP a new tale names, and its people. Writes nothing.
+  sparkWorld:   (name)           => j('/api/spark/world', 'POST', { name }),
   /* #40. ONE field of the skeleton, asked again — title, genre or premise. Sent the skeleton the
    * writer has KEPT and their own idea, so a re-rolled title belongs to the book on screen rather
    * than to a better one the model would rather have been given. */

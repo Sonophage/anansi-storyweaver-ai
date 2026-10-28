@@ -1822,6 +1822,51 @@ async function bootServer(port: number, env: Record<string, string>) {
   ok('a new cast lands in facts, Info stays empty, and an explicit facts is not overwritten (#39)');
 }
 
+// #103 · NAMING AN IP IN A NEW TALE FINDS THE WRITER'S OWN WORLD OF THAT NAME, AND ONLY THEIRS. The
+// lookup names no story (there is none yet), so it is open and scopes itself by c.owner.
+{
+  const { routes, OPEN_ROUTES } = await import('../src/routes.ts');
+  const ctx = (owner: string, body: any = {}) => ({ body, query: new URLSearchParams(), owner,
+    slot: { global: 8192, slots: 1, perSlot: 8192 }, gen: {}, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, otherDefaults: () => [], admin: false }) as any;
+  assert.ok(OPEN_ROUTES.has('POST /api/spark/world'), 'the lookup names no story, so it is open and scopes itself');
+  const ring = db.createWorld(alice, { title: 'Elden Ring' });
+  db.upsertEntry(ring.id, alice, { title: 'Morgott', entryType: 'character', body: '[Morgott: the Omen King]' });
+  db.upsertEntry(ring.id, alice, { title: 'Leyndell', entryType: 'lore', body: '[Leyndell: the royal capital]' });
+  const before = [db.listStories(alice).length, db.listStories(bob).length, db.ledgerOf(alice).length];
+  const hers: any = routes['POST /api/spark/world'](ctx(alice, { name: '  elden ring ' }));
+  assert.deepStrictEqual(hers.world, { id: ring.id, title: 'Elden Ring' }, 'alice finds her own World by its name');
+  assert.deepStrictEqual(hers.people.map((e: any) => [e.title, e.body]), [['Morgott', '[Morgott: the Omen King]']],
+    'with its people, and only its people');
+  const his: any = routes['POST /api/spark/world'](ctx(bob, { name: 'Elden Ring' }));
+  assert.deepStrictEqual([his.world, his.people], [null, []], "bob naming the same IP never finds alice's World");
+  assert.deepStrictEqual([db.listStories(alice).length, db.listStories(bob).length, db.ledgerOf(alice).length], before,
+    'and looking makes nothing');
+  ok("a new tale's IP finds the writer's own World of that name, with its people, and writes nothing");
+
+  // CREATE FOLLOWS IT, in the one create: the tale, what it follows and its World field together.
+  const made: any = routes['POST /api/stories'](ctx(alice, { title: 'The Lands Between', world: 'elden ring',
+    loreFrom: ring.id, spark: true, entries: [] }));
+  const tale = db.getStory(made.id) as any;
+  assert.deepStrictEqual([tale.lore_from, tale.world], [ring.id, 'Elden Ring'], 'Create makes the tale follow her World, named');
+  assert.ok(db.entriesFor(made.id).some((e: any) => e.title === 'Morgott'), "and the World's people reach it");
+  const count = (o: string) => [db.listStories(o).length, db.ledgerOf(o).length];
+  // Bob cannot follow her World from his tale, and the refusal makes nothing.
+  const bobHad = count(bob);
+  const refused: any = routes['POST /api/stories'](ctx(bob, { title: 'Not his', world: 'Elden Ring', loreFrom: ring.id,
+    entries: [{ title: 'A Tarnished', entryType: 'character', body: '[A Tarnished: his]' }] }));
+  assert.ok(refused.error, "bob's tale cannot follow alice's World");
+  assert.deepStrictEqual(count(bob), bobHad, '  and the refused Create leaves nothing behind');
+  // A Create that fails partway leaves nothing behind either: the tale and its threads go with it.
+  const aliceHad = count(alice);
+  const boom = { toString() { throw new Error('a pocket that cannot be read'); } };
+  assert.throws(() => routes['POST /api/stories'](ctx(alice, { title: 'Half made', loreFrom: ring.id,
+    entries: [{ title: 'Ranni', entryType: 'character', body: '[Ranni: a witch]' }],
+    talePockets: [{ name: boom, body: 'x' }] })), /cannot be read/, 'a step after the tale is made fails');
+  assert.deepStrictEqual(count(alice), aliceHad, '  and nothing that Create made is left behind');
+  ok("Create follows the writer's own World with the tale, never another's, and a failure leaves nothing");
+}
+
 // The cover arrives as a data URL in a JSON body, which means the prefix is a claim the sender
 // makes about bytes the server has not looked at. Every refusal below is a thing a browser will
 // never send and an ordinary curl can: a PNG called a JPEG, a PNG relabelled, nothing at all, and
