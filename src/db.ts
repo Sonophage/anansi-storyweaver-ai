@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 // The slot names live in one module because `entries.field_editors` keys provenance by them and
 // the partial unique index below names them as a literal. Three copies of one list is the drift
 // `src/blocks.ts` exists to stop for the block order; this is the same rule for slots.
-import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, TO_OVER_TIME, foldLine } from './slots.ts';
+import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import { factsLost } from './context.ts';
 import { isRemote } from './llama.ts';
 
@@ -177,6 +177,37 @@ export function foldAlwaysTrue() {
       + 'Who or what each one is can be written there.');
     db.exec('COMMIT');
   } catch (err) { db.exec('ROLLBACK'); throw err; }
+}
+
+/** #110 · UPDATE DAY FOR PLAIN DESCRIPTIONS (ADR 0008). A pocket or an Always true stored the old way
+ *  (`[Aldis Fen: …]`, `[wearing: …]`, a name in front) is stored again without it, by the rule
+ *  `upsertAddon` stores every new one by (`slots.plain`), and the tale's update report names each
+ *  one. Text that is already plain is not touched.
+ *
+ *  ONCE BY ITS DATA: `plain` of its own answer is that answer, so a later boot finds nothing to change,
+ *  takes no backup and writes no line. A backup comes first (`beforeRewrite`), only when there is
+ *  something to change, and it is all one transaction. Its own statements, like `foldAlwaysTrue`: it
+ *  runs inside `migrate()`. Runs after `foldAlwaysTrue`, whose folded lines are bracketed. */
+export function plainAddons() {
+  const P = (sql: string) => db.prepare(sql);
+  const rows = (P(`SELECT a.id, a.story_id, a.entry_id, a.slot, a.name, a.body, e.title FROM addons a
+    LEFT JOIN entries e ON e.id = a.entry_id ORDER BY a.story_id, a.entry_id, a.created_at, a.rowid`).all() as any[])
+    .map((a) => ({ ...a, now: plain(a.body, wrapperNames(a.slot, String(a.title ?? ''), String(a.name ?? ''))) }))
+    .filter((a) => a.now !== String(a.body ?? ''));
+  if (!rows.length) return 0;
+  beforeRewrite();
+  db.exec('BEGIN');
+  try {
+    for (const a of rows) {
+      P('UPDATE addons SET body = ? WHERE id = ?').run(a.now, a.id);
+      const which = a.slot === 'facts' ? 'Its Always true' : `The pocket "${String(a.name ?? '').trim() || a.slot.replace(/_/g, ' ')}"`;
+      noteUpdate(a.story_id, `${which} had square brackets or a name in front. They were taken off, so the box `
+        + 'shows only the description. Anansi still tells the model how to use it.', a.entry_id ?? null);
+    }
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  console.log(`  took the old brackets off ${rows.length} pocket${rows.length === 1 ? '' : 's'}`);
+  return rows.length;
 }
 
 /** SCENE PINS (SPEC 7.1), the one statement for the table, used by the schema below and by
@@ -593,6 +624,7 @@ function migrate() {
   // somebody's novel is in, which is the whole reason that guard exists.
   repairStrandedChapters();
   try { foldAlwaysTrue(); } catch (e: any) { console.log(`  Always true was NOT folded: ${e?.message}`); }
+  try { plainAddons(); } catch (e: any) { console.log(`  the old brackets were NOT taken off: ${e?.message}`); }
   try { pinsHoldFollowed(); } catch (e: any) { console.log(`  chapter_pins was NOT rebuilt: ${e?.message}`); }
   // #47. What each act was built from. Existing acts get their chapters as they are now; see
   // `backfillActPrints` for what that does and does not promise.
@@ -2584,6 +2616,14 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
   // A story-level addon has no entry; an entry-level one must point at an entry in THIS story, or
   // a row can be hung off another writer's card. Same shape as `wearOutfit`'s ownership check.
   if (entryId && !q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId)) return null;
+  // #110 · A PLAIN DESCRIPTION, AND NOTHING ELSE (ADR 0008). Every writer of a pocket or an Always
+  // true crosses here (the lookup, the cast, Talk, hemming, import, paste, the writer's own save), so
+  // the wrapper and the name in front come off here, by the rule the prompt frames by (`slots.plain`).
+  if (a.body != null) {
+    const owner = entryId ?? (a.id ? (q('SELECT entry_id FROM addons WHERE id = ? AND story_id = ?').get(a.id, storyId) as any)?.entry_id : null);
+    const title = owner ? String((q('SELECT title FROM entries WHERE id = ?').get(owner) as any)?.title ?? '') : '';
+    a = { ...a, body: plain(a.body, wrapperNames(slot, title, String(a.name ?? ''))) };
+  }
   const keys = JSON.stringify(keysOf(a.keys));
   // #77 · ONE ALWAYS TRUE PER THREAD, AND ON. Always true is stored as the `facts` addon and is not a
   // pocket: a second one is an edit of the first, and it is never written switched off. Here, where

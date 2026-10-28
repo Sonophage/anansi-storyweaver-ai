@@ -69,11 +69,11 @@ One object, or an array of them if you were asked for several:
 {
   "kind": "${kind}",
   "title": "the name, exactly as it is written in the prose",
-  "body": "[Title: the notes, in the register described below]",
+  "body": "the notes, in the register described below",
   "keys": ["the words that make this card fire"],
   "activation": "always_on" | "triggered",
   "rooms": {
-    "<room name>": { "name": "what to call this room", "body": "[the notes]" }
+    "<room name>": { "name": "what to call this room", "body": "the notes" }
   }
 }
 
@@ -102,26 +102,26 @@ ${example}`;
 const CHARACTER_EXAMPLE = `{
   "kind": "character",
   "title": "Marek Vale",
-  "body": "[Marek Vale: moneylender; courteous, never raises his voice; has never been seen outside in the rain; holds eleven crowns of Aldis Fen's debt]",
+  "body": "moneylender; courteous, never raises his voice; has never been seen outside in the rain; holds eleven crowns of Aldis Fen's debt",
   "keys": ["Marek", "Vale", "the moneylender"],
   "activation": "always_on",
   "rooms": {
-    "facts": { "name": "What is always true", "body": "[fifty-one; moneylender out of the Ambersand; left-handed; keeps the ledger himself and lets nobody else write in it]" },
-    "voice": { "name": "How he sounds", "body": "[short sentences; never raises it; answers a question with a question; says a debtor's full name every time]" },
-    "relationships": { "name": "Him and Aldis Fen", "body": "[eleven crowns, three seasons overdue; knew his father; has not yet asked for the key and both of them know it]" }
+    "facts": { "name": "What is always true", "body": "fifty-one; moneylender out of the Ambersand; left-handed; keeps the ledger himself and lets nobody else write in it" },
+    "voice": { "name": "How he sounds", "body": "short sentences; never raises it; answers a question with a question; says a debtor's full name every time" },
+    "relationships": { "name": "Him and Aldis Fen", "body": "eleven crowns, three seasons overdue; knew his father; has not yet asked for the key and both of them know it" }
   }
 }`;
 
 const LOCATION_EXAMPLE = `{
   "kind": "lore",
   "title": "the Ambersand",
-  "body": "[the Ambersand: counting-house on the north bank; three storeys, the lower one below the waterline; where debts are written down and where they are collected]",
+  "body": "counting-house on the north bank; three storeys, the lower one below the waterline; where debts are written down and where they are collected",
   "keys": ["Ambersand", "counting-house", "the north bank"],
   "activation": "triggered",
   "rooms": {
-    "facts": { "name": "What is always true", "body": "[built on piles over the old dock; the lower archive floods twice a winter; one door, watched]" },
-    "atmosphere": { "name": "What it is like now", "body": "[lamps out along the bank; wet stone; nobody about after the bell]" },
-    "who_is_here": { "name": "Who you find there", "body": "[the porter; Marek on the second floor; whoever is owed money that week]" }
+    "facts": { "name": "What is always true", "body": "built on piles over the old dock; the lower archive floods twice a winter; one door, watched" },
+    "atmosphere": { "name": "What it is like now", "body": "lamps out along the bank; wet stone; nobody about after the bell" },
+    "who_is_here": { "name": "Who you find there", "body": "the porter; Marek on the second floor; whoever is owed money that week" }
   }
 }`;
 
@@ -143,18 +143,18 @@ const BOOK_EXAMPLE = `{
   "entries": [
     {
       "kind": "character", "title": "Ilva Marren",
-      "body": "[Ilva Marren: tide-clerk; counts what the sea returns; owes the Ambersand nine hundred]",
+      "body": "tide-clerk; counts what the sea returns; owes the Ambersand nine hundred",
       "keys": ["Ilva", "the clerk"], "activation": "always_on",
       "rooms": {
-        "facts": { "name": "What is always true", "body": "[thirty-one; left-handed; cannot swim]" },
-        "voice": { "name": "How she sounds", "body": "[short sentences; answers a question with a question]" }
+        "facts": { "name": "What is always true", "body": "thirty-one; left-handed; cannot swim" },
+        "voice": { "name": "How she sounds", "body": "short sentences; answers a question with a question" }
       }
     },
     {
       "kind": "lore", "title": "the Ambersand",
-      "body": "[the Ambersand: counting-house on the north bank; where debts are written down and collected]",
+      "body": "counting-house on the north bank; where debts are written down and collected",
       "keys": ["Ambersand", "counting-house"], "activation": "triggered",
-      "rooms": { "atmosphere": { "name": "What it is like now", "body": "[lamps out along the bank; wet stone; nobody about]" } }
+      "rooms": { "atmosphere": { "name": "What it is like now", "body": "lamps out along the bank; wet stone; nobody about" } }
     }
   ]
 }`;
@@ -218,10 +218,10 @@ Each entry is exactly the card shape:
 {
   "kind": "character" | "lore" | "item" | "rule",
   "title": "the name, spelled as the prose spells it",
-  "body": "[Title: the notes]",
+  "body": "the notes",
   "keys": ["words that make this card fire"],
   "activation": "always_on" | "triggered",
-  "rooms": { "<room name>": { "name": "what to call this room", "body": "[the notes]" } }
+  "rooms": { "<room name>": { "name": "what to call this room", "body": "the notes" } }
 }
 
 "lore" covers places, institutions, factions and histories — a city, a counting-house, an order, a

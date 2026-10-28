@@ -456,6 +456,31 @@ ok('POCKET-WORDS: what a writer reads says pocket, never room (GLOSSARY)', () =>
   }
 });
 
+// #110 · WHAT TALK WRITES IS A PLAIN DESCRIPTION (ADR 0008), checked, shown and kept for the Undo as
+// it will be stored. `db.upsertAddon` takes the wrapper off by the same rule, so a change remembered
+// with its brackets would never match the stored text, and its Undo would always be refused.
+ok('TALK-PLAIN: Talk\'s text loses its bracket wrapper and name before it is checked and remembered', () => {
+  const set = done(ch.checkAsked({ op: 'thread.set', thread: 'Talia Venn', text: '[Talia Venn: Talia is forty.]' }, tale));
+  assert.strictEqual(set.text, 'Talia is forty.', 'TALK-PLAIN-SET: the Always true Talk writes is the description');
+  assert.strictEqual(ch.undoFor(set, {})!.wrote, 'Talia is forty.', '  and its Undo checks for that text');
+  const voice = done(ch.checkAsked({ op: 'thread.set', thread: 'Talia Venn', room: 'voice', text: '[voice: slow now]' }, tale));
+  assert.strictEqual(voice.text, 'slow now', 'TALK-PLAIN-POCKET: and a pocket loses its kind in front');
+  const made = done(ch.checkAsked({ op: 'thread.new', title: 'Vel', type: 'character', text: 'Vel: Vel: a ferry pilot' }, tale));
+  assert.strictEqual(made.always, 'a ferry pilot', 'TALK-PLAIN-NEW: a new thread\'s Always true too');
+  assert.strictEqual(ch.undoFor(made, { thread: 'e-vel' })!.text, 'a ferry pilot', '  which its Undo matches');
+  refused(ch.checkAsked({ op: 'thread.set', thread: 'Talia Venn', text: '[Talia Venn: Talia is twenty.]' }, tale),
+    /already says/i);
+  // THE SETUP DRAFT holds the description only: that is the box the writer reads before Start.
+  const draft = { story: {}, entries: [{ title: 'The Ferryman', entryType: 'character', body: 'rows the dead' }] };
+  const dnew = done(ch.checkDraft({ op: 'thread.new', title: 'Vel', type: 'character', text: '[Vel: a ferry pilot]' }, draft));
+  assert.strictEqual(dnew.thread.body, 'a ferry pilot', 'DRAFT-PLAIN-NEW: a new draft thread holds the description, no brackets');
+  const dset = done(ch.checkDraft({ op: 'thread.set', thread: 'The Ferryman', room: 'none', text: 'The Ferryman: rows twice' }, draft));
+  assert.strictEqual(dset.body, 'rows twice', 'DRAFT-PLAIN-SET: and a changed Always true too');
+  assert.strictEqual(dset.before, 'rows the dead', '  with the text it had, for its Undo');
+  const dvoice = done(ch.checkDraft({ op: 'thread.set', thread: 'The Ferryman', room: 'voice', text: '[voice: never hurries]' }, draft));
+  assert.strictEqual(dvoice.text, 'never hurries', 'DRAFT-PLAIN-POCKET: and a pocket');
+});
+
 ok('the change slice never reaches for the database itself', () => {
   const src = readFileSync(new URL('../src/changes.ts', import.meta.url), 'utf8');
   assert.ok(!/from '\.\/db\.ts'/.test(src), 'src/changes.ts must not import db.ts');

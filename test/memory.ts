@@ -905,7 +905,7 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.strictEqual(new Set(mine.map((p) => p.grp)).size, 1, '  as one card');
   for (const p of mine) await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
   const rooms = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === h);
-  assert.strictEqual(rooms.find((a) => a.slot === 'facts')?.body, '[Halsey: a singer from Jersey]',
+  assert.strictEqual(rooms.find((a) => a.slot === 'facts')?.body, 'a singer from Jersey',
     'TIDY-ALWAYS: sewn in, the tidy rewrites Always true, because the writer asked for it');
   assert.match((db.entriesOf(t.id) as any[]).find((e) => e.id === h).body, /invited Seth/, 'TIDY-STANDS: and where she stands');
   const voices = rooms.filter((a) => a.slot === 'voice');
@@ -1296,7 +1296,7 @@ ok('no interiority pocket for the played or Hands off character');
   assert.ok(!mine.some((p) => p.entry_id === morgott || p.entry_id === worldRennala), 'CHALK-WORLD-UNTOUCHED: nothing targets a World thread');
   const m = mine.find((p) => p.title === 'Morgott');
   assert.strictEqual(m?.kind, 'new', `CHALK-WORLD-NEW: a World person's change is a new tale-own thread (${m?.kind})`);
-  assert.strictEqual(m?.body, '[Morgott: the Omen King]', '  carrying the World thread\'s Always true');
+  assert.strictEqual(m?.body, 'the Omen King', '  carrying the World thread\'s Always true');
   assert.match(JSON.parse(m?.rooms ?? '{}').stands?.body ?? '', /taken Rennala/, '  with the change as its first Over time entry');
   assert.ok(mine.some((p) => p.entry_id === rennala && p.entry_type === 'state'), 'CHALK-WORLD-TALE-WINS: the tale\'s own thread of a World name takes its change');
   await routes['POST /api/proposal'](ctx({ storyId: t.id, id: m.id, accept: true }));

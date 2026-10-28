@@ -3361,7 +3361,7 @@ ok('Always true is one row per thread, written switched on, whoever writes it', 
   const rows = (db.addonsOf(t.id) as any[]).filter((x) => x.entry_id === 'e-one-true' && x.slot === 'facts');
   assert.strictEqual(rows.length, 1, 'ONE-TRUE: a second Always true edits the first');
   assert.strictEqual(b, a, '  and says it is the same one');
-  assert.strictEqual(rows[0].body, '[Ilse: a ferrywoman, forty]', '  with the newer text');
+  assert.strictEqual(rows[0].body, 'a ferrywoman, forty', '  with the newer text, stored plain (#110)');
   assert.strictEqual(rows[0].active, 1, 'ONE-TRUE-ON: and it is on, with nobody pressing a switch');
   const lines = db.updatesOf(t.id).length;
   db.foldAlwaysTrue();
@@ -3788,6 +3788,94 @@ ok('an old library\'s pins survive the rebuild unchanged, with one backup, and a
     const again = new RawDb(file, { readOnly: true });
     assert.deepStrictEqual(rows(again), before, 'PIN-MIGRATE-IDEMPOTENT: and changes no pin');
     again.close();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+  db.delStory(t.id);
+});
+
+// #110 · A POCKET AND AN ALWAYS TRUE ARE STORED AS A PLAIN DESCRIPTION (ADR 0008). Every writer of one
+// crosses `upsertAddon`, so the floor is there: a leading bracket wrapper comes off, and with it the
+// thread's name, the pocket's name or its kind in front, however many times it was repeated. Text
+// that is not wrapped stays exactly as written, and so does a label the writer chose.
+ok('a pocket or an Always true is stored without the bracket wrapper or the name in front', () => {
+  const t = db.createStory(o, { title: 'Plain', premise: 'p' });
+  const e = db.upsertEntry(t.id, o, { title: 'Leyndell', body: '', entryType: 'place' })!;
+  const body = (id: string | null) => (db.addonsOf(t.id) as any[]).find((a) => a.id === id)?.body;
+  const facts = db.upsertAddon(t.id, e, { slot: 'facts', name: 'facts', body: '[Leyndell: Leyndell: the Royal Capital]' });
+  assert.strictEqual(body(facts), 'the Royal Capital', 'FLOOR-ALWAYS: the wrapper and the doubled name come off Always true');
+  const feel = db.upsertAddon(t.id, e, { slot: 'atmosphere', name: 'Ash', body: '[Ash: golden ash falls on everything]' });
+  assert.strictEqual(body(feel), 'golden ash falls on everything', 'FLOOR-POCKET: and off a pocket, by its own name');
+  const kind = db.upsertAddon(t.id, e, { slot: 'appearance', name: 'Walls', body: '[appearance: white walls, gold dome]' });
+  assert.strictEqual(body(kind), 'white walls, gold dome', 'FLOOR-KIND: and by its kind');
+  const bare = db.upsertAddon(t.id, e, { slot: 'who_is_here', name: 'Guards', body: '[knights in gold, never at rest]' });
+  assert.strictEqual(body(bare), 'knights in gold, never at rest', 'FLOOR-BARE: a wrapper with no name comes off too');
+  const front = db.upsertAddon(t.id, e, { slot: 'facts', name: 'facts', body: 'Leyndell: the Royal Capital, under the Erdtree' });
+  assert.strictEqual(body(front), 'the Royal Capital, under the Erdtree', 'FLOOR-FRONT: the name in front comes off with no bracket at all');
+  db.upsertAddon(t.id, e, { id: feel, slot: 'atmosphere', name: 'Ash', body: '[Ash: ash, and the smell of it]' });
+  assert.strictEqual(body(feel), 'ash, and the smell of it', 'FLOOR-EDIT: an edit crosses the same floor');
+  const own = 'Role: the seat of the Golden Order\n\n[a] and [b] stay as they are\nLeyndell: a line further down keeps its name';
+  db.upsertAddon(t.id, e, { slot: 'facts', name: 'facts', body: own });
+  assert.strictEqual(body(facts), own, 'FLOOR-KEEPS: a label the writer chose, a blank line, brackets that do not wrap the line, and a later line stay as written');
+  const tale = db.upsertAddon(t.id, null, { slot: 'instruction', name: 'Tone', body: '[Tone: dry, never cruel]' });
+  assert.strictEqual(body(tale), 'dry, never cruel', 'FLOOR-TALE: and off the tale\'s own pockets');
+  db.delStory(t.id);
+});
+
+// #110 · THE UPDATE TAKES THE WRAPPERS OFF THE LIBRARY ONCE. Built on a copy made here, never the live
+// file: rows written past the floor, as an old server wrote them, then two boots of the real module.
+ok('the update strips old wrappers once, after a backup, names each, and leaves clean text alone', () => {
+  const me = db.owner('plain-update');
+  const t = db.createStory(me, { title: 'Old wrappers', premise: 'p' });
+  const e = db.upsertEntry(t.id, me, { title: 'Aldis Fen', body: '[Aldis Fen: at the docks]', entryType: 'character' })!;
+  const dir = mkdtempSync('/tmp/anansi-plain-');
+  try {
+    const file = join(dir, 'old.db');
+    db.snapshot(file);
+    const old = new RawDb(file);
+    const put = (id: string, entry: string | null, slot: string, name: string, body: string) =>
+      old.prepare(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,created_at)
+        VALUES (?,?,?,?,?,?,'[]',1,1)`).run(id, t.id, entry, slot, name, body);
+    put('a-p-facts', e, 'facts', 'facts', '[Aldis Fen: Aldis Fen: 34, ex-Watch sergeant]');
+    put('a-p-voice', e, 'voice', 'How he talks', '[short sentences; never swears]');
+    put('a-p-coat', e, 'outfit', 'Coat', '[wearing: black oilcloth]');
+    put('a-p-clean', e, 'interiority', 'Debt', 'Never says the number out loud.');
+    put('a-p-own', e, 'relationships', 'Marek', '[a] owes [b], and both know it');
+    put('a-p-tale', null, 'instruction', 'Tone', '[Tone: dry]');
+    old.close();
+    const bodies = () => { const c = new RawDb(file, { readOnly: true });
+      const r = Object.fromEntries((c.prepare("SELECT id, body FROM addons WHERE id LIKE 'a-p-%'").all() as any[])
+        .map((x) => [x.id, x.body]));
+      c.close(); return r; };
+    const lines = () => { const c = new RawDb(file, { readOnly: true });
+      const r = (c.prepare('SELECT entry_id, line, backup FROM update_lines WHERE story_id = ? ORDER BY rowid').all(t.id) as any[])
+        .map((x) => ({ ...x }));
+      c.close(); return r; };
+    const backups = () => existsSync(join(dir, 'backups'))
+      ? readdirSync(join(dir, 'backups')).filter((f) => f.startsWith('pre-update-')) : [];
+    const boot = () => {
+      const r = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
+        `await import(${JSON.stringify(new URL('../src/db.ts', import.meta.url).href)});`],
+        { env: { ...process.env, ANANSI_DB: file }, encoding: 'utf8' });
+      assert.strictEqual(r.status, 0, `the boot failed: ${r.stderr}`);
+    };
+    const before = lines().length;
+
+    boot();
+    assert.deepStrictEqual(bodies(), {
+      'a-p-facts': '34, ex-Watch sergeant', 'a-p-voice': 'short sentences; never swears', 'a-p-coat': 'black oilcloth',
+      'a-p-clean': 'Never says the number out loud.', 'a-p-own': '[a] owes [b], and both know it', 'a-p-tale': 'dry',
+    }, 'PLAIN-UPDATE: every wrapper and name in front is gone, and clean text is untouched');
+    assert.strictEqual(backups().length, 1, 'PLAIN-UPDATE-BACKUP: one backup was taken first');
+    const said = lines().slice(before);
+    assert.strictEqual(said.length, 4, `PLAIN-UPDATE-REPORT: one line for each pocket it changed (${said.map((l: any) => l.line).join(' | ')})`);
+    assert.ok(said.every((l: any) => l.backup && l.backup.includes('pre-update-')), '  each naming the backup');
+    assert.ok(said.some((l: any) => l.entry_id === e && /Always true/.test(l.line)), '  Always true is named as itself');
+    assert.ok(said.some((l: any) => l.entry_id === e && /How he talks/.test(l.line)), '  and a pocket by its name');
+    assert.ok(said.some((l: any) => l.entry_id === null && /Tone/.test(l.line)), '  and the tale\'s own pocket, on the tale');
+
+    boot();
+    assert.strictEqual(backups().length, 1, 'PLAIN-UPDATE-ONCE: a second boot takes no backup');
+    assert.strictEqual(lines().length, before + 4, '  writes no second report');
+    assert.strictEqual(bodies()['a-p-facts'], '34, ex-Watch sergeant', '  and changes nothing');
   } finally { rmSync(dir, { recursive: true, force: true }); }
   db.delStory(t.id);
 });

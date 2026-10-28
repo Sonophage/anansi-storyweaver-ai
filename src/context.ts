@@ -3,7 +3,7 @@
 
 import { ORDER, CAPS, CANON_KINDS, CANON_CAP_FRAC, EARLIER_CEILING_FRAC, PROSE_CEILING_FRAC } from './blocks.ts';
 import type { Block, Kind } from './blocks.ts';
-import { EXCLUSIVE_SLOTS } from './slots.ts';
+import { EXCLUSIVE_SLOTS, plain, wrapperNames } from './slots.ts';
 
 interface EntryState {
   fromChapter: number;             // the chapter this state opens at
@@ -303,28 +303,13 @@ export function retiredAt(e: Entry, at: number): number | null {
   return last?.kind === 'retire' ? last.fromChapter : null;
 }
 
-/** #109 · A STORED DESCRIPTION WITH THE OLD WRAPPER TAKEN OFF, so the frame is the only one (ADR 0008).
- *  Until #110 cleans the library, pockets and Always trues still hold `[Aldis Fen: …]`, `[wearing: …]`
- *  or `[short sentences; …]`, and framing those as they are gives `[What …: [Aldis Fen: …]]`.
- *  Line by line, because a folded pocket (`foldLine`) is a second bracketed line under its label.
- *
- *  ONLY WHEN THE BRACKETS ACTUALLY PAIR AS AN OUTER WRAPPER, which is what the `indexOf` asks: the
- *  first `]` has to be the last character. `[a] and [b]` has its first `]` in the middle, so a greedy
- *  `^\[(.*)\]$` would eat it into `a] and [b`, a body corrupted on its way into the prompt, silently.
- *  And a leading `Name:` goes only from inside such a wrapper, and only when it is one of `names`
- *  (the thread's title, the pocket's label or kind): a label the writer chose, like `Role:`, stays.
- *  Read-only: what is stored does not change. */
-const plain = (body: string, names: string[]): string => {
-  const known = new Set(names.map((n) => n.trim().toLowerCase()).filter(Boolean));
-  return String(body ?? '').trim().split('\n').map((l) => {
-    const line = l.trim();
-    if (!(line.startsWith('[') && line.indexOf(']') === line.length - 1)) return line;
-    const inner = line.slice(1, -1).trim();
-    const colon = inner.indexOf(':');
-    return colon > 0 && known.has(inner.slice(0, colon).trim().toLowerCase())
-      ? inner.slice(colon + 1).trim() : inner;
-  }).filter(Boolean).join('\n');
-};
+/** #109 · A STORED DESCRIPTION WITH THE OLD WRAPPER TAKEN OFF, so the frame is the only one (ADR 0008):
+ *  `slots.plain`, the rule the floor that stores a pocket uses too (#110), so storage and the prompt
+ *  agree on what a wrapper is. Framing a wrapped body as it is gives `[What …: [Aldis Fen: …]]`.
+ *  Here the lines are also trimmed and blank ones dropped, which the prompt wants and a writer's box
+ *  does not. Read-only: what is stored does not change. */
+const unwrapped = (body: string, names: string[]): string =>
+  plain(body, names).split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
 
 /** #109 · THE FRAME EACH POCKET KIND READS UNDER, for the kinds in `SLOTS` that had none (outfit,
  *  voice and interiority are framed in `rooms` itself). NOT MEASURED, every one: owed an A/B
@@ -355,11 +340,10 @@ const rooms = (e: Entry, at: number, window: string, locked = ''): string[] =>
       // `[short sentences; …]` — that is the form `src/forge.ts` teaches a foreign model to write a
       // card in, so it is the normal case and not a data error. Wrapping the wrapper gives
       // `[How she got here: [bought The Monarch…]]`, which is the `[You: [You: …]]` defect Always
-      // true was written to avoid, arriving through eleven other slots instead. `plain` is the one
+      // true was written to avoid, arriving through eleven other slots instead. `unwrapped` is the one
       // strip, Always true's and every pocket's, and it says why it refuses anything ambiguous.
       const label = (a.name || '').trim();
-      const body = plain(a.body, [who, label, a.slot, a.slot.replace(/_/g, ' '),
-        ...(a.slot === 'outfit' ? ['wearing', 'wears'] : [])]);
+      const body = unwrapped(a.body, wrapperNames(a.slot, who, label));
 
       if (a.slot === 'outfit') return `[${who || 'They'} wears: ${body}]`;
       // VOICE IS THE SECOND SLOT WHERE THE ROOM'S NAME IS NOT WHAT THE MODEL NEEDS TO BE TOLD, and
@@ -496,7 +480,7 @@ export const alwaysTrue = (e: Entry): string =>
  *  edited. NOT MEASURED: the frame is owed an A/B against the bare form before it is called a fix. */
 const framedAlwaysTrue = (e: Entry): string => {
   const who = (e.title || '').trim();
-  const body = plain(alwaysTrue(e), [who, 'facts', 'always true']);
+  const body = unwrapped(alwaysTrue(e), wrapperNames('facts', who));
   return body ? `[What is always true of ${who || 'this thread'}: ${body}]` : '';
 };
 

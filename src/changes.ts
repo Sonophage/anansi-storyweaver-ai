@@ -34,7 +34,7 @@
  * is not capped, because it puts back what the writer had, which can be longer than anything Talk
  * may write.
  */
-import { ALL_SLOTS, KINDS, slotsFor } from './slots.ts';
+import { ALL_SLOTS, KINDS, slotsFor, plain, wrapperNames } from './slots.ts';
 import { retiredAt } from './context.ts';
 
 /** What the model may ask for. #97 cut the path with the first two; #98 adds the rest. */
@@ -195,7 +195,7 @@ export function checkAsked(raw: any, tale: Tale): Checked {
     // follows: a character who stops reaching the model does not fade, he vanishes. Anything else
     // waits for its word only when it has one; `upsertEntry` holds the same floor.
     const activation = type !== 'character' && raw.activation === 'triggered' && keys.length ? 'triggered' : 'always_on';
-    return { ok: true, change: { op, title, type, always: String(raw.text ?? '').trim(), keys, activation } };
+    return { ok: true, change: { op, title, type, always: alwaysOf(title, raw.text), keys, activation } };
   }
   if (op === 'tale.set') return taleSet(tale, raw, said, false);
   if (op === 'scene.set') return sceneSet(tale, raw, said, false);
@@ -384,11 +384,16 @@ function setOn(t: Thread, slot: string, text: string, said: string, undo: boolea
   if (undo && !addon) return { ok: false, said, why: 'that Undo names no pocket to put back' };
   if (undo && !cur) return { ok: false, said, why: 'that pocket is no longer in this tale' };
   if (undo && cur && !stillWrote(wrote, cur.body)) return { ok: false, said, why: SINCE };
+  const name = cur?.name ?? (slot === 'facts' ? 'facts' : t.title);
+  // #110 · A REQUEST'S TEXT IS STORED PLAIN, so it is checked and remembered for the Undo as it will be
+  // stored (`db.upsertAddon` takes the same wrapper off by the same rule). A put-back is the text that
+  // was there, which the floor keeps as it is.
+  if (!undo) text = plain(text, wrapperNames(slot, t.title, name));
   if (!undo && !text) return { ok: false, said, why: 'it came with no text' };
   if (!undo && cur && cur.body.trim() === text) return { ok: false, said,
     why: `${t.title}'s ${roomLabel(slot)} already says that` };
   return { ok: true, change: { op: 'thread.set', thread: t.id, title: t.title, room: slot,
-    addon: cur?.id ?? null, name: cur?.name ?? (slot === 'facts' ? 'facts' : t.title), keys: cur?.keys ?? [],
+    addon: cur?.id ?? null, name, keys: cur?.keys ?? [],
     text, before: undo ? text : cur ? cur.body : null, ...(undo ? { undo: true as const } : {}) } };
 }
 
@@ -493,8 +498,8 @@ function saidOf(raw: any): string {
  *     Discard throws the whole draft away anyway. The thread the writer plays stays while they play
  *     it, the rule the preview's own remove follows.
  *
- * A draft thread's Always true is its `body`, in the `[Name: text]` form the cast writes it in
- * (POST /api/stories moves it into `facts` at Start); its other rooms are `rooms[slot]`. */
+ * A draft thread's Always true is its `body`, a plain description as the cast writes it (#110; POST
+ * /api/stories moves it into `facts` at Start); its other rooms are `rooms[slot]`. */
 const DRAFT_OPS = ['tale.set', 'thread.new', 'thread.set', 'thread.remove'] as const;
 const DRAFT_FIELDS = ['title', 'premise', 'genre', 'setting', 'voice'] as const;
 /** The draft's own name for each field: the voice is `writingStyle` in the wizard and the column.
@@ -539,7 +544,7 @@ export type DraftChange =
   /** The thread as it goes into the draft, in the shape the cast writes one. */
   | { op: 'thread.new'; thread: { title: string; entryType: string; activation: string; body: string; keys: string[] } }
   /** `room` is `facts` for its Always true; `before` is that room's text, null when there was none.
-   *  `body`, on Always true only, is the thread's whole body as the draft stores it, `[Name: text]`. */
+   *  `body`, on Always true only, is the thread's whole body as the draft stores it: the plain text. */
   | { op: 'thread.set'; title: string; room: string; text: string; before: string | null; body?: string }
   | { op: 'thread.remove'; title: string };
 export type DraftChecked = { ok: true; change: DraftChange } | { ok: false; said: string; why: string };
@@ -549,15 +554,10 @@ export type DraftChecked = { ok: true; change: DraftChange } | { ok: false; said
 const draftTale = (d: Draft): Tale => ({ entries: (d.entries ?? []).filter((e) => e && e.keep !== false
   && String(e.title ?? '').trim()).map((e) => ({ id: e.title, title: String(e.title).trim(),
   entryType: String(e.entryType ?? 'character') })) });
-/** A draft thread's Always true, out of the `[Name: text]` it is written in, or out of text a model
- *  sent with the name in front of it already. */
-const alwaysOf = (title: unknown, body: unknown) => {
-  const own = String(body ?? '').trim().replace(/^\[|\]$/g, '').trim();
-  const name = String(title ?? '').trim();
-  return own.toLowerCase().startsWith(name.toLowerCase() + ':') ? own.slice(name.length + 1).trim() : own;
-};
-/** And back into that form, with one name at the front however the text arrived. */
-const draftBody = (title: string, text: string) => `[${title}: ${alwaysOf(title, text)}]`;
+/** #110 · A THREAD'S ALWAYS TRUE AS IT IS STORED: the plain description, without the `[Name: text]`
+ *  wrapper or the name a model put in front of it, by the rule `db.upsertAddon` stores it by. The
+ *  draft keeps it in that form too, so the writer sees only the description. */
+const alwaysOf = (title: unknown, body: unknown) => plain(body, wrapperNames('facts', String(title ?? '').trim()));
 
 /** One change the model returned during setup, checked against the draft the page sent. */
 export function checkDraft(raw: any, draft: Draft): DraftChecked {
@@ -589,7 +589,7 @@ export function checkDraft(raw: any, draft: Draft): DraftChecked {
     // the writer a spark cast is always on, and a draft thread on a word the model chose would be the
     // one exception they were not told about.
     return { ok: true, change: { op: 'thread.new', thread: { title, entryType: type, activation: 'always_on',
-      body: draftBody(title, text), keys: [title] } } };
+      body: alwaysOf(title, text), keys: [title] } } };
   }
   const { hit, why } = threadNamed(tale, raw.thread);
   if (!hit) return { ok: false, said, why: why!.replace('in this tale', 'in the draft') };
@@ -604,12 +604,13 @@ export function checkDraft(raw: any, draft: Draft): DraftChecked {
   if (!hasRoom(hit, slot)) return { ok: false, said, why: noRoom(hit, slot) };
   // An Always true is compared and shown without the name a model may have put in front of it, and
   // written as the draft stores it, so the page writes the very text checked here.
-  const asked = slot === 'facts' ? alwaysOf(hit.title, text) : text;
+  const asked = slot === 'facts' ? alwaysOf(hit.title, text)
+    : plain(text, wrapperNames(slot, hit.title, String(t.rooms?.[slot]?.name ?? slot)));
   if (!asked) return { ok: false, said, why: 'it came with no text' };
   const before = slot === 'facts' ? alwaysOf(t.title, t.body) || null : String(t.rooms?.[slot]?.body ?? '') || null;
   if ((before ?? '').trim() === asked) return { ok: false, said, why: `${hit.title}'s ${roomLabel(slot)} already says that` };
   return { ok: true, change: { op: 'thread.set', title: hit.title, room: slot, text: asked, before,
-    ...(slot === 'facts' ? { body: draftBody(hit.title, asked) } : {}) } };
+    ...(slot === 'facts' ? { body: asked } : {}) } };
 }
 
 /** What a draft change did, in the writer's words: one line in the conversation. */

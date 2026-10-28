@@ -183,10 +183,9 @@ const paste = (text: string, o = me) => routes['POST /api/thread/paste'](ctx({ s
   assert.ok(!r.error, r.error);
   assert.strictEqual(r.made.length, 2, 'both cards');
   const kade: any = db.entriesOf(story.id).find((x: any) => x.title === 'Kade Ashford');
-  // The bracket form is the convention every card in this app carries, and a body that arrives as
-  // plain prose is a formatting miss rather than a bad card — so it is wrapped, not refused.
-  assert.match(kade.body, /^\[Kade Ashford: a creditor who is owed by everyone\]$/,
-    'a bare body is wrapped into the bracket form rather than refused');
+  // #110 · A PLAIN DESCRIPTION (ADR 0008): a bare body is kept as it came, and is no longer wrapped.
+  assert.strictEqual(kade.body, 'a creditor who is owed by everyone',
+    'a bare body is kept plain, not wrapped into the bracket form');
   assert.ok(db.addonsOf(story.id).some((a: any) => a.entry_id === kade.id && a.slot === 'voice'),
     'and a room given as a bare string still lands');
   ok('a list of cards lands, and a loose shape is repaired rather than refused');

@@ -76,6 +76,53 @@ export const foldLine = (slot: string, name: string, body: string, title: string
   return `[${label}: ${inner}]`;
 };
 
+/** #110 · THE NAMES A STORED DESCRIPTION MAY CARRY IN FRONT, the old card format's label: the thread's
+ *  name, the pocket's own name and its kind, and the outfit's and Always true's old words. One list,
+ *  for the floor that stores a description (`db.upsertAddon`, the update) and the prompt that frames
+ *  one (`context.ts`), so the two take off the same names. */
+export const wrapperNames = (slot: string, title: string, label = ''): string[] => [title, label, slot,
+  slot.replace(/_/g, ' '), ...(slot === 'outfit' ? ['wearing', 'wears'] : []),
+  ...(slot === 'facts' ? ['always true'] : [])];
+
+/** #109, #110 · A DESCRIPTION WITH THE OLD WRAPPER TAKEN OFF (ADR 0008). Pockets and Always trues were
+ *  written as `[Aldis Fen: …]`, `[wearing: …]` or `[short sentences; …]`, and a model asked for that
+ *  form sometimes doubled the name (`[Leyndell: Leyndell: …]`). The writer sees and types only the
+ *  description, and the code frames it for the model, so the wrapper is taken off where a pocket is
+ *  stored and again where it is framed: this one rule, so the two cannot disagree.
+ *
+ *  A LINE IS UNWRAPPED ONLY WHEN THE BRACKETS ACTUALLY PAIR AS AN OUTER WRAPPER, which is what the
+ *  `indexOf` asks: the first `]` has to be the last character. `[a] and [b]` has its first `]` in the
+ *  middle, so a greedy `^\[(.*)\]$` would eat it into `a] and [b`, a body corrupted silently. Line by
+ *  line, because a folded pocket (`foldLine`) is a second bracketed line under its label.
+ *  A LEADING `Name:` goes only when it is one of `names` (`wrapperNames`), and as often as it is
+ *  repeated: from inside a wrapper on any line, and with no wrapper on the first line only, where a
+ *  model puts the name it was told to put in front. A label the writer chose, like `Role:`, stays;
+ *  so does a name further down, where it may be a speaker in a sample line.
+ *  Every other line is kept exactly as written, blank lines too. Repeated until nothing changes, so
+ *  a second pass over its own answer changes nothing (the update relies on that). */
+export const plain = (body: unknown, names: string[]): string => {
+  const known = new Set(names.map((n) => String(n ?? '').trim().toLowerCase()).filter(Boolean));
+  const strip = (s: string) => {
+    for (let c = s.indexOf(':'); c > 0 && known.has(s.slice(0, c).trim().toLowerCase()); c = s.indexOf(':'))
+      s = s.slice(c + 1).trim();
+    return s;
+  };
+  const once = (text: string) => {
+    const lines = text.split('\n');
+    const first = lines.findIndex((l) => l.trim());
+    return lines.map((l, i) => {
+      const line = l.trim();
+      if (line.startsWith('[') && line.indexOf(']') === line.length - 1) return strip(line.slice(1, -1).trim());
+      if (i !== first) return l;
+      const out = strip(line);
+      return out === line ? l : out;
+    }).join('\n').trim();
+  };
+  let text = String(body ?? '').trim();
+  for (let i = 0; i < 8; i++) { const next = once(text); if (next === text) break; text = next; }
+  return text;
+};
+
 /** WHAT `facts` IS FOR, because it is the one slot whose reason is a defect rather than a subject.
  *
  *  Seth, 2026-08-29: *"the current body gets rewritten at chapter end. theres no place to keep the

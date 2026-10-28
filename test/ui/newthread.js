@@ -45,7 +45,7 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
     const top = (sel) => { const e = document.querySelector('#sideBody ' + sel); return e ? Math.round(e.getBoundingClientRect().top) : null; };
     const box = document.getElementById('newname');
     return { head: document.querySelector('#sideBody .newhead')?.textContent.trim() ?? null,
-      ph: box?.placeholder ?? null, hint: /pasted from Prompts is read in as it is/.test(document.getElementById('sideBody').textContent),
+      ph: box?.placeholder ?? null, hint: /pasted from Export is read in as it is/.test(document.getElementById('sideBody').textContent),
       kinds: [...document.querySelectorAll('#sideBody [data-lorekind]')].map((b) => b.textContent.trim()),
       lit: [...document.querySelectorAll('#sideBody [data-lorekind][aria-pressed="true"]')].map((b) => b.dataset.lorekind),
       cards: [...document.querySelectorAll('#sideBody .letcard .lettitle')].map((t) => t.textContent.trim()),
@@ -149,8 +149,8 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   const pasted = (await story(sid)).entries.find((e) => e.title === 'The Tide Book');
   ok(`a pasted thread is read in as it is, pocket and all (${JSON.stringify(pasted && [pasted.entryType, pasted.activation, (pasted.addons || []).map((a) => a.slot)])})`,
      !!pasted && pasted.entryType === 'item' && pasted.activation === 'triggered'
-       // #77. Provenance is part of Always true now, under the pocket's own name.
-       && (pasted.addons || []).some((a) => a.slot === 'facts' && /\[Where it came from: bound in sailcloth\]/.test(a.body)));
+       // #77. Provenance is part of Always true now, under the pocket's own name; #110: stored with no brackets.
+       && (pasted.addons || []).some((a) => a.slot === 'facts' && /^Where it came from: bound in sailcloth$/m.test(a.body)));
   ok("  and opens on its Read screen", (await where()).read && !(await where()).add);
 
   // ---- A name with nothing typed is still a thread to write

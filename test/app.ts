@@ -3768,7 +3768,7 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
     const mapped = (await ask('And?')).body.draft;
     const ferry = mapped.entries.find((e: any) => e.title === 'The Ferryman');
     assert.strictEqual(ferry.body, checked[0].body, `ONE-MAPPING: the page writes the Always true the server checked (${ferry.body})`);
-    assert.strictEqual(ferry.body, '[The Ferryman: rows twice for a liar.]', 'ONE-MAPPING: with the name in front once');
+    assert.strictEqual(ferry.body, 'rows twice for a liar.', 'ONE-MAPPING: the description only, with no brackets and no name in front (#110)');
     assert.strictEqual(mapped.story[checked[1].key], 'Wet and slow.', 'ONE-MAPPING: the voice lands where the server says it lives');
     assert.strictEqual(checked[1].key, 'writingStyle', 'ONE-MAPPING: which is the draft\'s writingStyle');
 
