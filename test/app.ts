@@ -3637,7 +3637,7 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
     // ASKED: a premise change and a new thread, applied to the draft at once; and an offer.
     stubSparkTalk = { reply: 'Darker, and the ferryman is in.', seconds: 1,
       changes: [{ words: 'Changed the premise: “Six houses, one winter, and every one of them lies.”',
-                  change: { op: 'tale.set', field: 'premise', text: DARKER, before: ORIGINAL } },
+                  change: { op: 'tale.set', field: 'premise', key: 'premise', text: DARKER, before: ORIGINAL } },
                 { words: 'Added a thread: The Ferryman, a character.', change: { op: 'thread.new', thread: FERRY } }],
       entries: [{ title: 'House Marren', entryType: 'lore', activation: 'always_on',
         body: '[House Marren: holds the northern passes]', keys: ['House Marren'] }] };
@@ -3690,7 +3690,7 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
     (listeners.input ?? []).forEach((f: Function) => f({ target: typed }));
     onScreen = { '[data-sp]': [typed] };
     stubSparkTalk = { reply: 'Here is a better one.', seconds: 1,
-      changes: [{ words: 'Changed the premise: “Better.”', change: { op: 'tale.set', field: 'premise', text: 'Better.',
+      changes: [{ words: 'Changed the premise: “Better.”', change: { op: 'tale.set', field: 'premise', key: 'premise', text: 'Better.',
         before: 'My own premise, typed.' } }] };
     await ask('Who is in this tale?');
     onScreen = {};
@@ -3709,7 +3709,7 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
     await new Promise((r) => setTimeout(r, 30));
     onScreen = {};
     stubSparkTalk = { reply: 'A sharper one.', seconds: 1,
-      changes: [{ words: 'Changed the premise: “Worse.”', change: { op: 'tale.set', field: 'premise', text: 'Worse.',
+      changes: [{ words: 'Changed the premise: “Worse.”', change: { op: 'tale.set', field: 'premise', key: 'premise', text: 'Worse.',
         before: 'Typed, then I moved on.' } }] };
     const elsewhere = await ask('Who else is in it?');
     assert.match(elsewhere.body.step, /^The threads/, `SETUP-TALK-TYPED-ANY-STEP: asked from another step (${elsewhere.body.step})`);
@@ -3718,6 +3718,24 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
     const after = await ask('Anything else?');
     assert.strictEqual(after.body.draft.story.premise, 'Typed, then I moved on.',
       'SETUP-TALK-TYPED-ANY-STEP: a box typed in on an earlier step is not changed unasked');
+
+    // ONE MAPPING: the page writes what the server checked. The changes are the real `checkDraft`'s,
+    // against the draft the page just sent: an Always true that arrives with the name in front, and
+    // the voice, which the draft keeps as `writingStyle`.
+    const { checkDraft } = await import('../src/changes.ts');
+    const checked = [
+      checkDraft({ op: 'thread.set', thread: 'The Ferryman', room: 'none', text: 'The Ferryman: rows twice for a liar.' }, after.body.draft),
+      checkDraft({ op: 'tale.set', field: 'voice', text: 'Wet and slow.' }, after.body.draft),
+    ].map((k: any) => { assert.ok(k.ok, `ONE-MAPPING: the server takes it (${k.why})`); return k.change; });
+    stubSparkTalk = { reply: 'Done.', seconds: 1, changes: checked.map((change: any) => ({ words: 'Changed.', change })) };
+    await ask('Change the Ferryman and the voice');
+    stubSparkTalk = { reply: 'Yes.', seconds: 1 };
+    const mapped = (await ask('And?')).body.draft;
+    const ferry = mapped.entries.find((e: any) => e.title === 'The Ferryman');
+    assert.strictEqual(ferry.body, checked[0].body, `ONE-MAPPING: the page writes the Always true the server checked (${ferry.body})`);
+    assert.strictEqual(ferry.body, '[The Ferryman: rows twice for a liar.]', 'ONE-MAPPING: with the name in front once');
+    assert.strictEqual(mapped.story[checked[1].key], 'Wet and slow.', 'ONE-MAPPING: the voice lands where the server says it lives');
+    assert.strictEqual(checked[1].key, 'writingStyle', 'ONE-MAPPING: which is the draft\'s writingStyle');
 
     // DISCARD: nothing was ever posted but the spark calls, and Talk goes with the draft.
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),

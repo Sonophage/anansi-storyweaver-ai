@@ -5249,7 +5249,6 @@ const stepNow = () => STEPS[Math.min(Math.max(Number(S.sparkStep) || 1, 1), STEP
  * would cost them what they typed. */
 const onSetup = () => S.place !== 'story' && S.wpage === 'create' && !!S.spark;
 const setupTalk = () => (S.spark.talk ??= { turns: [], busy: false });
-const DRAFT_KEY = { title: 'title', premise: 'premise', genre: 'genre', setting: 'setting', voice: 'writingStyle' };
 const draftNamed = (title) => (S.spark?.entries ?? [])
   .find((e) => e.keep !== false && String(e.title ?? '').trim() === title);
 const draftCopy = (o) => JSON.parse(JSON.stringify(o));
@@ -5268,7 +5267,7 @@ document.addEventListener('input', (e) => {
 
 /** Why a change to a box the writer typed in is not done, or null when it may be. */
 function typedHere(ch, said) {
-  if (ch.op === 'tale.set' && S.spark.typed?.[DRAFT_KEY[ch.field]]
+  if (ch.op === 'tale.set' && S.spark.typed?.[ch.key]
       && !saidNames(said, ch.field === 'voice' ? ['voice', 'style'] : [ch.field]))
     return `You wrote the ${ch.field} yourself, and did not ask for it to change. Ask for the ${ch.field} by name and it will be.`;
   if ((ch.op === 'thread.set' || ch.op === 'thread.remove') && draftNamed(ch.title)?.typed
@@ -5282,7 +5281,9 @@ function typedHere(ch, said) {
 function applyDraft(ch) {
   const list = S.spark.entries ?? (S.spark.entries = []);
   if (ch.op === 'tale.set') {
-    const k = DRAFT_KEY[ch.field];
+    // Where the draft keeps it, and the Always true's whole text, are the server's (`checkDraft`):
+    // one mapping, so the page writes exactly what was checked.
+    const k = ch.key;
     const before = String(S.spark.story[k] ?? '');
     if (!k || before.trim() !== String(ch.before ?? '').trim()) return null;
     S.spark.story[k] = ch.text;
@@ -5297,7 +5298,7 @@ function applyDraft(ch) {
   if (at < 0) return null;
   if (ch.op === 'thread.remove') return { op: ch.op, at, prev: list.splice(at, 1)[0] };
   const e = list[at], prev = draftCopy(e);
-  if (ch.room === 'facts') e.body = `[${ch.title}: ${ch.text}]`;
+  if (ch.room === 'facts') e.body = ch.body;
   else e.rooms = { ...(e.rooms ?? {}), [ch.room]: { ...(e.rooms?.[ch.room] ?? { name: ch.room, on: true }), body: ch.text } };
   // #99 · the page it came from, in its notes: writer-only, never in its text.
   if (ch.notes) e.notes = [e.notes, ch.notes].filter(Boolean).join('\n');

@@ -456,7 +456,9 @@ function saidOf(raw: any): string {
  * (POST /api/stories moves it into `facts` at Start); its other rooms are `rooms[slot]`. */
 const DRAFT_OPS = ['tale.set', 'thread.new', 'thread.set', 'thread.remove'] as const;
 const DRAFT_FIELDS = ['title', 'premise', 'genre', 'setting', 'voice'] as const;
-/** The draft's own name for each field: the voice is `writingStyle` in the wizard and the column. */
+/** The draft's own name for each field: the voice is `writingStyle` in the wizard and the column.
+ *  The one copy: `checkDraft` hands the key back with the change, and the route and the page both
+ *  write to it. */
 const DRAFT_KEY: Record<string, string> = { title: 'title', premise: 'premise', genre: 'genre', setting: 'setting',
   voice: 'writingStyle' };
 
@@ -490,12 +492,14 @@ type DraftThread = { title: string; entryType?: string; body?: string; keys?: st
   rooms?: Record<string, { name?: string; body?: string; on?: boolean }>; keep?: boolean; notes?: string };
 export type Draft = { story?: Record<string, any>; entries?: DraftThread[] };
 export type DraftChange =
-  /** `before` is the field's text before the change, for the page's Undo. */
-  | { op: 'tale.set'; field: string; text: string; before: string }
+  /** `key` is where the draft keeps the field; `before` is its text before the change, for the
+   *  page's Undo. */
+  | { op: 'tale.set'; field: string; key: string; text: string; before: string }
   /** The thread as it goes into the draft, in the shape the cast writes one. */
   | { op: 'thread.new'; thread: { title: string; entryType: string; activation: string; body: string; keys: string[] } }
-  /** `room` is `facts` for its Always true; `before` is that room's text, null when there was none. */
-  | { op: 'thread.set'; title: string; room: string; text: string; before: string | null }
+  /** `room` is `facts` for its Always true; `before` is that room's text, null when there was none.
+   *  `body`, on Always true only, is the thread's whole body as the draft stores it, `[Name: text]`. */
+  | { op: 'thread.set'; title: string; room: string; text: string; before: string | null; body?: string }
   | { op: 'thread.remove'; title: string };
 export type DraftChecked = { ok: true; change: DraftChange } | { ok: false; said: string; why: string };
 
@@ -504,17 +508,15 @@ export type DraftChecked = { ok: true; change: DraftChange } | { ok: false; said
 const draftTale = (d: Draft): Tale => ({ entries: (d.entries ?? []).filter((e) => e && e.keep !== false
   && String(e.title ?? '').trim()).map((e) => ({ id: e.title, title: String(e.title).trim(),
   entryType: String(e.entryType ?? 'character') })) });
-/** A draft thread's Always true, out of the `[Name: text]` it is written in. */
-const alwaysOf = (t: DraftThread) => {
-  const own = String(t.body ?? '').trim().replace(/^\[|\]$/g, '').trim();
-  const name = String(t.title ?? '').trim();
+/** A draft thread's Always true, out of the `[Name: text]` it is written in, or out of text a model
+ *  sent with the name in front of it already. */
+const alwaysOf = (title: unknown, body: unknown) => {
+  const own = String(body ?? '').trim().replace(/^\[|\]$/g, '').trim();
+  const name = String(title ?? '').trim();
   return own.toLowerCase().startsWith(name.toLowerCase() + ':') ? own.slice(name.length + 1).trim() : own;
 };
 /** And back into that form, with one name at the front however the text arrived. */
-export const draftBody = (title: string, text: string) => {
-  const t = { title, body: text };
-  return `[${title}: ${alwaysOf(t)}]`;
-};
+const draftBody = (title: string, text: string) => `[${title}: ${alwaysOf(title, text)}]`;
 
 /** One change the model returned during setup, checked against the draft the page sent. */
 export function checkDraft(raw: any, draft: Draft): DraftChecked {
@@ -531,10 +533,11 @@ export function checkDraft(raw: any, draft: Draft): DraftChecked {
     const field = String(raw.field ?? '').trim().toLowerCase();
     if (!(DRAFT_FIELDS as readonly string[]).includes(field)) return { ok: false, said,
       why: `Talk changes the title, premise, genre, setting or voice, not the ${field || 'nothing'}` };
-    const before = String(st[DRAFT_KEY[field]] ?? '');
+    const key = DRAFT_KEY[field];
+    const before = String(st[key] ?? '');
     if (!text) return { ok: false, said, why: 'it came with no text' };
     if (before.trim() === text) return { ok: false, said, why: `the ${field} already says that` };
-    return { ok: true, change: { op: 'tale.set', field, text, before } };
+    return { ok: true, change: { op: 'tale.set', field, key, text, before } };
   }
   const tale = draftTale(draft);
   if (op === 'thread.new') {
@@ -562,10 +565,14 @@ export function checkDraft(raw: any, draft: Draft): DraftChecked {
   }
   const slot = roomOf(raw.room);
   if (!hasRoom(hit, slot)) return { ok: false, said, why: noRoom(hit, slot) };
-  if (!text) return { ok: false, said, why: 'it came with no text' };
-  const before = slot === 'facts' ? alwaysOf(t) || null : String(t.rooms?.[slot]?.body ?? '') || null;
-  if ((before ?? '').trim() === text) return { ok: false, said, why: `${hit.title}'s ${roomLabel(slot)} already says that` };
-  return { ok: true, change: { op: 'thread.set', title: hit.title, room: slot, text, before } };
+  // An Always true is compared and shown without the name a model may have put in front of it, and
+  // written as the draft stores it, so the page writes the very text checked here.
+  const asked = slot === 'facts' ? alwaysOf(hit.title, text) : text;
+  if (!asked) return { ok: false, said, why: 'it came with no text' };
+  const before = slot === 'facts' ? alwaysOf(t.title, t.body) || null : String(t.rooms?.[slot]?.body ?? '') || null;
+  if ((before ?? '').trim() === asked) return { ok: false, said, why: `${hit.title}'s ${roomLabel(slot)} already says that` };
+  return { ok: true, change: { op: 'thread.set', title: hit.title, room: slot, text: asked, before,
+    ...(slot === 'facts' ? { body: draftBody(hit.title, asked) } : {}) } };
 }
 
 /** What a draft change did, in the writer's words: one line in the conversation. */

@@ -17,7 +17,7 @@ import { resolveBody, cardText, alwaysTrue, retiredAt, narrationOnly, quotedSpan
          weaveFit, actSpan } from './context.ts';
 import type { Block, Manifest } from './context.ts';
 import { presets } from './presets.ts';
-import { checkAsked, checkUndo, undoFor, wordsFor, checkDraft, draftWords, draftBody } from './changes.ts';
+import { checkAsked, checkUndo, undoFor, wordsFor, checkDraft, draftWords } from './changes.ts';
 import type { Change } from './changes.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
@@ -2798,11 +2798,11 @@ export const routes: Record<string, Handler> = {
       const k = checkDraft(raw, draft);
       if (!k.ok) { notDone.push({ said: k.said, why: k.why }); continue; }
       const ch: any = k.change;
-      if (ch.op === 'tale.set') draft.story = { ...draft.story, [ch.field === 'voice' ? 'writingStyle' : ch.field]: ch.text };
+      if (ch.op === 'tale.set') draft.story = { ...draft.story, [ch.key]: ch.text };
       else if (ch.op === 'thread.new') draft.entries.push(ch.thread);
       else if (ch.op === 'thread.remove') draft.entries = draft.entries.filter((e: any) => String(e.title).trim() !== ch.title);
       else draft.entries = draft.entries.map((e: any) => String(e.title).trim() !== ch.title ? e
-        : ch.room === 'facts' ? { ...e, body: draftBody(ch.title, ch.text) }
+        : ch.room === 'facts' ? { ...e, body: ch.body }
         : { ...e, rooms: { ...(e.rooms ?? {}), [ch.room]: { ...(e.rooms?.[ch.room] ?? { name: ch.room, on: true }), body: ch.text } } });
       // #99 · the page a thread was made or changed from, for its notes: writer-only, never sent to
       // a model, and never in its text.

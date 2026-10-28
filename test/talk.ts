@@ -1490,7 +1490,7 @@ ok('emptying the box gives her back the voice she shipped with');
 
   const by = (op: string) => r.changes.filter((x: any) => x.change.op === op);
   assert.strictEqual(r.changes.length, 4, `SETUP-CHANGES: all four asked changes come back (${JSON.stringify(r.notDone)})`);
-  assert.deepStrictEqual(by('tale.set')[0].change, { op: 'tale.set', field: 'premise',
+  assert.deepStrictEqual(by('tale.set')[0].change, { op: 'tale.set', field: 'premise', key: 'premise',
     text: 'Six houses, one winter, and every one of them lies.', before: 'Six houses have one winter to sign a peace.' },
     'SETUP-FIELD: the premise, with what it said before, for Undo');
   assert.deepStrictEqual(by('thread.remove')[0].change, { op: 'thread.remove', title: 'The Innkeeper' },
