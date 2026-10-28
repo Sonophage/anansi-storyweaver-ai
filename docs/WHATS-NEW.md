@@ -31,7 +31,13 @@ Ones you already have were cleaned once, after a backup, and the update report n
 ### Tidy joins two pockets that say the same thing
 When a thread has two pockets of one kind that overlap, such as two about the same person, Tidy
 offers one pocket that holds both. The card says which other pocket it replaces, and sewing it in
-leaves one pocket where there were two.
+leaves one pocket where there were two. The pocket that goes is kept in the thread's Alterations,
+and putting it back from there makes it again, switched off.
+
+### A deleted pocket can be put back
+In a thread's Alterations, an old version of a pocket that has since been deleted can now be put
+back. The pocket comes back switched off, under its old name; one deleted before today comes back
+named "Put back", for you to rename or move.
 
 ### Tidy settles Always true against where a thread stands
 If Always true and where the thread stands disagree, such as an age of 34 in one and "in his 30s"

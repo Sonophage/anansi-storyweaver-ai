@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 // The slot names live in one module because `entries.field_editors` keys provenance by them and
 // the partial unique index below names them as a literal. Three copies of one list is the drift
 // `src/blocks.ts` exists to stop for the block order; this is the same rule for slots.
-import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
+import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, TO_OVER_TIME, foldLine, plain, slotsFor, wrapperNames } from './slots.ts';
 import { factsLost } from './context.ts';
 import { isRemote } from './llama.ts';
 
@@ -392,6 +392,10 @@ function migrate() {
   add('proposals', 'pocket', 'TEXT');
   // #114. The other pockets a tidy's merged pocket replaces (JSON, addon ids): sewn in, they go.
   add('proposals', 'merges', 'TEXT');
+  // #114. A pocket's kind and name beside its old text in the history, so a pocket since deleted
+  // can be made again. Rows from before carry neither (`revertEntryField` says what it does then).
+  add('entry_revisions', 'slot', 'TEXT');
+  add('entry_revisions', 'name', 'TEXT');
   /* WHICH WORLD OR INTELLECTUAL PROPERTY A BOOK BELONGS TO, and what is true in it (2026-09-02).
    * Seth: "Is there a way in the story under the world tab I could add what world or ip it belongs
    * to? And have it hold some info about the world that way".
@@ -2692,7 +2696,7 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
       .get(a.id, storyId) as any;
     const from = 'fromChapter' in a ? (a.fromChapter ?? null) : (cur?.from_chapter ?? null);
     const till = 'retiredAtChapter' in a ? (a.retiredAtChapter ?? null) : (cur?.retired_at_chapter ?? null);
-    const was = q('SELECT body, entry_id FROM addons WHERE id = ?').get(a.id) as any;
+    const was = q('SELECT body, entry_id, slot, name FROM addons WHERE id = ?').get(a.id) as any;
     const wasBody = String(was?.body ?? '');
     // #111 · THE OLD TEXT IS KEPT, in the thread's own history beside its title and its text, under
     // `pocket:<id>`, so Alterations shows it and `revertEntryField` puts it back. Here because every
@@ -2700,8 +2704,8 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
     // the lookups. A tale's own pocket hangs off no thread, and the history is a thread's, so it is
     // not kept.
     if (was?.entry_id && a.body != null && String(a.body) !== wasBody)
-      q('INSERT INTO entry_revisions (id,entry_id,field,previous_value,replaced_at,replaced_by) VALUES (?,?,?,?,?,?)')
-        .run(uid('er-'), was.entry_id, `pocket:${a.id}`, wasBody, t, 'human');
+      q('INSERT INTO entry_revisions (id,entry_id,field,previous_value,replaced_at,replaced_by,slot,name) VALUES (?,?,?,?,?,?,?,?)')
+        .run(uid('er-'), was.entry_id, `pocket:${a.id}`, wasBody, t, 'human', was.slot, was.name ?? null);
     q(`UPDATE addons SET name = ?, body = ?, keys = ?, from_chapter = ?, retired_at_chapter = ?
        WHERE id = ? AND story_id = ?`)
       .run(a.name, a.body, keys, from, till, a.id, storyId);
@@ -2712,7 +2716,8 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
     touch(storyId);
     return a.id;
   }
-  const id = uid('ad-');
+  // #114 · A POCKET PUT BACK FROM THE HISTORY keeps the id its history rows name, while that id is free.
+  const id = a.restoreId && !q('SELECT 1 FROM addons WHERE id = ?').get(a.restoreId) ? String(a.restoreId) : uid('ad-');
   q(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,from_chapter,retired_at_chapter,created_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
     .run(id, storyId, entryId, slot, a.name, a.body, keys, slot === 'facts' && entryId ? 1 : 0,
@@ -2777,7 +2782,13 @@ export function unlinkEntries(storyId: string, id: string) {
   touch(storyId);
 }
 
-export function delAddon(storyId: string, id: string) {
+export function delAddon(storyId: string, id: string, keep = false) {
+  // #114 · KEEP: its text goes to the thread's history first, with its kind and name, so Alterations
+  // lists it and `revertEntryField` can make it again. Tidy's merge asks for it.
+  const a = keep ? q('SELECT * FROM addons WHERE id = ? AND story_id = ?').get(id, storyId) as any : null;
+  if (a?.entry_id && String(a.body ?? '').trim())
+    q('INSERT INTO entry_revisions (id,entry_id,field,previous_value,replaced_at,replaced_by,slot,name) VALUES (?,?,?,?,?,?,?,?)')
+      .run(uid('er-'), a.entry_id, `pocket:${a.id}`, a.body, now(), 'human', a.slot, a.name ?? null);
   q('DELETE FROM addons WHERE id = ? AND story_id = ?').run(id, storyId);
   touch(storyId);
 }
@@ -3259,7 +3270,8 @@ export const passageTakes = (storyId: string, id: string) => {
  *  which carry `label`, the name the writer knows them by. A pocket since deleted is labelled so. */
 export const entryHistory = (storyId: string, id: string) => q(
   `SELECT r.id, r.field, r.previous_value, r.replaced_at, r.replaced_by,
-     CASE WHEN r.field NOT LIKE 'pocket:%' THEN NULL WHEN a.id IS NULL THEN 'A pocket since deleted'
+     CASE WHEN r.field NOT LIKE 'pocket:%' THEN NULL
+       WHEN a.id IS NULL THEN 'A pocket since deleted' || COALESCE(': ' || NULLIF(TRIM(r.name), ''), '')
        WHEN a.slot = 'facts' THEN 'Always true' ELSE COALESCE(NULLIF(TRIM(a.name), ''), a.slot) END AS label
    FROM entry_revisions r JOIN entries e ON e.id = r.entry_id
    LEFT JOIN addons a ON r.field LIKE 'pocket:%' AND a.id = substr(r.field, 8) AND a.entry_id = r.entry_id
@@ -3277,7 +3289,7 @@ export function revertPassage(storyId: string, passageId: string, revisionId: st
 export function revertEntryField(storyId: string, entryId: string, revisionId: string) {
   // Was unscoped: holding your OWN story id was enough to rewrite another owner's entry,
   // because the gate checks the story in the body and this took neither.
-  const rev = q(`SELECT r.field, r.previous_value FROM entry_revisions r
+  const rev = q(`SELECT r.field, r.previous_value, r.slot, r.name, e.entry_type FROM entry_revisions r
                  JOIN entries e ON e.id = r.entry_id
                  WHERE r.id = ? AND r.entry_id = ? AND e.story_id = ?`)
     .get(revisionId, entryId, storyId) as any;
@@ -3288,7 +3300,17 @@ export function revertEntryField(storyId: string, entryId: string, revisionId: s
   if (String(rev.field).startsWith('pocket:')) {
     const a = q('SELECT * FROM addons WHERE id = ? AND entry_id = ? AND story_id = ?')
       .get(rev.field.slice('pocket:'.length), entryId, storyId) as any;
-    if (!a) return false;
+    // #114 · A POCKET SINCE DELETED IS MADE AGAIN, switched off, under the id its history names: its
+    // kind and name where the history kept them (since #114). An older row kept only the text, so it
+    // comes back as a pocket of the first kind this thread can hold many of, named "Put back", for
+    // the writer to move or rename. Always true is one per thread, so its text goes onto the one there.
+    if (!a) {
+      const many = slotsFor(rev.entry_type).find((sl) => !sl.exclusive)?.name;
+      const slot = rev.slot && (rev.slot === 'facts' || slotsFor(rev.entry_type).some((sl) => sl.name === rev.slot)) ? rev.slot : many;
+      if (!slot) return false;
+      return !!upsertAddon(storyId, entryId, { slot, name: rev.name || (slot === 'facts' ? 'facts' : 'Put back'),
+        body: rev.previous_value ?? '', keys: [], restoreId: rev.field.slice('pocket:'.length) });
+    }
     return !!upsertAddon(storyId, entryId, { id: a.id, slot: a.slot, name: a.name,
       body: rev.previous_value ?? '', keys: JSON.parse(a.keys || '[]') });
   }

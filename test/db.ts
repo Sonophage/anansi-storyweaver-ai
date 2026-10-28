@@ -3918,9 +3918,22 @@ ok('a pocket\'s or an Always true\'s old text is kept, and revert puts it back',
   const after = db.entryHistory(t.id, e) as any[];
   assert.ok(after.some((r) => r.previous_value === 'slow, formal') && after.some((r) => r.previous_value === 'a ferryman, fifty'),
     'POCKET-REVERT-KEPT: the text a revert writes over is kept in turn');
-  // A pocket that is gone has nothing to put the text back into, and the revert says no.
+  // #114 · A POCKET SINCE DELETED IS MADE AGAIN from its old text: with its kind and name where the
+  // history kept them, switched off, so nothing reaches the model until the writer turns it on.
   db.delAddon(t.id, voice);
-  assert.strictEqual(db.revertEntryField(t.id, e, was('short, flat').id), false, 'POCKET-REVERT-GONE: a deleted pocket is not put back');
+  assert.ok(db.revertEntryField(t.id, e, was('short, flat').id), 'POCKET-REVERT-GONE: a deleted pocket is put back');
+  const again = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === e && a.slot === 'voice');
+  assert.deepStrictEqual(again.map((a) => [a.name, a.body, a.active]), [['How he talks', 'short, flat', 0]],
+    '  made again with its kind, name and text, switched off');
+  // A row from before the history kept the kind (#111) has only the text: it comes back as a pocket of
+  // the thread's kind that holds many, named so the writer can tell what happened.
+  const raw = new RawDb('/tmp/anansi-test.db');
+  raw.prepare('INSERT INTO entry_revisions (id,entry_id,field,previous_value,replaced_at,replaced_by) VALUES (?,?,?,?,?,?)')
+    .run('er-oldgone', e, 'pocket:ad-long-gone', 'owes Aldis', Date.now(), 'human');
+  raw.close();
+  assert.ok(db.revertEntryField(t.id, e, 'er-oldgone'), 'POCKET-REVERT-OLD: an old row for a deleted pocket is put back too');
+  assert.ok((db.addonsOf(t.id) as any[]).some((a) => a.entry_id === e && a.body === 'owes Aldis' && a.active === 0
+    && a.slot === 'interiority'), '  as a switched-off pocket of a kind the thread can hold many of');
   db.delStory(t.id);
 });
 

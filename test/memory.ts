@@ -955,6 +955,15 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.match(rel.find((a) => a.id === ash).body, /drawn to her and patient/, '  holding the merged text');
   assert.match(rel.find((a) => a.id === marcus).body, /Wary of Marcus/, '  and the other pocket of the kind is rewritten on its own');
   assert.ok(!rel.some((a) => a.id === stranger), '  and the second is gone');
+  // #114 · AND IT IS NOT LOST: its text is in the thread's history, named, and putting it back makes the
+  // pocket again with its kind, name and text, switched off.
+  const gone = (db.entryHistory(t.id, seth) as any[]).find((r) => r.field === `pocket:${stranger}`);
+  assert.strictEqual(gone?.previous_value, 'a stranger to Ashley, and patient with her', 'MERGE-KEPT: the merged-away pocket\'s text is in the history');
+  assert.match(gone?.label ?? '', /The stranger/, '  under its name');
+  assert.ok(db.revertEntryField(t.id, seth, gone.id), 'MERGE-RESTORE: and the revert takes it');
+  const back = (db.addonsOf(t.id) as any[]).find((a) => a.entry_id === seth && a.name === 'The stranger');
+  assert.deepStrictEqual(back && [back.slot, back.body, back.active], ['relationships', 'a stranger to Ashley, and patient with her', 0],
+    'MERGE-RESTORED: the pocket is back with its kind, name and text, switched off');
 
   // A name that is not one of this thread's pockets of that kind merges nothing away.
   const other = db.upsertEntry(t.id, me, { title: 'Ashley', entryType: 'character', body: '28' })!;

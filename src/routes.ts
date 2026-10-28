@@ -3561,8 +3561,9 @@ export const routes: Record<string, Handler> = {
       : [],
     entry:   c.query.get('entry')   ? db.entryHistory(c.query.get('story')!, c.query.get('entry')!)     : [],
   }),
-  // A refusal says so (#111): a pocket since deleted has nothing to put its text back into, and the
-  // page showed "Put back." over a change that did not happen.
+  // A refusal says so (#111): a revision that is not this thread's, or a thread since deleted, has
+  // nothing to put its text back into, and the page showed "Put back." over a change that did not
+  // happen. A pocket since deleted is made again (#114).
   'POST /api/revert':      (c) => {
     const done = c.body.passageId ? db.revertPassage(c.body.storyId, c.body.passageId, c.body.revisionId)
       : db.revertEntryField(c.body.storyId, c.body.entryId, c.body.revisionId);
@@ -4951,7 +4952,7 @@ export const routes: Record<string, Handler> = {
         // pockets of the same thread and kind, in this tale (`delAddon` is scoped to the story).
         if (id && p.kind === 'tidy' && p.merges) {
           const mine = (db.addonsOf(p.story_id) as any[]).filter((a) => a.entry_id === p.entry_id && a.slot === p.field && a.id !== id);
-          for (const m of JSON.parse(p.merges) as string[]) if (mine.some((a) => a.id === m)) db.delAddon(p.story_id, m);
+          for (const m of JSON.parse(p.merges) as string[]) if (mine.some((a) => a.id === m)) db.delAddon(p.story_id, m, true);
         }
         // A ROOM WITH NO KEYS THAT NOBODY PINNED ON NEVER REACHES THE MODEL. That is the same
         // darkness `src/import.ts:127` refuses for an entry — keys or always-on, never neither —
