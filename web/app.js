@@ -2914,6 +2914,10 @@ function taleThread() {
   </div>`;
 }
 
+/** A chalked thread the tale does not have yet: Anyone new's on the setup. A new string is not one;
+ *  it is a pocket of the tale's own thread. */
+const isNewThread = (p) => p.kind === 'new' && p.entryType !== 'string';
+
 function deckCards(only = null) {
   // #127 · A CHALKED STRING IS A CARD HERE, with Sew it in (ADR 0011): the Strings screen is a list of
   // the tale's strings and no longer holds what Anansi chalks.
@@ -2925,7 +2929,10 @@ function deckCards(only = null) {
   const hems = (V?.chapters ?? []).filter((ch) => ch.hem).map((ch) => {
     const key = `scene:${ch.id}`, ps = all.filter((p) => p.grp === key);
     if (only ? !only.has(key) : !hemShows(ch, ps)) return null;
-    return { kind: 'hem', key, ch, ps, title: sceneName(ch), line: '',
+    // ON THE SETUP (`only`), What it left: its new threads are Anyone new's, and the summary and Set
+    // up the next scene stay on the Workbench (`inSetup`), so nothing is shown twice.
+    return { kind: 'hem', key, ch, ps: only ? ps.filter((p) => !isNewThread(p)) : ps, inSetup: !!only,
+      title: sceneName(ch), line: '',
       sub: ch.hem.state === 'running' ? 'Hemming this scene' : 'Hemmed scene' };
   }).filter(Boolean);
   const taken = new Set(hems.map((c) => c.key));
@@ -3024,7 +3031,7 @@ function hemCardParts(c) {
   for (const m of missedPasses(ch)) state.push(`<div class="line-8 wraps push-8"><span class="note">
     <span class="inked">${esc(m.label)}</span> did not run &mdash; ${esc(m.why)}</span>
     <button class="btn ghost" data-hemagain="${id}" data-pass="${esc(m.key)}">Try again</button></div>`);
-  const summary = running ? '' : `<label class="lbl sub-lbl" for="hemsum-${id}">${
+  const summary = running || c.inSetup ? '' : `<label class="lbl sub-lbl" for="hemsum-${id}">${
       ch.summaryAuthor === 'human' ? 'Your summary' : 'The summary'}</label>
     <textarea class="field" id="hemsum-${id}" data-hemsumtext="${id}" aria-label="The summary of ${esc(c.title)}"
       placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>`;
@@ -3042,7 +3049,7 @@ function hemCardParts(c) {
     <button class="btn ghost" data-hemextra="${id}">Chalk ${heldNew.length === 1 ? 'it' : 'these'} too</button>` : '';
   // ONE PRESS FOR THE NEXT SCENE (Seth, 2026-10-29): its title, note, opening and who is in it are
   // set up on the setup and nowhere else, so the card only opens it, on The next scene.
-  const setup = hemNext(ch) ? `<button class="btn ghost push-12" data-hemsetup="${id}">Set up the next scene &rarr;</button>` : '';
+  const setup = hemNext(ch) && !c.inSetup ? `<button class="btn ghost push-12" data-hemsetup="${id}">Set up the next scene &rarr;</button>` : '';
   const ids = esc(ps.map((p) => p.id).join(','));
   return {
     body: `${state.join('')}${summary}${threads}${overflow}${held}${setup}`,
@@ -6662,10 +6669,14 @@ function setupPanel() {
    * So: a `new` card is a thread this book does not have, which is what ANYONE NEW means whether he
    * offered it at the close or you asked for it a moment ago. Everything else — a change, a conflict,
    * a state, a retirement — writes into a thread you already have, which is what the chapter LEFT. */
-  const fresh = queue.filter((p) => p.kind === 'new');
+  // THE SCENE CARD'S NEW THREADS ARE ANYONE NEW'S TOO (Seth, 2026-10-29: nothing twice): the card
+  // on What it left leaves them out (`deckCards`), and they are drawn here with the rest.
+  const sceneNew = sceneCard ? sceneRows(justClosed).filter(isNewThread) : [];
+  const fresh = [...queue.filter((p) => p.kind === 'new'), ...sceneNew];
   const left = queue.filter((p) => p.kind !== 'new');
   // What step one counts: the changes, and the scene's card as its rows (one while it is running).
-  const leftN = left.length + (sceneCard ? Math.max(1, sceneRows(justClosed).length) : 0);
+  const sceneLeft = sceneCard ? sceneRows(justClosed).length - sceneNew.length : 0;
+  const leftN = left.length + (sceneLeft || (sceneCard && justClosed.hem.state === 'running' ? 1 : 0));
   // A chapter opens on two empty fields, and an empty field on a panel you did not ask for is a
   // field that stays empty — while the note is the one thing in this app that rides near the
   // generation point on every call. So Anansi fills them in, once. Seth: "chapter information
@@ -6830,7 +6841,8 @@ function setupPanel() {
         <button class="btn ghost flush fill" data-acceptall="new"
           >Sew in all ${plural(fresh.length, 'new thread', 'new threads')}</button>
         ${tipMark('setAddAll', 'Sew in all the new threads')}</div>` : ''}
-      <div class="stack-roomy">${deckHTML(new Set(fresh.map((p) => p.id)))}</div>` : ''}
+      <div class="stack-roomy">${/* One block per thread, drawn as What it left draws a thread. */
+        hemThreads(fresh).map(hemThreadBlock).join('')}</div>` : ''}
       <div class="lbl sect">Who is in it${
         tipMark('setWho', 'Who is in it')}</div>
       ${tipCard('setWho', 'Who is in it', `<p>Ticked means it is sent for this scene whether or not

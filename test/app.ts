@@ -6658,6 +6658,36 @@ const hemCardOf = (side: string) => {
   ok('the hem card is the summary, the threads and Set up the next scene, which opens The next scene');
 }
 
+// ---- NOTHING TWICE ACROSS THE SETUP (Seth, 2026-10-29). The summary lives on the Workbench, so What
+// it left does not repeat it, nor Set up the next scene, which it is already part of. A new thread a
+// hem chalked is Anyone new's, so What it left shows only the threads the tale has.
+{
+  const canned = (globalThis as any).fetch;
+  (globalThis as any).fetch = hemFetch(canned);
+  const settle = () => new Promise((r) => setTimeout(r, 40));
+  HEM_VIEW = hemView(HEM_DONE, HEM_ROWS);
+  click({ open: 's-1' }); await settle();
+  click({ panel: 'setup' }); await settle();
+  click({ setupstep: 'cards' }); await settle();
+  const left = html('sideBody');
+  const card = hemCardOf(left);
+  assert.match(card, /data-hemthread="e-1"/, 'SETUP-LEFT: What it left has the scene\'s card, with its threads');
+  assert.doesNotMatch(left, /data-hemsumtext=/, 'SETUP-LEFT-NOSUM: and not the summary, which is on the Workbench');
+  assert.doesNotMatch(left, /data-hemsetup=/, '  nor Set up the next scene');
+  assert.doesNotMatch(left, /The bellringer/, 'SETUP-LEFT-NONEW: nor a new thread, which is Anyone new\'s');
+  assert.match(card, /data-deckall="accept" data-ids="hs-1,hs-2,hs-3"[^>]*>Sew all/, '  and Sew all takes only what it shows');
+  assert.match(left, /1 &middot; What it left <span[^>]*>3</, '  and its count is the three changes');
+  assert.match(left, /3 &middot; Anyone new <span[^>]*>1</, "  and Anyone new's is the new thread");
+  click({ setupstep: 'more' }); await settle();
+  const more = html('sideBody');
+  assert.match(more, /data-hemthread="new:The bellringer"/, 'SETUP-NEW-HERE: the new thread is on Anyone new, as a thread block');
+  assert.doesNotMatch(more, /data-hemthread="e-1"|data-hemsumtext=/, '  and nothing of What it left is');
+  (globalThis as any).fetch = canned;
+  click({ skipsetup: '1' }); await settle();
+  click({ open: 's-1' }); await settle();
+  ok("What it left holds the scene's thread changes only; its new threads are on Anyone new");
+}
+
 // ---- #92 · HEM THIS SCENE OPENS THE NEXT ONE AT ONCE, and the card arrives without a reload.
 //
 // The route answers before the passes run (#89). The writer lands in the new scene, blank: the hem
