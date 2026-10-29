@@ -33,6 +33,17 @@ out of that scene. Type in the box to find another thread, and press it to bring
 When you asked Anansi for something else for the next scene, the card kept showing his first idea
 above the boxes, and Use these filled the next scene with that first idea. The card and Use these
 now show what the next scene holds: the newest idea, or what you typed.
+## 2026-10-29 · The header tells you when the Workbench has something new
+
+### The header tells you when the Workbench has something new
+When Anansi adds something to the Workbench (a suggestion, a string, a summary that needs writing
+again), a small Workbench mark with a number appears at the top of the screen, beside the menu
+button. The number is how many things were added since you last opened the Workbench. Tap it to open
+the Workbench, and the mark goes away. This device remembers what you have seen, tale by tale.
+
+### The Workbench number in the tale's menu sits beside its icon
+In the tale's menu, the Workbench number sat on its own line at the right edge, and made that row
+taller than the others. It is now beside the Workbench icon, and the icons and names line up again.
 
 ## 2026-10-28 · A new tale starts at its opening
 

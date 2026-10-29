@@ -109,6 +109,23 @@ export const waiting = (list, me = null) => {
   ].filter(Boolean);
 };
 
+/** WHAT IS NEW ON THE WORKBENCH, for the mark in the header (Seth, 2026-10-29: "we need a
+ *  notification in the header for when the Workbench has new additions").
+ *
+ *  A card's PARTS are what can be added to it. A chalked group's key is its ids joined, so it
+ *  changes when one of them is sewn in; its parts are the ids, and losing one adds nothing. Any other
+ *  card is its own key, plus whatever it has chalked: a hemmed scene seen while it ran and since
+ *  chalked something has had something added. */
+const partsOf = (c) => {
+  const ids = (c?.ps ?? []).map((p) => p.id);
+  return c?.kind === 'chalk' ? ids : [c?.key, ...ids];
+};
+/** Every part on the bench now: what is written down as seen when the writer opens it. */
+export const benchParts = (cards) => (cards ?? []).flatMap(partsOf);
+/** How many cards hold a part not in `seen`. */
+export const benchUnseen = (cards, seen) =>
+  (cards ?? []).filter((c) => partsOf(c).some((k) => !seen.has(k))).length;
+
 // The labels on the dropdown. They name where the camera stops, because that is what the level
 // IS — the lines these stand for are in src/context.ts and they say the same thing at length.
 export const SPICE = [
