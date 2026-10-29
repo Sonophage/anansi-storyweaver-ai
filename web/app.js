@@ -4644,11 +4644,6 @@ const PANELS = {
                tipMark('chAddAll', 'Sew in all of them')}</div>` : ''}
       ${shown.map(proposalCard).join('') || `<div class="hint flush">${
         ps.length ? 'Nothing of that kind.' : 'Nothing chalked. Hemming a scene reads it for new threads and for what it did to the people in it.'}</div>`}
-      ${(V.proposals ?? []).some((p) => p.entryType === 'string')
-        ? `<button class="btn ghost push-6" data-panel="strings">${
-            (V.proposals ?? []).filter((p) => p.entryType === 'string').length} string${
-            (V.proposals ?? []).filter((p) => p.entryType === 'string').length === 1 ? '' : 's'
-          } chalked &mdash; they wait under Strings</button>` : ''}
       <button class="btn ghost push-6" data-extract="1">Read this scene for threads</button>
       <!-- POST /api/remember was finished, tested, and reachable from nowhere until 2026-08-27.
            Closing a chapter runs it; this is the way back when the router was down at the time,

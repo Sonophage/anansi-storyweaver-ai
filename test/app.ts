@@ -1584,9 +1584,11 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.match(chapter, /Witness rite/, 'the chapter queue keeps the thread proposals');
   assert.doesNotMatch(chapter, /The debt nobody has called in/,
     'and does not also show the string, which would be two places to answer one offer');
-  assert.match(chapter, /1 string chalked &mdash; they wait under Strings/,
-    'it says where the string went rather than silently dropping it from the count');
-  ok('a proposed string waits under Strings, and the chapter queue says so');
+  // #129 · The queue used to say "they wait under Strings". A chalked string is a Workbench card now
+  // (#127), and Strings lists only the tale's own, so that line sent the writer to the wrong place.
+  assert.doesNotMatch(chapter, /string chalked|wait under Strings/,
+    'CHALK-NO-STRINGS: the chapter queue does not send a chalked string to Strings');
+  ok('a proposed string waits on the Workbench, and the chapter queue does not send it to Strings');
 
   // THE THREE KINDS ARE THREE DECISIONS. `new` adds a card that does not exist, `conflict` updates
   // one that does, `changed` edits one room of one. They were in a single stack, so a chapter's

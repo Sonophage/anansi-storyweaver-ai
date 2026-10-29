@@ -23,7 +23,8 @@ Open the tale's own thread, the first card in Threads, and under Rules you now f
 and its Open questions. Each is listed as it is under Strings: its name, a line of it, and its
 On or Off switch. Tap one to open it. The ones still open come first, and the ones tied off or let
 go come after them. Each list has its own Add button, which opens the box with that kind already
-chosen. Strings still has the same lists, as a shortcut.
+chosen. Strings still has the same lists, as a shortcut. The Chapter panel no longer says that
+chalked strings wait under Strings: they wait on the Workbench.
 
 ### Add a string the way you add a pocket
 The ＋ at the top of Strings opens the same full-screen box a pocket opens in. Choose a promise or
