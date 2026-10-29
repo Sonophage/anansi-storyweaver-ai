@@ -14,7 +14,7 @@ import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultMode
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
 import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, narrationOnly, retirable, fires, summaryReaches,
-         weaveFit, actSpan, hasReplaced, reweaveOf } from './context.ts';
+         weaveFit, actSpan, reweaveOf } from './context.ts';
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
@@ -508,8 +508,9 @@ function libraryOf(all: Record<string, string>) {
   }
   return out;
 }
-// `reweave` is shown as the engine will send it: a line saved before 2026-10-29, which has no
-// `{{replaced}}`, comes back at the end of the shipped wording (`reweaveOf`), ready to save whole.
+// `reweave` is shown as the engine will send it, repaired by `reweaveOf`: a frame saved around the
+// old `{{replaced}}` comes back as the shipped one, and a line with no `{{whatfailed}}` comes back at
+// the end of the shipped wording, ready to save whole.
 const modesOnly = (all: Record<string, string>) =>
   Object.fromEntries(Object.entries(all).filter(([k]) => EDITABLE_PROMPTS.includes(k))
     .map(([k, v]) => [k, k === 'reweave' ? reweaveOf(v) : v]));
@@ -1132,9 +1133,10 @@ export function withoutEcho(body: string, card: string) {
  *  every time. Four presses in her log, three of them inside ninety seconds.
  *
  *  So there is no separate re-roll wording any more. From 2026-09-18 the prompt a re-roll sent was
- *  byte-identical to the one that produced the passage. Since 2026-10-29 (docs/adr/0012) it is that
- *  prompt with the replaced take, and the writer's note on it (`whatFailed`), framed in MODE after
- *  the same instruction. `test/scope.ts` holds the two prompts side by side.
+ *  byte-identical to the one that produced the passage, and with no note it still is. Since
+ *  2026-10-29 (docs/adr/0012) the writer's note on the take (`whatFailed`) follows the same
+ *  instruction in MODE, framed by When you reweave. The take itself is not sent: for part of that day
+ *  it was, and the model continued it or copied it. `test/scope.ts` holds the two prompts side by side.
  *
  *  An explicit value in the request always wins: that is the writer typing a new one. A passage
  *  written before `mode` was recorded (#14) has none, and falls back to the composer's, which is
@@ -3672,12 +3674,6 @@ export const routes: Record<string, Handler> = {
       if (name.length > 60) return { error: 'that name is too long — sixty characters at most' };
     } else if (!EDITABLE_PROMPTS.includes(key) && key !== 'voice' && key !== 'anansi') {
       return { error: `there is no mode called "${key}"` };
-    }
-    // THE REWEAVE INSTRUCTION MUST KEEP THE PLACE THE TAKE GOES. Without `{{replaced}}` a reweave
-    // never shows the take it replaces, which is the September bug. Refused here, so the box keeps
-    // what the writer typed; empty is still the reset. Older lines are repaired on read (`reweaveOf`).
-    if (key === 'reweave' && String(c.body.text ?? '').trim() && !hasReplaced(String(c.body.text))) {
-      return { error: 'the reweave instruction needs {{replaced}}, where the version being replaced goes' };
     }
     const saved = db.setPrompt(c.owner, key, String(c.body.text ?? ''));
     return { ...promptsPayload(c.owner), reset: saved === null };

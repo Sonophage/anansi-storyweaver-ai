@@ -1599,15 +1599,16 @@ function passageHTML(p, newest, opening) {
    * TWO FIELDS (Seth, 2026-10-29: "reweave needs two fields: original instruction and what didn't
    * work about the last one"). The instruction, and What didn't work, optional and empty at the
    * start. Both are drawn from S.reroll, which the input listener below keeps in step, so a repaint
-   * keeps what was typed. The server sends the note after the take it replaces (docs/adr/0012). */
+   * keeps what was typed. The server sends the note after the passage's own instruction, framed by
+   * When you reweave, and never the passage being replaced (docs/adr/0012). */
   const firstLine = String(p.body ?? '').split('\n').map((l) => l.trim()).find(Boolean) ?? '';
   const rr = S.reroll?.id === p.id ? `<div class="rerollbox" role="dialog" aria-label="Reweave this passage">
     <div class="rwhead">
       <div class="lbl flush wide">Reweave from this instruction</div>
       <div class="rwquote serif">${esc(firstLine.length > 140 ? firstLine.slice(0, 139) + '\u2026' : firstLine)}</div>
       <div class="hint flush">Change it, or write one, and the new version is woven from it.
-        Leave it, or leave it empty, and you get another version of the same instruction. Anansi is shown the
-        passage you have now as the one being replaced, with what didn't work if you say. The passage
+        Leave it, or leave it empty, and you get another version of the same instruction. Anansi does
+        not see the passage you have now, so say what didn't work if you want it avoided. The passage
         is kept either way, in Alterations.</div>
     </div>
     <div class="rwrow">
@@ -8511,8 +8512,7 @@ function writingDefaults() {
       ${tipCard('genPrompts', 'The five modes', `<p>Yours on every tale, not on one,
         and they reach the model exactly as written &mdash; nothing is added between the box and the
         model. Reweave runs the passage's own mode instruction again, then the last box,
-        <strong>When you reweave</strong>: how to treat the version being replaced and what didn't
-        work. Read one in
+        <strong>When you reweave</strong>, around what you say didn't work. Read one in
         <strong>What he reads &rarr; Exactly as sent</strong> before you trust it.</p>`)}
       ${(() => {
         // The shipped wording comes from the server, rendered by the engine itself, so the box
@@ -8522,8 +8522,8 @@ function writingDefaults() {
         // THE KEYS OF `defaults`, in the order the server builds them from EDITABLE_PROMPTS in
         // story.ts, which is also the route's allow-list: one list, so a box drawn here is a key
         // the route saves and the engine reads. The five modes, then `reweave`, which is not a
-        // mode: the reweave instruction sent AFTER the passage's own instruction, around the take
-        // being replaced (`REWEAVE` in context.ts, docs/adr/0012). The 2026-09 `regenerate`
+        // mode: the frame sent AFTER the passage's own instruction, around the writer's What didn't
+        // work note (`REWEAVE` in context.ts, docs/adr/0012). The 2026-09 `regenerate`
         // wording REPLACED that instruction and named the passage being re-rolled, the one passage
         // a re-roll's prompt then left out; see EDITABLE_PROMPTS.
         return Object.keys(defaults).map((k) => {
@@ -8540,18 +8540,18 @@ function writingDefaults() {
               <span class="count-12">${open ? '\u2212' : '+'}</span>
             </button>
             ${open ? `${rw ? tipCard(`prompt-${k}`, name, `<p>What a reweave says after the
-                passage's own instruction, on a reweave only. <code>{{replaced}}</code> is the
-                version being replaced. <code>{{whatfailed}}</code> is what you write in What didn't
-                work; when you leave that empty, its whole line is left out. Save refuses a version
-                without <code>{{replaced}}</code>. A line you saved here before 29 October is kept,
-                at the end of Anansi's own wording. Press Reset to have Anansi's own again.</p>`) : tipCard(`prompt-${k}`, `The ${k} instruction`, `<p>Replaces the whole
+                passage's own instruction, around your note. <code>{{whatfailed}}</code> is what you write in What didn't
+                work. The version being replaced is not sent, so the wording has to make sense
+                without it. When you leave What didn't work empty, nothing from this box is sent.
+                Wording with no <code>{{whatfailed}}</code> is sent after Anansi's own. Press Reset
+                to have Anansi's own again.</p>`) : tipCard(`prompt-${k}`, `The ${k} instruction`, `<p>Replaces the whole
                 instruction for this mode. Reweave runs the instruction the passage was
                 written with again, so this is what it says on the way back round too. ${
                 k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
                   k === 'speak' || k === 'act' ? '<code>{{speaker}}</code> is whoever you play. ' : ''}
                 Empty it and press Save, or press Reset, to have Anansi's own
                 again.</p>`)}
-              <textarea class="field" data-prompttext aria-label="${rw ? 'The whole reweave instruction'
+              <textarea class="field" data-prompttext aria-label="${rw ? 'The wording around what did not work'
                 : `The whole instruction for ${esc(k)}`}"
                 style="min-height:132px; font-family:ui-monospace,monospace;
                 font-size:11.5px; line-height:1.5">${esc(mine ?? defaults[k] ?? '')}</textarea>
@@ -10626,8 +10626,8 @@ async function regenerateInto(id, steer, seed, again = null, why = '') {
     // mentions it. Without a steer nothing changes: the mode stays whatever the composer says and
     // the server inherits the passage's own instruction.
     ...(steer ? { mode: 'direct', directive: steer } : {}),
-    // WHAT DIDN'T WORK, from the Reweave box: the writer's note on the take being replaced, which
-    // the server sends after it (docs/adr/0012). Left out when empty.
+    // WHAT DIDN'T WORK, from the Reweave box: the writer's note on the take being replaced. The
+    // server sends the note, framed, and not the take (docs/adr/0012). Left out when empty.
     ...(why ? { whatFailed: why } : {}),
     // THE SAME NUMBER, DELIBERATELY. Without one the server mints a fresh seed and the take is a
     // new roll of the dice; with it the only remaining variables are the sampler and the prompt,
