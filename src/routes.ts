@@ -1180,9 +1180,10 @@ const wove = (reply: { weaves: boolean; maxTokens: number },
            ...(r.retried ? { retried: true } : {}) };
 };
 
-/** #62 · THE REPETITION GUARD FOR REMOTE PROSE, AND IT IS OFF. On this machine the DRY sampler
- *  keeps a passage out of a loop; Featherless is not sent DRY (it does not document it), so a remote
- *  passage has no guard, and Anubis-70B wrote two takes that were nothing but exclamation marks
+/** #62 · THE REPETITION GUARD FOR REMOTE PROSE, AND IT IS OFF. Neither side runs one: DRY is off on
+ *  this machine too (`dry_multiplier: 0` in serve.ts's GEN, in both writers' saved samplers and in the
+ *  router's own defaults, checked 2026-10-29), and Featherless is not sent DRY (it does not document
+ *  it). Anubis-70B wrote two takes that were nothing but exclamation marks Anubis-70B wrote two takes that were nothing but exclamation marks
  *  (4,977 and 1,803 characters, 2026-10-22). Featherless documents `repetition_penalty`. A number is
  *  set here only once a run has shown it helps: null sends nothing. Only remote prose would carry
  *  it, and the writer's sampler, spread after it, wins.
@@ -1192,7 +1193,10 @@ const wove = (reply: { weaves: boolean; maxTokens: number },
  *  echo Seth saw (a phrase copied from one passage into the next) did not occur in the control arm,
  *  0 of 18 takes ran away, and the length cost did not repeat.
  *  ponytail: stays null until a run shows a benefit. The trigger to re-run is a remote book whose
- *  last passage carries an echoed phrase, fixed for the run, so the control arm has echo to lose. */
+ *  last passage carries an echoed phrase, fixed for the run, so the control arm has echo to lose.
+ *  The echo in the library (2026-10-29) sat with a low top_p (0.41, 0.55) and Direct's old "Re write"
+ *  line, not with the absent penalty: remote Direct takes at top_p 0.95 echoed 0.3% of 8-word runs,
+ *  at under 0.9 18%. F64's arms ran at 0.95 in Continue, which is why its control echoed nothing. */
 export const REMOTE_REPETITION_PENALTY: number | null = null;
 
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',

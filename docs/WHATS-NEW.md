@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Direct no longer asks for a rewrite
+The instruction Direct sends now opens **Write what happens next, based on this:** instead of "Re
+write what happens based on this:". Some Featherless models read "Re write" literally and gave back
+the passage above almost word for word, with your instruction dropped into it. If you wrote your own
+Direct prompt, it is used as written.
+
 ### A model's page says how much it reads and how fast, in words
 Each model's page now says how much Anansi reads at once (the context) and how fast he writes, in
 words. A Featherless model is no longer shared: it reads as much as the model holds, and its cost is

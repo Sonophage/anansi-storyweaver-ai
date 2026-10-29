@@ -231,22 +231,16 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
     + 'Write the one thing that follows from it — what it costs, or what it gets.\n'
     + `Do not decide what ${who || 'that character'} does next. Do not restate the action.`,
 
-  /* Seth's wording, 2026-09-01, verbatim: "the direct command by default should say Re write what
-   * happens based on this: {{directive}}". The opening line was `Write what happens next:`.
+  /* "Write what happens next, based on this:" since 2026-10-29. From 2026-09-01 it opened "Re write
+   * what happens based on this:", on the argument that this one string is also every re-roll of a
+   * directed passage (`inherit` in routes.ts). That argument stopped holding on 2026-09-18: a re-roll
+   * of passage N is assembled from the passages before N, so "Re write" pointed at N-1, the last
+   * passage the model could see. On a first press it pointed at the same passage. Remote models
+   * read it literally: Mythos-27B on Featherless gave back passage 31 nearly word for word with the
+   * directive spliced in (80% of its 8-word runs). "based on this:" is kept, and the tests match it.
    *
-   * ONE LINE CHANGED, and the three below it are untouched, because those three are what F29 cut
-   * this prompt down to and they are not being reworded in the same breath.
-   *
-   * WHY IT MATTERS THAT THIS LINE IS ALSO THE REROLL'S LINE. `inherit()` in routes.ts turns a
-   * regenerate of a directed passage back into mode `direct` carrying the stored directive, so this
-   * one string is both the first pass and every re-roll of it. That is why "Re write" reads
-   * correctly on a re-roll — and it is also the open question, since a FIRST Direct press now says
-   * rewrite when there is nothing yet to rewrite. Flagged to Seth rather than split on my own
-   * judgement: splitting it means two strings to keep in step and a second thing for the prompts
-   * editor to show.
-   *
-   * Spelling kept as given, "Re write" and not "Rewrite". */
-  direct: (d) => `Re write what happens based on this: ${d}\n\n`
+   * The three lines below it are what F29 cut this prompt down to and are untouched. */
+  direct: (d) => `Write what happens next, based on this: ${d}\n\n`
     + 'Cover that and nothing beyond it. Do not narrate past the instruction, and do not resolve it\n'
     + 'faster than the scene wants. The length follows the instruction: a small one is a small\npassage.',
 

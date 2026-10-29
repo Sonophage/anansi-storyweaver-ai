@@ -289,7 +289,7 @@ Do not decide what {{speaker}} does next. Do not restate the action.
 
 **Direct** — the only mode whose text is an instruction.
 ```
-Re write what happens based on this: {{directive}}
+Write what happens next, based on this: {{directive}}
 
 Cover that and nothing beyond it. Do not narrate past the instruction, and do not resolve it
 faster than the scene wants. The length follows the instruction: a small one is a small
