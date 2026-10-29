@@ -132,6 +132,13 @@ export interface Input {
    *  story.ts. Added AFTER the mode's instruction in the MODE block, never in place of it. Empty or
    *  absent adds nothing. NOT MEASURED: no run has compared a reweave with and without it. */
   reweave?: string;
+  /** THE TAKE A REWEAVE REPLACES, set only on a reweave and resolved above the line in story.ts.
+   *  Sent in the MODE block after the instruction, framed as the version being replaced and never
+   *  as prose (docs/adr/0012). NOT MEASURED against the plain reweave it replaced. */
+  replacing?: string;
+  /** WHAT DID NOT WORK in that take, in the writer's words from the Reweave box. Optional, and only
+   *  read when `replacing` is set: a note about a take that is not in the prompt names nothing. */
+  whatFailed?: string;
   /** Roughly how long the writer wants a passage, in words. Zero or absent is "let her decide",
    *  and then NOTHING about length reaches the model — which is the shipped default.
    *
@@ -1396,6 +1403,9 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // outlived the thing it named, which is how a comment starts lying.
   const last = passages.at(-1)?.body ?? '';
   const unfinished = last.length > 0 && !/[.!?"'”’]\s*$/.test(last.trimEnd());
+  // ponytail: a reweave of a Narrate passage that answered an unfinished line sends no MODE block,
+  // so it sends no replaced take and no note either. Revisit if writers reweave mid-sentence
+  // answers and say the note is ignored: the frame would need a wording that keeps the mid-thought.
   if (!(input.mode === 'narrate' && unfinished)) {
     // A stale browser tab still sends the old mode names. Falling back to the neutral mode
     // beats a 500 from an undefined lookup, which is what a reload would otherwise produce.
@@ -1419,7 +1429,35 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // with no control arm behind it, off until the writer writes one, and it names no passage —
     // see EDITABLE_PROMPTS in story.ts for the 2026-09 re-roll wording that did.
     const note = input.reweave?.trim();
-    const text = note ? `${said}\n${note}` : said;
+    /* THE TAKE A REWEAVE REPLACES, after the instruction and before the writer's notes (Seth,
+     * 2026-10-29; docs/adr/0012). This REVERSES the September rule that kept the take out of the
+     * prompt. That rule was right about the failure and wrong about the cure: the 2026-09 wording
+     * named a passage the prompt did not contain, so the model took the last passage it COULD see
+     * and rewrote that one. Here the take IS in the prompt, and the frame does three things the old
+     * wording did not:
+     *   - it sits in MODE, after the instruction, so the passage before is still the last PROSE
+     *     and every "the passage above" in a mode's wording still points at it;
+     *   - it is fenced and called the version being replaced, never prose, because SYSTEM says to
+     *     continue from the final word of the text and the take would otherwise be that word;
+     *   - it says where to start (where the prose above stops) and names both wrong readings,
+     *     a continuation of the take and a rewrite of the passage before it.
+     * SHAPES, NO EXAMPLES: the real model copies quoted text, so nothing here is a sample sentence.
+     * NOT MEASURED against the plain reweave; owed an A/B (bench/ab.ts, two arms at once). */
+    const replacing = input.replacing?.trim();
+    const failed = replacing ? input.whatFailed?.trim() : undefined;
+    const frame = replacing
+      ? '[THE VERSION BEING REPLACED. This is what was written for the instruction above, and the '
+        + 'writer does not want it. It is not part of the story, and it is not prose to continue '
+        + 'from.]\n'
+        + `${replacing}\n`
+        + '[END OF THE VERSION BEING REPLACED.]\n'
+        + 'Write a new version of that same passage, to take its place. Start where the prose above '
+        + 'stops, the same place the replaced version starts. It is not a continuation of the '
+        + 'replaced version, and it is not a rewrite of the passage before it. Do not copy its '
+        + 'sentences.'
+        + (failed ? `\n[What did not work in the replaced version, in the writer's words: ${failed}]` : '')
+      : '';
+    const text = [said, frame, note].filter(Boolean).join('\n');
     // THE LENGTH TARGET, and everything about where it sits is deliberate.
     //
     // Appended here rather than written into the MODE map, because those five strings are what
@@ -1439,7 +1477,8 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     const target = Number(input.targetWords) || 0;
     add('MODE', 'mode', target > 0 && input.mode !== 'talk'
       ? `${text}\nAim for roughly ${target} words, and stop sooner if the beat is done.` : text,
-      `mode:${key}${own ? ' · yours' : ''}${note ? ' · reweave' : ''}`);
+      `mode:${key}${own ? ' · yours' : ''}${replacing ? ' · replacing a take' : ''}`
+      + `${failed ? ' · what did not work' : ''}${note ? ' · reweave' : ''}`);
   }
 
   // ponytail: ceilings and a hard refusal, no budget engine. No reservation, no trim ladder, and no

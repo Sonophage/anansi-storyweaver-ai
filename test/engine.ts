@@ -541,7 +541,8 @@ ok('a 120-chapter book forgets its distant past, in one piece, and acts get it b
  *
  * A re-roll of passage N is assembled from the passages BEFORE N — `assemble` filters
  * `ordinal < upToOrdinal`, so a new take is not written with knowledge of what came after it, and
- * the take being replaced is not in the prompt either. From 2026-09-01 a wording of its own rode
+ * the take being replaced was not in the prompt either (since 2026-10-29 it is, framed in MODE as
+ * the version being replaced: docs/adr/0012). From 2026-09-01 a wording of its own rode
  * with it, "Write this passage again", pointing at exactly the passage that had been cut. The last
  * passage the model could see was N-1, so it wrote N-1 again: press Regenerate on the model's
  * answer and you were handed back your own paragraph.
@@ -549,7 +550,7 @@ ok('a 120-chapter book forgets its distant past, in one piece, and acts get it b
  * The engine cannot see which passage is being re-rolled — that is the route's to know. What it
  * CAN hold is the rule the wordings have to obey: they may point at what is in the prompt ("the
  * passage above", "the last passage") and never at what is not. `test/scope.ts` holds the other
- * half, that a re-roll's prompt is the prompt that wrote the passage, to the byte.
+ * half, that a re-roll's prompt is the prompt that wrote the passage, plus the framed take.
  */
 ok('no mode instruction points at a passage the prompt does not contain', () => {
   const modeText = (o: any) =>

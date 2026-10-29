@@ -1121,16 +1121,17 @@ export function withoutEcho(body: string, card: string) {
  *
  *  THIS IS THE WHOLE OF THE FIX FOR 2026-09-18, and the bug is worth keeping written down. The
  *  prompt for a re-roll of passage N stops at N-1: `assemble` filters `ordinal < upToOrdinal`, so
- *  the take being replaced is deliberately not in it — regenerating passage 3 of 50 must not see
+ *  the take being replaced is not in it as prose — regenerating passage 3 of 50 must not see
  *  the 47 that follow. From 2026-09-01 the instruction that rode with it was `MODE.regenerate`,
  *  *"Write this passage again"* — naming a passage the prompt does not contain. The last passage
  *  the model could see was N-1, so it wrote N-1 again. In a book where the writer narrates her own
  *  prose and the model answers, that means pressing Regenerate handed her back her own paragraph,
  *  every time. Four presses in her log, three of them inside ninety seconds.
  *
- *  So there is no separate re-roll wording any more. The prompt a re-roll sends is byte-identical
- *  to the one that produced the passage, seed aside, and that is what "again" can honestly mean
- *  when the passage itself is not in the room. `test/scope.ts` holds the two prompts side by side.
+ *  So there is no separate re-roll wording any more. From 2026-09-18 the prompt a re-roll sent was
+ *  byte-identical to the one that produced the passage. Since 2026-10-29 (docs/adr/0012) it is that
+ *  prompt with the replaced take, and the writer's note on it (`whatFailed`), framed in MODE after
+ *  the same instruction. `test/scope.ts` holds the two prompts side by side.
  *
  *  An explicit value in the request always wins: that is the writer typing a new one. A passage
  *  written before `mode` was recorded (#14) has none, and falls back to the composer's, which is
@@ -1141,8 +1142,11 @@ export function withoutEcho(body: string, card: string) {
  *  reads a row. */
 function inherit(c: Ctx, mode: string, directive?: string) {
   if (!c.body.regenerateOf) return { mode, directive, speaker: c.body.speaker };
+  // WHAT DID NOT WORK, from the Reweave box (docs/adr/0012). Here so the generation and the
+  // Context panel's preview read it from one place; only a reweave carries it.
+  const whatFailed = typeof c.body.whatFailed === 'string' ? c.body.whatFailed : undefined;
   const own = db.passageAsked(c.body.storyId, String(c.body.regenerateOf));
-  if (!own) return { mode, directive, speaker: c.body.speaker };
+  if (!own) return { mode, directive, speaker: c.body.speaker, whatFailed };
   // `direct` is the only mode whose template takes the directive — speak and act take a speaker
   // and ignore it — so a stored directive still decides the mode, ahead of the stored one.
   const d = directive?.trim() ? directive : (own.directive?.trim() ? own.directive : undefined);
@@ -1150,6 +1154,7 @@ function inherit(c: Ctx, mode: string, directive?: string) {
     mode: directive?.trim() ? mode : (own.directive?.trim() ? 'direct' : (own.mode || mode)),
     directive: d,
     speaker: c.body.speaker ?? own.speaker ?? undefined,
+    whatFailed,
   };
 }
 
@@ -1183,7 +1188,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   // against a book that is about to change under it. Only when a writer is here: a bench harness
   // counting generations is not standing behind anything.
   if (onDelta) db.claimPassages(c.body.storyId);
-  const { mode, directive, speaker } = inherit(c, mode0, directive0);
+  const { mode, directive, speaker, whatFailed } = inherit(c, mode0, directive0);
   /*  WHAT THE ROW DOES NOT SAY YET. `latency_ms` below starts at `t0`, which is AFTER the view,
    *  after the assembly and after the /tokenize round trip — so every latency number this project
    *  has ever quoted, F24 and F49 included, is the model call alone and the wall clock a writer
@@ -1211,7 +1216,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   // writer pressed Write anyway. An overflow is refused either way: writing anyway cannot fit it.
   const { reply, manifest, prompt, stop } = weaveAssemble(c, v, role, proseCap(c), (cap) =>
     assemble(v, slotFor(c, v, using), mode, directive, upTo, cap, speaker || undefined,
-      db.promptsOf(c.owner), Number(c.gen.target_words) || 0));
+      db.promptsOf(c.owner), Number(c.gen.target_words) || 0, whatFailed));
   const mTokenize = performance.now();
   if (stop) return stop;
   if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
@@ -4551,7 +4556,7 @@ export const routes: Record<string, Handler> = {
     // and it carries the same `weaveFit` the press would be refused with.
     const { manifest, prompt, refusal } = weaveAssemble(c, v, 'prose', proseCap(c), (cap) =>
       assemble(v, slotFor(c, v, writerModel(c, v)), m0.mode, m0.directive, upTo, cap,
-        m0.speaker || undefined, db.promptsOf(c.owner), Number(c.gen.target_words) || 0));
+        m0.speaker || undefined, db.promptsOf(c.owner), Number(c.gen.target_words) || 0, m0.whatFailed));
     let exact: number | null = null;
     try { exact = await count(prompt, writerModel(c, v)); } catch { /* model asleep */ }
     return { manifest, prompt, exact, weaveFit: refusal };

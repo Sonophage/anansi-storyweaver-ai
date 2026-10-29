@@ -2064,12 +2064,19 @@ async function bootServer(port: number, env: Record<string, string>) {
     chapterId: aStory.chapterId, body: 'She does not answer.', author: 'model', mode: 'narrate' })!;
   const again: any = await routes['POST /api/manifest'](ctx(alice,
     { storyId: aStory.id, regenerateOf: answer, mode: 'continue' }));
-  assert.strictEqual(again.prompt, first.prompt,
-    'a re-roll must send the prompt that wrote the passage, to the byte');
+  /* REVERSED 2026-10-29 (docs/adr/0012). The re-roll's prompt was byte-identical to the one that
+   * wrote the passage; Seth asked for the take that did not work to be sent as well. So the prompt
+   * is now the one that wrote the passage, block for block, and its MODE block STARTS with the
+   * same instruction and then carries the take, framed. The next block holds the framing. */
+  const modeText = (m: any) => m.manifest.blocks.find((b: any) => b.kind === 'MODE')?.text ?? '';
+  const others = (m: any) => m.manifest.blocks.filter((b: any) => b.kind !== 'MODE')
+    .map((b: any) => `${b.kind}|${b.state}|${b.text}`);
+  assert.deepStrictEqual(others(again), others(first),
+    'a re-roll sends every block that wrote the passage, unchanged, apart from MODE');
+  assert.ok(modeText(again).startsWith(`${modeText(first)}\n`),
+    'and its MODE block opens with the instruction that wrote the passage');
   assert.doesNotMatch(again.prompt, /Carry the scene forward/,
     "the composer's mode must not leak into a re-roll — the passage decides");
-  assert.doesNotMatch(again.prompt, /She does not answer/,
-    'and the take being replaced stays out of it, or the re-roll is written against itself');
 
   /* THE FAILURE ITSELF, stated as its own assertion so it cannot come back quietly: no instruction
    * may point at the passage being re-rolled, because that passage is the one thing the prompt
@@ -2117,12 +2124,13 @@ async function bootServer(port: number, env: Record<string, string>) {
     { storyId: aStory.id, regenerateOf: take, mode: 'continue' })) as any);
   const modeOf = (m: any) => m.manifest.blocks.find((b: any) => b.kind === 'MODE')?.text ?? '';
 
-  // EMPTY ADDS NOTHING. With no line saved, a reweave's MODE block is the narrate instruction alone.
+  // EMPTY ADDS NOTHING. With no line saved, a reweave's MODE block is the narrate instruction and
+  // the framed take it replaces (docs/adr/0012), and nothing after them.
   const bare = await reweave();
   const narrate = modeOf(bare);
   assert.match(narrate, /written by the author/, 'a reweave of a narrated passage runs narrate');
-  assert.strictEqual(narrate, modeOf(await routes['POST /api/manifest'](ctx(alice,
-    { storyId: aStory.id, mode: 'narrate' }))), 'and with no line saved, nothing is added to it');
+  assert.match(narrate, /Marek laughs at the door\.\n\[END OF THE VERSION BEING REPLACED[^\n]*\n[^\n]+$/,
+    'and with no line saved, nothing is added after the framed take');
 
   const saved: any = routes['POST /api/prompts'](ctxI(alice, { key: 'reweave', text: NOTE }));
   assert.ok(!saved?.error, `the reweave line saves through the prompt route: ${saved?.error}`);
@@ -2130,8 +2138,6 @@ async function bootServer(port: number, env: Record<string, string>) {
   assert.strictEqual(saved.defaults.reweave, '', 'with nothing shipped in its place');
 
   const withNote = await reweave();
-  assert.doesNotMatch(withNote.prompt, /Marek laughs at the door/,
-    'the passage being rewoven is still not in the prompt, line or no line');
   assert.strictEqual(modeOf(withNote), `${narrate}\n${NOTE}`,
     'a reweave carries the writer\'s line AFTER the mode instruction, which it does not replace');
 
@@ -2150,6 +2156,78 @@ async function bootServer(port: number, env: Record<string, string>) {
   db.delSlot(aStory.id, take);
   db.delSlot(aStory.id, before);
   ok('a reweave adds the writer\'s own line after the mode instruction, and nothing else does');
+}
+
+// A REWEAVE SENDS THE TAKE IT REPLACES (Seth, 2026-10-29; docs/adr/0012). "Reweave as the
+// instruction should send the original instruction, the last entry that didn't work, and if filled
+// the new instruction of why it didn't work." In that order, after the prose that comes before the
+// passage, and the passage before is still the last prose: the September failure was the model
+// rewriting THAT passage, so it must stay the last thing the model reads as the story.
+{
+  const ctx = (owner: string, body: any = {}) => ({ body, query: new URLSearchParams(), owner,
+    slot: { global: 40_000, slots: 1, perSlot: 40_000 }, gen: { max_tokens: 900 }, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+  const LINE = 'ACCOUNT LINE: keep it short.';
+  const WHY = 'He would never laugh here.';
+  const before = db.addPassage({ storyId: aStory.id, branchId: aStory.branchId,
+    chapterId: aStory.chapterId, body: 'The stair creaks under her.', author: 'human', mode: 'narrate' })!;
+  const take = db.addPassage({ storyId: aStory.id, branchId: aStory.branchId,
+    chapterId: aStory.chapterId, body: 'Corwin laughs from the landing.', author: 'model',
+    directive: 'have someone wait upstairs' })!;
+  routes['POST /api/prompts'](ctxI(alice, { key: 'reweave', text: LINE }));
+  const ask = async (body: any) => (await routes['POST /api/manifest'](ctx(alice,
+    { storyId: aStory.id, ...body })) as any);
+  const modeOf = (m: any) => m.manifest.blocks.find((b: any) => b.kind === 'MODE')?.text ?? '';
+  const prose = (m: any) => m.manifest.blocks
+    .filter((b: any) => (b.kind === 'PROSE' || b.kind === 'TAIL') && b.state === 'included');
+
+  const m = await ask({ regenerateOf: take, mode: 'direct', directive: 'have someone wait upstairs, silent',
+    whatFailed: WHY });
+  const t = modeOf(m);
+  const at = (re: RegExp, what: string) => {
+    const i = t.search(re);
+    assert.ok(i >= 0, `the MODE block carries ${what}`);
+    return i;
+  };
+  const iInstr = at(/based on this: have someone wait upstairs, silent/, 'the instruction, as edited');
+  const iOpen = at(/\[THE VERSION BEING REPLACED/, 'the opening of the frame');
+  const iTake = at(/Corwin laughs from the landing\./, 'the take it replaces');
+  const iEnd = at(/\[END OF THE VERSION BEING REPLACED/, 'the close of the frame');
+  const iWhy = at(/He would never laugh here\./, "the writer's note");
+  const iLine = at(/ACCOUNT LINE: keep it short\./, 'the account line');
+  assert.ok(iInstr < iOpen && iOpen < iTake && iTake < iEnd && iEnd < iWhy && iWhy < iLine,
+    'in the order: instruction, framed take, what did not work, the account line');
+  // FRAMED AS THE VERSION BEING REPLACED, and told apart from prose to continue from.
+  assert.match(t.slice(iOpen, iTake), /not prose to continue from/i,
+    'the frame says the take is not prose to continue from');
+  assert.match(t.slice(iEnd, iWhy), /new version/i, 'and asks for a new version');
+  assert.match(t.slice(iEnd, iWhy), /not a continuation/i, 'which is not a continuation of it');
+  assert.match(t.slice(iEnd, iWhy), /not a rewrite of the passage before/i,
+    'and not a rewrite of the passage before it, the September failure');
+  // THE PASSAGE BEFORE IS STILL THE LAST PROSE, and the take is not prose at all.
+  assert.strictEqual(prose(m).at(-1)?.text, 'The stair creaks under her.',
+    'the passage before the reweave is still the last prose the model reads');
+  assert.ok(!prose(m).some((b: any) => /Corwin laughs/.test(b.text)),
+    'and the take it replaces is not sent as prose');
+  assert.ok(m.prompt.indexOf('The stair creaks under her.') < m.prompt.indexOf('Corwin laughs from the landing.'),
+    'in the prompt as sent, the prose comes before the framed take');
+
+  // THE NOTE IS OPTIONAL. Empty, or only spaces, adds nothing for it.
+  for (const blank of [undefined, '', '   ']) {
+    const e = modeOf(await ask({ regenerateOf: take, mode: 'continue', whatFailed: blank }));
+    assert.match(e, /Corwin laughs from the landing\./, 'with the note empty the take is still sent');
+    assert.doesNotMatch(e, /What did not work/i, `an empty note (${JSON.stringify(blank)}) adds nothing for it`);
+  }
+
+  // A NORMAL PASSAGE CARRIES NONE OF IT, not even when a stale request sends a note along.
+  const fresh = await ask({ mode: 'continue', whatFailed: WHY });
+  assert.doesNotMatch(fresh.prompt, /VERSION BEING REPLACED|He would never laugh|What did not work/i,
+    'a passage that is not a reweave carries no frame and no note');
+
+  routes['POST /api/prompts'](ctxI(alice, { key: 'reweave', text: '' }));
+  db.delSlot(aStory.id, take);
+  db.delSlot(aStory.id, before);
+  ok('a reweave sends the instruction, then the framed take it replaces, then what did not work');
 }
 
 // ---- THE DEMO SWITCH RESOLVES TO ONE ACCOUNT AND CANNOT BE AIMED (2026-08-31) ----

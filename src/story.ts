@@ -381,8 +381,9 @@ export const MAX_TARGET_WORDS = 2000;
  *  was written with (`inherit` in routes.ts), and this is a line ADDED after it, on a reweave only.
  *  A re-roll had a wording of its own from 2026-09-01 to 2026-09-18, `regenerate`, and it REPLACED
  *  the mode with "write this passage again": it named the passage being re-rolled, the one passage
- *  a re-roll's prompt leaves out, so the model rewrote the passage before it. This line keeps the
- *  passage's own instruction and names no passage. */
+ *  a re-roll's prompt then left out, so the model rewrote the passage before it. This line keeps the
+ *  passage's own instruction and names no passage. Since 2026-10-29 the take being replaced IS in
+ *  the prompt, framed in MODE after the instruction and before this line (docs/adr/0012). */
 export const EDITABLE_PROMPTS = ['continue', 'speak', 'act', 'direct', 'narrate', 'reweave'];
 
 /** The shipped wording of every editable box, rendered with its placeholders left in.
@@ -392,9 +393,8 @@ export const EDITABLE_PROMPTS = ['continue', 'speak', 'act', 'direct', 'narrate'
 export function defaultModePrompts(): Record<string, string> {
   const out: Record<string, string> = {};
   for (const mode of EDITABLE_PROMPTS) {
-    // SHIPPED EMPTY: a reweave sends the passage's own instruction and nothing more until the
-    // writer writes a line here. NOT MEASURED. An empty default keeps every reweave's prompt
-    // byte-identical to the prompt that wrote the passage, which is what `test/scope.ts` holds.
+    // SHIPPED EMPTY: a reweave sends the passage's own instruction and the framed take it
+    // replaces, and nothing more until the writer writes a line here. NOT MEASURED.
     if (mode === 'reweave') { out.reweave = ''; continue; }
     const m = buildContext({
       story: { title: '', genre: '', premise: '', setting: '', pov: '', writingStyle: '', spice: 2 },
@@ -411,15 +411,15 @@ export function defaultModePrompts(): Record<string, string> {
 export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
                          mode: string, directive?: string, upToOrdinal?: number, maxTokens = 900,
                          speaker?: string, modePrompts?: Record<string, string>,
-                         targetWords = 0) {
+                         targetWords = 0, whatFailed?: string) {
   // Regenerating passage 3 of 50 must build the context that existed at passage 3. Sending
   // the whole document meant the "new take" was written with knowledge of the 47 passages
   // that come after it — which is not a regeneration, it is a summary of the future.
   //
-  // STRICTLY BEFORE, so the passage being re-rolled is not in the prompt either. That is the
-  // half of this rule an instruction has to agree with: from 2026-09-01 the re-roll's wording
-  // said "write this passage again" about a passage cut out right here, and the model rewrote
-  // the one before it instead. `routes.inherit` carries the answer now.
+  // STRICTLY BEFORE, so the passage being re-rolled is not PROSE either. From 2026-09-01 the
+  // re-roll's wording said "write this passage again" about a passage cut out right here, and the
+  // model rewrote the one before it instead. Since 2026-10-29 (docs/adr/0012) it comes back once,
+  // as `replacing` below: framed in MODE as the version being replaced, never as the story.
   const passages = upToOrdinal == null ? v.passages
     : v.passages.filter((p) => p.ordinal < upToOrdinal);
   // COUNCIL-06 ship 3 · A BOOK IS NEVER WRITTEN WITH NO VOICE. `context.ts` gates the whole VOICE
@@ -475,6 +475,12 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     // WHEN YOU REWEAVE: the writer's line, on a reweave only. A reweave is the one call that stops
     // short of a passage (`upToOrdinal`), so that is what decides it, here above the line.
     reweave: upToOrdinal == null ? undefined : modePrompts?.reweave,
+    // THE TAKE IT REPLACES, and the writer's note on it (docs/adr/0012). The passage at
+    // `upToOrdinal` is the one cut from `passages` above: it goes back in, but only as the framed
+    // version being replaced in MODE, never as prose. Read from the view here, above the line.
+    replacing: upToOrdinal == null ? undefined
+      : v.passages.find((p) => p.ordinal === upToOrdinal)?.body,
+    whatFailed: upToOrdinal == null ? undefined : whatFailed,
     // A number, resolved before the line: `buildContext` stays pure and reads no setting of its
     // own. Zero means the writer left it on "let her decide", and nothing about length reaches
     // the model at all — which is the shipped behaviour F29 measured and is still the default.
