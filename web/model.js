@@ -237,27 +237,65 @@ export const bookParagraphs = (body) => String(body ?? '')
 /** ONE CHUNK OF STREAMED NARRATION INTO PARAGRAPHS, the way `bookParagraphs` (web/model.js) sets the
  *  landed passage: a new paragraph at every line break (blank lines collapse), and before an opening
  *  quote that starts a sentence. Leading space at a paragraph's start is dropped, as the landed
- *  paragraphs are trimmed. Text goes in as text nodes inside spans, never as HTML: it is model
- *  output. Returns the spans it made, for the ink-in animation. */
+ *  paragraphs are trimmed. Each word's own text is kept on its span (`inkRaw`) and the span is
+ *  filled by `inkAccent`, escaped and accented as the landed passage is. The rules above read the
+ *  kept text, never what is shown, which has lost its asterisks. Returns the spans it made, for the
+ *  ink-in animation. */
 export function inkParagraphs(el, chunk, doc = globalThis.document) {
   const made = [];
   let p = el.lastElementChild?.tagName === 'P' ? el.lastElementChild : null;
   const open = () => { p = doc.createElement('p'); el.append(p); return p; };
+  const raw = () => [...p.children].map((s) => s.inkRaw ?? '').join('');
   for (const part of String(chunk).split(/(\n)/)) {
-    if (part === '\n') { if (p && p.textContent.trim()) p.dataset.closed = '1'; continue; }
+    if (part === '\n') { if (p && raw().trim()) p.dataset.closed = '1'; continue; }
     let piece = part;
     if (!piece) continue;
     const fresh = !p || p.dataset.closed === '1'
-      || (/^\s*["\u201c]/.test(piece) && /[.!?\u2026][)"'\u201d]?\s$/.test(p.textContent));
+      || (/^\s*["“]/.test(piece) && /[.!?…][)"'”]?\s$/.test(raw()));
     if (fresh) { piece = piece.replace(/^\s+/, ''); if (!piece) continue; open(); }
-    else if (!p.textContent) piece = piece.replace(/^\s+/, '');
+    else if (!raw()) piece = piece.replace(/^\s+/, '');
     if (!piece) continue;
     const sp = doc.createElement('span');
-    sp.textContent = piece;
+    sp.inkRaw = piece;
     p.append(sp);
     made.push(sp);
   }
+  inkAccent(el);
   return made;
+}
+
+/** THE PASSAGE BEING WRITTEN, ACCENTED AS IT WILL LAND. Every word's span is refilled from the
+ *  whole text so far, through the same `accent` the landed passage goes through, each span holding
+ *  its own share of the markup. `el` holds paragraphs of word spans (narration, `inkParagraphs`) or
+ *  word spans alone (a line of speech, and the full-screen veil); every span carries its own text as
+ *  `inkRaw`. Only a span whose markup changed is written, so a word already on the page is not
+ *  touched and its ink-in animation is not restarted.
+ *
+ *  The last paragraph is unfinished (`done: false` until the passage is), so a quote or asterisk
+ *  that has opened is shown open: the asterisk is hidden and the words styled from the moment the
+ *  word arrives, and nothing changes when its closer does. The one thing that does change is a mark
+ *  that never closes: it is shown literal again once its paragraph is over, which is the first
+ *  moment that can be known. So a stray asterisk in the last paragraph comes back as the passage
+ *  finishes, and nowhere else does anything on screen change after its word arrived. */
+export function inkAccent(el, { done = false } = {}) {
+  // ponytail: re-reads the whole passage on every word, so the work grows with the square of its
+  // length. Fine at a passage's few thousand characters; if a long passage stutters while it
+  // streams, read only the last two paragraphs (earlier ones can no longer change).
+  const slots = [];
+  let text = '';
+  const cuts = [];
+  const take = (s) => { cuts.push(text.length); slots.push(s); text += esc(s.inkRaw ?? ''); };
+  [...el.children].forEach((c, i) => {
+    if (c.tagName !== 'P') return take(c);
+    // A paragraph break is a newline in the text accent reads, and a piece of its own to drop.
+    if (i) { cuts.push(text.length); slots.push(null); text += '\n'; }
+    [...c.children].forEach(take);
+  });
+  if (!slots.length) return;
+  accent(text, { done, cuts }).forEach((h, i) => {
+    const s = slots[i];
+    if (s && s.inkHTML !== h) { s.inkHTML = h; s.innerHTML = h; }
+  });
 }
 
 export const ago = (t) => { const d = (Date.now() - t) / 864e5;
@@ -308,12 +346,15 @@ export const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) =>
  *  open there is shown open (asterisks hidden, words styled) rather than literal. That is what keeps
  *  a streamed asterisk from showing and then vanishing when its closer arrives.
  *
+ *  `cuts` are offsets into the text; with them it returns an array, one complete piece of markup
+ *  per stretch between cuts. That is how each streamed word carries its own share (`inkAccent`).
+ *
  *  Which marks count. A curly quote says which way it faces. A straight one, and an asterisk, opens
  *  when it has text after it and no letter or digit before it, and closes when it has text before
  *  it and no letter or digit after it — so "5 * 3", a lone *, snake*case and 6" are all literal.
  *  Apostrophes and single quotes (' and ’) are never quote marks. Three or more asterisks are
  *  literal. */
-export function accent(text, { done = true } = {}) {
+export function accent(text, { done = true, cuts = null } = {}) {
   const OPEN = { q: '<span class="q">', em: '<em>', strong: '<strong>' };
   const CLOSE = { q: '</span>', em: '</em>', strong: '</strong>' };
   const lines = String(text ?? '').split('\n');
@@ -327,7 +368,7 @@ export function accent(text, { done = true } = {}) {
   lines.forEach((line, li) => {
     const units = line.match(/&[#\w]+;|[\s\S]/gu) ?? [];
     const base = out.length;
-    for (const u of units) out.push({ pre: [], t: u, post: [] });
+    for (const u of units) out.push({ pre: [], t: u, post: [], src: u.length });
     const stack = [];
     // Open `a` and close it after unit `b`, hiding both sets of asterisks. `b` null is the end of
     // the paragraph, where there is no closer to hide.
@@ -366,9 +407,25 @@ export function accent(text, { done = true } = {}) {
     const keep = !done && li === lines.length - 1 ? stack
       : stack.filter((s) => s.kind === 'q' && opensQuote(nextLine));
     keep.toReversed().forEach((s) => pair(s, null, s.kind));
-    if (li < lines.length - 1) out.push({ pre: [], t: '\n', post: [] });
+    if (li < lines.length - 1) out.push({ pre: [], t: '\n', post: [], src: 1 });
   });
-  return out.map((u) => u.pre.map((k) => OPEN[k]).join('') + u.t + u.post.map((k) => CLOSE[k]).join('')).join('');
+  if (!cuts) return out.map((u) => u.pre.map((k) => OPEN[k]).join('') + u.t + u.post.map((k) => CLOSE[k]).join('')).join('');
+  // One piece per cut. What is open at a cut is closed at the end of the piece before it and opened
+  // again at the start of the piece after, so every piece is complete markup on its own.
+  const pieces = [];
+  let cur = '', at = 0, c = 0;
+  const open = [], marks = [...cuts].sort((a, b) => a - b);
+  for (const u of out) {
+    for (; c < marks.length && marks[c] <= at; c++) if (marks[c] > 0) {
+      pieces.push(cur + open.toReversed().map((k) => CLOSE[k]).join(''));
+      cur = open.map((k) => OPEN[k]).join('');
+    }
+    for (const k of u.pre) { cur += OPEN[k]; open.push(k); }
+    cur += u.t;
+    for (const k of u.post) { cur += CLOSE[k]; open.pop(); }
+    at += u.src;
+  }
+  return [...pieces, cur];
 }
 
 /* #122 · ONE WORD-LEVEL DIFF for every place a thread or a Voice changes: a thread's Alterations,

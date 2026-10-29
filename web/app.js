@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -9726,7 +9726,8 @@ function ghost(replaces = null) {
   const g = document.createElement('div');
   g.id = 'ghost'; g.className = 'veil';
   // innerHTML is safe here and only here: every character of it is written below, and the one place
-  // untrusted text lands is `.veiltext`, which only ever receives text nodes.
+  // untrusted text lands is `.veiltext`, which only ever receives text through `esc` and `accent`
+  // (`inkAccent`, web/model.js).
   // NOTHING IS HELD OPEN. The design handoff of 2026-09-02 removes the opening screen
   // outright — first the web draw, then the glyph grid, then the sentence-shaped field of noise,
   // each of them an answer to "what does the writer look at before there are words". The answer
@@ -9944,8 +9945,10 @@ function drainVeil(now) {
       // line of speech on its own the moment it landed. Seth, 2026-10-27: "it stops writing and then
       // it reformats the text". Speech (`.said`) lands unparagraphed, so it streams that way too.
       const paged = INLINE && el.parentElement?.classList.contains('narr');
-      const spans = paged ? inkParagraphs(el, text) : [Object.assign(document.createElement('span'), { textContent: text })];
-      if (!paged) el.append(spans[0]);
+      // ACCENTED AS IT WILL LAND, too (`inkAccent`, web/model.js): quotes and asterisks are styled,
+      // and asterisks hidden, from the word they arrive in, by the function the landed passage uses.
+      const spans = paged ? inkParagraphs(el, text) : [Object.assign(document.createElement('span'), { inkRaw: text })];
+      if (!paged) { el.append(spans[0]); inkAccent(el); }
       for (const sp of spans) sp.classList.add('w', 'tip');
       const span = spans.at(-1);
       /* THE GLOW GOES ON THE FIRST WORD — Seth, 2026-09-02: "Remove the border around the ghost as
@@ -9991,6 +9994,9 @@ function veilReadable() {
     return;
   }
   g.classList.add('done');
+  // The passage is finished, so its last paragraph is too: a mark left open there shows as it will
+  // land, literal (`inkAccent`).
+  const vt = veilText(); if (vt) inkAccent(vt, { done: true });
   for (const sp of TIP) sp.classList.remove('tip');
   TIP = [];
   const fill = g.querySelector('.veilmeter i');

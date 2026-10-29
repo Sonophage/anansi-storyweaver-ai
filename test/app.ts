@@ -2216,14 +2216,20 @@ ok('what is owed is a dot on the hero\'s Carry on, and its label says what');
 // Set like a book: dialogue breaks out into its own paragraph, and a quote inside a sentence does
 // not. Pure, so it is tested here rather than through a browser.
 {
-  const { bookParagraphs, inkParagraphs } = await import('../web/model.js');
+  const { bookParagraphs, inkParagraphs, accent, esc } = await import('../web/model.js');
   // STREAMED AS IT WILL LAND (2026-10-27): word by word through inkParagraphs gives the same
   // paragraphs bookParagraphs gives the finished passage, so nothing reflows when it lands.
   {
     const mk = (tag: string): any => { const o: any = { tagName: tag.toUpperCase(), kids: [] as any[], dataset: {},
-      _t: '', append(c: any) { o.kids.push(c); }, get lastElementChild() { return o.kids.at(-1) ?? null; },
-      get textContent() { return o.kids.length ? o.kids.map((k: any) => k.textContent).join('') : o._t; },
-      set textContent(v: string) { o._t = v; } }; return o; };
+      _t: '', _h: null as string | null, append(c: any) { o.kids.push(c); },
+      get children() { return o.kids; }, get lastElementChild() { return o.kids.at(-1) ?? null; },
+      // What a browser would show: the markup's text with its tags gone and its entities read.
+      get textContent() { return o.kids.length ? o.kids.map((k: any) => k.textContent).join('')
+        : o._h == null ? o._t : o._h.replace(/<[^>]*>/g, '').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+          .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'); },
+      set textContent(v: string) { o._t = v; o._h = null; },
+      get innerHTML() { return o.kids.length ? o.kids.map((k: any) => k.innerHTML).join('') : o._h ?? esc(o._t); },
+      set innerHTML(v: string) { o._h = v; } }; return o; };
     const doc = { createElement: mk };
     const streamed = (body: string) => {
       const el = mk('div');
@@ -2234,6 +2240,39 @@ ok('what is owed is a dot on the hero\'s Carry on, and its label says what');
                         'The door shut.\n\nNobody moved.\nThen the lamp went out.',
                         'The sign said "closed", so she left. "Wait," he called.\n\n"No."'])
       assert.deepStrictEqual(streamed(body), bookParagraphs(body), `STREAM-PARAS: streamed like it lands: ${JSON.stringify(body)}`);
+
+    // ACCENTED AS IT WILL LAND (2026-10-29). Two pieces of markup look the same if they differ only where a word ended: a tag closed at
+    // the end of one word and opened again at the start of the next, or the space a streamed
+    // paragraph keeps after its last word.
+    const looks = (h: string) => {
+      let prev;
+      do { prev = h; h = h.replace(/<\/(em|strong)><\1>/g, '').replace(/<\/span><span class="q">/g, ''); } while (h !== prev);
+      return h.replace(/\s+((?:<\/[^>]+>)*)$/, '$1');
+    };
+    const body = 'She didn\'t cross the room. "You came *all this way*," he said. **Nobody else** moved. 5 * 3 is *fifteen.\n\n'
+      + '“I was *never once* here.\n\n“Not once,” she said.';
+    const landed = ['She didn&#39;t cross the room.',
+      '<span class="q">&quot;You came <em>all this way</em>,&quot;</span> he said. <strong>Nobody else</strong> moved. 5 * 3 is *fifteen.',
+      '<span class="q">“I was <em>never once</em> here.</span>',
+      '<span class="q">“Not once,”</span> she said.'];
+    // The page draws exactly this (passageHTML's own call), written out by hand above.
+    assert.deepStrictEqual(accent(bookParagraphs(body).map(esc).join('\n')).split('\n'), landed,
+      'STREAM-ACCENT: the landed passage, accented');
+    const el = mk('div');
+    const shown: string[] = [];
+    for (const w of body.match(/[^ ]+ ?| /g) ?? []) {
+      inkParagraphs(el, w, doc);
+      shown.push(el.kids.map((p: any) => p.textContent).join('\n'));
+    }
+    assert.deepStrictEqual(el.kids.map((p: any) => looks(p.innerHTML)), landed,
+      'STREAM-ACCENT: word by word, the passage being written ends as the landed one looks');
+    // AND NO ASTERISK FLASHES. Every one that the landed passage hides is hidden from the moment
+    // its word arrives. The two that stay (5 * 3, and the unclosed *fifteen) are the only ones
+    // ever seen, and the second only once the next paragraph starts and it is known to have no
+    // closer: an unmatched mark is the one case that changes while the passage is written.
+    const stars = shown.map((s) => (s.match(/\*/g) ?? []).length);
+    assert.ok(stars.every((c, i) => c <= 2 && (i === 0 || c >= stars[i - 1])),
+      `STREAM-ACCENT: no asterisk is shown and then hidden while a passage is written (${stars.join(',')})`);
   }
   assert.deepStrictEqual(
     bookParagraphs('She crossed the room. "You came," he said. The rain kept on.'),

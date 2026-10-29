@@ -22,7 +22,8 @@ Everything below this line was written by that model call, before it was removed
 Words in quotation marks are shown in your theme's accent colour, and the quotation marks stay.
 Words between single asterisks are shown in italics, in a softer tint of the accent. Words between
 double asterisks are shown in bold, in the accent colour. You do not see the asterisks while you
-read. This changes only how the
+read, and a passage that is being written looks the same as it does when it is finished: the
+asterisks do not show and then go. This changes only how the
 page looks: your text keeps its asterisks, and Alter, export and Anansi still see them. An
 asterisk or a quotation mark with no partner stays as it is.
 ### Reweave tells Anansi what didn't work
