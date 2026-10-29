@@ -139,11 +139,12 @@ ok(`  and a reader at the bottom sees the page hold still as it lands (${tops.le
 // AND THE PASSAGE ITSELF DOES NOT MOVE, which a held scroll does not prove (2026-10-28). The row under
 // the newest passage stood above the one being written and moved under it at the landing: the scroll
 // held and the new passage jumped up 82px.
-const at = await page.eval(`JSON.stringify({ was: window.__gtop ?? null, boxed: !!document.querySelector('#col .block.newest'),
+const at = await page.eval(`JSON.stringify({ was: window.__gtop ?? null, newest: !!document.querySelector('#col .block.newest'),
   now: Math.round([...document.querySelectorAll('#col .block')].at(-1).getBoundingClientRect().top) })`).then(JSON.parse);
 ok(`  and the passage lands where it was written (${at.was} -> ${at.now})`, at.was !== null && Math.abs(at.now - at.was) <= 2);
-// IN THE SAME BOX: the passage being written wears the newest's outline, and keeps it as it lands.
-ok("  in the box it was written in", at.boxed);
+// AND IT LANDS AS THE NEWEST, which carries no box since 2026-10-29: the line down its side is the
+// same line it was written with.
+ok("  and it lands as the newest passage", at.newest);
 
 // ---- a re-roll of the last passage: the new version writes where the old one was
 await page.eval("(() => { document.querySelector('#nextbar [data-re]').click(); return 1; })()");

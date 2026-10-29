@@ -18,6 +18,10 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### No box round the last passage
+The newest passage, and the one being written, had a box round them in the colour of the press that
+wrote them. The box is gone. Each one now has the same coloured line down its left side as every
+other passage, so the page reads as one column of prose.
 ### Speech and emphasis stand out on the page
 Words in quotation marks are shown in your theme's accent colour, and the quotation marks stay.
 Words between single asterisks are shown in italics, in a softer tint of the accent. Words between

@@ -135,7 +135,7 @@ await wait(400);
 const hits = await page.eval("document.querySelectorAll('#page [data-entry]').length");
 ok("   search narrows it too (" + hits + " for 'brass')", hits > 0 && hits < all);
 
-/* 3b. THE PASSAGES ARE SEPARATED, AND THE NEWEST ONE'S RING DOES NOT CUT THE PARAGRAPH ABOVE IT.
+/* 3b. THE PASSAGES ARE SEPARATED, AND THE NEWEST ONE HAS NO RING TO CUT THE PARAGRAPH ABOVE IT.
  *
  * MEASURED IN A BROWSER, because nothing else can see it. Wrapping each chapter in a <section> on
  * 2026-09-01 — so a continuous read had a break between chapters — made that section a single flex
@@ -147,6 +147,9 @@ ok("   search narrows it too (" + hits + " for 'brass')", hits > 0 && hits < all
  * Every suite was green for it. A layout regression is invisible to markup checks by construction —
  * BUILD-STATE 3b's rule, "do not audit a surface with a pattern; read the object" — so this reads the
  * object.
+ *
+ * The ring itself went on 2026-10-29 (Seth: "Remove the box around the last input"), so the newest
+ * passage now asserts it has no outline at all, and the gap is what separates it.
  */
 {
   await page.goto(B + "/#" + sid);
@@ -157,13 +160,10 @@ ok("   search narrows it too (" + hits + " for 'brass')", hits > 0 && hits < all
     if (!last || !prev) return { blocks: bs.length };
     const cs = getComputedStyle(last);
     const lr = last.getBoundingClientRect(), pr = prev.getBoundingClientRect();
-    const reach = parseFloat(cs.outlineStyle === 'none' ? '0' : cs.outlineOffset)
-                + parseFloat(cs.outlineStyle === 'none' ? '0' : cs.outlineWidth);
-    return { blocks: bs.length, gap: +(lr.top - pr.bottom).toFixed(1),
-             clear: +(lr.top - pr.bottom - reach).toFixed(1) }; })()`);
+    return { blocks: bs.length, gap: +(lr.top - pr.bottom).toFixed(1), outline: cs.outlineStyle }; })()`);
   console.log("  passage spacing: " + JSON.stringify(m));
   ok("3b. consecutive passages are separated (" + m.gap + "px)", m.blocks > 1 && m.gap >= 12);
-  ok("   and the newest one's ring clears the paragraph above it (" + m.clear + "px)", m.clear > 0);
+  ok("   and the newest one has no ring round it (" + m.outline + ")", m.outline === 'none');
 }
 
 // 4. context: a readable prompt, and rows that jump

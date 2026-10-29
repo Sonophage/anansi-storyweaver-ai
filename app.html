@@ -840,15 +840,13 @@ html[data-ui-font="serif"] .narr em { font-style:normal; }
 .block:is(.m-speak,.m-act,.m-direct,.m-narrate,.m-continue,.m-coop) {
   padding-left:16px; border-left:3px solid var(--m);
 }
-/* The last one on the page, boxed so the eye finds where the book has got to.
-   OUTLINE, not border: an outline takes no space at all, so the box cannot move the prose. The first
-   version used a border with padding and negative margins to compensate, and it shifted the document
-   enough to break the running-head check in panels.js — the band's position is measured there, and
-   46px of drift is exactly the kind of thing a decoration should never cause. */
-/* And the passage being written inline wears it, so the box does not appear round it as it lands. */
-#col :is(.block.newest, #ghost.inlive) {
-  outline:1px solid var(--chip); outline-offset:12px; border-radius:var(--r);
-}
+/* THE LAST PASSAGE LOOKS LIKE EVERY OTHER ONE. Seth, 2026-10-29: "Remove the box around the last
+   input. Let's just use an accent line on the left-hand side." It wore an outline 12px off the
+   prose, in the press's accent, with the side line made transparent under it. Now the newest
+   passage, and the one being written inline, carry the same line down the margin as the rest, and
+   nothing round them. test/web.ts refuses an outline, a border or a radius on either.
+   The line and its 16px of padding come from the accent group above, the same rule every passage
+   wears, so a passage does not move when a newer one arrives under it. */
 /* THE CHIP SAYS WHERE A PASSAGE CAME FROM, and it wears the same colour as the rule beside it —
    Seth, 2026-09-01: "could we also add a chip at the top that says where it came from." The rule
    answers at a glance and the chip answers exactly; one colour, said twice, is what makes the
@@ -861,17 +859,6 @@ html[data-ui-font="serif"] .narr em { font-style:normal; }
 .from i { width:5px; height:5px; border-radius:50%; flex:0 0 auto;
   background:var(--m, var(--label)); }
 html[data-reading="1"] .from { display:none; }
-/* #14, the other half: on the LAST passage the accent goes all the way round and the faint box goes
-   away — "just have the accent be the entire thing so that we know what it is." When it moves up it
-   is the one line down the side again.
-
-   The side line is made TRANSPARENT rather than removed, and the padding stays. Dropping either
-   would move the prose 16px left the moment a newer passage arrived, on every passage, for ever —
-   the same class of shift the outline above exists to avoid. A passage with no mode keeps the faint
-   outline it has always had, which is what "old ones neutral" means on screen. */
-#col :is(.block.newest, #ghost.inlive):is(.m-speak,.m-act,.m-direct,.m-narrate,.m-continue) {
-  outline-color:var(--m); border-left-color:transparent;
-}
 /* Where a search result put you. Fades on its own after a few seconds — a permanent mark on
    whatever you last looked for turns into furniture you stop seeing. */
 .block.found { animation: found 6s ease-out forwards; border-radius:var(--r); }

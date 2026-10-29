@@ -349,7 +349,7 @@ if (other) {
   await wait(300);
 }
 
-// ---- #14. THE ACCENT SAYS WHICH PRESS WROTE IT, and the last passage wears it all the way round.
+// ---- #14. THE ACCENT SAYS WHICH PRESS WROTE IT, and the last passage wears it down the side like the rest.
 // Seth: "separate the accent color based on what the response was ... that way when the user reads
 // back through it they can differentiate what was triggered by what action." Written through
 // /api/write rather than by pressing send, because the accent is about what was STORED — this
@@ -375,11 +375,11 @@ if (other) {
     const L = cs(last), P = cs(prev);
     return {
       lastCls: last?.className ?? '', prevCls: prev?.className ?? '',
-      lastOutline: L?.outlineColor, lastAccent: L?.getPropertyValue('--m').trim(),
+      lastOutlineStyle: L?.outlineStyle, lastAccent: L?.getPropertyValue('--m').trim(),
       lastLeft: L?.borderLeftColor, lastPad: L?.paddingLeft,
       prevLeft: P?.borderLeftColor, prevPad: P?.paddingLeft,
       // RESOLVED TO THE SAME COLOUR SPACE, or this compares nothing. getComputedStyle gives
-      // outlineColor as rgb(); reading --chip off the root gives the raw token, a hex. The two are
+      // borderLeftColor as rgb(); reading --chip off the root gives the raw token, a hex. The two are
       // never equal, so the "not the faint chip" assertion below passed with the rule deleted —
       // caught by falsifying it. A probe element makes the browser resolve the token the same way.
       chip: resolve('var(--chip)'), accent: resolve('var(--m-act)') }; })()`);
@@ -387,17 +387,16 @@ if (other) {
      /\bm-act\b/.test(seen.lastCls));
   ok(`  and the one before it carries its own (${seen.prevCls.split(' ').filter(c => c.startsWith('m-')).join()})`,
      /\bm-narrate\b/.test(seen.prevCls));
-  // THE TWO HALVES OF WHAT HE ASKED FOR, asserted separately: the box is the accent rather than the
-  // faint chip, and the side line is gone from it because the accent is now the whole shape.
-  ok(`  the last one is boxed in its own accent, not the faint chip (${seen.lastOutline})`,
-     !!seen.lastOutline && seen.lastOutline === seen.accent && seen.lastOutline !== seen.chip);
-  ok(`  with no second line down its side (${seen.lastLeft})`, /rgba\(0, 0, 0, 0\)|transparent/.test(seen.lastLeft || ''));
-  // And the one above it is the single line — the state everything returns to as the page grows.
+  // NO BOX ROUND THE LAST ONE (Seth, 2026-10-29: "Remove the box around the last input. Let's just
+  // use an accent line on the left-hand side."). It carried an outline in its accent, with the side
+  // line made transparent, until then. Now it is the one line in its own accent, like the rest.
+  ok(`  the last one has no box round it (${seen.lastOutlineStyle})`, seen.lastOutlineStyle === 'none');
+  ok(`  and its side line is its own accent (${seen.lastLeft})`,
+     !!seen.lastLeft && seen.lastLeft === seen.accent && seen.lastLeft !== seen.chip);
+  // And the one above it is the single line too.
   ok(`  while the one above it is the one line (${seen.prevLeft})`,
      !!seen.prevLeft && !/rgba\(0, 0, 0, 0\)|transparent/.test(seen.prevLeft));
-  // THE PROSE MUST NOT MOVE when a passage stops being the newest. The side line is made
-  // transparent and the padding kept for exactly this; dropping either would shift every passage
-  // 16px the moment a newer one landed.
+  // THE PROSE MUST NOT MOVE when a passage stops being the newest: both wear the same padding.
   ok(`  and the prose does not shift when it moves up (${seen.lastPad} then ${seen.prevPad})`,
      seen.lastPad === seen.prevPad);
 }

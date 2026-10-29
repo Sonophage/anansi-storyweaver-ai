@@ -348,13 +348,12 @@ const margins = await page.eval(`(() => {
   const l = last ? getComputedStyle(last) : null;
   return { align: c ? c.textAlign : null, leftRule: c ? c.borderLeftWidth : null,
            rightRule: c ? c.borderRightWidth : null,
-           // OUTLINE, not border: a border on the newest block moved the document 46px and broke
-           // the running-head check in panels.js. An outline takes no space, so it decorates without
-           // shifting anything — and this assertion has to measure the thing that is actually there.
-           boxed: l ? parseFloat(l.outlineWidth) > 0 : null }; })()`);
+           // NO BOX ROUND THE LAST PASSAGE since 2026-10-29: it wears the line down the side the rest
+           // wear, and nothing round it.
+           boxed: l ? l.outlineStyle !== 'none' : null }; })()`);
 ok(`nothing is mirrored to the right edge (align ${margins.align}, right rule ${margins.rightRule})`,
    margins.align !== 'right' && parseFloat(margins.rightRule || '0') === 0);
-ok(`  and the last passage is boxed so the eye finds it (${margins.boxed})`, margins.boxed === true);
+ok(`  and the last passage has no box round it (${margins.boxed})`, margins.boxed === false);
 
 // There must be exactly one way into the menu, and it must be there on EVERY screen. The first
 // version of this change put the control inside the in-story branch of the bar, so with the

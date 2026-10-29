@@ -379,8 +379,8 @@ const ok = (m: string, fn?: unknown) => {
      * stylesheet, and the class is written in `web/app.js`. Any one of them alone is a mark that
      * does not appear. */
     const PRESSES = ['speak', 'act', 'direct', 'narrate', 'continue'];
-    // The rule that turns `--m` into the line down the margin. Anchored on `.block:is(` so it cannot
-    // pick up the newest-passage ring, which is a different selector with the same shape.
+    // The rule that turns `--m` into the line down the margin. Anchored on `.block:is(` at the start
+    // of a line, so a longer selector that ends in the same group cannot stand in for it.
     const accentGroup = /(?:^|\n)\.block:is\(([^)]*)\)/.exec(css)?.[1] ?? '';
     const vars = read('web/model.js');
     const missing: string[] = [];
@@ -393,21 +393,26 @@ const ok = (m: string, fn?: unknown) => {
       if (!new RegExp(`\\.m-${k}\\s*\\{\\s*--m:\\s*var\\(--m-${k}\\)`).test(css))
         missing.push(`no rule reads --m-${k}`);
       // THE GROUP ITSELF, extracted, not "the token appears somewhere in the file". Matching it
-      // loosely found the ring's own `.m-continue)` twelve lines below and reported the group as
+      // loosely found another rule's `.m-continue)` twelve lines below and reported the group as
       // covered while it was not — caught by deleting it and watching this stay green.
       if (!accentGroup.includes(`.m-${k}`)) missing.push(`.m-${k} is not in the accent group`);
     }
     assert.deepStrictEqual(missing, [],
       'a press that writes a passage has no accent down its margin, which is how Continue went '
       + 'unmarked for as long as it did');
-    // AND THE NEWEST PASSAGE'S RING FOLLOWS THE SAME LIST, or the accent vanishes for the one
-    // passage a writer is looking at hardest.
-    // The passage being written inline shares the rule, so it lands in the box it was written in.
-    const ring = /#col :is\(\.block\.newest, #ghost\.inlive\):is\(([^)]*)\)/.exec(css)?.[1] ?? '';
-    for (const k of PRESSES) {
-      assert.ok(ring.includes(`.m-${k}`), `the newest passage's ring does not cover ${k}`);
-    }
-    ok(`all ${PRESSES.length} presses carry an accent, in the theme, the rule and the ring`);
+    // AND THE NEWEST PASSAGE IS NOT BOXED. Seth, 2026-10-29: "Remove the box around the last input.
+    // Let's just use an accent line on the left-hand side." It wore an outline in its accent, with
+    // the side line made transparent, until then. Every rule whose selector names the newest passage
+    // or the one being written inline is read, and none may draw an outline, touch the border, or
+    // round the corners: the line and the padding are the accent group's, the same for every passage.
+    // Comments are stripped first, so a note that quotes an old rule cannot stand in for one.
+    const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const boxed = [...bare.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+      .filter(([, sel]) => /\.block\.newest|#ghost\.inlive/.test(sel))
+      .filter(([, , body]) => /(?:^|[;\s])(?:outline[\w-]*|border[\w-]*|border-radius)\s*:/.test(body))
+      .map(([, sel, body]) => `${sel.trim()} { ${body.trim()} }`);
+    assert.deepStrictEqual(boxed, [], 'the newest passage, or the one being written, is boxed again');
+    ok(`all ${PRESSES.length} presses carry an accent, in the theme and the rule, and the newest passage is not boxed`);
   }
 
   const comments = (js.match(/<!--[\s\S]*?-->/g) ?? []).length;

@@ -1531,8 +1531,7 @@ function passageHTML(p, newest, opening) {
          (bookParagraphs(p.body).length ? accent(bookParagraphs(p.body).map(esc).join('\n')).split('\n') : [])
            .map((para) => `<p>${para}</p>`).join('')}</div>`;
   // #14. The press that made it, down the margin. Null on everything written before 2026-08-29 —
-  // Seth: "old ones neutral is fine" — and those fall through to the faint outline the newest
-  // passage has always had.
+  // Seth: "old ones neutral is fine" — and those carry no press accent.
   /* FIVE ACCENTS, NOT FOUR. `MODES` is the composer's four BUTTONS and Continue is a press beside
    * them, so keying the accent off that list left the most common passage in any book — the one
    * Continue wrote — as the only shape with no mark down its margin. Seth, 2026-09-01: "everything
@@ -1574,8 +1573,7 @@ function passageHTML(p, newest, opening) {
     // is not a drop cap — and not on the writer's own passages, which are set differently: on
     // Sutera the first passage is the writer's and is right-aligned, so a left-floated capital
     // sat on its own with the text running away from it.
-    // QUIET keeps the newest's box and drops only its rise (QUIET_LAND). Dropping `newest` took the box
-    // off as the passage landed, a box it had worn while it was written (2026-10-28).
+    // QUIET keeps `newest` and drops only its rise (QUIET_LAND).
     + (newest ? ` newest${p.id === QUIET_LAND ? ' quiet' : ''}` : '') + (opening && !spoken && !mine ? ' opening' : '')
     // Holding the re-roll sheet. The class is what stops this block being the containing block for
     // it — see the note on `.rerollbox` in the stylesheet, and the longer one above the acts tray.
