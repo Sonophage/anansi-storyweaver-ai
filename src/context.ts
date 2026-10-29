@@ -329,8 +329,9 @@ const FRAMES: Record<string, (who: string) => string> = {
  *  own words from before kinds ("Unpaid, and in play … do not resolve one unless the writer asks for
  *  it") with the scene brief's "can be pressed on" (CHAPTER); the open question takes the brief's
  *  #116 words (OPEN QUESTIONS, keep it in view, complicate it, never answer it).
- *  NOT MEASURED: the split into two frames has not been run against the single frame it replaced. */
-const STRING_FRAMES: Record<'promise' | 'question', string> = {
+ *  NOT MEASURED: the split into two frames has not been run against the single frame it replaced.
+ *  #128 · Also each kind's rule when Ask Anansi writes a string (`prompts.ts` INVENT): one wording. */
+export const STRING_FRAMES: Record<'promise' | 'question', string> = {
   promise: 'Unpaid promises, in play. Let them shape what the characters want and avoid; one may be pressed '
     + 'toward payment, but do not resolve one unless the writer asks for it.',
   question: 'Open questions the tale lives on, in play. Keep each one in view; a scene may complicate one, '

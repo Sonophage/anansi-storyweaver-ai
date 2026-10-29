@@ -4184,7 +4184,9 @@ export const routes: Record<string, Handler> = {
     // PLAN-08. Every addon slot invents the same way an outfit already did — it belongs to a card
     // and comes back as a form, not a proposal. Seth: "the option that we have for the ai to fill
     // the costume should also apply to the card type as a whole and the new fields we added."
-    const isAddon = ALL_SLOTS.includes(kind);
+    // #128 · And a string, which is a pocket of the tale's own thread (ADR 0011).
+    const isString = STRING_SLOTS.includes(kind);
+    const isAddon = ALL_SLOTS.includes(kind) || isString;
     if (!isAddon && !(KINDS as string[]).includes(kind))
       return { error: `there is nothing called a "${kind}" to invent` };
     const steer = String(c.body.direction ?? '').trim().slice(0, 600);
@@ -4196,8 +4198,13 @@ export const routes: Record<string, Handler> = {
     // like to add it." Filling the open card is not proposing a new one, so it comes back as a
     // draft for the form rather than going to the queue — and the writer still presses Save, which
     // is the line this route has never crossed.
-    const who = (isAddon || c.body.entryId) ? v.entries.find((e: any) => e.id === c.body.entryId) : null;
-    if (isAddon && !who) return { error: `a ${kind.replace(/_/g, ' ')} needs a thread to belong to` };
+    // #128 · A STRING (ADR 0011) belongs to the tale's own thread and to no other: with that thread
+    // named, or none, since a tale may have none until its first string is saved. `db.upsertAddon`
+    // holds the same line for the write.
+    if (isString && c.body.entryId && c.body.entryId !== (v as any).taleThread?.id)
+      return { error: `a ${kind === 'question' ? 'open question' : 'promise'} belongs to the tale's own thread, and no other` };
+    const who = isString ? null : (isAddon || c.body.entryId) ? v.entries.find((e: any) => e.id === c.body.entryId) : null;
+    if (isAddon && !isString && !who) return { error: `a ${kind.replace(/_/g, ' ')} needs a thread to belong to` };
     const refill = !isAddon && !!who;
 
     let sources: { title: string; url: string; text: string }[] = [];
@@ -4220,11 +4227,13 @@ export const routes: Record<string, Handler> = {
     if (stop) return stop;
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
-    const about = isAddon ? `${kind.replace(/_/g, ' ')} for ${who!.title}`
+    const about = isString ? `${kind === 'question' ? 'open question' : 'promise'} of this tale`
+      : isAddon ? `${kind.replace(/_/g, ' ')} for ${who!.title}`
       : refill ? `${kind === 'lore' ? 'piece of lore' : kind}, rewriting the card for ${who!.title}`
       : kind === 'lore' ? 'piece of lore' : kind;
     const t0 = Date.now();
-    const r = await structuredRetry(INVENT(about, steer, sources.length > 0, isAddon),
+    const r = await structuredRetry(INVENT(about, steer, sources.length > 0, isAddon,
+      isString ? kind as 'promise' | 'question' : null),
       prompt.slice(SYSTEM.length), inventSchema(kind),
       { model: writerModel(c, v), temperature: 0.9, max_tokens: reply.maxTokens,
         chat_template_kwargs: { enable_thinking: reply.weaves } });
@@ -4243,7 +4252,7 @@ export const routes: Record<string, Handler> = {
                          body: String(r.data.body ?? '').trim() },
                addon: { slot: kind, name: String(r.data.name ?? '').trim(),
                         body: String(r.data.body ?? '').trim(),
-                        keys: Array.isArray(r.data.keys) ? r.data.keys : [] },
+                        keys: !isString && Array.isArray(r.data.keys) ? r.data.keys : [] },
                seconds: +((Date.now() - t0) / 1000).toFixed(1) };
 
     if (!String(r.data.title ?? '').trim() || !String(r.data.body ?? '').trim())
@@ -4274,7 +4283,11 @@ export const routes: Record<string, Handler> = {
   // unknown slot, a card from another book — comes back as null rather than throwing, so the
   // surface gets a message instead of a 500.
   'POST /api/addon':    (c) => {
-    const id = db.upsertAddon(c.body.storyId, c.body.entryId ?? null, c.body.addon ?? {});
+    // #128 · A STRING WITH NO THREAD NAMED is the tale's own thread's, made here the first time a
+    // tale needs it (`db.taleThread`), as the Strings screen's ＋ adds one before the thread exists.
+    const entry = c.body.entryId ?? (STRING_SLOTS.includes(String(c.body.addon?.slot ?? ''))
+      ? db.taleThread(c.body.storyId) : null);
+    const id = db.upsertAddon(c.body.storyId, entry, c.body.addon ?? {});
     if (!id) return { error: 'that is not a pocket this kind of thread has, or not a thread in this tale' };
     return { addonId: id, ...viewOf(c, c.body.storyId) };
   },

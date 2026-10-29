@@ -1699,6 +1699,56 @@ ok('emptying the box gives her back the voice she shipped with');
   ok('a string Talk offers unasked is chalked, of its kind');
 }
 
+// ---- #128 · ASK ANANSI WRITES A STRING, BY ITS KIND'S RULE, FOR THE TALE'S THREAD ONLY ----
+//
+// The pocket panel's Ask Anansi calls `/api/invent` with the string's kind. It writes nothing, as for
+// every pocket. The tale's kinds are for the tale's thread: with no thread named (the tale may have
+// none yet) or the tale's own, and refused on any other thread. Save is `/api/addon`, which makes the
+// tale's thread the first time a string needs it.
+{
+  const tale = db.createStory(me, { title: 'The Weir', premise: 'A mill and a drowned brother.' }) as any;
+  db.addPassage({ ...tale, storyId: tale.id, body: 'The wheel stopped at noon.' });
+  const miller = db.upsertEntry(tale.id, me, { title: 'The miller', body: '', activation: 'always_on' });
+  const ctxOf = (body: any) => ({ body: { storyId: tale.id, ...body }, query: new URLSearchParams(),
+    owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+  const inv = (o: any) => { calls = []; return routes['POST /api/invent'](ctxOf(o)) as Promise<any>; };
+
+  const p: any = await inv({ kind: 'promise', direction: 'the mill is owed' });
+  assert.ok(!p.error, `INVENT-STRING: a promise can be asked for (${p.error})`);
+  assert.strictEqual(p.addon?.slot, 'promise', 'INVENT-STRING: it comes back as a promise for the form');
+  assert.ok(p.addon.name && p.addon.body, '  with a name and a description');
+  assert.deepStrictEqual(p.addon.keys, [], '  and no wake words: a string is sent while it is on');
+  const sys = String(calls[0].messages[0].content);
+  assert.match(sys, /pressed toward payment, but do not resolve one unless the writer asks for it/,
+    "INVENT-STRING-RULE: the promise's own rule, in the words the writing prompt frames it with");
+  assert.ok(!('keys' in (calls[0].response_format?.json_schema?.schema?.properties ?? {})), '  and no keys asked for');
+  assert.strictEqual(db.stringsOf(tale.id).length, 0, 'INVENT-STRING: nothing is written');
+  assert.strictEqual(db.taleThreadOf(tale.id), null, '  not even the tale\'s thread');
+
+  const q: any = await inv({ kind: 'question' });
+  assert.ok(!q.error, q.error);
+  assert.match(String(calls[0].messages[0].content), /a scene may complicate one, never answer it/,
+    "INVENT-STRING-RULE: an open question's own rule");
+  const wrong: any = await inv({ kind: 'promise', entryId: miller });
+  assert.match(String(wrong.error), /tale's own thread/, `INVENT-STRING-ELSEWHERE: refused on another thread (${wrong.error})`);
+  ok("Ask Anansi writes a string by its kind's rule, writes nothing, and only for the tale's thread");
+
+  // SAVE, from the panel: no thread named is the tale's, made now; another thread is refused.
+  const saved: any = routes['POST /api/addon'](ctxOf({ entryId: null,
+    addon: { slot: 'question', name: 'Who opened the sluice', body: 'Nobody will say.', fromChapter: 1 } }));
+  assert.ok(!saved.error, saved.error);
+  const t = db.taleThreadOf(tale.id);
+  assert.ok(t, "ADDON-STRING: the tale's thread is made for its first string");
+  assert.deepStrictEqual(db.stringsOf(tale.id).map((x: any) => [x.title, x.kind]), [['Who opened the sluice', 'question']],
+    "  and the string is a pocket of it");
+  const onMiller: any = routes['POST /api/addon'](ctxOf({ entryId: miller, addon: { slot: 'promise', name: 'x', body: 'y' } }));
+  assert.ok(onMiller.error, 'ADDON-STRING-ELSEWHERE: a promise on a character is refused');
+  const again: any = await inv({ kind: 'promise', entryId: t.id });
+  assert.ok(!again.error, `INVENT-STRING: and on the tale's thread by its id (${again.error})`);
+  ok("Save makes the tale's thread for its first string, and a string anywhere else is refused");
+}
+
 // ---- 6f2 · AN UNDO NEVER WRITES OVER A LATER EDIT ----
 //
 // Each Undo carries what Talk wrote. When the thing no longer holds it, because the writer changed it

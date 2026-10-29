@@ -3,6 +3,7 @@
 import { ALL_SLOTS, STRING_SLOTS } from './slots.ts';
 import { CHANGES_SCHEMA, DRAFT_CHANGES_SCHEMA } from './changes.ts';
 import { PARTS } from './contradictions.ts';
+import { STRING_FRAMES } from './context.ts';
 
 /** Every pocket a spark thread may carry: the one slot list, less Always true (`facts`), which is
  *  the thread's body and not a pocket. For the schemas #84 touched; older ones still spell it out. */
@@ -1499,7 +1500,26 @@ export const fromWebSchema = (kind: string, rooms: string[]) => ({
   required: ['title', 'body', 'keys', ...(rooms.length ? ['rooms'] : [])],
 });
 
-export const INVENT = (about: string, steer: string, sources: boolean, isRoom = false) =>
+/** #128 · A STRING OF THE TALE, as Ask Anansi writes one in the pocket panel: a promise or an open
+ *  question, a pocket of the tale's own thread (ADR 0011). Its rule is the frame the writing prompt
+ *  reads it under (`STRING_FRAMES`), quoted here so the two say one thing. Shapes, not sentences: the
+ *  model copies a quoted example (#117). NOT MEASURED. */
+const STRING_FORM = (kind: 'promise' | 'question') => {
+  const promise = kind === 'promise';
+  return `    name  A few words the writer would pick it off a list by: <${promise ? 'the thing owed' : 'what is not known'}>.
+          Not a sentence.
+    body  A plain description with no brackets, FORTY TO EIGHTY WORDS: <what the tale set up>,
+          <who it binds>, and <${promise ? 'what is still unpaid' : 'what is still not known'}>.
+
+THIS IS A STRING OF THE TALE, ${promise ? 'a promise' : 'an open question'}, and not a thread. The model that writes the
+scenes reads it under this rule: "${STRING_FRAMES[kind]}"
+So it says ${promise ? 'what is owed, and never how or when it is paid' : 'what is not known, and never the answer or a hint of it'}.
+Never what happens next. Take it from what the tale has set up; a string you invent is a plot handed
+to the writer. The angle brackets show the form only.`;
+};
+
+export const INVENT = (about: string, steer: string, sources: boolean, isRoom = false,
+                       string: 'promise' | 'question' | null = null) =>
 `You are Anansi. Write ONE ${about} for this writer's story, from the canon and the passages above.
 
 It has to belong to THIS story: its register, its place, its period, the names already in the
@@ -1509,7 +1529,7 @@ nobody needs you for it.
 This is reference, not writing. A model reads it on every call it reaches, so it is dense, it is
 specific, and it is in the ledger's own shape:
 
-${about.startsWith('outfit')
+${string ? STRING_FORM(string) : about.startsWith('outfit')
   ? `    name  Two or three words the writer would pick it off a list by: "Mourning grey",
 `
     + `          "Court plate", "Travelling". Not a sentence, and not her name.
@@ -1627,7 +1647,13 @@ ${sources
  *  is now one slot among several, so the test is the slot list rather than that one word. The
  *  `keys` are asked for on the addon shape too: an addon fires on its own words, so a shape that
  *  could not carry them would make every invented room one the writer has to key by hand. */
-export const inventSchema = (kind: string) => ALL_SLOTS.includes(kind)
+export const inventSchema = (kind: string) => STRING_SLOTS.includes(kind)
+  // #128 · A string is sent while it is on, never on a word, so it is asked for no keys.
+  ? { type: 'object', properties: {
+        name: { type: 'string', maxLength: 60 },
+        body: { type: 'string' },
+      }, required: ['name', 'body'] }
+  : ALL_SLOTS.includes(kind)
   ? { type: 'object', properties: {
         name: { type: 'string', maxLength: 60 },
         body: { type: 'string' },
