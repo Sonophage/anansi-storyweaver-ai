@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Strings you have decided stay decided
+The Workbench dealt every open string back to you on each visit, even after you put it in play. Now
+a string is on the Workbench only while it waits for you: newly chalked, or a hem's update to it.
+Put it in play, set it aside, tie it off or let it go on the Strings screen or the tale's page.
+
 ### Reweave shows Anansi the version you are replacing
 When you reweave a passage, Anansi now sees the version you have now, marked as the one being
 replaced. It is told to write a new version of that passage from the same place, not to carry on

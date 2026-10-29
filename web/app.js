@@ -2975,13 +2975,13 @@ function deckCards(only = null) {
   const chalk = [...groups.values()].map((ps) => ({ kind: 'chalk', key: ps.map((p) => p.id).join(','),
     title: ps[0].title, sub: what(ps), line: ps.find((p) => p.line)?.line ?? '', ps,
     right: 'Sew it in', left: 'Reject' }));
-  // A string switched on or off from the deck stays open (it is still owed), so it is decided for
-  // this sitting by `S.deckDone` and not by its status; the Strings tab still has it.
-  const strings = (V?.strings ?? []).filter((x) => x.status === 'open' && !S.deckDone?.has(x.id)).map((x) => ({ kind: 'string', key: x.id, x,
-    title: x.title, sub: `${x.kind === 'question' ? 'Open question' : 'Promise'} · ${x.summoned ? 'in play' : 'set aside'}`, line: '',
-    right: x.summoned ? 'Set aside' : 'Put in play', left: 'Let go' }));
-  // ONLY THESE, for the hem page: the chalked cards of the scene just hemmed, and no strings.
-  return only ? [...hems, ...chalk] : [...hems, ...chalk, ...strings, ...upkeepCards()];
+  // NO CARD FOR A STRING YOU ALREADY HAVE (Seth, 2026-10-29: "Workbench keeps putting strings back in
+  // even after I've said I want them in the story"). Every open string was dealt here on every visit
+  // and only set aside for the sitting, so a decided string came back each time. A string is on the
+  // Workbench only while it waits for a decision: chalked (above), or a hem's update to it (on the hem
+  // card). Put in play, Set aside, Tied off and Let go live on the string itself (the Strings screen,
+  // the tale's page, the pocket panel).
+  return only ? [...hems, ...chalk] : [...hems, ...chalk, ...upkeepCards()];
 }
 
 /** #92 · THE SCENE AFTER A HEMMED ONE, while it is the scene being written: the one the hem's
@@ -3285,15 +3285,6 @@ function deckCard(c, i, top) {
   } else if (c.kind === 'upkeep') {
     body = `<div class="note">${esc(c.body)}</div>`;
     right = c.right; left = c.left;
-  } else {
-    const x = c.x;
-    body = `${x.body ? `<div class="note">${esc(x.body)}</div>` : ''}
-      <div class="hint" style="margin:4px 0 0">${x.fromChapter ? `Set up in ${esc(x.fromChapter)}.` : ''}${
-        x.owedBy ? ` Owed by ${esc(x.owedBy)}.` : ''}${x.summoned ? ' In play: the model is told it is owed.' : ''}</div>
-      <button class="btn ghost push-8" data-stringstatus="${esc(x.id)}:paid">Tied off</button>`;
-    // #127 · Its pocket's switch (ADR 0011): on is in play. Tied off and Let go switch it off and mark it.
-    right = `<button class="btn" data-summon="${esc(x.id)}" data-deckright="1">${esc(c.right)} &rarr;</button>`;
-    left = `<button class="btn ghost" data-stringstatus="${esc(x.id)}:dropped" data-deckleft="1">&larr; Let go</button>`;
   }
   return `<div class="deckcard card" data-deckcard="${i}" data-deckkind="${c.kind}"${i === top ? '' : ' hidden'}>
     ${head}${body}<div class="deckbar">${left}${right}</div></div>`;
@@ -4024,7 +4015,7 @@ const PANELS = {
     }
 
     return `<div class="hint flush">The Workbench is where everything that wants you
-        collects: chalked things, strings not tied off and out-of-date summaries.</div>
+        collects: chalked things, new strings and out-of-date summaries.</div>
       ${rows.join('')}`;
   },
   setup: setupPanel,
