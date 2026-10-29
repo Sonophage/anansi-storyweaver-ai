@@ -1456,10 +1456,9 @@ function passageHTML(p, newest, opening) {
     ? `<div class="who">${p.speaker ? esc(p.speaker)
          : mine ? `You · ${esc(V.story.persona || 'you')}` : esc(V.story.title)}</div>
        <div class="said" data-edit="${p.id}">${esc(p.body)}</div>`
-    : `<div class="narr" data-edit="${p.id}" data-raw="${esc(p.body)}">${
-         // Paragraphs for READING. Edit swaps this back to the raw text — see the handler — because
-         // textContent over <p> children concatenates with nothing between them, and a save would
-         // glue the whole passage into one line.
+    : `<div class="narr" data-edit="${p.id}">${
+         // Paragraphs for READING. Alter edits the passage's own text from S.passEdit, never this
+         // markup: textContent over <p> children would glue the paragraphs into one line.
          bookParagraphs(p.body).map((para) => `<p>${esc(para)}</p>`).join('')}</div>`;
   // #14. The press that made it, down the margin. Null on everything written before 2026-08-29 —
   // Seth: "old ones neutral is fine" — and those fall through to the faint outline the newest
@@ -10366,7 +10365,8 @@ async function regenerateInto(id, steer, seed, again = null) {
   const a2 = r.passageId ? {} : await api.accept(S.storyId, { body: r.prose, genId: r.genId, variantOf: id, rejected: true,
     chapterId: V.currentChapter.id });
   S.busy = false; working(null);
-  if (a2.error) { drawDock(); drawBar(); return toast(a2.error); }
+  // A take that could not be kept gives the old version back, as a Stop does (unghost clears REPLACING).
+  if (a2.error) { unghost(); drawDock(); drawBar(); return toast(a2.error); }
   V = await api.story(S.storyId, V.currentChapter.id);
   // NO TOAST FOR A NEW VERSION (Seth, 2026-10-26: "we don't need the notification toast for
   // regeneration"): the new take on the page says it. #9's stays, because a take that still
