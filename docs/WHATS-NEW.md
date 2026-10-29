@@ -23,6 +23,15 @@ When you reweave a passage, Anansi gets the passage's own instruction again. It 
 version you have now. For part of the day it did, and Anansi carried on from that version, or gave
 the same version back word for word. So now, if you say what didn't work, Anansi gets your note
 instead.
+### Strings you have decided stay decided
+The Workbench dealt every open string back to you on each visit, even after you put it in play. Now
+a string is on the Workbench only while it waits for you: newly chalked, or a hem's update to it.
+Put it in play, set it aside, tie it off or let it go on the Strings screen or the tale's page.
+
+### Reweave shows Anansi the version you are replacing
+When you reweave a passage, Anansi now sees the version you have now, marked as the one being
+replaced. It is told to write a new version of that passage from the same place, not to carry on
+from it and not to rewrite the passage before it.
 
 A tap on Reweave now reweaves at once, for every passage, with the passage's own instruction. To
 change it first, hold Reweave (or Alt+click it at a desk). That opens the Reweave box, for any
