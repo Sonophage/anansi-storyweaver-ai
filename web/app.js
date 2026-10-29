@@ -1513,7 +1513,11 @@ function passageHTML(p, newest, opening) {
     + (newest ? ` newest${p.id === QUIET_LAND ? ' quiet' : ''}` : '') + (opening && !spoken && !mine ? ' opening' : '')
     // Holding the re-roll sheet. The class is what stops this block being the containing block for
     // it — see the note on `.rerollbox` in the stylesheet, and the longer one above the acts tray.
-    + (S.reroll?.id === p.id ? ' rerolling' : '') + (S.passEdit?.id === p.id ? ' altering' : '');
+    + (S.reroll?.id === p.id ? ' rerolling' : '') + (S.passEdit?.id === p.id ? ' altering' : '')
+    // The version a Reweave is writing over, inline: hidden until the new one lands (REPLACING). Drawn
+    // here and not added to the DOM, because a repaint rebuilds #col and dropped a class put on it,
+    // and the old version came back under the new one being written (2026-10-28).
+    + (p.id === REPLACING ? ' rerolling-out' : '');
   /* ISSUE #38. THE INSTRUCTION THIS PASSAGE WAS WRITTEN FROM, OPEN FOR EDITING.
    *
    * Under the passage rather than in the tray: the tray is a strip of verbs and this is a sentence
@@ -9416,13 +9420,14 @@ function ghost(replaces = null) {
     // Drawn again with it in place, so the passage before it gives up the newest's row (chapterHTML).
     // drawDoc appends it.
     INLINE = g;
-    drawDoc();
     // A REWEAVE WRITES IN WHERE THE OLD VERSION WAS: the old one steps aside until the new one lands,
-    // or comes back if it is stopped (unghost). BEFORE anchorLive measures. Hidden after it, the page
-    // was moved with the old one in it, and at the first word the browser's scroll anchoring moved it
-    // 30px more, so the header went up under the context toggle (measured on a 390px screen,
-    // 2026-10-28; with `overflow-anchor:none` the 30px went too, which is how the cause was found).
-    if (replaces) col.querySelector(`[data-edit="${replaces}"]`)?.closest('.block')?.classList.add('rerolling-out');
+    // or comes back if it is stopped (unghost). Drawn hidden by this drawDoc, so BEFORE anchorLive
+    // measures. Hidden after it, the page was moved with the old one in it, and at the first word the
+    // browser's scroll anchoring moved it 30px more, so the header went up under the context toggle
+    // (measured on a 390px screen, 2026-10-28; with `overflow-anchor:none` the 30px went too, which
+    // is how the cause was found).
+    REPLACING = replaces;
+    drawDoc();
     // THE NEW ENTRY'S HEADER GOES TO THE TOP, AT THE PRESS (Seth, 2026-10-27, below at anchorLive).
     INLINE_ANCHOR = true;
     anchorLive();
@@ -9486,6 +9491,10 @@ let GHOST_MODE = null;
 let INLINE = null;
 /** The passage that landed where it was written inline, which must not play `rise` (see veilReadable). */
 let QUIET_LAND = null;
+/** The id of the passage a Reweave is writing over inline, or null. passageHTML draws it hidden, so
+ *  every repaint keeps it hidden; cleared when the new version lands (veilReadable) or is stopped or
+ *  fails (unghost). */
+let REPLACING = null;
 /** Whether the page still owes the inline passage its one move (see anchorLive). */
 let INLINE_ANCHOR = false;
 /** THE ENTRY'S HEADER UNDER THE APP'S HEADER, ONCE, AT THE PRESS, AND NOTHING MOVES AFTER IT.
@@ -9688,7 +9697,7 @@ function veilReadable() {
     // this. Here, where both land, so neither can miss it. The caller refreshed V before handing
     // over the landing, so its newest passage is the one just written.
     QUIET_LAND = V?.passages?.filter((p) => !p.isBreak).at(-1)?.id ?? null;
-    g.remove(); INLINE = null;
+    g.remove(); INLINE = null; REPLACING = null;
     land?.();
     return;
   }
@@ -9828,6 +9837,7 @@ const unghost = () => {
   const g = document.getElementById('ghost');
   // An inline passage has no fade, so it just goes — and the passage a re-roll hid comes back.
   if (!g && INLINE) { INLINE = null; }
+  REPLACING = null;
   for (const b of document.querySelectorAll('.block.rerolling-out')) b.classList.remove('rerolling-out');
   if (!g || g.classList.contains('leaving')) return;
   // And the passage before it is the newest again, with its row back under it.

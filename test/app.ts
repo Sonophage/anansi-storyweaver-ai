@@ -7155,4 +7155,49 @@ const hemCardOf = (side: string) => {
   ok('the room under a short page is counted from its content, not from scrollHeight');
 }
 
+// ---- WRITING INLINE: THE OLD VERSION STAYS HIDDEN WHILE THE NEW ONE IS WRITTEN, THROUGH A REPAINT.
+// It was hidden by a class put on the DOM at the press, and a repaint rebuilds #col, so the old
+// version came back under the new one being written. passageHTML draws it hidden now, from state.
+//
+// The rest of this file runs with the veil on, and the switch is read once, at load. So the app is
+// loaded a SECOND time here with the veil off, and the first copy's listeners are taken away, so a
+// press reaches only the second. LAST IN THE FILE for that reason: nothing after it can be sure
+// which copy it is driving.
+{
+  const wait = (ms = 40) => new Promise((r) => setTimeout(r, ms));
+  stored.set('anansi.veil', '0');
+  for (const k of Object.keys(listeners)) listeners[k] = [];
+  // The harness's one #ghost answers as the inline passage (see the reweave-quiet check above).
+  (document as any).getElementById('ghost').classList.contains = (c: string) => c === 'inlive';
+  await import('../web/app.js?inline');
+  await wait(30);
+  click({ open: 's-1' }); await wait();
+  const blockOf = (id: string) => html('col').match(new RegExp(
+    `<div class="block[^"]*"[^>]*>(?:(?!<div class="block)[\\s\\S])*?data-edit="${id}"`))?.[0] ?? '';
+  assert.ok(blockOf('p-5'), 'the last passage is drawn');
+  assert.doesNotMatch(blockOf('p-5'), /rerolling-out/, 'and is not hidden before any press');
+  let open = () => {};
+  try {
+    // A REWEAVE THAT LANDS. Held before its first word, so the stretch while it is written can be looked at.
+    streamGate = new Promise<void>((r) => { open = r; });
+    click({ re: 'p-5' }); click({ re: 'p-5' }); await wait();
+    assert.match(blockOf('p-5'), /class="block[^"]* rerolling-out/, 'the old version is drawn hidden while the new one is written');
+    click({ rerollx: '1' }); await wait();
+    assert.match(blockOf('p-5'), /class="block[^"]* rerolling-out/, 'and a repaint draws it hidden again');
+    open(); streamGate = null; await wait(200);
+    assert.ok(blockOf('p-5'), 'the new version lands');
+    assert.doesNotMatch(blockOf('p-5'), /rerolling-out/, 'and is not hidden');
+
+    // A REWEAVE THAT FAILS. The old version comes back (unghost), and stays back through a repaint.
+    stubRefuse = { error: 'The model fell over.' };
+    streamGate = new Promise<void>((r) => { open = r; });
+    click({ re: 'p-5' }); click({ re: 'p-5' }); await wait();
+    assert.match(blockOf('p-5'), /rerolling-out/, 'hidden while the second one is written');
+    open(); streamGate = null; await wait(200);
+    click({ rerollx: '1' }); await wait();
+    assert.doesNotMatch(blockOf('p-5'), /rerolling-out/, 'a failed reweave gives the old version back, and a repaint keeps it back');
+  } finally { open(); streamGate = null; stubRefuse = null; }
+  ok('writing inline, the replaced version is drawn hidden until the new one lands or fails, through a repaint');
+}
+
 console.log(`\n${n} checks passed`);

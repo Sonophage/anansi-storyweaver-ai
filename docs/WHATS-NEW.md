@@ -23,6 +23,11 @@ When you press Continue or Reweave, the new passage's label moves to the top of 
 can read it as it is written. In a scene with only a little text, the label stopped lower down.
 Now it goes to the top there too.
 
+### Reweave keeps the old version hidden while it writes
+While Reweave wrote a new version, the old one could come back on the page under it if anything
+redrew the page. Now the old version stays hidden until the new one is in its place. If you stop
+the Reweave, or it fails, the old version comes back.
+
 ### Change what a string is, and where it stands
 Open a string and the box now shows what it is, a Promise or an Open question, and you can
 change it: pick the other one and Save. It is the same string, and its history stays with it. An
