@@ -299,6 +299,38 @@ export const TALE_STANDS_SCHEMA = {
   required: ['tale'],
 } as const;
 
+/** #127 · ADR 0011. WHERE EACH STRING IN PLAY STANDS AFTER THE SCENE JUST HEMMED, asked beside where
+ *  the tale stands (TALE_STANDS), whose rules it follows: the whole of it, the present only, never
+ *  what comes next. A string is a pocket of the tale's thread, and what comes back replaces its text
+ *  once the writer sews it in, so one the scene did not touch is to come back as it was (the route
+ *  then chalks nothing for it). An open question is never answered here, as it is never answered in
+ *  the writing prompt (`context.ts` STRING_FRAMES). By number, so a string is matched by position and
+ *  never by a name the model may reword.
+ *  NOT MEASURED: none of this wording has been run against the real model. */
+export const STRINGS_STAND =
+`Below is where a story stands, the strings it carries, and the narration of its latest scene. A
+string is a promise the story has set up to pay off, or an open question it keeps open.
+
+For each string, write where it stands now, after this scene: a plain description in the present
+tense. The WHOLE of it, not only what changed: everything in its text that is still true, with this
+scene folded in. It replaces that text from the next scene on, so anything you leave out is lost.
+If the scene did not touch a string, give its text back exactly as it is.
+
+Never what comes next: not how a promise will be paid, not what anyone will do. Never answer an
+open question: it stays open, whatever the scene did to it.
+
+Only the narration commits the story. Dialogue has been removed already; do not infer from what is
+missing. No names in front, no brackets, no headings, no list. Answer each string by its number.`;
+
+export const STRINGS_STAND_SCHEMA = {
+  type: 'object',
+  properties: {
+    strings: { type: 'array', items: { type: 'object',
+      properties: { n: { type: 'integer' }, now: { type: 'string' } }, required: ['n', 'now'] } },
+  },
+  required: ['strings'],
+} as const;
+
 /** #73 · TIDY THIS THREAD. An old thread is often one box holding who it is, what it wears and what
  *  has happened to it (Halsey's Info did all three), with pockets written as descriptions. This sorts
  *  ONE thread, which the writer chose, into the three parts ADR 0005 gives it. Everything it returns

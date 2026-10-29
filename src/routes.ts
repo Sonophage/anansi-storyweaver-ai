@@ -5,8 +5,8 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TALE_STANDS, TALE_STANDS_SCHEMA, TIDY, TIDY_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
-import { ALL_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TALE_STANDS, TALE_STANDS_SCHEMA, STRINGS_STAND, STRINGS_STAND_SCHEMA, TIDY, TIDY_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
+import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultModePrompts, trimToSentence,
@@ -1547,6 +1547,48 @@ async function taleStands(c: Ctx, storyId: string, chapterId: string, scene?: st
   return { chalked: added ? 1 : 0 };
 }
 
+/** A paragraph a string, and a floor so one or two come back whole. */
+const stringTokens = (n: number) => Math.min(3000, 400 + 300 * n);
+
+/** #127 · ADR 0011. WHERE EACH STRING IN PLAY STANDS AFTER THE SCENE JUST HEMMED, beside where the tale
+ *  stands and in the same pass. Each one that moved is chalked onto the hem's card as a change to its
+ *  pocket of the tale's thread (`target`), so it shows as a diff and, sewn in, replaces the text and
+ *  keeps the old version (`upsertAddon`). One that came back as it was is not chalked.
+ *
+ *  ONLY THE STRINGS IN PLAY (on and open): one set aside is the writer's to keep as it is. Narration
+ *  only, as `taleStands` reads it. NOT MEASURED: see STRINGS_STAND. */
+async function stringsStand(c: Ctx, storyId: string, chapterId: string, scene?: string) {
+  const v = bookOf(storyId);
+  const tale = (v as any).taleThread;
+  const live = ((v as any).strings ?? []).filter((x: any) => x.summoned && x.status === 'open');
+  if (!tale || !live.length) return { chalked: 0 };
+  const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
+  const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
+  if (!ps.length) return { chalked: 0 };
+  const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
+  const r = await structuredRetry(STRINGS_STAND, [
+    `WHERE THE STORY STANDS: ${resolveBody(tale, ch.index).trim() || v.story.premise || '(not written)'}`,
+    `THE STRINGS IT CARRIES:\n${live.map((x: any, i: number) => `${i + 1}. ${x.kind === 'question' ? 'Open question' : 'Promise'}, `
+      + `"${x.title}": ${String(x.body ?? '').trim() || x.title}`).join('\n')}`,
+    `THE SCENE:\n${text}`].join('\n\n'), STRINGS_STAND_SCHEMA,
+    { model: backgroundModel(c, v), max_tokens: stringTokens(live.length) });
+  if (!r.data) return { error: r.error ?? 'nothing usable came back' };
+  let chalked = 0;
+  for (const a of (Array.isArray(r.data.strings) ? r.data.strings : []) as any[]) {
+    const x = live[Number(a?.n) - 1];
+    if (!x) continue;
+    // Plain, as `upsertAddon` will store it; not "none", and not the text it has now.
+    const names = wrapperNames(x.kind, tale.title, x.title);
+    const now = plain(String(a?.now ?? ''), names);
+    if (!now || /^none[.\s]*$/i.test(now) || now === plain(x.body, names)) continue;
+    if (db.addProposal(storyId, { kind: 'memory', entry_id: tale.id, chapterId: ch.id, title: tale.title, body: now,
+      entryType: 'tale', field: x.kind, target: x.id, pocket: x.title, keys: [],
+      delta: x.kind === 'question' ? 'where the open question stands' : 'where the promise stands',
+      grp: scene ?? `hem:${ch.id}:${tale.id}` })) chalked++;
+  }
+  return { chalked };
+}
+
 /** What the chapter about to be written should be called, and what it has to do.
  *
  *  PROPOSES, writes nothing. The setup panel fills its two fields with this and the writer edits
@@ -1692,8 +1734,12 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   const keptSummary = summed?.kept === true;
   if (keptSummary) passes.summary = null;
   // #125 · Where the tale stands, after the summary and before the threads: one entry on the tale's
-  // own thread, chalked on this scene's card.
-  await pass('tale', want.tale, () => taleStands(c, storyId, closing, scene));
+  // own thread, chalked on this scene's card. #127 · And where each string in play stands, beside it.
+  await pass('tale', want.tale, async () => {
+    const tale = await taleStands(c, storyId, closing, scene);
+    const strings = await stringsStand(c, storyId, closing, scene);
+    return { error: tale?.error ?? strings?.error ?? null };
+  });
   // The character memory, on the same terms: a chapter must be able to close with the model down.
   await pass('memory', want.memory, () => remember(c, storyId, closing, scene, names));
   // And read it for facts. The comment above summarise applies to this word for word: the ledger
@@ -4791,7 +4837,8 @@ export const routes: Record<string, Handler> = {
         // of hijacking one.
         // A TIDY STANDS IN for the pocket it names (#73): turning a description into an instruction
         // is a replacement, not a second pocket beside it.
-        const onto = (c.body.replace || p.kind === 'tidy') && p.target ? String(p.target) : '';
+        // #127 · SO DOES WHERE A STRING STANDS NOW: it is the string's text from the next scene on (ADR 0011).
+        const onto = (c.body.replace || p.kind === 'tidy' || STRING_SLOTS.includes(p.field)) && p.target ? String(p.target) : '';
         const id = db.upsertAddon(p.story_id, p.entry_id,
           { id: onto, slot: p.field, name: p.pocket || p.title, body: c.body.body ?? p.body, keys });
         // #114 · A TIDY'S MERGE: the other pockets it stands in for go, once it has landed. Only
@@ -4804,7 +4851,8 @@ export const routes: Record<string, Handler> = {
         // darkness `src/import.ts:127` refuses for an entry — keys or always-on, never neither —
         // and it is worse here, because the room looks filled in on the card while being invisible
         // to every prompt. So an accepted room with no words of its own is switched on.
-        if (id && !keys.length) db.setAddonActive(p.story_id, id, true);
+        // #127 · Not a string: it was on when the hem chalked it, and the writer may have set it aside since.
+        if (id && !keys.length && !STRING_SLOTS.includes(p.field)) db.setAddonActive(p.story_id, id, true);
       } else if (c.body.accept) {
         // Accepting makes it yours, so last_editor is human and the entry is pinned from here.
         // THE ID IS KEPT because a pulled card's rooms are written against it below — `upsertEntry`

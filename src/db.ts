@@ -4164,7 +4164,8 @@ export function addProposal(storyId: string, p: any) {
         p.entryType ?? 'lore', JSON.stringify(p.keys ?? []), p.kind, p.delta ?? null,
         // A slot this proposal aims at, or null for the card's own body. Validated here rather
         // than at each caller, so a model inventing "Motivation" cannot reach the column.
-        ALL_SLOTS.includes(String(p.field ?? '')) ? String(p.field) : null,
+        // #127 · Or a string of the tale's thread, which the hem chalks where it stands now.
+        [...ALL_SLOTS, ...STRING_SLOTS].includes(String(p.field ?? '')) ? String(p.field) : null,
         (ACTIVATIONS as readonly unknown[]).includes(p.activation) ? p.activation : null,
         p.target ?? null,
         hash,

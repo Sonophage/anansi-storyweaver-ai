@@ -48,6 +48,8 @@ let redone = '';
 /** And what the where-the-tale-stands pass returns (#125). Empty, so every hem before its own block
  *  chalks nothing for the tale. */
 let taleSays = '';
+/** And what the where-each-string-stands pass returns (#127): by number. Empty, so no hem moves a string. */
+let stringsSay: any[] = [];
 
 /** #89. A fake that HOLDS its answer while `gate` is pending: how a test proves the hem answers
  *  before its passes do, and that a second hem waits for the first. `inflight` counts asks being
@@ -79,7 +81,7 @@ const srv = createServer((req, res) => {
     if (summed !== null) return send({ choices: [{ message: { content: summed } }],
       usage: { prompt_tokens: 200, completion_tokens: 60 } });
     send({ choices: [{ message: { content: JSON.stringify({ ...tidied, body: redone, threads: answer, entries: found,
-                                                            finished, style: styled, tale: taleSays }) } }],
+                                                            finished, style: styled, tale: taleSays, strings: stringsSay }) } }],
            usage: { prompt_tokens: 200, completion_tokens: 60 } });
   });
 });
@@ -1830,6 +1832,46 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   assert.ok(spine().includes(LATER) && !spine().includes(NOW), 'TALE-LATEST: and the latest in force is the one sent');
   taleSays = '';
   ok('each hem chalks the next entry from the one in force, and every entry is kept');
+}
+
+// ---- #127 · ADR 0011. EACH HEM CHALKS WHERE EACH STRING IN PLAY STANDS NOW, AND SEWN IN IT IS KEPT ----
+{
+  const t = db.createStory(me, { title: 'The strings stand', premise: 'Mara keeps the lighthouse alone.' }) as any;
+  const ch1 = db.chapters(t.id)[0] as any;
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch1.id,
+    body: `Mara poured the last oil into the lamp and saw the boat turn back. "${SPOKEN}," she said.` });
+  const OIL = 'The oil will run out before the boat comes.';
+  const oil = db.upsertString(t.id, { title: 'The oil', body: OIL, fromChapter: 1, summoned: true })!;
+  const why = db.upsertString(t.id, { title: 'Why the boat turned', body: 'Nobody knows why the boat turned back.',
+    fromChapter: 1, summoned: true, kind: 'question' })!;
+  const off = db.upsertString(t.id, { title: 'The dinghy', body: 'There is a dinghy under the steps.', fromChapter: 1 })!;
+  const tied = db.upsertString(t.id, { title: 'The keeper before', body: 'Her father kept it first.', status: 'paid' })!;
+  const NOW = 'The last oil is in the lamp; it burns tonight and no more.';
+  // By number, in the order asked: the oil changed, the question came back as it was.
+  stringsSay = [{ n: 1, now: NOW }, { n: 2, now: 'Nobody knows why the boat turned back.' }];
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
+  await hemSettled(t.id);
+  stringsSay = [];
+  const ask = asks.findLast((a) => a.system.startsWith(prompts.STRINGS_STAND.slice(0, 80)) && a.user.includes('poured the last oil'));
+  assert.ok(ask, 'STRINGS-ASKED: the hem asks where the strings in play stand');
+  assert.ok(ask.user.includes(OIL) && ask.user.includes('Nobody knows why'), '  sending each one in play');
+  assert.ok(!ask.user.includes('dinghy') && !ask.user.includes('Her father'), '  and not one switched off, tied off or let go');
+  assert.ok(!ask.user.includes(SPOKEN), '  reading the narration and not the dialogue');
+  const tale = db.taleThreadOf(t.id);
+  const rows = (db.proposalsOf(t.id) as any[]).filter((x) => x.entry_id === tale.id && x.field);
+  assert.deepStrictEqual(rows.map((x) => [x.field, x.target, x.body, x.grp]), [['promise', oil, NOW, `scene:${ch1.id}`]],
+    "STRINGS-CHALKED: the one that moved is chalked onto the hem's card, aimed at its pocket; the one that did not is not");
+  ok("a hem chalks where each string in play stands now, onto its card, and nothing for one it did not move");
+
+  await routes['POST /api/proposal'](ctx({ storyId: t.id, id: rows[0].id, accept: true }));
+  const after = db.stringsOf(t.id).find((x: any) => x.id === oil);
+  assert.deepStrictEqual([after.body, after.summoned, after.status], [NOW, 1, 'open'],
+    'STRINGS-SEWN: sewn in, the string reads where it stands now, still on and open');
+  assert.strictEqual(db.stringsOf(t.id).length, 4, '  in place, not beside it');
+  const kept = (db.entryHistory(t.id, tale.id) as any[]).find((r) => r.field === `pocket:${oil}`);
+  assert.strictEqual(kept?.previous_value, OIL, 'STRINGS-HISTORY: and the old version is kept in the thread\'s history');
+  void why; void off; void tied;
+  ok('sewn in, a string reads where it stands now, and the old version is kept');
 }
 
 srv.close();
