@@ -2705,7 +2705,8 @@ function taleThread() {
           const xs = (V.strings ?? []).filter((x) => (x.kind ?? 'promise') === k);
           return `<div class="lbl sect">${head} &middot; <span class="tnum">${xs.length}</span></div>
     <div class="hint lead-6">${hint} Each is sent while it is on.</div>
-    <div class="stack">${stringList(xs, `<div class="hint flush">${none}</div>`)}</div>`;
+    <div class="stack">${stringList(xs, `<div class="hint flush">${none}</div>`)}</div>
+    <button class="btn ghost push-8" data-stringnew="${k}">+ Add ${k === 'promise' ? 'a promise' : 'an open question'}</button>`;
         }).join('')}
     <div class="lbl sect">Your own</div>
     <div class="hint lead-6">Anything else for the whole tale, as an instruction: "keep it a slow burn",
@@ -11029,9 +11030,12 @@ document.addEventListener('click', async (e) => {
     return;
   }
   // #128 · ＋ ON STRINGS: the pocket panel, to add, on the tale's own thread (or its stand-in while the
-  // tale has none; Save makes it). Its kinds are the tale's: promise and open question.
+  // tale has none; Save makes it). Its kinds are the tale's: promise and open question. #129 · The ＋
+  // under each list on the tale's own page names its kind, and the panel opens with it chosen.
   if (d.stringnew) {
-    openPocket(V?.taleThread?.id ?? TALE_NEW); paint(); $('pk-name')?.focus?.();
+    openPocket(V?.taleThread?.id ?? TALE_NEW);
+    if (S.pocket && (V.slots?.tale ?? []).some((sl) => sl.name === d.stringnew)) S.pocket.slot = d.stringnew;
+    paint(); $('pk-name')?.focus?.();
     return;
   }
   if (d.summon) {

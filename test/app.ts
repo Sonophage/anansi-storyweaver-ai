@@ -7041,6 +7041,19 @@ const hemCardOf = (side: string) => {
     assert.match(html('pocketPanel'), /id="pk-name" value="The ferry fare"/, 'TALE-OPEN: a row opens the pocket panel on it');
     click({ pocketx: '1' }); await wait();
 
+    // ＋ PER KIND: each list has its own, and it opens the panel to add with that kind chosen.
+    assert.match(promises, /data-stringnew="promise"/, 'TALE-PLUS: Promises has its own ＋');
+    assert.match(questions, /data-stringnew="question"/, 'TALE-PLUS: Open questions has its own ＋');
+    for (const [k, other] of [['promise', 'question'], ['question', 'promise']]) {
+      click({ stringnew: k }); await wait();
+      const add = html('pocketPanel');
+      assert.match(add, /New string &middot; The tale/, `TALE-PLUS-${k}: ＋ opens the panel to add a string`);
+      assert.match(add, new RegExp(`data-pocketkind="${k}"[^>]*aria-pressed="true"`), `TALE-PLUS-${k}: with ${k} chosen`);
+      assert.match(add, new RegExp(`data-pocketkind="${other}"[^>]*aria-pressed="false"`), `  and not ${other}`);
+      click({ pocketx: '1' }); await wait();
+    }
+    click({ taleopen: '1' }); await wait();
+
     click({ taleclose: '1' }); click({ panel: 'strings' }); await wait();
     const screen = html('sideBody');
     for (const id of ['p-on', 'p-done', 'q-gone']) {
