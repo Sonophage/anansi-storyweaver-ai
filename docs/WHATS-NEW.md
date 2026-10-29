@@ -16,7 +16,7 @@ Everything below this line was written by that model call, before it was removed
 
 
 
-## 2026-10-29 · A hemmed scene's card, tidied
+## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
 ### A hemmed scene's card shows each thread once
 The card now reads in this order: the scene summary, then the threads, then the next scene. Each
@@ -33,7 +33,6 @@ out of that scene. Type in the box to find another thread, and press it to bring
 When you asked Anansi for something else for the next scene, the card kept showing his first idea
 above the boxes, and Use these filled the next scene with that first idea. The card and Use these
 now show what the next scene holds: the newest idea, or what you typed.
-## 2026-10-29 · The header tells you when the Workbench has something new
 
 ### Merge two threads that are the same one
 When one person has two threads, open either one and choose "Merge with another thread…" in its
