@@ -18,6 +18,10 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-28 · A new tale starts at its opening
 
+### The passage length stays where you set it
+The Passage length slider (and Surprise and Focus) went back to "let him decide" whenever the server
+restarted. They are kept now.
+
 ### A new passage starts at the top on a short page too
 When you press Continue or Reweave, the new passage's label moves to the top of the screen so you
 can read it as it is written. In a scene with only a little text, the label stopped lower down.
