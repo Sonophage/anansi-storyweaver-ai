@@ -28,7 +28,8 @@ the wording and send the passage's own instruction again, with no reference to t
 - **The prompt for a reweave sends, in this order**, after the prose that comes before the passage:
   the passage's own instruction (with the edited directive, if the writer changed it), then the take
   being replaced, then the writer's note on what didn't work (if filled), then the writer's When you
-  reweave line (if set).
+  reweave line (if set). The When you reweave line was replaced later the same day; see the last
+  item in this list.
 - **All of it is in the MODE block.** The passage before is still the last prose. So "the passage
   above" in a mode's wording still points at the prose, as it did before.
 - **The take is fenced and named as the version being replaced.** The frame says it is not part of
@@ -41,6 +42,21 @@ the wording and send the passage's own instruction again, with no reference to t
   replaced version's sentences.
 - **The Reweave box has two fields**: The instruction (as before) and What didn't work (new,
   optional, empty at the start).
+- **2026-10-29, later the same day: the frame is the writer's to edit.** Seth: "The instruction you
+  have for how to reweave should be under Account → Writing in its box. Then the Reweave while
+  you're actually writing should hold the original reweave or direction prompt that was used."
+  - The **When you reweave** box on Account → Writing holds the whole reweave instruction: the frame
+    around the take. It is no longer a line added after the frame. Its shipped default is the frame
+    wording above, so a writer who never edits it sends the same prompt. Reset puts it back.
+  - The writer edits the wording. The engine inserts the values: `{{replaced}}` is the take, and
+    `{{whatfailed}}` is the note. When the note is empty, the whole line that holds `{{whatfailed}}`
+    is dropped.
+  - A save without `{{replaced}}` is refused. A line saved earlier that day (the old added line) has
+    no placeholder. It is repaired on read: it goes after the shipped wording, where it was sent
+    before. No row is rewritten.
+  - In the Reweave box, The instruction holds the passage's own direction as it was given. A passage
+    with no direction opens with the field empty. It is no longer prefilled with the mode's own
+    instruction. Empty sends no directive, and the passage's own instruction runs, as a tap.
 
 ## How this answers the September failure
 
@@ -62,5 +78,5 @@ passage before keeps its place as the last prose.
 - A tap on Reweave reweaves at once, for every passage, with no note (Seth, 2026-10-29: "the button
   just reweaves; holding the reweave button opens what we just built"). A hold, or Alt+click at a
   desk, opens the Reweave box for any passage. This replaces #38's rule that a tap on a directed
-  passage opened the box. A passage with no directive shows its own mode instruction in the box;
-  left unchanged, it is not sent as a directive.
+  passage opened the box. A passage with no directive opens the box with The instruction empty
+  (until the later 2026-10-29 change it showed its own mode instruction there).
