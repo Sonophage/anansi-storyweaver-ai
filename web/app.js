@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs } from './model.js';
+import { inkParagraphs, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -766,6 +766,49 @@ const owedHere = () => (V?.proposals ?? []).length
 const owedAnywhere = () => waiting(LIB ?? [], SRV.me ?? null)
   .reduce((n, r) => n + (Number(r.total) || 0), 0);
 
+/** NEW ON THE WORKBENCH, for the mark in the header (Seth, 2026-10-29: "we need a notification in
+ *  the header for when the Workbench has new additions"). What the writer has seen is what was on the
+ *  Workbench while it was open, per tale and per device, in localStorage. Storage that throws (a
+ *  private window, blocked site data) falls back to this page's memory, so the mark still clears
+ *  when the Workbench is opened and comes back empty on a reload.
+ *
+ *  A TALE SEEN FOR THE FIRST TIME on this device is taken as seen as it stands: there is no record of
+ *  what the writer looked at before, and lighting every tale with work in it on the first load would
+ *  say "new" about things that are not. The menu's Workbench count still shows all of them.
+ *
+ *  ponytail: the seen set keeps the last BENCH_KEEP parts and forgets older ones. Ceiling: a tale
+ *  whose Workbench holds more than that at once would count its oldest cards as new again. Revisit if
+ *  a real tale gets near it. */
+const BENCH_SEEN = 'anansi.benchseen.';
+const BENCH_KEEP = 400;
+const BENCH_MEM = new Map();
+const benchSeen = (sid) => {
+  if (BENCH_MEM.has(sid)) return BENCH_MEM.get(sid);
+  try {
+    const raw = localStorage.getItem(BENCH_SEEN + sid);
+    if (raw) { const set = new Set(JSON.parse(raw)); BENCH_MEM.set(sid, set); return set; }
+  } catch { /* no storage, or a value that is not JSON: nothing seen is on record */ }
+  return null;
+};
+const benchSaw = (sid, parts) => {
+  const set = new Set([...(BENCH_MEM.get(sid) ?? []), ...parts].slice(-BENCH_KEEP));
+  BENCH_MEM.set(sid, set);
+  try { localStorage.setItem(BENCH_SEEN + sid, JSON.stringify([...set])); } catch { /* no storage */ }
+};
+/** How many Workbench cards are new to the writer. Zero while the Workbench is open: being open is
+ *  being seen, and it is written down here, before the header is drawn, so the mark does not show
+ *  for one paint and go on the next. */
+function benchNew() {
+  const sid = S.storyId;
+  if (S.place !== 'story' || !V || !sid || V.story?.is_world) return 0;
+  const cards = deckCards(), seen = benchSeen(sid);
+  if (!seen || S.panel === 'waiting') {
+    if (!seen || benchUnseen(cards, seen)) benchSaw(sid, benchParts(cards));
+    return 0;
+  }
+  return benchUnseen(cards, seen);
+}
+
 /** WHERE A MODEL RUNS, drawn (#53): a circle in the local or the remote colour, filled when awake
  *  and hollow when asleep, and the spider or the feather beside it in the same colour. One drawing
  *  for the menu rows, the strip and the Storyteller, so the three cannot disagree. The words go in
@@ -1205,6 +1248,17 @@ function drawBar() {
       ${/* HIS WEB OPENS THE TALE'S MENU, and the ⋯ is gone. Seth, 2026-10-26: "make the web icon at
             the top open what the three dots open and then remove the three dots". It opened the
             Talk drawer; that is a row on the menu now (SNAV), and Talk is still the quill's hold. */ ''}
+      ${/* NEW ON THE WORKBENCH, beside the menu (Seth, 2026-10-29). Beside the menu and not the title:
+            the title already gives up width to an ellipsis on a phone, and the Workbench's other
+            door is in that menu. The word goes on a phone like the others; the count stays. Drawn
+            only when there is something new, and the header is rewritten only when the count
+            changes (sameOrSet), so it does not fade in again on every paint. */ ''}
+      ${(() => {
+        const n = inStory ? benchNew() : 0;
+        const say = `${n} new on the Workbench`;
+        return n ? `<button data-panel="waiting" class="pill benchnew" aria-label="${say}" title="${say}"
+          ><span aria-hidden="true" style="display:flex">${mark('workbench', 17)}</span><span class="tnum">${n}</span><span class="btnword">New</span></button>` : '';
+      })()}
       ${inStory ? `<button data-railview="story" class="pill" aria-label="This tale's menu" title="This tale's menu"
         style="display:flex; align-items:center; gap:7px; padding:6px 11px; color:var(--chrome-dim)"
         >${mark('webfull', 17)}<span class="btnword">Menu</span></button>` : ''}

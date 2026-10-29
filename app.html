@@ -606,6 +606,10 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
   #dock:not(:has(#inputRow:focus-within, #modes:focus-within)):not(.big) #modes { display:none; }
 }
 .hdoor { flex:0 0 auto; }
+/* New on the Workbench (drawBar, 2026-10-29). A notice, so --warn like the waiting glow (ADR 0004). */
+.pill.benchnew { display:flex; align-items:center; gap:6px; padding:6px 10px; color:var(--warn);
+  border-color:color-mix(in srgb, var(--warn) 55%, transparent); flex:0 0 auto; }
+.pill.benchnew .tnum { font-size:12px; line-height:1; }
 .pill[aria-pressed="true"] { background:transparent; border-color:var(--ink-bright); color:var(--ink-bright); }
 .deskonly { display:block; }
 @media (max-width:719px) { .deskonly { display:none; } }

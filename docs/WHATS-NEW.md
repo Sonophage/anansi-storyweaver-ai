@@ -16,6 +16,14 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-29 · The header tells you when the Workbench has something new
+
+### The header tells you when the Workbench has something new
+When Anansi adds something to the Workbench (a suggestion, a string, a summary that needs writing
+again), a small Workbench mark with a number appears at the top of the screen, beside the menu
+button. The number is how many things were added since you last opened the Workbench. Tap it to open
+the Workbench, and the mark goes away. This device remembers what you have seen, tale by tale.
+
 ## 2026-10-28 · A new tale starts at its opening
 
 ### The passage length stays where you set it
