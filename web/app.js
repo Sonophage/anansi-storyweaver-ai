@@ -3894,31 +3894,25 @@ const PANELS = {
         : `<div class="hint lead-6">Nothing is written down about this one. What is
             above is decoded from its name; what is below is measured.</div>`}
 
-      ${remote
-        ? `${SRV.admin ? fact('Reading space, per writer', m.perSlot ? `${m.perSlot.toLocaleString()} tokens` : '',
-            m.ctxSize ? `Featherless holds ${m.ctxSize.toLocaleString()} for this model; a writer gets the smaller of that and their share here` : '')
-            : fact('How much it can read at once',
-              m.perSlot ? `about ${(Math.round(m.perSlot * 0.75 / 1000) * 1000).toLocaleString()} words` : '', '')}
-           ${fact('Cost', m.cost ? `${m.cost} ${m.cost === 1 ? 'unit' : 'units'} of the shared plan` : '',
-            m.cost ? 'counted against the plan both writers share, on Featherless, while it writes'
-              : 'Featherless did not say what this model costs')}`
-        : !SRV.admin ? fact('How much it can read at once',
-            perSlot ? `about ${(Math.round(perSlot * 0.75 / 1000) * 1000).toLocaleString()} words` : '', '')
-        : fact('Reading space, per writer',
-        perSlot ? `${perSlot.toLocaleString()} tokens` : '',
-        live
-          ? `${live.global.toLocaleString()} shared ${live.slots} ${live.slots === 1 ? 'way' : 'ways'} by the running server`
-          : m.perSlot && m.ctxSize && m.parallel
-          ? `${m.ctxSize.toLocaleString()} shared ${m.parallel} ${m.parallel === 1 ? 'way' : 'ways'} in the router's preset file`
-          : "the router's preset file does not mention this one")}
-
-      ${!SRV.admin ? fact('How fast it writes here',
-        m.tps ? `about ${Math.max(1, Math.round(m.tps * 0.75))} words a second` : '',
-        m.tps ? '' : 'nothing has been written with it here yet')
-      : fact('Speed, measured here',
-        m.tps ? `${m.tps} tok/s` : '',
-        m.tps
-          ? `median of ${m.runs} ${m.runs === 1 ? 'call' : 'calls'} on this machine${m.runs < 5 ? ', which is too few to lean on' : ''}`
+      ${/* CONTEXT AND SPEED IN WORDS, tokens beside them for the admin (Seth, 2026-10-29: "it needs to be
+           clearer of context and speed"). A Featherless model is not shared any more: each writer
+           has their own key and plan (#70), so its room is its own whole context. */ ''}
+      ${(() => {
+        const room = remote ? m.perSlot : perSlot;
+        const words = (n) => `about ${(Math.round(n * 0.75 / 1000) * 1000).toLocaleString()} words`;
+        return fact('How much he reads at once (context)',
+          room ? `${words(room)}${SRV.admin ? ` &middot; ${room.toLocaleString()} tokens` : ''}` : '',
+          remote ? "this model's whole limit on Featherless, and all of it is yours"
+          : !SRV.admin ? 'half of what this machine holds, because both writers share it'
+          : live ? `half of what this machine holds (${live.global.toLocaleString()} tokens), because both writers share it`
+          : m.perSlot && m.ctxSize && m.parallel ? `${m.ctxSize.toLocaleString()} shared ${m.parallel} ${m.parallel === 1 ? 'way' : 'ways'} in the router's preset file`
+          : "the router's preset file does not mention this one");
+      })()}
+      ${remote ? fact('Cost', m.cost ? `${m.cost} ${m.cost === 1 ? 'unit' : 'units'} of your Featherless plan` : '',
+        m.cost ? 'your own plan, counted while he writes' : 'Featherless did not say what this model costs') : ''}
+      ${fact('How fast he writes',
+        m.tps ? `about ${Math.max(1, Math.round(m.tps * 0.75))} words a second${SRV.admin ? ` &middot; ${m.tps} tokens a second` : ''}` : '',
+        m.tps ? `the middle of ${m.runs} ${m.runs === 1 ? 'passage' : 'passages'} written with it here${m.runs < 5 ? ', too few to be sure of' : ''}`
           : 'nothing has been written with it here yet')}
 
       ${pinned && pinned !== id

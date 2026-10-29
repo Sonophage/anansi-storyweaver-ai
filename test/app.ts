@@ -2576,7 +2576,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   libAdmin = true; click({ home: 1 });
   await new Promise((r) => setTimeout(r, 40));
   click({ modelinfo: 'Qwen3.6-WNTH-35B-A3B-NN' });
-  for (let i = 0; i < 20 && !/tok\/s/.test(html('sideBody')); i++) await new Promise((r) => setTimeout(r, 25));
+  for (let i = 0; i < 20 && !/tokens a second/.test(html('sideBody')); i++) await new Promise((r) => setTimeout(r, 25));
 
   assert.strictEqual(side().hidden, false, 'the model panel opens with no story open');
   const panel = html('sideBody');
@@ -2592,9 +2592,11 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   // character — a regex written with the literal apostrophe cannot match the rendered panel.
   assert.match(panel, /100,096 shared 2 ways in the router.{0,6}s preset file/,
     'with which of the four sources it came from beside it');
-  assert.match(panel, /58\.4 tok\/s/, 'measured here, not claimed');
-  assert.match(panel, /median of 58 calls/);
-  assert.doesNotMatch(panel, /too few to lean on/, 'fifty-eight calls is not a thin sample');
+  assert.match(panel, /58\.4 tokens a second/, 'measured here, not claimed');
+  assert.match(panel, /about 44 words a second/, 'CONTEXT-WORDS: and in words');
+  assert.match(panel, /the middle of 58 passages/);
+  assert.doesNotMatch(panel, /too few to be sure of/, 'fifty-eight calls is not a thin sample');
+  assert.match(panel, /How much he reads at once \(context\)/, 'CONTEXT-WORDS: the context is named as the context');
   assert.match(panel, /twelve times the speed/, 'the hand-written blurb, quoted from presets.ini');
   assert.match(panel, /data-pickmodel="Qwen3\.6-WNTH-35B-A3B-NN"/,
     'and the switch is on the panel, which is the whole of what checks.md asked for');
@@ -2607,7 +2609,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   click({ modelinfo: 'write-nt-qwen36-h' });
   const loaded = html('sideBody');
   assert.match(loaded, /50,048 tokens/, 'the running server\'s own figure, not the file\'s 50,000');
-  assert.match(loaded, /100,096 shared 2 ways by the running server/, 'and it says so');
+  assert.match(loaded, /half of what this machine holds \(100,096 tokens\)/, 'and it says so');
   assert.match(loaded, /writing now/, 'and this is the one writing');
   assert.doesNotMatch(loaded, /data-pickmodel=/, 'so there is nothing to switch to');
 
@@ -2618,7 +2620,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   // A THIN SAMPLE SAYS SO. 41.2 tok/s off three calls and off two hundred are different claims.
   click({ modelinfo: 'Wayfarer-2-RPNT-12B' });
   const thin = html('sideBody');
-  assert.match(thin, /median of 3 calls on this machine, which is too few to lean on/);
+  assert.match(thin, /the middle of 3 passages written with it here, too few to be sure of/);
   assert.match(thin, /trained open/, 'and no H does not read as censored');
 
   // THE SOURCE THAT IS SILENT IS NAMED. A model the preset file does not carry and nobody has
@@ -2642,8 +2644,9 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.doesNotMatch(far, /preset file/, 'REMOTE-PANEL: no preset-file wording for a remote model');
   assert.doesNotMatch(far, /router/, 'REMOTE-PANEL: and no router wording');
   assert.match(far, /32,768 tokens/, 'the room one writer gets');
-  assert.match(far, /Featherless holds 32,768/, 'REMOTE-PANEL: and the limit Featherless gives it');
-  assert.match(far, /2 units of the shared plan/, 'REMOTE-PANEL: its unit cost');
+  assert.match(far, /whole limit on Featherless/, 'REMOTE-PANEL: and that it is the limit Featherless gives it');
+  assert.match(far, /2 units of your Featherless plan/, 'REMOTE-PANEL: its unit cost, on the writer\'s own plan');
+  assert.match(far, /all of it is yours/, 'REMOTE-OWN: a Featherless model\'s room is not shared');
   assert.match(far, /on Featherless/, 'REMOTE-PANEL: and where it runs');
   assert.doesNotMatch(far, /data-pickmodel=/,
     'REMOTE-PANEL: with Featherless not set up, there is no Write with this one');
@@ -3451,7 +3454,7 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   const lent = await panelFor(LENT);
   // In words for a writer since 2026-10-25 (32,768 tokens); the admin sees "Featherless holds".
   assert.match(lent, /about 25,000 words/, 'LENT-PANEL: the limit, from the pin row the book carries');
-  assert.match(lent, /2 units of the shared plan/, 'LENT-PANEL: and the cost the owner\'s shortlist holds');
+  assert.match(lent, /2 units of your Featherless plan/, 'LENT-PANEL: and the cost the owner\'s shortlist holds');
   assert.doesNotMatch(lent, /did not say/, 'LENT-PANEL: never "Featherless did not say", which is false');
   assert.match(lent, /writing now/, 'WRITING-NOW: the model that writes the open book is the one writing');
   assert.doesNotMatch(lent, /data-pickmodel=/, 'LENT-PANEL: and no switch to a model off this writer\'s list');

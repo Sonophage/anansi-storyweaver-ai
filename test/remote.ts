@@ -430,14 +430,17 @@ const streamed = async (body: any) => {
   assert.ok(local16 < local32 && local32 < local50, 'the budget in this fixture moves with the slot');
   assert.strictEqual(r.manifest.totals.budget, local32,
     'a remote passage is budgeted against the model\'s own 32,768, not the 50,048 slot');
+  // NOT THE LOCAL SHARE (Seth, 2026-10-29): each writer has their own Featherless plan, so a smaller
+  // local slot does not shrink a remote passage.
   const small = await routes['POST /api/generate'](at(16000));
-  assert.strictEqual(small.manifest.totals.budget, local16,
-    'and against the slot when the slot is the smaller of the two');
+  assert.strictEqual(small.manifest.totals.budget, local32,
+    'REMOTE-OWN: and still against the model\'s own 32,768 when the local share is smaller');
+  void local16;
   const preview = await routes['POST /api/manifest'](at(50048));
   assert.strictEqual(preview.manifest.totals.budget, local32,
     'the Context panel previews the same budget the generation uses');
   assert.strictEqual(preview.exact, 321, 'and counts with Featherless too');
-  ok('a remote call counts with Featherless and is budgeted against the smaller limit');
+  ok('a remote call counts with Featherless and is budgeted against the model\'s own context');
 }
 
 /** Every chat that went anywhere since `mark`: Featherless's, and the local router's. */
@@ -1384,7 +1387,7 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
   assert.strictEqual(v.model, ID, 'the book writes remotely for the guest too');
   assert.strictEqual(v.pin?.id, ID, 'GUEST-PIN: the open book names its remote pin as a model row');
   assert.deepStrictEqual([v.pin.source, v.pin.ready], ['remote', true], 'GUEST-PIN: remote, and ready');
-  assert.strictEqual(v.pin.perSlot, Math.min(v.slot.perSlot, 32768), 'with the room the owner\'s entry gives it');
+  assert.strictEqual(v.pin.perSlot, 32768, 'with the room the owner\'s entry gives it');
   assert.strictEqual(v.pin.cost, 2, 'GUEST-PIN: and the unit cost the owner\'s shortlist holds for it');
 
   const shelf = await routes['GET /api/stories'](ctx(guest));

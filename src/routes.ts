@@ -428,9 +428,13 @@ const shortlistedOrRefuse = (owner: string, id: string): string => {
  *  A remote model holds what its catalogue entry says — 32,768 for nearly all of them — and the
  *  per-writer slot here is larger, so budgeting a remote call against the slot alone would send a
  *  prompt Featherless refuses. The smaller of the two, recorded when the model was shortlisted. */
+// A REMOTE MODEL READS AS MUCH AS IT HOLDS (Seth, 2026-10-29: "for featherless we're not sharing
+// anymore"). The per-writer share of the local slot exists because two writers share one GPU cache
+// here; on Featherless each writer has their own key and plan (#70), so a remote model's room is its
+// own context, not the smaller of that and the local share.
 const slotFor = (c: Ctx, v: { owner?: string }, using: string): Slot => {
   const held = heldFor(c, v, using)?.context;
-  return held != null ? { ...c.slot, perSlot: Math.min(c.slot.perSlot, held) } : c.slot;
+  return held != null ? { ...c.slot, perSlot: held } : c.slot;
 };
 
 /** The shortlist entry `using` is held under for this book: the owner's list first, then the
@@ -448,7 +452,7 @@ const heldFor = (c: Ctx, v: { owner?: string }, using: string) => {
 const remoteRow = (c: Ctx, id: string, context: number, speed?: { tps?: number; runs?: number },
                    cost?: number | null) =>
   ({ id, status: 'remote', source: 'remote', ready: remoteReady(), ctxSize: context,
-     perSlot: Math.min(context, c.slot.perSlot), tps: speed?.tps, runs: speed?.runs, cost: cost ?? null });
+     perSlot: context, tps: speed?.tps, runs: speed?.runs, cost: cost ?? null });
 
 /** A BOOK'S REMOTE PIN, as a model row, or null. Checked against the OWNER's shortlist, the way
  *  `writerModel` checks it, because a guest's own list does not hold the owner's models: without
@@ -2452,7 +2456,7 @@ const MODEL_WARM_EVERY = 10 * 60_000;
 const modelWarmedAt = new Map<string, number>();
 function warmModel(c: Ctx) {
   const using = c.defaultModel ?? model();
-  // Nothing to wake on this machine, and a warm call to Featherless spends shared plan units on a
+  // Nothing to wake on this machine, and a warm call to Featherless spends the writer's own plan units on a
   // passage nobody asked for.
   if (isRemote(using) || warming || busyOn(using) > 0) return;
   if (Date.now() - (modelWarmedAt.get(c.owner) ?? 0) < MODEL_WARM_EVERY) return;

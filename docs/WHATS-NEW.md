@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### A model's page says how much it reads and how fast, in words
+Each model's page now says how much Anansi reads at once (the context) and how fast he writes, in
+words. A Featherless model is no longer shared: it reads as much as the model holds, and its cost is
+counted on your own plan.
+
 ### The glow at the top is bigger, and only for chalked threads
 When a thread is chalked and waiting for you, the line at the top of the screen is now thicker and
 glows further down. Strings in play no longer light it.

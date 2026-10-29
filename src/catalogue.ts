@@ -175,7 +175,7 @@ export function search(rows: CatalogueRow[], q: Query, prefix: string,
       weaving: weavingGuess(r), size: sizeClass(r.modelClass) }))
     .filter((r) => !q.size || r.size === q.size.toLowerCase())
     .filter((r) => !q.weaving || r.weaving === q.weaving)
-    // Units, exactly: a 1-unit model is one both writers can run at once on the shared plan.
+    // Units, exactly: a 1-unit model is one a writer can run beside another call on their own plan.
     .filter((r) => !q.cost || r.cost === Number(q.cost));
   // TAGS, over every candidate and not only a page of them: a part of a tag matches ("role" finds
   // roleplay). A candidate whose tags are not read yet is left out and counted, so the answer can
