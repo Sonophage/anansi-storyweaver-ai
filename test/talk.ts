@@ -130,6 +130,9 @@ const srv = createServer((req, res) => {
         changes: [{ op: 'string.set', kind: 'question', title: 'Who sent the letter', text: 'It came under the door with no name.' }] },
       STRINGEDIT: { reply: 'The letter is sealed now.',
         changes: [{ op: 'string.set', title: 'the letter', text: 'Sealed, and still unopened.' }] },
+      // Seth, 2026-10-28: a string made the other kind, asked for in so many words, with no text.
+      STRINGKIND: { reply: 'The letter is an open question now.',
+        changes: [{ op: 'string.set', kind: 'question', title: 'the letter' }] },
       STRINGOFFER: { reply: 'Two things the tale is carrying.',
         strings: [{ title: 'The debt nobody calls in', body: 'Owed since spring.', fromChapter: 1, kind: 'promise' },
                   { title: 'Whether the ferryman can die', body: 'Nobody has asked him.', fromChapter: 1, kind: 'question' }] },
@@ -1686,6 +1689,20 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.ok(!back.error, back.error);
   assert.strictEqual(db.stringsOf(tale.id)[0].body, 'Sent by his brother.', 'TALK-STRING-EDIT-UNDO: Undo puts the old text back');
   ok('asked to change a string, Talk rewrites it, and Undo puts back the old text');
+
+  const sid = db.stringsOf(tale.id)[0].id;
+  db.upsertAddon(tale.id, db.taleThreadOf(tale.id).id, { id: sid, slot: 'promise', name: 'The letter he has not opened', body: 'Sent by his brother.', owedBy: 6 });
+  const turned = await say('CHANGE-STRINGKIND: make the letter an open question, not a promise');
+  assert.ok(!turned.error, turned.error);
+  const k = db.stringsOf(tale.id)[0];
+  assert.deepStrictEqual([k.id, k.kind, k.body, k.owed_by], [sid, 'question', 'Sent by his brother.', null],
+    `TALK-STRING-KIND: the same string is an open question at once, its text kept, owed by no scene (${JSON.stringify(turned.changes)})`);
+  assert.strictEqual(turned.changes[0].words, 'Made The letter he has not opened an open question.');
+  const unturned: any = undo(turned.changes[0].undo);
+  assert.ok(!unturned.error, unturned.error);
+  assert.deepStrictEqual([db.stringsOf(tale.id)[0].id, db.stringsOf(tale.id)[0].kind], [sid, 'promise'],
+    'TALK-STRING-KIND-UNDO: Undo makes it a promise again');
+  ok("asked to make a string the other kind, Talk does it at once, and Undo puts back the old kind");
 
   const offered = await say('CHANGE-STRINGOFFER: what is the tale carrying?');
   assert.ok(!offered.error, offered.error);
