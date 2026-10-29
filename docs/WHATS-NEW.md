@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A hemmed scene's card, tidied
 
+### A hemmed scene's card shows each thread once
+The card now reads in this order: the scene summary, then the threads, then the next scene. Each
+thread is one block with its name and kind. All of its changes are in that block: where it stands
+now, each pocket, and a retirement. Each change shows the old text against the new text. You can
+sew in or reject one change, or the whole thread at once. The tale's own thread is the first block.
+It shows where the tale stands and where each string stands. Each new thread has its own block.
+
 ### Something else on a hemmed scene's card shows the new idea
 When you asked Anansi for something else for the next scene, the card kept showing his first idea
 above the boxes, and Use these filled the next scene with that first idea. The card and Use these

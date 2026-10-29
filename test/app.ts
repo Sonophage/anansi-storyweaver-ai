@@ -6379,13 +6379,37 @@ const hemCardOf = (side: string) => {
     'Sew all takes every row on the card');
   assert.match(card, /data-deckall="reject" data-ids="hs-1,hs-2,hs-3,hs-4"[^>]*>&larr; Reject all/,
     'Reject all takes every row on the card');
-  // ONE FOLD PER THREAD, shut, in the spec's order: changes, then retirements, then new threads.
-  const folds = [...card.matchAll(/<details[^>]*data-hemthread="([^"]+)"[^>]*>/g)];
-  assert.deepStrictEqual(folds.map((m) => m[1]), ['e-1', 'e-2', 'The bellringer'],
-    'each thread folds once, changed threads first, then retirements, then new threads');
-  assert.ok(folds.every((m) => !/\bopen\b/.test(m[0])), '  and every fold starts shut, for a phone');
-  assert.match(card, /data-hemthread="e-1"[^>]*>\s*<summary>[\s\S]*?Envoy Sereth[\s\S]*?deckpeek/,
-    '  showing the thread name and one line while shut');
+  // ONE BLOCK PER THREAD (Seth, 2026-10-29: "Thread changes and its pockets should show as a single
+  // thread and its pockets instead of a long list of every change"). A thread's rows sit together,
+  // a retirement with the rest of its thread; new threads come after the threads the tale has.
+  const blocks = [...card.matchAll(/data-hemthread="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepStrictEqual(blocks, ['e-1', 'e-2', 'new:The bellringer'],
+    'HEM-THREADS: one block per thread, the threads the tale has first, then new threads');
+  const block = (k: string) => {
+    const at = card.indexOf(`data-hemthread="${k}"`), end = card.indexOf('data-hemthread=', at + 1);
+    return card.slice(at, end < 0 ? card.indexOf('data-hemnext=') : end);
+  };
+  const sereth = block('e-1');
+  assert.match(sereth, /data-hemthreadname[^>]*>Envoy Sereth</, '  its head names the thread');
+  assert.match(sereth, /Character/, '  and its kind');
+  assert.strictEqual(sereth.match(/>Envoy Sereth</g)?.length, 1, '  and names it once, not once per row');
+  assert.match(sereth, /Where it stands[\s\S]*data-deckdiff="hs-1"/, '  each row says what it is: where it stands');
+  assert.match(sereth, /How she sounds[\s\S]*data-deckdiff="hs-2"/, '  and the pocket by its name');
+  assert.match(sereth, /data-deckall="accept" data-ids="hs-1,hs-2"[^>]*>Sew in all of it/,
+    'HEM-THREAD-ALL: Sew in takes the whole thread');
+  assert.match(sereth, /data-deckall="reject" data-ids="hs-1,hs-2"[^>]*>Reject all of it/, '  and so does Reject');
+  for (const id of ['hs-1', 'hs-2']) {
+    assert.match(sereth, new RegExp(`data-decide="accept" data-id="${id}"`), `  and ${id} has its own Sew it in`);
+    assert.match(sereth, new RegExp(`data-decide="reject" data-id="${id}"`), `  and its own Reject`);
+  }
+  assert.match(block('e-2'), /The stair[\s\S]*Retire[\s\S]*Nobody climbs it/, 'a retirement sits in its thread\'s block');
+  assert.match(block('new:The bellringer'), /The bellringer[\s\S]*New[\s\S]*Rings the hour/,
+    'a new thread is its own block, marked new, with what it would say');
+  // THE ORDER ON THE CARD (Seth, 2026-10-29): "summary first, ready to edit. Then the threads. Then
+  // the next scene setup."
+  assert.ok(card.indexOf('data-hemsumtext') < card.indexOf('data-hemthread=')
+    && card.indexOf('data-hemthread=') < card.indexOf('data-hemnext='),
+    'HEM-ORDER: the summary, then the threads, then the next scene');
   // THE THREADS PAST THE CAP, named, with a way to ask for them.
   assert.match(card, /Coyle/, 'the threads past the cap are named');
   assert.match(card, /Vantic law/);
@@ -6415,13 +6439,21 @@ const hemCardOf = (side: string) => {
     states: [], nowStateId: null };
   const row = { id: 'ht-1', entryId: 'e-tale', title: 'The tale', body: NOW, entryType: 'state', kind: 'memory',
     keys: ['2'], delta: 'where the tale stands', chapterId: 'c-1', grp: 'scene:c-1' };
-  HEM_VIEW = { ...hemView({ ...HEM_DONE, passes: { ...HEM_DONE.passes, tale: 'the model did not answer' } }, [row]),
-    taleThread: TALE };
+  // Where a string stands now: a pocket of the tale's thread, chalked by the same hem.
+  const str = { id: 'ht-2', entryId: 'e-tale', title: 'The tale', body: 'The debt is half paid.', entryType: 'tale',
+    kind: 'memory', field: 'promise', target: 'x-1', pocket: 'The debt', keys: [], chapterId: 'c-1', grp: 'scene:c-1' };
+  HEM_VIEW = { ...hemView({ ...HEM_DONE, passes: { ...HEM_DONE.passes, tale: 'the model did not answer' } },
+    [HEM_ROWS[0], row, str]), taleThread: TALE };
   click({ open: 's-1' }); await settle();
   click({ panel: 'waiting' }); await settle();
   const card = hemCardOf(html('sideBody'));
   assert.ok(card.includes(`data-deckdiff="ht-1">${diffHTML('Six houses.', NOW)}`),
     "TALE-DIFF: the hem's card shows where the tale stands against the premise, as a diff");
+  assert.deepStrictEqual([...card.matchAll(/data-hemthread="([^"]+)"/g)].map((m) => m[1]), ['e-tale', 'e-1'],
+    "TALE-BLOCK: the tale's thread is one block, first, with where it stands and its strings together");
+  assert.match(card.slice(card.indexOf('data-hemthread="e-tale"'), card.indexOf('data-hemthread="e-1"')),
+    /The tale[\s\S]*Where it stands[\s\S]*data-deckdiff="ht-1"[\s\S]*The debt[\s\S]*data-decide="accept" data-id="ht-2"/,
+    '  where the tale stands, then the string by its name');
   assert.match(card, /where the tale stands<\/span> did not run/, 'TALE-PASS: and names the pass when it did not run');
 
   // THE TALE'S SETTINGS: the premise is how the tale began; where it stands now shows once one is sewn in.

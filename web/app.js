@@ -2836,11 +2836,10 @@ function nextSetup(ch) {
 /** A chalked row's one line while its fold is shut: the first 90 characters. */
 const peek = (s) => `${esc(String(s ?? '').slice(0, 90))}${String(s ?? '').length > 90 ? '&hellip;' : ''}`;
 
-/** #92 · ONE HEMMED SCENE'S CARD, in the spec's order: what state the hem is in, the summary
- *  (editable; saving it makes it the writer's, #46), each changed thread before and after, threads
- *  to retire, new threads, the threads past the cap, and the next scene's suggestion. Every thread
- *  folds to its name and one line until opened, so it reads on a phone. Each row is the same
- *  `deckRow` the other chalk cards use; Sew all and Reject all are the deck's own `deckall`. */
+/** #92 · ONE HEMMED SCENE'S CARD, in Seth's order (2026-10-29: "summary first, ready to edit. Then
+ *  the threads. Then the next scene setup."): what state the hem is in, the summary (editable;
+ *  saving it makes it the writer's, #46), one block per thread (`hemThreads`), the threads past the
+ *  cap, and the next scene. Sew all and Reject all are the deck's own `deckall`. */
 function hemCardParts(c) {
   const ch = c.ch, h = ch.hem, id = esc(ch.id), running = h.state === 'running';
   const state = [];
@@ -2864,18 +2863,8 @@ function hemCardParts(c) {
       ch.summaryAuthor === 'human' ? 'Your summary' : 'The summary'}</label>
     <textarea class="field" id="hemsum-${id}" data-hemsumtext="${id}" aria-label="The summary of ${esc(c.title)}"
       placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>`;
-  const fold = ([k, rows]) => `<details class="decksec" data-hemthread="${esc(k)}">
-    <summary><span class="lbl flush">${esc(rows[0].title)}</span><span class="deckpeek">${peek(rows[0].body)}</span></summary>
-    ${rows.map(deckRow).join('')}</details>`;
-  const section = (label, rows) => {
-    const by = new Map();
-    for (const p of rows) { const k = p.entryId || p.title; by.set(k, [...(by.get(k) ?? []), p]); }
-    return rows.length ? `<div class="lbl sub-lbl">${label}</div>${[...by].map(fold).join('')}` : '';
-  };
   const ps = c.ps;
-  const threads = section('What changed', ps.filter((p) => p.entryId && p.entryType !== 'retire'))
-    + section('To retire', ps.filter((p) => p.entryType === 'retire'))
-    + section('New threads', ps.filter((p) => !p.entryId));
+  const threads = hemThreads(ps).map(hemThreadBlock).join('');
   const past = h.overflow ?? [];
   const overflow = past.length ? `<div class="hint push-8">Also changed in this scene, past the six:
     ${past.map(esc).join(', ')}.</div>
@@ -2941,6 +2930,80 @@ document.addEventListener('change', async (e) => {
   V = r; paint(); refreshManifest();
   toast('Saved. This summary is yours now.');
 });
+
+/** THE THREADS ON A HEM'S CARD, ONE BLOCK EACH (Seth, 2026-10-29: "Thread changes and its pockets
+ *  should show as a single thread and its pockets instead of a long list of every change"). Every
+ *  row about one thread sits in its block: where it stands, each pocket, a retirement. The tale's
+ *  own thread is one block, first: where the tale stands and where each string stands, and a new
+ *  string is a pocket of it too. Then the threads the tale has, in the order the hem chalked them,
+ *  then the new threads, each its own block. Within a block: where it stands, the pockets, and a
+ *  retirement last. Returns [key, rows, thread] with thread null for a new one. */
+function hemThreads(ps) {
+  const tale = V.taleThread ?? null;
+  const isTale = (p) => p.entryType === 'string' || p.entryType === 'tale' || (!!tale && p.entryId === tale.id);
+  const keyOf = (p) => isTale(p) ? (tale?.id ?? 'tale') : p.entryId || `new:${p.title}`;
+  const by = new Map();
+  for (const p of ps) { const k = keyOf(p); by.set(k, [...(by.get(k) ?? []), p]); }
+  const rank = (p) => p.entryType === 'state' ? 0 : p.entryType === 'retire' ? 2 : 1;
+  const place = ([k, rows]) => rows.some(isTale) ? 0 : k.startsWith('new:') ? 2 : 1;
+  return [...by].sort((a, b) => place(a) - place(b)).map(([k, rows]) => [k,
+    [...rows].sort((a, b) => rank(a) - rank(b)),
+    rows.some(isTale) ? tale : (V.entries ?? []).find((e) => e.id === rows[0].entryId) ?? null]);
+}
+
+/** One thread's block on a hem's card: its name and kind once, each chalked row under it, and
+ *  Sew in or Reject for the whole thread when it has more than one row. */
+function hemThreadBlock([k, rows, thread]) {
+  const isTale = k === (V.taleThread?.id ?? 'tale');
+  const type = thread?.entryType ?? rows.find((p) => p.entryType !== 'string')?.entryType ?? rows[0].entryType;
+  const kind = isTale ? "The tale's own thread" : thread ? pocketTitle(type)
+    : `New ${String(type).replace(/_/g, ' ')}`;
+  const ids = esc(rows.map((p) => p.id).join(','));
+  return `<div class="card hemthread" data-hemthread="${esc(k)}" style="gap:8px">
+    <div class="line-8 wraps"><span class="name-145" data-hemthreadname>${esc(isTale ? 'The tale' : rows[0].title)}</span>
+      <span class="tag">${esc(kind)}</span></div>
+    ${rows.map(hemRow).join('')}
+    ${rows.length > 1 ? `<div class="btnrow">
+      <button class="btn ghost fill" data-deckall="reject" data-ids="${ids}">Reject all of it</button>
+      <button class="btn fill" data-deckall="accept" data-ids="${ids}">Sew in all of it</button></div>` : ''}
+  </div>`;
+}
+
+/** One chalked row inside a thread's block: what it is, before and after as one diff (#122), its
+ *  box to edit and Anansi edits behind one fold, and its own Sew it in and Reject. A row with
+ *  nothing before it (a new thread, an empty pocket, a retirement) shows what is chalked. */
+function hemRow(p) {
+  const was = hemBefore(p);
+  return `<div class="hemrow stack">
+    <div class="lbl sub-lbl flush">${rowLabel(p)}</div>
+    ${was == null ? `<div class="note">${esc(p.body ?? '')}</div>`
+      : `<div data-deckdiff="${esc(p.id)}">${diffHTML(was, p.body ?? '')}</div>`}
+    ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint trail-6">It arrives with these:</div>
+      ${Object.entries(p.rooms).map(([slot, r]) => `<div class="hint flush">
+        <span class="lbl flush">${slot === 'stands' ? 'Where it stands' : esc(pocketTitle(slot))}${r?.name && r.name !== slot ? ` &middot; ${esc(r.name)}` : ''}</span>
+        ${esc(typeof r === 'object' ? r.body ?? '' : String(r))}</div>`).join('')}` : ''}
+    ${p.entryType === 'retire' ? '' : `<details class="decksec"><summary><span class="lbl flush">Edit</span></summary>
+      <textarea class="field" data-pbody="${esc(p.id)}" aria-label="What ${esc(p.title)} will say"
+        style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
+      <div class="deckredo">
+        <input class="field" data-aeask="${esc(p.id)}" placeholder="What should change? (or leave it empty)"
+          aria-label="What should change, for Anansi to write it again" style="margin:0; flex:1; font-size:12px">
+        <button class="btn ghost" data-anansiedit="${esc(p.id)}" style="flex:0 0 auto; width:auto; padding:0 14px">Anansi edits</button>
+      </div></details>`}
+    ${decideButtons(p)}
+  </div>`;
+}
+
+/** What one chalked row is, in a word or two: where its thread stands, a pocket by its kind and
+ *  name, a retirement. The one label for the chalk cards and the hem's card. */
+function rowLabel(p) {
+  const onto = p.entryId ? [...(V.entries ?? []), ...(V.taleThread ? [V.taleThread] : [])].find((x) => x.id === p.entryId) : null;
+  const name = p.pocket ?? [...(onto?.addons ?? []), ...(onto?.outfits ?? [])].find((a) => a.id === p.target)?.name;
+  return p.entryType === 'state' ? `Where it stands, from scene ${esc(String(p.keys?.[0] ?? ''))}`
+    : p.entryType === 'string' ? `A new ${esc(slotLabel(p.field ?? 'promise'))}`
+    : p.field === 'facts' ? 'Always true' : p.field ? `${esc(pocketTitle(p.field))}${name ? ` &middot; ${esc(name)}` : ''}`
+    : p.entryType === 'retire' ? 'Retire' : !p.entryId ? 'The thread' : 'Where it stands';
+}
 
 /** One chalked section as the deck draws it: the shared `proposalCard`, what a new thread arrives
  *  with, and Anansi edits. One renderer for the per-thread cards and the scene cards. */
@@ -3013,11 +3076,8 @@ function deckCard(c, i, top) {
   let body = '', right = '', left = '';
   if (c.kind === 'chalk') {
     const ids = c.ps.map((p) => p.id).join(',');
-    const label = (p) => p.entryType === 'state' ? `Where it stands, from scene ${esc(String(p.keys?.[0] ?? ''))}`
-      : p.field === 'facts' ? 'Always true' : p.field ? `${esc(pocketTitle(p.field))}${p.pocket ? ` &middot; ${esc(p.pocket)}` : ''}`
-      : p.entryType === 'retire' ? 'Retire' : !p.entryId ? 'The thread' : 'Where it stands';
     body = c.ps.map((p) => `<details class="decksec"${c.ps.length === 1 ? ' open' : ''}>
-      <summary><span class="lbl flush">${label(p)}</span>
+      <summary><span class="lbl flush">${rowLabel(p)}</span>
         <span class="deckpeek">${peek(p.body)}</span></summary>
       ${deckRow(p)}</details>`).join('');
     right = `<button class="btn" data-deckall="accept" data-ids="${esc(ids)}" data-deckright="1">Sew it in &rarr;</button>`;
@@ -3115,10 +3175,7 @@ function proposalCard(p) {
   // change aimed at it in as an Over time entry, so offering it here would offer the one place it
   // cannot land.
   const rooms = canMove ? (V.slots?.[onto.entryType] ?? []).map((sl) => sl.name).filter((n) => n !== 'facts') : [];
-  // #127 · WHERE A STRING STANDS NOW, chalked at a hem: a pocket of the tale's thread whose text it
-  // replaces (the server sews it in place), so there is no "beside it" to offer. The kinds are the
-  // tale's pockets in `V.slots`, the server's own list.
-  const stringRow = !!p.field && (V.slots?.tale ?? []).some((sl) => sl.name === p.field && sl.name !== 'facts');
+  const stringRow = isStringRow(p);
   const where = p.entryType === 'string'
     ? `A string, set up in scene ${esc(String(at))}. Sewn in, it is in play: the model is told it is owed.`
     : stringRow
@@ -3164,16 +3221,27 @@ function proposalCard(p) {
             <input class="field" type="number" min="1" data-pchap="${p.id}"
               value="${V.currentChapter?.index ?? 1}" aria-label="State from scene"
               style="margin:0; width:56px; padding:4px 6px; font-size:11.5px"></label>` : ''}
-          <div class="btnrow">
+          ${decideButtons(p)}</div>`;
+}
+
+/** A chalked row's own decision: Sew it in, or beside / Replace it for a pocket that is already
+ *  there, and Reject. One place, for `proposalCard` and the rows on a hem's card. */
+function decideButtons(p) {
+  const beside = p.field && p.target && !isStringRow(p);
+  return `<div class="btnrow">
             <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
               border-radius:var(--r); border:1px solid var(--ink-bright); color:var(--ink-bright); font-size:11.5px; font-weight:500">${
-                p.field && p.target && !stringRow ? 'Sew in beside it' : 'Sew it in'}</button>
-            ${p.field && p.target && !stringRow ? `<button data-decide="replace" data-id="${p.id}"
+                beside ? 'Sew in beside it' : 'Sew it in'}</button>
+            ${beside ? `<button data-decide="replace" data-id="${p.id}"
               style="flex:1; text-align:center; padding:8px 0; border-radius:var(--r);
               border:1px solid var(--chip); color:var(--mute); font-size:11.5px">Replace it</button>` : ''}
             <button data-decide="reject" data-id="${p.id}" aria-label="Reject this"
-              class="step-btn">&#10005;</button></div></div>`;
+              class="step-btn">&#10005;</button></div>`;
 }
+/** #127 · Where a string stands now, chalked at a hem: a pocket of the tale's thread whose text it
+ *  replaces (the server sews it in place), so there is no "beside it" to offer. The kinds are the
+ *  tale's pockets in `V.slots`, the server's own list. */
+const isStringRow = (p) => !!p.field && (V.slots?.tale ?? []).some((sl) => sl.name === p.field && sl.name !== 'facts');
 
 /** ENDING A CHAPTER, ON ITS OWN SCREEN. PLAN-08 Phase 4, and issue #12's ritual step.
  *
