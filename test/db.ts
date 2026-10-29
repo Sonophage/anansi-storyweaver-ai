@@ -3953,6 +3953,78 @@ ok('the update drops the knots once, after a backup, says how many on each tale,
   db.delStory(t.id); db.delStory(quiet.id);
 });
 
+// #127 · ADR 0011. THE UPDATE MOVES THE STRINGS TO THE TALE'S THREAD ONCE, then drops their table. Built
+// on a copy made here, never the live file: the old table and rows written as an old server wrote
+// them, then two boots of the real module. One tale has no thread of its own yet; one already has one.
+ok("the update moves each string to its tale's thread once, after a backup, names them, and drops the table", () => {
+  const me = db.owner('string-update');
+  const t = db.createStory(me, { title: 'Old strings', premise: 'A letter came.', setting: 'A port.' });
+  const had = db.createStory(me, { title: 'Has a thread', premise: 'A debt.' });
+  const already = db.upsertString(had.id, { title: 'Already a pocket', kind: 'question' });
+  const quiet = db.createStory(me, { title: 'No strings' });
+  const dir = mkdtempSync('/tmp/anansi-strings-');
+  try {
+    const file = join(dir, 'old.db');
+    db.snapshot(file);
+    const old = new RawDb(file);
+    old.exec(`CREATE TABLE IF NOT EXISTS strings (
+      id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+      title TEXT NOT NULL, body TEXT, from_chapter INTEGER, owed_by INTEGER, status TEXT DEFAULT 'open',
+      summoned INTEGER DEFAULT 0, created_at INTEGER NOT NULL, kind TEXT DEFAULT 'promise');
+      CREATE INDEX IF NOT EXISTS strings_s ON strings(story_id, status);`);
+    const row = old.prepare(`INSERT INTO strings (id,story_id,title,body,from_chapter,owed_by,status,summoned,created_at,kind)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`);
+    row.run('st-a', t.id, 'The letter', 'He has not opened it.', 2, 9, 'open', 1, 1, 'promise');
+    row.run('st-b', t.id, 'Who sent it', '', 1, null, 'paid', 1, 2, 'question');
+    row.run('st-c', t.id, 'The ring', null, null, null, 'dropped', 0, 3, null);
+    row.run('st-d', had.id, 'The ledger', 'Kept by Vel.', 1, null, 'open', 0, 4, 'promise');
+    old.close();
+    const read = <T,>(fn: (c: any) => T) => { const c = new RawDb(file, { readOnly: true }); try { return fn(c); } finally { c.close(); } };
+    const tables = () => read((c) => (c.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'strings%'").all() as any[]).map((x) => x.name));
+    const threads = (id: string) => read((c) => (c.prepare("SELECT id, body FROM entries WHERE story_id = ? AND entry_type = 'tale'").all(id) as any[]).map((x) => ({ ...x })));
+    const pockets = (id: string) => read((c) => (c.prepare(`SELECT a.name, a.body, a.slot, a.active, a.from_chapter, a.owed_by, a.status
+      FROM addons a JOIN entries e ON e.id = a.entry_id WHERE e.story_id = ? AND e.entry_type = 'tale' AND a.slot != 'facts'
+      ORDER BY a.created_at, a.rowid`).all(id) as any[]).map((x) => [x.name, x.body, x.slot, x.active, x.from_chapter, x.owed_by, x.status]));
+    const lines = (id: string) => read((c) => (c.prepare('SELECT line, backup, entry_id FROM update_lines WHERE story_id = ? ORDER BY rowid').all(id) as any[]).map((x) => ({ ...x })));
+    const backups = () => existsSync(join(dir, 'backups'))
+      ? readdirSync(join(dir, 'backups')).filter((f) => f.startsWith('pre-update-')) : [];
+    const boot = () => {
+      const r = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
+        `await import(${JSON.stringify(new URL('../src/db.ts', import.meta.url).href)});`],
+        { env: { ...process.env, ANANSI_DB: file }, encoding: 'utf8' });
+      assert.strictEqual(r.status, 0, `the boot failed: ${r.stderr}`);
+    };
+    const before = lines(t.id).length;
+
+    boot();
+    assert.deepStrictEqual(tables(), [], 'STRINGS-DROPPED: the strings table and its index are gone');
+    const made = threads(t.id);
+    assert.strictEqual(made.length, 1, "STRINGS-THREAD: a tale with no thread of its own gets one");
+    assert.strictEqual(made[0].body, 'A letter came.', '  made from its premise, as a hem makes it');
+    assert.deepStrictEqual(pockets(t.id), [
+      ['The letter', 'He has not opened it.', 'promise', 1, 2, 9, null],
+      ['Who sent it', '', 'question', 0, 1, null, 'paid'],
+      ['The ring', '', 'promise', 0, null, null, 'dropped'],
+    ], 'STRINGS-MOVED: each string is a pocket of its kind; in play is on; tied off and let go are off and marked');
+    assert.strictEqual(threads(had.id).length, 1, 'STRINGS-ONE-THREAD: a tale that had a thread keeps the one');
+    assert.deepStrictEqual(pockets(had.id).map((p) => p[0]), ['Already a pocket', 'The ledger'], '  and gains the string beside its own');
+    assert.strictEqual(backups().length, 1, 'STRINGS-BACKUP: one backup was taken first');
+    const said = lines(t.id).slice(before);
+    assert.strictEqual(said.length, 1, `STRINGS-REPORT: one line on the tale (${said.map((l: any) => l.line).join(' | ')})`);
+    assert.match(said[0].line, /The letter.*Who sent it.*The ring/, '  naming each string that moved');
+    assert.ok(said[0].backup?.includes('pre-update-'), '  and the backup');
+    assert.strictEqual(said[0].entry_id, made[0].id, "  about the tale's thread");
+    assert.strictEqual(lines(quiet.id).length, 0, '  and none on a tale that had none');
+
+    boot();
+    assert.strictEqual(backups().length, 1, 'STRINGS-ONCE: a second boot takes no backup');
+    assert.strictEqual(lines(t.id).length, before + 1, '  and writes no second line');
+    assert.strictEqual(pockets(t.id).length, 3, '  and moves nothing twice');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+  void already;
+  db.delStory(t.id); db.delStory(had.id); db.delStory(quiet.id);
+});
+
 // #110 · THE UPDATE TAKES THE WRAPPERS OFF THE LIBRARY ONCE. Built on a copy made here, never the live
 // file: rows written past the floor, as an old server wrote them, then two boots of the real module.
 ok('the update strips old wrappers once, after a backup, names each, and leaves clean text alone', () => {

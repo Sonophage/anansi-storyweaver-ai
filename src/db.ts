@@ -422,9 +422,6 @@ function migrate() {
   // can be made again. Rows from before carry neither (`revertEntryField` says what it does then).
   add('entry_revisions', 'slot', 'TEXT');
   add('entry_revisions', 'name', 'TEXT');
-  // #124. A string is a promise (pressed toward payment) or an open question (kept open). Every
-  // string made before this was a writer's promise or a chalked one, so the default is promise.
-  add('strings', 'kind', "TEXT DEFAULT 'promise'");
   // #127 · ADR 0011. A string is a pocket of the tale's thread now, and two things about one have no
   // other column: whether it was tied off (`paid`) or let go (`dropped`), null while it is open, and
   // the scene it should be tied off by. Null on every other pocket.
@@ -907,18 +904,6 @@ CREATE TABLE IF NOT EXISTS update_lines (
   line TEXT NOT NULL, backup TEXT, backup_at INTEGER, at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS update_lines_s ON update_lines(story_id, at);
 
-CREATE TABLE IF NOT EXISTS strings (
-  id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  body TEXT,                               -- what was promised, in the writer's words
-  from_chapter INTEGER,                    -- where the promise was made
-  owed_by INTEGER,                         -- the chapter it should be paid by, if there is one
-  status TEXT DEFAULT 'open',              -- open | paid | dropped
-  summoned INTEGER DEFAULT 0,              -- only a summoned string reaches the prompt
-  created_at INTEGER NOT NULL,
-  kind TEXT DEFAULT 'promise');            -- promise | question (#124; see stringKind)
-CREATE INDEX IF NOT EXISTS strings_s ON strings(story_id, status);
-
 CREATE TABLE IF NOT EXISTS proposals (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   chapter_id TEXT, entry_id TEXT,          -- set when this proposes a change to an existing entry
@@ -987,10 +972,9 @@ CREATE INDEX IF NOT EXISTS generations_story ON generations(story_id, created_at
 -- to drop while any row is still only in the old table. See migrate(), and the note where the
 -- CREATE used to be, twenty lines above this one.
 --
--- entry_id is NULLABLE: an addon with no entry belongs to the STORY, which is where a string
--- lives. "strings.summoned" is already "active" under another name — "only a summoned string
--- reaches the prompt" — so an open promise reaches the model today only if the writer remembers it
--- by hand. As an addon it keeps that switch and gains trigger words.
+-- entry_id is NULLABLE: an addon with no entry belongs to the STORY (the tale's own instructions,
+-- #75). A string is a pocket of the tale's thread since #127 (ADR 0011): what "strings.summoned"
+-- was is "active" here, and "status" and "owed_by" are its mark and the scene it is owed by.
 --
 -- "from_chapter" has no equivalent on "outfits" and is here on purpose: it is what makes an arc
 -- survive. An exclusive slot plus a chapter is a timeline — appearance at 1, appearance at 9,
@@ -1283,7 +1267,8 @@ export const listStories = (o: string) => q(`
          (SELECT COUNT(*) FROM chapters c WHERE c.story_id = s.id) AS chapters,
          (SELECT COUNT(*) FROM entries e WHERE e.story_id = s.id AND ${LIVE('e.')}) AS entries,
          (SELECT COUNT(*) FROM proposals pr WHERE pr.story_id = s.id AND pr.status = 'open') AS proposed,
-         (SELECT COUNT(*) FROM strings st WHERE st.story_id = s.id AND st.status = 'open') AS unpaid,
+         (SELECT COUNT(*) FROM addons st JOIN entries te ON te.id = st.entry_id WHERE st.story_id = s.id
+            AND te.entry_type = 'tale' AND st.slot IN (${STRING_IN}) AND st.status IS NULL) AS unpaid,
          (SELECT sc.set_at FROM story_covers sc WHERE sc.story_id = s.id) AS cover,
          tip.body AS last_body, ch.idx AS last_chapter_idx, ch.title AS last_chapter_title,
          (SELECT COUNT(*) FROM chapters c
@@ -2421,6 +2406,52 @@ export const stringsOf = (storyId: string) => (q(`SELECT a.* FROM addons a JOIN 
 export const delString = (storyId: string, id: string) => {
   if (stringsOf(storyId).some((x) => x.id === id)) delAddon(storyId, id);
 };
+
+/** #127 · ADR 0011. UPDATE DAY FOR STRINGS. Every row of the old `strings` table becomes a pocket of
+ *  its tale's thread (made from the premise and the setting, as a hem makes it, when the tale has
+ *  none), of its kind: in play is on, and tied off or let go is off and marked. Then the table goes.
+ *  Each tale that had strings gets one line on its update report naming them.
+ *
+ *  ONCE BY ITS DATA: it acts only while the table exists, and nothing creates it any more, so a later
+ *  boot finds none and writes nothing. A backup comes first (`beforeRewrite`, which throws, so no
+ *  backup means no move), and it is all one transaction.
+ *  NOT IN `migrate()`, unlike `dropKnots`: it writes through `taleThread`, `upsertAddon` and their
+ *  floors, so a moved string is made exactly as a new one is, and those need `q` and `uid`, which
+ *  are declared below the `migrate()` call. It runs at the foot of this module instead, at load. A
+ *  tale's `updated_at` is put back after, so the update does not reorder the shelf. */
+export function stringsToPockets() {
+  if (!(q("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'strings'").get() as any).n) return 0;
+  const rows = q('SELECT * FROM strings ORDER BY story_id, created_at, rowid').all() as any[];
+  beforeRewrite();
+  db.exec('BEGIN');
+  try {
+    const moved = new Map<string, { tale: string; names: string[]; at: number }>();
+    for (const r of rows) {
+      const st = getStory(r.story_id);
+      const tale = st ? taleThread(r.story_id) : null;
+      if (!tale) continue;
+      const status = stringStatus(r.status);
+      const id = upsertAddon(r.story_id, tale, { slot: stringKind(r.kind) ?? 'promise', name: r.title,
+        body: r.body ?? '', fromChapter: r.from_chapter ?? null, owedBy: r.owed_by ?? null, status });
+      if (!id) continue;
+      // On, as `setAddonActive` would, which opens a transaction of its own. Strings are not exclusive.
+      if (r.summoned && !status) q('UPDATE addons SET active = 1 WHERE id = ?').run(id);
+      const m = moved.get(r.story_id) ?? { tale, names: [], at: st.updated_at };
+      m.names.push(`"${String(r.title).trim()}"`);
+      moved.set(r.story_id, m);
+    }
+    for (const [story, m] of moved) {
+      noteUpdate(story, `${m.names.length === 1 ? 'Its string' : `Its ${m.names.length} strings`}, ${m.names.join(', ')}, `
+        + `moved onto the tale's own thread as ${m.names.length === 1 ? 'a pocket' : 'pockets'}. One in play is switched on; `
+        + 'one tied off or let go is switched off and marked so. The Strings screen still lists them.', m.tale);
+      q('UPDATE stories SET updated_at = ? WHERE id = ?').run(m.at, story);
+    }
+    db.exec('DROP TABLE strings');
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  console.log(`  moved ${rows.length} string${rows.length === 1 ? '' : 's'} onto the tales' threads and dropped strings — #127`);
+  return rows.length;
+}
 
 /** The one key parser. There were three — `import.ts` split on comma, `app.js` split on comma
  *  inline, and this write path did `Array.isArray(e.keys) ? … : []`, so a model or an API client
@@ -3819,15 +3850,8 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
         .run(uid('a-'), made.id, nb, a.from_chapter, a.to_chapter, a.title, a.summary, a.created_at, a.summaries_hash);
     }
 
-    // What the book promised and has not paid. `import.fromExport` carries these for the reason
-    // that applies twice over here: a book that comes back without its unpaid promises is a
-    // different book, because the ledger says who everybody is and the strings are the only record
-    // of what is still owed.
-    for (const s2 of q('SELECT * FROM strings WHERE story_id = ?').all(storyId) as any[])
-      q(`INSERT INTO strings (id,story_id,title,body,from_chapter,owed_by,status,summoned,created_at,kind)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`)
-        .run(uid('st-'), made.id, s2.title, s2.body, s2.from_chapter, s2.owed_by, s2.status,
-          s2.summoned, s2.created_at, s2.kind ?? 'promise');
+    // What the book promised and has not paid travels with the tale's thread above (#127): a string
+    // is one of its pockets, and `copyEntry` carries its switch, its mark and the scene it is owed by.
 
     // Canon over time. See the header: the chapters kept their numbers, so these mean here what
     // they meant there — which is the one condition `copyEntry` says has to hold.
@@ -4324,3 +4348,7 @@ export function logGeneration(g: any) {
 // Re-exported so `db.ftsQuery(...)` keeps working: it is the search box's own grammar and the
 // tests reach for it through this module, which is the only one anything else imports.
 export { ftsQuery } from './search.ts';
+
+// #127 · The one update that writes through the floors, so it runs here, once everything above is
+// declared, and not in `migrate()`. See `stringsToPockets`.
+try { stringsToPockets(); } catch (e: any) { console.log(`  the strings were NOT moved: ${e?.message}`); }
