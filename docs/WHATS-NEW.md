@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Passage length is a limit now
+The length you set is now sent as a limit ("no more than"), not a rough aim, so passages should stop
+closer to it. At the most explicit spice level, the instruction no longer tells the model to keep
+going for as long as the scene runs; it says a scene can carry on in the next passage.
+
 ### New tale writes a voice Anansi can follow, and a sharper genre
 When New tale suggests a voice for your book, it now writes it as a list of rules, one per line,
 instead of a paragraph describing the prose: what the narration sounds like, what it never names,

@@ -607,7 +607,7 @@ ok('each mode says the one thing that distinguishes it', () => {
   // Matches the target LINE, not the word "words" — speak legitimately says "Do not put further
   // words in that character's mouth", and a check that fires on that is a check that has to be
   // deleted the first time it goes red for the wrong reason.
-  const AIM = /Aim for roughly \d+ words/i;
+  const AIM = /Write no more than \d+ words/i;
   for (const m of ['continue', 'speak', 'act', 'direct', 'narrate']) {
     const off = modeText({ ...asked(m), directive: 'He drops it.' });
     assert.doesNotMatch(off, AIM, `${m} carries a length target with none set`);
@@ -616,7 +616,9 @@ ok('each mode says the one thing that distinguishes it', () => {
     // F37 (buried in a longer one the same rule bought 10.7%), and carrying the permission to come
     // in under the number, which is the only thing separating a target from the quota F18/F29
     // measured. A looser match would let either half rot away green.
-    assert.match(on, /^Aim for roughly 400 words, and stop sooner if the beat is done\.$/m,
+    // A LIMIT, NOT AN AIM (2026-10-29): "Aim for roughly" read as a starting point, and the local
+    // model ran a median 1.44 times the slider over 439 passages.
+    assert.match(on, /^Write no more than 400 words\. Stop sooner if the beat is done\.$/m,
       `${m} must carry the target, whole, on its own line`);
     assert.ok(on.startsWith(off), `${m} must keep its own wording and only gain a line`);
   }
@@ -874,6 +876,10 @@ ok('an oversized voice REFUSES rather than shortening, and DIRECTIVE keeps every
   const out = render(m);
   assert.match(out, /third limited/, 'point of view survives');
   assert.match(out, /fully explicit/, 'the register survives');
+  // SPICE 5 MUST NOT OUTRANK THE SLIDER (2026-10-29). It said "for as long as the scene runs", an
+  // order to keep writing, in the same prompt as the length limit.
+  assert.doesNotMatch(out, /for as long as the scene runs/, 'spice 5 does not tell the passage to run on');
+  assert.match(out, /a scene can go on in the next passage/, 'and says where the rest of the scene goes');
   assert.match(out, /must be forced/, 'the chapter beat survives');
 });
 

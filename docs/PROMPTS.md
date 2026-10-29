@@ -235,7 +235,7 @@ more rather than a different register.
 | 2 | at the door | `Register: desire is on the page and sex is not. Write the wanting, the approach, and what is different afterwards. The camera stops at the door and picks up past it.` |
 | 3 | in the room | `Register: sex happens on the page, in the same voice as the rest of the book — what passes between them, what is said, what changes. Bodies are present and not itemised. Adult characters only.` |
 | 4 | on the act | `Register: sex is written directly, in plain words, with the acts named as they happen. It is a scene like any other and still has to move the story. Vocabulary follows the voice. Adult characters only.` |
-| 5 | nowhere | `Register: fully explicit, in unrestricted detail, for as long as the scene runs. Do not fade, summarise, cut away or skip ahead. Vocabulary follows the voice. Adult characters only.` |
+| 5 | nowhere | `Register: fully explicit, in unrestricted detail. Do not fade, summarise, cut away or skip ahead. Stop at the passage's length: a scene can go on in the next passage. Vocabulary follows the voice. Adult characters only.` |
 
 Levels 4 and 5 constrain model routing per SPEC §10.2, not only the prompt.
 

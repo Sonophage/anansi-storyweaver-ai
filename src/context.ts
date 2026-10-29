@@ -183,8 +183,11 @@ const SPICE: Record<number, string> = {
   4: 'Register: sex is written directly, in plain words, with the acts named as they happen. It is '
    + 'a scene like any other and still has to move the story. Vocabulary follows the voice. Adult '
    + 'characters only.',
-  5: 'Register: fully explicit, in unrestricted detail, for as long as the scene runs. Do not fade, '
-   + 'summarise, cut away or skip ahead. Vocabulary follows the voice. Adult characters only.',
+  // "for as long as the scene runs" until 2026-10-29: an order to keep writing, in the same prompt
+  // as the length limit, and every book in the library is at this level.
+  5: 'Register: fully explicit, in unrestricted detail. Do not fade, summarise, cut away or skip '
+   + 'ahead. Stop at the passage\'s length: a scene can go on in the next passage. Vocabulary follows '
+   + 'the voice. Adult characters only.',
 };
 
 /** Five modes, and the distinction that matters runs through all of them: in `direct` the
@@ -1475,10 +1478,13 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // The second clause is the whole difference between a target and a quota. F29's lesson was
     // that removing the number gave back "the permission the number was denying, which is to be
     // short" — so the permission is stated alongside the number instead of being traded for it.
+    //
+    // A LIMIT, NOT AN AIM, since 2026-10-29. "Aim for roughly N words" read as a starting point: the
+    // local model ran a median 1.44 times the slider over 439 passages. NOT MEASURED against it.
     // Off for `talk`: Anansi answering the writer is not a passage and has its own bound.
     const target = Number(input.targetWords) || 0;
     add('MODE', 'mode', target > 0 && input.mode !== 'talk'
-      ? `${text}\nAim for roughly ${target} words, and stop sooner if the beat is done.` : text,
+      ? `${text}\nWrite no more than ${target} words. Stop sooner if the beat is done.` : text,
       `mode:${key}${own ? ' · yours' : ''}${failed ? ' · what did not work' : ''}${mine ? ' · your reweave' : ''}`);
   }
 
