@@ -2364,10 +2364,11 @@ export const promptsOf = (owner: string): Record<string, string> =>
  *  worth remembering. The thread is not a thread of the cast (`LIVE`), so they never resolve as canon.
  *
  *  These two are the string-shaped door onto those pockets, for the callers that speak strings (the
- *  Strings screen, Create's open questions, Talk, a chalked string sewn in, import): `upsertString`
+ *  Workbench's string cards, Create's open questions, a chalked string sewn in, import): `upsertString`
  *  writes one through `upsertAddon` and `setAddonActive`, the floors every pocket crosses, and
  *  `stringsOf` is the one reader. `summoned` is the pocket's switch, `status` its mark. A string is
- *  removed as any pocket is, from the pocket panel (`delAddon`). */
+ *  removed as any pocket is, from the pocket panel (`delAddon`). #128 · The pocket panel adds and
+ *  edits one, and Talk changes one, as a pocket, through `upsertAddon` directly. */
 /** #124 · THE ONE READING OF A STRING'S KIND: 'question' (an open question New tale made, kept
  *  open) or 'promise' (set up to pay off, and pressed toward payment). Anything else is a promise,
  *  which is what every string was before kinds existed. Null when none was given, so a save keeps
