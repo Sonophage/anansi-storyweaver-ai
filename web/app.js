@@ -858,12 +858,17 @@ function drawRail() {
       background:transparent; border:1px solid transparent;
       ${/* ADR 0004: the row you are on is bright ink with a rule beside it, not gold. */ ''}
       border-left:2px solid ${on ? 'var(--ink-bright)' : 'transparent'}">
-      <span style="width:19px; height:19px; display:flex; align-items:center; justify-content:center;
-        flex:0 0 auto; color:${on ? 'var(--ink-bright)' : 'var(--faint)'}">${mark(g)}</span>
+      ${/* THE COUNT RIDES ON THE ICON (2026-10-29, Seth: "in the menu the number is not aligned"). It
+            was a third flex item with margin-left:auto: in a tile, which is a column, that pushed it
+            to the right edge on a line of its own under the word, and made the tile a row taller than
+            the one beside it. Inside the icon's box, placed beside it (.navcount in app.html), it
+            takes no room, so the icon and the word sit where every other tile's do. */ ''}
+      <span style="position:relative; width:19px; height:19px; display:flex; align-items:center; justify-content:center;
+        flex:0 0 auto; color:${on ? 'var(--ink-bright)' : 'var(--faint)'}">${mark(g)}${k === 'waiting' && owedHere()
+        ? `<span class="tnum navcount">${owedHere()}</span>` : ''}</span>
       <span class="txt" style="font-size:14px; color:${
         k === 'waiting' && owedHere() ? 'var(--warn)' : on ? 'var(--ink-bright)' : 'var(--mute)'
-      }">${esc(l)}</span>${k === 'waiting' && owedHere()
-        ? `<span class="tnum" style="margin-left:auto; font-size:11px; color:var(--warn)">${owedHere()}</span>` : ''}</button>`;
+      }">${esc(l)}</span></button>`;
   };
   // "Anansi's web" used to sit here as the way out of a story. It went on 2026-08-27: the menu
   // button in the bar opens the workspace menu from anywhere, which is the same one press, and two

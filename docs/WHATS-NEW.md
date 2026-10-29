@@ -24,6 +24,10 @@ again), a small Workbench mark with a number appears at the top of the screen, b
 button. The number is how many things were added since you last opened the Workbench. Tap it to open
 the Workbench, and the mark goes away. This device remembers what you have seen, tale by tale.
 
+### The Workbench number in the tale's menu sits beside its icon
+In the tale's menu, the Workbench number sat on its own line at the right edge, and made that row
+taller than the others. It is now beside the Workbench icon, and the icons and names line up again.
+
 ## 2026-10-28 · A new tale starts at its opening
 
 ### The passage length stays where you set it
