@@ -7196,7 +7196,28 @@ const hemCardOf = (side: string) => {
     open(); streamGate = null; await wait(200);
     click({ rerollx: '1' }); await wait();
     assert.doesNotMatch(blockOf('p-5'), /rerolling-out/, 'a failed reweave gives the old version back, and a repaint keeps it back');
-  } finally { open(); streamGate = null; stubRefuse = null; }
+    stubRefuse = null;
+
+    // A REPAINT IN THE TAIL. The call is over and the page's copy of the book already holds the new
+    // version, while its last words are still being written in. A new version is a new row with its
+    // own id, and the old one is among its variants: hidden by the old id alone, a repaint here drew
+    // the new version above the one still being written (seen in a browser at 390px, 2026-10-28).
+    // The words are held by giving them somewhere to go and no frames to go there in.
+    const gh = (document as any).getElementById('ghost');
+    gh.querySelector = (s: string) => (s === '.veiltext' ? { closest: () => null, parentElement: null } : null);
+    const p5 = (STORY.passages as any[]).find((p) => p.id === 'p-5');
+    click({ re: 'p-5' }); click({ re: 'p-5' }); await wait();
+    Object.assign(p5, { id: 'p-5b', variantIndex: 2, variants: [{ id: 'p-5', selected: false }, { id: 'p-5b', selected: true }] });
+    await wait(200);
+    click({ rerollx: '1' }); await wait();
+    assert.ok(blockOf('p-5b'), 'the new version is in the page’s copy of the book');
+    assert.match(blockOf('p-5b'), /class="block[^"]* rerolling-out/,
+      'and a repaint while its last words are written draws it hidden, by the id it replaced');
+  } finally {
+    open(); streamGate = null; stubRefuse = null;
+    const p5 = (STORY.passages as any[]).find((p) => p.id === 'p-5b');
+    if (p5) Object.assign(p5, { id: 'p-5', variantIndex: 1, variants: [{ id: 'p-5', selected: true }] });
+  }
   ok('writing inline, the replaced version is drawn hidden until the new one lands or fails, through a repaint');
 }
 

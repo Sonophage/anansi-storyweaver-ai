@@ -1517,7 +1517,10 @@ function passageHTML(p, newest, opening) {
     // The version a Reweave is writing over, inline: hidden until the new one lands (REPLACING). Drawn
     // here and not added to the DOM, because a repaint rebuilds #col and dropped a class put on it,
     // and the old version came back under the new one being written (2026-10-28).
-    + (p.id === REPLACING ? ' rerolling-out' : '');
+    // BY ITS VARIANTS TOO: a new version is a new row with its own id, the old one among its variants.
+    // The page's copy of the book holds it before the last words are written in, and a repaint then
+    // drew it above the one being written (2026-10-28).
+    + (REPLACING && (p.id === REPLACING || v.some((x) => x.id === REPLACING)) ? ' rerolling-out' : '');
   /* ISSUE #38. THE INSTRUCTION THIS PASSAGE WAS WRITTEN FROM, OPEN FOR EDITING.
    *
    * Under the passage rather than in the tray: the tray is a strip of verbs and this is a sentence
