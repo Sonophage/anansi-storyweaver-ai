@@ -42,7 +42,7 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   assert.strictEqual(e[0].title, 'The Key');
   assert.strictEqual(e[0].activation, 'triggered', 'activation must survive the trip');
   assert.deepStrictEqual(JSON.parse(e[0].keys), ['key'], 'keywords must survive the trip');
-  // Strings are their own table and the export list is written by hand, which is how spice_note
+  // Strings are pockets of the tale's thread (#127), read back by hand like the rest, which is how spice_note
   // was lost. A book that comes back without what it still owes is a different book.
   assert.strictEqual(db.stringsOf(back.storyId).length, 1, 'the unpaid promise survives the trip');
   const str = db.stringsOf(back.storyId)[0];

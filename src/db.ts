@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 // The slot names live in one module because `entries.field_editors` keys provenance by them and
 // the partial unique index below names them as a literal. Three copies of one list is the drift
 // `src/blocks.ts` exists to stop for the block order; this is the same rule for slots.
-import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, TO_OVER_TIME, foldLine, plain, slotsFor, wrapperNames } from './slots.ts';
+import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, STRING_SLOTS, TO_OVER_TIME, foldLine, plain, slotsFor, wrapperNames } from './slots.ts';
 import { factsLost } from './context.ts';
 import { isRemote } from './llama.ts';
 
@@ -425,6 +425,11 @@ function migrate() {
   // #124. A string is a promise (pressed toward payment) or an open question (kept open). Every
   // string made before this was a writer's promise or a chalked one, so the default is promise.
   add('strings', 'kind', "TEXT DEFAULT 'promise'");
+  // #127 · ADR 0011. A string is a pocket of the tale's thread now, and two things about one have no
+  // other column: whether it was tied off (`paid`) or let go (`dropped`), null while it is open, and
+  // the scene it should be tied off by. Null on every other pocket.
+  add('addons', 'status', 'TEXT');
+  add('addons', 'owed_by', 'INTEGER');
   /* WHICH WORLD OR INTELLECTUAL PROPERTY A BOOK BELONGS TO, and what is true in it (2026-09-02).
    * Seth: "Is there a way in the story under the world tab I could add what world or ip it belongs
    * to? And have it hold some info about the world that way".
@@ -1569,11 +1574,12 @@ export const entriesOf = (id: string) => q(
 export const taleThreadOf = (storyId: string) => q(
   "SELECT * FROM entries WHERE story_id = ? AND entry_type = 'tale' ORDER BY rowid LIMIT 1").get(storyId) as any ?? null;
 /** The tale's thread, made from the premise and the setting the first time it is needed (a hem's
- *  where-the-tale-stands pass). An existing tale changes nothing by having one: at scene 1 it reads
- *  the premise, as the tale did before. Through `upsertEntry` and `upsertAddon`, the floors every
- *  thread crosses.
- *  ponytail: made lazily, not at New tale or in a migration. Trigger: a reader that needs the thread
- *  before any hem; then make it in `createStory`, and in `migrate()` after a backup for old tales. */
+ *  where-the-tale-stands pass, or the tale's first string, #127). An existing tale changes nothing by
+ *  having one: at scene 1 it reads the premise, as the tale did before, and `updateStory` keeps its
+ *  own text (scene 1's) the premise when the premise is edited. Through `upsertEntry` and `upsertAddon`, the floors
+ *  every thread crosses.
+ *  ponytail: made lazily, not at New tale. Trigger: a reader that needs the thread before any hem or
+ *  string; then make it in `createStory`, and in `migrate()` after a backup for old tales. */
 export function taleThread(storyId: string): string | null {
   const have = taleThreadOf(storyId);
   if (have) return have.id;
@@ -2366,46 +2372,55 @@ export const promptsOf = (owner: string): Record<string, string> =>
   Object.fromEntries((q('SELECT key, text FROM prompt_overrides WHERE owner_id = ?').all(owner) as any[])
     .map((r) => [r.key, r.text]));
 
-/** Strings: the promises a story has made and not paid.
+/** #127 · ADR 0011. STRINGS ARE POCKETS OF THE TALE'S THREAD: a promise (set up to pay off) or an
+ *  open question (kept open), on the one thread `taleThread` makes. On is in play and sent; off is set
+ *  aside. They are sent while on, never by a wake word: a string's whole point is that it stays true
+ *  while nobody says it, and the letter nobody has mentioned for fourteen chapters is the one most
+ *  worth remembering. The thread is not a thread of the cast (`LIVE`), so they never resolve as canon.
  *
- *  Deliberately NOT an entry. An entry resolves by keyword and is sent as canon; a string's whole
- *  point is that it stays true while nobody says it — the letter nobody has mentioned for fourteen
- *  chapters is the one most worth remembering. Bolting it onto entries would drop a promise out of
- *  the book exactly when it had been forgotten longest, which is backwards.
- */
+ *  These three are the string-shaped door onto those pockets, for the callers that speak strings (the
+ *  Strings screen, Create's open questions, Talk, a chalked string sewn in, import): `upsertString`
+ *  writes one through `upsertAddon` and `setAddonActive`, the floors every pocket crosses, and
+ *  `stringsOf` is the one reader. `summoned` is the pocket's switch, `status` its mark. */
 /** #124 · THE ONE READING OF A STRING'S KIND: 'question' (an open question New tale made, kept
  *  open) or 'promise' (set up to pay off, and pressed toward payment). Anything else is a promise,
  *  which is what every string was before kinds existed. Null when none was given, so a save keeps
- *  the kind it had. */
+ *  the kind it had. #127 · The kind is the pocket's slot. */
 export const stringKind = (k: unknown): 'promise' | 'question' | null =>
   k == null ? null : k === 'question' ? 'question' : 'promise';
 
+/** #127 · THE ONE READING OF A STRING'S MARK: tied off (`paid`), let go (`dropped`), or null, which is
+ *  open. Anything else, `open` among it, is open. */
+export const stringStatus = (s: unknown): 'paid' | 'dropped' | null =>
+  s === 'paid' || s === 'dropped' ? s : null;
+
+const STRING_IN = STRING_SLOTS.map((n) => `'${n}'`).join(',');
+
 export function upsertString(storyId: string, v: any) {
-  const id = v.id && (q('SELECT 1 FROM strings WHERE id = ? AND story_id = ?').get(v.id, storyId))
-    ? v.id : null;
-  if (id) {
-    q(`UPDATE strings SET title=?, body=?, from_chapter=?, owed_by=?, status=?, summoned=?,
-       kind=COALESCE(?, kind) WHERE id=? AND story_id=?`)
-      .run(v.title ?? 'Untitled', v.body ?? '', v.fromChapter ?? null, v.owedBy ?? null,
-        v.status ?? 'open', v.summoned ? 1 : 0, stringKind(v.kind), id, storyId);
-    touch(storyId);
-    return id;
-  }
-  const made = uid('st-');
-  q(`INSERT INTO strings (id,story_id,title,body,from_chapter,owed_by,status,summoned,created_at,kind)
-     VALUES (?,?,?,?,?,?,?,?,?,?)`)
-    .run(made, storyId, v.title ?? 'Untitled', v.body ?? '', v.fromChapter ?? null,
-      v.owedBy ?? null, v.status ?? 'open', v.summoned ? 1 : 0, now(), stringKind(v.kind) ?? 'promise');
-  touch(storyId);
-  return made;
+  const cur = v.id ? q(`SELECT a.id, a.slot FROM addons a JOIN entries e ON e.id = a.entry_id
+    WHERE a.id = ? AND a.story_id = ? AND e.entry_type = 'tale' AND a.slot IN (${STRING_IN})`).get(v.id, storyId) as any : null;
+  const tale = taleThread(storyId);
+  if (!tale) return null;
+  const kind = stringKind(v.kind) ?? cur?.slot ?? 'promise';
+  if (cur && kind !== cur.slot) q('UPDATE addons SET slot = ? WHERE id = ? AND story_id = ?').run(kind, cur.id, storyId);
+  const status = stringStatus(v.status);
+  const id = upsertAddon(storyId, tale, { id: cur?.id, slot: kind, name: v.title ?? 'Untitled', body: v.body ?? '',
+    fromChapter: v.fromChapter ?? null, owedBy: v.owedBy ?? null, status });
+  // Tied off or let go is off, which `upsertAddon` has done; open follows the switch it was given.
+  if (id && !status) setAddonActive(storyId, id, !!v.summoned);
+  return id;
 }
 
-export const stringsOf = (storyId: string) => q(
-  'SELECT * FROM strings WHERE story_id = ? ORDER BY status = \'open\' DESC, from_chapter, created_at')
-  .all(storyId) as any[];
+/** The tale's strings, open ones first, as the string-shaped rows the screens and the prompt read. */
+export const stringsOf = (storyId: string) => (q(`SELECT a.* FROM addons a JOIN entries e ON e.id = a.entry_id
+  WHERE a.story_id = ? AND e.entry_type = 'tale' AND a.slot IN (${STRING_IN})
+  ORDER BY a.status IS NULL DESC, a.from_chapter, a.created_at, a.rowid`).all(storyId) as any[])
+  .map((a) => ({ id: a.id, story_id: a.story_id, title: a.name, body: a.body ?? '', from_chapter: a.from_chapter,
+    owed_by: a.owed_by, status: a.status ?? 'open', summoned: a.active, kind: a.slot, created_at: a.created_at }));
 
-export const delString = (storyId: string, id: string) =>
-  q('DELETE FROM strings WHERE id = ? AND story_id = ?').run(id, storyId);
+export const delString = (storyId: string, id: string) => {
+  if (stringsOf(storyId).some((x) => x.id === id)) delAddon(storyId, id);
+};
 
 /** The one key parser. There were three — `import.ts` split on comma, `app.js` split on comma
  *  inline, and this write path did `Array.isArray(e.keys) ? … : []`, so a model or an API client
@@ -2666,10 +2681,16 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
   const slot = String(a.slot ?? '').trim();
   // #75. THE TALE'S OWN POCKETS hang off no thread and have one slot, `instruction`, which no
   // thread has: an instruction for telling the whole tale.
-  if (slot === 'instruction' ? !!entryId : !ALL_SLOTS.includes(slot)) return null;
+  const isString = STRING_SLOTS.includes(slot);
+  if (slot === 'instruction' ? !!entryId : !(ALL_SLOTS.includes(slot) || isString)) return null;
   // A story-level addon has no entry; an entry-level one must point at an entry in THIS story, or
   // a row can be hung off another writer's card. Same shape as `wearOutfit`'s ownership check.
   if (entryId && !q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId)) return null;
+  // #127 · A STRING HANGS OFF THE TALE'S THREAD AND NOTHING ELSE (ADR 0011): a promise on a character
+  // is not a thing, and here is where every writer of a pocket passes.
+  if (isString && !(entryId && q("SELECT 1 FROM entries WHERE id = ? AND story_id = ? AND entry_type = 'tale'").get(entryId, storyId))) return null;
+  // #127 · A string's mark, read one way (`stringStatus`); every other pocket has none.
+  const mark = isString && 'status' in a ? stringStatus(a.status) : undefined;
   // #110 · A PLAIN DESCRIPTION, AND NOTHING ELSE (ADR 0008). Every writer of a pocket or an Always
   // true crosses here (the lookup, the cast, Talk, hemming, import, paste, the writer's own save), so
   // the wrapper and the name in front come off here, by the rule the prompt frames by (`slots.plain`).
@@ -2710,6 +2731,9 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
     q(`UPDATE addons SET name = ?, body = ?, keys = ?, from_chapter = ?, retired_at_chapter = ?
        WHERE id = ? AND story_id = ?`)
       .run(a.name, a.body, keys, from, till, a.id, storyId);
+    // #127 · A string's scene owed by and its mark, by presence as above. Tied off or let go is off.
+    if (isString && 'owedBy' in a) q('UPDATE addons SET owed_by = ? WHERE id = ?').run(a.owedBy ?? null, a.id);
+    if (mark !== undefined) q(`UPDATE addons SET status = ?${mark ? ', active = 0' : ''} WHERE id = ?`).run(mark, a.id);
     // Since the body moved into `facts` on 2026-08-29 the ROOMS are where a card's facts live, so
     // a room edit stales a summary on exactly the same rule as a body edit. Read before the write,
     // because after it the old text is gone from the row.
@@ -2719,10 +2743,10 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
   }
   // #114 · A POCKET PUT BACK FROM THE HISTORY keeps the id its history rows name, while that id is free.
   const id = a.restoreId && !q('SELECT 1 FROM addons WHERE id = ?').get(a.restoreId) ? String(a.restoreId) : uid('ad-');
-  q(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,from_chapter,retired_at_chapter,created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+  q(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,from_chapter,retired_at_chapter,created_at,status,owed_by)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(id, storyId, entryId, slot, a.name, a.body, keys, slot === 'facts' && entryId ? 1 : 0,
-      a.fromChapter ?? null, a.retiredAtChapter ?? null, t);
+      a.fromChapter ?? null, a.retiredAtChapter ?? null, t, mark ?? null, isString ? (a.owedBy ?? null) : null);
   touch(storyId);
   return id;
 }
@@ -2747,6 +2771,9 @@ export function setAddonActive(storyId: string, addonId: string, on: boolean, at
       q('UPDATE addons SET active = 0 WHERE entry_id = ? AND slot = ? AND story_id = ?')
         .run(row.entry_id, row.slot, storyId);
     q('UPDATE addons SET active = ? WHERE id = ? AND story_id = ?').run(on ? 1 : 0, addonId, storyId);
+    // #127 · A STRING SWITCHED ON AGAIN IS OPEN AGAIN (ADR 0011): tied off or let go is a mark on an
+    // off pocket, and on means in play. Here, so every switch (the list, the Workbench) reopens it.
+    if (on && STRING_SLOTS.includes(row.slot)) q('UPDATE addons SET status = NULL WHERE id = ?').run(addonId);
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
   touch(storyId);
@@ -2852,8 +2879,10 @@ export function copyEntry(fromStoryId: string, toStoryId: string, o: string, ent
   // merged, so the coat travels for free rather than needing its own clause.
   for (const a of q('SELECT * FROM addons WHERE entry_id = ? AND story_id = ?')
     .all(entryId, fromStoryId) as any[]) {
+    // #127 · A string's scene owed by and its mark travel too; `upsertAddon` keeps them off the rest.
     const id = upsertAddon(toStoryId, made, { slot: a.slot, name: a.name, body: a.body,
-      keys: JSON.parse(a.keys || '[]'), fromChapter: a.from_chapter, retiredAtChapter: a.retired_at_chapter });
+      keys: JSON.parse(a.keys || '[]'), fromChapter: a.from_chapter, retiredAtChapter: a.retired_at_chapter,
+      owedBy: a.owed_by, status: a.status });
     // `upsertAddon` always inserts unworn, and an exclusive slot refuses a second one worn — so
     // the switch is thrown after, through the function that clears the siblings in a transaction.
     if (id && a.active) setAddonActive(toStoryId, id, true);

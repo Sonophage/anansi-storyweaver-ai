@@ -470,8 +470,8 @@ const remotePin = (c: Ctx, pin: string | null | undefined, owner: string) => {
 // re-roll now re-runs the instruction the passage was written with and there is nothing separate
 // to edit. The editor draws whatever is in this list, so it drew six rows and now draws five.
 const EDITABLE_MODES = ['continue', 'speak', 'act', 'direct', 'narrate'];
-// #21 §2. The kinds the cast call will answer for. `SLOTS` is keyed by exactly these.
-const KINDS_ALL = Object.keys(SLOTS);
+// #21 §2. The kinds the cast call will answer for: `KINDS`, which is `SLOTS` less the tale's own.
+const KINDS_ALL: string[] = [...KINDS];
 
 /** THE STYLE LIBRARY, #18 §3. Named voices and styles you can pull from, and NOT a new table.
  *
@@ -4339,7 +4339,7 @@ export const routes: Record<string, Handler> = {
     const subject = String(c.body.subject ?? '').trim().slice(0, 200);
     if (!subject) return { error: 'say what to look up first' };
     const kind = String(c.body.kind ?? 'character').trim();
-    if (!SLOTS[kind as keyof typeof SLOTS]) return { error: `there is nothing called a "${kind}"` };
+    if (!(KINDS as string[]).includes(kind)) return { error: `there is nothing called a "${kind}"` };
     if (!searchConfigured()) return { error: 'web search is not configured on this server — set ANANSI_SEARCH' };
 
     const p = await pullThread(writerModel(c, v), subject, kind, String((v.story as any).world ?? '').trim(), {
@@ -4383,7 +4383,7 @@ export const routes: Record<string, Handler> = {
       const where = list.length > 1 ? ` (thread ${i + 1})` : '';
       if (!raw || typeof raw !== 'object') { notes.push(`Skipped something that is not a thread${where}.`); continue; }
       const kind = String(raw.kind ?? raw.entryType ?? 'character').trim();
-      if (!SLOTS[kind as keyof typeof SLOTS]) {
+      if (!(KINDS as string[]).includes(kind)) {
         notes.push(`Skipped "${String(raw.title ?? 'untitled')}"${where}: there is nothing called a "${kind}".`);
         continue;
       }

@@ -1328,7 +1328,7 @@ ok('emptying the box gives her back the voice she shipped with');
 
   // ACCEPTING IT ADDS A ROOM AND LEAVES THE DESCRIPTION ALONE. This is the writer-visible claim,
   // and it is the one that was false: the same proposal used to replace Vel's whole body.
-  const roomsBefore = db.addonsOf(story.id).length;
+  const roomsBefore = db.addonsOf(story.id).length, had = new Set(db.addonsOf(story.id).map((a: any) => a.id));
   await routes['POST /api/proposal']({ body: { storyId: story.id, id: prop.id, accept: true },
     query: new URLSearchParams(), owner: me,
     slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {}, setGen: () => {} } as any);
@@ -1337,7 +1337,8 @@ ok('emptying the box gives her back the voice she shipped with');
     'accepting a room change rewrote the card\'s description. That IS the bug.');
   const rooms = db.addonsOf(story.id);
   assert.strictEqual(rooms.length, roomsBefore + 1, 'and it made exactly one room');
-  const made = rooms.at(-1) as any;
+  // The one that is new, by id: `addonsOf` orders by kind, and this tale's string sorts after it.
+  const made = rooms.find((a: any) => !had.has(a.id)) as any;
   assert.strictEqual(made.slot, 'interiority', 'in the room the chat named');
   assert.strictEqual(made.entry_id, velBefore.id, 'on Vel');
   ok('accepting it fills one room and leaves the rest of the card exactly as it was');

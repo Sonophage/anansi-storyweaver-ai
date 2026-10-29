@@ -15,7 +15,7 @@
 // of them: `interiority` does that work — and on 2026-08-29 he confirmed it does in practice, so
 // this is a settled decision rather than a deferral. #13 carries the exchange.
 
-export type EntryKind = 'character' | 'place' | 'lore' | 'item' | 'rule';
+export type EntryKind = 'character' | 'place' | 'lore' | 'item' | 'rule' | 'tale';
 
 /** EXCLUSIVE means one at a time, the way an outfit already is — you have one appearance, one
  *  voice, one outfit on. The rest accumulate: three relationships are three rows, each firing on
@@ -55,6 +55,14 @@ export const SLOTS: Record<EntryKind, { name: string; exclusive: boolean }[]> = 
   rule: [
     { name: 'facts',         exclusive: true  },
     { name: 'consequences',  exclusive: false },
+  ],
+  // #127 · ADR 0011. THE TALE'S OWN THREAD (#125), one per tale, made by the code and never by the
+  // writer, so it is not in `KINDS`. Its Always true is the setting; its strings are its pockets: a
+  // promise (set up to pay off) or an open question (kept open). On is in play and sent.
+  tale: [
+    { name: 'facts',         exclusive: true  },
+    { name: 'promise',       exclusive: false },
+    { name: 'question',      exclusive: false },
   ],
 };
 
@@ -139,14 +147,21 @@ export const plain = (body: unknown, names: string[]): string => {
  *  Exclusive on every kind: a card has one set of things that are true about it. On screen it is
  *  Always true (#77), and it is not a pocket: `context.alwaysTrue` reads it first and always. */
 
-/** Every slot name in the app, deduplicated. The partial unique index that enforces exclusivity
- *  has to name its slots as a literal list, so `test/db.ts` asserts the index and this agree —
- *  two places holding one truth is the drift this module exists to stop. */
 /** #80 · THE KINDS OF THREAD, in the order the screens list them. The one list: every schema enum,
- *  prompt and screen list of kinds is this, or is checked against it. */
-export const KINDS = Object.keys(SLOTS) as EntryKind[];
+ *  prompt and screen list of kinds is this, or is checked against it. #127 · Not `tale`: the tale's
+ *  thread is made by the code, one per tale, and no writer or model makes one. */
+export const KINDS = (Object.keys(SLOTS) as EntryKind[]).filter((k) => k !== 'tale');
 
-export const ALL_SLOTS = [...new Set(Object.values(SLOTS).flatMap((s) => s.map((x) => x.name)))].sort();
+/** Every slot name a thread of the writer's can hold, deduplicated. The partial unique index that
+ *  enforces exclusivity has to name its slots as a literal list, so `test/db.ts` asserts the index
+ *  and this agree — two places holding one truth is the drift this module exists to stop.
+ *  #127 · Not the tale's strings (`STRING_SLOTS`): this list is what Talk, the finders and Write one
+ *  for me may offer a thread, and a promise on a character is not a thing. */
+export const ALL_SLOTS = [...new Set(KINDS.flatMap((k) => SLOTS[k].map((x) => x.name)))].sort();
+
+/** #127 · ADR 0011. THE KINDS OF STRING, which only the tale's thread holds: its pockets in `SLOTS`
+ *  less its Always true. `db.upsertAddon` refuses them on any other thread. */
+export const STRING_SLOTS = SLOTS.tale.map((x) => x.name).filter((n) => n !== 'facts');
 
 /** The slots that hold one at a time, in the order the index states them. */
 export const EXCLUSIVE_SLOTS = [...new Set(Object.values(SLOTS)

@@ -84,7 +84,9 @@ export function fromExport(file: string): Incoming {
     const story = src.prepare('SELECT * FROM stories LIMIT 1').get() as any;
     if (!story) throw new Error('that file holds no story');
     const branch = src.prepare('SELECT id FROM branches WHERE story_id = ? AND is_primary = 1').get(story.id) as any;
-    const entries = src.prepare('SELECT * FROM entries WHERE story_id = ?').all(story.id) as any[];
+    // #127 · Not the tale's own thread (#125): it is not a thread of the cast, and the new tale makes its
+    // own from its premise when it first needs one. Its strings come across below.
+    const entries = src.prepare("SELECT * FROM entries WHERE story_id = ? AND entry_type IS NOT 'tale'").all(story.id) as any[];
     // Outfits travel with the character. `exportStory` carries them already — it deletes other
     // stories and lets the cascade do the rest — but reading them back was missed when the table
     // landed, so a round trip quietly returned everyone naked.
@@ -103,10 +105,21 @@ export function fromExport(file: string): Incoming {
       try { outfits = src.prepare('SELECT * FROM outfits WHERE story_id = ?').all(story.id) as any[]; }
       catch { /* a file written after the table was dropped; the addons read above is all there is */ }
     }
-    // A table that may not exist: an export written before strings did.
+    // #127 · ADR 0011. A string is a pocket of the tale's thread, read back in the string shape below.
+    // An export written before the move has them in the `strings` table, and one written before
+    // strings existed has neither, so the old table is the fallback, as `outfits` is above.
+    // An older file's `addons` has no `status` or `owed_by` column, so the read itself can fail.
     let strings: any[] = [];
-    try { strings = src.prepare('SELECT * FROM strings WHERE story_id = ?').all(story.id) as any[]; }
-    catch { /* older export, no such table */ }
+    try {
+      strings = (src.prepare(`SELECT a.name AS title, a.body, a.from_chapter, a.owed_by,
+          COALESCE(a.status, 'open') AS status, a.slot AS kind FROM addons a JOIN entries e ON e.id = a.entry_id
+        WHERE e.story_id = ? AND e.entry_type = 'tale' AND a.slot IN ('promise', 'question') ORDER BY a.created_at`)
+        .all(story.id) as any[]).map((x) => ({ ...x }));
+    } catch { /* a file from before #127 */ }
+    if (!strings.length) {
+      try { strings = src.prepare('SELECT * FROM strings WHERE story_id = ?').all(story.id) as any[]; }
+      catch { /* a file written after the table was dropped, or before strings existed */ }
+    }
     const passages = src.prepare(
       'SELECT body, author FROM passages WHERE story_id = ? AND branch_id = ? AND selected = 1 ORDER BY ordinal')
       .all(story.id, branch?.id) as any[];

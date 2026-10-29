@@ -1024,34 +1024,58 @@ ok('ending a chapter is both writes or neither', () => {
   db.delStory(s10.id);
 });
 
-ok('a string is not an entry, and only a summoned one reaches the prompt', () => {
-  const s11 = db.createStory(o, { title: 'Owed' });
+/* #127 · ADR 0011. A STRING IS A POCKET OF THE TALE'S THREAD, of kind promise or question. On means in
+ * play and sent; off means set aside. Tied off and Let go switch it off and mark it; switching it on
+ * again reopens it. Through `upsertString` and `setAddonActive`, the doors every caller uses. */
+ok("a string is a pocket of the tale's thread: on is in play, and tied off or let go is off and marked", () => {
+  const s11 = db.createStory(o, { title: 'Owed', premise: 'A letter came.' });
   const id = db.upsertString(s11.id, { title: 'The letter', body: 'Unopened', fromChapter: 6, owedBy: 20 });
   assert.ok(id);
-  // NOT in the ledger. An entry resolves by keyword and is sent as canon; a string stays true
-  // while nobody says it, which is the opposite rule.
-  assert.strictEqual(db.entriesOf(s11.id).length, 0, 'a string is not an entry');
-  let x = db.stringsOf(s11.id)[0];
-  assert.strictEqual(x.status, 'open');
-  assert.strictEqual(x.summoned, 0, 'and it starts out of play — writer-facing until summoned');
+  const tale = db.taleThreadOf(s11.id);
+  assert.ok(tale, "STRING-TALE: the first string makes the tale's thread");
+  assert.strictEqual(db.entriesOf(s11.id).length, 0, '  which is not a thread of the cast');
+  const row = () => { const a = (db.addonsOf(s11.id) as any[]).find((x) => x.id === id);
+    return a && [a.entry_id, a.slot, a.name, a.body, a.active, a.from_chapter, a.owed_by, a.status]; };
+  assert.deepStrictEqual(row(), [tale.id, 'promise', 'The letter', 'Unopened', 0, 6, 20, null],
+    "STRING-POCKET: it is a promise pocket on the tale's thread, off, set up in scene 6, owed by 20, not marked");
+  const x = db.stringsOf(s11.id)[0];
+  assert.deepStrictEqual([x.id, x.title, x.status, x.summoned, x.kind], [id, 'The letter', 'open', 0, 'promise'],
+    '  and read back as a string, open and out of play');
 
-  // Summoning is what puts it in the prompt, and story.ts is where that filter lives.
-  db.upsertString(s11.id, { ...x, id: x.id, summoned: true });
-  const v = story.view(s11.id)!;
-  assert.strictEqual((v as any).strings[0].summoned, true, 'the view carries it');
-  const { manifest } = story.assemble(v, { global: 100096, slots: 4, perSlot: 25024 }, 'direct');
-  assert.ok(manifest.blocks.some((b) => b.kind === 'STRING'), 'and summoned, it reaches the prompt');
+  const sent = () => story.assemble(story.view(s11.id)!, { global: 100096, slots: 4, perSlot: 25024 }, 'direct')
+    .manifest.blocks.some((b) => b.kind === 'STRING');
+  assert.strictEqual(sent(), false, 'STRING-OFF: off, it is not sent');
+  db.setAddonActive(s11.id, id, true);
+  assert.strictEqual((story.view(s11.id) as any).strings[0].summoned, true, "STRING-ON: the pocket's own switch puts it in play");
+  assert.strictEqual(sent(), true, '  and on, it is sent');
 
-  // Paid is out of play whatever the flag says: a paid promise the model is still told about is
-  // an instruction to pay it twice.
-  db.upsertString(s11.id, { ...x, id: x.id, summoned: true, status: 'paid' });
-  const paid = story.assemble(story.view(s11.id)!, { global: 100096, slots: 4, perSlot: 25024 }, 'direct');
-  assert.ok(!paid.manifest.blocks.some((b) => b.kind === 'STRING'),
-    'a paid string does not reach the prompt even while its summoned flag is set');
+  const seen = (story.view(s11.id) as any).strings[0];
+  db.upsertString(s11.id, { ...seen, summoned: true, status: 'paid' });
+  assert.deepStrictEqual(row()!.slice(4), [0, 6, 20, 'paid'], 'STRING-TIED: tied off switches it off and marks it');
+  assert.strictEqual(sent(), false, '  so it is not sent');
+  assert.strictEqual((story.view(s11.id) as any).strings[0].status, 'paid', '  and the view says so');
+  db.setAddonActive(s11.id, id, true);
+  assert.deepStrictEqual(row()!.slice(4), [1, 6, 20, null], 'STRING-REOPEN: switched on again, it is open again');
+  db.upsertString(s11.id, { ...seen, status: 'dropped' });
+  assert.deepStrictEqual(row()!.slice(4), [0, 6, 20, 'dropped'], 'STRING-LET-GO: let go is off and marked too');
 
-  db.delString(s11.id, x.id);
+  db.delString(s11.id, id);
   assert.strictEqual(db.stringsOf(s11.id).length, 0);
   db.delStory(s11.id);
+});
+
+/* #127 · ONLY THE TALE'S THREAD HOLDS STRINGS. The kinds are in `slots.SLOTS` under `tale`, and the tale
+ * is not a kind of thread a writer makes. */
+ok("only the tale's thread holds a promise or a question, and the tale is not a kind a writer makes", () => {
+  const s = db.createStory(o, { title: 'Floor' });
+  const who = db.upsertEntry(s.id, o, { title: 'Ines', body: 'b', entryType: 'character' })!;
+  assert.strictEqual(db.upsertAddon(s.id, who, { slot: 'promise', name: 'x', body: 'y' }), null,
+    'STRING-FLOOR: a character cannot hold a promise');
+  assert.strictEqual(db.upsertAddon(s.id, who, { slot: 'question', name: 'x', body: 'y' }), null, '  nor a question');
+  assert.deepStrictEqual(slots.slotsFor('tale').map((x: any) => x.name), ['facts', 'promise', 'question'],
+    "STRING-SLOTS: the tale's thread holds its Always true, promises and questions");
+  assert.ok(!(slots.KINDS as string[]).includes('tale'), '  and the tale is not a kind of thread to make');
+  db.delStory(s.id);
 });
 
 /* #124 · A STRING HAS A KIND: a promise (the writer's own, or chalked), pressed toward payment, or an
@@ -1071,31 +1095,6 @@ ok('a string is a promise unless it is made an open question, and a save keeps i
   assert.strictEqual((story.view(s.id) as any).strings.find((x: any) => x.id === qid).kind, 'question',
     'STRING-KIND-VIEW: the view carries the kind');
   db.delStory(s.id);
-});
-
-/* #124 · AN OLD LIBRARY'S STRINGS ARE PROMISES. A copy with the kind column taken off, booted the way
- * a server boots: the column comes back and every string already there is a promise. */
-ok('an old library gains the string kind, and its strings are promises', () => {
-  const me = db.owner('kind-migrate');
-  const t = db.createStory(me, { title: 'Old strings' });
-  db.upsertString(t.id, { title: 'The debt' });
-  const dir = mkdtempSync('/tmp/anansi-kind-');
-  try {
-    const file = join(dir, 'old.db');
-    db.snapshot(file);
-    const old = new RawDb(file);
-    old.exec('ALTER TABLE strings DROP COLUMN kind');
-    old.close();
-    const r = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
-      `await import(${JSON.stringify(new URL('../src/db.ts', import.meta.url).href)});`],
-      { env: { ...process.env, ANANSI_DB: file }, encoding: 'utf8' });
-    assert.strictEqual(r.status, 0, `the boot failed: ${r.stderr}`);
-    const now = new RawDb(file, { readOnly: true });
-    const rows = now.prepare('SELECT title, kind FROM strings WHERE story_id = ?').all(t.id).map((x: any) => ({ ...x }));
-    now.close();
-    assert.deepStrictEqual(rows, [{ title: 'The debt', kind: 'promise' }], 'STRING-KIND-MIGRATE: an existing string is a promise');
-  } finally { rmSync(dir, { recursive: true, force: true }); }
-  db.delStory(t.id);
 });
 
 // Entity resolution. Exercised directly because model output is not reproducible.
@@ -2710,7 +2709,7 @@ ok('a book copies whole, and the copy shares nothing with the original', () => {
     beforeMode: 'hint', label: 'after the crossing' });
   db.setRetired(src.id, road, 2);
   db.upsertString(src.id, { title: 'The sealed letter', body: 'He has not opened it.',
-    fromChapter: 1, owedBy: 9 });
+    fromChapter: 1, owedBy: 9, status: 'paid' });
   db.addArc(src.id, { branchId: src.branchId, fromChapter: 1, toChapter: 1, title: 'Leaving',
     summary: 'She goes.' });
   db.setActiveBranch(src.id, other);
@@ -2731,7 +2730,7 @@ ok('a book copies whole, and the copy shares nothing with the original', () => {
     ['room', 'SELECT COUNT(*) AS n FROM addons WHERE story_id = ?'],
     ['pin', 'SELECT COUNT(*) AS n FROM chapter_pins WHERE story_id = ?'],
     ['arc', 'SELECT COUNT(*) AS n FROM arcs WHERE story_id = ?'],
-    ['string', 'SELECT COUNT(*) AS n FROM strings WHERE story_id = ?'],
+    // #127 · A string is a pocket of the tale's thread, so it is a room and a thread here.
     ['connection', 'SELECT COUNT(*) AS n FROM entry_edges WHERE story_id = ?'],
     ['state', `SELECT COUNT(*) AS n FROM entry_states s JOIN entries e ON e.id = s.entry_id
                  WHERE e.story_id = ?`],
@@ -2775,7 +2774,6 @@ ok('a book copies whole, and the copy shares nothing with the original', () => {
   same('branch', 'SELECT * FROM branches WHERE story_id = ?',
     ['id', 'story_id', 'parent_id'], 'name');
   same('arc', 'SELECT * FROM arcs WHERE story_id = ?', ['id', 'story_id', 'branch_id'], 'from_chapter');
-  same('string', 'SELECT * FROM strings WHERE story_id = ?', ['id', 'story_id'], 'title');
   // `created_at` is out for the same reason it is out of the thread comparison below: a copied room
   // is WRITTEN, by `upsertAddon`, and it stamps the moment it wrote. Both halves of the room copy
   // agree about that — the story-level loop in `duplicateStory` says so — and this is what noticed
