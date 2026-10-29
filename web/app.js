@@ -1465,7 +1465,8 @@ function passageHTML(p, newest, opening) {
          AND NOT THE WORD FOR THE LAST PASSAGE EITHER: test/app.ts counts that word across the
          whole reading view to prove only one paragraph animates, and a comment carrying it reads
          as a second one. -->
-    <button data-re="${p.id}"><span class="serif mode-ink">↻</span><span class="lbl-txt">Reweave</span></button>
+    <button data-re="${p.id}" title="Reweave. Hold, or Alt+click, to change the instruction first"
+      ><span class="serif mode-ink">↻</span><span class="lbl-txt">Reweave</span></button>
     <!-- "Make a thread of this" (it was "Remember this"). The writer's own recall: the model has forgotten something that happened,
          so you point at the passage it happened in. It goes to Anansi as an INSTRUCTION rather than
          as prose to continue or a line somebody said, comes back as facts rather than as sentences
@@ -1614,6 +1615,9 @@ function passageHTML(p, newest, opening) {
         >${mark('expand', 18)}<span class="btnword">Cancel</span></button>
       <div class="rwfields">
         <div class="lbl flush">The instruction</div>
+        ${S.reroll.own != null ? `<div class="hint flush">This passage had no instruction of its own,
+          so this is its own ${esc(S.reroll.ownName ?? '')} instruction. Leave it and that is what
+          runs again.</div>` : ''}
         <textarea class="field" data-rerollbox="1" aria-label="The instruction to reweave from"
           >${esc(S.reroll.text ?? '')}</textarea>
         <div class="lbl flush">What didn't work</div>
@@ -2146,8 +2150,10 @@ function nextBar(last) {
   const open = !!S.dockOpen;
   return `<div id="nextbar">
     <div id="nextrow">
-      <button data-re="${esc(last.id)}" ${busy ? 'disabled' : ''} aria-label="Reweave the last passage"
-        title="Reweave the last passage"><span class="serif">↻</span></button>
+      <button data-re="${esc(last.id)}" ${busy ? 'disabled' : ''}
+        aria-label="Reweave the last passage. Hold, or Alt+click, to change the instruction first"
+        title="Reweave the last passage. Hold, or Alt+click, to change the instruction first"
+        ><span class="serif">↻</span></button>
       <div class="quillcell">
         ${/* ABOVE the circle (Seth, 2026-10-25): a thumb on the circle covers what is under it. */ ''}
         ${hint ? `<small class="holdhint"${busy ? ' style="visibility:hidden" aria-hidden="true"' : ''}>${hwkb ? 'hold, or Alt+T, to talk' : 'hold to talk'}</small>` : ''}
@@ -10678,16 +10684,26 @@ async function regenerateInto(id, steer, seed, again = null, why = '') {
 
 
 
-/** RE-ROLL THIS PASSAGE, or open its instruction first if it has one.
+/** OPEN THE REWEAVE BOX for a passage: what a HOLD on Reweave does, or Alt+click at a desk (Seth,
+ *  2026-10-29: "the button just reweaves; holding the reweave button opens what we just built").
+ *  A tap reweaves at once, for every passage, with the passage's own instruction (`regenerateInto`).
+ *  Until 2026-10-29 a tap on a DIRECTED passage opened this box instead (#38).
  *
- *  #38: a directed passage opens the instruction to be edited before it re-rolls, and an undirected
- *  one has nothing to show so it goes straight away. Extracted 2026-09-02 when the veil grew the
- *  same pair of presses — two copies of this would be two places to remember the directed case,
- *  and the directed case is the one that was missing for a month. */
-async function rerollPassage(id) {
-  const p = (V.passages ?? []).find((x) => x.id === id);
-  if (p?.directive) { S.reroll = { id, text: p.directive }; drawDoc(); syncTray(); return; }
-  await regenerateInto(id);
+ *  The instruction field is the passage's directive. A passage with none shows its own mode's
+ *  instruction instead, marked as such (`own`), and if the writer leaves it as it is the press sends
+ *  no directive, so the server runs that instruction exactly as a tap would. Sent as a directive it
+ *  would arrive wrapped in Direct's wording, which is not the instruction that wrote the passage. */
+async function openReweave(id) {
+  const p = (V?.passages ?? []).find((x) => x.id === id);
+  if (!p) return;
+  if (p.directive) { S.reroll = { id, text: p.directive, why: '' }; drawDoc(); syncTray(); return; }
+  // The same mode `inherit` in routes.ts falls back to: the passage's own, else the composer's.
+  const mode = p.mode || S.mode;
+  if (!S.prompts) await loadPrompts();
+  const said = String(S.prompts?.yours?.[mode]?.trim() || S.prompts?.defaults?.[mode] || '')
+    .replace(/\{\{\s*speaker\s*\}\}/g, p.speaker || 'the point-of-view character');
+  S.reroll = { id, text: said, why: '', own: said, ownName: mode ? mode[0].toUpperCase() + mode.slice(1) : '' };
+  drawDoc(); syncTray();
 }
 
 /** The ⋯ tray. One open at a time, and the scrim is raised while one is.
@@ -11321,7 +11337,7 @@ document.addEventListener('click', async (e) => {
   if (d.dockopen) {
     // The click a hold leaves behind when the finger lifts is not a tap: the hold already turned
     // the box to Talk.
-    if (HOLD?.fired && Date.now() - HOLD.at < 1500) { HOLD = null; return; }
+    if (heldClick()) return;
     S.dockOpen = true;
     drawDock(); $('input')?.focus({ preventScroll: true });
     return;
@@ -11848,12 +11864,17 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (d.re) { await rerollPassage(d.re); return; }
+  // A TAP REWEAVES; a hold or Alt+click opens the box (`openReweave`). The click a hold leaves behind
+  // when the finger lifts is not a tap: the hold already opened the box.
+  if (d.re) {
+    if (heldClick()) return;
+    if (e.altKey) { await openReweave(d.re); return; }
+    await regenerateInto(d.re); return;
+  }
   /* THE SAME TAKE AGAIN, on the number that produced it. `<passageId>:<seed>` in one attribute
    * because the seed is meaningless without the passage it belongs to, and two attributes is two
-   * things that can disagree. It goes straight to regenerateInto rather than through
-   * rerollPassage: that one opens the instruction editor for a directed passage, and this press is
-   * not asking to change the instruction — it is asking for the same roll. */
+   * things that can disagree. It does not open the Reweave box: this press is not asking to change
+   * the instruction — it is asking for the same roll. */
   if (d.reseed) {
     const [pid, seed] = String(d.reseed).split(':');
     if (pid && seed) await regenerateInto(pid, undefined, Number(seed));
@@ -11865,18 +11886,22 @@ document.addEventListener('click', async (e) => {
     const what = d.veilgo;
     dismissVeil();
     if (what === 'continue') await generate('continue');
-    else await rerollPassage(what);
+    else await regenerateInto(what);
     return;
   }
   // #38. Re-roll with whatever is in the box — edited or not — and close the editor.
-  // Both fields are read from S.reroll, which the input listener keeps in step with the box.
+  // Both fields are read from S.reroll, which the input listener keeps in step with the box. A
+  // passage's OWN instruction left as it is goes as no directive at all (see `openReweave`).
   if (d.rerollgo) {
     const steer = String(S.reroll?.text ?? '').trim();
     if (!steer) return toast('Say what should happen, or press Cancel to leave it as it was.');
     const why = String(S.reroll?.why ?? '').trim();
+    const kept = S.reroll?.own != null && steer === String(S.reroll.own).trim();
     const id = S.reroll?.id ?? d.rerollgo;
     S.reroll = null; drawDoc();
-    await regenerateInto(id, steer, undefined, null, why);
+    // `{}` for `again`: this press is already the deliberate second one, so the guard on the
+    // writer's own paragraph does not ask again (its next tap would reweave without the box).
+    await regenerateInto(id, kept ? undefined : steer, undefined, {}, why);
     return;
   }
   if (d.rerollx) { S.reroll = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc(); syncTray(); return; }
@@ -14065,15 +14090,29 @@ document.addEventListener('keydown', (e) => {
  * that follows the lift is dropped by the dispatcher (`HOLD.fired`). A press that moves is a
  * scroll or a slip, and is neither a tap nor a hold.
  * ponytail: 450ms and 10px, the usual long-press numbers, not measured on Seth's phone or the
- * Titan. Revisit if a hold fires by accident or takes too long to come. */
+ * Titan. Revisit if a hold fires by accident or takes too long to come.
+ *
+ * ONE HOLD, TWO BUTTONS (2026-10-29). The same detection holds Reweave, on the bar and in a
+ * passage's tray, and opens the Reweave box (`openReweave`); a tap on it reweaves at once. HOLDS is
+ * the one list of what a hold does, and `heldClick` is the one place that drops the click after. */
 const HOLD_MS = 450;
 let HOLD = null;
+const HOLDS = [
+  ['#nextbar [data-dockopen]', () => { holdLearned(); dockTalk(true); }],
+  ['[data-re]', (b) => openReweave(b.dataset.re)],
+];
+/** Whether this click is the one a hold left behind when the finger lifted. Consumes the hold. */
+function heldClick() {
+  if (HOLD?.fired && Date.now() - HOLD.at < 1500) { HOLD = null; return true; }
+  return false;
+}
 document.addEventListener('pointerdown', (e) => {
-  const b = e.target.closest?.('#nextbar [data-dockopen]');
+  let b = null, fire = null;
+  for (const [sel, f] of HOLDS) { b = e.target.closest?.(sel); if (b) { fire = f; break; } }
   if (!b || b.disabled) return;
   clearTimeout(HOLD?.timer);
   const h = { x: e.clientX, y: e.clientY, fired: false, at: 0, timer: 0 };
-  h.timer = setTimeout(() => { h.fired = true; h.at = Date.now(); holdLearned(); dockTalk(true); }, HOLD_MS);
+  h.timer = setTimeout(() => { h.fired = true; h.at = Date.now(); fire(b); }, HOLD_MS);
   HOLD = h;
 });
 document.addEventListener('pointermove', (e) => {
@@ -14086,7 +14125,7 @@ for (const ev of ['pointerup', 'pointercancel']) {
 // No callout and no menu on a long press of the button: on a phone those are what a hold opens.
 // The CSS takes away the selection and the iOS callout; this takes away Android's context menu.
 document.addEventListener('contextmenu', (e) => {
-  if (e.target.closest?.('#nextbar')) e.preventDefault();
+  if (e.target.closest?.('#nextbar, [data-re]')) e.preventDefault();
 });
 /* #74 · A SWIPE ON THE TOP CARD OF THE DECK. Past a third of the card's width it presses the card's
  * right or left button; short of it the card goes back. Not from a field or a button, where a drag

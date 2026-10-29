@@ -59,6 +59,8 @@ passage before keeps its place as the last prose.
   screen, which is not the take that was replaced when the seed was first used.
 - A reweave of a Narrate passage that answered an unfinished line sends no MODE block, so it sends
   no take and no note. The code marks this with a ponytail comment.
-- The What didn't work field is in the Reweave box, and the box opens only for a passage that has a
-  directive. A passage without one reweaves on one press, with the take but with no way to add a
-  note.
+- A tap on Reweave reweaves at once, for every passage, with no note (Seth, 2026-10-29: "the button
+  just reweaves; holding the reweave button opens what we just built"). A hold, or Alt+click at a
+  desk, opens the Reweave box for any passage. This replaces #38's rule that a tap on a directed
+  passage opened the box. A passage with no directive shows its own mode instruction in the box;
+  left unchanged, it is not sent as a directive.

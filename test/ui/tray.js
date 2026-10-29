@@ -119,16 +119,18 @@ for (const [label, on, off] of [
 // screen not inline." It takes the same route the tray above does, so it inherits the same trap —
 // a position:fixed child of a block carrying a filled transform animation or a mask is positioned
 // against the BLOCK and has its z-index capped inside it. Third round of that bug, second feature.
-// ON THE FIXTURE'S ONE DIRECTED PASSAGE: only a passage that carries an instruction has a sheet to
-// open, so seed.ts directs its last one. If that ever stops being true this block says so rather
-// than passing on an absence.
+// ON THE FIXTURE'S ONE DIRECTED PASSAGE, so the box has an instruction in it. OPENED WITH ALT+CLICK,
+// the desk's hold: since 2026-10-29 a tap on Reweave reweaves at once and a hold opens the box
+// (Seth: "the button just reweaves; holding the reweave button opens what we just built").
 {
   await page.goto(B + "/#" + sid);
   for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('#col .block')")); i++) await wait(250);
   const target = await page.eval(
     "(() => document.querySelector('#col .block.directed [data-re]')?.dataset.re ?? null)()");
   ok(`the fixture has a directed passage to re-roll (${target})`, !!target);
-  await page.eval(`(() => { document.querySelector('[data-re="${target}"]').click(); return 1; })()`);
+  const openBox = `(() => { document.querySelector('[data-re="${target}"]').dispatchEvent(
+    new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true })); return 1; })()`;
+  await page.eval(openBox);
   await wait(600);
   // THE FULL-SCREEN BOX since 2026-10-25 (Seth: "the regenerate screen should match the maximized
   // edit screen"): it covers the window, Cancel where the composer's Back is, Reweave where Send is.
@@ -175,7 +177,7 @@ for (const [label, on, off] of [
   ok("  without reweaving", (await page.eval(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).passages.length)()`)) === takes);
   ok("  and the tale is still open", await page.eval("!!document.querySelector('#col .block')"));
   // And Esc, the same.
-  await page.eval(`(() => { document.querySelector('[data-re="${target}"]').click(); return 1; })()`);
+  await page.eval(openBox);
   await wait(600);
   await page.key('Escape', 27); await wait(400);
   ok("  and so does Esc",

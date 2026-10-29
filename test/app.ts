@@ -169,7 +169,8 @@ const STORY = {
     { id: 'p-0', ordinal: 0, body: 'Ashfall took the road in under a day.', author: 'model',
       speaker: null, isBreak: false, chapterId: 'c-1', variantIndex: 1,
       variants: [{ id: 'p-0', selected: true }] },
-    // DIRECTED, since 2026-09-01: issue #38 opens the instruction a passage was written from, so
+    // DIRECTED, since 2026-09-01: issue #38 opened the instruction a passage was written from (a
+    // hold on Reweave does since 2026-10-29, and a tap reweaves), so
     // the fixture needs a passage that HAS one and others that do not — the press behaves
     // differently for each and a fixture where every passage is the same tests one branch.
     { id: 'p-1', ordinal: 1, body: 'The hall smells of cold iron.', author: 'model', speaker: null,
@@ -817,6 +818,21 @@ ok('one New story button, on the bar, and the shelf does not repeat it');
 const click = (dataset: any) => (listeners.click ?? []).forEach((f: Function) => f({
   target: { closest: () => ({ dataset, querySelector: () => null, disabled: false, textContent: '', style: {} }) },
 }));
+// The same press with Alt held, which is a hold at a desk.
+const altClick = (dataset: any) => (listeners.click ?? []).forEach((f: Function) => f({ altKey: true,
+  target: { closest: () => ({ dataset, querySelector: () => null, disabled: false, textContent: '', style: {} }) },
+}));
+// A LONG PRESS ON A REWEAVE BUTTON, then the lift and the click the browser sends after it. A mouse
+// pointer, so the tap synthesiser (which ignores mice) stays out of it. Past the hold's 450ms.
+const holdRe = async (id: string) => {
+  const b = { dataset: { re: id }, disabled: false };
+  const target = { closest: (s: string) => (/\[data-re\]/.test(s) ? b : null) };
+  (listeners.pointerdown ?? []).forEach((f: Function) => f({ target, clientX: 0, clientY: 0, pointerType: 'mouse' }));
+  await new Promise((r) => setTimeout(r, 520));
+  (listeners.pointerup ?? []).forEach((f: Function) => f({ target, pointerType: 'mouse' }));
+  click({ re: id });
+  await new Promise((r) => setTimeout(r, 40));
+};
 // Switching mode is a change on the dial now, not a click on one of four buttons — see the rail
 // block below. `data-modesel` carries no value of its own; the chosen mode is the select's.
 const pickMode = (mode: string) => (listeners.change ?? []).forEach((f: Function) =>
@@ -6011,45 +6027,53 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   ok('what a control does is folded behind a mark, on all three panels, and every mark opens something');
 }
 
-// ---- THE RE-ROLL INSTRUCTION IS EDITABLE (issue #38). Seth, 2026-09-01: "I should be able to edit
-// the regenerate command."
+// ---- A TAP REWEAVES, A HOLD OPENS THE BOX (Seth, 2026-10-29: "the button just reweaves; holding the
+// reweave button opens what we just built"). This replaces #38's rule that a directed passage opened
+// its instruction on the press (Seth, 2026-09-01: "I should be able to edit the regenerate command"):
+// the instruction is still editable, behind a hold, or Alt+click at a desk.
 //
-// A re-roll of a directed passage re-runs its stored instruction (`inherit()` in routes.ts). The
-// writer could neither see it nor change it, so a passage written from a bad steer could only be
-// re-rolled into the same bad steer for ever.
-//
-// The ABSENCE is asserted first and it is the half that would pass for the wrong reason: an
-// undirected passage has no instruction to show and must still re-roll on one press.
+// The tap is asserted on a DIRECTED passage, because that is the one whose press used to open the box
+// and generate nothing: the half that would pass for the wrong reason on an undirected one.
 {
-  click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  const wait = (ms = 40) => new Promise((r) => setTimeout(r, ms));
+  const gens = () => POSTED.filter((x: any) => String(x.url).startsWith('/api/generate'));
+  click({ open: 's-1' }); await wait();
 
-  // p-2 carries no directive: pressing Regenerate must not open an editor.
+  // A TAP, directed passage: no box, and the reweave goes at once with the passage's own instruction.
   POSTED.length = 0;
-  click({ re: 'p-2' });
-  await new Promise((r) => setTimeout(r, 40));
-  assert.doesNotMatch(html('col'), /data-rerollbox/,
-    'an undirected passage opens no editor — it re-rolls on the press, as it always has');
+  click({ re: 'p-1' }); await wait(200);
+  assert.doesNotMatch(html('col'), /data-rerollbox/, 'a tap opens no box, even on a directed passage');
+  assert.strictEqual(gens().length, 1, 'a tap reweaves at once');
+  assert.strictEqual(gens()[0].body.regenerateOf, 'p-1', 'that passage');
+  assert.ok(!('directive' in gens()[0].body) && !('whatFailed' in gens()[0].body),
+    'with no directive and no note: the server inherits the passage\'s own instruction');
+  // And an undirected one, the same.
+  POSTED.length = 0;
+  click({ re: 'p-2' }); await wait(200);
+  assert.doesNotMatch(html('col'), /data-rerollbox/, 'an undirected passage opens no box either');
+  assert.strictEqual(gens()[0]?.body.regenerateOf, 'p-2', 'and reweaves at once');
 
-  // p-1 carries one: pressing Regenerate opens it, prefilled, and generates nothing yet.
+  // A HOLD opens the box and generates nothing, and the click the lift leaves behind is not a tap.
   POSTED.length = 0;
-  click({ re: 'p-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await holdRe('p-1');
   const doc = html('col');
-  assert.match(doc, /data-rerollbox/, 'a directed passage opens its instruction for editing');
+  assert.match(doc, /data-rerollbox/, 'a hold opens the box');
   assert.match(doc, /have the envoy arrive early/, 'prefilled with the instruction that made it');
-  assert.match(doc, /data-rerollgo="p-1"/, 'with a Re-roll button naming that passage');
+  assert.match(doc, /data-rerollgo="p-1"/, 'with a Reweave button naming that passage');
   assert.match(doc, /data-rerollx/, 'and a way out that changes nothing');
-  assert.strictEqual(POSTED.filter((x: any) => String(x.url).startsWith('/api/generate')).length, 0,
-    'and opening the editor generates NOTHING — the press used to fire immediately');
+  assert.strictEqual(gens().length, 0, 'and the hold, and the click after it, generate NOTHING');
 
   // Cancel leaves the passage alone.
-  click({ rerollx: '1' });
-  await new Promise((r) => setTimeout(r, 40));
+  click({ rerollx: '1' }); await wait();
   assert.doesNotMatch(html('col'), /data-rerollbox/, 'Cancel closes it');
-  assert.strictEqual(POSTED.filter((x: any) => String(x.url).startsWith('/api/generate')).length, 0,
-    'and Cancel generates nothing either');
-  ok('the re-roll instruction opens for editing, prefilled, and only on a passage that has one (#38)');
+  assert.strictEqual(gens().length, 0, 'and Cancel generates nothing either');
+
+  // ALT+CLICK is the hold at a desk.
+  altClick({ re: 'p-1' }); await wait();
+  assert.match(html('col'), /data-rerollbox/, 'Alt+click opens the box too');
+  assert.strictEqual(gens().length, 0, 'and generates nothing');
+  click({ rerollx: '1' }); await wait();
+  ok('a tap on Reweave reweaves at once, and a hold or Alt+click opens the box');
 }
 
 // ---- THE REWEAVE BOX HAS TWO FIELDS (Seth, 2026-10-29: "reweave needs two fields: original
@@ -6061,8 +6085,9 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   const box = (attr: string) => html('col').match(new RegExp(`<textarea[^>]*${attr}[^>]*>([^<]*)</textarea>`));
   const type = (attr: string, value: string) => (listeners.input ?? []).forEach((f: Function) => f({
     target: { matches: (s: string) => s === `[${attr}]`, dataset: {}, value } }));
+  const sentNow = () => POSTED.find((x: any) => String(x.url).startsWith('/api/generate'))?.body;
   click({ open: 's-1' }); await wait();
-  click({ re: 'p-1' }); await wait();
+  await holdRe('p-1');
   assert.ok(box('data-rerollbox'), 'the box has the instruction field');
   assert.match(box('data-rerollbox')![1], /have the envoy arrive early/, 'prefilled with the instruction that made it');
   assert.ok(box('data-rerollwhy'), "and a What didn't work field");
@@ -6084,12 +6109,34 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.strictEqual(sent.whatFailed, 'The envoy was too friendly.', 'and what did not work');
 
   // EMPTY SENDS NOTHING FOR IT. Opened again, the note is empty again and the press leaves it out.
-  click({ re: 'p-1' }); await wait();
+  await holdRe('p-1');
   assert.strictEqual(box('data-rerollwhy')?.[1], '', 'a new box starts with an empty note');
   POSTED.length = 0;
   click({ rerollgo: 'p-1' }); await new Promise((r) => setTimeout(r, 200));
-  const bare = POSTED.find((x: any) => String(x.url).startsWith('/api/generate'))?.body;
+  const bare = sentNow();
   assert.ok(bare && !('whatFailed' in bare), 'with the note empty, the press sends no whatFailed');
+
+  // A PASSAGE WITH NO DIRECTIVE opens the box too, with its own instruction shown as such. Left as
+  // it is, it is not sent as a directive: the server runs the passage's own instruction, as a tap.
+  // p-2 is a Speak passage, and the canned Speak instruction is the line below.
+  await holdRe('p-2');
+  assert.match(box('data-rerollbox')?.[1] ?? '', /^\s*Say it\.\s*$/, "an undirected passage's box shows its own instruction");
+  assert.match(html('col'), /own Speak instruction/i, 'and says that is what it is');
+  type('data-rerollwhy', 'Too polite.');
+  POSTED.length = 0;
+  click({ rerollgo: 'p-2' }); await new Promise((r) => setTimeout(r, 200));
+  const own = sentNow();
+  assert.ok(own && !('directive' in own), 'left as it is, its own instruction is not sent as a directive');
+  assert.strictEqual(own?.whatFailed, 'Too polite.', 'and the note still goes');
+
+  // THE WRITER'S OWN PASSAGE. A tap on it asks twice; the box's Reweave is already the second,
+  // deliberate press, so it goes at once with what is in the box rather than asking for a tap that
+  // would reweave without it. p-5 is the writer's.
+  await holdRe('p-5');
+  type('data-rerollwhy', 'Wrong voice.');
+  POSTED.length = 0;
+  click({ rerollgo: 'p-5' }); await new Promise((r) => setTimeout(r, 200));
+  assert.strictEqual(sentNow()?.whatFailed, 'Wrong voice.', "the box reweaves the writer's own passage on its one press, note and all");
   ok("the Reweave box has the instruction and What didn't work, both survive a repaint, and the press sends both");
 }
 

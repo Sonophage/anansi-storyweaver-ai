@@ -21,9 +21,13 @@ Everything below this line was written by that model call, before it was removed
 ### Reweave shows Anansi the version you are replacing
 When you reweave a passage, Anansi now sees the version you have now, marked as the one being
 replaced. It is told to write a new version of that passage from the same place, not to carry on
-from it and not to rewrite the passage before it. The Reweave box has a second field, What didn't
-work. It is optional. If you fill it in, Anansi reads it after the version being replaced. Your
-When you reweave line from Account still comes last.
+from it and not to rewrite the passage before it.
+
+A tap on Reweave now reweaves at once, for every passage, with the passage's own instruction. To
+change it first, hold Reweave (or Alt+click it at a desk). That opens the Reweave box, for any
+passage. The box has two fields: the instruction, and What didn't work. What didn't work is
+optional. If you fill it in, Anansi reads it after the version being replaced. Your When you
+reweave line from Account still comes last.
 
 ### A hemmed scene's card shows each thread once
 The card now reads in this order: the scene summary, then the threads. Each
