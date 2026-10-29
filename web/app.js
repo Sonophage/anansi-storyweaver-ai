@@ -223,7 +223,10 @@ const S = {
   // one. Set to 'story' on open and back to 'workspace' on leave, so the default still follows
   // you and only a deliberate press disagrees with it.
   railView: 'workspace',
-  entryId: null, historyOf: null, newRoom: null, folds: {},
+  entryId: null, historyOf: null, folds: {},
+  // #126. The pocket panel, open: { entryId, id (null when adding), tab, slot, name, body, keys,
+  // steer, offer, was }. Everything typed in it lives here, so a repaint draws it back.
+  pocket: null,
   // The ritual's three steps, and the kind chip on the third. Null means "premise", which is what
   // a cold load at #story/setup opens on: only a chapter close starts at the top.
   setupStep: null, setupKind: 'character', setupSteer: '', propKind: 'all', models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', threadQ: '', ctxView: 'blocks',
@@ -609,7 +612,10 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // Threads pulled out of a world: look, tick, pull.
   'worldlook', 'worldpull',
   // #104. A new tale's new World: look again or for more, add a name, go on without, change back.
-  'iplook', 'ipadd', 'ipwithout', 'ipagain'].map((k) => `[data-${k}]`).join(',');
+  'iplook', 'ipadd', 'ipwithout', 'ipagain',
+  // #126. The pocket panel: open it to add, its tabs, a kind, Cancel, Save, Remove, the two asks
+  // and Use this.
+  'pocketnew', 'pockettab', 'pocketkind', 'pocketx', 'pocketsave', 'pocketdel', 'pocketask', 'pocketuse'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -1571,6 +1577,9 @@ function passageHTML(p, newest, opening) {
 // What is typed in the Alter box survives a repaint: drawDoc draws the box from S.passEdit.
 document.addEventListener('input', (e) => {
   if (S.passEdit && e.target?.matches?.('[data-editbox]')) S.passEdit.text = e.target.value;
+  // #126. The pocket panel's boxes, by id, for the same reason: drawPocket draws them from S.pocket.
+  const pk = { 'pk-name': 'name', 'pk-body': 'body', 'pk-keys': 'keys', 'pk-steer': 'steer' }[e.target?.id];
+  if (S.pocket && pk) S.pocket[pk] = e.target.value;
 });
 /** Where the page should stay through the next repaint, or null (see drawDoc). */
 let HOLD_SCROLL = null;
@@ -2444,7 +2453,7 @@ function isReading() { return threadOpen() && S.cardView !== 'form'; }
 
 /** THE READ AND ALTER SCREENS' OWN CONTROLS, drawn once. In the drawer they are its header; on the
  *  cross-book page, which has no drawer header, the editor draws them at its own top (`pageBar`).
- *  Read: "‹ Threads" back to the list, Tidy, and the menu mark for the rarer actions (none on a followed thread,
+ *  Read: "‹ Threads" back to the list, ＋ for a new pocket (#126), Tidy, and the menu mark for the rarer actions (none on a followed thread,
  *  whose rare actions are on its face). Alter: Cancel and Save and nothing else — no Close, because
  *  leaving from here would throw away what was typed without asking; Cancel asks (alterDirty). */
 function threadBar(mode) {
@@ -2461,7 +2470,9 @@ function threadBar(mode) {
     ${/* TIDY IS ITS OWN ICON, beside the menu and out of it (Seth, 2026-10-27: "Tidy this thread
           shouldn't be in that menu, but as an icon next to the ... icon and that ... should be
           changed as well"). The menu's mark is the sliders now, not three dots. */
-      e && !e.sharedFrom ? `<button data-tidy="${esc(e.id)}" class="headmore" ${S.tidying ? 'disabled aria-busy="true"' : ''}
+      e && !e.sharedFrom ? `<button data-pocketnew="${esc(e.id)}" class="headmore"
+      aria-label="Add a pocket to ${esc(e.title || 'this thread')}" title="Add a pocket"><span>${mark('create', 17)}</span></button>
+    <button data-tidy="${esc(e.id)}" class="headmore" ${S.tidying ? 'disabled aria-busy="true"' : ''}
       aria-label="${S.tidying === e.id ? 'Tidying this thread' : 'Tidy this thread: sort it into its three parts'}"
       title="${S.tidying === e.id ? 'Tidying&hellip;' : 'Tidy this thread'}"><span>${mark('tidy', 17)}</span></button>
     <button data-readmenu="1" class="headmore" aria-expanded="${!!S.readMenu}"
@@ -2470,6 +2481,86 @@ function threadBar(mode) {
 /** The same controls at the top of the editor when it is not in the drawer. */
 const pageBar = (mode) => (S.place === 'story' ? ''
   : `<div class="savebar pagebar line-12">${threadBar(mode)}</div>`);
+
+/** #126 · THE POCKET PANEL: one full-screen box that adds a pocket and edits one, in place of the
+ *  Pockets tab's add tray and its open editors (Seth, 2026-10-28). Write it holds the fields; Ask
+ *  Anansi holds the steer and the two asks. Drawn from S.pocket, never from the boxes, so a repaint
+ *  while it is open puts back what was typed (the Alter box's rule). It is a Back step (layerNow). */
+const pocketThread = () => (S.pocket ? V?.entries?.find((x) => x.id === S.pocket.entryId) ?? null : null);
+function openPocket(entryId, id = null) {
+  const e = V?.entries?.find((x) => x.id === entryId); if (!e) return;
+  const a = id ? (e.addons ?? []).find((x) => x.id === id) : null;
+  if (id && !a) return;
+  const was = { name: a?.name ?? '', body: a?.body ?? '', keys: (a?.keys ?? []).join(', ') };
+  S.pocket = { entryId, id, tab: 'write', slot: a?.slot ?? null, ...was, steer: '', offer: null, was };
+}
+/** Whether anything in the panel differs from what it opened with. */
+const pocketDirty = () => !!S.pocket && (['name', 'body', 'keys'].some((k) => S.pocket[k] !== S.pocket.was[k])
+  || (!S.pocket.id && !!S.pocket.slot));
+function pocketPanel() {
+  const pk = S.pocket, e = pocketThread();
+  if (!pk || !e) return '';
+  const adding = !pk.id;
+  const slots = (V.slots?.[e.entryType] ?? []).filter((sl) => sl.name !== 'facts');
+  const label = pk.slot ? slotLabel(pk.slot) : 'pocket';
+  const [namePh, bodyPh] = SLOT_HINT[pk.slot] ?? ['What it is called', 'A plain description'];
+  // THE KINDS, while adding: Ask Anansi needs one as much as Write it does, so they head both tabs.
+  const kinds = adding ? `<div class="pkkinds">${slots.map((sl) => `<button data-pocketkind="${esc(sl.name)}"
+      class="pkkind" aria-pressed="${pk.slot === sl.name}">${esc(pocketTitle(sl.name))}</button>`).join('')}</div>` : '';
+  const write = `
+    <label class="lbl" for="pk-name">Name</label>
+    <input class="field" id="pk-name" value="${esc(pk.name)}" placeholder="${esc(namePh.replace(/^\[|\]$/g, ''))}">
+    <label class="lbl" for="pk-body">The description</label>
+    <textarea class="field grow pkbody" id="pk-body" placeholder="${esc(bodyPh)}">${esc(pk.body)}</textarea>
+    <label class="lbl" for="pk-keys">Wake words</label>
+    <input class="field" id="pk-keys" value="${esc(pk.keys)}" placeholder="Comma separated">
+    ${adding ? '' : `<button class="btn ghost danger push-14" data-pocketdel="${esc(pk.id)}">Remove this ${esc(label)}</button>`}`;
+  const searchable = V?.searchable !== false;
+  const ask = `
+    ${weaveFitRow('pocket')}
+    <label class="lbl" for="pk-steer">${adding ? 'What to write' : 'What to change'}</label>
+    <textarea class="field grow" id="pk-steer" placeholder="${adding
+      ? 'mourning, or travelling light, or whatever you already had in mind'
+      : 'shorter, or angrier, or nothing and let him read the tale'}">${esc(pk.steer)}</textarea>
+    <div class="btnrow push-10">
+      <button class="btn ghost" data-pocketask="write">${adding ? 'Write one for me' : 'Write it again'}</button>
+      <button class="btn ghost" data-pocketask="web" ${searchable ? '' : 'disabled'}
+        title="${searchable ? 'Look it up online, then write it' : 'Searching the web is not switched on here'}">Look it up online</button>
+    </div>
+    ${pk.offer ? `<div class="lbl push-14">His version</div>
+      ${diffHTML(pk.body, pk.offer.body)}
+      <button class="btn push-10" data-pocketuse="1">Use this</button>` : ''}`;
+  return `<div class="pocketbox" role="dialog" aria-label="${adding ? `A new pocket for ${esc(e.title)}` : esc(pk.name || label)}">
+    <div class="pkhead">
+      <div class="lbl flush wide">${adding ? `New pocket &middot; ${esc(e.title)}` : `${esc(pocketTitle(pk.slot))} &middot; ${esc(e.title)}`}</div>
+      <div class="pktabs">
+        <button data-pockettab="write" aria-pressed="${pk.tab === 'write'}">Write it</button>
+        <button data-pockettab="ask" aria-pressed="${pk.tab === 'ask'}">Ask Anansi</button>
+      </div>
+    </div>
+    <div class="pkscroll scroll">${kinds}${pk.tab === 'ask' ? ask : write}</div>
+    <div class="pkfoot">
+      <button class="btn ghost" data-pocketx="1">Cancel</button>
+      <button class="btn" data-pocketsave="1">Save</button>
+    </div>
+  </div>`;
+}
+function drawPocket() {
+  const box = $('pocketPanel'); if (!box) return;
+  // Shut when the thread it belongs to is not open any more (another tale, the thread deleted).
+  if (S.pocket && !pocketThread()) S.pocket = null;
+  box.hidden = !S.pocket;
+  // The same markup is not written again, so a repaint mid-typing keeps the caret where it is.
+  sameOrSet('pocketPanel').innerHTML = pocketPanel();
+  if (S.pocket) growFields(box);
+}
+/** Cancel, Esc and Back. With something typed, the app's two-press rule. */
+function closePocket(t = null) {
+  if (!S.pocket) return true;
+  if (pocketDirty() && !armed(t, 'pocket', 'You have changes that are not saved. Press Cancel again to throw them away, or Save.')) return false;
+  S.pocket = null; drawPocket(); syncLayers();
+  return true;
+}
 
 /** #74 · THE WORKBENCH DECK (ADR 0003, spec #74): everything that wants the writer, one card at a
  *  time. A card is one thread's chalked group (hem chalks a whole Over time entry and its pockets
@@ -9004,7 +9095,7 @@ function closeThreadBack() {
  *  Back shuts it. Called from drawBar and drawDock, which every change to the three goes through.
  *  ponytail: one layer at a time, the topmost. Two open at once (Look over the big composer) share
  *  one entry, so Back shuts both. Give each its own entry if anyone opens them together. */
-const layerNow = () => (S.passEdit ? 'alter' : S.reroll ? 'reweave' : S.appearance ? 'look' : S.bigInput ? 'big' : S.reading ? 'read' : null);
+const layerNow = () => (S.passEdit ? 'alter' : S.pocket ? 'pocket' : S.reroll ? 'reweave' : S.appearance ? 'look' : S.bigInput ? 'big' : S.reading ? 'read' : null);
 function syncLayers() {
   const want = layerNow(), have = history.state?.layer ?? null;
   if (!ROUTED || BACKING || want === have) return;
@@ -9027,6 +9118,14 @@ function closeLayersBack() {
       toast('You have changes that are not saved. Press Back again to throw them away, or Save.');
     } else { S.backArmed = 0; S.passEdit = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc(); }
   }
+  // #126. The pocket panel, by the same rule.
+  if (S.pocket && l !== 'pocket') {
+    if (pocketDirty() && !(S.backArmed && Date.now() - S.backArmed < 6000)) {
+      S.backArmed = Date.now();
+      history.pushState({ ...history.state, layer: 'pocket' }, '', location.href);
+      toast('You have changes that are not saved. Press Back again to throw them away, or Save.');
+    } else { S.backArmed = 0; S.pocket = null; drawPocket(); }
+  }
   if (S.appearance && l !== 'look') { S.appearance = false; drawAppearance(); drawBar(); }
   if (S.bigInput && l !== 'big' && l !== 'look') { S.bigInput = false; drawDock(); syncTray(); }
   if (S.reading && !l) { S.reading = false; root.dataset.reading = '0'; drawBar(); drawDoc(); }
@@ -9046,7 +9145,7 @@ function paint() {
   // reaching anything you could see (usability check, Titan keyboard). inert takes it out of the
   // tab order and away from the pointer until it is open.
   const rail = $('rail'); if (rail) rail.inert = overlay() && !S.rail;
-  drawRail(); drawBar(); drawMeter(); drawAppearance(); drawPage(); drawSide();
+  drawRail(); drawBar(); drawMeter(); drawAppearance(); drawPage(); drawSide(); drawPocket();
   // A WORLD BOOK HAS NO WRITING SURFACE. It is a collection of lore and nothing else — Seth,
   // 2026-08-31: "the world book should be a collection of lore. no entries no chapters just lore.
   // so that its an easy starting off point if i want to write something else or as someone else or
@@ -11141,6 +11240,12 @@ document.addEventListener('click', async (e) => {
     if (searchOn() !== search) setWebSearch(search);
     return inventAgain(d.invent, dir, search, false, t);
   }
+
+  // ---- #126 · THE POCKET PANEL: open it to add or on one pocket, its tabs and kinds, and Cancel.
+  if (d.pocketnew) { openPocket(d.pocketnew); S.readMenu = false; paint(); $('pk-name')?.focus?.(); return; }
+  if (d.pocketx) { closePocket(t); return; }
+  if (d.pockettab) { if (!S.pocket) return; S.pocket.tab = d.pockettab === 'ask' ? 'ask' : 'write'; drawPocket(); return; }
+  if (d.pocketkind) { if (!S.pocket || S.pocket.id) return; S.pocket.slot = d.pocketkind; drawPocket(); return; }
 
   // ---- PLAN-08: the card's two views, its jump links, and its rooms ----
   if (d.cardview) { S.cardView = d.cardview === 'form' ? 'form' : null; S.readMenu = false; S.keyDraft = null;
@@ -13690,6 +13795,7 @@ $('scrim').addEventListener('click', () => {
 $('side').addEventListener('click', (e) => { if (phone() && e.target === $('side')) { S.panel = null; paint(); } });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && S.passEdit) { closePassEdit(); return; }
+  if (e.key === 'Escape' && S.pocket) { closePocket(); return; }
   // #74 · THE DECK BY KEYS: right arrow is the top card's yes and left its no, as the buttons are,
   // when the Workbench is open and nothing is being typed.
   if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && (S.panel === 'waiting' || S.panel === 'setup')

@@ -870,9 +870,11 @@ export const MARK = {
   menu:     'M3 6.5h14M3 10h14M3 13.5h14',
   // The Workbench: a bench top on two legs, a tool resting on it (2026-10-28; it shared Threads' rings).
   workbench: 'M2.8 9.4H17.2M4.6 9.4V16.2M15.4 9.4V16.2M4.6 13H15.4M7 9.4V6.6H11.4V9.4',
-  // Tidy this thread: three loose strands drawn into one even run.
-  tidy:     'M3.5 6.5C6 5 8 8 10.5 6.5M3.5 10C6 8.5 8 11.5 10.5 10M3.5 13.5C6 12 8 15 10.5 13.5'
-          + 'M12.5 6.5H16.5M12.5 10H16.5M12.5 13.5H16.5',
+  // Tidy this thread: a broom (#126; three wavy strands until 2026-10-28, which read as water or a
+  // menu). A handle down to a binding, and the head fanned out under it with two bristle strokes.
+  tidy:     'M15.4 3.2 10 8.6M8.6 7.2 11.4 10'
+          + 'M8.6 7.2C6.8 8.6 4.8 9.6 3.2 10.6M11.4 10C10.2 12 9 14.4 7.8 16.4M3.2 10.6C4.4 13 5.6 14.8 7.8 16.4'
+          + 'M9.4 8.4 5 12.6M10.4 9.4 6.6 14.6',
   chevron:  'M8 5.5 13 10 8 14.5',
   // WHERE A MODEL RUNS (#53). They ride beside the source circle on the menu rows, the strip and
   // the Storyteller, so the source never rests on colour alone. Drawn for 15px, which is where they

@@ -6722,4 +6722,28 @@ const hemCardOf = (side: string) => {
   ok('a name proposed for the next chapter lands on the next chapter, not the one that closed');
 }
 
+// ---- #126 · ONE POCKET PANEL. ＋ in the thread's header opens it to add; a row on the Pockets tab
+// opens it on that pocket. Two tabs, Write it and Ask Anansi; Cancel and Save at its foot.
+{
+  const wait = () => new Promise((r) => setTimeout(r, 40));
+  click({ open: 's-1' }); await wait();
+  click({ panel: 'threads' }); click({ entry: 'e-1' }); await wait();
+  const head = html('sideHead');
+  assert.match(head, /data-pocketnew="e-1"/, 'PANEL-PLUS: the header has a ＋ for a new pocket');
+  const { MARK } = await import('../web/model.js');
+  assert.doesNotMatch(MARK.tidy, /C6 5 8 8 10\.5 6\.5/, 'PANEL-BROOM: the wavy Tidy mark is gone');
+  assert.match(MARK.tidy, /M15\.4 3\.2/, 'PANEL-BROOM: Tidy is the broom');
+  click({ pocketnew: 'e-1' }); await wait();
+  const add = html('pocketPanel');
+  assert.match(add, /role="dialog"/, 'PANEL-ADD: ＋ opens the panel');
+  assert.match(add, /data-pockettab="write"[^>]*aria-pressed="true"/, 'PANEL-ADD: on Write it');
+  assert.match(add, /data-pockettab="ask"/, 'PANEL-ADD: with Ask Anansi beside it');
+  assert.match(add, /data-pocketkind="voice"/, 'PANEL-ADD: adding offers the kinds');
+  assert.doesNotMatch(add, /data-pocketkind="facts"/, 'PANEL-ADD: and not Always true, which every thread has');
+  assert.doesNotMatch(add, /data-pocketdel=/, 'PANEL-ADD: nothing to remove yet');
+  click({ pocketx: '1' }); await wait();
+  assert.doesNotMatch(html('pocketPanel'), /role="dialog"/, 'PANEL-ADD: Cancel shuts it');
+  ok('＋ in the header opens the pocket panel to add, and Tidy is a broom');
+}
+
 console.log(`\n${n} checks passed`);

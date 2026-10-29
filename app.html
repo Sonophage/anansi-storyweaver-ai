@@ -1788,6 +1788,29 @@ html:not([data-ui-rail="closed"]) .navgrid > button:first-child .txt { font-size
   .rerollbox .rwside .btnword { display:inline; } }
 html[data-rerollsheet="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
 
+/* #126 · THE POCKET PANEL, full screen like the Alter and Reweave box: the same blur and wash, the
+   fields in the reading column's width, Cancel and Save at the foot. A child of #shell (see the
+   element's note), so absolute fills the window. */
+#pocketPanel { position:absolute; inset:0; z-index:41; height:var(--kbh, 100%); display:flex; flex-direction:column;
+  padding:calc(18px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  box-sizing:border-box; background:color-mix(in srgb, var(--doc-bg) 66%, transparent);
+  backdrop-filter:blur(10px) saturate(.9); -webkit-backdrop-filter:blur(10px) saturate(.9); }
+#pocketPanel[hidden] { display:none; }
+.pocketbox { flex:1; min-height:0; width:100%; max-width:var(--col); margin:0 auto; display:flex; flex-direction:column; gap:12px; }
+.pocketbox .pkhead { display:flex; flex-direction:column; gap:10px; }
+.pocketbox .pktabs { display:flex; gap:6px; }
+.pocketbox .pktabs button, .pocketbox .pkkind { flex:1; text-align:center; font-size:12px; padding:10px 4px;
+  border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); }
+.pocketbox .pktabs button[aria-pressed="true"], .pocketbox .pkkind[aria-pressed="true"] {
+  border-color:var(--ink-bright); color:var(--ink-bright); }
+.pocketbox .pkkinds { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; }
+.pocketbox .pkkind { flex:1 1 30%; font-size:11.5px; padding:8px 4px; }
+.pocketbox .pkscroll { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; }
+.pocketbox .pkbody { min-height:120px; max-height:46vh; }
+.pocketbox .pkfoot { display:flex; gap:8px; }
+.pocketbox .pkfoot .btn { flex:1; height:44px; }
+@media (max-width:719px) { .pocketbox .pkfoot .btn { height:52px; } }
+
 .savebar {
   position:sticky; top:0; z-index:2; background:var(--rail);
   margin:0 -22px 18px; padding:12px 22px; border-bottom:1px solid var(--line);
@@ -2389,6 +2412,9 @@ body[data-dev] #devbar {
        `position:absolute; inset:0` fills the window with no fixed positioning involved at all.
        #rail and #scrim have always lived here for the same reason. -->
   <div id="appearance" hidden></div>
+  <!-- #126. The pocket panel, full screen over the drawer. Here and not in #side for the reason
+       above: #side carries a transform at tablet width, which would hold a fixed child inside it. -->
+  <div id="pocketPanel" hidden></div>
 
   <main id="doc">
     <div id="wash"></div>
