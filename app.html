@@ -1810,6 +1810,16 @@ html[data-rerollsheet="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; 
 .pocketbox .pkfoot { display:flex; gap:8px; }
 .pocketbox .pkfoot .btn { flex:1; height:44px; }
 @media (max-width:719px) { .pocketbox .pkfoot .btn { height:52px; } }
+/* A ROW ON THE POCKETS TAB: the name and one line of the text, pressed to open the panel, and the
+   switch beside it. The line is cut at one line so eight pockets fit a phone screen. */
+.pocketrow { display:flex; align-items:center; gap:10px; padding:10px 12px; margin-bottom:6px;
+  border:1px solid var(--chip); border-radius:var(--r); }
+.pocketrow.lit { border-color:var(--edge-lit); }
+.pocketrow .pocketopen { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; text-align:left; cursor:pointer; }
+.pocketrow .pkname { font-size:14px; color:var(--ink-bright); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pocketrow .pkline { font-size:12.5px; color:var(--mute); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pocketrow .pocketsw { flex:0 0 auto; cursor:pointer; }
+.pocketrow .pocketsw[aria-pressed="true"] { border-color:var(--edge-lit); color:var(--ink-bright); }
 
 .savebar {
   position:sticky; top:0; z-index:2; background:var(--rail);

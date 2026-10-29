@@ -6744,6 +6744,25 @@ const hemCardOf = (side: string) => {
   click({ pocketx: '1' }); await wait();
   assert.doesNotMatch(html('pocketPanel'), /role="dialog"/, 'PANEL-ADD: Cancel shuts it');
   ok('＋ in the header opens the pocket panel to add, and Tidy is a broom');
+
+  // THE POCKETS TAB IS A LIST: a row is the name, a line of the text and the switch; no editors.
+  click({ cardview: 'form' }); click({ cardtab: 'rooms' }); await wait();
+  const form = html('sideBody');
+  const pane = form.split(/<div class="pane"/).find((p) => /data-editroom=/.test(p)) ?? '';
+  assert.match(pane, /data-editroom="a-on"[\s\S]*How she sounds[\s\S]*Flat, unhurried\./, 'PANEL-LIST: a row has its name and its line');
+  assert.match(pane, /data-addonon="a-off:1"/, 'PANEL-LIST: and its switch');
+  assert.match(pane, /data-wear="e-1:o-hung"/, 'PANEL-LIST: an outfit keeps its wearing in the list');
+  assert.doesNotMatch(pane, /data-an=|data-ab=|data-ak=|data-ofn=|data-ofb=/, 'PANEL-LIST: no inline editors');
+  assert.doesNotMatch(form, /Add to this thread|data-newroom=/, 'PANEL-LIST: no add tray');
+  // A ROW OPENS THE PANEL ON THAT POCKET.
+  click({ editroom: 'a-off' }); await wait();
+  const edit = html('pocketPanel');
+  assert.match(edit, /id="pk-name" value="What she wants"/, 'PANEL-EDIT: a row opens the panel on it');
+  assert.match(edit, /id="pk-keys" value="home"/, 'PANEL-EDIT: with its wake words');
+  assert.match(edit, /data-pocketdel="a-off"/, 'PANEL-EDIT: and Remove, inside the panel');
+  assert.doesNotMatch(edit, /data-pocketkind=/, 'PANEL-EDIT: its kind is not offered again');
+  click({ pocketx: '1' }); await wait();
+  ok('the Pockets tab is a list, and a row opens the panel on that pocket');
 }
 
 console.log(`\n${n} checks passed`);

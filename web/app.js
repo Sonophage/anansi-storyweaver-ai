@@ -538,7 +538,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #71. The quill that opens the box, the ⌄ that folds it, the bulb, an idea picked, and the way
   // out of Talk.
   'dockopen', 'dockfold', 'idea', 'ideapick', 'dockwrite', 'newlore', 'lorekind', 'loreread',
-  'dropblank', 'makeblank', 'addoutfit', 'deloutfit', 'wear', 'storymodel', 'lbook',
+  'dropblank', 'makeblank', 'wear', 'storymodel', 'lbook',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'talkundo', 'talkadd', 'copyentry', 'delcover', 'drawcover', 'usecover',
   // A cover found on the web rather than drawn, 2026-09-01.
   'findcover', 'takeweb',
@@ -546,7 +546,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'picmore',
   // A picture on a thread: find, look, take, remove, close.
   'picfind', 'picgo', 'pictake', 'picdel', 'picshut',
-  'saveoutfit', 'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
+  'savestate', 'delall', 'stop', 'lookmine', 'lookfollow',
   // (`news` left this list with #24's refresh button — the page is a file read now, so there is
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
@@ -577,7 +577,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // model that always weaves.
   'weaveanyway', 'weaveoff', 'weavemodel',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
-  'cardview', 'goslot', 'editroom', 'newroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
+  'cardview', 'goslot', 'editroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
   'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads',
   // The whole book again, prose and all — the press beside `forkthreads`, which takes only the cast.
@@ -2489,7 +2489,8 @@ const pageBar = (mode) => (S.place === 'story' ? ''
 const pocketThread = () => (S.pocket ? V?.entries?.find((x) => x.id === S.pocket.entryId) ?? null : null);
 function openPocket(entryId, id = null) {
   const e = V?.entries?.find((x) => x.id === entryId); if (!e) return;
-  const a = id ? (e.addons ?? []).find((x) => x.id === id) : null;
+  const a = id ? (e.addons ?? []).find((x) => x.id === id)
+    ?? (e.outfits ?? []).map((o) => ({ ...o, slot: 'outfit' })).find((x) => x.id === id) : null;
   if (id && !a) return;
   const was = { name: a?.name ?? '', body: a?.body ?? '', keys: (a?.keys ?? []).join(', ') };
   S.pocket = { entryId, id, tab: 'write', slot: a?.slot ?? null, ...was, steer: '', offer: null, was };
@@ -2509,7 +2510,7 @@ function pocketPanel() {
       class="pkkind" aria-pressed="${pk.slot === sl.name}">${esc(pocketTitle(sl.name))}</button>`).join('')}</div>` : '';
   const write = `
     <label class="lbl" for="pk-name">Name</label>
-    <input class="field" id="pk-name" value="${esc(pk.name)}" placeholder="${esc(namePh.replace(/^\[|\]$/g, ''))}">
+    <input class="field" id="pk-name" value="${esc(pk.name)}" placeholder="${esc(namePh)}">
     <label class="lbl" for="pk-body">The description</label>
     <textarea class="field grow pkbody" id="pk-body" placeholder="${esc(bodyPh)}">${esc(pk.body)}</textarea>
     <label class="lbl" for="pk-keys">Wake words</label>
@@ -2560,6 +2561,34 @@ function closePocket(t = null) {
   if (pocketDirty() && !armed(t, 'pocket', 'You have changes that are not saved. Press Cancel again to throw them away, or Save.')) return false;
   S.pocket = null; drawPocket(); syncLayers();
   return true;
+}
+/** ASK ANANSI, from the panel: `POST /api/invent` for the pocket's kind on this thread, the same
+ *  call the old add tray made, with the web searched first for Look it up online. On a new pocket
+ *  his answer fills Write it; on one that exists it is offered as a diff, for Use this.
+ *  ponytail: an existing pocket's text reaches him inside the steer, which the route cuts at 600
+ *  characters, so a longer pocket is rewritten from its first part. Give /api/invent a field for the
+ *  current text if a writer reports a rewrite that lost the end of a long pocket. */
+async function pocketAsk(web, anyway = false, t = null) {
+  const pk = S.pocket; if (!pk) return;
+  if (!pk.slot) return toast('Pick what you are adding first.');
+  const steer = pk.steer.trim();
+  if (web && !steer) return toast('Say what to look up first.');
+  if (S.weaveFit?.where === 'pocket') S.weaveFit = null;
+  const direction = pk.id
+    ? `${steer ? `${steer}\n\n` : ''}Rewrite this ${slotLabel(pk.slot)}, "${pk.name}". It reads now: ${pk.body}`
+    : steer;
+  const r = await whileWorking(t, web ? 'Looking it up…' : 'Writing…', () => api.invent(S.storyId,
+    { kind: pk.slot, entryId: pk.entryId, direction: direction || undefined, search: web,
+      ...(anyway ? { weaveAnyway: true } : {}) }));
+  if (!r || S.pocket !== pk) return;
+  if (r.weaveFit) { weaveRefused(r, (a) => pocketAsk(web, a), 'pocket'); drawPocket(); return; }
+  if (r.error) return toast(r.error);
+  const got = r.addon; if (!got?.body) return toast('Anansi came back with nothing usable.');
+  if (pk.id) { pk.offer = { body: got.body }; drawPocket(); return; }
+  pk.name = got.name || pk.name; pk.body = got.body;
+  if (got.keys?.length) pk.keys = got.keys.join(', ');
+  pk.tab = 'write'; drawPocket();
+  toast('Written, not saved. Read it, then press Save.');
 }
 
 /** #74 · THE WORKBENCH DECK (ADR 0003, spec #74): everything that wants the writer, one card at a
@@ -6692,65 +6721,28 @@ function ctxTabs() {
  *  the button is pressed, and the button reports its own progress in place — a paint() here would
  *  eat the sentence the writer had just typed into the box, which is COUNCIL-04's composer defect
  *  in a different panel. */
-/** WHOSE OUTFIT: the thread that is open. `POST /api/outfit` needs an entryId. The + Thread tray
- *  once asked whose from a list, with nothing open; New thread (v2 redesign) adds no pockets, so the
- *  open thread is the only answer left. */
+/** WHOSE POCKET: the thread that is open. `POST /api/invent` needs an entryId to rewrite a thread. */
 const outfitOwner = () => S.entryId || null;
 
-/** ONE POCKET FORM, on a thread's Pockets tab. It was one form for two doors, the wardrobe and the
- *  + Thread tray, which had been two copies of the same three fields drifting apart; the tray's
- *  door went with New thread.
- *
- *  ANANSI FIRST, and the fields folded behind him. Seth: "right now it looks like alot to fill
- *  out" — the two ways in were stacked with nothing between them, so the screen asked for a name
- *  and a body before it offered to write them. A <details>, not a state flag and a repaint: the
- *  browser has this, and a repaint here would throw away whatever is half-typed in the fold.
- *
- *  The placeholders are BRACKETED because the bodies are: `[wearing: ...]` is the shape Seth
- *  actually writes, and a bracketed hint reads as a slot to replace rather than as text already
- *  there. */
-/** #27. This was the outfit form and `outfit` was the only room the tray could reach — every other
- *  one existed only AFTER the card did, from the edit form. They are all `addons` with a `slot`, so
- *  one form serves them all and the only per-slot difference is what to call it and what to suggest.
- *
- *  The slot list comes from `V.slots`, which the server already ships from `src/slots.ts` — a second
- *  copy in here is the drift that module exists to stop. */
+/** What each kind of pocket might be called and say, as the pocket panel's placeholders. Plain
+ *  descriptions, no brackets (ADR 0008). The slot list itself comes from `V.slots`, the server's
+ *  copy of `src/slots.ts`; this only names examples. */
 const SLOT_HINT = {
-  facts:         ['[What is always true]', 'forty, a clerk, two fingers gone from the left hand'],
-  outfit:        ['[Borrowed Sleepwear]', 'oversized black sweatpants, faded white t-shirt'],
-  appearance:    ['[As she is now]', 'grey at the temple, the limp worse in the cold'],
-  interiority:   ['[What she will not say]', 'will not cross the bridge at night, and says so to nobody'],
-  relationships: ['[Her and the Ambersand]', 'owes them nine hundred, called in last winter'],
-  voice:         ['[How she sounds]', 'short sentences, never raises it, answers a question with a question'],
-  atmosphere:    ['[What it is like now]', 'lamps out along the bank, wet stone, nobody about'],
-  who_is_here:   ['[Who you find there]', 'the porter, and whoever is owed money that week'],
-  what_it_does:  ['[What it does]', 'opens the lower records vault and nothing else'],
-  consequences:  ['[What breaking it costs]', 'the Watch cuts off a hand, or calls in the debt'],
+  facts:         ['What is always true', 'forty, a clerk, two fingers gone from the left hand'],
+  outfit:        ['Borrowed sleepwear', 'oversized black sweatpants, faded white t-shirt'],
+  appearance:    ['As she is now', 'grey at the temple, the limp worse in the cold'],
+  interiority:   ['What she will not say', 'will not cross the bridge at night, and says so to nobody'],
+  relationships: ['Her and the Ambersand', 'owes them nine hundred, called in last winter'],
+  voice:         ['How she sounds', 'short sentences, never raises it, answers a question with a question'],
+  atmosphere:    ['What it is like now', 'lamps out along the bank, wet stone, nobody about'],
+  who_is_here:   ['Who you find there', 'the porter, and whoever is owed money that week'],
+  what_it_does:  ['What it does', 'opens the lower records vault and nothing else'],
+  consequences:  ['What breaking it costs', 'the Watch cuts off a hand, or calls in the debt'],
 };
 // The `facts` slot is ALWAYS TRUE on every screen (#77, ADR 0005); the code keeps its name.
 const slotLabel = (slot) => (slot === 'facts' ? 'always true' : String(slot).replace(/_/g, ' '));
 /** A pocket's name as a heading or a chip: capitalised, not the raw key (usability check). */
 const pocketTitle = (slot) => { const l = slotLabel(slot); return l.charAt(0).toUpperCase() + l.slice(1); };
-/*  openMine: whether the fields start unfolded. In the card's add tray you arrive having opened a
- *  fold and pressed a pill, so a THIRD press to reach a name box is the overwhelm Seth named ("right
- *  now it looks like alot to fill out"), not an answer to it. */
-function roomForm(who, slot = 'outfit', openMine = false) {
-  const [namePh, bodyPh] = SLOT_HINT[slot] ?? ['[What it is called]', 'what the model reads'];
-  return `
-    ${inventTray(slot, `Have Anansi write ${esc(who.title)}'s ${esc(slotLabel(slot))}`,
-                 'mourning, or travelling light, or whatever you already had in mind')}
-    <details class="fold outfitmine" ${openMine ? 'open' : ''}>
-      <summary>Write it myself</summary>
-      <input class="field" data-of="name" aria-label="What to call this ${esc(slotLabel(slot))}"
-        placeholder="${esc(namePh)}">
-      <textarea class="field grow" data-of="body" aria-label="What the model reads"
-        style="min-height:58px; max-height:40vh"
-        placeholder="${esc(bodyPh)}"></textarea>
-      <input class="field" data-of="keys" aria-label="Words that bring it in, comma separated"
-        placeholder="Words that bring it in, comma separated">
-      <button class="btn ghost" data-addoutfit="${esc(slot)}">Add ${esc(slotLabel(slot))}</button>
-    </details>`;
-}
 
 function inventTray(kind, label, placeholder, value = '') {
   const searchable = V?.searchable !== false;
@@ -7058,8 +7050,8 @@ function cardFace(e, slots) {
           either switched off, or until one of its wake words appears.</div>${off}` : ''}`;
     })()}
     ${pockets ? '' : '<div class="hint push-18">No pockets filled in yet. Add one, or have Anansi fill some in.</div>'}
-    <!-- ADDING ONE IS THE FORM'S POCKETS TAB, which holds the add tray and Anansi filling them. -->
-    <button class="btn ghost push-18" data-readgo="rooms">+ Add a pocket</button>
+    <!-- ADDING ONE OPENS THE POCKET PANEL (#126), as the header's ＋ does. -->
+    <button class="btn ghost push-18" data-pocketnew="${esc(e.id)}">+ Add a pocket</button>
   </div>`;
 }
 
@@ -7115,27 +7107,16 @@ const foldSection = (name, label, body) => `<details class="fold push-16"
   ${S.folds?.[name] ? 'open' : ''}>
   <summary class="wide" data-fold="${esc(name)}">${label}</summary>${body}</details>`;
 
-/** ONE ROOM'S EDITOR, AND NOTHING WHEN THE ROOM IS EMPTY. Split out of the form's slot loop on
- *  2026-08-30 so Always true (the `facts` slot) can be drawn above where the thread stands while every other slot is drawn in place — two
- *  copies of this markup is exactly the drift this file keeps writing comments about.
- *
- *  The body GROWS, like the card's own. Seth: "the text in edit should fit whats in there or have
- *  an ability to expand so its easier to edit." It was a flat 52px box, which is under two lines
- *  of a room that routinely runs to five; growFields() has been in this file since the card body
- *  had the same complaint and it walks every textarea.grow in the panel, so this is the class and
- *  a ceiling, not a second mechanism. */
-/** `live` picks one half of a slot: true for the rooms that are on, false for the ones that are
- *  not, null for both. `anchor` is which of the two headings carries the jump link — the ON one
- *  when the slot has any, or the OFF one when it does not, so every link in the head still lands
- *  and no slot claims the anchor twice. Exactly what cardFace does; it is one rule, not two. */
-function roomSection(e, sl, live = null, anchor = true) {
-  if (!sl) return '';
-  const mine = (e.addons ?? []).filter((a) => a.slot === sl.name
-    && (live === null || !!a.active === live));
+/** ALWAYS TRUE'S BOX, on The thread tab, and nothing when the thread has none. It was every room's
+ *  editor until #126 moved pockets to the pocket panel; Always true is not a pocket (#77) and stays
+ *  a plain box with Save here. The body GROWS (growFields walks every textarea.grow). */
+function roomSection(e, sl, anchor = true) {
+  if (sl?.name !== 'facts') return '';
+  const mine = (e.addons ?? []).filter((a) => a.slot === 'facts');
   if (!mine.length) return '';
   // ALWAYS TRUE IS NOT A POCKET (#77): no switch, no wake words and no name, because it is sent
   // whenever the thread is. Only its text, which is the writer's and which Anansi never changes.
-  if (sl.name === 'facts') return `
+  return `
     <div ${anchor ? 'data-slotat="facts"' : ''} class="lbl wide push-20">Always true</div>
     <div class="hint lead-6">Who or what it is, for the whole tale. Anansi never changes it.</div>
     ${mine.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px">
@@ -7146,69 +7127,6 @@ function roomSection(e, sl, live = null, anchor = true) {
         <button class="btn ghost btn-side" data-saveaddon="${esc(a.id)}"
          >Save</button></div>
     </div>`).join('')}`;
-  return `
-    <div ${anchor ? `data-slotat="${esc(sl.name)}"` : ''} class="lbl" style="letter-spacing:.1em; margin-top:20px">${
-      esc(pocketTitle(sl.name))}${sl.exclusive ? ' <span class="dimmed">(one at a time)</span>' : ''}</div>
-    ${mine.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px; border-color:${
-      a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
-      <div class="line">
-        <input class="field flush name-field" data-an="${esc(a.id)}" aria-label="What to call this ${esc(slotLabel(sl.name))}"
-          value="${esc(a.name)}"
-         >
-        <button class="del-x" data-deladdon="${esc(a.id)}"
-          aria-label="Remove">&#10005;</button></div>
-      <textarea class="field grow flush box-52" data-ab="${esc(a.id)}" aria-label="What ${esc(a.name)} says"
-       >${esc(a.body)}</textarea>
-      <input class="field" data-ak="${esc(a.id)}" aria-label="Words that wake ${esc(a.name)}"
-        value="${esc((a.keys ?? []).join(', '))}"
-        placeholder="[wake words, comma separated]" style="margin:0; font-size:12px">
-      <div class="btnrow">
-        <button class="btn ghost" data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" style="flex:1; ${
-          a.active ? 'border-color:var(--edge-lit); color:var(--ink-bright)' : ''}">${
-          a.active ? 'On — take it off' : 'Turn it on'}</button>
-        <button class="btn ghost btn-side" data-saveaddon="${esc(a.id)}"
-         >Save</button></div>
-    </div>`).join('')}`;
-}
-
-/** ONE WAY TO ADD, FOLDED SHUT, AT THE TOP. Seth, 2026-08-30: "the portion below outfit where you
- *  can enter it or have anansi do it should be a single field with pills to select whats being
- *  added (outfit appearance fact etc) and that should be higher under a toggle that says add to
- *  this card but defualted as closed."
- *
- *  This is the + Thread tray's two-step, pointed at the open card instead of at the story: pick
- *  what you are adding, then one set of fields for it. It replaces EIGHT per-slot + boxes and the
- *  outfit form that sat at the foot of the wardrobe — one add path rather than two, which also
- *  means keys can be typed on the way in for every room and not just for a coat.
- *
- *  NOTHING IS SELECTED WHEN IT OPENS, on Seth's call. A pill press repaints, so a default
- *  selection would put a live box on screen before the writer has said what it is for, and the
- *  press that changes their mind throws away whatever they had typed into it.
- *
- *  ponytail: the fold follows S.newRoom rather than holding its own state. The pill IS the next
- *  press after opening it, so it stays open through the repaint that matters. Ceiling: expanding
- *  the tray and then pressing something else on the card — turning a room on, saving one — closes
- *  it again, because that repaint sees no pill chosen. Upgrade is one more flag on S, set on the
- *  details' own toggle event; not worth it until the shut-again is reported as annoying. */
-function addTray(e, slots) {
-  return `<details class="fold lead-6" ${S.newRoom ? 'open' : ''}>
-    <summary>Add to this thread</summary>
-    <div style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 0">
-      ${/* One Always true per thread (#77): offered here only while the thread has none. */
-        slots.filter((sl) => sl.name !== 'facts' || !(e.addons ?? []).some((a) => a.slot === 'facts')).map((sl) => {
-        const on = S.newRoom === sl.name;
-        return `<button data-newroom="${esc(sl.name)}" style="flex:1 1 30%; text-align:center;
-          font-size:11.5px; padding:8px 4px; border-radius:var(--r);
-          border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
-          background:${on ? 'rgba(217,178,106,.12)' : 'transparent'};
-          color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(pocketTitle(sl.name))}</button>`;
-      }).join('')}
-    </div>
-    ${S.newRoom ? `<div class="card push-10 snug">${roomForm(e, S.newRoom, true)}</div>`
-      : `<div class="hint trail-8">Pick what you are adding. ${
-          esc(e.title || 'This thread')} keeps everything it already has — a pocket is added beside
-          them, not over them.</div>`}
-  </details>`;
 }
 
 /** THE FORM IS TABBED, 2026-09-02 handoff. Every field, every write and every rule it had is still
@@ -7362,8 +7280,7 @@ function entryEditor() {
          intent and no code carried it out: the rooms loop below EXCLUDES facts on the grounds that
          it is "drawn above", and above it nothing drew it. So the one room whose whole purpose is
          to survive the chapter-end rewrite was the one room that could not be edited once written.
-         The same roomSection every other room uses, so there is one renderer and not a second copy
-         of the name/body/keys/on-off form for this slot. -->
+         roomSection draws it: a plain box with Save, since pockets moved to the pocket panel (#126). -->
     ${roomSection(e, slots.find((sl) => sl.name === 'facts'))}
     ${(() => {
       // WHERE IT STANDS NOW (#78). With no later entry open it is the thread's own text, from
@@ -7418,72 +7335,41 @@ function entryEditor() {
       autocomplete="off" autocapitalize="off"></div>
     </div>
     <div class="pane"${tab === 'rooms' ? '' : ' hidden'}>
-    ${addTray(e, slots)}
-    <!-- THE ROOMS, AND ONLY THE ONES THAT HOLD SOMETHING. Seth, 2026-08-30: "the card editing
-         experience is overwhelming and im trying to clean it." A character has eight slots, so
-         this loop drew eight headings and six empty Add boxes before the form reached anything he
-         had actually written. The form had to draw the empty ones while it was the only way to
-         fill them; the tray at the top is that way now, so it does not.
-         Facts is drawn above, outfit is the wardrobe below, and both carry their own data-slotat
-         so every jump link in the head still resolves. -->
-    <!-- WHAT IS ON, THEN WHAT IS NOT — the face's order, in the form. Seth, 2026-08-30: "would
-         having the order of whats turned on, off and empty be possible in the edit screen too."
-         Reading down the form told you what the card HAS; it now tells you what the model will
-         actually be told first, which is a different card once half the rooms are off.
-         The EMPTY third is the pill row in the tray at the top. Drawing empty rooms again as a
-         section down here is the eight-headings-and-six-blanks screen this pass just removed, so
-         they stay up there where filling one is the press you are already making.
-         Always true is not in this grouping: it is not a pocket, and it sits on The thread tab above
-         where the thread stands now (#77). Outfit is the wardrobe
-         below, which has its own vocabulary and is one-at-a-time by construction. -->
+    <!-- #126 · THE POCKETS, AS A LIST (Seth, 2026-10-28). A row is the pocket's name, one line of
+         its text and its switch; the name and the line open the pocket panel on it, which is where
+         it is altered, asked about and removed. Every pocket open for editing at once was a long
+         scroll of boxes on a character with eight. On first, then what is not on, the order the
+         model is told them in. An outfit's switch is its wearing, one at a time (EXCLUSIVE_SLOTS).
+         Always true is not here: it is not a pocket, and it sits on The thread tab (#77). -->
     ${(() => {
-      const rooms = slots.filter((sl) => sl.name !== 'outfit' && sl.name !== 'facts');
-      const anyOn = (sl) => (e.addons ?? []).some((a) => a.slot === sl.name && a.active);
-      const on = rooms.map((sl) => roomSection(e, sl, true)).join('');
-      const off = rooms.map((sl) => roomSection(e, sl, false, !anyOn(sl))).join('');
+      const order = slots.map((sl) => sl.name).filter((n) => n !== 'facts');
+      // Outfits off `e.outfits`, the wardrobe's own view of the same rows, as the wear chips read them.
+      const mine = [...(e.addons ?? []).filter((a) => a.slot !== 'outfit'),
+        ...(e.outfits ?? []).map((o) => ({ ...o, slot: 'outfit' }))].filter((a) => order.includes(a.slot))
+        .sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot));
+      const seen = new Set();
+      const row = (a) => {
+        // The jump chips land on the first row of each kind.
+        const at = seen.has(a.slot) ? '' : ` data-slotat="${esc(a.slot)}"`; seen.add(a.slot);
+        const sw = a.slot === 'outfit'
+          ? `<button data-wear="${esc(e.id)}:${esc(a.id)}" class="tag pocketsw" aria-pressed="${!!a.active}">${a.active ? 'Worn — take it off' : 'Wear this'}</button>`
+          : `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag pocketsw" aria-pressed="${!!a.active}"
+              aria-label="${esc(a.name)} is ${a.active ? 'on. Tap to turn it off' : 'off. Tap to turn it on'}"
+              >${a.active ? 'On' : 'Off'}</button>`;
+        return `<div class="pocketrow${a.active ? ' lit' : ''}"${at}>
+          <button class="pocketopen" data-editroom="${esc(a.id)}" aria-label="Open ${esc(a.name)}">
+            <span class="pkname">${esc(a.name)} <span class="faded">&middot; ${esc(slotLabel(a.slot))}</span></span>
+            <span class="pkline">${esc(String(a.body ?? '').split('\n')[0])}</span></button>
+          ${sw}</div>`;
+      };
+      const on = mine.filter((a) => a.active).map(row).join('');
+      const off = mine.filter((a) => !a.active).map(row).join('');
       return `${on}${off ? `<div class="lbl sect-rule">Not turned on</div>
         <div class="hint lead-4">Written down, and not reaching the model &mdash;
-          either switched off, or until one of its wake words appears.</div>${off}` : ''}`;
+          either switched off, or until one of its wake words appears.</div>${off}` : ''}
+        ${mine.length ? '' : '<div class="hint push-10">No pockets yet.</div>'}
+        <button class="btn ghost push-14" data-pocketnew="${esc(e.id)}">+ Add a pocket</button>`;
     })()}
-
-    <!-- THE WARDROBE IS A ROOM, and sits with the others rather than under the notes. Seth:
-         "outfits should be part of it." #18 §4: it no longer writes a table of its own — it writes
-         the outfit slot of addons like every other room — so the room loop above skips that slot
-         to avoid TWO EDITORS FOR ONE ROW, not two tables. data-slotat so the jump link reaches
-         it too. The way to ADD one is the tray at the top of this form now, with every other room;
-         what is left here is the wearing, which is this section's own vocabulary and not a
-         generic room's. Drawn only when she owns something, for the same reason as the loop. -->
-    ${e.entryType === 'character' && (e.outfits ?? []).length ? `
-    <div data-slotat="outfit" class="lbl wide push-20">outfit <span class="dimmed">(one at a time)</span>${
-      tipMark('cardOutfit', 'Outfits')}</div>
-    ${tipCard('cardOutfit', 'Outfits', `<p>A named outfit is a second bracket on this character while
-      it is worn, so taking the plate off does not mean rewriting who she is. One at a time &mdash;
-      the database enforces that, not the screen.</p>`)}
-    <!-- Wearing one used to be possible ONLY on the Threads list, and this panel said so in a
-         sentence. So the screen that holds the wardrobe could not put anything on, the cross-book
-         page had no chips at all, and the outfits themselves were read-only even though
-         upsertOutfit has updated by id since it was written. Both live here now, on the thing
-         they act on. -->
-    ${(e.outfits ?? []).map((o) => `<div class="card" style="margin-bottom:8px; gap:7px;
-      border-color:${o.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
-      <div class="line">
-        <input class="field flush name-field" data-ofn="${o.id}" value="${esc(o.name)}" aria-label="Outfit name"
-         >
-        <button class="del-x" data-deloutfit="${o.id}" aria-label="Remove">✕</button></div>
-      <textarea class="field grow flush box-52" data-ofb="${o.id}" aria-label="What the model reads while it is worn"
-       >${esc(o.body)}</textarea>
-      <div class="btnrow">
-        <button class="btn ghost" data-wear="${e.id}:${o.id}" style="flex:1; ${o.active
-          ? 'border-color:var(--edge-lit); color:var(--ink-bright)' : ''}">${
-          o.active ? 'Worn — take it off' : 'Wear this'}</button>
-        <!-- width:auto MATTERS. ".btn" is width:100% by design, which as a flex item is a base
-             size of the WHOLE ROW, and "flex:0 0 auto" then refuses to shrink it: Save took the
-             full width, squeezed Wear this to min-content and ran off the right edge. Only visible
-             on a narrow screen, which is where Seth found it. Same shape as the button in
-             inventTray, which had already worked this out. (No backticks in here: this comment is
-             inside a template literal and one would close the string.) -->
-        <button class="btn ghost btn-side" data-saveoutfit="${o.id}"
-         >Save</button></div></div>`).join('')}` : ''}
 
     <!-- ANANSI FILLS THIS ONE TOO. Seth, 2026-08-28: "the characters are filled by ai but the
          threads card when i go to it doesnt have that option for me there and id like to add it."
@@ -10215,23 +10101,7 @@ async function invented(r, kind, dir, search) {
     if (r.card.keys?.length) set('keys', r.card.keys.join(', '));
     return toast('Written, not saved — read it, then press Save.');
   }
-  // ONE PAIR OF BOXES ON THE SCREEN NOW, so a room and a coat land in the same place. This
-  // used to aim at data-newan for the slot, because the form drew one Add box per slot and they
-  // were all on screen at once; the tray at the top of the card is the only one left.
-  const written = r.addon ?? r.outfit;
-  if (written) {
-    // Straight into the form, unsaved. Add an outfit is still the writer's press — and filling
-    // the fields rather than writing the row is the whole difference between this and a
-    // generator that dresses her behind your back.
-    // The fields live behind "Write it myself", so opening the fold is part of handing the
-    // answer over. Filled but folded is the same as not written as far as the writer can tell.
-    document.querySelector('.outfitmine')?.setAttribute('open', '');
-    const name = document.querySelector('[data-of="name"]');
-    const body = document.querySelector('[data-of="body"]');
-    if (name) name.value = written.name;
-    if (body) { body.value = written.body; growFields(body.parentElement ?? document.body); }
-    return toast('Written, not saved — read it, then press Add.');
-  }
+  // A POCKET IS ASKED FOR FROM THE POCKET PANEL now (#126, `pocketAsk`), which reads its own answer.
   V = await api.story(S.storyId, V.currentChapter.id); paint();
   return toast(r.duplicate ? `The threads already say that about ${r.title}.`
                            : `${r.title} chalked — under This scene.`);
@@ -11339,35 +11209,14 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (d.editroom) {
-    // READ -> EDIT, LANDING IN THAT ROOM. The form has to exist before the box can be reached, so
-    // the view flips and paints first. Outfits are addons like every other room but the wardrobe
-    // section names its fields data-ofb, so both are asked for: one of the two matches.
-    // AND THE TAB IT LIVES IN, 2026-09-02. The rooms are in the Rooms pane and facts is in The
-    // card, so flipping to the form and focusing was focusing a box inside a hidden pane: no
-    // caret, no scroll, and a press that looked like it did nothing. The jump chips have the same
-    // problem and the handoff named those; this is the same fault arriving from the Read face,
-    // which it did not.
-    const slot = (V.entries ?? []).flatMap((x) => x.addons ?? [])
-      .find((a) => a.id === d.editroom)?.slot;
-    S.cardTab = slot ? slotTab(slot) : 'rooms';
-    S.cardView = 'form'; paint();
-    const box = document.querySelector(`[data-ab="${d.editroom}"], [data-ofb="${d.editroom}"]`);
-    box?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    box?.focus();
-    return;
-  }
-  if (d.newroom) {
-    // ONE PILL AT A TIME. Two open boxes are two half-written rooms and an Add that only takes one
-    // of them. Pressing the pill already chosen clears it, so the row is the way out of the tray
-    // as well as the way in.
-    S.newRoom = S.newRoom === d.newroom ? null : d.newroom;
-    paint();
-    // After the paint, or the field does not exist to focus yet.
-    if (S.newRoom) {
-      const box = document.querySelector('[data-of="name"]');
-      box?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      box?.focus();
+    // #126 · A POCKET OPENS THE POCKET PANEL ON IT, from the Read face or the Pockets tab's list.
+    // Always true is not a pocket: it is altered on The thread tab, as before.
+    const owner = (V.entries ?? []).find((x) => (x.addons ?? []).some((a) => a.id === d.editroom)
+      || (x.outfits ?? []).some((o) => o.id === d.editroom));
+    if (owner?.addons?.find((a) => a.id === d.editroom)?.slot === 'facts') {
+      S.cardTab = 'card'; S.cardView = 'form'; paint(); return;
     }
+    if (owner) { openPocket(owner.id, d.editroom); S.readMenu = false; paint(); }
     return;
   }
   if (d.addonon) {
@@ -11411,45 +11260,35 @@ document.addEventListener('click', async (e) => {
     paint(); refreshManifest(); return;
   }
 
-  if (d.addoutfit) {
-    // #27. The attribute carries the SLOT now — it was a bare "1" when the outfit was the only
-    // room this form could write. `'1'` still means outfit so nothing older breaks.
-    const slot = d.addoutfit === '1' ? 'outfit' : d.addoutfit;
-    const name = document.querySelector('[data-of="name"]')?.value.trim();
-    const body = document.querySelector('[data-of="body"]')?.value.trim();
-    const keys = document.querySelector('[data-of="keys"]')?.value ?? '';
-    if (!name || !body) return toast(`A ${slot.replace(/_/g, ' ')} needs a name and something in it.`);
-    const owner = outfitOwner();
-    if (!owner) return toast('Pick who it belongs to.');
-    // PLAN-08. The wardrobe is an addon in the `outfit` slot now — one table, one firing path.
-    // A room with no trigger words of its own reaches the model only when the writer switches it
-    // on. Sent so a writer who typed them gets them; empty is a legitimate answer.
-    const r = await api.saveAddon(S.storyId, owner, { slot, name, body,
-      keys: keys.split(',').map((x) => x.trim()).filter(Boolean) });
+  // #126 · THE POCKET PANEL'S SAVE, REMOVE, ASKS AND USE THIS. Save writes the pocket as the panel
+  // holds it (an id when altering one, the chosen kind when adding) and shuts the panel.
+  if (d.pocketsave) {
+    const pk = S.pocket; if (!pk) return;
+    const name = pk.name.trim(), body = pk.body.trim();
+    if (!pk.slot) return toast('Pick what you are adding first.');
+    if (!name) return toast('A pocket needs a name.');
+    if (!body) return toast('A pocket needs something in it.');
+    const r = await api.saveAddon(S.storyId, pk.entryId, { ...(pk.id ? { id: pk.id } : {}), slot: pk.slot,
+      name, body, keys: keysFrom(pk.keys.split(',')) });
     if (r.error) return toast(r.error);
+    S.pocket = null;
     V = r.entries ? r : await api.story(S.storyId);
-    // The tray stays open on top of the list, so nothing on screen moves when this works. It said
-    // nothing at all before, which from in here is indistinguishable from a press that missed.
     paint(); refreshManifest();
-    toast(slot === 'outfit' ? 'Added, unworn.' : slot === 'facts' ? 'Added.' : `Added. Switch it on from the thread.`); return;
+    return toast(pk.id ? 'Saved.' : pk.slot === 'outfit' ? 'Added, unworn.' : 'Added. Switch it on from the list.');
   }
-  if (d.saveoutfit) {
-    const name = document.querySelector(`[data-ofn="${d.saveoutfit}"]`)?.value.trim();
-    const body = document.querySelector(`[data-ofb="${d.saveoutfit}"]`)?.value.trim();
-    if (!name || !body) return toast('An outfit needs a name and something to wear.');
-    // The id is what makes this an edit rather than a second outfit — upsertOutfit branches on it,
-    // and it checks the row belongs to this story before it writes.
-    const r = await api.saveAddon(S.storyId, S.entryId, { id: d.saveoutfit, slot: 'outfit', name, body });
+  if (d.pocketdel) {
+    if (!armed(t, 'pocketdel:' + d.pocketdel, 'Press again to remove this pocket.')) return;
+    const r = await api.delAddon(S.storyId, d.pocketdel);
     if (r.error) return toast(r.error);
+    S.pocket = null;
     V = r.entries ? r : await api.story(S.storyId);
-    paint(); refreshManifest(); toast('Saved.'); return;
+    paint(); refreshManifest(); return toast('Removed.');
   }
-  if (d.deloutfit) {
-    if (!armed(t, 'outfit:' + d.deloutfit, 'Press again to remove this outfit.')) return;
-    const r = await api.delAddon(S.storyId, d.deloutfit);
-    if (r.error) return toast(r.error);
-    V = r.entries ? r : await api.story(S.storyId);
-    paint(); refreshManifest(); return;
+  if (d.pocketask) return pocketAsk(d.pocketask === 'web', false, t);
+  if (d.pocketuse) {
+    const pk = S.pocket; if (!pk?.offer) return;
+    pk.body = pk.offer.body; pk.offer = null; pk.tab = 'write';
+    drawPocket(); return toast('In the box, not saved. Read it, then press Save.');
   }
   if (d.wear !== undefined) {
     // "entryId:outfitId", with an empty outfit id meaning take it all off. One attribute rather
@@ -11737,7 +11576,7 @@ document.addEventListener('click', async (e) => {
   // Every card opens on its face. Carrying the last card's view over means pressing a thread to
   // READ it and landing in a form of empty boxes, which is the thing the face exists to avoid.
   if (d.entry) { if (S.entryId !== d.entry) S.cardTab = 'card';
-    S.entryId = d.entry; S.fieldHistory = null; S.cardView = null; S.newRoom = null; S.readMenu = false;
+    S.entryId = d.entry; S.fieldHistory = null; S.cardView = null; S.readMenu = false;
     S.keyDraft = null;
     if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     // The cross-book page lists threads from every story and the editor beside it reads from the
@@ -11768,7 +11607,7 @@ document.addEventListener('click', async (e) => {
     return toast(`Copied into ${LIB.find((s2) => s2.id === into)?.title ?? 'the other tale'}. `
       + 'Nothing here changed, and the two are not shared.');
   }
-  if (d.backentry) { S.entryId = null; S.historyOf = null; S.newRoom = null; S.readMenu = false;
+  if (d.backentry) { S.entryId = null; S.historyOf = null; S.readMenu = false;
     if (S.panel === 'entry' || S.panel === 'history') S.panel = 'threads';
     paint(); return; }
   // NEW THREAD'S Write it. A box with a brace, a bracket or a second line in it is a paste — a
@@ -13520,7 +13359,7 @@ document.addEventListener('click', async (e) => {
       if (r.error) { S.weaveFit = fit; drawDock(); return toast(r.error); }
       V = await api.story(S.storyId, V.currentChapter.id);
       paint();
-    } else { drawDock(); drawSide(); }
+    } else { drawDock(); drawSide(); drawPocket(); }
     await fit.again(d.weaveanyway !== undefined);
     return;
   }
