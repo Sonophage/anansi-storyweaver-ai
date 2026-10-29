@@ -2000,6 +2000,20 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 // the Workbench has new additions"). A card is new when any part of it was not on the Workbench the
 // last time the writer opened it. The cards are the shapes deckCards() makes: a chalked group keyed
 // by its joined ids, a hemmed scene by its scene, a string or an upkeep card by its own key.
+// THE MENU'S WORKBENCH COUNT IS THE WORKBENCH'S CARDS (Seth, 2026-10-29: "make the menu count match
+// the header"). It counted proposals one by one plus open strings, and left out hem and upkeep cards.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'waiting' });
+  await new Promise((r) => setTimeout(r, 30));
+  const cards = (html('sideBody').match(/data-deckcard="/g) ?? []).length;
+  const shown = Number((html('rail').match(/class="tnum navcount">(\d+)</) ?? [])[1] ?? 0);
+  assert.ok(cards > 0, `MENU-COUNT: the fixture has cards on the Workbench (${cards})`);
+  assert.strictEqual(shown, cards, `MENU-COUNT: the menu shows the Workbench's own card count (${shown} vs ${cards})`);
+  ok("the menu's Workbench count is the number of cards on the Workbench");
+}
+
 {
   const { benchParts, benchUnseen } = await import('../web/model.js');
   const cards: any[] = [

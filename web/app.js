@@ -759,8 +759,10 @@ async function whileWorking(t, label, fn) {
  *  ONE DEFINITION FOR BOTH, because a row that lights and a glow that does not — or the reverse —
  *  is two answers to one question. Proposals and unpaid promises, the same call `waiting()` in
  *  model.js makes. */
-const owedHere = () => (V?.proposals ?? []).length
-  + (V?.strings ?? []).filter((x) => x.status === 'open').length;
+/** HOW MANY CARDS THE WORKBENCH HOLDS: the same cards the header's mark counts as new (`deckCards`),
+ *  so the menu and the header never disagree (Seth, 2026-10-29: "make the menu count match the
+ *  header"). It counted proposals one by one and open strings, and left out hem and upkeep cards. */
+const owedHere = () => (V ? deckCards().length : 0);
 /** And anywhere. `waiting()` already collapses the shelf to one row per kind and leaves archived
  *  and world books out; the glow asks only whether that list is empty. */
 const owedAnywhere = () => waiting(LIB ?? [], SRV.me ?? null)
