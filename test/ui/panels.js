@@ -1538,7 +1538,8 @@ if (btn) {
 }
 
 // ---- 16. strings: what the story owes, and what the model is told about it
-// Writer-facing until summoned, because a model handed an unresolved promise reaches for it.
+// Writer-facing until it is on, because a model handed an unresolved promise reaches for it. #127: a
+// string is a pocket of the tale's thread, and this screen lists them with their switches.
 await page.goto(B + "/#" + sid3 + "/strings");
 await wait(900);
 // THE PANEL'S OWN INTRO WENT on 2026-09-03: it restated web/help.js under this panel's own mark
@@ -1548,7 +1549,7 @@ await wait(900);
 // panel's mark opens, and the line below asserts that too so deleting the copy cannot delete both.
 {
   const body = (await page.text('#sideBody')) || '';
-  ok("Strings is a panel of its own", /A new string/i.test(body) && /Owed|Nothing owed/i.test(body));
+  ok("Strings is a panel of its own", /A new string/i.test(body) && /Nothing in play/i.test(body));
   ok("  and what a string IS is still one press away", /promise the tale has to keep/i.test(body));
 }
 await page.eval(`(() => {
@@ -1566,7 +1567,7 @@ const promptOf = () => page.eval("(async () => { const r = await (await fetch('/
   + " return r.prompt; })()");
 ok("  and the model is not told about it", !/has not opened/.test(await promptOf()));
 
-await page.click(`[data-summon="${one[0].id}"]`);
+await page.click(`[data-addonon="${one[0].id}:1"]`);
 await wait(900);
 const summoned = await promptOf();
 ok("putting it in play is what sends it", /has not opened/.test(summoned));
@@ -1574,20 +1575,22 @@ ok("  told what is owed, not told to pay it", /do not resolve one unless the wri
 
 // Putting it away again is the other half of the toggle, and nothing tested it until a
 // falsification that made summon one-way passed.
-await page.click(`[data-summon="${one[0].id}"]`);
+await page.click(`[data-addonon="${one[0].id}:0"]`);
 await wait(900);
 ok("putting it away stops sending it", !/has not opened/.test(await promptOf()));
-await page.click(`[data-summon="${one[0].id}"]`);
+await page.click(`[data-addonon="${one[0].id}:1"]`);
 await wait(900);
 
 // Paying it off takes it out of play: a paid promise still in the prompt is an instruction to
-// pay it twice.
-await page.click(`[data-stringstatus="${one[0].id}:paid"]`);
+// pay it twice. #127: Tied off is on the Workbench card (test/ui/deck.js drives that), so here it is
+// sent the way that card sends it.
+await page.eval(`(async () => { await fetch('/api/string', { method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ storyId: '${sid3}', string: { ...${JSON.stringify(one[0])}, summoned: false, status: 'paid' } }) }); return 1; })()`);
 await wait(900);
 ok("marking it paid takes it out of the prompt", !/has not opened/.test(await promptOf()));
 
 // ---- 17. Strings sits under Threads, where Seth put it
-// The placement of a PROPOSED string — Strings rather than the Chapter queue — is asserted in
+// The placement of a PROPOSED string — the Workbench rather than the Chapter queue (#127) — is asserted in
 // test/app.ts, which can seed one; this suite has no model to produce one, and a check that
 // passes on an empty queue is a check that proves nothing.
 await page.goto(B + "/#" + sid3 + "/chapter");

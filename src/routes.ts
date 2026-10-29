@@ -2261,8 +2261,9 @@ function openQuestions(raw: unknown): { title: string; line: string }[] {
     .filter((q) => q.title);
 }
 
-/** ADR 0009 · THE TICKED OPEN QUESTIONS, MADE AS STRINGS AT CREATE: owed from scene 1, and summoned,
- *  because only a summoned string reaches the model, with the order not to resolve it yet. Called
+/** ADR 0009 · THE TICKED OPEN QUESTIONS, MADE AS STRINGS AT CREATE: owed from scene 1, and on,
+ *  because only a string that is on reaches the model, with the order never to answer it. #127 · Each is a
+ *  question pocket of the tale's thread, which the first one makes. Called
  *  inside POST /api/stories's rollback, so a Create that fails later takes them with the tale. */
 function writeOpenQuestions(storyId: string, raw: unknown) {
   for (const q of openQuestions(raw))
@@ -4993,8 +4994,6 @@ export const routes: Record<string, Handler> = {
   /** Collapse a run of chapters into one act-level summary. The chapters it covers stop
    *  being sent individually, which is what stops EARLIER growing with the book. */
   'POST /api/string':   (c) => { db.upsertString(c.body.storyId, c.body.string ?? {});
-                                 return viewOf(c, c.body.storyId); },
-  'DELETE /api/string': (c) => { db.delString(c.body.storyId, c.body.id);
                                  return viewOf(c, c.body.storyId); },
 
   'POST /api/rollup': async (c) => {

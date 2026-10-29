@@ -18,6 +18,19 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-28 · A new tale starts at its opening
 
+### Strings move with the tale
+A string, a promise to pay off or an open question to keep open, now belongs to the tale's own
+thread, and it changes as the tale does. When you hem a scene, Anansi also writes where each string
+that is on stands now. It shows on the scene's card beside where the tale stands, with what changed
+marked, and nothing changes until you sew it in. The old version is kept. A string Anansi offers
+is a card on the Workbench, and Sew it in puts it in play at once. The Strings screen is now a list:
+each string's name, its first line and its On or Off. Press one to change it, full screen, as you
+change a pocket. Tied off and Let go switch a string off and mark it. Switch it on again and it is
+open again. Anansi tells the model about a promise and an open question in different words: a
+promise may be pressed toward payment, and a question is never answered. The next time Anansi
+starts, the strings your tales already have move onto each tale's thread, and the tale's update
+report names them.
+
 ### One place to add and change a pocket
 A thread's Pockets tab is now a short list: each pocket's name, the first line of what it says, and
 its On or Off. Press a pocket to open it full screen. There you write it yourself, or ask Anansi to

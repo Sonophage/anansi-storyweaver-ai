@@ -595,7 +595,7 @@ export const BLOCK_ORIGIN = {
   STYLE:             ['Genre flavour',           'story'],
   'CANON-ALWAYS':    ['Threads, always on',      'canon'],
   'CANON-TRIGGERED': ['Threads, on a word',      'canon'],
-  STRING:            ['Strings you summoned',    'strings'],
+  STRING:            ['Strings in play',         'strings'],
   EARLIER:           ['Scene summaries',         'traj'],
   PROSE:             ['The prose above',         'doc'],
   DIRECTIVE:         ['Point of view & register', 'story'],

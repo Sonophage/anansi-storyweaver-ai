@@ -2363,10 +2363,11 @@ export const promptsOf = (owner: string): Record<string, string> =>
  *  while nobody says it, and the letter nobody has mentioned for fourteen chapters is the one most
  *  worth remembering. The thread is not a thread of the cast (`LIVE`), so they never resolve as canon.
  *
- *  These three are the string-shaped door onto those pockets, for the callers that speak strings (the
+ *  These two are the string-shaped door onto those pockets, for the callers that speak strings (the
  *  Strings screen, Create's open questions, Talk, a chalked string sewn in, import): `upsertString`
  *  writes one through `upsertAddon` and `setAddonActive`, the floors every pocket crosses, and
- *  `stringsOf` is the one reader. `summoned` is the pocket's switch, `status` its mark. */
+ *  `stringsOf` is the one reader. `summoned` is the pocket's switch, `status` its mark. A string is
+ *  removed as any pocket is, from the pocket panel (`delAddon`). */
 /** #124 · THE ONE READING OF A STRING'S KIND: 'question' (an open question New tale made, kept
  *  open) or 'promise' (set up to pay off, and pressed toward payment). Anything else is a promise,
  *  which is what every string was before kinds existed. Null when none was given, so a save keeps
@@ -2402,10 +2403,6 @@ export const stringsOf = (storyId: string) => (q(`SELECT a.* FROM addons a JOIN 
   ORDER BY a.status IS NULL DESC, a.from_chapter, a.created_at, a.rowid`).all(storyId) as any[])
   .map((a) => ({ id: a.id, story_id: a.story_id, title: a.name, body: a.body ?? '', from_chapter: a.from_chapter,
     owed_by: a.owed_by, status: a.status ?? 'open', summoned: a.active, kind: a.slot, created_at: a.created_at }));
-
-export const delString = (storyId: string, id: string) => {
-  if (stringsOf(storyId).some((x) => x.id === id)) delAddon(storyId, id);
-};
 
 /** #127 · ADR 0011. UPDATE DAY FOR STRINGS. Every row of the old `strings` table becomes a pocket of
  *  its tale's thread (made from the premise and the setting, as a hem makes it, when the tale has

@@ -1568,14 +1568,15 @@ ok('a book past its horizon says so on the bar, not only in a dimmed row');
 }
 ok('a chapter names itself when it opens, and a placeholder title is not a name');
 
-  click({ panel: 'strings' });
+  // #127 · A CHALKED STRING IS A WORKBENCH CARD (ADR 0011), dealt beside the strings already the tale's.
+  click({ panel: 'waiting' });
   await new Promise((r) => setTimeout(r, 30));
   const strings = html('sideBody');
-  assert.match(strings, /Chalked by Anansi/, 'a proposed string waits under Strings');
-  assert.match(strings, /The debt nobody has called in/);
-  assert.match(strings, /set up in scene 2/, 'with the scene it came from');
+  const chalked = strings.slice(strings.indexOf('A string, chalked'));
+  assert.match(chalked, /^A string, chalked[\s\S]*?The debt nobody has called in/, 'a proposed string waits on the Workbench');
+  assert.match(chalked, /set up in scene 2/, 'with the scene it came from');
   assert.match(strings, /The letter he has not opened/, 'beside the ones already tied');
-  assert.doesNotMatch(strings, /Witness rite/, 'and not the thread proposals');
+  assert.doesNotMatch(chalked.slice(0, chalked.indexOf('data-deckcard=')), /Witness rite/, 'and not on a thread proposal\'s card');
 
   click({ panel: 'chapter' });
   await new Promise((r) => setTimeout(r, 30));
@@ -1767,9 +1768,9 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.match(chapter, /A signature is void\./, 'holding what will be written');
   assert.match(chapter, /New fact\./, 'with the delta still shown beside it');
 
-  click({ panel: 'strings' });
+  click({ panel: 'waiting' });
   await new Promise((r) => setTimeout(r, 30));
-  assert.match(html('sideBody'), /data-pbody="pr-2"/, 'and so does a proposed string');
+  assert.match(html('sideBody'), /data-pbody="pr-2"/, 'and so does a proposed string, on the Workbench (#127)');
 
   // The box lives in the DOM, so the handler has to read it. Only this selector answers.
   const doc = (globalThis as any).document;
@@ -6841,6 +6842,79 @@ const hemCardOf = (side: string) => {
     { storyId: 's-1', id: 'a-off', on: true, atChapter: STORY.currentChapter.index }, 'PANEL-SWITCH: the list switches a pocket on');
   ok('a pocket is switched on and off from the list');
   click({ cardview: null }); click({ backentry: '1' });
+}
+
+// ---- #127 · ADR 0011. THE STRINGS SCREEN IS A LIST OF THE TALE'S STRING POCKETS, a row opens the pocket
+// panel on one, and the Workbench sews a chalked string in and ties off or lets go one that is open.
+{
+  const wait = () => new Promise((r) => setTimeout(r, 40));
+  const was = { tale: (STORY as any).taleThread, strings: STORY.strings, proposals: STORY.proposals };
+  const LETTER = { id: 'st-1', slot: 'promise', name: 'The letter he has not opened', body: 'Sent by his brother',
+    keys: [], active: true, status: null, fromChapter: 1, owedBy: 4 };
+  const RING = { id: 'st-2', slot: 'question', name: 'Who took the ring', body: 'Nobody says.',
+    keys: [], active: false, status: 'paid', fromChapter: 1, owedBy: null };
+  (STORY as any).taleThread = { id: 'e-tale', title: 'The tale', body: 'Six houses.', entryType: 'tale', keys: [],
+    states: [], nowStateId: null, addons: [{ id: 'tf', slot: 'facts', name: 'facts', body: 'A port.', keys: [], active: true },
+      LETTER, RING] };
+  STORY.strings = [
+    { id: 'st-1', title: LETTER.name, body: LETTER.body, fromChapter: 1, owedBy: 4, status: 'open', summoned: true, kind: 'promise' },
+    { id: 'st-2', title: RING.name, body: RING.body, fromChapter: 1, owedBy: null, status: 'paid', summoned: false, kind: 'question' },
+  ] as any;
+  try {
+    click({ open: 's-1' }); await wait();
+    click({ panel: 'strings' }); await wait();
+    const list = html('sideBody');
+    assert.match(list, /data-editroom="st-1"[^>]*>[\s\S]*?The letter he has not opened[\s\S]*?Sent by his brother/,
+      "STRINGS-LIST: a row is the string's name and a line of it, and opens it");
+    assert.match(list, /data-addonon="st-1:0"[^>]*>On</, "STRINGS-LIST: with the pocket's own switch, on");
+    assert.match(list, /data-editroom="st-2"[\s\S]*?tied off[\s\S]*?data-addonon="st-2:1"/,
+      'STRINGS-MARK: one tied off says so, and switching it on is how it reopens');
+    assert.doesNotMatch(list, /data-summon=|data-delstring=|data-stringstatus=/, '  no Summon, no inline remove, no status buttons');
+    assert.doesNotMatch(list, /Chalked by Anansi|data-pbody="pr-2"/, 'STRINGS-CHALK: a chalked string is on the Workbench, not here');
+    ok("the Strings screen lists the tale's string pockets, each with its switch, its mark, and a way into it");
+
+    click({ editroom: 'st-1' }); await wait();
+    const p = html('pocketPanel');
+    assert.match(p, /id="pk-name" value="The letter he has not opened"/, 'STRINGS-PANEL: a row opens the pocket panel on the string');
+    assert.match(p, /Promise &middot; The tale/, "  as a promise of the tale's thread");
+    assert.doesNotMatch(p, /id="pk-keys"/, '  with no wake words: a string is sent while it is on');
+    assert.doesNotMatch(p, /data-pockettab="ask"/, '  and no Ask Anansi, which writes the pockets of threads');
+    typeIn('pk-body', 'Sent by his brother, and sealed.');
+    POSTED.length = 0;
+    click({ pocketsave: '1' }); await wait();
+    assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body, { storyId: 's-1', entryId: 'e-tale',
+      addon: { id: 'st-1', slot: 'promise', name: 'The letter he has not opened', body: 'Sent by his brother, and sealed.', keys: [] } },
+      "STRINGS-SAVE: Save sends the string as a pocket of the tale's thread");
+    ok('a string opens in the pocket panel, and Save sends it as a pocket of the tale');
+
+    click({ panel: 'waiting' }); await wait();
+    const w = html('sideBody');
+    assert.match(w, /A string, chalked[\s\S]*?The debt nobody has called in[\s\S]*?data-deckall="accept" data-ids="pr-2"[^>]*>Sew it in/,
+      'STRINGS-SEW: a chalked string is a Workbench card with Sew it in');
+    const card = w.slice(w.indexOf('data-deckkind="string"'));
+    assert.match(card, /data-stringstatus="st-1:paid"[^>]*>Tied off/, 'STRINGS-TIE: an open string can be tied off on the Workbench');
+    assert.match(card, /data-stringstatus="st-1:dropped"[^>]*>[^<]*Let go/, '  or let go');
+    assert.doesNotMatch(w, /data-deckkind="string"[^]*?Who took the ring/, '  and one already tied off is not dealt again');
+    ok('the Workbench sews a chalked string in, and ties off or lets go one that is open');
+
+    // WHERE A STRING STANDS NOW, as a hem chalks it: a diff against the string's text, sewn in its place.
+    const { diffHTML } = await import('../web/model.js');
+    STORY.proposals = [...was.proposals, { id: 'pr-s', entryId: 'e-tale', title: 'The tale', body: 'Sealed, and burned unread.',
+      entryType: 'tale', field: 'promise', target: 'st-1', pocket: LETTER.name, kind: 'memory', keys: [],
+      delta: 'where the promise stands', chapterId: 'c-2' }] as any;
+    click({ open: 's-1' }); await wait();
+    click({ panel: 'waiting' }); await wait();
+    const side = html('sideBody'), at = side.indexOf('data-deckdiff="pr-s"');
+    const row = side.slice(at, side.indexOf('data-deckcard=', at) >>> 0);
+    assert.ok(side.includes(`data-deckdiff="pr-s">${diffHTML(LETTER.body, 'Sealed, and burned unread.')}`),
+      "STRINGS-DIFF: where a string stands now is a diff against its text");
+    assert.match(row, /replaces its text from\s+the next scene on; the old version is kept/, '  and says it replaces it');
+    assert.doesNotMatch(row, /Sew in beside it|data-decide="replace" data-id="pr-s"/, '  with no beside-it to choose');
+    ok("where a string stands now is a diff on the Workbench, sewn in its string's place");
+  } finally {
+    (STORY as any).taleThread = was.tale; STORY.strings = was.strings; STORY.proposals = was.proposals;
+    click({ open: 's-1' }); await wait();
+  }
 }
 
 console.log(`\n${n} checks passed`);

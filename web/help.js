@@ -30,9 +30,12 @@ export const HELP = {
       something set up that must pay off later.</p>
       <p>What makes it a string rather than a thread is that it is unresolved.
       <em>Aldis owns a letter</em> is a thread. <em>Aldis has not opened the letter</em> is a string.</p>
-      <p>A string is yours alone until you summon it. Summoned, the model is told what is owed
-      &mdash; and told not to resolve it yet. A string the tale keeps is tied off; one it abandons
-      is let go.</p>`,
+      <p>A string is a promise to pay off or an open question to keep open, and it lives on the
+      tale's own thread. It is yours alone until you switch it on. On, the model is told what is
+      owed &mdash; and told not to resolve it yet, or never to answer the question. Each hem writes
+      where each string that is on stands now, for you to sew in.</p>
+      <p>A string the tale keeps is tied off; one it abandons is let go. Either is switched off and
+      kept, and switching it on again reopens it.</p>`,
   },
   states: {
     title: 'Over time',

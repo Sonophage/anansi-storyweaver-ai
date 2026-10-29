@@ -1059,7 +1059,7 @@ ok("a string is a pocket of the tale's thread: on is in play, and tied off or le
   db.upsertString(s11.id, { ...seen, status: 'dropped' });
   assert.deepStrictEqual(row()!.slice(4), [0, 6, 20, 'dropped'], 'STRING-LET-GO: let go is off and marked too');
 
-  db.delString(s11.id, id);
+  db.delAddon(s11.id, id);
   assert.strictEqual(db.stringsOf(s11.id).length, 0);
   db.delStory(s11.id);
 });

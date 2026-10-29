@@ -530,7 +530,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'takeover', 'dropfollow', 'handback', 'sendup', 'bringback', 'savefollowed',
   'share', 'unshare',
   'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc', 'editarc', 'savearc', 'cancelarc',
-  'newstring', 'delstring', 'summon', 'stringstatus', 'looktab', 'askfill',
+  'newstring', 'summon', 'stringstatus', 'looktab', 'askfill',
   'reroll', 'reseed', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
@@ -2486,9 +2486,12 @@ const pageBar = (mode) => (S.place === 'story' ? ''
  *  Pockets tab's add tray and its open editors (Seth, 2026-10-28). Write it holds the fields; Ask
  *  Anansi holds the steer and the two asks. Drawn from S.pocket, never from the boxes, so a repaint
  *  while it is open puts back what was typed (the Alter box's rule). It is a Back step (layerNow). */
-const pocketThread = () => (S.pocket ? V?.entries?.find((x) => x.id === S.pocket.entryId) ?? null : null);
+/** #127 · The threads a pocket can be opened on: the tale's, and the tale's own thread, whose pockets
+ *  are its strings (ADR 0011). The tale's thread is not among `V.entries` (#125). */
+const pocketOwners = () => [...(V?.entries ?? []), ...(V?.taleThread ? [V.taleThread] : [])];
+const pocketThread = () => (S.pocket ? pocketOwners().find((x) => x.id === S.pocket.entryId) ?? null : null);
 function openPocket(entryId, id = null) {
-  const e = V?.entries?.find((x) => x.id === entryId); if (!e) return;
+  const e = pocketOwners().find((x) => x.id === entryId); if (!e) return;
   const a = id ? (e.addons ?? []).find((x) => x.id === id)
     ?? (e.outfits ?? []).map((o) => ({ ...o, slot: 'outfit' })).find((x) => x.id === id) : null;
   if (id && !a) return;
@@ -2503,6 +2506,9 @@ function pocketPanel() {
   const pk = S.pocket, e = pocketThread();
   if (!pk || !e) return '';
   const adding = !pk.id;
+  // #127 · THE TALE'S OWN THREAD: its pockets are its strings, sent while they are on and never on a
+  // wake word, so there is no wake word box; and Ask Anansi writes the pockets of threads, not strings.
+  const tale = e.entryType === 'tale';
   const slots = (V.slots?.[e.entryType] ?? []).filter((sl) => sl.name !== 'facts');
   const label = pk.slot ? slotLabel(pk.slot) : 'pocket';
   const [namePh, bodyPh] = SLOT_HINT[pk.slot] ?? ['What it is called', 'A plain description'];
@@ -2514,8 +2520,8 @@ function pocketPanel() {
     <input class="field" id="pk-name" value="${esc(pk.name)}" placeholder="${esc(namePh)}">
     <label class="lbl" for="pk-body">The description</label>
     <textarea class="field grow pkbody" id="pk-body" placeholder="${esc(bodyPh)}">${esc(pk.body)}</textarea>
-    <label class="lbl" for="pk-keys">Wake words</label>
-    <input class="field" id="pk-keys" value="${esc(pk.keys)}" placeholder="Comma separated">
+    ${tale ? '' : `<label class="lbl" for="pk-keys">Wake words</label>
+    <input class="field" id="pk-keys" value="${esc(pk.keys)}" placeholder="Comma separated">`}
     ${adding ? '' : `<button class="btn ghost danger push-14" data-pocketdel="${esc(pk.id)}">Remove this ${esc(label)}</button>`}`;
   const searchable = V?.searchable !== false;
   const ask = `
@@ -2535,12 +2541,12 @@ function pocketPanel() {
   return `<div class="pocketbox" role="dialog" aria-label="${adding ? `A new pocket for ${esc(e.title)}` : esc(pk.name || label)}">
     <div class="pkhead">
       <div class="lbl flush wide">${adding ? `New pocket &middot; ${esc(e.title)}` : `${esc(pocketTitle(pk.slot))} &middot; ${esc(e.title)}`}</div>
-      <div class="pktabs">
+      ${tale ? '' : `<div class="pktabs">
         <button data-pockettab="write" aria-pressed="${pk.tab === 'write'}">Write it</button>
         <button data-pockettab="ask" aria-pressed="${pk.tab === 'ask'}">Ask Anansi</button>
-      </div>
+      </div>`}
     </div>
-    <div class="pkscroll scroll">${kinds}${pk.tab === 'ask' ? ask : write}</div>
+    <div class="pkscroll scroll">${kinds}${pk.tab === 'ask' && !tale ? ask : write}</div>
     <div class="pkfoot">
       <button class="btn ghost" data-pocketx="1">Cancel</button>
       <button class="btn" data-pocketsave="1">Save</button>
@@ -2595,7 +2601,7 @@ async function pocketAsk(web, anyway = false, t = null) {
 /** #74 · THE WORKBENCH DECK (ADR 0003, spec #74): everything that wants the writer, one card at a
  *  time. A card is one thread's chalked group (hem chalks a whole Over time entry and its pockets
  *  together), or one open string. Swipe right, or press the right button, to say yes — sew it in,
- *  summon the string; left to say no — reject, let go.
+ *  put the string in play; left to say no — reject, let go.
  *
  *  EVERY CARD IS IN THE PAGE, and only the top one shows: the others are `hidden`, so their
  *  controls exist for a keyboard, a screen reader and the checks, and a swipe never has to wait on
@@ -2664,7 +2670,9 @@ function taleThread() {
 }
 
 function deckCards(only = null) {
-  const all = (V?.proposals ?? []).filter((p) => p.entryType !== 'string');
+  // #127 · A CHALKED STRING IS A CARD HERE, with Sew it in (ADR 0011): the Strings screen is a list of
+  // the tale's strings and no longer holds what Anansi chalks.
+  const all = V?.proposals ?? [];
   const props = all.filter((p) => !only || only.has(p.id));
   // #92 · A HEMMED SCENE IS ONE CARD: everything one hem chalked is the scene's group (#89), and
   // the card is drawn from the chapter's hem, so it is there while the hem runs and before anything
@@ -2678,17 +2686,17 @@ function deckCards(only = null) {
   const taken = new Set(hems.map((c) => c.key));
   const groups = new Map();
   for (const p of props.filter((x) => !taken.has(x.grp))) { const k = p.grp || p.id; groups.set(k, [...(groups.get(k) ?? []), p]); }
-  const what = (ps) => ps.some((p) => !p.entryId) ? 'New thread'
+  const what = (ps) => ps[0].entryType === 'string' ? 'A string, chalked' : ps.some((p) => !p.entryId) ? 'New thread'
     : ps.some((p) => (p.grp ?? '').startsWith('hem:')) ? 'Hemming found' : ps[0].kind === 'tidy' ? 'Tidy this thread'
     : 'Anansi chalked';
   const chalk = [...groups.values()].map((ps) => ({ kind: 'chalk', key: ps.map((p) => p.id).join(','),
     title: ps[0].title, sub: what(ps), line: ps.find((p) => p.line)?.line ?? '', ps,
     right: 'Sew it in', left: 'Reject' }));
-  // A string summoned or dismissed from the deck stays open (it is still owed), so it is decided for
+  // A string switched on or off from the deck stays open (it is still owed), so it is decided for
   // this sitting by `S.deckDone` and not by its status; the Strings tab still has it.
   const strings = (V?.strings ?? []).filter((x) => x.status === 'open' && !S.deckDone?.has(x.id)).map((x) => ({ kind: 'string', key: x.id, x,
-    title: x.title, sub: x.summoned ? 'String · summoned' : 'String', line: '', right: x.summoned ? 'Dismiss' : 'Summon',
-    left: 'Let go' }));
+    title: x.title, sub: `${x.kind === 'question' ? 'Open question' : 'Promise'} · ${x.summoned ? 'in play' : 'set aside'}`, line: '',
+    right: x.summoned ? 'Set aside' : 'Put in play', left: 'Let go' }));
   // ONLY THESE, for the hem page: the chalked cards of the scene just hemmed, and no strings.
   return only ? [...hems, ...chalk] : [...hems, ...chalk, ...strings, ...upkeepCards()];
 }
@@ -2922,9 +2930,10 @@ function deckCard(c, i, top) {
     const x = c.x;
     body = `${x.body ? `<div class="note">${esc(x.body)}</div>` : ''}
       <div class="hint" style="margin:4px 0 0">${x.fromChapter ? `Set up in ${esc(x.fromChapter)}.` : ''}${
-        x.owedBy ? ` Owed by ${esc(x.owedBy)}.` : ''}${x.summoned ? ' Summoned: the model is told it is owed.' : ''}</div>
+        x.owedBy ? ` Owed by ${esc(x.owedBy)}.` : ''}${x.summoned ? ' In play: the model is told it is owed.' : ''}</div>
       <button class="btn ghost push-8" data-stringstatus="${esc(x.id)}:paid">Tied off</button>`;
-    right = `<button class="btn" data-summon="${esc(x.id)}" data-deckright="1">${x.summoned ? 'Dismiss' : 'Summon'} &rarr;</button>`;
+    // #127 · Its pocket's switch (ADR 0011): on is in play. Tied off and Let go switch it off and mark it.
+    right = `<button class="btn" data-summon="${esc(x.id)}" data-deckright="1">${esc(c.right)} &rarr;</button>`;
     left = `<button class="btn ghost" data-stringstatus="${esc(x.id)}:dropped" data-deckleft="1">&larr; Let go</button>`;
   }
   return `<div class="deckcard card" data-deckcard="${i}" data-deckkind="${c.kind}"${i === top ? '' : ' hidden'}>
@@ -3005,7 +3014,16 @@ function proposalCard(p) {
   // change aimed at it in as an Over time entry, so offering it here would offer the one place it
   // cannot land.
   const rooms = canMove ? (V.slots?.[onto.entryType] ?? []).map((sl) => sl.name).filter((n) => n !== 'facts') : [];
-  const where = p.entryType === 'retire'
+  // #127 · WHERE A STRING STANDS NOW, chalked at a hem: a pocket of the tale's thread whose text it
+  // replaces (the server sews it in place), so there is no "beside it" to offer. The kinds are the
+  // tale's pockets in `V.slots`, the server's own list.
+  const stringRow = !!p.field && (V.slots?.tale ?? []).some((sl) => sl.name === p.field && sl.name !== 'facts');
+  const where = p.entryType === 'string'
+    ? `A string, set up in scene ${esc(String(at))}. Sewn in, it is in play: the model is told it is owed.`
+    : stringRow
+    ? `Where the ${esc(slotLabel(p.field))} &ldquo;${esc(p.pocket ?? '')}&rdquo; stands now. Sewn in, it replaces its text from
+       the next scene on; the old version is kept.`
+    : p.entryType === 'retire'
     ? `Retired at scene ${esc(String(at))}: it stops reaching the model there. Every scene before it
        still has it, and it can be brought back.`
     : p.entryType === 'state'
@@ -3020,7 +3038,7 @@ function proposalCard(p) {
               >${esc(room)}</span>` : ''}
             <span class="up" style="margin-left:auto; font-size:11px; letter-spacing:.1em; color:${tone}">${esc(p.kind)}</span></div>
           ${where ? `<div style="font-size:11px; line-height:1.45; color:var(--faint)">${where}</div>` : ''}
-          ${p.field && p.target ? `<div style="font-size:11px; line-height:1.45; color:var(--warn)">${esc(p.title)}
+          ${p.field && p.target && !stringRow ? `<div style="font-size:11px; line-height:1.45; color:var(--warn)">${esc(p.title)}
             already has ${/^[aeiou]/i.test(room) ? 'an' : 'a'} ${esc(room)}. Weave this in beside it, or
             put it in place of the one there.</div>` : ''}
           ${p.delta && p.delta.trim() !== (p.body ?? '').trim()
@@ -3048,8 +3066,8 @@ function proposalCard(p) {
           <div class="btnrow">
             <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
               border-radius:var(--r); border:1px solid var(--ink-bright); color:var(--ink-bright); font-size:11.5px; font-weight:500">${
-                p.field && p.target ? 'Sew in beside it' : 'Sew it in'}</button>
-            ${p.field && p.target ? `<button data-decide="replace" data-id="${p.id}"
+                p.field && p.target && !stringRow ? 'Sew in beside it' : 'Sew it in'}</button>
+            ${p.field && p.target && !stringRow ? `<button data-decide="replace" data-id="${p.id}"
               style="flex:1; text-align:center; padding:8px 0; border-radius:var(--r);
               border:1px solid var(--chip); color:var(--mute); font-size:11.5px">Replace it</button>` : ''}
             <button data-decide="reject" data-id="${p.id}" aria-label="Reject this"
@@ -4853,75 +4871,46 @@ const PANELS = {
     </div>`;
   },
 
-  /** The promises this story has made and not paid.
+  /** #127 · ADR 0011. THE TALE'S STRINGS: its promises and open questions, which are pockets of the
+   *  tale's thread. A filtered view of those pockets, drawn as the Pockets tab draws a thread's (#126):
+   *  a row is the name, a line of the text and the pocket's own switch, and the name opens the pocket
+   *  panel on it, which is where it is altered and removed. In play first, then set aside, then the
+   *  ones tied off or let go, whose switch is how one reopens. A chalked string is a Workbench card.
    *
-   *  Writer-facing by default: a string only reaches the model when it is SUMMONED, because a
-   *  model handed an unresolved promise reaches for it, and paying it off is the writer's move.
-   *  F20 is the precedent — restating canon near the generation point measured at nothing over 850
-   *  generations an arm, and a standing list of open promises is that idea in a new coat. */
+   *  Writer-facing by default: a string only reaches the model while it is on, because a model handed
+   *  an unresolved promise reaches for it, and paying it off is the writer's move. F20 is the
+   *  precedent — restating canon near the generation point measured at nothing over 850 generations
+   *  an arm, and a standing list of open promises is that idea in a new coat. */
   strings() {
     const all = V.strings ?? [];
-    const open = all.filter((x) => x.status === 'open');
-    const done = all.filter((x) => x.status !== 'open');
     const here = V.currentChapter.index;
     const row = (x) => {
       const since = x.fromChapter ? here - x.fromChapter : null;
-      const late = x.owedBy != null && here > x.owedBy;
-      return `<div class="card" style="margin-bottom:8px; gap:6px; border-color:${
-        x.summoned ? 'rgba(217,178,106,.42)' : late ? 'var(--bad)' : 'var(--chip)'}">
-        <div class="base-9">
-          <span class="kind">${esc(x.title)}</span>
-          ${x.summoned ? '<span class="tag tag-lit">summoned</span>' : ''}
-          <span style="margin-left:auto; font-size:11px; color:${late ? 'var(--bad)' : 'var(--faint)'}">${
-            x.status !== 'open' ? esc(x.status === 'paid' ? 'tied off' : x.status === 'dropped' ? 'let go' : x.status)
-            : late ? `owed by ${x.owedBy}, and it is scene ${here}`
-            : since != null ? `${since === 0 ? 'set up this scene' : `${since} ${since === 1 ? 'scene' : 'scenes'} ago`}`
-            : ''}</span></div>
-        ${x.body ? `<div class="note">${esc(x.body)}</div>` : ''}
-        <div class="row-6 wraps">
-          <button class="btn ghost mini-btn" data-summon="${x.id}">${
-            x.summoned ? 'Dismiss' : 'Summon'}</button>
-          ${x.status === 'open'
-            ? `<button class="btn ghost mini-btn" data-stringstatus="${x.id}:paid">Tied off</button>
-               <button class="btn ghost mini-btn" data-stringstatus="${x.id}:dropped">Let go</button>`
-            : `<button class="btn ghost mini-btn" data-stringstatus="${x.id}:open">Still open</button>`}
-          <button class="del-right" data-delstring="${x.id}" aria-label="Remove">✕</button>
-        </div></div>`;
+      const late = x.status === 'open' && x.owedBy != null && here > x.owedBy;
+      const when = x.status !== 'open' ? (x.status === 'paid' ? 'tied off' : x.status === 'dropped' ? 'let go' : x.status)
+        : late ? `owed by ${x.owedBy}, and it is scene ${here}`
+        : since != null ? (since === 0 ? 'set up this scene' : `${since} ${since === 1 ? 'scene' : 'scenes'} ago`) : '';
+      return `<div class="pocketrow${x.summoned ? ' lit' : ''}">
+        <button class="pocketopen" data-editroom="${esc(x.id)}" aria-label="Open ${esc(x.title)}">
+          <span class="pkname">${esc(x.title)} <span class="faded">&middot; ${esc(slotLabel(x.kind ?? 'promise'))}</span></span>
+          <span class="pkline">${esc(String(x.body ?? '').split('\n')[0])}</span>
+          ${when ? `<span class="pkline" style="color:${late ? 'var(--bad)' : 'var(--faint)'}">${esc(when)}</span>` : ''}</button>
+        <button data-addonon="${esc(x.id)}:${x.summoned ? '0' : '1'}" class="tag pocketsw" aria-pressed="${!!x.summoned}"
+          aria-label="${esc(x.title)} is ${x.summoned ? 'on. Tap to set it aside' : x.status === 'open'
+            ? 'off. Tap to put it in play' : `${x.status === 'paid' ? 'tied off' : 'let go'}. Tap to reopen it`}"
+          >${x.summoned ? 'On' : 'Off'}</button></div>`;
     };
+    const on = all.filter((x) => x.status === 'open' && x.summoned);
+    const off = all.filter((x) => x.status === 'open' && !x.summoned);
+    const done = all.filter((x) => x.status !== 'open');
     /* THE INTRO CAME OUT for the same reason as Anansi's: it restated web/help.js under this
        panel's own mark almost sentence for sentence — what a string is, that it is yours until you
        put one in play, and that in play the model is told what is owed rather than told to pay it.
        The web is the copy with a test binding it to a slug in both directions. */
     return `<div class="stack">
-      ${(() => {
-        // Anansi's offers, where the strings are rather than in the Chapter queue with the thread
-        // proposals. Same buttons, same route, same "nothing until you accept it" — a promise it
-        // spotted belongs next to the promises you already know about.
-        const mine = (V.proposals ?? []).filter((p) => p.entryType === 'string');
-        if (!mine.length) return '';
-        return `<div class="lbl sect-top">Chalked by Anansi${
-            tipMark('strNoticed', 'Chalked by Anansi')}</div>
-          ${tipCard('strNoticed', 'Chalked by Anansi', `<p>Chalked is marked in chalk: none of these
-            is a string of the tale until you sew it in.</p>`)}
-          ${mine.map((p) => `<div class="card" style="margin-bottom:8px; gap:8px;
-            border-color:rgba(217,178,106,.28)">
-            <div class="line-8">
-              <span class="name-14">${esc(p.title)}</span>
-              <span class="count-sm">${
-                p.keys?.[0] ? `set up in scene ${esc(p.keys[0])}` : ''}</span></div>
-            <textarea class="field" data-pbody="${p.id}" aria-label="What ${esc(p.title)} promises"
-              style="margin:0; min-height:64px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
-            <div class="btnrow">
-              <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
-                border-radius:var(--r); background:var(--gold); color:var(--on-gold); font-size:11.5px; font-weight:500">Sew it in</button>
-              <button data-decide="reject" data-id="${p.id}" aria-label="Reject this"
-              class="step-btn">✕</button>
-            </div></div>`).join('')}
-          <div class="lbl sect">Owed</div>`;
-      })()}
-      ${open.length ? open.map(row).join('') : '<div class="hint flush">Nothing owed yet.</div>'}
-      ${done.length ? `<div class="lbl sect">Tied off or let go</div>
-        ${done.map(row).join('')}` : ''}
+      ${on.length ? on.map(row).join('') : '<div class="hint flush">Nothing in play.</div>'}
+      ${off.length ? `<div class="lbl sect-rule">Set aside</div>${off.map(row).join('')}` : ''}
+      ${done.length ? `<div class="lbl sect-rule">Tied off or let go</div>${done.map(row).join('')}` : ''}
       <div class="lbl sect">A new string${
         tipMark('strNew', 'A new string')}</div>
       ${tipCard('strNew', 'A new string', `<p>Anansi chalks these too &mdash; they arrive under This
@@ -6739,9 +6728,14 @@ const SLOT_HINT = {
   who_is_here:   ['Who you find there', 'the porter, and whoever is owed money that week'],
   what_it_does:  ['What it does', 'opens the lower records vault and nothing else'],
   consequences:  ['What breaking it costs', 'the Watch cuts off a hand, or calls in the debt'],
+  // #127 · The tale's strings.
+  promise:       ['The letter he has not opened', 'sent by his brother, sealed, and still in his coat'],
+  question:      ['Who sent the letter', 'nobody has said, and he has not asked'],
 };
 // The `facts` slot is ALWAYS TRUE on every screen (#77, ADR 0005); the code keeps its name.
-const slotLabel = (slot) => (slot === 'facts' ? 'always true' : String(slot).replace(/_/g, ' '));
+// #127 · A `question` pocket is an open question, the word the screens use for it.
+const slotLabel = (slot) => (slot === 'facts' ? 'always true' : slot === 'question' ? 'open question'
+  : String(slot).replace(/_/g, ' '));
 /** A pocket's name as a heading or a chip: capitalised, not the raw key (usability check). */
 const pocketTitle = (slot) => { const l = slotLabel(slot); return l.charAt(0).toUpperCase() + l.slice(1); };
 
@@ -11023,7 +11017,7 @@ document.addEventListener('click', async (e) => {
       fromChapter: Number(get('fromChapter')) || null, owedBy: Number(get('owedBy')) || null });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId, V.currentChapter.id); paint();
-    return toast('Added. It is yours alone until you summon it.');
+    return toast('Added, set aside. Switch it on to put it in play.');
   }
   if (d.summon) {
     const x = (V.strings ?? []).find((s2) => s2.id === d.summon);
@@ -11031,8 +11025,8 @@ document.addEventListener('click', async (e) => {
     if (r.error) return toast(r.error);
     if (d.deckright) S.deckDone = new Set([...(S.deckDone ?? []), d.summon]);
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
-    return toast(x?.summoned ? 'Dismissed. The model stops being told about it.'
-                             : 'Summoned. The model is told about it from the next call.');
+    return toast(x?.summoned ? 'Set aside. The model stops being told about it.'
+                             : 'In play. The model is told about it from the next call.');
   }
   if (d.stringstatus) {
     const [id, status] = String(d.stringstatus).split(':');
@@ -11040,12 +11034,6 @@ document.addEventListener('click', async (e) => {
     // Paying one off takes it out of play as well: a paid promise the model is still told about is
     // an instruction to pay it twice.
     const r = await api.saveString(S.storyId, { ...x, status, summoned: status === 'open' && x?.summoned });
-    if (r.error) return toast(r.error);
-    V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); return;
-  }
-  if (d.delstring) {
-    if (!armed(t, 'string:' + d.delstring, 'Press again to delete this open string.')) return;
-    const r = await api.delString(S.storyId, d.delstring);
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); return;
   }
@@ -11213,7 +11201,8 @@ document.addEventListener('click', async (e) => {
   if (d.editroom) {
     // #126 · A POCKET OPENS THE POCKET PANEL ON IT, from the Read face or the Pockets tab's list.
     // Always true is not a pocket: it is altered on The thread tab, as before.
-    const owner = (V.entries ?? []).find((x) => (x.addons ?? []).some((a) => a.id === d.editroom)
+    // #127 · Or a string, from the Strings screen: a pocket of the tale's own thread.
+    const owner = pocketOwners().find((x) => (x.addons ?? []).some((a) => a.id === d.editroom)
       || (x.outfits ?? []).some((o) => o.id === d.editroom));
     if (owner?.addons?.find((a) => a.id === d.editroom)?.slot === 'facts') {
       S.cardTab = 'card'; S.cardView = 'form'; paint(); return;
@@ -12744,7 +12733,7 @@ document.addEventListener('click', async (e) => {
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest();
     toast(d.decide !== 'accept' ? 'Rejected.'
-      : was?.entryType === 'string' ? 'Sewn in. It is yours alone until you summon it.' : 'Sewn in.');
+      : was?.entryType === 'string' ? 'Sewn in. It is in play: the model is told about it.' : 'Sewn in.');
     return;
   }
   if (d.pkind) { S.propKind = d.pkind; paint(); return; }

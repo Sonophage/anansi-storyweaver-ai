@@ -64,7 +64,7 @@ ok(`a swipe left from a section's heading leans the card and says no (lean ${swi
    swiped === 'left' && after === before - 1);
 
 // ---- EVERY YES AND NO MOVES ON (Seth, 2026-10-26: "pressing an action or sliding it doesn't move on
-// to the next card"). A summon leaves the string open, so its card stayed on top and said Dismiss.
+// to the next card"). Putting it in play leaves the string open, so its card stayed on top.
 await page.eval(`(async () => { await fetch('/api/string', { method: 'POST', headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ storyId: ${JSON.stringify(sid)}, string: { title: 'The letter in the drawer', body: 'Unopened.' } }) }); return 1; })()`);
 await page.goto(B + "/#" + sid + "/waiting");
@@ -76,7 +76,7 @@ ok("the string is on the deck", (await topTitle()) === 'The letter in the drawer
 await page.eval("(() => { document.querySelector('.deckcard:not([hidden]) [data-deckright]')?.click(); return 1; })()");
 await wait(1200);
 const letter = (await view(sid)).strings.find((x) => x.title === 'The letter in the drawer');
-ok("a summon from the deck summons it", !!letter?.summoned);
+ok("Put in play from the deck switches it on (#127: its pocket's switch)", !!letter?.summoned);
 ok("  and leaves the deck, so the next card is on top",
    !(await page.eval("[...document.querySelectorAll('.deckcard .decktitle')].some((t) => t.innerText === 'The letter in the drawer')")));
 
