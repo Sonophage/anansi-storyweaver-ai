@@ -9343,7 +9343,7 @@ function decode(el, slot) {
  *  its real geometry, radials first and then the rings, and then it breathes. `stroke-dashoffset`
  *  animates on the compositor and costs nothing while the model is loading a 35B on the same box.
  */
-function ghost() {
+function ghost(replaces = null) {
   const shell = $('shell'); if (!shell) return;
   // A veil caught mid-fade would be reused at opacity 0 and never appear. PLAN-07's point 5.
   //
@@ -9389,6 +9389,12 @@ function ghost() {
     // drawDoc appends it.
     INLINE = g;
     drawDoc();
+    // A REWEAVE WRITES IN WHERE THE OLD VERSION WAS: the old one steps aside until the new one lands,
+    // or comes back if it is stopped (unghost). BEFORE anchorLive measures. Hidden after it, the page
+    // was moved with the old one in it, and at the first word the browser's scroll anchoring moved it
+    // 30px more, so the header went up under the context toggle (measured on a 390px screen,
+    // 2026-10-28; with `overflow-anchor:none` the 30px went too, which is how the cause was found).
+    if (replaces) col.querySelector(`[data-edit="${replaces}"]`)?.closest('.block')?.classList.add('rerolling-out');
     // THE NEW ENTRY'S HEADER GOES TO THE TOP, AT THE PRESS (Seth, 2026-10-27, below at anchorLive).
     INLINE_ANCHOR = true;
     anchorLive();
@@ -10271,7 +10277,7 @@ async function regenerateInto(id, steer, seed, again = null) {
   // paragraph you can already see, which is a different kind of wait from a blank page.
   const atEnd = V.passages.filter((p) => !p.isBreak).at(-1)?.id === id;
   // PLAN-07 bug 1. This was `atEnd ? (d) => ghost(live += d) : () => {}` with `let live = ''`
-  // above it, and both halves were dead: `ghost()` takes no parameters, and `live` was
+  // above it, and both halves were dead: `ghost()` took no parameters, and `live` was
   // accumulated and never read. What it actually did was hold the veil back until the FIRST
   // TOKEN arrived — and never raise it at all if the model errored before then, which is
   // precisely the cold-start blank page the veil exists to cover. Raised on the press now, the
@@ -10283,10 +10289,8 @@ async function regenerateInto(id, steer, seed, again = null) {
     GHOST_VOICE = old?.speaker ?? null;
     // `inherit` in routes.ts: an instruction makes it Direct, else the old take's own press.
     GHOST_MODE = steer || old?.directive ? 'direct' : (old?.mode || S.mode);
-    ghost();
-    // Inline, the new version writes in where the old one was: the old one steps aside until it
-    // lands, or comes back if the re-roll is stopped.
-    if (!WRITING_VEIL) document.querySelector(`#col [data-edit="${id}"]`)?.closest('.block')?.classList.add('rerolling-out');
+    // Inline, the new version writes in where the old one was (ghost hides the old one).
+    ghost(id);
   }
   STOP = new AbortController();
   const r = await api.generateLive({ storyId: S.storyId, mode: S.mode, regenerateOf: id, chapterId: V.currentChapter.id,

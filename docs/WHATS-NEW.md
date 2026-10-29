@@ -355,6 +355,11 @@ before it ("Tap a passage for its actions", and "written while you were away"). 
 you press, so the passage lands exactly where you watched it written. It is boxed as the newest
 passage from its first word, and keeps the box when it lands.
 
+### Reweave without a blink
+A new version from Reweave faded out and back in when it finished. Now it stays on the page as it
+was written, the same as a passage from Continue. And the page no longer slides up a line under
+the top bar when its first word arrives: it stays where it was put at the press.
+
 ## 2026-10-28 · The tale's menu, rearranged
 
 ### Model on top, scenes beside the menu
