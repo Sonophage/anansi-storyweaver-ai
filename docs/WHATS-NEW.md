@@ -16,6 +16,13 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-29 · A hemmed scene's card, tidied
+
+### Something else on a hemmed scene's card shows the new idea
+When you asked Anansi for something else for the next scene, the card kept showing his first idea
+above the boxes, and Use these filled the next scene with that first idea. The card and Use these
+now show what the next scene holds: the newest idea, or what you typed.
+
 ## 2026-10-28 · A new tale starts at its opening
 
 ### The passage length stays where you set it

@@ -2818,6 +2818,21 @@ function hemBefore(p) {
   return (pockets.find((a) => a.id === p.target) ?? pockets.find((a) => a.slot === p.field))?.body ?? null;
 }
 
+/** THE NEXT SCENE AFTER A HEMMED ONE, as the writer should meet it: what that scene has been given,
+ *  else the hem's suggestion, box by box. THE ONE READER of the suggestion for the card's boxes and
+ *  Use these (Seth, 2026-10-29: "I rerolled and it still has the data from its first iteration").
+ *  Something else, Anansi and the boxes all save into the scene, so the scene is where the latest
+ *  lives; the stored suggestion is only what the hem first said, and stands in for an empty box.
+ *  Null when the hem gave none, or the writer has moved past that scene. */
+function nextSetup(ch) {
+  const s = ch?.hem?.suggestion, next = s && hemNext(ch);
+  if (!next) return null;
+  const given = (v, dflt) => (String(v ?? '').trim() ? v : dflt) ?? '';
+  // A title that is only the scene's number is the placeholder a new scene opens with, not a name.
+  return { next, title: given(numbered(next.title, next.index) ? '' : next.title, s.title),
+    note: given(next.authorsNote, s.note), opens: given(next.opensWith, s.opens) };
+}
+
 /** A chalked row's one line while its fold is shut: the first 90 characters. */
 const peek = (s) => `${esc(String(s ?? '').slice(0, 90))}${String(s ?? '').length > 90 ? '&hellip;' : ''}`;
 
@@ -2871,23 +2886,17 @@ function hemCardParts(c) {
   const held = heldNew.length ? `<div class="hint push-8">Also new in this scene, past the six:
     ${heldNew.map(esc).join(', ')}.</div>
     <button class="btn ghost" data-hemextra="${id}">Chalk ${heldNew.length === 1 ? 'it' : 'these'} too</button>` : '';
-  const s = h.suggestion, next = s && hemNext(ch);
+  const next = hemNext(ch), now = nextSetup(ch);
   // EDITED HERE, saved as you go (Seth, 2026-10-27: "I can't edit the next scenes info from the
-  // worktable"). Three boxes for the scene the hem opened, holding what that scene has already been
-  // given, else Anansi's suggestion; leaving any box saves all three to it (ADR 0004). Use these
-  // still opens the full setup.
-  const given = (v, dflt) => (String(v ?? '').trim() ? v : dflt) ?? '';
-  const nt = next ? given(/^Scene \d+$/.test(String(next.title ?? '')) ? '' : next.title, s.title) : '';
-  const suggestion = next ? `<div class="lbl sub-lbl">Anansi's title and note for ${esc(sceneName(next))}</div>
-    <div class="serif">${esc(s.title)}</div>
-    ${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}
-    ${s.opens ? `<div class="hint flush">Opens with: ${esc(s.opens)}</div>` : ''}
-    <div class="lbl sub-lbl push-12">${esc(sceneName(next))} as it stands</div>
-    <input class="field" data-hemnext="title" data-ch="${esc(next.id)}" aria-label="The next scene's title" value="${esc(nt)}">
+  // worktable"). Three boxes for the scene the hem opened, read through `nextSetup`, the one reader
+  // Use these shares; leaving any box saves all three to it (ADR 0004). Use these still opens the
+  // full setup.
+  const suggestion = now ? `<div class="lbl sub-lbl push-12">${esc(sceneName(next))}</div>
+    <input class="field" data-hemnext="title" data-ch="${esc(next.id)}" aria-label="The next scene's title" value="${esc(now.title)}">
     <textarea class="field grow min-52" data-hemnext="note" data-ch="${esc(next.id)}" aria-label="Where the next scene is going"
-      placeholder="Where it is going">${esc(given(next.authorsNote, s.note))}</textarea>
+      placeholder="Where it is going">${esc(now.note)}</textarea>
     <textarea class="field grow min-52" data-hemnext="opens" data-ch="${esc(next.id)}" aria-label="How the next scene opens"
-      placeholder="How it opens">${esc(given(next.opensWith, s.opens))}</textarea>
+      placeholder="How it opens">${esc(now.opens)}</textarea>
     <div class="hint flush">Saves when you leave a box.</div>
     <input class="field push-8" data-hemsteer="${esc(next.id)}" aria-label="A direction for Anansi"
       placeholder="A direction for Anansi, if you want one">
@@ -2919,6 +2928,8 @@ document.addEventListener('change', async (e) => {
   const r = await api.saveChapter(S.storyId, ch,
     { title: (box.title ?? '').trim() || undefined, authorsNote: box.note ?? '', opensWith: box.opens ?? '' });
   if (r.error) return toast(r.error);
+  // As after Something else: a Use these draft for that scene is older than what was just saved.
+  if (draftFor(ch)) S.setup = null;
   V = await api.story(S.storyId, V?.currentChapter?.id); paint();
   toast('Saved to the next scene.');
 });
@@ -12691,6 +12702,9 @@ document.addEventListener('click', async (e) => {
     if (r.error || !r.title) return toast(r.error || 'nothing usable came back');
     const w = await api.saveChapter(S.storyId, ch, { title: r.title, authorsNote: r.note ?? '', opensWith: r.opens ?? '' });
     if (w.error) return toast(w.error);
+    // A Use these draft for that scene is older than what was just saved into it: drop it, or its
+    // setup would still open on the first suggestion (Seth, 2026-10-29).
+    if (draftFor(ch)) S.setup = null;
     V = await api.story(S.storyId, V?.currentChapter?.id); paint();
     return toast('Something else, saved to the next scene. Change any box to make it yours.');
   }
@@ -12710,12 +12724,12 @@ document.addEventListener('click', async (e) => {
     return toast(d.pass ? 'Trying that again. It lands on the card.' : d.names ? 'Asking for them. They land on the card.'
       : 'Hemming it again. The card fills in when it is done.');
   }
-  // #92 · USE THESE. The hem's suggestion goes into the next scene's three boxes on its setup, as
-  // a draft (`S.setup`), and nothing is saved until the writer presses Save there.
+  // #92 · USE THESE. The next scene as the card shows it (`nextSetup`) goes into its three boxes on
+  // its setup, as a draft (`S.setup`), and nothing is saved until the writer presses Save there.
   if (d.usehem) {
-    const ch = V.chapters.find((c) => c.id === d.usehem), s = ch?.hem?.suggestion, next = ch && hemNext(ch);
-    if (!s || !next) return;
-    S.setup = { chapterId: next.id, title: s.title ?? '', note: s.note ?? '', opens: s.opens ?? '' };
+    const now = nextSetup(V.chapters.find((c) => c.id === d.usehem));
+    if (!now) return;
+    S.setup = { chapterId: now.next.id, title: now.title, note: now.note, opens: now.opens };
     S.panel = 'setup'; S.setupStep = 'premise'; syncHash(); paint();
     return toast('Filled in. Change anything; nothing is saved until you press Save.');
   }

@@ -6531,8 +6531,8 @@ const hemCardOf = (side: string) => {
   click({ open: 's-1' }); await settle();
   click({ panel: 'waiting' }); await settle();
   const card = hemCardOf(html('sideBody'));
-  assert.match(card, /The Rust Year[\s\S]*By the end the debt is called in[\s\S]*Rain on the shutters\./,
-    "the next scene's suggested title, note and opening are on the card");
+  assert.match(card, /By the end the debt is called in[\s\S]*Rain on the shutters\./,
+    "the next scene's suggested note and opening are on the card, where the scene has none of its own");
   assert.match(card, /<button[^>]*data-usehem="c-1">Use these</, '  with Use these');
 
   // THE SUMMARY SAVES AS YOU GO (ADR 0004): when the writer leaves the box, as the writer's (#46).
@@ -6585,11 +6585,12 @@ const hemCardOf = (side: string) => {
     avoid: { title: 'The Envoy', note: 'Old note.', opens: 'Old opening.' } }, '  with the direction, away from what the boxes held');
   assert.strictEqual(chapterSaves().at(-1)?.body?.chapter?.title, 'The Rust Year', '  and the answer is saved into the next scene');
 
-  // USE THESE: the new scene's three boxes hold the suggestion, and nothing is saved yet.
+  // USE THESE: the new scene's three boxes hold what the card's boxes held, and nothing is saved yet.
+  // The scene's own title (The Envoy) where it has one, the suggestion where it has nothing.
   const saves = chapterSaves().length;
   click({ usehem: 'c-1' }); await settle();
   const setup = html('sideBody');
-  assert.match(setup, /data-setup="title" value="The Rust Year"/, 'Use these fills the new scene\'s title');
+  assert.match(setup, /data-setup="title" value="The Envoy"/, 'Use these fills the new scene\'s title, as the card showed it');
   assert.match(setup, /By the end the debt is called in, with Marek in the room\./, '  and its note');
   assert.match(setup, /Rain on the shutters\./, '  and its opening');
   assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/chapter').length, saves,
@@ -6598,6 +6599,60 @@ const hemCardOf = (side: string) => {
   click({ skipsetup: '1' }); await settle();
   click({ open: 's-1' }); await settle();
   ok('the summary on the card saves as yours, and Use these fills the new scene (#92)');
+}
+
+// ---- THE NEXT SCENE ON A HEM CARD READS FROM ONE PLACE (Seth, 2026-10-29: "I rerolled and it
+// still has the data from its first iteration"). Something else saves Anansi's new answer into the
+// next scene; the card, and Use these after it, must show that answer and nothing of the first.
+// A stateful fake: a save to /api/chapter really changes the scene the next read hands back.
+{
+  const canned = (globalThis as any).fetch;
+  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const NEW = { title: 'Gulls at the Weir', opens: 'Gulls over black water.',
+    note: 'The weir gives way before dawn, and Ilva has to choose who she pulls out first.' };
+  HEM_VIEW = hemView(HEM_DONE, HEM_ROWS);
+  (globalThis as any).fetch = async (url: string, init?: any) => {
+    const body = init?.body ? JSON.parse(init.body) : null;
+    const reply = (o: any) => ({ ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) });
+    if (url === '/api/chapter/propose') { POSTED.push({ url, body }); return reply({ chapterId: body.chapterId, ...NEW }); }
+    if (url === '/api/chapter') {
+      POSTED.push({ url, body });
+      const put = (c: any) => c.id !== body.chapterId ? c : { ...c, ...(body.chapter.title ? { title: body.chapter.title } : {}),
+        authorsNote: body.chapter.authorsNote, opensWith: body.chapter.opensWith };
+      HEM_VIEW = { ...HEM_VIEW, chapters: HEM_VIEW.chapters.map(put), currentChapter: put(HEM_VIEW.currentChapter) };
+      return reply(HEM_VIEW);
+    }
+    return hemFetch(canned)(url, init);
+  };
+  click({ open: 's-1' }); await settle();
+  // Use these first, so the setup holds a draft of the first suggestion; then Something else.
+  click({ panel: 'waiting' }); await settle();
+  click({ usehem: 'c-1' }); await settle();
+  assert.match(html('sideBody'), /By the end the debt is called in/, 'the setup holds the first suggestion, as a draft');
+  click({ panel: 'waiting' }); await settle();
+  click({ hemreroll: 'c-2' }); await settle(); await settle();
+  const card = hemCardOf(html('sideBody'));
+  assert.match(card, /data-hemnext="title"[^>]*value="Gulls at the Weir"/, 'HEM-REROLL-LATEST: after Something else the title box holds the new answer');
+  assert.match(card, /data-hemnext="note"[^>]*>The weir gives way/, '  and the note');
+  assert.match(card, /data-hemnext="opens"[^>]*>Gulls over black water\./, '  and the opening');
+  assert.doesNotMatch(card, /The Rust Year|with Marek in the room|Rain on the shutters/,
+    '  and nothing of the first suggestion is left on the card');
+  // The setup, opened on its own, no longer holds the draft of the first suggestion.
+  click({ panel: 'setup' }); await settle();
+  click({ setupstep: 'premise' }); await settle();
+  assert.match(html('sideBody'), /data-setup="title" value="Gulls at the Weir"/,
+    'HEM-SETUP-LATEST: the next scene\'s setup shows the new answer, not the old draft');
+  assert.doesNotMatch(html('sideBody'), /with Marek in the room/, '  and nothing of the first suggestion');
+  click({ panel: 'waiting' }); await settle();
+  click({ usehem: 'c-1' }); await settle();
+  const setup = html('sideBody');
+  assert.match(setup, /data-setup="title" value="Gulls at the Weir"/, 'HEM-USE-LATEST: Use these then fills the latest title');
+  assert.match(setup, /The weir gives way/, '  and the latest note');
+  assert.doesNotMatch(setup, /The Rust Year|with Marek in the room/, '  and not the first suggestion');
+  (globalThis as any).fetch = canned;
+  click({ skipsetup: '1' }); await settle();
+  click({ open: 's-1' }); await settle();
+  ok('after Something else, the hem card and Use these show the latest next scene, not the first suggestion');
 }
 
 // ---- #92 · HEM THIS SCENE OPENS THE NEXT ONE AT ONCE, and the card arrives without a reload.
