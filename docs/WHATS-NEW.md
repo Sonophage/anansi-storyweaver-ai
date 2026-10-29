@@ -18,6 +18,14 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-28 · A new tale starts at its opening
 
+### Add a string the way you add a pocket
+The ＋ at the top of Strings opens the same full-screen box a pocket opens in. Choose a promise or
+an open question, give it a name and say what it is; a promise can also say the scene it is owed
+by. The small form under the list is gone. Ask Anansi works here too: he writes a new string for
+you, or rewrites one you have, and you see what he changed before you press Use this. He keeps to
+the kind's rule: a promise is something set up to be paid off, an open question stays open, and
+neither says what happens next. Nothing is kept until you press Save.
+
 ### Ask Anansi in Talk for a string
 Ask Anansi in Talk to add a promise or an open question, or to change one the tale has, and he
 does it at once. A new string is in play straight away. The change shows in the conversation with

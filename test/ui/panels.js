@@ -1549,14 +1549,21 @@ await wait(900);
 // panel's mark opens, and the line below asserts that too so deleting the copy cannot delete both.
 {
   const body = (await page.text('#sideBody')) || '';
-  ok("Strings is a panel of its own", /A new string/i.test(body) && /Nothing in play/i.test(body));
+  ok("Strings is a panel of its own", /Nothing in play/i.test(body) && await page.visible('[data-stringnew="1"]'));
   ok("  and what a string IS is still one press away", /promise the tale has to keep/i.test(body));
 }
+// #128 · A new string is added through the ＋, which opens the pocket panel on the tale's thread.
+await page.click('[data-stringnew="1"]');
+await wait(500);
+await page.click('[data-pocketkind="promise"]');
+await wait(300);
 await page.eval(`(() => {
-  document.querySelector('[data-st2="title"]').value = 'The letter he has not opened';
-  document.querySelector('[data-st2="body"]').value = 'Sent by his brother';
+  const put = (id, v) => { const el = document.getElementById(id); el.value = v;
+    el.dispatchEvent(new Event('input', { bubbles: true })); };
+  put('pk-name', 'The letter he has not opened');
+  put('pk-body', 'Sent by his brother');
   return 1; })()`);
-await page.click('[data-newstring="1"]');
+await page.click('[data-pocketsave="1"]');
 await wait(900);
 const one = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid3 + "')).json()).strings)()");
 ok(`tying one stores it (${one.length})`, one.length === 1 && one[0].title === 'The letter he has not opened');

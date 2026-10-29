@@ -530,7 +530,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'takeover', 'dropfollow', 'handback', 'sendup', 'bringback', 'savefollowed',
   'share', 'unshare',
   'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc', 'editarc', 'savearc', 'cancelarc',
-  'newstring', 'summon', 'stringstatus', 'looktab', 'askfill',
+  'stringnew', 'summon', 'stringstatus', 'looktab', 'askfill',
   'reroll', 'reseed', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
@@ -1578,7 +1578,7 @@ function passageHTML(p, newest, opening) {
 document.addEventListener('input', (e) => {
   if (S.passEdit && e.target?.matches?.('[data-editbox]')) S.passEdit.text = e.target.value;
   // #126. The pocket panel's boxes, by id, for the same reason: drawPocket draws them from S.pocket.
-  const pk = { 'pk-name': 'name', 'pk-body': 'body', 'pk-keys': 'keys', 'pk-steer': 'steer' }[e.target?.id];
+  const pk = { 'pk-name': 'name', 'pk-body': 'body', 'pk-keys': 'keys', 'pk-steer': 'steer', 'pk-owed': 'owed' }[e.target?.id];
   if (S.pocket && pk) S.pocket[pk] = e.target.value;
 });
 /** Where the page should stay through the next repaint, or null (see drawDoc). */
@@ -2433,6 +2433,10 @@ function drawSide() {
     <span class="fill"></span>
     ${thList ? `<button data-newlore="1" class="headadd" aria-label="Add a thread, or read the scene"
       title="Add a thread, or read the scene"><span>${mark('create', 16)}</span></button>` : ''}
+    ${/* #128 · AND STRINGS CARRIES ITS + HERE: it opens the pocket panel on the tale's own thread, in
+          place of the add form that sat under the list. */
+      S.panel === 'strings' && V ? `<button data-stringnew="1" class="headadd" aria-label="Add a string"
+      title="Add a string"><span>${mark('create', 16)}</span></button>` : ''}
     <button class="caps-btn" data-panel="">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
   $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !setupTalking && !thRead && !isAltering() && !(S.panel === 'threads' && S.lore && !S.entryId)
@@ -2488,29 +2492,38 @@ const pageBar = (mode) => (S.place === 'story' ? ''
  *  while it is open puts back what was typed (the Alter box's rule). It is a Back step (layerNow). */
 /** #127 · The threads a pocket can be opened on: the tale's, and the tale's own thread, whose pockets
  *  are its strings (ADR 0011). The tale's thread is not among `V.entries` (#125). */
-const pocketOwners = () => [...(V?.entries ?? []), ...(V?.taleThread ? [V.taleThread] : [])];
+/** #128 · A tale with no thread of its own yet still adds a string: the panel opens on this stand-in,
+ *  and Save names no thread, so the server makes the tale's (`POST /api/addon`). */
+const TALE_NEW = 'tale:new';
+const pocketOwners = () => [...(V?.entries ?? []), ...(V?.taleThread ? [V.taleThread]
+  : V ? [{ id: TALE_NEW, title: 'The tale', entryType: 'tale', addons: [] }] : [])];
 const pocketThread = () => (S.pocket ? pocketOwners().find((x) => x.id === S.pocket.entryId) ?? null : null);
+/** The thread a pocket is saved and asked for on: none for the stand-in. */
+const pocketEntry = (pk) => (pk.entryId === TALE_NEW ? null : pk.entryId);
 function openPocket(entryId, id = null) {
   const e = pocketOwners().find((x) => x.id === entryId); if (!e) return;
   const a = id ? (e.addons ?? []).find((x) => x.id === id)
     ?? (e.outfits ?? []).map((o) => ({ ...o, slot: 'outfit' })).find((x) => x.id === id) : null;
   if (id && !a) return;
-  const was = { name: a?.name ?? '', body: a?.body ?? '', keys: (a?.keys ?? []).join(', ') };
+  // #128 · A promise's "owed by" scene is on the string's own row (`V.strings`), not the pocket's.
+  const owed = id ? (V.strings ?? []).find((x) => x.id === id)?.owedBy : null;
+  const was = { name: a?.name ?? '', body: a?.body ?? '', keys: (a?.keys ?? []).join(', '), owed: owed == null ? '' : String(owed) };
   S.pocket = { entryId, id, tab: 'write', slot: a?.slot ?? null, ...was, steer: '', offer: null, was };
 }
 /** Whether leaving would throw something away: a box changed, or an answer of Anansi's not yet used.
  *  A kind picked and nothing typed is one press to make again, so it is not asked about. */
-const pocketDirty = () => !!S.pocket && (['name', 'body', 'keys'].some((k) => S.pocket[k] !== S.pocket.was[k])
+const pocketDirty = () => !!S.pocket && (['name', 'body', 'keys', 'owed'].some((k) => S.pocket[k] !== S.pocket.was[k])
   || !!S.pocket.offer);
 function pocketPanel() {
   const pk = S.pocket, e = pocketThread();
   if (!pk || !e) return '';
   const adding = !pk.id;
   // #127 · THE TALE'S OWN THREAD: its pockets are its strings, sent while they are on and never on a
-  // wake word, so there is no wake word box; and Ask Anansi writes the pockets of threads, not strings.
+  // wake word, so there is no wake word box. #128 · A promise has the scene it is owed by instead, and
+  // Ask Anansi writes a string as he writes a pocket, from the tale and not from the web.
   const tale = e.entryType === 'tale';
   const slots = (V.slots?.[e.entryType] ?? []).filter((sl) => sl.name !== 'facts');
-  const label = pk.slot ? slotLabel(pk.slot) : 'pocket';
+  const label = pk.slot ? slotLabel(pk.slot) : tale ? 'string' : 'pocket';
   const [namePh, bodyPh] = SLOT_HINT[pk.slot] ?? ['What it is called', 'A plain description'];
   // THE KINDS, while adding: Ask Anansi needs one as much as Write it does, so they head both tabs.
   const kinds = adding ? `<div class="pkkinds">${slots.map((sl) => `<button data-pocketkind="${esc(sl.name)}"
@@ -2520,33 +2533,37 @@ function pocketPanel() {
     <input class="field" id="pk-name" value="${esc(pk.name)}" placeholder="${esc(namePh)}">
     <label class="lbl" for="pk-body">The description</label>
     <textarea class="field grow pkbody" id="pk-body" placeholder="${esc(bodyPh)}">${esc(pk.body)}</textarea>
-    ${tale ? '' : `<label class="lbl" for="pk-keys">Wake words</label>
+    ${tale ? pk.slot === 'promise' ? `<label class="lbl" for="pk-owed">Owed by scene</label>
+    <input class="field" id="pk-owed" inputmode="numeric" value="${esc(pk.owed)}" placeholder="The scene it should be tied off by">` : ''
+    : `<label class="lbl" for="pk-keys">Wake words</label>
     <input class="field" id="pk-keys" value="${esc(pk.keys)}" placeholder="Comma separated">`}
     ${adding ? '' : `<button class="btn ghost danger push-14" data-pocketdel="${esc(pk.id)}">Remove this ${esc(label)}</button>`}`;
   const searchable = V?.searchable !== false;
   const ask = `
     ${weaveFitRow('pocket')}
     <label class="lbl" for="pk-steer">${adding ? 'What to write' : 'What to change'}</label>
-    <textarea class="field grow" id="pk-steer" placeholder="${adding
-      ? 'mourning, or travelling light, or whatever you already had in mind'
+    <textarea class="field grow" id="pk-steer" placeholder="${adding && tale
+      ? 'the debt from scene two, or whatever you already had in mind'
+      : adding ? 'mourning, or travelling light, or whatever you already had in mind'
       : 'shorter, or angrier, or nothing and let him read the tale'}">${esc(pk.steer)}</textarea>
     <div class="btnrow push-10">
       <button class="btn ghost" data-pocketask="write">${adding ? 'Write one for me' : 'Write it again'}</button>
-      <button class="btn ghost" data-pocketask="web" ${searchable ? '' : 'disabled'}
-        title="${searchable ? 'Look it up online, then write it' : 'Searching the web is not switched on here'}">Look it up online</button>
+      ${tale ? '' : `<button class="btn ghost" data-pocketask="web" ${searchable ? '' : 'disabled'}
+        title="${searchable ? 'Look it up online, then write it' : 'Searching the web is not switched on here'}">Look it up online</button>`}
     </div>
     ${pk.offer ? `<div class="lbl push-14">His version</div>
       ${diffHTML(pk.body, pk.offer.body)}
       <button class="btn push-10" data-pocketuse="1">Use this</button>` : ''}`;
-  return `<div class="pocketbox" role="dialog" aria-label="${adding ? `A new pocket for ${esc(e.title)}` : esc(pk.name || label)}">
+  const what = tale ? 'string' : 'pocket';
+  return `<div class="pocketbox" role="dialog" aria-label="${adding ? `A new ${what} for ${esc(e.title)}` : esc(pk.name || label)}">
     <div class="pkhead">
-      <div class="lbl flush wide">${adding ? `New pocket &middot; ${esc(e.title)}` : `${esc(pocketTitle(pk.slot))} &middot; ${esc(e.title)}`}</div>
-      ${tale ? '' : `<div class="pktabs">
+      <div class="lbl flush wide">${adding ? `New ${what} &middot; ${esc(e.title)}` : `${esc(pocketTitle(pk.slot))} &middot; ${esc(e.title)}`}</div>
+      <div class="pktabs">
         <button data-pockettab="write" aria-pressed="${pk.tab === 'write'}">Write it</button>
         <button data-pockettab="ask" aria-pressed="${pk.tab === 'ask'}">Ask Anansi</button>
-      </div>`}
+      </div>
     </div>
-    <div class="pkscroll scroll">${kinds}${pk.tab === 'ask' && !tale ? ask : write}</div>
+    <div class="pkscroll scroll">${kinds}${pk.tab === 'ask' ? ask : write}</div>
     <div class="pkfoot">
       <button class="btn ghost" data-pocketx="1">Cancel</button>
       <button class="btn" data-pocketsave="1">Save</button>
@@ -2585,7 +2602,7 @@ async function pocketAsk(web, anyway = false, t = null) {
     ? `${steer ? `${steer}\n\n` : ''}Rewrite this ${slotLabel(pk.slot)}, "${pk.name}". It reads now: ${pk.body}`
     : steer;
   const r = await whileWorking(t, web ? 'Looking it up…' : 'Writing…', () => api.invent(S.storyId,
-    { kind: pk.slot, entryId: pk.entryId, direction: direction || undefined, search: web,
+    { kind: pk.slot, entryId: pocketEntry(pk) ?? undefined, direction: direction || undefined, search: web,
       ...(anyway ? { weaveAnyway: true } : {}) }));
   if (!r || S.pocket !== pk) return;
   if (r.weaveFit) { weaveRefused(r, (a) => pocketAsk(web, a), 'pocket'); drawPocket(); return; }
@@ -4876,6 +4893,7 @@ const PANELS = {
    *  a row is the name, a line of the text and the pocket's own switch, and the name opens the pocket
    *  panel on it, which is where it is altered and removed. In play first, then set aside, then the
    *  ones tied off or let go, whose switch is how one reopens. A chalked string is a Workbench card.
+   *  #128 · A new one is added by the ＋ in the header, which opens the same panel to add.
    *
    *  Writer-facing by default: a string only reaches the model while it is on, because a model handed
    *  an unresolved promise reaches for it, and paying it off is the writer's move. F20 is the
@@ -4911,22 +4929,6 @@ const PANELS = {
       ${on.length ? on.map(row).join('') : '<div class="hint flush">Nothing in play.</div>'}
       ${off.length ? `<div class="lbl sect-rule">Set aside</div>${off.map(row).join('')}` : ''}
       ${done.length ? `<div class="lbl sect-rule">Tied off or let go</div>${done.map(row).join('')}` : ''}
-      <div class="lbl sect">A new string${
-        tipMark('strNew', 'A new string')}</div>
-      ${tipCard('strNew', 'A new string', `<p>Anansi chalks these too &mdash; they arrive under This
-        scene with everything else he offers.</p>`)}
-      <input class="field" data-st2="title" aria-label="What to call the promise"
-        placeholder="The letter he has not opened">
-      <textarea class="field" data-st2="body" aria-label="What was promised, and to whom"
-        placeholder="What was promised, and to whom"
-        style="min-height:52px; margin-top:6px"></textarea>
-      <div class="push-6 row-6">
-        <input class="field fill" data-st2="fromChapter" aria-label="The scene it was set up in"
-          value="${here}" placeholder="From scene">
-        <input class="field fill" data-st2="owedBy" aria-label="The scene it should be tied off by"
-          placeholder="Owed by scene">
-      </div>
-      <button class="btn push-8" data-newstring="1">Add the string</button>
     </div>`;
   },
 
@@ -11010,14 +11012,11 @@ document.addEventListener('click', async (e) => {
     syncHash(); paint();
     return;
   }
-  if (d.newstring) {
-    const get = (f) => document.querySelector(`[data-st2="${f}"]`)?.value?.trim();
-    if (!get('title')) return toast('A string needs something to call it.');
-    const r = await api.saveString(S.storyId, { title: get('title'), body: get('body'),
-      fromChapter: Number(get('fromChapter')) || null, owedBy: Number(get('owedBy')) || null });
-    if (r.error) return toast(r.error);
-    V = await api.story(S.storyId, V.currentChapter.id); paint();
-    return toast('Added, set aside. Switch it on to put it in play.');
+  // #128 · ＋ ON STRINGS: the pocket panel, to add, on the tale's own thread (or its stand-in while the
+  // tale has none; Save makes it). Its kinds are the tale's: promise and open question.
+  if (d.stringnew) {
+    openPocket(V?.taleThread?.id ?? TALE_NEW); paint(); $('pk-name')?.focus?.();
+    return;
   }
   if (d.summon) {
     const x = (V.strings ?? []).find((s2) => s2.id === d.summon);
@@ -11262,13 +11261,19 @@ document.addEventListener('click', async (e) => {
     if (!pk.slot) return toast('Pick what you are adding first.');
     if (!name) return toast('A pocket needs a name.');
     if (!body) return toast('A pocket needs something in it.');
-    const r = await api.saveAddon(S.storyId, pk.entryId, { ...(pk.id ? { id: pk.id } : {}), slot: pk.slot,
-      name, body, keys: keysFrom(pk.keys.split(',')) });
+    // #128 · A string: a promise carries the scene it is owed by, and a new one the scene it was set up
+    // in, the one being written (what the old add form on Strings filled in).
+    const isString = pocketThread()?.entryType === 'tale';
+    const r = await api.saveAddon(S.storyId, pocketEntry(pk), { ...(pk.id ? { id: pk.id } : {}), slot: pk.slot,
+      name, body, keys: keysFrom(pk.keys.split(',')),
+      ...(isString && pk.slot === 'promise' ? { owedBy: Number(pk.owed) || null } : {}),
+      ...(isString && !pk.id ? { fromChapter: V.currentChapter?.index ?? null } : {}) });
     if (r.error) return toast(r.error);
     S.pocket = null;
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest();
-    return toast(pk.id ? 'Saved.' : pk.slot === 'outfit' ? 'Added, unworn.' : 'Added. Switch it on from the list.');
+    return toast(pk.id ? 'Saved.' : pk.slot === 'outfit' ? 'Added, unworn.'
+      : isString ? 'Added, set aside. Switch it on to put it in play.' : 'Added. Switch it on from the list.');
   }
   if (d.pocketdel) {
     if (!armed(t, 'pocketdel:' + d.pocketdel, 'Press again to remove this pocket.')) return;

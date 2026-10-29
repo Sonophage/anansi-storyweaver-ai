@@ -6878,14 +6878,38 @@ const hemCardOf = (side: string) => {
     assert.match(p, /id="pk-name" value="The letter he has not opened"/, 'STRINGS-PANEL: a row opens the pocket panel on the string');
     assert.match(p, /Promise &middot; The tale/, "  as a promise of the tale's thread");
     assert.doesNotMatch(p, /id="pk-keys"/, '  with no wake words: a string is sent while it is on');
-    assert.doesNotMatch(p, /data-pockettab="ask"/, '  and no Ask Anansi, which writes the pockets of threads');
+    assert.match(p, /id="pk-owed"[^>]*value="4"/, '  with the scene a promise is owed by');
     typeIn('pk-body', 'Sent by his brother, and sealed.');
     POSTED.length = 0;
     click({ pocketsave: '1' }); await wait();
     assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body, { storyId: 's-1', entryId: 'e-tale',
-      addon: { id: 'st-1', slot: 'promise', name: 'The letter he has not opened', body: 'Sent by his brother, and sealed.', keys: [] } },
+      addon: { id: 'st-1', slot: 'promise', name: 'The letter he has not opened', body: 'Sent by his brother, and sealed.', keys: [],
+        owedBy: 4 } },
       "STRINGS-SAVE: Save sends the string as a pocket of the tale's thread");
     ok('a string opens in the pocket panel, and Save sends it as a pocket of the tale');
+
+    // #128 · ASK ANANSI FOR A STRING: his rewrite of one the tale has is a diff, with Use this.
+    click({ editroom: 'st-1' }); await wait();
+    assert.match(html('pocketPanel'), /data-pockettab="ask"/, 'STRINGS-ASK: a string has Ask Anansi');
+    click({ pockettab: 'ask' }); await wait();
+    const askTab = html('pocketPanel');
+    assert.match(askTab, /data-pocketask="write"[^>]*>Write it again/, '  with a rewrite');
+    assert.doesNotMatch(askTab, /data-pocketask="web"/, '  and no Look it up online: a string is the tale\'s own');
+    typeIn('pk-steer', 'sealed');
+    stubInvent = { addon: { slot: 'promise', name: LETTER.name, body: 'Sent by his brother, sealed in black wax.', keys: [] } };
+    POSTED.length = 0;
+    try { click({ pocketask: 'write' }); await wait(); } finally { stubInvent = null; }
+    const sent = POSTED.find((x) => x.url === '/api/invent')?.body;
+    assert.strictEqual(sent?.kind, 'promise', 'STRINGS-ASK: the invent call, for the string\'s kind');
+    assert.strictEqual(sent?.entryId, 'e-tale', "  on the tale's thread");
+    assert.match(String(sent?.direction), /^sealed[\s\S]*Sent by his brother/, '  with the steer and the text it rewrites');
+    const offer = html('pocketPanel');
+    assert.match(offer, /<div class="diff">[\s\S]*<ins>[^<]*black wax/, 'STRINGS-ASK-DIFF: his rewrite is a diff against the string');
+    click({ pocketuse: '1' }); await wait();
+    assert.match(html('pocketPanel'), /id="pk-body"[^>]*>Sent by his brother, sealed in black wax\.<\/textarea>/,
+      'STRINGS-ASK-USE: Use this fills the box');
+    click({ pocketx: '1' }); click({ pocketx: '1' }); await wait();
+    ok("Ask Anansi rewrites a string as a diff, and Use this fills the box");
 
     click({ panel: 'waiting' }); await wait();
     const w = html('sideBody');
@@ -6913,6 +6937,68 @@ const hemCardOf = (side: string) => {
     ok("where a string stands now is a diff on the Workbench, sewn in its string's place");
   } finally {
     (STORY as any).taleThread = was.tale; STORY.strings = was.strings; STORY.proposals = was.proposals;
+    click({ open: 's-1' }); await wait();
+  }
+}
+
+// ---- #128 · ＋ ON STRINGS OPENS THE POCKET PANEL ON THE TALE'S THREAD, with promise or open question to
+// choose, and Ask Anansi writes one. The old add form is gone. A tale with no thread of its own yet
+// still adds one: Save names no thread, and the server makes the tale's.
+{
+  const wait = () => new Promise((r) => setTimeout(r, 40));
+  const was = { tale: (STORY as any).taleThread, strings: STORY.strings };
+  try {
+    (STORY as any).taleThread = null; STORY.strings = [] as any;
+    click({ open: 's-1' }); await wait();
+    click({ panel: 'strings' }); await wait();
+    assert.match(html('sideHead'), /data-stringnew="1"/, 'STRINGS-PLUS: the Strings screen has a ＋');
+    const list = html('sideBody');
+    assert.doesNotMatch(list, /data-newstring=|data-st2=/, 'STRINGS-NO-FORM: the old add form is gone');
+    click({ stringnew: '1' }); await wait();
+    const add = html('pocketPanel');
+    assert.match(add, /role="dialog"/, 'STRINGS-PLUS: ＋ opens the pocket panel');
+    assert.match(add, /New string &middot; The tale/, "  on the tale's thread");
+    const kinds = [...add.matchAll(/data-pocketkind="(\w+)"/g)].map((m) => m[1]);
+    assert.deepStrictEqual(kinds, ['promise', 'question'], `STRINGS-KINDS: promise or open question, and nothing else (${kinds})`);
+    assert.match(add, /data-pocketkind="question"[^>]*>Open question</, '  named as the writer reads them');
+    click({ pocketkind: 'question' }); await wait();
+    assert.doesNotMatch(html('pocketPanel'), /id="pk-owed"/, 'STRINGS-OWED: an open question is owed by no scene');
+
+    // ASK ANANSI TO WRITE ONE: his answer fills Write it.
+    click({ pockettab: 'ask' }); await wait();
+    assert.match(html('pocketPanel'), /data-pocketask="write"[^>]*>Write one for me/, 'STRINGS-ASK-NEW: Write one for me');
+    stubInvent = { addon: { slot: 'question', name: 'Who opened the sluice', body: 'Nobody will say.', keys: [] } };
+    POSTED.length = 0;
+    try { click({ pocketask: 'write' }); await wait(); } finally { stubInvent = null; }
+    const sent = POSTED.find((x) => x.url === '/api/invent')?.body;
+    assert.strictEqual(sent?.kind, 'question', 'STRINGS-ASK-NEW: asks for the kind chosen');
+    assert.ok(!sent?.entryId, '  naming no thread, as the tale has none yet');
+    assert.match(html('pocketPanel'), /id="pk-name" value="Who opened the sluice"/, '  and his answer fills Write it');
+
+    POSTED.length = 0;
+    click({ pocketsave: '1' }); await wait();
+    assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body, { storyId: 's-1', entryId: null,
+      addon: { slot: 'question', name: 'Who opened the sluice', body: 'Nobody will say.', keys: [],
+        fromChapter: STORY.currentChapter.index } },
+      "STRINGS-SAVE-NEW: Save sends a new string, set up this scene, for the tale's thread the server makes");
+    ok("＋ on Strings opens the pocket panel with promise or open question, and Ask Anansi writes one");
+
+    // A PROMISE, on a tale that has its thread: the thread is named, and owed by rides with it.
+    (STORY as any).taleThread = { id: 'e-tale', title: 'The tale', body: '', entryType: 'tale', keys: [], states: [],
+      nowStateId: null, addons: [] };
+    click({ open: 's-1' }); await wait();
+    click({ panel: 'strings' }); await wait();
+    click({ stringnew: '1' }); click({ pocketkind: 'promise' }); await wait();
+    typeIn('pk-name', 'The mill debt'); typeIn('pk-body', 'Owed to the weir-warden since spring.'); typeIn('pk-owed', '5');
+    POSTED.length = 0;
+    click({ pocketsave: '1' }); await wait();
+    assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body, { storyId: 's-1', entryId: 'e-tale',
+      addon: { slot: 'promise', name: 'The mill debt', body: 'Owed to the weir-warden since spring.', keys: [],
+        owedBy: 5, fromChapter: STORY.currentChapter.index } },
+      "STRINGS-SAVE-PROMISE: a promise is saved on the tale's thread with the scene it is owed by");
+    ok("a new promise is saved on the tale's thread with the scene it is owed by");
+  } finally {
+    (STORY as any).taleThread = was.tale; STORY.strings = was.strings;
     click({ open: 's-1' }); await wait();
   }
 }
