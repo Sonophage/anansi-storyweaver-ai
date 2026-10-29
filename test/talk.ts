@@ -504,7 +504,7 @@ ok('a kind that does not exist is refused rather than assembled');
     + 'place to forget to look');
   assert.strictEqual(db.stringsOf(story.id).length, 0, 'nothing is a string until it is accepted');
 
-  // Accepting one makes a STRING, not an entry. They are different tables on purpose.
+  // Sewing one in makes a STRING, not an entry of the cast: a pocket of the tale's thread (#127).
   const before = db.entriesOf(story.id).length;
   await routes['POST /api/proposal']({ body: { storyId: story.id, id: p.id, accept: true },
     query: new URLSearchParams(), owner: me,
@@ -513,9 +513,10 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.strictEqual(made.length, 1, 'accepting it ties the string');
   assert.strictEqual(made[0].title, 'The letter he has not opened');
   assert.strictEqual(made[0].from_chapter, 6, 'carrying the chapter it was set up in');
-  assert.strictEqual(made[0].summoned, 0, 'and out of play, like every string');
+  assert.strictEqual(made[0].summoned, 1, "STRING-SEWN-ON: and switched on: Sew it in puts it in play (ADR 0011)");
+  assert.strictEqual(made[0].kind, 'promise', '  as a promise');
   assert.strictEqual(db.entriesOf(story.id).length, before, 'and it is not an entry');
-  ok("Anansi's strings go to the proposals queue, and accepting one ties a string not an entry");
+  ok("Anansi's strings go to the proposals queue, and sewing one in adds it to the tale's thread, switched on");
 }
 
 // (6·0 was six assertions on the RELEASE prompt — what the release-notes writer had to leave out,

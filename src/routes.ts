@@ -4765,10 +4765,11 @@ export const routes: Record<string, Handler> = {
         const at = Number(JSON.parse(p.keys || '[]')[0]);
         if (p.entry_id && Number.isInteger(at) && at > 0) db.setRetired(p.story_id, p.entry_id, at);
       } else if (c.body.accept && target === 'string') {
-        // A string is not an entry, so accepting one makes a string. The chapter it was set up in
+        // A string is not a thread of the cast, so sewing one in makes a string: a pocket of the tale's
+        // thread, switched on (#127, ADR 0011: Sew it in puts it in play). The chapter it was set up in
         // rides in `keys`, which is the only field on a proposal with room for it.
         db.upsertString(p.story_id, { title: p.title, body: c.body.body ?? p.body,
-          fromChapter: Number(JSON.parse(p.keys || '[]')[0]) || null });
+          fromChapter: Number(JSON.parse(p.keys || '[]')[0]) || null, summoned: true });
       } else if (c.body.accept && target === 'room:facts' && p.kind !== 'tidy'
         && alwaysTrue((bookOf(p.story_id)?.entries ?? []).find((x: any) => x.id === p.entry_id) ?? {} as any)) {
         // #77 · THE LOCK: see `lockToOverTime`. #73: only while the thread HAS an Always true; an
