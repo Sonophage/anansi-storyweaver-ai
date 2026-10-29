@@ -18,6 +18,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-28 · A new tale starts at its opening
 
+### Change what a string is, and where it stands
+Open a string and the box now shows what it is, a Promise or an Open question, and you can
+change it: pick the other one and Save. It is the same string, and its history stays with it. An
+open question is not owed by any scene, so a promise made a question loses the scene it was owed
+by. Under that are four choices for where it stands: In play, Set aside, Tied off and Let go. Each
+works at once, the same as the buttons on the Workbench, and Strings and the tale's page show
+the change straight away. You can also ask Talk to make a string a promise or an open question,
+and Undo puts it back the way it was.
+
 ### Your strings are on the tale's own page
 Open the tale's own thread, the first card in Threads, and under Rules you now find its Promises
 and its Open questions. Each is listed as it is under Strings: its name, a line of it, and its
