@@ -935,7 +935,7 @@ ok('a kind that does not exist is refused rather than assembled');
     ['the premise', /premise is ONE paragraph/],
     ['the setting', /setting is \w+ to \w+ sentences/],
     // (the character length band moved to CAST with the cast itself — asserted below)
-    ['the voice', /a hundred words or so, not a label/],
+    ['the voice', /One rule per line, eight to\s+twelve lines/],
   ] as const) assert.match(SPARK, re,
     `${what} needs a length worth filling, or the model gives it a line`);
   // THE FLOOR PARAGRAPH IS GONE (ADR 0009, 2026-10-28). It said every band was a floor as much as
@@ -946,7 +946,12 @@ ok('a kind that does not exist is refused rather than assembled');
     'SPARK-NO-FLOOR: nothing in the spark pushes the fields to run long');
   for (const [what, re] of [
     ['a premise is not a blurb', /not a\s+blurb\.\s+No marketing language, no rhetorical questions/],
-    ['the voice describes prose, not genre', /description of PROSE/],
+    // 2026-10-29: the voice came back as a description ("<how the sentences run>; …"), and F37 is
+    // what a description buys: a rule buried in a run-on line holds a fraction as well as one on its
+    // own line naming narration. It is asked for as instructions now, one per line.
+    ['the voice is instructions, one per line, naming narration', /write it as\s+instructions, not a\s+description/],
+    ['the voice names narration on the lines about it', /says "Narration"/],
+    ['the genre is the shelf, not the category', /the\s+shelf a bookshop would put it\s+on/],
     ['spice is inferred, 2 with no signal', /use 2 when there is no signal/],
     ['genre is two or three comma-separated tags', /comma-separated list of two or three tags/],
   ] as const) assert.match(SPARK, re, `${what} — kept from the version this replaced`);

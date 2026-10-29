@@ -678,6 +678,14 @@ No marketing language, no rhetorical questions.`;
  *  place, and the weather, the light and the time come back as `opensWith`, which Create writes to
  *  scene 1's Opens with: sent only until that scene has prose, the right lifetime for a moment.
  *  NOT MEASURED: no control run says the model writes a setting free of the moment more often. */
+/** 2026-10-29 · THE VOICE IS INSTRUCTIONS, AND THE GENRE IS THE SHELF (Seth: "update the wizard so
+ *  when doing genre and voice it writes it like this", after Starlight Deception's voice was rewritten
+ *  by hand). The voice came back as a description in the shape "<how the sentences run>; <what
+ *  carries the feeling>; <what the narration never states>", and F37 measured what a rule buried in
+ *  a run-on line buys against the same rule on its own line naming narration. It asks for one
+ *  instruction per line now, covering the craft the hand-written voice covered. The genre asked
+ *  only for "two or three tags" and came back as the category ("Romance, Drama"); it asks for the
+ *  subgenre. NOT MEASURED: no control run says the prose reads better for either. */
 export const SPARK =
 `Turn this idea into a story skeleton.
 
@@ -705,12 +713,28 @@ The opening moment is one or two sentences: the weather, the light and the time 
 opens, and where in the place it opens. It is read only until the first passage is written.
 Shape: "<where in the place>, <the time>; <the weather>, <the light>."
 
-The writing style is the voice of the weave, and a model has to be able to match it from what you
-write — so a hundred words or so, not a label. Say how the sentences run and how long they are,
-what the narration notices and what it will not say outright, how much dialogue there is, what the
-tense and the distance are. It is a description of PROSE, in the shape "<how the sentences run>; <what carries
-the feeling>; <what the narration never states>", never a genre label, which is no use here. The
-angle brackets are never written.
+The genre is the shelf a bookshop would put it on, not the category: as specific as the idea
+allows, in Title Case. Shape: "<the subgenre>, <a second subgenre or mode>, <what kind of drama or
+world it is>". The angle brackets are never written.
+
+The writing style is the voice of the weave. It is read before every passage, so write it as
+instructions, not a description. One rule per line, eight to twelve lines, with no bullets, numbers
+or headings. Every line about narration says "Narration" so it is never read as a rule for dialogue.
+Fit each line to THIS book's genre and to the one it follows, named by what they are rather than by
+a name. Between them the lines say:
+  whose head the narration sits in, and how it sounds like them (not the tense or the person: the
+    point of view says that);
+  whether narration uses contractions;
+  that narration shows a feeling in what someone does, notices or holds back, and never names it;
+  which stock reactions this genre leans on, named as kinds, and that narration avoids them;
+  that narration picks one exact, concrete detail over a row of adjectives;
+  how sentence length moves with the tension;
+  what the dialogue carries in this genre, and how the leads talk to each other;
+  how slowly this genre's central pull builds (desire, dread, a mystery), and what each scene holds back;
+  how what the spice level allows is written: on the page, in the same voice, about these people;
+  what a passage ends on: an action, a line of dialogue or an image, never a summary.
+Shape of one line: "Narration <does what>: <how, for this book>." Never a genre label, and never a
+sentence of the book's prose. The angle brackets are never written.
 
 Infer the spice level from the idea; use 2 when there is no signal.`;
 
@@ -1049,7 +1073,8 @@ replacing. Return the replacement text and nothing else.
 The rules for the field you are writing are the same ones the skeleton was written under:
 
   title    a real title, not a description of the book. No subtitle, no colon.
-  genre    two or three tags, comma separated, lowercase.
+  genre    two or three tags, comma separated, in Title Case: the shelf a bookshop would put it on,
+           as specific as the book allows, not the broad category.
   premise  as below.
 
 ${PREMISE_FORM}

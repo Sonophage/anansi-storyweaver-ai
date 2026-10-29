@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### New tale writes a voice Anansi can follow, and a sharper genre
+When New tale suggests a voice for your book, it now writes it as a list of rules, one per line,
+instead of a paragraph describing the prose: what the narration sounds like, what it never names,
+which tired phrases it avoids, how dialogue and the slow build work in this genre, and what a passage
+ends on. Rules on their own lines are the ones the model keeps to. The genre it suggests is now the
+shelf a bookshop would use, not the broad category.
+
 ### Direct no longer asks for a rewrite
 The instruction Direct sends now opens **Write what happens next, based on this:** instead of "Re
 write what happens based on this:". Some Featherless models read "Re write" literally and gave back
