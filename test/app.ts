@@ -1969,14 +1969,15 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     { id: 's-3', title: 'Put Away', status: 'archived', proposed: 9, unpaid: 9 },
   ];
   const w = waiting(shelf);
-  assert.deepStrictEqual(w.map((x: any) => x.label),
-    ['5 threads chalked', '2 strings not tied off'],
-    'it counts across books, and says one thread rather than one threads');
+  // Open strings are not waiting on anyone (2026-10-29): only chalked threads light the glow.
+  assert.deepStrictEqual(w.map((x: any) => x.label), ['5 threads chalked'],
+    'GLOW-NO-STRINGS: it counts chalked threads across books, and not open strings');
+  assert.deepStrictEqual(waiting([{ id: 's', title: 'x', status: 'in_progress', proposed: 0, unpaid: 3 }] as any), [],
+    'GLOW-NO-STRINGS: a tale with only strings in play owes nothing');
 
   // One press has to go where the work is. Sending you to a list of places the work might be is
   // the thing this replaces.
   assert.strictEqual(w[0].storyTitle, 'The Salt Ledger', 'the book with the most of them wins the link');
-  assert.strictEqual(w[1].storyTitle, 'Sutera', 'and each kind is judged on its own count');
 
   // Archiving is the act that means stop showing me this. A strip that then nags about its unpaid
   // promises has not listened — nine of each are in the archived book and none of them are counted.
@@ -2023,7 +2024,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   const out = w(rows);
   assert.ok(!out.some((x: any) => x.storyId === 's-w'),
     'the waiting strip never points at a world book, even when it carries the higher count');
-  assert.deepStrictEqual(out.map((x: any) => x.total), [1, 1],
+  assert.deepStrictEqual(out.map((x: any) => x.total), [1],
     "and the world book's nine of each are not added in");
   ok('a world book is not counted as a book with work waiting in it');
 }

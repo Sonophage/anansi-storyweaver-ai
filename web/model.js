@@ -103,9 +103,9 @@ export const waiting = (list, me = null) => {
       storyId: mine[0].id, storyTitle: mine[0].title,
       label: mine.length === 1 ? `your move in ${mine[0].title}` : `your move in ${mine.length} tales` } : null,
     kind('proposed', 'thread chalked', 'threads chalked', 'chapter'),
-    kind('unpaid', 'string not tied off', 'strings not tied off', 'strings'),
-    // Proposals and unpaid promises, because both are work the writer asked for and has not been
-    // handed back yet.
+    // CHALKED THREADS ONLY, not open strings (Seth, 2026-10-29: "why is there a glowing line at the
+    // top of my screen if there's nothing in my workbench?"). A string in play is part of the tale,
+    // not something waiting on the writer, and since 0afb91d it is not a Workbench card either.
   ].filter(Boolean);
 };
 
