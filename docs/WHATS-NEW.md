@@ -18,6 +18,10 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Reading mode keeps the spacing you write with
+In reading mode the passages sat closer together than while you write, because the label over each
+passage was taken away with the space it used. The label is still hidden while you read, but its
+space stays, so the page is spaced the same in both.
 ### Every passage is set in the same type
 Lines of speech were set in a smaller size and a different font from the narration around them, and
 a passage that opened on a quote changed font with it. Now every passage is set in your reading

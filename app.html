@@ -864,7 +864,12 @@ html[data-ui-font="serif"] :is(.narr, .said) em { font-style:normal; }
   color:var(--m, var(--label)); opacity:.9; }
 .from i { width:5px; height:5px; border-radius:50%; flex:0 0 auto;
   background:var(--m, var(--label)); }
-html[data-reading="1"] .from { display:none; }
+/* HIDDEN WHILE READING, BUT ITS ROOM STAYS. Seth, 2026-10-29: "The spacing between paragraphs in
+   edit and non-edit or reading mode is different; let's use the spacing in edit mode." The chip
+   was `display:none` here, which took its line, its 7px margin and the block's 10px gap out of
+   every passage, so passages sat closer while reading than while writing. `visibility` keeps
+   the box and hides what is in it. test/web.ts refuses a reading rule that changes a passage's box. */
+html[data-reading="1"] .from { visibility:hidden; }
 /* Where a search result put you. Fades on its own after a few seconds — a permanent mark on
    whatever you last looked for turns into furniture you stop seeing. */
 .block.found { animation: found 6s ease-out forwards; border-radius:var(--r); }

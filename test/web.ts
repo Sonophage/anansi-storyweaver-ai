@@ -442,6 +442,33 @@ const ok = (m: string, fn?: unknown) => {
     ok(`speech and narration share one face, and no press or author changes it (${rules.length} rules read)`);
   }
 
+  /* READING MODE KEEPS THE WRITING VIEW'S SPACING. Seth, 2026-10-29: "The spacing between paragraphs
+   * in edit and non-edit or reading mode is different; let's use the spacing in edit mode." Reading
+   * took the chip over each passage out with `display:none`, and with it the chip's line, its margin
+   * and the block's gap, so passages sat closer while reading than while writing. No reading rule whose
+   * target is a part of a passage, or the column that holds them, may now change its box. The
+   * target is the LAST compound of the selector, so a rule for the tray inside a block (`.acts`)
+   * is not read as one for the block. */
+  {
+    const html = read('app.html');
+    const sheet = (/<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');
+    const reading = [...sheet.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+      .map(([, sel, body]) => ({ sel: sel.trim(), body: body.trim() }))
+      .filter((r) => r.sel.includes('html[data-reading="1"]'));
+    assert.ok(reading.length >= 5, `expected the reading-mode rules to be read (${reading.length})`);
+    const PART = /^(?:#col|\.chap|\.block|\.narr|\.said|\.who|\.from|p)(?:[.:#[]|$)/;
+    const BOX = /(?:^|[;\s])(?:display|visibility:\s*collapse|margin[\w-]*|padding[\w-]*|gap|row-gap|line-height|font-size|height|min-height|max-height)\s*:/;
+    const moved = reading.flatMap((r) => r.sel.split(',').map((one) => ({ one: one.trim(), body: r.body })))
+      .filter(({ one }) => PART.test(one.split(/[\s>+~]+/).at(-1) ?? ''))
+      .filter(({ body }) => BOX.test(body))
+      .map(({ one, body }) => `${one} { ${body} }`);
+    assert.deepStrictEqual(moved, [], 'reading mode changes the spacing of the passages it shows');
+    // AND THE CHIP IS STILL HIDDEN while reading, by keeping its room rather than losing it.
+    assert.ok(reading.some((r) => /(?:^|\s)\.from$/.test(r.sel) && /visibility:\s*hidden/.test(r.body)),
+      'the chip over each passage is hidden while reading');
+    ok(`reading mode spaces the passages as the writing view does (${reading.length} reading rules read)`);
+  }
+
   const comments = (js.match(/<!--[\s\S]*?-->/g) ?? []).length;
   assert.ok(comments > 20, `expected the markup comments to be found (${comments})`);
   ok(`${comments} html comments in the markup, none carrying a backtick`);
