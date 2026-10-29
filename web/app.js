@@ -2643,6 +2643,37 @@ function taleNowBox() {
     <div class="note" data-talenow="1">${esc(now.body)}</div>
     <div class="hint flush">Written at each hem and sewn in from its card. Anansi reads this, not the premise.</div>` : '';
 }
+/** #129 · ONE STRING'S ROW, for the Strings screen and the tale's own thread page alike: its name and
+ *  kind, a line of its text, how long it has waited (or that it is tied off or let go), and the
+ *  pocket's own switch. The name opens the pocket panel on it. */
+function stringRow(x) {
+  const here = V.currentChapter.index;
+  const since = x.fromChapter ? here - x.fromChapter : null;
+  const late = x.status === 'open' && x.owedBy != null && here > x.owedBy;
+  const when = x.status !== 'open' ? (x.status === 'paid' ? 'tied off' : x.status === 'dropped' ? 'let go' : x.status)
+    : late ? `owed by ${x.owedBy}, and it is scene ${here}`
+    : since != null ? (since === 0 ? 'set up this scene' : `${since} ${since === 1 ? 'scene' : 'scenes'} ago`) : '';
+  return `<div class="pocketrow${x.summoned ? ' lit' : ''}">
+    <button class="pocketopen" data-editroom="${esc(x.id)}" aria-label="Open ${esc(x.title)}">
+      <span class="pkname">${esc(x.title)} <span class="faded">&middot; ${esc(slotLabel(x.kind ?? 'promise'))}</span></span>
+      <span class="pkline">${esc(String(x.body ?? '').split('\n')[0])}</span>
+      ${when ? `<span class="pkline" style="color:${late ? 'var(--bad)' : 'var(--faint)'}">${esc(when)}</span>` : ''}</button>
+    <button data-addonon="${esc(x.id)}:${x.summoned ? '0' : '1'}" class="tag pocketsw" aria-pressed="${!!x.summoned}"
+      aria-label="${esc(x.title)} is ${x.summoned ? 'on. Tap to set it aside' : x.status === 'open'
+        ? 'off. Tap to put it in play' : `${x.status === 'paid' ? 'tied off' : 'let go'}. Tap to reopen it`}"
+      >${x.summoned ? 'On' : 'Off'}</button></div>`;
+}
+/** #129 · A LIST OF STRINGS, in the one order: in play, then set aside, then the ones tied off or let
+ *  go, whose switch is how one reopens. `none` is what an empty list says. */
+function stringList(all, none) {
+  if (!all.length) return none;
+  const on = all.filter((x) => x.status === 'open' && x.summoned);
+  const off = all.filter((x) => x.status === 'open' && !x.summoned);
+  const done = all.filter((x) => x.status !== 'open');
+  return `${on.length ? on.map(stringRow).join('') : '<div class="hint flush">Nothing in play.</div>'}
+    ${off.length ? `<div class="lbl sect-rule">Set aside</div>${off.map(stringRow).join('')}` : ''}
+    ${done.length ? `<div class="lbl sect-rule">Tied off or let go</div>${done.map(stringRow).join('')}` : ''}`;
+}
 function taleThread() {
   const st = V.story;
   const rules = (V.entries ?? []).filter((e) => e.entryType === 'rule');
@@ -2666,6 +2697,16 @@ function taleThread() {
     <div class="hint lead-6">The laws this tale obeys. Each is sent always, or when one of its wake words comes up.</div>
     <div class="stack-roomy">${rules.map((e) => threadPlate(e, inContext(e, pin, mani))).join('')}</div>
     <button class="btn ghost push-8" data-newrule="1">+ Add a rule</button>
+    ${/* #129 · THE TALE'S STRINGS, which are pockets of this thread (ADR 0011): one list per kind, each
+          drawn as the Strings screen draws it. */
+      [['promise', 'Promises', 'What the tale has set up and owes the reader.', 'No promises yet.'],
+       ['question', 'Open questions', 'What the tale has asked and not yet answered.', 'No open questions yet.']]
+        .map(([k, head, hint, none]) => {
+          const xs = (V.strings ?? []).filter((x) => (x.kind ?? 'promise') === k);
+          return `<div class="lbl sect">${head} &middot; <span class="tnum">${xs.length}</span></div>
+    <div class="hint lead-6">${hint} Each is sent while it is on.</div>
+    <div class="stack">${stringList(xs, `<div class="hint flush">${none}</div>`)}</div>`;
+        }).join('')}
     <div class="lbl sect">Your own</div>
     <div class="hint lead-6">Anything else for the whole tale, as an instruction: "keep it a slow burn",
       "the narrator never names him". Sent while it is on.</div>
@@ -4900,36 +4941,11 @@ const PANELS = {
    *  precedent — restating canon near the generation point measured at nothing over 850 generations
    *  an arm, and a standing list of open promises is that idea in a new coat. */
   strings() {
-    const all = V.strings ?? [];
-    const here = V.currentChapter.index;
-    const row = (x) => {
-      const since = x.fromChapter ? here - x.fromChapter : null;
-      const late = x.status === 'open' && x.owedBy != null && here > x.owedBy;
-      const when = x.status !== 'open' ? (x.status === 'paid' ? 'tied off' : x.status === 'dropped' ? 'let go' : x.status)
-        : late ? `owed by ${x.owedBy}, and it is scene ${here}`
-        : since != null ? (since === 0 ? 'set up this scene' : `${since} ${since === 1 ? 'scene' : 'scenes'} ago`) : '';
-      return `<div class="pocketrow${x.summoned ? ' lit' : ''}">
-        <button class="pocketopen" data-editroom="${esc(x.id)}" aria-label="Open ${esc(x.title)}">
-          <span class="pkname">${esc(x.title)} <span class="faded">&middot; ${esc(slotLabel(x.kind ?? 'promise'))}</span></span>
-          <span class="pkline">${esc(String(x.body ?? '').split('\n')[0])}</span>
-          ${when ? `<span class="pkline" style="color:${late ? 'var(--bad)' : 'var(--faint)'}">${esc(when)}</span>` : ''}</button>
-        <button data-addonon="${esc(x.id)}:${x.summoned ? '0' : '1'}" class="tag pocketsw" aria-pressed="${!!x.summoned}"
-          aria-label="${esc(x.title)} is ${x.summoned ? 'on. Tap to set it aside' : x.status === 'open'
-            ? 'off. Tap to put it in play' : `${x.status === 'paid' ? 'tied off' : 'let go'}. Tap to reopen it`}"
-          >${x.summoned ? 'On' : 'Off'}</button></div>`;
-    };
-    const on = all.filter((x) => x.status === 'open' && x.summoned);
-    const off = all.filter((x) => x.status === 'open' && !x.summoned);
-    const done = all.filter((x) => x.status !== 'open');
     /* THE INTRO CAME OUT for the same reason as Anansi's: it restated web/help.js under this
        panel's own mark almost sentence for sentence — what a string is, that it is yours until you
        put one in play, and that in play the model is told what is owed rather than told to pay it.
        The web is the copy with a test binding it to a slug in both directions. */
-    return `<div class="stack">
-      ${on.length ? on.map(row).join('') : '<div class="hint flush">Nothing in play.</div>'}
-      ${off.length ? `<div class="lbl sect-rule">Set aside</div>${off.map(row).join('')}` : ''}
-      ${done.length ? `<div class="lbl sect-rule">Tied off or let go</div>${done.map(row).join('')}` : ''}
-    </div>`;
+    return `<div class="stack">${stringList(V.strings ?? [], '<div class="hint flush">Nothing in play.</div>')}</div>`;
   },
 
   search() {

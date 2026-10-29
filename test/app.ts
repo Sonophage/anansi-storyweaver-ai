@@ -7003,4 +7003,55 @@ const hemCardOf = (side: string) => {
   }
 }
 
+// ---- #129 · THE TALE'S OWN THREAD PAGE LISTS ITS STRINGS: Promises and Open questions under Rules, each
+// row the one the Strings screen draws, the open ones before those tied off or let go.
+{
+  const wait = () => new Promise((r) => setTimeout(r, 40));
+  const was = { tale: (STORY as any).taleThread, strings: STORY.strings };
+  const st = (id: string, kind: string, title: string, status: string, summoned: boolean) =>
+    ({ id, title, body: `${title}, the line`, fromChapter: 1, owedBy: null, status, summoned, kind });
+  const pockets = (STORY as any).taleThread = { id: 'e-tale', title: 'The tale', body: '', entryType: 'tale', keys: [],
+    states: [], nowStateId: null, addons: [] };
+  STORY.strings = [
+    st('p-done', 'promise', 'The paid debt', 'paid', false),
+    st('p-on', 'promise', 'The letter', 'open', true),
+    st('p-off', 'promise', 'The ferry fare', 'open', false),
+    st('q-on', 'question', 'Who opened the sluice', 'open', true),
+    st('q-gone', 'question', 'Where the dog went', 'dropped', false),
+  ] as any;
+  pockets.addons = STORY.strings.map((x: any) => ({ id: x.id, slot: x.kind, name: x.title, body: x.body, keys: [] }));
+  // The one row of a string, as a page draws it: from its pocketrow div to the end of its switch.
+  const rowOf = (page: string, id: string) => page.match(new RegExp(
+    `<div class="pocketrow[^"]*">\\s*<button class="pocketopen" data-editroom="${id}"[\\s\\S]*?</button></div>`))?.[0];
+  try {
+    click({ open: 's-1' }); await wait();
+    click({ taleopen: '1' }); await wait();
+    const page = html('sideBody');
+    const rules = page.indexOf('data-newrule='), prom = page.indexOf('>Promises'), ques = page.indexOf('>Open questions');
+    assert.ok(rules > 0 && prom > rules && ques > prom, `TALE-STRINGS: Promises, then Open questions, under Rules (${rules}, ${prom}, ${ques})`);
+    const promises = page.slice(prom, ques), questions = page.slice(ques);
+    const order = (s: string) => [...s.matchAll(/data-editroom="([\w-]+)"/g)].map((m) => m[1]);
+    assert.deepStrictEqual(order(promises), ['p-on', 'p-off', 'p-done'],
+      'TALE-PROMISES: the promises, in play then set aside, then the one tied off');
+    assert.match(promises.slice(promises.indexOf('data-editroom="p-off"')), /Tied off or let go[\s\S]*data-editroom="p-done"/,
+      '  under its own heading');
+    assert.deepStrictEqual(order(questions).filter((x) => x.startsWith('q')), ['q-on', 'q-gone'],
+      'TALE-QUESTIONS: the open questions, the one let go after the open one');
+    click({ editroom: 'p-off' }); await wait();
+    assert.match(html('pocketPanel'), /id="pk-name" value="The ferry fare"/, 'TALE-OPEN: a row opens the pocket panel on it');
+    click({ pocketx: '1' }); await wait();
+
+    click({ taleclose: '1' }); click({ panel: 'strings' }); await wait();
+    const screen = html('sideBody');
+    for (const id of ['p-on', 'p-done', 'q-gone']) {
+      assert.ok(rowOf(screen, id), `TALE-SAME: the Strings screen draws a row for ${id}`);
+      assert.strictEqual(rowOf(page, id), rowOf(screen, id), `TALE-SAME: the tale page draws ${id} as the Strings screen does`);
+    }
+    ok("the tale's own thread lists its promises and open questions, each row the Strings screen's, the open ones first");
+  } finally {
+    (STORY as any).taleThread = was.tale; STORY.strings = was.strings;
+    click({ open: 's-1' }); await wait();
+  }
+}
+
 console.log(`\n${n} checks passed`);
