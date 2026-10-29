@@ -1996,6 +1996,49 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   ok('a world book is not counted as a book with work waiting in it');
 }
 
+// ---- WHAT IS NEW ON THE WORKBENCH (Seth, 2026-10-29: "we need a notification in the header for when
+// the Workbench has new additions"). A card is new when any part of it was not on the Workbench the
+// last time the writer opened it. The cards are the shapes deckCards() makes: a chalked group keyed
+// by its joined ids, a hemmed scene by its scene, a string or an upkeep card by its own key.
+// THE MENU'S WORKBENCH COUNT IS THE WORKBENCH'S CARDS (Seth, 2026-10-29: "make the menu count match
+// the header"). It counted proposals one by one plus open strings, and left out hem and upkeep cards.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'waiting' });
+  await new Promise((r) => setTimeout(r, 30));
+  const cards = (html('sideBody').match(/data-deckcard="/g) ?? []).length;
+  const shown = Number((html('rail').match(/class="tnum navcount">(\d+)</) ?? [])[1] ?? 0);
+  assert.ok(cards > 0, `MENU-COUNT: the fixture has cards on the Workbench (${cards})`);
+  assert.strictEqual(shown, cards, `MENU-COUNT: the menu shows the Workbench's own card count (${shown} vs ${cards})`);
+  ok("the menu's Workbench count is the number of cards on the Workbench");
+}
+
+{
+  const { benchParts, benchUnseen } = await import('../web/model.js');
+  const cards: any[] = [
+    { kind: 'hem', key: 'scene:c1', ps: [{ id: 'p1' }] },
+    { kind: 'chalk', key: 'p2,p3,p4', ps: [{ id: 'p2' }, { id: 'p3' }, { id: 'p4' }] },
+    { kind: 'string', key: 's1' },
+    { kind: 'upkeep', key: 'stale:c2' },
+  ];
+  const seen = new Set(benchParts(cards));
+  assert.strictEqual(benchUnseen(cards, seen), 0, 'everything on the bench when it was opened is seen');
+  assert.strictEqual(benchUnseen(cards, new Set()), 4, 'and with nothing seen, every card is new');
+
+  // Sewing p2 in leaves a group keyed "p3,p4". That is not an addition, so it must not count.
+  const after = [cards[0], { kind: 'chalk', key: 'p3,p4', ps: [{ id: 'p3' }, { id: 'p4' }] }, cards[2], cards[3]];
+  assert.strictEqual(benchUnseen(after, seen), 0, 'a chalked group that lost a part is not new');
+
+  // A hemmed scene the writer saw while it ran, that has since chalked something, IS new.
+  const hemmed = [{ kind: 'hem', key: 'scene:c1', ps: [{ id: 'p1' }, { id: 'p9' }] }, ...cards.slice(1)];
+  assert.strictEqual(benchUnseen(hemmed, seen), 1, 'a hemmed scene with a new suggestion counts once');
+
+  const more = [...cards, { kind: 'string', key: 's2' }, { kind: 'chalk', key: 'p7', ps: [{ id: 'p7' }] }];
+  assert.strictEqual(benchUnseen(more, seen), 2, 'two cards added since the last look count as two');
+  ok('the Workbench mark counts the cards added since the writer last opened it');
+}
+
 // ---- PICKING A MODEL DOES NOT OPEN ITS PANEL UNDER THE MENU (2026-08-31). Seth: "when selecting a
 // model the option to select it and its information is hidden behind the menu to view the models."
 // The press comes from the rail's own list, and every `data-nav` row has closed the rail on overlay

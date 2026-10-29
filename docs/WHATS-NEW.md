@@ -25,6 +25,17 @@ its Always true, where it stands now, and its pockets. You see each part beside 
 that stays has now, and you can change any of it. Merge keeps it, and the other thread is deleted.
 Its wake words, scene pins, Over time, chalked changes and earlier versions move to the thread
 that stays. Cancel changes nothing.
+## 2026-10-29 · The header tells you when the Workbench has something new
+
+### The header tells you when the Workbench has something new
+When Anansi adds something to the Workbench (a suggestion, a string, a summary that needs writing
+again), a small Workbench mark with a number appears at the top of the screen, beside the menu
+button. The number is how many things were added since you last opened the Workbench. Tap it to open
+the Workbench, and the mark goes away. This device remembers what you have seen, tale by tale.
+
+### The Workbench number in the tale's menu sits beside its icon
+In the tale's menu, the Workbench number sat on its own line at the right edge, and made that row
+taller than the others. It is now beside the Workbench icon, and the icons and names line up again.
 
 ## 2026-10-28 · A new tale starts at its opening
 
