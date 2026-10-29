@@ -11277,15 +11277,20 @@ document.addEventListener('click', async (e) => {
     paint(); refreshManifest(); return;
   }
   if (d.saveaddon) {
-    const name = document.querySelector(`[data-an="${d.saveaddon}"]`)?.value.trim();
-    const body = document.querySelector(`[data-ab="${d.saveaddon}"]`)?.value.trim();
-    const keys = document.querySelector(`[data-ak="${d.saveaddon}"]`)?.value ?? '';
-    if (!name || !body) return toast('A pocket needs a name and something in it.');
     // The slot comes off the row that is already there rather than out of the form: it is not
     // editable and a card cannot move a room to another slot, so sending it would be sending a
     // value the writer never chose.
     const had = (V.entries.find((x) => x.id === S.entryId)?.addons ?? [])
       .find((a) => a.id === d.saveaddon);
+    // ALWAYS TRUE HAS NO NAME BOX (#77: not a pocket, no name, no switch, no wake words), so its
+    // name is the one it already has. Requiring the box made every Always true save refuse with
+    // "A pocket needs a name" (Seth, 2026-10-28).
+    const nameBox = document.querySelector(`[data-an="${d.saveaddon}"]`);
+    const name = nameBox ? nameBox.value.trim() : String(had?.name ?? had?.slot ?? '').trim();
+    const body = document.querySelector(`[data-ab="${d.saveaddon}"]`)?.value.trim();
+    const keys = document.querySelector(`[data-ak="${d.saveaddon}"]`)?.value ?? '';
+    if (!body) return toast(had?.slot === 'facts' ? 'Always true needs something in it.' : 'A pocket needs something in it.');
+    if (!name) return toast('A pocket needs a name.');
     // #75. Or one of the tale's own pockets, which hangs off no thread.
     const tale = !had && (V.talePockets ?? []).some((a) => a.id === d.saveaddon);
     const r = await api.saveAddon(S.storyId, tale ? null : S.entryId,

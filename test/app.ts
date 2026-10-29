@@ -1799,6 +1799,34 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   ok('a proposal shows what it will write, and an edit is what gets sent');
 }
 
+// ALWAYS TRUE SAVES WITHOUT A NAME BOX (Seth, 2026-10-28: "it's saying a pocket needs a name").
+// The Always true card draws no name field (#77), and the save read one and refused. A row with no
+// name box keeps the name it has; one with an empty body is still refused.
+{
+  click({ open: 's-1' });
+  await new Promise((r) => setTimeout(r, 40));
+  click({ panel: 'threads' });
+  click({ entry: 'e-1' });
+  await new Promise((r) => setTimeout(r, 30));
+  const doc = (globalThis as any).document;
+  const wasQS = doc.querySelector;
+  doc.querySelector = (sel: string) => sel === '[data-ab="a-on"]' ? { value: 'Flat, slower now.' } : null;
+  try {
+    POSTED.length = 0;
+    click({ saveaddon: 'a-on' });
+    await new Promise((r) => setTimeout(r, 60));
+    const sent = POSTED.find((x) => String(x.url).startsWith('/api/addon'));
+    assert.ok(sent, 'ALWAYS-TRUE-SAVE: a row with no name box saves');
+    assert.strictEqual(sent.body.addon?.name ?? sent.body.name, 'How she sounds', 'ALWAYS-TRUE-SAVE: and keeps the name it had');
+    doc.querySelector = (sel: string) => sel === '[data-ab="a-on"]' ? { value: '  ' } : null;
+    POSTED.length = 0;
+    click({ saveaddon: 'a-on' });
+    await new Promise((r) => setTimeout(r, 60));
+    assert.ok(!POSTED.some((x) => String(x.url).startsWith('/api/addon')), 'ALWAYS-TRUE-EMPTY: an empty one is not saved');
+  } finally { doc.querySelector = wasQS; }
+  ok('Always true saves with no name box, keeping its name');
+}
+
 // Nine themes, each one row, every token derived from it. Three hand-written CSS blocks is why
 // there were three: a new theme meant restating the greys, the gold and the chrome by hand, and
 // the light one that forgot rendered dark text on cream.
