@@ -526,7 +526,8 @@ let worldDown = 0;
     : url.startsWith('/api/me') ? { login: 'sonophage', name: 'Seth', avatar: null,
         featherless: { ready: false, file: '/home/x/.config/anansi/featherless-sonophage.key' } }
     : url.startsWith('/api/prompts') ? { defaults: { continue: 'Carry on.', speak: 'Say it.',
-        act: 'Do it.', direct: 'Make it happen.', narrate: 'Write it.', reweave: '' },
+        act: 'Do it.', direct: 'Make it happen.', narrate: 'Write it.',
+        reweave: '[REPLACED]\n{{replaced}}\n[END]\nWrite it anew.\n[Why: {{whatfailed}}]' },
         yours: {}, voice: { shipped: 'The shipped voice.', mine: null, inUse: 'The shipped voice.' },
         anansi: { shipped: 'Dry, brief.', mine: null, inUse: 'Dry, brief.' },
         library: { voice: [{ name: 'Noir', text: 'Wet streets. Nobody explains themselves.' }],
@@ -4562,7 +4563,9 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
 
 // ---- WHEN YOU REWEAVE (Seth, 2026-10-29: "under your account and writing I can't see reweave").
 // Account → Writing draws a sixth box after the five modes, and it saves and resets through the
-// same prompt route under the key `reweave`.
+// same prompt route under the key `reweave`. Since the later 2026-10-29 change ("The instruction you
+// have for how to reweave should be under Account → Writing in its box") the box IS the reweave
+// instruction: filled with the shipped wording, placeholders in, and the tip names both of them.
 {
   const doc = (globalThis as any).document;
   click({ railview: 'workspace' }); click({ nav: 'account' }); click({ accttab: 'writing' });
@@ -4580,10 +4583,17 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
   const open = html('page');
   assert.match(open, /data-saveprompt="reweave"/, 'opened, it can be saved');
   assert.match(open, /data-resetprompt="reweave"/, 'and reset');
-  assert.match(open, /Added after the passage's own\s+instruction/,
-    'and it says the line is added after the passage\'s own instruction, not in place of it');
+  assert.match(open, /<textarea[^>]*data-prompttext[^>]*>\[REPLACED\]\n\{\{replaced\}\}\n\[END\]\nWrite it anew\.\n\[Why: \{\{whatfailed\}\}\]<\/textarea>/,
+    'opened, the box is filled with the shipped reweave instruction, placeholders and all');
+  assert.doesNotMatch(open, /Added after the passage's own|Empty, nothing\s+is added/i,
+    'and no longer calls itself a line added after the instruction');
+  assert.match(open, /<code>\{\{replaced\}\}<\/code> is the\s+version being replaced/, 'the tip says what {{replaced}} is');
+  assert.match(open, /<code>\{\{whatfailed\}\}<\/code> is what you write in What didn't\s+work/,
+    'and what {{whatfailed}} is');
+  assert.match(open, /Save refuses a version\s+without <code>\{\{replaced\}\}<\/code>/,
+    'and that Save refuses a version without {{replaced}}');
 
-  const box: any = { value: 'Take the other road this time.' };
+  const box: any = { value: 'Take the other road. {{replaced}}' };
   const wasQS = doc.querySelector;
   doc.querySelector = (sel: string) => (sel === '[data-prompttext]' ? box : null);
   try {
@@ -4591,7 +4601,7 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
     click({ saveprompt: 'reweave' });
     await new Promise((r) => setTimeout(r, 30));
     assert.deepStrictEqual(POSTED.filter((x) => String(x.url) === '/api/prompts').map((x) => x.body),
-      [{ key: 'reweave', text: 'Take the other road this time.' }], 'Save sends what is in the box, as reweave');
+      [{ key: 'reweave', text: 'Take the other road. {{replaced}}' }], 'Save sends what is in the box, as reweave');
     // Saving a box must not blank the rest of the page: the voice editor above it stays drawn.
     assert.match(html('page'), /data-mydefaultvoice/, 'and the voice box above it is still there after Save');
     POSTED.length = 0;
@@ -4603,7 +4613,7 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
   click({ editprompt: 'reweave' });   // close it, for the checks after this one
   click({ accttab: 'profile' });
 }
-ok('Account → Writing shows a When you reweave box after the five modes, and it saves and resets');
+ok('Account → Writing shows When you reweave after the five modes, filled with the shipped wording, and it saves and resets');
 
 // ---- THE TALE'S OWN THREAD IS A BANNER: its picture, or the colour its Library card wears (2026-10-27).
 {
