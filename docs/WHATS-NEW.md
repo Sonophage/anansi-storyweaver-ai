@@ -25,6 +25,10 @@ now, each pocket, and a retirement. Each change shows the old text against the n
 sew in or reject one change, or the whole thread at once. The tale's own thread is the first block.
 It shows where the tale stands and where each string stands. Each new thread has its own block.
 
+### Choose who is in the next scene from a hemmed scene's card
+Under the next scene on the card, you see the threads that go with it. Press ✕ to leave a thread
+out of that scene. Type in the box to find another thread, and press it to bring it in.
+
 ### Something else on a hemmed scene's card shows the new idea
 When you asked Anansi for something else for the next scene, the card kept showing his first idea
 above the boxes, and Use these filled the next scene with that first idea. The card and Use these

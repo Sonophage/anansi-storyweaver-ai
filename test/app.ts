@@ -6687,6 +6687,52 @@ const hemCardOf = (side: string) => {
   ok('after Something else, the hem card and Use these show the latest next scene, not the first suggestion');
 }
 
+// ---- WHO IS IN THE NEXT SCENE, ON THE HEM'S CARD (Seth, 2026-10-29: "the 'who is in it' should
+// allow me to remove or add a thread"). Under the next scene's boxes: the threads sent for it, each
+// with ✕, and a search box to add one. Both go through the one pin press the setup uses, for the
+// scene being written, which is the scene the hem opened.
+{
+  const canned = (globalThis as any).fetch;
+  (globalThis as any).fetch = hemFetch(canned);
+  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const pins = () => POSTED.filter((p: any) => p.url === '/api/pin');
+  HEM_VIEW = hemView(HEM_DONE, HEM_ROWS);
+  click({ open: 's-1' }); await settle();
+  click({ panel: 'waiting' }); await settle();
+  let card = hemCardOf(html('sideBody'));
+  const who = () => card.slice(card.indexOf('data-hemwho'));
+  assert.ok(card.indexOf('data-hemwho') > card.indexOf('data-hemnext='), 'HEM-WHO: who is in it sits under the next scene');
+  // Pinned or always on, and not a rule or the tale itself: Envoy Sereth and the Ambersand.
+  assert.match(who(), /Envoy Sereth[\s\S]*?data-pin="e-1"[^>]*aria-label="Take Envoy Sereth out of/,
+    '  each thread in it has a press to take it out');
+  assert.match(who(), /The Ambersand[\s\S]*?data-pin="e-shared"/, '  every one of them');
+  assert.doesNotMatch(who(), /data-pin="e-2"/, '  and a thread on a word, with no pin, is not listed as in it');
+  assert.doesNotMatch(who(), /data-pin="e-took"/, '  nor a rule');
+  // ADD: the search box lists what is not in it, and a press brings it in.
+  typeIn('hemWhoQ', 'stair'); await settle();
+  card = hemCardOf(html('sideBody'));
+  assert.match(who(), /data-pin="e-2"[^>]*aria-label="Bring The stair into/, 'HEM-WHO-ADD: searching finds a thread to bring in');
+  let before = pins().length;
+  click({ pin: 'e-2' }); await settle();
+  assert.strictEqual(pins().length, before + 1, '  and one press pins it');
+  assert.deepStrictEqual(pins().at(-1).body, { storyId: 's-1', chapterId: 'c-2', entryId: 'e-2', mode: 'force_in' },
+    '  into the next scene');
+  // REMOVE: ✕ on an always-on thread leaves it out of the next scene.
+  before = pins().length;
+  click({ pin: 'e-1' }); await settle();
+  assert.deepStrictEqual(pins().at(-1)?.body, { storyId: 's-1', chapterId: 'c-2', entryId: 'e-1', mode: 'force_out' },
+    'HEM-WHO-OUT: ✕ leaves it out of the next scene');
+  // PINNED IN, it is listed, and ✕ takes the pin off.
+  HEM_VIEW = { ...hemView(HEM_DONE, HEM_ROWS), pins: [{ chapterId: 'c-2', entryId: 'e-2', mode: 'force_in' }] };
+  typeIn('hemWhoQ', ''); click({ open: 's-1' }); await settle();
+  click({ panel: 'waiting' }); await settle();
+  card = hemCardOf(html('sideBody'));
+  assert.match(who(), /The stair[\s\S]*?data-pin="e-2"[^>]*aria-label="Take The stair out of/, 'a thread pinned in is listed as in it');
+  (globalThis as any).fetch = canned;
+  click({ open: 's-1' }); await settle();
+  ok("who is in the next scene is on the hem's card, with a press to take each out and a search to bring one in");
+}
+
 // ---- #92 · HEM THIS SCENE OPENS THE NEXT ONE AT ONCE, and the card arrives without a reload.
 //
 // The route answers before the passes run (#89). The writer lands in the new scene, blank: the hem

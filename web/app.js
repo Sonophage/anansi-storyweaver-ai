@@ -294,6 +294,7 @@ const S = {
   worldLooking: false,  // the world is being read
   worldPulling: null,   // the name being pulled right now, so the button can say which
   setupQ: '',           // filter over the ledger on the next-chapter setup page
+  hemWhoQ: '',          // the search under who is in the next scene, on a hem's card
   lore: null,           // the + Lore tray above the composer, when it is open
   talk: { turns: [], busy: false, search: readWebSearch(), draft: null, searchable: null },
   // #71 · THE BOTTOM OF THE WRITING SCREEN. Once a passage has landed it is three buttons, and the
@@ -2833,6 +2834,32 @@ function nextSetup(ch) {
     note: given(next.authorsNote, s.note), opens: given(next.opensWith, s.opens) };
 }
 
+/** WHO IS IN THE NEXT SCENE, on a hem's card (Seth, 2026-10-29: "the 'who is in it' should allow
+ *  me to remove or add a thread"). The threads sent for that scene whatever is said, each with ✕,
+ *  and a search box to bring one in. Both are the setup's own `data-pin` press, which pins for the
+ *  scene being written; `hemNext` only hands over that scene, so the pin lands where it is shown.
+ *  READ FROM THE PINS ALONE, not the last context reading: the press flips a pin, so the list has to
+ *  say what the pins say, or ✕ on a thread brought in by a word would pin it in instead. */
+function hemWho(next) {
+  const pin = pinModes(), scene = sceneName(next);
+  const live = (V.entries ?? []).filter((e) => !['rule', 'tale'].includes(e.entryType) && e.retiredAtChapter == null);
+  const inIt = live.filter((e) => inContext(e, pin, null));
+  const q = (S.hemWhoQ ?? '').trim().toLowerCase();
+  const found = q ? live.filter((e) => !inContext(e, pin, null)
+    && `${e.title} ${(e.keys ?? []).join(' ')}`.toLowerCase().includes(q)).slice(0, 8) : [];
+  return `<div class="lbl sub-lbl push-12" data-hemwho>Who is in ${esc(scene)}</div>
+    ${inIt.length ? inIt.map((e) => `<div class="line-8">
+      <span class="fill">${esc(e.title)}</span>
+      <span class="row-label">${pin.get(e.id) === 'force_in' ? 'brought in' : 'always on'}</span>
+      <button class="step-btn" data-pin="${esc(e.id)}" aria-label="Take ${esc(e.title)} out of ${esc(scene)}">&#10005;</button></div>`).join('')
+      : '<div class="hint flush">Nobody is sent for it unless they are named.</div>'}
+    <input class="field push-8" id="hemWhoQ" aria-label="Find a thread to bring into ${esc(scene)}"
+      value="${esc(S.hemWhoQ ?? '')}" placeholder="Find a thread to bring in">
+    ${found.map((e) => `<button class="tag pressable" data-pin="${esc(e.id)}"
+      aria-label="Bring ${esc(e.title)} into ${esc(scene)}">+ ${esc(e.title)}</button>`).join(' ')}
+    ${q && !found.length ? '<div class="hint flush">Nothing else matches that.</div>' : ''}`;
+}
+
 /** A chalked row's one line while its fold is shut: the first 90 characters. */
 const peek = (s) => `${esc(String(s ?? '').slice(0, 90))}${String(s ?? '').length > 90 ? '&hellip;' : ''}`;
 
@@ -2891,7 +2918,8 @@ function hemCardParts(c) {
       placeholder="A direction for Anansi, if you want one">
     <div class="btnrow">
       <button class="btn ghost fill" data-hemreroll="${esc(next.id)}">↻ Something else</button>
-      <button class="btn ghost fill" data-usehem="${id}">Use these</button></div>` : '';
+      <button class="btn ghost fill" data-usehem="${id}">Use these</button></div>
+    ${hemWho(next)}` : '';
   const ids = esc(ps.map((p) => p.id).join(','));
   return {
     body: `${state.join('')}${summary}${threads}${overflow}${held}${suggestion}`,
@@ -14690,6 +14718,15 @@ document.addEventListener('input', (e) => {
   // nothing zoomed. The premise was wrong, so the code defending against it was too. Removed
   // rather than left in as insurance against something measured not to happen.
   // Neither branch may redraw its own input. Both write only their results container.
+  // The search under who is in the next scene, on a hem's card: the same caret-keeping repaint.
+  if (e.target.id === 'hemWhoQ') {
+    S.hemWhoQ = e.target.value;
+    const at = e.target.selectionStart ?? String(e.target.value ?? '').length;
+    drawSide();
+    const box = $('hemWhoQ');
+    if (box) { box.focus(); box.setSelectionRange(at, at); }
+    return;
+  }
   if (e.target.id === 'setupQ') {
     S.setupQ = e.target.value;
     // drawSide rebuilds the whole panel including this box, so restore the caret rather than
