@@ -18,6 +18,10 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### The glow at the top is bigger, and only for chalked threads
+When a thread is chalked and waiting for you, the line at the top of the screen is now thicker and
+glows further down. Strings in play no longer light it.
+
 ### Reading mode keeps the spacing you write with
 In reading mode the passages sat closer together than while you write, because the label over each
 passage was taken away with the space it used. The label is still hidden while you read, but its

@@ -1268,10 +1268,12 @@ html[data-ui-mode="narrate"] #modes select[data-modesel] { --dial:var(--m-narrat
 #modes button[data-continue]:disabled { opacity:.45; }
 
 /* ADR 0004: the waiting glow is a notice, not a press, so it is --warn and not gold. */
-#owed { position:fixed; top:0; left:0; right:0; height:3px; z-index:61; pointer-events:none;
-  background:linear-gradient(90deg, transparent, var(--warn) 30%, var(--warn) 50%,
-    var(--warn) 70%, transparent);
-  box-shadow:0 0 18px 2px color-mix(in srgb, var(--warn) 45%, transparent), 0 0 42px 6px color-mix(in srgb, var(--warn) 30%, transparent);
+/* BIGGER (Seth, 2026-10-29: "make the glow bigger for when it does come in"): 6px, a wider band
+   and a deeper spill down the screen. Still pointer-events:none, so it takes no press. */
+#owed { position:fixed; top:0; left:0; right:0; height:6px; z-index:61; pointer-events:none;
+  background:linear-gradient(90deg, transparent, var(--warn) 15%, var(--warn) 50%,
+    var(--warn) 85%, transparent);
+  box-shadow:0 0 28px 6px color-mix(in srgb, var(--warn) 55%, transparent), 0 0 72px 14px color-mix(in srgb, var(--warn) 35%, transparent);
   animation:owedbreathe 3.2s var(--ease) infinite; }
 #owed[hidden] { display:none; }
 @keyframes owedbreathe { 0%, 100% { opacity:.45; } 50% { opacity:1; } }
