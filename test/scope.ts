@@ -1033,20 +1033,21 @@ ok('a story cannot be deleted by someone who does not own it');
   assert.strictEqual(db.promptsOf(bob).speak, "BOB'S WORDING", "and leaves bob's alone");
   ok('prompt overrides are scoped to their owner, and blank is the reset');
 
-  /* FIVE KEYS, AND `regenerate` IS NOT ONE. It was from 2026-09-01 to 2026-09-18 — a wording of
+  /* SIX KEYS, AND `regenerate` IS NOT ONE. It was from 2026-09-01 to 2026-09-18 — a wording of
    * its own for a re-roll — and it named the passage a re-roll's prompt leaves out, so the model
    * rewrote the passage before it. A re-roll re-runs the mode the passage was written with now.
+   * The sixth, since 2026-10-29, is `reweave`: a line ADDED after that mode's instruction.
    *
-   * THREE LISTS MUST AGREE and this is the seam: the route's allow-list decides what the editor
+   * THREE THINGS MUST AGREE and this is the seam: the route's allow-list decides what the editor
    * may save, `defaultModePrompts` decides what it shows, and `web/app.js` decides what it draws.
    * A key any one of them keeps alone is either a box that silently never saves, or a row the
    * engine will never read. Both directions asserted, or this only watches one. */
   {
     const saved: any = routes['POST /api/prompts'](ctxI(alice, { key: 'narrate', text: 'MY NARRATE' }));
     assert.ok(!saved?.error, `the five must still save: ${saved?.error}`);
-    assert.deepStrictEqual(Object.keys(saved.defaults).sort(),
-      ['act', 'continue', 'direct', 'narrate', 'speak'],
-      'the editor is shown exactly the five the route will accept');
+    assert.deepStrictEqual(Object.keys(saved.defaults),
+      ['continue', 'speak', 'act', 'direct', 'narrate', 'reweave'],
+      'the editor is shown exactly the five modes and the reweave line the route will accept, in order');
     const gone: any = routes['POST /api/prompts'](
       ctxI(alice, { key: 'regenerate', text: 'MY OWN RE-ROLL WORDING' }));
     assert.ok(gone?.error, 'a re-roll wording is refused: there is nothing for it to override');
@@ -1057,7 +1058,7 @@ ok('a story cannot be deleted by someone who does not own it');
     assert.strictEqual(db.promptsOf(alice).narrte, undefined);
     db.setPrompt(alice, 'narrate', '   ');
   }
-  ok('the editor saves exactly the five modes the engine renders, and a stray key still does not');
+  ok('the editor saves exactly the five modes and the reweave line, and a stray key still does not');
 }
 
 // #18 §3. THE STYLE LIBRARY IS THE SAME TABLE WITH A NAMESPACED KEY, which means it inherits the
@@ -2097,6 +2098,57 @@ async function bootServer(port: number, env: Record<string, string>) {
   db.delSlot(aStory.id, answer);
   db.delSlot(aStory.id, said);
   ok('a reroll re-runs the instruction that made the passage, and only that passage');
+}
+
+// WHEN YOU REWEAVE (Seth, 2026-10-29). The writer's own line, ADDED after the passage's own mode
+// instruction on a reweave and never in place of it. Asserted on the prompt the Context panel
+// reads, through the route, with the writer's text saved through the route too.
+{
+  const ctx = (owner: string, body: any = {}) => ({ body, query: new URLSearchParams(), owner,
+    slot: { global: 40_000, slots: 1, perSlot: 40_000 }, gen: { max_tokens: 900 }, setGen: () => {},
+    defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
+  const NOTE = 'REWEAVE NOTE: take the other road.';
+  const before = db.addPassage({ storyId: aStory.id, branchId: aStory.branchId,
+    chapterId: aStory.chapterId, body: 'The lamp gutters.', author: 'human', mode: 'narrate' })!;
+  const take = db.addPassage({ storyId: aStory.id, branchId: aStory.branchId,
+    chapterId: aStory.chapterId, body: 'Marek laughs at the door.', author: 'model', mode: 'narrate' })!;
+  const reweave = async () => (await routes['POST /api/manifest'](ctx(alice,
+    { storyId: aStory.id, regenerateOf: take, mode: 'continue' })) as any);
+  const modeOf = (m: any) => m.manifest.blocks.find((b: any) => b.kind === 'MODE')?.text ?? '';
+
+  // EMPTY ADDS NOTHING. With no line saved, a reweave's MODE block is the narrate instruction alone.
+  const bare = await reweave();
+  const narrate = modeOf(bare);
+  assert.match(narrate, /written by the author/, 'a reweave of a narrated passage runs narrate');
+  assert.strictEqual(narrate, modeOf(await routes['POST /api/manifest'](ctx(alice,
+    { storyId: aStory.id, mode: 'narrate' }))), 'and with no line saved, nothing is added to it');
+
+  const saved: any = routes['POST /api/prompts'](ctxI(alice, { key: 'reweave', text: NOTE }));
+  assert.ok(!saved?.error, `the reweave line saves through the prompt route: ${saved?.error}`);
+  assert.strictEqual(saved.yours.reweave, NOTE, 'and comes back as the writer\'s own');
+  assert.strictEqual(saved.defaults.reweave, '', 'with nothing shipped in its place');
+
+  const withNote = await reweave();
+  assert.doesNotMatch(withNote.prompt, /Marek laughs at the door/,
+    'the passage being rewoven is still not in the prompt, line or no line');
+  assert.strictEqual(modeOf(withNote), `${narrate}\n${NOTE}`,
+    'a reweave carries the writer\'s line AFTER the mode instruction, which it does not replace');
+
+  // A FRESH PASSAGE DOES NOT CARRY IT.
+  const fresh: any = await routes['POST /api/manifest'](ctx(alice, { storyId: aStory.id, mode: 'continue' }));
+  assert.doesNotMatch(fresh.prompt, /REWEAVE NOTE/, 'a passage that is not a reweave does not carry it');
+  // NOR CAN A MODE NAMED `reweave` turn the line into a whole instruction of its own.
+  const named: any = await routes['POST /api/manifest'](ctx(alice, { storyId: aStory.id, mode: 'reweave' }));
+  assert.doesNotMatch(named.prompt, /REWEAVE NOTE/, 'a request naming reweave as its mode does not send it');
+
+  // Reset is the empty save, and puts the reweave back to the bare instruction.
+  const reset: any = routes['POST /api/prompts'](ctxI(alice, { key: 'reweave', text: '' }));
+  assert.ok(reset.reset, 'emptying it resets it');
+  assert.strictEqual(modeOf(await reweave()), narrate, 'and the reweave sends nothing extra again');
+
+  db.delSlot(aStory.id, take);
+  db.delSlot(aStory.id, before);
+  ok('a reweave adds the writer\'s own line after the mode instruction, and nothing else does');
 }
 
 // ---- THE DEMO SWITCH RESOLVES TO ONE ACCOUNT AND CANNOT BE AIMED (2026-08-31) ----

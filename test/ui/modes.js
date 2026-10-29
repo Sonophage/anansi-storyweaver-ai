@@ -196,10 +196,12 @@ const promptRows = await page.eval("[...document.querySelectorAll('[data-editpro
 // FIVE ROWS, and the count has now been wrong in both directions. It drew five while the route
 // saved six (2026-09-01 to 2026-09-02, a box that never existed for a key that saved), and it drew
 // six while the engine renders five (to 2026-09-18, when the re-roll's own wording turned out to
-// name the one passage a re-roll's prompt leaves out and was deleted). The order is the route's
-// own EDITABLE_MODES order, so a key added there and forgotten here goes red either way.
-ok(`Storyteller offers the five modes and nothing else (${promptRows})`,
-   promptRows === 'continue,speak,act,direct,narrate');
+// name the one passage a re-roll's prompt leaves out and was deleted). SIX AGAIN since 2026-10-29,
+// and the sixth is not a mode: `reweave` is a line added after the mode's own instruction on a
+// reweave. The order is EDITABLE_PROMPTS in story.ts, so a key added there and forgotten here goes
+// red either way.
+ok(`Storyteller offers the five modes and the reweave line, nothing else (${promptRows})`,
+   promptRows === 'continue,speak,act,direct,narrate,reweave');
 await page.click('[data-editprompt="speak"]');
 await wait(300);
 ok("  opening one shows the shipped wording to edit",

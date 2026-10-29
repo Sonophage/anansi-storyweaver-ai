@@ -27,8 +27,8 @@ export const MODES = [
    * with you because you have not written yet.
    *
    * Being in MODES gets it the placeholder, the margin accent and the origin chip — all three of
-   * which it wants, because the whole point is seeing who wrote what. `EDITABLE_MODES` in
-   * routes.ts is its own list and does not read this one, so no prompt template is invented for a
+   * which it wants, because the whole point is seeing who wrote what. `EDITABLE_PROMPTS` in
+   * story.ts is its own list and does not read this one, so no prompt template is invented for a
    * mode that never sends one.
    *
    * THE COMPOSER HIDES IT unless the book has a second writer: see drawDock. A mode that hands the

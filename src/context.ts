@@ -128,6 +128,10 @@ export interface Input {
   // than being read from a table down in the engine, because buildContext is pure below the line
   // in story.ts and this is a flag like any other.
   modePrompts?: Record<string, string>;
+  /** WHEN YOU REWEAVE: the writer's own line, set only on a reweave and resolved above the line in
+   *  story.ts. Added AFTER the mode's instruction in the MODE block, never in place of it. Empty or
+   *  absent adds nothing. NOT MEASURED: no run has compared a reweave with and without it. */
+  reweave?: string;
   /** Roughly how long the writer wants a passage, in words. Zero or absent is "let her decide",
    *  and then NOTHING about length reaches the model — which is the shipped default.
    *
@@ -1403,11 +1407,19 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
      * re-rolls to a wording that named a passage the prompt leaves out; see the note where
      * `MODE.regenerate` used to be. */
     const key = input.mode;
-    const own = input.modePrompts?.[key]?.trim();
-    const text = own
+    // ONLY A REAL MODE'S NAME finds an override. The map holds keys that are not modes (`voice`,
+    // `anansi`, `reweave`, the library), and a request naming one as its mode must not send that
+    // text as the whole instruction.
+    const own = MODE[key] ? input.modePrompts?.[key]?.trim() : undefined;
+    const said = own
       ? own.replace(/\{\{\s*directive\s*\}\}/g, input.directive ?? '')
            .replace(/\{\{\s*speaker\s*\}\}/g, input.speaker || 'the point-of-view character')
       : (MODE[key] ?? MODE.continue)(input.directive, input.speaker);
+    // WHEN YOU REWEAVE, after the instruction and on its own line. NOT MEASURED: a prompt change
+    // with no control arm behind it, off until the writer writes one, and it names no passage —
+    // see EDITABLE_PROMPTS in story.ts for the 2026-09 re-roll wording that did.
+    const note = input.reweave?.trim();
+    const text = note ? `${said}\n${note}` : said;
     // THE LENGTH TARGET, and everything about where it sits is deliberate.
     //
     // Appended here rather than written into the MODE map, because those five strings are what
@@ -1427,7 +1439,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     const target = Number(input.targetWords) || 0;
     add('MODE', 'mode', target > 0 && input.mode !== 'talk'
       ? `${text}\nAim for roughly ${target} words, and stop sooner if the beat is done.` : text,
-      own ? `mode:${key} · yours` : `mode:${key}`);
+      `mode:${key}${own ? ' · yours' : ''}${note ? ' · reweave' : ''}`);
   }
 
   // ponytail: ceilings and a hard refusal, no budget engine. No reservation, no trim ladder, and no

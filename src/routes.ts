@@ -10,7 +10,7 @@ import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, 
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultModePrompts, trimToSentence,
-         voiceOf, anansiOf, estimate } from './story.ts';
+         EDITABLE_PROMPTS, voiceOf, anansiOf, estimate } from './story.ts';
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
 import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, narrationOnly, retirable, fires, summaryReaches,
@@ -464,13 +464,10 @@ const remotePin = (c: Ctx, pin: string | null | undefined, owner: string) => {
  *  MEASURED 2026-08-25: the long answer to "what is this story about" is 3,696 characters of reply,
  *  4,159 of JSON, about 1,100 tokens. Four proposed entries and a directive can add another 750.
  *  This is the bound on the answer now that the grammar no longer holds one. */
-/** The five the writer may rewrite. `talk` is not one of them: it is Anansi's chat, not a way of
- *  writing prose, and handing it the same box would let a reworded chat prompt continue the book. */
-// FIVE, NOT SIX. `regenerate` was a sixth entry here from 2026-09-01 to 2026-09-18: a wording of
-// its own for a re-roll. It named a passage the prompt does not contain — see `inherit` — so a
-// re-roll now re-runs the instruction the passage was written with and there is nothing separate
-// to edit. The editor draws whatever is in this list, so it drew six rows and now draws five.
-const EDITABLE_MODES = ['continue', 'speak', 'act', 'direct', 'narrate'];
+/* What the writer may rewrite is EDITABLE_PROMPTS in story.ts: the five modes and the line a
+ * reweave adds. `talk` is not on it: it is Anansi's chat, not a way of writing prose, and handing it
+ * the same box would let a reworded chat prompt continue the book. `regenerate` is not on it either;
+ * see EDITABLE_PROMPTS for why. One list for the route, the defaults and the editor. */
 // #21 §2. The kinds the cast call will answer for: `KINDS`, which is `SLOTS` less the tale's own.
 const KINDS_ALL: string[] = [...KINDS];
 
@@ -512,7 +509,7 @@ function libraryOf(all: Record<string, string>) {
   return out;
 }
 const modesOnly = (all: Record<string, string>) =>
-  Object.fromEntries(Object.entries(all).filter(([k]) => EDITABLE_MODES.includes(k)));
+  Object.fromEntries(Object.entries(all).filter(([k]) => EDITABLE_PROMPTS.includes(k)));
 
 /** What the prompt editor reads, and both routes return exactly it. GET and POST had two copies
  *  of this object; adding Anansi's voice would have made it two copies of a bigger one, and the
@@ -3660,7 +3657,7 @@ export const routes: Record<string, Handler> = {
       if (!name) return { error: 'a saved voice or style needs a name' };
       if (name.includes(':')) return { error: 'a name cannot contain a colon' };
       if (name.length > 60) return { error: 'that name is too long — sixty characters at most' };
-    } else if (!EDITABLE_MODES.includes(key) && key !== 'voice' && key !== 'anansi') {
+    } else if (!EDITABLE_PROMPTS.includes(key) && key !== 'voice' && key !== 'anansi') {
       return { error: `there is no mode called "${key}"` };
     }
     const saved = db.setPrompt(c.owner, key, String(c.body.text ?? ''));

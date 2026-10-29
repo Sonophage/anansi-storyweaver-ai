@@ -77,9 +77,9 @@ export const voiceOf = (owner: string) => db.promptsOf(owner).voice?.trim() || D
  *  THE KEY IS `anansi` AND NOT `talk`, and that is the whole reason this can exist at all.
  *  `assemble` looks overrides up BY MODE NAME (`context.ts`, `input.modePrompts?.[input.mode]`),
  *  so a key called `talk` would be picked up by the MODE block and a reworded chat prompt could
- *  continue the book — which is exactly what `EDITABLE_MODES` in `routes.ts` refuses. A key that
- *  is not a mode name is invisible to that lookup, which is the same argument that already lets
- *  the bare `voice` key ride in this table.
+ *  continue the book — which is exactly what `EDITABLE_PROMPTS` refuses. A key that is not a mode
+ *  name is invisible to that lookup (`context.ts` reads an override only for a real mode's name),
+ *  which is the same argument that already lets the bare `voice` key ride in this table.
  *
  *  Only the CHAT reads this. `INVENT` keeps its own plain prompt: what it returns is stored and
  *  re-sent to the writing model, and a register in there reaches the book through the ledger. */
@@ -373,16 +373,29 @@ export const capFor = (targetWords: number) =>
  *  book's own budget, not on top of the slot. */
 export const MAX_TARGET_WORDS = 2000;
 
-/** The shipped wording of every editable mode, rendered with its placeholders left in.
+/** THE ONE LIST of the writer's instruction boxes, in the order Account → Writing draws them: the
+ *  five modes, then `reweave`. The route's allow-list is this list, and the editor draws the keys
+ *  of `defaultModePrompts`, which is built from it, so there is one list and not three to agree.
+ *
+ *  `reweave` IS NOT A MODE and does not replace one. A reweave re-runs the instruction the passage
+ *  was written with (`inherit` in routes.ts), and this is a line ADDED after it, on a reweave only.
+ *  A re-roll had a wording of its own from 2026-09-01 to 2026-09-18, `regenerate`, and it REPLACED
+ *  the mode with "write this passage again": it named the passage being re-rolled, the one passage
+ *  a re-roll's prompt leaves out, so the model rewrote the passage before it. This line keeps the
+ *  passage's own instruction and names no passage. */
+export const EDITABLE_PROMPTS = ['continue', 'speak', 'act', 'direct', 'narrate', 'reweave'];
+
+/** The shipped wording of every editable box, rendered with its placeholders left in.
  *
  *  Built by asking the engine itself rather than by keeping a second copy: a copy is a thing that
  *  goes stale, and the editor's whole job is to show the writer what they are replacing. */
 export function defaultModePrompts(): Record<string, string> {
   const out: Record<string, string> = {};
-  // FIVE. A re-roll had a sixth wording of its own until 2026-09-18 and it was asked for here as
-  // a RE-ROLL rather than as a mode. It is gone: a re-roll re-runs the mode the passage was
-  // written with, so there is no sixth string for the editor to show.
-  for (const mode of ['continue', 'speak', 'act', 'direct', 'narrate']) {
+  for (const mode of EDITABLE_PROMPTS) {
+    // SHIPPED EMPTY: a reweave sends the passage's own instruction and nothing more until the
+    // writer writes a line here. NOT MEASURED. An empty default keeps every reweave's prompt
+    // byte-identical to the prompt that wrote the passage, which is what `test/scope.ts` holds.
+    if (mode === 'reweave') { out.reweave = ''; continue; }
     const m = buildContext({
       story: { title: '', genre: '', premise: '', setting: '', pov: '', writingStyle: '', spice: 2 },
       chapters: [], passages: [{ id: 'p', ordinal: 1, body: 'x.' }], entries: [],
@@ -459,6 +472,9 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     edges: v.edges ?? [],
     budget: budgetFor(v.story, slot, maxTokens), tailTokens: 220,
     modePrompts,
+    // WHEN YOU REWEAVE: the writer's line, on a reweave only. A reweave is the one call that stops
+    // short of a passage (`upToOrdinal`), so that is what decides it, here above the line.
+    reweave: upToOrdinal == null ? undefined : modePrompts?.reweave,
     // A number, resolved before the line: `buildContext` stays pure and reads no setting of its
     // own. Zero means the writer left it on "let her decide", and nothing about length reaches
     // the model at all — which is the shipped behaviour F29 measured and is still the default.
