@@ -1789,11 +1789,11 @@ html[data-rerollsheet="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; 
 /* #126 · THE POCKET PANEL, full screen like the Alter and Reweave box: the same blur and wash, the
    fields in the reading column's width, Cancel and Save at the foot. A child of #shell (see the
    element's note), so absolute fills the window. */
-#pocketPanel { position:absolute; inset:0; z-index:41; height:var(--kbh, 100%); display:flex; flex-direction:column;
+#pocketPanel, #mergePanel { position:absolute; inset:0; z-index:41; height:var(--kbh, 100%); display:flex; flex-direction:column;
   padding:calc(18px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
   box-sizing:border-box; background:color-mix(in srgb, var(--doc-bg) 66%, transparent);
   backdrop-filter:blur(10px) saturate(.9); -webkit-backdrop-filter:blur(10px) saturate(.9); }
-#pocketPanel[hidden] { display:none; }
+#pocketPanel[hidden], #mergePanel[hidden] { display:none; }
 .pocketbox { flex:1; min-height:0; width:100%; max-width:var(--col); margin:0 auto; display:flex; flex-direction:column; gap:12px; }
 .pocketbox .pkhead { display:flex; flex-direction:column; gap:10px; }
 .pocketbox .pktabs { display:flex; gap:6px; }
@@ -2422,6 +2422,8 @@ body[data-dev] #devbar {
   <!-- #126. The pocket panel, full screen over the drawer. Here and not in #side for the reason
        above: #side carries a transform at tablet width, which would hold a fixed child inside it. -->
   <div id="pocketPanel" hidden></div>
+  <!-- Merge two threads: the same full-screen box, for the same reason. -->
+  <div id="mergePanel" hidden></div>
 
   <main id="doc">
     <div id="wash"></div>

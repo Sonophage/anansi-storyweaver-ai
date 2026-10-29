@@ -227,6 +227,9 @@ const S = {
   // #126. The pocket panel, open: { entryId, id (null when adding), tab, slot, name, body, keys,
   // steer, offer, was }. Everything typed in it lives here, so a repaint draws it back.
   pocket: null,
+  // Merge two threads, open: { from (the thread it was opened on), q (the search), other, keep,
+  // draft (Anansi's, as POST /api/merge/draft answered), parts (the boxes, as typed), busy }.
+  merge: null,
   // The ritual's three steps, and the kind chip on the third. Null means "premise", which is what
   // a cold load at #story/setup opens on: only a chapter close starts at the top.
   setupStep: null, setupKind: 'character', setupSteer: '', propKind: 'all', models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', threadQ: '', ctxView: 'blocks',
@@ -612,7 +615,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'iplook', 'ipadd', 'ipwithout', 'ipagain',
   // #126. The pocket panel: open it to add, its tabs, a kind, Cancel, Save, Remove, the two asks
   // and Use this.
-  'pocketnew', 'pockettab', 'pocketkind', 'pocketx', 'pocketsave', 'pocketdel', 'pocketask', 'pocketuse'].map((k) => `[data-${k}]`).join(',');
+  'pocketnew', 'pockettab', 'pocketkind', 'pocketx', 'pocketsave', 'pocketdel', 'pocketask', 'pocketuse',
+  // Merge two threads: open it, pick the other, pick which stays, Cancel, Merge.
+  'mergestart', 'mergewith', 'mergekeep', 'mergex', 'mergego'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -1583,6 +1588,19 @@ document.addEventListener('input', (e) => {
   // #126. The pocket panel's boxes, by id, for the same reason: drawPocket draws them from S.pocket.
   const pk = { 'pk-name': 'name', 'pk-body': 'body', 'pk-keys': 'keys', 'pk-steer': 'steer', 'pk-owed': 'owed' }[e.target?.id];
   if (S.pocket && pk) S.pocket[pk] = e.target.value;
+  // Merge two threads: the search redraws only its list, so the box keeps the caret; the review's
+  // boxes, by id, as the pocket panel's.
+  const mg = S.merge, id = String(e.target?.id ?? '');
+  if (mg && id === 'mg-q') {
+    mg.q = e.target.value;
+    const list = document.querySelector('[data-mglist]');
+    if (list) list.innerHTML = mergeList(mg); else drawMerge();
+  }
+  if (mg?.parts) {
+    if (id === 'mg-always' || id === 'mg-stands') mg.parts[id.slice(3)] = e.target.value;
+    const at = /^mg-p([kn])-(\d+)$/.exec(id), row = at ? mg.parts.pockets[Number(at[2])] : null;
+    if (row) row[at[1] === 'k' ? 'body' : 'name'] = e.target.value;
+  }
 });
 /** Where the page should stay through the next repaint, or null (see drawDoc). */
 let HOLD_SCROLL = null;
@@ -2644,6 +2662,82 @@ async function pocketAsk(web, anyway = false, t = null) {
   if (got.keys?.length) pk.keys = got.keys.join(', ');
   pk.tab = 'write'; drawPocket();
   toast('Written, not saved. Read it, then press Save.');
+}
+
+/** MERGE TWO THREADS (Seth, 2026-10-29: "Halsey's publicist and Lisa are the same person"). From a
+ *  thread's More menu: pick the other thread (a search), pick which one stays, and Anansi drafts the
+ *  one thread they make (`POST /api/merge/draft`). The review shows each part against what the kept
+ *  thread has now, as a diff, in a box to change; Merge writes it (`POST /api/merge`), and the other
+ *  thread is deleted. Cancel writes nothing. The pocket panel's full-screen box, and a Back step
+ *  (layerNow). Drawn from S.merge, so a repaint puts back what was typed. */
+const mergeList = (m) => {
+  const q = m.q.trim().toLowerCase();
+  const rows = (V?.entries ?? []).filter((x) => x.id !== m.from && !x.sharedFrom && x.entryType !== 'tale'
+    && (!q || x.title.toLowerCase().includes(q) || (x.keys ?? []).some((k) => String(k).toLowerCase().includes(q))));
+  return rows.map((x) => `<button data-mergewith="${esc(x.id)}" class="readrow">${esc(x.title)}<span
+    class="readnote">${esc(x.entryType ?? '')}</span></button>`).join('') || '<p class="note">No thread by that name.</p>';
+};
+const mergeParts = (d) => ({ always: d.always?.now ?? '', stands: d.stands?.now ?? '',
+  pockets: (d.pockets ?? []).map((p) => ({ name: p.name ?? '', body: p.body ?? '' })) });
+/** Whether Cancel would throw away something typed into the review. */
+const mergeDirty = () => !!S.merge?.parts && JSON.stringify(S.merge.parts) !== JSON.stringify(mergeParts(S.merge.draft));
+function mergePanel() {
+  const m = S.merge; if (!m) return '';
+  const byId = (id) => (V?.entries ?? []).find((x) => x.id === id);
+  const from = byId(m.from), other = byId(m.other);
+  if (!from) return '';
+  let body;
+  if (m.draft && m.parts) {
+    const d = m.draft, keep = esc(d.keep.title), gone = esc(d.gone.title);
+    const part = (label, was, id, now) => `<label class="lbl" for="${id}">${label}</label>
+      ${diffHTML(was ?? '', now)}
+      <textarea class="field grow pkbody" id="${id}">${esc(now)}</textarea>`;
+    body = `<p class="note">${gone} goes into ${keep} and is then deleted. Each part is shown against what ${keep}
+        has now. Change anything before you merge.</p>
+      ${d.kept ? `<p class="note">${esc(d.kept)}</p>` : ''}
+      ${part('Always true', d.always.was, 'mg-always', m.parts.always)}
+      ${part('Where it stands now', d.stands.was, 'mg-stands', m.parts.stands)}
+      ${d.pockets.map((p, i) => `<label class="lbl" for="mg-pn-${i}">${esc(pocketTitle(p.slot))}${p.wasName
+          ? ` &middot; in place of ${esc(p.wasName)}` : ''}</label>
+        <input class="field" id="mg-pn-${i}" value="${esc(m.parts.pockets[i].name)}">
+        ${diffHTML(p.was ?? '', m.parts.pockets[i].body)}
+        <textarea class="field grow pkbody" id="mg-pk-${i}" aria-label="${esc(pocketTitle(p.slot))}: the description">${esc(m.parts.pockets[i].body)}</textarea>`).join('')}
+      <p class="note push-14">Everything else of ${gone} moves to ${keep}: its other pockets, Over time, wake words,
+        scene pins, chalked changes and earlier versions.</p>`;
+  } else if (other) {
+    body = `<p class="note">${esc(from.title)} and ${esc(other.title)} become one thread. Which one stays? The other is
+        deleted once its parts are in this one.</p>
+      <div class="stack push-10">${[from, other].map((x) => `<button class="btn ghost" data-mergekeep="${esc(x.id)}"
+        ${m.busy ? 'disabled' : ''}>Keep ${esc(x.title)}</button>`).join('')}</div>
+      ${m.busy ? '<p class="note push-10">Anansi is drafting the merge&hellip;</p>' : ''}`;
+  } else {
+    body = `<label class="lbl" for="mg-q">Which thread is the same as ${esc(from.title)}?</label>
+      <input class="field" id="mg-q" value="${esc(m.q)}" placeholder="Search the threads">
+      <div class="stack push-10" data-mglist="1">${mergeList(m)}</div>`;
+  }
+  return `<div class="pocketbox" role="dialog" aria-label="Merge ${esc(from.title)} with another thread">
+    <div class="pkhead"><div class="lbl flush wide">Merge &middot; ${esc(from.title)}</div></div>
+    <div class="pkscroll scroll">${body}</div>
+    <div class="pkfoot">
+      <button class="btn ghost" data-mergex="1">Cancel</button>
+      ${m.draft ? `<button class="btn" data-mergego="1" ${m.busy ? 'disabled' : ''}>Merge</button>` : ''}
+    </div>
+  </div>`;
+}
+function drawMerge() {
+  const box = $('mergePanel'); if (!box) return;
+  // Shut when the thread it was opened on is not in the tale any more (another tale, or deleted).
+  if (S.merge && !(V?.entries ?? []).some((x) => x.id === S.merge.from)) S.merge = null;
+  box.hidden = !S.merge;
+  sameOrSet('mergePanel').innerHTML = mergePanel();
+  if (S.merge) growFields(box);
+}
+/** Cancel, and Back. Nothing has been written; with the review changed, the app's two-press rule. */
+function closeMerge(t = null) {
+  if (!S.merge) return true;
+  if (mergeDirty() && !armed(t, 'merge', 'You have changed the draft. Press Cancel again to throw it away, or Merge.')) return false;
+  S.merge = null; drawMerge(); syncLayers();
+  return true;
 }
 
 /** #74 · THE WORKBENCH DECK (ADR 0003, spec #74): everything that wants the writer, one card at a
@@ -7116,6 +7210,8 @@ function readMenu(e) {
     <button data-readgo="time" class="readrow">${say('Over time', states ? `${states}` : '')}</button>
     <button data-readgo="edges" class="readrow">${say('Stitched together', edges ? `${edges}` : '')}</button>
     <button data-readgo="copy" class="readrow">${say('Copy to another tale')}</button>
+    ${e.entryType !== 'tale' && !e.sharedFrom
+      ? `<button data-mergestart="${esc(e.id)}" class="readrow">${say('Merge with another thread&hellip;')}</button>` : ''}
     <button data-readgo="history" class="readrow">${say('Earlier versions')}</button>
     <button data-readgo="json" class="readrow">${say('This thread as JSON')}</button>
     <button data-scanstory="${esc(e.id)}" class="readrow" ${S.scanning ? 'disabled' : ''}>${
@@ -9022,7 +9118,7 @@ function closeThreadBack() {
  *  Back shuts it. Called from drawBar and drawDock, which every change to the three goes through.
  *  ponytail: one layer at a time, the topmost. Two open at once (Look over the big composer) share
  *  one entry, so Back shuts both. Give each its own entry if anyone opens them together. */
-const layerNow = () => (S.passEdit ? 'alter' : S.pocket ? 'pocket' : S.reroll ? 'reweave' : S.appearance ? 'look' : S.bigInput ? 'big' : S.reading ? 'read' : null);
+const layerNow = () => (S.passEdit ? 'alter' : S.pocket ? 'pocket' : S.merge ? 'merge' : S.reroll ? 'reweave' : S.appearance ? 'look' : S.bigInput ? 'big' : S.reading ? 'read' : null);
 function syncLayers() {
   const want = layerNow(), have = history.state?.layer ?? null;
   if (!ROUTED || BACKING || want === have) return;
@@ -9053,6 +9149,14 @@ function closeLayersBack() {
       toast('You have changes that are not saved. Press Back again to throw them away, or Save.');
     } else { S.backArmed = 0; S.pocket = null; drawPocket(); }
   }
+  // Merge two threads, by the same rule.
+  if (S.merge && l !== 'merge') {
+    if (mergeDirty() && !(S.backArmed && Date.now() - S.backArmed < 6000)) {
+      S.backArmed = Date.now();
+      history.pushState({ ...history.state, layer: 'merge' }, '', location.href);
+      toast('You have changed the draft. Press Back again to throw it away, or Merge.');
+    } else { S.backArmed = 0; S.merge = null; drawMerge(); }
+  }
   if (S.appearance && l !== 'look') { S.appearance = false; drawAppearance(); drawBar(); }
   if (S.bigInput && l !== 'big' && l !== 'look') { S.bigInput = false; drawDock(); syncTray(); }
   if (S.reading && !l) { S.reading = false; root.dataset.reading = '0'; drawBar(); drawDoc(); }
@@ -9072,7 +9176,7 @@ function paint() {
   // reaching anything you could see (usability check, Titan keyboard). inert takes it out of the
   // tab order and away from the pointer until it is open.
   const rail = $('rail'); if (rail) rail.inert = overlay() && !S.rail;
-  drawRail(); drawBar(); drawMeter(); drawAppearance(); drawPage(); drawSide(); drawPocket();
+  drawRail(); drawBar(); drawMeter(); drawAppearance(); drawPage(); drawSide(); drawPocket(); drawMerge();
   // A WORLD BOOK HAS NO WRITING SURFACE. It is a collection of lore and nothing else — Seth,
   // 2026-08-31: "the world book should be a collection of lore. no entries no chapters just lore.
   // so that its an easy starting off point if i want to write something else or as someone else or
@@ -11158,6 +11262,38 @@ document.addEventListener('click', async (e) => {
     // built fresh each time it opens; written here so the two controls agree from now on.
     if (searchOn() !== search) setWebSearch(search);
     return inventAgain(d.invent, dir, search, false, t);
+  }
+
+  // ---- MERGE TWO THREADS: open it, pick the other, pick which stays (Anansi drafts), Cancel, Merge.
+  if (d.mergestart) {
+    S.merge = { from: d.mergestart, q: '', other: null, keep: null, draft: null, parts: null, busy: false };
+    S.readMenu = false; paint(); syncLayers(); $('mg-q')?.focus?.(); return;
+  }
+  if (d.mergex) { closeMerge(t); return; }
+  if (d.mergewith) { if (!S.merge || S.merge.draft) return; S.merge.other = d.mergewith; drawMerge(); return; }
+  if (d.mergekeep) {
+    const m = S.merge;
+    if (!m?.other || m.draft || m.busy || ![m.from, m.other].includes(d.mergekeep)) return;
+    m.keep = d.mergekeep; m.busy = true; drawMerge();
+    const r = await withRing(() => api.mergeDraft(S.storyId, m.keep, m.keep === m.from ? m.other : m.from));
+    if (S.merge !== m) return;
+    m.busy = false;
+    if (r.error) { drawMerge(); return toast(r.error); }
+    m.draft = r; m.parts = mergeParts(r); drawMerge(); return;
+  }
+  if (d.mergego) {
+    const m = S.merge; if (!m?.draft || m.busy) return;
+    m.busy = true; drawMerge();
+    const r = await withRing(() => api.merge(S.storyId, { keepId: m.draft.keep.id, goneId: m.draft.gone.id,
+      always: m.parts.always, stands: m.parts.stands,
+      pockets: m.draft.pockets.map((p, i) => ({ slot: p.slot, name: m.parts.pockets[i].name, body: m.parts.pockets[i].body,
+        target: p.target, merges: p.merges })) }));
+    if (S.merge !== m) return;
+    m.busy = false;
+    if (r.error) { drawMerge(); return toast(r.error); }
+    S.merge = null; V = r; S.entryId = r.kept; S.readMenu = false; S.cardView = null;
+    paint(); syncLayers();
+    return toast(`Merged. ${m.draft.gone.title} is part of ${m.draft.keep.title} now.`);
   }
 
   // ---- #126 · THE POCKET PANEL: open it to add or on one pocket, its tabs and kinds, and Cancel.

@@ -7202,4 +7202,75 @@ const hemCardOf = (side: string) => {
   ok('writing inline, the replaced version is drawn hidden until the new one lands or fails, through a repaint');
 }
 
+// ---- MERGE TWO THREADS (Seth, 2026-10-29). The thread's More menu → pick the other thread → pick
+// which stays → Anansi drafts → a full-screen review, each part against the kept thread's text and
+// editable → Merge writes it. Cancel writes nothing.
+{
+  const wait = () => new Promise((r) => setTimeout(r, 40));
+  const canned = (globalThis as any).fetch;
+  const { diffHTML } = await import('../web/model.js');
+  const DRAFT = { keep: { id: 'e-2', title: 'The stair' }, gone: { id: 'e-1', title: 'Envoy Sereth' },
+    kept: 'Kept unlit over lit: it is the more specific.',
+    always: { was: 'A stair.', now: 'A stair with no landing.' },
+    stands: { was: 'the lower stair: unlit', now: 'Unlit, and boarded over.' },
+    pockets: [{ slot: 'atmosphere', name: 'Echo', body: 'Every step echoes.', target: 'a-st', merges: ['a-on'],
+      was: 'Cold air.', wasName: 'Cold' }] };
+  const AFTER = { ...STORY, entries: (STORY.entries as any[]).filter((e) => e.id !== 'e-1') };
+  (globalThis as any).fetch = async (url: string, init?: any) => {
+    if (url !== '/api/merge/draft' && url !== '/api/merge') return canned(url, init);
+    POSTED.push({ url, body: JSON.parse(init.body) });
+    const o = url === '/api/merge' ? { kept: 'e-2', ...AFTER } : DRAFT;
+    return { ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) } as any;
+  };
+  const merged = () => POSTED.filter((x) => x.url === '/api/merge');
+  const panel = () => html('mergePanel');
+  try {
+    click({ open: 's-1' }); await wait();
+    click({ panel: 'threads' }); click({ entry: 'e-1' }); await wait();
+    click({ readmenu: '1' }); await wait();
+    assert.match(html('sideBody'), /data-mergestart="e-1"[^>]*>Merge with another thread/, 'MERGE-MENU: the More menu has Merge with another thread');
+    click({ mergestart: 'e-1' }); await wait();
+    assert.match(panel(), /role="dialog"/, 'MERGE-PICK: it opens full screen');
+    assert.match(panel(), /id="mg-q"/, 'MERGE-PICK: with a search');
+    for (const id of ['e-2', 'e-took', 'e-fired']) assert.match(panel(), new RegExp(`data-mergewith="${id}"`), `MERGE-PICK: ${id} can be picked`);
+    assert.doesNotMatch(panel(), /data-mergewith="e-1"/, 'MERGE-PICK: not the thread itself');
+    assert.doesNotMatch(panel(), /data-mergewith="e-shared"/, 'MERGE-PICK: nor a thread the tale only follows');
+    typeIn('mg-q', 'stair'); await wait();
+    assert.match(panel(), /data-mergewith="e-2"/, 'MERGE-SEARCH: the search keeps what matches');
+    assert.doesNotMatch(panel(), /data-mergewith="e-took"/, '  and drops what does not');
+    click({ mergewith: 'e-2' }); await wait();
+    assert.match(panel(), /data-mergekeep="e-1"/, 'MERGE-KEEP: either one can stay');
+    assert.match(panel(), /data-mergekeep="e-2"/, '  the other too');
+    assert.strictEqual(POSTED.filter((x) => x.url === '/api/merge/draft').length, 0, '  and nothing is asked yet');
+    click({ mergekeep: 'e-2' }); await wait();
+    assert.deepStrictEqual(POSTED.filter((x) => x.url === '/api/merge/draft').at(-1)?.body,
+      { storyId: 's-1', keepId: 'e-2', goneId: 'e-1' }, 'MERGE-DRAFT: picking which stays asks Anansi for the draft');
+    const review = panel();
+    assert.ok(review.includes(diffHTML('A stair.', 'A stair with no landing.')), 'MERGE-REVIEW: Always true is shown against the kept text, as a diff');
+    assert.ok(review.includes(diffHTML('the lower stair: unlit', 'Unlit, and boarded over.')), '  and where it stands');
+    assert.ok(review.includes(diffHTML('Cold air.', 'Every step echoes.')), '  and each pocket');
+    assert.match(review, /id="mg-always"[^>]*>A stair with no landing\.<\/textarea>/, 'MERGE-REVIEW: each part is in a box to edit');
+    assert.match(review, /Kept unlit over lit/, 'MERGE-REVIEW: what disagreed and which was kept is said');
+    assert.match(review, /data-mergego="1"/, 'MERGE-REVIEW: with Merge');
+    assert.strictEqual(merged().length, 0, '  and nothing written yet');
+    // CANCEL WRITES NOTHING.
+    click({ mergex: '1' }); await wait();
+    assert.doesNotMatch(panel(), /role="dialog"/, 'MERGE-CANCEL: Cancel shuts it');
+    assert.strictEqual(merged().length, 0, 'MERGE-CANCEL: and writes nothing');
+    // THE WHOLE WAY, with an edit, to Merge.
+    click({ readmenu: '1' }); click({ mergestart: 'e-1' }); click({ mergewith: 'e-2' }); click({ mergekeep: 'e-2' }); await wait();
+    typeIn('mg-always', 'A stair with no landing, and no rail.'); typeIn('mg-pk-0', 'Every step echoes twice.');
+    click({ readmenu: '1' }); await wait();   // any press that repaints
+    assert.match(panel(), /id="mg-always"[^>]*>A stair with no landing, and no rail\.<\/textarea>/, 'MERGE-REPAINT: what is typed survives a repaint');
+    click({ mergego: '1' }); await wait();
+    assert.deepStrictEqual(merged().at(-1)?.body, { storyId: 's-1', keepId: 'e-2', goneId: 'e-1',
+      always: 'A stair with no landing, and no rail.', stands: 'Unlit, and boarded over.',
+      pockets: [{ slot: 'atmosphere', name: 'Echo', body: 'Every step echoes twice.', target: 'a-st', merges: ['a-on'] }] },
+      'MERGE-GO: Merge sends the parts as the writer left them');
+    assert.doesNotMatch(panel(), /role="dialog"/, 'MERGE-GO: and shuts');
+    assert.match(html('sideHead') + html('sideBody'), /The stair/, 'MERGE-GO: the thread that stayed is open');
+  } finally { (globalThis as any).fetch = canned; }
+  ok('Merge with another thread: pick it, pick which stays, review the draft as diffs, then Merge or Cancel');
+}
+
 console.log(`\n${n} checks passed`);

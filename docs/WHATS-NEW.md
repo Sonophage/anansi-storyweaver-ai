@@ -16,6 +16,16 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-29 · Two threads can become one
+
+### Merge two threads that are the same one
+When one person has two threads, open either one and choose "Merge with another thread…" in its
+menu. Pick the other thread, then pick which one stays. Anansi writes the one thread they make:
+its Always true, where it stands now, and its pockets. You see each part beside what the thread
+that stays has now, and you can change any of it. Merge keeps it, and the other thread is deleted.
+Its wake words, scene pins, Over time, chalked changes and earlier versions move to the thread
+that stays. Cancel changes nothing.
+
 ## 2026-10-28 · A new tale starts at its opening
 
 ### The passage length stays where you set it

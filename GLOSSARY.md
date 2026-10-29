@@ -142,6 +142,14 @@ only for scenes.)
 _Avoid_: finished, hemmed (for a thread)
 _In code_: `retired_at_chapter`
 
+**Merge**:
+Make two threads that are the same one into one. The writer picks which stays; Anansi drafts its
+Always true, where it stands and its pockets from both, and the writer approves the draft first.
+Everything that pointed at the other moves to the one that stays, and the other is deleted. Never
+the tale's own thread, and never a World thread the tale only follows. (Added 2026-10-29.)
+_Avoid_: combine, join, dedupe, fold into
+_In code_: `/api/merge`, `db.mergeThreads`
+
 **String**:
 A promise or an open question the tale carries: a pocket of the tale's thread, of kind promise (set
 up to pay off) or open question (kept open). On means in play and sent to the model; off means set
