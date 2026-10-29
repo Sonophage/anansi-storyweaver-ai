@@ -194,6 +194,12 @@ export const STORY_FIELDS = [
 
 export const isSpeech = (t) => /^["“]/.test(String(t).trim());
 
+/** The room to add under the page so it can scroll `want` px: anchorLive's count. `content` is the
+ *  page's real height, NOT `scrollHeight`, which is never less than `client` (the screen): counted
+ *  from it, a page shorter than the screen got too little room and the header stopped short of the
+ *  top (measured 2026-10-28: wanted 438px of scroll, could scroll 309). Rounded up, never negative. */
+export const roomBelow = (want, content, client) => Math.max(0, Math.ceil(want - (content - client)));
+
 /** A passage as a book sets it: paragraphs, and speech getting its own.
  *
  *  Print gives every turn of dialogue a paragraph of its own, and a model that writes narration and

@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs } from './model.js';
+import { inkParagraphs, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -1776,9 +1776,11 @@ function drawDoc() {
   // AND THE PAGE IS LONG ENOUGH TO STAY THERE (2026-10-28). The landed passage can be a line shorter
   // than the one being written was, and at the foot of the page the browser then pulls the prose
   // down by the difference (measured: 16px, every landing). The column's foot takes up the slack.
+  // Counted from the page's own height, as anchorLive counts it (roomBelow): `scrollHeight` is never
+  // less than the screen, so on a short page it counted room that was not there.
   if (HOLD_SCROLL != null) {
-    const short = HOLD_SCROLL - (read.scrollHeight - read.clientHeight);
-    if (short > 0) col.style.paddingBottom = `${(parseFloat(col.style.paddingBottom) || 20) + Math.ceil(short)}px`;
+    const short = roomBelow(HOLD_SCROLL, col.offsetTop + col.offsetHeight, read.clientHeight);
+    if (short > 0) col.style.paddingBottom = `${(parseFloat(col.style.paddingBottom) || 20) + short}px`;
     read.scrollTo({ top: HOLD_SCROLL, behavior: 'instant' }); HOLD_SCROLL = null;
   }
   // 'instant': #read has scroll-behavior:smooth, so assigning scrollTop GLIDES, and a glide still
@@ -9515,8 +9517,11 @@ function anchorLive() {
       .map((el) => el.getBoundingClientRect().bottom + (el.id === 'ctxread' ? 14 : 0)));
   if (col) col.style.paddingBottom = '';
   const want = read.scrollTop + g.getBoundingClientRect().top - floor - GAP;
-  const short = want - (read.scrollHeight - read.clientHeight);
-  if (col && short > 0) col.style.paddingBottom = `${20 + Math.ceil(short)}px`;
+  // THE PAGE'S OWN HEIGHT, NOT `scrollHeight`, which is never less than the screen: on a page shorter
+  // than the screen it counted room that was not there (roomBelow). #col is #read's only child and
+  // #read is its offset parent, so this is #read's top padding, the column, and #read's foot (0).
+  const room = col ? roomBelow(want, col.offsetTop + col.offsetHeight, read.clientHeight) : 0;
+  if (room > 0) col.style.paddingBottom = `${20 + room}px`;
   // 'instant', not 'auto': #read has scroll-behavior:smooth, which 'auto' would honour, and a page
   // still gliding while the words arrive is the motion this removes.
   read.scrollTo({ top: want, behavior: 'instant' });

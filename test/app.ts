@@ -7136,4 +7136,23 @@ const hemCardOf = (side: string) => {
   }
 }
 
+// ---- THE PAGE'S FOOT HAS ROOM ENOUGH TO PUT THE NEW HEADER AT THE TOP, ON A SHORT PAGE TOO. The room
+// was counted from `scrollHeight`, which is never less than the screen, so a page shorter than the
+// screen got too little: measured on a 390px screen, the header wanted 438px of scroll, the page had
+// 309, and the header sat at 167px instead of 128px (2026-10-28).
+{
+  const { roomBelow } = await import('../web/model.js');
+  const scrolls = (content: number, client: number, room: number) => Math.max(content + room, client) - client;
+  // A short page: 400px of prose on a 700px screen, the header wanting 438px of scroll.
+  assert.strictEqual(scrolls(400, 700, roomBelow(438, 400, 700)), 438, 'a short page can scroll the header to the top');
+  // What the old count gave it: scrollHeight (700 here) in place of the real 400.
+  assert.ok(scrolls(400, 700, roomBelow(438, 700, 700)) < 438, 'and the scrollHeight count could not (the check sees the bug)');
+  // A long page: nothing to add when it can already reach.
+  assert.strictEqual(roomBelow(438, 2000, 700), 0, 'a long page gets no room');
+  // Part way: 900px of prose on 700 scrolls 200; 438 wants 238 more.
+  assert.strictEqual(roomBelow(438, 900, 700), 238, 'a page part way there gets the difference');
+  assert.strictEqual(roomBelow(438.2, 900, 700), 239, 'rounded up, so the header is never a pixel short');
+  ok('the room under a short page is counted from its content, not from scrollHeight');
+}
+
 console.log(`\n${n} checks passed`);
