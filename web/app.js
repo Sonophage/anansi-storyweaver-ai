@@ -11032,6 +11032,10 @@ async function commitGen(quiet = true) {
   if (!Object.keys(gen).length) return;
   const r = await api.settings(S.storyId, gen);
   if (r.error) return toast(r.error);
+  // KEEP WHAT WAS SAVED (Seth, 2026-10-29: "the other sliders don't save"). The panel draws from
+  // V.gen, which was only refreshed when the tale was read again, so the next repaint put every
+  // slider back to its old place and the next slider moved sent those old values with it.
+  if (r.gen) { if (V) V.gen = r.gen; SRV.gen = r.gen; }
   if (!quiet) toast('Saved.');
 }
 

@@ -606,6 +606,7 @@ let worldDown = 0;
     : url.startsWith('/api/after?') ? (afterAsked = new URLSearchParams(url.split('?')[1]).get('id'),
         { yours: afterYours })
     : url.startsWith('/api/manifest') ? MANIFEST
+    : url.startsWith('/api/settings') ? { gen: JSON.parse(init?.body ?? '{}') }
     : url.startsWith('/api/history') ? (stubHistory ?? {})
     : url.startsWith('/api/talk/undo') ? (stubUndo ?? { undone: "Put back Marek's Always true.", ...STORY })
     : url.startsWith('/api/talk') ? (stubTalk ?? { reply: 'It is about a debt.', seconds: 1, tokens: 10 })
@@ -5543,6 +5544,12 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     assert.strictEqual(gen.body.target_words, 600, 'and the rest of the panel with it');
     // Numbers, not strings: `Number(el.value)` is the whole reason this is not a spread.
     assert.strictEqual(typeof gen.body.top_p, 'number', 'as numbers, not the strings a range gives');
+    // AND THE PANEL KEEPS WHAT WAS SAVED (Seth, 2026-10-29: "the other sliders don't save"): the
+    // Storyteller redraws its sliders from the saved values, so moving another one cannot send the
+    // old ones back.
+    click({ panel: 'teller' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.match(html('sideBody'), /data-gen="temperature"[^>]*value="1\.1"/, 'GEN-KEPT: the Storyteller draws the saved Surprise');
 
     POSTED.length = 0;
     changeIn({ dataset: { story: 'coverOpacity' }, type: 'range', value: '55' });
