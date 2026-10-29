@@ -151,10 +151,11 @@ ADR 0011.)
 _Avoid_: owed item, string table
 _In code_: a `promise` or `question` pocket on the tale's thread
 
-**Summon / Dismiss**:
-Put a string in front of the model / take it away again.
-_Avoid_: in play, put it away, put it in play
-_In code_: `summoned`
+**Put in play / Set aside**:
+Switch a string on, so it reaches the model / switch it off. (Was Summon / Dismiss until
+2026-10-28, ADR 0011.)
+_Avoid_: summon, dismiss, put it away
+_In code_: the pocket's on switch; older code says `summoned`
 
 **Tied off / Let go**:
 A string the tale kept / a string it abandoned.
