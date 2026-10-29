@@ -124,6 +124,15 @@ const srv = createServer((req, res) => {
         changes: [{ op: 'thread.new', title: 'Morgott', type: 'character', text: 'The Omen King.' },
                   { op: 'tale.set', field: 'world', text: 'Elden Ring' }],
         entries: [{ title: 'Godfrey', type: 'character', body: 'The first Elden Lord.', keys: ['Godfrey'], field: 'none' }] },
+      // #128 · a string asked for, a pocket of the tale's thread; one changed by its name; and two
+      // offered unasked, a promise and an open question, which are chalked.
+      STRINGNEW: { reply: 'It is an open question now.',
+        changes: [{ op: 'string.set', kind: 'question', title: 'Who sent the letter', text: 'It came under the door with no name.' }] },
+      STRINGEDIT: { reply: 'The letter is sealed now.',
+        changes: [{ op: 'string.set', title: 'the letter', text: 'Sealed, and still unopened.' }] },
+      STRINGOFFER: { reply: 'Two things the tale is carrying.',
+        strings: [{ title: 'The debt nobody calls in', body: 'Owed since spring.', fromChapter: 1, kind: 'promise' },
+                  { title: 'Whether the ferryman can die', body: 'Nobody has asked him.', fromChapter: 1, kind: 'question' }] },
       SETUPWEB: { reply: 'Charon is in.',
         changes: [{ op: 'thread.new', title: 'Charon', type: 'character',
           text: 'Ferries the dead for an obol (https://myth.example/charon/1).', sources: [1] }] },
@@ -1400,7 +1409,8 @@ ok('emptying the box gives her back the voice she shipped with');
   const age = await say('CHANGE-AGE: make Talia thirty, not twenty');
   assert.ok(!age.error, age.error);
   const ops = calls[0].response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum;
-  assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire', 'tale.set', 'scene.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
+  assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire', 'tale.set', 'scene.set',
+    'string.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
 
   // Always true, changed at once.
   assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is thirty.', 'CHANGE-DONE: Talia\'s Always true is changed');
@@ -1637,6 +1647,56 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(events(), eventsBefore, 'UNDO-RETIRE: its Over time has no retirement in it, as before');
   assert.strictEqual(retiredCol(), null, 'UNDO-RETIRE: and it is not retired at any scene');
   ok('asked to get rid of a thread, Talk retires it and never deletes it, and Undo brings it back as it was');
+}
+
+// ---- #128 · A STRING ASKED FOR IN TALK IS ADDED OR CHANGED AT ONCE, WITH UNDO; ONE OFFERED IS CHALKED ----
+//
+// A string is a pocket of the tale's thread (ADR 0011). Asked for, it is written through the same
+// `upsertAddon` the pocket panel's Save uses, on the tale's thread, made the first time it is needed.
+{
+  const tale = db.createStory(me, { title: 'The Strand', premise: 'A ferry and a debt.' }) as any;
+  const ctxOf = (body: any) => ({ body: { storyId: tale.id, ...body }, query: new URLSearchParams(),
+    owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+  const say = (said: string) => { calls = []; return routes['POST /api/talk'](ctxOf({ said })) as Promise<any>; };
+  const undo = (u: any) => routes['POST /api/talk/undo'](ctxOf({ undo: u })) as any;
+  assert.strictEqual(db.taleThreadOf(tale.id), null, 'no tale thread yet');
+
+  const added = await say('CHANGE-STRINGNEW: make who sent the letter an open question');
+  assert.ok(!added.error, added.error);
+  const s1 = db.stringsOf(tale.id);
+  assert.strictEqual(s1.length, 1, `TALK-STRING-NEW: the string is added at once (${JSON.stringify(added.changes)})`);
+  assert.strictEqual(s1[0].kind, 'question', 'TALK-STRING-NEW: as an open question');
+  assert.strictEqual(s1[0].body, 'It came under the door with no name.');
+  assert.strictEqual(s1[0].summoned, 1, 'TALK-STRING-NEW: and in play');
+  assert.ok(db.taleThreadOf(tale.id), "TALK-STRING-NEW: on the tale's thread, made for it");
+  assert.match(added.changes[0].words, /open question.*Who sent the letter/i, `  the line says so (${added.changes[0].words})`);
+  const gone: any = undo(added.changes[0].undo);
+  assert.ok(!gone.error, gone.error);
+  assert.strictEqual(db.stringsOf(tale.id).length, 0, 'TALK-STRING-UNDO: Undo takes the string away');
+  ok("asked for a string, Talk adds it to the tale's thread in play, and Undo takes it away");
+
+  db.upsertString(tale.id, { title: 'The letter he has not opened', body: 'Sent by his brother.', kind: 'promise', summoned: true });
+  const changed = await say('CHANGE-STRINGEDIT: the letter is sealed');
+  assert.ok(!changed.error, changed.error);
+  assert.strictEqual(db.stringsOf(tale.id)[0].body, 'Sealed, and still unopened.', 'TALK-STRING-EDIT: the string is rewritten');
+  assert.strictEqual(db.stringsOf(tale.id).length, 1, '  in place');
+  assert.deepStrictEqual(changed.changes[0].diff, { before: 'Sent by his brother.', after: 'Sealed, and still unopened.' });
+  const back: any = undo(changed.changes[0].undo);
+  assert.ok(!back.error, back.error);
+  assert.strictEqual(db.stringsOf(tale.id)[0].body, 'Sent by his brother.', 'TALK-STRING-EDIT-UNDO: Undo puts the old text back');
+  ok('asked to change a string, Talk rewrites it, and Undo puts back the old text');
+
+  const offered = await say('CHANGE-STRINGOFFER: what is the tale carrying?');
+  assert.ok(!offered.error, offered.error);
+  assert.strictEqual(db.stringsOf(tale.id).length, 1, 'TALK-STRING-OFFER: an offered string is not added');
+  const chalked = (db.proposalsOf(tale.id) as any[]).filter((p) => p.entry_type === 'string');
+  assert.strictEqual(chalked.length, 2, 'TALK-STRING-OFFER: it is chalked');
+  const q = chalked.find((p) => p.title === 'Whether the ferryman can die');
+  await routes['POST /api/proposal'](ctxOf({ id: q.id, accept: true }));
+  assert.strictEqual(db.stringsOf(tale.id).find((x: any) => x.title === q.title)?.kind, 'question',
+    'TALK-STRING-OFFER-KIND: an open question offered is sewn in as an open question');
+  ok('a string Talk offers unasked is chalked, of its kind');
 }
 
 // ---- 6f2 · AN UNDO NEVER WRITES OVER A LATER EDIT ----

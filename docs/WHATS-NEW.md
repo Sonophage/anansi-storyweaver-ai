@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-28 · A new tale starts at its opening
 
+### Ask Anansi in Talk for a string
+Ask Anansi in Talk to add a promise or an open question, or to change one the tale has, and he
+does it at once. A new string is in play straight away. The change shows in the conversation with
+what it said before, and Undo puts it back. A string he notices without being asked is still a
+card on the Workbench, and an open question he offers is sewn in as an open question, not as a
+promise.
+
 ### Strings move with the tale
 A string, a promise to pay off or an open question to keep open, now belongs to the tale's own
 thread, and it changes as the tale does. When you hem a scene, Anansi also writes where each string

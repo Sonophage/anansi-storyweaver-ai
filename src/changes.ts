@@ -34,12 +34,13 @@
  * is not capped, because it puts back what the writer had, which can be longer than anything Talk
  * may write.
  */
-import { ALL_SLOTS, KINDS, slotsFor, plain, wrapperNames } from './slots.ts';
+import { ALL_SLOTS, KINDS, STRING_SLOTS, slotsFor, plain, wrapperNames } from './slots.ts';
 import { retiredAt } from './context.ts';
 
-/** What the model may ask for. #97 cut the path with the first two; #98 adds the rest. */
+/** What the model may ask for. #97 cut the path with the first two; #98 adds the rest; #128 adds a
+ *  string, a pocket of the tale's own thread (ADR 0011), which no other operation reaches. */
 export const ASKED = ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire',
-  'tale.set', 'scene.set'] as const;
+  'tale.set', 'scene.set', 'string.set'] as const;
 /** What only an Undo may do, beside putting back old text. */
 export const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake', 'retire.unmake', 'takeover.unmake'] as const;
 /** What an Undo may put back as it was: the asked operations that write over a value, by id. */
@@ -70,9 +71,11 @@ export const CHANGES_SCHEMA = {
       text: { type: 'string', maxLength: 600 },
       // thread.overtime: what changed, in a few words.
       label: { type: 'string', maxLength: 60 },
-      // thread.new only.
+      // thread.new, and string.set: the string's name.
       title: { type: 'string', maxLength: 80 },
       type: { type: 'string', enum: [...KINDS] },
+      // string.set: a promise or an open question. Left out on a string the tale has, it keeps its own.
+      kind: { type: 'string', enum: [...STRING_SLOTS] },
       // thread.new, and thread.wake: Always on or On a word, and the wake words.
       keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
       activation: { type: 'string', enum: ['always_on', 'triggered'] },
@@ -103,7 +106,9 @@ type Scene = { id: string; index: number; title?: string | null; authorsNote?: s
  *  scenes and the scene the writer is in. The later three are optional so a check that needs only
  *  threads can be handed only threads. */
 export type Tale = { entries: Thread[]; story?: { premise?: string | null; setting?: string | null };
-  chapters?: Scene[]; at?: number };
+  chapters?: Scene[]; at?: number;
+  /** #128 · The tale's own thread, whose pockets are its strings; null until it is first needed. */
+  taleThread?: Thread | null };
 
 export type Change =
   | { op: 'thread.new'; title: string; type: string; always: string; keys: string[]; activation: string }
@@ -129,7 +134,12 @@ export type Change =
   /** The retirement Talk dated, taken out of the thread's Over time: the thread is back as it was. */
   | { op: 'retire.unmake'; thread: string; title: string; event: string }
   /** #101 · The tale's copy of a World thread Talk took over, handed back: the World's is read again. */
-  | { op: 'takeover.unmake'; thread: string; title: string; origin: string };
+  | { op: 'takeover.unmake'; thread: string; title: string; origin: string }
+  /** #128 · A string: `thread` is the tale's thread, null when the tale has none yet (the route makes
+   *  it); `addon` is the string it writes over, null for a new one, which is set up at scene `from`
+   *  and put in play; `before` is that string's text, null when there was none. */
+  | { op: 'string.set'; thread: string | null; title: string; kind: string; name: string; addon: string | null;
+      from: number | null; text: string; before: string | null };
 export type Checked = { ok: true; change: Change } | { ok: false; said: string; why: string };
 
 const NOT_TALK = 'that is not something Talk can do. It changes the tale, its threads and its scenes; '
@@ -144,26 +154,34 @@ const roomOf = (r: unknown) => {
   const x = String(r ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
   return !x || x === 'none' || x === 'always_true' ? 'facts' : x;
 };
-const roomLabel = (slot: string) => slot === 'facts' ? 'Always true' : slot.replace(/_/g, ' ');
+const roomLabel = (slot: string) => slot === 'facts' ? 'Always true' : slot === 'question' ? 'open question'
+  : slot.replace(/_/g, ' ');
 const clip = (t: string, n = 160) => t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t;
 /** A web link, with the brackets a model puts round one. */
 const LINK = /\s*[(\[<]?https?:\/\/[^\s)\]>]+[)\]>]?/g;
 const an = (kind: string) => (/^[aeiou]/.test(kind) ? 'an ' : 'a ') + kind;
+
+/** The things a name may mean, by `threadNamed`'s rule below: the exact name, else every one whose
+ *  words hold all of the name's or are all in it. #128 · Shared with a string, found by its name. */
+function byName<T>(xs: T[], name: unknown, nameOf: (x: T) => string): T[] {
+  const want = norm(name);
+  if (!want) return [];
+  const exact = xs.filter((x) => norm(nameOf(x)) === want);
+  if (exact.length) return exact;
+  const w = new Set(words(name));
+  return xs.filter((x) => {
+    const ew = new Set(words(nameOf(x)));
+    return [...w].every((y) => ew.has(y)) || [...ew].every((y) => w.has(y));
+  });
+}
 
 /** WHICH THREAD A NAME MEANS. The exact name first. Failing that, a thread whose name holds every
  *  WORD of the one given, or whose words are all in it: "Morgott" is "Morgott, the Omen King", and
  *  "Ta" is nobody, though three names start with it. Two such threads is a question, not a guess:
  *  a change written at once to the wrong one is worse than one not done. */
 function threadNamed(tale: Tale, name: unknown): { hit?: Thread; why?: string } {
-  const want = norm(name);
-  if (!want) return { why: 'it did not name a thread' };
-  const exact = tale.entries.filter((e) => norm(e.title) === want);
-  if (exact.length === 1) return { hit: exact[0] };
-  const w = new Set(words(name));
-  const near = exact.length ? exact : tale.entries.filter((e) => {
-    const ew = new Set(words(e.title));
-    return [...w].every((x) => ew.has(x)) || [...ew].every((x) => w.has(x));
-  });
+  if (!norm(name)) return { why: 'it did not name a thread' };
+  const near = byName(tale.entries, name, (e) => e.title);
   if (near.length === 1) return { hit: near[0] };
   if (near.length > 1) return { why: `more than one thread could be "${String(name).trim()}": `
     + `${near.map((e) => e.title).join(', ')}. Say which` };
@@ -205,6 +223,7 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   }
   if (op === 'tale.set') return taleSet(tale, raw, said, false);
   if (op === 'scene.set') return sceneSet(tale, raw, said, false);
+  if (op === 'string.set') return stringSet(tale, raw, said);
   const { hit, why } = threadNamed(tale, raw.thread);
   if (!hit) return { ok: false, said, why: why! };
   if (op === 'thread.wake') return wakeOn(hit, raw, said, false);
@@ -370,6 +389,32 @@ function sceneSet(tale: Tale, raw: any, said: string, undo: boolean): Checked {
   return { ok: true, change: { op: 'scene.set', chapter: sc.id, index: sc.index, field, text,
     before: undo ? text : before, ...(undo ? { undo: true as const } : {}) } };
 }
+/** #128 · A STRING OF THE TALE (ADR 0011): a promise or an open question, a pocket of the tale's own
+ *  thread, by its name. A name the tale has rewrites that string's text, and its kind stays: a request
+ *  to change the kind is refused, as the pocket panel does not change one either. A new name adds one,
+ *  set up in the scene the writer is in. Its text is stored plain, as `setOn`'s is. */
+function stringSet(tale: Tale, raw: any, said: string): Checked {
+  const kind = raw?.kind == null || raw.kind === '' ? null : String(raw.kind).trim().toLowerCase();
+  if (kind && !STRING_SLOTS.includes(kind)) return { ok: false, said, why: 'a string is a promise or an open question' };
+  const title = String(raw?.title ?? raw?.thread ?? '').trim();
+  if (!title) return { ok: false, said, why: 'the string had no name' };
+  const t = tale.taleThread ?? null;
+  const strings = (t?.addons ?? []).filter((a) => STRING_SLOTS.includes(a.slot));
+  const near = byName(strings, title, (a) => a.name);
+  if (near.length > 1) return { ok: false, said, why: `more than one string could be "${title}": `
+    + `${near.map((a) => a.name).join(', ')}. Say which` };
+  const cur = near[0] ?? null;
+  if (cur && kind && kind !== cur.slot) return { ok: false, said,
+    why: `${cur.name} is ${an(roomLabel(cur.slot))}, and a string keeps its kind` };
+  const slot = cur?.slot ?? kind ?? 'promise';
+  const name = cur?.name ?? title;
+  const text = plain(String(raw?.text ?? '').trim(), wrapperNames(slot, t?.title ?? 'The tale', name));
+  if (!text) return { ok: false, said, why: 'it came with no text' };
+  if (cur && cur.body.trim() === text) return { ok: false, said, why: `${name} already says that` };
+  return { ok: true, change: { op: 'string.set', thread: t?.id ?? null, title: t?.title ?? 'The tale', kind: slot, name,
+    addon: cur?.id ?? null, from: cur ? null : tale.at ?? null, text, before: cur ? cur.body : null } };
+}
+
 /** The scene a number names, or `dflt`'s when none is given. Never the nearest one. */
 const sceneAt = (tale: Tale, n: unknown, dflt?: number) => {
   const want = n == null || n === '' ? dflt : Number(n);
@@ -411,7 +456,12 @@ export function checkUndo(raw: any, tale: Tale): Checked {
     return { ok: false, said, why: 'that is not something Undo can do' };
   if (op === 'tale.set') return taleSet(tale, raw, said, true);
   if (op === 'scene.set') return sceneSet(tale, raw, said, true);
-  const t = tale.entries.find((e) => e.id === String(raw.thread ?? ''));
+  // #128 · THE TALE'S OWN THREAD only for one of its strings: a string put back, or one Talk added
+  // taken away. Never its Always true, never the thread itself, which Talk did not make.
+  const own = tale.taleThread && tale.taleThread.id === String(raw.thread ?? '') ? tale.taleThread : null;
+  const aString = !!own && (op === 'thread.set' ? STRING_SLOTS.includes(roomOf(raw.room))
+    : op === 'room.unmake' && (own.addons ?? []).some((a) => a.id === String(raw.addon ?? '') && STRING_SLOTS.includes(a.slot)));
+  const t = tale.entries.find((e) => e.id === String(raw.thread ?? '')) ?? (aString ? own! : undefined);
   if (!t) return { ok: false, said, why: 'that thread is no longer in this tale' };
   const text = String(raw.text ?? '');
   if (op === 'thread.set') return setOn(t, roomOf(raw.room), text, said, true, raw.addon ?? null, raw.wrote);
@@ -481,6 +531,9 @@ export function wordsFor(c: Change): string {
   if (c.op === 'scene.set') return c.field === 'title'
     ? c.undo ? `Put back scene ${c.index}'s title.` : `Changed scene ${c.index}'s title: “${clip(c.text)}”`
     : c.undo ? `Put back where scene ${c.index} heads.` : `Changed where scene ${c.index} heads: “${clip(c.text)}”`;
+  if (c.op === 'string.set') return c.addon ? `Changed the ${roomLabel(c.kind)} ${c.name}: “${clip(c.text)}”`
+    : `Added ${an(roomLabel(c.kind))} to the tale, in play: ${c.name}.`;
+  if (c.undo && STRING_SLOTS.includes(c.room)) return `Put back the ${roomLabel(c.room)} ${c.name}.`;
   if (c.undo) return `Put back ${c.title}'s ${roomLabel(c.room)}.`;
   return `Changed ${c.title}'s ${roomLabel(c.room)}: “${clip(c.text)}”`;
 }
@@ -491,7 +544,8 @@ export function wordsFor(c: Change): string {
  *  time entry it made had nothing before it, which reads as an empty side. */
 export function textsOf(c: Change): { before: string; after: string } | null {
   if ((c as any).undo) return null;
-  if (c.op === 'thread.set' || c.op === 'tale.set' || c.op === 'scene.set') return { before: c.before ?? '', after: c.text };
+  if (c.op === 'thread.set' || c.op === 'tale.set' || c.op === 'scene.set' || c.op === 'string.set')
+    return { before: c.before ?? '', after: c.text };
   if (c.op === 'thread.overtime') return { before: c.before?.body ?? '', after: c.text };
   if (c.op === 'thread.wake') return { before: wakeWords(c.before.activation, c.before.keys), after: wakeWords(c.activation, c.keys) };
   return null;
@@ -502,6 +556,7 @@ function saidOf(raw: any): string {
   const name = String(raw?.thread ?? raw?.title ?? '').trim();
   if (raw?.op === 'thread.new') return `Make a new thread${name ? `: ${name}` : ''}`;
   if (raw?.op === 'scene.set') return `Change scene ${raw?.scene ?? 'this one'}`;
+  if (raw?.op === 'string.set') return `Add or change the string ${name || 'with no name'}`;
   if (raw?.op === 'thread.wake') return `Change how ${name || 'a thread'} wakes`;
   if (raw?.op === 'thread.retire') return `Retire ${name || 'a thread'}`;
   if (raw?.op === 'thread.overtime') return `Add to ${name || 'a thread'}'s Over time${raw?.scene ? ` from scene ${raw.scene}` : ''}`;
@@ -727,6 +782,10 @@ export function undoFor(c: Change, made: { thread?: string; addon?: string; stat
   if (c.op === 'scene.set') return { op: 'scene.set', chapter: c.chapter, field: c.field, text: c.before, wrote: c.text };
   if (c.op === 'thread.wake') return { op: 'thread.wake', thread: c.thread, ...c.before,
     wrote: { activation: c.activation, keys: c.keys } };
+  // #128 · A string Talk added is taken away; one it changed is put back, as a pocket of the tale's thread.
+  if (c.op === 'string.set') return c.addon
+    ? { op: 'thread.set', thread: c.thread, room: c.kind, addon: c.addon, text: c.before, wrote: c.text }
+    : { op: 'room.unmake', thread: made.thread, addon: made.addon, text: c.text };
   if (c.op !== 'thread.set') return null;
   // The first Always true on a thread that had none gets no Undo: `checkUndo` never takes one away.
   if (c.before == null) return c.room === 'facts' ? null

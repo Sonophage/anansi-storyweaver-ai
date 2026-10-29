@@ -421,6 +421,7 @@ const ASKS: Record<string, any> = {
   'thread.retire': { thread: 'the letter' },
   'tale.set': { field: 'premise', text: 'A darker river.' },
   'scene.set': { scene: 1, field: 'title', text: 'The Ford' },
+  'string.set': { kind: 'promise', title: 'The debt', text: 'Owed since spring.' },
 };
 
 ok('ONE-SIDED-PAIR: every operation on the list has an Undo, and the Undo is one Undo can do', () => {
@@ -583,6 +584,67 @@ ok('CHANGE-TEXTS: before and after for what a change rewrote, none where it rewr
     assert.strictEqual(ch.textsOf(c), null, `${c.op} rewrote no text`);
   // An Undo's `before` is the text being put back, so its line is not drawn as a diff the wrong way round.
   assert.strictEqual(ch.textsOf({ op: 'tale.set', field: 'premise', text: 'A loan.', before: 'A loan.', undo: true }), null);
+});
+
+// ---- #128 · A STRING, ASKED FOR IN TALK: a pocket of the tale's thread (ADR 0011), added or changed
+// through the one operation on the list that reaches that thread. The tale's thread is not a thread of
+// the cast, so `thread.set` cannot find it by name, and an Undo reaches it only for a string.
+const LETTER = room('st-letter', 'promise', 'Sent by his brother.', { name: 'The letter he has not opened' });
+const strung = { ...whole, taleThread: { id: 'e-tale', title: 'The tale', entryType: 'tale',
+  addons: [room('tf', 'facts', 'A port town.'), LETTER, room('st-ring', 'question', 'Nobody says.', { name: 'Who took the ring' })] } };
+
+ok('STRING-NEW: a string with a new name is added to the tale\'s thread, and Undo takes it away', () => {
+  const c = done(ch.checkAsked({ op: 'string.set', kind: 'question', title: 'Who sent the letter', text: 'It came with no name.' }, strung));
+  assert.strictEqual(c.thread, 'e-tale', "on the tale's thread");
+  assert.strictEqual(c.addon, null, 'a new pocket');
+  assert.strictEqual(c.kind, 'question');
+  assert.strictEqual(c.name, 'Who sent the letter');
+  assert.strictEqual(c.before, null);
+  assert.strictEqual(c.from, 2, 'set up in the scene the writer is in');
+  assert.match(ch.wordsFor(c), /open question.*Who sent the letter/i);
+  assert.deepStrictEqual(ch.textsOf(c), { before: '', after: 'It came with no name.' });
+  const undo = ch.undoFor(c, { thread: 'e-tale', addon: 'st-new' });
+  assert.deepStrictEqual(undo, { op: 'room.unmake', thread: 'e-tale', addon: 'st-new', text: 'It came with no name.' });
+  const after = { ...strung, taleThread: { ...strung.taleThread, addons: [...strung.taleThread.addons,
+    room('st-new', 'question', 'It came with no name.', { name: 'Who sent the letter' })] } };
+  assert.ok(ch.checkUndo(undo, after).ok, 'STRING-UNDO-NEW: the Undo can take it away');
+  // A tale with no thread of its own yet: the route makes it, so the change names none.
+  const bare = done(ch.checkAsked({ op: 'string.set', kind: 'promise', title: 'The debt', text: 'Owed since spring.' }, whole));
+  assert.strictEqual(bare.thread, null, 'no tale thread yet: the route makes one');
+});
+
+ok('STRING-CHANGE: a string the tale has, by its name, is rewritten, and Undo puts it back', () => {
+  const c = done(ch.checkAsked({ op: 'string.set', title: 'the letter', text: 'Sealed, and still unopened.' }, strung));
+  assert.strictEqual(c.addon, 'st-letter', 'a near name finds it, as a thread is found');
+  assert.strictEqual(c.kind, 'promise', 'no kind given keeps its own');
+  assert.strictEqual(c.before, 'Sent by his brother.');
+  const undo = ch.undoFor(c, {});
+  assert.deepStrictEqual(undo, { op: 'thread.set', thread: 'e-tale', room: 'promise', addon: 'st-letter',
+    text: 'Sent by his brother.', wrote: 'Sealed, and still unopened.' });
+  const after = { ...strung, taleThread: { ...strung.taleThread, addons: [strung.taleThread.addons[0],
+    { ...LETTER, body: 'Sealed, and still unopened.' }, strung.taleThread.addons[2]] } };
+  const back = done(ch.checkUndo(undo, after));
+  assert.match(ch.wordsFor(back), /Put back the promise The letter he has not opened/);
+});
+
+ok('STRING-REFUSED: not a kind of string, no name, no text, the same text, or a change of kind', () => {
+  refused(ch.checkAsked({ op: 'string.set', kind: 'voice', title: 'X', text: 'y' }, strung), /promise or an open question/i);
+  refused(ch.checkAsked({ op: 'string.set', kind: 'promise', text: 'y' }, strung), /no name/i);
+  refused(ch.checkAsked({ op: 'string.set', kind: 'promise', title: 'The debt', text: '  ' }, strung), /no text/i);
+  refused(ch.checkAsked({ op: 'string.set', title: 'Who took the ring', text: 'Nobody says.' }, strung), /already says/i);
+  refused(ch.checkAsked({ op: 'string.set', kind: 'question', title: 'The letter he has not opened', text: 'x' }, strung),
+    /is a promise/i);
+});
+
+ok('STRING-ONLY: the tale\'s thread is reached by string.set alone, and an Undo touches only its strings', () => {
+  refused(ch.checkAsked({ op: 'thread.set', thread: 'The tale', room: 'promise', text: 'x' }, strung), /no thread called/i);
+  refused(ch.checkUndo({ op: 'thread.unmake', thread: 'e-tale', title: 'The tale', text: 'A port town.' }, strung),
+    /no longer in this tale/i);
+  refused(ch.checkUndo({ op: 'thread.set', thread: 'e-tale', room: 'facts', addon: 'tf', text: 'x', wrote: 'A port town.' }, strung),
+    /no longer in this tale/i);
+  refused(ch.checkUndo({ op: 'room.unmake', thread: 'e-tale', addon: 'tf', text: 'A port town.' }, strung), /no longer in this tale/i);
+  // And a string's kind is never a pocket of anyone else's thread.
+  refused(ch.checkAsked({ op: 'thread.set', thread: 'Talia Venn', room: 'promise', text: 'x' }, strung), /no promise/i);
 });
 
 console.log(`\n${n} checks passed`);

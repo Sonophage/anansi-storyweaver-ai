@@ -691,6 +691,17 @@ function applyChange(storyId: string, owner: string, ch: Change):
     if (!ch.addon && !ch.keys.length) db.setAddonActive(storyId, id, true);
     return { addon: id };
   }
+  // #128 · A STRING, through the pocket panel's own write on the tale's thread, which is made here the
+  // first time a tale needs one (`db.taleThread`). A new one is in play, as a sewn-in one is.
+  if (ch.op === 'string.set') {
+    const tale = ch.thread ?? db.taleThread(storyId);
+    if (!tale) return null;
+    const id = db.upsertAddon(storyId, tale, { id: ch.addon ?? undefined, slot: ch.kind, name: ch.name, body: ch.text,
+      ...(ch.addon ? {} : { fromChapter: ch.from }) });
+    if (!id) return null;
+    if (!ch.addon) db.setAddonActive(storyId, id, true);
+    return { thread: tale, addon: id };
+  }
   // #98. The premise or the setting, through the save the tale's own panel makes. Only the one
   // field is named, and `updateStory` leaves every field it is not handed as it was.
   if (ch.op === 'tale.set') { db.updateStory(storyId, { [ch.field]: ch.text }); return {}; }
@@ -1037,9 +1048,11 @@ const talkReply = (reply: unknown, notDone: { said: string; why: string }[], sea
     .filter(Boolean).join('\n\n');
 
 /** #98 · THE TALE A CHANGE IS CHECKED AGAINST, read through the gate as it stands now: its threads,
- *  its premise and setting, its scenes, and the scene the writer is in. */
+ *  its premise and setting, its scenes, and the scene the writer is in. #128 · And the tale's own
+ *  thread, whose pockets are its strings. */
 const taleOf = (id: string) => { const v = bookOf(id);
-  return { entries: v.entries as any[], story: v.story, chapters: v.chapters, at: v.currentChapter?.index ?? 1 }; };
+  return { entries: v.entries as any[], story: v.story, chapters: v.chapters, at: v.currentChapter?.index ?? 1,
+    taleThread: (v as any).taleThread ?? null }; };
 
 /** #101 · THE WORLD A TALK CHANGE MAY REACH: the one this tale follows, read as `taleOf` reads a
  *  tale, and only when the writer OWNS both. Not `MINE()`: being called in to write in a tale is not
@@ -4003,9 +4016,13 @@ export const routes: Record<string, Handler> = {
     let proposed = 0;
     // Strings ride the SAME queue, with entry_type 'string' telling the accept path what to make.
     // A second queue would be a second place to forget to look.
+    // #128 · Of its kind, a promise or an open question, kept in the proposal's `field` (a string has
+    // no thread to aim a pocket at) and read back by Sew it in. Anything else is a promise (`stringKind`).
     for (const x of ((r.data as any).strings ?? [])) {
       if (!x?.title?.trim()) continue;
-      if (db.addProposal(v.id, { kind: 'new', entry_id: null, delta: 'A promise, unpaid',
+      const kind = db.stringKind(x.kind ?? 'promise');
+      if (db.addProposal(v.id, { kind: 'new', entry_id: null, field: kind,
+        delta: kind === 'question' ? 'An open question' : 'A promise, unpaid',
         chapterId: v.currentChapter.id, title: String(x.title).trim(),
         body: String(x.body ?? '').trim(), entryType: 'string',
         keys: [String(x.fromChapter ?? v.currentChapter.index)] })) proposed++;
@@ -4815,7 +4832,8 @@ export const routes: Record<string, Handler> = {
         // A string is not a thread of the cast, so sewing one in makes a string: a pocket of the tale's
         // thread, switched on (#127, ADR 0011: Sew it in puts it in play). The chapter it was set up in
         // rides in `keys`, which is the only field on a proposal with room for it.
-        db.upsertString(p.story_id, { title: p.title, body: c.body.body ?? p.body,
+        // #128 · Of the kind it was offered as (`field`); none is a promise, as every string once was.
+        db.upsertString(p.story_id, { title: p.title, body: c.body.body ?? p.body, kind: p.field ?? 'promise',
           fromChapter: Number(JSON.parse(p.keys || '[]')[0]) || null, summoned: true });
       } else if (c.body.accept && target === 'room:facts' && p.kind !== 'tidy'
         && alwaysTrue((bookOf(p.story_id)?.entries ?? []).find((x: any) => x.id === p.entry_id) ?? {} as any)) {

@@ -1,6 +1,6 @@
 // Prompt text for the non-prose roles. PROMPTS.md §5 is the source; these are the
 // rev-2 wordings the councils asked for.
-import { ALL_SLOTS } from './slots.ts';
+import { ALL_SLOTS, STRING_SLOTS } from './slots.ts';
 import { CHANGES_SCHEMA, DRAFT_CHANGES_SCHEMA } from './changes.ts';
 import { PARTS } from './contradictions.ts';
 
@@ -1753,7 +1753,8 @@ You may also offer, when the writer's message calls for it and not otherwise:
 - STRINGS — promises the story has made and not paid. A letter nobody has opened, a debt nobody
   has called in, a name somebody flinched at. What makes it a string rather than a thread is that
   it is UNRESOLVED: "Aldis owns a letter" is a thread, "Aldis has not opened the letter" is a
-  string. Give the chapter it was set up in. Only ones the prose actually set up — an unpaid
+  string. Give the chapter it was set up in, and its kind: promise, or question for an open
+  question the story keeps open. Only ones the prose actually set up — an unpaid
   promise you invented is a plot you are handing the writer, not one you noticed.
 - A DIRECTIVE — one prompt the writer could give the writing model to produce the next passage.
   Write it as an instruction about what happens, not as prose. It is a suggestion they will edit;
@@ -1784,6 +1785,10 @@ done the moment you answer, so a thing they did not ask for is never a change; o
 - tale.set: the field (premise or setting) and its whole new text.
 - scene.set: the scene by its number (none for the scene being written), the field (title or
   heads_toward) and its whole new text.
+- string.set: a string of the tale, by its name as title, and its whole text as it should read. A
+  name the tale has changes that string; a new name adds one, with its kind: promise, or question
+  for an open question. A promise is set up to pay off and an open question is kept open; neither
+  says how it ends or what happens next.
 
 When the tale follows a World, a change to a thread also says to: world when it is the canon of the
 IP, for every tale that follows the World, or tale when it is the writer's own version, for this
@@ -1909,6 +1914,8 @@ export const TALK_SCHEMA = {
           title: { type: 'string', maxLength: 90 },
           body: { type: 'string', maxLength: 300 },
           fromChapter: { type: 'integer' },
+          // #128 · a promise, or an open question the story keeps open (ADR 0011).
+          kind: { type: 'string', enum: [...STRING_SLOTS] },
         },
         required: ['title', 'fromChapter'],
       },
