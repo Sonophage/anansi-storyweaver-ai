@@ -18,6 +18,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-28 · A new tale starts at its opening
 
+### One place to add and change a pocket
+A thread's Pockets tab is now a short list: each pocket's name, the first line of what it says, and
+its On or Off. Press a pocket to open it full screen. There you write it yourself, or ask Anansi to
+write it or look it up online. When he rewrites a pocket you already have, you see what he changed
+before you press Use this, and nothing is kept until you press Save. The ＋ at the top of a thread
+adds a new pocket the same way. Outfits are still worn and taken off from the list. Always true
+stays on the thread's first tab, and a thread that has none now gets an empty box for it there.
+Tidy has a broom for its icon.
+
 ### Always true saves again
 Saving a thread's Always true said a pocket needs a name, and nothing was saved. Always true has no
 name, so it now saves with what you wrote, and only refuses when the box is empty. The ✕ that removed Always true is gone too: every thread

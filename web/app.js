@@ -6746,8 +6746,8 @@ const pocketTitle = (slot) => { const l = slotLabel(slot); return l.charAt(0).to
 
 function inventTray(kind, label, placeholder, value = '') {
   const searchable = V?.searchable !== false;
-  // data-invtray, because there can now be TWO of these on one screen — the card's own and the
-  // wardrobe's — and `document.querySelector('[data-invdir]')` takes the first one it finds. That
+  // data-invtray, because there were once TWO of these on one screen (the card's own and the
+  // wardrobe's, before #126), and `document.querySelector('[data-invdir]')` takes the first one it finds. That
   // would read the writer's steer for a coat out of the box they typed the character into, which
   // is a bug that produces a plausible answer to the wrong question.
   return `<div data-invtray style="display:flex; flex-direction:column; gap:7px; margin-top:4px;
@@ -7094,7 +7094,7 @@ function readMenu(e) {
  *
  *  Both answer a question you are not usually asking. Connections are what this card drags in
  *  behind it, and Another book is a copy into a different story — neither is why you opened a card.
- *  The same <details> the add tray uses, so there is one folding idiom on this screen and not two.
+ *  A <details>, the one folding idiom on this screen.
  *
  *  IT REMEMBERS, and that is not a nicety. A section with a help mark in it repaints on a press of
  *  help — so a fold with no memory would shut the section the moment you asked it what it was
