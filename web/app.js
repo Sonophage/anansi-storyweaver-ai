@@ -297,7 +297,6 @@ const S = {
   worldLooking: false,  // the world is being read
   worldPulling: null,   // the name being pulled right now, so the button can say which
   setupQ: '',           // filter over the ledger on the next-chapter setup page
-  hemWhoQ: '',          // the search under who is in the next scene, on a hem's card
   lore: null,           // the + Lore tray above the composer, when it is open
   talk: { turns: [], busy: false, search: readWebSearch(), draft: null, searchable: null },
   // #71 · THE BOTTOM OF THE WRITING SCREEN. Once a passage has landed it is three buttons, and the
@@ -599,9 +598,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #79. Over time: take a dated wardrobe or retirement event out. #80: make a Lore thread a place.
   'delevent', 'makeplace',
   // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
-  'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra', 'hemreroll',
-  // #92. A hemmed scene's card: run its passes again, use its next-scene suggestion.
-  'hemagain', 'usehem',
+  'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra',
+  // #92. A hemmed scene's card: run its passes again, set up the next scene.
+  'hemagain', 'hemsetup',
   // #75. The tale's own thread.
   'taleopen', 'taleclose', 'newrule', 'addtalepocket',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
@@ -2975,10 +2974,10 @@ function hemBefore(p) {
 }
 
 /** THE NEXT SCENE AFTER A HEMMED ONE, as the writer should meet it: what that scene has been given,
- *  else the hem's suggestion, box by box. THE ONE READER of the suggestion for the card's boxes and
- *  Use these (Seth, 2026-10-29: "I rerolled and it still has the data from its first iteration").
- *  Something else, Anansi and the boxes all save into the scene, so the scene is where the latest
- *  lives; the stored suggestion is only what the hem first said, and stands in for an empty box.
+ *  else the hem's suggestion, box by box. THE ONE READER of the suggestion, for the setup's boxes
+ *  through `setupForm` (Seth, 2026-10-29: "I rerolled and it still has the data from its first
+ *  iteration"). What the writer saves goes into the scene, so the scene is where the latest lives;
+ *  the stored suggestion is only what the hem first said, and stands in for an empty box.
  *  Null when the hem gave none, or the writer has moved past that scene. */
 function nextSetup(ch) {
   const s = ch?.hem?.suggestion, next = s && hemNext(ch);
@@ -2989,30 +2988,14 @@ function nextSetup(ch) {
     note: given(next.authorsNote, s.note), opens: given(next.opensWith, s.opens) };
 }
 
-/** WHO IS IN THE NEXT SCENE, on a hem's card (Seth, 2026-10-29: "the 'who is in it' should allow
- *  me to remove or add a thread"). The threads sent for that scene whatever is said, each with ✕,
- *  and a search box to bring one in. Both are the setup's own `data-pin` press, which pins for the
- *  scene being written; `hemNext` only hands over that scene, so the pin lands where it is shown.
- *  READ FROM THE PINS ALONE, not the last context reading: the press flips a pin, so the list has to
- *  say what the pins say, or ✕ on a thread brought in by a word would pin it in instead. */
-function hemWho(next) {
-  const pin = pinModes(), scene = sceneName(next);
-  const live = (V.entries ?? []).filter((e) => !['rule', 'tale'].includes(e.entryType) && e.retiredAtChapter == null);
-  const inIt = live.filter((e) => inContext(e, pin, null));
-  const q = (S.hemWhoQ ?? '').trim().toLowerCase();
-  const found = q ? live.filter((e) => !inContext(e, pin, null)
-    && `${e.title} ${(e.keys ?? []).join(' ')}`.toLowerCase().includes(q)).slice(0, 8) : [];
-  return `<div class="lbl sub-lbl push-12" data-hemwho>Who is in ${esc(scene)}</div>
-    ${inIt.length ? inIt.map((e) => `<div class="line-8">
-      <span class="fill">${esc(e.title)}</span>
-      <span class="row-label">${pin.get(e.id) === 'force_in' ? 'brought in' : 'always on'}</span>
-      <button class="step-btn" data-pin="${esc(e.id)}" aria-label="Take ${esc(e.title)} out of ${esc(scene)}">&#10005;</button></div>`).join('')
-      : '<div class="hint flush">Nobody is sent for it unless they are named.</div>'}
-    <input class="field push-8" id="hemWhoQ" aria-label="Find a thread to bring into ${esc(scene)}"
-      value="${esc(S.hemWhoQ ?? '')}" placeholder="Find a thread to bring in">
-    ${found.map((e) => `<button class="tag pressable" data-pin="${esc(e.id)}"
-      aria-label="Bring ${esc(e.title)} into ${esc(scene)}">+ ${esc(e.title)}</button>`).join(' ')}
-    ${q && !found.length ? '<div class="hint flush">Nothing else matches that.</div>' : ''}`;
+/** WHAT THE NEXT SCENE'S SETUP SHOWS AND SAVES for one scene: the writer's draft for it, else what
+ *  `nextSetup` reads for it when a hem opened it, else the scene's own. One reader for the boxes on
+ *  The next scene and for Save, so Start writing on Anyone new saves what the boxes showed. */
+function setupForm(ch) {
+  const prev = (V?.chapters ?? []).find((c) => c.index === ch.index - 1);
+  const now = nextSetup(prev);
+  return draftFor(ch.id) ?? (now?.next.id === ch.id ? { title: now.title, note: now.note, opens: now.opens }
+    : { title: ch.title ?? '', note: ch.authorsNote ?? '', opens: ch.opensWith ?? '' });
 }
 
 /** A chalked row's one line while its fold is shut: the first 90 characters. */
@@ -3021,7 +3004,7 @@ const peek = (s) => `${esc(String(s ?? '').slice(0, 90))}${String(s ?? '').lengt
 /** #92 · ONE HEMMED SCENE'S CARD, in Seth's order (2026-10-29: "summary first, ready to edit. Then
  *  the threads. Then the next scene setup."): what state the hem is in, the summary (editable;
  *  saving it makes it the writer's, #46), one block per thread (`hemThreads`), the threads past the
- *  cap, and the next scene. Sew all and Reject all are the deck's own `deckall`. */
+ *  cap, and Set up the next scene. Sew all and Reject all are the deck's own `deckall`. */
 function hemCardParts(c) {
   const ch = c.ch, h = ch.hem, id = esc(ch.id), running = h.state === 'running';
   const state = [];
@@ -3057,27 +3040,12 @@ function hemCardParts(c) {
   const held = heldNew.length ? `<div class="hint push-8">Also new in this scene, past the six:
     ${heldNew.map(esc).join(', ')}.</div>
     <button class="btn ghost" data-hemextra="${id}">Chalk ${heldNew.length === 1 ? 'it' : 'these'} too</button>` : '';
-  const next = hemNext(ch), now = nextSetup(ch);
-  // EDITED HERE, saved as you go (Seth, 2026-10-27: "I can't edit the next scenes info from the
-  // worktable"). Three boxes for the scene the hem opened, read through `nextSetup`, the one reader
-  // Use these shares; leaving any box saves all three to it (ADR 0004). Use these still opens the
-  // full setup.
-  const suggestion = now ? `<div class="lbl sub-lbl push-12">${esc(sceneName(next))}</div>
-    <input class="field" data-hemnext="title" data-ch="${esc(next.id)}" aria-label="The next scene's title" value="${esc(now.title)}">
-    <textarea class="field grow min-52" data-hemnext="note" data-ch="${esc(next.id)}" aria-label="Where the next scene is going"
-      placeholder="Where it is going">${esc(now.note)}</textarea>
-    <textarea class="field grow min-52" data-hemnext="opens" data-ch="${esc(next.id)}" aria-label="How the next scene opens"
-      placeholder="How it opens">${esc(now.opens)}</textarea>
-    <div class="hint flush">Saves when you leave a box.</div>
-    <input class="field push-8" data-hemsteer="${esc(next.id)}" aria-label="A direction for Anansi"
-      placeholder="A direction for Anansi, if you want one">
-    <div class="btnrow">
-      <button class="btn ghost fill" data-hemreroll="${esc(next.id)}">↻ Something else</button>
-      <button class="btn ghost fill" data-usehem="${id}">Use these</button></div>
-    ${hemWho(next)}` : '';
+  // ONE PRESS FOR THE NEXT SCENE (Seth, 2026-10-29): its title, note, opening and who is in it are
+  // set up on the setup and nowhere else, so the card only opens it, on The next scene.
+  const setup = hemNext(ch) ? `<button class="btn ghost push-12" data-hemsetup="${id}">Set up the next scene &rarr;</button>` : '';
   const ids = esc(ps.map((p) => p.id).join(','));
   return {
-    body: `${state.join('')}${summary}${threads}${overflow}${held}${suggestion}`,
+    body: `${state.join('')}${summary}${threads}${overflow}${held}${setup}`,
     right: ps.length ? `<button class="btn" data-deckall="accept" data-ids="${ids}" data-deckright="1">Sew all &rarr;</button>` : '',
     // DISMISS, not Leave it, once nothing is left to decide (Seth, 2026-10-27): Leave it only moved on
     // for the session. The existing set-aside row, keyed to this hem; Hem again brings it back.
@@ -3090,21 +3058,6 @@ function hemCardParts(c) {
  *  hem keeps it. On `change`, which a textarea fires when the writer leaves it, never per keystroke,
  *  so nothing saves mid-sentence. An emptied box saves nothing: removing a summary stays on the
  *  Chapters tab, where it takes two presses. */
-/** THE NEXT SCENE, EDITED ON A HEM CARD (2026-10-27): leaving any of its three boxes saves all three,
- *  as they stand, to that scene. Read together so a title saved alone cannot blank the note. */
-document.addEventListener('change', async (e) => {
-  const ch = e.target?.dataset?.hemnext && e.target.dataset.ch;
-  if (!ch || !S.storyId) return;
-  const box = {};
-  for (const f of document.querySelectorAll(`[data-hemnext][data-ch="${ch}"]`)) box[f.dataset.hemnext] = String(f.value ?? '');
-  const r = await api.saveChapter(S.storyId, ch,
-    { title: (box.title ?? '').trim() || undefined, authorsNote: box.note ?? '', opensWith: box.opens ?? '' });
-  if (r.error) return toast(r.error);
-  // As after Something else: a Use these draft for that scene is older than what was just saved.
-  if (draftFor(ch)) S.setup = null;
-  V = await api.story(S.storyId, V?.currentChapter?.id); paint();
-  toast('Saved to the next scene.');
-});
 document.addEventListener('change', async (e) => {
   const el = e.target, id = el?.dataset?.hemsumtext;
   if (!id || !S.storyId || !String(el.value ?? '').trim()) return;
@@ -6661,8 +6614,7 @@ function setupPanel() {
   // Rendered from state, not from the DOM. Ticking a character repaints this panel, and reading
   // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
   // typed was gone. Same fault as the search boxes and the click delegation, in a third place.
-  const form = draftFor(ch.id) ?? { title: ch.title ?? '', note: ch.authorsNote ?? '',
-                            opens: ch.opensWith ?? '' };
+  const form = setupForm(ch);
   /* WHICH CHAPTER THIS PANEL IS DEBRIEFING, from the data when the session cannot say.
    *
    * `S.ritualOf` is set by the close and is the right answer while it lives — but it is session
@@ -6726,7 +6678,7 @@ function setupPanel() {
   // empty. A title that is exactly this chapter's own number is the placeholder, not a name.
   //
   // #92. NOT WHILE A HEM WILL BRING ONE: the scene before this one, hemmed, carries Anansi's
-  // suggestion for this one on its card (Use these), and asking here as well would ask twice.
+  // suggestion for this one, which these boxes show (`setupForm`), and asking here as well would ask twice.
   const placeholder = numbered(form.title, ch.index);
   const coming = prev?.hem && (prev.hem.state === 'running' || prev.hem.suggestion);
   if (!coming && !S.naming && !NAMED.has(ch.id) && placeholder && !form.note.trim()) {
@@ -12898,12 +12850,13 @@ document.addEventListener('click', async (e) => {
   if (d.savesetup) {
     // THE CHAPTER'S OWN VALUE LAST, never ''. "Start writing" sits on the Anyone new step, where
     // the three boxes are not drawn, so with no draft an empty fallback saved a blank title and
-    // beat over the ones the chapter had (#66).
-    const ch = V.currentChapter, draft = draftFor(ch.id);
+    // beat over the ones the chapter had (#66). With no draft and no boxes, what the boxes showed:
+    // `setupForm`, which reads a hem's suggestion for this scene through `nextSetup`.
+    const ch = V.currentChapter, draft = draftFor(ch.id), form = setupForm(ch);
     const box = (k) => document.querySelector(`[data-setup="${k}"]`)?.value;
-    const title = draft?.title ?? box('title') ?? ch.title ?? '';
-    const note = draft?.note ?? box('note') ?? ch.authorsNote ?? '';
-    const opens = draft?.opens ?? box('opens') ?? ch.opensWith ?? '';
+    const title = draft?.title ?? box('title') ?? (form.title || ch.title) ?? '';
+    const note = draft?.note ?? box('note') ?? form.note ?? '';
+    const opens = draft?.opens ?? box('opens') ?? form.opens ?? '';
     // BOTH HALVES, BEFORE openingPassage() BELOW. That call writes the chapter's first passage and
     // it is the only one the opening is sent for, so a save that dropped it would mean the box on
     // this screen could never reach the passage it was written for.
@@ -12971,8 +12924,8 @@ document.addEventListener('click', async (e) => {
     // The ritual panel stays on the scene that just closed.
     S.ritualOf = closing.id;
     // LAND IN THE NEW SCENE, BLANK. The writer starts it themselves (spec #82, stories 1 and 2):
-    // no setup to step through, no name asked of Anansi — the hem brings its suggestion to the card,
-    // and Use these fills the boxes. No opening passage is written either: that is `savesetup`'s.
+    // no setup to step through, no name asked of Anansi — the hem brings its suggestion, and Set up
+    // the next scene on its card shows it in the boxes. No opening passage is written either: that is `savesetup`'s.
     // AND NO DRAWER OPENS over it. This set What he reads open (Seth, 2026-10-27: "When the scene is
     // hemmed it opens the context window, that shouldn't happen").
     S.setup = null; S.setupStep = null; S.panel = null;
@@ -12980,33 +12933,15 @@ document.addEventListener('click', async (e) => {
     toast(`${sceneName(closing)} is being hemmed. Its card will wait on the Workbench.`);
     return;
   }
-  // #92 · A HEMMED SCENE'S PASSES AGAIN (#91). `pass` is Try again for one pass; `names` asks for
-  // the threads past the cap; neither is Hem again, which drops what is still chalked on the card
-  // (what was sewn in or rejected stays), so it asks first.
-  // SOMETHING ELSE, for the next scene, from its hem card (2026-10-27): away from what the boxes
-  // hold, with the writer's direction, and saved into them, as the boxes save as you go.
-  if (d.hemreroll) {
-    const ch = d.hemreroll;
-    const box = (k) => String(document.querySelector(`[data-hemnext="${k}"][data-ch="${ch}"]`)?.value ?? '').trim();
-    const steer = String(document.querySelector(`[data-hemsteer="${ch}"]`)?.value ?? '').trim() || undefined;
-    const r = await whileWorking(t, 'Asking…', () => api.proposeChapter(S.storyId, ch, steer,
-      { title: box('title'), note: box('note'), opens: box('opens') }));
-    if (!r) return;
-    if (r.error || !r.title) return toast(r.error || 'nothing usable came back');
-    const w = await api.saveChapter(S.storyId, ch, { title: r.title, authorsNote: r.note ?? '', opensWith: r.opens ?? '' });
-    if (w.error) return toast(w.error);
-    // A Use these draft for that scene is older than what was just saved into it: drop it, or its
-    // setup would still open on the first suggestion (Seth, 2026-10-29).
-    if (draftFor(ch)) S.setup = null;
-    V = await api.story(S.storyId, V?.currentChapter?.id); paint();
-    return toast('Something else, saved to the next scene. Change any box to make it yours.');
-  }
   if (d.hemextra) {
     const r = await api.hemAgain(S.storyId, d.hemextra, { extra: true });
     if (r.error) return toast(r.error);
     V = r; paint();
     return toast('Chalked. They are on the card.');
   }
+  // #92 · A HEMMED SCENE'S PASSES AGAIN (#91). `pass` is Try again for one pass; `names` asks for
+  // the threads past the cap; neither is Hem again, which drops what is still chalked on the card
+  // (what was sewn in or rejected stays), so it asks first.
   if (d.hemagain) {
     const o = d.pass ? { pass: d.pass } : d.names ? { names: JSON.parse(d.names) } : {};
     if (!d.pass && !d.names && !armed(t, `hem:${d.hemagain}`,
@@ -13017,15 +12952,10 @@ document.addEventListener('click', async (e) => {
     return toast(d.pass ? 'Trying that again. It lands on the card.' : d.names ? 'Asking for them. They land on the card.'
       : 'Hemming it again. The card fills in when it is done.');
   }
-  // #92 · USE THESE. The next scene as the card shows it (`nextSetup`) goes into its three boxes on
-  // its setup, as a draft (`S.setup`), and nothing is saved until the writer presses Save there.
-  if (d.usehem) {
-    const now = nextSetup(V.chapters.find((c) => c.id === d.usehem));
-    if (!now) return;
-    S.setup = { chapterId: now.next.id, title: now.title, note: now.note, opens: now.opens };
-    S.panel = 'setup'; S.setupStep = 'premise'; syncHash(); paint();
-    return toast('Filled in. Change anything; nothing is saved until you press Save.');
-  }
+  // SET UP THE NEXT SCENE, from a hem's card (Seth, 2026-10-29): the setup, on The next scene. The
+  // card only draws it while the scene the hem opened is the one being written (`hemNext`), so the
+  // setup is that scene's; its boxes read the hem's suggestion through `setupForm`.
+  if (d.hemsetup) { S.panel = 'setup'; S.setupStep = 'premise'; syncHash(); paint(); return; }
   // The way back when the router was asleep at the close. Same shape as data-remember.
   if (d.refinished) {
     const r = await whileWorking(t, 'Looking…',
@@ -14915,15 +14845,6 @@ document.addEventListener('input', (e) => {
   // nothing zoomed. The premise was wrong, so the code defending against it was too. Removed
   // rather than left in as insurance against something measured not to happen.
   // Neither branch may redraw its own input. Both write only their results container.
-  // The search under who is in the next scene, on a hem's card: the same caret-keeping repaint.
-  if (e.target.id === 'hemWhoQ') {
-    S.hemWhoQ = e.target.value;
-    const at = e.target.selectionStart ?? String(e.target.value ?? '').length;
-    drawSide();
-    const box = $('hemWhoQ');
-    if (box) { box.focus(); box.setSelectionRange(at, at); }
-    return;
-  }
   if (e.target.id === 'setupQ') {
     S.setupQ = e.target.value;
     // drawSide rebuilds the whole panel including this box, so restore the caret rather than
@@ -14937,7 +14858,8 @@ document.addEventListener('input', (e) => {
   if (e.target.dataset?.setup) {
     S.setup = { chapterId: V.currentChapter.id,
                 title: document.querySelector('[data-setup="title"]')?.value ?? '',
-                note: document.querySelector('[data-setup="note"]')?.value ?? '' };
+                note: document.querySelector('[data-setup="note"]')?.value ?? '',
+                opens: document.querySelector('[data-setup="opens"]')?.value ?? '' };
     // Kept apart from the two that get SAVED. The steer is an instruction to Anansi about what to
     // suggest, never a field on the chapter, and folding it into S.setup would send it to
     // saveChapter as a third column that does not exist.

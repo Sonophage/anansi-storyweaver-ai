@@ -138,10 +138,10 @@ ok(`  and it is titled for the next chapter (${JSON.stringify(head.replace(/\s+/
    /next scene/i.test(head));
 const body = (await page.text('#sideBody') || '');
 
-// THE NEW SCENE OPENS BLANK, AND THE HEM'S SUGGESTION FILLS IT ON A PRESS (#92). Nothing asks
-// Anansi to name it as the panel opens any more: the hem's last pass suggests a title, a note and an
-// opening, on the scene's card, and Use these puts them in the boxes. Neither is saved until Save,
-// which is asserted from the database below.
+// THE NEW SCENE'S SETUP SHOWS THE HEM'S SUGGESTION (#92, Seth 2026-10-29). Nothing asks Anansi to
+// name it as the panel opens: the hem's last pass suggests a title, a note and an opening, and The
+// next scene shows them in its boxes, reached from the scene's card by Set up the next scene. With
+// no suggestion it opens blank. Nothing is saved until Save, which is asserted from the database below.
 {
   // A TITLE THAT IS THIS CHAPTER'S OWN NUMBER IS THE PLACEHOLDER, NOT A NAME. `endChapter` opens
   // the next chapter titled `Scene N` (db.ts), and the panel renders it into the box. The app's own
@@ -151,22 +151,19 @@ const body = (await page.text('#sideBody') || '');
   const boxes = () => page.eval("(() => { const t = document.querySelector('[data-setup=\"title\"]');"
     + " const n = document.querySelector('[data-setup=\"note\"]');"
     + " return t && n ? { title: t.value, note: n.value } : null; })()");
-  const blank = await boxes();
-  ok(`the new scene opens blank (${JSON.stringify(blank?.title ?? null)})`,
-     !!blank && isPlaceholder(blank.title) && !blank.note.trim());
-  // The other direction, so the check above cannot be satisfied by the thing it exists to refuse.
-  ok(`  and \`Scene ${idx}\` would not have counted as a name`, isPlaceholder(`Scene ${idx}`)
+  // The other direction, so the checks below cannot be satisfied by the thing they exist to refuse.
+  ok(`\`Scene ${idx}\` would not count as a name`, isPlaceholder(`Scene ${idx}`)
      && !isPlaceholder('The Stair'));
-  let filled = blank;
+  let filled = await boxes();
   if (hem?.suggestion) {
     // The card may not be the top one on the deck, and only the top one shows, so the press is
     // made on the button itself.
     await page.goto(B + "/#" + sid + "/waiting");
-    for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('[data-usehem]')")); i++) await wait(250);
-    await page.eval("(() => { document.querySelector('[data-usehem]')?.click(); return 1; })()");
+    for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('[data-hemsetup]')")); i++) await wait(250);
+    await page.eval("(() => { document.querySelector('[data-hemsetup]')?.click(); return 1; })()");
     for (let i = 0; i < 20 && !(await page.visible('[data-setup="title"]')); i++) await wait(250);
     filled = await boxes();
-    ok(`Use these names the new scene (${JSON.stringify((filled?.title ?? '').slice(0, 30))})`,
+    ok(`Set up the next scene shows it named (${JSON.stringify((filled?.title ?? '').slice(0, 30))})`,
        !!filled && !isPlaceholder(filled.title));
     ok(`  and says what it has to do (${(filled?.note ?? '').length} chars)`,
        (filled?.note ?? '').trim().length > 60);
@@ -175,6 +172,8 @@ const body = (await page.text('#sideBody') || '');
     // report has to say so rather than leave the card silent.
     ok(`  no suggestion came back, and the hem says why (${JSON.stringify(hem?.passes?.next ?? null)})`,
        typeof hem?.passes?.next === 'string');
+    ok(`  and the new scene opens blank (${JSON.stringify(filled?.title ?? null)})`,
+       !!filled && isPlaceholder(filled.title) && !filled.note.trim());
   }
   // On 2026-08-28 this came back 0 chars: CHAPTER_SCHEMA marks `note` required, and `required`
   // means the key is PRESENT, not that it holds anything, so an empty string satisfied the
@@ -211,7 +210,9 @@ ok("  nothing was accepted into the ledger automatically",
    after.entries.length === before.entries.length);
 
 // ---- the setup page's three fields, all writing to things that already exist
-ok("the beat says it is not set yet", /Not set/.test(body));
+// With the hem's suggestion the boxes hold it, so only a scene with none says it is not set.
+if (hem?.suggestion?.note) ok("the beat holds the hem's suggestion, so it says it is read", /Anansi reads it every time he writes, as where/.test(body));
+else ok("the beat says it is not set yet", /Not set/.test(body));
 // Typed with real keystrokes, not by assigning .value: the panel keeps the form in state via the
 // input event, and a programmatic assignment fires no event — which is the test's problem, not the
 // app's, but it looked identical to the bug for one run.

@@ -19,20 +19,17 @@ Everything below this line was written by that model call, before it was removed
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
 ### A hemmed scene's card shows each thread once
-The card now reads in this order: the scene summary, then the threads, then the next scene. Each
+The card now reads in this order: the scene summary, then the threads. Each
 thread is one block with its name and kind. All of its changes are in that block: where it stands
 now, each pocket, and a retirement. Each change shows the old text against the new text. You can
 sew in or reject one change, or the whole thread at once. The tale's own thread is the first block.
 It shows where the tale stands and where each string stands. Each new thread has its own block.
 
-### Choose who is in the next scene from a hemmed scene's card
-Under the next scene on the card, you see the threads that go with it. Press ✕ to leave a thread
-out of that scene. Type in the box to find another thread, and press it to bring it in.
-
-### Something else on a hemmed scene's card shows the new idea
-When you asked Anansi for something else for the next scene, the card kept showing his first idea
-above the boxes, and Use these filled the next scene with that first idea. The card and Use these
-now show what the next scene holds: the newest idea, or what you typed.
+### You set up the next scene in one place
+A hemmed scene's card ends with one button, Set up the next scene. It opens the next scene's setup
+at The next scene, with Anansi's title, note and opening already in the boxes. The card no longer
+has its own boxes for the next scene, Something else or Use these. What you saved for the next
+scene shows in the boxes in place of Anansi's idea.
 
 ### Merge two threads that are the same one
 When one person has two threads, open either one and choose "Merge with another thread…" in its
