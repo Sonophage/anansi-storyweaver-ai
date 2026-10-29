@@ -782,30 +782,34 @@ if (await page.visible('[data-setup="title"]')) {
   ok('  with the ledger NOT on that step', cold.ledger === false);
   await page.click('[data-setupstep="more"]');
   await wait(600);
-  ok("the setup page offers a filter over the ledger", await page.visible('#setupQ'));
+  ok("the setup page offers a search to bring a thread in", await page.visible('#setupQ'));
   if (always) {
-    ok("  and an always-on character is listed as a control, not as a note",
-       await page.visible(`[data-pin="${always}"]`));
-    await page.click(`[data-pin="${always}"]`);
+    // WHO IS IN IT ARE THREAD BLOCKS, each with how it comes in and ✕ (Seth, 2026-10-29).
+    ok("  and an always-on character is listed as a thread, with Always on chosen",
+       await page.visible(`[data-howin="${always}"][data-how="always"][aria-pressed="true"]`));
+    await page.click(`[data-howout="${always}"]`);
     await wait(1000);
     const pins = (await story()).pins ?? [];
     const held = pins.find((p) => p.entryId === always);
-    ok(`  unticking an always-on entry holds it back (${held?.mode ?? 'no pin'})`, held?.mode === 'force_out');
+    ok(`  ✕ on an always-on entry holds it back (${held?.mode ?? 'no pin'})`, held?.mode === 'force_out');
     // And the engine has to honour it, or the control is theatre.
     const reasons = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
       + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'continue'})})).json();"
       + " return r.manifest.blocks.filter(b => b.id === '" + always + "').map(b => b.state + ':' + b.reason).join(','); })()");
     ok(`  and the prompt drops it (${JSON.stringify(reasons)})`, /omitted:pinned out/.test(reasons));
-    await page.click(`[data-pin="${always}"]`);
-    await wait(1000);
-    ok("  ticking again puts it back", !((await story()).pins ?? []).some((p) => p.entryId === always));
+    ok("  and it leaves the list", !(await page.visible(`[data-howout="${always}"]`)));
+    // Put back as the fixture had it, through the same route, so later checks read an unchanged story.
+    await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
+      + " await fetch('/api/pin',{method:'POST',headers:{'Content-Type':'application/json'},"
+      + " body: JSON.stringify({ storyId:'" + sid + "', chapterId: v.currentChapter.id, entryId:'" + always + "', mode: null })}); return 1; })()");
+    ok("  and taking the pin off puts it back", !((await story()).pins ?? []).some((p) => p.entryId === always));
   } else { console.log("  SKIP always-on toggle — no always-on character in this story"); }
-  // The filter must not eat its own keystrokes, which is how the other seven boxes broke.
+  // The search must not eat its own keystrokes, which is how the other seven boxes broke.
   await page.type('#setupQ', 'Aldis');
   await wait(600);
-  ok(`the filter keeps what you type (${JSON.stringify(await page.eval("document.getElementById('setupQ')?.value"))})`,
+  ok(`the search keeps what you type (${JSON.stringify(await page.eval("document.getElementById('setupQ')?.value"))})`,
      (await page.eval("document.getElementById('setupQ')?.value")) === 'Aldis');
-  ok("  and narrows the list", (await page.eval("document.querySelectorAll('[data-pin]').length")) <= 2);
+  ok("  and offers only what matches", (await page.eval("document.querySelectorAll('[aria-label^=\"Bring \"][data-howin]').length")) <= 2);
 } else { ok("the setup page opens", false); }
 
 // ---- 11. THE COMPOSER'S DOOR IS THE LIST; the tray's door is inside it (2026-08-28).

@@ -532,7 +532,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc', 'editarc', 'savearc', 'cancelarc',
   'stringnew', 'summon', 'stringstatus', 'looktab', 'askfill',
   'reroll', 'reseed', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
-  'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'pin', 'place', 'savesetup',
+  'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'howin', 'howout', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake',
   // #71. The quill that opens the box, the ⌄ that folds it, the bulb, an idea picked, and the way
@@ -2918,6 +2918,18 @@ function taleThread() {
  *  it is a pocket of the tale's own thread. */
 const isNewThread = (p) => p.kind === 'new' && p.entryType !== 'string';
 
+/** A NEW THREAD SEWN IN ON THE SETUP stays on Anyone new's list, with how it comes in to choose
+ *  (Seth, 2026-10-29), whatever its activation. `ps` are the rows just sewn in, read before; the
+ *  route does not say which thread it made, so it is the newest of that name. Called after `V` is
+ *  read again, by each press that sews in: `decide`, `deckall`, `acceptall`. */
+function keepSewn(ps) {
+  if (S.panel !== 'setup' || !V?.currentChapter) return;
+  for (const p of ps.filter(isNewThread)) {
+    const e = (V.entries ?? []).filter((x) => x.title === p.title).at(-1);
+    if (e) (S.setupHere = S.setupHere ?? new Set()).add(`${V.currentChapter.id}:${e.id}`);
+  }
+}
+
 function deckCards(only = null) {
   // #127 · A CHALKED STRING IS A CARD HERE, with Sew it in (ADR 0011): the Strings screen is a list of
   // the tale's strings and no longer holds what Anansi chalks.
@@ -3102,14 +3114,38 @@ function hemThreadBlock([k, rows, thread]) {
   const kind = isTale ? "The tale's own thread" : thread ? pocketTitle(type)
     : `New ${String(type).replace(/_/g, ' ')}`;
   const ids = esc(rows.map((p) => p.id).join(','));
-  return `<div class="card hemthread" data-hemthread="${esc(k)}" style="gap:8px">
-    <div class="line-8 wraps"><span class="name-145" data-hemthreadname>${esc(isTale ? 'The tale' : rows[0].title)}</span>
-      <span class="tag">${esc(kind)}</span></div>
+  return threadBlock(`data-hemthread="${esc(k)}"`, isTale ? 'The tale' : rows[0].title, kind, `
     ${rows.map(hemRow).join('')}
     ${rows.length > 1 ? `<div class="btnrow">
       <button class="btn ghost fill" data-deckall="reject" data-ids="${ids}">Reject all of it</button>
-      <button class="btn fill" data-deckall="accept" data-ids="${ids}">Sew in all of it</button></div>` : ''}
+      <button class="btn fill" data-deckall="accept" data-ids="${ids}">Sew in all of it</button></div>` : ''}`);
+}
+
+/** ONE THREAD AS A BLOCK: its name and kind once, then what is under it. The one shell for a thread
+ *  on a hem's card, on What it left, and on Anyone new (`hemThreadBlock`, `whoBlock`). */
+const threadBlock = (attr, name, kind, inner) => `<div class="card hemthread" ${attr} style="gap:8px">
+    <div class="line-8 wraps"><span class="name-145" data-hemthreadname>${esc(name)}</span>
+      <span class="tag">${esc(kind)}</span></div>${inner}
   </div>`;
+
+/** How a thread comes into the scene being set up, as Anyone new offers it (Seth, 2026-10-29). */
+const HOW_IN = [['scene', 'This scene only'], ['always', 'Always on'], ['named', "When it's named"]];
+/** Which of `HOW_IN` a thread is in now: pinned in for the scene, always on (and not left out of
+ *  it), else on a word. Read from the pins alone, not the last context reading, so it says what the
+ *  presses below change. */
+const howIn = (e, pin) => pin.get(e.id) === 'force_in' ? 'scene'
+  : e.activation === 'always_on' && pin.get(e.id) !== 'force_out' ? 'always' : 'named';
+
+/** ONE THREAD IN THE SCENE, on Anyone new: the thread block with its pockets, how it comes in, and
+ *  ✕ to take it out. The presses are `data-howin` and `data-howout`. */
+function whoBlock(e, pin, scene) {
+  const how = howIn(e, pin), id = esc(e.id);
+  const pockets = [...(e.addons ?? []), ...(e.outfits ?? [])].map((a) => `<div class="hint flush">
+    <span class="lbl flush">${esc(pocketTitle(a.slot))}${a.name && a.name !== a.slot ? ` &middot; ${esc(a.name)}` : ''}</span>
+    ${peek(a.body)}</div>`).join('');
+  return threadBlock(`data-whothread="${id}"`, e.title, pocketTitle(e.entryType), `${pockets}
+    <div class="line-8 wraps">${HOW_IN.map(([k, l]) => `<button class="tag pressable" data-howin="${id}" data-how="${k}" aria-pressed="${k === how}">${esc(l)}</button>`).join('')}
+      <button class="del-x" data-howout="${id}" aria-label="Take ${esc(e.title)} out of ${esc(scene)}">&#10005;</button></div>`);
 }
 
 /** One chalked row inside a thread's block: what it is, before and after as one diff (#122), its
@@ -6597,27 +6633,15 @@ function setupPanel() {
   const ch = V?.currentChapter;
   if (!ch) return '<div class="hint">No scene open.</div>';
   const pin = pinModes();
-  // In this chapter or not, for every entry — including always-on ones. Shared with the Threads
-  // list's In-context filter, so the two screens cannot disagree about what "in context" means.
-  const on = (e) => inContext(e, pin);
-  const why = (e) => pin.get(e.id) === 'force_out' ? 'left out'
-    : e.activation === 'always_on' ? 'always on' : pin.get(e.id) === 'force_in' ? 'brought in'
-    : 'on a word';
-
+  // WHO IS IN THE SCENE, on Anyone new (Seth, 2026-10-29): every thread sent for it whatever is said
+  // (`inContext` read from the pins alone, so it says what the presses change), and every thread the
+  // writer chose or sewn in on this setup (`S.setupHere`), so a thread put on a word stays in view.
+  const here = S.setupHere ?? new Set();
+  const live = V.entries.filter((e) => !['rule', 'tale'].includes(e.entryType) && e.retiredAtChapter == null);
+  const inIt = live.filter((e) => inContext(e, pin, null) || here.has(`${ch.id}:${e.id}`));
   const q = (S.setupQ ?? '').trim().toLowerCase();
-  const match = (e) => !q || `${e.title} ${e.body} ${(e.keys ?? []).join(' ')}`.toLowerCase().includes(q);
-  const row = (e, act) => `<button ${act === 'place' ? `data-place="${e.id}"` : `data-pin="${e.id}"`}
-    style="display:flex; align-items:center;
-    gap:10px; width:100%; padding:9px 11px; border-radius:var(--r); margin-bottom:5px; text-align:left;
-    border:1px solid ${on(e) ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
-    background:${on(e) ? 'rgba(217,178,106,.10)' : 'transparent'}">
-    <span style="width:14px; flex:0 0 auto; color:${on(e) ? 'var(--ink-bright)' : 'var(--faint)'}">${on(e) ? '✓' : '·'}</span>
-    <span style="flex:1; min-width:0; font-size:13px; color:${on(e) ? 'var(--ink)' : 'var(--mute)'};
-      overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(e.title)}</span>
-    <span class="row-label">${why(e)}</span></button>`;
-
-  const cast = V.entries.filter((e) => e.entryType === 'character' && match(e));
-  const places = V.entries.filter((e) => ['place', 'lore', 'item'].includes(e.entryType) && match(e));
+  const found = q ? live.filter((e) => !inIt.includes(e)
+    && `${e.title} ${e.body} ${(e.keys ?? []).join(' ')}`.toLowerCase().includes(q)).slice(0, 8) : [];
   // Rendered from state, not from the DOM. Ticking a character repaints this panel, and reading
   // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
   // typed was gone. Same fault as the search boxes and the click delegation, in a third place.
@@ -6845,20 +6869,23 @@ function setupPanel() {
         hemThreads(fresh).map(hemThreadBlock).join('')}</div>` : ''}
       <div class="lbl sect">Who is in it${
         tipMark('setWho', 'Who is in it')}</div>
-      ${tipCard('setWho', 'Who is in it', `<p>Ticked means it is sent for this scene whether or not
-        anyone says its name. Unticking an always-on thread leaves it out for this scene only. Each
-        one costs space on every call, so tick what is actually in the scene.</p>`)}
-      <input class="field" id="setupQ" aria-label="Find a thread in this tale"
+      ${tipCard('setWho', 'Who is in it', `<p>Each thread here is sent for this scene. Choose how it comes
+        in: This scene only sends it for this scene whatever is said; Always on sends it for every
+        scene; When it's named sends it when one of its wake words is in the prose. &#10005; takes it
+        out of this scene. Each one costs space on every call, so keep what is actually in the
+        scene.</p>`)}
+      ${inIt.length ? inIt.map((e) => whoBlock(e, pin, sceneName(ch))).join('')
+        : '<div class="hint flush">Nobody is sent for it unless they are named.</div>'}
+      <input class="field push-8" id="setupQ" aria-label="Find a thread to bring into ${esc(sceneName(ch))}"
         value="${esc(S.setupQ ?? '')}"
-        placeholder="Find someone or something in this tale's threads">
-      <div class="lbl sub-lbl">Who</div>
-      ${cast.length ? cast.map((e) => row(e, 'pin')).join('')
-        : `<div class="hint flush">${q ? 'Nobody matches that.' : 'No characters yet.'}</div>`}
-      <div class="lbl sub-lbl">Where, and what</div>
-      ${places.length ? places.map((e) => row(e, 'place')).join('')
-        : `<div class="hint flush">${q ? 'Nothing matches that.' : 'No threads yet.'}</div>`}
-      <div class="hint">Anansi reads the tale's setting every time regardless
-        &mdash; ${esc(V.story.setting || 'not set')}.</div>
+        placeholder="Find a thread to bring in">
+      ${found.map((e) => `<button class="tag pressable" data-howin="${esc(e.id)}" data-how="scene"
+        aria-label="Bring ${esc(e.title)} into ${esc(sceneName(ch))}">+ ${esc(e.title)}</button>`).join(' ')}
+      ${q && !found.length ? '<div class="hint flush">Nothing else matches that.</div>' : ''}
+      <div class="end-row push-12"><span class="hint flush fill">The tale's setting</span>${
+        tipMark('setSetting', "The tale's setting")}</div>
+      ${tipCard('setSetting', "The tale's setting", `<p>Anansi reads the tale's setting every time
+        regardless &mdash; ${esc(V.story.setting || 'not set')}.</p>`)}
       <button class="btn push-16" data-savesetup="1">Start writing</button>
     </div>`;
   }
@@ -12441,6 +12468,7 @@ document.addEventListener('click', async (e) => {
   if (d.deckall) {
     const ids = String(d.ids ?? '').split(',').filter(Boolean);
     const yes = d.deckall === 'accept';
+    const rows = (V.proposals ?? []).filter((p) => ids.includes(p.id));
     for (const id of ids) {
       const edited = document.querySelector(`[data-pbody="${id}"]`)?.value;
       const r = await api.decide({ storyId: S.storyId, id, accept: yes, ...(yes && edited != null ? { body: edited } : {}) });
@@ -12448,7 +12476,8 @@ document.addEventListener('click', async (e) => {
     }
     S.deckUndo = yes ? null : ids;
     const who = t.closest('.deckcard')?.querySelector('.decktitle')?.textContent.trim();
-    V = await api.story(S.storyId); paint(); refreshManifest();
+    V = await api.story(S.storyId); if (yes) keepSewn(rows);
+    paint(); refreshManifest();
     return toast(`${who || 'It'}: ${yes ? 'sewn in.' : 'rejected. Undo puts it back.'}`);
   }
   if (d.deckmove) { S.deckAt = Math.max(0, (S.deckAt ?? 0) + Number(d.deckmove)); paint(); return; }
@@ -12843,21 +12872,37 @@ document.addEventListener('click', async (e) => {
       : 'Deleted.');
   }
 
-  if (d.pin !== undefined || d.place !== undefined) {
-    const id = d.pin ?? d.place;
-    const e = V.entries.find((x) => x.id === id);
-    const mode = (V.pins ?? []).find((p) => p.chapterId === V.currentChapter.id && p.entryId === id)?.mode;
-    // One control, two mechanisms, because "in this chapter" means different things depending on
-    // how the entry reaches the prompt. A triggered entry is pushed IN with force_in; an always-on
-    // one is already in, so the only move is to hold it OUT with force_out. context.ts applies
-    // force_out before the always-on branch, so this has always worked — nothing offered it.
-    const next = e?.activation === 'always_on'
-      ? (mode === 'force_out' ? null : 'force_out')
-      : (mode === 'force_in' ? null : 'force_in');
-    const r = await api.setPin(S.storyId, V.currentChapter.id, id, next);
-    if (r.error) return toast(r.error);
+  /* HOW A THREAD COMES INTO THE SCENE, on Anyone new (Seth, 2026-10-29), through the routes that were
+   * there: a pin for the scene being set up, and the thread's own activation. This scene only is on a
+   * word from now on and pinned in for this scene; Always on is always on with no pin; When it's
+   * named is on a word with no pin. Each sends only what differs from how the thread is now.
+   * `allowNoKeys` as on the Threads list's chip (`flipact`): the writer chose it with the thread in
+   * front of them, and a thread with no wake words is told about below. */
+  if (d.howin || d.howout) {
+    const id = d.howin ?? d.howout, chId = V.currentChapter.id;
+    const e = V.entries.find((x) => x.id === id); if (!e) return;
+    const mode = (V.pins ?? []).find((p) => p.chapterId === chId && p.entryId === id)?.mode ?? null;
+    const how = d.howout ? null : d.how;
+    const act = how === 'always' ? 'always_on' : how ? 'triggered' : e.activation;
+    // ✕: an always-on thread is already in, so it is held OUT with force_out; context.ts applies
+    // force_out before the always-on branch. Anything else was pinned in, and the pin comes off.
+    const want = how === 'scene' ? 'force_in' : how ? null : e.activation === 'always_on' ? 'force_out' : null;
+    if (act !== e.activation) {
+      const r = await api.saveEntry(S.storyId, { ...e, id, keys: e.keys ?? [], allowNoKeys: true, activation: act });
+      if (r.error) return toast(r.error);
+    }
+    if (want !== mode) {
+      const r = await api.setPin(S.storyId, chId, id, want);
+      if (r.error) { V = await api.story(S.storyId); paint(); return toast(r.error); }
+    }
+    S.setupHere = S.setupHere ?? new Set();
+    if (how) S.setupHere.add(`${chId}:${id}`); else S.setupHere.delete(`${chId}:${id}`);
     V = await api.story(S.storyId);
-    paint(); refreshManifest(); return;
+    paint(); refreshManifest();
+    if (how === 'named' && !(e.keys ?? []).length) {
+      toast(`${e.title} is on a word with no wake words — it cannot reach the model. Open it to add some.`);
+    }
+    return;
   }
   if (d.savesetup) {
     // THE CHAPTER'S OWN VALUE LAST, never ''. "Start writing" sits on the Anyone new step, where
@@ -13049,7 +13094,8 @@ document.addEventListener('click', async (e) => {
       ...(yes && asState > 0 ? { asState } : {}),
       ...(yes && edited != null ? { body: edited } : {}) });
     if (r.error) return toast(r.error);
-    V = await api.story(S.storyId); paint(); refreshManifest();
+    V = await api.story(S.storyId); if (yes && was) keepSewn([was]);
+    paint(); refreshManifest();
     toast(d.decide !== 'accept' ? 'Rejected.'
       : was?.entryType === 'string' ? 'Sewn in. It is in play: the model is told about it.' : 'Sewn in.');
     return;
@@ -13070,7 +13116,8 @@ document.addEventListener('click', async (e) => {
       done++;
     }
     S.busy = false;
-    V = await api.story(S.storyId); paint(); refreshManifest();
+    V = await api.story(S.storyId); keepSewn(batch);
+    paint(); refreshManifest();
     toast(`${done} sewn in.`);
     return;
   }

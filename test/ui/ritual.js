@@ -220,52 +220,47 @@ await page.eval("(() => { for (const k of ['title','note']) document.querySelect
 await page.type('[data-setup="title"]', 'The Stair');
 await page.type('[data-setup="note"]', 'It has to end with Aldis handing the key over.');
 
-// Who is in it. One control, two mechanisms — and which one depends on how the entry already
-// reaches the prompt, so the assertion has to branch the same way the app does.
+// Who is in it, on Anyone new (Seth, 2026-10-29): each thread a block with how it comes in. One
+// control, two mechanisms for ✕ — and which one depends on how the entry already reaches the
+// prompt, so the assertion has to branch the same way the app does.
 //
 // This block used to be guarded by `if (castBtn)` and SILENTLY SKIPPED: the setup page offered
 // only triggered entries, the fixture's characters are all always-on, so the selector matched
-// nothing and two assertions never ran. Always-on entries are offered now, which is what
-// surfaced it.
-// WHO IS IN IT IS THE THIRD STEP, Anyone new, one press on from the beat (760b857 split the page).
+// nothing and two assertions never ran. The list shows always-on entries, which is what surfaced it.
 await page.click('[data-setupstep="more"]');
-for (let i = 0; i < 20 && !(await page.visible('[data-pin]')); i++) await wait(250);
-const castBtn = await page.eval("document.querySelector('[data-pin]')?.dataset.pin");
-ok("the setup page offers at least one character to tick", !!castBtn);
+for (let i = 0; i < 20 && !(await page.visible('[data-howout]')); i++) await wait(250);
+const castBtn = await page.eval("document.querySelector('[data-howout]')?.dataset.howout");
+ok("the setup page lists at least one thread in the scene", !!castBtn);
 if (castBtn) {
   const before = await story();
   const ent = before.entries.find((e) => e.id === castBtn);
   const always = ent?.activation === 'always_on';
-  console.log(`  ticking ${JSON.stringify(ent?.title)} (${ent?.activation})`);
-  await page.click('[data-pin="' + castBtn + '"]');
+  console.log(`  taking out ${JSON.stringify(ent?.title)} (${ent?.activation})`);
+  await page.click('[data-howout="' + castBtn + '"]');
   await wait(900);
   const v = await story();
   const pin = (v.pins ?? []).find((p) => p.entryId === castBtn && p.chapterId === v.currentChapter.id);
-  // An always-on entry is already sent, so the only move is to hold it OUT. A triggered one is
-  // pushed IN. context.ts applies force_out first, before the always-on branch, so both land.
-  ok(`ticking a character writes the right kind of pin (${pin?.mode})`,
-     pin?.mode === (always ? 'force_out' : 'force_in'));
+  // An always-on entry is already sent, so the only move is to hold it OUT. A pinned one is unpinned.
+  // context.ts applies force_out first, before the always-on branch.
+  ok(`✕ writes the right pin (${pin?.mode ?? 'none'})`, always ? pin?.mode === 'force_out' : !pin);
   const reasons = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
     + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'continue'})})).json();"
     + " return r.manifest.blocks.filter(b => b.id === '" + castBtn + "').map(b => b.state + ':' + b.reason).join(','); })()");
-  ok(`  and the prompt obeys it (${JSON.stringify(reasons)})`,
-     always ? /omitted:pinned out/.test(reasons) : /included:pinned in/.test(reasons));
-  await page.click('[data-pin="' + castBtn + '"]');
+  ok(`  and the prompt obeys it (${JSON.stringify(reasons)})`, always ? /omitted:pinned out/.test(reasons) : !/pinned in/.test(reasons));
+  // Brought back by search, This scene only: pinned in for the scene.
+  await page.type('#setupQ', String(ent?.title ?? '').slice(0, 5));
+  for (let i = 0; i < 20 && !(await page.visible('[data-howin="' + castBtn + '"][data-how="scene"]')); i++) await wait(250);
+  await page.click('[data-howin="' + castBtn + '"][data-how="scene"]');
   await wait(900);
   const v2 = await story();
-  ok("  and clicking again clears it", !(v2.pins ?? []).some((p) => p.entryId === castBtn && p.chapterId === v2.currentChapter.id));
+  ok("  and bringing it back in pins it into the scene",
+     (v2.pins ?? []).some((p) => p.entryId === castBtn && p.chapterId === v2.currentChapter.id && p.mode === 'force_in'));
   // Leave it as the fixture had it, so later assertions read a story nobody has quietly changed.
-  if (!always) { await page.click('[data-pin="' + castBtn + '"]'); await wait(700); }
-}
-
-// where -> the same mechanism on a lore entry
-const placeBtn = await page.eval("document.querySelector('[data-place]')?.dataset.place");
-if (placeBtn) {
-  await page.click('[data-place="' + placeBtn + '"]');
-  await wait(900);
-  const v = await story();
-  ok("pinning a place uses the same mechanism",
-     (v.pins ?? []).some((p) => p.entryId === placeBtn && p.mode === 'force_in'));
+  if (always) { await page.click('[data-howin="' + castBtn + '"][data-how="always"]'); await wait(900); }
+  const v3 = await story();
+  ok("  and choosing how it was puts it back",
+     v3.entries.find((e) => e.id === castBtn)?.activation === ent?.activation
+     && (always ? !(v3.pins ?? []).some((p) => p.entryId === castBtn && p.chapterId === v3.currentChapter.id) : true));
 }
 
 // ---- saving writes the beat where the engine already reads it

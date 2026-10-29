@@ -6688,6 +6688,159 @@ const hemCardOf = (side: string) => {
   ok("What it left holds the scene's thread changes only; its new threads are on Anyone new");
 }
 
+// ---- ANYONE NEW IS WHERE THE WRITER CHOOSES WHO IS IN THE SCENE (Seth, 2026-10-29). Every thread in
+// it is a block, drawn as What it left draws a thread (its name, its kind, its pockets), with how it
+// comes in: This scene only (a pin for the scene), Always on, or When it's named, through the
+// existing pin and thread routes. ✕ takes one out: an always-on thread is left out of the scene, a
+// pinned one is unpinned. A thread is brought in by search, and a new thread sewn in gets the same
+// choice. A stateful fake, so each press changes what the next read hands back.
+{
+  const canned = (globalThis as any).fetch;
+  const settle = () => new Promise((r) => setTimeout(r, 40));
+  HEM_VIEW = { ...hemView(HEM_DONE, HEM_ROWS), pins: [] };
+  (globalThis as any).fetch = async (url: string, init?: any) => {
+    const body = init?.body ? JSON.parse(init.body) : null;
+    const reply = (o: any) => ({ ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) });
+    if (url === '/api/pin') {
+      POSTED.push({ url, body });
+      const pins = HEM_VIEW.pins.filter((p: any) => !(p.chapterId === body.chapterId && p.entryId === body.entryId));
+      HEM_VIEW = { ...HEM_VIEW, pins: body.mode ? [...pins, { chapterId: body.chapterId, entryId: body.entryId, mode: body.mode }] : pins };
+      return reply({ ok: true });
+    }
+    if (url === '/api/entry') {
+      POSTED.push({ url, body });
+      HEM_VIEW = { ...HEM_VIEW, entries: HEM_VIEW.entries.map((e: any) => e.id === body.entry.id ? { ...e, activation: body.entry.activation } : e) };
+      return reply({ ok: true });
+    }
+    if (url === '/api/proposal') {
+      POSTED.push({ url, body });
+      const p = HEM_VIEW.proposals.find((x: any) => x.id === body.id);
+      HEM_VIEW = { ...HEM_VIEW, proposals: HEM_VIEW.proposals.filter((x: any) => x.id !== body.id),
+        entries: body.accept && p && !p.entryId ? [...HEM_VIEW.entries, { id: 'e-bell', title: p.title, body: '', entryType: p.entryType,
+          activation: 'triggered', keys: ['bell'], lastEditor: 'model', states: [], notes: '',
+          addons: [{ id: 'a-bell', slot: 'facts', name: 'Always true', body: p.body, keys: [], active: true }] }] : HEM_VIEW.entries };
+      return reply({ ok: true });
+    }
+    return hemFetch(canned)(url, init);
+  };
+  const sent = (from: number) => POSTED.slice(from).filter((p: any) => ['/api/pin', '/api/entry'].includes(p.url))
+    .map((p: any) => p.url === '/api/pin' ? `pin ${p.body.entryId} ${p.body.mode}` : `entry ${p.body.entry.id} ${p.body.entry.activation}`);
+  const more = async () => { click({ setupstep: 'more' }); await settle(); return html('sideBody'); };
+  const who = (side: string, id: string) => {
+    const at = side.indexOf(`data-whothread="${id}"`);
+    if (at < 0) return '';
+    const end = side.indexOf('data-whothread=', at + 1);
+    return side.slice(side.lastIndexOf('<div', at), end < 0 ? undefined : end);
+  };
+  click({ open: 's-1' }); await settle();
+  click({ panel: 'setup' }); await settle();
+  let side = await more();
+  // WHO IS IN IT, AS BLOCKS: the always-on threads; not a thread on a word with no pin, nor a rule.
+  const sereth = who(side, 'e-1');
+  assert.match(sereth, /class="card hemthread"/, 'WHO-BLOCK: a thread in the scene is a thread block, as What it left draws one');
+  assert.match(sereth, /data-hemthreadname[^>]*>Envoy Sereth</, '  with its name');
+  assert.match(sereth, /<span class="tag">Character</, '  its kind');
+  assert.match(sereth, /How she sounds[\s\S]*Flat, unhurried\./, '  and its pockets');
+  assert.ok(who(side, 'e-shared'), '  every thread in it');
+  assert.strictEqual(who(side, 'e-2'), '', '  and not a thread on a word with no pin');
+  assert.strictEqual(who(side, 'e-took'), '', '  nor a rule');
+  for (const [how, label] of [['scene', 'This scene only'], ['always', 'Always on'], ['named', 'When it&#39;s named']])
+    assert.match(sereth, new RegExp(`data-howin="e-1" data-how="${how}"[^>]*>${label}<`), `WHO-HOW: it offers ${label.replace('&#39;', "'")}`);
+  assert.match(sereth, /data-how="always" aria-pressed="true"/, '  with Always on chosen for an always-on thread');
+  assert.doesNotMatch(side, /data-pin=|data-place=/, 'WHO-NO-TICKS: the old tick list is gone');
+
+  // THIS SCENE ONLY, for an always-on thread: on a word from now on, and pinned in for this scene.
+  let from = POSTED.length;
+  click({ howin: 'e-1', how: 'scene' }); await settle(); await settle();
+  assert.deepStrictEqual(sent(from), ['entry e-1 triggered', 'pin e-1 force_in'],
+    'WHO-SCENE: This scene only puts it on a word and pins it into the scene');
+  side = html('sideBody');
+  assert.match(who(side, 'e-1'), /data-how="scene" aria-pressed="true"/, '  and it reads This scene only');
+  // WHEN IT'S NAMED: the pin comes off; it stays on the list, where the writer chose it.
+  from = POSTED.length;
+  click({ howin: 'e-1', how: 'named' }); await settle(); await settle();
+  assert.deepStrictEqual(sent(from), ['pin e-1 null'], "WHO-NAMED: When it's named takes the pin off, and nothing else");
+  assert.match(who(html('sideBody'), 'e-1'), /data-how="named" aria-pressed="true"/, '  and it stays listed, on a word');
+  // ALWAYS ON: the thread is always on, and no pin.
+  from = POSTED.length;
+  click({ howin: 'e-1', how: 'always' }); await settle(); await settle();
+  assert.deepStrictEqual(sent(from), ['entry e-1 always_on'], 'WHO-ALWAYS: Always on switches the thread always on');
+  // ✕ ON AN ALWAYS-ON THREAD leaves it out of this scene.
+  from = POSTED.length;
+  click({ howout: 'e-1' }); await settle(); await settle();
+  assert.deepStrictEqual(sent(from), ['pin e-1 force_out'], 'WHO-OUT: ✕ leaves an always-on thread out of the scene');
+  assert.strictEqual(who(html('sideBody'), 'e-1'), '', '  and it leaves the list');
+
+  // BROUGHT IN BY SEARCH, for this scene.
+  typeIn('setupQ', 'stair'); await settle();
+  side = html('sideBody');
+  assert.match(side, /data-howin="e-2" data-how="scene"[^>]*aria-label="Bring The stair into/, 'WHO-ADD: searching finds a thread to bring in');
+  from = POSTED.length;
+  click({ howin: 'e-2', how: 'scene' }); await settle(); await settle();
+  assert.deepStrictEqual(sent(from), ['pin e-2 force_in'], '  and bringing it in pins it into the scene');
+  typeIn('setupQ', ''); await settle();
+  assert.match(who(html('sideBody'), 'e-2'), /data-how="scene" aria-pressed="true"/, '  and it is listed, This scene only');
+  // ✕ ON A PINNED THREAD unpins it.
+  from = POSTED.length;
+  click({ howout: 'e-2' }); await settle(); await settle();
+  assert.deepStrictEqual(sent(from), ['pin e-2 null'], 'WHO-UNPIN: ✕ on a pinned thread takes the pin off');
+
+  // A NEW THREAD, SEWN IN, GETS THE SAME CHOICE.
+  side = html('sideBody');
+  assert.match(side, /data-hemthread="new:The bellringer"/, 'the new thread is chalked here');
+  click({ decide: 'accept', id: 'hs-4' }); await settle(); await settle();
+  side = html('sideBody');
+  assert.match(who(side, 'e-bell'), /data-hemthreadname[^>]*>The bellringer</, 'WHO-SEWN: sewn in, the new thread is a block on the list');
+  assert.match(who(side, 'e-bell'), /data-howin="e-bell" data-how="scene"/, '  with how it comes in');
+  from = POSTED.length;
+  click({ howin: 'e-bell', how: 'always' }); await settle(); await settle();
+  assert.deepStrictEqual(sent(from), ['entry e-bell always_on'], '  and the choice goes through');
+
+  // THE SETTING, behind ⓘ and shut, not a block of text at the foot.
+  side = html('sideBody');
+  assert.match(side, /data-tip="setSetting"[^>]*aria-expanded="false"/, 'WHO-TIP: the setting is behind ⓘ');
+  assert.match(side, /<div class="tipcard" id="tip-setSetting" hidden>[\s\S]*?Ashfall Hall/, '  shut, holding the setting');
+  assert.doesNotMatch(side.replace(/<div class="tipcard"[^>]*>[\s\S]*?<\/div>[\s\S]*?<\/div>/g, ''), /Ashfall Hall/,
+    '  and nowhere else on the step');
+  (globalThis as any).fetch = canned;
+  click({ skipsetup: '1' }); await settle();
+  click({ open: 's-1' }); await settle();
+  ok('Anyone new: who is in the scene, as thread blocks, each with how it comes in');
+}
+
+// ---- EACH CONTROL IN ONE PLACE (Seth, 2026-10-29): across the Workbench's hem card and the setup's
+// three steps, the summary, Set up the next scene, the next scene's boxes and who is in it each sit
+// on one screen; and within the setup no thread is on two steps. The thread blocks themselves are the
+// one deck the Workbench and What it left share (#74), so they are not counted across that pair.
+{
+  const canned = (globalThis as any).fetch;
+  (globalThis as any).fetch = hemFetch(canned);
+  const settle = () => new Promise((r) => setTimeout(r, 40));
+  HEM_VIEW = hemView(HEM_DONE, HEM_ROWS);
+  click({ open: 's-1' }); await settle();
+  click({ panel: 'waiting' }); await settle();
+  const screens: Record<string, string> = { workbench: hemCardOf(html('sideBody')) };
+  click({ panel: 'setup' }); await settle();
+  for (const step of ['cards', 'premise', 'more']) { click({ setupstep: step }); await settle(); screens[step] = html('sideBody'); }
+  const controls: Record<string, RegExp> = {
+    'the summary': /data-hemsumtext=/, 'Set up the next scene': /data-hemsetup=/,
+    "the next scene's title": /data-setup="title"/, 'its note': /data-setup="note"/, 'its opening': /data-setup="opens"/,
+    'Have Anansi suggest another': /data-name=/, 'how a thread comes in': /data-howin=/, 'taking a thread out': /data-howout=/,
+    'finding a thread to bring in': /id="setupQ"/, "the tale's setting": /data-tip="setSetting"/,
+  };
+  for (const [what, re] of Object.entries(controls)) {
+    const on = Object.keys(screens).filter((k) => re.test(screens[k]));
+    assert.strictEqual(on.length, 1, `ONCE: ${what} is on one screen, not ${JSON.stringify(on)}`);
+  }
+  const threads = (s: string) => [...s.matchAll(/data-hemthread="([^"]+)"/g)].map((m) => m[1]);
+  const twice = threads(screens.cards).filter((k) => threads(screens.more).includes(k) || threads(screens.premise).includes(k));
+  assert.deepStrictEqual(twice, [], 'ONCE-THREADS: no thread is on two steps of the setup');
+  (globalThis as any).fetch = canned;
+  click({ skipsetup: '1' }); await settle();
+  click({ open: 's-1' }); await settle();
+  ok('each control of the hem flow is in one place');
+}
+
 // ---- #92 · HEM THIS SCENE OPENS THE NEXT ONE AT ONCE, and the card arrives without a reload.
 //
 // The route answers before the passes run (#89). The writer lands in the new scene, blank: the hem

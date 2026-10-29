@@ -31,6 +31,14 @@ at The next scene, with Anansi's title, note and opening already in the boxes. T
 has its own boxes for the next scene, Something else or Use these. What you saved for the next
 scene shows in the boxes in place of Anansi's idea.
 
+### Choose who is in the next scene on Anyone new
+Anyone new is now the one place where you choose who is in the next scene. Each thread in it shows
+as a block with its name, kind and pockets. Choose how each one comes in: This scene only, Always
+on, or When it's named. Press ✕ to take a thread out of the scene. Type in the box to find another
+thread and bring it in. A new thread that you sew in on this step gets the same choice. The new
+threads from a hemmed scene are on Anyone new and not on What it left. What it left no longer shows
+the scene summary, which stays on the Workbench. The tale's setting is behind the ⓘ mark.
+
 ### Merge two threads that are the same one
 When one person has two threads, open either one and choose "Merge with another thread…" in its
 menu. Pick the other thread, then pick which one stays. Anansi writes the one thread they make:
