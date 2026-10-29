@@ -173,7 +173,8 @@ const STORY = {
     // hold on Reweave does since 2026-10-29, and a tap reweaves), so
     // the fixture needs a passage that HAS one and others that do not — the press behaves
     // differently for each and a fixture where every passage is the same tests one branch.
-    { id: 'p-1', ordinal: 1, body: 'The hall smells of cold iron.', author: 'model', speaker: null,
+    { id: 'p-1', ordinal: 1, body: 'The hall smells of cold iron. It was *too* quiet. "Stay," she said. **Now.**',
+      author: 'model', speaker: null,
       directed: true, directive: 'have the envoy arrive early',
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-1', selected: true }] },
     { id: 'p-2', ordinal: 2, body: '"You came alone."', author: 'model', speaker: 'Envoy Sereth',
@@ -1021,6 +1022,12 @@ click({ open: 's-1' });
 await new Promise((r) => setTimeout(r, 40));
 
 assert.match(html('col'), /The hall smells of cold iron/);
+// ACCENTED PROSE ON THE PAGE (2026-10-29): quotes, *emphasis* and **strong**, asterisks hidden, in a
+// passage of narration and in a line of speech. The stored body keeps its asterisks (the fixture).
+assert.ok(html('col').includes('<div class="narr" data-edit="p-1"><p>The hall smells of cold iron. It was <em>too</em> quiet.</p>'
+  + '<p><span class="q">&quot;Stay,&quot;</span> she said. <strong>Now.</strong></p></div>'), 'ACCENT-PAGE: narration is accented');
+assert.ok(html('col').includes('<div class="said" data-edit="p-2"><span class="q">&quot;You came alone.&quot;</span></div>'),
+  'ACCENT-PAGE: and so is a line of speech');
 assert.match(html('col'), /Envoy Sereth/, 'a speaker label must render');
 assert.match(html('col'), /You · Ilva Marren/, 'a human passage must be attributed to the persona');
 // THE CLASS TOKEN, not the whole attribute. This read `class="block speak"` exactly, so it went red
@@ -1900,6 +1907,13 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     const r = ratio(v['--label'], (spec as any).paper);
     assert.ok(r >= 4.5, `${name}: a hint sentence is ${r.toFixed(2)}:1 against its own paper, `
       + 'and the derivation exists to make that 4.5 without anyone checking by eye');
+    // ACCENTED PROSE (2026-10-29) is body text, so it has to read as body text does. Grimdark's
+    // own accent is 4.39:1 on its paper, which is why these are derived and not the accent itself.
+    for (const k of ['--accent-said', '--accent-soft']) {
+      const a = ratio(String(v[k] ?? ''), (spec as any).paper);
+      assert.ok(a >= 4.5, `ACCENT-CONTRAST: ${name}'s ${k} is ${a.toFixed(2)}:1 against its own paper`);
+    }
+    assert.notStrictEqual(v['--accent-soft'], v['--accent-said'], `ACCENT-CONTRAST: ${name}'s emphasis is a softer tint, not the same colour`);
   }
   ok('nine themes, every token derived from one row each, every hint above 4.5:1');
 

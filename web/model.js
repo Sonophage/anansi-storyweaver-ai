@@ -830,6 +830,13 @@ export function themeVars(key) {
     '--field': mix(S.sheet, away, .35),
     '--gold': S.accent, '--gold-dim': mix(S.accent, away, .22),
     '--gold-lit': mix(S.accent, toward, .3),
+    /* ACCENTED PROSE (2026-10-29, `accent`): quoted speech and **strong** in `--accent-said`, *em*
+     * in `--accent-soft`. Both lean the accent toward the ink, which is what keeps them readable as
+     * body text: grimdark's own accent measures 4.39:1 on its paper, and `--gold-dim` (toward the
+     * paper) measured 3.10 there and 3.72 on parchment. 15% ink clears 5.2:1 on every theme; the
+     * soft one is 40% ink, so it is nearer the prose colour and higher still. test/app.ts checks
+     * 4.5 on every theme. */
+    '--accent-said': mix(S.accent, S.ink, .15), '--accent-soft': mix(S.accent, S.ink, .4),
     '--on-gold': S.dark ? '#100D08' : '#FBF6EA',
     // The app keeps three states where the design has two: `warn` is the amber one that says
     // "look at this", `bad` is the red one that says "this is wrong". The design's single warn is

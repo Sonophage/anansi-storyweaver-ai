@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen } from './model.js';
+import { inkParagraphs, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -1522,11 +1522,14 @@ function passageHTML(p, newest, opening) {
   const body = spoken
     ? `<div class="who">${p.speaker ? esc(p.speaker)
          : mine ? `You · ${esc(V.story.persona || 'you')}` : esc(V.story.title)}</div>
-       <div class="said" data-edit="${p.id}">${esc(p.body)}</div>`
+       <div class="said" data-edit="${p.id}">${accent(esc(p.body))}</div>`
     : `<div class="narr" data-edit="${p.id}">${
          // Paragraphs for READING. Alter edits the passage's own text from S.passEdit, never this
          // markup: textContent over <p> children would glue the paragraphs into one line.
-         bookParagraphs(p.body).map((para) => `<p>${esc(para)}</p>`).join('')}</div>`;
+         // Accented across the whole passage at once, one paragraph a line, so a quote that runs on
+         // to the next paragraph is seen (`accent`, web/model.js).
+         (bookParagraphs(p.body).length ? accent(bookParagraphs(p.body).map(esc).join('\n')).split('\n') : [])
+           .map((para) => `<p>${para}</p>`).join('')}</div>`;
   // #14. The press that made it, down the margin. Null on everything written before 2026-08-29 —
   // Seth: "old ones neutral is fine" — and those fall through to the faint outline the newest
   // passage has always had.

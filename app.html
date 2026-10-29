@@ -790,6 +790,15 @@ html[data-ui-font="readex"] .narr { font-family:'Readex Pro',system-ui,sans-seri
    follows and the reason a drop cap works at all. */
 .narr p { margin:0; }
 .narr p + p { text-indent:1.4em; }
+/* ACCENTED PROSE. Seth, 2026-10-29: "things between quotations or asterisks or double asterisks
+   should be accented". `accent` (web/model.js) writes the three tags, in the landed passage and in
+   the one being written alike, so these rules reach both. Quoted speech keeps its marks; strong and
+   em have lost their asterisks. The two colours are theme tokens leaning the accent toward the ink
+   (`themeVars`), so they read as body text on every theme. On the serif face narration is already
+   italic, so emphasis there turns upright, the way a printer sets it. */
+:is(.narr, .said) .q, :is(.narr, .said) strong { color:var(--accent-said, var(--gold)); }
+:is(.narr, .said) em { font-style:italic; color:var(--accent-soft, var(--gold)); }
+html[data-ui-font="serif"] .narr em { font-style:normal; }
 
 /* THREE rules down the left margin, and the margin is the only place they are.
    Your own lines used to hang off the right edge, ragged-right and mirrored, which reads as a chat
