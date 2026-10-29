@@ -7107,13 +7107,14 @@ const foldSection = (name, label, body) => `<details class="fold push-16"
   ${S.folds?.[name] ? 'open' : ''}>
   <summary class="wide" data-fold="${esc(name)}">${label}</summary>${body}</details>`;
 
-/** ALWAYS TRUE'S BOX, on The thread tab, and nothing when the thread has none. It was every room's
- *  editor until #126 moved pockets to the pocket panel; Always true is not a pocket (#77) and stays
- *  a plain box with Save here. The body GROWS (growFields walks every textarea.grow). */
+/** ALWAYS TRUE'S BOX, on The thread tab. It was every room's editor until #126 moved pockets to the
+ *  pocket panel; Always true is not a pocket (#77) and stays a plain box with Save here. A thread
+ *  with none gets an empty box whose Save makes it (`data-saveaddon="facts"`): the add tray offered
+ *  it while a thread had none, and the pocket panel does not. The body GROWS (growFields). */
 function roomSection(e, sl, anchor = true) {
   if (sl?.name !== 'facts') return '';
-  const mine = (e.addons ?? []).filter((a) => a.slot === 'facts');
-  if (!mine.length) return '';
+  const had = (e.addons ?? []).filter((a) => a.slot === 'facts');
+  const mine = had.length ? had : [{ id: 'facts', body: '' }];
   // ALWAYS TRUE IS NOT A POCKET (#77): no switch, no wake words and no name, because it is sent
   // whenever the thread is. Only its text, which is the writer's and which Anansi never changes.
   return `
@@ -11233,8 +11234,11 @@ document.addEventListener('click', async (e) => {
     // The slot comes off the row that is already there rather than out of the form: it is not
     // editable and a card cannot move a room to another slot, so sending it would be sending a
     // value the writer never chose.
-    const had = (V.entries.find((x) => x.id === S.entryId)?.addons ?? [])
+    const found = (V.entries.find((x) => x.id === S.entryId)?.addons ?? [])
       .find((a) => a.id === d.saveaddon);
+    // #126. The empty Always true box of a thread that has none: Save makes it, so it has no id.
+    const newFacts = !found && d.saveaddon === 'facts';
+    const had = found ?? (newFacts ? { slot: 'facts', name: 'facts' } : undefined);
     // ALWAYS TRUE HAS NO NAME BOX (#77: not a pocket, no name, no switch, no wake words), so its
     // name is the one it already has. Requiring the box made every Always true save refuse with
     // "A pocket needs a name" (Seth, 2026-10-28).
@@ -11247,7 +11251,7 @@ document.addEventListener('click', async (e) => {
     // #75. Or one of the tale's own pockets, which hangs off no thread.
     const tale = !had && (V.talePockets ?? []).some((a) => a.id === d.saveaddon);
     const r = await api.saveAddon(S.storyId, tale ? null : S.entryId,
-      { id: d.saveaddon, slot: tale ? 'instruction' : had?.slot, name, body, keys });
+      { ...(newFacts ? {} : { id: d.saveaddon }), slot: tale ? 'instruction' : had?.slot, name, body, keys });
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest(); toast('Saved.'); return;

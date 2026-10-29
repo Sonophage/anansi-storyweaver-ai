@@ -248,7 +248,7 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   const have = {
     card: await onTab('card', ['#f-card-title', '[data-act="always_on"]', '#f-card-body', '#f-card-keys']),
     time: await onTab('time', ['[data-otrow="1"]', '[data-addstate]']),
-    rooms: await onTab('rooms', ['[data-newroom]', '[data-ofn]', '[data-wear]', '[data-saveoutfit]', '[data-deloutfit]', '[data-goslot]']),
+    rooms: await onTab('rooms', ['.pane:not([hidden]) [data-pocketnew]', '[data-editroom]', '[data-wear]', '[data-goslot]']),
     more: await onTab('more', ['[data-picfind]', '[data-kind="lore"]', '[data-invent]', '#f-card-notes', '#f-card-json',
       '[data-cardcopy]', '[data-cardsave]', '[data-cardread]', '[data-fold="edges"]', '[data-retire]', '[data-scanstory]',
       '[data-fold="copy"]', '[data-fieldhistory]', '[data-delentry]']),

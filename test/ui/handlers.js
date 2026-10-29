@@ -380,44 +380,35 @@ ok("the card's form opens, so the kind chips are on screen",
 // A character, or there is no wardrobe to drive. The fixture's persona is one.
 await page.click('[data-kind="character"]');
 await wait(800);
-// AND THE WARDROBE IS IN THE ROOMS TAB, since the same change. It used to be further down the one
-// long form, so opening the form was enough to reach it.
+// AND THE WARDROBE IS ON THE POCKETS TAB. Since #126 a pocket is added and altered in the pocket
+// panel, opened from the tab's own + Add a pocket (or the header's ＋), with the kind picked in it.
 await page.click('[data-cardtab="rooms"]');
 await wait(500);
-ok("  and the wardrobe is in the Rooms tab", await page.visible('[data-newroom]'));
-// THE ADD TRAY IS FOLDED SHUT AND NOTHING IS SELECTED IN IT (2026-08-30), so the outfit pill is
-// pressed before the boxes exist at all. That press is the change: one add path for every room
-// rather than a form per slot plus a second one under the wardrobe. It repaints, so it happens
-// BEFORE the fill below and not between the fill and the press.
-await page.eval(`(() => { const d = document.querySelector('[data-newroom]')?.closest('details');
-  if (d) d.open = true; return 1; })()`);
-await wait(250);
-await page.click('[data-newroom="outfit"]');
-await wait(600);
-ok("the add tray opens the outfit fields when the outfit pill is pressed",
-   await page.eval("!!document.querySelector('[data-of=\"name\"]')"));
-// FILL AND PRESS IN ONE EVAL, with nothing between. Changing the kind above saves and repaints,
-// and a repaint landing between the fill and the press wipes the two boxes — which is what this
-// was doing: the click reached a real button holding two empty fields, `upsertOutfit` had nothing
-// to store, and the only sign was `an outfit can be added (0)`. Asserted first, so if the fields
-// are ever empty again the check says THAT rather than blaming the route.
-const filled = await page.eval("(() => { const n = document.querySelector('[data-of=\"name\"]'),"
-  + " b = document.querySelector('[data-of=\"body\"]'); if (!n || !b) return 'no wardrobe on screen';"
-  + " n.value = 'Plate'; b.value = 'Scarred half-armour, buckled wrong.';"
-  + " document.querySelector('[data-addoutfit]').click();"
-  + " return n.value === 'Plate' ? 'ok' : 'the boxes did not hold what was typed'; })()");
-ok(`the wardrobe boxes hold what was typed when Add is pressed (${filled})`, filled === 'ok');
+ok("  and the Pockets tab offers a new pocket", await page.visible('.pane:not([hidden]) [data-pocketnew]'));
+await page.click('.pane:not([hidden]) [data-pocketnew]');
+await wait(400);
+await page.click('[data-pocketkind="outfit"]');
+await wait(400);
+ok("the pocket panel opens the outfit fields when the outfit kind is pressed", await page.visible('#pk-name'));
+// TYPED THROUGH AN INPUT EVENT, which is what puts it in the panel's state: the panel is drawn from
+// state, so a value set without one would be drawn back empty by the next repaint.
+const typePocket = (name, body) => page.eval(`(() => { const set = (id, v) => { const el = document.getElementById(id);
+  if (!el) return false; el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); return true; };
+  return set('pk-name', ${JSON.stringify(name)}) && set('pk-body', ${JSON.stringify(body)}) ? 'ok' : 'no pocket panel on screen'; })()`);
+const filled = await typePocket('Plate', 'Scarred half-armour, buckled wrong.');
+ok(`the pocket panel holds what was typed (${filled})`, filled === 'ok');
+await page.click('[data-pocketsave]');
 await wait(900);
 const outfitOf = async () => (await entries()).find((x) => x.id === cid)?.outfits ?? [];
 let fits = await outfitOf();
 ok(`an outfit can be added (${fits.length})`, fits.length === 1 && fits[0].name === 'Plate');
 
-// Edit it in place. The id in the attribute is what makes this an edit and not a second outfit.
+// Altered from its row, in the same panel. The id is what makes this an edit and not a second outfit.
 const oid = fits[0].id;
-await page.eval("(() => { document.querySelector('[data-ofn=\"" + oid + "\"]').value = 'Court dress';"
-  + " document.querySelector('[data-ofb=\"" + oid + "\"]').value = 'Borrowed silk, a size out.';"
-  + " return 1; })()");
-await page.click('[data-saveoutfit="' + oid + '"]');
+await page.click('[data-editroom="' + oid + '"]');
+await wait(400);
+await typePocket('Court dress', 'Borrowed silk, a size out.');
+await page.click('[data-pocketsave]');
 await wait(1000);
 fits = await outfitOf();
 ok(`  and edited in place, not duplicated (${fits.length} outfit, "${fits[0]?.name}")`,

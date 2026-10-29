@@ -362,7 +362,7 @@ let stubHistory: any = null;
 // #103. How many World lookups fail before one answers, as a dropped connection would.
 let worldDown = 0;
 (globalThis as any).fetch = async (url: string, init?: any) => {
-  if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body) }); } catch { /* not JSON */ } }
+  if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body), method: init.method }); } catch { /* not JSON */ } }
   /* A GENERATION, AS THE NDJSON STREAM THE REAL ROUTE SENDS. Until 2026-09-01 this stub answered
    * /api/generate with {}, so `res.body` was undefined and `jStream` threw on `getReader()` — which
    * meant no test in this file could press Continue or Regenerate at all. Issue #38's checks need to
@@ -1825,6 +1825,28 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     assert.ok(!POSTED.some((x) => String(x.url).startsWith('/api/addon')), 'ALWAYS-TRUE-EMPTY: an empty one is not saved');
   } finally { doc.querySelector = wasQS; }
   ok('Always true saves with no name box, keeping its name');
+}
+
+// #126 · A THREAD WITH NO ALWAYS TRUE GETS ONE FROM THE THREAD TAB. The add tray offered it while a
+// thread had none; the pocket panel does not (it is not a pocket), so the box is drawn empty here.
+{
+  click({ panel: 'threads' }); click({ entry: 'e-2' });
+  click({ cardview: 'form' }); click({ cardtab: 'card' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.match(html('sideBody'), /data-ab="facts"[\s\S]*data-saveaddon="facts"/, 'ALWAYS-TRUE-NEW: an empty box with Save');
+  const doc = (globalThis as any).document;
+  const wasQS = doc.querySelector;
+  doc.querySelector = (sel: string) => sel === '[data-ab="facts"]' ? { value: 'Unlit, below the counting floor.' } : null;
+  try {
+    POSTED.length = 0;
+    click({ saveaddon: 'facts' });
+    await new Promise((r) => setTimeout(r, 60));
+    assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body,
+      { storyId: 's-1', entryId: 'e-2', addon: { slot: 'facts', name: 'facts', body: 'Unlit, below the counting floor.', keys: '' } },
+      'ALWAYS-TRUE-NEW: Save makes the Always true, with no id');
+  } finally { doc.querySelector = wasQS; }
+  click({ cardview: null }); click({ backentry: '1' });
+  ok('a thread with no Always true gets one from The thread tab');
 }
 
 // Nine themes, each one row, every token derived from it. Three hand-written CSS blocks is why
@@ -6763,6 +6785,62 @@ const hemCardOf = (side: string) => {
   assert.doesNotMatch(edit, /data-pocketkind=/, 'PANEL-EDIT: its kind is not offered again');
   click({ pocketx: '1' }); await wait();
   ok('the Pockets tab is a list, and a row opens the panel on that pocket');
+
+  // WHAT IS TYPED SURVIVES A REPAINT, and SAVE SENDS THE POCKET AS THE PANEL HOLDS IT.
+  click({ editroom: 'a-off' }); await wait();
+  typeIn('pk-body', 'To go home, and not say so.'); typeIn('pk-keys', 'home, harbour');
+  click({ cardtab: 'rooms' }); await wait();   // any press that repaints
+  assert.match(html('pocketPanel'), />To go home, and not say so\.<\/textarea>/, 'PANEL-REPAINT: the typed text is drawn back');
+  POSTED.length = 0;
+  click({ pocketsave: '1' }); await wait();
+  const saved = POSTED.find((x) => x.url === '/api/addon');
+  assert.deepStrictEqual(saved?.body, { storyId: 's-1', entryId: 'e-1', addon: { id: 'a-off', slot: 'interiority',
+    name: 'What she wants', body: 'To go home, and not say so.', keys: ['home', 'harbour'] } }, 'PANEL-SAVE: Save sends the pocket');
+  assert.doesNotMatch(html('pocketPanel'), /role="dialog"/, 'PANEL-SAVE: and shuts the panel');
+  // A NEW ONE: the kind chosen, no id.
+  click({ pocketnew: 'e-1' }); click({ pocketkind: 'voice' });
+  typeIn('pk-name', 'At court'); typeIn('pk-body', 'Formal, and slower.');
+  POSTED.length = 0;
+  click({ pocketsave: '1' }); await wait();
+  assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body.addon,
+    { slot: 'voice', name: 'At court', body: 'Formal, and slower.', keys: [] }, 'PANEL-SAVE: a new one carries its kind and no id');
+  ok('the pocket panel keeps what is typed through a repaint, and Save sends the pocket');
+
+  // REMOVE ASKS TWICE.
+  click({ editroom: 'a-off' }); await wait();
+  POSTED.length = 0;
+  click({ pocketdel: 'a-off' }); await wait();
+  assert.ok(!POSTED.some((x) => x.method === 'DELETE'), 'PANEL-REMOVE: the first press only asks');
+  click({ pocketdel: 'a-off' }); await wait();
+  assert.deepStrictEqual(POSTED.find((x) => x.method === 'DELETE')?.body, { storyId: 's-1', id: 'a-off' },
+    'PANEL-REMOVE: the second removes it');
+  ok('Remove in the pocket panel asks twice');
+
+  // ASK ANANSI ON A POCKET THAT EXISTS: his rewrite is a diff, and Use this puts it in the box.
+  click({ editroom: 'a-on' }); click({ pockettab: 'ask' }); await wait();
+  typeIn('pk-steer', 'colder');
+  stubInvent = { addon: { slot: 'voice', name: 'How she sounds', body: 'Flat, and colder.', keys: [] } };
+  POSTED.length = 0;
+  try { click({ pocketask: 'write' }); await wait(); } finally { stubInvent = null; }
+  const asked = POSTED.find((x) => x.url === '/api/invent')?.body;
+  assert.strictEqual(asked?.kind, 'voice', 'PANEL-ASK: the existing invent call, for this kind');
+  assert.match(String(asked?.direction), /^colder[\s\S]*Flat, unhurried\./, 'PANEL-ASK: with the steer and the text it rewrites');
+  const offer = html('pocketPanel');
+  assert.match(offer, /<div class="diff">[\s\S]*<del>[^<]*unhurried[\s\S]*<ins>[^<]*colder/, 'PANEL-ASK: his rewrite is a diff against the text');
+  assert.match(offer, /data-pocketuse="1"/, 'PANEL-ASK: with Use this');
+  click({ pocketuse: '1' }); await wait();
+  assert.match(html('pocketPanel'), /id="pk-body"[^>]*>Flat, and colder\.<\/textarea>/, 'PANEL-USE: Use this fills the box');
+  assert.match(html('pocketPanel'), /data-pockettab="write"[^>]*aria-pressed="true"/, 'PANEL-USE: on Write it');
+  click({ pocketx: '1' }); click({ pocketx: '1' }); await wait();
+  ok("Ask Anansi's rewrite of a pocket is a diff, and Use this fills the box");
+
+  // ON AND OFF FROM THE LIST.
+  POSTED.length = 0;
+  click({ addonon: 'a-off:1' }); await wait();
+  assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon/on')?.body,
+    { storyId: 's-1', id: 'a-off', on: true, atChapter: STORY.currentChapter.index }, 'PANEL-SWITCH: the list switches a pocket on');
+  ok('a pocket is switched on and off from the list');
+  click({ cardview: null }); click({ backentry: '1' });
 }
 
 console.log(`\n${n} checks passed`);
