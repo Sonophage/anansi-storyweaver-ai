@@ -2653,7 +2653,7 @@ ok('threads sent home land on the card they came from, and new ones arrive as ne
 
 // ---- THE WHOLE BOOK AGAIN. Seth, 2026-09-11: "copies threads independent of the original."
 //
-// WHAT IS ACTUALLY BEING ASSERTED, and why a branch test would not do: `entries` and `strings` are
+// WHAT IS ACTUALLY BEING ASSERTED, and why a branch test would not do: `entries` and their pockets (strings among them since #127) are
 // keyed by story and have no branch column, so every branch of a book reads ONE ledger. Two ledgers
 // that do not reach each other is the thing only a second book can give, and section 3 is it.
 //

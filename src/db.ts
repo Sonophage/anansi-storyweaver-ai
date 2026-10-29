@@ -3674,7 +3674,7 @@ export function forkBranch(storyId: string, fromBranchId: string, atOrdinal: num
 /** THE WHOLE BOOK AGAIN, STANDING ON ITS OWN. Seth, 2026-09-11: *"copies threads independent of
  *  the original."*
  *
- *  WHY A BRANCH CANNOT DO THIS, which is the question this answers. `entries` and `strings` are
+ *  WHY A BRANCH CANNOT DO THIS, which is the question this answers. `entries` and their pockets (strings among them since #127) are
  *  keyed by story and have no branch column, so every branch of a book reads and writes ONE
  *  ledger — `forkBranch` copies chapters, passages, pins and arcs and deliberately shares canon,
  *  because a fact is true on every path. That is right for a fork and it is exactly what makes it
@@ -3687,7 +3687,7 @@ export function forkBranch(storyId: string, fromBranchId: string, atOrdinal: num
  *  THE CHAPTER NUMBERS MEAN WHAT THEY MEANT, and three things ride on that. Read the note at the
  *  foot of `copyEntry` first: it refuses to carry a card's timeline across because a state is
  *  anchored to a chapter NUMBER and chapter 7 there is not chapter 7 here. In a whole-book copy it
- *  is — every chapter arrives with its own `idx` — so `entry_states`, `strings` and
+ *  is — every chapter arrives with its own `idx` — so `entry_states`, a string's scenes and
  *  `retired_at_chapter` travel here and must not be lifted out of this function into any path that
  *  copies between two different books.
  *

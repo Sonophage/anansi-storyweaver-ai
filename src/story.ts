@@ -148,7 +148,7 @@ export function view(storyId: string, focusChapterId?: string) {
     turn: s.turn ?? null,
     // What the Waiting panel lists that is not already on the view: stale summaries and
     // out-of-date acts, less the ones the writer waved away. Proposals and strings are read
-    // straight off `proposals` and `strings`. Counts of those sat here until 2026-10-24, read by
+    // straight off `proposals` and `strings` (the tale's string pockets since #127). Counts of those sat here until 2026-10-24, read by
     // nothing, and the strings one counted differently from the panel.
     waiting: (() => {
       const off = db.dismissed(storyId);
