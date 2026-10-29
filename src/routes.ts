@@ -1180,8 +1180,13 @@ const wove = (reply: { weaves: boolean; maxTokens: number },
  *  (4,977 and 1,803 characters, 2026-10-22). Featherless documents `repetition_penalty`. A number is
  *  set here only once a run has shown it helps: null sends nothing. Only remote prose would carry
  *  it, and the writer's sampler, spread after it, wins.
- *  ponytail: off until `bench/repetition.ts` (no penalty against 1.05 and 1.1, two remote models,
- *  a real book) has run. Set the value it chose, or leave null and record that it showed nothing. */
+ *  Measured twice with `bench/repetition.ts` (no penalty against 1.05 and 1.1, two remote models,
+ *  a real book), and neither run showed a benefit. F62: 1 runaway of 3 without a penalty against 0
+ *  of 6 with one, too few to tell from chance, and shorter passages on every penalty arm. F64: the
+ *  echo Seth saw (a phrase copied from one passage into the next) did not occur in the control arm,
+ *  0 of 18 takes ran away, and the length cost did not repeat.
+ *  ponytail: stays null until a run shows a benefit. The trigger to re-run is a remote book whose
+ *  last passage carries an echoed phrase, fixed for the run, so the control arm has echo to lose. */
 export const REMOTE_REPETITION_PENALTY: number | null = null;
 
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',

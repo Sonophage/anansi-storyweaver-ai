@@ -3104,3 +3104,60 @@ moves nothing in any arm.
 
 **Harness.** `bench/lockout-cheap.ts` (check mode in test/all.ts; detector validated both ways).
 The run's raw rows held prose from the writer's book and were deleted after this was written.
+
+## F64 — the control arm echoed nothing, so a repetition penalty had nothing to reduce: 0 of 18 takes echo the book, 0 of 18 run away, and the app still sends no penalty (2026-10-29)
+
+**The question.** Seth's book *Starlight Deception*, written on Featherless, carried "the bitter
+taste, a familiar anchor" and "lets the caffeine take hold" from one GLM-4-32B passage into the next
+two takes. That is not a loop inside a passage (F62's runaway); it is a phrase copied out of the
+prompt. On vLLM-style servers `repetition_penalty` counts the prompt's tokens as well as the
+reply's, so it is the one documented knob that could reach it. This asks whether it does.
+
+**The measure.** `bench/repetition.ts` gained `echo`: the share of a take's five-word narration
+phrases (quoted dialogue stripped, words only, lower case) that already stand in the book's last 12
+passages. A share, not a count, because F62 found penalty arms write shorter. Validated both ways in
+`check`: a copied passage is 1, the fixture book echoes 0 of itself, one carried phrase is 2 grams of
+9 by hand, a phrase inside quotes is 0; dropping the quote strip and changing the gram size each
+turn a named assertion red. Validated on prose it was not written for: the book's own 20 model
+passages have a median echo of 0.036, and passages 16, 21, 22 and 24 (all Forgotten-Transgression-24B)
+read 0.19 to 0.28 — whole sentences re-used, checked by eye ("the dim lighting casts a soft glow on
+her face, highlighting…").
+
+**The run.** `bench/repetition.ts 3`, 2026-10-29 12:09, after 10 minutes with no generation in the
+library. Book *Starlight Deception* (Into the Blue is gone), on a scratch copy, on the owner's key.
+Two models, arms no penalty / 1.05 / 1.1, 3 runs each, interleaved, one call at a time, mode
+`continue` with no directive, through `POST /api/generate` not streamed. 18 calls, 0 failed, about
+4 minutes; Featherless is a flat plan, so the cost is plan time, not money.
+
+| model | arm | runaway | echo median / largest | named phrase | tokens median | words median |
+|---|---|---|---|---|---|---|
+| GLM-4-32B-0414 heretic v2 | none | 0 of 3 | 0 / 0 | 0 of 3 | 109 | 85 |
+| GLM-4-32B-0414 heretic v2 | 1.05 | 0 of 3 | 0 / 0 | 0 of 3 | 70 | 58 |
+| GLM-4-32B-0414 heretic v2 | 1.1 | 0 of 3 | 0 / 0 | 0 of 3 | 95 | 78 |
+| Forgotten-Transgression-24B v4.1 | none | 0 of 3 | 0 / 0.012 | 0 of 3 | 302 | 229 |
+| Forgotten-Transgression-24B v4.1 | 1.05 | 0 of 3 | 0 / 0 | 0 of 3 | 352 | 277 |
+| Forgotten-Transgression-24B v4.1 | 1.1 | 0 of 3 | 0 / 0 | 0 of 3 | 340 | 249 |
+
+**What this settles: nothing about the penalty.** The informative denominator is the control takes
+that echoed, and there were none (largest 0.012, one shared gram). A knob cannot be shown to reduce
+what the control did not do (F10, F12). Runaways: 0 of 18, as in F62's penalty arms; no new evidence.
+Length: F62's "every penalty arm is shorter" did not repeat — GLM 109 → 70 → 95 tokens,
+Forgotten-Transgression 302 → 352 → 340 — so at n = 3 the length cost is not a stable direction.
+
+**Why the control did not echo, and the caveats.**
+- **Seth rewound the book four minutes before the run.** Passages 30 to 34, including 33 and 34,
+  which carried the named phrases, were removed at 12:05; the prompt ended at passage 29, whose own echo is
+  0.005. The state that produced the echo was not the state measured. A run that wants to test the
+  echo needs a book whose last passage holds the phrase, fixed for the run.
+- **The takes are short.** GLM wrote 52 to 100 words on a 900-token cap with no directive; Seth's
+  passages run about 250. A short take has fewer chances to echo.
+- **The chunk check overran on both models.** At `max_tokens: 120` on a short prompt GLM returned
+  274 tokens and Forgotten-Transgression 304, both `finish_reason: stop`. F62 saw Anubis honour the
+  same short call. This run did not test where the app's own stream cap applies.
+- One book, one scene state, n = 3 per arm.
+
+**The app sends no penalty** (`REMOTE_REPETITION_PENALTY = null`). F62 found no proven benefit for
+runaways and a length cost; this found no echo to reduce. The echo Seth saw stays open.
+
+**Harness.** `bench/repetition.ts` (check mode in test/all.ts). The scratch copy was deleted by the
+bench on exit; no prose from the run was kept.
