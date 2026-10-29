@@ -1863,10 +1863,13 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
     "STRINGS-CHALKED: the one that moved is chalked onto the hem's card, aimed at its pocket; the one that did not is not");
   ok("a hem chalks where each string in play stands now, onto its card, and nothing for one it did not move");
 
+  // The writer makes it an open question before sewing it in (Seth, 2026-10-28): the chalk was a promise's.
+  db.upsertAddon(t.id, tale.id, { id: oil, slot: 'question', name: 'The oil', body: OIL });
   await routes['POST /api/proposal'](ctx({ storyId: t.id, id: rows[0].id, accept: true }));
   const after = db.stringsOf(t.id).find((x: any) => x.id === oil);
   assert.deepStrictEqual([after.body, after.summoned, after.status], [NOW, 1, 'open'],
     'STRINGS-SEWN: sewn in, the string reads where it stands now, still on and open');
+  assert.strictEqual(after.kind, 'question', 'STRINGS-SEWN-KIND: and keeps the kind the writer gave it since the hem');
   assert.strictEqual(db.stringsOf(t.id).length, 4, '  in place, not beside it');
   const kept = (db.entryHistory(t.id, tale.id) as any[]).find((r) => r.field === `pocket:${oil}`);
   assert.strictEqual(kept?.previous_value, OIL, 'STRINGS-HISTORY: and the old version is kept in the thread\'s history');

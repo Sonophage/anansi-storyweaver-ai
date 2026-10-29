@@ -2388,8 +2388,8 @@ export function upsertString(storyId: string, v: any) {
     WHERE a.id = ? AND a.story_id = ? AND e.entry_type = 'tale' AND a.slot IN (${STRING_IN})`).get(v.id, storyId) as any : null;
   const tale = taleThread(storyId);
   if (!tale) return null;
+  // A changed kind is moved by `upsertAddon`, which keeps a pocket's slot for everything else.
   const kind = stringKind(v.kind) ?? cur?.slot ?? 'promise';
-  if (cur && kind !== cur.slot) q('UPDATE addons SET slot = ? WHERE id = ? AND story_id = ?').run(kind, cur.id, storyId);
   const status = stringStatus(v.status);
   const id = upsertAddon(storyId, tale, { id: cur?.id, slot: kind, name: v.title ?? 'Untitled', body: v.body ?? '',
     fromChapter: v.fromChapter ?? null, owedBy: v.owedBy ?? null, status });
@@ -2748,6 +2748,14 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
     const from = 'fromChapter' in a ? (a.fromChapter ?? null) : (cur?.from_chapter ?? null);
     const till = 'retiredAtChapter' in a ? (a.retiredAtChapter ?? null) : (cur?.retired_at_chapter ?? null);
     const was = q('SELECT body, entry_id, slot, name FROM addons WHERE id = ?').get(a.id) as any;
+    // A POCKET KEEPS ITS SLOT, with one exception: a string's kind changes between promise and open
+    // question (Seth, 2026-10-28), on the tale's thread, which `isString` above has already checked.
+    // It stays the same pocket, so its history (`pocket:<id>`) stays with it. A question is owed by no
+    // scene, so the owed by goes. Here because the pocket panel's save and Talk both cross here.
+    if (was.slot !== slot) {
+      if (!(isString && STRING_SLOTS.includes(was.slot))) return null;
+      q(`UPDATE addons SET slot = ?${slot === 'question' ? ', owed_by = NULL' : ''} WHERE id = ?`).run(slot, a.id);
+    }
     const wasBody = String(was?.body ?? '');
     // #111 · THE OLD TEXT IS KEPT, in the thread's own history beside its title and its text, under
     // `pocket:<id>`, so Alterations shows it and `revertEntryField` puts it back. Here because every
@@ -2761,7 +2769,7 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
        WHERE id = ? AND story_id = ?`)
       .run(a.name, a.body, keys, from, till, a.id, storyId);
     // #127 · A string's scene owed by and its mark, by presence as above. Tied off or let go is off.
-    if (isString && 'owedBy' in a) q('UPDATE addons SET owed_by = ? WHERE id = ?').run(a.owedBy ?? null, a.id);
+    if (isString && 'owedBy' in a) q('UPDATE addons SET owed_by = ? WHERE id = ?').run(slot === 'question' ? null : a.owedBy ?? null, a.id);
     if (mark !== undefined) q(`UPDATE addons SET status = ?${mark ? ', active = 0' : ''} WHERE id = ?`).run(mark, a.id);
     // Since the body moved into `facts` on 2026-08-29 the ROOMS are where a card's facts live, so
     // a room edit stales a summary on exactly the same rule as a body edit. Read before the write,

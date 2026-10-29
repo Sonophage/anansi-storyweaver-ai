@@ -1101,6 +1101,44 @@ ok('a string is a promise unless it is made an open question, and a save keeps i
   db.delStory(s.id);
 });
 
+/* Seth, 2026-10-28: "I can't change a string's status or what it's for, like a promise." A STRING'S
+ * KIND CHANGES between promise and open question, through `upsertAddon`, the floor the pocket panel's
+ * save and Talk cross. It stays the same pocket, so its history stays with it. A question is owed by
+ * no scene, so the owed by goes. Every other move to another slot is refused, as before. */
+ok("a string's kind changes between promise and open question, and no pocket moves to any other slot", () => {
+  const s = db.createStory(o, { title: 'Turned' });
+  const id = db.upsertString(s.id, { title: 'The letter', body: 'Sent by his brother.', fromChapter: 2, owedBy: 9 })!;
+  const tale = db.taleThreadOf(s.id).id;
+  const row = () => { const a = (db.addonsOf(s.id) as any[]).find((x) => x.id === id);
+    return a && [a.slot, a.name, a.body, a.from_chapter, a.owed_by]; };
+  // An edit first, so the string has history to keep.
+  db.upsertAddon(s.id, tale, { id, slot: 'promise', name: 'The letter', body: 'Sealed.' });
+  assert.strictEqual(db.upsertAddon(s.id, tale, { id, slot: 'question', name: 'The letter', body: 'Sealed.' }), id,
+    'STRING-KIND-MOVE: a promise is saved as an open question');
+  assert.deepStrictEqual(row(), ['question', 'The letter', 'Sealed.', 2, null],
+    "  the same pocket, now a question, and owed by no scene");
+  assert.deepStrictEqual(db.entryHistory(s.id, tale).filter((r: any) => r.field === `pocket:${id}`)
+    .map((r: any) => [r.previous_value, r.label]), [['Sent by his brother.', 'The letter']],
+    'STRING-KIND-HISTORY: its history is still its own');
+  assert.strictEqual(db.upsertAddon(s.id, tale, { id, slot: 'promise', name: 'The letter', body: 'Sealed.', owedBy: 12 }), id,
+    'STRING-KIND-BACK: and back to a promise');
+  assert.deepStrictEqual(row(), ['promise', 'The letter', 'Sealed.', 2, 12], '  owed by the scene it was given');
+  db.upsertString(s.id, { ...(story.view(s.id) as any).strings[0], kind: 'question' });
+  assert.deepStrictEqual(row(), ['question', 'The letter', 'Sealed.', 2, null],
+    'STRING-KIND-STRING: the string door moves it the same way, and a question takes no owed by it is handed');
+  db.upsertAddon(s.id, tale, { id, slot: 'promise', name: 'The letter', body: 'Sealed.' });
+
+  const who = db.upsertEntry(s.id, o, { title: 'Ines', body: 'b', entryType: 'character' })!;
+  const look = db.upsertAddon(s.id, who, { slot: 'appearance', name: 'Coat', body: 'A grey coat.' })!;
+  assert.strictEqual(db.upsertAddon(s.id, who, { id: look, slot: 'voice', name: 'Coat', body: 'A grey coat.' }), null,
+    'STRING-KIND-ONLY: any other pocket keeps its slot');
+  assert.strictEqual((db.addonsOf(s.id) as any[]).find((x) => x.id === look).slot, 'appearance', '  and is not written');
+  assert.strictEqual(db.upsertAddon(s.id, tale, { id, slot: 'facts', name: 'The letter', body: 'x' }), null,
+    "STRING-KIND-ONLY: a string is never moved to the tale's Always true");
+  assert.strictEqual(row()![0], 'promise', '  and stays a promise');
+  db.delStory(s.id);
+});
+
 // Entity resolution. Exercised directly because model output is not reproducible.
 const { classify } = await import('../src/routes.ts');
 if (classify) {
