@@ -1605,8 +1605,8 @@ function passageHTML(p, newest, opening) {
     <div class="rwhead">
       <div class="lbl flush wide">Reweave from this instruction</div>
       <div class="rwquote serif">${esc(firstLine.length > 140 ? firstLine.slice(0, 139) + '\u2026' : firstLine)}</div>
-      <div class="hint flush">Change it and the new version is woven from what you change
-        it to. Leave it and you get another version of the same instruction. Anansi is shown the
+      <div class="hint flush">Change it, or write one, and the new version is woven from it.
+        Leave it, or leave it empty, and you get another version of the same instruction. Anansi is shown the
         passage you have now as the one being replaced, with what didn't work if you say. The passage
         is kept either way, in Alterations.</div>
     </div>
@@ -1615,9 +1615,6 @@ function passageHTML(p, newest, opening) {
         >${mark('expand', 18)}<span class="btnword">Cancel</span></button>
       <div class="rwfields">
         <div class="lbl flush">The instruction</div>
-        ${S.reroll.own != null ? `<div class="hint flush">This passage had no instruction of its own,
-          so this is its own ${esc(S.reroll.ownName ?? '')} instruction. Leave it and that is what
-          runs again.</div>` : ''}
         <textarea class="field" data-rerollbox="1" aria-label="The instruction to reweave from"
           >${esc(S.reroll.text ?? '')}</textarea>
         <div class="lbl flush">What didn't work</div>
@@ -10690,20 +10687,17 @@ async function regenerateInto(id, steer, seed, again = null, why = '') {
  *  A tap reweaves at once, for every passage, with the passage's own instruction (`regenerateInto`).
  *  Until 2026-10-29 a tap on a DIRECTED passage opened this box instead (#38).
  *
- *  The instruction field is the passage's directive. A passage with none shows its own mode's
- *  instruction instead, marked as such (`own`), and if the writer leaves it as it is the press sends
- *  no directive, so the server runs that instruction exactly as a tap would. Sent as a directive it
- *  would arrive wrapped in Direct's wording, which is not the instruction that wrote the passage. */
-async function openReweave(id) {
+ *  THE INSTRUCTION FIELD IS THE PASSAGE'S OWN DIRECTION, exactly as it was given, and nothing else
+ *  (Seth, 2026-10-29: "the Reweave while you're actually writing should hold the original reweave or
+ *  direction prompt that was used"). A passage with no direction opens with the field EMPTY. From
+ *  earlier that day until this, it was prefilled with the mode's own wording and a hint saying so;
+ *  that wording is not something the writer gave, and the reweave instruction itself now lives on
+ *  Account, Writing. Empty sends no directive, so the server runs the passage's own instruction
+ *  (`inherit` in routes.ts), exactly as a tap would. */
+function openReweave(id) {
   const p = (V?.passages ?? []).find((x) => x.id === id);
   if (!p) return;
-  if (p.directive) { S.reroll = { id, text: p.directive, why: '' }; drawDoc(); syncTray(); return; }
-  // The same mode `inherit` in routes.ts falls back to: the passage's own, else the composer's.
-  const mode = p.mode || S.mode;
-  if (!S.prompts) await loadPrompts();
-  const said = String(S.prompts?.yours?.[mode]?.trim() || S.prompts?.defaults?.[mode] || '')
-    .replace(/\{\{\s*speaker\s*\}\}/g, p.speaker || 'the point-of-view character');
-  S.reroll = { id, text: said, why: '', own: said, ownName: mode ? mode[0].toUpperCase() + mode.slice(1) : '' };
+  S.reroll = { id, text: p.directive ?? '', why: '' };
   drawDoc(); syncTray();
 }
 
@@ -11890,19 +11884,18 @@ document.addEventListener('click', async (e) => {
     else await regenerateInto(what);
     return;
   }
-  // #38. Re-roll with whatever is in the box — edited or not — and close the editor.
-  // Both fields are read from S.reroll, which the input listener keeps in step with the box. A
-  // passage's OWN instruction left as it is goes as no directive at all (see `openReweave`).
+  // #38. Reweave with whatever is in the box — edited or not — and close the editor.
+  // Both fields are read from S.reroll, which the input listener keeps in step with the box. The
+  // instruction goes as the directive only when there is one; EMPTY sends none, and the server runs
+  // the passage's own instruction (`inherit`), which for a directed passage is its stored direction.
   if (d.rerollgo) {
     const steer = String(S.reroll?.text ?? '').trim();
-    if (!steer) return toast('Say what should happen, or press Cancel to leave it as it was.');
     const why = String(S.reroll?.why ?? '').trim();
-    const kept = S.reroll?.own != null && steer === String(S.reroll.own).trim();
     const id = S.reroll?.id ?? d.rerollgo;
     S.reroll = null; drawDoc();
     // `{}` for `again`: this press is already the deliberate second one, so the guard on the
     // writer's own paragraph does not ask again (its next tap would reweave without the box).
-    await regenerateInto(id, kept ? undefined : steer, undefined, {}, why);
+    await regenerateInto(id, steer || undefined, undefined, {}, why);
     return;
   }
   if (d.rerollx) { S.reroll = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc(); syncTray(); return; }

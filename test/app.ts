@@ -6126,18 +6126,30 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   const bare = sentNow();
   assert.ok(bare && !('whatFailed' in bare), 'with the note empty, the press sends no whatFailed');
 
-  // A PASSAGE WITH NO DIRECTIVE opens the box too, with its own instruction shown as such. Left as
-  // it is, it is not sent as a directive: the server runs the passage's own instruction, as a tap.
-  // p-2 is a Speak passage, and the canned Speak instruction is the line below.
+  // A PASSAGE WITH NO DIRECTIVE opens the box too, with The instruction EMPTY (Seth, 2026-10-29:
+  // "the Reweave while you're actually writing should hold the original reweave or direction prompt
+  // that was used"). It is not prefilled with the mode's own wording, and there is no hint saying it
+  // was. Empty means the passage's own mode instruction runs, as a tap: no directive is sent.
+  // p-2 is a Speak passage; the canned Speak instruction is "Say it.", which must not appear.
   await holdRe('p-2');
-  assert.match(box('data-rerollbox')?.[1] ?? '', /^\s*Say it\.\s*$/, "an undirected passage's box shows its own instruction");
-  assert.match(html('col'), /own Speak instruction/i, 'and says that is what it is');
+  assert.strictEqual(box('data-rerollbox')?.[1], '', "an undirected passage's box opens with The instruction empty");
+  assert.doesNotMatch(html('col'), /Say it\.|own Speak instruction|had no instruction of its own/i,
+    "with no mode wording in it and no hint about one");
   type('data-rerollwhy', 'Too polite.');
   POSTED.length = 0;
   click({ rerollgo: 'p-2' }); await new Promise((r) => setTimeout(r, 200));
   const own = sentNow();
-  assert.ok(own && !('directive' in own), 'left as it is, its own instruction is not sent as a directive');
+  assert.ok(own, 'empty, the press still reweaves');
+  assert.ok(!('directive' in own) && !('mode' in own && own.mode === 'direct'),
+    'and sends no directive, so the server runs the passage\'s own instruction');
   assert.strictEqual(own?.whatFailed, 'Too polite.', 'and the note still goes');
+  // TYPED, it is sent: a direction written into the empty field is the directive.
+  await holdRe('p-2');
+  type('data-rerollbox', 'have the guard answer instead');
+  POSTED.length = 0;
+  click({ rerollgo: 'p-2' }); await new Promise((r) => setTimeout(r, 200));
+  assert.strictEqual(sentNow()?.directive, 'have the guard answer instead', 'a direction typed into it is sent as the directive');
+  assert.ok(!('whatFailed' in (sentNow() ?? {})), 'and no note when none was written');
 
   // THE WRITER'S OWN PASSAGE. A tap on it asks twice; the box's Reweave is already the second,
   // deliberate press, so it goes at once with what is in the box rather than asking for a tap that
