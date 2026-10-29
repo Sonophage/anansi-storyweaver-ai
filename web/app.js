@@ -2495,9 +2495,10 @@ function openPocket(entryId, id = null) {
   const was = { name: a?.name ?? '', body: a?.body ?? '', keys: (a?.keys ?? []).join(', ') };
   S.pocket = { entryId, id, tab: 'write', slot: a?.slot ?? null, ...was, steer: '', offer: null, was };
 }
-/** Whether anything in the panel differs from what it opened with. */
+/** Whether leaving would throw something away: a box changed, or an answer of Anansi's not yet used.
+ *  A kind picked and nothing typed is one press to make again, so it is not asked about. */
 const pocketDirty = () => !!S.pocket && (['name', 'body', 'keys'].some((k) => S.pocket[k] !== S.pocket.was[k])
-  || (!S.pocket.id && !!S.pocket.slot));
+  || !!S.pocket.offer);
 function pocketPanel() {
   const pk = S.pocket, e = pocketThread();
   if (!pk || !e) return '';

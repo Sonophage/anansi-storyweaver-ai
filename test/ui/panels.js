@@ -1232,8 +1232,7 @@ ok("  the pocket panel offers to have Anansi write one",
    (await page.eval("!!document.querySelector('#pocketPanel [data-pocketask=\"write\"]')")) === true);
 ok(`  named for the character it is for`,
    (await page.eval("document.querySelector('#pocketPanel [role=\"dialog\"]')?.textContent") || '').includes(who.title));
-// A kind is picked, so Cancel asks once before it throws that away.
-await page.click('[data-pocketx]'); await wait(200);
+// Cancel. Nothing was typed, so one press shuts it.
 await page.click('[data-pocketx]'); await wait(400);
 // ---- ONE PANEL, A KIND PER POCKET, NOTHING CHOSEN WHEN IT OPENS. Seth, 2026-08-30: one way to add
 // with pills for what is being added, nothing selected at first; 2026-10-28 (#126): that way is the
@@ -1274,9 +1273,8 @@ await page.click('[data-pocketx]'); await wait(400);
   await wait(300);
   ok('  and pressing a kind chooses it',
      (await page.eval(`document.querySelector('[data-pocketkind="${empty}"]')?.getAttribute('aria-pressed')`)) === 'true');
-  await page.click('[data-pocketx]'); await wait(200);
   await page.click('[data-pocketx]'); await wait(400);
-  ok('  Cancel, pressed twice once a kind is chosen, shuts it',
+  ok('  and Cancel shuts it',
      (await page.eval("document.getElementById('pocketPanel')?.hidden")) === true);
 }
 // ---- SAVE IS AT THE TOP AND THERE IS ONLY ONE. Seth, 2026-08-30: "the save button need to be up
