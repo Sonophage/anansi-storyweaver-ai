@@ -1769,6 +1769,10 @@ html:not([data-ui-rail="closed"]) .navgrid > button:first-child .txt { font-size
 .rerollbox .rwrow { flex:1; min-height:0; width:100%; max-width:var(--col); margin:0 auto;
   display:flex; align-items:stretch; gap:12px; }
 .rerollbox .rwrow textarea { flex:1; min-height:0; height:auto; margin:0; resize:none; }
+/* Reweave's two fields, the instruction over What didn't work. The instruction takes the room; the
+   note is three rows, because it is optional and short. */
+.rerollbox .rwfields { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; gap:6px; }
+.rerollbox .rwrow textarea[data-rerollwhy] { flex:0 0 auto; font-size:17px; line-height:1.45; }
 /* NO BOX ROUND THE TEXT. Seth, 2026-10-26: "the text is bounded by a blue box". The field's own
    border and the global focus ring drew a frame inside a screen that is already nothing but the
    field — the full-screen composer dropped both for the same reason (#dock.big #inputWrap). */

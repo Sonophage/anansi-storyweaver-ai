@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Reweave shows Anansi the version you are replacing
+When you reweave a passage, Anansi now sees the version you have now, marked as the one being
+replaced. It is told to write a new version of that passage from the same place, not to carry on
+from it and not to rewrite the passage before it. The Reweave box has a second field, What didn't
+work. It is optional. If you fill it in, Anansi reads it after the version being replaced. Your
+When you reweave line from Account still comes last.
+
 ### A hemmed scene's card shows each thread once
 The card now reads in this order: the scene summary, then the threads. Each
 thread is one block with its name and kind. All of its changes are in that block: where it stands

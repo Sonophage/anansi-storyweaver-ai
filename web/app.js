@@ -1593,21 +1593,34 @@ function passageHTML(p, newest, opening) {
   /* THE FULL-SCREEN BOX (Seth, 2026-10-25: "the regenerate screen should match the maximized edit
    * screen"). The full-screen composer's shape: Cancel where its Back is, Reweave where Send is,
    * the instruction in the big box between them, and the passage's first line quoted above so you
-   * can see which one you are redoing. Esc, Back and the scrim all close it without reweaving. */
+   * can see which one you are redoing. Esc, Back and the scrim all close it without reweaving.
+   *
+   * TWO FIELDS (Seth, 2026-10-29: "reweave needs two fields: original instruction and what didn't
+   * work about the last one"). The instruction, and What didn't work, optional and empty at the
+   * start. Both are drawn from S.reroll, which the input listener below keeps in step, so a repaint
+   * keeps what was typed. The server sends the note after the take it replaces (docs/adr/0012). */
   const firstLine = String(p.body ?? '').split('\n').map((l) => l.trim()).find(Boolean) ?? '';
   const rr = S.reroll?.id === p.id ? `<div class="rerollbox" role="dialog" aria-label="Reweave this passage">
     <div class="rwhead">
       <div class="lbl flush wide">Reweave from this instruction</div>
       <div class="rwquote serif">${esc(firstLine.length > 140 ? firstLine.slice(0, 139) + '\u2026' : firstLine)}</div>
       <div class="hint flush">Change it and the new version is woven from what you change
-        it to. Leave it and you get another version of the same instruction. The passage you have now
+        it to. Leave it and you get another version of the same instruction. Anansi is shown the
+        passage you have now as the one being replaced, with what didn't work if you say. The passage
         is kept either way, in Alterations.</div>
     </div>
     <div class="rwrow">
       <button data-rerollx="1" class="rwside" aria-label="Cancel, and keep the passage as it is"
         >${mark('expand', 18)}<span class="btnword">Cancel</span></button>
-      <textarea class="field" data-rerollbox="1" aria-label="The instruction to reweave from"
-        >${esc(S.reroll.text ?? '')}</textarea>
+      <div class="rwfields">
+        <div class="lbl flush">The instruction</div>
+        <textarea class="field" data-rerollbox="1" aria-label="The instruction to reweave from"
+          >${esc(S.reroll.text ?? '')}</textarea>
+        <div class="lbl flush">What didn't work</div>
+        <textarea class="field" data-rerollwhy="1" rows="3" placeholder="Optional"
+          aria-label="What didn't work in the passage you have now, optional"
+          >${esc(S.reroll.why ?? '')}</textarea>
+      </div>
       <button data-rerollgo="${esc(p.id)}" class="rwside rwgo" aria-label="Reweave"
         >${mark('send', 18)}<span class="btnword">Reweave</span></button>
     </div></div>` : '';
@@ -1646,6 +1659,9 @@ function passageHTML(p, newest, opening) {
 // What is typed in the Alter box survives a repaint: drawDoc draws the box from S.passEdit.
 document.addEventListener('input', (e) => {
   if (S.passEdit && e.target?.matches?.('[data-editbox]')) S.passEdit.text = e.target.value;
+  // The Reweave box's two fields, the same way: passageHTML draws them from S.reroll.
+  if (S.reroll && e.target?.matches?.('[data-rerollbox]')) S.reroll.text = e.target.value;
+  if (S.reroll && e.target?.matches?.('[data-rerollwhy]')) S.reroll.why = e.target.value;
   // #126. The pocket panel's boxes, by id, for the same reason: drawPocket draws them from S.pocket.
   const pk = { 'pk-name': 'name', 'pk-body': 'body', 'pk-keys': 'keys', 'pk-steer': 'steer', 'pk-owed': 'owed' }[e.target?.id];
   if (S.pocket && pk) S.pocket[pk] = e.target.value;
@@ -10559,7 +10575,7 @@ async function regenerateLast() {
  *                Undefined means "use whatever the passage was written from", which is
  *                `inherit()` on the server and is how this has always behaved. An explicit
  *                directive in the request wins there, so sending it is the whole mechanism. */
-async function regenerateInto(id, steer, seed, again = null) {
+async function regenerateInto(id, steer, seed, again = null, why = '') {
   if (S.busy) return;
   S.weaveFit = null;
   /* WRITING OVER YOUR OWN PARAGRAPH TAKES TWO PRESSES. Regenerate is drawn on the last passage and
@@ -10613,6 +10629,9 @@ async function regenerateInto(id, steer, seed, again = null) {
     // mentions it. Without a steer nothing changes: the mode stays whatever the composer says and
     // the server inherits the passage's own instruction.
     ...(steer ? { mode: 'direct', directive: steer } : {}),
+    // WHAT DIDN'T WORK, from the Reweave box: the writer's note on the take being replaced, which
+    // the server sends after it (docs/adr/0012). Left out when empty.
+    ...(why ? { whatFailed: why } : {}),
     // THE SAME NUMBER, DELIBERATELY. Without one the server mints a fresh seed and the take is a
     // new roll of the dice; with it the only remaining variables are the sampler and the prompt,
     // and the prompt is what the manifest on the row records. This is the whole of "get it back".
@@ -10631,7 +10650,7 @@ async function regenerateInto(id, steer, seed, again = null) {
   }
   if (r.weaveFit) {
     S.busy = false; drawBar(); working(null);
-    return weaveRefused(r, (anyway) => regenerateInto(id, steer, seed, { anyway }));
+    return weaveRefused(r, (anyway) => regenerateInto(id, steer, seed, { anyway }, why));
   }
   if (r.error) { S.busy = false; drawDock(); drawBar(); working(null); return toast(r.error); }
   if (r.passageId) WATCHED.add(r.passageId);
@@ -11848,13 +11867,14 @@ document.addEventListener('click', async (e) => {
     return;
   }
   // #38. Re-roll with whatever is in the box — edited or not — and close the editor.
+  // Both fields are read from S.reroll, which the input listener keeps in step with the box.
   if (d.rerollgo) {
-    const box = document.querySelector('[data-rerollbox]');
-    const steer = (box?.value ?? '').trim();
+    const steer = String(S.reroll?.text ?? '').trim();
     if (!steer) return toast('Say what should happen, or press Cancel to leave it as it was.');
+    const why = String(S.reroll?.why ?? '').trim();
     const id = S.reroll?.id ?? d.rerollgo;
     S.reroll = null; drawDoc();
-    await regenerateInto(id, steer);
+    await regenerateInto(id, steer, undefined, null, why);
     return;
   }
   if (d.rerollx) { S.reroll = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc(); syncTray(); return; }

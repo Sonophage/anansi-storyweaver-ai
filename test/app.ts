@@ -6052,6 +6052,47 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   ok('the re-roll instruction opens for editing, prefilled, and only on a passage that has one (#38)');
 }
 
+// ---- THE REWEAVE BOX HAS TWO FIELDS (Seth, 2026-10-29: "reweave needs two fields: original
+// instruction and what didn't work about the last one"). The instruction, prefilled and editable as
+// before, and What didn't work, empty. Both are drawn from S, so a repaint keeps what was typed, and
+// the press sends both: the instruction as the directive, the note as `whatFailed`.
+{
+  const wait = () => new Promise((r) => setTimeout(r, 40));
+  const box = (attr: string) => html('col').match(new RegExp(`<textarea[^>]*${attr}[^>]*>([^<]*)</textarea>`));
+  const type = (attr: string, value: string) => (listeners.input ?? []).forEach((f: Function) => f({
+    target: { matches: (s: string) => s === `[${attr}]`, dataset: {}, value } }));
+  click({ open: 's-1' }); await wait();
+  click({ re: 'p-1' }); await wait();
+  assert.ok(box('data-rerollbox'), 'the box has the instruction field');
+  assert.match(box('data-rerollbox')![1], /have the envoy arrive early/, 'prefilled with the instruction that made it');
+  assert.ok(box('data-rerollwhy'), "and a What didn't work field");
+  assert.strictEqual(box('data-rerollwhy')![1], '', 'which starts empty');
+  assert.match(html('col'), /What didn&#39;t work|What didn't work/, 'and is named for what it is');
+
+  type('data-rerollbox', 'have the envoy arrive late');
+  type('data-rerollwhy', 'The envoy was too friendly.');
+  click({ readmode: '0' }); await wait();   // a repaint of the column and nothing else
+  assert.match(box('data-rerollbox')?.[1] ?? '', /have the envoy arrive late/, 'the edited instruction survives a repaint');
+  assert.match(box('data-rerollwhy')?.[1] ?? '', /The envoy was too friendly\./, 'and so does the note');
+
+  POSTED.length = 0;
+  click({ rerollgo: 'p-1' }); await new Promise((r) => setTimeout(r, 200));
+  const sent = POSTED.find((x: any) => String(x.url).startsWith('/api/generate'))?.body;
+  assert.ok(sent, 'the press sends a reweave');
+  assert.strictEqual(sent.regenerateOf, 'p-1', 'of that passage');
+  assert.strictEqual(sent.directive, 'have the envoy arrive late', 'with the instruction as edited');
+  assert.strictEqual(sent.whatFailed, 'The envoy was too friendly.', 'and what did not work');
+
+  // EMPTY SENDS NOTHING FOR IT. Opened again, the note is empty again and the press leaves it out.
+  click({ re: 'p-1' }); await wait();
+  assert.strictEqual(box('data-rerollwhy')?.[1], '', 'a new box starts with an empty note');
+  POSTED.length = 0;
+  click({ rerollgo: 'p-1' }); await new Promise((r) => setTimeout(r, 200));
+  const bare = POSTED.find((x: any) => String(x.url).startsWith('/api/generate'))?.body;
+  assert.ok(bare && !('whatFailed' in bare), 'with the note empty, the press sends no whatFailed');
+  ok("the Reweave box has the instruction and What didn't work, both survive a repaint, and the press sends both");
+}
+
 // ---- A NEW VERSION WRITTEN INLINE LANDS WITHOUT RISING IN AGAIN. Seth, 2026-10-28: "there's a blink
 // now when reweaving". The landed passage played `rise` (opacity 0 to 1), so the words written in
 // place went out and came back: measured 0.00 opacity in the landing frame on a 390px screen. A
