@@ -654,6 +654,10 @@ function migrate() {
   // decides which model is woken when they open the app, which is a decision worth surviving a
   // reboot. A story that names its own model still wins over this; see `modelFor`.
   add('users', 'default_model', 'TEXT');
+  // THE WRITER'S SAMPLER (length, surprise, focus), kept. It lived only in serve.ts's memory, so every
+  // server restart put the length slider back to "let him decide" (Seth, 2026-10-28: "the slider
+  // that decides how long a response the ai writes isn't saving"). JSON of the cleaned keys.
+  add('users', 'gen', 'TEXT');
   // A WORLD BOOK IS A STORY YOU NEVER WRITE PROSE IN. Everything it needs already existed —
   // entries are story-scoped, `lore_from` already lets one book read another's cards, and
   // `entriesFor` already merges them with the follower winning a title collision. The only thing
@@ -1157,6 +1161,15 @@ export const defaultModelOf = (ownerId: string): string | null =>
 
 export const setDefaultModel = (ownerId: string, id: string | null) =>
   q('UPDATE users SET default_model = ? WHERE id = ?').run(id, ownerId);
+
+/** The writer's saved sampler settings, or null. Read once per owner by serve.ts, written on every
+ *  change; only the keys `POST /api/settings` cleaned ever reach it. */
+export const genOf = (ownerId: string): Record<string, any> | null => {
+  const raw = (q('SELECT gen FROM users WHERE id = ?').get(ownerId) as any)?.gen;
+  try { return raw ? JSON.parse(raw) : null; } catch { return null; }
+};
+export const setGenOf = (ownerId: string, gen: Record<string, any>) =>
+  q('UPDATE users SET gen = ? WHERE id = ?').run(JSON.stringify(gen), ownerId);
 
 /** THE SHORTLIST, always by owner. Every read and write names the owner, so one writer's list is
  *  unreachable from another's account by construction — the same shape as `promptsOf`. The one

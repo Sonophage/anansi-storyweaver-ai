@@ -166,6 +166,12 @@ const GEN: Record<string, any> = {
 // the context budget reserves against that number — one of them raising it would quietly shrink the
 // other's prompt. routes.ts already calls this account-wide; this is what makes that true.
 const gens = new Map<string, Record<string, any>>();
+/** This writer's sampler: what is in memory, else what they saved (over the defaults, so a key added
+ *  later still has a value), else the defaults. */
+const genFor = (owner: string) => {
+  if (!gens.has(owner)) { const saved = db.genOf(owner); if (saved) gens.set(owner, { ...GEN, ...saved }); }
+  return gens.get(owner) ?? GEN;
+};
 // Which writers are currently looking at the demo library rather than their own. Real owner ids,
 // and the only thing that can ever be looked at is the one account below.
 const demoViewers = new Set<string>();
@@ -370,8 +376,9 @@ const handler = async (req: any, res: any) => {
       // NOT a value captured at boot. `slotNow` returns what is known and asks the router again in
       // the background while it is still the fallback, so a server that started with the model
       // asleep corrects itself on the next request instead of running the whole process on 8,192.
-      query: url.searchParams, owner: OWNER, slot: slotNow(), gen: gens.get(OWNER) ?? GEN,
-      setGen: (g) => { const next = { ...(gens.get(OWNER) ?? GEN), ...g }; gens.set(OWNER, next); ctx.gen = next; },
+      // Kept across restarts (users.gen): the saved one, over the defaults, read once per owner.
+      query: url.searchParams, owner: OWNER, slot: slotNow(), gen: genFor(OWNER),
+      setGen: (g) => { const next = { ...genFor(OWNER), ...g }; gens.set(OWNER, next); db.setGenOf(OWNER, next); ctx.gen = next; },
       defaultModel: db.defaultModelOf(OWNER),
       setDefaultModel: (id) => { db.setDefaultModel(OWNER, id); ctx.defaultModel = id; },
       // What the OTHER writers are currently set to. The map lives here, so the release policy in
