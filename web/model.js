@@ -72,8 +72,8 @@ export const shelfOrder = (list) => [...(list ?? [])].sort((a, b) =>
 /** What is waiting across the whole shelf, and which book each kind is mostly in.
  *
  *  The shelf is the only screen that can see across books, and until now it could not see INTO one:
- *  a proposal not accepted, a promise not paid, a flag not looked at all live inside a story and
- *  were invisible from the outside. This is what the strip above the hero is made of.
+ *  a proposal not accepted and a promise not paid both live inside a story and were invisible
+ *  from the outside. This is what the strip above the hero is made of.
  *
  *  Archived books are left out on purpose. Putting one away is the act that means "stop showing me
  *  this", and a strip that then nags about its unpaid promises has not listened. */

@@ -683,16 +683,6 @@ function migrate() {
     }
   } catch (e: any) { console.log(`  could NOT drop release_notes: ${e?.message}`); }
 
-  // PLAN-08, the last step of the wardrobe move. The copy above has run on every boot since Phase 2
-  // and is idempotent, so by the time this line is reached every outfit is an addon in the `outfit`
-  // slot. Nothing writes `outfits` any more — `upsertOutfit` and friends are one-line shims over
-  // the addon writers, the three HTTP routes are deleted, and `src/import.ts` reads addons with a
-  // fallback to this table for export files written before the move.
-  //
-  // ORDER IS EVERYTHING HERE and it is why this sits below the copy rather than beside it: drop
-  // first and the wardrobe is gone from every book that had not booted since Phase 2. Backed up
-  // before the first drop by the same guard the column drops use — this rewrites the file
-  // somebody's novel is in, which is the whole reason that guard exists.
   repairStrandedChapters();
   try { dropKnots(); } catch (e: any) { console.log(`  the knots were NOT dropped: ${e?.message}`); }
   try { foldAlwaysTrue(); } catch (e: any) { console.log(`  Always true was NOT folded: ${e?.message}`); }
@@ -719,6 +709,16 @@ function migrate() {
   add('hems', 'extra', 'TEXT');
   backfillActPrints();
 
+  // PLAN-08, the last step of the wardrobe move. The copy above has run on every boot since Phase 2
+  // and is idempotent, so by the time this line is reached every outfit is an addon in the `outfit`
+  // slot. Nothing writes `outfits` any more — `upsertOutfit` and friends are one-line shims over
+  // the addon writers, the three HTTP routes are deleted, and `src/import.ts` reads addons with a
+  // fallback to this table for export files written before the move.
+  //
+  // ORDER IS EVERYTHING HERE and it is why this sits below the copy rather than beside it: drop
+  // first and the wardrobe is gone from every book that had not booted since Phase 2. Backed up
+  // before the first drop by the same guard the column drops use — this rewrites the file
+  // somebody's novel is in, which is the whole reason that guard exists.
   if ((db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type = 'table' AND name = 'outfits'")
     .get() as any).n) {
     const left = (db.prepare(`SELECT COUNT(*) n FROM outfits o

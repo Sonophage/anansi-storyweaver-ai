@@ -3710,8 +3710,8 @@ const PANELS = {
   /** Everything this book is waiting on, in one place.
    *
    *  Each part of it was already on the surface somewhere — proposals under Chapter, promises
-   *  under Strings, flags beside the passage they are about, the horizon on a bar — which is
-   *  exactly the problem: four panels to find out whether anything wanted you.
+   *  under Strings, the horizon on a bar — which is exactly the problem: three places to find out
+   *  whether anything wanted you.
    *
    *  Proposals and promises come off `V.proposals` and `V.strings`, the same lists `owedHere`
    *  counts for the rail, so the light and this panel cannot disagree. `V.waiting` adds what the

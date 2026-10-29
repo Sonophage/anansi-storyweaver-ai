@@ -429,7 +429,7 @@ const handler = async (req: any, res: any) => {
     bus.asWriter(OWNER);
     // WHOSE FEATHERLESS PLAN PAYS (#70, 2026-10-27): the book's owner when the request names one,
     // so a guest writing in a shared book is on the owner's plan, else the writer asking. Set after
-    // the gate above, so a story id here is one this writer may use. See `asPayer` in llama.ts.
+    // the gate above, so a story id here is one this writer may use. See `payFor` in llama.ts.
     {
       const sid = storyIdOf(ctx.body, ctx.query);
       // ONLY A BOOK THIS WRITER MAY USE. Open routes skip the gate above, and a story id on one of
