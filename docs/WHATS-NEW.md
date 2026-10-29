@@ -18,17 +18,19 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
-### Reweave shows Anansi the version you are replacing
-When you reweave a passage, Anansi now sees the version you have now, marked as the one being
-replaced. It is told to write a new version of that passage from the same place, not to carry on
-from it and not to rewrite the passage before it.
+### Reweave tells Anansi what didn't work
+When you reweave a passage, Anansi gets the passage's own instruction again. It does not see the
+version you have now. For part of the day it did, and Anansi carried on from that version, or gave
+the same version back word for word. So now, if you say what didn't work, Anansi gets your note
+instead.
 
 A tap on Reweave now reweaves at once, for every passage, with the passage's own instruction. To
 change it first, hold Reweave (or Alt+click it at a desk). That opens the Reweave box, for any
 passage. The box has two fields: the instruction, and What didn't work. The instruction holds the
 direction you gave that passage, as you wrote it, so you can change it. A passage you gave no
 direction opens with it empty, and empty runs the passage's own instruction again. What didn't
-work is optional. If you fill it in, Anansi reads it after the version being replaced.
+work is optional. If you fill it in, Anansi reads it after the passage's instruction. If you leave
+it empty, the reweave asks exactly what the passage was first asked.
 
 ### A hemmed scene's card shows each thread once
 The card now reads in this order: the scene summary, then the threads. Each
@@ -69,15 +71,14 @@ the Workbench, and the mark goes away. This device remembers what you have seen,
 In the tale's menu, the Workbench number sat on its own line at the right edge, and made that row
 taller than the others. It is now beside the Workbench icon, and the icons and names line up again.
 
-### Write your own reweave instruction
-Account → Writing has a new box after the five modes: When you reweave. It holds what a reweave
-tells Anansi after the passage's own instruction: how to treat the version being replaced. It starts
-with Anansi's own wording, and you can change it. {{replaced}} is where the version being replaced
-goes, and a version without it is not saved. {{whatfailed}} is where What didn't work goes. If you
-leave What didn't work empty, that whole line is left out. Reset puts Anansi's wording back. If you
-wrote a line in this box earlier today, it is kept, at the end of Anansi's wording. The heading above
-the modes now says only the five modes. Saving one of these boxes also no longer empties the voice
-box above them.
+### Write your own words around What didn't work
+Account → Writing has a new box after the five modes: When you reweave. It holds the words a
+reweave puts around your What didn't work note. It starts with Anansi's own wording, and you can
+change it. {{whatfailed}} is where your note goes. If you leave What didn't work empty, nothing from
+this box is sent. Reset puts Anansi's wording back. If what you saved here earlier today had
+{{replaced}} in it, Anansi's wording is used in its place. If it had no {{whatfailed}}, it is kept,
+after Anansi's wording. The heading above the modes now says only the five modes. Saving one of
+these boxes also no longer empties the voice box above them.
 
 ## 2026-10-28 · A new tale starts at its opening
 
