@@ -121,9 +121,9 @@ export interface Input {
    *  spent in the eviction order, which is the only place it can mean anything — and `keys` are
    *  the edge's own trigger words, per #5. */
   edges?: { parentId: string; childId: string; confidence?: number; keys?: string[] }[];
-  /** A promise the story has made and not paid, and that the writer has put in play. Already
-   *  filtered to summoned-and-open by story.ts — the engine does not know what a status means. */
-  strings?: { title: string; body?: string; fromChapter?: number | null; owedBy?: number | null }[];
+  /** A string the tale carries (a promise, or an open question, #127) that the writer has switched on. Already
+   *  filtered to on-and-open by story.ts — the engine does not know what a status means. */
+  strings?: { title: string; body?: string; fromChapter?: number | null; owedBy?: number | null; kind?: string }[];
   // The writer's own wording for a mode, replacing the shipped one outright. Arrives HERE rather
   // than being read from a table down in the engine, because buildContext is pure below the line
   // in story.ts and this is a flag like any other.
@@ -324,6 +324,19 @@ const FRAMES: Record<string, (who: string) => string> = {
   what_it_does:  (who) => `What ${who} does`,
   consequences:  (who) => `What follows when ${who} is broken`,
 };
+/** #127 · ADR 0011. THE FRAME EACH KIND OF STRING READS UNDER, the tale's thread's pockets in `SLOTS`,
+ *  heading its kind's list in the STRING block. Moved, not written new: the promise keeps the block's
+ *  own words from before kinds ("Unpaid, and in play … do not resolve one unless the writer asks for
+ *  it") with the scene brief's "can be pressed on" (CHAPTER); the open question takes the brief's
+ *  #116 words (OPEN QUESTIONS, keep it in view, complicate it, never answer it).
+ *  NOT MEASURED: the split into two frames has not been run against the single frame it replaced. */
+const STRING_FRAMES: Record<'promise' | 'question', string> = {
+  promise: 'Unpaid promises, in play. Let them shape what the characters want and avoid; one may be pressed '
+    + 'toward payment, but do not resolve one unless the writer asks for it.',
+  question: 'Open questions the tale lives on, in play. Keep each one in view; a scene may complicate one, '
+    + 'never answer it.',
+};
+
 /** The framed kinds that are exclusive in `SLOTS`: one per thread, so a label tells nothing apart. */
 const SOLO = new Set(EXCLUSIVE_SLOTS);
 
@@ -1161,22 +1174,26 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   const started = passages.some((p) => p.chapterId === currentChapter.id && !p.isBreak);
   const wholeFrom = started ? currentChapter.index : currentChapter.index - 1;
 
-  // STRINGS. Only what the writer summoned, and phrased as a standing obligation rather than an
-  // instruction: the model is being told what is owed, not told to pay it. "Do not resolve" is
+  // STRINGS. Only the ones the writer switched on, and phrased as a standing obligation rather than
+  // an instruction: the model is being told what is owed, not told to pay it. "Do not resolve" is
   // there because a model handed an unresolved promise reaches for it — which is the writer's move
-  // and the reason strings are writer-facing until summoned.
+  // and the reason strings are writer-facing until they are on.
+  // #127 · ADR 0011. Each kind under its own frame (`STRING_FRAMES`), promises first, a kind with
+  // none left out. A string with no kind is a promise, as `db.stringKind` reads one.
   const strings = (input.strings ?? []).filter((x) => x.title?.trim());
   if (strings.length) {
+    const line = (x: typeof strings[number]) => {
+      const made = x.fromChapter ? `set up in chapter ${x.fromChapter}` : '';
+      const owed = x.owedBy ? `owed by chapter ${x.owedBy}` : '';
+      const when = [made, owed].filter(Boolean).join(', ');
+      return `- ${x.title.trim()}${x.body?.trim() ? `: ${x.body.trim()}` : ''}${when ? ` (${when})` : ''}`;
+    };
     add('STRING', 'strings',
-      'Unpaid, and in play. Let them shape what the characters want and avoid; do not resolve one '
-      + 'unless the writer asks for it.\n'
-      + strings.map((x) => {
-        const made = x.fromChapter ? `set up in chapter ${x.fromChapter}` : '';
-        const owed = x.owedBy ? `owed by chapter ${x.owedBy}` : '';
-        const when = [made, owed].filter(Boolean).join(', ');
-        return `- ${x.title.trim()}${x.body?.trim() ? `: ${x.body.trim()}` : ''}${when ? ` (${when})` : ''}`;
-      }).join('\n'),
-      `${strings.length} summoned`);
+      (['promise', 'question'] as const).map((kind) => {
+        const mine = strings.filter((x) => (x.kind === 'question' ? 'question' : 'promise') === kind);
+        return mine.length ? `${STRING_FRAMES[kind]}\n${mine.map(line).join('\n')}` : '';
+      }).filter(Boolean).join('\n'),
+      `${strings.length} in play`);
   }
 
   // Arcs first: an act-level summary replaces the chapters it covers rather than joining

@@ -443,7 +443,7 @@ ok('when canon is capped, the walk-on goes before the point-of-view character', 
     + 'was created first');
 });
 
-ok('a string reaches the prompt only when it is summoned, and is told what is owed not to pay it', () => {
+ok('a string reaches the prompt only when it is on, and is told what is owed not to pay it', () => {
   const withStrings = (strings: any) =>
     buildContext({ ...base(), strings } as any, count).blocks.find((b) => b.kind === 'STRING');
 
@@ -457,11 +457,25 @@ ok('a string reaches the prompt only when it is summoned, and is told what is ow
   assert.match(b.text, /The letter he has not opened: Sent by his brother \(set up in chapter 6, owed by chapter 20\)/,
     'the promise, where it was made, and when it is owed');
   assert.match(b.text, /- The debt to Marek$/m, 'and one with neither is still a line');
-  // The whole reason strings are writer-facing until summoned: a model handed an unresolved
+  // The whole reason strings are writer-facing until they are on: a model handed an unresolved
   // promise reaches for it, and paying it off is the writer's move.
   assert.match(b.text, /do not resolve one unless the writer asks/,
     'it is told what is owed, not told to pay it');
-  assert.strictEqual(b.reason, '2 summoned');
+  assert.strictEqual(b.reason, '2 in play');
+
+  // #127 · EACH KIND UNDER ITS OWN WORDING (ADR 0011): a promise may be pressed toward payment; an
+  // open question is kept open and never answered. A string with no kind is a promise.
+  const k = withStrings([{ title: 'Who sent it', kind: 'question' }, { title: 'The debt to Marek', kind: 'promise' },
+    { title: 'The ring' }])!;
+  const [promises, questions] = [k.text.indexOf('Unpaid promises'), k.text.indexOf('Open questions')];
+  assert.ok(promises >= 0 && questions > promises, `STRING-KINDS: promises, then open questions, each headed (${k.text})`);
+  assert.match(k.text.slice(promises, questions), /pressed toward payment/, '  a promise may be pressed toward payment');
+  assert.match(k.text.slice(promises, questions), /- The debt to Marek\n- The ring\n/, '  and a string with no kind is one');
+  assert.match(k.text.slice(questions), /never answer/, 'STRING-QUESTION: an open question is never answered');
+  assert.match(k.text.slice(questions), /- Who sent it$/m, '  and it is listed under its own wording');
+  assert.doesNotMatch(k.text.slice(questions), /payment/, '  never told it may be paid');
+  assert.strictEqual(withStrings([{ title: 'Who sent it', kind: 'question' }])!.text.includes('Unpaid promises'), false,
+    '  and with no promise, no promise heading');
 
   // It sits with canon, before the summaries — near what is true, not near the instructions.
   const m = buildContext({ ...base(), strings: [{ title: 'x' }] } as any, count);

@@ -447,7 +447,7 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
      * against a lockout-off arm. A shipped default with a way to turn it off on one server is what
      * makes those runnable. */
     proseAuthor: process.env.ANANSI_PROSE_AUTHOR !== '0',
-    // Only the summoned ones, and the filter is here rather than in the engine so buildContext
+    // Only the ones switched on and open (#127: on is in play), and the filter is here rather than in the engine so buildContext
     // never has to know what a string's status means.
     strings: (v as any).strings?.filter((x: any) => x.summoned && x.status === 'open') ?? [],
     // Pins are per chapter, so only this chapter's apply.

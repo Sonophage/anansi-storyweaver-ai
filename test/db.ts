@@ -1094,6 +1094,10 @@ ok('a string is a promise unless it is made an open question, and a save keeps i
   assert.strictEqual(kind(qid), 'question', 'STRING-KIND-KEPT: a save that sends no kind keeps it');
   assert.strictEqual((story.view(s.id) as any).strings.find((x: any) => x.id === qid).kind, 'question',
     'STRING-KIND-VIEW: the view carries the kind');
+  const sent = story.assemble(story.view(s.id)!, { global: 100096, slots: 4, perSlot: 25024 }, 'direct')
+    .manifest.blocks.find((b) => b.kind === 'STRING')!.text;
+  assert.match(sent, /Open questions[^\n]*never answer it\.\n- Who sent it$/m,
+    "STRING-KIND-PROMPT: on, an open question reaches the prompt under its kind's wording");
   db.delStory(s.id);
 });
 
