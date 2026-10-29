@@ -987,11 +987,9 @@ ok('a book can keep its cover behind the prose instead, at a strength it chooses
   assert.match(w, /data-decide="accept"/, 'a proposal is accepted here');
   assert.match(w, /data-decide="reject"/, 'or refused here');
   assert.match(w, /data-pbody=/, 'and what lands is the box, which is why the box has to be here');
-  // Strings, with the action that belongs to them.
-  assert.match(w, /data-summon=/, 'a promise is summoned here');
-  // The handler reads the status after the colon. Without one the save fell back to open and only
-  // took the promise out of play, so "Paid" never paid (found 2026-10-24).
-  assert.match(w, /data-stringstatus="[^"]+:paid"/, 'PAID: and paid off here, naming the status it sets');
+  // Strings you already have are decided on the string, not dealt here (Seth, 2026-10-29: they kept
+  // coming back after he put them in play). Their status presses live on the Strings screen.
+  assert.doesNotMatch(w, /data-summon=|data-stringstatus=/, 'STRINGS-OFF-BENCH: no in-play or set-aside string is dealt here');
   // #94 · NO KNOTS. The contradiction check was deleted (Seth, 2026-10-28). The fixture still
   // carries `violations`, the shape a server from before the deletion sent, so a Workbench that
   // still drew them would show a knot card here.
@@ -1567,14 +1565,14 @@ ok('a book past its horizon says so on the bar, not only in a dimmed row');
 }
 ok('a chapter names itself when it opens, and a placeholder title is not a name');
 
-  // #127 · A CHALKED STRING IS A WORKBENCH CARD (ADR 0011), dealt beside the strings already the tale's.
+  // #127 · A CHALKED STRING IS A WORKBENCH CARD (ADR 0011); the strings the tale already has are not.
   click({ panel: 'waiting' });
   await new Promise((r) => setTimeout(r, 30));
   const strings = html('sideBody');
   const chalked = strings.slice(strings.indexOf('A string, chalked'));
   assert.match(chalked, /^A string, chalked[\s\S]*?The debt nobody has called in/, 'a proposed string waits on the Workbench');
   assert.match(chalked, /set up in scene 2/, 'with the scene it came from');
-  assert.match(strings, /The letter he has not opened/, 'beside the ones already tied');
+  assert.doesNotMatch(strings, /The letter he has not opened/, 'and the strings the tale already has are not dealt beside it (2026-10-29)');
   assert.doesNotMatch(chalked.slice(0, chalked.indexOf('data-deckcard=')), /Witness rite/, 'and not on a thread proposal\'s card');
 
   click({ panel: 'chapter' });
@@ -7363,11 +7361,10 @@ const hemCardOf = (side: string) => {
     const w = html('sideBody');
     assert.match(w, /A string, chalked[\s\S]*?The debt nobody has called in[\s\S]*?data-deckall="accept" data-ids="pr-2"[^>]*>Sew it in/,
       'STRINGS-SEW: a chalked string is a Workbench card with Sew it in');
-    const card = w.slice(w.indexOf('data-deckkind="string"'));
-    assert.match(card, /data-stringstatus="st-1:paid"[^>]*>Tied off/, 'STRINGS-TIE: an open string can be tied off on the Workbench');
-    assert.match(card, /data-stringstatus="st-1:dropped"[^>]*>[^<]*Let go/, '  or let go');
-    assert.doesNotMatch(w, /data-deckkind="string"[^]*?Who took the ring/, '  and one already tied off is not dealt again');
-    ok('the Workbench sews a chalked string in, and ties off or lets go one that is open');
+    // A string you already have is never dealt again (Seth, 2026-10-29): it waits on the Workbench only
+    // while chalked or while a hem has an update for it.
+    assert.doesNotMatch(w, /data-deckkind="string"/, 'STRINGS-NOT-DEALT: an open string you have is not a Workbench card');
+    ok('the Workbench sews a chalked string in, and does not deal back a string you already have');
 
     // WHERE A STRING STANDS NOW, as a hem chalks it: a diff against the string's text, sewn in its place.
     const { diffHTML } = await import('../web/model.js');
