@@ -20,7 +20,8 @@ Everything below this line was written by that model call, before it was removed
 
 ### Always true saves again
 Saving a thread's Always true said a pocket needs a name, and nothing was saved. Always true has no
-name, so it now saves with what you wrote, and only refuses when the box is empty.
+name, so it now saves with what you wrote, and only refuses when the box is empty. The ✕ that removed Always true is gone too: every thread
+keeps one, and you change it by editing the text.
 
 ### Knots are gone
 Anansi no longer reads each passage for places where it disagrees with your threads. It marked a

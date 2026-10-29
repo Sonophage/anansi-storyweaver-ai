@@ -7050,9 +7050,8 @@ function roomSection(e, sl, live = null, anchor = true) {
     ${mine.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px">
       <textarea class="field grow flush box-52" data-ab="${esc(a.id)}" aria-label="What is always true of ${esc(e.title)}"
        >${esc(a.body)}</textarea>
+      <!-- NO REMOVE (Seth, 2026-10-28): every thread has one Always true; clearing it is editing it. -->
       <div class="end-row snug">
-        <button data-deladdon="${esc(a.id)}" style="color:var(--bad); font-size:12px; margin-right:auto"
-          aria-label="Remove what is always true">&#10005;</button>
         <button class="btn ghost btn-side" data-saveaddon="${esc(a.id)}"
          >Save</button></div>
     </div>`).join('')}`;

@@ -2441,5 +2441,21 @@ ok('emptying the box gives her back the voice she shipped with');
   ok('the style note asks for how the prose reads, never chapter shape, endings or the premise\'s images');
 }
 
+// EVERY THREAD KEEPS ITS ALWAYS TRUE (Seth, 2026-10-28: the remove on it is gone). The route refuses
+// a hand delete of a thread's Always true, and still removes any other pocket.
+{
+  const tale = db.createStory(me, { title: 'Keeps Its Core', premise: 'A ferry at night.' });
+  const t = db.upsertEntry(tale.id, me, { title: 'Ilse', body: '', activation: 'always_on' });
+  const facts = db.upsertAddon(tale.id, t, { slot: 'facts', name: 'facts', body: 'Ilse poles the ferry.' });
+  const voice = db.upsertAddon(tale.id, t, { slot: 'voice', name: 'How she talks', body: 'Few words.' });
+  const del = (id: string) => routes['DELETE /api/addon']({ body: { storyId: tale.id, id }, query: new URLSearchParams(), owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any);
+  const r: any = del(facts);
+  assert.match(String(r.error), /Always true cannot be removed/, 'KEEP-ALWAYS: a thread\'s Always true is not removed by hand');
+  assert.ok((db.addonsOf(tale.id) as any[]).some((a) => a.id === facts), 'KEEP-ALWAYS: and it is still there');
+  const ok2: any = del(voice);
+  assert.ok(!ok2.error && !(db.addonsOf(tale.id) as any[]).some((a) => a.id === voice), 'KEEP-ALWAYS: any other pocket still goes');
+  ok('a thread keeps its Always true; other pockets can still be removed');
+}
+
 srv.close();
 console.log(`\n${n} checks passed`);

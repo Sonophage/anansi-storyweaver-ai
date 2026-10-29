@@ -4221,7 +4221,13 @@ export const routes: Record<string, Handler> = {
   'POST /api/addon/on': (c) => { db.setAddonActive(c.body.storyId, c.body.id, !!c.body.on,
     c.body.atChapter == null ? undefined : Number(c.body.atChapter));
                                  return viewOf(c, c.body.storyId); },
-  'DELETE /api/addon':  (c) => { db.delAddon(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId); },
+  // EVERY THREAD KEEPS ITS ALWAYS TRUE (Seth, 2026-10-28): the page has no remove for it, and this
+  // refuses one too. Clearing it is editing it. A tale's own pockets and every other pocket still go.
+  'DELETE /api/addon':  (c) => {
+    const a = (db.addonsOf(c.body.storyId) as any[]).find((x) => x.id === c.body.id);
+    if (a?.slot === 'facts' && a.entry_id) return { error: 'Always true cannot be removed. Edit it instead.' };
+    db.delAddon(c.body.storyId, c.body.id); return viewOf(c, c.body.storyId);
+  },
 
   /** A FORGED THREAD, PASTED IN. The other half of the forge: `GET /api/forge` hands out the shape,
    *  this reads it back.
