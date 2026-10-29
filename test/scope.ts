@@ -1040,8 +1040,9 @@ ok('a story cannot be deleted by someone who does not own it');
    *
    * THREE THINGS MUST AGREE and this is the seam: the route's allow-list decides what the editor
    * may save, `defaultModePrompts` decides what it shows, and `web/app.js` decides what it draws.
-   * A key any one of them keeps alone is either a box that silently never saves, or a row the
-   * engine will never read. Both directions asserted, or this only watches one. */
+   * Since 2026-10-29 all three read EDITABLE_PROMPTS in story.ts (the editor draws the keys of
+   * `defaults`), and this still checks the result: a key any one of them kept alone would be a box
+   * that silently never saves, or a row the engine never reads. Both directions asserted. */
   {
     const saved: any = routes['POST /api/prompts'](ctxI(alice, { key: 'narrate', text: 'MY NARRATE' }));
     assert.ok(!saved?.error, `the five must still save: ${saved?.error}`);

@@ -8495,40 +8495,50 @@ function writingDefaults() {
           fact the tale does not have, is not in this box and cannot be altered away.</div>`
         : '<div class="hint">Reading it&hellip;</div>'}
 
-      <div class="lbl sect">The five modes and Reweave, in your words${
-        tipMark('genPrompts', 'The five modes and Reweave')}</div>
-      ${tipCard('genPrompts', 'The five modes and Reweave', `<p>Yours on every tale, not on one,
+      <div class="lbl sect">The five modes, in your words${
+        tipMark('genPrompts', 'The five modes')}</div>
+      ${tipCard('genPrompts', 'The five modes', `<p>Yours on every tale, not on one,
         and they reach the model exactly as written &mdash; nothing is added between the box and the
-        model. Read one in <strong>What he reads &rarr; Exactly as sent</strong> before you trust it.</p>`)}
+        model. Reweave runs the passage's own mode instruction again, and the last box,
+        <strong>When you reweave</strong>, is a line added after it. Read one in
+        <strong>What he reads &rarr; Exactly as sent</strong> before you trust it.</p>`)}
       ${(() => {
         // The shipped wording comes from the server, rendered by the engine itself, so the box
         // shows what it is actually replacing rather than a second copy that goes stale.
         if (!S.prompts) return '<div class="hint flush">Reading them&hellip;</div>';
         const { defaults, yours } = S.prompts;
-        // FIVE. There was a sixth, `regenerate`, from 2026-09-01 to 2026-09-18: the re-roll's own
-        // wording. It named the passage being re-rolled, which is the one passage a re-roll's
-        // prompt leaves out, so the model rewrote the passage BEFORE it instead. A re-roll re-runs
-        // the mode the passage was written with now, and there is no sixth string to show. This
-        // list, the route's EDITABLE_MODES and `defaultModePrompts` are the three that must agree.
-        return ['continue', 'speak', 'act', 'direct', 'narrate'].map((k) => {
+        // THE KEYS OF `defaults`, in the order the server builds them from EDITABLE_PROMPTS in
+        // story.ts, which is also the route's allow-list: one list, so a box drawn here is a key
+        // the route saves and the engine reads. The five modes, then `reweave`, which is not a
+        // mode: a line ADDED after the passage's own instruction on a reweave. The 2026-09
+        // `regenerate` wording REPLACED that instruction and named the passage being re-rolled,
+        // the one passage a re-roll's prompt leaves out; see EDITABLE_PROMPTS.
+        return Object.keys(defaults).map((k) => {
           const mine = yours[k];
           const open = S.promptOpen === k;
+          const rw = k === 'reweave';
+          const name = rw ? 'When you reweave' : k[0].toUpperCase() + k.slice(1);
           return `<div class="card" style="margin-bottom:7px; gap:6px;
               border-color:${mine ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
             <button class="line full-left" data-editprompt="${k}">
-              <span class="kind">${k[0].toUpperCase() + k.slice(1)}</span>
+              <span class="kind">${name}</span>
               ${mine ? '<span class="tag tag-lit">yours</span>' : ''}
-              ${open ? tipMark(`prompt-${k}`, `The ${k} instruction`) : ''}
+              ${open ? tipMark(`prompt-${k}`, rw ? name : `The ${k} instruction`) : ''}
               <span class="count-12">${open ? '\u2212' : '+'}</span>
             </button>
-            ${open ? `${tipCard(`prompt-${k}`, `The ${k} instruction`, `<p>Replaces the whole
+            ${open ? `${rw ? tipCard(`prompt-${k}`, name, `<p>Added after the passage's own
+                instruction when you reweave it, never in place of it, and sent on a reweave only.
+                Empty, a reweave sends that instruction and nothing more. Press Reset to empty
+                it.</p>`) : tipCard(`prompt-${k}`, `The ${k} instruction`, `<p>Replaces the whole
                 instruction for this mode. Reweave runs the instruction the passage was
                 written with again, so this is what it says on the way back round too. ${
                 k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
                   k === 'speak' || k === 'act' ? '<code>{{speaker}}</code> is whoever you play. ' : ''}
                 Empty it and press Save, or press Reset, to have Anansi's own
                 again.</p>`)}
-              <textarea class="field" data-prompttext aria-label="The whole instruction for ${esc(k)}"
+              <textarea class="field" data-prompttext aria-label="${rw ? 'What a reweave adds'
+                : `The whole instruction for ${esc(k)}`}"${rw
+                ? ' placeholder="Empty: a reweave sends the passage&#39;s own instruction and nothing more."' : ''}
                 style="min-height:132px; font-family:ui-monospace,monospace;
                 font-size:11.5px; line-height:1.5">${esc(mine ?? defaults[k] ?? '')}</textarea>
               <div class="btnrow">
@@ -11407,7 +11417,9 @@ document.addEventListener('click', async (e) => {
     const text = d.resetprompt ? '' : (document.querySelector('[data-prompttext]')?.value ?? '');
     const r = await api.savePrompt(key, text);
     if (r.error) return toast(r.error);
-    S.prompts = { defaults: r.defaults ?? {}, yours: r.yours ?? {} };
+    // Spread, like the library's handlers: this used to replace the whole object with the two
+    // fields here, and the voice box above went back to "Reading it" after any Save.
+    S.prompts = { ...S.prompts, defaults: r.defaults ?? {}, yours: r.yours ?? {} };
     if (r.reset) S.promptOpen = null;
     paint(); refreshManifest();
     return toast(r.reset ? `${key} is reset to Anansi's own.` : `${key} is yours now.`);

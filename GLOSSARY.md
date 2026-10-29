@@ -29,7 +29,7 @@ _In code_: a story with `is_world`; a tale follows one through `lore_from`
 
 **Account**:
 A writer's own pages: You (name, picture), Model (their Featherless key file, their model), Look,
-Writing (their voice, how Anansi talks, the five modes) and Your books (Import, Export, What you
+Writing (their voice, how Anansi talks, the five modes, When you reweave) and Your books (Import, Export, What you
 have written). Added 2026-10-27.
 _Avoid_: settings, preferences, profile
 _In code_: the `account` page; `prefs` is still What you have written
@@ -218,7 +218,8 @@ _In code_: the `waiting` panel
 ## Writing
 
 **Reweave**:
-Ask for a new version of a passage.
+Ask for a new version of a passage. It sends the passage's own mode instruction again. The writer's
+**When you reweave** line, if they wrote one, is added after that instruction, on a reweave only.
 _Avoid_: regenerate, re-roll, roll it again, write another, ask again
 _In code_: reroll, regenerate
 

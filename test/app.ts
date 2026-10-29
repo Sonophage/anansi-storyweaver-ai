@@ -525,7 +525,7 @@ let worldDown = 0;
     : url.startsWith('/api/me') ? { login: 'sonophage', name: 'Seth', avatar: null,
         featherless: { ready: false, file: '/home/x/.config/anansi/featherless-sonophage.key' } }
     : url.startsWith('/api/prompts') ? { defaults: { continue: 'Carry on.', speak: 'Say it.',
-        act: 'Do it.', direct: 'Make it happen.', narrate: 'Write it.' },
+        act: 'Do it.', direct: 'Make it happen.', narrate: 'Write it.', reweave: '' },
         yours: {}, voice: { shipped: 'The shipped voice.', mine: null, inUse: 'The shipped voice.' },
         library: { voice: [{ name: 'Noir', text: 'Wet streets. Nobody explains themselves.' }],
                    style: [] } }
@@ -4542,6 +4542,49 @@ ok("both menus: the model on top, a list down the left (scenes, or tales), and t
   click({ accttab: 'profile' });
 }
 ok('Account is five pages, and Your books holds Import, Export and What you have written');
+
+// ---- WHEN YOU REWEAVE (Seth, 2026-10-29: "under your account and writing I can't see reweave").
+// Account → Writing draws a sixth box after the five modes, and it saves and resets through the
+// same prompt route under the key `reweave`.
+{
+  const doc = (globalThis as any).document;
+  click({ railview: 'workspace' }); click({ nav: 'account' }); click({ accttab: 'writing' });
+  for (let i = 0; i < 40 && !/data-editprompt=/.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25));
+  const page = html('page');
+  assert.doesNotMatch(page, /The five modes and Reweave/, 'the heading no longer names a Reweave box it did not have');
+  assert.match(page, /The five modes, in your words/, 'it names the five modes');
+  assert.deepStrictEqual([...page.matchAll(/data-editprompt="([a-z]+)"/g)].map((m) => m[1]),
+    ['continue', 'speak', 'act', 'direct', 'narrate', 'reweave'], 'the five modes, then the reweave box');
+  assert.match(page, /When you reweave/, 'the sixth box is named for what it is');
+
+  click({ editprompt: 'reweave' });
+  const open = html('page');
+  assert.match(open, /data-saveprompt="reweave"/, 'opened, it can be saved');
+  assert.match(open, /data-resetprompt="reweave"/, 'and reset');
+  assert.match(open, /Added after the passage's own\s+instruction/,
+    'and it says the line is added after the passage\'s own instruction, not in place of it');
+
+  const box: any = { value: 'Take the other road this time.' };
+  const wasQS = doc.querySelector;
+  doc.querySelector = (sel: string) => (sel === '[data-prompttext]' ? box : null);
+  try {
+    POSTED.length = 0;
+    click({ saveprompt: 'reweave' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.deepStrictEqual(POSTED.filter((x) => String(x.url) === '/api/prompts').map((x) => x.body),
+      [{ key: 'reweave', text: 'Take the other road this time.' }], 'Save sends what is in the box, as reweave');
+    // Saving a box must not blank the rest of the page: the voice editor above it stays drawn.
+    assert.match(html('page'), /data-mydefaultvoice/, 'and the voice box above it is still there after Save');
+    POSTED.length = 0;
+    click({ resetprompt: 'reweave' });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.deepStrictEqual(POSTED.filter((x) => String(x.url) === '/api/prompts').map((x) => x.body),
+      [{ key: 'reweave', text: '' }], 'Reset sends it empty, which the route takes as the reset');
+  } finally { doc.querySelector = wasQS; }
+  click({ editprompt: 'reweave' });   // close it, for the checks after this one
+  click({ accttab: 'profile' });
+}
+ok('Account → Writing shows a When you reweave box after the five modes, and it saves and resets');
 
 // ---- THE TALE'S OWN THREAD IS A BANNER: its picture, or the colour its Library card wears (2026-10-27).
 {

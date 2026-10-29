@@ -57,6 +57,14 @@ the Workbench, and the mark goes away. This device remembers what you have seen,
 In the tale's menu, the Workbench number sat on its own line at the right edge, and made that row
 taller than the others. It is now beside the Workbench icon, and the icons and names line up again.
 
+### Write your own line for when you reweave
+Account → Writing has a new box after the five modes: When you reweave. A reweave sends the
+passage's own mode instruction again, as before. If you write a line in this box, it is added after
+that instruction, every time you reweave, and only then. It never replaces the instruction. The box
+is empty to start, and empty adds nothing. The heading above the modes now says only the five
+modes, because there was no Reweave box under it until now. Saving one of these boxes also no longer
+empties the voice box above them.
+
 ## 2026-10-28 · A new tale starts at its opening
 
 ### The passage length stays where you set it
