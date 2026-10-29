@@ -9450,7 +9450,7 @@ let GHOST_MODE = null;
 /** The inline passage being written (INLINE), kept by reference: a repaint rebuilds #col and would drop it,
  *  so drawDoc puts it back. Null when nothing is being written inline. */
 let INLINE = null;
-/** The passage that landed where it was written inline, which must not play `rise` (see land). */
+/** The passage that landed where it was written inline, which must not play `rise` (see veilReadable). */
 let QUIET_LAND = null;
 /** Whether the page still owes the inline passage its one move (see anchorLive). */
 let INLINE_ANCHOR = false;
@@ -9645,6 +9645,12 @@ function veilReadable() {
     const land = VEIL_LAND; VEIL_LAND = null;
     // The page stays where the writer was reading it while it was written (HOLD_SCROLL, drawDoc).
     HOLD_SCROLL = $('read')?.scrollTop ?? null;
+    // AND IT DOES NOT RISE IN AGAIN. The newest passage fades up from 7px below (`rise`), which on a
+    // passage already on screen is the text vanishing and coming back: the flash Seth saw when a
+    // passage finished (2026-10-27), and again on a Reweave (2026-10-28), whose landing did not set
+    // this. Here, where both land, so neither can miss it. The caller refreshed V before handing
+    // over the landing, so its newest passage is the one just written.
+    QUIET_LAND = V?.passages?.filter((p) => !p.isBreak).at(-1)?.id ?? null;
     g.remove(); INLINE = null;
     land?.();
     return;
@@ -10042,11 +10048,8 @@ async function generate(mode = S.mode, again = null) {
   const land = () => {
     // Written inline, it was in view the whole time: the page stays where the reader left it
     // (HOLD_SCROLL), and the seam pin is only for a passage that arrives all at once.
+    // It does not rise in again either: veilReadable marks it QUIET_LAND.
     const held = HOLD_SCROLL != null;
-    // AND IT DOES NOT RISE IN AGAIN. The newest passage fades up from 7px below (`rise`), which on a
-    // passage already on screen is the text vanishing and coming back: the flash Seth saw when a
-    // passage finished (2026-10-27). One written inline was in view the whole time.
-    if (held) QUIET_LAND = V?.passages?.filter((p) => !p.isBreak).at(-1)?.id ?? null;
     // AND IT IS NOT WIPED IN AGAIN. Its words already blurred in as they came; the 1.5s wipe on top
     // of that was the second transition Seth saw after he stopped (2026-10-26). Announced either way.
     arrive(!held); foldDock();

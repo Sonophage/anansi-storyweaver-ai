@@ -5982,6 +5982,29 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   ok('the re-roll instruction opens for editing, prefilled, and only on a passage that has one (#38)');
 }
 
+// ---- A NEW VERSION WRITTEN INLINE LANDS WITHOUT RISING IN AGAIN. Seth, 2026-10-28: "there's a blink
+// now when reweaving". The landed passage played `rise` (opacity 0 to 1), so the words written in
+// place went out and came back: measured 0.00 opacity in the landing frame on a 390px screen. A
+// passage from Continue has been quiet since 2026-10-27; a Reweave was not.
+//
+// The inline surface is told from the veil by its class (veilReadable), so the #ghost stub answers as
+// the inline passage for this block only.
+{
+  const gh = (document as any).getElementById('ghost'), was = gh.classList.contains;
+  gh.classList.contains = (c: string) => c === 'inlive';
+  try {
+    click({ open: 's-1' });
+    await new Promise((r) => setTimeout(r, 40));
+    // p-5 is the last passage and the writer's own, so the press is asked twice.
+    click({ re: 'p-5' }); click({ re: 'p-5' });
+    await new Promise((r) => setTimeout(r, 200));
+    assert.ok(GENERATED.length > 0, 'the reweave was sent');
+    const landed = html('col').match(/<div class="block[^"]*"[^>]*>(?:(?!<div class="block)[\s\S])*?data-edit="p-5"/)?.[0] ?? '';
+    assert.match(landed, /class="block[^"]* newest quiet/, 'the new version lands quiet: no rise, so no blink');
+  } finally { gh.classList.contains = was; }
+  ok('a reweave written inline lands without rising in again');
+}
+
 
 // ---- READING MODE SHOWS EVERY CHAPTER (issue #37). Seth, 2026-09-01: "In reading mode I should be
 // able to view all chapters without having to swap."
