@@ -35,7 +35,7 @@ serialise();
  */
 const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'memory.ts', 'report.ts', 'talk.ts', 'changes.ts', 'diff.ts', 'forge.ts', 'web.ts', 'app.ts', 'remote.ts', 'keys.ts', 'account.ts', 'weave.ts', 'status.ts',
                 ...['order', 'contractions', 'lockout', 'quote', 'ledger-audit', 'modes', 'drift',
-                    'rooms', 'fires', 'retire', 'cast', 'voice', 'utilisation', 'weight',
+                    'fires', 'retire', 'cast', 'voice', 'utilisation', 'weight',
                     'council06', 'lockout-book', 'weave-json', 'repetition', 'lockout-cheap', 'words', 'preview'].map((b) => `../bench/${b}.ts check`)];
 const started = Date.now();
 
@@ -45,8 +45,9 @@ const started = Date.now();
  * db.ts is imported. Nothing under bench/ does — those files are written to be run by hand, where
  * pointing at the live library is the POINT.
  *
- * Probed on 2026-09-06 rather than assumed: of the sixteen check modes, fifteen touch no database
- * and `bench/rooms.ts check` opens one. Run from here with ANANSI_DB unset it would have opened
+ * Probed on 2026-09-06 rather than assumed: of the sixteen check modes, fifteen touched no database
+ * and `bench/rooms.ts check` opened one (it was retired on 2026-10-28; probed again that day, no
+ * listed check opens the ANANSI_DB it is given). Run from here with ANANSI_DB unset it would have opened
  * Seth's live anansi.db READ-WRITE and run migrate() against it, in the middle of a test run,
  * while he might be writing. `bench/order.ts` says the same thing about itself in its own header:
  * "it is a second writer on the book, so do not describe it as harmless."

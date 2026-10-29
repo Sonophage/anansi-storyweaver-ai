@@ -236,9 +236,6 @@ const S = {
   reroll: null,
   // The passage open in the full-screen Alter box, and what is typed in it: { id, text, was }.
   passEdit: null,
-  // #40. Which skeleton field is being re-rolled right now, or null. One at a time: the router does
-  // not queue and a second concurrent call kills both with HTTP 500.
-  spField: null,
   // #cover image search, 2026-09-01. The picker's own state: the phrase, the rows, and which press
   // is in flight. Null means the tray is shut.
   found: null,
@@ -3722,8 +3719,8 @@ const PANELS = {
   /** Everything this book is waiting on, in one place.
    *
    *  Each part of it was already on the surface somewhere — proposals under Chapter, promises
-   *  under Strings, flags beside the passage they are about, the horizon on a bar — which is
-   *  exactly the problem: four panels to find out whether anything wanted you.
+   *  under Strings, the horizon on a bar — which is exactly the problem: three places to find out
+   *  whether anything wanted you.
    *
    *  Proposals and promises come off `V.proposals` and `V.strings`, the same lists `owedHere`
    *  counts for the rail, so the light and this panel cannot disagree. `V.waiting` adds what the

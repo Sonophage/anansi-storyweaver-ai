@@ -72,8 +72,8 @@ export const shelfOrder = (list) => [...(list ?? [])].sort((a, b) =>
 /** What is waiting across the whole shelf, and which book each kind is mostly in.
  *
  *  The shelf is the only screen that can see across books, and until now it could not see INTO one:
- *  a proposal not accepted, a promise not paid, a flag not looked at all live inside a story and
- *  were invisible from the outside. This is what the strip above the hero is made of.
+ *  a proposal not accepted and a promise not paid both live inside a story and were invisible
+ *  from the outside. This is what the strip above the hero is made of.
  *
  *  Archived books are left out on purpose. Putting one away is the act that means "stop showing me
  *  this", and a strip that then nags about its unpaid promises has not listened. */
@@ -611,23 +611,10 @@ export const BLOCK_ORIGIN = {
 
 // The decode, ported from the bureau's own effect (astro-bureau-blog, the last script in
 // src/layouts/Base.astro): text resolves out of random glyphs rather than fading in. The glyph
-// set and the writing head live here because they are pure, which makes them the half worth a test.
+// set lives here because it is pure.
 export const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&/<>*';
 export const glyph = () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
 export const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-/** The writing head of a streamed passage: ONE run of glyphs, and it never touches the prose.
- *
- *  The first version scrambled the last sixteen characters of the text itself, re-rolled on every
- *  delta. Two things were wrong with it. The prose moved after it had settled, which is the last
- *  thing prose should do; and a delta is a token, so the effect ran at whatever rate the model
- *  happened to be writing — bursty, uneven, and clunky exactly when the model sped up.
- *
- *  A run appended AFTER the text has neither problem. What is written stays written, and the run
- *  is animated on its own clock, so the model's token rate has nothing to do with how it looks.
- */
-export const HEAD = 9;
-export const glyphRun = (n = HEAD) => Array.from({ length: n }, glyph).join('');
 
 // ---------------------------------------------------------------------------
 // THEMES. One row per theme, and every token below is derived from it.
@@ -865,7 +852,6 @@ export const MARK = {
   create:   'M10 3.5v13M3.5 10h13',
   import:   'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 3.6V11M10 11 7.3 8.3M10 11 12.7 8.3',
   prefs:    'M3.2 7.6H16.8M3.2 12.4H16.8M7.6 5.4V9.8M12.4 10.2V14.6',
-  reading:  'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 3V17',
   // Help. A quadrant of the orb-web itself — three radials and two spirals — which is the house
   // metaphor rather than a question mark borrowed from somebody else's icon set.
   web:      'M10 10 5.05 5.05M10 10 10 3M10 10 14.95 5.05'

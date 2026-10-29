@@ -769,25 +769,6 @@ ok('every preset on the box has a blurb, and every blurb still belongs to a pres
 }
 ok('a Voice that disagrees with the point of view is named, and the fix takes out only that sentence');
 
-// The writing head is a run of glyphs APPENDED after the prose, never a scramble of the prose
-// itself. The first version rewrote the last sixteen characters of the text on every delta: the
-// prose moved after it had settled, and the effect ran at the model's token rate, which is uneven.
-{
-  const { glyphRun, HEAD, GLYPHS } = await import('../web/model.js');
-  for (let i = 0; i < 200; i++) {
-    const run = glyphRun();
-    assert.strictEqual(run.length, HEAD, 'the head is one fixed-width block, not a gradient');
-    for (const ch of run) assert.ok(GLYPHS.includes(ch), 'and every character comes from the set');
-  }
-  assert.strictEqual(glyphRun(3).length, 3, 'and its width is the caller\'s');
-  // Rolled again, it is a different run — a head that never changed would just be nine letters
-  // sitting at the end of the passage.
-  const rolls = new Set(Array.from({ length: 40 }, () => glyphRun()));
-  assert.ok(rolls.size > 1, 'consecutive rolls must differ');
-  // The prose is not an argument here, and that IS the fix: nothing in this module can touch it.
-  assert.ok(!String(glyphRun).includes('text'), 'the head takes no prose, so it cannot rewrite any');
-  ok('the writing head is a run of glyphs and the prose is never an input to it');
-}
 // Where it runs, in the writer's words. The slot size was here until 2026-10-24: a number for the
 // person who runs the machine, on a screen both writers see.
 assert.match(html('rail'), /on this machine/);

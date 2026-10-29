@@ -64,7 +64,7 @@ export const FEATHERLESS_AGENT = { 'User-Agent': 'Anansi' };
  *
  *  ONE FILE PER WRITER (#70, Seth, 2026-10-27: "a file, the owner, local model"). Each writer has
  *  their own plan: `featherless-<login>.key` in ANANSI_FEATHERLESS_KEY_DIR. Whose key a call uses is
- *  the PAYER, set once per request by serve.ts (`asPayer`): the book's owner when the request names
+ *  the PAYER, set once per request by serve.ts (`payFor`): the book's owner when the request names
  *  a book, so a guest's passage in a shared book is on the owner's plan, else the writer asking. A
  *  writer with no file has no remote models and writes on the local one. Work with no request
  *  behind it has no payer and no key.
