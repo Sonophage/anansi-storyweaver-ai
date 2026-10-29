@@ -3,6 +3,9 @@
 Seth decided this on 2026-10-29. It reverses the rule of 2026-09-18 that kept the take out of a
 reweave's prompt.
 
+**Reversed in part the same day.** The take is no longer sent. The What didn't work note stays. See
+the last item in The decision.
+
 Seth's words: "For reweave it should send the last entry that didn't work, and reweave needs two
 fields: original instruction and what didn't work about the last one. Reweave as the instruction
 should send the original instruction, the last entry that didn't work, and if filled the new
@@ -57,8 +60,31 @@ the wording and send the passage's own instruction again, with no reference to t
   - In the Reweave box, The instruction holds the passage's own direction as it was given. A passage
     with no direction opens with the field empty. It is no longer prefilled with the mode's own
     instruction. Empty sends no directive, and the passage's own instruction runs, as a tap.
+- **2026-10-29, last: the take is no longer sent, in any form.** Seth decided to stop sending the old
+  version on a reweave, and to keep the two fields.
+  - Evidence, from Seth's tale Starlight Deception, scene 2, ordinal 34, on GLM-4-32B through
+    Featherless, with the take sent in the frame ("THE VERSION BEING REPLACED … Do not copy its
+    sentences"). First, the model wrote a continuation of the replaced take, not a replacement.
+    Second, on the next reweave it returned a byte-identical copy of the take it was replacing, on a
+    fresh seed, after 19 seconds of generation. Two failures on one scene, one model. NOT MEASURED
+    as a rate.
+  - A reweave's prompt is now the passage's own instruction (the edited directive, if the writer
+    typed one). With What didn't work empty, it is the prompt that wrote the passage, byte for byte,
+    as from 2026-09-18. With a note, the note follows the instruction in MODE, in the When you
+    reweave frame.
+  - The When you reweave box frames the note and nothing else. It has one placeholder,
+    `{{whatfailed}}`. The shipped frame says that the last version is not shown and asks the model to
+    avoid what the note describes. It has no example sentences. Nothing from the box is sent when the
+    note is empty.
+  - `{{replaced}}` and the save refusal for it are removed. A saved value is repaired on read, and no
+    row is rewritten: a value that holds `{{replaced}}` reads as the shipped frame, because it was
+    written around a take that is no longer sent; a value with no `{{whatfailed}}` goes after the
+    shipped frame.
+  - The two fields of the Reweave box, the tap, the hold and Alt+click do not change.
 
 ## How this answers the September failure
+
+(Superseded by the last item in The decision: the take is no longer sent.)
 
 In September the wording named a passage that was not in the prompt. Now the passage is in the
 prompt, it is marked, and the instruction says which passage to write and where to start. The
@@ -69,12 +95,11 @@ passage before keeps its place as the last prose.
 - **NOT MEASURED.** No run has compared this prompt with the plain reweave of 2026-09-18. It is owed
   an A/B: two servers at the same time, one router, the same reweaves, scored for how often the new
   take repeats the old one, continues from it, or rewrites the passage before it.
-- A reweave's prompt is longer by one take. A book near its budget can overflow on a reweave where
-  it would not before.
-- Reweave on this seed no longer gives the same take back. The prompt now holds the take that is on
-  screen, which is not the take that was replaced when the seed was first used.
+- While the take was sent, a reweave's prompt was longer by one take, and Reweave on this seed did
+  not give the same take back. Since the last 2026-10-29 change, neither is true: with no note the
+  prompt is the first prompt, and a note adds only its own frame.
 - A reweave of a Narrate passage that answered an unfinished line sends no MODE block, so it sends
-  no take and no note. The code marks this with a ponytail comment.
+  no note. The code marks this with a ponytail comment.
 - A tap on Reweave reweaves at once, for every passage, with no note (Seth, 2026-10-29: "the button
   just reweaves; holding the reweave button opens what we just built"). A hold, or Alt+click at a
   desk, opens the Reweave box for any passage. This replaces #38's rule that a tap on a directed

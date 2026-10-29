@@ -218,11 +218,11 @@ _In code_: the `waiting` panel
 ## Writing
 
 **Reweave**:
-Ask for a new version of a passage. It sends the passage's own mode instruction again, then the
-**reweave instruction**: the version being replaced, marked so that it is not read as the story,
-and the writer's **What didn't work** note from the Reweave box, if they filled it in. The reweave
-instruction is the **When you reweave** box on Account → Writing; it ships with Anansi's wording,
-and the writer may change it. A tap reweaves at once; a hold (Alt+click at a desk) opens the
+Ask for a new version of a passage. It sends the passage's own mode instruction again (the edited
+one, if the writer changed it). The version being replaced is not sent. If the writer filled in
+**What didn't work** in the Reweave box, that note follows, inside the **When you reweave** frame
+from Account → Writing; it ships with Anansi's wording, and the writer may change it. With the note
+empty, a reweave sends the prompt that wrote the passage. A tap reweaves at once; a hold (Alt+click at a desk) opens the
 **Reweave box** first, with the passage's own direction (empty if it had none) and What didn't
 work. ADR 0012.
 _Avoid_: regenerate, re-roll, roll it again, write another, ask again
