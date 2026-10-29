@@ -1575,6 +1575,22 @@ async function bootServer(port: number, env: Record<string, string>) {
     assert.strictEqual(JSON.stringify(db.addonsOf(aStory.id)), herRooms, 'TALK-UNDO-SCOPE: her rooms are as they were');
     assert.strictEqual(JSON.stringify(db.entriesOf(aStory.id)), herThreads, 'TALK-UNDO-SCOPE: and her threads');
 
+    // MERGE TWO THREADS, aimed at alice's book as bob: the gate refuses the draft and the write before
+    // either reads a field. The control is his own book naming her threads: past the gate, and the
+    // route refuses, because they are not threads of his tale. Her threads are as they were.
+    const aOther = db.upsertEntry(aStory.id, alice, { title: 'Also secret', body: 'another' })!;
+    const herNow = () => JSON.stringify([db.entriesOf(aStory.id), db.addonsOf(aStory.id)]);
+    const herMerge = herNow();
+    for (const path of ['/api/merge/draft', '/api/merge']) {
+      const foreign = await post(path, { storyId: aStory.id, keepId: aEntry, goneId: aOther, always: 'BOB', stands: 'BOB', pockets: [] });
+      assert.strictEqual(foreign.status, 404, `MERGE-GATE: ${path} must refuse another writer's story id`);
+      const own = await post(path, { storyId: bStory.id, keepId: aEntry, goneId: aOther, always: 'BOB', stands: 'BOB', pockets: [] });
+      assert.strictEqual(own.status, 200, `MERGE-GATE: ${path} on his own book passes the gate (${own.status})`);
+      assert.match(String((await own.json()).error), /threads of this tale/, `MERGE-SCOPE: and ${path} refuses her threads named from his book`);
+    }
+    assert.strictEqual(herNow(), herMerge, 'MERGE-SCOPE: her threads are as they were');
+    db.delEntry(aStory.id, aOther);
+
     // A gated route naming no story at all: the gate cannot resolve an owner, so it fails closed.
     const nameless = await post('/api/write', { body: 'no story named' });
     assert.strictEqual(nameless.status, 400, 'a gated route naming no story must be refused');

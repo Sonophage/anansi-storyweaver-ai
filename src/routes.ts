@@ -5,7 +5,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TALE_STANDS, TALE_STANDS_SCHEMA, STRINGS_STAND, STRINGS_STAND_SCHEMA, TIDY, TIDY_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TALE_STANDS, TALE_STANDS_SCHEMA, STRINGS_STAND, STRINGS_STAND_SCHEMA, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
 import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -2127,6 +2127,29 @@ export function tidyPockets(existing: any[], answer: unknown, kinds: string[], l
     mine[0].merges.push(...left.map((a) => a.id));
   }
   return out.map(({ replaces: _r, ...p }) => p);
+}
+
+/** MERGE TWO THREADS: what the draft and the write both read, so the two cannot disagree. Refused by
+ *  `db.mergeRefusal` (two live threads of this tale, the writer's, neither the tale's own). `lock`:
+ *  either thread holds the lock (`holdsLock`), so no voice pocket is sent, drafted or rewritten.
+ *  `seen` is the pockets the draft is sent, numbered: those switched on (the outfit worn at this
+ *  scene), as Tidy's are; one switched off is the writer's choice and moves across as it is.
+ *  `kinds` is what the kept thread's kind can hold. */
+function mergeOf(c: Ctx): { error: string } | any {
+  const v = bookOf(c.body.storyId);
+  const keepId = String(c.body.keepId ?? ''), goneId = String(c.body.goneId ?? '');
+  const no = db.mergeRefusal(v.id, c.owner, keepId, goneId);
+  if (no) return { error: no };
+  const keep = v.entries.find((x: any) => x.id === keepId && !x.sharedFrom);
+  const gone = v.entries.find((x: any) => x.id === goneId && !x.sharedFrom);
+  if (!keep || !gone) return { error: 'both threads must be threads of this tale' };
+  const at = v.currentChapter?.index ?? 1;
+  const lock = holdsLock(keep, v.story) || holdsLock(gone, v.story);
+  const kinds = slotsFor(keep.entryType).map((sl) => sl.name).filter((n) => n !== 'facts' && !(lock && n === 'voice'));
+  const seen = [keep, gone].flatMap((e: any) => (e.addons ?? []).filter((a: any) => a.slot !== 'facts' && !(lock && a.slot === 'voice')
+    && (a.slot === 'outfit' ? wornAt(e, at) === a.id : a.active)).map((a: any) => ({ ...a, entry_id: e.id })))
+    .map((a: any, i: number) => ({ ...a, n: String(i + 1) }));
+  return { v, keep, gone, at, lock, kinds, seen };
 }
 
 /** #117 · A DRAFT THREAD WHOLE, as Try it on reads it: Always true, where it stands as the tale
@@ -4753,6 +4776,57 @@ export const routes: Record<string, Handler> = {
       if (db.addProposal(v.id, { ...base, body: p.body, field: p.slot, target: p.target, merges: p.merges,
         pocket: p.name })) added++;
     return { added, ...viewOf(c, v.id) };
+  },
+  /** MERGE TWO THREADS, THE DRAFT (Seth, 2026-10-29). Anansi writes the one thread the two make, in
+   *  one call, and NOTHING IS WRITTEN: the writer reviews each part against the kept thread's text and
+   *  approves it (`POST /api/merge`). What may be merged is `db.mergeRefusal`'s, asked before the call. */
+  'POST /api/merge/draft': async (c: Ctx) => {
+    const m = mergeOf(c);
+    if ('error' in m) return m;
+    const { v, keep, gone, at, lock, seen, kinds } = m;
+    const side = (e: any, label: string) => [`${label}: ${e.title} (${e.entryType})`,
+      `  Always true: ${alwaysTrue(e) || '(empty)'}`,
+      `  Where it stands now: ${resolveBody(e, at).trim() || '(nothing yet)'}`,
+      `  Pockets: ${seen.filter((a: any) => a.entry_id === e.id).map((a: any) => `${a.name} [${a.slot}, number ${a.n}]: ${a.body}`)
+        .join(' | ') || 'none'}`].join('\n');
+    const ask = [side(keep, 'The one that stays'), side(gone, 'The one merged into it'),
+      `Pockets its kind can have: ${kinds.join(', ')}`].join('\n\n');
+    const r = await structuredRetry(MERGE, ask, MERGE_SCHEMA, { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
+    if (!r.data) return { error: r.error ?? 'the merge came back with nothing usable' };
+    const names = [keep.title, gone.title];
+    const bodyOf = (id: string | null) => seen.find((a: any) => a.id === id && a.entry_id === keep.id);
+    return {
+      keep: { id: keep.id, title: keep.title }, gone: { id: gone.id, title: gone.title },
+      kept: String(r.data.kept ?? '').trim().slice(0, 300) || null,
+      always: { was: alwaysTrue(keep), now: plain(r.data.always, [...names, ...wrapperNames('facts', keep.title)]) },
+      stands: { was: resolveBody(keep, at).trim(), now: db.plainStands(r.data.stands, names) },
+      // Each against the kept thread's own pocket it stands in for, or nothing when it has none.
+      pockets: tidyPockets(seen.map((a: any) => ({ ...a, name: a.n })), r.data.pockets, kinds, lock).map((p) => {
+        const was = [p.target, ...p.merges].map(bodyOf).find(Boolean);
+        return { ...p, was: was?.body ?? '', wasName: was?.name ?? null };
+      }),
+    };
+  },
+  /** MERGE TWO THREADS, THE WRITE: the parts as the writer approved them, by `db.mergeThreads`, in
+   *  one transaction. The lock pocket of either thread is never rewritten: a voice pocket is dropped
+   *  from what is sent, and the lock's own pocket is moved across as it is. */
+  'POST /api/merge': (c: Ctx) => {
+    const m = mergeOf(c);
+    if ('error' in m) return m;
+    const { v, keep, gone, at, lock, kinds } = m;
+    const voices = new Set([keep, gone].flatMap((e: any) => (e.addons ?? []).filter((a: any) => a.slot === 'voice').map((a: any) => a.id)));
+    const held = (id: unknown) => lock && voices.has(String(id));
+    const pockets = ((Array.isArray(c.body.pockets) ? c.body.pockets : []) as any[])
+      .filter((p) => kinds.includes(String(p?.slot ?? '')) && String(p?.body ?? '').trim())
+      .map((p) => ({ slot: String(p.slot), name: String(p.name ?? '').trim().slice(0, 60), body: String(p.body),
+        target: held(p.target) ? null : p.target ?? null,
+        merges: (Array.isArray(p.merges) ? p.merges : []).filter((x: unknown) => !held(x)) }));
+    const names = [keep.title, gone.title];
+    const made = db.mergeThreads(v.id, c.owner, keep.id, gone.id, { at, pockets,
+      always: plain(c.body.always, [...names, ...wrapperNames('facts', keep.title)]),
+      stands: db.plainStands(c.body.stands, names) });
+    if (!made) return { error: 'those two threads cannot be merged' };
+    return { kept: made, ...viewOf(c, v.id) };
   },
   'POST /api/remember': async (c: Ctx) => {
     const out = await remember(c, c.body.storyId, c.body.chapterId);

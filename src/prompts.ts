@@ -397,6 +397,43 @@ export const TIDY_SCHEMA = {
   required: ['always', 'stands', 'kept', 'pockets'],
 } as const;
 
+/** MERGE TWO THREADS (Seth, 2026-10-29: "Halsey's publicist and Lisa are the same person"). One
+ *  call drafts the one thread two make, in TIDY's three parts and TIDY's answer, so `tidyPockets`
+ *  reads both. The writer reviews it before anything is written (`POST /api/merge`). Pockets are
+ *  named by number, because the two threads can each have a pocket of the same name.
+ *  NOT MEASURED: written in shapes, with no example sentences, and never run against a control.
+ */
+export const MERGE =
+`Below are two threads from one story that are the same person, place or thing, written down twice.
+The first is the one that stays; the second is merged into it. Write the one thread they make
+together, in the three parts a thread has:
+
+  always   who or what it is, for the whole story: what does not change. A plain description,
+           with no brackets and not a name in front.
+  stands   where it stands now: what has happened to it and what is at stake. A plain
+           description, with no brackets and not a name in front. No looks, no clothes, no
+           voice: those are pockets.
+  pockets  one per part of how to write it, each from its kind's list, as a plain description.
+           Every pocket of both threads is listed with a number. For each pocket you write, put
+           the numbers of all the pockets it stands in for in replaces, or an empty list for a new
+           one. Pockets of the same kind, from either thread, become ONE pocket that keeps what
+           each says, and name them all. Its name is a short title of its own, never the slot's
+           word or a thread's name.
+
+Keep every fact either thread holds, in one of the three; drop nothing and add nothing. Where the
+second thread names the first by a role or another name, that is the same one: say it once, by the
+first thread's name. Where the two disagree, the more specific one is true: write only that one,
+never both. Always true holds identity only: no clothes, no events, no mood, no voice.
+
+  kept     one sentence saying what disagreed, which you kept, and why. Empty when nothing did.
+
+${POCKET_FORM}
+
+${LEDGER_REGISTER}`;
+
+/** The same answer as TIDY's, so the one function reads both (`tidyPockets`). */
+export const MERGE_SCHEMA = TIDY_SCHEMA;
+
 /** #74 · ANANSI EDITS ONE SECTION of a Workbench card, on the writer's steer or none. It keeps the
  *  section's own form: a whole "where it stands", a pocket as a plain description, or Always true.
  *  #114 · Where it stands is now asked for as a plain description with no brackets: the code frames

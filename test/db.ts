@@ -4232,4 +4232,128 @@ ok("the writer's sampler (passage length and the rest) is kept on their row", ()
   assert.strictEqual(db.genOf(db.owner('otherlength')), null, 'GEN-KEPT: per writer, not shared');
 });
 
+// ---- MERGE TWO THREADS (Seth, 2026-10-29: "Halsey's publicist and Lisa are the same person"). The
+// writer picks the one that stays; its parts are written from the reviewed draft, everything that
+// pointed at the other moves onto it, and the other is deleted, all in one transaction.
+ok('a merge moves everything that pointed at the other thread onto the one that stays, then deletes it', () => {
+  const me = db.owner('merger');
+  const t = db.createStory(me, { title: 'Bedlam', premise: 'p' }) as any;
+  const sc1 = (db.chapters(t.id)[0] as any).id;
+  db.endChapter(t.id, t.branchId);
+  const sc2 = (db.chapters(t.id).find((c: any) => c.idx === 2) as any).id;
+  const lisa = db.upsertEntry(t.id, me, { title: 'Lisa', entryType: 'character', body: 'Lisa runs the door.',
+    activation: 'triggered', keys: ['Lisa'] })!;
+  const pub = db.upsertEntry(t.id, me, { title: "Halsey's publicist", entryType: 'character', body: 'Books the shows.',
+    activation: 'triggered', keys: ['publicist', 'the PR woman'] })!;
+  const marek = db.upsertEntry(t.id, me, { title: 'Marek', entryType: 'character', body: 'A fixer.' })!;
+  db.upsertAddon(t.id, lisa, { slot: 'facts', name: 'facts', body: 'A woman in her thirties.' });
+  db.upsertAddon(t.id, pub, { slot: 'facts', name: 'facts', body: "Halsey's publicist, sharp." });
+  const lisaVoice = db.upsertAddon(t.id, lisa, { slot: 'voice', name: 'Clipped', body: 'Short lines.', keys: ['phone'] })!;
+  db.setAddonActive(t.id, lisaVoice, true);
+  const pubVoice = db.upsertAddon(t.id, pub, { slot: 'voice', name: 'Sales', body: 'Talks in pitches.', keys: ['pitch'] })!;
+  db.setAddonActive(t.id, pubVoice, true);
+  const pubCoat = db.upsertAddon(t.id, pub, { slot: 'outfit', name: 'Grey suit', body: 'A grey suit.' })!;
+  db.setAddonActive(t.id, pubCoat, true, 1);                   // a dated wear event, on the outfit
+  const pubRel = db.upsertAddon(t.id, pub, { slot: 'relationships', name: 'Halsey', body: 'Works for Halsey.' })!;
+  db.upsertState(t.id, pub, { fromChapter: 2, body: 'Has quit Halsey.', label: 'quit' });
+  db.setPin(t.id, sc1, pub, 'force_in');
+  db.setPin(t.id, sc2, pub, 'force_out');
+  db.setPin(t.id, sc2, lisa, 'force_in');                        // the one that stays keeps its own pin
+  db.linkEntries(t.id, marek, pub);
+  db.linkEntries(t.id, pub, lisa);                               // an edge between the two goes
+  db.addProposal(t.id, { kind: 'changed', entry_id: pub, title: "Halsey's publicist", body: 'She is tired.',
+    entryType: 'character', keys: [] });
+  db.upsertEntry(t.id, me, { id: pub, title: "Halsey's publicist", entryType: 'character', body: 'Books the tours.',
+    activation: 'triggered', keys: ['publicist', 'the PR woman'] });   // a history row on the other
+  db.setEntryImage(t.id, pub, new Uint8Array([1, 2, 3]));
+  db.updateStory(t.id, { lockedCharacter: "Halsey's publicist" });
+
+  const r = db.mergeThreads(t.id, me, lisa, pub, { at: 2, always: "Lisa, in her thirties; she books Halsey's shows.",
+    stands: 'Has quit Halsey; runs the door.',
+    pockets: [{ slot: 'voice', name: 'Clipped pitch', body: 'Short lines that sell.', target: lisaVoice, merges: [pubVoice] }] });
+  assert.ok(r, 'MERGE-OK: the merge is written');
+
+  assert.ok(!db.entriesOf(t.id).some((e: any) => e.id === pub), 'MERGE-GONE: the other thread is deleted');
+  const kept = db.entriesOf(t.id).find((e: any) => e.id === lisa);
+  const rooms = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === lisa);
+  assert.strictEqual(rooms.find((a) => a.slot === 'facts')?.body, "Lisa, in her thirties; she books Halsey's shows.",
+    'MERGE-ALWAYS: the reviewed Always true is written on the one that stays');
+  assert.strictEqual(rooms.filter((a) => a.slot === 'facts').length, 1, '  and it has one Always true');
+  const voices = rooms.filter((a) => a.slot === 'voice');
+  assert.deepStrictEqual(voices.map((a) => [a.id, a.body, a.active]), [[lisaVoice, 'Short lines that sell.', 1]],
+    'MERGE-POCKET: the merged voice replaces both, on the pocket that stays');
+  assert.deepStrictEqual(JSON.parse(voices[0].keys).sort(), ['phone', 'pitch'], '  keeping the wake words of both');
+  assert.ok(rooms.some((a) => a.id === pubCoat && a.active), 'MERGE-MOVE: a pocket the draft did not touch moves across, still worn');
+  assert.ok(rooms.some((a) => a.id === pubRel), '  and so does one switched off');
+  const states = db.statesForStory(t.id).get(lisa) ?? [];
+  assert.deepStrictEqual(states.map((x: any) => [x.from_chapter, x.body]), [[2, 'Has quit Halsey; runs the door.']],
+    'MERGE-STANDS: the Over time entry moves across, and where it stands now is written on the one in force');
+  assert.strictEqual(kept.body, 'Lisa runs the door.', '  leaving the scene-1 text as it was');
+  assert.deepStrictEqual(JSON.parse(kept.keys), ['Lisa', 'publicist', 'the PR woman', "Halsey's publicist"],
+    "MERGE-KEYS: the other's wake words and its name now wake the one that stays");
+  const pins = (db.pinsOf(t.id) as any[]).map((p) => [p.chapter_id, p.entry_id, p.mode].join(' ')).sort();
+  assert.deepStrictEqual(pins, [`${sc1} ${lisa} force_in`, `${sc2} ${lisa} force_in`].sort(),
+    "MERGE-PINS: the other's scene pins move across, and where both had one the kept thread's stands");
+  const edges = (db.edgesOf(t.id) as any[]).map((g) => [g.parent_id, g.child_id]);
+  assert.deepStrictEqual(edges, [[marek, lisa]], 'MERGE-EDGES: a stitch moves across; one between the two goes');
+  const open = (db.proposalsOf(t.id) as any[]).find((p) => p.body === 'She is tired.');
+  assert.strictEqual(open?.entry_id, lisa, 'MERGE-CHALK: a chalked change moves across');
+  assert.strictEqual(open?.title, 'Lisa', '  under the name of the one that stays, so sewing it in renames nothing');
+  const hist = db.entryHistory(t.id, lisa);
+  assert.ok(hist.some((h: any) => h.field === 'body' && h.previous_value === 'Books the shows.'), "MERGE-HISTORY: the other's history moves across");
+  assert.ok(hist.some((h: any) => h.previous_value === "Halsey's publicist, sharp."), "  with the other's Always true kept in it");
+  assert.ok(hist.some((h: any) => h.previous_value === 'A woman in her thirties.'), '  and the old Always true of the one that stays');
+  assert.ok(hist.some((h: any) => h.previous_value === 'Talks in pitches.'), '  and the voice merged away');
+  const ev = (db.eventsForStory(t.id).get(lisa) ?? []).map((x: any) => [x.kind, x.addon_id]);
+  assert.ok(ev.some(([k, a]: any) => k === 'wear' && a === pubCoat), 'MERGE-EVENTS: the wardrobe dates move across');
+  assert.ok(db.entryImageAt(t.id, lisa), 'MERGE-IMAGE: its picture moves to a thread that had none');
+  assert.strictEqual((db.getStory(t.id) as any).locked_character, 'Lisa', 'MERGE-HANDS-OFF: Hands off follows to the one that stays');
+  db.delStory(t.id);
+});
+
+ok('a merge is refused across tales, on the tale thread, on a followed World thread, and for another writer', () => {
+  const me = db.owner('merger2'), them = db.owner('stranger2');
+  const t = db.createStory(me, { title: 'One', premise: 'p' }) as any;
+  const u = db.createStory(me, { title: 'Two', premise: 'p' }) as any;
+  const a = db.upsertEntry(t.id, me, { title: 'A', body: 'a' })!;
+  const b = db.upsertEntry(t.id, me, { title: 'B', body: 'b' })!;
+  const c = db.upsertEntry(u.id, me, { title: 'C', body: 'c' })!;
+  const tale = db.taleThread(t.id)!;
+  const world = db.createStory(me, { title: 'Ring', premise: 'w' }) as any;
+  const w = db.upsertEntry(world.id, me, { title: 'Warden', body: 'w' })!;
+  db.updateStory(t.id, { loreFrom: world.id });
+  const parts = { at: 1, always: 'x', stands: 'y', pockets: [] };
+  const still = () => [a, b].every((id) => db.entriesOf(t.id).some((e: any) => e.id === id));
+  assert.strictEqual(db.mergeThreads(t.id, me, a, c, parts), null, 'MERGE-CROSS-TALE: a thread of another tale is refused');
+  assert.strictEqual(db.mergeThreads(t.id, me, a, tale, parts), null, "MERGE-TALE: the tale's own thread is refused");
+  assert.strictEqual(db.mergeThreads(t.id, me, tale, a, parts), null, '  either way round');
+  assert.strictEqual(db.mergeThreads(t.id, me, a, w, parts), null, 'MERGE-WORLD: a followed World thread is refused');
+  assert.strictEqual(db.mergeThreads(t.id, them, a, b, parts), null, 'MERGE-OWNER: another writer is refused');
+  assert.strictEqual(db.mergeThreads(t.id, me, a, a, parts), null, 'MERGE-SELF: a thread with itself is refused');
+  assert.ok(still() && db.entriesOf(u.id).some((e: any) => e.id === c) && db.entriesOf(world.id).some((e: any) => e.id === w),
+    '  and nothing was deleted');
+  // TAKEN OVER, it is the tale's own row: it may be merged, and it leaves a tombstone, so the World's
+  // thread does not come back through the read-through.
+  const mine = db.unlinkEntry(t.id, me, w)!;
+  assert.ok(db.mergeThreads(t.id, me, a, mine, parts), 'MERGE-TAKEN-OVER: a taken-over copy may be merged');
+  assert.ok(!db.entriesFor(t.id).some((e: any) => e.title === 'Warden'),
+    "  and the World's thread does not come back in its place");
+  db.delStory(t.id); db.delStory(u.id); db.delStory(world.id);
+});
+
+ok('a merge that fails part way writes nothing', () => {
+  const me = db.owner('merger3');
+  const t = db.createStory(me, { title: 'Half', premise: 'p' }) as any;
+  const a = db.upsertEntry(t.id, me, { title: 'A', body: 'a' })!;
+  const b = db.upsertEntry(t.id, me, { title: 'B', body: 'b' })!;
+  db.upsertAddon(t.id, a, { slot: 'facts', name: 'facts', body: 'old a' });
+  // A pocket the floor refuses: `upsertAddon` answers null for an unknown kind, and the merge throws.
+  assert.throws(() => db.mergeThreads(t.id, me, a, b, { at: 1, always: 'new a', stands: '',
+    pockets: [{ slot: 'nonsense', name: 'x', body: 'y', target: null, merges: [] }] }), /pocket/, 'MERGE-ATOMIC: a refused part throws');
+  assert.ok(db.entriesOf(t.id).some((e: any) => e.id === b), 'MERGE-ATOMIC: the other thread is still there');
+  assert.strictEqual((db.addonsOf(t.id) as any[]).find((x) => x.entry_id === a && x.slot === 'facts')?.body, 'old a',
+    '  and the Always true of the one that stays is as it was');
+  db.delStory(t.id);
+});
+
 console.log(`\n${n} checks passed`);

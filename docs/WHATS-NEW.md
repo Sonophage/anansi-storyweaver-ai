@@ -35,6 +35,14 @@ above the boxes, and Use these filled the next scene with that first idea. The c
 now show what the next scene holds: the newest idea, or what you typed.
 ## 2026-10-29 · The header tells you when the Workbench has something new
 
+### Merge two threads that are the same one
+When one person has two threads, open either one and choose "Merge with another thread…" in its
+menu. Pick the other thread, then pick which one stays. Anansi writes the one thread they make:
+its Always true, where it stands now, and its pockets. You see each part beside what the thread
+that stays has now, and you can change any of it. Merge keeps it, and the other thread is deleted.
+Its wake words, scene pins, Over time, chalked changes and earlier versions move to the thread
+that stays. Cancel changes nothing.
+
 ### The header tells you when the Workbench has something new
 When Anansi adds something to the Workbench (a suggestion, a string, a summary that needs writing
 again), a small Workbench mark with a number appears at the top of the screen, beside the menu

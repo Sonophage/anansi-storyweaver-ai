@@ -1081,6 +1081,96 @@ ok('the house style is written from the genre and the premise, and never from th
   ok('Tidy never sends or replaces the lock pocket');
 }
 
+// ---- MERGE TWO THREADS (Seth, 2026-10-29). Anansi drafts the one thread two make, in one call;
+// nothing is written until the writer approves it, and then `db.mergeThreads` writes it.
+{
+  const t = db.createStory(me, { title: 'Bedlam', premise: 'p' }) as any;
+  db.updateStory(t.id, { persona: 'Ashley', lockedCharacter: 'Seth', lockoutOn: true });
+  const lisa = db.upsertEntry(t.id, me, { title: 'Lisa', entryType: 'character', body: 'Runs the door.' })!;
+  const pub = db.upsertEntry(t.id, me, { title: "Halsey's publicist", entryType: 'character', body: 'Books the shows.' })!;
+  const seth = db.upsertEntry(t.id, me, { title: 'Seth', entryType: 'character', body: 'Quiet.' })!;
+  db.upsertAddon(t.id, lisa, { slot: 'facts', name: 'facts', body: 'A woman in her thirties.' });
+  db.upsertAddon(t.id, pub, { slot: 'facts', name: 'facts', body: 'Sharp, 34.' });
+  const on = (e: string, slot: string, name: string, body: string) => {
+    const id = db.upsertAddon(t.id, e, { slot, name, body })!; db.setAddonActive(t.id, id, true); return id;
+  };
+  const lisaVoice = on(lisa, 'voice', 'Clipped', 'Short lines.');
+  const pubVoice = on(pub, 'voice', 'Sales', 'Talks in pitches.');
+  const pubOff = db.upsertAddon(t.id, pub, { slot: 'relationships', name: 'Old flame', body: 'Once dated Marek.' })!;
+  const lock = db.upsertAddon(t.id, seth, { slot: 'voice', name: 'Their lines are yours', body: prompts.YOURS_VOICE('Seth') })!;
+  db.setAddonActive(t.id, lock, true);
+  const sethLook = on(seth, 'appearance', 'Ring', 'A silver ring.');
+  const before = JSON.stringify([db.entriesOf(t.id), db.addonsOf(t.id)]);
+
+  tidied = { always: '[Lisa: a woman of 34; she books Halsey\'s shows]', stands: 'Lisa: runs the door and books the shows.',
+    kept: 'Kept 34 over in her thirties: it is the more specific.',
+    pockets: [{ slot: 'voice', name: 'Clipped pitch', body: 'Short lines that sell.', replaces: ['1', '2'] }] };
+  asks.length = 0;
+  const r: any = await routes['POST /api/merge/draft'](ctx({ storyId: t.id, keepId: lisa, goneId: pub }));
+  tidied = {};
+  assert.ok(!r.error, r.error);
+  const sent = askOf(prompts.MERGE)?.user ?? '';
+  for (const bit of ['Lisa', "Halsey's publicist", 'A woman in her thirties.', 'Sharp, 34.', 'Runs the door.', 'Books the shows.',
+    'Short lines.', 'Talks in pitches.'])
+    assert.ok(sent.includes(bit), `MERGE-ASK: both threads are sent whole (${bit} missing from ${sent})`);
+  assert.ok(!sent.includes('Once dated Marek'), '  but not a pocket switched off, which is the writer\'s choice and moves across as it is');
+  assert.strictEqual(r.always.now, "a woman of 34; she books Halsey's shows", 'MERGE-PLAIN: Always true comes back a plain description');
+  assert.strictEqual(r.always.was, 'A woman in her thirties.', "MERGE-WAS: against the kept thread's own text");
+  assert.strictEqual(r.stands.now, 'runs the door and books the shows.', '  and so does where it stands');
+  assert.strictEqual(r.stands.was, 'Runs the door.', "  against where the kept thread stands now");
+  assert.match(r.kept, /34/, 'MERGE-KEPT: what disagreed and which was kept rides along');
+  assert.deepStrictEqual(r.pockets.map((p: any) => [p.slot, p.body, p.target, p.merges, p.was]),
+    [['voice', 'Short lines that sell.', lisaVoice, [pubVoice], 'Short lines.']],
+    'MERGE-POCKETS: one pocket per kind, standing in for both, shown against the kept pocket');
+  assert.strictEqual(JSON.stringify([db.entriesOf(t.id), db.addonsOf(t.id)]), before, 'MERGE-DRAFT-WRITES-NOTHING: a draft writes nothing');
+
+  // THE LOCK: a thread the writer plays or holds Hands off keeps its voice out of the draft both ways.
+  const pub2 = db.upsertEntry(t.id, me, { title: 'The quiet man', entryType: 'character', body: 'Says little.' })!;
+  const quiet = on(pub2, 'voice', 'Mumbles', 'He mumbles.');
+  tidied = { always: 'Quiet.', stands: 'Quiet.', kept: '', pockets: [
+    { slot: 'voice', name: 'How he speaks', body: 'Calm.', replaces: ['1', '3'] },
+    { slot: 'appearance', name: 'Ring', body: 'A silver ring he turns.', replaces: ['2'] }] };
+  asks.length = 0;
+  const l: any = await routes['POST /api/merge/draft'](ctx({ storyId: t.id, keepId: seth, goneId: pub2 }));
+  tidied = {};
+  const lockSent = askOf(prompts.MERGE)?.user ?? '';
+  assert.ok(!lockSent.includes("lines are the writer's") && !lockSent.includes('He mumbles'), `MERGE-LOCK-UNSENT: no voice is sent when one holds the lock (${lockSent})`);
+  assert.ok(!l.pockets.some((p: any) => p.slot === 'voice'), 'MERGE-LOCK-UNDRAFTED: and none comes back');
+  assert.deepStrictEqual(l.pockets.map((p: any) => p.target), [sethLook], '  while the other pockets do');
+  // And the write refuses one anyway, from a client that sends it.
+  const w: any = await routes['POST /api/merge'](ctx({ storyId: t.id, keepId: seth, goneId: pub2, always: 'Quiet.', stands: 'Quiet.',
+    pockets: [{ slot: 'voice', name: 'Rewritten', body: 'Calm.', target: lock, merges: [quiet] }] }));
+  assert.ok(!w.error, w.error);
+  const sethVoices = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === seth && a.slot === 'voice');
+  assert.deepStrictEqual(sethVoices.map((a) => [a.id, a.body, a.active]).sort(),
+    [[lock, prompts.YOURS_VOICE('Seth'), 1], [quiet, 'He mumbles.', 0]].sort(),
+    'MERGE-LOCK-KEPT: the lock pocket is as it was, and the other voice moves across switched off');
+
+  // REFUSED BEFORE ANY CALL: the tale's own thread.
+  const tale = db.taleThread(t.id)!;
+  const was = calls;
+  const no: any = await routes['POST /api/merge/draft'](ctx({ storyId: t.id, keepId: lisa, goneId: tale }));
+  assert.match(String(no.error), /tale's own thread/, "MERGE-TALE-ROUTE: the tale's own thread is refused");
+  assert.strictEqual(calls, was, '  before the model is asked anything');
+  ok('Merge drafts the one thread two make, writes nothing until approved, and keeps the lock pocket out');
+}
+
+// THE WRITE, from the reviewed draft as the writer edited it.
+{
+  const t = db.createStory(me, { title: 'Bedlam, merged', premise: 'p' }) as any;
+  const lisa = db.upsertEntry(t.id, me, { title: 'Lisa', entryType: 'character', body: 'Runs the door.' })!;
+  const pub = db.upsertEntry(t.id, me, { title: "Halsey's publicist", entryType: 'character', body: 'Books the shows.' })!;
+  const r: any = await routes['POST /api/merge'](ctx({ storyId: t.id, keepId: lisa, goneId: pub,
+    always: 'A woman of 34, edited by the writer.', stands: 'Runs the door and books the shows.', pockets: [] }));
+  assert.ok(!r.error, r.error);
+  assert.ok(Array.isArray(r.entries) && !r.entries.some((e: any) => e.id === pub), 'MERGE-ROUTE: the answer is the tale, without the other thread');
+  assert.strictEqual((db.addonsOf(t.id) as any[]).find((a) => a.entry_id === lisa && a.slot === 'facts')?.body,
+    'A woman of 34, edited by the writer.', "MERGE-ROUTE-EDITED: what the writer typed is what is written");
+  const no: any = await routes['POST /api/merge'](ctx({ storyId: t.id, keepId: lisa, goneId: pub, always: 'x', stands: 'y', pockets: [] }));
+  assert.ok(no.error, 'MERGE-ROUTE-TWICE: a thread already merged away cannot be merged again');
+  ok('Merge writes the reviewed draft and answers with the tale');
+}
+
 // TIDY'S ANSWER IS THE THREAD'S WHOLE POCKET SET, kind by kind. The trial on Seth's thread
 // (2026-10-28, the real model): a new pocket for each kind, but `replaces` named for one only, and
 // sewn in, the old ones stayed beside the new. Now an answered pocket stands in for the pocket it
