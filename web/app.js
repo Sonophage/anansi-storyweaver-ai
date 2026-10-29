@@ -6869,7 +6869,7 @@ function setupPanel() {
         hemThreads(fresh).map(hemThreadBlock).join('')}</div>` : ''}
       <div class="lbl sect">Who is in it${
         tipMark('setWho', 'Who is in it')}</div>
-      ${tipCard('setWho', 'Who is in it', `<p>Each thread here is sent for this scene. Choose how it comes
+      ${tipCard('setWho', 'Who is in it', `<p>Each thread here is in this scene. Choose how it comes
         in: This scene only sends it for this scene whatever is said; Always on sends it for every
         scene; When it's named sends it when one of its wake words is in the prose. &#10005; takes it
         out of this scene. Each one costs space on every call, so keep what is actually in the

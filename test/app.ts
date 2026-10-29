@@ -6972,8 +6972,8 @@ const hemCardOf = (side: string) => {
   click({ hemsetup: 'c-2' }); await settle();
   assert.match(html('sideBody'), /data-setup="title" value="The Fell Omen&#39;s Tale"/,
     "Set up the next scene shows the hem's suggestion in the boxes of the scene it opened");
-  // The writer looks back at the chapter that just closed, and saves setup THERE. The draft was
-  // written for c-3; the screen now reads c-2.
+  // The writer looks back at the chapter that just closed, and saves setup THERE. The suggestion is
+  // for c-3; the screen now reads c-2.
   click({ chapter: 'c-2' }); await settle();
   click({ panel: 'setup' }); await settle();
   click({ setupstep: 'premise' }); await settle();
