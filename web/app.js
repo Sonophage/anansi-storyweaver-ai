@@ -6951,8 +6951,9 @@ function setupPanel() {
 async function loadPrompts() {
   S.prompts = { defaults: {}, yours: {} };      // set first: a second open must not refetch
   const r = await api.prompts();
+  // `anansi` too: without it "How Anansi talks" sat on "Reading it…" until some other press refetched.
   if (!r.error) { S.prompts = { defaults: r.defaults ?? {}, yours: r.yours ?? {},
-                                voice: r.voice ?? null, library: r.library ?? null }; paint(); }
+                                voice: r.voice ?? null, library: r.library ?? null, anansi: r.anansi ?? null }; paint(); }
 }
 
 /** #18 §3 · THE STYLE LIBRARY, beside the field it fills.

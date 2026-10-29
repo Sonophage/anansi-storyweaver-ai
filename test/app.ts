@@ -527,6 +527,7 @@ let worldDown = 0;
     : url.startsWith('/api/prompts') ? { defaults: { continue: 'Carry on.', speak: 'Say it.',
         act: 'Do it.', direct: 'Make it happen.', narrate: 'Write it.', reweave: '' },
         yours: {}, voice: { shipped: 'The shipped voice.', mine: null, inUse: 'The shipped voice.' },
+        anansi: { shipped: 'Dry, brief.', mine: null, inUse: 'Dry, brief.' },
         library: { voice: [{ name: 'Noir', text: 'Wet streets. Nobody explains themselves.' }],
                    style: [] } }
     // #88. The cast, in the shape POST /api/spark/cast returns: the writer's character written from
@@ -4556,6 +4557,8 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
   assert.deepStrictEqual([...page.matchAll(/data-editprompt="([a-z]+)"/g)].map((m) => m[1]),
     ['continue', 'speak', 'act', 'direct', 'narrate', 'reweave'], 'the five modes, then the reweave box');
   assert.match(page, /When you reweave/, 'the sixth box is named for what it is');
+  // The prompts load must carry Anansi's own voice too, or its box sat on "Reading it…".
+  assert.match(page, /data-anansivoice/, 'ANANSI-VOICE: How Anansi talks is drawn once the prompts load');
 
   click({ editprompt: 'reweave' });
   const open = html('page');
