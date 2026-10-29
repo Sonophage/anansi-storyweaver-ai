@@ -236,9 +236,6 @@ const S = {
   reroll: null,
   // The passage open in the full-screen Alter box, and what is typed in it: { id, text, was }.
   passEdit: null,
-  // #40. Which skeleton field is being re-rolled right now, or null. One at a time: the router does
-  // not queue and a second concurrent call kills both with HTTP 500.
-  spField: null,
   // #cover image search, 2026-09-01. The picker's own state: the phrase, the rows, and which press
   // is in flight. Null means the tray is shut.
   found: null,
