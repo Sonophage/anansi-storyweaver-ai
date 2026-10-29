@@ -16,7 +16,7 @@ Everything below this line was written by that model call, before it was removed
 
 
 
-## 2026-10-29 · Two threads can become one
+## 2026-10-29 · The header tells you when the Workbench has something new
 
 ### Merge two threads that are the same one
 When one person has two threads, open either one and choose "Merge with another thread…" in its
@@ -25,7 +25,6 @@ its Always true, where it stands now, and its pockets. You see each part beside 
 that stays has now, and you can change any of it. Merge keeps it, and the other thread is deleted.
 Its wake words, scene pins, Over time, chalked changes and earlier versions move to the thread
 that stays. Cancel changes nothing.
-## 2026-10-29 · The header tells you when the Workbench has something new
 
 ### The header tells you when the Workbench has something new
 When Anansi adds something to the Workbench (a suggestion, a string, a summary that needs writing
