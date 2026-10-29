@@ -14,7 +14,7 @@ import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultMode
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
 import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, narrationOnly, retirable, fires, summaryReaches,
-         weaveFit, actSpan } from './context.ts';
+         weaveFit, actSpan, hasReplaced, reweaveOf } from './context.ts';
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
@@ -464,8 +464,8 @@ const remotePin = (c: Ctx, pin: string | null | undefined, owner: string) => {
  *  MEASURED 2026-08-25: the long answer to "what is this story about" is 3,696 characters of reply,
  *  4,159 of JSON, about 1,100 tokens. Four proposed entries and a directive can add another 750.
  *  This is the bound on the answer now that the grammar no longer holds one. */
-/* What the writer may rewrite is EDITABLE_PROMPTS in story.ts: the five modes and the line a
- * reweave adds. `talk` is not on it: it is Anansi's chat, not a way of writing prose, and handing it
+/* What the writer may rewrite is EDITABLE_PROMPTS in story.ts: the five modes and the reweave
+ * instruction. `talk` is not on it: it is Anansi's chat, not a way of writing prose, and handing it
  * the same box would let a reworded chat prompt continue the book. `regenerate` is not on it either;
  * see EDITABLE_PROMPTS for why. One list for the route, the defaults and the editor. */
 // #21 §2. The kinds the cast call will answer for: `KINDS`, which is `SLOTS` less the tale's own.
@@ -508,8 +508,11 @@ function libraryOf(all: Record<string, string>) {
   }
   return out;
 }
+// `reweave` is shown as the engine will send it: a line saved before 2026-10-29, which has no
+// `{{replaced}}`, comes back at the end of the shipped wording (`reweaveOf`), ready to save whole.
 const modesOnly = (all: Record<string, string>) =>
-  Object.fromEntries(Object.entries(all).filter(([k]) => EDITABLE_PROMPTS.includes(k)));
+  Object.fromEntries(Object.entries(all).filter(([k]) => EDITABLE_PROMPTS.includes(k))
+    .map(([k, v]) => [k, k === 'reweave' ? reweaveOf(v) : v]));
 
 /** What the prompt editor reads, and both routes return exactly it. GET and POST had two copies
  *  of this object; adding Anansi's voice would have made it two copies of a bigger one, and the
@@ -3664,6 +3667,12 @@ export const routes: Record<string, Handler> = {
       if (name.length > 60) return { error: 'that name is too long — sixty characters at most' };
     } else if (!EDITABLE_PROMPTS.includes(key) && key !== 'voice' && key !== 'anansi') {
       return { error: `there is no mode called "${key}"` };
+    }
+    // THE REWEAVE INSTRUCTION MUST KEEP THE PLACE THE TAKE GOES. Without `{{replaced}}` a reweave
+    // never shows the take it replaces, which is the September bug. Refused here, so the box keeps
+    // what the writer typed; empty is still the reset. Older lines are repaired on read (`reweaveOf`).
+    if (key === 'reweave' && String(c.body.text ?? '').trim() && !hasReplaced(String(c.body.text))) {
+      return { error: 'the reweave instruction needs {{replaced}}, where the version being replaced goes' };
     }
     const saved = db.setPrompt(c.owner, key, String(c.body.text ?? ''));
     return { ...promptsPayload(c.owner), reset: saved === null };

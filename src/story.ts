@@ -1,6 +1,6 @@
 // Story service. Maps database rows to the engine's plain-object Input and back.
 // The engine never sees a row; the routes never see SQL.
-import { buildContext, stateInForce, wornAt, retiredAt, resolveBody } from './context.ts';
+import { buildContext, stateInForce, wornAt, retiredAt, resolveBody, REWEAVE } from './context.ts';
 import type { Input, Entry } from './context.ts';
 import { render, entryText, SYSTEM } from './render.ts';
 import { SLOTS } from './slots.ts';
@@ -378,12 +378,12 @@ export const MAX_TARGET_WORDS = 2000;
  *  of `defaultModePrompts`, which is built from it, so there is one list and not three to agree.
  *
  *  `reweave` IS NOT A MODE and does not replace one. A reweave re-runs the instruction the passage
- *  was written with (`inherit` in routes.ts), and this is a line ADDED after it, on a reweave only.
- *  A re-roll had a wording of its own from 2026-09-01 to 2026-09-18, `regenerate`, and it REPLACED
- *  the mode with "write this passage again": it named the passage being re-rolled, the one passage
- *  a re-roll's prompt then left out, so the model rewrote the passage before it. This line keeps the
- *  passage's own instruction and names no passage. Since 2026-10-29 the take being replaced IS in
- *  the prompt, framed in MODE after the instruction and before this line (docs/adr/0012). */
+ *  was written with (`inherit` in routes.ts), and this box is the reweave instruction that FOLLOWS
+ *  it, on a reweave only: the wording around the take being replaced (`REWEAVE` in context.ts,
+ *  docs/adr/0012). A re-roll had a wording of its own from 2026-09-01 to 2026-09-18, `regenerate`,
+ *  and it REPLACED the mode with "write this passage again": it named the passage being re-rolled,
+ *  the one passage a re-roll's prompt then left out, so the model rewrote the passage before it.
+ *  This one keeps the passage's own instruction and must carry the take itself (`{{replaced}}`). */
 export const EDITABLE_PROMPTS = ['continue', 'speak', 'act', 'direct', 'narrate', 'reweave'];
 
 /** The shipped wording of every editable box, rendered with its placeholders left in.
@@ -393,9 +393,9 @@ export const EDITABLE_PROMPTS = ['continue', 'speak', 'act', 'direct', 'narrate'
 export function defaultModePrompts(): Record<string, string> {
   const out: Record<string, string> = {};
   for (const mode of EDITABLE_PROMPTS) {
-    // SHIPPED EMPTY: a reweave sends the passage's own instruction and the framed take it
-    // replaces, and nothing more until the writer writes a line here. NOT MEASURED.
-    if (mode === 'reweave') { out.reweave = ''; continue; }
+    // The reweave instruction, placeholders in: the same string the engine fills (`REWEAVE` in
+    // context.ts), so the box shows exactly what an unedited reweave sends around the take.
+    if (mode === 'reweave') { out.reweave = REWEAVE; continue; }
     const m = buildContext({
       story: { title: '', genre: '', premise: '', setting: '', pov: '', writingStyle: '', spice: 2 },
       chapters: [], passages: [{ id: 'p', ordinal: 1, body: 'x.' }], entries: [],
@@ -472,7 +472,7 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     edges: v.edges ?? [],
     budget: budgetFor(v.story, slot, maxTokens), tailTokens: 220,
     modePrompts,
-    // WHEN YOU REWEAVE: the writer's line, on a reweave only. A reweave is the one call that stops
+    // WHEN YOU REWEAVE: the writer's reweave instruction, on a reweave only. A reweave is the one call that stops
     // short of a passage (`upToOrdinal`), so that is what decides it, here above the line.
     reweave: upToOrdinal == null ? undefined : modePrompts?.reweave,
     // THE TAKE IT REPLACES, and the writer's note on it (docs/adr/0012). The passage at
