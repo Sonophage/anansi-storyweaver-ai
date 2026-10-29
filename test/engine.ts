@@ -541,8 +541,8 @@ ok('a 120-chapter book forgets its distant past, in one piece, and acts get it b
  *
  * A re-roll of passage N is assembled from the passages BEFORE N — `assemble` filters
  * `ordinal < upToOrdinal`, so a new take is not written with knowledge of what came after it, and
- * the take being replaced was not in the prompt either (since 2026-10-29 it is, framed in MODE as
- * the version being replaced: docs/adr/0012). From 2026-09-01 a wording of its own rode
+ * the take being replaced is not in the prompt either (for part of 2026-10-29 it was, framed in
+ * MODE, and the model continued it or copied it: docs/adr/0012). From 2026-09-01 a wording of its own rode
  * with it, "Write this passage again", pointing at exactly the passage that had been cut. The last
  * passage the model could see was N-1, so it wrote N-1 again: press Regenerate on the model's
  * answer and you were handed back your own paragraph.

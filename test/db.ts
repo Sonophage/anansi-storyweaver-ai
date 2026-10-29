@@ -912,10 +912,9 @@ ok('regenerating a passage does not show the model the passages after it', () =>
   const upTo  = story.assemble(v, slot, 'direct', 'go', target.ordinal);
   assert.ok(whole.prompt.includes('PASSAGE-DELTA'), 'a normal call sees the whole document');
   assert.ok(!upTo.prompt.includes('PASSAGE-DELTA'), 'a regenerate must not see the future');
-  // The passage it is replacing is not PROSE. Since 2026-10-29 (docs/adr/0012) it is sent once,
-  // framed as the version being replaced, inside MODE; `test/scope.ts` holds the framing.
-  assert.ok(!upTo.manifest.blocks.some((b: any) => b.kind !== 'MODE' && b.text.includes('PASSAGE-BRAVO')),
-    'nor the passage it is replacing, as anything but the framed take in MODE');
+  // The passage it is replacing is not sent in any form (docs/adr/0012). For part of 2026-10-29 it
+  // went into MODE, framed, and the model continued it or copied it.
+  assert.ok(!upTo.prompt.includes('PASSAGE-BRAVO'), 'nor the passage it is replacing, in any form');
   assert.ok(upTo.prompt.includes('PASSAGE-ALPHA'), 'but must see what came before');
   db.delStory(s2.id);
 });

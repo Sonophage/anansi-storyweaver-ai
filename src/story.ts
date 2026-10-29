@@ -378,12 +378,12 @@ export const MAX_TARGET_WORDS = 2000;
  *  of `defaultModePrompts`, which is built from it, so there is one list and not three to agree.
  *
  *  `reweave` IS NOT A MODE and does not replace one. A reweave re-runs the instruction the passage
- *  was written with (`inherit` in routes.ts), and this box is the reweave instruction that FOLLOWS
- *  it, on a reweave only: the wording around the take being replaced (`REWEAVE` in context.ts,
+ *  was written with (`inherit` in routes.ts), and this box is the frame that FOLLOWS it, on a
+ *  reweave with a What didn't work note only: the wording around the note (`REWEAVE` in context.ts,
  *  docs/adr/0012). A re-roll had a wording of its own from 2026-09-01 to 2026-09-18, `regenerate`,
  *  and it REPLACED the mode with "write this passage again": it named the passage being re-rolled,
  *  the one passage a re-roll's prompt then left out, so the model rewrote the passage before it.
- *  This one keeps the passage's own instruction and must carry the take itself (`{{replaced}}`). */
+ *  This one keeps the passage's own instruction and names no passage it does not send. */
 export const EDITABLE_PROMPTS = ['continue', 'speak', 'act', 'direct', 'narrate', 'reweave'];
 
 /** The shipped wording of every editable box, rendered with its placeholders left in.
@@ -393,8 +393,8 @@ export const EDITABLE_PROMPTS = ['continue', 'speak', 'act', 'direct', 'narrate'
 export function defaultModePrompts(): Record<string, string> {
   const out: Record<string, string> = {};
   for (const mode of EDITABLE_PROMPTS) {
-    // The reweave instruction, placeholders in: the same string the engine fills (`REWEAVE` in
-    // context.ts), so the box shows exactly what an unedited reweave sends around the take.
+    // The note frame, placeholder in: the same string the engine fills (`REWEAVE` in context.ts),
+    // so the box shows exactly what an unedited reweave sends around the note.
     if (mode === 'reweave') { out.reweave = REWEAVE; continue; }
     const m = buildContext({
       story: { title: '', genre: '', premise: '', setting: '', pov: '', writingStyle: '', spice: 2 },
@@ -418,8 +418,7 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
   //
   // STRICTLY BEFORE, so the passage being re-rolled is not PROSE either. From 2026-09-01 the
   // re-roll's wording said "write this passage again" about a passage cut out right here, and the
-  // model rewrote the one before it instead. Since 2026-10-29 (docs/adr/0012) it comes back once,
-  // as `replacing` below: framed in MODE as the version being replaced, never as the story.
+  // model rewrote the one before it instead. It does not come back in any form (docs/adr/0012).
   const passages = upToOrdinal == null ? v.passages
     : v.passages.filter((p) => p.ordinal < upToOrdinal);
   // COUNCIL-06 ship 3 · A BOOK IS NEVER WRITTEN WITH NO VOICE. `context.ts` gates the whole VOICE
@@ -472,14 +471,12 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     edges: v.edges ?? [],
     budget: budgetFor(v.story, slot, maxTokens), tailTokens: 220,
     modePrompts,
-    // WHEN YOU REWEAVE: the writer's reweave instruction, on a reweave only. A reweave is the one call that stops
+    // WHEN YOU REWEAVE: the writer's frame for the note, on a reweave only. A reweave is the one call that stops
     // short of a passage (`upToOrdinal`), so that is what decides it, here above the line.
     reweave: upToOrdinal == null ? undefined : modePrompts?.reweave,
-    // THE TAKE IT REPLACES, and the writer's note on it (docs/adr/0012). The passage at
-    // `upToOrdinal` is the one cut from `passages` above: it goes back in, but only as the framed
-    // version being replaced in MODE, never as prose. Read from the view here, above the line.
-    replacing: upToOrdinal == null ? undefined
-      : v.passages.find((p) => p.ordinal === upToOrdinal)?.body,
+    // WHAT DID NOT WORK, the writer's note from the Reweave box, on a reweave only (docs/adr/0012).
+    // The take it is about is NOT sent, in any form: the passage at `upToOrdinal` stays cut from
+    // `passages` above. For one day it went back in, framed, and the model continued it or copied it.
     whatFailed: upToOrdinal == null ? undefined : whatFailed,
     // A number, resolved before the line: `buildContext` stays pure and reads no setting of its
     // own. Zero means the writer left it on "let her decide", and nothing about length reaches

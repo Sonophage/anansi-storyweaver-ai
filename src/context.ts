@@ -128,17 +128,14 @@ export interface Input {
   // than being read from a table down in the engine, because buildContext is pure below the line
   // in story.ts and this is a flag like any other.
   modePrompts?: Record<string, string>;
-  /** WHEN YOU REWEAVE: the writer's own reweave instruction, as saved, set only on a reweave and
-   *  resolved above the line in story.ts. The wording around the take in the MODE block, after the
-   *  mode's instruction and never in place of it. Empty or absent sends the shipped `REWEAVE`; one
-   *  without `{{replaced}}` is repaired by `reweaveOf`. NOT MEASURED. */
+  /** WHEN YOU REWEAVE: the writer's own framing for the What didn't work note, as saved, set only
+   *  on a reweave and resolved above the line in story.ts. Sent in the MODE block after the mode's
+   *  instruction, and only when there is a note. Empty or absent sends the shipped `REWEAVE`; a
+   *  saved value from before the later 2026-10-29 change is repaired by `reweaveOf`. NOT MEASURED. */
   reweave?: string;
-  /** THE TAKE A REWEAVE REPLACES, set only on a reweave and resolved above the line in story.ts.
-   *  Sent in the MODE block after the instruction, framed as the version being replaced and never
-   *  as prose (docs/adr/0012). NOT MEASURED against the plain reweave it replaced. */
-  replacing?: string;
-  /** WHAT DID NOT WORK in that take, in the writer's words from the Reweave box. Optional, and only
-   *  read when `replacing` is set: a note about a take that is not in the prompt names nothing. */
+  /** WHAT DID NOT WORK in the take being replaced, in the writer's words from the Reweave box. Set
+   *  only on a reweave. The take itself is NOT sent (docs/adr/0012), so the note must stand alone:
+   *  empty sends nothing, and the reweave's prompt is the one that wrote the passage, to the byte. */
   whatFailed?: string;
   /** Roughly how long the writer wants a passage, in words. Zero or absent is "let her decide",
    *  and then NOTHING about length reaches the model — which is the shipped default.
@@ -269,46 +266,36 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
     + 'sentences that takes.',
 };
 
-/* THE REWEAVE INSTRUCTION: what a reweave sends after the passage's own instruction, around the take
- * it replaces (Seth, 2026-10-29; docs/adr/0012). Since 2026-10-29 it is the writer's to edit, as
+/* WHEN YOU REWEAVE: the frame around the writer's What didn't work note, sent after the passage's
+ * own instruction on a reweave that has a note, and never when it has none (docs/adr/0012). It is
  * Account → Writing → When you reweave, and this is the shipped wording that box starts from and
- * Reset puts back. The writer edits the WORDING; the engine inserts the VALUES:
- *   {{replaced}}   the take being replaced. Required: a save without it is refused at the route,
- *                  because a reweave instruction that never shows the take is the September bug.
- *   {{whatfailed}} the writer's What didn't work note. The whole line that holds it is dropped when
- *                  the note is empty, so an empty note leaves no empty brackets behind.
+ * Reset puts back. The writer edits the WORDING; the engine inserts the VALUE:
+ *   {{whatfailed}} the writer's note, inserted as typed.
  *
- * Why the wording is what it is:
- *   - it sits in MODE, after the instruction, so the passage before is still the last PROSE and
- *     every "the passage above" in a mode's wording still points at it;
- *   - the take is fenced and called the version being replaced, never prose, because SYSTEM says to
- *     continue from the final word of the text and the take would otherwise be that word;
- *   - it says where to start (where the prose above stops) and names both wrong readings, a
- *     continuation of the take and a rewrite of the passage before it (the September failure).
+ * THE TAKE BEING REPLACED IS NOT SENT. From earlier on 2026-10-29 it was, framed as the version
+ * being replaced, with a `{{replaced}}` placeholder. On Seth's tale (scene 2, ordinal 34) GLM-4-32B
+ * on Featherless first wrote a continuation of the replaced take, and on the next reweave returned
+ * that take byte for byte, on a fresh seed. So this wording has to make sense without the take: it
+ * says the last version is not shown, and asks for what the note describes to be avoided.
  * SHAPES, NO EXAMPLES: the real model copies quoted text, so nothing here is a sample sentence.
  * NOT MEASURED against the plain reweave; owed an A/B (bench/ab.ts, two arms at once). */
-export const REWEAVE = '[THE VERSION BEING REPLACED. This is what was written for the instruction above, and '
-  + 'the writer does not want it. It is not part of the story, and it is not prose to continue from.]\n'
-  + '{{replaced}}\n'
-  + '[END OF THE VERSION BEING REPLACED.]\n'
-  + 'Write a new version of that same passage, to take its place. Start where the prose above stops, '
-  + 'the same place the replaced version starts. It is not a continuation of the replaced version, '
-  + 'and it is not a rewrite of the passage before it. Do not copy its sentences.\n'
-  + "[What did not work in the replaced version, in the writer's words: {{whatfailed}}]";
+export const REWEAVE = '[A note from the writer on what did not work in the last version of this passage. '
+  + 'That version is not shown. Avoid what the note describes: {{whatfailed}}]';
 
-/** Whether a reweave instruction has the place the take goes. The route's refusal and the repair
- *  below both ask this, so there is one pattern for "has {{replaced}}". */
-export const hasReplaced = (text: string) => /\{\{\s*replaced\s*\}\}/.test(text);
-
-/** THE REWEAVE INSTRUCTION IN FORCE for a saved value: the writer's own when it has `{{replaced}}`,
- *  the shipped one when there is none. REPAIRED, NOT REFUSED, when a saved value lacks it: until
- *  2026-10-29 this box held a line ADDED after the shipped frame, and the route stored it without a
- *  placeholder. Such a line goes at the end of the shipped wording, which is where it was sent then,
- *  so nothing a writer saved before changes what a reweave sends. The editor shows the same repair. */
+/** THE NOTE FRAME IN FORCE for a saved value. REPAIRED ON READ, never rewritten in the table:
+ *  - empty: the shipped `REWEAVE`;
+ *  - holds `{{replaced}}`: saved between 17ff4fa and the later 2026-10-29 change, written around a
+ *    take that is no longer sent, so its fence lines would name a text that is not there. The
+ *    shipped `REWEAVE`;
+ *  - holds no `{{whatfailed}}`: a line saved before 17ff4fa (it was added after the frame then), or
+ *    a save without the placeholder. It goes after the shipped `REWEAVE`, so the note keeps its
+ *    frame and the writer's words are still sent, after the note, where the old line went;
+ *  - otherwise the writer's own.
+ *  The editor shows the same repair, so Save stores what is sent. */
 export const reweaveOf = (saved?: string | null) => {
   const t = saved?.trim();
-  if (!t) return REWEAVE;
-  return hasReplaced(t) ? t : `${REWEAVE}\n${t}`;
+  if (!t || /\{\{\s*replaced\s*\}\}/.test(t)) return REWEAVE;
+  return /\{\{\s*whatfailed\s*\}\}/.test(t) ? t : `${REWEAVE}\n${t}`;
 };
 
 /** IN FORCE AT THIS CHAPTER. Not yet true, or finished — the same two questions `resolveBody` asks
@@ -1447,7 +1434,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   const last = passages.at(-1)?.body ?? '';
   const unfinished = last.length > 0 && !/[.!?"'”’]\s*$/.test(last.trimEnd());
   // ponytail: a reweave of a Narrate passage that answered an unfinished line sends no MODE block,
-  // so it sends no replaced take and no note either. Revisit if writers reweave mid-sentence
+  // so it sends no What didn't work note either. Revisit if writers reweave mid-sentence
   // answers and say the note is ignored: the frame would need a wording that keeps the mid-thought.
   if (!(input.mode === 'narrate' && unfinished)) {
     // A stale browser tab still sends the old mode names. Falling back to the neutral mode
@@ -1468,23 +1455,16 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
       ? own.replace(/\{\{\s*directive\s*\}\}/g, input.directive ?? '')
            .replace(/\{\{\s*speaker\s*\}\}/g, input.speaker || 'the point-of-view character')
       : (MODE[key] ?? MODE.continue)(input.directive, input.speaker);
-    /* THE TAKE A REWEAVE REPLACES, after the instruction, in the REWEAVE instruction's wording
-     * (Seth, 2026-10-29; docs/adr/0012): the writer's from Account → Writing, or the shipped one.
-     * This REVERSES the September rule that kept the take out of the prompt. That rule was right
-     * about the failure and wrong about the cure: the 2026-09 wording named a passage the prompt did
-     * not contain, so the model took the last passage it COULD see and rewrote that one. Here the
-     * take IS in the prompt, framed; REWEAVE above says why the frame reads as it does.
+    /* WHAT DID NOT WORK, after the instruction, in the When you reweave wording: the writer's from
+     * Account → Writing, or the shipped one (docs/adr/0012). THE TAKE BEING REPLACED IS NOT SENT,
+     * in any form. For one day (2026-10-29) it was, framed as the version being replaced, and GLM-4-32B
+     * on Featherless first continued it and then gave it back byte for byte. With no note, nothing is
+     * added, and the prompt is the one that wrote the passage.
      *
-     * ONE PASS for both placeholders, with a function, so a take or a note holding `{{replaced}}`
-     * or `$&` goes in as written and is never filled a second time. The note's line goes first,
-     * whole, when there is no note. */
-    const replacing = input.replacing?.trim();
-    const failed = replacing ? input.whatFailed?.trim() : undefined;
-    const mine = replacing ? input.reweave?.trim() : undefined;
-    const frame = replacing
-      ? reweaveOf(mine).split('\n').filter((l) => failed || !/\{\{\s*whatfailed\s*\}\}/.test(l)).join('\n')
-          .replace(/\{\{\s*(replaced|whatfailed)\s*\}\}/g, (_, k) => (k === 'replaced' ? replacing : failed ?? ''))
-      : '';
+     * A FUNCTION as the replacement, so a note holding `{{whatfailed}}` or `$&` goes in as written. */
+    const failed = input.whatFailed?.trim() || undefined;
+    const mine = failed ? input.reweave?.trim() : undefined;
+    const frame = failed ? reweaveOf(mine).replace(/\{\{\s*whatfailed\s*\}\}/g, () => failed) : '';
     const text = [said, frame].filter(Boolean).join('\n');
     // THE LENGTH TARGET, and everything about where it sits is deliberate.
     //
@@ -1505,8 +1485,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     const target = Number(input.targetWords) || 0;
     add('MODE', 'mode', target > 0 && input.mode !== 'talk'
       ? `${text}\nAim for roughly ${target} words, and stop sooner if the beat is done.` : text,
-      `mode:${key}${own ? ' · yours' : ''}${replacing ? ' · replacing a take' : ''}`
-      + `${failed ? ' · what did not work' : ''}${mine ? ' · your reweave' : ''}`);
+      `mode:${key}${own ? ' · yours' : ''}${failed ? ' · what did not work' : ''}${mine ? ' · your reweave' : ''}`);
   }
 
   // ponytail: ceilings and a hard refusal, no budget engine. No reservation, no trim ladder, and no
