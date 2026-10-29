@@ -218,8 +218,10 @@ _In code_: the `waiting` panel
 ## Writing
 
 **Reweave**:
-Ask for a new version of a passage. It sends the passage's own mode instruction again. The writer's
-**When you reweave** line, if they wrote one, is added after that instruction, on a reweave only.
+Ask for a new version of a passage. It sends the passage's own mode instruction again, then the
+version being replaced, marked so that it is not read as the story, then the writer's **What didn't
+work** note from the Reweave box, if they filled it in. The writer's **When you reweave** line, if
+they wrote one, comes last, on a reweave only. ADR 0012.
 _Avoid_: regenerate, re-roll, roll it again, write another, ask again
 _In code_: reroll, regenerate
 

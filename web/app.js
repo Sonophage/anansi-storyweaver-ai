@@ -8516,8 +8516,9 @@ function writingDefaults() {
         tipMark('genPrompts', 'The five modes')}</div>
       ${tipCard('genPrompts', 'The five modes', `<p>Yours on every tale, not on one,
         and they reach the model exactly as written &mdash; nothing is added between the box and the
-        model. Reweave runs the passage's own mode instruction again, and the last box,
-        <strong>When you reweave</strong>, is a line added after it. Read one in
+        model. Reweave runs the passage's own mode instruction again, then shows the version being
+        replaced and what didn't work, and the last box, <strong>When you reweave</strong>, is a
+        line added after them. Read one in
         <strong>What he reads &rarr; Exactly as sent</strong> before you trust it.</p>`)}
       ${(() => {
         // The shipped wording comes from the server, rendered by the engine itself, so the box
@@ -8529,7 +8530,8 @@ function writingDefaults() {
         // the route saves and the engine reads. The five modes, then `reweave`, which is not a
         // mode: a line ADDED after the passage's own instruction on a reweave. The 2026-09
         // `regenerate` wording REPLACED that instruction and named the passage being re-rolled,
-        // the one passage a re-roll's prompt leaves out; see EDITABLE_PROMPTS.
+        // the one passage a re-roll's prompt then left out; see EDITABLE_PROMPTS. Since 2026-10-29
+        // the line comes after the framed take and the writer's note (docs/adr/0012).
         return Object.keys(defaults).map((k) => {
           const mine = yours[k];
           const open = S.promptOpen === k;
@@ -8545,8 +8547,8 @@ function writingDefaults() {
             </button>
             ${open ? `${rw ? tipCard(`prompt-${k}`, name, `<p>Added after the passage's own
                 instruction when you reweave it, never in place of it, and sent on a reweave only.
-                Empty, a reweave sends that instruction and nothing more. Press Reset to empty
-                it.</p>`) : tipCard(`prompt-${k}`, `The ${k} instruction`, `<p>Replaces the whole
+                It comes last, after the version being replaced and what didn't work. Empty, nothing
+                is added. Press Reset to empty it.</p>`) : tipCard(`prompt-${k}`, `The ${k} instruction`, `<p>Replaces the whole
                 instruction for this mode. Reweave runs the instruction the passage was
                 written with again, so this is what it says on the way back round too. ${
                 k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
@@ -8555,7 +8557,7 @@ function writingDefaults() {
                 again.</p>`)}
               <textarea class="field" data-prompttext aria-label="${rw ? 'What a reweave adds'
                 : `The whole instruction for ${esc(k)}`}"${rw
-                ? ' placeholder="Empty: a reweave sends the passage&#39;s own instruction and nothing more."' : ''}
+                ? ' placeholder="Empty: nothing is added to a reweave."' : ''}
                 style="min-height:132px; font-family:ui-monospace,monospace;
                 font-size:11.5px; line-height:1.5">${esc(mine ?? defaults[k] ?? '')}</textarea>
               <div class="btnrow">
