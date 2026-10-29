@@ -289,6 +289,88 @@ export const touchedAgo = (t) => {
 export const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) =>
   ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/** QUOTED SPEECH AND ASTERISK EMPHASIS, ACCENTED. Seth, 2026-10-29: "things between quotations or
+ *  asterisks or double asterisks should be accented".
+ *
+ *  Takes text that has ALREADY been through `esc` and returns it with four tags added: a quote
+ *  becomes `<span class="q">` with its marks kept, `**x**` becomes `<strong>` and `*x*` becomes `<em>`
+ *  with their asterisks removed. Nothing else is added and nothing is unescaped, so marking cannot
+ *  let markup through: the text holds no `<` and no raw `"` by the time it gets here, and `&quot;`
+ *  is read as one unit, so the six characters "&quot;" typed in a passage arrive as `&amp;quot;`
+ *  and are not a quote. Display only: the stored passage, the prompt and Alter keep the asterisks.
+ *
+ *  A newline ends a paragraph and everything open closes there. What is still open at the end of a
+ *  paragraph is LEFT LITERAL — an unmatched mark never styles the rest of the text — with one
+ *  exception, the printer's rule for speech that runs over paragraphs: the quote is not closed, and
+ *  the next paragraph opens with a quote mark. Then this paragraph's part is styled to its end.
+ *
+ *  `done: false` is for a passage still being written: its LAST paragraph is unfinished, so what is
+ *  open there is shown open (asterisks hidden, words styled) rather than literal. That is what keeps
+ *  a streamed asterisk from showing and then vanishing when its closer arrives.
+ *
+ *  Which marks count. A curly quote says which way it faces. A straight one, and an asterisk, opens
+ *  when it has text after it and no letter or digit before it, and closes when it has text before
+ *  it and no letter or digit after it — so "5 * 3", a lone *, snake*case and 6" are all literal.
+ *  Apostrophes and single quotes (' and ’) are never quote marks. Three or more asterisks are
+ *  literal. */
+export function accent(text, { done = true } = {}) {
+  const OPEN = { q: '<span class="q">', em: '<em>', strong: '<strong>' };
+  const CLOSE = { q: '</span>', em: '</em>', strong: '</strong>' };
+  const lines = String(text ?? '').split('\n');
+  const word = (u) => u != null && /^[\p{L}\p{N}]$/u.test(u);
+  const blank = (u) => u == null || /^\s$/.test(u);
+  // Does this paragraph begin with an opening quote? The printer's continued-speech rule.
+  const opensQuote = (s) => /^\s*(\u201c|&quot;)\S/.test(s ?? '');
+  // For each unit of the text (a character, or a whole entity such as &quot;): the tags before it,
+  // what it shows, and the tags after it.
+  const out = [];
+  lines.forEach((line, li) => {
+    const units = line.match(/&[#\w]+;|[\s\S]/gu) ?? [];
+    const base = out.length;
+    for (const u of units) out.push({ pre: [], t: u, post: [] });
+    const stack = [];
+    // Open `a` and close it after unit `b`, hiding both sets of asterisks. `b` null is the end of
+    // the paragraph, where there is no closer to hide.
+    const pair = (a, b, kind) => {
+      out[base + a.i].pre.push(kind);
+      if (kind !== 'q') for (let k = 0; k < a.len; k++) out[base + a.i + k].t = '';
+      if (b == null) { out[base + units.length - 1].post.push(kind); return; }
+      out[base + b].post.unshift(kind);
+      if (kind !== 'q') for (let k = 0; k < a.len; k++) out[base + b - k].t = '';
+    };
+    for (let i = 0; i < units.length; i++) {
+      const u = units[i];
+      if (u === '*') {
+        let len = 1; while (units[i + len] === '*') len++;
+        const prev = units[i - 1], next = units[i + len];
+        const canOpen = !blank(next) && !word(prev), canClose = !blank(prev) && !word(next);
+        const kind = len === 1 ? 'em' : len === 2 ? 'strong' : null;
+        const at = kind && canClose ? stack.findLastIndex((s) => s.kind === kind) : -1;
+        if (at >= 0) { pair(stack[at], i + len - 1, kind); stack.length = at; }
+        else if (kind && canOpen) stack.push({ kind, i, len });
+        i += len - 1;
+        continue;
+      }
+      const curlyOpen = u === '\u201c', curlyClose = u === '\u201d';
+      if (!curlyOpen && !curlyClose && u !== '&quot;') continue;
+      const prev = units[i - 1], next = units[i + 1];
+      const canOpen = curlyOpen || (u === '&quot;' && !blank(next) && !word(prev));
+      const canClose = curlyClose || (u === '&quot;' && !blank(prev) && !word(next));
+      const at = stack.findIndex((s) => s.kind === 'q');
+      if (canClose && at >= 0) { pair(stack[at], i, 'q'); stack.length = at; }
+      // A second opening quote while one is open: the first was never closed, so it is literal.
+      else if (canOpen) { if (at >= 0) stack.length = at; stack.push({ kind: 'q', i, len: 1 }); }
+    }
+    // What is still open at the end of the paragraph, closed innermost first.
+    const nextLine = lines.slice(li + 1).find((l) => l.trim());
+    const keep = !done && li === lines.length - 1 ? stack
+      : stack.filter((s) => s.kind === 'q' && opensQuote(nextLine));
+    keep.toReversed().forEach((s) => pair(s, null, s.kind));
+    if (li < lines.length - 1) out.push({ pre: [], t: '\n', post: [] });
+  });
+  return out.map((u) => u.pre.map((k) => OPEN[k]).join('') + u.t + u.post.map((k) => CLOSE[k]).join('')).join('');
+}
+
 /* #122 · ONE WORD-LEVEL DIFF for every place a thread or a Voice changes: a thread's Alterations,
  * the Workbench cards, Talk's change lines, the Voice choice. Seth, 2026-10-28: "we need some
  * diffing for thread changes and in this case the voice". One function and one rendering

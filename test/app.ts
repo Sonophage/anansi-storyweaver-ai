@@ -2239,6 +2239,63 @@ ok('what is owed is a dot on the hero\'s Carry on, and its label says what');
   ok('a passage is set like a book, with speech in its own paragraph');
 }
 
+// ACCENTED PROSE (2026-10-29). Seth: "things between quotations or asterisks or double asterisks
+// should be accented". `accent` takes ESCAPED text and returns it marked up. Every expected string
+// below is written out by hand, never built the way the code builds it.
+{
+  const { accent, esc } = await import('../web/model.js');
+  const Q = '<span class="q">';
+  const cases: [string, string, string][] = [
+    // [name, raw text, expected HTML]
+    ['curly quotes', 'She said “Run.” and left.', `She said ${Q}“Run.”</span> and left.`],
+    ['straight quotes', 'He said "Run." Then.', `He said ${Q}&quot;Run.&quot;</span> Then.`],
+    ['a straight quote mid-sentence', 'The sign said "closed", so she left.', `The sign said ${Q}&quot;closed&quot;</span>, so she left.`],
+    ['double asterisks', 'She said **stop** twice.', 'She said <strong>stop</strong> twice.'],
+    ['single asterisks', 'a *soft* word', 'a <em>soft</em> word'],
+    ['emphasis inside a quote', '“I *said* no.”', `${Q}“I <em>said</em> no.”</span>`],
+    ['strong inside a quote, straight', '"Get **out**," he said.', `${Q}&quot;Get <strong>out</strong>,&quot;</span> he said.`],
+    ['emphasis around a quote', '*“Now,”* she said.', `<em>${Q}“Now,”</span></em> she said.`],
+    ['an unclosed quote stays literal', '“Wait. She left. The end', '“Wait. She left. The end'],
+    ['an unclosed quote does not swallow the next one', '“Wait. Then “Go,” he said.',
+      `“Wait. Then ${Q}“Go,”</span> he said.`],
+    ['a stray closing quote stays literal', 'He was 6" tall.', 'He was 6&quot; tall.'],
+    ['an unclosed asterisk stays literal', '*Wait and go home.', '*Wait and go home.'],
+    ['an unclosed double asterisk stays literal', 'It was **loud and long.', 'It was **loud and long.'],
+    ['an asterisk between spaces', '5 * 3 = 15', '5 * 3 = 15'],
+    ['two of them between spaces', '5 * 3 * 2 = 30', '5 * 3 * 2 = 30'],
+    ['a lone asterisk', 'Then * nothing.', 'Then * nothing.'],
+    ['asterisks inside a word', 'snake*case*name', 'snake*case*name'],
+    ['an asterisk after a letter does not open', 'file*name* here', 'file*name* here'],
+    ['three asterisks', 'A ***scene*** break', 'A ***scene*** break'],
+    ['apostrophes are not quotes', 'Don\'t. “It’s mine,” she said. ‘Fine.’',
+      `Don&#39;t. ${Q}“It’s mine,”</span> she said. ‘Fine.’`],
+    ['a quote that runs on to the next paragraph', '“First part.\n“Second part.”',
+      `${Q}“First part.</span>\n${Q}“Second part.”</span>`],
+    ['an unclosed quote before narration stays literal', '“First.\nShe left.', '“First.\nShe left.'],
+    // Escaping and marking compose: the six characters &quot; in the text are not a quote.
+    ['the text &quot; is not a quote', 'It said &quot;hi&quot; there', 'It said &amp;quot;hi&amp;quot; there'],
+    ['a tag inside emphasis stays text', '<b>*x*</b>', '&lt;b&gt;<em>x</em>&lt;/b&gt;'],
+  ];
+  for (const [name, raw, want] of cases)
+    assert.strictEqual(accent(esc(raw)), want, `ACCENT: ${name}`);
+
+  // NO INJECTION: whatever goes in, the only tags out are the four this function writes.
+  for (const raw of ['"<img src=x onerror=alert(1)>" **<script>alert(1)</script>**',
+                     '*"\'><svg onload=alert(1)>*', '“&lt;b&gt;” **&amp;** *&quot;*']) {
+    const out = accent(esc(raw));
+    assert.doesNotMatch(out.replace(/<\/?(em|strong)>|<span class="q">|<\/span>/g, ''), /[<>"]/,
+      `ACCENT-SAFE: no markup gets through from ${JSON.stringify(raw)}`);
+  }
+
+  // WHILE A PASSAGE IS BEING WRITTEN its last paragraph is not finished, so what is open is shown
+  // open: the asterisk is already hidden and the words already styled before the closer arrives.
+  assert.strictEqual(accent(esc('“I was *going'), { done: false }), `${Q}“I was <em>going</em></span>`,
+    'ACCENT-OPEN: an unfinished paragraph keeps its quote and emphasis open');
+  assert.strictEqual(accent(esc('*One.\nTwo *three'), { done: false }), '*One.\nTwo <em>three</em>',
+    'ACCENT-OPEN: only the last paragraph is unfinished');
+  ok(`quoted speech and asterisk emphasis are accented, safely (${cases.length} cases)`);
+}
+
 
 // The one control that clears a story's model pin could not clear the only pin that has ever
 // needed clearing. `The Shadow's Debt` is pinned to `rp-t-glm47flash-h`; the router's preset list
