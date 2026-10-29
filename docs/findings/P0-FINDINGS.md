@@ -1908,6 +1908,8 @@ What shipped is the code half: `roomPieces` splits an answer the model has alrea
 proposal per room. Splitting labelled text is a transform, not a judgement — Rule 5 — so the model is
 not asked twice.
 
+*Retired 2026-10-28: nothing called `roomPieces` any more, so it was deleted with `bench/rooms.ts`.*
+
 **The denominator is proposals about a character the chapter changed, never runs.** A pass that
 proposes nothing gets no room wrong and would score perfectly. The counts are printed beside every
 percentage so a small denominator cannot hide in one, which is F10's rule.

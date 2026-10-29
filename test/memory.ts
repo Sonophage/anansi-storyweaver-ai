@@ -1878,47 +1878,7 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
 }
 
 srv.close();
-// #13. ONE PROPOSAL PER ROOM, and this is the deterministic half of it. Measured on a real chapter
-// end on 2026-08-29: all three characters came back with field "facts" and a body holding several
-// rooms at once — `appearance: ... interiority: ...` — so a change to how somebody looks was being
-// written into the room that is meant to hold what never changes. Three for three.
-//
-// Splitting text the model has already labelled is a transform, not a judgement, so it is code and
-// it is checked here without a model. The model half — whether it labels at all — is bench/rooms.ts.
-{
-  const { roomPieces } = await import('../src/routes.ts');
-  const slots = [{ name: 'appearance' }, { name: 'facts' }, { name: 'history' },
-                 { name: 'interiority' }, { name: 'relationships' }, { name: 'role' }, { name: 'voice' }];
-
-  const plain = roomPieces('appearance', 'Her hands are burned now.', slots);
-  assert.deepStrictEqual(plain, [{ field: 'appearance', body: 'Her hands are burned now.' }],
-    'an answer that was already the right shape is untouched');
-
-  const real = roomPieces('facts', 'appearance: grey under the light.\n\ninteriority: she is silent.', slots);
-  assert.deepStrictEqual(real.map((p: any) => p.field), ['appearance', 'interiority'],
-    'the exact live failure splits into the two rooms it actually named');
-  assert.strictEqual(real[0]!.body, 'grey under the light.', 'and the label is not left in the body');
-  assert.ok(!real.some((p: any) => p.field === 'facts'),
-    'and nothing is left in facts, which is where all of it was going');
-
-  const head = roomPieces('facts', 'She is sixty-one.\n\nvoice: quieter now.', slots);
-  assert.deepStrictEqual(head.map((p: any) => [p.field, p.body]),
-    [['facts', 'She is sixty-one.'], ['voice', 'quieter now.']],
-    'text before the first label stays with the field the model declared');
-
-  // A whole-description rewrite — field none — still splits if it labelled itself, because that is
-  // three room edits rather than one overwrite, which is the direction this whole phase runs in.
-  const none = roomPieces(null, 'role: she runs the desk now.', slots);
-  assert.deepStrictEqual(none, [{ field: 'role', body: 'she runs the desk now.' }],
-    'a labelled whole-rewrite becomes a room edit instead of an overwrite');
-
-  // NOT EVERY COLON IS A ROOM. Prose is full of them and a greedy split would shred a sentence.
-  const prose = roomPieces('history', 'He learned one thing: the ledger was never his.', slots);
-  assert.strictEqual(prose.length, 1, 'a colon that is not a room name is left alone');
-  ok('a change is split into the rooms it names, and prose colons are not rooms');
-}
-
-// The same chapter end produced a character whose whole body was the word "none" — the field's
+// The chapter end measured on 2026-08-29 produced a character whose whole body was the word "none" — the field's
 // vocabulary answered into the body. It is dropped rather than written into a room.
 {
   // Trimmed first, exactly as the guard does — asserting the raw regex against untrimmed text

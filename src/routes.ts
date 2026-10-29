@@ -1095,39 +1095,6 @@ function roomAsked(entries: any[], cls: any, e: any) {
   return { field, target: offer === 'said' ? null : offer, said: offer === 'said' };
 }
 
-/** One answer, split into the rooms it actually names.
- *
- *  THE DEFECT THIS EXISTS FOR, measured on a real chapter end on 2026-08-29: all three characters
- *  the pass proposed came back with `field: "facts"` and a body holding several rooms at once —
- *  `appearance: … interiority: …` — so a change to how somebody looks was written into the one room
- *  that is supposed to hold what never changes. Three for three, in the same shape.
- *
- *  The cause was the answer's SHAPE, not the wording: one entry per character with one field each,
- *  so a chapter that touched two rooms of one person had nowhere to put the second, and `facts` is
- *  the widest field on the list. The prompt now says a character may appear once per room. This is
- *  the other half, and it is deterministic on purpose — Rule 5: splitting text the model has
- *  already labelled is a transform, not a judgement, so code does it and the model is not asked
- *  twice. Text before the first label stays with the field the model declared.
- *
- *  A body with no labels comes back as one piece and nothing changes for it, which is every answer
- *  that was already the right shape. */
-export function roomPieces(field: string | null, body: string, slots: { name: string }[]) {
-  const names = slots.map((s) => s.name).sort((a, b) => b.length - a.length);
-  const re = new RegExp(`(?:^|\\n)[ \\t]*(${names.join('|')})[ \\t]*:[ \\t]*`, 'gi');
-  const hits = [...body.matchAll(re)];
-  if (!hits.length) return [{ field, body }];
-  const out: { field: string | null; body: string }[] = [];
-  const head = body.slice(0, hits[0]!.index).trim();
-  if (head) out.push({ field, body: head });
-  hits.forEach((h, i) => {
-    const from = h.index! + h[0]!.length;
-    const to = i + 1 < hits.length ? hits[i + 1]!.index! : body.length;
-    const text = body.slice(from, to).trim();
-    if (text) out.push({ field: h[1]!.toLowerCase(), body: text });
-  });
-  return out.length ? out : [{ field, body }];
-}
-
 /** The change, with everything the card already says taken back out.
  *
  *  A `changed` proposal is meant to be the size of one room. Measured over eight runs against the
