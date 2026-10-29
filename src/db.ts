@@ -3168,6 +3168,129 @@ export function delEntry(storyId: string, id: string) {
   return r;
 }
 
+/** MERGE: WHY TWO THREADS CANNOT BE MERGED, or null when they can. Both must be live threads of this
+ *  tale, which the writer may write in: a thread of another tale, or a World thread the tale only
+ *  follows, is not found here (one taken over is the tale's own row, and is). Never the tale's own
+ *  thread. One answer for the draft and the write, so the two cannot disagree. */
+export function mergeRefusal(storyId: string, o: string, keepId: string, goneId: string): string | null {
+  if (!ownsStory(storyId, o)) return 'no such tale';
+  if (!keepId || !goneId || keepId === goneId) return 'pick two different threads';
+  const row = (id: string) => q('SELECT entry_type, sync FROM entries WHERE id = ? AND story_id = ?').get(id, storyId) as any;
+  const k = row(keepId), g = row(goneId);
+  if (!k || !g || k.sync === 'dropped' || g.sync === 'dropped') return 'both threads must be threads of this tale';
+  if (k.entry_type === 'tale' || g.entry_type === 'tale') return "the tale's own thread cannot be merged";
+  return null;
+}
+
+/** MERGE TWO THREADS (Seth, 2026-10-29: "Halsey's publicist and Lisa are the same person"). The
+ *  writer picked the one that stays (`keepId`) and approved its parts (`parts`, Anansi's draft after
+ *  the review). One transaction, and no backup of its own: the library's backup is the net.
+ *
+ *  The one that stays gets the approved Always true, where it stands now (`at` is the scene being
+ *  written: the Over time entry in force there is rewritten, or its own text when none is), and the
+ *  approved pockets, each onto the pocket it names (`target`) with the pockets it stands in for
+ *  (`merges`) deleted. Every old version goes to its history, through the floors that keep one.
+ *
+ *  EVERYTHING ELSE THAT POINTS AT THE OTHER moves onto it: its pockets the draft did not touch (one of
+ *  an exclusive kind arrives switched off when the kept thread wears one), its Over time entries (one
+ *  at a scene the kept thread already has goes to the history instead), its history, its outfit
+ *  dates, its scene pins (in every tale, so a World's followers keep theirs; where both had one for a
+ *  scene, the kept thread's stands), its chalked rows (renamed, so sewing one in renames nothing),
+ *  its stitches, its update lines, its picture when the kept thread has none, and You play or Hands
+ *  off when they name it. Its wake words and its name become wake words of the one that stays. Its
+ *  retirements do not move: they were about the other.
+ *  Then it is deleted by `delEntry`, so a taken-over World thread leaves its tombstone.
+ *
+ *  The lock pocket (You play, Hands off) is the route's to keep out of `parts`: see `holdsLock`.
+ *  ponytail: an Over time entry of the other at a scene the kept thread also has goes to the history
+ *  as a body row, not to the timeline. Merge the two texts if a writer reports one lost. */
+export function mergeThreads(storyId: string, o: string, keepId: string, goneId: string, parts: any) {
+  if (mergeRefusal(storyId, o, keepId, goneId)) return null;
+  const keep = q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(keepId, storyId) as any;
+  const gone = q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(goneId, storyId) as any;
+  const t = now();
+  const kept = (field: string, value: unknown, slot: string | null = null, name: string | null = null) =>
+    q('INSERT INTO entry_revisions (id,entry_id,field,previous_value,replaced_at,replaced_by,slot,name) VALUES (?,?,?,?,?,?,?,?)')
+      .run(uid('er-'), keepId, field, String(value ?? ''), t, 'human', slot, name);
+  db.exec('BEGIN');
+  try {
+    // ITS HISTORY AND ITS OUTFIT DATES FIRST, so the pockets moved below keep what names them.
+    q('UPDATE entry_revisions SET entry_id = ? WHERE entry_id = ?').run(keepId, goneId);
+    q("UPDATE entry_events SET entry_id = ? WHERE entry_id = ? AND kind IN ('wear', 'unwear')").run(keepId, goneId);
+    // ITS ALWAYS TRUE is in the draft; its text goes to the history.
+    for (const f of q("SELECT * FROM addons WHERE entry_id = ? AND story_id = ? AND slot = 'facts'").all(goneId, storyId) as any[]) {
+      if (String(f.body ?? '').trim()) kept(`pocket:${f.id}`, f.body, 'facts', `Always true of ${gone.title}`);
+      q('DELETE FROM addons WHERE id = ?').run(f.id);
+    }
+    for (const a of q('SELECT * FROM addons WHERE entry_id = ? AND story_id = ? ORDER BY created_at, rowid').all(goneId, storyId) as any[]) {
+      const clash = a.active && EXCLUSIVE_SLOTS.includes(a.slot)
+        && q('SELECT 1 FROM addons WHERE entry_id = ? AND slot = ? AND active = 1').get(keepId, a.slot);
+      q('UPDATE addons SET entry_id = ?, active = ? WHERE id = ?').run(keepId, clash ? 0 : a.active, a.id);
+    }
+    const always = String(parts?.always ?? '').trim();
+    if (always && !upsertAddon(storyId, keepId, { slot: 'facts', name: 'facts', body: always }))
+      throw new Error('the merged Always true could not be written');
+    // THE APPROVED POCKETS, over both threads' pockets, which are all the kept thread's now.
+    const onKeep = (id: unknown) => id ? q('SELECT * FROM addons WHERE id = ? AND entry_id = ? AND story_id = ?')
+      .get(String(id), keepId, storyId) as any : null;
+    for (const p of (Array.isArray(parts?.pockets) ? parts.pockets : []) as any[]) {
+      const slot = String(p?.slot ?? ''), body = String(p?.body ?? '').trim();
+      if (!body) continue;
+      const hit = onKeep(p.target), target = hit?.slot === slot ? hit : null;
+      const merged = ((Array.isArray(p.merges) ? p.merges : []) as unknown[]).map(onKeep)
+        .filter((m: any) => m && m.slot === slot && m.id !== target?.id);
+      const keys = keysOf([target, ...merged].flatMap((x: any) => x ? JSON.parse(x.keys || '[]') : []));
+      const on = [target, ...merged].some((x: any) => x?.active) || (!target && !keys.length);
+      const id = upsertAddon(storyId, keepId, { ...(target ? { id: target.id } : {}), slot,
+        name: String(p.name ?? '').trim() || target?.name || slot, body, keys });
+      if (!id) throw new Error(`the merged pocket "${String(p.name ?? slot)}" could not be written`);
+      for (const m of merged as any[]) {
+        q('UPDATE entry_events SET addon_id = ? WHERE addon_id = ? AND entry_id = ?').run(id, m.id, keepId);
+        delAddon(storyId, m.id, true);
+      }
+      if (on) {
+        if (EXCLUSIVE_SLOTS.includes(slot)) q('UPDATE addons SET active = 0 WHERE entry_id = ? AND slot = ? AND story_id = ?').run(keepId, slot, storyId);
+        q('UPDATE addons SET active = 1 WHERE id = ?').run(id);
+      }
+    }
+    // OVER TIME, then where it stands now on the entry in force at the scene being written.
+    const have = new Set((q('SELECT from_chapter FROM entry_states WHERE entry_id = ?').all(keepId) as any[]).map((r) => r.from_chapter));
+    for (const s of q('SELECT * FROM entry_states WHERE entry_id = ? ORDER BY from_chapter').all(goneId) as any[]) {
+      if (have.has(s.from_chapter)) kept('body', s.body);
+      else q('UPDATE entry_states SET entry_id = ? WHERE id = ?').run(keepId, s.id);
+    }
+    if (String(gone.body ?? '').trim()) kept('body', gone.body);
+    const stands = String(parts?.stands ?? '').trim();
+    const inForce = q('SELECT * FROM entry_states WHERE entry_id = ? AND from_chapter <= ? ORDER BY from_chapter DESC LIMIT 1')
+      .get(keepId, Number(parts?.at) || 1) as any;
+    if (stands && inForce) upsertState(storyId, keepId, { id: inForce.id, fromChapter: inForce.from_chapter, body: stands,
+      label: inForce.label, beforeMode: inForce.before_mode });
+    upsertEntry(storyId, o, { id: keepId, title: keep.title, body: stands && !inForce ? stands : keep.body, notes: keep.notes,
+      entryType: keep.entry_type, activation: keep.activation, lastEditor: 'human', allowNoKeys: true,
+      keys: [...JSON.parse(keep.keys || '[]'), ...JSON.parse(gone.keys || '[]'), gone.title] });
+    // EVERYTHING ELSE THAT POINTS AT IT. Pins by thread alone, in every tale (see PINNABLE).
+    q('UPDATE OR IGNORE chapter_pins SET entry_id = ? WHERE entry_id = ?').run(keepId, goneId);
+    q("UPDATE proposals SET title = ? WHERE story_id = ? AND entry_id = ? AND status = 'open'").run(keep.title, storyId, goneId);
+    q('UPDATE proposals SET entry_id = ? WHERE story_id = ? AND entry_id = ?').run(keepId, storyId, goneId);
+    q('UPDATE OR IGNORE entry_edges SET parent_id = ? WHERE parent_id = ?').run(keepId, goneId);
+    q('UPDATE OR IGNORE entry_edges SET child_id = ? WHERE child_id = ?').run(keepId, goneId);
+    q('UPDATE update_lines SET entry_id = ? WHERE entry_id = ?').run(keepId, goneId);
+    q('UPDATE OR IGNORE entry_images SET entry_id = ? WHERE entry_id = ? AND story_id = ?').run(keepId, goneId, storyId);
+    for (const col of ['persona', 'locked_character'])
+      q(`UPDATE stories SET ${col} = ? WHERE id = ? AND ${col} = ?`).run(keep.title, storyId, gone.title);
+    // WHAT DID NOT MOVE goes with it, explicitly: a taken-over thread leaves a tombstone, not a delete.
+    q('DELETE FROM chapter_pins WHERE entry_id = ?').run(goneId);
+    q('DELETE FROM entry_events WHERE entry_id = ?').run(goneId);
+    q('DELETE FROM entry_edges WHERE parent_id = ? OR child_id = ? OR (parent_id = ? AND child_id = ?)').run(goneId, goneId, keepId, keepId);
+    q('DELETE FROM entry_states WHERE entry_id = ?').run(goneId);
+    q('DELETE FROM entry_images WHERE entry_id = ?').run(goneId);
+    delEntry(storyId, goneId);
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  touch(storyId);
+  return keepId;
+}
+
 /** Manual chapter end. Closes the open chapter and opens the next. */
 export function endChapter(storyId: string, branchId: string, nextTitle?: string) {
   const cur = openChapterOf(storyId);
