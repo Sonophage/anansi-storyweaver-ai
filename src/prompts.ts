@@ -1814,7 +1814,8 @@ done the moment you answer, so a thing they did not ask for is never a change; o
 - string.set: a string of the tale, by its name as title, and its whole text as it should read. A
   name the tale has changes that string; a new name adds one, with its kind: promise, or question
   for an open question. A promise is set up to pay off and an open question is kept open; neither
-  says how it ends or what happens next.
+  says how it ends or what happens next. Give a string the tale has the other kind only when the
+  writer asks for that in so many words; its text may then be left out.
 
 When the tale follows a World, a change to a thread also says to: world when it is the canon of the
 IP, for every tale that follows the World, or tale when it is the writer's own version, for this

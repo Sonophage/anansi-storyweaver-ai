@@ -2508,12 +2508,31 @@ function openPocket(entryId, id = null) {
   // #128 · A promise's "owed by" scene is on the string's own row (`V.strings`), not the pocket's.
   const owed = id ? (V.strings ?? []).find((x) => x.id === id)?.owedBy : null;
   const was = { name: a?.name ?? '', body: a?.body ?? '', keys: (a?.keys ?? []).join(', '), owed: owed == null ? '' : String(owed) };
-  S.pocket = { entryId, id, tab: 'write', slot: a?.slot ?? null, ...was, steer: '', offer: null, was };
+  S.pocket = { entryId, id, tab: 'write', slot: a?.slot ?? null, wasSlot: a?.slot ?? null, ...was, steer: '', offer: null, was };
 }
 /** Whether leaving would throw something away: a box changed, or an answer of Anansi's not yet used.
- *  A kind picked and nothing typed is one press to make again, so it is not asked about. */
+ *  A kind picked while adding and nothing typed is one press to make again, so it is not asked about;
+ *  a string made the other kind and not saved is. */
 const pocketDirty = () => !!S.pocket && (['name', 'body', 'keys', 'owed'].some((k) => S.pocket[k] !== S.pocket.was[k])
-  || !!S.pocket.offer);
+  || !!S.pocket.offer || (!!S.pocket.id && S.pocket.slot !== S.pocket.wasSlot));
+
+/** WHERE A STRING STANDS (GLOSSARY: Put in play / Set aside, Tied off / Let go): in play is on, set
+ *  aside is off, and tied off and let go are off and marked (`addons.status` = paid / dropped). */
+const STANDS = [['play', 'In play'], ['aside', 'Set aside'], ['paid', 'Tied off'], ['dropped', 'Let go']];
+const stringStand = (x) => x.status === 'paid' || x.status === 'dropped' ? x.status : x.summoned ? 'play' : 'aside';
+/** THE ONE WAY A STRING IS PUT IN PLAY, SET ASIDE, TIED OFF OR LET GO, from the Workbench and the pocket
+ *  panel alike: `POST /api/string`, whose `upsertString` writes the switch and the mark. Paying one off
+ *  takes it out of play as well: a paid promise the model is still told about is an instruction to pay
+ *  it twice. */
+async function standString(id, stand) {
+  const x = (V.strings ?? []).find((s2) => s2.id === id);
+  if (!x || !STANDS.some(([k]) => k === stand)) return { error: 'That string is not in this tale any more.' };
+  const r = await api.saveString(S.storyId, { ...x, status: stand === 'paid' || stand === 'dropped' ? stand : 'open',
+    summoned: stand === 'play' });
+  if (r.error) return r;
+  V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
+  return r;
+}
 function pocketPanel() {
   const pk = S.pocket, e = pocketThread();
   if (!pk || !e) return '';
@@ -2526,8 +2545,14 @@ function pocketPanel() {
   const label = pk.slot ? slotLabel(pk.slot) : tale ? 'string' : 'pocket';
   const [namePh, bodyPh] = SLOT_HINT[pk.slot] ?? ['What it is called', 'A plain description'];
   // THE KINDS, while adding: Ask Anansi needs one as much as Write it does, so they head both tabs.
-  const kinds = adding ? `<div class="pkkinds">${slots.map((sl) => `<button data-pocketkind="${esc(sl.name)}"
+  // A string shows them open too: it may be made the other kind (Seth, 2026-10-28), and Save sends it.
+  const kinds = adding || tale ? `<div class="pkkinds">${slots.map((sl) => `<button data-pocketkind="${esc(sl.name)}"
       class="pkkind" aria-pressed="${pk.slot === sl.name}">${esc(pocketTitle(sl.name))}</button>`).join('')}</div>` : '';
+  // WHERE AN OPEN STRING STANDS, as four choices that act at once, as the Workbench's buttons do (`standString`).
+  const x = tale && !adding ? (V.strings ?? []).find((s2) => s2.id === pk.id) : null;
+  const now = x ? stringStand(x) : null;
+  const stand = x ? `<label class="lbl">Where it stands</label><div class="pkkinds">${STANDS.map(([k, l]) =>
+    `<button data-stringstatus="${esc(x.id)}:${k}" class="pkkind" aria-pressed="${now === k}">${l}</button>`).join('')}</div>` : '';
   const write = `
     <label class="lbl" for="pk-name">Name</label>
     <input class="field" id="pk-name" value="${esc(pk.name)}" placeholder="${esc(namePh)}">
@@ -2537,6 +2562,7 @@ function pocketPanel() {
     <input class="field" id="pk-owed" inputmode="numeric" value="${esc(pk.owed)}" placeholder="The scene it should be tied off by">` : ''
     : `<label class="lbl" for="pk-keys">Wake words</label>
     <input class="field" id="pk-keys" value="${esc(pk.keys)}" placeholder="Comma separated">`}
+    ${stand}
     ${adding ? '' : `<button class="btn ghost danger push-14" data-pocketdel="${esc(pk.id)}">Remove this ${esc(label)}</button>`}`;
   const searchable = V?.searchable !== false;
   const ask = `
@@ -11042,21 +11068,18 @@ document.addEventListener('click', async (e) => {
   }
   if (d.summon) {
     const x = (V.strings ?? []).find((s2) => s2.id === d.summon);
-    const r = await api.saveString(S.storyId, { ...x, summoned: !x?.summoned });
-    if (r.error) return toast(r.error);
     if (d.deckright) S.deckDone = new Set([...(S.deckDone ?? []), d.summon]);
-    V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
+    const r = await standString(d.summon, x?.summoned ? 'aside' : 'play');
+    if (r.error) return toast(r.error);
     return toast(x?.summoned ? 'Set aside. The model stops being told about it.'
                              : 'In play. The model is told about it from the next call.');
   }
+  // The Workbench's Tied off and Let go, and the pocket panel's four choices (`STANDS`).
   if (d.stringstatus) {
-    const [id, status] = String(d.stringstatus).split(':');
-    const x = (V.strings ?? []).find((s2) => s2.id === id);
-    // Paying one off takes it out of play as well: a paid promise the model is still told about is
-    // an instruction to pay it twice.
-    const r = await api.saveString(S.storyId, { ...x, status, summoned: status === 'open' && x?.summoned });
+    const [id, stand] = String(d.stringstatus).split(':');
+    const r = await standString(id, stand);
     if (r.error) return toast(r.error);
-    V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); return;
+    return;
   }
 
   if (d.askfill !== undefined) {
@@ -11126,7 +11149,11 @@ document.addEventListener('click', async (e) => {
   if (d.pocketnew) { openPocket(d.pocketnew); S.readMenu = false; paint(); $('pk-name')?.focus?.(); return; }
   if (d.pocketx) { closePocket(t); return; }
   if (d.pockettab) { if (!S.pocket) return; S.pocket.tab = d.pockettab === 'ask' ? 'ask' : 'write'; drawPocket(); return; }
-  if (d.pocketkind) { if (!S.pocket || S.pocket.id) return; S.pocket.slot = d.pocketkind; drawPocket(); return; }
+  // While adding, any kind the thread has; open, only a string, between promise and open question.
+  if (d.pocketkind) {
+    if (!S.pocket || (S.pocket.id && pocketThread()?.entryType !== 'tale')) return;
+    S.pocket.slot = d.pocketkind; drawPocket(); return;
+  }
 
   // ---- PLAN-08: the card's two views, its jump links, and its rooms ----
   if (d.cardview) { S.cardView = d.cardview === 'form' ? 'form' : null; S.readMenu = false; S.keyDraft = null;

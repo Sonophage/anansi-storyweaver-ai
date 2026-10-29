@@ -6913,6 +6913,50 @@ const hemCardOf = (side: string) => {
       "STRINGS-SAVE: Save sends the string as a pocket of the tale's thread");
     ok('a string opens in the pocket panel, and Save sends it as a pocket of the tale');
 
+    // Seth, 2026-10-28: "I can't change a string's status or what it's for, like a promise." Open, the
+    // panel shows the string's kind as two pills and where it stands as four choices.
+    click({ editroom: 'st-1' }); await wait();
+    const open1 = html('pocketPanel');
+    assert.match(open1, /data-pocketkind="promise"[^>]*aria-pressed="true"[^>]*>Promise</,
+      'STRINGS-PANEL-KIND: an open string shows its kind, a promise');
+    assert.match(open1, /data-pocketkind="question"[^>]*aria-pressed="false"[^>]*>Open question</, '  beside open question');
+    const stands = [...open1.matchAll(/data-stringstatus="st-1:(\w+)"[^>]*aria-pressed="(\w+)"[^>]*>([^<]+)</g)]
+      .map((m) => [m[1], m[2], m[3]]);
+    assert.deepStrictEqual(stands, [['play', 'true', 'In play'], ['aside', 'false', 'Set aside'],
+      ['paid', 'false', 'Tied off'], ['dropped', 'false', 'Let go']],
+      `STRINGS-PANEL-STAND: four choices, In play chosen (${JSON.stringify(stands)})`);
+    // Each choice sends what the Workbench's buttons send, through the same door.
+    for (const [stand, status, summoned] of [['aside', 'open', false], ['paid', 'paid', false],
+      ['dropped', 'dropped', false], ['play', 'open', true]] as const) {
+      POSTED.length = 0;
+      click({ stringstatus: `st-1:${stand}` }); await wait();
+      const b = POSTED.find((x) => x.url === '/api/string')?.body;
+      assert.deepStrictEqual([b?.string?.id, b?.string?.status, b?.string?.summoned], ['st-1', status, summoned],
+        `STRINGS-PANEL-STAND: ${stand} is ${status}, ${summoned ? 'on' : 'off'}`);
+    }
+    assert.ok(html('pocketPanel').includes('role="dialog"'), '  and the panel stays open');
+    // The Workbench's switch goes through the same door.
+    POSTED.length = 0;
+    click({ summon: 'st-1' }); await wait();
+    const sm = POSTED.find((x) => x.url === '/api/string')?.body?.string;
+    assert.deepStrictEqual([sm?.status, sm?.summoned], ['open', false], 'STRINGS-SUMMON: set aside from the Workbench is the same');
+    // Made an open question: it is owed by no scene, and Save sends the new kind.
+    click({ pocketkind: 'question' }); await wait();
+    assert.match(html('pocketPanel'), /data-pocketkind="question"[^>]*aria-pressed="true"/, 'STRINGS-PANEL-KIND: question is chosen');
+    assert.doesNotMatch(html('pocketPanel'), /id="pk-owed"/, '  and the owed by box goes');
+    POSTED.length = 0;
+    click({ pocketsave: '1' }); await wait();
+    assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body?.addon,
+      { id: 'st-1', slot: 'question', name: 'The letter he has not opened', body: 'Sent by his brother', keys: [] },
+      'STRINGS-PANEL-KIND-SAVE: Save sends the string as an open question, with no owed by');
+    // One tied off shows so.
+    click({ editroom: 'st-2' }); await wait();
+    const open2 = html('pocketPanel');
+    assert.match(open2, /data-pocketkind="question"[^>]*aria-pressed="true"/, '  a question shows as one');
+    assert.match(open2, /data-stringstatus="st-2:paid"[^>]*aria-pressed="true"/, 'STRINGS-PANEL-STAND: one tied off shows Tied off');
+    click({ pocketx: '1' }); await wait();
+    ok("an open string shows its kind and where it stands, and both can be changed from the panel");
+
     // #128 · ASK ANANSI FOR A STRING: his rewrite of one the tale has is a diff, with Use this.
     click({ editroom: 'st-1' }); await wait();
     assert.match(html('pocketPanel'), /data-pockettab="ask"/, 'STRINGS-ASK: a string has Ask Anansi');

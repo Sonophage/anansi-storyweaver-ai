@@ -627,13 +627,37 @@ ok('STRING-CHANGE: a string the tale has, by its name, is rewritten, and Undo pu
   assert.match(ch.wordsFor(back), /Put back the promise The letter he has not opened/);
 });
 
-ok('STRING-REFUSED: not a kind of string, no name, no text, the same text, or a change of kind', () => {
+ok('STRING-REFUSED: not a kind of string, no name, no text, or the same text and kind', () => {
   refused(ch.checkAsked({ op: 'string.set', kind: 'voice', title: 'X', text: 'y' }, strung), /promise or an open question/i);
   refused(ch.checkAsked({ op: 'string.set', kind: 'promise', text: 'y' }, strung), /no name/i);
   refused(ch.checkAsked({ op: 'string.set', kind: 'promise', title: 'The debt', text: '  ' }, strung), /no text/i);
   refused(ch.checkAsked({ op: 'string.set', title: 'Who took the ring', text: 'Nobody says.' }, strung), /already says/i);
-  refused(ch.checkAsked({ op: 'string.set', kind: 'question', title: 'The letter he has not opened', text: 'x' }, strung),
-    /is a promise/i);
+  refused(ch.checkAsked({ op: 'string.set', kind: 'promise', title: 'the letter', text: 'Sent by his brother.' }, strung),
+    /already says/i);
+});
+
+// Seth, 2026-10-28: "I can't change a string's status or what it's for, like a promise." Asked for in so
+// many words, Talk changes a string's kind; the text may be left out, and the string keeps its own.
+ok('STRING-KIND: a string the tale has is made the other kind, and Undo puts the old kind back', () => {
+  const c = done(ch.checkAsked({ op: 'string.set', kind: 'question', title: 'the letter' }, strung));
+  assert.deepStrictEqual([c.addon, c.kind, (c as any).wasKind, c.text, c.before],
+    ['st-letter', 'question', 'promise', 'Sent by his brother.', 'Sent by his brother.'],
+    'STRING-KIND-ASKED: the same string, an open question now, its text as it was');
+  assert.strictEqual(ch.wordsFor(c), 'Made The letter he has not opened an open question.');
+  assert.strictEqual(ch.textsOf(c), null, 'STRING-KIND-NO-DIFF: its text did not change, so the line has no diff');
+  const undo = ch.undoFor(c, {});
+  assert.deepStrictEqual(undo, { op: 'thread.set', thread: 'e-tale', room: 'promise', addon: 'st-letter',
+    text: 'Sent by his brother.', wrote: 'Sent by his brother.', wroteKind: 'question' },
+    'STRING-KIND-UNDO: the Undo names the old kind, and the kind Talk left');
+  const turned = { ...strung, taleThread: { ...strung.taleThread, addons: [strung.taleThread.addons[0],
+    { ...LETTER, slot: 'question' }, strung.taleThread.addons[2]] } };
+  const back = done(ch.checkUndo(undo, turned));
+  assert.deepStrictEqual([back.room, back.addon], ['promise', 'st-letter'], 'STRING-KIND-UNDO: it puts the promise back');
+  refused(ch.checkUndo(undo, strung), /changed since/i);
+  // Both at once, in the other direction.
+  const both = done(ch.checkAsked({ op: 'string.set', kind: 'promise', title: 'Who took the ring', text: 'The ring is owed back.' }, strung));
+  assert.deepStrictEqual([both.kind, (both as any).wasKind, both.text], ['promise', 'question', 'The ring is owed back.']);
+  assert.match(ch.wordsFor(both), /^Made Who took the ring a promise: “The ring is owed back\.”$/);
 });
 
 ok('STRING-ONLY: the tale\'s thread is reached by string.set alone, and an Undo touches only its strings', () => {

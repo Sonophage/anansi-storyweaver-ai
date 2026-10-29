@@ -4871,8 +4871,11 @@ export const routes: Record<string, Handler> = {
         // is a replacement, not a second pocket beside it.
         // #127 · SO DOES WHERE A STRING STANDS NOW: it is the string's text from the next scene on (ADR 0011).
         const onto = (c.body.replace || p.kind === 'tidy' || STRING_SLOTS.includes(p.field)) && p.target ? String(p.target) : '';
+        // A string keeps the kind it has now: the writer may have changed it since the hem chalked it.
+        const slot = onto && STRING_SLOTS.includes(p.field)
+          ? (db.stringsOf(p.story_id) as any[]).find((x) => x.id === onto)?.kind ?? p.field : p.field;
         const id = db.upsertAddon(p.story_id, p.entry_id,
-          { id: onto, slot: p.field, name: p.pocket || p.title, body: c.body.body ?? p.body, keys });
+          { id: onto, slot, name: p.pocket || p.title, body: c.body.body ?? p.body, keys });
         // #114 · A TIDY'S MERGE: the other pockets it stands in for go, once it has landed. Only
         // pockets of the same thread and kind, in this tale (`delAddon` is scoped to the story).
         if (id && p.kind === 'tidy' && p.merges) {

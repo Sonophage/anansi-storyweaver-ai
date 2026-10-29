@@ -137,9 +137,10 @@ export type Change =
   | { op: 'takeover.unmake'; thread: string; title: string; origin: string }
   /** #128 · A string: `thread` is the tale's thread, null when the tale has none yet (the route makes
    *  it); `addon` is the string it writes over, null for a new one, which is set up at scene `from`
-   *  and put in play; `before` is that string's text, null when there was none. */
+   *  and put in play; `before` is that string's text, null when there was none. `wasKind` is the kind
+   *  it had, when the change makes it the other one. */
   | { op: 'string.set'; thread: string | null; title: string; kind: string; name: string; addon: string | null;
-      from: number | null; text: string; before: string | null };
+      from: number | null; text: string; before: string | null; wasKind?: string };
 export type Checked = { ok: true; change: Change } | { ok: false; said: string; why: string };
 
 const NOT_TALK = 'that is not something Talk can do. It changes the tale, its threads and its scenes; '
@@ -390,8 +391,9 @@ function sceneSet(tale: Tale, raw: any, said: string, undo: boolean): Checked {
     before: undo ? text : before, ...(undo ? { undo: true as const } : {}) } };
 }
 /** #128 · A STRING OF THE TALE (ADR 0011): a promise or an open question, a pocket of the tale's own
- *  thread, by its name. A name the tale has rewrites that string's text, and its kind stays: a request
- *  to change the kind is refused, as the pocket panel does not change one either. A new name adds one,
+ *  thread, by its name. A name the tale has rewrites that string's text, and its kind stays unless one
+ *  is asked for: then it is made the other kind (`wasKind` is the old one), as the pocket panel's two
+ *  kinds do, and the Undo puts the old kind back. A new name adds one,
  *  set up in the scene the writer is in. Its text is stored plain, as `setOn`'s is. */
 function stringSet(tale: Tale, raw: any, said: string): Checked {
   const kind = raw?.kind == null || raw.kind === '' ? null : String(raw.kind).trim().toLowerCase();
@@ -404,15 +406,17 @@ function stringSet(tale: Tale, raw: any, said: string): Checked {
   if (near.length > 1) return { ok: false, said, why: `more than one string could be "${title}": `
     + `${near.map((a) => a.name).join(', ')}. Say which` };
   const cur = near[0] ?? null;
-  if (cur && kind && kind !== cur.slot) return { ok: false, said,
-    why: `${cur.name} is ${an(roomLabel(cur.slot))}, and a string keeps its kind` };
-  const slot = cur?.slot ?? kind ?? 'promise';
+  // Seth, 2026-10-28: A STRING THE TALE HAS MAY BE MADE THE OTHER KIND, and then its text may be left out.
+  const wasKind = cur && kind && kind !== cur.slot ? cur.slot : null;
+  const slot = kind ?? cur?.slot ?? 'promise';
   const name = cur?.name ?? title;
-  const text = plain(String(raw?.text ?? '').trim(), wrapperNames(slot, t?.title ?? 'The tale', name));
+  const text = plain(String(raw?.text ?? '').trim(), wrapperNames(slot, t?.title ?? 'The tale', name))
+    || (wasKind ? cur!.body.trim() : '');
   if (!text) return { ok: false, said, why: 'it came with no text' };
-  if (cur && cur.body.trim() === text) return { ok: false, said, why: `${name} already says that` };
+  if (cur && !wasKind && cur.body.trim() === text) return { ok: false, said, why: `${name} already says that` };
   return { ok: true, change: { op: 'string.set', thread: t?.id ?? null, title: t?.title ?? 'The tale', kind: slot, name,
-    addon: cur?.id ?? null, from: cur ? null : tale.at ?? null, text, before: cur ? cur.body : null } };
+    addon: cur?.id ?? null, from: cur ? null : tale.at ?? null, text, before: cur ? cur.body : null,
+    ...(wasKind ? { wasKind } : {}) } };
 }
 
 /** The scene a number names, or `dflt`'s when none is given. Never the nearest one. */
@@ -426,10 +430,14 @@ const noScene = (tale: Tale, n: unknown) =>
 /** A thread.set, once its thread is known. Shared by a request and an Undo, so the two cannot
  *  disagree about which rooms a thread has or which room a change lands in. */
 function setOn(t: Thread, slot: string, text: string, said: string, undo: boolean, addon?: string | null,
-               wrote?: unknown): Checked {
+               wrote?: unknown, wroteKind?: unknown): Checked {
   if (t.sharedFrom) return followed(t, said);
   if (!hasRoom(t, slot)) return { ok: false, said, why: noRoom(t, slot) };
-  const cur = undo ? (t.addons ?? []).find((a) => a.id === addon && a.slot === slot) ?? null : roomFor(t, slot);
+  // A string Talk made the other kind is still that kind (`wroteKind`), and is put back as `slot`.
+  const now = STRING_SLOTS.includes(slot) && STRING_SLOTS.includes(String(wroteKind)) ? String(wroteKind) : slot;
+  if (undo && now !== slot && (t.addons ?? []).some((a) => a.id === addon && a.slot === slot))
+    return { ok: false, said, why: SINCE };
+  const cur = undo ? (t.addons ?? []).find((a) => a.id === addon && a.slot === now) ?? null : roomFor(t, slot);
   // A put-back names the pocket it writes over. With none named it would make one, and making a
   // pocket is a request's, checked as one; an Undo of a pocket Talk made is `room.unmake`.
   if (undo && !addon) return { ok: false, said, why: 'that Undo names no pocket to put back' };
@@ -464,7 +472,7 @@ export function checkUndo(raw: any, tale: Tale): Checked {
   const t = tale.entries.find((e) => e.id === String(raw.thread ?? '')) ?? (aString ? own! : undefined);
   if (!t) return { ok: false, said, why: 'that thread is no longer in this tale' };
   const text = String(raw.text ?? '');
-  if (op === 'thread.set') return setOn(t, roomOf(raw.room), text, said, true, raw.addon ?? null, raw.wrote);
+  if (op === 'thread.set') return setOn(t, roomOf(raw.room), text, said, true, raw.addon ?? null, raw.wrote, raw.wroteKind);
   if (op === 'thread.wake') return wakeOn(t, raw, said, true);
   if (op === 'thread.overtime') return overtimeOn(tale, t, raw, said, true);
   // TAKEN AWAY ONLY WHILE IT IS AS TALK MADE IT. The text it was made with rides in the Undo and is
@@ -531,6 +539,8 @@ export function wordsFor(c: Change): string {
   if (c.op === 'scene.set') return c.field === 'title'
     ? c.undo ? `Put back scene ${c.index}'s title.` : `Changed scene ${c.index}'s title: “${clip(c.text)}”`
     : c.undo ? `Put back where scene ${c.index} heads.` : `Changed where scene ${c.index} heads: “${clip(c.text)}”`;
+  if (c.op === 'string.set' && c.wasKind) return `Made ${c.name} ${an(roomLabel(c.kind))}${
+    c.text.trim() === (c.before ?? '').trim() ? '.' : `: “${clip(c.text)}”`}`;
   if (c.op === 'string.set') return c.addon ? `Changed the ${roomLabel(c.kind)} ${c.name}: “${clip(c.text)}”`
     : `Added ${an(roomLabel(c.kind))} to the tale, in play: ${c.name}.`;
   if (c.undo && STRING_SLOTS.includes(c.room)) return `Put back the ${roomLabel(c.room)} ${c.name}.`;
@@ -544,6 +554,8 @@ export function wordsFor(c: Change): string {
  *  time entry it made had nothing before it, which reads as an empty side. */
 export function textsOf(c: Change): { before: string; after: string } | null {
   if ((c as any).undo) return null;
+  // A string made the other kind and nothing else rewrote no text.
+  if (c.op === 'string.set' && c.wasKind && c.text.trim() === (c.before ?? '').trim()) return null;
   if (c.op === 'thread.set' || c.op === 'tale.set' || c.op === 'scene.set' || c.op === 'string.set')
     return { before: c.before ?? '', after: c.text };
   if (c.op === 'thread.overtime') return { before: c.before?.body ?? '', after: c.text };
@@ -783,8 +795,10 @@ export function undoFor(c: Change, made: { thread?: string; addon?: string; stat
   if (c.op === 'thread.wake') return { op: 'thread.wake', thread: c.thread, ...c.before,
     wrote: { activation: c.activation, keys: c.keys } };
   // #128 · A string Talk added is taken away; one it changed is put back, as a pocket of the tale's thread.
+  // One made the other kind is put back as the kind it was, while it is still the kind Talk left (`wroteKind`).
   if (c.op === 'string.set') return c.addon
-    ? { op: 'thread.set', thread: c.thread, room: c.kind, addon: c.addon, text: c.before, wrote: c.text }
+    ? { op: 'thread.set', thread: c.thread, room: c.wasKind ?? c.kind, addon: c.addon, text: c.before, wrote: c.text,
+        ...(c.wasKind ? { wroteKind: c.kind } : {}) }
     : { op: 'room.unmake', thread: made.thread, addon: made.addon, text: c.text };
   if (c.op !== 'thread.set') return null;
   // The first Always true on a thread that had none gets no Undo: `checkUndo` never takes one away.
