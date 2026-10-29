@@ -1569,12 +1569,12 @@ function passageHTML(p, newest, opening) {
   const from = `<div class="from"><i></i>${esc(press)}${
     p.speaker ? ` &middot; ${esc(p.speaker)}` : ''}</div>`;
   const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.directed && !mine ? ' directed' : ''}${m}${p.id === S.found ? ' found' : ''}${p.id === S.arrived ? ' arrived' : ''}`
-    // The drop cap goes on plain model narration only. Not on speech — a two-inch quotation mark
-    // is not a drop cap — and not on the writer's own passages, which are set differently: on
-    // Sutera the first passage is the writer's and is right-aligned, so a left-floated capital
-    // sat on its own with the text running away from it.
+    // The drop cap goes on narration, whoever wrote it. Not on speech — a two-inch quotation mark
+    // is not a drop cap. The writer's own passages were left out too, because they were once
+    // right-aligned (on Sutera the first passage was the writer's, and a left-floated capital sat
+    // on its own); nothing right-aligns them now, and since 2026-10-29 every passage is set alike.
     // QUIET keeps `newest` and drops only its rise (QUIET_LAND).
-    + (newest ? ` newest${p.id === QUIET_LAND ? ' quiet' : ''}` : '') + (opening && !spoken && !mine ? ' opening' : '')
+    + (newest ? ` newest${p.id === QUIET_LAND ? ' quiet' : ''}` : '') + (opening && !spoken ? ' opening' : '')
     // Holding the re-roll sheet. The class is what stops this block being the containing block for
     // it — see the note on `.rerollbox` in the stylesheet, and the longer one above the acts tray.
     + (S.reroll?.id === p.id ? ' rerolling' : '') + (S.passEdit?.id === p.id ? ' altering' : '')
@@ -9696,9 +9696,10 @@ function ghost(replaces = null) {
     // passageHTML), so it is written with one rather than gaining it as it lands (2026-10-27).
     const opens = !GHOST_VOICE && !(V?.passages ?? []).some((p) => p.chapterId === V?.currentChapter?.id && !p.isBreak);
     g.id = 'ghost'; g.className = `block inlive${accented ? ` m-${GHOST_MODE}` : ''}${GHOST_VOICE ? ' speak' : ''}${opens ? ' opening' : ''}`;
-    // SET AS IT WILL LAND. A passage with a named voice lands as speech — sans, the bubble size, the
-    // name above it — and one that opens on a quote does too (`spoken`, passageHTML). It was always
-    // written as narration and changed font the moment it landed (Seth, 2026-10-26). The voice is
+    // SET AS IT WILL LAND. A passage with a named voice lands as speech — the name above it, in the
+    // same face and size as narration since 2026-10-29 — and one that opens on a quote does too
+    // (`spoken`, passageHTML). It was always written as narration and changed font the moment it
+    // landed (Seth, 2026-10-26). The voice is
     // the speaker the press sent (GHOST_VOICE); an opening quote is seen at the first word (liveDelta).
     g.innerHTML = `<div class="from"><i></i>${esc(press)}${GHOST_VOICE ? ` &middot; ${esc(GHOST_VOICE)}` : ''}</div>
       <div class="veilweave" aria-live="polite">${weavingAt('dock') ? weaveWords('dock') : ''}</div>

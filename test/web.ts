@@ -415,6 +415,33 @@ const ok = (m: string, fn?: unknown) => {
     ok(`all ${PRESSES.length} presses carry an accent, in the theme and the rule, and the newest passage is not boxed`);
   }
 
+  /* EVERY PASSAGE IS SET IN ONE FACE. Seth, 2026-10-29: "There's a difference in the actual text size
+   * or font based on what action (speak, act, direct, narrate)." Speech (`.said`) had a size, a line
+   * height, a colour and a measure of its own and no reading font, and a passage is speech whenever
+   * it opens on a quote — so the face changed with the press. Only the accent line and the chip may
+   * differ now. Read off the stylesheet, comments stripped:
+   *   1. no rule naming a press or authorship class sets a typographic property, and
+   *   2. every rule naming `.said` names `.narr` too, and every reading-font rule naming `.narr`
+   *      names `.said`, so the two cannot drift apart one rule at a time. */
+  {
+    const html = read('app.html');
+    const sheet = (/<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');
+    const rules = [...sheet.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+      .map(([, sel, body]) => ({ sel: sel.trim(), body: body.trim() }));
+    assert.ok(rules.length > 500, `expected the stylesheet to be read (${rules.length} rules)`);
+    const TYPE = /(?:^|[;\s])(?:font(?:-family|-size|-style|-weight)?|line-height|text-align|letter-spacing|max-width)\s*:/;
+    const BY_PRESS = /\.(?:speak|you|directed|m-(?:speak|act|direct|narrate|continue|coop))(?![\w-])/;
+    const bad: string[] = [];
+    for (const r of rules) {
+      if (BY_PRESS.test(r.sel) && TYPE.test(r.body)) bad.push(`by press: ${r.sel} { ${r.body} }`);
+      if (/\.said(?![\w-])/.test(r.sel) && !/\.narr(?![\w-])/.test(r.sel)) bad.push(`speech alone: ${r.sel}`);
+      if (/^html\[data-ui-font=/.test(r.sel) && /\.narr(?![\w-])/.test(r.sel) && !/\.said(?![\w-])/.test(r.sel))
+        bad.push(`reading font skips speech: ${r.sel}`);
+    }
+    assert.deepStrictEqual(bad, [], 'a passage is set differently by the press or the hand that wrote it');
+    ok(`speech and narration share one face, and no press or author changes it (${rules.length} rules read)`);
+  }
+
   const comments = (js.match(/<!--[\s\S]*?-->/g) ?? []).length;
   assert.ok(comments > 20, `expected the markup comments to be found (${comments})`);
   ok(`${comments} html comments in the markup, none carrying a backtick`);
@@ -1348,7 +1375,7 @@ ok('the delegation refuses html and body outright');
 }
 
 // ---- FIVE SERIF, FIVE SANS, FIVE EASY TO READ (2026-10-27), AND EACH ONE DRAWN. A pick with no
-// `html[data-ui-font=…] .narr` rule sets the prose in whatever the page fell back to, and a fetched
+// `html[data-ui-font=…] :is(.narr, .said)` rule sets the prose in whatever the page fell back to, and a fetched
 // face that is not a pick, or a pick that is fetched and not listed, are the two halves disagreeing.
 {
   const app = read('web/app.js'), css = read('app.html');
@@ -1358,7 +1385,7 @@ ok('the delegation refuses html and body outright');
   assert.deepStrictEqual(groups.map((g) => g[1]), ['Serif', 'Sans', 'Easy to read'], 'three groups, in that order');
   assert.deepStrictEqual(picks.map((p) => p.length), [5, 5, 5], 'five fonts in each');
   const all = picks.flat();
-  for (const k of all) assert.match(css, new RegExp(`html\\[data-ui-font="${k}"\\] \\.narr \\{ font-family:`),
+  for (const k of all) assert.match(css, new RegExp(`html\\[data-ui-font="${k}"\\] :is\\(\\.narr, \\.said\\) \\{ font-family:`),
     `the ${k} pick has a rule that sets the prose in it`);
   const web = app.slice(app.indexOf('const WEBFONTS = {'), app.indexOf('};', app.indexOf('const WEBFONTS = {')));
   for (const k of [...web.matchAll(/\b([a-z]+): '/g)].map((m) => m[1]))

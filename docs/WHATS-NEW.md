@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Every passage is set in the same type
+Lines of speech were set in a smaller size and a different font from the narration around them, and
+a passage that opened on a quote changed font with it. Now every passage is set in your reading
+font, at your reading size and line spacing, whichever button wrote it. The speaker's name still
+sits above a spoken line, and the coloured line and the label still say which button wrote it. The
+first passage of a scene now has its large first letter when you wrote it yourself, too.
 ### No box round the last passage
 The newest passage, and the one being written, had a box round them in the colour of the press that
 wrote them. The box is gone. Each one now has the same coloured line down its left side as every

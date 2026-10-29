@@ -62,18 +62,18 @@
      while the letters are still going. */
   --t-veilout:.62s;                         /* the veil letting go of the page, slower than it arrived */
 
-  --prose:20px; --bubble:17px; --gap:30px; --col:720px;
+  --prose:20px; --gap:30px; --col:720px;
 }
 /* The nine themes are NOT here. They are one row each in web/model.js and every token is derived
    from that row by themeVars(), which applyLook() writes onto <html> as custom properties. Three
    hand-written blocks lived here and that is exactly why there were three: each new theme meant
    restating the greys, the gold and the chrome by hand, and the light one that forgot rendered
    dark text on cream. Rules that are NOT colours still key on data-ui-theme, below. */
-html[data-ui-size="xs"] { --prose:16px; --bubble:14.5px; --gap:22px; --col:620px; }
-html[data-ui-size="s"] { --prose:18px; --bubble:16px; --gap:26px; --col:660px; }
-html[data-ui-size="m"] { --prose:20px; --bubble:17px; --gap:30px; --col:720px; }
-html[data-ui-size="l"] { --prose:23px; --bubble:19px; --gap:34px; --col:780px; }
-html[data-ui-size="xl"] { --prose:26px; --bubble:21px; --gap:38px; --col:840px; }
+html[data-ui-size="xs"] { --prose:16px; --gap:22px; --col:620px; }
+html[data-ui-size="s"] { --prose:18px; --gap:26px; --col:660px; }
+html[data-ui-size="m"] { --prose:20px; --gap:30px; --col:720px; }
+html[data-ui-size="l"] { --prose:23px; --gap:34px; --col:780px; }
+html[data-ui-size="xl"] { --prose:26px; --gap:38px; --col:840px; }
 
 /* UI scale, which is a different axis from reading size: that one moves the prose, this one moves
    the chrome around it — rail, panels, labels, buttons.
@@ -121,11 +121,11 @@ html[data-ui-scale="90"]  body { zoom:0.90; }
 html[data-ui-scale="110"] body { zoom:1.10; }
 html[data-ui-scale="125"] body { zoom:1.25; }
 @media (max-width:719px) {
-  html[data-ui-size="xs"] { --prose:14.5px; --bubble:13.5px; --gap:16px; }
-  html[data-ui-size="s"] { --prose:16px; --bubble:14.5px; --gap:18px; }
-  html[data-ui-size="m"] { --prose:17.5px; --bubble:15.5px; --gap:22px; }
-  html[data-ui-size="l"] { --prose:19.5px; --bubble:17px; --gap:26px; }
-  html[data-ui-size="xl"] { --prose:22px; --bubble:18.5px; --gap:30px; }
+  html[data-ui-size="xs"] { --prose:14.5px; --gap:16px; }
+  html[data-ui-size="s"] { --prose:16px; --gap:18px; }
+  html[data-ui-size="m"] { --prose:17.5px; --gap:22px; }
+  html[data-ui-size="l"] { --prose:19.5px; --gap:26px; }
+  html[data-ui-size="xl"] { --prose:22px; --gap:30px; }
 }
 
 * { box-sizing:border-box; }
@@ -762,27 +762,33 @@ input[type="checkbox"]:focus-visible { outline:2px solid var(--gold); outline-of
 @media (max-width:719px) { #read { padding:22px 22px 0; } }
 #col { width:100%; max-width:var(--col); height:max-content; display:flex; flex-direction:column; gap:var(--gap); padding-bottom:20px; }
 
-.narr { font-size:var(--prose); line-height:1.7; color:var(--narr); text-wrap:pretty; white-space:pre-wrap; }
-html[data-ui-font="serif"] .narr { font-family:'Instrument Serif',Georgia,serif; font-style:italic; }
-html[data-ui-font="sans"] .narr { font-family:'IBM Plex Sans',system-ui,sans-serif; font-style:normal; }
-html[data-ui-font="system"] .narr { font-family:system-ui,-apple-system,'Segoe UI',sans-serif; font-style:normal; }
+/* ONE FACE FOR ALL THE PROSE, whatever wrote it. Seth, 2026-10-29: "There's a difference in the
+   actual text size or font based on what action (speak, act, direct, narrate)." Speech (`.said`) was
+   set apart: the UI's sans rather than the reading font, a smaller size (--bubble), a looser 1.65
+   line, the body colour and a 600px measure. A passage that opens on a quote is speech whichever
+   press wrote it, so the face changed with the press. Now speech and narration share every rule
+   below; the name above a line (`.who`), the chip and the line down the margin are what tell them
+   apart. test/web.ts refuses a rule that sets either one apart again. */
+:is(.narr, .said) { font-size:var(--prose); line-height:1.7; color:var(--narr); text-wrap:pretty; white-space:pre-wrap; }
+html[data-ui-font="serif"] :is(.narr, .said) { font-family:'Instrument Serif',Georgia,serif; font-style:italic; }
+html[data-ui-font="sans"] :is(.narr, .said) { font-family:'IBM Plex Sans',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="system"] :is(.narr, .said) { font-family:system-ui,-apple-system,'Segoe UI',sans-serif; font-style:normal; }
 /* FIVE SERIF, FIVE SANS, FIVE EASY TO READ (2026-10-27). The two above come from fonts.googleapis.com
    with the page, System is the device's own; the rest are fetched from the same place only when one
    is chosen or the Font tab is open (`loadFonts` in web/app.js), so a writer who never picks one
    pays nothing and the page still opens offline. Older keys are mapped by FONT_WAS in web/app.js. */
-html[data-ui-font="literata"] .narr { font-family:'Literata',Georgia,serif; font-style:normal; }
-html[data-ui-font="ebgaramond"] .narr { font-family:'EB Garamond',Garamond,Georgia,serif; font-style:normal; font-size:calc(var(--prose) * 1.05); }
-html[data-ui-font="lora"] .narr { font-family:'Lora',Georgia,serif; font-style:normal; }
-html[data-ui-font="spectral"] .narr { font-family:'Spectral',Georgia,serif; font-style:normal; }
-html[data-ui-font="inter"] .narr { font-family:'Inter',system-ui,sans-serif; font-style:normal; }
-html[data-ui-font="sourcesans"] .narr { font-family:'Source Sans 3',system-ui,sans-serif; font-style:normal; }
-html[data-ui-font="nunito"] .narr { font-family:'Nunito Sans',system-ui,sans-serif; font-style:normal; }
-html[data-ui-font="atkinson"] .narr { font-family:'Atkinson Hyperlegible Next',system-ui,sans-serif; font-style:normal; }
-html[data-ui-font="lexend"] .narr { font-family:'Lexend',system-ui,sans-serif; font-style:normal; }
-html[data-ui-font="andika"] .narr { font-family:'Andika',system-ui,sans-serif; font-style:normal; }
-html[data-ui-font="inclusive"] .narr { font-family:'Inclusive Sans',system-ui,sans-serif; font-style:normal; }
-html[data-ui-font="readex"] .narr { font-family:'Readex Pro',system-ui,sans-serif; font-style:normal; }
-.said { max-width:600px; font-size:var(--bubble); line-height:1.65; color:var(--body); text-wrap:pretty; white-space:pre-wrap; }
+html[data-ui-font="literata"] :is(.narr, .said) { font-family:'Literata',Georgia,serif; font-style:normal; }
+html[data-ui-font="ebgaramond"] :is(.narr, .said) { font-family:'EB Garamond',Garamond,Georgia,serif; font-style:normal; font-size:calc(var(--prose) * 1.05); }
+html[data-ui-font="lora"] :is(.narr, .said) { font-family:'Lora',Georgia,serif; font-style:normal; }
+html[data-ui-font="spectral"] :is(.narr, .said) { font-family:'Spectral',Georgia,serif; font-style:normal; }
+html[data-ui-font="inter"] :is(.narr, .said) { font-family:'Inter',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="sourcesans"] :is(.narr, .said) { font-family:'Source Sans 3',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="nunito"] :is(.narr, .said) { font-family:'Nunito Sans',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="atkinson"] :is(.narr, .said) { font-family:'Atkinson Hyperlegible Next',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="lexend"] :is(.narr, .said) { font-family:'Lexend',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="andika"] :is(.narr, .said) { font-family:'Andika',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="inclusive"] :is(.narr, .said) { font-family:'Inclusive Sans',system-ui,sans-serif; font-style:normal; }
+html[data-ui-font="readex"] :is(.narr, .said) { font-family:'Readex Pro',system-ui,sans-serif; font-style:normal; }
 .who { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--label); }
 .block { position:relative; display:flex; flex-direction:column; gap:10px; }
 /* Set like a book: paragraphs run on, and the indent is what separates them rather than a blank
@@ -798,7 +804,7 @@ html[data-ui-font="readex"] .narr { font-family:'Readex Pro',system-ui,sans-seri
    italic, so emphasis there turns upright, the way a printer sets it. */
 :is(.narr, .said) .q, :is(.narr, .said) strong { color:var(--accent-said, var(--gold)); }
 :is(.narr, .said) em { font-style:italic; color:var(--accent-soft, var(--gold)); }
-html[data-ui-font="serif"] .narr em { font-style:normal; }
+html[data-ui-font="serif"] :is(.narr, .said) em { font-style:normal; }
 
 /* THREE rules down the left margin, and the margin is the only place they are.
    Your own lines used to hang off the right edge, ragged-right and mirrored, which reads as a chat
@@ -1782,8 +1788,7 @@ html:not([data-ui-rail="closed"]) .navgrid > button:first-child .txt { font-size
    2026-10-26: "The font changes ... I think in edit mode"). The family comes from the .narr rules
    for the chosen font; .field would otherwise win the size and colour. */
 .rerollbox textarea[data-rerollbox] { font-family:'Instrument Serif', var(--serif, serif); font-size:20px; line-height:1.5; }
-.rerollbox textarea.narr { font-size:var(--prose); line-height:1.7; color:var(--narr); }
-.rerollbox textarea.said { font-size:var(--bubble); line-height:1.65; color:var(--body); }
+.rerollbox textarea:is(.narr, .said) { font-size:var(--prose); line-height:1.7; color:var(--narr); }
 .rerollbox .rwside { width:38px; border-radius:var(--r); display:flex; align-items:center;
   justify-content:center; flex:0 0 auto; border:1px solid var(--chip); color:var(--ink); }
 /* THE COMPOSER'S SIZE, NOT THE BOX'S. Seth, 2026-10-26: "the buttons are really long". The row
