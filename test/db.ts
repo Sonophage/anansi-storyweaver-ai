@@ -1924,19 +1924,18 @@ ok('a take inherits the instruction, and a slot can be deleted whole', () => {
   const first = db.addPassage({ storyId: st.id, branchId: st.branchId, chapterId: st.chapterId,
     body: 'He knocks once.', author: 'model', directive: 'have him lose his nerve' })!;
 
-  const rowOf = (id: string) => db.passagesOf(st.id).find((p: any) => p.id === id)
-    ?? { directive: db.passageDirective(st.id, id) };
-  assert.strictEqual(db.passageDirective(st.id, first), 'have him lose his nerve',
+  const directiveOf = (id: string) => db.passageAsked(st.id, id)?.directive ?? null;
+  assert.strictEqual(directiveOf(first), 'have him lose his nerve',
     'the instruction is on the passage it produced');
 
   // A second take is another answer to the SAME question, so it carries the same instruction. It
   // used to be absent from addVariant's INSERT entirely, which meant a reroll of a directed
   // passage produced an undirected row and a second reroll had nothing to inherit.
   const second = db.addVariant(st.id, first, 'He knocks, and waits too long.')!;
-  assert.strictEqual(db.passageDirective(st.id, second), 'have him lose his nerve',
+  assert.strictEqual(directiveOf(second), 'have him lose his nerve',
     'and a take inherits it');
   const third = db.addVariant(st.id, second, 'He does not knock at all.')!;
-  assert.strictEqual(db.passageDirective(st.id, third), 'have him lose his nerve',
+  assert.strictEqual(directiveOf(third), 'have him lose his nerve',
     'and so does a take of a take, which is what a second reroll is');
 
   // One take at a time promotes a survivor, which is right: a slot always has one.
@@ -1949,13 +1948,13 @@ ok('a take inherits the instruction, and a slot can be deleted whole', () => {
   const gone = db.delSlot(st.id, second);
   assert.strictEqual(gone, 2, 'delSlot reports how many takes it took with it');
   assert.strictEqual(db.passagesOf(st.id).length, 0, 'and the passage is out of the book');
-  assert.strictEqual(db.passageDirective(st.id, first), null, 'with no take of it left behind');
+  assert.strictEqual(directiveOf(first), null, 'with no take of it left behind');
 
   // Scoped like every other read: a passage id is not a story id.
   const other = db.createStory(db.owner('take-stranger'), { title: 'Not yours' });
   const theirs = db.addPassage({ storyId: other.id, branchId: other.branchId,
     chapterId: other.chapterId, body: 'Theirs.', author: 'model', directive: 'a secret steer' })!;
-  assert.strictEqual(db.passageDirective(st.id, theirs), null,
+  assert.strictEqual(directiveOf(theirs), null,
     'a foreign passage id yields no instruction');
   assert.strictEqual(db.delSlot(st.id, theirs), 0, 'and no foreign slot can be deleted through it');
   assert.strictEqual(db.passagesOf(other.id).length, 1, 'theirs is untouched');

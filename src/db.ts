@@ -2333,10 +2333,6 @@ export const passageAsked = (storyId: string, id: string):
   (q('SELECT mode, directive, speaker FROM passages WHERE id = ? AND story_id = ?')
     .get(id, storyId) as any) ?? null;
 
-/** Just the instruction, which is what the surface asks for. One row-reader, above. */
-export const passageDirective = (storyId: string, id: string): string | null =>
-  passageAsked(storyId, id)?.directive ?? null;
-
 /** The writer's own wording for a mode, replacing the shipped one outright.
  *
  *  Per OWNER and not per story, which is what Seth asked for: "this would be global with a button

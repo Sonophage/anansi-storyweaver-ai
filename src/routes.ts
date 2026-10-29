@@ -15,7 +15,8 @@ import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
 import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, narrationOnly, retirable, fires, summaryReaches,
          weaveFit, actSpan } from './context.ts';
-import type { Block, Manifest } from './context.ts';
+import type { Manifest } from './context.ts';
+import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
 import { checkAsked, checkUndo, undoFor, wordsFor, textsOf, checkDraft, draftWords, aimOf, askWhich, fingerprint } from './changes.ts';
 import type { Change } from './changes.ts';
@@ -493,7 +494,6 @@ const KINDS_ALL: string[] = [...KINDS];
  *  this table. Applying one COPIES it into the story's own field, which is what makes it a library
  *  rather than a link: editing the book must not edit the shelf. */
 const LIB_KINDS = ['voice', 'style'];
-const libKey = (kind: string, name: string) => `${kind}:${name}`;
 const libName = (key: string, kind: string) =>
   key.startsWith(`${kind}:`) ? key.slice(kind.length + 1) : null;
 
