@@ -2189,11 +2189,17 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   click({ leave: '1' });
   await sleep(40);
   const page = html('page');
-  const go = /<button class="btn bandgo" data-carryon="s-1"([^>]*)>([\s\S]*?)<\/button>/.exec(page);
-  assert.ok(go, 'the hero has its Carry on writing');
-  assert.match(go![1], /aria-label="Carry on writing\. Waiting: 2 threads chalked, 1 string not tied off"/,
+  // 2026-10-29 (Seth: "the button can be removed, let's just tap the square to enter"): the whole
+  // hero is the one door, and it is a real button so a keyboard reaches it.
+  const go = /<button class="art" data-carryon="s-1"([^>]*)>/.exec(page);
+  assert.ok(go, 'HERO-TAP: the whole hero is the Carry on writing press');
+  assert.doesNotMatch(page, /class="btn bandgo"/, 'HERO-TAP: and there is no separate button on it');
+  assert.match(go![1], /aria-label="Carry on writing [^"]*\. Waiting: 2 threads chalked, 1 string not tied off"/,
     'its label says what is owed, by kind, with the real count, singular as singular');
-  assert.match(go![2], /class="owedot(?: [^"]*)?"/, 'and it carries the dot');
+  assert.match(page, /<section class="resumeband[\s\S]*?class="owedot(?: [^"]*)?"/, 'and the hero carries the dot');
+  // GENRE ON THE LEFT, WORDS ON THE RIGHT, on the glass card under the last line.
+  assert.match(page, /<span class="herometa"><span>[^<]*<\/span><span>[\d,]+ words?<\/span><\/span>/,
+    'HERO-META: the genre on the left and the words on the right');
   assert.doesNotMatch(page, /data-owed=|data-readfrom=/, 'the chips and Read from scene one are gone from the rack');
   // THE COST, WRITTEN DOWN, as before: a tale that is not the hero says nothing about what it owes.
   assert.ok(!/data-carryon="s-2"/.test(page), 'a tale that is not the hero has no Carry on and no dot');
@@ -2754,6 +2760,12 @@ ok('the model panel reads the router, the preset file, this database and the id,
   // one decode rather than a second list that drifts away from it.
   assert.match(teller, /<option[^>]*>Qwen3\.6 — Write · uncensored · 35B-A3B · novel tier/,
     'and the select carries the same decode, size included');
+
+  // HOW MUCH HE READS AT ONCE, this tale's own cap (2026-10-29), in words, saved on change.
+  assert.match(teller, /<select class="field" id="f-story-maxContext" data-story="maxContext">/,
+    'CTX-SELECT: the Storyteller sets how much Anansi reads at once for this tale');
+  assert.match(teller, /<option value="" selected>All the model holds<\/option>/, '  all of it when the tale names none');
+  assert.match(teller, /<option value="16000"[^>]*>About 12,000 words<\/option>/, '  and the others in words');
 
   STORY.model = wasModel;
 }

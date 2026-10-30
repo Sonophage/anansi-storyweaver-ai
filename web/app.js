@@ -5345,6 +5345,16 @@ const PANELS = {
         <input type="checkbox" data-story="weaving" ${V.story.weaving ? 'checked' : ''}>
         Plans first${tipMark('weaving', 'Plans first')}</label>`}
 
+      ${/* HOW MUCH HE READS AT ONCE, this tale's own cap (2026-10-29). `max_context` was read by the
+            budget and set by nothing. A [data-story] select, so it saves on change. In words, as the
+            model page says context; 0.75 words a token, the same rate. The model's own room is still
+            the ceiling: a cap above it changes nothing. */ ''}
+      <label class="lbl" for="f-story-maxContext">How much he reads at once</label>
+      <select class="field" id="f-story-maxContext" data-story="maxContext">${[['', 'All the model holds'],
+        ...[8000, 16000, 32000, 64000].map((n) => [String(n), `About ${(n * 0.75).toLocaleString()} words`])]
+        .map(([v, label]) => `<option value="${v}"${String(V.story.maxContext ?? '') === v ? ' selected' : ''}>${label}</option>`).join('')}</select>
+      <div class="hint">Less is faster and keeps him on the recent pages; more lets him see further back.</div>
+
       <div class="lbl sect">How he picks words</div>
       ${slider('Surprise', 'temperature', g.temperature ?? 0.85, 2,
         'How far Anansi reaches for a less obvious word. Only for prose: his notes and suggestions always stay steady.')}
@@ -8387,8 +8397,8 @@ const ART = [
  *  THE HERO (v3 design, Seth, 2026-10-25). It was a band of about 280px, the cover beside the text,
  *  held short so the first row of books cleared a 900px window. Now it is most of the screen, as
  *  the design draws it, and the first row of books only PEEKS in under it. In it, top to bottom:
- *  where you left off and how long ago, the title, where you are, a bar per scene, the last line in
- *  a glass card with the genre and the words, and Carry on writing.
+ *  where you left off and how long ago, the title, where you are, a bar per scene, and the last line in
+ *  a glass card with the genre and the words. The whole hero is Carry on writing (2026-10-29).
  *
  *  The ground is the tale's picture; with none, the theme's accent ("colours come from the theme"),
  *  mixed into a fixed dark so the light type over it reads on every theme, parchment included.
@@ -8396,8 +8406,8 @@ const ART = [
  *
  *  What the old band carried and this does not, by Seth's call ("simplify it to match the design"):
  *  Read from scene one (the Scenes list reaches it), the room-used percentage, and the basted and
- *  not-tied-off chips. In their place a gold dot on Carry on says the tale owes something, and its
- *  label says what; the tale's own panels hold the detail.
+ *  not-tied-off chips. In their place a gold dot in the hero's corner says the tale owes something,
+ *  and the hero's label says what; the tale's own panels hold the detail.
  */
 function resumeBand(s) {
   const at = Number(s.last_chapter_idx) || 0;
@@ -8409,15 +8419,20 @@ function resumeBand(s) {
   // The first genre only, as plain words: the library's cards still carry every one as a pill.
   const genre = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean)[0] ?? '';
   const words = Number(s.words) || 0;
-  const meta = [genre && genre[0].toUpperCase() + genre.slice(1),
-    words ? `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}` : ''].filter(Boolean).join(' · ');
+  // Genre on the left, words on the right (Seth, 2026-10-29), so the two never read as one phrase.
+  const meta = genre || words ? `<span>${esc(genre ? genre[0].toUpperCase() + genre.slice(1) : '')}</span><span>${
+    words ? `${words.toLocaleString()} ${words === 1 ? 'word' : 'words'}` : ''}</span>` : '';
   const owed = [Number(s.proposed) ? `${s.proposed} thread${s.proposed === 1 ? '' : 's'} chalked` : '',
     Number(s.unpaid) ? `${s.unpaid} string${s.unpaid === 1 ? '' : 's'} not tied off` : ''].filter(Boolean);
   return `<section class="resumeband${s.cover ? ' haspic' : ''}" aria-label="Where you left off: ${esc(s.title)}">
-    <!-- The ground opens the book, because pressing a book is what a cover is for. Carry on writing
-         is the same door with the cursor already in the composer. -->
-    <span class="art" data-open="${esc(s.id)}" aria-hidden="true"${s.cover
-      ? ` style="background:url('${api.coverUrl(s.id, s.cover)}') center/cover no-repeat, ${ART[0]}"` : ''}></span>
+    <!-- THE WHOLE HERO IS THE ONE DOOR (Seth, 2026-10-29: "the button can be removed, let's just tap
+         the square to enter"). The picture is a real button under everything else on the band, so a
+         press anywhere on it carries on writing with the cursor in the composer, and a keyboard
+         reaches it. What is owed rides in its label and as the dot in the corner. -->
+    <button class="art" data-carryon="${esc(s.id)}" aria-label="Carry on writing ${esc(s.title)}${owed.length
+      ? `. Waiting: ${esc(owed.join(', '))}` : ''}"${s.cover
+      ? ` style="background:url('${api.coverUrl(s.id, s.cover)}') center/cover no-repeat, ${ART[0]}"` : ''}></button>
+    ${owed.length ? '<span class="owedot" aria-hidden="true"></span>' : ''}
     <span class="rings" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
     <span class="wash" aria-hidden="true"></span>
     <span class="herobody">
@@ -8434,12 +8449,7 @@ function resumeBand(s) {
         : `<span class="serif quote empty">${at
             ? 'The last passage is all dialogue, and a character&rsquo;s words are not the narrator&rsquo;s.'
             : 'Nothing written yet. The first passage is one press away.'}</span>`}
-      ${meta ? `<span class="herometa">${esc(meta)}</span>` : ''}
-    </span>
-    <span class="bandacts">
-      <button class="btn bandgo" data-carryon="${esc(s.id)}"${owed.length
-        ? ` aria-label="Carry on writing. Waiting: ${esc(owed.join(', '))}"` : ''}>Carry on writing${
-        owed.length ? '<span class="owedot" aria-hidden="true"></span>' : ''}</button>
+      ${meta ? `<span class="herometa">${meta}</span>` : ''}
     </span>
   </section>`;
 }
@@ -8726,7 +8736,7 @@ const WPAGES = {
     const live = ordered.filter((s) => s?.status !== 'archived');
     const shelved = ordered.filter((s) => s?.status === 'archived');
     // heroOf() is this same rule for the header, which hides its own Carry on writing while the
-    // band shows one. Change one and change the other.
+    // band is on screen, because the band is that door. Change one and change the other.
     // The hero comes from the LIVE books. A shelf with nothing but archived books has no hero at
     // all rather than promoting one — putting a book away is the act that means stop showing me
     // this, and the hero slot is the loudest place on the screen.

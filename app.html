@@ -2001,8 +2001,10 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
   .resumeband > .herobody { gap:8px; } .resumeband .bandtitle { font-size:32px; }
   .resumeband .bandmeter, .resumeband .herocount { display:none; }
   .resumeband > .glass { margin-top:10px; padding:10px 12px; } .resumeband .quote { -webkit-line-clamp:2; }
-  .resumeband > .bandacts { margin-top:10px; } }
-.resumeband > .art { position:absolute; inset:0; cursor:pointer; }
+}
+.resumeband > .art { position:absolute; inset:0; cursor:pointer; width:100%; height:100%; margin:0; padding:0;
+  border:0; border-radius:inherit; background:transparent; }
+.resumeband > .art:focus-visible { outline:2px solid var(--gold-lit); outline-offset:-4px; }
 .resumeband > .wash { position:absolute; inset:0; pointer-events:none;
   background:linear-gradient(180deg, rgba(4,6,12,.25) 0%, rgba(4,6,12,0) 25%, rgba(4,6,12,.45) 62%,
     rgba(14,12,16,.94) 100%); }
@@ -2032,20 +2034,19 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 .bandmeter { display:flex; gap:4px; width:150px; height:4px; }
 .bandmeter > i { flex:1; border-radius:2px; background:rgba(255,255,255,.22); }
 .bandmeter > i.done { background:#fff; }
-/* Not a control, so a press on it falls through to the picture, which opens the tale: the whole
-   hero is one door except Carry on writing. */
+/* Not a control, so a press on it falls through to the picture, which carries on writing: the
+   whole hero is one door. */
 .resumeband > .glass { pointer-events:none; position:relative; display:flex; flex-direction:column; gap:6px; margin-top:14px;
   padding:14px 16px; border-radius:16px; background:rgba(4,6,12,.4); border:1px solid rgba(255,255,255,.14);
   -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
 .resumeband .quote { font-style:italic; font-size:16px; line-height:1.5; color:rgba(255,255,255,.94);
   text-wrap:pretty; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 .resumeband .quote.empty { color:rgba(255,255,255,.75); }
-.resumeband .herometa { font-size:12px; color:rgba(255,255,255,.75); }
-.resumeband > .bandacts { position:relative; display:flex; justify-content:flex-end; margin-top:14px; }
-.resumeband .bandgo { width:auto; min-height:48px; padding:0 24px; position:relative; }
-/* Something is owed in this tale: a gold dot on the button, the words in its label. */
-.resumeband .owedot { position:absolute; top:-3px; right:-3px; width:12px; height:12px; border-radius:50%;
-  background:var(--gold-lit); border:2px solid #0e0c10; }
+.resumeband .herometa { display:flex; justify-content:space-between; gap:12px; font-size:12px;
+  color:rgba(255,255,255,.75); }
+/* Something is owed in this tale: a gold dot in the hero's corner, the words in its label. */
+.resumeband > .owedot { position:absolute; top:14px; right:14px; width:12px; height:12px; border-radius:50%;
+  background:var(--gold-lit); border:2px solid #0e0c10; pointer-events:none; }
 /* 3:4, the shape of a page. Set as an aspect-ratio rather than a height so the card holds its
    proportions at every column width the grid resolves to. */
 .storycard .art { aspect-ratio:3/4; height:auto; position:relative; }

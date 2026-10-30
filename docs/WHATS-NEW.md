@@ -18,6 +18,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Tap the tale to carry on, and choose how much Anansi reads
+The big card for the tale you were last writing no longer has a Carry on writing button: tap
+anywhere on it to carry on. Its genre now sits on the left under the last line, and its word count
+on the right. A dot in its corner still says the tale has something waiting for you.
+
+In Storyteller, "How much he reads at once" sets how much of this tale Anansi reads before each
+passage: all that the model holds, or a smaller amount. Less is faster and keeps him on the recent
+pages.
+
 ### Instructions that no longer pull against each other
 A few of the instructions Anansi is sent were telling the model two things at once, and they no
 longer do. At the two gentlest spice levels, the scene is no longer told to end at the kiss or to
@@ -30,10 +39,12 @@ spice level into the voice it suggests. The shipped voice no longer overrides th
 ### ✦ tries once more on a Featherless model
 When ✦ asks a Featherless model for ideas and the answer comes back cut off, Anansi now asks once
 more before showing an error. On some models the second try can take as long as the first.
+
 ### A hem cut off by a restart no longer hems forever
 If the app restarted while it was hemming a scene, that scene used to say it was still hemming, for
 good. Now the card says the hem was stopped by the restart, and each step it did not finish has a
 Try again beside it.
+
 ### Hemming reads what your pockets say
 When a hem looks at what a scene changed for each thread, it now sees what each of the thread's
 pockets says, not only their names. It is told never to offer back what a thread already says, and
@@ -75,16 +86,19 @@ glows further down. Strings in play no longer light it.
 In reading mode the passages sat closer together than while you write, because the label over each
 passage was taken away with the space it used. The label is still hidden while you read, but its
 space stays, so the page is spaced the same in both.
+
 ### Every passage is set in the same type
 Lines of speech were set in a smaller size and a different font from the narration around them, and
 a passage that opened on a quote changed font with it. Now every passage is set in your reading
 font, at your reading size and line spacing, whichever button wrote it. The speaker's name still
 sits above a spoken line, and the coloured line and the label still say which button wrote it. The
 first passage of a scene now has its large first letter when you wrote it yourself, too.
+
 ### No box round the last passage
 The newest passage, and the one being written, had a box round them in the colour of the press that
 wrote them. The box is gone. Each one now has the same coloured line down its left side as every
 other passage, so the page reads as one column of prose.
+
 ### Speech and emphasis stand out on the page
 Words in quotation marks are shown in your theme's accent colour, and the quotation marks stay.
 Words between single asterisks are shown in italics, in a softer tint of the accent. Words between
@@ -93,11 +107,13 @@ read, and a passage that is being written looks the same as it does when it is f
 asterisks do not show and then go. This changes only how the
 page looks: your text keeps its asterisks, and Alter, export and Anansi still see them. An
 asterisk or a quotation mark with no partner stays as it is.
+
 ### Reweave tells Anansi what didn't work
 When you reweave a passage, Anansi gets the passage's own instruction again. It does not see the
 version you have now. For part of the day it did, and Anansi carried on from that version, or gave
 the same version back word for word. So now, if you say what didn't work, Anansi gets your note
 instead.
+
 ### Strings you have decided stay decided
 The Workbench dealt every open string back to you on each visit, even after you put it in play. Now
 a string is on the Workbench only while it waits for you: newly chalked, or a hem's update to it.

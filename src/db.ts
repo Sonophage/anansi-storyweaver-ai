@@ -3381,7 +3381,10 @@ export function updateStory(id: string, s: any) {
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
       p('spice', 'spice'), p('spiceNote', 'spice_note') ?? null,
-      p('maxContext', 'max_context') ?? null, p('status', 'status') ?? 'in_progress',
+      // A whole positive number of tokens, or nothing ("all the model holds"). The Storyteller's
+      // select posts a string, and '' is its "all of it".
+      ((n) => (Number.isInteger(n) && n > 0 ? n : null))(Number(p('maxContext', 'max_context') || NaN)),
+      p('status', 'status') ?? 'in_progress',
       p('model', 'model') ?? null,
       p('lockedCharacter', 'locked_character') ?? null,
       // Same shape as autoOpen below: boolean over the wire, integer in the column, and `undefined`

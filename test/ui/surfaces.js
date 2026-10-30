@@ -41,9 +41,12 @@ ok(`   and carries a sentence of the writer's own prose (${JSON.stringify(bandTe
    await page.eval(`(() => { const q = document.querySelector('.resumeband .quote');
      return !!q && q.textContent.trim().length > 20; })()`));
 // THE HERO (v3, 2026-10-25): Carry on writing alone. Read from scene one came off with Seth's
-// "simplify it to match the design"; the Scenes list reaches scene one.
-ok("   with one gold action, Carry on writing, and nothing else",
-   await page.eval("!!document.querySelector('.resumeband [data-carryon]') && document.querySelectorAll('.resumeband button').length === 1"));
+// "simplify it to match the design"; the Scenes list reaches scene one. Since 2026-10-29 the whole
+// hero is that press ("let's just tap the square to enter"), a button under everything on it.
+ok("   the whole hero is one press, Carry on writing, and nothing else",
+   await page.eval("(() => { const b = document.querySelector('.resumeband'), r = b.getBoundingClientRect();"
+     + " const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);"
+     + " return document.querySelectorAll('.resumeband button').length === 1 && !!at?.closest('[data-carryon]'); })()"));
 ok("   it says how long ago the tale was touched, over the title",
    /Where you left off\s*·\s*(just now|\d+ (minutes|hours?|days) ago|yesterday)/.test(bandText));
 ok("   and no hero card survives beside it",
@@ -76,7 +79,7 @@ await page.viewport(1440, 757);   // back to the driver's own size for everythin
   await wait(300);
   const t = JSON.parse(await page.eval(`(() => { const b = document.querySelector('.resumeband').getBoundingClientRect();
     const k = document.querySelector('.resumeband .herokind').getBoundingClientRect();
-    const g = document.querySelector('.resumeband .bandgo').getBoundingClientRect();
+    const g = document.querySelector('.resumeband .glass').getBoundingClientRect();
     return JSON.stringify({ band: [Math.round(b.top), Math.round(b.bottom)], label: Math.round(k.top), go: Math.round(g.bottom) }); })()`));
   ok(`   on the Titan nothing in the hero is cut off (${JSON.stringify(t)})`, t.label >= t.band[0] && t.go <= t.band[1]);
 }
@@ -107,11 +110,16 @@ ok(`   and a book whose last passage is all dialogue refuses to quote it (${JSON
 // 2. THE GENRE ON THE HERO is plain words, the first genre only (v3, 2026-10-25). Genre is
 // comma-separated — an AI Dungeon import writes its whole tag list into it — so "fantasy, noir,
 // heist" must read "Fantasy", never the list and never a pill.
-const heroGenre = await page.eval("JSON.stringify({ meta: document.querySelector('.resumeband .herometa')?.textContent ?? '',"
-  + " pills: document.querySelectorAll('.resumeband .tag').length })").then(JSON.parse);
+// Genre on the left and words on the right since 2026-10-29: read as two spans, joined here with
+// the old " · " so the check below still reads the two halves.
+const heroGenre = await page.eval("JSON.stringify({ meta: [...document.querySelectorAll('.resumeband .herometa > span')].map((x) => x.textContent).join(' · '),"
+  + " pills: document.querySelectorAll('.resumeband .tag').length,"
+  + " sides: (() => { const [l, r] = document.querySelectorAll('.resumeband .herometa > span'), m = document.querySelector('.resumeband .herometa')?.getBoundingClientRect();"
+  + " return !!l && !!r && m && Math.abs(l.getBoundingClientRect().left - m.left) < 2 && Math.abs(r.getBoundingClientRect().right - m.right) < 2; })() })").then(JSON.parse);
 console.log("   hero genre: " + JSON.stringify(heroGenre));
 ok(`2. the hero names the first genre in plain words (${JSON.stringify(heroGenre.meta)})`,
    /^Fantasy · [\d,]+ words?$/.test(heroGenre.meta) && heroGenre.pills === 0);
+ok("   the genre sits on the left and the words on the right", heroGenre.sides);
 ok("   and none of the others, and no comma", !/noir|heist|,/.test(heroGenre.meta.replace(/\d,\d/g, '')));
 // Put it back, or every later assertion about this story's genre is reading the test's own edit.
 await page.eval("(async () => { await fetch('/api/story', { method:'POST',"

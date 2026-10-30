@@ -1305,6 +1305,18 @@ ok('a partial story save keeps every field it did not mention', () => {
   assert.strictEqual(db.getStory(st.id).title, 'Kept', 'and clearing one field keeps the others');
 });
 
+// HOW MUCH ANANSI READS AT ONCE, the tale's own cap (2026-10-29: a select in the Storyteller now
+// sets it). A select posts a string, and '' means "all the model holds": the floor is here, where
+// every caller passes, so a stray string can never reach `budgetFor`'s Math.min.
+ok('a tale\'s context cap is a whole positive number or nothing', () => {
+  const st = db.createStory(db.owner('ctx-cap'), { title: 'Cap' });
+  for (const [sent, want] of [['16000', 16000], [32000, 32000], ['', null], ['0', null], ['-5', null],
+                              ['lots', null], [null, null]] as const) {
+    db.updateStory(st.id, { maxContext: sent });
+    assert.strictEqual(db.getStory(st.id).max_context, want, `CTX-CAP: ${JSON.stringify(sent)} is stored as ${want}`);
+  }
+});
+
 // Regenerating away from a take is a judgement about it, not just a replacement. Recorded and
 // shown; deliberately NOT sent to the model — see the note on rejectTake (F44).
 ok('a rejected take is marked, kept, and still steppable', () => {
