@@ -2870,8 +2870,10 @@ function statePanel(pk, e) {
     <div class="pkhead"><div class="lbl flush wide">${head} &middot; ${esc(e.title)}</div></div>
     <div class="pkscroll scroll">${fields}</div>
     <div class="pkfoot">
-      <button class="btn ghost" data-pocketx="1">Cancel</button>
-      <button class="btn" data-savestate="1">Save</button>
+      ${/* A change that exists saves as you type (POCKET_AUTO). A new one is made by its press, and
+            scene 1 is the thread's own text, which is saved with the thread. */
+        pocketAuto(pk) ? AUTO_FOOT : `<button class="btn ghost" data-pocketx="1">Cancel</button>
+      <button class="btn" data-savestate="1">Save</button>`}
     </div>
   </div>`;
 }
@@ -3057,8 +3059,15 @@ const POCKET_AUTO = {
   // #44 · A chapter's title and summary. The route refuses an empty summary: Remove is how one goes.
   arc: { fields: ['title', 'text'], write: (pk, v, storyId) => api.saveArc(storyId, pk.arc, v.title, v.text),
     never: (v) => (v.text.trim() ? null : 'A chapter summary cannot be empty. To remove the chapter, press Remove this chapter.') },
+  // A change over time that exists. `upsertState` keeps no history and stales nothing, so a write per
+  // pause costs nothing but the write. Scene 1 is not one of these: it is the thread's own text.
+  state: { fields: ['from', 'mode', 'body', 'label'],
+    write: (pk, v, storyId) => api.saveState(storyId, pk.entryId, { id: pk.id, fromChapter: Number(v.from),
+      body: v.body, beforeMode: v.mode, label: v.label.trim() || null }),
+    never: (v) => (Number(v.from) && v.body.trim() ? null : 'A scene number and where it stands, at least.') },
 };
-const pocketAuto = (pk) => (pk?.sum ? POCKET_AUTO.sum : pk?.arc ? POCKET_AUTO.arc : null);
+const pocketAuto = (pk) => (pk?.sum ? POCKET_AUTO.sum : pk?.arc ? POCKET_AUTO.arc
+  : pk?.ot && pk.id && pk.id !== 'first' ? POCKET_AUTO.state : null);
 const pocketVals = (pk, auto) => Object.fromEntries(auto.fields.map((f) => [f, pk[f]]));
 const sameVals = (a, b) => Object.keys(a).every((k) => a[k] === b[k]);
 /** One write of an open panel. In turn, never two at once, so a slow write cannot land after a later

@@ -36,6 +36,10 @@ empty box is not saved; Remove this chapter is still how a chapter goes.
 In Account, under Writing, a mode's instruction you open and change is kept a moment after you
 stop typing, and when you close it. Undo my changes puts back what it said when you opened it;
 Reset still gives you Anansi's own wording.
+### A change over time saves as you type
+When you open a thread's change over time and alter its scene, what it says or what changed, it is
+kept as you type. Done closes it, and Undo my changes puts it back as it was when you opened it. A
+new change is still added with its own press.
 
 ## 2026-10-30 · The next scene starts the way you say
 

@@ -5381,19 +5381,39 @@ ok("the tale's own thread is on the Tale panel's Thread tab, one ＋ adds to it 
   assert.match(box, /id="pk-label"[^>]*value="owes the crowns"/, '  its label');
   assert.match(box, /id="pk-body"[^>]*>\[Envoy Sereth: speaks for Kesh; owes the crowns\]</, '  and where it stands');
   assert.match(box, /data-delstate="st-3"/, '  with Remove inside it');
-  type('pk-label', 'owes twelve crowns');
+  // SAVED AS YOU TYPE (ADR 0004, pass three): a change that exists has Undo my changes and Done.
+  assert.doesNotMatch(box, /data-savestate|>Save</, 'OT-NO-SAVE: an open change has no Save');
+  assert.match(box, /data-pocketundo="1"[\s\S]*data-pocketdone="1"/, 'OT-FOOT: Undo my changes and Done in its foot');
+  const states = () => POSTED.filter((x) => x.url === '/api/state').map((x) => x.body.state);
   POSTED.length = 0;
-  click({ savestate: '1' }); await sleep(40);
-  assert.deepStrictEqual(POSTED.filter((x) => x.url === '/api/state').map((x) => x.body.state),
-    [{ id: 'st-3', fromChapter: 3, body: LATER.body, beforeMode: 'hide', label: 'owes twelve crowns' }],
-    'OT-EDIT-SAVE: Save writes that change, by its id');
-  // Cancel with something typed asks twice, as the pocket panel does.
+  type('pk-label', 'owes twelve crowns');
+  await sleep(400);
+  assert.deepStrictEqual(states(), [], 'OT-PAUSE: nothing is written while the typing goes on');
+  await sleep(700);
+  assert.deepStrictEqual(states(), [{ id: 'st-3', fromChapter: 3, body: LATER.body, beforeMode: 'hide', label: 'owes twelve crowns' }],
+    'OT-AUTOSAVE: the pause writes that change, by its id');
+  type('pk-from', '5');
+  click({ pocketdone: '1' }); await sleep(40);
+  assert.deepStrictEqual(states().at(-1), { id: 'st-3', fromChapter: 5, body: LATER.body, beforeMode: 'hide', label: 'owes twelve crowns' },
+    'OT-DONE: Done writes the last of the typing');
+  assert.strictEqual(html('pocketPanel'), '', '  and shuts the panel');
+  // A scene number is needed, so an emptied one is not written, and Done says so and stays.
   click({ stateopen: 'st-3' }); await sleep(20);
-  type('pk-label', 'changed my mind');
-  click({ pocketx: '1' }); await sleep(10);
-  assert.notStrictEqual(html('pocketPanel'), '', 'OT-CANCEL: Cancel with a change typed asks first');
-  click({ pocketx: '1' }); await sleep(10);
-  assert.strictEqual(html('pocketPanel'), '', '  and the second press shuts it');
+  POSTED.length = 0;
+  type('pk-from', '');
+  await sleep(1000);
+  click({ pocketdone: '1' }); await sleep(40);
+  assert.deepStrictEqual(states(), [], 'OT-NEVER: an empty scene number is never written');
+  assert.notStrictEqual(html('pocketPanel'), '', '  and Done stays open');
+  // Undo my changes, with something typed, asks twice and puts it back.
+  type('pk-from', '3'); type('pk-label', 'changed my mind');
+  await sleep(1000);
+  click({ pocketundo: '1' }); await sleep(10);
+  assert.notStrictEqual(html('pocketPanel'), '', 'OT-UNDO-ASKS: Undo my changes with a change typed asks first');
+  click({ pocketundo: '1' }); await sleep(40);
+  assert.deepStrictEqual(states().map((s: any) => s.label), ['changed my mind', 'owes the crowns'],
+    'OT-UNDO: the second press writes back what it opened on');
+  assert.strictEqual(html('pocketPanel'), '', '  and shuts it');
   // THE ONE IN FORCE: its text is The thread's box, so the panel shows it and does not hold a second box.
   at([LATER], 'st-3');
   pane = await openTime();

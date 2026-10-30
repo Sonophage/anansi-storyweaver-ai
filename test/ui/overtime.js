@@ -76,10 +76,10 @@ await page.eval(`(() => { document.querySelector('[data-stateopen="${two.id}"]')
 await until("!!document.getElementById('pk-label')");
 await page.eval(`(() => { const l = document.getElementById('pk-label'); if (!l) return 0;
   l.value = 'owes twelve'; l.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
-await page.eval("(() => { document.querySelector('[data-savestate]')?.click(); return 1; })()");
+await page.eval("(() => { document.querySelector('[data-pocketdone]')?.click(); return 1; })()");
 await wait(1200);
 v = await view(sid);
-ok("the panel's Save writes the in-force entry's label",
+ok("the panel's Done writes the in-force entry's label (it saves as you type)",
    v.entries.find((e) => e.id === marek.id).states.find((s) => s.id === two.id)?.label === 'owes twelve');
 
 // ---- At scene 1, before the scene 2 entry opens, he stands where he stood from scene 1
