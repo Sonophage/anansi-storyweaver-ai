@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### Hemming and the next scene's setup are full screen
+The hem screen and the next scene's setup now fill the screen, like the editor, instead of sitting
+in the side drawer. While Anansi is still reading the scene you hemmed, the setup waits: its steps,
+Skip and Start writing stay shut, with a line saying why, and open as soon as he is done.
+
 ### Talk opens full screen
 Talking to Anansi now always opens full screen, with the conversation above the box. Full screen's
 own button still makes it small, and going back to writing gives you the small box again.

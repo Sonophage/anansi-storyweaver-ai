@@ -2596,6 +2596,10 @@ function drawSide() {
     && !(S.panel === 'anansi' && onSetup()));
   // A shut drawer stays in the page at width 0; inert keeps Tab out of it, as for the menu.
   side.inert = side.hidden;
+  // THE HEM AND THE NEXT SCENE'S SETUP ARE FULL SCREEN, as the editor's box is (Seth, 2026-10-30: "It
+  // should use the editor full screen ui"). The same drawer and the same markup; the stylesheet
+  // spreads it over the page (`html[data-sidefull]`).
+  root.dataset.sidefull = !side.hidden && (S.panel === 'ritual' || S.panel === 'setup') ? '1' : '0';
   if (side.hidden) return;
   // #100 · TALK DURING SETUP has no Talk explainer: that one is about a tale, where an offer waits on
   // the Workbench. Here an offer has its own Add, under the answer that made it.
@@ -6869,6 +6873,13 @@ function passReport(ch) {
       untouched. Try each again from its step below.</span></div>`;
 }
 
+/** THE WIZARD WAITS FOR THE SCANS (Seth, 2026-10-30: "for hemming the scene don't let the wizard move
+ *  until the scans are done"). While the hem of the scene before this one runs, the setup's steps,
+ *  Skip and Start writing are shut, and the handlers refuse them: what the scene left, and the next
+ *  scene's suggestion, are still arriving. The hem watch repaints when it finishes. */
+const hemScanning = () => V?.chapters?.find((c) => c.index === V.currentChapter.index - 1)?.hem?.state === 'running';
+const SCANNING_NOTE = 'Anansi is still reading the last scene. The next step opens when he is done.';
+
 function setupPanel() {
   const ch = V?.currentChapter;
   if (!ch) return '<div class="hint">No scene open.</div>';
@@ -6997,11 +7008,12 @@ function setupPanel() {
   // The cards step holds only the changes now, so an empty one is empty of THOSE — a close that
   // proposed nothing but new threads used to be sent here and find nothing.
   if (step === 'cards' && !leftN) step = fresh.length ? 'more' : 'premise';
+  const scanning = isDebrief && hemScanning();
 
   const rail = `<div style="display:flex; gap:6px; margin-bottom:15px">
     ${SETUP_STEPS.map(([k, l], i) => {
       const owed = k === 'cards' ? leftN : k === 'more' ? fresh.length : 0;
-      const dead = k === 'cards' && !leftN;
+      const dead = (k === 'cards' && !leftN) || (scanning && k !== step);
       const here = k === step;
       return `<button data-setupstep="${k}" ${dead ? 'disabled' : ''} style="flex:1; text-align:left;
         padding:7px 9px; border-radius:var(--r); font-size:11px; letter-spacing:.1em;
@@ -7013,7 +7025,8 @@ function setupPanel() {
         owed ? ` <span class="gilt">${owed}</span>` : ''}</button>`;
     }).join('')}</div>`;
 
-  const skip = `<button class="btn ghost push-8" data-skipsetup="1">Skip &mdash; just write</button>`;
+  const skip = `<button class="btn ghost push-8" data-skipsetup="1" ${scanning ? 'disabled' : ''}>Skip &mdash; just write</button>`
+    + (scanning ? `<div class="hint">${SCANNING_NOTE}</div>` : '');
   // WHAT JUST CLOSED, one row, on every step that is not itself about it. Council 07 put this row
   // at the top of setup and the reason has not changed — the report is one press away rather than
   // the thing you land on. Re-ordering the panel nearly lost it: step one is SKIPPED when the close
@@ -7047,7 +7060,7 @@ function setupPanel() {
     <!-- Issue #32: which pass did not run is at the top of the scene's own card now (#92), above
          what it chalked, so the explanation still arrives before the emptiness it explains. -->
     ${justClosed ? `<div class="push-12">${closedRow}</div>` : ''}
-    ${fresh.length ? `<button class="btn ghost push-8" data-setupstep="more"
+    ${fresh.length ? `<button class="btn ghost push-8" data-setupstep="more" ${scanning ? 'disabled' : ''}
       >${plural(fresh.length, 'new thread', 'new threads')} as well &mdash; under Anyone new</button>` : ''}
     <div class="stack-roomy push-14">
       ${/* #74. The same deck as the Workbench, holding what this scene left. */
@@ -13288,6 +13301,10 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
+  // The wizard waits for the scans (hemScanning): a step, Skip and Start writing are refused while
+  // the hem of the scene before runs. Its own step stays pressable, so the press is not a dead one.
+  if ((d.setupstep || d.skipsetup || d.savesetup) && S.panel === 'setup' && hemScanning()
+    && !(d.setupstep && d.setupstep === S.setupStep)) return toast(SCANNING_NOTE);
   if (d.savesetup) {
     // THE CHAPTER'S OWN VALUE LAST, never ''. "Start writing" sits on the Anyone new step, where
     // the three boxes are not drawn, so with no draft an empty fallback saved a blank title and

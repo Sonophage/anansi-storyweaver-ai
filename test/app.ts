@@ -7737,6 +7737,9 @@ const hemCardOf = (side: string) => {
     // drawer stays open on the hem, asking how the next scene should start while the passes run.
     assert.strictEqual(end.body.next, false, 'HEM-ASKS: the close leaves the next scene to be asked for');
     assert.ok(!nodes.get('side').hidden, 'HEM-STAYS: the hem drawer stays open while it runs');
+    // THE EDITOR'S FULL SCREEN (Seth, 2026-10-30: "It should use the editor full screen ui").
+    const rootEl = (globalThis as any).document.documentElement;
+    assert.strictEqual(rootEl.dataset.sidefull, '1', 'HEM-FULL: the hem drawer is full screen');
     let side = html('sideBody');
     assert.match(side, /data-hemsteer="c-2"/, 'HEM-ASK-BOX: it asks how the next scene should start');
     assert.match(side, /class="btn fill[^"]*" data-hemnext="c-2"/, '  with one gold press to ask Anansi for it');
@@ -7754,10 +7757,19 @@ const hemCardOf = (side: string) => {
     // Setup opens on what the scene left (its card, running), and the new scene is one step on.
     click({ panel: 'setup' }); await settle();
     assert.match(hemCardOf(html('sideBody')), /still hemming/, 'its setup opens on the running card');
+    assert.strictEqual(rootEl.dataset.sidefull, '1', '  and so is the setup');
+    // THE WIZARD WAITS FOR THE SCANS (Seth, 2026-10-30: "don't let the wizard move until the scans
+    // are done"): its steps and its way out are shut while the hem runs, and it says why.
+    let setup = html('sideBody');
+    assert.match(setup, /data-setupstep="premise"[^>]*disabled/, 'HEM-WAIT: the next step is shut while the hem runs');
+    assert.match(setup, /data-skipsetup="1"[^>]*disabled/, '  and so is Skip');
+    assert.match(setup, /still reading the last scene/, '  and it says why');
     click({ setupstep: 'premise' }); await settle();
-    assert.match(html('sideBody'), /data-setup="title" value="Scene 3"/, 'the new scene opens blank');
+    assert.doesNotMatch(html('sideBody'), /data-setup="title"/, 'HEM-WAIT-PRESS: a press on it does not move the wizard');
     assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/chapter/propose').length, proposes,
       '  and nothing asks Anansi to name it: the hem brings the suggestion');
+    click({ panel: 'waiting' }); await settle();
+    assert.strictEqual(rootEl.dataset.sidefull, '0', 'HEM-FULL-ONLY: the Workbench is the drawer as before');
 
     // STILL RUNNING: read again, nothing changes, and it is read again later.
     click({ panel: 'waiting' }); await settle();
@@ -7774,6 +7786,11 @@ const hemCardOf = (side: string) => {
     const card = hemCardOf(html('sideBody'));
     assert.match(card, /data-decide="accept" data-id="hs-1"/, 'when the hem finishes, its card fills in without a reload');
     assert.doesNotMatch(card, /still hemming/, '  and no longer says it is running');
+    // AND ONCE IT IS DONE THE WIZARD MOVES.
+    click({ panel: 'setup' }); await settle();
+    click({ setupstep: 'premise' }); await settle();
+    assert.match(html('sideBody'), /data-setup="title"/, 'HEM-WAIT-DONE: once the hem is done, the wizard moves on');
+    click({ panel: 'waiting' }); await settle();
     assert.strictEqual(timers.length, 0, '  and the reading stops');
   } finally {
     (globalThis as any).setTimeout = REAL_SET_TIMEOUT;

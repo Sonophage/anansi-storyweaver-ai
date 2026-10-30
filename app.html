@@ -553,6 +553,10 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
   #rail .txt { opacity:1 !important; }
 }
 
+/* THE HEM AND THE NEXT SCENE'S SETUP, FULL SCREEN (Seth, 2026-10-30: "It should use the editor full
+   screen ui"). The drawer spreads over the page as the pocket and merge boxes do: the same blurred
+   page under it, the column's width, the same edge padding. Set by drawSide (`data-sidefull`). After
+   the tablet and phone rules below, which it overrides at every width. */
 /* Phone: the panel becomes a bottom sheet. */
 @media (max-width:719px) {
   #side {
@@ -574,6 +578,13 @@ html[data-tray="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; }
   }
   #side[hidden] #sideInner { transform:translateY(100%); opacity:0; }
 }
+html[data-sidefull="1"] #side { position:absolute; inset:0; width:auto; z-index:40; border-left:0;
+  box-shadow:none; transform:none; display:flex; flex-direction:column; justify-content:stretch;
+  height:var(--kbh, 100%); background:color-mix(in srgb, var(--doc-bg) 66%, transparent);
+  backdrop-filter:blur(10px) saturate(.9); -webkit-backdrop-filter:blur(10px) saturate(.9); }
+html[data-sidefull="1"] #sideInner { width:100%; max-width:var(--col); height:100%; max-height:none;
+  margin:0 auto; background:transparent; border:0; border-radius:0; transform:none; opacity:1;
+  padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px); }
 
 /* --- header ------------------------------------------------------------ */
 #bar {
