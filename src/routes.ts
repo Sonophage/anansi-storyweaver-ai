@@ -5,7 +5,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, TALE_STANDS, TALE_STANDS_SCHEMA, STRINGS_STAND, STRINGS_STAND_SCHEMA, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, TALE_STANDS, STRINGS_STAND, STRINGS_STAND_SCHEMA, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
 import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -1545,7 +1545,8 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
 }
 
 /** #125 · ADR 0010. A paragraph is about 200 words; the floor keeps a long one whole. */
-const TALE_TOKENS = 800;
+// A paragraph of about 200 words, and a little room; on `chat` the cap is the hard stop (2026-10-30).
+const TALE_TOKENS = 360;
 
 /** #125 · ADR 0010. WHERE THE TALE STANDS AFTER THE SCENE JUST HEMMED, chalked as the next Over time
  *  entry of the tale's thread, in force from the next scene, on the hem's card. It is the proposal
@@ -1571,16 +1572,22 @@ async function taleStands(c: Ctx, storyId: string, chapterId: string, scene?: st
   const sum = summaryReaches(ch) ? String(ch.summary ?? '').trim() : '';
   const text = sum || narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
   const was = resolveBody(tale, ch.index).trim();
-  const r = await structuredRetry(TALE_STANDS, [
+  // PLAIN PROSE, NOT JSON, on a small cap (Seth, 2026-10-30: "still long"). Asked for one JSON string,
+  // the Featherless model ran on inside it to the cap: over four minutes, then cut, then again in the
+  // retry. A paragraph on `chat`, the call the summary makes (which answers in seconds), stops at its
+  // cap at worst; trimmed back to its last whole sentence. Logged, so its time can be read.
+  const t0 = Date.now(), using = backgroundModel(c, v);
+  const r = await chat(TALE_STANDS, [
     `WHAT THE STORY IS: ${alwaysTrue(tale) || '(not written)'}`,
     `WHERE IT STOOD BEFORE THIS SCENE: ${was || '(nothing yet)'}`,
-    sum ? `THE SCENE, IN SUMMARY:\n${text}` : `THE SCENE:\n${text}`].join('\n\n'), TALE_STANDS_SCHEMA,
-    { model: backgroundModel(c, v), max_tokens: TALE_TOKENS });
-  if (!r.data) return { error: r.error ?? 'nothing usable came back' };
-  // Plain, as it will be stored; not "none", and not the text already in force. Back to its last whole
-  // sentence: the schema's bound closes the string wherever it falls (TALE_STANDS_SCHEMA).
-  const said = String(r.data.tale ?? '').trim();
-  const whole = /[.!?…]["'”’)\]]*$/.test(said) ? said : (said.match(/^[\s\S]*[.!?…]["'”’)\]]*(?=\s)/)?.[0] ?? said);
+    sum ? `THE SCENE, IN SUMMARY:\n${text}` : `THE SCENE:\n${text}`].join('\n\n'),
+    { model: using, temperature: 0.3, max_tokens: TALE_TOKENS, chat_template_kwargs: { enable_thinking: false } })
+    .catch((e: any) => ({ prose: '', error: String(e?.message ?? e) }) as any);
+  db.logGeneration({ storyId, chapterId: ch.id, model: using, role: 'hem-tale', params: { max_tokens: TALE_TOKENS },
+    latencyMs: Date.now() - t0, error: (r as any).error ?? null });
+  if ((r as any).error || !String(r.prose ?? '').trim()) return { error: (r as any).error ?? 'nothing usable came back' };
+  // Plain, as it will be stored; not "none", and not the text already in force.
+  const whole = trimToSentence(clean(r.prose));
   const stands = db.plainStands(whole, [tale.title]);
   if (!stands || /^none[.\s]*$/i.test(stands) || stands === db.plainStands(was, [tale.title])) return { chalked: 0 };
   const added = db.addProposal(storyId, { kind: 'memory', entry_id: id, chapterId: ch.id, title: tale.title,

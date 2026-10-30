@@ -295,18 +295,6 @@ out; not what it means or what it is building toward. No ending, no warning, no 
 Only the narration commits the story. Dialogue has been removed already; do not infer from what is
 missing. No names in front, no brackets, no headings, no list.`;
 
-/** A BOUNDED STRING, the one place it is wanted (Seth, 2026-10-30: "writing where it is now is taking
- *  forever"). Remote models ran on inside this one string until the call's cap cut them, then ran on
- *  again in the retry. A paragraph of about 200 words is about 1,200 characters; the grammar closes
- *  the string at the bound, mid-word, which `taleStands` trims back to the last whole sentence. The
- *  bound is why TALK_SCHEMA's reply and IDEA_SCHEMA have none: there a cut answer must look cut.
- *  NOT VERIFIED that Featherless honours maxLength; the local router's grammar does. */
-export const TALE_STANDS_SCHEMA = {
-  type: 'object',
-  properties: { tale: { type: 'string', maxLength: 1500 } },
-  required: ['tale'],
-} as const;
-
 /** #127 · ADR 0011. WHERE EACH STRING IN PLAY STANDS AFTER THE SCENE JUST HEMMED, asked beside where
  *  the tale stands (TALE_STANDS), whose rules it follows: the whole of it, the present only, never
  *  what comes next. A string is a pocket of the tale's thread, and what comes back replaces its text

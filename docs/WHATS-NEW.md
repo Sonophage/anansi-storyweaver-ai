@@ -18,10 +18,10 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
-### Where the tale stands reads the scene's summary
+### Where the tale stands is quick
 When a hem works out where the tale stands, Anansi now reads the scene's summary, which the hem has
-just written, instead of the whole scene again. On a long scene that is the difference between a
-few seconds and several minutes.
+just written, instead of the whole scene again, and writes his paragraph as plain text. Before, he
+could run on for minutes and be cut off, and then try again. It ends on a whole sentence.
 
 ### One card per thread
 What a hem finds is now one card for each thread, instead of one long card with a Sew it in, a

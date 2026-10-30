@@ -48,6 +48,8 @@ let redone = '';
 /** And what the where-the-tale-stands pass returns (#125). Empty, so every hem before its own block
  *  chalks nothing for the tale. */
 let taleSays = '';
+// The head of TALE_STANDS, to know its ask when it comes; read from the prompt itself once it is imported.
+let TALE_HEAD = 'Below is what a story is, where it stood before its latest scene';
 /** And what the where-each-string-stands pass returns (#127): by number. Empty, so no hem moves a string. */
 let stringsSay: any[] = [];
 
@@ -78,6 +80,9 @@ const srv = createServer((req, res) => {
       if (gate) await gate;
       inflight--; }
     if (failIf?.(asked.system)) { res.writeHead(500); return res.end('{"error":"held down"}'); }
+    // Where the tale stands is plain prose since 2026-10-30, as the summary is.
+    if (asked.system.startsWith(TALE_HEAD)) return send({ choices: [{ message: { content: taleSays } }],
+      usage: { prompt_tokens: 200, completion_tokens: 60 } });
     if (summed !== null) return send({ choices: [{ message: { content: summed } }],
       usage: { prompt_tokens: 200, completion_tokens: 60 } });
     send({ choices: [{ message: { content: JSON.stringify({ ...tidied, body: redone, threads: answer, entries: found,
@@ -2005,10 +2010,9 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   ok('each hem chalks the next entry from the one in force, and every entry is kept');
 
   // A PARAGRAPH, BOUNDED (Seth, 2026-10-30: "writing where it is now is taking forever"). Remote models
-  // ran on inside the one string until the cap cut them, twice with the retry. The schema bounds the
-  // string, and what comes back stops at its last whole sentence.
-  const schema = prompts.TALE_STANDS_SCHEMA.properties.tale as any;
-  assert.ok(Number(schema.maxLength) > 0 && Number(schema.maxLength) <= 1600, `TALE-BOUND: the paragraph is bounded (${schema.maxLength})`);
+  // ran on inside a JSON string until the cap cut them, twice with the retry. Now it is plain prose on
+  // a small cap, with no retry, and what comes back stops at its last whole sentence.
+  const asked0 = asks.length;
   const ch3 = db.chapters(t.id).at(-1) as any;
   db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch3.id, body: 'Mara reached the harbour at dusk.' });
   taleSays = 'Mara is ashore at last. The lamp on the rock is dark and nobody is keeping it, and the mainland har';
@@ -2019,6 +2023,8 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   assert.strictEqual(cut?.body, 'Mara is ashore at last.', 'TALE-WHOLE: a paragraph stopped by the bound keeps its last whole sentence');
   assert.ok(taleAsk('reached the harbour at dusk')?.user.includes('THE SCENE:\nMara reached the harbour'),
     'TALE-NO-SUMMARY: with no summary, it reads the narration');
+  const taleCalls = asks.slice(asked0).filter((a) => a.system.startsWith(TALE_HEAD));
+  assert.strictEqual(taleCalls.length, 1, `TALE-ONE-CALL: one call, not a retry (${taleCalls.length})`);
   taleSays = '';
   ok('where the tale stands is one bounded paragraph, ending on a whole sentence');
 }
