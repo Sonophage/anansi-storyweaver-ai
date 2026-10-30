@@ -263,8 +263,10 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
   // Not a writing mode. Anansi answers the writer rather than continuing the book, so this block
   // says what the material above IS — otherwise a model handed canon and prose does the thing it
   // has been doing all along and writes the next passage.
-  talk: (d) => `The writer is talking to you about this story, not asking for prose.\n`
-    + `Everything above is what you know about it. Do not continue the story.\n\n`
+  // "Talking to you", not "about this story" (Seth, 2026-10-30: asked "Who are you?", Anansi answered
+  // with a speech about the story). NOT MEASURED.
+  talk: (d) => `The writer is talking to you, not asking for prose.\n`
+    + `Everything above is what you know about their story. Do not continue the story.\n\n`
     + `They say: ${d ?? ''}`,
 
   // The one mode where the text above is the author's own prose rather than a request. Saying so

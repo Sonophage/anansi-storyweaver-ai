@@ -1312,6 +1312,10 @@ ok('she still has the premise, the canon, the prose and who is telling it');
 const { TALK_CONTRACT, TALK_VOICE } = await import('../src/prompts.ts');
 const shipped = String(calls[0].messages?.[0]?.content ?? '');
 assert.ok(shipped.includes(TALK_CONTRACT), 'the contract is not in the system message');
+// WHO ARE YOU (Seth, 2026-10-30): asked about himself, Anansi gave a speech about the story and ended
+// "the ball's in your court". The contract says a question to him is answered as himself.
+assert.match(TALK_CONTRACT, /answered as yourself, in your own voice below, with the story left out of it/, 'TALK-SELF: a question to him is answered as himself');
+assert.match(TALK_CONTRACT, /never end on a rally/, 'TALK-NO-RALLY: and no rallying close');
 assert.ok(shipped.includes(TALK_VOICE), 'her shipped voice is not in the system message');
 assert.ok(shipped.indexOf(TALK_CONTRACT) < shipped.indexOf(TALK_VOICE),
   'the voice must sit last, closest to the material — that is the whole of F37');

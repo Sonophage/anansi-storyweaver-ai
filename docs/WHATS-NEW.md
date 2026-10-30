@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### Talk answers what you said
+Anansi's chat now treats something said to him, like "who are you?", as said to him: he answers as
+himself, in his own voice, and leaves the story out of it. He no longer turns a reply into a speech
+about your story that you did not ask for, or ends by handing the question back to you.
+
 ### A new scene opens the way you set it up
 The first passage of a new scene now opens as its "Opens with" says. Before, your Continue asked
 Anansi to start where the last line above ends, and the last line above was the end of the previous
