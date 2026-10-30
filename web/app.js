@@ -3861,7 +3861,10 @@ function hemStepStates(ch, closed) {
   const setup = { k: 'setup', name: 'Set up the next scene', done: passesOver && (!next || started),
     state: !passesOver || owed || hemAsking(ch) ? 'wait' : !next || started ? 'done' : 'you',
     line: !passesOver || owed ? '' : !next || started ? 'Under way' : 'Ready when you are' };
-  return [...passes, decide, setup];
+  // ONE GOLD STEP, the next one: a later step that also waits on the writer waits its turn.
+  const all = [...passes, decide, setup], first = all.find((x) => x.state === 'you');
+  for (const x of all) if (x.state === 'you' && x !== first) x.state = 'wait';
+  return all;
 }
 function hemSteps(ch, closed) {
   const MARK = { wait: '&#9675;', run: '&#9679;', done: '&#10003;', fail: '&#10005;', you: '&rarr;' };

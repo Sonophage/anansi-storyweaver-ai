@@ -6412,6 +6412,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     assert.match(side, /<details class="hemmore[\s\S]*data-hemagain="c-2"(?! data-pass)[^>]*>Hem it again/, '  and the whole hem runs again from More');
     // THE WRITER'S TURN IS GOLD: what it chalked waits on the writer, decided here on the hem's own card.
     assert.match(step('decide'), /data-state="you"/, 'HEM-YOU: deciding what it found is the gold step while things wait');
+    assert.strictEqual((side.match(/data-state="you"/g) ?? []).length, 1, 'HEM-ONE-GOLD: one gold step, the next');
     assert.match(below(side), /data-deckkind="hem"/, 'HEM-DECIDE-HERE: and the scene\'s card is below the steps, to decide here');
     assert.doesNotMatch(below(side), /did not run &mdash; the model did not answer<\/span>\s*<button class="btn ghost" data-hemagain="c-2" data-pass="facts">Try again<\/button><\/div>\s*<\/div>\s*<div class="note/, '  without the card repeating the hem\'s state');
     side = await reportOn({ ...ran, tale: null, memory: 'model returned unparseable JSON' });
