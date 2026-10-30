@@ -883,7 +883,8 @@ const DRAFT_KEY: Record<string, string> = { title: 'title', premise: 'premise', 
 /** The schema fragment the setup Talk's answer carries. Flat, as `CHANGES_SCHEMA` is, for the same
  *  reason. */
 export const DRAFT_CHANGES_SCHEMA = {
-  type: 'array', maxItems: 4,
+  // Ten, not four (2026-10-30): "fill in the tale" sets five boxes and the threads in one answer.
+  type: 'array', maxItems: 10,
   items: {
     type: 'object',
     properties: {

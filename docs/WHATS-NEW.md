@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### Fill in the tale from your talk with Anansi
+When you set up a new tale, talk it through with Anansi in the chat beside the wizard, then press
+Fill in the tale. He sets every box that is still empty (title, premise, genre, setting and voice)
+from what you have said, and adds the threads the tale needs. What you have written yourself stays,
+and each change has its Undo.
+
 ### See each thread's pockets when you spark a tale
 On the threads step of a new tale, each thread now shows the pockets Anansi wrote for it (how they
 look, how they sound, what they hide), not only what is always true of them. You can rename and

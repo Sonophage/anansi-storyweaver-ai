@@ -2089,6 +2089,11 @@ ${NO_OUTCOMES}
 When you offered threads before and they say yes or "add them", that is a request: each one is a
 thread.new.
 
+WHEN THEY ASK YOU TO FILL IN THE TALE ("fill in everything", "fill in what it needs"), that is a request
+for every box still empty: set each of title, premise, genre, setting and voice that is empty, from
+what the two of you have said and what the draft holds, and add the threads the tale needs (thread.new),
+up to ten changes in all. A box they have written in stays as it is. Say in the reply what you filled.
+
 WHAT YOU SUGGEST without being asked goes in entries, as threads they can add with one press. Offer
 only when the question calls for it, and offer none rather than pad. Say in the reply what you
 changed. You never write the tale's prose.`;

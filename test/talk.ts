@@ -1336,6 +1336,13 @@ assert.ok(shipped.includes(TALK_CONTRACT), 'the contract is not in the system me
 // "the ball's in your court". The contract says a question to him is answered as himself.
 assert.match(TALK_CONTRACT, /answered as yourself, in your own voice below, with the story left out of it/, 'TALK-SELF: a question to him is answered as himself');
 assert.match(TALK_CONTRACT, /never end on a rally/, 'TALK-NO-RALLY: and no rallying close');
+{
+  const { TALK_SETUP } = await import('../src/prompts.ts');
+  const { DRAFT_CHANGES_SCHEMA } = await import('../src/changes.ts');
+  // FILL IN THE TALE (Seth, 2026-10-30): the setup Talk fills every empty box and the threads, in one answer.
+  assert.match(TALK_SETUP, /FILL IN THE TALE[\s\S]*every box still empty[\s\S]*stays as it is/, 'SETUP-FILL-ASK: the setup Talk knows what Fill in the tale asks for');
+  assert.ok(DRAFT_CHANGES_SCHEMA.maxItems >= 10, `SETUP-FILL-ROOM: room for the boxes and the threads in one answer (${DRAFT_CHANGES_SCHEMA.maxItems})`);
+}
 assert.match(TALK_CONTRACT, /never repeat a reply of\s+yours/, 'TALK-NO-REPEAT: and never gives back an earlier reply (2026-10-30)');
 assert.ok(shipped.includes(TALK_VOICE), 'her shipped voice is not in the system message');
 assert.ok(shipped.indexOf(TALK_CONTRACT) < shipped.indexOf(TALK_VOICE),

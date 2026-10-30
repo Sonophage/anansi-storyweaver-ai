@@ -4207,6 +4207,19 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     assert.strictEqual(nodes.get('side').hidden, false, 'SETUP-TALK-OPEN: Talk opens beside the setup step');
     assert.match(html('sideBody'), /id="askBox"/, 'SETUP-TALK-OPEN: the same Talk window, with its ask box');
 
+    // FILL IN THE TALE FROM THE TALK (Seth, 2026-10-30: "talk to anansi, get as much about a story set
+    // and have it fill in whatever is needed"). Once there is a conversation, one press asks for it.
+    assert.doesNotMatch(html('sideBody'), /data-fillsetup/, 'SETUP-FILL: no Fill in before anything is said');
+    stubSparkTalk = { reply: 'Ask me anything.', seconds: 1 };
+    await ask('A ferry town on a dead river.');
+    assert.match(html('sideBody'), /data-fillsetup="1"/, 'SETUP-FILL: once there is a conversation, a Fill in the tale press');
+    const before = sparkTalks().length;
+    click({ fillsetup: '1' });
+    for (let i = 0; i < 40 && sparkTalks().length === before; i++) await sleep(25);
+    await sleep(40);
+    assert.match(String(sparkTalks().at(-1)?.body.said ?? ''), /Fill in everything the tale still needs/, 'SETUP-FILL: it asks Anansi to fill in what is empty');
+    click({ clearchat: '1' }); await sleep(20);
+
     // ASKED: a premise change and a new thread, applied to the draft at once; and an offer.
     stubSparkTalk = { reply: 'Darker, and the ferryman is in.', seconds: 1,
       changes: [{ words: 'Changed the premise: “Six houses, one winter, and every one of them lies.”',

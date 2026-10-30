@@ -601,7 +601,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
   'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra',
   // #92. A hemmed scene's card: run its passes again, set up the next scene.
-  'hemagain', 'hemopen', 'hemedit',
+  'hemagain', 'hemopen', 'hemedit', 'fillsetup',
   // #75. The tale's own thread.
   'taleadd',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
@@ -5456,6 +5456,9 @@ const PANELS = {
               ${t.searchable === false ? 'disabled' : ''}> Anansi may search
           </label>
           ${t.turns.length ? `<button class="caption" data-clearchat="1">Clear</button>` : ''}
+          ${/* FILL IN THE TALE FROM THE TALK (Seth, 2026-10-30): talk the tale through, then one press
+                has Anansi set every empty box and the threads it needs, as asked changes with Undo. */
+            setup && t.turns.length ? `<button class="caption" data-fillsetup="1" ${t.busy ? 'disabled' : ''}>Fill in the tale</button>` : ''}
           <button class="btn" data-ask="1" ${t.busy ? 'disabled' : ''}
             style="margin-left:auto; width:auto; padding:0 22px; height:38px">${t.busy ? '&hellip;' : 'Ask'}</button>
         </div>
@@ -5962,6 +5965,8 @@ function undoDraft(u) {
 const setupTurnText = (x) => x.text + ((x.offers ?? []).filter((o) => !o.added).length
   ? `\nOffered: ${x.offers.filter((o) => !o.added).map((o) => `${o.title} (${o.entryType}): ${o.body}`).join('; ')}` : '');
 
+/** What Fill in the tale says for the writer: the ask TALK_SETUP answers with every empty box set. */
+const FILL_SAID = 'Fill in everything the tale still needs from what we have talked about: every empty box, and the threads it needs.';
 /** Ask, during setup. The question is already on the window as yours. */
 async function talkSetup(said) {
   const t = setupTalk();
@@ -12664,6 +12669,12 @@ document.addEventListener('click', async (e) => {
   }
 
   // --- the model is process-wide, so this is a Preferences action
+  if (d.fillsetup) {
+    const t = setupTalk();
+    if (!onSetup() || t.busy) return;
+    t.turns = [...t.turns, { you: true, text: FILL_SAID }];
+    return talkSetup(FILL_SAID);
+  }
   if (d.ask) {
     const box = $('askBox');
     const said = (box?.value ?? '').trim();

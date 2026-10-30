@@ -3318,7 +3318,8 @@ export const routes: Record<string, Handler> = {
     // applies the same changes to its own.
     const changes: { words: string; change: any }[] = [];
     const notDone: { said: string; why: string }[] = [];
-    for (const raw of (Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4)) {
+    // Up to ten: "fill in the tale" sets the empty boxes and the threads in one answer (2026-10-30).
+    for (const raw of (Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 10)) {
       const k = checkDraft(raw, draft);
       if (!k.ok) { notDone.push({ said: k.said, why: k.why }); continue; }
       const ch: any = k.change;
