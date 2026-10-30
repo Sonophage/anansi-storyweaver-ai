@@ -1995,7 +1995,8 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   // TALK READS IT TOO: its prompt is assembled the same way.
   await routes['POST /api/talk'](ctx({ storyId: t.id, said: 'Where are we now?' }));
   const talk = asks.findLast((a) => a.user.includes('Where are we now?'));
-  assert.ok(talk?.user.includes(NOW) && !talk.user.includes(PREMISE), 'TALE-TALK: Talk reads where the tale stands, not the premise');
+  // Talk's material is its system message since 2026-10-30 (a chat with the story in the system).
+  assert.ok(talk?.system.includes(NOW) && !talk.system.includes(PREMISE), 'TALE-TALK: Talk reads where the tale stands, not the premise');
   ok("sewn in, the prompt and Talk read where the tale stands in the premise's place; the scene before it reads the premise");
 
   // The next hem reads the entry in force and chalks the next one; both are kept.

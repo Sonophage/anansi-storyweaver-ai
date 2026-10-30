@@ -1053,6 +1053,13 @@ async function castNames(world: string, using: string, o: { kinds: string[]; wan
 
 /** THE EARLIER TURNS, for both Talk routes: the last six, each capped. Each exchange is context for
  *  the next, so the fifth question would otherwise cost several times the first. */
+/** The conversation so far as chat turns, writer and Anansi, the last six. */
+const turnMessages = (turns: unknown) => (Array.isArray(turns) ? turns : []).slice(-6)
+  .filter((t: any) => String(t?.text ?? '').trim())
+  .map((t: any) => ({ role: t?.you ? 'user' : 'assistant', content: String(t.text).slice(0, 1200) }));
+/** What Talk's material says around the conversation: it follows, as turns (`turnMessages`). */
+const TALK_FRAME = 'The writer is talking to you in the conversation that follows, not asking for prose. '
+  + 'Everything above is what you know about their story. Do not continue the story.\n\nFor this conversation:\n{{directive}}';
 const turnsOf = (turns: unknown) => (Array.isArray(turns) ? turns : []).slice(-6)
   .map((t: any) => `${t?.you ? 'WRITER' : 'ANANSI'}: ${String(t?.text ?? '').slice(0, 1200)}`).join('\n');
 
@@ -3294,14 +3301,16 @@ export const routes: Record<string, Handler> = {
       draft.entries.length ? `Threads:\n${draft.entries.map((e: any) => `- ${clip(e.title, 80)} (${clip(e.entryType, 20) || 'character'}): `
         + `${clip(e.body, 600)}${pocketsOf(e).map(([slot, rm]: [string, any]) =>
           `\n  ${slot}: ${clip(rm?.body, 300)}`).join('')}`).join('\n')}` : 'Threads: none yet.',
-      turns && `Earlier in this conversation:\n${turns}`,
-      sourcesText(sources),
-      said,
     ].filter(Boolean).join('\n\n');
 
+    // A CHAT, as Talk in a tale is (2026-10-30): the draft in the system message, the conversation as
+    // turns, this message last, warmer and leaning off what was said already.
     const t0 = Date.now();
-    const r = await structuredRetry(`${TALK_SETUP}\n\n${anansiOf(c.owner)}`, ask, TALK_SETUP_SCHEMA,
-      { model: using, temperature: 0.4, max_tokens: TALK_TOKENS });
+    const system = `${TALK_SETUP}\n\n${ask}\n\n${anansiOf(c.owner)}`;
+    const thisTurn = [sourcesText(sources), said].filter(Boolean).join('\n\n');
+    const r = await structuredRetry(system, thisTurn, TALK_SETUP_SCHEMA,
+      { model: using, temperature: 0.8, presence_penalty: 0.4, frequency_penalty: 0.3, max_tokens: TALK_TOKENS,
+        messages: [{ role: 'system', content: system }, ...turnMessages(c.body.turns), { role: 'user', content: thisTurn }] });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
     // Each change checked against the draft as the ones before it left it, so "add the ferryman and
@@ -4042,10 +4051,12 @@ export const routes: Record<string, Handler> = {
     }
 
     if (summoned.length) grounded.talkReach += `\n${summoned.join('\n')}`;
-    const ask = [
-      summoned.length && 'The writer pointed at these by name. They are what the question is '
+    // THIS MESSAGE'S OWN: what the writer pointed at and what a search found, with their words, as the
+    // last turn of the conversation (`thisTurn`). The rest is notes on the story, in the material.
+    const pointed = summoned.length ? 'The writer pointed at these by name. They are what the question is '
         + 'about, and they are canon — not a suggestion and not a stranger\'s text:\n\n'
-        + summoned.join('\n\n'),
+        + summoned.join('\n\n') : '';
+    const ask = [
       // WHICH CHAPTER IT IS LOOKING AT. F33: asked which chapter set a promise up, it said 1 for
       // three promises in a story on chapter 2 — nothing in what it was given said which chapter
       // the recent passages belonged to, so it was answering a question it had no material for.
@@ -4076,10 +4087,8 @@ export const routes: Record<string, Handler> = {
       // instructions that are on and the strings in play, by text and never by name, and none of
       // the ones that are off. A fact, like the lines above; `checkAsked` is the guard.
       talesOwn(v as any),
-      turns && `Earlier in this conversation:\n${turns}`,
-      sourcesText(sources),
-      said,
     ].filter(Boolean).join('\n\n');
+    const thisTurn = [pointed, sourcesText(sources), said].filter(Boolean).join('\n\n');
 
     // One number, reserved and spent. It was assembling the prompt against 900 tokens of reserved
     // output and then asking for 1,600 — the prompt was budgeted for an answer smaller than the one
@@ -4088,7 +4097,10 @@ export const routes: Record<string, Handler> = {
     // Through `replyFor`, so a weaving book reserves the plan's room here and sends it below.
     // And the fit check every weaving call shares (#56), refused unless the writer said write anyway.
     const { reply, manifest, prompt, stop } = weaveAssemble(c, v, 'talk', TALK_TOKENS, (cap) =>
-      assemble(grounded, slotFor(c, v, writerModel(c, v)), 'talk', ask, undefined, cap, undefined));
+      // ponytail: the conversation's turns ride as messages after the material, not inside it, so this
+      // budget does not count them (six turns of at most 1,200 characters, about 2,000 tokens). Ceiling:
+      // a slot within 2,000 tokens of full. Trigger: a Talk 500 from an oversubscribed slot; then count them.
+      assemble(grounded, slotFor(c, v, writerModel(c, v)), 'talk', ask, undefined, cap, undefined, { talk: TALK_FRAME }));
     if (stop) return stop;
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
 
@@ -4111,9 +4123,18 @@ export const routes: Record<string, Handler> = {
     // ran a Talk answer on inside its JSON to Featherless's own 4,096-token limit (226 s, cut, then a
     // 7 s retry), and Seth read the four minutes as Talk not answering. With the cap a runaway is cut
     // at the room Talk is planned with and retried cooler. A real answer measured 278 to 461 tokens.
-    const r = await structuredRetry(`${TALK_CONTRACT}\n\n${anansiOf(c.owner)}`,
-      prompt.slice(SYSTEM.length), TALK_SCHEMA,
-      { model: using, temperature: 0.4, max_tokens: reply.maxTokens, remoteCap: true,
+    // A CHAT, NOT ONE LETTER (Seth, 2026-10-30: "It needs to feel like a person no repetition ... a
+    // chatbot that is trained basically on the current story"). The story is in the system message:
+    // the contract, then everything the material holds, then the writer's voice for him, nearest the
+    // conversation (F37's order). The conversation is the turns themselves, writer and Anansi, then
+    // this message. It was one user message with "Earlier in this conversation" pasted into it, which
+    // a model reads as a document to answer from, not a talk it is in, and it handed back its last
+    // reply word for word. Warmer, and told not to say a thing it has said already. NOT MEASURED.
+    const system = `${TALK_CONTRACT}\n\n${prompt.slice(SYSTEM.length)}\n\n${anansiOf(c.owner)}`;
+    const r = await structuredRetry(system, thisTurn, TALK_SCHEMA,
+      { model: using, temperature: 0.8, presence_penalty: 0.4, frequency_penalty: 0.3,
+        max_tokens: reply.maxTokens, remoteCap: true,
+        messages: [{ role: 'system', content: system }, ...turnMessages(c.body.turns), { role: 'user', content: thisTurn }],
         chat_template_kwargs: { enable_thinking: reply.weaves } });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'talk',
       params: wove(reply, r), manifest, latencyMs: Date.now() - t0, error: r.error ?? null });

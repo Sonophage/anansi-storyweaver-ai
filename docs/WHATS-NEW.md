@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### Talking to Anansi is a conversation
+Anansi's chat now works like a conversation: he holds your tale in mind, and your messages and
+his replies go back and forth as they were said, instead of being pasted together as one document.
+He answers a little more freely and is steered away from saying the same thing twice. The chat
+beside a new tale's setup works the same way.
+
 ### Talk answers what you said
 Anansi's chat now treats something said to him, like "who are you?", as said to him: he answers as
 himself, in his own voice, and leaves the story out of it. He no longer turns a reply into a speech

@@ -51,16 +51,16 @@ const srv = createServer((req, res) => {
     const props = b.response_format?.json_schema?.schema?.properties ?? {};
     // Keyed on the QUESTION, not on the schema: TALK_SCHEMA always carries `strings` now, so a
     // schema-shaped check made every answer the short one and broke the truncation assertions.
-    const asksForStrings = /set up and not paid/.test(String(b.messages?.[1]?.content ?? ''));
+    const asksForStrings = /set up and not paid/.test(String(b.messages?.at(-1)?.content ?? ''));
     // A CHANGE TO A CARD THAT EXISTS, naming the room it belongs in. Keyed on the writer's own
     // words, like the two branches around it. Before 2026-09-01 TALK_SCHEMA had no `field` for this
     // answer to put a room in, which is the defect section 6c is about.
-    const asksToPad = /inner life/.test(String(b.messages?.[1]?.content ?? ''));
+    const asksToPad = /inner life/.test(String(b.messages?.at(-1)?.content ?? ''));
     // "Remember this" wants the same SHAPE as an invented entry — title, body, keys — so the
     // schema cannot tell them apart. Keyed on the question, like the strings case above, and with
     // its own title: the proposals table dedupes on the subject, so two roles answering with one
     // name would make the second look like a refusal rather than a duplicate.
-    const asksToRemember = /REMEMBER IT:/.test(String(b.messages?.[1]?.content ?? ''));
+    const asksToRemember = /REMEMBER IT:/.test(String(b.messages?.at(-1)?.content ?? ''));
     // #21 §2. The cast is its own call now, keyed on its own role rather than on a schema shape:
     // it answers `entries` and so do two other roles.
     const asksForCast = /Populate a story that already exists/.test(String(b.messages?.[0]?.content ?? ''));
@@ -69,7 +69,7 @@ const srv = createServer((req, res) => {
     // #97 · A REQUEST TO CHANGE THE TALE, keyed on the writer's own words like the branches above.
     // Each answer is what a model asked that question would return in `changes`; the route is what
     // decides which of them are done.
-    const asked = /CHANGE-(\w+)/.exec(String(b.messages?.[1]?.content ?? ''))?.[1];
+    const asked = /CHANGE-(\w+)/.exec(String(b.messages?.at(-1)?.content ?? ''))?.[1];
     const CHANGES: Record<string, any> = {
       AGE: { reply: 'Done: she is thirty now.',
         changes: [{ op: 'thread.set', thread: 'Talia', room: 'none', text: 'Talia is thirty.' }],
@@ -177,7 +177,7 @@ const srv = createServer((req, res) => {
     // words: none, one, or more than the cap of three.
     const QUERIES: Record<string, string[]> = { NONE: [], WHO: ['Charon'],
       MANY: ['Charon', 'the Styx', 'obol', 'Hades', 'Cerberus'] };
-    const wantsSearch = /SEARCH-(\w+)/.exec(String(b.messages?.[1]?.content ?? ''))?.[1] ?? 'NONE';
+    const wantsSearch = /SEARCH-(\w+)/.exec(String(b.messages?.at(-1)?.content ?? ''))?.[1] ?? 'NONE';
     // #104 · A NEW IP'S NAMES LIST and ONE THREAD PULLED FOR IT, told apart by their own schemas. The
     // list names the World itself and one name twice, which the route drops; asked for more, it
     // names one already listed again. A pull of "Nobody" says too little to make a thread.
@@ -202,7 +202,7 @@ const srv = createServer((req, res) => {
       : asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
         entries: [{ title: 'Vel', type: 'character', field: 'interiority',
                     body: 'She is more afraid of being right than of being wrong.', keys: ['Vel'] }] }
-      : asksForReview && /Hiding in the lower tiers/.test(String(b.messages?.[1]?.content ?? '')) ? {
+      : asksForReview && /Hiding in the lower tiers/.test(String(b.messages?.at(-1)?.content ?? '')) ? {
         changes: [], entries: [],
         contradictions: [
           { one: { thread: 'Vel', part: 'stands', says: 'Waits on the stair for Aldis.' },
@@ -261,10 +261,10 @@ const srv = createServer((req, res) => {
         // #86. A SECOND PERSON, only when the ask names somebody Hands off, so "the voice pocket goes
         // to that thread and no other" has another thread to be wrong on. His pockets are the
         // model's own and must survive; Vel's, when she is the one held, must not.
-        ...(/HANDS OFF:/.test(String(b.messages?.[1]?.content ?? '')) ? [{ name: 'Aldis', kind: 'character',
+        ...(/HANDS OFF:/.test(String(b.messages?.at(-1)?.content ?? '')) ? [{ name: 'Aldis', kind: 'character',
           body: 'Owes the moneylender more than he can pay.',
           pockets: [{ slot: 'voice', name: 'Debtor', body: 'Write his lines as apologies that never finish.' }] }] : []),
-      ].map((e: any) => e.name === 'Vel' && /HANDS OFF:/.test(String(b.messages?.[1]?.content ?? '')) ? { ...e, pockets: [...e.pockets,
+      ].map((e: any) => e.name === 'Vel' && /HANDS OFF:/.test(String(b.messages?.at(-1)?.content ?? '')) ? { ...e, pockets: [...e.pockets,
           { slot: 'interiority', name: 'Fear', body: 'Never let her say she is afraid; she counts instead.' }] } : e),
       }
       : props.premise ? { title: 'The Rust Year', premise: PREMISE, genre: 'noir, gothic',
@@ -358,7 +358,23 @@ assert.match(wide.reply, /penance\.$/, 'and it ends where the model stopped, not
 ok(`a ${LONG.length}-character answer is not truncated on the way through`);
 db.setName(me, 'Seth');
 await ask(50_048);
-assert.match(String(calls[0].messages[1].content), /The writer is Seth\./, 'TALK-WRITER: Talk is told who the writer is, by their account name (2026-10-30)');
+assert.match(calls[0].messages.map((m: any) => m.content).join('\n'), /The writer is Seth\./, 'TALK-WRITER: Talk is told who the writer is, by their account name (2026-10-30)');
+// A CHAT, NOT ONE LETTER (Seth, 2026-10-30: "It needs to feel like a person no repetition ... a chatbot
+// trained basically on the current story"): the story in the system message, the conversation as turns.
+calls = [];
+await routes['POST /api/talk']({ body: { storyId: story.id, said: 'And who am I?',
+  turns: [{ you: true, text: 'Who are you?' }, { text: 'Mina. I keep this tale.' }] },
+  query: new URLSearchParams(), owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+  gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any);
+{
+  const msgs = calls[0].messages.map((m: any) => `${m.role}:${String(m.content).slice(0, 40)}`);
+  assert.deepStrictEqual(msgs.slice(1), ['user:Who are you?', 'assistant:Mina. I keep this tale.', 'user:And who am I?'],
+    'TALK-CHAT: the conversation goes as turns, writer and Anansi, then this message');
+  assert.match(String(calls[0].messages[0].content), /lower tiers still pulse[\s\S]*$/, 'TALK-CHAT: and the story is in the system message');
+  assert.doesNotMatch(calls[0].messages.map((m: any) => m.content).join('\n'), /Earlier in this conversation/, '  not pasted in as a document');
+  assert.ok(Number(calls[0].temperature) >= 0.7 && Number(calls[0].presence_penalty) > 0, 'TALK-WARM: warmer, and leaning off what it has said');
+}
+ok('Talk is a chat: the story in the system message, the conversation as turns');
 
 // ---- 3. the room reserved is the room spent
 // It assembled the prompt against 900 tokens of reserved output and then asked for 1,600. The
@@ -1284,7 +1300,8 @@ db.updateStory(story.id, { writingStyle: BOOK_VOICE, styleNote: 'Gothic noir, cl
 
 const isolated = await ask(50_048);
 assert.ok(!isolated.error, isolated.error);
-const sent = String(calls[0].messages?.[1]?.content ?? '');
+// Talk's material is in its system message since 2026-10-30 (a chat, the story in the system).
+const sent = String(calls[0].messages?.[0]?.content ?? '');
 assert.ok(!sent.includes(BOOK_VOICE),
   'the book\'s prose voice is in the chat prompt. It outranks her own register (F37) and it is '
   + 'what made her answers read like the book instead of like her.');
@@ -2054,7 +2071,7 @@ ok('emptying the box gives her back the voice she shipped with');
   const r = await setup('CHANGE-SETUP: make it darker, lose the innkeeper, Ilva speaks low, and add the ferryman',
     { turns: [{ you: true, text: 'Who matters in Kesh?' }, { you: false, text: 'The houses, mostly.' }] });
   assert.ok(!r.error, r.error);
-  const ask = String(calls.at(-1).messages[1].content);
+  const ask = calls.at(-1).messages.map((m: any) => m.content).join('\n');
   assert.ok(ask.indexOf(STEP) >= 0 && ask.indexOf(STEP) < ask.indexOf('Six houses have one winter'),
     `SETUP-STEP-FIRST: the step the writer is on is named before the draft:\n${ask.slice(0, 400)}`);
   for (const seen of ['The Winter Signature', 'political fantasy', 'Kesh, under snow', 'Cold, spare, third person.',
@@ -2103,7 +2120,7 @@ ok('emptying the box gives her back the voice she shipped with');
       query: new URLSearchParams(), owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {},
       setGen: () => {}, defaultModel: null } as any) as any;
     assert.ok(!r.error, r.error);
-    const sent = String(calls.at(-1).messages[1].content);
+    const sent = calls.at(-1).messages.map((m: any) => m.content).join('\n');
     const threads = sent.split('\n').filter((l) => /^- Thread \d+/.test(l));
     assert.ok(threads.length <= 30, `SETUP-CAP-THREADS: at most 30 threads reach the prompt (${threads.length})`);
     assert.ok(threads.length > 0, 'SETUP-CAP-THREADS: and some do');
@@ -2364,7 +2381,7 @@ ok('emptying the box gives her back the voice she shipped with');
   // CANON: the World's Morgott gets the voice, and a new thread of the canon is made in the World.
   const canon = await say('CHANGE-CANON: in Elden Ring Morgott speaks slowly, and add Malenia');
   assert.ok(!canon.error, canon.error);
-  assert.match(String(calls.at(-1).messages[1].content), /follows the World Elden Ring/,
+  assert.match(calls.at(-1).messages.map((m: any) => m.content).join('\n'), /follows the World Elden Ring/,
     'IP-TOLD: Anansi is told which World the tale follows');
   assert.deepStrictEqual(pockets(ring.id, wMorgott), [['facts', 'The Omen King, alone.'], ['voice', 'Slow, formal, never a contraction.']],
     'IP-CANON: the voice is written to the World\'s Morgott');
@@ -2719,7 +2736,7 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   // RULES
   const rules = await say('CHANGE-RULES: add a tide rule, make the toll two coins, and switch dawn law on');
   assert.ok(!rules.error, rules.error);
-  const shown = String(calls[0].messages[1].content);
+  const shown = calls[0].messages.map((m: any) => m.content).join('\n');
   assert.match(shown, /Rules:[\s\S]*- Dawn law \(off, on a word: dawn\): Nobody crosses after dawn\./,
     'TALK-SEES-OWN: Talk is shown a rule that is off, by name, with its words');
   assert.match(shown, /- No oaths \(off\)/, 'TALK-SEES-OWN: and an instruction that is off');
