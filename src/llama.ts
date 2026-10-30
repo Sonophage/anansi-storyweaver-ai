@@ -154,6 +154,8 @@ async function featherless(path: string, body: Record<string, any>, signal?: Abo
   // remote answer past it is a cut answer (#64), so a wordy model failed a hem's thread changes twice.
   // Featherless bills by concurrency, not tokens. What stops a runaway instead: the passage's word
   // guard (`runawayWords`, in `chat`) and a five-minute ceiling on every other call (`post`).
+  // Since 2026-10-29 a JSON answer is the other exception: `structured` caps it at twice its local cap
+  // (a hem pass ran on for six and a half minutes without one). Prose stays uncapped.
   // The exceptions say so with `remoteCap` (never sent): the probe on add and the cache warms, which
   // ask for one or a few tokens and are not answers anyone reads. Uncapped, a warm would write a
   // whole passage nobody asked for.
@@ -519,13 +521,23 @@ export async function chat(system: string, body: string, opts: Record<string, un
  *  pinned low: a prose temperature under a tight grammar walks low-probability legal paths
  *  and produces valid JSON that says nothing. */
 export async function structured(system: string, body: string, schema: unknown, opts = {}) {
-  const payload = {
+  const payload: Record<string, any> = {
     model: MODEL, temperature: 0.2, top_p: 0.9, max_tokens: 1200,
     chat_template_kwargs: { enable_thinking: false },
     response_format: { type: 'json_schema', json_schema: { name: 'out', schema, strict: true } },
     messages: [{ role: 'system', content: system }, { role: 'user', content: body }],
     ...opts,
   };
+  // A JSON ANSWER ON FEATHERLESS IS CAPPED AT TWICE ITS LOCAL CAP (2026-10-29), unless the caller
+  // names its own (`remoteCap`, as Talk does). The 10-27 rule sent no cap to a remote model, and a
+  // model that runs on inside its JSON then ran to Featherless's own 4,096 tokens: a hem's "where
+  // the tale stands" took about six and a half minutes on Forgotten-Transgression-24B and was cut
+  // anyway. Twice the local cap is room a real answer never needs; a cut one is asked again
+  // (`structuredRetry`). Prose is not here: a passage still goes uncapped, as the 10-27 rule says.
+  if (isRemote(payload.model) && !payload.remoteCap) {
+    payload.max_tokens = 2 * (Number(payload.max_tokens) || 1200);
+    payload.remoteCap = true;
+  }
   const r = await post('/v1/chat/completions', payload);
   const m = r.choices?.[0]?.message ?? {};
   const txt = m.content ?? '{}';
@@ -575,6 +587,11 @@ export async function structuredRetry(system: string, body: string, schema: unkn
   const weaving = (opts as any).chat_template_kwargs?.enable_thinking === true;
   const tried = await structured(system, body, schema, weaving
     ? { ...opts, temperature: 0.1, chat_template_kwargs: { enable_thinking: false } }
+    // On Featherless the retry keeps the first try's cap (twice the asked one from `structured`, or
+    // the caller's own `remoteCap`) and only cools: doubling again let one runaway cost two long
+    // waits instead of one.
+    : isRemote((opts as any).model)
+    ? { ...opts, max_tokens: (opts as any).remoteCap ? asked : asked * 2, remoteCap: true, temperature: 0.1 }
     : { ...opts, max_tokens: Math.max(2000, asked * 2), temperature: 0.1 });
   const again = weaving ? { ...tried, usage: first.usage, reasoning: first.reasoning, retried: true } : tried;
   // A second empty answer is reported as empty rather than as a parse failure. The caller asked

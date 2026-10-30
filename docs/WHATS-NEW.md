@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Hemming on Featherless no longer stalls
+A hem asks Anansi six things about the scene. On some Featherless models one of them could run on
+for minutes before it gave up, so a hem took nine minutes and still missed "where the tale stands".
+Each of those answers now has a generous length limit on Featherless, so one that runs away is cut
+and asked again in seconds. Your passages still have no limit there.
+
 ### What Anansi writes is marked Woven
 A passage Anansi wrote no longer wears the name or the colour of the action that asked for it.
 It is marked Woven, with a line down its side in a colour of its own that none of the actions

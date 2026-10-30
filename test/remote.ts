@@ -695,15 +695,18 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
   assert.strictEqual(at.prose.split(/\s+/).length, 300, 'WAITED-UNDER: an answer on the guard is whole');
   assert.strictEqual(at.cut, false, 'WAITED-UNDER: and not cut');
 
-  // JSON CARRIES NO CAP AND NO GUARD. If Featherless still ends one on its own limit (`length`), it
-  // is a cut answer and is asked again, as before; the cap it asks with is never sent.
+  // JSON CARRIES A CAP ON FEATHERLESS, TWICE THE ONE IT ASKS FOR (2026-10-29). A hem's "where the tale
+  // stands" ran on to Featherless's own 4,096 tokens twice, about six and a half minutes, and was
+  // still cut. Twice the local cap leaves a real answer room and cuts a runaway early; the cut is
+  // asked again, as before.
   const { structuredRetry } = await import('../src/llama.ts');
   const NOTE = { type: 'object', properties: { note: { type: 'string' } }, required: ['note'] };
   m = mark();
   script.push('overcap', 'atcap');
   const s1 = await structuredRetry('s', 'b', NOTE, { model: ID, max_tokens: 50 });
   const tried = since(m).fl;
-  assert.ok(tried.every((t: any) => !('max_tokens' in t.body)), 'STRUCT-UNCAPPED: no structured call carries a cap');
+  assert.deepStrictEqual(tried.map((t: any) => t.body.max_tokens), [100, 100],
+    'STRUCT-CAPPED: a structured call to Featherless carries twice its cap, and the retry the same, cooler');
   assert.strictEqual(tried.length, 2, 'STRUCT-CUT: an answer Featherless itself cut is asked again');
   assert.strictEqual(s1.data?.note?.split(' ').length, 300, 'and the whole one is used');
 
@@ -714,7 +717,7 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
   assert.ok(loc.data, 'LOCAL-UNCHANGED: a local structured answer is still taken');
   assert.strictEqual(since(m).local.length, 1, 'LOCAL-UNCHANGED: and not asked again');
   assert.strictEqual(since(m).local.at(-1).body.max_tokens, 5, 'LOCAL-CAPPED: and a local call keeps its cap');
-  ok('a remote passage that arrives whole has the same guard; JSON is never capped; local keeps its cap');
+  ok('a remote passage that arrives whole has the same guard; JSON is capped at twice its local cap; local keeps its cap');
 }
 
 
@@ -881,7 +884,8 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
   assert.deepStrictEqual(again.ideas, ['One.', 'Two.', 'Three.'], 'IDEA-REMOTE-RETRY: three ideas come back');
   assert.ok(Number(tries[1].body.temperature) < Number(tries[0].body.temperature),
     'IDEA-REMOTE-RETRY: the second try is cooler than the first');
-  assert.ok(!('max_tokens' in tries[1].body), 'IDEA-REMOTE-RETRY: and, like every remote answer, carries no cap');
+  assert.deepStrictEqual(tries.map((t: any) => t.body.max_tokens), [600, 600],
+    'IDEA-REMOTE-RETRY: capped at twice the local 300, the retry the same, like every remote JSON answer');
 
   // The one door. Every writer-facing call resolves its model through `writerModel`, which is the
   // only place the shortlist is asked; a second `modelFor(` would be a call that can skip it.
