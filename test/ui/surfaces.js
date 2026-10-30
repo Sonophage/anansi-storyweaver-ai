@@ -223,8 +223,8 @@ ok("   drawn from the cast, and off by default",
    await page.eval("(() => { const el = document.querySelector('[data-story=\"lockedCharacter\"]');"
      + " return el.value === '' && [...el.options].some(o => o.text.includes('Aldis')); })()"));
 await page.eval("(() => { const el = document.querySelector('[data-story=\"lockedCharacter\"]');"
-  + " el.value = [...el.options].find(o => o.text.includes('Aldis')).value; return 1; })()");
-await page.click('[data-savestory="1"]');
+  + " el.value = [...el.options].find(o => o.text.includes('Aldis')).value;"
+  + " el.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()");
 await wait(800);
 const locked = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).story.lockedCharacter)()");
 ok(`   and saving it sticks (${JSON.stringify(locked)})`, /Aldis/.test(locked || ''));
@@ -246,8 +246,9 @@ await page.eval("(() => { const el = document.querySelector('[data-story=\"spice
   + " el.value = 'custom'; el.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()");
 await wait(400);
 ok("   choosing custom reveals it", await page.eval("document.getElementById('spiceCustom')?.hidden === false"));
-await page.eval("document.querySelector('[data-story=\"spiceNote\"]').value = 'Register: written by the test.'");
-await page.click('[data-savestory="1"]');
+// Typed, then left: leaving a typed box saves it (ADR 0004, pass three).
+await page.eval("(() => { const el = document.querySelector('[data-story=\"spiceNote\"]');"
+  + " el.value = 'Register: written by the test.'; el.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()");
 await wait(900);
 ok("   it saves", await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).story.spiceNote === 'Register: written by the test.')()"));
 await page.click('[data-panel=""]');
@@ -263,8 +264,6 @@ ok("   and reopening shows custom still selected",
    await page.eval("document.querySelector('[data-story=\"spice\"]')?.value === 'custom'"));
 await page.eval("(() => { const el = document.querySelector('[data-story=\"spice\"]');"
   + " el.value = '2'; el.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()");
-await wait(300);
-await page.click('[data-savestory="1"]');
 await wait(900);
 const back = await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json();"
   + " return JSON.stringify({ spice: v.story.spice, note: v.story.spiceNote }); })()");

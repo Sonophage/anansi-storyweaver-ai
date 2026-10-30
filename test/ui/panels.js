@@ -124,8 +124,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   // It has to survive a rename, which is the bug that was sitting under it: updateChapter wrote
   // keep_whole unconditionally and every caller sends only a title and a note.
   await page.eval("(() => { const el = document.querySelector('[data-chapter-title]');"
-    + " el.value = 'Renamed while pulled back'; return 1; })()");
-  await page.click('[data-savestory="1"]');
+    + " el.value = 'Renamed while pulled back'; el.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()");
   await wait(1200);
   ok("  and renaming the chapter does not switch it off again", (await pull())?.on === '0');
   // And back off, because a hatch you cannot shut is a window that never closes.
@@ -394,8 +393,9 @@ await page.eval("(() => { const t = document.querySelector('[data-chapter-title]
   + " const n = document.querySelector('[data-chapter-note]');"
   + " const o = document.querySelector('[data-chapter-opens]');"
   + " t.value = 'The Debt Falls Due'; o.value = 'The room is already cold when she comes in.';"
-  + " n.value = 'She hands the key over and keeps the debt.'; return 1; })()");
-await page.click('[data-savestory="1"]');
+  + " n.value = 'She hands the key over and keeps the debt.';"
+  // Each box saves when it is left (ADR 0004, pass three): there is no Save on this panel.
+  + " for (const el of [t, o, n]) el.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()");
 await wait(1200);
 const after = (await story()).story;
 const ch4 = (await story()).currentChapter ?? {};
@@ -408,7 +408,8 @@ ok("  and does NOT blank the story it did not mention",
 ok(`  including the ones a select holds (pov ${JSON.stringify(after.pov)}, spice ${after.spice})`,
    after.pov === before.pov && after.spice === before.spice);
 const toast = (await page.text('#toast') || '').trim();
-ok(`  and it says it saved rather than erroring (${JSON.stringify(toast.slice(0, 40))})`, /Saved/i.test(toast));
+// Silent when it lands (an error still speaks), so what is checked is that nothing complained.
+ok(`  and nothing complained (${JSON.stringify(toast.slice(0, 40))})`, !/error|could not|failed|refused/i.test(toast));
 
 // ---- 5. Story keeps the book-level fields and loses the chapter's
 await page.click('[data-nav="story"]');
@@ -467,7 +468,7 @@ await page.eval("(() => { const t = document.querySelector('#f-story-premise'); 
 await page.click('[data-storytab="book"]');
 await wait(400);
 ok(`  pressing The book shows that group and only it (${await oneShown()})`, (await oneShown()) === 'book');
-ok("  and Save is still there, on every group", await page.visible('.savebar [data-savestory]'));
+ok("  and there is no Save to look for: the panel saves as you type", !(await page.eval("!!document.querySelector('[data-savestory]')")));
 await page.click('[data-storytab="voice"]');
 await wait(400);
 ok("  and the half-typed premise survived both presses", (await page.eval(
@@ -1770,9 +1771,9 @@ ok("  and it is still there a moment later, not eaten by a repaint",
   ok("the story panel offers a world to belong to", await page.visible('[data-story="loreFrom"]'));
   const picked = await page.eval("(() => { const sel = document.querySelector('[data-story=\"loreFrom\"]');"
     + " const o = [...sel.options].find(x => /Ash Cycle/.test(x.textContent));"
-    + " if (!o) return 'the world is not offered'; sel.value = o.value; return 'ok'; })()");
+    + " if (!o) return 'the world is not offered'; sel.value = o.value;"
+    + " sel.dispatchEvent(new Event('change', { bubbles: true })); return 'ok'; })()");
   ok(`  and this book's own world is not among them (${picked})`, picked === 'ok');
-  await page.click('[data-savestory="1"]');
   await wait(900);
 
   // THE LINK REACHES THE PROMPT. That is the whole feature: not a copy on the screen, a card in

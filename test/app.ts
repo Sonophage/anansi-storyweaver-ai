@@ -1438,8 +1438,8 @@ ok('the bar counts chapters, and the reading is always open');
   const all = html('sideBody');
   assert.match(all, /id="thq"/, 'the threads list has its own search box');
   assert.match(all, /id="thlist"/, 'and the rows are in a container it can redraw by itself');
-  // IT REDRAWS ITS OWN LIST AND NOTHING ELSE. Every other box on this panel is free text waiting on
-  // Save, so a keystroke that repaints the panel throws away what is half-typed — the bug this file
+  // IT REDRAWS ITS OWN LIST AND NOTHING ELSE. Every other box on this panel saves after a pause in
+  // the typing, so a keystroke that repaints the panel throws away what is half-typed — the bug this file
   // records in seven other handlers. Asserted on the source, the way the story panel's chips are.
   const src = (await import('node:fs')).readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
   const handler = src.match(/id === 'thq'\)[\s\S]{0,260}/)?.[0] ?? '';
@@ -1507,12 +1507,8 @@ ok('the bar counts chapters, and the reading is always open');
   const book = panel.match(/data-group="book"[\s\S]*?data-group="world"/)?.[0] ?? '';
   for (const k of ['title', 'genre', 'premise'])
     assert.match(book, new RegExp(`f-story-${k}`), `the book group holds the ${k}`);
-  // SAVE IS OUTSIDE THE GROUPS. Issue #33 pinned it to the top of this panel; a Save that only
-  // exists on one of four tabs is worse than one you have to scroll to.
-  assert.ok(panel.indexOf('savebar') < panel.indexOf('data-group='),
-    'Save stays above the chips, on every group');
   // AND PRESSING A CHIP DOES NOT REDRAW, which is asserted ON THE SOURCE rather than through this
-  // harness. Every box in the panel is free text waiting on Save, so a repaint on a tab press
+  // harness. Every box in the panel saves after a pause in the typing, so a repaint on a tab press
   // throws away a half-written premise — the bug this file records seven times in other handlers.
   // A DRAWN-count check was tried here first and it could not fire: paint() against these stubs
   // fetches nothing, so it went green with paint() put back. The behaviour itself is driven in
@@ -4900,6 +4896,12 @@ ok('every menu row has its own picture, and the phone menu has a cross to close 
   assert.deepStrictEqual(tabsOf(html('page')), ['profile', 'model', 'look', 'writing', 'books'], 'five pages, not one');
   assert.match(html('page'), /id="f-me-name" value="Seth"/, 'You: your name');
   assert.match(html('page'), /data-avatar="1"/, 'and a picture to choose');
+  // YOUR NAME SAVES WHEN YOU LEAVE THE BOX (ADR 0004, pass three): no Save beside it.
+  assert.doesNotMatch(html('page'), /data-savename/, 'NAME-NOSAVE: no Save beside your name');
+  POSTED.length = 0;
+  (listeners.change ?? []).forEach((f: Function) => f({ target: { id: 'f-me-name', value: 'Seth H', dataset: {} } }));
+  await sleep(30);
+  assert.strictEqual(POSTED.find((p: any) => p.url === '/api/me')?.body.name, 'Seth H', 'NAME-SAVES: leaving the box saves your name');
   assert.doesNotMatch(html('rail'), /data-nav="(import|prefs|forge)"/, 'Import, Export and What you have written are off the menu');
   assert.match(html('rail'), /data-nav="account"/, 'and Account is on it');
   click({ accttab: 'model' });
@@ -5579,9 +5581,12 @@ ok('the house style can be re-rolled, into the box and not into the story');
   assert.match(story, /data-savelib="style"/, 'the style field has its own shelf');
   assert.doesNotMatch(story, /data-applylib="style:/, 'which is empty, and separate from the voice one');
 
-  // APPLYING COPIES INTO THE BOX AND STOPS. A library that saved on apply would overwrite a page of
-  // hand-written voice with one press and no undo.
-  const box: any = { value: 'typed by hand' };
+  // APPLYING COPIES INTO THE BOX AND SAVES IT, AND WHAT IT REPLACED CAN BE PUT BACK (ADR 0004 pass
+  // three: there is no Save to press). Without the put-back, a library that saved on apply would
+  // overwrite a page of hand-written voice with one press and no undo.
+  const placed: string[] = [];
+  const box: any = { value: 'typed by hand', dataset: { story: 'writingStyle' }, tagName: 'TEXTAREA',
+    type: 'textarea', insertAdjacentHTML: (_: string, h: string) => placed.push(h) };
   const wasQS = doc.querySelector;
   doc.querySelector = (sel: string) => (sel === '[data-story="writingStyle"]' ? box : null);
   try {
@@ -5589,8 +5594,17 @@ ok('the house style can be re-rolled, into the box and not into the story');
     click({ applylib: 'voice:Noir' });
     await sleep(30);
     assert.strictEqual(box.value, 'Wet streets. Nobody explains themselves.', 'it copies in');
-    assert.deepStrictEqual(POSTED.map((x) => String(x.url)), [],
-      'and writes nothing anywhere — Save is still the press that keeps it');
+    const kept = POSTED.filter((x) => String(x.url) === '/api/story');
+    assert.strictEqual(kept.length, 1, 'FILL-SAVED: and saves it, as typing would');
+    assert.deepStrictEqual(kept[0].body.story, { writingStyle: 'Wet streets. Nobody explains themselves.' },
+      'FILL-SAVED: that box alone');
+    assert.match(placed.join(''), /data-putback="writingStyle"/, 'FILL-PUTBACK: with a press beside it that puts back what was there');
+    POSTED.length = 0;
+    click({ putback: 'writingStyle' });
+    await sleep(30);
+    assert.strictEqual(box.value, 'typed by hand', 'FILL-PUTBACK: the press puts the hand-written voice back');
+    assert.strictEqual(POSTED.find((x) => String(x.url) === '/api/story')?.body.story.writingStyle, 'typed by hand',
+      'FILL-PUTBACK: and saves it');
   } finally { doc.querySelector = wasQS; }
 
   // SAVING TAKES WHAT IS IN THE BOX, not what the story holds: the writer may have just edited it,
@@ -5828,16 +5842,48 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     await sleep(30);
     assert.ok(POSTED.find((p: any) => String(p.url) === '/api/story'), 'a picker still saves itself');
 
-    // AND THE ABSENCE, which is the half that passes for the wrong reason. Text must still wait:
-    // a box that saved itself mid-sentence would fight the writer.
+    // TYPED TEXT SAVES AS YOU GO (ADR 0004, pass three, 2026-10-29). Leaving a box saves it, and so
+    // does a pause in the typing. Only the box that changed is sent: the rest of the panel may be
+    // part-way through a sentence of its own.
     POSTED.length = 0;
-    changeIn({ dataset: { story: 'premise' }, type: 'text', value: 'half a th' });
-    changeIn({ dataset: { story: 'title' }, tagName: 'TEXTAREA', type: 'textarea', value: 'half a ti' });
+    changeIn({ dataset: { story: 'premise' }, tagName: 'TEXTAREA', type: 'textarea', value: 'A ferry, a debt.' });
     await sleep(30);
+    const left = POSTED.filter((p: any) => String(p.url) === '/api/story');
+    assert.strictEqual(left.length, 1, 'TYPED-BLUR: leaving a typed box saves it with no Save pressed');
+    assert.deepStrictEqual(left[0].body.story, { premise: 'A ferry, a debt.' }, 'TYPED-BLUR: and sends that box alone');
+
+    POSTED.length = 0;
+    const typing = { dataset: { story: 'genre' }, tagName: 'INPUT', type: 'text', value: 'Gothic Rom' };
+    (listeners.input ?? []).forEach((f: Function) => f({ target: typing }));
+    await sleep(100);
     assert.strictEqual(POSTED.filter((p: any) => String(p.url) === '/api/story').length, 0,
-      'and typing into free text still commits nothing until Save');
+      'TYPED-PAUSE: nothing is sent while the fingers are still moving');
+    typing.value = 'Gothic Romance';
+    (listeners.input ?? []).forEach((f: Function) => f({ target: typing }));
+    await sleep(1500);
+    const paused = POSTED.filter((p: any) => String(p.url) === '/api/story');
+    assert.strictEqual(paused.length, 1, 'TYPED-PAUSE: a pause in the typing saves it once');
+    assert.strictEqual(paused[0].body.story.genre, 'Gothic Romance', 'TYPED-PAUSE: with what was typed last');
+    // And leaving the box after the pause has nothing new to send.
+    changeIn(typing);
+    await sleep(30);
+    assert.strictEqual(POSTED.filter((p: any) => String(p.url) === '/api/story').length, 1,
+      'TYPED-ONCE: leaving a box already saved sends nothing again');
+
+    // THE SCENE'S THREE BOXES, through the chapter route, one field at a time.
+    POSTED.length = 0;
+    changeIn({ dataset: { chapterTitle: '1' }, tagName: 'INPUT', type: 'text', value: 'The Crossing' });
+    await sleep(30);
+    const ch = POSTED.find((p: any) => String(p.url) === '/api/chapter');
+    assert.ok(ch, 'TYPED-SCENE: leaving the scene name saves it');
+    assert.deepStrictEqual(ch.body.chapter, { title: 'The Crossing' }, 'TYPED-SCENE: and only the name');
+    POSTED.length = 0;
+    changeIn({ dataset: { chapterNote: '1' }, tagName: 'TEXTAREA', type: 'textarea', value: 'She pays.' });
+    await sleep(30);
+    assert.deepStrictEqual(POSTED.find((p: any) => String(p.url) === '/api/chapter')?.body.chapter,
+      { authorsNote: 'She pays.' }, 'TYPED-SCENE: Heads toward saves as authorsNote');
   } finally { doc.querySelectorAll = wasQSA; }
-  ok('sliders save themselves — the sampler and the cover — and free text still waits for Save');
+  ok('sliders, pickers and typed text all save themselves (ADR 0004)');
 }
 
 // ---- AND A CHECKBOX SHOWS ITS CONSEQUENCE WITHOUT A SAVE PRESS. They always saved; the autosave
@@ -6211,48 +6257,18 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   ok('a close lands the writer on the cards it proposed, a reload still does, and Anyone new leads');
 }
 
-// ---- A PANEL'S SAVE IS AT THE TOP AND PINNED (issue #33). Seth, 2026-08-31: "All save buttons
-// must be at the top and should be sticky."
-//
-// Three panels have a Save that commits the WHOLE panel, and all three are long enough to scroll on
-// a phone: Story, Chapter and Storyteller. Storyteller's was the last element on the longest panel
-// in the app.
-//
-// SCOPED, and the scope is the point. The card form's head has been sticky since it was written, so
-// it is the pattern rather than a fourth copy. The per-item saves — one per outfit, per state, per
-// addon, per mode prompt — stay beside the thing they save: there are many of them on one screen
-// and "at the top" has no meaning for a button that belongs to the third card in a list. Seth's
-// call, asked and answered 2026-08-31.
+// ---- NO WHOLE-PANEL SAVE (ADR 0004, pass three, 2026-10-29). Tale, This scene and Storyteller each
+// had a Save pinned to their top (#33). Every field on them saves itself now (the block on what
+// autosaves drives that), so a Save there would be a button that does nothing new.
 {
-  const { readFileSync } = await import('node:fs');
-  const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
-  assert.match(css, /\.savebar\s*\{[^}]*position:\s*sticky/,
-    '.savebar must actually be sticky — the class is the whole mechanism');
-  assert.match(css, /\.savebar\s*\{[^}]*top:\s*0/, 'and pinned to the top of the scrolling panel');
-  // #sideBody is the scroll container, and it is only that because it carries `.scroll`. Sticky
-  // against a non-scrolling ancestor silently does nothing, which is the failure this catches.
-  assert.match(css, /id="sideBody" class="scroll(?: [^"]*)?"/,
-    '#sideBody must carry .scroll or nothing in the panel can be sticky against it');
-
   for (const [panel, label] of [['story', 'Tale'], ['chapter', 'This scene'], ['teller', 'Storyteller']]) {
     click({ panel });
     await sleep(40);
     const body = html('sideBody');
-    const bar = body.match(/<div class="savebar(?: [^"]*)?">[\s\S]*?<\/div>/)?.[0] ?? '';
-    assert.ok(bar, `the ${label} panel draws a .savebar`);
-    assert.match(bar, /data-save(story|gen)="1"/, `and the ${label} panel's Save is inside it`);
-    // AT THE TOP, which is the half a class name cannot promise. Measured as a position in the
-    // markup rather than trusted: the bar has to come before the first field on the panel.
-    const barAt = body.indexOf('class="savebar"');
-    const firstField = body.search(/class="field"|type="range"/);
-    assert.ok(firstField === -1 || barAt < firstField,
-      `the ${label} panel's Save must come before its first field `
-      + `(bar at ${barAt}, first field at ${firstField})`);
-    // AND EXACTLY ONE. Moving a button is how you end up with two of it.
-    assert.strictEqual((body.match(/data-save(story|gen)="1"/g) ?? []).length, 1,
-      `the ${label} panel has exactly one whole-panel Save`);
+    assert.doesNotMatch(body, /data-save(story|gen)="1"/, `NO-SAVEBAR: the ${label} panel has no whole-panel Save`);
+    assert.doesNotMatch(body, /class="savebar"/, `NO-SAVEBAR: and no empty bar where it was`);
   }
-  ok('Story, Chapter and Storyteller each pin one Save above their fields (#33)');
+  ok('Tale, This scene and Storyteller have no Save: their fields save themselves');
 }
 
 // ---- THE CHAPTER PANEL SPLITS INTO FOUR, on the mechanism the Story panel already uses.
@@ -6295,12 +6311,6 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(chip('proposed'), /class="tnum(?: [^"]*)?"/, 'and so does Proposed');
   assert.doesNotMatch(chip('this'), /class="tnum(?: [^"]*)?"/,
     'This chapter counts nothing — a count there would be a number with no referent');
-
-  // THE SAVE BAR STAYS OUTSIDE THEM. It commits the chapter's name and its two boxes, and those
-  // live in one group — so a bar inside that group would vanish on three tabs out of four while
-  // the fields it commits stayed in the document.
-  assert.ok(body.indexOf('class="savebar"') < body.indexOf('class="sgroup"'),
-    'the Save bar sits above the groups, not inside one of them');
 
   // ONE COLUMN CUT INTO FOUR BY HAND, so the nesting is counted rather than eyeballed. An unclosed
   // group swallows the ones after it and the panel still renders.
@@ -6394,8 +6404,8 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(card, /How the prose sounds/, 'and it still carries the web');
   assert.match(card, /How the narration behaves/, "and the field's own sentence with it");
 
-  // OPENING ONE DOES NOT REPAINT. Every field on this panel is free text that only Save commits,
-  // so a paint here eats a half-written premise — the bug this file records eight times, and the
+  // OPENING ONE DOES NOT REPAINT. Every field on this panel saves after a pause in the typing,
+  // so a paint inside the pause eats a half-written premise — the bug this file records eight times, and the
   // one `data-help` still has. The sentinel is the only thing that can tell a repaint from a
   // correct redraw, because both leave the markup looking right.
   nodes.get('sideBody').innerHTML = 'STALE';

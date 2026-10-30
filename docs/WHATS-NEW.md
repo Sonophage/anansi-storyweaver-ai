@@ -57,6 +57,12 @@ This scene; it still asks twice.
 The hem screen lists what hemming does as steps, in the order it does them: the summary, where the
 tale stands, changes to the people in it, new threads, threads it is done with, and the next scene.
 Each is marked done or not yet. Hem this scene is the one gold button there.
+### No more Save on the Tale, This scene and Storyteller
+What you type on the Tale and This scene saves itself, a moment after you stop typing and again
+when you leave the box. The Save at the top of those panels, and of the Storyteller, is gone. Your
+name on your account saves when you leave the box too. When Anansi writes the style note, or you
+copy a voice in from your shelf, it is saved straight away, and a "Put back what was there" button
+under the box brings back what you had before.
 
 ### Changes show as Was and Now
 Wherever a change to a thread is shown (the Workbench, Alterations, Talk, Ask Anansi), you now see

@@ -22,8 +22,8 @@ const phone = () => matchMedia('(max-width:719px)').matches;
  * manual and keeps its slug check; everything else keeps the sentence already written beside it.
  *
  * ABOVE THE CONTROL: an explanation read after the box is filled in is read too late.
- * IT DOES NOT REPAINT: these panels are free text that only Save commits, so a paint here eats a
- * half-written premise. The open set is in state so an unrelated repaint redraws it open.
+ * IT DOES NOT REPAINT: a paint here would put a premise typed inside the save pause back to the
+ * stored one. The open set is in state so an unrelated repaint redraws it open.
  */
 const tipOn = (k) => !!S.tips?.[k];
 const tipMark = (k, what) => `<button data-tip="${k}" aria-expanded="${tipOn(k)}"
@@ -522,9 +522,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  state. A name left here would match nothing and read as a live action.)
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'ctxtoggle', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home',
   're', 'del', 'ed', 'hi', 'vp', 'vn', 'hwkb', 'bigin', 'diffview',
-  'savestory', 'summarize', 'extract', 'decide', 'branch', 'delbranch', 'newthread', 'entry',
+  'summarize', 'extract', 'decide', 'branch', 'delbranch', 'newthread', 'entry',
   'carryon',
-  'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
+  'spark', 'blank', 'backup', 'putback', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
   'kind', 'act', 'pickmodel', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
   // #36. A followed card, per card. `unlink` was taken by the entry-LINKS feature years of commits
   // ago, so these say what they do to a followed thread instead of reusing that word.
@@ -605,7 +605,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #75. The tale's own thread.
   'taleopen', 'addtalerule', 'saverule', 'addtalepocket',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
-  'accttab', 'savename', 'delavatar', 'acctgo',
+  'accttab', 'delavatar', 'acctgo',
   // A card out as JSON and back in again: copy, save to a file, read one.
   'cardcopy', 'cardsave', 'cardread',
   // A thread pulled off the web, in the subject's own canon.
@@ -1996,7 +1996,7 @@ async function nameChapter(chapterId, auto = false) {
  *  Seth, 2026-09-02: "these two can be filled by anansi originally and then rerolles or overwritten
  *  by the usewr." `nameChapter` above does the same call for the SETUP screen and writes its answer
  *  into `S.setup`, which the panel does not have — the boxes here are the live fields of a chapter
- *  that already exists, so the answer goes into the DOM and Save is still what commits it.
+ *  that already exists, so the answer goes into the DOM and is saved from there, as typing would be.
  *
  *  ONE CALL FOR ALL THREE. The route names the chapter, says how it opens and says where it goes in
  *  one structured answer, so a re-roll of any of them is a re-roll of the set. Three buttons would
@@ -2029,9 +2029,12 @@ async function chapterBrief(again = false) {
   const t = box('[data-chapter-title]'), o = box('[data-chapter-opens]'), n = box('[data-chapter-note]');
   const blank = (el) => el && !String(el.value ?? '').trim();
   // SOMETHING ELSE replaces all three: the writer asked for a different scene. Still not saved.
+  // Whatever lands in a box is saved, as typing would be (ADR 0004): there is no Save to press.
+  const keep = () => [t, o, n].forEach((el) => el && saveTyped(el));
   if (again) {
     if (t) t.value = r.title; if (o) o.value = r.opens ?? ''; if (n) n.value = r.note ?? '';
-    return toast('Something else, from Anansi. Nothing is saved until you press Save.');
+    keep();
+    return toast('Something else, from Anansi. Change any of it; it saves as you type.');
   }
   const kept = [];
   if (t && numbered(t.value, ch.index)) t.value = r.title;
@@ -2040,10 +2043,10 @@ async function chapterBrief(again = false) {
   else if (o && r.opens) kept.push('Opens with');
   if (blank(n) && r.note) n.value = r.note;
   else if (n && r.note) kept.push('Heads toward');
+  keep();
   toast(kept.length
-    ? `Anansi suggests. What you had typed is untouched (${kept.join(', ')}); empty boxes are filled. `
-      + 'Nothing is saved until you press Save.'
-    : 'Anansi suggests. All three boxes are yours to change, and nothing is saved until you press Save.');
+    ? `Anansi suggests. What you had typed is untouched (${kept.join(', ')}); empty boxes are filled.`
+    : 'Anansi suggests. All three boxes are yours to change; they save as you type.');
 }
 
 /** A look change, and the only thing that decides where it is saved: whether a book is open.
@@ -4523,12 +4526,13 @@ const PANELS = {
         ${body ? tipCard(k, label, body) : ''}
         ${f.area ? `<textarea class="field" id="f-story-${f.k}" data-story="${f.k}">${esc(V.story[f.k] ?? '')}</textarea>`
                  : `<input class="field" id="f-story-${f.k}" data-story="${f.k}" value="${esc(V.story[f.k] ?? '')}">`}
+        ${S.putBack?.storyId === S.storyId && S.putBack.key === f.k ? putBackButton() : ''}
         ${f.k === 'premise' ? taleNowBox() : ''}
         <!-- #18 §2. The one field with a re-roll, because it is the one written FROM two others.
              Voice is yours and a book's premise cannot guess it; the house style is what a book of
              this genre does on the page, which the genre and the premise between them do say.
-             It fills the box and stops: Save is still the press that keeps it, the same bargain
-             every other thing Anansi offers makes. -->
+             It fills the box and saves it, and a press beside the box puts back what was there
+             (fillTyped), the same bargain the shelf above it makes. -->
         ${LIB_FIELD.voice === f.k || LIB_FIELD.style === f.k
           ? libTray(f.k === LIB_FIELD.voice ? 'voice' : 'style') : ''}
         ${f.k === 'styleNote' ? `<button class="btn ghost" data-restyle="1" ${S.styling ? 'disabled' : ''}
@@ -4538,10 +4542,6 @@ const PANELS = {
     const IDENT = ['title', 'genre', 'premise'];
     const tab = S.storyTab ?? 'voice';
     return `<div class="stack" data-tab="${tab}">
-      <!-- Issue #33. It was already at the top of this panel; now it stays there. Everything on
-           this screen except the typed fields saves itself, so what this commits is the title, the
-           premise, the setting and the voice — the four things you can be part-way through. -->
-      <div class="savebar"><button class="btn" data-savestory="1">Save</button></div>
       <!-- FOUR GROUPS, NOT ONE LONG FORM. Seth, 2026-09-02: "this needs the same treatment that
            threads got with the filters. this is so much information that its overwhelming. give it
            filter buttons to reach the information. title, genre and premise can be the second
@@ -4984,20 +4984,14 @@ const PANELS = {
       background:transparent; color:${on ? 'var(--ink-bright)' : 'var(--mute)'}`;
     const tab = S.chapTab ?? 'this';
     return `<div class="stack" data-tab="${tab}">
-      <!-- Issue #33. This sat under the two fields, which is four screens up from the bottom of
-           the panel on a phone once the proposals and summaries are drawn below it. Both fields
-           here are free text and neither autosaves, so this is the only thing that commits them.
-           It stays OUTSIDE the groups: it commits the chapter's name and its two boxes whichever
-           tab you are standing on, because all four groups are drawn and only one is displayed. -->
-      <div class="savebar"><button class="btn" data-savestory="1">Save</button></div>
       <!-- FOUR GROUPS, THE SAME TREATMENT THE STORY PANEL GOT. Seth, 2026-09-03: "everything here
            should also use the tab system to split information." This panel was one column holding
            five unrelated jobs — naming the chapter, a queue of proposals, the summaries that stand
            in for earlier chapters, the acts those collapse into, and the branches — and the
            proposals queue sat four screens down.
            THEY SWITCH IN CSS, NOT BY REDRAWING, for the reason the Story panel's note gives: the
-           name and the two boxes are free text that only Save commits, and a repaint on a tab press
-           throws away whatever was half-typed.
+           name and the two boxes save after a pause in the typing, and a repaint inside the pause
+           puts back the stored text.
            PROPOSED CARRIES ITS COUNT. The other three do not need one — a queue that is hidden
            behind a tab and does not say how many are waiting is the one thing this split could
            break, and closing a chapter fills it. -->
@@ -5354,12 +5348,6 @@ const PANELS = {
           value="${value}" style="width:100%; accent-color:var(--gold)">
       </div>`;
     return `<div class="stack">
-      <!-- Issue #33. This was the last thing on the longest panel in the app — under the model
-           list, the sampler, the weaving switch and this story's calls. The three sliders save
-           themselves on release now, so pressing this is a confirmation rather than the only way to
-           commit them; it stays because a settings screen with no Save reads as one that did not
-           take. -->
-      <div class="savebar"><button class="btn" data-savegen="1">Save</button></div>
       <div style="display:flex; align-items:flex-start; gap:12px; padding:0 0 4px">
         <span style="width:8px; height:8px; border-radius:50%; background:var(--warn); margin-top:5px; flex:0 0 auto"></span>
         <span class="col-4">
@@ -7062,9 +7050,9 @@ async function loadPrompts() {
  *  written. That is the whole difference between a library and a link, and it is the same bargain
  *  the thread copier makes on the create form.
  *
- *  It writes into the DOM and stops, like every other thing Anansi fills in here: Save is still the
- *  press that keeps it. A library that saved on apply would overwrite a page of hand-written voice
- *  with one press and no undo.
+ *  It writes into the box and saves it, like every other thing Anansi fills in here, and the press
+ *  that puts back what it replaced is drawn beside the box (fillTyped): a library that saved on
+ *  apply with no way back would overwrite a page of hand-written voice with one press.
  *
  *  One tray, two kinds. `voice` is how narration behaves in every book you write; `style` is what
  *  THIS book's genre does on the page. They are different blocks in the prompt and they are
@@ -8693,7 +8681,6 @@ const WPAGES = {
             ${me.avatar ? '<button class="btn ghost" data-delavatar="1">Take it off</button>' : ''}</div></div>
         <label class="lbl push-14" for="f-me-name">Your name</label>
         <input class="field" id="f-me-name" value="${esc(me.name ?? '')}" autocomplete="name">
-        <button class="btn push-8" data-savename="1">Save</button>
         <div class="hint">Signed in as <code>${esc(me.login ?? '')}</code>.</div>`;
     return `<div class="stack" style="max-width:640px">${tabs}${body}</div>`;
   },
@@ -11046,26 +11033,19 @@ async function leaveTo(page) {
   if (page === 'prefs' && S.models === null) loadModels();
 }
 
-/** Commit the Story panel.
- *
- *  `only` is the autosave path: ONE control, saved the moment it changes, and nothing else. Seth,
- *  2026-08-31: "theres alot of things that can be auto saved ... a great example is the check marks
- *  for the story banner or choosing the pov and voice." His call on scope was toggles and pickers
- *  only, and this is why that distinction has to live in the patch rather than in the listener: the
- *  Save press reads EVERY `[data-story]` element, so an autosave that reused it would push whatever
- *  is half-typed in Premise or the voice to the server every time a checkbox moved. A text field
- *  that saves mid-sentence fights the writer; a checkbox that needs a Save is just wrong.
- *
- *  The chapter's name and its brief are free text and are only committed by the Save press, for the
- *  same reason.
+/** Save one control of the Story panel, the moment it changes: a toggle, a picker or a slider on
+ *  `change`, a typed box when it is left or the typing pauses (saveTyped). Seth, 2026-08-31:
+ *  "theres alot of things that can be auto saved ... a great example is the check marks for the
+ *  story banner or choosing the pov and voice." ONE control and nothing else, so a half-typed box
+ *  beside it is never sent with it. The whole-panel Save that read every `[data-story]` is gone
+ *  (ADR 0004, pass three, 2026-10-29).
  */
-async function commitStory(only = null) {
+async function commitStory(el) {
   const patch = {};
   // A checkbox carries its answer in `checked`, not in `value` — `el.value` on an unchecked box
   // is the string "on", which is truthy, so reading it the same way as a text field saves every
   // switch as ON whichever way the writer left it.
-  const take = (el) => { patch[el.dataset.story] = el.type === 'checkbox' ? el.checked : el.value; };
-  if (only) take(only); else document.querySelectorAll('[data-story]').forEach(take);
+  patch[el.dataset.story] = el.type === 'checkbox' ? el.checked : el.value;
   // A range carries a string, and `Number('') || 0` on an untouched one would save 0 — which is
   // a picture turned off rather than a picture left alone. It is always present when it renders,
   // so the cast is all it needs; the clamp lives in db.updateStory where every caller passes.
@@ -11076,48 +11056,20 @@ async function commitStory(only = null) {
   if (patch.spice === 'custom') delete patch.spice;
   else if (patch.spice !== undefined) patch.spiceNote = '';
   // NOTHING TO SEND IS NOT A SAVE. `custom` is a UI mode rather than a stored value, so the line
-  // above can empty a one-control patch completely.
-  //
-  // The repaint half of this is fixed below and better — `if (!only) paint()`, which is the
-  // general rule and not only this control's. What is left is the write itself, and it is not
-  // free: `db.updateStory` sets `updated_at = now()` unconditionally, so an empty patch still
-  // moves the book to the top of the shelf. That reordering used to be invisible; it now decides
-  // which book gets the resume band, so choosing a register would silently change what you land
-  // on next time.
-  //
-  // Guarded here rather than in the listener because the listener does not know what survives the
-  // shaping — that knowledge lives in this function and only here.
-  //
-  // `only` AND NOT the Save press. An empty patch from a Save is legitimate and load-bearing: the
-  // Chapter panel holds no [data-story] field at all since `direction` went, so its Save sends {}
-  // and exists entirely to land the chapter's own title and beat and to say it saved. Guarding
-  // both paths made Save on that panel do nothing and stay silent about it — caught by
-  // test/ui/panels.js §4, whose comment had already named this exact case.
-  if (only && !Object.keys(patch).length) return;
+  // above can empty the patch completely, and `db.updateStory` sets `updated_at = now()`
+  // unconditionally: an empty patch would still move the book to the top of the shelf, which
+  // decides which book gets the resume band.
+  if (!Object.keys(patch).length) return;
   const r = await api.saveStory(S.storyId, patch);
   if (r.error) return toast(r.error);
-  let c = null;
-  if (!only) {
-    const ct = document.querySelector('[data-chapter-title]'), cn = document.querySelector('[data-chapter-note]');
-    const co = document.querySelector('[data-chapter-opens]');
-    c = ct && await api.saveChapter(S.storyId, V.currentChapter.id,
-      { title: ct.value, authorsNote: cn?.value ?? '', opensWith: co?.value ?? '' });
-  }
   V = await api.story(S.storyId);
-  // NO REPAINT ON THE AUTOSAVE PATH. The panel you are standing in is the one being redrawn, and
-  // a repaint here empties whatever is part-way typed. The listener below has said so about the
-  // dock since it was written and this rediscovered it: choosing the sixth spice option reveals a
-  // text box, and autosaving the select wiped that box before it could be typed into. Four
-  // assertions in test/ui/surfaces.js caught it. The control already shows its own new value.
-  if (!only) paint();
+  // NO REPAINT. The panel you are standing in is the one being redrawn, and a repaint here empties
+  // whatever is part-way typed: choosing the sixth spice option reveals a text box, and autosaving
+  // the select wiped that box before it could be typed into. Four assertions in test/ui/surfaces.js
+  // caught it. The control already shows its own new value.
   refreshManifest();
-  // COUNCIL 09 §2. This said "Saved." whatever came back, over the two fields on this screen a
-  // writer types by hand. A toast that lies is worse than no toast: the next time the title is
-  // empty you go looking for the fault somewhere it is not.
-  //
-  // Silent on the autosave path. A toast per checkbox is a notification for something the writer
-  // did not ask to be told about; an error still speaks.
-  if (!only) toast(c && c.error ? c.error : 'Saved.');
+  // SILENT. A toast per checkbox or per pause in the typing is a notification for something the
+  // writer did not ask to be told about; an error still speaks.
 }
 
 /** The sampler, saved the moment a slider is let go.
@@ -11128,13 +11080,13 @@ async function commitStory(only = null) {
  *  user to click save before anything happens."
  *
  *  ALL OF THEM, not only the one that moved. `api.settings` takes the whole sampler and the route
- *  merges what it is given, so sending one field would be correct too — but the Save button has
- *  always sent all of them, and reading the panel is what makes this the same write it replaces.
+ *  merges what it is given, so sending one field would be correct too; the panel's Save sent all of
+ *  them, and this is the same write. That Save is gone (ADR 0004, pass three).
  *
  *  Silent. A toast per slider release is a notification for something the writer did not ask to be
  *  told about; an error still speaks, the same bargain commitStory makes.
  */
-async function commitGen(quiet = true) {
+async function commitGen() {
   const gen = {};
   document.querySelectorAll('[data-gen]').forEach((el) => { gen[el.dataset.gen] = Number(el.value); });
   if (!Object.keys(gen).length) return;
@@ -11144,14 +11096,14 @@ async function commitGen(quiet = true) {
   // V.gen, which was only refreshed when the tale was read again, so the next repaint put every
   // slider back to its old place and the next slider moved sent those old values with it.
   if (r.gen) { if (V) V.gen = r.gen; SRV.gen = r.gen; }
-  if (!quiet) toast('Saved.');
 }
 
 /** Redraw after a checkbox autosaved, without eating what is half-typed on the panel.
  *
  *  They always saved; the autosave path skipped the repaint, so the control a checkbox GATES never
- *  appeared and the press read as needing Save. The panel's free text is committed by Save alone,
- *  so a redraw from V empties it — hence the save-and-restore, as drawDock does for the composer.
+ *  appeared and the press read as needing Save. The panel's typed boxes save after a pause, so a
+ *  redraw from V inside the pause puts them back to the stored text — hence the save-and-restore,
+ *  as drawDock does for the composer.
  *
  *  CHECKBOXES ONLY. A spice `custom` is a UI mode with no stored value, so a redraw would put the
  *  picker back on a level and take away the box it just revealed. See commitStory.
@@ -11172,7 +11124,7 @@ function repaintKeepingText() {
   growFields($('sideBody'));
 }
 
-// A toggle or a picker commits itself. Text does not — see commitStory. `change` and not `input`,
+// A toggle or a picker commits itself, and a typed box when it is left (saveTyped). `change` and not `input`,
 // because `input` on a <select> fires while the list is still open on some browsers — and on a
 // RANGE `change` is the release rather than every pixel of the drag, which is what makes one
 // slider one call.
@@ -11209,14 +11161,87 @@ document.addEventListener('change', (e) => {
   if (!S.storyId) return;
   // The sampler's own path: a different route, and it reads the whole panel rather than one field.
   if (el?.dataset?.gen !== undefined) return void commitGen();
+  if (chapterField(el)) return void saveTyped(el);
   if (!el?.dataset?.story) return;
   // `range` joins the list on 2026-08-31. `coverOpacity` is a [data-story] slider and was excluded
   // by this guard, so "how much of the cover shows" was the one control on the Story panel that
   // still needed Save — its own hint said so, which is how it read as deliberate for a day.
-  if (el.type !== 'checkbox' && el.type !== 'range' && el.tagName !== 'SELECT') return;
+  if (el.type !== 'checkbox' && el.type !== 'range' && el.tagName !== 'SELECT') return void saveTyped(el);
   // A checkbox redraws once it has landed; nothing else does. See repaintKeepingText.
   if (el.type === 'checkbox') return void commitStory(el).then(repaintKeepingText);
   void commitStory(el);
+});
+
+/** TYPED TEXT SAVES AS YOU GO (ADR 0004, pass three, Seth's item 2 of the 2026-10-29 review). The
+ *  Tale's and This scene's boxes waited for a Save at the top of the panel; now a box saves when it
+ *  is left (`change`) and when the typing pauses (`input`, after TYPED_PAUSE). It was held back
+ *  before because a box that saved mid-sentence would fight the writer: that was the REPAINT, and
+ *  neither path repaints. Only the box that moved is sent, so a half-typed box beside it stays out.
+ *
+ *  THE BOOK AND THE SCENE ARE TAKEN WHEN THE TYPING HAPPENS, not when the timer fires: a pause can
+ *  run out after the writer has moved to another scene, and the words belong to the one they were
+ *  typed in. Nothing is sent when the box already says what is stored, so leaving a box the pause
+ *  just saved costs nothing. */
+const TYPED_PAUSE = 900;
+const typedWait = new Map(), typedSent = new WeakMap();
+const CHAPTER_FIELD = { chapterTitle: 'title', chapterOpens: 'opensWith', chapterNote: 'authorsNote' };
+const chapterField = (el) => Object.keys(CHAPTER_FIELD).find((k) => el?.dataset?.[k] !== undefined);
+function saveTyped(el, where = { storyId: S.storyId, chapterId: V?.currentChapter?.id }) {
+  clearTimeout(typedWait.get(el)?.timer);
+  typedWait.delete(el);
+  if (!where.storyId || where.storyId !== S.storyId || !V) return;
+  const ch = chapterField(el);
+  if (typedSent.has(el) ? typedSent.get(el) === el.value : String(ch
+    ? (V.chapters?.find((c) => c.id === where.chapterId) ?? V.currentChapter)?.[CHAPTER_FIELD[ch]] ?? ''
+    : V.story?.[el.dataset?.story] ?? '') === el.value) return;
+  typedSent.set(el, el.value);
+  if (ch) {
+    return void api.saveChapter(where.storyId, where.chapterId, { [CHAPTER_FIELD[ch]]: el.value }).then((r) => {
+      if (r?.error) return toast(r.error);
+      if (r?.entries && S.storyId === where.storyId) V = r;
+      refreshManifest();
+    });
+  }
+  if (el.dataset?.story) void commitStory(el);
+}
+// YOUR NAME, saved when the box is left (ADR 0004, pass three). A repaint is safe here: the box has
+// just been left, and the name is drawn in the menu too.
+document.addEventListener('change', async (e) => {
+  if (e.target?.id !== 'f-me-name' || e.target.value === (S.me?.name ?? '')) return;
+  const r = await api.setName(e.target.value);
+  if (r.error) return toast(r.error);
+  S.me = r; paint(); toast('Saved.');
+});
+
+/** Anansi, or the shelf, fills a typed box. It is saved as typing would be, and because there is no
+ *  Save to decline it with, what it replaced can be put back with one press. The press is put in
+ *  beside the box rather than drawn by a repaint, which would put any box typed into inside the
+ *  pause back to its stored text. It is kept on S, so a later repaint draws it again. */
+function fillTyped(box, text) {
+  const was = String(box.value ?? '');
+  box.value = text;
+  saveTyped(box);
+  if (!box.dataset?.story || !was.trim() || was === text) return;
+  S.putBack = { storyId: S.storyId, key: box.dataset.story, was };
+  document.querySelector('[data-putback]')?.remove();
+  box.insertAdjacentHTML?.('afterend', putBackButton());
+}
+const putBackButton = () => `<button class="btn ghost small-btn push-6" data-putback="${esc(S.putBack.key)}"
+  >Put back what was there</button>`;
+/** Every typed box the app autosaves, and the pause after which it does. */
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (!S.storyId || !el || el.type === 'checkbox' || el.type === 'range' || el.tagName === 'SELECT') return;
+  if (!el.dataset?.story && !chapterField(el)) return;
+  const was = typedWait.get(el);
+  const where = was?.where ?? { storyId: S.storyId, chapterId: V?.currentChapter?.id };
+  clearTimeout(was?.timer);
+  typedWait.set(el, { where, timer: setTimeout(() => saveTyped(el, where), TYPED_PAUSE) });
+});
+// A tab hidden or a phone locked inside the pause still saves what was typed.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'hidden') return;
+  for (const [el, w] of [...typedWait]) saveTyped(el, w.where);
 });
 
 /** The number beside a slider, while it is moving.
@@ -11371,7 +11396,8 @@ document.addEventListener('click', async (e) => {
 
   if (d.expand) { t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); return; }
   /* A FOLDED EXPLANATION, opened where it stands. See tipMark for why this does not paint: the
-   * panels these are on are made of free text that only Save commits. The state is written too, so
+   * panels these are on are made of typed boxes that save after a pause, and a paint inside the
+   * pause puts back the stored text. The state is written too, so
    * a repaint from somewhere else redraws it open rather than shutting it under the writer. */
   if (d.tip) {
     const now = !tipOn(d.tip);
@@ -11662,7 +11688,7 @@ document.addEventListener('click', async (e) => {
   }
   if (d.cardtab) { S.cardTab = d.cardtab; paint(); return; }
   /* WHICH GROUP OF THE STORY PANEL IS SHOWING, and it does NOT repaint. Every box in that panel is
-   * free text waiting on Save, so a redraw here would throw away a half-written premise — the same
+   * typed text that saves after a pause, so a redraw here would throw away a premise typed inside it — the same
    * bug seven other handlers in this file carry a note about. The attribute and the pressed states
    * are flipped where they are; the stylesheet does the rest. */
   if (d.storytab) {
@@ -11674,7 +11700,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
   /* The Chapter panel's four, and the same argument exactly: its name, how it opens and where it
-   * ends are free text that only Save commits, so a redraw on a tab press would lose them. Written
+   * ends save after a pause in the typing, so a redraw on a tab press would lose them. Written
    * out rather than folded into the branch above because the two keep different state and press
    * different attributes; sharing them would save four lines and cost a reader the ability to
    * grep for either one. */
@@ -11856,11 +11882,6 @@ document.addEventListener('click', async (e) => {
   }
   if (d.accttab) { S.acctTab = d.accttab; paint(); return; }
   if (d.acctgo) { S.acctTab = d.acctgo; return void await leaveTo('account'); }
-  if (d.savename) {
-    const r = await api.setName($('f-me-name')?.value ?? '');
-    if (r.error) return toast(r.error);
-    S.me = r; paint(); return toast('Saved.');
-  }
   if (d.delavatar) {
     const r = await api.delAvatar();
     if (r.error) return toast(r.error);
@@ -12930,21 +12951,28 @@ document.addEventListener('click', async (e) => {
   // #27. The one pass that reads the whole book. It can take a while, so the button says so and
   // refuses a second press rather than queueing one — two of these at once is two full-window
   // calls into a slot pair that is already shared with the other writer.
-  // #18 §2. Fills the box and stops. Written straight into the DOM rather than into V, because
-  // V is the saved story — putting an unsaved suggestion there would make Close look like Save.
+  // #18 §2. Fills the box and saves it, with a way to put back what it replaced (fillTyped).
   // #18 §3 · THE LIBRARY. Three presses on one shelf, and the global default under them.
   //
-  // APPLY COPIES INTO THE BOX AND STOPS. A library that saved on apply would overwrite a page of
-  // hand-written voice with one press and no undo — Save is still what keeps it, the same bargain
-  // the re-roll above makes.
+  // APPLY COPIES INTO THE BOX AND SAVES IT, with a press beside the box that puts back what it
+  // replaced (fillTyped): without that, a page of hand-written voice would go with one press.
+  if (d.putback) {
+    const box = document.querySelector(`[data-story="${d.putback}"]`);
+    if (!box || S.putBack?.key !== d.putback || S.putBack.storyId !== S.storyId) return;
+    box.value = S.putBack.was;
+    S.putBack = null;
+    t.remove?.();
+    saveTyped(box);
+    return toast('Put back, and saved.');
+  }
   if (d.applylib) {
     const [kind, ...rest] = d.applylib.split(':');
     const name = rest.join(':');
     const found = (S.prompts?.library?.[kind] ?? []).find((v) => v.name === name);
     if (!found) return toast('That one is gone — the list is out of date.');
     const box = document.querySelector(`[data-story="${LIB_FIELD[kind]}"]`);
-    if (box) box.value = found.text;
-    return toast(`${name} copied in. Read it, change it, then Save.`);
+    if (box) fillTyped(box, found.text);
+    return toast(`${name} copied in and saved. Change it if you want; it saves as you type.`);
   }
   // SAVES WHAT IS IN THE BOX, not what is in the story: the writer may have just edited it, and
   // saving the stored value would put something else on the shelf under the name they typed.
@@ -13004,8 +13032,8 @@ document.addEventListener('click', async (e) => {
     S.styling = false; drawSide();
     if (r.error) return toast(r.error);
     const box = document.querySelector('[data-story="styleNote"]');
-    if (box) box.value = r.style;
-    return toast('Written. Read it, change it, then Save.');
+    if (box) fillTyped(box, r.style);
+    return toast('Written and saved. Change it if you want; it saves as you type.');
   }
   if (d.tidy) {
     // #73. Tidy this thread: Anansi's sort of it is chalked as one card, and nothing changes until
@@ -13132,7 +13160,6 @@ document.addEventListener('click', async (e) => {
   if (d.skipsetup) { S.setup = null; S.setupStep = null; S.panel = 'context'; syncHash(); paint();
     OPEN_WANTED = S.storyId; await openingPassage(); return; }
 
-  if (d.savestory) { await commitStory(); return; }
 
   // The DOOR. Pressing it opens the chapter's own screen; the close itself is a second press
   // inside, which is the right number before an act that cannot be undone from one button.
@@ -14173,7 +14200,6 @@ document.addEventListener('click', async (e) => {
   // The sliders save themselves on release now, so this is a confirmation rather than the only
   // way to commit them. ONE PATH, not two: the button calls what the autosave calls, or the two
   // would drift the way the story panel's Save and its autosave nearly did.
-  if (d.savegen) return void commitGen(false);
 });
 
 $('scrim').addEventListener('click', () => {
