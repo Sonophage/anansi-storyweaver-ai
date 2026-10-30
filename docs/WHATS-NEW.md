@@ -20,7 +20,8 @@ Everything below this line was written by that model call, before it was removed
 
 ### Where the tale stands is quick
 When a hem works out where the tale stands, Anansi now reads the scene's summary, which the hem has
-just written, instead of the whole scene again, and writes his paragraph as plain text. Before, he
+just written, instead of the whole scene again, and writes his paragraph as plain text. Where each
+promise and open question in play stands is read from the summary too, in one try. Before, he
 could run on for minutes and be cut off, and then try again. It ends on a whole sentence.
 
 ### One card per thread

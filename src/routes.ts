@@ -1604,8 +1604,8 @@ const stringTokens = (n: number) => Math.min(3000, 400 + 300 * n);
  *  pocket of the tale's thread (`target`), so it shows as a diff and, sewn in, replaces the text and
  *  keeps the old version (`upsertAddon`). One that came back as it was is not chalked.
  *
- *  ONLY THE STRINGS IN PLAY (on and open): one set aside is the writer's to keep as it is. Narration
- *  only, as `taleStands` reads it. NOT MEASURED: see STRINGS_STAND. */
+ *  ONLY THE STRINGS IN PLAY (on and open): one set aside is the writer's to keep as it is. The scene's
+ *  summary, or its narration, as `taleStands` reads it. NOT MEASURED: see STRINGS_STAND. */
 async function stringsStand(c: Ctx, storyId: string, chapterId: string, scene?: string) {
   const v = bookOf(storyId);
   const tale = (v as any).taleThread;
@@ -1614,13 +1614,21 @@ async function stringsStand(c: Ctx, storyId: string, chapterId: string, scene?: 
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
   if (!ps.length) return { chalked: 0 };
-  const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
-  const r = await structuredRetry(STRINGS_STAND, [
+  // FROM THE SCENE'S SUMMARY, as `taleStands` reads it, and ONE TRY (Seth, 2026-10-30: the hem's
+  // second step "still takes ages"). With two open questions in play, this call sent the whole of a
+  // 16,500-token scene after the tale's own call, and its retry could send it twice. Logged as
+  // 'hem-strings', with its time. NOT MEASURED against the narration.
+  const sum = summaryReaches(ch) ? String(ch.summary ?? '').trim() : '';
+  const text = sum || narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
+  const t0 = Date.now(), using = backgroundModel(c, v);
+  const r = await structured(STRINGS_STAND, [
     `WHERE THE STORY STANDS: ${resolveBody(tale, ch.index).trim() || v.story.premise || '(not written)'}`,
     `THE STRINGS IT CARRIES:\n${live.map((x: any, i: number) => `${i + 1}. ${x.kind === 'question' ? 'Open question' : 'Promise'}, `
       + `"${x.title}": ${String(x.body ?? '').trim() || x.title}`).join('\n')}`,
-    `THE SCENE:\n${text}`].join('\n\n'), STRINGS_STAND_SCHEMA,
-    { model: backgroundModel(c, v), max_tokens: stringTokens(live.length) });
+    sum ? `THE SCENE, IN SUMMARY:\n${text}` : `THE SCENE:\n${text}`].join('\n\n'), STRINGS_STAND_SCHEMA,
+    { model: using, max_tokens: stringTokens(live.length) });
+  db.logGeneration({ storyId, chapterId: ch.id, model: using, role: 'hem-strings',
+    params: { max_tokens: stringTokens(live.length) }, latencyMs: Date.now() - t0, error: r.error ?? null });
   if (!r.data) return { error: r.error ?? 'nothing usable came back' };
   let chalked = 0;
   for (const a of (Array.isArray(r.data.strings) ? r.data.strings : []) as any[]) {

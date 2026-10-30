@@ -2047,11 +2047,13 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
   await hemSettled(t.id);
   stringsSay = [];
-  const ask = asks.findLast((a) => a.system.startsWith(prompts.STRINGS_STAND.slice(0, 80)) && a.user.includes('poured the last oil'));
+  const ask = asks.findLast((a) => a.system.startsWith(prompts.STRINGS_STAND.slice(0, 80)) && a.user.includes(OIL));
   assert.ok(ask, 'STRINGS-ASKED: the hem asks where the strings in play stand');
   assert.ok(ask.user.includes(OIL) && ask.user.includes('Nobody knows why'), '  sending each one in play');
   assert.ok(!ask.user.includes('dinghy') && !ask.user.includes('Her father'), '  and not one switched off, tied off or let go');
-  assert.ok(!ask.user.includes(SPOKEN), '  reading the narration and not the dialogue');
+  // FROM THE SCENE'S SUMMARY, which the hem writes first (2026-10-30), in one try.
+  assert.ok(ask.user.includes('THE SCENE, IN SUMMARY') && !ask.user.includes('poured the last oil'),
+    'STRINGS-FROM-SUMMARY: reading the summary the hem just wrote, not the whole scene');
   const tale = db.taleThreadOf(t.id);
   const rows = (db.proposalsOf(t.id) as any[]).filter((x) => x.entry_id === tale.id && x.field);
   assert.deepStrictEqual(rows.map((x) => [x.field, x.target, x.body, x.grp]), [['promise', oil, NOW, `scene:${ch1.id}`]],
