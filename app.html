@@ -1407,6 +1407,12 @@ html[data-work="ai"]       { --work:var(--gold); }
 #talkhead { display:flex; align-items:center; gap:10px; font-size:11px; letter-spacing:.1em;
   text-transform:uppercase; color:var(--label); }
 #talkhead span { display:flex; align-items:center; gap:7px; }
+/* ONE LINE EACH, AND THE ROW WRAPS (2026-10-30): at 390px the setup Talk's five presses squeezed
+   every label onto three lines. Each keeps to one line; the row goes on to a second. On a phone the
+   "Talking to Anansi" label goes: the full-screen box already says so. */
+#talkhead { flex-wrap:wrap; row-gap:0; }
+#talkhead > * { white-space:nowrap; }
+@media (max-width:719px) { #talkhead .talklabel { display:none; } }
 #talkhead button { margin-left:auto; min-height:44px; padding:0 4px; color:var(--ink-bright); font-size:11px;
   letter-spacing:.1em; text-transform:uppercase; }
 /* #56. When weaving does not fit: the server's sentence, then its two ways on side by side, above

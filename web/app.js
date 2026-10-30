@@ -2582,7 +2582,7 @@ function talkDock(t, setup) {
       ${talkDraft(t)}
       ${weaveFitRow('talk')}
       <div id="talkhead">
-        <span>${mark('webfull', 15)} Talking to Anansi</span>
+        <span class="talklabel">${mark('webfull', 15)} Talking to Anansi</span>
         <label class="talksearch" title="${searchable === false ? 'Web search is not set up on this server'
           : 'He decides when a question needs the web, and searches up to three times'}">
           <input type="checkbox" data-websearch="1" ${S.talk.search ? 'checked' : ''}
