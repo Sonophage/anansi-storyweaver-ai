@@ -603,7 +603,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #92. A hemmed scene's card: run its passes again, set up the next scene.
   'hemagain', 'hemsetup',
   // #75. The tale's own thread.
-  'taleopen', 'addtalerule', 'saverule', 'addtalepocket',
+  'addtalerule', 'saverule', 'addtalepocket',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
   'accttab', 'delavatar', 'acctgo',
   // A card out as JSON and back in again: copy, save to a file, read one.
@@ -4454,13 +4454,8 @@ const PANELS = {
             : `<p>Always-on threads, plus anything brought into this scene &mdash; nothing has been
               measured yet, so an on-a-word thread cannot be counted until it has.</p>`)}` : ''}`;
       })()}
-      ${/* #75. THE TALE'S OWN THREAD, FIRST: the premise, the voice, the rules, the writer's own.
-            A BANNER, because it heads the list (Seth, 2026-10-27): the tale's picture, or its colour. */ ''}
-      <button class="card plate thplate talebanner full-left" data-taleopen="1" style="${taleArt()}">
-        <span class="platename">The tale</span>
-        <span class="clamp2 thtext">${esc(V.story.premise || 'Its premise, its voice and its rules.')}</span>
-        <span class="thtags"><span class="tag">premise &middot; voice${
-          (V.taleRules ?? []).length ? ' &middot; rules' : ''}</span></span></button>
+      ${/* #75. THE TALE'S OWN THREAD is not on this list: it lives on the Tale panel's Thread tab, and
+            the banner that headed this list and opened that tab went (Seth, 2026-10-29). */ ''}
       <div class="stack-roomy" id="thlist">${threadRows()}</div>
       ${shown.length ? '' : '<div class="hint flush">Nothing written down yet. A thread is a fact the model is told and never allowed to contradict.</div>'}
       ${shown.length && S.onlyIn && !S.threadQ.trim() && !V.entries.some((e) => inContext(e, pinModes()))
@@ -8448,16 +8443,6 @@ function storyCard(s, i, hero) {
   </button>`;
 }
 
-/** THE OPEN TALE'S BANNER BACKGROUND, for its own thread (2026-10-27): its picture over its colour,
- *  or its colour alone. The colour is the one its card wears in the Library, by the same order the
- *  Library draws (live first, folded last), so the banner and the card agree. A style attribute. */
-function taleArt() {
-  const ordered = shelfOrder((LIB ?? []).filter((s) => !s.is_world));
-  const all = [...ordered.filter((s) => s?.status !== 'archived'), ...ordered.filter((s) => s?.status === 'archived')];
-  const art = ART[Math.max(0, all.findIndex((s) => s.id === S.storyId)) % ART.length];
-  return V?.cover ? `background:url('${api.coverUrl(S.storyId, V.cover)}') center/cover no-repeat, ${art}`
-    : `background:${art}`;
-}
 const ART = [
   'radial-gradient(70% 90% at 25% 20%, rgba(150,105,195,.55), transparent 70%), linear-gradient(140deg,#221B2E,#0F0D14)',
   'radial-gradient(70% 90% at 30% 30%, rgba(70,150,160,.5), transparent 70%), linear-gradient(140deg,#101E22,#0B0D0F)',
@@ -9327,8 +9312,16 @@ let ADDRESS = location.hash;
 window.addEventListener('popstate', () => {
   const forward = !history.state && depth(location.hash) > depth(ADDRESS);
   ADDRESS = location.hash;
+  // OUR OWN STEP BACK IS NOT A BACK PRESS. syncHash, syncThread and syncLayers step back over an
+  // entry the app has already closed, and the popstate lands later, after the press that caused it
+  // has finished. Read as Back, it shut whatever that press opened: Merge, from a thread's ⋯ menu,
+  // closes the menu (one step back) and opens the merge box, and the step shut the box before it
+  // was seen (Seth, 2026-10-29: "merge thread does nothing"). So the step is only finished: the
+  // layer opened meanwhile gets its own entry, which syncLayers could not push while BACKING.
+  const ours = BACKING;
   BACKING = false;
   if (forward) return;
+  if (ours) { syncLayers(); return; }
   closeLayersBack(); closeThreadBack();
 });
 
@@ -12698,9 +12691,7 @@ document.addEventListener('click', async (e) => {
     if (r.error) { t.disabled = false; t.textContent = 'Anansi edits'; return toast(r.error); }
     V = r; paint(); return toast('Written again. Still chalked: nothing changes until you sew it in.');
   }
-  // #75 · THE TALE'S OWN THREAD: open it, leave it, add a rule or an instruction of your own.
-  // The first card in Threads opens the Tale panel on its Thread tab, where the tale's own thread lives.
-  if (d.taleopen) { S.panel = 'story'; S.storyTab = 'thread'; S.entryId = null; S.lore = null; syncHash(); paint(); return; }
+  // #75 · THE TALE'S OWN THREAD, on the Tale panel's Thread tab: add a rule or an instruction of your own.
   // ADR 0005 · A RULE OF THE TALE, added or saved on the Thread tab: a pocket of no thread, slot
   // `rule`, with its wake words. Added switched on, as the tale's own instructions are.
   if (d.addtalerule || d.saverule) {

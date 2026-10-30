@@ -900,7 +900,7 @@ ok("  and New thread closes again", !(await page.eval("!!document.getElementById
 // the stylesheet, so a rule that is written and then overridden cannot pass this.
 {
   // Not the tale's own thread: it is a banner since 2026-10-27, taller on purpose, at the top.
-  const plate = await page.eval(`(() => { const c = document.querySelector('#sideBody .card.plate:not(.talebanner)');
+  const plate = await page.eval(`(() => { const c = document.querySelector('#sideBody .card.plate');
     if (!c) return null; const s = getComputedStyle(c), n = c.querySelector('.platename');
     return JSON.stringify({ spine: s.borderLeftWidth, minH: s.minHeight,
       name: n ? getComputedStyle(n).fontSize : null,

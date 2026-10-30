@@ -1,5 +1,4 @@
-// The tale's own thread (#75): the first card in Threads opens the Thread tab of the Tale panel
-// (2026-10-29), holding where the tale stands, the tale's Rules, its strings, and instructions of the
+// The tale's own thread (#75): the Thread tab of the Tale panel (2026-10-29), holding where the tale stands, the tale's Rules, its strings, and instructions of the
 // writer's own, which reach the model while switched on.
 //
 //   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/talethread.js
@@ -10,11 +9,13 @@ const until = async (expr, n = 40, ms = 250) => { for (let i = 0; i < n; i++) { 
 const view = (sid) => page.eval(`(async () => JSON.stringify(await (await fetch('/api/story?story=${sid}')).json()))()`).then(JSON.parse);
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find((s) => s.title === 'The Silver Key').id)()");
 
+// Not on the Threads list any more (Seth, 2026-10-29): it lives on the Tale panel's Thread tab.
 await page.goto(B + "/#" + sid + "/threads");
-await until("!!document.querySelector('[data-taleopen]')");
-ok("the tale's own thread is the first card in Threads",
-   await page.eval("(() => { const t = document.querySelector('#sideBody [data-taleopen]'), l = document.getElementById('thlist'); return !!t && !!l && !!(t.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING); })()"));
-await page.eval("(() => { document.querySelector('#sideBody [data-taleopen]')?.click(); return 1; })()");
+await until("!!document.getElementById('thlist')");
+ok("the tale's own thread is not a card in Threads", await page.eval("!document.querySelector('#sideBody [data-taleopen], #sideBody .talebanner')"));
+await page.goto(B + "/#" + sid + "/story");
+await until("!!document.querySelector('[data-storytab=\"thread\"]')");
+await page.click('[data-storytab="thread"]');
 await until("document.querySelector('[data-tab]')?.dataset.tab === 'thread'");
 const face = await page.eval("(document.querySelector('.sgroup[data-group=\"thread\"]')?.innerText ?? '').toLowerCase()");
 ok("it opens the Thread tab of the Tale panel, holding where the tale stands, Rules, the strings and Your own",

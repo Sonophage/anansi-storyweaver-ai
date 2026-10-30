@@ -4979,21 +4979,19 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
 }
 ok('Account → Writing shows When you reweave after the five modes, filled with the shipped note frame, and it saves and resets');
 
-// ---- THE TALE'S OWN THREAD IS A BANNER: its picture, or the colour its Library card wears (2026-10-27).
+// ---- THE TALE'S OWN THREAD LIVES ON THE TALE PANEL'S THREAD TAB, AND ONLY THERE (Seth, 2026-10-29:
+// "the tale thread under threads can be removed since it lives under tale now").
 {
   click({ open: 's-1' });
   await sleep(40);
   click({ panel: 'threads' }); click({ backentry: '1' });   // a thread left open by an earlier check
-  assert.match(html('sideBody'), /class="card plate thplate talebanner full-left" data-taleopen="1" style="background:/,
-    'the tale heads the threads as a banner with a background');
-  // 2026-10-29: the banner opens the Tale panel on its Thread tab, which is where the thread lives.
+  assert.doesNotMatch(html('sideBody'), /data-taleopen|talebanner/, 'NO-TALE-BANNER: Threads does not head its list with the tale');
   // ADR 0005 · A RULE IS A POCKET OF THE TALE (2026-10-29): drawn on this tab with its wake words.
   const wasRules = (STORY as any).taleRules;
   (STORY as any).taleRules = [{ id: 'r-1', name: 'Debts', body: 'A debt survives the debtor.', keys: ['debt', 'loan'], active: true }];
   click({ open: 's-1' }); await sleep(40);
-  click({ panel: 'threads' });
-  click({ taleopen: '1' });
-  assert.match(html('sideBody'), /data-tab="thread"/, 'TALE-TAB: and it opens the Tale panel on the Thread tab');
+  click({ storytab: 'thread' }); click({ panel: 'story' });
+  assert.match(html('sideBody'), /data-tab="thread"/, 'TALE-TAB: the Tale panel opens on its Thread tab');
   assert.match(html('sideBody'), /data-storytab="thread"[^>]*aria-pressed="true"/, '  with the Thread chip pressed');
   const tab = html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '';
   assert.match(tab, /data-rulename="r-1"[^>]*value="Debts"[\s\S]*A debt survives the debtor\.[\s\S]*data-rulekeys="r-1"[^>]*value="debt, loan"/,
@@ -7083,7 +7081,7 @@ const hemCardOf = (side: string) => {
   click({ open: 's-1' }); await settle();
   click({ panel: 'story' }); await settle();
   assert.match(book(), new RegExp(`Where it stands now[\\s\\S]*?${NOW}`), 'TALE-NOW: and where it stands now, once sewn in');
-  click({ taleopen: '1' }); await settle();
+  click({ panel: '' }); click({ storytab: 'thread' }); click({ panel: 'story' }); await settle();
   assert.match(html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '', /Where the tale stands[\s\S]*?Where it stands now[\s\S]*?the sixth has burned/,
     "TALE-OWN: the tale's own thread shows where it stands too");
   (globalThis as any).fetch = canned;
@@ -7891,7 +7889,7 @@ const hemCardOf = (side: string) => {
     `<div class="pocketrow[^"]*">\\s*<button class="pocketopen" data-editroom="${id}"[\\s\\S]*?</button></div>`))?.[0];
   try {
     click({ open: 's-1' }); await wait();
-    click({ taleopen: '1' }); await wait();
+    click({ storytab: 'thread' }); click({ panel: 'story' }); await wait();
     const page = html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '';
     const rules = page.indexOf('data-addtalerule='), prom = page.indexOf('>Promises'), ques = page.indexOf('>Open questions');
     assert.ok(rules > 0 && prom > rules && ques > prom, `TALE-STRINGS: Promises, then Open questions, under Rules (${rules}, ${prom}, ${ques})`);

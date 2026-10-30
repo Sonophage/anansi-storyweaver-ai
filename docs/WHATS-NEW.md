@@ -57,6 +57,14 @@ This scene; it still asks twice.
 The hem screen lists what hemming does as steps, in the order it does them: the summary, where the
 tale stands, changes to the people in it, new threads, threads it is done with, and the next scene.
 Each is marked done or not yet. Hem this scene is the one gold button there.
+### Merge with another thread opens again
+Pressing "Merge with another thread…" in a thread's menu did nothing: the merge screen shut the
+moment it opened. It now opens, and stays open until you merge, press Cancel or go Back.
+
+### The tale is no longer a card at the top of Threads
+The tale's own thread (where it stands, its rules, its promises and open questions, your own
+instructions) lives on the Tale panel's Thread tab, so the card that led there from Threads is gone.
+
 ### Storyteller says which settings are this tale's and which are yours
 The Storyteller now opens on "This tale": the tale's model, Plans first, and how much he reads.
 Below it, "Yours, on every tale" holds how he picks words, which you set once for every tale. The
