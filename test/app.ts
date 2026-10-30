@@ -4393,6 +4393,8 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
     click({ pocketkind: 'outfit' });
     typeIn('pk-name', 'Grey wool');
     typeIn('pk-body', 'Dress her in grey wool.');
+    // A PRESS THAT MAKES A THING SAYS ADD (Seth, 2026-10-30); one that keeps a change is Done.
+    assert.match(html('pocketPanel'), /data-sppocketsave="1">Add</, 'ADD-SETUP: a new pocket in the setup is added by Add');
     click({ sppocketsave: '1' });
     assert.match(html('page'), /data-sppocketopen="2:outfit"[\s\S]*?Grey wool[\s\S]*?Dress her in grey wool/, 'WIZ-ADD: an added pocket is in the draft');
 
@@ -5732,7 +5734,7 @@ ok("the tale's own thread is on the Tale panel's Thread tab, one ＋ adds to it 
     assert.match(box, new RegExp(`id="${id}"`), `OT-NEW: the ＋ opens the panel with ${id}`);
   assert.match(box, /id="pk-from"[^>]*value="2"/, '  its scene the one being written');
   assert.doesNotMatch(box, /data-pocketkind|data-pockettab|data-delstate/, '  and no kinds, tabs or Remove');
-  assert.match(box, /data-pocketx="1"[\s\S]*data-savestate="1"/, '  with Cancel and Save in its foot');
+  assert.match(box, /data-pocketx="1"[\s\S]*data-savestate="1">Add</, 'ADD-CHANGE: a new change has Cancel and Add in its foot');
   const type = (id: string, value: string) => (listeners.input ?? []).forEach((f: Function) => f({ target: { id, value } }));
   type('pk-from', '4'); type('pk-mode', 'hint'); type('pk-body', '[Envoy Sereth: gone home]'); type('pk-label', 'went home');
   POSTED.length = 0;
@@ -8953,6 +8955,8 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   assert.match(add, /id="pk-body"[\s\S]*id="pk-steer"[\s\S]*data-pocketask="write"/,
     'PANEL-ADD: the fields, then the ask row under them');
   assert.match(add, /data-pocketkind="voice"/, 'PANEL-ADD: adding offers the kinds');
+  assert.match(add, /data-pocketsave="1"[^>]*>Add</, 'ADD-POCKET: a new pocket is added by Add');
+  assert.doesNotMatch(add, />Save</, '  and there is no Save');
   assert.doesNotMatch(add, /data-pocketkind="facts"/, 'PANEL-ADD: and not Always true, which every thread has');
   assert.doesNotMatch(add, /data-pocketdel=/, 'PANEL-ADD: nothing to remove yet');
   // ALTER'S LOOK (Seth, 2026-11-02: "the edit screen for pockets should match the normal screen for

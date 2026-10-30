@@ -276,6 +276,9 @@ to reading the thread, and so do Back and Esc. Cancel is now Undo my changes: it
 back as it was when you opened Alter. What the thread said before goes into Alterations once, when
 you press Done, and a scene summary is marked out of date only then, if something it said is gone.
 An empty Always true is never kept: Done says so and stays open.
+### Adding something says Add
+Where a press makes something new, it now says Add and not Save: a new pocket, a new change over
+time, and a new pocket while you set up a tale. It does the same as before.
 
 ## 2026-10-30 · The next scene starts the way you say
 

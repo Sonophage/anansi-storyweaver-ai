@@ -2999,7 +2999,7 @@ function statePanel(pk, e) {
       ${/* A change that exists, and scene 1, save as you type (POCKET_AUTO): scene 1 as the thread's
             own text. A new one is made by its press. */
         pocketAuto(pk) ? AUTO_FOOT : `<button class="btn ghost" data-pocketx="1">Cancel</button>
-      <button class="btn" data-savestate="1">Save</button>`}
+      <button class="btn" data-savestate="1">Add</button>`}
     </div>
   </div>`;
 }
@@ -3145,7 +3145,8 @@ function pocketPanel() {
   const what = own ? slotLabel(pk.slot) : tale ? (adding && !pk.kinds ? 'entry' : 'string') : 'pocket';
   /* ALTER'S LOOK, FULL SCREEN STILL (Seth, 2026-11-02): the two presses in a bar at the top, as
    * Alter's header has them (`threadBar('alter')`). One that exists saves as you type (POCKET_AUTO),
-   * so its bar is Undo my changes and Done; a new one is made by its press, Cancel and Save. */
+   * so its bar is Undo my changes and Done; a new one is made by its press, Cancel and Add (Seth,
+   * 2026-10-30: a press that makes a thing says Add). */
   return `<div class="pocketbox" role="dialog" aria-label="${adding ? `A new ${what} for ${esc(e.title)}` : esc(pk.name || label)}">
     <div class="pkbar">${pocketAuto(pk) ? `
       <button data-pocketundo="1" class="headback"><span class="serif">Undo my changes</span></button>
@@ -3153,7 +3154,7 @@ function pocketPanel() {
       <button data-pocketdone="1" class="headsave">Done</button>` : `
       <button data-pocketx="1" class="headback" aria-label="Cancel"><span class="serif">Cancel</span></button>
       <span class="fill"></span>
-      <button data-pocketsave="1" class="headsave">Save</button>`}
+      <button data-pocketsave="1" class="headsave">Add</button>`}
     </div>
     <div class="pkhead">
       <div class="lbl flush wide">${adding ? `New ${what} &middot; ${esc(e.title)}` : `${esc(pocketTitle(pk.slot))} &middot; ${esc(e.title)}`}</div>
@@ -3176,7 +3177,7 @@ function drawPocket() {
  *  type has no Cancel, and Esc and Back are its Done (`finishPocket`). */
 function closePocket(t = null) {
   if (!S.pocket) return true;
-  if (pocketDirty() && !armed(t, 'pocket', 'You have changes that are not saved. Press Cancel again to throw them away, or Save.')) return false;
+  if (pocketDirty() && !armed(t, 'pocket', 'This is not added yet. Press Cancel again to throw it away, or Add.')) return false;
   S.pocket = null; drawPocket(); syncLayers();
   return true;
 }
@@ -3190,7 +3191,7 @@ function closePocket(t = null) {
  *  through `upsertAddon`). Its pauses write drafts, which do neither, and Done, Undo my changes and a
  *  hidden tab send one last write naming what the panel opened on (`base`), so the revision and the
  *  staling are worked out once, against that (`db.WriteHow`). `write` is told which (`final`).
- *  A kind not listed keeps Cancel and Save until it joins. */
+ *  A panel not listed is one that makes something: it keeps Cancel and Add, its press. */
 const POCKET_AUTO = {
   // An empty summary is a removed one (`writeSummary`).
   // ponytail: every write marks the summary yours, so Undo my changes after a pause has written puts
@@ -3326,7 +3327,7 @@ async function pocketAsk(web, anyway = false, t = null) {
   pk.name = got.name || pk.name; pk.body = got.body;
   if (got.keys?.length) pk.keys = got.keys.join(', ');
   drawPocket();
-  toast('Written, not saved. Read it, then press Save.');
+  toast('Written, not added yet. Read it, then press Add.');
 }
 
 /** MERGE TWO THREADS (Seth, 2026-10-29: "Halsey's publicist and Lisa are the same person"). From a
@@ -7277,7 +7278,7 @@ function draftPocketPanel(pk, e) {
     <div class="pkfoot">
       ${/* One that exists saves into the draft as you type (POCKET_AUTO); a new one is added by its press. */
         pocketAuto(pk) ? AUTO_FOOT : `<button class="btn ghost" data-pocketx="1">Cancel</button>
-      <button class="btn" data-sppocketsave="1">Save</button>`}
+      <button class="btn" data-sppocketsave="1">Add</button>`}
     </div>
   </div>`;
 }
@@ -10358,7 +10359,7 @@ function closeLayersBack() {
     if (pocketDirty() && !(S.backArmed && Date.now() - S.backArmed < 6000)) {
       S.backArmed = Date.now();
       history.pushState({ ...history.state, layer: 'pocket' }, '', location.href);
-      toast('You have changes that are not saved. Press Back again to throw them away, or Save.');
+      toast('This is not added yet. Press Back again to throw it away, or Add.');
     } else { S.backArmed = 0; S.pocket = null; drawPocket(); }
   }
   // Merge two threads, by the same rule.
