@@ -422,7 +422,8 @@ const SNAV = [
 ];
 /** What the tale's menu shows, in its order: two columns of tiles beside the scenes (2026-10-28).
  *  SNAV stays the list of a tale's panels, for their titles and their links. */
-const TALE_MENU = ['story', 'teller', 'chapter', 'chapters', 'threads', 'waiting'];
+// STRINGS IS BACK, beside Threads (UX review, 2026-10-29: Strings had no door in the tale's menu).
+const TALE_MENU = ['story', 'teller', 'chapter', 'chapters', 'threads', 'strings', 'waiting'];
 /** A ROW'S PICTURE, under a dark wash, fainter down the list (Seth, 2026-10-28: "for any story that
  *  uses images use it in the background ... with a dark overlay ... and let the opacity of the image
  *  get less and less"). The tale's cover on each of its scenes, each tale's own on the main menu.
@@ -809,6 +810,11 @@ function benchNew() {
   const sid = S.storyId;
   if (S.place !== 'story' || !V || !sid || V.story?.is_world) return 0;
   const cards = deckCards(), seen = benchSeen(sid);
+  // THE FIRST LOOK WAITS FOR WHAT HE READS (UX review, 2026-10-29: "1 new" on a first visit). The
+  // out-of-reach card comes from the manifest, which lands after the first paint, so a first look
+  // taken before it counted that card as new a moment later. A tale whose manifest never comes
+  // shows no mark; the menu's count still shows every card.
+  if (!seen && MANI_FOR !== sid) return 0;
   if (!seen || S.panel === 'waiting') {
     if (!seen || benchUnseen(cards, seen)) benchSaw(sid, benchParts(cards));
     return 0;
@@ -977,10 +983,10 @@ function drawRail() {
   /* THE TALE'S MENU, MODEL FIRST AND THREE COLUMNS (Seth, 2026-10-28: "Let's do the model up top then
    * were going to do three columns under that the first column will be scenes and that should be
    * scrollable, invert the order so the latest scene is up top and then for the other two we do the
-   * icon menu but put tale and storyteller up top then This scene and scenes"). Strings, Talk to
-   * Anansi and What he reads left this menu the same day: strings are cards on the Workbench, Talk
-   * is the quill held down, and What he reads is "what is in it" on the strip under the header.
-   * Their panels and links stay. The workspace menu is unchanged. */
+   * icon menu but put tale and storyteller up top then This scene and scenes"). Talk to Anansi and
+   * What he reads left this menu the same day: Talk is the quill held down, and What he reads is
+   * "what is in it" on the strip under the header. Their panels and links stay. Strings left too and
+   * came back on 2026-10-29 (TALE_MENU). The workspace menu is unchanged. */
   $('rail').classList.toggle('tale3', true);
   // THE ANANSI WORDMARK GOES FROM THE TALE'S MENU, and its close moves beside the model (Seth,
   // 2026-10-28: "Remove the anansi text logo and do the menu exit on the right side of the model
@@ -1271,7 +1277,9 @@ function drawBar() {
             changes (sameOrSet), so it does not fade in again on every paint. */ ''}
       ${(() => {
         const n = inStory ? benchNew() : 0;
-        const say = `${n} new on the Workbench`;
+        // NEW IS NOT THE SAME NUMBER AS TO DECIDE (UX review, 2026-10-29: "1 new" beside a menu
+        // that said 4), so the word stays on a phone and the label gives both.
+        const say = `${n} new on the Workbench, ${owedHere()} to decide`;
         return n ? `<button data-panel="waiting" class="pill benchnew" aria-label="${say}" title="${say}"
           ><span aria-hidden="true" style="display:flex">${mark('workbench', 17)}</span><span class="tnum">${n}</span><span class="btnword">New</span></button>` : '';
       })()}
@@ -3326,7 +3334,7 @@ function hemRow(p) {
       <textarea class="field" data-pbody="${esc(p.id)}" aria-label="What ${esc(p.title)} will say"
         style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
       <div class="deckredo">
-        <input class="field" data-aeask="${esc(p.id)}" placeholder="What should change? (or leave it empty)"
+        <input class="field" data-aeask="${esc(p.id)}" placeholder="What to change (optional)"
           aria-label="What should change, for Anansi to write it again" style="margin:0; flex:1; font-size:12px">
         <button class="btn ghost" data-anansiedit="${esc(p.id)}" style="flex:0 0 auto; width:auto; padding:0 14px">Anansi edits</button>
       </div></details>`}
@@ -3346,25 +3354,28 @@ function rowLabel(p) {
 }
 
 /** One chalked section as the deck draws it: the shared `proposalCard`, what a new thread arrives
- *  with, and Anansi edits. One renderer for the per-thread cards and the scene cards. */
-function deckRow(p) {
+ *  with, and Anansi edits. One renderer for the per-thread cards and the scene cards. `foot`: the
+ *  card's own Sew it in and Reject decide this row, so it draws no pair of its own. */
+function deckRow(p, foot = false) {
   // #114 · A TIDY'S MERGE says which other pockets go when it is sewn in.
   const also = (p.merges ?? []).map((id) => (V.entries ?? []).find((x) => x.id === p.entryId)?.addons
     ?.find((a) => a.id === id)?.name).filter(Boolean);
   // #122 · WHAT IT WOULD CHANGE, word by word: what is there now against what is chalked, on every
   // card that chalks over something (a hem's thread, a Tidy, a chalked change). It reads what is
   // chalked as it came; an edit in the box below is the writer's own and is what gets sewn in.
+  // ITS HINT IS SHORT ("What to change (optional)", UX review, 2026-10-29): the long one was cut off at
+  // phone width. The label still says what an empty box does.
   const was = hemBefore(p);
   return `${was == null ? '' : `<div class="lbl sub-lbl">What changes</div>
       <div data-deckdiff="${esc(p.id)}">${diffHTML(was, p.body ?? '')}</div>`}
-      ${proposalCard(p)}
+      ${proposalCard(p, { foot })}
       ${also.length ? `<div class="hint trail-6">Sewn in, this also replaces ${also.map((n) => `&ldquo;${esc(n)}&rdquo;`).join(' and ')}.</div>` : ''}
       ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint trail-6">It arrives with these:</div>
         ${Object.entries(p.rooms).map(([slot, r]) => `<div style="font-size:12px; line-height:1.45; color:var(--mute); margin-top:4px">
           <span class="lbl flush">${slot === 'stands' ? 'Where it stands' : esc(pocketTitle(slot))}${r?.name && r.name !== slot ? ` &middot; ${esc(r.name)}` : ''}</span>
           ${esc(typeof r === 'object' ? r.body ?? '' : String(r))}</div>`).join('')}` : ''}
       <div class="deckredo">
-        <input class="field" data-aeask="${esc(p.id)}" placeholder="What should change? (or leave it empty)"
+        <input class="field" data-aeask="${esc(p.id)}" placeholder="What to change (optional)"
           aria-label="What should change, for Anansi to write it again" style="margin:0; flex:1; font-size:12px">
         <button class="btn ghost" data-anansiedit="${esc(p.id)}" style="flex:0 0 auto; width:auto; padding:0 14px">Anansi edits</button>
       </div>`;
@@ -3419,7 +3430,7 @@ function deckCard(c, i, top) {
     body = c.ps.map((p) => `<details class="decksec"${c.ps.length === 1 ? ' open' : ''}>
       <summary><span class="lbl flush">${rowLabel(p)}</span>
         <span class="deckpeek">${peek(p.body)}</span></summary>
-      ${deckRow(p)}</details>`).join('');
+      ${deckRow(p, c.ps.length === 1)}</details>`).join('');
     right = `<button class="btn" data-deckall="accept" data-ids="${esc(ids)}" data-deckright="1">Sew it in &rarr;</button>`;
     left = `<button class="btn ghost" data-deckall="reject" data-ids="${esc(ids)}" data-deckleft="1">&larr; Reject</button>`;
   } else if (c.kind === 'hem') {
@@ -3479,7 +3490,7 @@ function deckHTML(only = null) {
  *
  *  No HTML comments in the markup below: a backtick or a `${` inside one is fatal inside a template
  *  literal, and this file has paid for that five times in one day. */
-function proposalCard(p) {
+function proposalCard(p, { foot = false } = {}) {
   const tone = p.kind === 'new' ? 'var(--good)' : p.kind === 'conflict' ? 'var(--bad)' : 'var(--warn)';
   const room = p.field ? String(p.field).replace(/_/g, ' ') : '';
   // ALREADY AN ARRAY, usually. `keys` is parsed server-side for the view and arrives as one; the
@@ -3552,13 +3563,20 @@ function proposalCard(p) {
             <input class="field" type="number" min="1" data-pchap="${p.id}"
               value="${V.currentChapter?.index ?? 1}" aria-label="State from scene"
               style="margin:0; width:56px; padding:4px 6px; font-size:11.5px"></label>` : ''}
-          ${decideButtons(p)}</div>`;
+          ${decideButtons(p, foot)}</div>`;
 }
 
 /** A chalked row's own decision: Sew it in, or beside / Replace it for a pocket that is already
- *  there, and Reject. One place, for `proposalCard` and the rows on a hem's card. */
-function decideButtons(p) {
+ *  there, and Reject. One place, for `proposalCard` and the rows on a hem's card.
+ *
+ *  ON A WORKBENCH CARD WITH ONE THREAD (`foot`), the card's ← Reject and Sew it in → are this row's
+ *  decision, and a second pair inside the card said it twice (UX review, 2026-10-29). Only Replace it
+ *  stays, for a pocket already there: the foot sews in beside it and cannot say "in its place". */
+function decideButtons(p, foot = false) {
   const beside = p.field && p.target && !isStringRow(p);
+  if (foot) return beside ? `<div class="btnrow"><button data-decide="replace" data-id="${p.id}"
+              style="flex:1; text-align:center; padding:8px 0; border-radius:var(--r);
+              border:1px solid var(--chip); color:var(--mute); font-size:11.5px">Replace it</button></div>` : '';
   return `<div class="btnrow">
             <button data-decide="accept" data-id="${p.id}" style="flex:1; text-align:center; padding:8px 0;
               border-radius:var(--r); border:1px solid var(--ink-bright); color:var(--ink-bright); font-size:11.5px; font-weight:500">${
@@ -3609,17 +3627,10 @@ function ritualPanel() {
   const ps = (V.proposals ?? []).filter((p) => p.chapterId === ch.id);
   const of = (t) => ps.filter((p) => p.entryType === t);
   const facts = ps.filter((p) => !['state', 'string', 'retire'].includes(p.entryType));
-  const dot = (tone) => `<span style="width:7px; height:7px; border-radius:50%; flex:0 0 auto;
-    background:var(${tone})"></span>`;
-  // ONE LINE PER PASS. It was a heading, a sentence, a re-run button and every proposal card the
+  // ONE STEP PER PASS. It was a heading, a sentence, a re-run button and every proposal card the
   // pass produced, five times over — so a chapter that found nothing rendered a checklist of
-  // absences, and a chapter that found something rendered Waiting a second time. The note is for
-  // the two states a line cannot carry on its own: what the summary SAYS, and what a pass that
-  // FAILED wants you to do about it. Council 07, seats 3 and 4.
-  const line = (tone, label, note) => `<div style="margin-bottom:11px">
-    <div class="line">${dot(tone)}
-      <span style="font-size:13.5px; color:var(--ink-bright)">${esc(label)}</span></div>
-    ${note ? `<div style="font-size:12px; line-height:1.5; color:var(--faint); margin:4px 0 0 16px">${note}</div>` : ''}</div>`;
+  // absences, and a chapter that found something rendered Waiting a second time. Council 07, seats
+  // 3 and 4. The steps are drawn below (UX review, 2026-10-29).
 
   const summary = ch.summary;
   const words = summary ? summary.trim().split(/\s+/).length : 0;
@@ -3652,47 +3663,59 @@ function ritualPanel() {
       // NOT GREEN WHEN SOMETHING DID NOT RUN. A hem with the model down still closes the scene —
       // each pass is wrapped so it can — and this line was green beside a red report of the passes
       // that failed, which read as two answers (usability check, 2026-10-24). The scene IS closed,
-      // so the words say that; the colour says it is not finished.
+      // so the words say that. Since 2026-10-29 it is a plain sentence over the steps, in no colour.
       // #92. The report is the scene's hem, so it is the same after a reload; while the hem runs
-      // the lines below are still filling in, and the line says so.
+      // the steps below are still filling in, and the line says so.
       const missed = closed ? missedPasses(ch).length : 0;
       const running = closed && ch.hem?.state === 'running';
-      return line(!closed || running ? '--chip' : missed ? '--warn' : '--good',
-        !closed ? 'Not hemmed yet' : running ? 'Closed, and the next one opened — Anansi is still hemming it'
+      return `<div class="hemstate"><span>${esc(!closed ? 'Not hemmed yet' : running ? 'Closed, and the next one opened — Anansi is still hemming it'
           : missed
           ? `Closed, and the next one opened — but ${missed === 1 ? 'one pass' : `${missed} passes`} did not run`
-          : 'Hemmed, and the next one opened',
-        !closed ? 'Nothing below has run.' : running ? 'Its card waits on the Workbench.' : '');
+          : 'Hemmed, and the next one opened')}</span>${
+        !closed ? '<div class="hint flush">Nothing below has run.</div>' : running ? '<div class="hint flush">Its card waits on the Workbench.</div>' : ''}</div>`;
     })()}
     ${closed ? passReport(ch) : ''}
-
-    ${line(summary ? '--good' : closed ? '--warn' : '--chip',
-      // #46. "Kept" is what the hem reported it did, so before a hem, or after one that did not
-      // keep it, nothing says kept, and nor does it once Anansi has written over it since.
-      // Yours that was not kept is still not "Summarised": Anansi did not.
-      summary ? `${ch.hem?.keptSummary && ch.summaryAuthor === 'human' ? 'Kept your summary,'
-        : ch.summaryAuthor === 'human' ? 'Your summary,' : 'Summarised in'} ${
-        plural(words, 'word', 'words')}` : 'Not summarised',
-      summary ? esc(summary)
-        : closed ? 'It did not come back — the router may have been asleep. Run it again below.' : '')}
-
-    ${line(of('state').length ? '--good' : '--chip',
-      of('state').length ? `Remembered — ${plural(of('state').length, 'change', 'changes')} to the people in it`
-        : 'Nothing changed anybody')}
-
-    ${line(facts.length ? '--good' : '--chip',
-      facts.length ? `Read for threads — ${plural(facts.length, 'chalked', 'chalked')}`
-        : 'No new threads came out of this scene')}
-
-    ${line(of('retire').length ? '--warn' : '--chip',
-      of('retire').length ? `${plural(of('retire').length, 'thread', 'threads')} chalked to be retired`
-        : 'No thread was chalked to be retired')}
+    ${/* THE PASSES AS ONE LIST OF STEPS (UX review, 2026-10-29). They were five lines, four grey and
+          one green, that did not read as a sequence. One step per pass, in the order the hem runs
+          them (PASSES), each marked done or not yet with the same marker: done is a pass that ran
+          (its report line is null), or any pass of a scene hemmed before #89, which kept no report.
+          What it found is the line under it, in the words this screen has always used. */ ''}
+    ${(() => {
+      const ran = (k) => closed && (ch.hem ? ch.hem.passes?.[k] === null : true);
+      const found = {
+        summary: summary ? `${ch.hem?.keptSummary && ch.summaryAuthor === 'human' ? 'Kept your summary,'
+          : ch.summaryAuthor === 'human' ? 'Your summary,' : 'Summarised in'} ${plural(words, 'word', 'words')}`
+          : closed ? 'Not summarised' : '',
+        tale: '',
+        memory: of('state').length ? `Remembered — ${plural(of('state').length, 'change', 'changes')} to the people in it`
+          : closed ? 'Nothing changed anybody' : '',
+        facts: facts.length ? `Read for threads — ${plural(facts.length, 'chalked', 'chalked')}`
+          : closed ? 'No new threads came out of this scene' : '',
+        finished: of('retire').length ? `${plural(of('retire').length, 'thread', 'threads')} chalked to be retired`
+          : closed ? 'No thread was chalked to be retired' : '',
+        next: ch.hem?.suggestion?.title ? `Suggested: ${ch.hem.suggestion.title}` : '',
+      };
+      const name = { summary: 'Summary', tale: 'Where the tale stands', memory: 'Changes to the people in it',
+        facts: 'New threads', finished: 'Threads it is done with', next: 'The next scene' };
+      return `<ol class="hemsteps">${PASSES.map(([k]) => {
+        const done = ran(k);
+        // #46. "Kept" is what the hem reported it did, and the summary is shown whole under its step.
+        const more = k !== 'summary' ? '' : summary ? `<div class="hint flush">${esc(summary)}</div>`
+          : closed && !done ? '<div class="hint flush">It did not come back — the router may have been asleep. Run it again below.</div>' : '';
+        // While the hem runs, the step it is on says so (`current` is the pass the server is on).
+        const now = !done && ch.hem?.current?.pass === k ? 'Running now' : '';
+        return `<li data-hemstep="${k}" data-done="${done ? 1 : 0}"><span class="hemmark" aria-hidden="true">${done ? '&#10003;' : '&#9675;'}</span>
+          <span class="hembody"><span class="hemname">${name[k]}<span class="vh">${done ? ', done' : ', not yet'}</span></span>
+            ${now || found[k] ? `<span class="hint flush">${esc(now || found[k])}</span>` : done ? '' : '<span class="hint flush">Not yet</span>'}${more}</span></li>`;
+      }).join('')}</ol>`;
+    })()}
     </div>
 
     ${queued ? `${tipCard('ritDecide', 'Deciding what is chalked', `<p>On the Workbench, beside
       everything else this tale is owed. Nothing chalked is in the tale until you sew it in.</p>`)}
     <div class="push-8 line-2">
-      <button class="btn fill" data-panel="waiting">Decide the ${
+      ${/* AN OUTLINE: Hem this scene is the drawer's one gold button (ADR 0004, UX review 2026-10-29). */ ''}
+      <button class="btn ghost fill" data-panel="waiting">Decide the ${
         plural(queued, 'chalked thing', 'chalked things')}</button>
       ${tipMark('ritDecide', 'Deciding what is chalked')}</div>` : ''}
 
@@ -4917,10 +4940,10 @@ const PANELS = {
           c.keepWhole ? 'sent whole'
             : c.summary ? (c.summaryStale ? 'summary out of date' : 'summarised') : 'no summary',
         ];
-        // A DELETE ON EVERY ROW, beside the card and not inside it (a button in a button is not a
-        // button). Seth, 2026-10-27: "a simpler way of deleting scenes". Two presses, the same
-        // data-delchapter and handler as This scene's own Delete; the confirm names what goes.
-        return `<div class="scenerow"><button class="card" data-chapter="${esc(c.id)}"
+        // NO DELETE ON THE ROWS. There was a ✕ beside every card (Seth, 2026-10-27: "a simpler way of
+        // deleting scenes"); the UX review of 2026-10-29 found it 36px from the card and easy to hit
+        // by mistake. A scene is deleted from This scene, which asks twice like every delete.
+        return `<button class="card" data-chapter="${esc(c.id)}"
           style="text-align:left; width:100%; margin-bottom:8px; gap:6px;
           ${here ? 'border-color:var(--gold-dim)' : ''}">
           <div class="base-9">
@@ -4933,10 +4956,7 @@ const PANELS = {
             : '<div class="hint flush">Nothing written in it yet.</div>'}
           <div style="display:flex; flex-wrap:wrap; gap:4px 10px; font-size:11px; color:var(--faint)"
             >${stats.map((t) => `<span class="tnum">${esc(t)}</span>`).join('')}</div>
-        </button>
-        <button class="scenedel" data-delchapter="${esc(c.id)}"
-          aria-label="Delete ${esc(sceneName(c))} and its ${mine.length} ${mine.length === 1 ? 'passage' : 'passages'}"
-          title="Delete this scene">&#10005;</button></div>`;
+        </button>`;
       }).join('')}</div>`;
   },
 
@@ -5002,8 +5022,12 @@ const PANELS = {
            route names the chapter, says how it opens and says where it goes in a single answer, so
            three separate buttons would be three generations for one question.
            WHATEVER IS TYPED IS NOT OVERWRITTEN unless the box is empty — see fillChapter. -->
+      <!-- THE NAME UNDER ITS LABEL, THEN ANANSI'S HELPERS (UX review, 2026-10-29). The label sat over
+           the re-roll, a direction box and Something else, and the name came fourth. -->
+      <label class="lbl" for="f-chapter-title" style="margin-top:0">Name</label>
+      <input class="field" id="f-chapter-title" data-chapter-title="1" value="${esc(ch.title ?? '')}"
+        placeholder="Scene ${ch.index}">
       <div class="base-10">
-        <label class="lbl" for="f-chapter-title" style="margin-top:0; flex:1">Name</label>
         <button data-chbrief="1" ${S.naming ? 'disabled' : ''}
           style="font-size:11px; letter-spacing:.1em; text-transform:uppercase;
           color:var(--gold-dim)">${S.naming ? 'Asking&hellip;' : '↻ Have Anansi write these'}</button>
@@ -5012,8 +5036,6 @@ const PANELS = {
         placeholder="A direction for Anansi, if you want one: she stays, he runs">
       ${(ch.title && !numbered(ch.title, ch.index)) || (ch.authorsNote ?? '').trim() || (ch.opensWith ?? '').trim()
         ? `<button class="btn ghost push-6" data-chbrief="again" ${S.naming ? 'disabled' : ''}>↻ Something else</button>` : ''}
-      <input class="field" id="f-chapter-title" data-chapter-title="1" value="${esc(ch.title ?? '')}"
-        placeholder="Scene ${ch.index}">
       <!-- TWO BOXES, NOT ONE. It was a single "This chapter must end with", and that one line rode
            beside the generation point on every call — Seth: "the start should be used as information
            for the very first scene and the where is this going is only used as a suggestion for the
@@ -5292,7 +5314,11 @@ const PANELS = {
        panel's own mark almost sentence for sentence — what a string is, that it is yours until you
        put one in play, and that in play the model is told what is owed rather than told to pay it.
        The web is the copy with a test binding it to a slug in both directions. */
-    return `<div class="stack">${stringList(V.strings ?? [], '<div class="hint flush">Nothing in play.</div>')}</div>`;
+    // A TALE WITH NO STRINGS says what one is and where to add one (UX review, 2026-10-29): "Nothing
+    // in play." was the whole panel, with no next step. One sentence; the mark's card says the rest.
+    return `<div class="stack">${stringList(V.strings ?? [], `<div class="hint flush">No strings yet. A string
+      is a promise or an open question the tale carries until it is tied off. Press ＋ at the top
+      to add one.</div>`)}</div>`;
   },
 
   search() {
@@ -10264,6 +10290,7 @@ async function refreshManifest() {
   //
   // An overflow is not that case: it comes back WITH a manifest and an error, and the panel has a
   // rendering for it. So the manifest decides, not the error.
+  const owedWas = owedHere();
   MANI = r.manifest ?? null;
   MANI_FOR = MANI ? asked : null;
   // THE EXACT COUNT WAS ALREADY IN THIS RESPONSE. `/api/manifest` does a /tokenize round trip and
@@ -10290,6 +10317,11 @@ async function refreshManifest() {
   MANIFIT = r.manifest ? (r.weaveFit ?? null) : null;
   drawBar(); drawMeter();
   if (S.panel === 'context') drawSide();
+  // THE WORKBENCH READS THIS TOO: its out-of-reach card is worked out from the manifest. The drawer
+  // and the menu were drawn before it landed and never again, so at phone size the menu said 4 and
+  // the drawer "3 to decide" (UX review, 2026-10-29). Redrawn only when the count moved, so an edit
+  // typed into a card is not wiped by every manifest.
+  if (owedHere() !== owedWas) { drawRail(); if (S.panel === 'waiting') drawSide(); }
   // THE THREADS LIST READS THIS TOO: its marks light by it and Sent now counts by it. It was drawn
   // before the answer landed and never again, so a tap on a mark showed the old Sent now until the
   // next repaint. The list and the count only, not the panel: a repaint would take the caret out
@@ -12618,7 +12650,11 @@ document.addEventListener('click', async (e) => {
     const rows = (V.proposals ?? []).filter((p) => ids.includes(p.id));
     for (const id of ids) {
       const edited = document.querySelector(`[data-pbody="${id}"]`)?.value;
-      const r = await api.decide({ storyId: S.storyId, id, accept: yes, ...(yes && edited != null ? { body: edited } : {}) });
+      // The state box, as `decide` reads it: on a card with one thread this is its only Sew it in.
+      const asState = document.querySelector(`[data-pstate="${id}"]`)?.checked
+        ? Number(document.querySelector(`[data-pchap="${id}"]`)?.value) : 0;
+      const r = await api.decide({ storyId: S.storyId, id, accept: yes, ...(yes && asState > 0 ? { asState } : {}),
+        ...(yes && edited != null ? { body: edited } : {}) });
       if (r.error) { V = await api.story(S.storyId); paint(); return toast(r.error); }
     }
     S.deckUndo = yes ? null : ids;

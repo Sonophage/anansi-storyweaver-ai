@@ -36,9 +36,9 @@ console.log("  rail: " + nav);
 // scenes"): six tiles beside the scenes, and Prose search a bar at their foot rather than a row.
 // Strings, Talk to Anansi and What he reads left the menu the same day for other doors (Workbench
 // cards, the quill held down, the strip's "what is in it"); their panels and links stay, which the
-// walk below checks by address.
+// walk below checks by address. Strings came back beside Threads on 2026-10-29 (UX review: it had no door).
 ok(`the rail lists the panels in the order asked for (${nav})`,
-   nav === 'story,teller,chapter,chapters,threads,waiting');
+   nav === 'story,teller,chapter,chapters,threads,strings,waiting');
 ok("  and Trajectory, What the chapter added and Branches are no longer rows of their own",
    !/traj|queue|branches/.test(nav));
 ok("  and Prose search is a bar in the menu", await page.eval("!!document.querySelector('#rail [data-railsearch]')"));
@@ -1554,7 +1554,7 @@ await wait(900);
 // panel's mark opens, and the line below asserts that too so deleting the copy cannot delete both.
 {
   const body = (await page.text('#sideBody')) || '';
-  ok("Strings is a panel of its own", /Nothing in play/i.test(body) && await page.visible('[data-stringnew="1"]'));
+  ok("Strings is a panel of its own", /Nothing in play|No strings yet/i.test(body) && await page.visible('[data-stringnew="1"]'));
   ok("  and what a string IS is still one press away", /promise the tale has to keep/i.test(body));
 }
 // #128 · A new string is added through the ＋, which opens the pocket panel on the tale's thread.

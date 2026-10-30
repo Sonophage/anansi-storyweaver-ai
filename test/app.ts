@@ -1014,8 +1014,9 @@ ok('a book can keep its cover behind the prose instead, at a strength it chooses
   const w = html('sideBody');
   // Proposals: the card carries the editable box, because POST /api/proposal reads the BOX and not
   // the model's wording — a copy without it would quietly accept something else.
-  assert.match(w, /data-decide="accept"/, 'a proposal is accepted here');
-  assert.match(w, /data-decide="reject"/, 'or refused here');
+  // On the card's own foot (UX review, 2026-10-29: a card with one thread had Sew it in twice).
+  assert.match(w, /data-deckall="accept" data-ids="pr-1"/, 'a proposal is accepted here');
+  assert.match(w, /data-deckall="reject" data-ids="pr-1"/, 'or refused here');
   assert.match(w, /data-pbody=/, 'and what lands is the box, which is why the box has to be here');
   // Strings you already have are decided on the string, not dealt here (Seth, 2026-10-29: they kept
   // coming back after he put them in play). Their status presses live on the Strings screen.
@@ -1034,6 +1035,55 @@ ok('a book can keep its cover behind the prose instead, at a strength it chooses
     'and nothing here is a link to somewhere else to do it');
 }
 ok('everything Waiting lists can be decided in Waiting');
+
+// ---- ONE SEW IT IN PER CARD (UX review, 2026-10-29). A card with one thread had its thread's own
+// Sew it in and ✕ inside it, and the card's ← Reject and Sew it in → under it: two pairs for one
+// decision. The foot pair stays. A card with several threads keeps a pair per thread, because the
+// foot can only take all of them or none. A pocket that is already there keeps Replace it, the one
+// thing the foot cannot say.
+{
+  const cardOf = (side: string, id: string) => {
+    const at = side.indexOf(`data-ids="${id}"`), from = side.lastIndexOf('data-deckcard=', at);
+    return side.slice(from, at);
+  };
+  click({ panel: 'waiting' });
+  await sleep(30);
+  let side = html('sideBody');
+  const one = cardOf(side, 'pr-1');
+  assert.ok(one.includes('Witness rite'), 'ONE-SEW: the fixture deals pr-1 on a card of its own');
+  assert.doesNotMatch(one, /data-decide=/, 'ONE-SEW: a card with one thread has no Sew it in or ✕ of its own inside it');
+  const beside = cardOf(side, 'pr-3');
+  assert.match(beside, /data-decide="replace" data-id="pr-3"/, '  and a pocket already there keeps Replace it');
+  assert.doesNotMatch(beside, /data-decide="(accept|reject)"/, '  but not a second Sew it in or ✕');
+  // THE STATE BOX STILL REACHES THE ROUTE from the foot, now that it is the only Sew it in.
+  const doc = (globalThis as any).document, wasQS = doc.querySelector;
+  doc.querySelector = (sel: string) => sel === '[data-pstate="pr-3"]' ? { checked: true }
+    : sel === '[data-pchap="pr-3"]' ? { value: '4' } : wasQS?.call(doc, sel) ?? null;
+  try {
+    POSTED.length = 0;
+    // The deck's handler names the card from the button's own `.deckcard`, which `click` cannot carry.
+    const btn = { dataset: { deckall: 'accept', ids: 'pr-3' }, disabled: false, textContent: '', style: {},
+      querySelector: () => null, closest: () => null };
+    (listeners.click ?? []).forEach((f: Function) => f({ target: { closest: () => btn } }));
+    await sleep(60);
+    const took = POSTED.find((x) => String(x.url) === '/api/proposal');
+    assert.strictEqual(took?.body?.asState, 4, 'ONE-SEW: the foot sends a change taken as a state, with its scene');
+  } finally { doc.querySelector = wasQS; }
+  // Several threads on one card: each keeps its own pair.
+  const was = STORY.proposals;
+  STORY.proposals = [{ ...was.find((p: any) => p.id === 'pr-1'), grp: 'g-1' },
+    { ...was.find((p: any) => p.id === 'pr-5'), grp: 'g-1' }] as any;
+  click({ open: 's-1' }); await sleep(40);
+  click({ panel: 'waiting' }); await sleep(30);
+  side = html('sideBody');
+  for (const id of ['pr-1', 'pr-5']) {
+    assert.match(side, new RegExp(`data-decide="accept" data-id="${id}"`), `ONE-SEW: on a card of two, ${id} keeps its own Sew it in`);
+    assert.match(side, new RegExp(`data-decide="reject" data-id="${id}"`), `  and its own ✕`);
+  }
+  STORY.proposals = was;
+  click({ open: 's-1' }); await sleep(40);
+}
+ok('a Workbench card with one thread has one Sew it in; a card of several keeps one per thread');
 
 // Leaving takes the book's look off with it, or the shelf wears whichever book you opened last.
 click({ leave: '1' });
@@ -4706,19 +4756,27 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
 }
 ok('a card face reads body, then what is on, then what is not — and finishing lives in the form');
 
-// ---- EVERY SCENE CAN BE DELETED FROM THE SCENES LIST (Seth, 2026-10-27).
+// ---- A SCENE IS DELETED FROM ITS OWN DRAWER, NOT FROM THE LIST (UX review, 2026-10-29). The ✕ on
+// every card in Scenes sat right beside the card (36px) and was easy to hit by mistake. This scene
+// keeps Delete, and it still asks twice.
 {
   click({ open: 's-1' });
   await sleep(40);
   click({ panel: 'chapters' });
   const list = html('sideBody');
-  const rows = [...list.matchAll(/data-chapter="([^"]+)"/g)].map((m) => m[1]);
-  const dels = [...list.matchAll(/class="scenedel" data-delchapter="([^"]+)"/g)].map((m) => m[1]);
-  assert.ok(rows.length > 0, 'the list has scenes');
-  assert.deepStrictEqual(dels, rows, 'and every scene row has its own delete, for that scene');
-  assert.doesNotMatch(list, /<button class="card"[^>]*>(?:(?!<\/button>)[\s\S])*<button/, 'never a button inside the card button');
+  assert.ok([...list.matchAll(/data-chapter="([^"]+)"/g)].length > 0, 'the list has scenes');
+  assert.doesNotMatch(list, /data-delchapter=/, 'SCENE-DEL: no delete in the Scenes list');
+  click({ panel: 'chapter' });
+  const id = STORY.currentChapter.id;
+  assert.match(html('sideBody'), new RegExp(`data-delchapter="${id}"`), 'SCENE-DEL: This scene has its delete');
+  POSTED.length = 0;
+  click({ delchapter: id });
+  await sleep(30);
+  assert.ok(!POSTED.some((x: any) => x.url === '/api/chapter' && x.method === 'DELETE'), 'SCENE-DEL: one press deletes nothing');
+  // The armed press goes stale after four seconds, so nothing below inherits it.
+  await sleep(4100);
 }
-ok('every scene in Scenes has a delete beside it');
+ok('a scene is deleted from This scene, asking twice, and not from the Scenes list');
 
 // ---- THIS SCENE: A DIRECTION, AND SOMETHING ELSE (2026-10-27) ----
 {
@@ -4727,6 +4785,14 @@ ok('every scene in Scenes has a delete beside it');
   click({ panel: 'chapter' });
   const panel = html('sideBody');
   assert.match(panel, /data-chsteer="1"/, 'CH-STEER: This scene takes a direction for Anansi');
+  // THE NAME UNDER ITS LABEL, THEN ANANSI'S HELPERS (UX review, 2026-10-29): the label sat over
+  // "Have Anansi write these", a direction box and Something else, and only then the name.
+  const at = (re: RegExp) => panel.search(re);
+  assert.ok(at(/for="f-chapter-title"/) >= 0
+    && at(/for="f-chapter-title"[^>]*>Name<\/label>\s*<input class="field" id="f-chapter-title"/) === at(/for="f-chapter-title"/),
+    'CH-NAME-FIRST: the name field is directly under its label');
+  assert.ok(at(/id="f-chapter-title"/) < at(/data-chbrief="1"/) && at(/data-chbrief="1"/) < at(/data-chsteer="1"/)
+    && at(/data-chsteer="1"/) < at(/data-chbrief="again"/), '  then Have Anansi write these, the direction and Something else');
   assert.match(panel, /data-chbrief="again"[^>]*>↻ Something else/, '  and offers something else once the scene has its own');
   const doc = (globalThis as any).document, wasQS = doc.querySelector;
   doc.querySelector = (sel: string) => /data-chsteer/.test(sel) ? { value: 'She stays.' }
@@ -4741,6 +4807,21 @@ ok('every scene in Scenes has a delete beside it');
 }
 ok('This scene takes a direction and asks for something else');
 
+// ---- STRINGS WITH NONE YET SAYS WHAT A STRING IS, and where to add one (UX review, 2026-10-29: it said
+// "Nothing in play." and stopped).
+{
+  const was = STORY.strings;
+  STORY.strings = [];
+  click({ open: 's-1' }); await sleep(40);
+  click({ panel: 'strings' }); await sleep(20);
+  const body = html('sideBody').replace(/\s+/g, ' ');
+  assert.match(body, /A string is a promise or an open question the tale carries/, 'STRINGS-EMPTY: an empty Strings says what a string is');
+  assert.match(body, /＋/, '  and points at the ＋ that adds one');
+  STORY.strings = was;
+  click({ open: 's-1' }); await sleep(40);
+}
+ok('an empty Strings says what a string is and where to add one');
+
 // ---- THE TALE'S MENU: THE MODEL ON TOP, THEN SCENES BESIDE TWO COLUMNS OF TILES (Seth, 2026-10-28).
 {
   click({ open: 's-1' });
@@ -4751,8 +4832,8 @@ ok('This scene takes a direction and asks for something else');
     'TALE3-MODEL: the model sits above the columns');
   const tiles = rail.match(/<div class="taletiles">([\s\S]*)/)?.[1] ?? '';
   assert.deepStrictEqual([...tiles.matchAll(/data-nav="([a-z]+)"/g)].map((m) => m[1]),
-    ['story', 'teller', 'chapter', 'chapters', 'threads', 'waiting'],
-    'TALE3-TILES: Tale and Storyteller first, then This scene and Scenes, then the rest');
+    ['story', 'teller', 'chapter', 'chapters', 'threads', 'strings', 'waiting'],
+    'TALE3-TILES: Tale and Storyteller first, then This scene and Scenes, then the rest (Strings back, UX review 2026-10-29)');
   assert.match(tiles, /class="field railsearch" data-railsearch="1"/, 'TALE3-SEARCH: search is a bar across both columns, not a tile');
   assert.ok(tiles.indexOf('data-railsearch') > tiles.indexOf('data-nav="waiting"'), '  at the foot, below every tile');
   // EACH SCENE ROW WEARS THE TALE'S PICTURE, fainter down the list (2026-10-28), when the tale has one.
@@ -4760,7 +4841,7 @@ ok('This scene takes a direction and asks for something else');
   assert.ok(fades.length >= 2 && fades.every((o, k) => k === 0 || o <= fades[k - 1]), `TALE3-ART: the scenes wear the cover, fading down (${fades})`);
   assert.doesNotMatch(rail, /<span class="serif txt"[^>]*>Anansi<\/span>/, 'TALE3-NOLOGO: no Anansi wordmark in the tale menu');
   assert.match(rail, /<div class="talemodel">[\s\S]*data-modelmenu[\s\S]*class="railclose"/, 'TALE3-CLOSE: the close sits with the model');
-  assert.doesNotMatch(rail, /data-nav="(strings|anansi|context)"/, '  and Strings, Talk to Anansi and What he reads are off the menu');
+  assert.doesNotMatch(rail, /data-nav="(anansi|context)"/, '  and Talk to Anansi and What he reads are off the menu');
   const scenes = [...(rail.match(/<div class="tale3scenes scroll">([\s\S]*?)<div class="taletiles">/)?.[1] ?? '')
     .matchAll(/data-chapter="([^"]+)"/g)].map((m) => m[1]);
   assert.deepStrictEqual(scenes, [...STORY.chapters].reverse().map((c: any) => c.id), 'TALE3-SCENES: the scenes, newest first, in their own column');
@@ -5911,6 +5992,31 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   click({ open: 's-1' });
   await sleep(40);
   ok('the hem report says which of its passes did not run, and why, from the scene itself (#32, #92)');
+
+  // ---- THE HEM'S PASSES ARE ONE LIST OF STEPS (UX review, 2026-10-29). "Not hemmed yet / Not
+  // summarised / Nothing changed anybody" in grey, then one line in green, did not read as a
+  // sequence. Each pass is a step in the order the hem runs them, marked done or not yet with one
+  // marker, and the drawer has one gold button.
+  {
+    const steps = (side: string) => [...side.matchAll(/data-hemstep="([a-z]+)" data-done="([01])"/g)].map((m) => `${m[1]}:${m[2]}`);
+    const order = ['summary', 'tale', 'memory', 'facts', 'finished', 'next'];
+    click({ open: 's-1' }); await sleep(40);
+    click({ ritual: '1' }); await sleep(30);
+    let side = html('sideBody');
+    assert.deepStrictEqual(steps(side), order.map((k) => `${k}:0`), 'HEM-STEPS: before a hem, every pass is a step not yet done, in the order they run');
+    const list = side.match(/<ol class="hemsteps">[\s\S]*?<\/ol>/)?.[0] ?? '';
+    assert.ok(list && !/var\(--good\)|var\(--warn\)/.test(list), 'HEM-STEPS: one marker style, no green or amber for some steps');
+    assert.strictEqual((side.match(/class="btn fill"/g) ?? []).length, 1, 'HEM-GOLD: Hem this scene is the one gold button');
+    assert.match(side, /class="btn fill" data-endchapter="1"/, '  and it is Hem this scene');
+    if (/data-panel="waiting"/.test(side)) assert.match(side, /class="btn ghost fill" data-panel="waiting"/, '  and Decide is an outline');
+    else assert.fail('HEM-GOLD: the fixture chalks on this scene, so Decide must be on the drawer');
+    side = await reportOn({ ...ran, tale: null, facts: 'the model did not answer' });
+    assert.deepStrictEqual(steps(side), order.map((k) => `${k}:${k === 'facts' ? 0 : 1}`),
+      'HEM-STEPS: after a hem, the passes that ran are done and the one that did not is not');
+    STORY.chapters = wasChapters; STORY.currentChapter = wasCurrent;
+    click({ open: 's-1' }); await sleep(40);
+  }
+  ok("the hem's passes are one list of steps, done or not yet, with one gold button");
 
   // ---- DELETE-AFTER NAMES THE SUMMARIES OF YOURS IT WOULD CLEAR (#46). It clears the summary of
   // every chapter that loses a passage, and a summary that is yours is words the writer typed. The

@@ -33,6 +33,30 @@ with another row.
 ### The model page shows a dot, not code
 For the admin, the model page printed a scrap of code between the words and the tokens, where a
 dot belongs. It shows the dot.
+### The Workbench gives one number
+The menu and the Workbench now count the same cards. Before, the Workbench could show one card
+fewer until you opened it again, and the first time you opened a tale the header could call a card
+new that had been there all along. The header's mark still counts what is new since you last
+looked, and on a phone it now says "new" beside its number.
+
+### One Sew it in on each Workbench card
+A card with one thread on it has one Sew it in and one Reject, at its foot. The second pair inside
+the card is gone. A card with several threads still lets you decide each one. Anansi edits is bigger
+to press, and the box beside it says "What to change (optional)" so it fits on a phone.
+
+### Strings is back in the tale's menu
+Strings has its own tile again, beside Threads. A tale with no strings yet says what a string is
+and where to press ＋ to add one.
+
+### This scene: the name comes first
+In This scene the name box is right under its label, with Have Anansi write these below it. The ✕
+beside each scene in Scenes is gone, because it was easy to press by mistake. Delete a scene from
+This scene; it still asks twice.
+
+### Hemming shows its steps in order
+The hem screen lists what hemming does as steps, in the order it does them: the summary, where the
+tale stands, changes to the people in it, new threads, threads it is done with, and the next scene.
+Each is marked done or not yet. Hem this scene is the one gold button there.
 
 ### Changes show as Was and Now
 Wherever a change to a thread is shown (the Workbench, Alterations, Talk, Ask Anansi), you now see
