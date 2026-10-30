@@ -5260,6 +5260,83 @@ ok("the tale's own thread is on the Tale panel's Thread tab, one ＋ adds to it 
 }
 ok('Over time: one ＋ adds a change, a tap opens one in the pocket panel, and Save writes it');
 
+// ---- SCENE SUMMARIES AND CHAPTERS: A TAP OPENS ONE (Seth, 2026-10-30: "edit is opened by tapping the
+// field"). Each was a card with its buttons on it and Alter opening boxes and Save inside the list;
+// each is a row now, and the pocket panel holds the boxes, the presses and Save. Gathering scenes
+// into a chapter stays the add, and hems make summaries, so neither list has a ＋.
+{
+  const canned = (globalThis as any).fetch;
+  const ARC = { id: 'a-1', fromChapter: 1, toChapter: 1, title: 'The Ash', summary: 'Ilva comes in on the ash road.', outOfDate: null };
+  const wasArcs = STORY.arcs;
+  STORY.arcs = [ARC];
+  (globalThis as any).fetch = async (url: string, init?: any) => {
+    if (init?.body && ['/api/summary', '/api/arc', '/api/chapter'].includes(url)) {
+      POSTED.push({ url, body: JSON.parse(init.body), method: init.method });
+      return { ok: true, status: 200, json: async () => STORY, text: async () => JSON.stringify(STORY) };
+    }
+    return canned(url, init);
+  };
+  const group = async () => {
+    click({ open: 's-1' }); await sleep(40);
+    click({ panel: 'chapter' }); click({ chaptab: 'summaries' }); await sleep(20);
+    return html('sideBody').match(/data-group="summaries"[\s\S]*?(?=data-group="branches")/)?.[0] ?? '';
+  };
+  const type = (dataset: any, value: string) => (listeners.input ?? []).forEach((f: Function) =>
+    f({ target: { id: '', dataset, value, closest: () => null } }));
+  let g = await group();
+  assert.match(g, /class="pocketopen" data-editsum="c-1"[\s\S]*?Ilva arrives\./, 'SUM-ROWS: a scene summary is a row that opens');
+  assert.doesNotMatch(g, /data-sumtext|data-savesum|data-summarize="c-1"|data-pullback/,
+    'SUM-ROWS: and no box, Save, Summarise again or Pull back on the list');
+  assert.match(g, /class="pocketopen" data-editarc="a-1"[\s\S]*?The Ash/, 'ARC-ROWS: a chapter is a row that opens');
+  assert.doesNotMatch(g, /data-arctext|data-arctitle|data-savearc|data-delarc/, 'ARC-ROWS: and no boxes, Save or ✕ on the list');
+  // A summary's panel: its box with the word count, Summarise again, Pull back, Cancel and Save.
+  click({ editsum: 'c-1' }); await sleep(20);
+  let box = html('pocketPanel');
+  assert.match(box, /<textarea[^>]*data-sumtext="c-1"[^>]*>Ilva arrives\.</, 'SUM-OPEN: tapping it opens the panel on its text');
+  assert.match(box, /data-wordcount/, '  with its word count');
+  assert.match(box, /data-summarize="c-1"/, '  Summarise again');
+  assert.match(box, /data-pullback="c-1" data-on="1"/, '  and Pull back');
+  assert.match(box, /data-pocketx="1"[\s\S]*data-savesum="c-1"/, '  with Cancel and Save in its foot');
+  type({ sumtext: 'c-1', wordcap: '220' }, 'Ilva arrives at dusk.');
+  POSTED.length = 0;
+  click({ savesum: 'c-1' }); await sleep(40);
+  assert.deepStrictEqual(POSTED.filter((x) => x.url === '/api/summary').map((x) => x.body),
+    [{ storyId: 's-1', chapterId: 'c-1', summary: 'Ilva arrives at dusk.' }], 'SUM-SAVE: Save sends what was typed');
+  assert.strictEqual(html('pocketPanel'), '', '  and shuts the panel');
+  // Cancel with something typed asks first, as every panel does.
+  g = await group();
+  click({ editsum: 'c-1' }); await sleep(20);
+  type({ sumtext: 'c-1', wordcap: '220' }, 'Something else.');
+  click({ pocketx: '1' }); await sleep(10);
+  assert.notStrictEqual(html('pocketPanel'), '', 'SUM-CANCEL: Cancel with a change typed asks first');
+  click({ pocketx: '1' }); await sleep(10);
+  assert.strictEqual(html('pocketPanel'), '', '  and the second press shuts it');
+  // A chapter's panel: its title and summary, Remove inside it, Cancel and Save.
+  click({ editarc: 'a-1' }); await sleep(20);
+  box = html('pocketPanel');
+  assert.match(box, /data-arctitle[^>]*value="The Ash"/, 'ARC-OPEN: tapping a chapter opens its title');
+  assert.match(box, /<textarea[^>]*data-arctext[^>]*>Ilva comes in on the ash road\.</, '  and its summary');
+  assert.match(box, /data-delarc="a-1"/, '  with Remove inside it');
+  assert.match(box, /data-pocketx="1"[\s\S]*data-savearc="a-1"/, '  and Cancel and Save in its foot');
+  type({ arctitle: '' }, 'The Ash Road');
+  POSTED.length = 0;
+  click({ savearc: 'a-1' }); await sleep(40);
+  assert.deepStrictEqual(POSTED.filter((x) => x.url === '/api/arc').map((x) => x.body),
+    [{ storyId: 's-1', id: 'a-1', title: 'The Ash Road', summary: ARC.summary }], 'ARC-SAVE: Save sends the title and summary');
+  assert.strictEqual(html('pocketPanel'), '', '  and shuts the panel');
+  g = await group();
+  click({ editarc: 'a-1' }); await sleep(20);
+  POSTED.length = 0;
+  click({ delarc: 'a-1' }); click({ delarc: 'a-1' }); await sleep(40);
+  assert.deepStrictEqual(POSTED.filter((x) => x.url === '/api/arc').map((x) => [x.method, x.body.id]), [['DELETE', 'a-1']],
+    'ARC-DEL: Remove, pressed twice, removes the chapter');
+  assert.strictEqual(html('pocketPanel'), '', '  and shuts the panel');
+  (globalThis as any).fetch = canned;
+  STORY.arcs = wasArcs;
+  click({ chaptab: 'this' }); click({ panel: 'threads' });
+}
+ok('scene summaries and chapters are rows that open in the pocket panel, with their presses and Save there');
+
 // ---- THE THREAD'S MENU, ONE FLAT LIST, AND TIDY AS AN ICON BESIDE IT (Seth, 2026-10-27).
 {
   click({ entry: 'e-1' });

@@ -111,7 +111,10 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   // "the tab shows what it says it shows" is the half a click alone cannot tell you.
   await page.click('[data-chaptab="summaries"]');
   await wait(300);
-  ok('  the Summaries tab is what brings the pull-back control on screen',
+  // A TAP ON A SUMMARY OPENS IT (2026-10-30), and Pull back is in its panel.
+  await page.click('[data-editsum]');
+  await wait(300);
+  ok('  the Summaries tab, and a tap on a summary, is what brings the pull-back control on screen',
      await page.visible('[data-pullback]'));
   const p0 = await pull();
   ok(`the summaries list offers a way to pull a chapter back (${JSON.stringify(p0?.text ?? null)})`,
@@ -131,6 +134,8 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   await page.click('[data-pullback]');
   await wait(900);
   ok("  pressing it again lets the chapter go", (await pull())?.on === '1');
+  await page.click('[data-pocketx]');
+  await wait(300);
   // WAIT FOR THE MANIFEST TO SETTLE before leaving this section. Every press here refreshes it,
   // and `refreshManifest` clears MANI while the /tokenize round trip is in flight — so walking on
   // immediately left the top bar with no context reading and turned section 7 red, two sections
@@ -187,7 +192,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   await press(`[data-editsum="${cur}"]`);
   await wait(300);
   const box = () => page.eval(`(() => { const t = document.querySelector('[data-sumtext]');
-    const c = t?.closest('[data-sumcard]'), w = c?.querySelector('[data-wordwarn]');
+    const c = t?.closest('.pocketbox'), w = c?.querySelector('[data-wordwarn]');
     return t ? { text: t.value, count: c?.querySelector('[data-wordcount]')?.textContent ?? '',
       counts: (c.textContent.replace(/\\s+/g, ' ').match(/\\b\\d+ words?\\b/g) ?? []).length,
       warn: !!w && w.offsetParent !== null, save: !!document.querySelector('[data-savesum]:not([disabled])') } : null; })()`);
@@ -210,7 +215,9 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   const b3 = await box();
   ok(`  a repaint keeps what was typed (${JSON.stringify(b3?.text)})`,
     b3?.text === 'Aldis keeps the key and says nothing.' && /^7 words/.test(b3?.count ?? ''));
-  await press('[data-cancelsum]');
+  // Cancel with a change typed asks first, as every panel does: the second press shuts it.
+  await press('[data-pocketx]');
+  await press('[data-pocketx]');
   await wait(300);
   ok('Cancel leaves the summary exactly as it was', (await sumOf(cur)) === 'Aldis keeps the key.'
     && !(await page.eval("!!document.querySelector('[data-sumtext]')")));
@@ -277,11 +284,13 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   ok('the older card says its summary is out of date', /Out of date/.test(await card()));
   // THE NOTE, NOT THE CARD. The card's own Summarise again and Edit buttons match both words, so
   // reading the whole card passed with the old "until it is re-run" note in place.
-  const note0 = await page.eval(`[...document.querySelectorAll('[data-sumcard="${made.first}"] .hint')]
+  await page.eval(`(() => { document.querySelector('[data-editsum="${made.first}"]')?.click(); return 1; })()`);
+  await wait(300);
+  const note0 = await page.eval(`[...document.querySelectorAll('.pocketbox .hint')]
     .map((h) => h.textContent).find((t) => /Out of date/.test(t)) ?? ''`);
   ok(`  and that summarising it again or editing it brings it back (${note0})`,
      /summari[sz]ed? again/i.test(note0) && /alter/i.test(note0));
-  const btn = await page.eval(`document.querySelector('[data-sumcard="${made.first}"] [data-summarize]')?.textContent.trim() ?? null`);
+  const btn = await page.eval(`document.querySelector('.pocketbox [data-summarize="${made.first}"]')?.textContent.trim() ?? null`);
   ok(`  and offers Summarise again (${JSON.stringify(btn)})`, /Summarise again/.test(btn ?? ''));
 
   await page.eval(`(() => { const real = window.__realFetch = window.fetch;
@@ -293,7 +302,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
     }; return 1; })()`);
   // YOURS TAKES TWO PRESSES (#46). This book's first summary was saved by hand above, so it is
   // yours: the first press asks and sends nothing, the second sends `replace`.
-  const pressAgain = () => page.eval(`(() => { document.querySelector('[data-sumcard="${made.first}"] [data-summarize]')?.click(); return 1; })()`);
+  const pressAgain = () => page.eval(`(() => { document.querySelector('.pocketbox [data-summarize="${made.first}"]')?.click(); return 1; })()`);
   await pressAgain();
   await wait(500);
   const asked1 = await page.eval('window.__sumAsked ?? null');
@@ -309,6 +318,8 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   ok(`the second press sends that card's chapter (${asked === made.first ? 'its own' : asked})`, asked === made.first);
   ok(`  and asks to replace yours (${replace})`, replace === true);
   ok('  and the out-of-date note goes', !/Out of date/.test(await card()) && /rings twice/.test(await card()));
+  await page.eval(`(() => { document.querySelector('[data-pocketx]')?.click(); return 1; })()`);
+  await wait(300);
 }
 
 // ---- 3b4. Anansi's summary still re-runs on ONE press (#46): the guard is for yours only. The
@@ -328,13 +339,17 @@ ok("  and no longer offers Where this is going, on this panel or any other",
       const b = JSON.parse(o.body); window.__sumAsked = b.chapterId; window.__sumReplace = b.replace ?? null;
       return new Response(JSON.stringify({ error: 'caught by the test' }), { headers: { 'Content-Type': 'application/json' } });
     }; return 1; })()`);
-  await page.eval(`(() => { document.querySelector('[data-sumcard="${first}"] [data-summarize]')?.click(); return 1; })()`);
+  await page.eval(`(() => { document.querySelector('[data-editsum="${first}"]')?.click(); return 1; })()`);
+  await wait(300);
+  await page.eval(`(() => { document.querySelector('.pocketbox [data-summarize="${first}"]')?.click(); return 1; })()`);
   await wait(600);
   const asked = await page.eval('window.__sumAsked ?? null');
   const replace = await page.eval('window.__sumReplace ?? null');
   await page.eval('(() => { if (window.__realFetch) window.fetch = window.__realFetch; return 1; })()');
   ok(`one press of Summarise again over Anansi's sends it (${asked === first ? 'its own' : asked})`, asked === first);
   ok(`  without asking to replace anything (${replace})`, !replace);
+  await page.eval(`(() => { document.querySelector('[data-pocketx]')?.click(); return 1; })()`);
+  await wait(300);
 }
 
 // ---- 3c. A thread's body is not cut off.
@@ -1470,7 +1485,7 @@ if (btn) {
     const w = l.querySelector('[data-wordwarn]');
     return (l.querySelector('[data-wordcount]')?.textContent + (w && !w.hidden ? ' ' + w.textContent : ''))
       .replace(/\\s+/g, ' ').trim(); })()`);
-  const counts = () => page.eval(`(document.querySelector('[data-arctext]')?.closest('.card')?.textContent ?? '')
+  const counts = () => page.eval(`(document.querySelector('[data-arctext]')?.closest('.pocketbox')?.textContent ?? '')
     .replace(/\\s+/g, ' ').match(/\\b\\d+ words?\\b/g)?.length ?? 0`);
   ok("the seed has a book with an act in it", !!aid);
   // #47. The seed summarised chapter two again after the act was built, so the act is out of date.
@@ -1486,13 +1501,15 @@ if (btn) {
   await page.click('[data-chaptab="summaries"]');
   await wait(300);
   const was = await arcOf();
-  ok(`  its act card offers Edit (${was?.title})`, await page.visible('[data-editarc]'));
-  const note = ((await page.text('[data-arcoutofdate]')) || '').replace(/\s+/g, ' ').trim();
-  ok(`  and its card says it is out of date, naming the scene (${note})`, /Scene 2/.test(note));
+  ok(`  its act row opens with a tap (${was?.title})`, await page.visible('[data-editarc]'));
+  ok("  and the row says it is out of date", /Out of date/.test((await page.text('[data-arcrow] [data-arcoutofdate]')) || ''));
 
   await page.click('[data-editarc]');
   await wait(300);
-  ok("Edit opens the act's text in place",
+  // Its panel names the scene that changed (2026-10-30: a tap opens the chapter).
+  const note = ((await page.text('.pocketbox [data-arcoutofdate]')) || '').replace(/\s+/g, ' ').trim();
+  ok(`  and its panel says why, naming the scene (${note})`, /Scene 2/.test(note));
+  ok("The tap opens the act's text",
      await page.eval("document.querySelector('[data-arctext]')?.value ?? null") === was.summary);
   ok("  and its title", await page.eval("document.querySelector('[data-arctitle]')?.value ?? null") === was.title);
   ok(`  with a word count (${await words()})`, /^15 words$/.test(await words()));
@@ -1514,7 +1531,9 @@ if (btn) {
   ok(`  a repaint keeps what was typed (${kept0})`, kept0 === JSON.stringify(['A draft title', 'A draft of the act.']));
 
   // CANCEL COSTS NOTHING: the typed text is thrown away and the act is what it was.
-  await page.click('[data-cancelarc]');
+  // Changed, so Cancel asks first and the second press shuts it, as every panel does.
+  await page.click('[data-pocketx]');
+  await page.click('[data-pocketx]');
   await wait(300);
   ok("Cancel closes the editor", !(await page.visible('[data-arctext]')));
   const kept = await arcOf();

@@ -80,6 +80,13 @@ screen a pocket opens in, where you pick what you are adding: a promise, an open
 or one of your own. Rules and your own are rows now, like promises and open questions: tap one to
 change it, remove it or switch it off.
 
+### Summaries and chapters open with a tap
+Under This scene → Summaries, each scene summary and each chapter is now one row. Tap a scene
+summary to open it on its own screen: change it, see how many words it is, summarise it again, or
+pull the scene back so its prose is sent instead. Tap a chapter to change its title and summary, or
+to remove it. Cancel and Save are at the foot of each. Gathering scenes into a chapter works as it
+did.
+
 ### Over time: one ＋, and a tap opens a change
 A thread's Over time tab no longer has a form under its list or a Save button on every change. The ＋
 beside Over time opens a screen to add a change: the scene it starts from, whether it is hidden or

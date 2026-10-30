@@ -288,9 +288,6 @@ const S = {
   forgeOpen: null, forgeBusy: false,
   prompts: null,        // { defaults, yours } once fetched; the open editor is `promptOpen`
   promptOpen: null,
-  // The act and the chapter summary open for editing, with what has been typed, so a repaint mid-edit
-  // puts the same words back. Null means no editor is open. `{ id, title, text }` and `{ id, text }`.
-  editArc: null, editSum: null,
   found: null,
   // The picture finder on ONE card: which thread it belongs to, the phrase, the rows. Null is shut.
   entryPic: null,          // the passage a search result sent you to, marked until you move on
@@ -533,7 +530,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // ago, so these say what they do to a followed thread instead of reusing that word.
   'takeover', 'dropfollow', 'handback', 'sendup', 'bringback', 'savefollowed',
   'share', 'unshare',
-  'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc', 'editarc', 'savearc', 'cancelarc',
+  'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc', 'editarc', 'savearc',
   'stringnew', 'summon', 'stringstatus', 'looktab', 'askfill',
   'reroll', 'reseed', 'addstate', 'stateopen', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'howin', 'howout', 'savesetup',
@@ -555,7 +552,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
   // #43. A chapter summary edited or written by hand.
-  'editsum', 'savesum', 'cancelsum',
+  'editsum', 'savesum',
   'dismiss', 'modelmenu', 'choosemodel', 'editsave', 'editx', 'sumtab', 'findtag', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
@@ -2793,8 +2790,55 @@ async function standString(id, stand) {
   V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
   return r;
 }
+/** SCENE SUMMARIES AND CHAPTERS IN THE POCKET PANEL (Seth, 2026-10-30: a tap opens one). `sum` and
+ *  `arc` name what is open; neither is a thread, so `pocketHome` finds it and drawPocket shuts the
+ *  panel when it is gone. The boxes keep their `data-sumtext`, `data-arctitle` and `data-arctext`, so
+ *  the one `input` listener that kept the old in-place drafts keeps these, and moves the word count. */
+const pocketHome = () => (!S.pocket ? null
+  : S.pocket.sum ? (V?.chapters ?? []).find((c) => c.id === S.pocket.sum) ?? null
+  : S.pocket.arc ? (V?.arcs ?? []).find((a) => a.id === S.pocket.arc) ?? null
+  : pocketThread());
+const panelShell = (label, head, body, foot) => `<div class="pocketbox" role="dialog" aria-label="${label}">
+    <div class="pkhead"><div class="lbl flush wide">${head}</div></div>
+    <div class="pkscroll scroll">${body}</div>
+    <div class="pkfoot">
+      <button class="btn ghost" data-pocketx="1">Cancel</button>
+      ${foot}
+    </div>
+  </div>`;
+/** #43 · A scene summary. Saving it empty removes it, which takes two presses (the `savesum` handler). */
+function sumPanel(pk, c) {
+  const name = esc(sceneName(c));
+  return panelShell(`The summary of ${name}`, `Summary &middot; ${name}${c.summary ? ` &middot; ${
+    c.summaryAuthor === 'human' ? 'yours' : 'Anansi&rsquo;s'}` : ''}`, `
+    ${c.summaryStale ? '<div class="hint danger">Out of date — this scene summary is not sent until it is written again: summarise again, or alter it.</div>' : ''}
+    <label class="lbl" for="pk-sum">What happened in it${c.coversThrough ? ` <span class="faded">&middot; up to passage ${c.coversThrough}</span>` : ''}</label>
+    <textarea class="field grow pkbody" id="pk-sum" data-sumtext="${c.id}" data-wordcap="${SUMMARY_WORDS}">${esc(pk.text)}</textarea>
+    ${wordLine(pk.text, SUMMARY_WORDS)}
+    ${/* #45. Re-runs THIS scene, so an out-of-date summary on an older one is a press from the prompt. */
+      c.summary ? `<button class="btn ghost push-14" data-summarize="${c.id}">Summarise again</button>
+    <button class="btn ghost push-8" data-pullback="${c.id}" data-on="${c.keepWhole ? '0' : '1'}" aria-pressed="${!!c.keepWhole}"
+      >${c.keepWhole ? 'Sent whole &mdash; press to send its summary again' : 'Pull this scene back &mdash; send its prose, not its summary'}</button>` : ''}`,
+    `<button class="btn" data-savesum="${c.id}">Save</button>`);
+}
+/** #44 · A chapter: its title and summary, and Remove, which gives its scenes their own summaries back. */
+function arcPanel(pk, a) {
+  const range = `Scenes ${a.fromChapter}&ndash;${a.toChapter}`;
+  return panelShell(`The chapter ${esc(a.title || `Scenes ${a.fromChapter}–${a.toChapter}`)}`, `Chapter &middot; ${range}`, `
+    ${a.outOfDate ? `<div class="hint flush" data-arcoutofdate style="color:var(--warn)">Out of date.
+      ${esc(actChanged(a.outOfDate.chapter, a.outOfDate.why, a.outOfDate.title))}</div>` : ''}
+    <label class="lbl" for="pk-arctitle">Title</label>
+    <input class="field" id="pk-arctitle" data-arctitle value="${esc(pk.title)}" placeholder="${range.replace('&ndash;', '–')}">
+    <label class="lbl" for="pk-arctext">The chapter summary</label>
+    <textarea class="field grow pkbody" id="pk-arctext" data-arctext data-wordcap="${ACT_WORDS}">${esc(pk.text)}</textarea>
+    ${wordLine(pk.text, ACT_WORDS)}
+    <button class="btn ghost danger push-14" data-delarc="${a.id}">Remove this chapter</button>`,
+    `<button class="btn" data-savearc="${a.id}">Save</button>`);
+}
 function pocketPanel() {
-  const pk = S.pocket, e = pocketThread();
+  const pk = S.pocket;
+  if (pk?.sum || pk?.arc) { const h = pocketHome(); return h ? (pk.sum ? sumPanel(pk, h) : arcPanel(pk, h)) : ''; }
+  const e = pocketThread();
   if (!pk || !e) return '';
   if (pk.ot) return statePanel(pk, e);
   const adding = !pk.id;
@@ -2871,7 +2915,7 @@ function pocketPanel() {
 function drawPocket() {
   const box = $('pocketPanel'); if (!box) return;
   // Shut when the thread it belongs to is not open any more (another tale, the thread deleted).
-  if (S.pocket && !pocketThread()) S.pocket = null;
+  if (S.pocket && !pocketHome()) S.pocket = null;
   box.hidden = !S.pocket;
   // The same markup is not written again, so a repaint mid-typing keeps the caret where it is.
   sameOrSet('pocketPanel').innerHTML = pocketPanel();
@@ -5277,41 +5321,19 @@ const PANELS = {
             summary, which is what "Summarise this chapter" below has always shown here. */
         V.chapters.filter((c) => c.index < V.currentChapter.index
           || (c.id === V.currentChapter.id && c.summary)).map((c) => {
-        const editing = S.editSum?.id === c.id;
+        // ONE ROW EACH, opened by a tap (Seth, 2026-10-30): its box, Summarise again, Pull back and
+        // Save are in the pocket panel (`sumPanel`). A scene with no summary and no prose has nothing
+        // to write one from, so its row does not open.
         const prose = V.passages.some((p) => p.chapterId === c.id && !p.isBreak && String(p.body).trim());
-        return `<div class="card" data-sumcard="${c.id}"
-        style="margin-bottom:8px; ${c.keepWhole ? 'border-color:var(--gold-dim);' : ''}">
-        <div class="line">
-          <span class="kind">${esc(sceneName(c))}</span>
-          ${c.summary ? `<span class="caption" data-sumauthor>${
-            c.summaryAuthor === 'human' ? 'yours' : 'Anansi&rsquo;s'}</span>` : ''}
-          ${/* The word count is on every card, and while the card is being edited it is the editor's
-                live one instead, so the card never shows two counts that disagree. */''}
-          ${c.summary ? `<span class="count-sm">${
-            c.coversThrough ? `up to passage ${c.coversThrough}` : ''}${editing ? '' : `${c.coversThrough ? ' &middot; ' : ''}${plural(wordsIn(c.summary), 'word', 'words')}`}</span>` : ''}</div>
-        ${editing ? `<textarea data-sumtext="${c.id}" data-wordcap="${SUMMARY_WORDS}" rows="6"
-            aria-label="Summary of ${esc(sceneName(c))}"
-            style="width:100%; font-size:12.5px; line-height:1.5">${esc(S.editSum.text)}</textarea>
-          ${wordLine(S.editSum.text, SUMMARY_WORDS)}
-          <div style="display:flex; align-items:center; gap:9px; font-size:11.5px">
-            <button class="btn ghost right" data-cancelsum="1">Cancel</button>
-            <button class="btn" data-savesum="${c.id}">Save</button></div>`
-        : c.summary ? `<button class="full-left" aria-expanded="false" data-expand="1">
-          <div class="clamp note">${esc(c.summary)}</div>
-        </button>
-        ${c.summaryStale ? '<div class="hint danger">Out of date — this scene summary is not sent until it is written again: summarise again, or alter it.</div>' : ''}
-        <button class="list-btn" data-editsum="${c.id}">Alter</button>
-        ${/* #45. Re-runs THIS card's chapter, not the current one, so a stale summary on an older
-              chapter is one press from coming back into the prompt. */''}
-        <button class="list-btn" data-summarize="${c.id}">Summarise again</button>
-        <button data-pullback="${c.id}" data-on="${c.keepWhole ? '0' : '1'}"
-          style="font-size:11.5px; text-align:left; color:${c.keepWhole ? 'var(--gold)' : 'var(--faint)'}"
-          >${c.keepWhole
-            ? '&check; Sent whole &mdash; press to send its summary again'
-            : 'Pull this scene back &mdash; send its prose, not its summary'}</button>`
-        : `<div class="hint">No summary.</div>${prose
-          ? `<button class="list-btn" data-editsum="${c.id}">Write one</button>` : ''}`}
-      </div>`; }).join('') || '<div class="hint">No summaries yet. Hemming a scene writes one.</div>'}
+        const inner = `<span class="pkname">${esc(sceneName(c))}${c.summary ? ` <span class="faded">&middot; <span data-sumauthor>${
+            c.summaryAuthor === 'human' ? 'yours' : 'Anansi&rsquo;s'}</span></span>` : ''}</span>
+          <span class="pkline">${c.summary ? esc(String(c.summary).split('\n')[0]) : prose ? 'No summary. Tap to write one.' : 'No summary.'}</span>
+          ${c.summary ? `<span class="pkline faint">${c.coversThrough ? `up to passage ${c.coversThrough} &middot; ` : ''}${
+            plural(wordsIn(c.summary), 'word', 'words')}${c.keepWhole ? ' &middot; sent whole' : ''}</span>` : ''}
+          ${c.summaryStale ? '<span class="pkline danger">Out of date: not sent until it is written again.</span>' : ''}`;
+        return `<div class="pocketrow${c.keepWhole ? ' lit' : ''}" data-sumcard="${c.id}">${c.summary || prose
+          ? `<button class="pocketopen" data-editsum="${c.id}" aria-label="Open the summary of ${esc(sceneName(c))}">${inner}</button>`
+          : `<div class="pocketopen">${inner}</div>`}</div>`; }).join('') || '<div class="hint">No summaries yet. Hemming a scene writes one.</div>'}
       ${/* Only while the current chapter has no card: once it has a summary, its card carries
             Summarise again, and this would be the same press twice. */
         V.chapters.find((c) => c.id === V.currentChapter.id)?.summary ? ''
@@ -5326,26 +5348,14 @@ const PANELS = {
         chapter summary is sent in place of theirs. A scene summary is about 220 tokens and they
         never stop arriving &mdash; at scene 120 they do not fit, and the oldest silently stop being
         sent. Gathering them into chapters keeps them reaching the model.</p>`)}
-      ${(V.arcs ?? []).map((a) => { const editing = S.editArc?.id === a.id; return `<div class="card" style="margin-bottom:8px; gap:5px">
-        <div class="line">
-          <span class="kind">${esc(a.title || `Scenes ${a.fromChapter}–${a.toChapter}`)}</span>
-          <span class="count-sm">scenes ${a.fromChapter}&ndash;${a.toChapter}${
-            editing ? '' : ` &middot; ${plural(wordsIn(a.summary), 'word', 'words')}`}</span>
-          <button data-delarc="${a.id}" style="color:var(--bad); font-size:12px" aria-label="Remove">✕</button></div>
-        ${a.outOfDate ? `<div data-arcoutofdate style="font-size:11.5px; line-height:1.5; color:var(--warn)">Out of date.
-          ${esc(actChanged(a.outOfDate.chapter, a.outOfDate.why, a.outOfDate.title))}</div>` : ''}
-        ${editing ? `
-          <input class="field" data-arctitle aria-label="The chapter's title" value="${esc(S.editArc.title)}"
-            placeholder="Scenes ${a.fromChapter}–${a.toChapter}">
-          <textarea class="field" data-arctext data-wordcap="${ACT_WORDS}" aria-label="The chapter summary"
-            style="min-height:132px; font-size:12.5px; line-height:1.5">${esc(S.editArc.text)}</textarea>
-          ${wordLine(S.editArc.text, ACT_WORDS)}
-          <div class="btnrow">
-            <button class="btn ghost fill" data-savearc="${a.id}">Save</button>
-            <button class="btn ghost" data-cancelarc="1" style="width:110px">Cancel</button></div>`
-        : `<div class="note">${esc(a.summary)}</div>
-          <button class="list-btn" data-editarc="${a.id}">Alter</button>`}
-        </div>`; }).join('')}
+      ${/* ONE ROW EACH, opened by a tap (Seth, 2026-10-30): its title, summary, Remove and Save are in
+            the pocket panel (`arcPanel`). Gathering scenes into a chapter, below, is the add. */
+        (V.arcs ?? []).map((a) => `<div class="pocketrow" data-arcrow="${a.id}">
+        <button class="pocketopen" data-editarc="${a.id}" aria-label="Open the chapter ${esc(a.title || `Scenes ${a.fromChapter}–${a.toChapter}`)}">
+          <span class="pkname">${esc(a.title || `Scenes ${a.fromChapter}–${a.toChapter}`)}</span>
+          <span class="pkline faint">scenes ${a.fromChapter}&ndash;${a.toChapter} &middot; ${plural(wordsIn(a.summary), 'word', 'words')}</span>
+          <span class="pkline">${esc(String(a.summary ?? '').split('\n')[0])}</span>
+          ${a.outOfDate ? '<span class="pkline" data-arcoutofdate style="color:var(--warn)">Out of date. Tap to read why.</span>' : ''}</button></div>`).join('')}
       ${(() => {
         // The range is computed rather than typed. Two number boxes is a question the writer has
         // to answer about their own token budget; the oldest run that is not in an act yet is the
@@ -11422,17 +11432,17 @@ document.addEventListener('visibilitychange', () => {
  *  `input`, not `change`, because this is the half that has to follow the finger. The write is
  *  still on release.
  */
-// #43, #44. A chapter summary or an act being edited. The draft is kept in `S` so a repaint mid-edit
+// #43, #44. A scene summary or a chapter being edited, in the pocket panel. The draft is kept in `S.pocket` so a repaint mid-edit
 // puts the same words back, and the count under the box follows the typing in place from the box's
 // own `data-wordcap` — a repaint would throw the caret away.
 document.addEventListener('input', (e) => {
   const el = e.target, d = el?.dataset;
   if (!d) return;
-  if (d.sumtext && S.editSum?.id === d.sumtext) S.editSum.text = el.value;
-  if (S.editArc && d.arctext !== undefined) S.editArc.text = el.value;
-  if (S.editArc && d.arctitle !== undefined) S.editArc.title = el.value;
+  if (d.sumtext && S.pocket?.sum === d.sumtext) S.pocket.text = el.value;
+  if (S.pocket?.arc && d.arctext !== undefined) S.pocket.text = el.value;
+  if (S.pocket?.arc && d.arctitle !== undefined) S.pocket.title = el.value;
   if (!d.wordcap) return;
-  const n = wordsIn(el.value), card = el.closest('.card');
+  const n = wordsIn(el.value), card = el.closest('.card, .pocketbox');
   const count = card?.querySelector('[data-wordcount]'), warn = card?.querySelector('[data-wordwarn]');
   if (count) count.textContent = plural(n, 'word', 'words');
   if (warn) warn.hidden = n <= Number(d.wordcap);
@@ -11747,21 +11757,26 @@ document.addEventListener('click', async (e) => {
     if (!armed(t, 'arc:' + d.delarc, 'Press again to remove this chapter. Its scenes keep their own summaries.')) return;
     const r = await api.delArc(S.storyId, d.delarc);
     if (r.error) return toast(r.error);
+    // Remove is inside the chapter's panel, so it shuts the panel too.
+    if (S.pocket?.arc === d.delarc) S.pocket = null;
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
     return toast('The chapter is gone; those scenes send their own summaries again.');
   }
 
-  // AN ACT, EDITED IN PLACE (#44). The draft lives in `S.editArc`, kept by the `input` listener, so
-  // a repaint between typing and Save puts the same words back and Save sends what was typed.
+  // A CHAPTER, OPENED BY A TAP (#44, Seth 2026-10-30), in the pocket panel. The draft lives in
+  // `S.pocket`, kept by the `input` listener, so a repaint between typing and Save puts the same words
+  // back and Save sends what was typed. Cancel, Esc and Back are the panel's, two presses when changed.
   if (d.editarc) {
-    const a = (V.arcs ?? []).find((x) => x.id === d.editarc);
-    S.editArc = { id: d.editarc, title: a?.title ?? '', text: a?.summary ?? '' }; paint(); return;
+    const a = (V.arcs ?? []).find((x) => x.id === d.editarc); if (!a) return;
+    const was = { title: a.title ?? '', text: a.summary ?? '' };
+    S.pocket = { arc: a.id, tab: 'write', slot: null, wasSlot: null, ...was, was };
+    drawPocket(); syncLayers(); $('pk-arctext')?.focus?.(); return;
   }
-  if (d.cancelarc) { S.editArc = null; paint(); return; }
   if (d.savearc) {
-    const r = await api.saveArc(S.storyId, d.savearc, S.editArc?.title ?? '', S.editArc?.text ?? '');
+    const pk = S.pocket; if (pk?.arc !== d.savearc) return;
+    const r = await api.saveArc(S.storyId, d.savearc, pk.title, pk.text);
     if (r.error) return toast(r.error);
-    S.editArc = null;
+    S.pocket = null;
     V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
     return toast('The chapter summary is saved. It is what the model is sent for those scenes.');
   }
@@ -13438,22 +13453,22 @@ document.addEventListener('click', async (e) => {
     return toast(r.proposed ? `${r.proposed} chalked to be retired, of ${r.eligible} this scene names`
                             : `Nothing to hem, of ${r.eligible ?? 0} this scene names`);
   }
-  // #43. A summary by hand. Saving it empty removes it, which is the one press here that loses
-  // words, so it takes two.
+  // #43. A summary by hand, in the pocket panel, opened by a tap on its row (Seth, 2026-10-30).
+  // Saving it empty removes it, which is the one press here that loses words, so it takes two.
   if (d.editsum) {
-    const c = V.chapters.find((x) => x.id === d.editsum);
-    S.editSum = { id: d.editsum, text: c?.summary ?? '' }; paint();
-    document.querySelector('[data-sumtext]')?.focus();
+    const c = V.chapters.find((x) => x.id === d.editsum); if (!c) return;
+    const was = { text: c.summary ?? '' };
+    S.pocket = { sum: c.id, tab: 'write', slot: null, wasSlot: null, ...was, was };
+    drawPocket(); syncLayers(); $('pk-sum')?.focus?.();
     return;
   }
-  if (d.cancelsum) { S.editSum = null; paint(); return; }
   if (d.savesum) {
-    if (S.editSum?.id !== d.savesum) return;
-    const text = S.editSum.text;
+    if (S.pocket?.sum !== d.savesum) return;
+    const text = S.pocket.text;
     if (!text.trim() && !armed(t, `sum:${d.savesum}`, 'Press again — this removes the summary.')) return;
     const r = await api.saveSummary(S.storyId, d.savesum, text);
     if (r.error) return toast(r.error);
-    S.editSum = null; V = r; paint(); refreshManifest();
+    S.pocket = null; V = r; paint(); refreshManifest();
     return toast(text.trim() ? 'Saved. This summary is yours now.' : 'Summary removed.');
   }
   if (d.summarize) {
@@ -13467,7 +13482,10 @@ document.addEventListener('click', async (e) => {
     const r = await whileWorking(t, 'Summarising…', () => api.summarize(S.storyId, ch, yours));
     if (!r) return;
     if (r.error) return toast(r.error);
-    V = await api.story(S.storyId); paint(); return; }
+    V = await api.story(S.storyId);
+    // Pressed inside the summary's panel: the panel shows the new summary, as written and unchanged.
+    if (S.pocket?.sum === ch) S.pocket.text = S.pocket.was.text = V.chapters.find((x) => x.id === ch)?.summary ?? '';
+    paint(); return; }
   if (d.extract) {
     const r = await whileWorking(t, 'Reading the scene…', () => api.extract(S.storyId, V.currentChapter.id));
     if (!r) return;
