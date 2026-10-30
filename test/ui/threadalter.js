@@ -94,8 +94,8 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   // ---- More: the picture and the kind moved here; Over time did not
   await page.click('[data-cardtab="more"]'); await wait(400);
   ok("More holds the picture and the kind now",
-     // Five kinds since #80 added Places.
-     (await vis('[data-picfind]')) && (await page.eval("[...document.querySelectorAll('[data-kind]')].filter(b => b.offsetParent).length")) === 5);
+     // One per KINDS entry: four since rules left the kinds for the tale's own thread (ADR 0005, 2026-10-29).
+     (await vis('[data-picfind]')) && (await page.eval("[...document.querySelectorAll('[data-kind]')].filter(b => b.offsetParent).length")) === 4);
   ok("  and not Over time", !(await vis('[data-addstate]')) && !(await vis('[data-fold="states"]')));
   await page.click('[data-cardtab="time"]'); await wait(400);
   ok("Over time is still its own tab", (await page.eval(
