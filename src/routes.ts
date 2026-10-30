@@ -4062,6 +4062,9 @@ export const routes: Record<string, Handler> = {
       // he is looking at, where "[Writing: first person, present tense]" told him to write them.
       v.story.pov && `The book is written in ${v.story.pov}${v.story.persona
         ? `, and ${v.story.persona} is the one the writer speaks as` : ''}.`,
+      // WHO THE WRITER IS (Seth, 2026-10-30: asked "Who am I?", Anansi had nothing to say it from and
+      // gave back his last answer). Their name on the account, a fact like the line above.
+      db.accountOf(c.owner).name && `The writer is ${db.accountOf(c.owner).name}.`,
       // #101 · WHICH THREADS ARE THE WORLD'S, so a change can say whether it is canon or the
       // writer's version (`to`). A fact, like the line above; `aimOf` is the guard, not this.
       world && `This tale follows the World ${world.title}, which holds the canon of its IP for every `

@@ -21,7 +21,8 @@ Everything below this line was written by that model call, before it was removed
 ### Talk answers what you said
 Anansi's chat now treats something said to him, like "who are you?", as said to him: he answers as
 himself, in his own voice, and leaves the story out of it. He no longer turns a reply into a speech
-about your story that you did not ask for, or ends by handing the question back to you.
+about your story that you did not ask for, or ends by handing the question back to you. He knows
+your name from your account, and he no longer gives back an earlier answer word for word.
 
 ### A new scene opens the way you set it up
 The first passage of a new scene now opens as its "Opens with" says. Before, your Continue asked

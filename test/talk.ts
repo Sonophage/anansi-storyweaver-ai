@@ -356,6 +356,9 @@ assert.strictEqual(wide.reply.length, LONG.length,
   `the whole answer, not the first ${wide.reply.length} characters of it`);
 assert.match(wide.reply, /penance\.$/, 'and it ends where the model stopped, not where a cap did');
 ok(`a ${LONG.length}-character answer is not truncated on the way through`);
+db.setName(me, 'Seth');
+await ask(50_048);
+assert.match(String(calls[0].messages[1].content), /The writer is Seth\./, 'TALK-WRITER: Talk is told who the writer is, by their account name (2026-10-30)');
 
 // ---- 3. the room reserved is the room spent
 // It assembled the prompt against 900 tokens of reserved output and then asked for 1,600. The
@@ -1316,6 +1319,7 @@ assert.ok(shipped.includes(TALK_CONTRACT), 'the contract is not in the system me
 // "the ball's in your court". The contract says a question to him is answered as himself.
 assert.match(TALK_CONTRACT, /answered as yourself, in your own voice below, with the story left out of it/, 'TALK-SELF: a question to him is answered as himself');
 assert.match(TALK_CONTRACT, /never end on a rally/, 'TALK-NO-RALLY: and no rallying close');
+assert.match(TALK_CONTRACT, /never repeat a reply of\s+yours/, 'TALK-NO-REPEAT: and never gives back an earlier reply (2026-10-30)');
 assert.ok(shipped.includes(TALK_VOICE), 'her shipped voice is not in the system message');
 assert.ok(shipped.indexOf(TALK_CONTRACT) < shipped.indexOf(TALK_VOICE),
   'the voice must sit last, closest to the material — that is the whole of F37');
