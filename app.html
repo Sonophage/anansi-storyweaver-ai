@@ -1373,6 +1373,13 @@ html[data-work="ai"]       { --work:var(--gold); }
 #ideas .idea { text-align:left; min-height:44px; padding:9px 13px; border:1px solid var(--chip);
   border-radius:var(--r); font-size:13px; line-height:1.45; color:var(--ink); }
 #ideas .idea:hover { border-color:rgba(217,178,106,.42); }
+/* ONE IDEA PER MODE (2026-10-30): each named by its mode and edged in that mode's own colour, the
+   colour its passage wears on the page once sent. */
+#ideas .idea { border-left:2px solid var(--m, var(--chip)); }
+#ideas .idea.m-speak { --m:var(--m-speak); } #ideas .idea.m-act { --m:var(--m-act); }
+#ideas .idea.m-direct { --m:var(--m-direct); } #ideas .idea.m-narrate { --m:var(--m-narrate); }
+#ideas .ideamode { display:block; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--label); margin-bottom:3px; }
 #talkhead { display:flex; align-items:center; gap:10px; font-size:11px; letter-spacing:.1em;
   text-transform:uppercase; color:var(--label); }
 #talkhead span { display:flex; align-items:center; gap:7px; }

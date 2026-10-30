@@ -23,11 +23,18 @@ ok("it opens the Thread tab of the Tale panel, holding where the tale stands, Ru
 ok("  and only that group is on screen", await page.eval(
   "[...document.querySelectorAll('.sgroup')].filter(g => getComputedStyle(g).display !== 'none').map(g => g.dataset.group).join(',') === 'thread'"));
 
-// ---- an instruction of the writer's own, which reaches the model
-await page.eval(`(() => { document.querySelector('[data-talenew="name"]').value = 'Slow burn';
-  document.querySelector('[data-talenew="body"]').value = 'Nobody touches before scene ten.';
-  document.querySelector('[data-addtalepocket]').click(); return 1; })()`);
+// ---- an instruction of the writer's own, which reaches the model. One ＋ on the tab opens the pocket
+// panel (Seth, 2026-10-30); Your own is one of its kinds.
+await page.click('#sideBody [data-taleadd]');
+await until("!document.getElementById('pocketPanel').hidden");
+await page.click('#pocketPanel [data-pocketkind="instruction"]');
+await page.eval(`(() => { for (const [id, v] of [['pk-name', 'Slow burn'], ['pk-body', 'Nobody touches before scene ten.']]) {
+  const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); } return 1; })()`);
+await page.click('#pocketPanel [data-pocketsave]');
 await wait(1200);
+ok("the ＋ adds one of your own, and the panel shuts", await page.eval("document.getElementById('pocketPanel').hidden"));
+ok("  and it is a row on the tab that opens with a tap", await page.eval(
+  "[...document.querySelectorAll('#sideBody .pocketopen')].some((b) => /Slow burn/.test(b.textContent))"));
 const v = await view(sid);
 ok("adding one keeps it on the tale, switched on", v.talePockets?.some((a) => a.name === 'Slow burn' && a.active));
 const m = await page.eval(`(async () => JSON.stringify(await (await fetch('/api/manifest', { method: 'POST',

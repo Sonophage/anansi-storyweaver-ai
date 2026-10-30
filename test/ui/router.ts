@@ -35,12 +35,13 @@ const srv = createServer((req, res) => {
     if (path === '/models/unload') return json({ success: true });
     if (path === '/slots') return json([]);
     const body = raw ? JSON.parse(raw) : {};
-    // ✦ (#71) asks for three ideas under a schema, and gets three the scenario can tell apart.
+    // ✦ (#71) asks for an idea per mode under a schema, and gets four the scenario can tell apart.
     if (!body.stream && body.response_format?.json_schema?.schema?.properties?.ideas)
-      return json({ choices: [{ message: { content: JSON.stringify({ ideas: [
-        'The first fake idea: the door opens on its own.',
-        'The second fake idea: someone is already inside.',
-        'The third fake idea: the key will not turn back.'] }) }, finish_reason: 'stop' }],
+      return json({ choices: [{ message: { content: JSON.stringify({ ideas: {
+        speak: '"The first fake idea: the door opens on its own."',
+        act: 'The second fake idea: someone is already inside.',
+        direct: 'The third fake idea: the key will not turn back.',
+        narrate: 'The fourth fake idea: the rain comes in after them.' } }) }, finish_reason: 'stop' }],
         usage: { prompt_tokens: 10, completion_tokens: 30 } });
     // #100 · TALK WHILE A TALE IS SET UP, told apart by its own operation list (only the draft can
     // remove a thread). Answered by the writer's words: "darker" asks for a change to the premise;

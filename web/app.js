@@ -603,7 +603,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #92. A hemmed scene's card: run its passes again, set up the next scene.
   'hemagain', 'hemsetup',
   // #75. The tale's own thread.
-  'addtalerule', 'saverule', 'addtalepocket',
+  'taleadd',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
   'accttab', 'delavatar', 'acctgo',
   // A card out as JSON and back in again: copy, save to a file, read one.
@@ -2216,7 +2216,8 @@ function ideasHTML() {
       >${mark('bulb', 18)}</button>`;
 }
 const ideasList = () => S.ideas ? `<div id="ideas" role="group" aria-label="Anansi's ideas for what comes next">
-    ${S.ideas.map((x, i) => `<button class="idea" data-ideapick="${i}">${esc(x)}</button>`).join('')}
+    ${S.ideas.map((x, i) => `<button class="idea m-${esc(x.mode)}" data-ideapick="${i}"><span class="ideamode"
+      >${esc(MODES.find(([k]) => k === x.mode)?.[1] ?? x.mode)}</span>${esc(x.text)}</button>`).join('')}
   </div>` : '';
 
 /** #71 · Fold the bottom back to the three buttons, when a passage lands. A box with words in it
@@ -2263,7 +2264,7 @@ async function dockAsk() {
   return talk(said, mentions);
 }
 
-/** #71 · THE BULB. One call for three ideas, and nothing runs until the writer taps: the writers share four
+/** #71 · THE BULB. One call for an idea per mode (2026-10-30), and nothing runs until the writer taps: the writers share four
  *  Featherless units. A second tap while they are showing puts them away. */
 async function askIdeas() {
   // The bulb and the ideas are under the last passage (round two), so it is the page that redraws.
@@ -2275,21 +2276,22 @@ async function askIdeas() {
   if (r.error || !r.ideas?.length) { drawDoc(); return toast(r.error ?? 'Anansi had no ideas this time.'); }
   S.ideas = r.ideas;
   drawDoc();
-  announce(`Anansi has ${r.ideas.length} ideas. Pick one to put it in the box.`);
+  announce(`Anansi has ${r.ideas.length} ideas, one for each way to write. Pick one to put it in the box.`);
 }
 
-/** #71 · One of the bulb's ideas, picked: into the box, in Direct, unsent, with the composer open. Direct
- *  because each idea is an instruction about what happens, the same hand-over Talk's directive
- *  makes. Added under a draft rather than over it: what the writer typed is theirs. */
+/** #71 · One of the bulb's ideas, picked: into the box, in ITS OWN MODE, unsent, with the composer open
+ *  (Seth, 2026-10-30: one idea each to speak, act, direct and narrate). Speak, Act and Narrate put it
+ *  on the page as written when sent; Direct sends it as the instruction. Added under a draft rather
+ *  than over it: what the writer typed is theirs. */
 function pickIdea(i) {
   const idea = S.ideas?.[Number(i)];
   if (!idea) return;
-  S.ideas = null; S.dockOpen = true; S.dockTalk = false; S.mode = 'direct';
+  S.ideas = null; S.dockOpen = true; S.dockTalk = false; S.mode = idea.mode;
   drawDoc(); drawDock(); refreshManifest();
   const ta = $('input');
   if (!ta) return;
   const had = ta.value.trim();
-  ta.value = had ? `${ta.value.replace(/\s+$/, '')}\n${idea}` : idea;
+  ta.value = had ? `${ta.value.replace(/\s+$/, '')}\n${idea.text}` : idea.text;
   ta.focus({ preventScroll: true });
   ta.dispatchEvent(new Event('input', { bubbles: true }));
   toast("In the box, unsent. Change it, or press Send to write with it.");
@@ -2651,11 +2653,20 @@ const pageBar = (mode) => (S.place === 'story' ? ''
 /** #128 · A tale with no thread of its own yet still adds a string: the panel opens on this stand-in,
  *  and Save names no thread, so the server makes the tale's (`POST /api/addon`). */
 const TALE_NEW = 'tale:new';
-const pocketOwners = () => [...(V?.entries ?? []), ...(V?.taleThread ? [V.taleThread]
-  : V ? [{ id: TALE_NEW, title: 'The tale', entryType: 'tale', addons: [] }] : [])];
+/** THE TALE'S OWN POCKETS that hang off no thread, its rules and Your own (ADR 0005), ride on the tale's
+ *  thread here so the pocket panel opens on them as on its strings (Seth, 2026-10-30: one ＋, and a
+ *  tap opens). They are saved with no thread (`pocketEntry`). */
+const TALE_OWN_SLOTS = ['rule', 'instruction'];
+const taleOwn = () => [...(V?.taleRules ?? []).map((a) => ({ ...a, slot: 'rule' })),
+  ...(V?.talePockets ?? []).map((a) => ({ ...a, slot: 'instruction' }))];
+const pocketOwners = () => [...(V?.entries ?? []), ...(V ? [(V.taleThread
+  ? { ...V.taleThread, addons: [...(V.taleThread.addons ?? []), ...taleOwn()] }
+  : { id: TALE_NEW, title: 'The tale', entryType: 'tale', addons: taleOwn() })] : [])];
 const pocketThread = () => (S.pocket ? pocketOwners().find((x) => x.id === S.pocket.entryId) ?? null : null);
 /** The thread a pocket is saved and asked for on: none for the stand-in. */
-const pocketEntry = (pk) => (pk.entryId === TALE_NEW ? null : pk.entryId);
+const pocketEntry = (pk) => (pk.entryId === TALE_NEW || TALE_OWN_SLOTS.includes(pk.slot) ? null : pk.entryId);
+/** What the ＋ on the tale's Thread tab can add: its two kinds of string, a rule and one of your own. */
+const TALE_KINDS = ['promise', 'question', 'rule', 'instruction'];
 function openPocket(entryId, id = null) {
   const e = pocketOwners().find((x) => x.id === entryId); if (!e) return;
   const a = id ? (e.addons ?? []).find((x) => x.id === id)
@@ -2697,12 +2708,17 @@ function pocketPanel() {
   // wake word, so there is no wake word box. #128 · A promise has the scene it is owed by instead, and
   // Ask Anansi writes a string as he writes a pocket, from the tale and not from the web.
   const tale = e.entryType === 'tale';
-  const slots = (V.slots?.[e.entryType] ?? []).filter((sl) => sl.name !== 'facts');
+  // The tale's kinds: all four while adding; once made, a string stays a string (it may change kind,
+  // Seth, 2026-10-28) and a rule or one of your own stays what it is, since one is a pocket of the
+  // tale's thread and the other of no thread.
+  const own = TALE_OWN_SLOTS.includes(pk.slot);
+  const slots = tale ? (adding ? pk.kinds ?? TALE_KINDS : own ? [pk.slot] : ['promise', 'question']).map((name) => ({ name }))
+    : (V.slots?.[e.entryType] ?? []).filter((sl) => sl.name !== 'facts');
   const label = pk.slot ? slotLabel(pk.slot) : tale ? 'string' : 'pocket';
   const [namePh, bodyPh] = SLOT_HINT[pk.slot] ?? ['What it is called', 'A plain description'];
   // THE KINDS, while adding: Ask Anansi needs one as much as Write it does, so they head both tabs.
   // A string shows them open too: it may be made the other kind (Seth, 2026-10-28), and Save sends it.
-  const kinds = adding || tale ? `<div class="pkkinds">${slots.map((sl) => `<button data-pocketkind="${esc(sl.name)}"
+  const kinds = adding || (tale && !own) ? `<div class="pkkinds">${slots.map((sl) => `<button data-pocketkind="${esc(sl.name)}"
       class="pkkind" aria-pressed="${pk.slot === sl.name}">${esc(pocketTitle(sl.name))}</button>`).join('')}</div>` : '';
   // WHERE AN OPEN STRING STANDS, as four choices that act at once, as the Workbench's buttons do (`standString`).
   const x = tale && !adding ? (V.strings ?? []).find((s2) => s2.id === pk.id) : null;
@@ -2714,11 +2730,16 @@ function pocketPanel() {
     <input class="field" id="pk-name" value="${esc(pk.name)}" placeholder="${esc(namePh)}">
     <label class="lbl" for="pk-body">The description</label>
     <textarea class="field grow pkbody" id="pk-body" placeholder="${esc(bodyPh)}">${esc(pk.body)}</textarea>
-    ${tale ? pk.slot === 'promise' ? `<label class="lbl" for="pk-owed">Owed by scene</label>
+    ${tale && pk.slot !== 'rule' ? pk.slot === 'promise' ? `<label class="lbl" for="pk-owed">Owed by scene</label>
     <input class="field" id="pk-owed" inputmode="numeric" value="${esc(pk.owed)}" placeholder="The scene it should be tied off by">` : ''
     : `<label class="lbl" for="pk-keys">Wake words</label>
-    <input class="field" id="pk-keys" value="${esc(pk.keys)}" placeholder="Comma separated">`}
+    <input class="field" id="pk-keys" value="${esc(pk.keys)}" placeholder="${pk.slot === 'rule'
+      ? 'None, to send it always' : 'Comma separated'}">`}
     ${stand}
+    ${own && !adding ? (() => { const a = taleOwn().find((x) => x.id === pk.id);
+      return a ? `<label class="lbl">Sent</label><div class="pkkinds">
+        <button data-addonon="${esc(a.id)}:1" class="pkkind" aria-pressed="${!!a.active}">On</button>
+        <button data-addonon="${esc(a.id)}:0" class="pkkind" aria-pressed="${!a.active}">Off</button></div>` : ''; })() : ''}
     ${adding ? '' : `<button class="btn ghost danger push-14" data-pocketdel="${esc(pk.id)}">Remove this ${esc(label)}</button>`}`;
   const searchable = V?.searchable !== false;
   const ask = `
@@ -2736,16 +2757,17 @@ function pocketPanel() {
     ${pk.offer ? `<div class="lbl push-14">His version</div>
       ${diffHTML(pk.body, pk.offer.body)}
       <button class="btn push-10" data-pocketuse="1">Use this</button>` : ''}`;
-  const what = tale ? 'string' : 'pocket';
+  const what = own ? slotLabel(pk.slot) : tale ? (adding && !pk.kinds ? 'entry' : 'string') : 'pocket';
   return `<div class="pocketbox" role="dialog" aria-label="${adding ? `A new ${what} for ${esc(e.title)}` : esc(pk.name || label)}">
     <div class="pkhead">
       <div class="lbl flush wide">${adding ? `New ${what} &middot; ${esc(e.title)}` : `${esc(pocketTitle(pk.slot))} &middot; ${esc(e.title)}`}</div>
-      <div class="pktabs">
+      ${/* Ask Anansi writes strings and pockets; a rule or one of your own is the writer's to write. */
+        own ? '' : `<div class="pktabs">
         <button data-pockettab="write" aria-pressed="${pk.tab === 'write'}">Write it</button>
         <button data-pockettab="ask" aria-pressed="${pk.tab === 'ask'}">Ask Anansi</button>
-      </div>
+      </div>`}
     </div>
-    <div class="pkscroll scroll">${kinds}${pk.tab === 'ask' ? ask : write}</div>
+    <div class="pkscroll scroll">${kinds}${pk.tab === 'ask' && !own ? ask : write}</div>
     <div class="pkfoot">
       <button class="btn ghost" data-pocketx="1">Cancel</button>
       <button class="btn" data-pocketsave="1">Save</button>
@@ -3042,26 +3064,15 @@ function taleThread() {
       time. Its Always true is the setting, on the Setting tab, and its voice is on the Voice tab.</div>
     <div class="lbl wide">Where the tale stands</div>
     ${taleNowBox() || '<div class="hint flush">Nothing yet. Each hem writes where the tale stands, and you sew it in from its card.</div>'}
+    <div class="end-row push-14"><span class="hint flush fill">Rules, promises, open questions and your own.
+      Tap one to change it.</span>
+      <button data-taleadd="1" class="headadd" aria-label="Add to the tale's thread" title="Add to the tale's thread"
+        ><span>${mark('create', 16)}</span></button></div>
     <div class="lbl sect">Rules &middot; <span class="tnum">${rules.length}</span></div>
     <div class="hint lead-6">The laws this tale obeys. With no wake words a rule is sent always; with
       them, when one comes up. Sent while it is on.</div>
-    ${/* ADR 0005 · A RULE IS A POCKET OF THE TALE (2026-10-29), drawn as Your own is, plus its wake words. */
-      rules.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px; border-color:${a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
-      <div class="line">
-        <input class="field flush name-field" data-rulename="${esc(a.id)}" aria-label="The rule's name" value="${esc(a.name)}">
-        <button class="del-x" data-deladdon="${esc(a.id)}" aria-label="Remove">&#10005;</button></div>
-      <textarea class="field grow flush min-52" data-rulebody="${esc(a.id)}" aria-label="The rule">${esc(a.body)}</textarea>
-      <input class="field flush" data-rulekeys="${esc(a.id)}" aria-label="Wake words, comma separated"
-        placeholder="Wake words, or none to send it always" value="${esc((a.keys ?? []).join(', '))}">
-      <div class="btnrow">
-        <button class="btn ghost fill" data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}">${a.active ? 'On — take it off' : 'Turn it on'}</button>
-        <button class="btn ghost btn-side" data-saverule="${esc(a.id)}">Save</button></div>
-    </div>`).join('')}
-    <div class="card snug">
-      <input class="field flush" data-rulenew="name" aria-label="A name for the rule" placeholder="A name">
-      <textarea class="field grow flush min-52" data-rulenew="body" aria-label="The rule" placeholder="The law, as the tale holds it"></textarea>
-      <input class="field flush" data-rulenew="keys" aria-label="Wake words, comma separated" placeholder="Wake words, or none to send it always">
-      <button class="btn ghost" data-addtalerule="1">Add the rule, switched on</button></div>
+    ${/* ONE ROW EACH, opened by a tap (Seth, 2026-10-30). ADR 0005 · a rule is a pocket of the tale. */
+      rules.length ? rules.map((a) => ownRow({ ...a, slot: 'rule' })).join('') : '<div class="hint flush">No rules yet.</div>'}
     ${/* #129 · THE TALE'S STRINGS, which are pockets of this thread (ADR 0011): one list per kind, each
           drawn as the Strings screen draws it. */
       [['promise', 'Promises', 'What the tale has set up and owes the reader.', 'No promises yet.'],
@@ -3070,26 +3081,23 @@ function taleThread() {
           const xs = (V.strings ?? []).filter((x) => (x.kind ?? 'promise') === k);
           return `<div class="lbl sect">${head} &middot; <span class="tnum">${xs.length}</span></div>
     <div class="hint lead-6">${hint} Each is sent while it is on.</div>
-    <div class="stack">${stringList(xs, `<div class="hint flush">${none}</div>`)}</div>
-    <button class="btn ghost push-8" data-stringnew="${k}">+ Add ${k === 'promise' ? 'a promise' : 'an open question'}</button>`;
+    <div class="stack">${stringList(xs, `<div class="hint flush">${none}</div>`)}</div>`;
         }).join('')}
-    <div class="lbl sect">Your own</div>
+    <div class="lbl sect">Your own &middot; <span class="tnum">${own.length}</span></div>
     <div class="hint lead-6">Anything else for the whole tale, as an instruction: "keep it a slow burn",
       "the narrator never names him". Sent while it is on.</div>
-    ${own.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px; border-color:${a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
-      <div class="line">
-        <input class="field flush name-field" data-an="${esc(a.id)}" aria-label="What to call this instruction" value="${esc(a.name)}"
-         >
-        <button class="del-x" data-deladdon="${esc(a.id)}" aria-label="Remove">&#10005;</button></div>
-      <textarea class="field grow flush min-52" data-ab="${esc(a.id)}" aria-label="The instruction">${esc(a.body)}</textarea>
-      <div class="btnrow">
-        <button class="btn ghost fill" data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}">${a.active ? 'On — take it off' : 'Turn it on'}</button>
-        <button class="btn ghost btn-side" data-saveaddon="${esc(a.id)}">Save</button></div>
-    </div>`).join('')}
-    <div class="card snug">
-      <input class="field flush" data-talenew="name" aria-label="A name for the instruction" placeholder="A name: Slow burn">
-      <textarea class="field grow flush min-52" data-talenew="body" aria-label="The instruction" placeholder="The instruction, for the whole tale"></textarea>
-      <button class="btn ghost" data-addtalepocket="1">Add it, switched on</button></div>`;
+    ${own.length ? own.map((a) => ownRow({ ...a, slot: 'instruction' })).join('') : '<div class="hint flush">Nothing of your own yet.</div>'}`;
+}
+/** ONE OF THE TALE'S RULES OR YOUR OWN, as a row: its name and kind, a line of it, and its switch. The
+ *  name opens the pocket panel on it, as a string's row does (`stringRow`). */
+function ownRow(a) {
+  return `<div class="pocketrow${a.active ? ' lit' : ''}">
+    <button class="pocketopen" data-editroom="${esc(a.id)}" aria-label="Open ${esc(a.name)}">
+      <span class="pkname">${esc(a.name)} <span class="faded">&middot; ${esc(pocketTitle(a.slot))}</span></span>
+      <span class="pkline">${esc(String(a.body ?? '').split('\n')[0])}</span>
+      ${a.slot === 'rule' && (a.keys ?? []).length ? `<span class="pkline faint">On ${esc(a.keys.join(', '))}</span>` : ''}</button>
+    <button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag pocketsw" aria-pressed="${!!a.active}"
+      aria-label="${esc(a.name)} is ${a.active ? 'on. Tap to take it off' : 'off. Tap to turn it on'}">${a.active ? 'On' : 'Off'}</button></div>`;
 }
 
 
@@ -7155,11 +7163,14 @@ const SLOT_HINT = {
   // #127 · The tale's strings.
   promise:       ['The letter he has not opened', 'sent by his brother, sealed, and still in his coat'],
   question:      ['Who sent the letter', 'nobody has said, and he has not asked'],
+  // The tale's rules and your own (2026-10-30).
+  rule:          ['Debts', 'a debt survives the debtor, and passes to the heir'],
+  instruction:   ['Slow burn', 'nobody touches before scene ten'],
 };
 // The `facts` slot is ALWAYS TRUE on every screen (#77, ADR 0005); the code keeps its name.
 // #127 · A `question` pocket is an open question, the word the screens use for it.
 const slotLabel = (slot) => (slot === 'facts' ? 'always true' : slot === 'question' ? 'open question'
-  : String(slot).replace(/_/g, ' '));
+  : slot === 'instruction' ? 'your own' : String(slot).replace(/_/g, ' '));
 /** A pocket's name as a heading or a chip: capitalised, not the raw key (usability check). */
 const pocketTitle = (slot) => { const l = slotLabel(slot); return l.charAt(0).toUpperCase() + l.slice(1); };
 
@@ -11575,8 +11586,12 @@ document.addEventListener('click', async (e) => {
   // #128 · ＋ ON STRINGS: the pocket panel, to add, on the tale's own thread (or its stand-in while the
   // tale has none; Save makes it). Its kinds are the tale's: promise and open question. #129 · The ＋
   // under each list on the tale's own page names its kind, and the panel opens with it chosen.
+  // ONE ＋ ON THE TALE'S THREAD TAB (Seth, 2026-10-30): the pocket panel, to add any of its four kinds.
+  if (d.taleadd) { openPocket(V?.taleThread?.id ?? TALE_NEW); paint(); $('pk-name')?.focus?.(); return; }
   if (d.stringnew) {
     openPocket(V?.taleThread?.id ?? TALE_NEW);
+    // From Strings, a string: the two kinds of string, not the rules and your own the Thread tab adds.
+    if (S.pocket) S.pocket.kinds = ['promise', 'question'];
     if (S.pocket && (V.slots?.tale ?? []).some((sl) => sl.name === d.stringnew)) S.pocket.slot = d.stringnew;
     paint(); $('pk-name')?.focus?.();
     return;
@@ -11701,7 +11716,7 @@ document.addEventListener('click', async (e) => {
   if (d.pockettab) { if (!S.pocket) return; S.pocket.tab = d.pockettab === 'ask' ? 'ask' : 'write'; drawPocket(); return; }
   // While adding, any kind the thread has; open, only a string, between promise and open question.
   if (d.pocketkind) {
-    if (!S.pocket || (S.pocket.id && pocketThread()?.entryType !== 'tale')) return;
+    if (!S.pocket || (S.pocket.id && (pocketThread()?.entryType !== 'tale' || TALE_OWN_SLOTS.includes(S.pocket.slot)))) return;
     S.pocket.slot = d.pocketkind; drawPocket(); return;
   }
 
@@ -11862,16 +11877,19 @@ document.addEventListener('click', async (e) => {
     if (!body) return toast('A pocket needs something in it.');
     // #128 · A string: a promise carries the scene it is owed by, and a new one the scene it was set up
     // in, the one being written (what the old add form on Strings filled in).
-    const isString = pocketThread()?.entryType === 'tale';
+    const own = TALE_OWN_SLOTS.includes(pk.slot);
+    const isString = pocketThread()?.entryType === 'tale' && !own;
     const r = await api.saveAddon(S.storyId, pocketEntry(pk), { ...(pk.id ? { id: pk.id } : {}), slot: pk.slot,
       name, body, keys: keysFrom(pk.keys.split(',')),
       ...(isString && pk.slot === 'promise' ? { owedBy: Number(pk.owed) || null } : {}),
       ...(isString && !pk.id ? { fromChapter: V.currentChapter?.index ?? null } : {}) });
     if (r.error) return toast(r.error);
+    // A rule or one of your own is added switched on, as the old add forms on the Thread tab did.
+    if (own && !pk.id && r.addonId) await api.addonOn(S.storyId, r.addonId, true);
     S.pocket = null;
-    V = r.entries ? r : await api.story(S.storyId);
+    V = r.entries && !(own && !pk.id) ? r : await api.story(S.storyId);
     paint(); refreshManifest();
-    return toast(pk.id ? 'Saved.' : pk.slot === 'outfit' ? 'Added, unworn.'
+    return toast(pk.id ? 'Saved.' : pk.slot === 'outfit' ? 'Added, unworn.' : own ? 'Added, and on.'
       : isString ? 'Added, set aside. Switch it on to put it in play.' : 'Added. Switch it on from the list.');
   }
   if (d.pocketdel) {
@@ -12757,27 +12775,6 @@ document.addEventListener('click', async (e) => {
     V = r; paint(); return toast('Written again. Still chalked: nothing changes until you sew it in.');
   }
   // #75 · THE TALE'S OWN THREAD, on the Tale panel's Thread tab: add a rule or an instruction of your own.
-  // ADR 0005 · A RULE OF THE TALE, added or saved on the Thread tab: a pocket of no thread, slot
-  // `rule`, with its wake words. Added switched on, as the tale's own instructions are.
-  if (d.addtalerule || d.saverule) {
-    const box = (k) => document.querySelector(d.saverule ? `[data-rule${k}="${d.saverule}"]` : `[data-rulenew="${k}"]`);
-    const name = box('name')?.value.trim(), body = box('body')?.value.trim();
-    if (!name || !body) return toast('A rule needs a name and something in it.');
-    const r = await api.saveAddon(S.storyId, null, { id: d.saverule || undefined, slot: 'rule', name, body,
-      keys: box('keys')?.value ?? '' });
-    if (r.error) return toast(r.error);
-    if (!d.saverule && r.addonId) await api.addonOn(S.storyId, r.addonId, true);
-    V = await api.story(S.storyId); paint(); return toast(d.saverule ? 'Saved.' : 'Added, and on.');
-  }
-  if (d.addtalepocket) {
-    const name = document.querySelector('[data-talenew="name"]')?.value.trim();
-    const body = document.querySelector('[data-talenew="body"]')?.value.trim();
-    if (!name || !body) return toast('An instruction needs a name and something in it.');
-    const r = await api.saveAddon(S.storyId, null, { slot: 'instruction', name, body });
-    if (r.error) return toast(r.error);
-    if (r.addonId) await api.addonOn(S.storyId, r.addonId, true);
-    V = await api.story(S.storyId); paint(); return toast('Added, and on.');
-  }
   if (d.makeplace) {
     // #80. One Lore thread made a Place, from the update report. A place has every pocket Lore had.
     const e = V.entries.find((x) => x.id === d.makeplace); if (!e) return;

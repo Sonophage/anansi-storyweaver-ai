@@ -2144,30 +2144,45 @@ export const TALK_QUERIES_SCHEMA = {
   required: ['queries'],
 } as const;
 
-/** ✦ (#71) · ANANSI'S IDEAS FOR WHAT COMES NEXT. Three directions for the next beat, in one call,
- *  asked for when the writer taps ✦. Three because Seth asked for choices rather than one answer to
- *  take or leave (2026-10-25). The one the writer picks lands in the composer in Direct mode, unsent,
- *  so each is written as an instruction to the writing model and never as prose: a line of finished
- *  prose in the box would be sent as the instruction and come back verbatim (F36). */
+/** ✦ (#71) · ANANSI'S IDEAS FOR WHAT COMES NEXT, one for each way the writer moves the story (Seth,
+ *  2026-10-30: "themed to our actions, one direction each for something that can be said, narrated,
+ *  spoken or acted ... the next full beat properly formatted"). The one picked lands in the composer
+ *  in its own mode, unsent. Speak, Act and Narrate put the writer's words on the page as they are,
+ *  so those three are written as the story's own text; Direct is an instruction to the writing
+ *  model, and is never prose: a line of finished prose sent as the instruction comes back verbatim
+ *  (F36). NOT MEASURED: whether a model keeps the four shapes apart. */
 export const IDEA =
 `You are Anansi. The writer is stuck on what happens next in their story and asked you for ideas.
 You have their canon, their chapter summaries and the last few passages above.
 
-Give THREE different directions for the very next beat. Each one is what happens, in one or two
-sentences, as an instruction the writer could hand the writing model, in the shape "<who does
-what, where>", not a paragraph of the scene. Each follows from where the last passage stopped and
-belongs to THIS story: its people, its place, the promises it has not kept. Something the story
-could do next, not where it ends.
+Give FOUR ideas for the very next beat, one for each way the writer can move the story. The writer
+plays the character named on the last line below. Each idea follows from where the last passage
+stopped and belongs to THIS story: its people, its place, the promises it has not kept. Each is one
+whole beat, not where the story ends. Make the four genuinely different from each other.
 
-Make the three genuinely different from each other: not one idea said three ways. No preamble, no
-numbering, no "you could". Just the beats.`;
+speak: the exact words that character says next, as one line of dialogue in quotation marks, in
+their voice. Only the spoken words, with a short speech tag if the story uses one. It goes on the
+page as written.
+act: what that character does next, as the story's own narration, in its point of view and tense,
+one to three sentences. Only their action: nobody else's answer to it. It goes on the page as
+written.
+direct: an instruction to the writing model for what happens next, in the shape "<who does what,
+where>", one or two sentences. Not prose.
+narrate: the next passage of the story itself, in its point of view, tense and voice: one beat, one
+short paragraph. It goes on the page as written.
 
-/** Exactly three strings and nothing else. The strings are not bounded by maxLength: the grammar
+No preamble, no labels inside the text, no "you could".`;
+
+/** The four modes the ideas are for, in the composer's order (`MODES` in web/model.js). */
+export const IDEA_MODES = ['speak', 'act', 'direct', 'narrate'] as const;
+/** One string per mode and nothing else. The strings are not bounded by maxLength: the grammar
  *  closes a bounded string at exactly N characters, mid-word, with the JSON still valid (see
  *  TALK_SCHEMA's reply). The cap on the call is the bound, and running past it fails visibly as an
  *  object that does not parse. */
 export const IDEA_SCHEMA = {
   type: 'object',
-  properties: { ideas: { type: 'array', minItems: 3, maxItems: 3, items: { type: 'string' } } },
+  properties: { ideas: { type: 'object',
+    properties: Object.fromEntries(IDEA_MODES.map((m) => [m, { type: 'string' }])),
+    required: [...IDEA_MODES] } },
   required: ['ideas'],
 } as const;

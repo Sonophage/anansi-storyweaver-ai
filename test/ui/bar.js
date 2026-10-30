@@ -222,7 +222,7 @@ await page.key('H', 72);
 ok("KEY-TYPE-OPENS: typing with the bar folded opens the box and the letter lands in it",
    (await shown('#input')) && (await page.eval("document.getElementById('input').value")) === 'H');
 
-// ---- the bulb, under the last passage: three ideas, one picked into the box
+// ---- the bulb, under the last passage: an idea per mode, one picked into the box, in its mode
 await open();
 ok("BULB-WHERE: the bulb is under the last passage, beside the line about a passage's actions",
    await page.eval(`(() => { const b = document.querySelector('#col .carry [data-idea]'), h = document.querySelector('#col .carry .taphint');
@@ -230,14 +230,15 @@ ok("BULB-WHERE: the bulb is under the last passage, beside the line about a pass
      return x.height > 0 && y.height > 0 && Math.abs((x.top + x.bottom) / 2 - (y.top + y.bottom) / 2) < 12 && x.right <= y.left + 1; })()`));
 ok("  and the ideas are no longer on the bar", !(await page.eval("!!document.querySelector('#nextbar [data-idea]')")));
 await press('#col .carry [data-idea]');
-ok("IDEA-THREE: the bulb shows Anansi's three ideas",
-   await until("document.querySelectorAll('#col #ideas .idea').length === 3", 60));
-ok("  with the words that came back", (await page.eval("document.querySelectorAll('#ideas .idea')[1]?.textContent ?? ''")).includes('second fake idea'));
+ok("IDEA-MODES: the bulb shows Anansi's four ideas, one per mode",
+   await until("document.querySelectorAll('#col #ideas .idea').length === 4", 60));
+ok("  each named by its mode, with the words that came back", (await page.eval("document.querySelectorAll('#ideas .idea')[1]?.textContent ?? ''"))
+   .replace(/\s+/g, ' ').trim().startsWith('Act The second fake idea'));
 await press('#ideas .idea:nth-child(2)');
 await wait(250);
 ok("IDEA-PICK: picking one puts it in the box, the box open",
    (await shown('#input')) && (await page.eval("document.getElementById('input').value")).includes('second fake idea'));
-ok("  in Direct, unsent", (await page.eval("document.querySelector('[data-modesel]').value")) === 'direct'
+ok("  in its own mode, Act, unsent", (await page.eval("document.querySelector('[data-modesel]').value")) === 'act'
    && !(await page.eval("!!document.getElementById('ghost')")));
 ok("  and the choices go", !(await page.eval("!!document.getElementById('ideas')")));
 

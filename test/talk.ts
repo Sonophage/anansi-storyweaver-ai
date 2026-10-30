@@ -24,10 +24,12 @@ const PREMISE = ('Aldis owes the moneylender more than he can pay. ').repeat(5).
 const VOICE = ('Short sentences, and the weather does the feeling. ').repeat(14).trim();
 // A chapter's beat, at the length its prompt asks for: three to six sentences of instruction.
 const NOTE = ('By the end the debt has to be called in. ').repeat(4).trim();
-// ✦ (#71). Three short directions for the next beat.
-const IDEAS = ['Vel finds the moneylender\'s ledger open on the stair, at his page.',
-  'The lower tiers go dark, and someone below calls her by her old name.',
-  'Aldis comes up the stair with the money, and it is not enough.'];
+// ✦ (#71). One idea for each way the writer moves the story (Seth, 2026-10-30): a line to speak, an
+// action, a direction and a passage to narrate, each the next beat in the shape its mode sends.
+const IDEAS = { speak: '"You kept my page," Vel said.',
+  act: 'Vel takes the ledger from the stair and tears her page out.',
+  direct: 'The lower tiers go dark, and someone below calls Vel by her old name.',
+  narrate: 'The lamps on the lower stair went out one by one, and the rain came in after them.' };
 
 // ADR 0009 · the open questions a spark returns beside the premise.
 // #121 · the moment the tale opens in, which the spark returns apart from the setting.
@@ -2573,12 +2575,16 @@ ok('emptying the box gives her back the voice she shipped with');
   calls = [];
   const r: any = await routes['POST /api/idea'](req(story.id));
   assert.ok(!r.error, r.error);
-  assert.deepStrictEqual(r.ideas, IDEAS, 'IDEA-THREE: three ideas come back, as the words the model gave');
-  assert.strictEqual(calls[0].response_format?.json_schema?.schema?.properties?.ideas?.minItems, 3,
-    'IDEA-THREE: and the schema asks for exactly three');
+  assert.deepStrictEqual(r.ideas, ['speak', 'act', 'direct', 'narrate'].map((mode) => ({ mode, text: (IDEAS as any)[mode] })),
+    'IDEA-MODES: one idea per mode comes back, in the composer\'s order, as the words the model gave');
+  assert.deepStrictEqual([...(calls[0].response_format?.json_schema?.schema?.properties?.ideas?.required ?? [])].sort(),
+    ['act', 'direct', 'narrate', 'speak'], 'IDEA-MODES: and the schema asks for all four');
+  assert.match(String(calls[0].messages[0].content), /speak:[\s\S]*act:[\s\S]*direct:[\s\S]*narrate:/,
+    'IDEA-SHAPES: the prompt says what shape each mode\'s idea takes');
+  assert.match(String(calls[0].messages[1].content), /The writer plays: /, 'IDEA-WHO: and who the writer plays, for Speak and Act');
   assert.strictEqual(calls.length, 1, `IDEA-ONE: one call to the model, not ${calls.length}`);
   assert.strictEqual(calls[0].chat_template_kwargs?.enable_thinking, false, 'IDEA-NOPLAN: weaving off');
-  assert.ok(Number(calls[0].max_tokens) <= 300, `IDEA-SMALL: a small cap, not ${calls[0].max_tokens}`);
+  assert.ok(Number(calls[0].max_tokens) <= 600, `IDEA-SMALL: a small cap, not ${calls[0].max_tokens}`);
   assert.strictEqual(calls[0].model, 'Qwen3.6-WNTH-35B-A3B-NN', "IDEA-MODEL: the book's model writes it");
   assert.match(String(calls[0].messages[1].content), /The lower tiers still pulse/,
     'IDEA-READS: the ideas are asked from the book, its recent passages included');
@@ -2593,7 +2599,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.ok(!w.error, w.error);
   assert.strictEqual(calls[0].chat_template_kwargs?.enable_thinking, false,
     'IDEA-NOPLAN-WEAVING: a weaving book still asks for the idea with weaving off');
-  assert.ok(Number(calls[0].max_tokens) <= 300, `IDEA-SMALL-WEAVING: and no room is added (${calls[0].max_tokens})`);
+  assert.ok(Number(calls[0].max_tokens) <= 600, `IDEA-SMALL-WEAVING: and no room is added (${calls[0].max_tokens})`);
 
   // A CUT ANSWER IS NOT ASKED AGAIN. A retry would double the cap (structuredRetry), and the cap is
   // the point of this call; the writer taps again instead.
@@ -2602,7 +2608,7 @@ ok('emptying the box gives her back the voice she shipped with');
   breakFirst = false;
   assert.strictEqual(calls.length, 1, `IDEA-NORETRY: a cut answer is not retried (${calls.length} calls)`);
   assert.ok(cut.error, 'IDEA-CUT: and it says so, rather than handing back no ideas');
-  ok('✦ asks the book\'s model for three ideas in one call, weaving off, on a small cap, and writes nothing');
+  ok('✦ asks the book\'s model for an idea per mode in one call, weaving off, on a small cap, and writes nothing');
 }
 
 // #120 · THE STYLE NOTE IS PROSE ONLY. It is sent on every prose call, and asked "what its chapters

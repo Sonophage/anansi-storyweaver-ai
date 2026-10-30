@@ -5,7 +5,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, MEMORY, MEMORY_SCHEMA, TALE_STANDS, TALE_STANDS_SCHEMA, STRINGS_STAND, STRINGS_STAND_SCHEMA, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, TALE_STANDS, TALE_STANDS_SCHEMA, STRINGS_STAND, STRINGS_STAND_SCHEMA, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
 import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -558,7 +558,8 @@ const TALK_TOKENS = 2400;
 /** ✦ (#71). Three ideas of one or two sentences, about forty tokens each, plus the JSON around them.
  *  300 is twice that and still small: the call runs on the book's own model, which may be a remote
  *  one, and the writers share four Featherless units. */
-const IDEA_TOKENS = 300;
+// Four ideas, one of them a short paragraph to narrate (2026-10-30): room for them, still a small call.
+const IDEA_TOKENS = 600;
 
 /** One ledger entry, and it is a jumping-off point rather than a line. 700 was sized for the old
  *  prompt, which asked for a body under forty words; then sixty to a hundred and twenty; and from
@@ -4224,7 +4225,8 @@ export const routes: Record<string, Handler> = {
     const { reply, manifest, prompt } = weaveAssemble(c, v, 'idea', IDEA_TOKENS, (cap) =>
       assemble({ ...v, passages: v.passages.slice(-6) }, slotFor(c, v, writerModel(c, v)), 'talk',
         `The passages at the end of the material above are scene ${v.currentChapter.index}. `
-          + 'What happens next?', undefined, cap, undefined));
+          + `What happens next?\nThe writer plays: ${v.story.persona?.trim() || 'the point-of-view character'}.`,
+        undefined, cap, undefined));
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
     const using = writerModel(c, v);
     const t0 = Date.now();
@@ -4233,8 +4235,9 @@ export const routes: Record<string, Handler> = {
         chat_template_kwargs: { enable_thinking: reply.weaves } });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'idea',
       params: wove(reply, r), manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
-    const ideas = (Array.isArray((r.data as any)?.ideas) ? (r.data as any).ideas : [])
-      .map((x: unknown) => String(x ?? '').trim()).filter(Boolean).slice(0, 3);
+    // One per mode, in the composer's order; a mode the model left empty is left out.
+    const got = (r.data as any)?.ideas ?? {};
+    const ideas = IDEA_MODES.map((mode) => ({ mode, text: String(got?.[mode] ?? '').trim() })).filter((x) => x.text);
     if (!ideas.length) return { error: r.data ? 'Anansi had no ideas this time. Tap ✦ again.'
       : `Anansi's ideas did not come back whole (${r.error ?? 'nothing usable'}). Tap ✦ again.` };
     return { ideas };

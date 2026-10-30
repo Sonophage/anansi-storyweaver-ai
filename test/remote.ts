@@ -151,7 +151,7 @@ const flSrv = createServer((req, res) => {
       }
       // ✦'s own one-field schema gets three ideas, so a test can tell an answer that came back whole.
       if (!body.stream && body.response_format?.json_schema?.schema?.properties?.ideas)
-        return json(200, { choices: [{ message: { content: JSON.stringify({ ideas: ['One.', 'Two.', 'Three.'] }) },
+        return json(200, { choices: [{ message: { content: JSON.stringify({ ideas: { speak: '"One."', act: 'Two.', direct: 'Three.', narrate: 'Four.' } }) },
           finish_reason: 'stop' }], usage: { prompt_tokens: 321, completion_tokens: 12 } });
       if (!body.stream) return json(200, { choices: [{ message, finish_reason: 'stop' }],
         usage: { prompt_tokens: 321, completion_tokens: 5 } });
@@ -881,11 +881,11 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
   const tries = since(cutOnce).fl;
   assert.strictEqual(tries.length, 2, `IDEA-REMOTE-RETRY: a cut remote answer is asked again, once (${tries.length} calls)`);
   assert.ok(!again.error, `IDEA-REMOTE-RETRY: and the second answer is used (${again.error})`);
-  assert.deepStrictEqual(again.ideas, ['One.', 'Two.', 'Three.'], 'IDEA-REMOTE-RETRY: three ideas come back');
+  assert.deepStrictEqual(again.ideas.map((x: any) => x.text), ['"One."', 'Two.', 'Three.', 'Four.'], 'IDEA-REMOTE-RETRY: the four ideas come back');
   assert.ok(Number(tries[1].body.temperature) < Number(tries[0].body.temperature),
     'IDEA-REMOTE-RETRY: the second try is cooler than the first');
-  assert.deepStrictEqual(tries.map((t: any) => t.body.max_tokens), [600, 600],
-    'IDEA-REMOTE-RETRY: capped at twice the local 300, the retry the same, like every remote JSON answer');
+  assert.deepStrictEqual(tries.map((t: any) => t.body.max_tokens), [1200, 1200],
+    'IDEA-REMOTE-RETRY: capped at twice the local 600, the retry the same, like every remote JSON answer');
 
   // The one door. Every writer-facing call resolves its model through `writerModel`, which is the
   // only place the shortlist is asked; a second `modelFor(` would be a call that can skip it.

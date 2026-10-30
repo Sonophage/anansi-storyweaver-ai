@@ -1143,6 +1143,31 @@ assert.match(html('col'), /class="[^"]*\bspeak\b[^"]*"/, 'quoted prose is a spee
   assert.doesNotMatch(bar, /data-idea/, 'and the ideas are no longer on the bar');
 }
 ok('↻, the quill and ✦ sit on the bar at the foot of the screen, and the bulb under the last passage');
+
+// ---- ✦ · ONE IDEA PER MODE, PICKED INTO ITS OWN MODE (Seth, 2026-10-30: "themed to our actions, one
+// direction each for something that can be said, narrated, spoken or acted").
+{
+  const canned = (globalThis as any).fetch;
+  const IDEAS = [{ mode: 'speak', text: '"You kept my page."' }, { mode: 'act', text: 'She tears the page out.' },
+    { mode: 'direct', text: 'The lamps go out on the lower stair.' }, { mode: 'narrate', text: 'The rain came in after them.' }];
+  (globalThis as any).fetch = async (url: string, init?: any) => url === '/api/idea'
+    ? { ok: true, status: 200, json: async () => ({ ideas: IDEAS }), text: async () => JSON.stringify({ ideas: IDEAS }) } : canned(url, init);
+  try {
+    click({ idea: '1' }); await sleep(40);
+    const col = html('col');
+    assert.deepStrictEqual([...col.matchAll(/class="idea m-(\w+)" data-ideapick="\d"><span class="ideamode"\s*>(\w+)</g)].map((m) => `${m[1]}:${m[2]}`),
+      ['speak:Speak', 'act:Act', 'direct:Direct', 'narrate:Narrate'], 'IDEA-PER-MODE: four ideas, each named and edged by its mode');
+    const box = nodes.get('input'), wasDispatch = box.dispatchEvent, wasValue = box.value;
+    const wasMode = html('dockCol').match(/<option value="(\w+)" selected>/)?.[1] ?? 'speak';
+    box.dispatchEvent = () => true; box.value = '';
+    click({ ideapick: '0' }); await sleep(20);
+    assert.strictEqual(nodes.get('input').value, '"You kept my page."', 'IDEA-PICK: the picked idea goes in the box');
+    assert.match(html('dockCol'), /<option value="speak" selected>/, 'IDEA-PICK-MODE: in its own mode, Speak');
+    box.dispatchEvent = wasDispatch; box.value = wasValue; pickMode(wasMode);
+  } finally { (globalThis as any).fetch = canned; }
+  ok('✦ shows an idea per mode, and the one picked goes in the box in its own mode');
+}
+
 assert.match(html('col'), /class="block you(?: [^"]*)?"/, 'the writer\'s own line is a you block');
 
 /* ---- WHERE EACH PASSAGE CAME FROM, said in words as well as in a colour.
@@ -4993,15 +5018,52 @@ ok('Account → Writing shows When you reweave after the five modes, filled with
   click({ storytab: 'thread' }); click({ panel: 'story' });
   assert.match(html('sideBody'), /data-tab="thread"/, 'TALE-TAB: the Tale panel opens on its Thread tab');
   assert.match(html('sideBody'), /data-storytab="thread"[^>]*aria-pressed="true"/, '  with the Thread chip pressed');
+  const wasOwn = (STORY as any).talePockets, wasTale = (STORY as any).taleThread;
+  // A tale with its own thread, so a rule saved with no thread is told apart from one saved on it.
+  (STORY as any).taleThread = { id: 'e-tale', title: 'The tale', entryType: 'tale', addons: [], states: [] };
+  (STORY as any).talePockets = [{ id: 'i-1', name: 'Slow burn', body: 'Nobody touches before scene ten.', active: true }];
+  click({ open: 's-1' }); await sleep(40);
+  click({ storytab: 'thread' }); click({ panel: 'story' });
   const tab = html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '';
-  assert.match(tab, /data-rulename="r-1"[^>]*value="Debts"[\s\S]*A debt survives the debtor\.[\s\S]*data-rulekeys="r-1"[^>]*value="debt, loan"/,
-    'RULE-CARD: a rule is drawn with its name, its text and its wake words');
-  assert.match(tab, /data-saverule="r-1"[\s\S]*data-addtalerule="1"[\s\S]*data-addtalepocket="1"/,
-    "  and the tab holds the tale's rules, a way to add one, and its own instructions");
-  (STORY as any).taleRules = wasRules;
+  // ONE ＋, AND A ROW PER THING, OPENED BY A TAP (Seth, 2026-10-30: "Tale thread has alot of add
+  // buttons we should throughout the app make any add a plus button with the entry and tabs kind of
+  // like threads ... and edit is opened by tapping the field"). Rules, Your own and the strings are
+  // rows that open the pocket panel; the one ＋ opens it to add any of the four.
+  assert.match(tab, /data-taleadd="1"/, 'TALE-PLUS: the Thread tab has one ＋ to add to it');
+  assert.doesNotMatch(tab, /data-addtalerule|data-addtalepocket|data-stringnew|data-rulenew|data-talenew|data-saverule/,
+    'TALE-PLUS: and no add forms, Save buttons or second add presses');
+  assert.match(tab, /class="pocketopen" data-editroom="r-1"[\s\S]*?Debts[\s\S]*?Rule/, 'TALE-ROWS: a rule is a row that opens');
+  assert.match(tab, /class="pocketopen" data-editroom="i-1"[\s\S]*?Slow burn[\s\S]*?Your own/, '  and so is an instruction of your own');
+  assert.match(tab, /data-addonon="r-1:0"/, '  each with its switch');
+  // The ＋: the pocket panel on the tale's thread, offering all four kinds.
+  click({ taleadd: '1' }); await sleep(20);
+  let box = html('pocketPanel');
+  assert.deepStrictEqual([...box.matchAll(/data-pocketkind="(\w+)"/g)].map((m) => m[1]), ['promise', 'question', 'rule', 'instruction'],
+    'TALE-KINDS: the ＋ offers a promise, an open question, a rule and one of your own');
+  click({ pocketkind: 'rule' }); await sleep(10);
+  box = html('pocketPanel');
+  assert.match(box, /id="pk-keys"/, '  a rule has wake words');
+  for (const [id, value] of [['pk-name', 'Oaths'], ['pk-body', 'An oath binds the heir.'], ['pk-keys', 'oath, vow']])
+    (listeners.input ?? []).forEach((f: Function) => f({ target: { id, value } }));
+  POSTED.length = 0;
+  click({ pocketsave: '1' }); await sleep(40);
+  const made = POSTED.find((x) => x.url === '/api/addon');
+  assert.strictEqual(made?.body.entryId, null, 'TALE-RULE-SAVE: a rule is a pocket of no thread');
+  assert.deepStrictEqual({ slot: made?.body.addon.slot, name: made?.body.addon.name, keys: made?.body.addon.keys },
+    { slot: 'rule', name: 'Oaths', keys: ['oath', 'vow'] }, '  with its name and wake words');
+  // A tap on the row opens it.
+  click({ open: 's-1' }); await sleep(40);
+  click({ storytab: 'thread' }); click({ panel: 'story' });
+  click({ editroom: 'r-1' }); await sleep(20);
+  box = html('pocketPanel');
+  assert.match(box, /id="pk-name" value="Debts"/, 'TALE-OPEN: tapping a rule opens it in the panel');
+  assert.match(box, /id="pk-keys" value="debt, loan"/, '  with its wake words');
+  assert.doesNotMatch(box, /data-pocketkind="promise"/, '  and it cannot become a string');
+  click({ pocketx: '1' });
+  (STORY as any).taleRules = wasRules; (STORY as any).talePockets = wasOwn; (STORY as any).taleThread = wasTale;
   click({ panel: 'threads' });
 }
-ok("the tale's own thread is a banner in the list, and it opens the Thread tab of the Tale panel");
+ok("the tale's own thread is on the Tale panel's Thread tab, one ＋ adds to it and a tap opens a row");
 
 // ---- THE THREAD'S MENU, ONE FLAT LIST, AND TIDY AS AN ICON BESIDE IT (Seth, 2026-10-27).
 {
@@ -7954,7 +8016,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     click({ open: 's-1' }); await wait();
     click({ storytab: 'thread' }); click({ panel: 'story' }); await wait();
     const page = html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '';
-    const rules = page.indexOf('data-addtalerule='), prom = page.indexOf('>Promises'), ques = page.indexOf('>Open questions');
+    const rules = page.indexOf('>Rules'), prom = page.indexOf('>Promises'), ques = page.indexOf('>Open questions');
     assert.ok(rules > 0 && prom > rules && ques > prom, `TALE-STRINGS: Promises, then Open questions, under Rules (${rules}, ${prom}, ${ques})`);
     const promises = page.slice(prom, ques), questions = page.slice(ques);
     const order = (s: string) => [...s.matchAll(/data-editroom="([\w-]+)"/g)].map((m) => m[1]);
@@ -7968,17 +8030,15 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     assert.match(html('pocketPanel'), /id="pk-name" value="The ferry fare"/, 'TALE-OPEN: a row opens the pocket panel on it');
     click({ pocketx: '1' }); await wait();
 
-    // ＋ PER KIND: each list has its own, and it opens the panel to add with that kind chosen.
-    assert.match(promises, /data-stringnew="promise"/, 'TALE-PLUS: Promises has its own ＋');
-    assert.match(questions, /data-stringnew="question"/, 'TALE-PLUS: Open questions has its own ＋');
-    for (const [k, other] of [['promise', 'question'], ['question', 'promise']]) {
-      click({ stringnew: k }); await wait();
-      const add = html('pocketPanel');
-      assert.match(add, /New string &middot; The tale/, `TALE-PLUS-${k}: ＋ opens the panel to add a string`);
-      assert.match(add, new RegExp(`data-pocketkind="${k}"[^>]*aria-pressed="true"`), `TALE-PLUS-${k}: with ${k} chosen`);
-      assert.match(add, new RegExp(`data-pocketkind="${other}"[^>]*aria-pressed="false"`), `  and not ${other}`);
-      click({ pocketx: '1' }); await wait();
-    }
+    // ONE ＋ FOR THE TAB (Seth, 2026-10-30), not one per kind: the panel offers the kind.
+    assert.doesNotMatch(page, /data-stringnew=/, 'TALE-ONE-PLUS: no ＋ per kind on the tab');
+    // Strings' own ＋ still adds a string: the two kinds of string, not a rule or your own.
+    click({ stringnew: '1' }); await wait();
+    const add = html('pocketPanel');
+    assert.match(add, /New string &middot; The tale/, 'STRINGS-PLUS: the Strings ＋ adds a string');
+    assert.deepStrictEqual([...add.matchAll(/data-pocketkind="(\w+)"/g)].map((m) => m[1]), ['promise', 'question'],
+      '  offering the two kinds of string only');
+    click({ pocketx: '1' }); await wait();
     click({ panel: 'strings' }); await wait();
     const screen = html('sideBody');
     for (const id of ['p-on', 'p-done', 'q-gone']) {

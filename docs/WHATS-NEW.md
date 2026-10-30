@@ -34,6 +34,18 @@ of those boxes, he leaves it alone. Once you have started writing the scene, he 
 On the next scene's setup, asking Anansi again with a new direction now replaces what he wrote
 before, including how it opens. Only what you typed yourself is kept.
 
+### Anansi's ideas: one for each way to write
+The bulb under the last passage now gives four ideas, one for each way you write: a line to Speak,
+something to Act, a Direct for Anansi, and a passage to Narrate. Each is labelled with its mode and
+edged in its colour. Pick one and it goes in the box in that mode, ready to send: a spoken line as
+dialogue, an action or a passage as prose for the page, a direction as an instruction.
+
+### One ＋ on the tale's Thread tab, and a tap opens what is there
+The Thread tab under Tale no longer has a form for each thing you can add. One ＋ opens the same
+screen a pocket opens in, where you pick what you are adding: a promise, an open question, a rule
+or one of your own. Rules and your own are rows now, like promises and open questions: tap one to
+change it, remove it or switch it off.
+
 ### Clearer hem steps
 A step that failed now says "Did not run" and why, in plain words, with its own Try again. Try again
 says "Trying…" while it runs. Each step has one name everywhere, and "Hem it again" replaces the
