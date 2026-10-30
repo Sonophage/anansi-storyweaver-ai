@@ -1531,12 +1531,12 @@ if (btn) {
     document.querySelector('[data-arctext]')?.value ?? null])`);
   ok(`  a repaint keeps what was typed (${kept0})`, kept0 === JSON.stringify(['A draft title', 'A draft of the act.']));
 
-  // CANCEL COSTS NOTHING: the typed text is thrown away and the act is what it was.
-  // Changed, so Cancel asks first and the second press shuts it, as every panel does.
-  await page.click('[data-pocketx]');
-  await page.click('[data-pocketx]');
+  // UNDO MY CHANGES COSTS NOTHING (ADR 0004): the act is put back as it was.
+  // Changed, so it asks first and the second press puts it back and shuts it.
+  await page.click('[data-pocketundo]');
+  await page.click('[data-pocketundo]');
   await wait(300);
-  ok("Cancel closes the editor", !(await page.visible('[data-arctext]')));
+  ok("Undo my changes closes the editor", !(await page.visible('[data-arctext]')));
   const kept = await arcOf();
   ok("  and leaves the act exactly as it was", kept.summary === was.summary && kept.title === was.title);
 
@@ -1544,7 +1544,7 @@ if (btn) {
   await page.click('[data-editarc]');
   await wait(300);
   await typeIn('[data-arctext]', '   ');
-  await page.click('[data-savearc]');
+  await page.click('[data-pocketdone]');
   await wait(600);
   ok(`saving it empty is refused and points to Remove (${(await page.text('#toast') || '').trim().slice(0, 60)})`,
      /remove/i.test(await page.text('#toast') || ''));
@@ -1554,10 +1554,10 @@ if (btn) {
   const long = Array.from({ length: 230 }, (_, i) => (i ? 'water' : 'Marek')).join(' ');
   await typeIn('[data-arctitle]', 'The debt');
   await typeIn('[data-arctext]', long);
-  await page.click('[data-savearc]');
+  await page.click('[data-pocketdone]');
   await wait(900);
   const now = await arcOf();
-  ok(`Save stores the text and the title (${now.title})`, now.summary === long && now.title === 'The debt');
+  ok(`Done stores the text and the title (${now.title})`, now.summary === long && now.title === 'The debt');
   ok("  past 220 words, because the warning never blocks", now.summary.split(' ').length === 230);
   ok("  the editor closes", !(await page.visible('[data-arctext]')));
   ok("  and the card shows the new text", /Marek water water/.test(await page.text('#sideBody') || ''));

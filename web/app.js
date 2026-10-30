@@ -532,7 +532,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // ago, so these say what they do to a followed thread instead of reusing that word.
   'takeover', 'dropfollow', 'handback', 'sendup', 'bringback', 'savefollowed',
   'share', 'unshare',
-  'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc', 'editarc', 'savearc',
+  'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc', 'editarc',
   'stringnew', 'summon', 'stringstatus', 'looktab', 'askfill',
   'reroll', 'reseed', 'addstate', 'stateopen', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'howin', 'howout', 'savesetup',
@@ -2943,7 +2943,7 @@ function arcPanel(pk, a) {
     <textarea class="field grow pkbody" id="pk-arctext" data-arctext data-wordcap="${ACT_WORDS}">${esc(pk.text)}</textarea>
     ${wordLine(pk.text, ACT_WORDS)}
     <button class="btn ghost danger push-14" data-delarc="${a.id}">Remove this chapter</button>`,
-    `<button class="btn" data-savearc="${a.id}">Save</button>`);
+    AUTO_FOOT);
 }
 function pocketPanel() {
   const pk = S.pocket;
@@ -3044,7 +3044,8 @@ function closePocket(t = null) {
 /** THE POCKET PANEL SAVES AS YOU TYPE, one kind at a time (ADR 0004, pass three). A kind listed here
  *  is written once the typing pauses (the pause the Tale's boxes use), and its foot is AUTO_FOOT.
  *  `fields` are what it writes; `write` sends them for the book they were typed in; `held` names a
- *  change the pause must not write, because it loses words, and the ask Done makes before it does.
+ *  change the pause must not write, because it loses words, and the ask Done makes before it does;
+ *  `never` names one that cannot be written at all, and what Done says instead of writing it.
  *  A kind not listed keeps Cancel and Save until it joins. */
 const POCKET_AUTO = {
   // An empty summary is a removed one (`writeSummary`).
@@ -3053,8 +3054,11 @@ const POCKET_AUTO = {
   // to put back if a writer reports it.
   sum: { fields: ['text'], write: (pk, v, storyId) => api.saveSummary(storyId, pk.sum, v.text),
     held: (v) => (v.text.trim() ? null : 'Press Done again to remove this summary: it is empty.') },
+  // #44 · A chapter's title and summary. The route refuses an empty summary: Remove is how one goes.
+  arc: { fields: ['title', 'text'], write: (pk, v, storyId) => api.saveArc(storyId, pk.arc, v.title, v.text),
+    never: (v) => (v.text.trim() ? null : 'A chapter summary cannot be empty. To remove the chapter, press Remove this chapter.') },
 };
-const pocketAuto = (pk) => (pk?.sum ? POCKET_AUTO.sum : null);
+const pocketAuto = (pk) => (pk?.sum ? POCKET_AUTO.sum : pk?.arc ? POCKET_AUTO.arc : null);
 const pocketVals = (pk, auto) => Object.fromEntries(auto.fields.map((f) => [f, pk[f]]));
 const sameVals = (a, b) => Object.keys(a).every((k) => a[k] === b[k]);
 /** One write of an open panel. In turn, never two at once, so a slow write cannot land after a later
@@ -3064,7 +3068,7 @@ function writePocket(pk, storyId = S.storyId, vals = null, forced = false) {
   const auto = pocketAuto(pk); if (!auto) return Promise.resolve({});
   const v = vals ?? pocketVals(pk, auto);
   pk.chain = (pk.chain ?? Promise.resolve()).then(async () => {
-    if (sameVals(v, pk.saved ?? pk.was) || (!forced && auto.held?.(v))) return {};
+    if (sameVals(v, pk.saved ?? pk.was) || auto.never?.(v) || (!forced && auto.held?.(v))) return {};
     const r = await auto.write(pk, v, storyId);
     if (!r || r.error) { toast(`Not saved. ${r?.error ?? 'The server did not answer.'}`); return r ?? { error: 'no answer' }; }
     pk.saved = v; pk.wrote = true;
@@ -3085,7 +3089,9 @@ async function finishPocket(t = null) {
   const pk = S.pocket; if (!pk) return true;
   const auto = pocketAuto(pk); if (!auto) return closePocket(t);
   dropSoon('pocket');
-  const v = pocketVals(pk, auto), ask = sameVals(v, pk.saved ?? pk.was) ? null : auto.held?.(v);
+  const v = pocketVals(pk, auto), changed = !sameVals(v, pk.saved ?? pk.was);
+  const no = changed ? auto.never?.(v) : null, ask = changed ? auto.held?.(v) : null;
+  if (no) { toast(no); return false; }
   if (ask && !armed(t, 'pocketheld', ask)) return false;
   const r = await writePocket(pk, S.storyId, v, true);
   if (r?.error) return false;
@@ -12154,21 +12160,13 @@ document.addEventListener('click', async (e) => {
   }
 
   // A CHAPTER, OPENED BY A TAP (#44, Seth 2026-10-30), in the pocket panel. The draft lives in
-  // `S.pocket`, kept by the `input` listener, so a repaint between typing and Save puts the same words
-  // back and Save sends what was typed. Cancel, Esc and Back are the panel's, two presses when changed.
+  // `S.pocket`, kept by the `input` listener, so a repaint mid-typing puts the same words back. It saves
+  // as you type (POCKET_AUTO); Done, Esc and Back write the last of it, and Undo my changes puts it back.
   if (d.editarc) {
     const a = (V.arcs ?? []).find((x) => x.id === d.editarc); if (!a) return;
     const was = { title: a.title ?? '', text: a.summary ?? '' };
     S.pocket = { arc: a.id, tab: 'write', slot: null, wasSlot: null, ...was, was };
     drawPocket(); syncLayers(); $('pk-arctext')?.focus?.(); return;
-  }
-  if (d.savearc) {
-    const pk = S.pocket; if (pk?.arc !== d.savearc) return;
-    const r = await api.saveArc(S.storyId, d.savearc, pk.title, pk.text);
-    if (r.error) return toast(r.error);
-    S.pocket = null;
-    V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
-    return toast('The chapter summary is saved. It is what the model is sent for those scenes.');
   }
 
   if (d.editprompt) { S.promptOpen = S.promptOpen === d.editprompt ? null : d.editprompt; paint(); return; }

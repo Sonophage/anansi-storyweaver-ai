@@ -28,6 +28,10 @@ one entry in the passage's Alterations, however long you type.
 When you open a scene's summary and change it, the change is kept a moment after you stop typing.
 Done closes it, and Undo my changes puts back the summary that was there when you opened it. To
 remove a summary, empty it and press Done twice: an empty box is never saved while you type.
+### A chapter's title and summary save as you type
+The same for a chapter: its title and summary are kept as you type, Done closes it, and Undo my
+changes puts them back as they were when you opened it. A chapter summary cannot be empty, so an
+empty box is not saved; Remove this chapter is still how a chapter goes.
 
 ## 2026-10-30 · The next scene starts the way you say
 

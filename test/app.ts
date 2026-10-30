@@ -5491,19 +5491,49 @@ ok('Over time: one ＋ adds a change, a tap opens one in the pocket panel, and S
   click({ pocketdone: '1' }); await sleep(40);
   assert.deepStrictEqual(sums(), ['Kept?', 'Kept?', 'Kept?'], 'SUM-REFUSED-RETRY: and writes them once the server takes them');
   assert.strictEqual(html('pocketPanel'), '', '  and shuts');
-  // A chapter's panel: its title and summary, Remove inside it, Cancel and Save.
+  // A chapter's panel: its title and summary, Remove inside it, Undo my changes and Done. It saves as
+  // you type (ADR 0004, pass three).
+  const arcs = () => POSTED.filter((x) => x.url === '/api/arc' && x.method === 'POST').map((x) => x.body);
   click({ editarc: 'a-1' }); await sleep(20);
   box = html('pocketPanel');
   assert.match(box, /data-arctitle[^>]*value="The Ash"/, 'ARC-OPEN: tapping a chapter opens its title');
   assert.match(box, /<textarea[^>]*data-arctext[^>]*>Ilva comes in on the ash road\.</, '  and its summary');
   assert.match(box, /data-delarc="a-1"/, '  with Remove inside it');
-  assert.match(box, /data-pocketx="1"[\s\S]*data-savearc="a-1"/, '  and Cancel and Save in its foot');
-  type({ arctitle: '' }, 'The Ash Road');
+  assert.doesNotMatch(box, /data-savearc|>Save</, 'ARC-NO-SAVE: and no Save');
+  assert.match(box, /data-pocketundo="1"[\s\S]*data-pocketdone="1"/, 'ARC-FOOT: Undo my changes and Done in its foot');
   POSTED.length = 0;
-  click({ savearc: 'a-1' }); await sleep(40);
-  assert.deepStrictEqual(POSTED.filter((x) => x.url === '/api/arc').map((x) => x.body),
-    [{ storyId: 's-1', id: 'a-1', title: 'The Ash Road', summary: ARC.summary }], 'ARC-SAVE: Save sends the title and summary');
+  type({ arctitle: '' }, 'The Ash Road');
+  await sleep(1000);
+  assert.deepStrictEqual(arcs(), [{ storyId: 's-1', id: 'a-1', title: 'The Ash Road', summary: ARC.summary }],
+    'ARC-AUTOSAVE: the pause writes the title and summary');
+  type({ arctext: '' }, 'Ilva comes in on the ash road, late.');
+  click({ pocketdone: '1' }); await sleep(40);
+  assert.deepStrictEqual(arcs().map((b: any) => b.summary), [ARC.summary, 'Ilva comes in on the ash road, late.'],
+    'ARC-DONE: Done writes the last of the typing');
   assert.strictEqual(html('pocketPanel'), '', '  and shuts the panel');
+  // EMPTY CANNOT BE SAVED (the route refuses it; Remove is how a chapter goes), so the pause does not
+  // write it and Done says so and stays.
+  g = await group();
+  click({ editarc: 'a-1' }); await sleep(20);
+  POSTED.length = 0;
+  type({ arctext: '' }, '  ');
+  await sleep(1000);
+  assert.deepStrictEqual(arcs(), [], 'ARC-EMPTY-HELD: emptied, the pause writes nothing');
+  click({ pocketdone: '1' }); await sleep(40);
+  assert.deepStrictEqual(arcs(), [], 'ARC-EMPTY-DONE: and neither does Done');
+  assert.match(String(nodes.get('toast').textContent), /cannot be empty/, '  which says why');
+  assert.notStrictEqual(html('pocketPanel'), '', '  and stays open');
+  // Undo my changes puts back what was there, writing nothing when nothing was written.
+  click({ pocketundo: '1' }); click({ pocketundo: '1' }); await sleep(40);
+  assert.deepStrictEqual(arcs(), [], 'ARC-UNDO-NOTHING: Undo after nothing was written writes nothing');
+  assert.strictEqual(html('pocketPanel'), '', '  and shuts the panel');
+  g = await group();
+  click({ editarc: 'a-1' }); await sleep(20);
+  POSTED.length = 0;
+  type({ arctitle: '' }, 'Wrong title');
+  await sleep(1000);
+  click({ pocketundo: '1' }); click({ pocketundo: '1' }); await sleep(40);
+  assert.deepStrictEqual(arcs().map((b: any) => b.title), ['Wrong title', 'The Ash'], 'ARC-UNDO: Undo writes back the title it opened with');
   g = await group();
   click({ editarc: 'a-1' }); await sleep(20);
   POSTED.length = 0;
