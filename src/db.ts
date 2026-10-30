@@ -1933,6 +1933,34 @@ export function reopenHem(storyId: string, chapterId: string): number | null {
   return (q('SELECT run FROM hems WHERE chapter_id = ?').get(chapterId) as any).run;
 }
 
+/** #93 · A HEM A RESTART CUT OFF IS STOPPED AT BOOT. Its queue lived in the process that went down,
+ *  so nothing will finish it, and the view would read it running for good. It is marked done, with
+ *  the pass it was on and every pass after it in the report, each with the restart as its reason: a
+ *  failed pass is what the card already shows, with a Try again beside it. A pass the stored report
+ *  says ran (null) is left as it was, which is how a try-again cut off keeps the passes it did not
+ *  touch. `order` is the hem's pass names in the order they run (`HEM_PASSES`). Returns how many it
+ *  stopped. Called by `serve.ts` before it listens, and by nothing else: a second process opening a
+ *  library a server is hemming in would stop a hem that is still running.
+ *
+ *  ponytail: which passes a run was asked for is not stored, so every pass from the one it was on is
+ *  reported. Ceiling: a hem with a pass switched off, or a try-again of one pass, cut off by a
+ *  restart, offers Try again for passes nobody asked for. Trigger: a writer asking why; then store the
+ *  run's asked-for passes on the row. */
+export function stopUnfinishedHems(order: readonly string[]): number {
+  const rows = q('SELECT chapter_id, story_id, passes, pass FROM hems WHERE finished_at IS NULL').all() as any[];
+  for (const h of rows) {
+    const report: Record<string, string | null> = hemJSON(h.passes) ?? {};
+    const from = Math.max(0, order.indexOf(String(h.pass ?? '')));
+    for (const k of order.slice(from)) {
+      if (k === h.pass) report[k] = 'the server restarted while this was running';
+      else if (report[k] !== null) report[k] = 'the server restarted before this ran';
+    }
+    q('UPDATE hems SET finished_at = ?, pass = NULL, passes = ? WHERE chapter_id = ? AND story_id = ?')
+      .run(now(), JSON.stringify(report), h.chapter_id, h.story_id);
+  }
+  return rows.length;
+}
+
 /** #90. The threads the thread-change pass found changed past its cap of six, by name, for the card.
  *  Written by that pass when a hem runs it; a hem again starts the row with none. */
 /** The pass a hem's run has reached, and when; a stale run never overwrites a newer one's. */

@@ -30,6 +30,10 @@ spice level into the voice it suggests. The shipped voice no longer overrides th
 ### ✦ tries once more on a Featherless model
 When ✦ asks a Featherless model for ideas and the answer comes back cut off, Anansi now asks once
 more before showing an error. On some models the second try can take as long as the first.
+### A hem cut off by a restart no longer hems forever
+If the app restarted while it was hemming a scene, that scene used to say it was still hemming, for
+good. Now the card says the hem was stopped by the restart, and each step it did not finish has a
+Try again beside it.
 
 ### The tale's own thread has its own tab
 The tale's own thread now lives in the Tale panel, on a new Thread tab: where the tale stands, its

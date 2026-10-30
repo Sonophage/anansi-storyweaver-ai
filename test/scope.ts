@@ -1482,6 +1482,10 @@ async function bootServer(port: number, env: Record<string, string>) {
   ok("a hem again naming another writer's scene from your own book is refused by the route");
 }
 
+// #93 · A HEM LEFT RUNNING when the server went down, so the boot below has one to stop.
+const strandedScene = (db.chapters(bStory.id)[0] as any).id;
+db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts');
+
 {
   const PORT = 5187;
   // A model address where nothing listens, so ✦'s control below can never reach the real router.
@@ -1489,6 +1493,10 @@ async function bootServer(port: number, env: Record<string, string>) {
   const post = (path: string, body: unknown) => fetch(url + path, { method: 'POST',
     headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   try {
+    // THE SERVER STOPS IT AT BOOT, before it answers anything: no queue in the new process holds it.
+    const stranded = db.hemOf(bStory.id, strandedScene);
+    assert.strictEqual(stranded?.state, 'done', `HEM-BOOT-SWEEP: a booting server stops a hem left running (${stranded?.state})`);
+    assert.match(String(stranded?.passes?.facts), /restart/i, '  and its card says the restart stopped it');
     // Alice's story, asked for by the server running as bob. Her prose is read BEFORE rather than
     // written down here: earlier checks in this file edit it, and an expected value copied from
     // the top of the file would be asserting the fixture rather than the gate.

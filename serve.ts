@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { gzip as gzipCB } from 'node:zlib';
 import { extname, resolve } from 'node:path';
-import { routes, OPEN_ROUTES, storyIdOf } from './src/routes.ts';
+import { routes, OPEN_ROUTES, storyIdOf, HEM_PASSES } from './src/routes.ts';
 import { payFor } from './src/llama.ts';
 import type { Ctx } from './src/routes.ts';
 import { slotNow, slotFirstRead, slotIsKnown, model } from './src/llama.ts';
@@ -517,6 +517,11 @@ const handler = async (req: any, res: any) => {
     bus.asWriter(null);
   }
 };
+
+// #93 · A HEM THE LAST PROCESS WAS RUNNING WILL NEVER FINISH: its queue went down with it. Stopped
+// before the first request, so no view ever reads it running.
+const stopped = db.stopUnfinishedHems(HEM_PASSES);
+if (stopped) console.log(`  hems          ${stopped} cut off by the restart, stopped`);
 
 (TLS ? serveHTTPS(TLS, handler) : serveHTTP(handler)).listen(PORT, HOST, () => {
   const shelves = db.storiesPerOwner();

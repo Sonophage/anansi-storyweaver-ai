@@ -1671,15 +1671,16 @@ async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?:
  *  chain below is built inside the request, so every pass is on the same Featherless plan the
  *  request was.
  *
- *  ponytail: the queue lives in this process. A restart mid-hem leaves the row with no finished_at,
- *  and the view reads it as running for good. Ceiling: one process, no restarts during a hem.
- *  Trigger to revisit: a "running" hem seen after a restart; then mark unfinished rows stopped at boot. */
+ *  THE QUEUE LIVES IN THIS PROCESS. A restart mid-hem leaves the row with no finished_at, and nothing
+ *  will finish it, so `serve.ts` stops every such row at boot (`db.stopUnfinishedHems`, #93): the card
+ *  reads done, with Try again on each pass the restart cut off. */
 const hemQueue = new Map<string, Promise<void>>();
 /** Settles when every hem queued on this tale has finished. Tests wait on it; nothing else should. */
 export const hemSettled = (storyId: string): Promise<void> => hemQueue.get(storyId) ?? Promise.resolve();
 
-/** The passes a hem reports on, by the names its report uses. */
-const HEM_PASSES = ['summary', 'tale', 'memory', 'facts', 'finished', 'next'] as const;
+/** The passes a hem reports on, by the names its report uses, in the order they run. `serve.ts` hands
+ *  it to `db.stopUnfinishedHems` at boot. */
+export const HEM_PASSES = ['summary', 'tale', 'memory', 'facts', 'finished', 'next'] as const;
 type HemWant = Record<typeof HEM_PASSES[number], boolean>;
 /** #91. The one queue every hem job goes through, so a try-again or a hem again never runs beside
  *  another hem on the same tale. */

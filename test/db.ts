@@ -4366,4 +4366,42 @@ ok('a merge that fails part way writes nothing', () => {
   db.delStory(t.id);
 });
 
+// #93 · A HEM A RESTART CUT OFF. The queue lives in the server's process, so a restart leaves the
+// row running for good. At boot it is stopped: done, with the pass it was on and every pass after it
+// reported as not run, which is what the card already shows a Try again for.
+ok('a hem left running by a restart is stopped, naming the passes it did not finish', () => {
+  const me = db.owner('hemsweep');
+  const t = db.createStory(me, { title: 'Cut Off', premise: 'p' }) as any;
+  const [one] = db.chapters(t.id) as any[];
+  db.addPassage({ ...t, storyId: t.id, chapterId: one.id, body: 'The lamp went out.' });
+  const ORDER = ['summary', 'tale', 'memory', 'facts', 'finished', 'next'];
+  // A fresh hem on its third pass.
+  const run = db.beginHem(t.id, one.id);
+  db.hemAt(t.id, one.id, run, 'memory');
+  assert.strictEqual(db.hemOf(t.id, one.id)?.state, 'running', '  it reads running before the sweep');
+  assert.strictEqual(db.stopUnfinishedHems(ORDER), 1, 'HEM-SWEEP: one hem was left running, and one is stopped');
+  const h = db.hemOf(t.id, one.id)!;
+  assert.strictEqual(h.state, 'done', 'HEM-SWEEP-DONE: it no longer reads running');
+  assert.strictEqual(h.current, null, '  and names no pass in progress');
+  assert.ok(h.finishedAt, '  and has a finish time');
+  assert.deepStrictEqual(Object.keys(h.passes).sort(), ['facts', 'finished', 'memory', 'next'],
+    'HEM-SWEEP-PASSES: the pass it was on and the ones after it are reported; the two before ran');
+  assert.match(String(h.passes.memory), /restart/i, 'HEM-SWEEP-WHY: the reason names the restart');
+  assert.ok(Object.values(h.passes).every((w) => typeof w === 'string' && w),
+    '  each as a reason, which is what the card offers a Try again for');
+  // A TRY AGAIN cut off: the report it reopened keeps the passes that ran, and only the failed one
+  // and the one in progress read as not run.
+  const again = db.reopenHem(t.id, one.id)!;
+  db.finishHem(t.id, one.id, again, { passes: { summary: null, tale: null, memory: null, facts: null, finished: 'down', next: null } });
+  const third = db.reopenHem(t.id, one.id)!;
+  db.hemAt(t.id, one.id, third, 'finished');
+  db.stopUnfinishedHems(ORDER);
+  const h2 = db.hemOf(t.id, one.id)!;
+  assert.deepStrictEqual(Object.entries(h2.passes).filter(([, w]) => w).map(([k]) => k), ['finished'],
+    'HEM-SWEEP-RAN: a pass the report says ran is not reported as not run');
+  // NOTHING LEFT RUNNING, nothing written: a second boot finds none.
+  assert.strictEqual(db.stopUnfinishedHems(ORDER), 0, 'HEM-SWEEP-ONCE: a later boot stops nothing');
+  db.delStory(t.id);
+});
+
 console.log(`\n${n} checks passed`);
