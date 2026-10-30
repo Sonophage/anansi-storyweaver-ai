@@ -9,16 +9,14 @@ const ok = (label, got) => { if (!got) red++;
 
 // ---- 1. clicking an entry in the workspace Threads page opens it
 await page.goto("http://127.0.0.1:5179/#" + sid);
-// "Anansi's web" was removed from the story menu on 2026-08-27 — the menu button in the bar is
-// the one door to the workspace now, from anywhere.
-// Seth took the word Anansi out of the header on 2026-08-29, so INSIDE A STORY the main menu is
-// two taps: the story's name opens the story menu, and the Anansi word at the top of that menu
-// opens the main one. Outside a story the header name still does it in one.
-await page.click('#bar [data-railview="story"], #bar [data-railview="workspace"]');
-await wait(400);
-await page.click('#rail [data-home]');
-await wait(400);
-await page.click('[data-nav="canon"]');
+// The way back to the library from a tale is the header's own door (`data-home`) since the menus
+// of 2026-10-28; the rail's home row that this pressed went with them.
+await page.click('[data-home]');
+await wait(600);
+// The Threads row is reached by the press itself: after the menu change of 2026-10-28 the row can sit
+// outside the visible rail on this viewport, and a scroll-and-measure press then finds no box.
+await page.eval("(() => { document.querySelector('[data-nav=\"canon\"]')?.click(); return 1; })()");
+await wait(600);
 const cards = await page.eval("document.querySelectorAll('#page [data-entry]').length");
 console.log("  entries listed on the Worlds page: " + cards);
 await page.click('#page [data-entry]');
@@ -117,15 +115,10 @@ ok("  and deletes on the second (" + blocksBefore + " -> "
    (await page.eval("document.querySelectorAll('#col [data-edit]').length")) === blocksBefore - 1);
 
 // ---- 4. the model selector
-// "Anansi's web" was removed from the story menu on 2026-08-27 — the menu button in the bar is
-// the one door to the workspace now, from anywhere.
-// Seth took the word Anansi out of the header on 2026-08-29, so INSIDE A STORY the main menu is
-// two taps: the story's name opens the story menu, and the Anansi word at the top of that menu
-// opens the main one. Outside a story the header name still does it in one.
-await page.click('#bar [data-railview="story"], #bar [data-railview="workspace"]');
-await wait(400);
-await page.click('#rail [data-home]');
-await wait(400);
+// The way back to the library from a tale is the header's own door (`data-home`) since the menus
+// of 2026-10-28; the rail's home row that this pressed went with them.
+await page.click('[data-home]');
+await wait(600);
 await page.click('[data-nav="account"]'); await wait(600); await page.click('[data-accttab="books"]'); await wait(300);  // Account → Your books since 2026-10-27
 await page.click('[data-nav="prefs"]');
 await wait(1200);

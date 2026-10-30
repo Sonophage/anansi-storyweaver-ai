@@ -2699,6 +2699,25 @@ libAdmin = false; click({ home: 1 });
 await sleep(40);
 ok('the model panel reads the router, the preset file, this database and the id, and names each');
 
+// PICKING A MODEL IN A TALE READS THE TALE AGAIN (Seth, 2026-10-29: "when I select a new model it
+// doesn't auto update it in the menu so it looks like I'm using another model"). In a tale the menu
+// names `V.model`, the model the server resolved for it, which only a fresh read of the tale moves.
+{
+  click({ open: 's-1' }); await sleep(40);
+  const was = (globalThis as any).fetch;
+  let reads = 0;
+  (globalThis as any).fetch = async (url: string, init?: any) => {
+    if (url === '/api/model') return { ok: true, status: 200, json: async () => ({ active: 'featherless:Grey/Kestrel-Heretic-24B' }) };
+    if (String(url).startsWith('/api/story?')) reads++;
+    return was(url, init);
+  };
+  try {
+    click({ pickmodel: 'featherless:Grey/Kestrel-Heretic-24B' }); await sleep(60);
+    assert.ok(reads >= 1, 'MODEL-PICK-REREAD: picking a model in a tale reads the tale again, so the menu names it');
+  } finally { (globalThis as any).fetch = was; click({ home: 1 }); await sleep(30); }
+}
+ok('picking a model in a tale reads the tale again, so the menu names the new one');
+
 // THE SAME DECODE ON EVERY SURFACE THAT NAMES A MODEL. Seth, 2026-08-29: "we need the uncensored
 // writing roleplay and the nn label on all three panels." Before this only the panel decoded the
 // id: the rail's label said "Qwen3.6", its list said "Qwen3.6", and the Storyteller's hint said

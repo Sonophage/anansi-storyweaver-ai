@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### The model you pick shows at once
+Picking a model while you are in a tale now updates the model named at the foot of the menu
+straight away, and the list lights the one that is writing. Before, it went on naming the old one
+until the tale was opened again. A tale set to its own model in Storyteller still names that one,
+because that is what writes it.
+
 ### Talk with Anansi in the composer, not a drawer
 Talking to Anansi now happens in the box at the bottom of the tale: hold the quill, pick Talk on the
 dial, or press Alt+T. The conversation sits above the box, and Full screen gives it the whole

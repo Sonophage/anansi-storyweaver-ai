@@ -958,11 +958,11 @@ function drawRail() {
                 <span class="quiet">Featherless isn't set up</span></span></div>`
           : `<button data-modelinfo="${esc(m.id)}"
             style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r);
-            width:100%; text-align:left; background:${m.id === SRV.model ? 'rgba(217,178,106,.10)' : 'transparent'}">
+            width:100%; text-align:left; background:${m.id === writingNow() ? 'rgba(217,178,106,.10)' : 'transparent'}">
             ${runsMark(m.id, m.status)}
             <span class="txt text-stack">
               <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis;
-                color:${m.id === SRV.model ? 'var(--ink-bright)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
+                color:${m.id === writingNow() ? 'var(--ink-bright)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
               ${modelName(m.id).bits.length ? `<span class="gold-line">${esc(modelName(m.id).bits.join(' \u00b7 '))}</span>` : ''}
               ${modelFacts(m, !SRV.admin) ? `<span class="quiet">${esc(modelFacts(m, !SRV.admin))}</span>` : ''}</span>
           </button>`).join('')}
@@ -12526,7 +12526,12 @@ document.addEventListener('click', async (e) => {
     if (d.pickmodel === SRV.model) return;
     const r = await api.setModel(d.pickmodel, S.storyId ?? LIB[0]?.id);
     if (r.error) return toast(r.error);
-    SRV.model = r.active; S.modelMenu = false; loadModels(); paint();
+    SRV.model = r.active; S.modelMenu = false; loadModels();
+    // IN A TALE THE MENU NAMES `V.model`, the model the server resolved for this tale, and only a
+    // fresh read of the tale moves it: without one the menu went on naming the old model (Seth,
+    // 2026-10-29). A tale pinned to a model of its own still names its pin, which is what writes it.
+    if (S.place === 'story' && S.storyId) { const v = await api.story(S.storyId); if (!v.error) V = v; }
+    paint();
     // What happened to the one you were on. Said out loud because the alternative — a model that
     // silently stays resident, or one that silently goes — is the difference between "why is the
     // card full" and "why did that take 45 seconds", and neither question has an answer on screen.
