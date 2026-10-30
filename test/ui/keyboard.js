@@ -35,8 +35,8 @@ const realVV = () => page.eval(`(() => { Object.defineProperty(window, 'visualVi
   window.dispatchEvent(new Event('resize')); return 1; })()`);
 const altBox = () => page.eval(`(() => { const r = (sel) => { const e = document.querySelector(sel); if (!e) return null;
     const b = e.getBoundingClientRect(); return [Math.round(b.top), Math.round(b.bottom)]; };
-  return JSON.stringify({ sheet: r('.block.altering .rerollbox'), box: r('[data-editbox]'), save: r('[data-editsave]'),
-    cancel: r('[data-editx]'), vh: innerHeight, kbh: getComputedStyle(document.documentElement).getPropertyValue('--kbh').trim(),
+  return JSON.stringify({ sheet: r('.block.altering .rerollbox'), box: r('[data-editbox]'), save: r('[data-editdone]'),
+    cancel: r('[data-editundo]'), vh: innerHeight, kbh: getComputedStyle(document.documentElement).getPropertyValue('--kbh').trim(),
     body: Math.round(document.body.getBoundingClientRect().height) }); })()`).then(JSON.parse);
 const above = (w, floor) => ['sheet', 'box', 'save', 'cancel'].every((k) => w[k] && w[k][0] >= 0 && w[k][1] <= floor);
 
@@ -59,7 +59,7 @@ const back = await altBox();
 ok(`when it goes, the page has its whole height again (${back.body} of ${back.vh})`, back.kbh === '' && back.body === back.vh);
 
 // ---- the composer with an iPhone's keyboard over it
-await page.eval("(() => { document.querySelector('[data-editx]').click(); return 1; })()");
+await page.eval("(() => { document.querySelector('[data-editdone]').click(); return 1; })()");
 await wait(500);
 await page.eval("(() => { const q = document.getElementById('quill'); if (q) q.click(); document.getElementById('input')?.focus(); return 1; })()");
 await wait(400);

@@ -188,7 +188,7 @@ const afterEdit = await page.eval("JSON.stringify({ box: document.querySelectorA
   + " editable: document.querySelectorAll('#col [data-edit][contenteditable]').length })").then(JSON.parse);
 ok(`pressing Edit opens one Alter box and makes no passage editable in place (${JSON.stringify(afterEdit)})`,
    afterEdit.box === 1 && afterEdit.editable === 0);
-await page.eval("(() => { document.querySelector('[data-editx]')?.click(); return 1; })()");
+await page.eval("(() => { document.querySelector('[data-editdone]')?.click(); return 1; })()");
 await wait(300);
 
 // And the browser must not treat a scroll-up as a page refresh.

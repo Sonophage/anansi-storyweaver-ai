@@ -86,6 +86,21 @@ ok('every edit is kept and revert restores without losing the current text', () 
   db.revertPassage(s.id, p1, h[0].id);
   assert.ok(db.passageHistory(s.id, p1).length > h.length, 'the reverted-from text is itself kept');
 });
+// ADR 0004: Alter saves as you type, one write per pause. Only the first write of an opening keeps
+// what was there; the rest change the text and keep no row of their own, or one Alter left a
+// row in Alterations per pause in the typing.
+ok('ALTER-AGAIN: a write marked as the same Alter keeps no row of its own', () => {
+  const before = db.passageHistory(s.id, p1).length;
+  const opened = (db.db.prepare('SELECT body FROM passages WHERE id = ?').get(p1) as any).body;
+  db.editPassage(s.id, p1, 'typed, first pause');
+  db.editPassage(s.id, p1, 'typed, second pause', true);
+  db.editPassage(s.id, p1, 'typed, third pause', true);
+  const h = db.passageHistory(s.id, p1);
+  assert.strictEqual(h.length, before + 1, 'ALTER-AGAIN: one row for the whole opening');
+  assert.ok(h.some((r: any) => r.body === opened) && !h.some((r: any) => /pause/.test(r.body)), 'ALTER-AGAIN: and it holds what was there when Alter opened');
+  assert.strictEqual((db.db.prepare('SELECT body FROM passages WHERE id = ?').get(p1) as any).body, 'typed, third pause',
+    'ALTER-AGAIN: and the passage holds the last of the typing');
+});
 ok('a summary goes stale only when the SELECTED prose changes', () => {
   const ch = db.chapters(s.id)[0] as any;
   db.setSummary(ch.id, 'sum', 1, db.proseHash(db.passagesOfChapter(ch.id).map((x: any) => x.body)), 'model');

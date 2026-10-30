@@ -4034,7 +4034,7 @@ export const routes: Record<string, Handler> = {
     if (!db.setActiveBranch(c.body.storyId, c.body.id)) return { error: 'no such branch' };
     return viewOf(c, c.body.storyId);
   },
-  'POST /api/passage':   (c) => { db.editPassage(c.body.storyId, c.body.id, c.body.body); return viewOf(c, c.body.storyId); },
+  'POST /api/passage':   (c) => { db.editPassage(c.body.storyId, c.body.id, c.body.body, c.body.again === true); return viewOf(c, c.body.storyId); },
   'DELETE /api/passage': (c) => {
     // One take, or the whole slot. Two intents behind one press, so the caller says which.
     const gone = c.body.allTakes ? db.delSlot(c.body.storyId, c.body.id)

@@ -158,7 +158,8 @@ export const api = {
   hemAgain:     (storyId, chapterId, o) => j('/api/chapter/hem', 'POST', { storyId, chapterId, ...o }),
   write:        (storyId, o)     => j('/api/write', 'POST', { storyId, ...o }),
   accept:       (storyId, o)     => j('/api/accept', 'POST', { storyId, ...o }),
-  editPassage:  (storyId, id, body) => j('/api/passage', 'POST', { storyId, id, body }),
+  // `again`: a later write of the same Alter, which keeps no revision of its own (ADR 0004).
+  editPassage:  (storyId, id, body, again = false) => j('/api/passage', 'POST', { storyId, id, body, again }),
   // allTakes deletes the whole slot rather than the take on screen. Two intents, one route.
   // Everything below one passage, and a whole chapter. Both take storyId, which is what the
   // ownership gate in serve.ts reads.

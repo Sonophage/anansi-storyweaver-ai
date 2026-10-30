@@ -557,7 +557,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
   // #43. A chapter summary edited or written by hand.
   'editsum', 'savesum',
-  'dismiss', 'modelmenu', 'choosemodel', 'editsave', 'editx', 'sumtab', 'findtag', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
+  'dismiss', 'modelmenu', 'choosemodel', 'editdone', 'editundo', 'sumtab', 'findtag', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
   // genre before the book exists.
@@ -1715,23 +1715,33 @@ function passageHTML(p, newest, opening) {
     ? `<div class="cameback">written while you were away &mdash; carry on and it is yours</div>` : '';
   /* ALTER IS THE FULL-SCREEN BOX TOO (Seth, 2026-10-26: "The edit screen should be the same
    * maximized input screen"). It edited the paragraph in place, with Save and Cancel under it;
-   * now it is Reweave's full-screen box with the passage's own text in it, Cancel on the left and
-   * Save on the right. The page under it does not move. */
+   * now it is Reweave's full-screen box with the passage's own text in it. The page under it does
+   * not move.
+   *
+   * SAVED AS YOU TYPE (ADR 0004, pass three). Its Save became Done, on the right, which writes what
+   * the pause has not yet and shuts the box; its Cancel became Undo my changes, on the left, which
+   * puts the passage back as it was when Alter opened (see writePassEdit). */
   const pe = S.passEdit?.id === p.id ? `<div class="rerollbox" role="dialog" aria-label="Alter this passage">
-    <div class="rwhead"><div class="lbl flush wide">Alter this passage</div></div>
+    <div class="rwhead"><div class="lbl flush wide">Alter this passage</div>
+      <div class="hint flush">Saved as you type.</div></div>
     <div class="rwrow">
-      <button data-editx="1" class="rwside" aria-label="Cancel, and keep the passage as it is"
-        >${mark('expand', 18)}<span class="btnword">Cancel</span></button>
+      <button data-editundo="1" class="rwside" aria-label="Undo my changes: put the passage back as it was when Alter opened"
+        >${mark('expand', 18)}<span class="btnword">Undo my changes</span></button>
       <textarea class="field ${spoken ? 'said' : 'narr'}" data-editbox="1" aria-label="The passage">${esc(S.passEdit.text)}</textarea>
-      <button data-editsave="${esc(p.id)}" class="rwside rwgo" aria-label="Save"
-        >${mark('send', 18)}<span class="btnword">Save</span></button>
+      <button data-editdone="${esc(p.id)}" class="rwside rwgo" aria-label="Done"
+        >${mark('send', 18)}<span class="btnword">Done</span></button>
     </div></div>` : '';
   return `<div class="${cls}">${from}${body}${away}${acts}${rr}${pe}</div>${carry}`;
 }
 
-// What is typed in the Alter box survives a repaint: drawDoc draws the box from S.passEdit.
+// What is typed in the Alter box survives a repaint: drawDoc draws the box from S.passEdit. It is
+// written once the typing pauses (ADR 0004), for the book it was typed in.
 document.addEventListener('input', (e) => {
-  if (S.passEdit && e.target?.matches?.('[data-editbox]')) S.passEdit.text = e.target.value;
+  if (S.passEdit && e.target?.matches?.('[data-editbox]')) {
+    const pe = S.passEdit, storyId = S.storyId;
+    pe.text = e.target.value;
+    saveSoon(`passedit:${pe.id}`, () => writePassEdit(pe, storyId));
+  }
   // The Reweave box's two fields, the same way: passageHTML draws them from S.reroll.
   if (S.reroll && e.target?.matches?.('[data-rerollbox]')) S.reroll.text = e.target.value;
   if (S.reroll && e.target?.matches?.('[data-rerollwhy]')) S.reroll.why = e.target.value;
@@ -1755,15 +1765,55 @@ document.addEventListener('input', (e) => {
 });
 /** Where the page should stay through the next repaint, or null (see drawDoc). */
 let HOLD_SCROLL = null;
-/** CANCEL ON THE ALTER BOX. Straight out when nothing changed; with a change, the app's two-press
- *  rule, so a slip of the thumb cannot throw away a paragraph. Esc and Back come through here too. */
-function closePassEdit(t = null) {
+/** ONE WRITE OF THE ALTER BOX (ADR 0004: it saves as you type). Writes in turn, never two at once, so
+ *  the first of an opening is the one that keeps what was there (`again` false) and a slow write
+ *  cannot land after a later one. Nothing is sent when the text is what was last written. A refusal
+ *  is said, and the text stays unwritten, so Done tries it again. Resolves to the server's answer. */
+function writePassEdit(pe, storyId = S.storyId, text = pe.text) {
+  pe.chain = (pe.chain ?? Promise.resolve()).then(async () => {
+    if (text === (pe.saved ?? pe.was)) return {};
+    const r = await api.editPassage(storyId, pe.id, text, !!pe.wrote);
+    if (!r || r.error) { toast(`Not saved. ${r?.error ?? 'The server did not answer.'}`); return r ?? { error: 'no answer' }; }
+    pe.wrote = true; pe.saved = text;
+    // The page shows it at once; the box is not redrawn, so the caret stays where it is.
+    const row = S.storyId === storyId ? (V?.passages ?? []).find((x) => x.id === pe.id) : null;
+    if (row) row.body = text;
+    return r;
+  });
+  return pe.chain;
+}
+/** Shut the Alter box, and draw the tale again from the server when anything was written. */
+async function shutPassEdit(pe) {
+  if (S.passEdit === pe) S.passEdit = null;
+  HOLD_SCROLL = $('read')?.scrollTop ?? null;
+  if (!pe.wrote || !S.storyId) return drawDoc();
+  V = await api.story(S.storyId, V.currentChapter.id);
+  paint(); refreshHistory();
+}
+/** DONE, Esc and Back: what the pause has not written yet is written now, and then the box shuts.
+ *  A refused write keeps it open with the words in it. Returns whether it shut. */
+async function finishPassEdit() {
+  const pe = S.passEdit; if (!pe) return true;
+  dropSoon(`passedit:${pe.id}`);
+  pe.text = document.querySelector('[data-editbox]')?.value ?? pe.text;
+  const r = await writePassEdit(pe);
+  if (r?.error) return false;
+  await shutPassEdit(pe);
+  return true;
+}
+/** UNDO MY CHANGES (ADR 0004: Alter's Cancel). The passage as it was when Alter opened, written back
+ *  when anything had been, and the box shut. With a change typed, the app's two-press rule, since it
+ *  throws the typing away. Back to what it was is the same Alter, so it keeps no second row. */
+async function undoPassEdit(t = null) {
   const pe = S.passEdit; if (!pe) return;
   const now = document.querySelector('[data-editbox]')?.value ?? pe.text;
   if (now !== pe.was && !armed(t, `passedit:${pe.id}`,
-    'You have changes that are not saved. Press Cancel again to throw them away, or Save.')) return false;
-  S.passEdit = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc();
-  return true;
+    'Press Undo my changes again to put the passage back as it was when you opened it.')) return;
+  dropSoon(`passedit:${pe.id}`);
+  pe.text = pe.was;
+  const r = await writePassEdit(pe);
+  if (r?.error) return;
+  await shutPassEdit(pe);
 }
 
 function drawDoc() {
@@ -9781,14 +9831,12 @@ function closeLayersBack() {
   const l = history.state?.layer ?? null;
   // The full-screen Reweave box (2026-10-25) is a layer like the full-screen composer: Back closes it.
   if (S.reroll && l !== 'reweave') { S.reroll = null; drawDoc(); syncTray(); }
-  // Back from the Alter box follows Cancel's rule: with changes, the step is put back and asked.
+  // Back from the Alter box is Done (ADR 0004: it saves as you type, so leaving loses nothing). A
+  // refused write puts the step back, with the box open and the words in it.
   if (S.passEdit && l !== 'alter') {
-    const now = document.querySelector('[data-editbox]')?.value ?? S.passEdit.text;
-    if (now !== S.passEdit.was && !(S.backArmed && Date.now() - S.backArmed < 6000)) {
-      S.backArmed = Date.now();
-      history.pushState({ ...history.state, layer: 'alter' }, '', location.href);
-      toast('You have changes that are not saved. Press Back again to throw them away, or Save.');
-    } else { S.backArmed = 0; S.passEdit = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc(); }
+    void finishPassEdit().then((shut) => {
+      if (!shut) history.pushState({ ...history.state, layer: 'alter' }, '', location.href);
+    });
   }
   // #126. The pocket panel, by the same rule.
   if (S.pocket && l !== 'pocket') {
@@ -11666,10 +11714,22 @@ document.addEventListener('input', (e) => {
   clearTimeout(was?.timer);
   typedWait.set(el, { where, timer: setTimeout(() => saveTyped(el, where), TYPED_PAUSE) });
 });
+/** THE SAME PAUSE, FOR THE OPEN EDITORS (ADR 0004, pass three): the Alter box and the panels that
+ *  had a Save. `typedWait` is keyed by a box and knows only the Tale's and the scene's fields; these
+ *  are keyed by what is open, and `run` holds the book and the row the words were typed for. A later
+ *  keystroke puts the write back to the end of a new pause. `dropSoon` takes one off the wait, for a
+ *  press that writes it now itself (Done, Undo my changes). */
+const soonWait = new Map();
+function saveSoon(key, run) {
+  clearTimeout(soonWait.get(key)?.timer);
+  soonWait.set(key, { run, timer: setTimeout(() => { soonWait.delete(key); void run(); }, TYPED_PAUSE) });
+}
+function dropSoon(key) { clearTimeout(soonWait.get(key)?.timer); soonWait.delete(key); }
 // A tab hidden or a phone locked inside the pause still saves what was typed.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'hidden') return;
   for (const [el, w] of [...typedWait]) saveTyped(el, w.where);
+  for (const [key, w] of [...soonWait]) { dropSoon(key); void w.run(); }
 });
 
 /** The number beside a slider, while it is moving.
@@ -12807,6 +12867,8 @@ document.addEventListener('click', async (e) => {
   if (d.ed) {
     const p = (V.passages ?? []).find((x) => x.id === d.ed);
     if (!p) return;
+    // One open at a time: the one already open is finished first, as Done would.
+    if (S.passEdit && !(await finishPassEdit())) return;
     // The tray goes first: it is a sheet over the middle of the screen.
     openTray(null);
     S.passEdit = { id: p.id, text: p.body, was: p.body };
@@ -12817,20 +12879,8 @@ document.addEventListener('click', async (e) => {
     if (box) { box.focus({ preventScroll: true }); box.setSelectionRange(box.value.length, box.value.length); }
     return;
   }
-  if (d.editx) return closePassEdit(t);
-  if (d.editsave) {
-    const pe = S.passEdit; if (!pe) return;
-    const text = document.querySelector('[data-editbox]')?.value ?? pe.text;
-    if (text === pe.was) { S.passEdit = null; HOLD_SCROLL = $('read')?.scrollTop ?? null; drawDoc(); return; }
-    const r = await whileWorking(t, 'Saving\u2026', () => api.editPassage(S.storyId, pe.id, text));
-    if (!r) return;
-    if (r.error) return toast(r.error);
-    V = await api.story(S.storyId, V.currentChapter.id);
-    S.passEdit = null;
-    HOLD_SCROLL = $('read')?.scrollTop ?? null;
-    paint(); refreshHistory();
-    return;
-  }
+  if (d.editundo) return void undoPassEdit(t);
+  if (d.editdone) return void finishPassEdit();
 
   // --- history
   if (d.hi) {
@@ -14805,7 +14855,7 @@ $('scrim').addEventListener('click', () => {
 });
 $('side').addEventListener('click', (e) => { if (phone() && e.target === $('side')) { S.panel = null; paint(); } });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && S.passEdit) { closePassEdit(); return; }
+  if (e.key === 'Escape' && S.passEdit) { void finishPassEdit(); return; }
   if (e.key === 'Escape' && S.pocket) { closePocket(); return; }
   // #74 · THE DECK BY KEYS: right arrow is the top card's yes and left its no, as the buttons are,
   // when the Workbench is open and nothing is being typed.

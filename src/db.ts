@@ -2286,11 +2286,14 @@ export function backfillActPrints(): number {
 export const passagesOfChapter = (chapterId: string) =>
   q('SELECT * FROM passages WHERE chapter_id = ? AND selected = 1 ORDER BY ordinal').all(chapterId) as any[];
 
-export function editPassage(storyId: string, id: string, body: string) {
+/** `again`: a later write of the same Alter (ADR 0004: Alter saves as you type, once per pause).
+ *  The first write of an opening keeps what was there as a revision; the later ones only change
+ *  the text, so one Alter is one row in Alterations and not one per pause in the typing. */
+export function editPassage(storyId: string, id: string, body: string, again = false) {
   const cur = q('SELECT body, story_id FROM passages WHERE id = ? AND story_id = ?')
     .get(id, storyId) as any;
   if (!cur) return;
-  q('INSERT INTO passage_revisions (id,passage_id,body,replaced_at) VALUES (?,?,?,?)')
+  if (!again) q('INSERT INTO passage_revisions (id,passage_id,body,replaced_at) VALUES (?,?,?,?)')
     .run(uid('pr-'), id, cur.body, now());
   q('UPDATE passages SET body = ? WHERE id = ?').run(body, id);
   touch(cur.story_id);

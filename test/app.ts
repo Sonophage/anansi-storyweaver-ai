@@ -9032,4 +9032,84 @@ ok('the setup Talk names its session, copies its prompt, and opens and deletes p
 }
 ok('the setup Talk is the full-screen composer: the talk above the box, Back and Send, and Back, Esc and the browser close it');
 
+// ---- ALTER SAVES AS YOU TYPE (ADR 0004, pass three; Seth, 2026-10-25: "Everything saves as you go.
+// There is no Save button."). The passage's Alter box writes once the typing pauses, Done writes what
+// is left and shuts it, and Cancel is Undo my changes: the passage as it was when Alter opened.
+{
+  click({ open: 's-1' }); await sleep(40);
+  const canned = (globalThis as any).fetch;
+  let refuse = false;
+  (globalThis as any).fetch = async (url: string, init?: any) => {
+    if (url === '/api/passage' && refuse) {
+      POSTED.push({ url, body: JSON.parse(init.body), method: init.method });
+      return { ok: false, status: 500, json: async () => ({ error: 'the disk is full' }) };
+    }
+    return canned(url, init);
+  };
+  const edits = () => POSTED.filter((x) => x.url === '/api/passage').map((x) => x.body);
+  const typeAlter = (value: string) => (listeners.input ?? []).forEach((f: Function) =>
+    f({ target: { id: '', dataset: { editbox: '1' }, value, matches: (q: string) => q === '[data-editbox]', closest: () => null } }));
+  // The canned view is the fixture itself, so the page's copy of the passage is the fixture's: put back after.
+  const P2 = STORY.passages.find((x: any) => x.id === 'p-2') as any, ORIGINAL = P2.body;
+  try {
+    click({ ed: 'p-2' }); await sleep(20);
+    const col = html('col');
+    assert.match(col, /data-editbox="1"/, 'ALTER-OPEN: Alter opens its box');
+    assert.doesNotMatch(col, /data-editsave|btnword">Save</, 'ALTER-NO-SAVE: and there is no Save on it');
+    assert.match(col, /data-editundo="1"[\s\S]*?Undo my changes/, 'ALTER-UNDO-SHOWN: Cancel is Undo my changes');
+    assert.match(col, /data-editdone="p-2"[\s\S]*?Done/, 'ALTER-DONE-SHOWN: and the main press is Done');
+    POSTED.length = 0;
+    typeAlter('"You came alone, then."');
+    await sleep(400);
+    assert.deepStrictEqual(edits(), [], 'ALTER-PAUSE: nothing is written while the typing goes on');
+    await sleep(700);
+    assert.deepStrictEqual(edits(), [{ storyId: 's-1', id: 'p-2', body: '"You came alone, then."', again: false }],
+      'ALTER-AUTOSAVE: the pause writes what was typed, keeping what was there');
+    typeAlter('"You came alone, then. Good."');
+    await sleep(1000);
+    assert.deepStrictEqual(edits()[1], { storyId: 's-1', id: 'p-2', body: '"You came alone, then. Good."', again: true },
+      'ALTER-AGAIN-SENT: the next pause is the same Alter, and keeps no second row');
+    // THE LAST KEYSTROKE: typed and Done pressed inside the pause, it is written before the box shuts.
+    typeAlter('"You came alone, then. Good. Sit."');
+    click({ editdone: 'p-2' }); await sleep(40);
+    assert.strictEqual(edits().at(-1)?.body, '"You came alone, then. Good. Sit."', 'ALTER-DONE-FLUSH: Done writes what the pause had not');
+    assert.strictEqual(edits().length, 3, '  once');
+    assert.doesNotMatch(html('col'), /data-editbox/, 'ALTER-DONE: and shuts the box');
+    await sleep(1000);
+    assert.strictEqual(edits().length, 3, 'ALTER-DONE-ONCE: and the pause that was waiting does not write it again');
+
+    // UNDO MY CHANGES puts back what was there when it opened, and saves that. Two presses, since it
+    // throws typing away.
+    POSTED.length = 0;
+    const opened = P2.body;
+    assert.strictEqual(opened, '"You came alone, then. Good. Sit."', 'ALTER-KEPT: what Done wrote is the passage now');
+    click({ ed: 'p-2' }); await sleep(20);
+    typeAlter('"Wrong."');
+    await sleep(1000);
+    click({ editundo: '1' }); await sleep(20);
+    assert.match(html('col'), /data-editbox/, 'ALTER-UNDO-ASKS: the first press of Undo asks');
+    click({ editundo: '1' }); await sleep(40);
+    assert.deepStrictEqual(edits().map((b: any) => [b.body, b.again]), [['"Wrong."', false], [opened, true]],
+      'ALTER-UNDO: the second puts the passage back as it was, as the same Alter');
+    assert.doesNotMatch(html('col'), /data-editbox/, '  and shuts the box');
+
+    // A REFUSED WRITE SAYS SO, and Done does not shut what could not be saved.
+    POSTED.length = 0; refuse = true;
+    click({ ed: 'p-2' }); await sleep(20);
+    typeAlter('"Lost?"');
+    await sleep(1000);
+    assert.match(String(nodes.get('toast').textContent), /Not saved\. the disk is full/, 'ALTER-REFUSED: a refused write is said');
+    click({ editdone: 'p-2' }); await sleep(40);
+    assert.match(html('col'), /data-editbox/, 'ALTER-REFUSED-OPEN: and Done keeps the box open with the words in it');
+    assert.strictEqual(edits().length, 2, '  having tried again');
+    refuse = false;
+    click({ editdone: 'p-2' }); await sleep(40);
+    assert.strictEqual(edits().at(-1)?.body, '"Lost?"', 'ALTER-REFUSED-RETRY: once the server takes it, Done writes it');
+    assert.doesNotMatch(html('col'), /data-editbox/, '  and shuts');
+  } finally {
+    (globalThis as any).fetch = canned; refuse = false; P2.body = ORIGINAL;
+  }
+}
+ok('Alter saves as you type: a pause writes, Done writes the rest, Undo my changes puts it back, a refusal is said');
+
 console.log(`\n${n} checks passed`);

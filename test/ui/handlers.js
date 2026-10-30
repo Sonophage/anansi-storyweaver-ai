@@ -171,7 +171,7 @@ await wait(350);
 // The full-screen Alter box since 2026-10-26: its text, then Save.
 await page.eval("(() => { const b = document.querySelector('[data-editbox]');"
   + " b.value = 'EDITED WHILE HISTORY WAS OPEN.'; b.dispatchEvent(new Event('input', { bubbles: true }));"
-  + " document.querySelector('[data-editsave]').click(); return 1; })()");
+  + " document.querySelector('[data-editdone]').click(); return 1; })()");
 for (let i = 0; i < 30; i++) {
   if ((await page.eval("document.querySelectorAll('[data-restore]').length")) > editsBefore) break;
   await wait(300);

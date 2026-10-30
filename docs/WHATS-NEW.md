@@ -16,6 +16,15 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-30 · Everything saves as you type
+
+### Altering a passage saves as you type
+There is no Save on the Alter box any more. What you type is kept a moment after you stop, and
+Done keeps the last of it and closes the box. Cancel is now Undo my changes: it puts the passage
+back as it was when you opened Alter. Esc and Back keep what you typed. If a change cannot be
+saved, Anansi says so and the box stays open with your words in it. One opening of Alter is still
+one entry in the passage's Alterations, however long you type.
+
 ## 2026-10-30 · The next scene starts the way you say
 
 ### A hem you never answered waits for you
