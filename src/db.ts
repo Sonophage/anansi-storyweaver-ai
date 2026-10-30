@@ -1980,9 +1980,14 @@ export function stopUnfinishedHems(order: readonly string[]): number {
 /** #90. The threads the thread-change pass found changed past its cap of six, by name, for the card.
  *  Written by that pass when a hem runs it; a hem again starts the row with none. */
 /** The pass a hem's run has reached, and when; a stale run never overwrites a newer one's. */
-export const hemAt = (storyId: string, chapterId: string, run: number, pass: string) =>
-  q('UPDATE hems SET pass = ?, pass_at = ? WHERE chapter_id = ? AND story_id = ? AND run = ?')
-    .run(pass, now(), chapterId, storyId, run);
+/** Which pass a hem is on, and since when. ANY RUN WRITES IT (2026-10-30). Asking for the next scene
+ *  reopens the hem as a new run (`reopenHem`) while the first run is still working through its passes
+ *  in the queue, and the `run = ?` this had kept the first run from saying where it was: the screen
+ *  showed "Where the tale stands" running for minutes while the hem was on the thread changes. The
+ *  tale's queue runs one job at a time, so the run writing this is the one running. */
+export const hemAt = (storyId: string, chapterId: string, _run: number, pass: string) =>
+  q('UPDATE hems SET pass = ?, pass_at = ? WHERE chapter_id = ? AND story_id = ?')
+    .run(pass, now(), chapterId, storyId);
 /** The new threads a hem found past six, held whole (each a proposal as `addProposal` takes it). */
 export const hemHold = (storyId: string, chapterId: string, held: any[]) =>
   q('UPDATE hems SET extra = ? WHERE chapter_id = ? AND story_id = ?')

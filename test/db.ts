@@ -4414,6 +4414,15 @@ ok('a hem left running by a restart is stopped, naming the passes it did not fin
   const h2 = db.hemOf(t.id, one.id)!;
   assert.deepStrictEqual(Object.entries(h2.passes).filter(([, w]) => w).map(([k]) => k), ['finished'],
     'HEM-SWEEP-RAN: a pass the report says ran is not reported as not run');
+  // THE FIRST RUN STILL SAYS WHERE IT IS after the hem is reopened (2026-10-30): asking for the next
+  // scene reopens it while the first run's passes are still queued, and the screen froze on the pass
+  // the first run had reached before.
+  const r1 = db.beginHem(t.id, one.id);
+  db.hemAt(t.id, one.id, r1, 'tale');
+  db.reopenHem(t.id, one.id);
+  db.hemAt(t.id, one.id, r1, 'memory');
+  assert.strictEqual(db.hemOf(t.id, one.id)?.current?.pass, 'memory', 'HEM-AT-ANY-RUN: the first run moves the screen on, after a reopen');
+  db.stopUnfinishedHems(ORDER);
   // NOTHING LEFT RUNNING, nothing written: a second boot finds none.
   assert.strictEqual(db.stopUnfinishedHems(ORDER), 0, 'HEM-SWEEP-ONCE: a later boot stops nothing');
   db.delStory(t.id);
