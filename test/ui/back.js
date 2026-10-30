@@ -23,11 +23,11 @@ const tale = await state();
 ok(`a tale opens from the library (${JSON.stringify(tale)})`, tale.tale && !tale.drawer && /^#[^/]+$/.test(tale.hash));
 
 // A drawer, opened the way a writer opens one: a press on a control, not a pasted address.
-await page.eval("(() => { location.hash = location.hash.split('/')[0] + '/anansi'; return 1; })()");
+await page.eval("(() => { location.hash = location.hash.split('/')[0] + '/strings'; return 1; })()");
 await wait(700);
 const open = await state();
 ok(`a press opens a drawer and names it in the address (${JSON.stringify(open)})`,
-   open.drawer && open.hash === tale.hash + "/anansi");
+   open.drawer && open.hash === tale.hash + "/strings");
 
 await page.eval("(() => { history.back(); return 1; })()");
 await wait(900);
@@ -37,7 +37,7 @@ ok(`Back shuts the drawer and stays in the tale (${JSON.stringify(back)})`,
 
 // The ✕ path: a drawer shut by a press must not leave a dead entry for Back to land on. The
 // press is `data-panel=""`, the same action the drawer's own close button carries.
-await page.eval("(() => { location.hash = location.hash.split('/')[0] + '/anansi'; return 1; })()");
+await page.eval("(() => { location.hash = location.hash.split('/')[0] + '/strings'; return 1; })()");
 await wait(700);
 const len = await page.eval("history.length");
 await page.eval("(() => { document.querySelector('#side [data-panel=\"\"]').click(); return 1; })()");
@@ -54,7 +54,7 @@ ok(`  and the next Back goes to the library, not to the same tale again (${JSON.
 // Esc. The keyboard path set the panel to null and repainted without touching the address.
 await page.click("#page [data-open]");
 await wait(1400);
-await page.eval("(() => { location.hash = location.hash.split('/')[0] + '/anansi'; return 1; })()");
+await page.eval("(() => { location.hash = location.hash.split('/')[0] + '/strings'; return 1; })()");
 await wait(700);
 await page.key("Escape", 27);
 await wait(500);
@@ -94,7 +94,7 @@ await page.click("#page [data-open]");
 await wait(1400);
 await layer('read', "document.querySelector('#bar [data-readmode]').click()");
 await wait(500);
-await page.eval("(() => { location.hash = location.hash.split('/')[0] + '/anansi'; return 1; })()");
+await page.eval("(() => { location.hash = location.hash.split('/')[0] + '/strings'; return 1; })()");
 await wait(600);
 await page.eval("(() => { history.back(); return 1; })()");
 await wait(900);

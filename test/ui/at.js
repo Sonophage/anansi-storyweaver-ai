@@ -1,6 +1,9 @@
 // Issue #7, the buildable half: "I should be able to summon threads, stories or chapters by using
 // the @ symbol and then typing the letters and an autocomplete comes up."
 //
+// Since 2026-10-29 Talk lives in the composer (no Talk drawer in a tale), so the first half drives
+// the composer in Talk, which the address /anansi turns it to.
+//
 // The scoping is Seth's: "it should look inside the story and its threads. it can reach other
 // books but only the users. it shouldnt reach out to another users anything." Every source the
 // menu reads — V.entries, V.chapters, LIB, LEDGER — is already owner-scoped in SQL, so the last
@@ -13,16 +16,26 @@ let red = 0;
 const ok = (l, g) => { if (!g) red++; console.log("  " + (g ? "ok  " : "RED ") + l); };
 
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
-await page.goto(B + "/#" + sid + "/anansi");
-for (let i = 0; i < 40 && !(await page.visible('#askBox')); i++) await wait(250);
-ok("the Anansi panel opens with its ask box", await page.visible('#askBox'));
+// The tale, then Alt+T, which turns the composer to Talk (the harness's goto reloads after the hash
+// moves, so the /anansi address would be read by a page that is then thrown away).
+const talkOpen = async () => {
+  await page.goto(B + "/#" + sid);
+  for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('#bar')")); i++) await wait(250);
+  await wait(600);
+  await page.eval("(() => { document.activeElement?.blur(); return 1; })()");
+  await page.key('t', 84, 1);
+  for (let i = 0; i < 40 && !(await page.visible('#input')); i++) await wait(250);
+};
+await talkOpen();
+ok("Alt+T turns the composer to Talk, with its box", await page.visible('#input')
+   && await page.eval("document.getElementById('dock').classList.contains('talking')"));
 
 // Type into the box the way a person does — set the value and fire `input`, which is what the
 // listener is bound to. The caret has to be at the end or the scan finds nothing.
-const type = (text) => page.eval(`(() => { const b = document.getElementById('askBox');
+const type = (text) => page.eval(`(() => { const b = document.getElementById('input');
   b.value = ${JSON.stringify(text)}; b.selectionStart = b.selectionEnd = b.value.length;
   b.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
-const menu = () => page.eval(`(() => { const l = document.getElementById('atlist');
+const menu = () => page.eval(`(() => { const l = document.getElementById('atlistInput');
   if (!l || l.hidden) return { open: false };
   return { open: true, items: [...l.querySelectorAll('[data-atpick]')].map(b => b.textContent.replace(/\\s+/g, ' ').trim()) };
 })()`);
@@ -59,23 +72,23 @@ ok("a query that matches nothing shows no menu", !(await menu()).open);
 await type("what happened with the @key");
 m = await menu();
 if (!m.open) { ok("the menu is open to accept from", false); } else {
-  await page.eval("(() => { const b = document.querySelector('#atlist [data-atpick=\"0\"]');"
+  await page.eval("(() => { const b = document.querySelector('#atlistInput [data-atpick=\"0\"]');"
     + " b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); return 1; })()");
   await wait(250);
-  const after = await page.eval("document.getElementById('askBox').value");
+  const after = await page.eval("document.getElementById('input').value");
   console.log("  after accepting: " + JSON.stringify(after));
   ok(`accepting writes the name into the question (${JSON.stringify(after)})`, /Silver Key/i.test(after));
   ok("  and the @ stays, so you can see what you summoned", after.includes('@the Silver Key'));
   ok("  and the menu closes", !(await menu()).open);
   // The caret has to land after the name, or the next word is typed into the middle of it.
-  const caret = await page.eval("document.getElementById('askBox').selectionStart");
+  const caret = await page.eval("document.getElementById('input').selectionStart");
   ok(`  with the caret after what it inserted (${caret} of ${after.length})`, caret === after.length);
 
   // THE ACCENT IS THE RECEIPT. Seth asked for the @ to be marked AND for "a way to know if it did
   // pull from the id or not"; those are one mechanism, because a mention is marked only while it
   // is still going to be sent. Both directions, or the mark means nothing: a picked name lights
   // up, a hand-typed one does not.
-  const marks = () => page.eval("(() => [...document.querySelectorAll('#askMirror mark')].map(m => m.textContent))()");
+  const marks = () => page.eval("(() => [...document.querySelectorAll('#inputMirror mark')].map(m => m.textContent))()");
   let mk = await marks();
   console.log("  marked: " + JSON.stringify(mk));
   ok(`  and the name is marked, because it resolved (${JSON.stringify(mk)})`,
@@ -95,7 +108,7 @@ if (!m.open) { ok("the menu is open to accept from", false); } else {
 // ---- Escape closes it, and Enter then asks rather than picking
 await type("about @key");
 ok("the menu is open again", (await menu()).open);
-await page.eval("(() => { document.getElementById('askBox').dispatchEvent("
+await page.eval("(() => { document.getElementById('input').dispatchEvent("
   + " new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); return 1; })()");
 await wait(200);
 ok("Escape closes it", !(await menu()).open);
@@ -129,7 +142,7 @@ const askWith = async (text) => {
   await type(text);
   const m2 = await menu();
   if (m2.open) {
-    await page.eval("(() => { const b = document.querySelector('#atlist [data-atpick=\"0\"]');"
+    await page.eval("(() => { const b = document.querySelector('#atlistInput [data-atpick=\"0\"]');"
       + " b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); return 1; })()");
     await wait(250);
   }
@@ -139,7 +152,7 @@ const askWith = async (text) => {
 if (!(await askWith("tell me about @key"))) {
   ok("a mention can be accepted before asking", false);
 } else {
-  await page.eval("(() => { document.querySelector('[data-ask]')?.click(); return 1; })()");
+  await page.eval("(() => { document.querySelector('#send')?.click(); return 1; })()");
   await wait(500);
   const sent = await page.eval("window.__sent");
   console.log("  sent: " + JSON.stringify(sent && { said: sent.said, mentions: sent.mentions }));
@@ -156,7 +169,7 @@ if (!(await askWith("tell me about @key"))) {
   ok("a mention can be accepted before deleting it", false);
 } else {
   await type("tell me about something else entirely");
-  await page.eval("(() => { document.querySelector('[data-ask]')?.click(); return 1; })()");
+  await page.eval("(() => { document.querySelector('#send')?.click(); return 1; })()");
   await wait(500);
   const sent2 = await page.eval("window.__sent");
   console.log("  after deleting the name: " + JSON.stringify(sent2 && sent2.mentions));
@@ -255,21 +268,9 @@ if (cm.open) {
   // transparent — which is exactly the state that shipped.
   ok(`  and the mirror's own text is readable (${ink && ink.plain})`,
      !!ink && !/rgba\(0, 0, 0, 0\)|transparent/.test(ink.plain));
-  // THE TWO BOXES MUST NOT SHARE A STORE. The first version of this checked that #askMirror had
-  // no marks — and passed with the stores merged, because the ask box was EMPTY after a reload and
-  // an empty box has nothing to mark either way. Decorative. So: open the Anansi panel, put the
-  // same name in ITS box, and assert the composer's pick did not light it up there.
-  await page.eval("(() => { location.hash = location.hash.split('/')[0] + '/anansi'; return 1; })()");
-  await wait(500);
-  await page.eval(`(() => { const b = document.getElementById('askBox');
-    if (!b) return 0; b.value = 'and what about @the Silver Key';
-    b.selectionStart = b.selectionEnd = b.value.length;
-    b.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
-  await wait(300);
-  const askMarks = await page.eval("(() => [...document.querySelectorAll('#askMirror mark')].map(m => m.textContent))()");
-  console.log("  ask box marks after a COMPOSER pick: " + JSON.stringify(askMarks));
-  ok("  a name picked in the composer does not light up in the ask box — separate stores",
-     askMarks.length === 0);
+  // THE TWO BOXES MUST NOT SHARE A STORE was checked here until 2026-10-29, when the Talk drawer and
+  // its ask box left the tale (Seth: "drop the Talk drawer"). Talk is the composer now, so there is
+  // one box and one store, and nothing left for the check to tell apart.
 }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");
@@ -295,8 +296,7 @@ console.log(red ? `\n  ${red} RED` : "\n  all green");
         activation: 'always_on', keys: [], lastEditor: 'human', title: 'Silvermark',
         body: '[Silvermark: a name that exists only in the other book]' } }) });
     return r.id; })()`);
-  await page.goto(B + "/#" + sid + "/anansi");
-  for (let i = 0; i < 40 && !(await page.visible('#askBox')); i++) await wait(250);
+  await talkOpen();
   const shelf = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.map(s=>s.title))()");
   ok(`the shelf has more than one book, or this cannot be measured (${shelf.length})`, shelf.length > 1);
 
@@ -310,7 +310,7 @@ console.log(red ? `\n  ${red} RED` : "\n  all green");
      !!narrow.items && narrow.items.length > 0
        && narrow.items.every((t) => /this tale/i.test(t)));
   ok("  with the @@ hint on it, or nobody would find the wide search",
-     await page.eval("(() => (document.getElementById('atlist')?.textContent ?? '').includes('to search every tale'))()"));
+     await page.eval("(() => (document.getElementById('atlistInput')?.textContent ?? '').includes('to search every tale'))()"));
 
   await type("tell me about @@");
   const wide = await menu();
@@ -319,7 +319,7 @@ console.log(red ? `\n  ${red} RED` : "\n  all green");
   ok("  and reaches past this book",
      !!wide.items && wide.items.some((t) => /your library|another tale/i.test(t)));
   ok("  and the hint is gone once you are already wide",
-     !(await page.eval("(() => (document.getElementById('atlist')?.textContent ?? '').includes('to search every tale'))()")));
+     !(await page.eval("(() => (document.getElementById('atlistInput')?.textContent ?? '').includes('to search every tale'))()")));
 
   // Accepting from the wide list must eat BOTH @s, not leave one behind.
   await type("tell me about @@sil");
@@ -327,7 +327,7 @@ console.log(red ? `\n  ${red} RED` : "\n  all green");
   if (w2.open && w2.items.length) {
     await page.eval("(() => { document.querySelector('[data-atpick=\"0\"]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); return 1; })()");
     await wait(300);
-    const val = await page.eval("document.getElementById('askBox').value");
+    const val = await page.eval("document.getElementById('input').value");
     console.log("  after accept: " + JSON.stringify(val));
     ok("  accepting from @@ leaves one @ and no stray second one", !/@@/.test(val) && /@/.test(val));
   } else {

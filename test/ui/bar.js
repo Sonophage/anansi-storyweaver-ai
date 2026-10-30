@@ -178,8 +178,9 @@ ok("HINT-GOES: once a hold has worked, the hint is gone", !(await page.eval("!!d
 await page.eval(`(() => { const i = document.getElementById('input'); i.value = 'Who keeps the silver key?';
   i.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
 await press('#send');
-ok("HOLD-SENDS-TO-TALK: Send asks Anansi, and the question is in the Talk drawer",
-   await until("location.hash.endsWith('/anansi') && (document.getElementById('sideBody')?.textContent ?? '').includes('Who keeps the silver key?')", 40));
+ok("HOLD-SENDS-TO-TALK: Send asks Anansi, and the question is in the conversation above the box",
+   await until("!location.hash.endsWith('/anansi') && document.getElementById('side').hidden"
+     + " && (document.getElementById('talkthread')?.textContent ?? '').includes('Who keeps the silver key?')", 40));
 ok("  and no passage was written", (await models()) === m2);
 await open();
 ok("HINT-STAYS-GONE: after a hold the hint does not come back on the next load",
@@ -189,9 +190,9 @@ ok("HINT-STAYS-GONE: after a hold the hint does not come back on the next load",
 await page.click('#quill');
 await page.mode('talk');
 ok("TALK-DIAL: Talk to Anansi on the dial turns the box to Talk", await talking());
-// TALK, FULL SCREEN (2026-10-29): the head offers the conversation, and it opens above the box. (The
-// reload above emptied it, so the thread holds its opening line; test/app.ts checks the turns.)
-await press('#talkhead [data-talkfull]');
+// TALK, FULL SCREEN (2026-10-29): the composer's own Full screen, with the conversation above the box.
+// (The reload above emptied it, so the thread holds its openings; test/app.ts checks the turns.)
+await press('[data-bigin]');
 await wait(300);
 {
   const m = JSON.parse(await page.eval("(() => { const t = document.getElementById('talkthread'), i = document.getElementById('input');"

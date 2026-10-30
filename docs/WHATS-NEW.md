@@ -18,11 +18,18 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
-### Talk with Anansi full screen
-Talking to Anansi can now fill the screen the way the full-screen composer does: the conversation
-sits above the box and scrolls, and a question asked there is answered there. Open it with Full
-screen in the Talk drawer, or with "See the conversation" on the line above the box while you talk.
-Back to writing puts it away. The conversation lasts until you leave the tale, as before.
+### Talk with Anansi in the composer, not a drawer
+Talking to Anansi now happens in the box at the bottom of the tale: hold the quill, pick Talk on the
+dial, or press Alt+T. The conversation sits above the box, and Full screen gives it the whole
+screen. The Talk drawer is gone from a tale; anything that used to open it now turns the box to
+Talk. "Anansi may search", Clear, and a directive he drafted for you are there too. The
+conversation lasts until you leave the tale, as before. (While you set up a new tale, Talk is still
+the drawer beside it.)
+
+### Talk answers sooner on Featherless
+Some Featherless models kept writing well past their answer, and Talk could sit for four minutes
+before it replied. Talk's answers now have a length limit there, so a runaway answer is cut and
+asked again, cooler, in seconds.
 
 ### Back after closing a drawer
 Closing a drawer with its own ✕ and then pressing Back now goes back where you came from, instead

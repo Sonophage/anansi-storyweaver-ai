@@ -1486,7 +1486,10 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
     'ALWAYS-WEAVES: a passage is planned with the writer\'s 400 plus 5,000 with the switch off');
   fl.length = 0;
   await routes['POST /api/talk'](ctx(w, { storyId: book.id, said: 'What is this story about?' }));
-  assert.ok(!('max_tokens' in (chats()[0]?.body ?? {})), 'UNCAPPED: nor is Talk\'s');
+  // TALK IS CAPPED ON FEATHERLESS since 2026-10-29: Forgotten-Transgression-24B ran a Talk answer on
+  // to Featherless's own 4,096-token limit inside its JSON (226 s, cut), and the writer read that as
+  // Talk not answering. The cap is the room Talk is planned with, so a runaway is cut and retried.
+  assert.strictEqual(chats()[0]?.body?.max_tokens, 7400, 'TALK-CAPPED: Talk sends Featherless the room it is planned with');
   assert.strictEqual(plannedRoom(book.id, 'talk'), 7400, 'ALWAYS-WEAVES: and Talk is planned with 2,400 plus 5,000');
   const bg = await routes['POST /api/manifest'](ctx(w, { storyId: book.id, mode: 'continue' }));
   assert.strictEqual(bg.manifest.totals.budget, v.budget, 'the Context panel reserves the room the view does');

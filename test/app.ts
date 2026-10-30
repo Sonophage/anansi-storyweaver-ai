@@ -3087,13 +3087,13 @@ ok('the Context panel carries the weaving refusal the press would get, and nothi
     await sleep(30);
     // Talk: refused, then written anyway, and the question is asked once, not twice.
     stubTalk = refusal; POSTED.length = 0;
-    (document as any).getElementById('askBox').value = 'What is this story about?';
-    click({ ask: '1' });
+    (document as any).getElementById('input').value = 'What is this story about?';
+    click({ send: '1' });
     await sleep(60);
-    assert.ok(rowIn('sideBody').includes('2 oldest passages'), `a refused Talk draws the row in the Talk panel: ${rowIn('sideBody')}`);
-    assert.match(rowIn('sideBody'), /data-weaveanyway/, 'with Write anyway');
-    assert.match(rowIn('sideBody'), /data-weaveoff/, 'and Turn weaving off');
-    assert.ok(!rowIn('dockCol'), 'and not on the composer, which did not make the press');
+    assert.ok(rowIn('dockCol').includes('2 oldest passages'), `a refused Talk draws the row in the composer's Talk: ${rowIn('dockCol')}`);
+    assert.match(rowIn('dockCol'), /data-weaveanyway/, 'with Write anyway');
+    assert.match(rowIn('dockCol'), /data-weaveoff/, 'and Turn weaving off');
+    assert.ok(!rowIn('sideBody'), 'and not in a drawer: Talk has none in a tale (2026-10-29)');
     stubTalk = null;
     click({ weaveanyway: '1' });
     await sleep(80);
@@ -3101,13 +3101,13 @@ ok('the Context panel carries the weaving refusal the press would get, and nothi
     assert.strictEqual(talks()[1].body.weaveAnyway, true, 'with the override');
     assert.strictEqual(talks()[1].body.said, 'What is this story about?', 'the same question');
     assert.deepStrictEqual(talks()[1].body.turns, talks()[0].body.turns, 'with the conversation as it was, the question not repeated');
-    assert.ok(!rowIn('sideBody'), 'and the row is gone');
-    assert.ok(html('sideBody').includes('It is about a debt.'), 'and the answer arrives');
+    assert.ok(!rowIn('dockCol'), 'and the row is gone');
+    assert.ok(html('dockCol').includes('It is about a debt.'), 'and the answer arrives');
 
     // Turn weaving off from a refused Talk: saved, then asked again without the override.
     stubTalk = refusal; POSTED.length = 0;
-    (document as any).getElementById('askBox').value = 'Who is Marek?';
-    click({ ask: '1' });
+    (document as any).getElementById('input').value = 'Who is Marek?';
+    click({ send: '1' });
     await sleep(60);
     stubTalk = null;
     click({ weaveoff: '1' });
@@ -3141,32 +3141,30 @@ ok('the Context panel carries the weaving refusal the press would get, and nothi
 }
 ok('a refused Talk or invention gets the same row where it was asked, and each button asks again');
 
-// TALK, FULL SCREEN (Seth, 2026-10-29: "use the ui from the maximized edit screen for ai chat and an easy
-// way to see the conversation"). The drawer's Full screen hands the conversation to the full-screen
-// composer: the turns above, the box below, and a question asked there stays there.
+// TALK LIVES IN THE COMPOSER (Seth, 2026-10-29: "drop the Talk drawer"). Every door to the drawer in a
+// tale turns the composer to Talk; the conversation sits above the box, small or full screen, and a
+// question asked there stays there.
 {
   const talks = () => POSTED.filter((p: any) => p.url === '/api/talk');
   click({ open: 's-1' }); await sleep(40);
   click({ panel: 'anansi' }); await sleep(30);
-  (document as any).getElementById('askBox').value = 'Who is Marek?';
-  click({ ask: '1' }); await sleep(80);
-  assert.match(html('sideBody'), /data-talkfull="1"/, 'TALK-FULL-DOOR: the Talk drawer has a Full screen');
-  click({ talkfull: '1' }); await sleep(40);
-  const dock = html('dockCol');
-  assert.match(dock, /id="talkthread"/, 'TALK-FULL: the full-screen composer shows the conversation');
-  assert.ok(dock.includes('Who is Marek?') && dock.includes('It is about a debt.'), '  both sides of it');
-  assert.ok(dock.indexOf('id="talkthread"') < dock.indexOf('id="input"'), '  above the box');
+  assert.ok((document as any).getElementById('side').hidden, 'TALK-NO-DRAWER: the Talk drawer does not open in a tale');
+  assert.match(html('dockCol'), /id="talkthread"/, '  the composer turns to Talk instead, with the conversation above the box');
   POSTED.length = 0;
-  (document as any).getElementById('input').value = 'And the key?';
+  (document as any).getElementById('input').value = 'Who is Marek?';
   click({ send: '1' }); await sleep(80);
-  assert.strictEqual(talks().length, 1, 'TALK-FULL-SEND: Send there asks Anansi');
-  assert.ok(html('dockCol').includes('And the key?'), 'TALK-FULL-STAYS: and the question lands in the same conversation');
-  assert.ok((document as any).getElementById('side').hidden, '  and the drawer does not open over it');
+  assert.strictEqual(talks().length, 1, 'TALK-DOCK-SEND: Send asks Anansi');
+  const dock = html('dockCol');
+  assert.ok(dock.includes('Who is Marek?') && dock.includes('It is about a debt.'), 'TALK-DOCK-TURNS: both sides of the conversation, in the composer');
+  assert.ok(dock.indexOf('id="talkthread"') < dock.indexOf('id="input"'), '  above the box');
+  assert.ok((document as any).getElementById('side').hidden, '  and no drawer opened for the answer');
+  click({ bigin: '1' }); await sleep(20);
+  assert.ok(html('dockCol').includes('Who is Marek?'), 'TALK-FULL: full screen keeps the same conversation');
+  click({ bigin: '1' }); await sleep(20);
   click({ dockwrite: '1' }); await sleep(30);
   assert.doesNotMatch(html('dockCol'), /id="talkthread"/, '  Back to writing puts the conversation away');
-  click({ bigin: '1' }); await sleep(20);
 }
-ok('Talk goes full screen with the conversation above the box, and a question asked there stays there');
+ok('Talk lives in the composer, small or full screen, with the conversation above the box and no drawer');
 
 // #97 · WHAT TALK CHANGED, IN THE CONVERSATION, WITH UNDO. Each change the server made comes back as a
 // line in the writer's words; Undo sends that change's own `undo` back, untouched, and the line then
@@ -3182,10 +3180,10 @@ ok('Talk goes full screen with the conversation above the box, and a question as
       changes: [{ words: "Changed Marek's Always true: “Marek is thirty.”", undo: UNDO,
         diff: { before: 'Marek is twenty.', after: 'Marek is thirty.' } }] };
     POSTED.length = 0;
-    (document as any).getElementById('askBox').value = 'Make Marek thirty';
-    click({ ask: '1' });
+    (document as any).getElementById('input').value = 'Make Marek thirty';
+    click({ send: '1' });
     await sleep(80);
-    const side = html('sideBody');
+    const side = html('dockCol');
     assert.ok(side.includes('Changed Marek&#39;s Always true') || side.includes("Changed Marek's Always true"),
       `TALK-CHANGE-LINE: the change shows in the conversation, in the writer's words:\n${side.slice(0, 600)}`);
     const btn = side.match(/<button[^>]*data-talkundo="([^"]+)"[^>]*>([^<]*)</);
@@ -3206,14 +3204,14 @@ ok('Talk goes full screen with the conversation above the box, and a question as
     assert.strictEqual(sent.length, 1, 'TALK-UNDO-SENDS: one press, one Undo');
     assert.deepStrictEqual(sent[0].body.undo, UNDO, 'TALK-UNDO-SENDS: the change\'s own undo, as the server gave it');
     assert.strictEqual(sent[0].body.storyId, 's-1', 'TALK-UNDO-SENDS: on this tale');
-    assert.match(html('sideBody'), /data-talkundo=/, 'TALK-UNDO-REFUSED: a refused Undo leaves the line undoable');
+    assert.match(html('dockCol'), /data-talkundo=/, 'TALK-UNDO-REFUSED: a refused Undo leaves the line undoable');
 
     stubUndo = null;
     click({ talkundo: btn![1] });
     await sleep(60);
     assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/talk/undo').length, 2,
       'TALK-UNDO-REFUSED: and a second press tries again');
-    const after = html('sideBody');
+    const after = html('dockCol');
     assert.doesNotMatch(after, /data-talkundo=/, 'TALK-UNDO-DONE: once undone, the Undo is gone');
     assert.match(after, /Undone/, `TALK-UNDO-DONE: and the line says it was undone:\n${after.slice(0, 600)}`);
   } finally { stubTalk = null; stubUndo = null; }
@@ -3230,18 +3228,18 @@ ok('a change Talk made shows in the conversation with Undo, and Undo sends that 
     await sleep(40);
     click({ panel: 'anansi' });
     await sleep(30);
-    assert.match(html('sideBody'), /data-websearch="1"[^>]*>\s*Anansi may search/, 'SEARCH-LABEL: the switch reads "Anansi may search"');
+    assert.match(html('dockCol'), /data-websearch="1"[^>]*>\s*Anansi may search/, 'SEARCH-LABEL: the switch reads "Anansi may search"');
     changeIn({ dataset: { websearch: '1' }, checked: true });
     stubTalk = { reply: 'Charon rows the dead.', seconds: 1, tokens: 10,
       sources: [{ title: 'Charon - Wikipedia', url: 'https://en.wikipedia.org/wiki/Charon' },
                 { title: 'Charon | Mythopedia', url: 'https://mythopedia.com/charon' }] };
     POSTED.length = 0;
-    (document as any).getElementById('askBox').value = 'Who is the ferryman?';
-    click({ ask: '1' });
+    (document as any).getElementById('input').value = 'Who is the ferryman?';
+    click({ send: '1' });
     await sleep(80);
     const sent = POSTED.find((p: any) => p.url === '/api/talk');
     assert.strictEqual(sent?.body.search, true, `SEARCH-PERMISSION: the ask sends permission, not the words (${sent?.body.search})`);
-    const side = html('sideBody');
+    const side = html('dockCol');
     assert.match(side, /<a [^>]*href="https:\/\/en\.wikipedia\.org\/wiki\/Charon"[^>]*>Charon - Wikipedia<\/a>/,
       `SEARCH-PAGES: each page read is listed with its link:\n${side.slice(0, 900)}`);
     assert.match(side, /href="https:\/\/mythopedia\.com\/charon"/, 'SEARCH-PAGES: all of them');
@@ -3262,10 +3260,10 @@ ok('the switch reads Anansi may search, sends permission, and every page he read
     await sleep(30);
     let open!: (v: any) => void;
     stubTalk = new Promise((r) => { open = r; });
-    (document as any).getElementById('askBox').value = 'What is this story about?';
-    click({ ask: '1' });
+    (document as any).getElementById('input').value = 'What is this story about?';
+    click({ send: '1' });
     await sleep(30);
-    const busy = html('sideBody');
+    const busy = html('dockCol');
     open({ reply: 'It is about a debt.', seconds: 1, tokens: 10 });
     await sleep(60);
     return busy;
@@ -3283,17 +3281,17 @@ ok('the switch reads Anansi may search, sends permission, and every page he read
     await sleep(30);
     let open!: (v: any) => void;
     stubTalk = new Promise((r) => { open = r; });
-    (document as any).getElementById('askBox').value = 'What is this story about?';
-    click({ ask: '1' });
+    (document as any).getElementById('input').value = 'What is this story about?';
+    click({ send: '1' });
     await sleep(30);
-    assert.match(html('sideBody'), /id="talkweaving"[^>]*>Planning… 0s</, 'TALK-COUNT: a weaving Talk call says Weaving with the seconds');
+    assert.match(html('dockCol'), /id="talkweaving"[^>]*>Planning… 0s</, 'TALK-COUNT: a weaving Talk call says Weaving with the seconds');
     assert.doesNotMatch(html('dockCol'), /id="weaving"/, 'TALK-COUNT: and the composer, which made no press, shows no count');
     await sleep(1100);
     assert.strictEqual(String(nodes.get('talkweaving')?.textContent), 'Planning… 1s', 'TALK-COUNT: and the count runs');
     open({ reply: 'It is about a debt.', seconds: 1, tokens: 10 });
     await sleep(60);
-    assert.doesNotMatch(html('sideBody'), /Planning…/, 'TALK-COUNT: the answer ends it');
-    assert.doesNotMatch(html('sideBody'), /Thinking/, 'and never Thinking');
+    assert.doesNotMatch(html('dockCol'), /Planning…/, 'TALK-COUNT: the answer ends it');
+    assert.doesNotMatch(html('dockCol'), /Thinking/, 'and never Thinking');
   } finally { stubTalk = null; (STORY as any).weaves = weaving; }
 }
 ok('the Talk panel counts the seconds while a weaving call waits, and says Asking in any other');
@@ -3348,8 +3346,8 @@ ok('an invention that weaves counts the seconds on its button, and one that does
     click({ panel: 'anansi' });
     await sleep(30);
     stubTalk = new Promise((r) => { answer = r; });
-    (document as any).getElementById('askBox').value = 'What is this story about?';
-    click({ ask: '1' });
+    (document as any).getElementById('input').value = 'What is this story about?';
+    click({ send: '1' });
     // Seconds as numbers, and rising rather than exact: Talk's count starts a turn after its press,
     // so an exact second is a race with this suite's own load.
     const secs = (id: string) => Number(/^Planning… (\d+)s$/.exec(String(nodes.get(id)?.textContent))?.[1] ?? NaN);

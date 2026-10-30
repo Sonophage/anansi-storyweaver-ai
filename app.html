@@ -1408,9 +1408,14 @@ html[data-work="ai"]       { --work:var(--gold); }
 #dock.big #inputRow { flex:1; min-height:0; align-items:stretch; }
 /* No inline height is set in this mode, so the flex box is the height and the text scrolls in it. */
 #dock.big #input { max-height:none; height:auto; }
-/* TALK, FULL SCREEN (2026-10-29): the conversation takes the room and scrolls; the box keeps a
-   writing-sized floor under it rather than the whole screen. */
-#talkthread { display:flex; flex-direction:column; gap:12px; overflow-y:auto; padding:6px 2px 12px; }
+/* TALK IN THE COMPOSER (2026-10-29): the conversation above the box, a third of the screen at most;
+   full screen, it takes the room and the box keeps a writing-sized floor. */
+#talkthread { display:flex; flex-direction:column; gap:12px; overflow-y:auto; padding:6px 2px 12px;
+  max-height:38vh; }
+#dock.folded #talkthread { display:none; }
+#dock.big.talking #talkthread { max-height:none; }
+#talkhead .talksearch { display:flex; align-items:center; gap:6px; letter-spacing:0; text-transform:none;
+  font-size:11px; color:var(--mute); }
 #dock.big.talking #talkthread { flex:1 1 auto; min-height:0; }
 #dock.big.talking #inputRow { flex:0 0 auto; }
 #dock.big.talking #input { min-height:96px; max-height:40vh; }

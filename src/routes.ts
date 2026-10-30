@@ -4050,9 +4050,13 @@ export const routes: Record<string, Handler> = {
     // The contract, then the writer's voice. That order is F37's, not arithmetic: the register
     // instruction nearest the material wins, and the register is the half that was losing to the
     // book's own VOICE block until `context.ts` stopped sending it here.
+    // CAPPED ON FEATHERLESS TOO (`remoteCap`), unlike a passage. 2026-10-29: Forgotten-Transgression
+    // ran a Talk answer on inside its JSON to Featherless's own 4,096-token limit (226 s, cut, then a
+    // 7 s retry), and Seth read the four minutes as Talk not answering. With the cap a runaway is cut
+    // at the room Talk is planned with and retried cooler. A real answer measured 278 to 461 tokens.
     const r = await structuredRetry(`${TALK_CONTRACT}\n\n${anansiOf(c.owner)}`,
       prompt.slice(SYSTEM.length), TALK_SCHEMA,
-      { model: using, temperature: 0.4, max_tokens: reply.maxTokens,
+      { model: using, temperature: 0.4, max_tokens: reply.maxTokens, remoteCap: true,
         chat_template_kwargs: { enable_thinking: reply.weaves } });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'talk',
       params: wove(reply, r), manifest, latencyMs: Date.now() - t0, error: r.error ?? null });

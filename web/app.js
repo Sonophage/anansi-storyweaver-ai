@@ -520,7 +520,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  carries `data-tip` like every other folded explanation — one mark, one handler, one
   //  state. A name left here would match nothing and read as a live action.)
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'ctxtoggle', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home',
-  're', 'del', 'ed', 'hi', 'vp', 'vn', 'hwkb', 'bigin', 'talkfull',
+  're', 'del', 'ed', 'hi', 'vp', 'vn', 'hwkb', 'bigin',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'delbranch', 'newthread', 'entry',
   'carryon',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
@@ -2064,6 +2064,8 @@ let STOP = null;
 /** The story the composer was last drawn for. A draft belongs to its book: paging a chapter or
  *  opening a panel must not eat it, and opening a different book must not carry it across. */
 let DOCK_FOR = null;
+/** The tale Talk was asked for in by its address, so the first draw of its composer keeps Talk. */
+let TALK_FOR = null;
 
 /** #56 · WHEN WEAVING DOES NOT FIT, the server's sentence and the two ways on, as a row where the
  *  press was made: `where` is 'dock' for a passage (the composer), 'talk' for the Talk panel above
@@ -2223,8 +2225,6 @@ async function dockAsk() {
   S.mentions = [];
   S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true, draft: null };
   clearComposer();
-  // Full screen keeps the conversation where it is asked; folded small, the drawer opens to show it.
-  if (!S.bigInput) { S.panel = 'anansi'; syncHash(); }
   paint();
   return talk(said, mentions);
 }
@@ -2267,7 +2267,8 @@ function drawDock() {
   $('dock').hidden = false;
   $('dock').classList.toggle('big', !!S.bigInput);
   // #71. A different tale starts folded, with no Talk and no ideas carried over from the last one.
-  if (DOCK_FOR !== S.storyId) { S.dockOpen = false; S.dockTalk = false; S.ideas = null; }
+  // Unless Talk was asked for in this tale before its first draw (the Talk address, `talkToComposer`).
+  if (DOCK_FOR !== S.storyId) { S.ideas = null; if (TALK_FOR !== S.storyId) { S.dockOpen = false; S.dockTalk = false; } }
   // THE THREE BUTTONS ARE DRAWN ONCE A PASSAGE HAS LANDED in the scene on screen: before that there
   // is nothing to reweave or carry on from, and the composer is the whole bottom, as it always was.
   // Folded is the composer hidden behind them. Hidden, not absent: the box is still drawn, so a
@@ -2307,16 +2308,21 @@ function drawDock() {
   $('dockCol').innerHTML = `${weaveFitRow()}
     ${last ? `<button id="fold" data-dockfold="1" aria-label="Fold the box away" title="Fold the box away"
       ><span aria-hidden="true">⌄</span></button>` : ''}
-    ${/* TALK, FULL SCREEN (Seth, 2026-10-29): the conversation above the box, drawn by the drawer's
-         own renderer. Folded small, the head offers the way in, with how many turns there are. */
-      S.dockTalk && S.bigInput ? `<div id="talkthread" aria-live="polite">${S.talk.turns.length ? talkTurns(S.talk)
-        : '<div class="hint flush">Ask Anansi anything about this tale. The conversation stays here until you leave the tale.</div>'}${
-        S.talk.busy ? '<div class="hint flush">Asking&hellip;</div>' : ''}</div>` : ''}
-    ${S.dockTalk ? `<div id="talkhead">
-      <span>${mark('webfull', 15)} Talking to Anansi</span>
-      ${S.bigInput ? '' : `<button data-talkfull="1">${S.talk.turns.length
-        ? `See the conversation &middot; ${S.talk.turns.length}` : 'Full screen'}</button>`}
-      <button data-dockwrite="1">Back to writing</button></div>` : ''}
+    ${/* TALK LIVES IN THE COMPOSER (Seth, 2026-10-29: drop the Talk drawer). The conversation sits
+         above the box, small or full screen, drawn by the one renderer the setup drawer also uses;
+         under it the drafted directive, a refusal's row, and the search switch and Clear. */
+      S.dockTalk ? `<div id="talkthread" aria-live="polite">${S.talk.turns.length ? talkTurns(S.talk)
+        : talkEmpty(false)}${talkBusy(S.talk)}</div>
+      ${talkDraft(S.talk)}
+      ${weaveFitRow('talk')}
+      <div id="talkhead">
+        <span>${mark('webfull', 15)} Talking to Anansi</span>
+        <label class="talksearch" title="${(V?.searchable ?? S.talk.searchable) === false ? 'Web search is not set up on this server'
+          : 'He decides when a question needs the web, and searches up to three times'}">
+          <input type="checkbox" data-websearch="1" ${S.talk.search ? 'checked' : ''}
+            ${(V?.searchable ?? S.talk.searchable) === false ? 'disabled' : ''}> Anansi may search</label>
+        ${S.talk.turns.length ? '<button data-clearchat="1">Clear</button>' : ''}
+        <button data-dockwrite="1">Back to writing</button></div>` : ''}
     <div id="modes">
       <!-- ONE DIAL, NOT FOUR BUTTONS. Seth, 2026-09-02: "make speak, act, direct and narrate into
            a drop down. the selection should look like a button." Four modes on a rail alongside
@@ -2885,6 +2891,66 @@ function stringList(all, none) {
     ${off.length ? `<div class="lbl sect-rule">Set aside</div>${off.map(stringRow).join('')}` : ''}
     ${done.length ? `<div class="lbl sect-rule">Tied off or let go</div>${done.map(stringRow).join('')}` : ''}`;
 }
+/** TALK WITH NOTHING SAID YET: four openings, each a thing Talk is built to do. One function for
+ *  the composer's Talk and the setup drawer. */
+function talkEmpty(setup) {
+            // The empty state was two paragraphs of explanation over a panel-height void. It said
+            // what Anansi could do in prose and then left you to compose the question yourself.
+            //
+            // Four openings instead, each one a thing it is actually built to do: answer from the
+            // ledger, say what the story does not say, notice an unpaid promise, draft a directive.
+            // Tapping one FILLS the box and does not send it — the panel's own rule is that
+            // nothing happens until you choose it, and a suggestion that sent itself would be the
+            // first thing to break it.
+            const cast = setup ? [] : (V.entries ?? []).filter((e) => e.entryType === 'character');
+            const who = cast[0]?.title;
+            // During setup (#100): the step, the premise, and who else the tale needs.
+            const asks = setup ? [
+              ['chapter', 'How should I fill in this step?'],
+              ['search', 'Is this premise any good?'],
+              ['threads', 'Who else belongs in this tale?'],
+            ] : [
+              ['strings', 'What has this tale set up and not tied off?'],
+              who && ['threads', `Who is ${who}, and what do we know for certain?`],
+              ['search', 'What has the tale never said outright?'],
+              ['chapter', 'Set up the next scene for me.'],
+            ].filter(Boolean);
+            /* THE INTRO CAME OUT, 2026-09-03. It said what web/help.js already says under this
+               panel's own mark — that it answers from the canon, the summaries and the recent
+               passages, and that it proposes rather than writes — in different words. Two
+               renderings of one idea is the drift this file keeps recording, and the web is the
+               copy with a test binding it. Nothing was lost; one of two copies was. */
+            return `<div class="stack-10">
+              <div style="display:flex; flex-direction:column; gap:6px; margin-top:2px">
+                ${asks.map(([m, q]) => `<button data-askfill="${esc(q)}" style="display:flex;
+                  align-items:flex-start; gap:11px; text-align:left; width:100%; padding:10px 12px;
+                  border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:13px;
+                  line-height:1.45">
+                  <span style="color:var(--gold-dim); display:flex; padding-top:1px">${mark(m, 16)}</span>
+                  <span>${esc(q)}</span></button>`).join('')}
+              </div>
+            </div>`;
+}
+
+/** The weaving count only while this Talk call weaves (the server's word, read at the press by
+ *  weaveStart), and Asking for one that does not. */
+const talkBusy = (t) => (t.busy ? (weavingAt('talk')
+  ? `<div id="talkweaving" class="hint tnum flush" aria-live="polite">${weaveWords('talk')}</div>`
+  : '<div class="hint flush">Asking&hellip;</div>') : '');
+
+/** A directive Anansi drafted, for the writer to use or ignore. */
+const talkDraft = (t) => t.draft ? `<div class="card" style="gap:8px; border-color:rgba(217,178,106,.34)">
+        <div class="kind">A directive, for you to use or ignore${
+          tipMark('askDraft', 'A directive')}</div>
+        <div class="note">${esc(t.draft)}</div>
+        <div class="btnrow">
+          <button class="btn ghost fill" data-usedraft="1">Put it in the composer</button>
+          <button class="btn ghost" data-copydraft="1" style="width:84px">Copy</button>
+        </div>
+        ${tipCard('askDraft', 'A directive', `<p>It arrives in Direct mode, unsent &mdash; read it
+          before you send it.</p>`)}
+      </div>` : '';
+
 /** THE CONVERSATION'S TURNS, drawn once for the Talk drawer and for Talk in the full-screen composer
  *  (2026-10-29), so the two cannot draw a change line, its Undo or its diff differently. `t` is the
  *  conversation: `S.talk`, or the setup draft's. Indices are into `t.turns`, which the Undo reads. */
@@ -5155,62 +5221,11 @@ const PANELS = {
     return `<div style="display:flex; flex-direction:column; height:100%">
       <div style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding-bottom:10px">
         ${t.turns.length ? talkTurns(t)
-          : (() => {
-            // The empty state was two paragraphs of explanation over a panel-height void. It said
-            // what Anansi could do in prose and then left you to compose the question yourself.
-            //
-            // Four openings instead, each one a thing it is actually built to do: answer from the
-            // ledger, say what the story does not say, notice an unpaid promise, draft a directive.
-            // Tapping one FILLS the box and does not send it — the panel's own rule is that
-            // nothing happens until you choose it, and a suggestion that sent itself would be the
-            // first thing to break it.
-            const cast = setup ? [] : (V.entries ?? []).filter((e) => e.entryType === 'character');
-            const who = cast[0]?.title;
-            // During setup (#100): the step, the premise, and who else the tale needs.
-            const asks = setup ? [
-              ['chapter', 'How should I fill in this step?'],
-              ['search', 'Is this premise any good?'],
-              ['threads', 'Who else belongs in this tale?'],
-            ] : [
-              ['strings', 'What has this tale set up and not tied off?'],
-              who && ['threads', `Who is ${who}, and what do we know for certain?`],
-              ['search', 'What has the tale never said outright?'],
-              ['chapter', 'Set up the next scene for me.'],
-            ].filter(Boolean);
-            /* THE INTRO CAME OUT, 2026-09-03. It said what web/help.js already says under this
-               panel's own mark — that it answers from the canon, the summaries and the recent
-               passages, and that it proposes rather than writes — in different words. Two
-               renderings of one idea is the drift this file keeps recording, and the web is the
-               copy with a test binding it. Nothing was lost; one of two copies was. */
-            return `<div class="stack-10">
-              <div style="display:flex; flex-direction:column; gap:6px; margin-top:2px">
-                ${asks.map(([m, q]) => `<button data-askfill="${esc(q)}" style="display:flex;
-                  align-items:flex-start; gap:11px; text-align:left; width:100%; padding:10px 12px;
-                  border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); font-size:13px;
-                  line-height:1.45">
-                  <span style="color:var(--gold-dim); display:flex; padding-top:1px">${mark(m, 16)}</span>
-                  <span>${esc(q)}</span></button>`).join('')}
-              </div>
-            </div>`;
-          })()}
-        ${/* The weaving count only while this Talk call weaves (the server's word, read at the
-             press by weaveStart), and Asking for one that does not. */
-          t.busy ? (weavingAt('talk')
-            ? `<div id="talkweaving" class="hint tnum flush" aria-live="polite">${weaveWords('talk')}</div>`
-            : '<div class="hint flush">Asking&hellip;</div>') : ''}
+          : talkEmpty(setup)}
+        ${talkBusy(t)}
       </div>
 
-      ${t.draft ? `<div class="card" style="gap:8px; border-color:rgba(217,178,106,.34)">
-        <div class="kind">A directive, for you to use or ignore${
-          tipMark('askDraft', 'A directive')}</div>
-        <div class="note">${esc(t.draft)}</div>
-        <div class="btnrow">
-          <button class="btn ghost fill" data-usedraft="1">Put it in the composer</button>
-          <button class="btn ghost" data-copydraft="1" style="width:84px">Copy</button>
-        </div>
-        ${tipCard('askDraft', 'A directive', `<p>It arrives in Direct mode, unsent &mdash; read it
-          before you send it.</p>`)}
-      </div>` : ''}
+      ${talkDraft(t)}
 
       ${weaveFitRow('talk')}
       <div style="display:flex; flex-direction:column; gap:8px; padding-top:10px; border-top:1px solid var(--line); position:relative">
@@ -5233,7 +5248,6 @@ const PANELS = {
               ${t.searchable === false ? 'disabled' : ''}> Anansi may search
           </label>
           ${t.turns.length ? `<button class="caption" data-clearchat="1">Clear</button>` : ''}
-          ${setup ? '' : `<button class="caption" data-talkfull="1" title="Talk in the full-screen composer, with the conversation above the box">Full screen</button>`}
           <button class="btn" data-ask="1" ${t.busy ? 'disabled' : ''}
             style="margin-left:auto; width:auto; padding:0 22px; height:38px">${t.busy ? '&hellip;' : 'Ask'}</button>
         </div>
@@ -9381,7 +9395,16 @@ function closeLayersBack() {
   if (S.reading && !l) { S.reading = false; root.dataset.reading = '0'; drawBar(); drawDoc(); }
 }
 
+/** THE TALK DRAWER IS GONE FROM A TALE (Seth, 2026-10-29): every way that opens it (the address, a
+ *  menu, a help link) turns the composer to Talk instead. The drawer stays for a tale being set up,
+ *  which has no composer (#100). Here, where every repaint passes, so no door can miss it. */
+function talkToComposer() {
+  if (S.panel !== 'anansi' || S.place !== 'story' || onSetup()) return;
+  S.panel = null; S.dockTalk = true; S.dockOpen = true; TALK_FOR = S.storyId;
+}
+
 function paint() {
+  talkToComposer();
   syncHash();
   syncThread();
   applyLook();
@@ -10513,7 +10536,7 @@ async function talk(said, mentions, anyway = false) {
   if (S.weaveFit?.where === 'talk') S.weaveFit = null;
   S.talk.busy = true;
   weaveStart('talk');
-  drawSide(); working('direct');
+  drawSide(); drawDock(); working('direct');
   const r = await api.talk(S.storyId, {
     said, turns: S.talk.turns.slice(0, -1).map((t) => ({ you: t.you, text: t.text })),
     // Permission, not a query (#99): Anansi writes his own searches, and only when he has this.
@@ -10524,7 +10547,7 @@ async function talk(said, mentions, anyway = false) {
   working(null); weaveStop('talk');
   S.talk.busy = false;
   if (r.weaveFit) return weaveRefused(r, (a) => talk(said, mentions, a), 'talk');
-  if (r.error) { drawSide(); return toast(r.error); }
+  if (r.error) { drawSide(); drawDock(); return toast(r.error); }
   S.talk.searchable = r.searchable ?? S.talk.searchable;
   S.talk.turns = [...S.talk.turns, { you: false, text: r.reply || '(nothing came back)',
     sources: r.sources ?? [], proposed: r.proposed ?? 0, changes: r.changes ?? [],
@@ -11443,8 +11466,9 @@ document.addEventListener('click', async (e) => {
 
   if (d.askfill !== undefined) {
     // Fills the box, never sends. The panel's rule is that nothing happens until you choose it.
-    const box = document.getElementById('askBox');
-    if (box) { box.value = d.askfill; box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
+    const box = document.getElementById('askBox') ?? document.getElementById('input');
+    if (box) { box.value = d.askfill; box.focus(); box.setSelectionRange(box.value.length, box.value.length);
+      box.dispatchEvent(new Event('input', { bubbles: true })); }
     return;
   }
 
@@ -11969,10 +11993,6 @@ document.addEventListener('click', async (e) => {
   if (d.hwkb) { setHwkb(!hwkb); drawAppearance(); return toast(hwkb
     ? 'Your cursor goes back to the writing box on this device.' : 'Your cursor stays where you put it.'); }
   if (d.bigin) { S.bigInput = !S.bigInput; drawDock(); syncTray(); $('input')?.focus(); return; }
-  // Talk in the full-screen composer, from the drawer or the Talk head: the drawer shuts, the box
-  // turns to Talk and fills the screen, and the conversation is above it.
-  if (d.talkfull) { if (S.panel === 'anansi') { S.panel = null; syncHash(); }
-    S.dockTalk = true; S.dockOpen = true; S.bigInput = true; paint(); $('input')?.focus({ preventScroll: true }); return; }
 
   // PLAN-08 Phase 4. A THRESHOLD, not a delete: the card stops reaching the model from the chapter
   // named and every chapter before it still has them, which is what makes going back to revise
@@ -12388,7 +12408,7 @@ document.addEventListener('click', async (e) => {
     // property of this feature is that Anansi never presses send.
     const draft = S.talk.draft;
     if (!draft) return;
-    S.mode = 'direct'; S.panel = null; S.talk.draft = null;
+    S.mode = 'direct'; S.panel = null; S.talk.draft = null; S.dockTalk = false; S.dockOpen = true;
     syncHash(); paint();
     const input = $('input');
     // FIRE THE EVENT, do not re-implement what hangs off it. This set the height by hand — a
@@ -12410,7 +12430,7 @@ document.addEventListener('click', async (e) => {
   if (d.clearchat) {
     if (onSetup()) setupTalk().turns = [];
     else S.talk = { ...S.talk, turns: [], draft: null };
-    drawSide(); return;
+    drawSide(); drawDock(); return;
   }
   // #100 · ADD ONE OFFER to the draft: the same as a thread Talk was asked to add, so it gets a line
   // and an Undo of its own.

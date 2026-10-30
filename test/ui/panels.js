@@ -62,7 +62,8 @@ await page.eval(`(() => { const i = document.querySelector('#rail [data-railsear
 await wait(500);
 await opened('Prose search');
 // The three that left the menu are still panels, reached by their links.
-for (const [k, label] of [['strings', 'Strings'], ['context', 'What he reads'], ['anansi', 'Anansi']]) {
+// (Talk left this list on 2026-10-29: in a tale it is the composer, not a drawer.)
+for (const [k, label] of [['strings', 'Strings'], ['context', 'What he reads']]) {
   await page.goto(B + "/#" + sid + "/" + k);
   await wait(900);
   await opened(label);
@@ -1639,11 +1640,15 @@ ok("  which is CSS, not an element in the editable body",
      Math.abs(after - before) < 2 || true);
 }
 
-// ---- 19. the Anansi panel, which had no coverage at all
+// ---- 19. Talk with nothing said yet, which had no coverage at all
 // Its empty state was two paragraphs of explanation over a panel-height void: it said what Anansi
-// could do in prose and left you to compose the question.
-await page.goto(B + "/#" + sid3 + "/anansi");
-await wait(1000);
+// could do in prose and left you to compose the question. Since 2026-10-29 Talk is the composer
+// (Alt+T here), and its openings sit where the conversation will be.
+await page.goto(B + "/#" + sid3);
+await wait(1200);
+await page.eval("(() => { document.activeElement?.blur(); return 1; })()");
+await page.key('t', 84, 1);
+await wait(600);
 const asks = await page.eval("[...document.querySelectorAll('[data-askfill]')].map(b => b.dataset.askfill)");
 ok(`Anansi opens with things to ask it (${asks.length})`, asks.length >= 3);
 ok("  one of which is what the tale has not tied off",
@@ -1660,12 +1665,12 @@ if (cast.length) {
 await page.eval("(() => { document.querySelector('[data-askfill]').click(); return 1; })()");
 await wait(500);
 ok("  tapping one fills the box",
-   (await page.eval("document.getElementById('askBox')?.value") || '') === asks[0]);
+   (await page.eval("document.getElementById('input')?.value") || '') === asks[0]);
 ok("  and does not send it — no answer, nothing waiting",
-   !/Asking…|Planning…/.test(await page.text('#sideBody') || ''));
+   !/Asking…|Planning…/.test(await page.text('#dockCol') || ''));
 await wait(1200);
 ok("  and it is still there a moment later, not eaten by a repaint",
-   (await page.eval("document.getElementById('askBox')?.value") || '') === asks[0]);
+   (await page.eval("document.getElementById('input')?.value") || '') === asks[0]);
 
 // ---- PLAN-08: a thread brings another in with it, from the screen to the prompt -------------
 //
