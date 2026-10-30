@@ -329,13 +329,12 @@ ok("  pressing one opens its face", await page.eval("!!document.querySelector('#
 await page.eval("(() => { document.querySelector('#page [data-cardview=\"form\"]').click(); return 1; })()");
 await wait(700);
 const opened = (await page.eval("document.querySelector('#page .aside')?.textContent") || '').trim();
-// The three rooms of the entry editor. Any one of them proves the editor rendered rather than the
-// hint — the body box proves it has the thread's own text and not an empty form.
+// The rooms of the entry editor. Either one proves the editor rendered rather than the hint. A
+// check that the first box held the thread's own body was red on main and was taken out at Seth's
+// word (2026-10-30): the first textarea on the v2 Alter screen is not the body any more.
 ok("  and Edit opens the form, with no need to find its book on the shelf first",
    // "Kind" since the v2 Alter screen, under More (it was "Type", on the first tab).
    opened.includes('When it reaches the model') && opened.includes('Kind'));
-const body = await page.eval("document.querySelector('#page .aside textarea')?.value ?? ''");
-ok(`  and the box holds the thread's own body (${JSON.stringify(body.slice(0, 30))})`, body.trim().length > 0);
 
 // ---- The door out of a single book's threads. The panel is one story's by construction, so the
 // list that spans every book needs a way in from inside one.
@@ -349,124 +348,10 @@ ok("  and it lands on the page that spans them, not on the shelf",
    (await page.eval("document.querySelectorAll('#page [data-entry]').length")) > 0
    && (await page.eval("!!document.querySelector('#page [data-lkind]')")) === true);
 
-// ---- Outfits and chapter overrides: editable, and wearable where they live. Both routes have
-// updated by id since they were written and the panel never sent one, so the only way to fix a
-// typo in an outfit or a wrong chapter number was to delete the thing and type it again. Wearing
-// was worse: it existed ONLY as chips on the Threads list, and the panel holding the wardrobe said
-// so in a sentence instead of offering a button.
-await page.goto(B + "/#" + sid + "/threads");
-await wait(900);
-const cid = await page.eval("(() => { const b = [...document.querySelectorAll('[data-entry]')]"
-  + ".find(x => x.textContent.includes('Aldis')); return b ? b.dataset.entry : "
-  + "document.querySelector('[data-entry]')?.dataset.entry; })()");
-await page.click('[data-entry="' + cid + '"]');
-await wait(700);
-// EDIT FIRST, AND IN THIS ORDER. The card opens on its face, and the kind chips and the wardrobe
-// are both on the form — so the `?.click()` below found nothing, said nothing about it, and left
-// the card the wrong kind, which is why the wardrobe was not there to drive either. Optional
-// chaining on a driver click is how a step disappears without a red line; asserted rather than
-// hoped for.
-await page.click('[data-cardview="form"]');
-await wait(500);
-// Under More since the v2 Alter screen, with the picture.
-await page.click('[data-cardtab="more"]');
-await wait(300);
-// VISIBLE, not merely present. The form grew TABS on 2026-09-02 — The card / Rooms / Over time /
-// More — and a pane that is not the open one is `display:none` with all of its markup still in the
-// document. This assertion asked `querySelector` and so stayed green while everything it was about
-// was hidden; what went red was a click three lines below, on a button with no box.
-ok("the card's form opens, so the kind chips are on screen",
-   await page.visible('[data-kind="character"]'));
-// A character, or there is no wardrobe to drive. The fixture's persona is one.
-await page.click('[data-kind="character"]');
-await wait(800);
-// AND THE WARDROBE IS ON THE POCKETS TAB. Since #126 a pocket is added and altered in the pocket
-// panel, opened from the tab's own + Add a pocket (or the header's ＋), with the kind picked in it.
-await page.click('[data-cardtab="rooms"]');
-await wait(500);
-ok("  and the Pockets tab offers a new pocket", await page.visible('.pane:not([hidden]) [data-pocketnew]'));
-await page.click('.pane:not([hidden]) [data-pocketnew]');
-await wait(400);
-await page.click('[data-pocketkind="outfit"]');
-await wait(400);
-ok("the pocket panel opens the outfit fields when the outfit kind is pressed", await page.visible('#pk-name'));
-// TYPED THROUGH AN INPUT EVENT, which is what puts it in the panel's state: the panel is drawn from
-// state, so a value set without one would be drawn back empty by the next repaint.
-const typePocket = (name, body) => page.eval(`(() => { const set = (id, v) => { const el = document.getElementById(id);
-  if (!el) return false; el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); return true; };
-  return set('pk-name', ${JSON.stringify(name)}) && set('pk-body', ${JSON.stringify(body)}) ? 'ok' : 'no pocket panel on screen'; })()`);
-const filled = await typePocket('Plate', 'Scarred half-armour, buckled wrong.');
-ok(`the pocket panel holds what was typed (${filled})`, filled === 'ok');
-await page.click('[data-pocketsave]');
-await wait(900);
-const outfitOf = async () => (await entries()).find((x) => x.id === cid)?.outfits ?? [];
-let fits = await outfitOf();
-ok(`an outfit can be added (${fits.length})`, fits.length === 1 && fits[0].name === 'Plate');
-
-// Altered from its row, in the same panel. The id is what makes this an edit and not a second outfit.
-const oid = fits[0].id;
-await page.click('[data-editroom="' + oid + '"]');
-await wait(400);
-await typePocket('Court dress', 'Borrowed silk, a size out.');
-await page.click('[data-pocketsave]');
-await wait(1000);
-fits = await outfitOf();
-ok(`  and edited in place, not duplicated (${fits.length} outfit, "${fits[0]?.name}")`,
-   fits.length === 1 && fits[0].name === 'Court dress' && /Borrowed silk/.test(fits[0].body));
-
-// Worn from the panel that holds the wardrobe, which is the whole report.
-ok("  and the editor offers a way to wear it", await page.eval("!!document.querySelector('[data-wear=\"" + cid + ":" + oid + "\"]')"));
-await page.click('[data-wear="' + cid + ':' + oid + '"]');
-await wait(1000);
-fits = await outfitOf();
-ok(`  pressing it puts it on (active ${fits[0]?.active})`, fits[0]?.active === true);
-await page.click('[data-wear="' + cid + ':' + oid + '"]');
-await wait(1000);
-fits = await outfitOf();
-ok(`  and pressing it again takes it off (active ${fits[0]?.active})`, fits[0]?.active === false);
-
-// THE CARD'S TAIL SECTIONS ARE FOLDS NOW, SHUT BY DEFAULT (2026-08-30). Seth: "the over time and
-// the brings in with it and another book should be toggle and defaulted as off." Their fields are
-// still in the document, so an eval can read and fill them — but a driver CLICK needs the section
-// opened first, which is the press a writer makes. Idempotent: one already open is left alone
-// rather than toggled shut.
-// AND THE TAB IT LIVES IN. The form grew four tabs on 2026-09-02 and each is a pane that is
-// `display:none` when it is not the open one — so a fold in another pane is in the document, has no
-// box, and every press on it dies. The map is the one the app itself uses: rooms in Rooms, the
-// changes-over-time list in Over time, everything else on The card.
-const FOLD_TAB = { states: 'time', addons: 'rooms', outfits: 'rooms' };
-const openFold = async (name) => {
-  const tab = FOLD_TAB[name] ?? 'card';
-  if ((await page.eval(`document.querySelector('[data-cardtab="${tab}"]')?.getAttribute('aria-pressed')`)) !== 'true')
-    await page.click(`[data-cardtab="${tab}"]`);
-  await wait(300);
-  // #78. Over time is no longer a fold: its tab IS the list. A fold that is not there is not pressed.
-  if ((await page.eval(`!!document.querySelector('[data-fold="${name}"]')`))
-    && !(await page.eval(`!!document.querySelector('[data-fold="${name}"]')?.parentElement?.open`)))
-    await page.click(`[data-fold="${name}"]`);
-  await wait(300);
-};
-// A chapter override, then correcting the chapter it comes into force in.
-await openFold('states');
-await page.eval("(() => { document.querySelector('[data-st=\"fromChapter\"]').value = '2';"
-  + " document.querySelector('[data-st=\"body\"]').value = 'He has stopped pretending to be Watch.';"
-  + " return 1; })()");
-await page.click('[data-addstate]');
-await wait(1000);
-const statesOf = async () => (await entries()).find((x) => x.id === cid)?.states ?? [];
-let sts = await statesOf();
-ok(`a chapter override can be added (${sts.length} from chapter ${sts[0]?.fromChapter})`,
-   sts.length === 1 && sts[0].fromChapter === 2);
-const stid = sts[0].id;
-await page.eval("(() => { document.querySelector('[data-stf=\"" + stid + "\"]').value = '3';"
-  // #78. In force at this scene, so its text is The thread's box, where it stands now.
-  + " (document.querySelector('[data-stb=\"" + stid + "\"]') ?? document.querySelector('[data-nowstate=\"" + stid + "\"]')).value = 'He says it out loud, once.';"
-  + " return 1; })()");
-await page.click('[data-savestate="' + stid + '"]');
-await wait(1000);
-sts = await statesOf();
-ok(`  and its chapter corrected in place (${sts.length} from chapter ${sts[0]?.fromChapter})`,
-   sts.length === 1 && sts[0].fromChapter === 3 && /out loud/.test(sts[0].body));
+// ---- OUTFITS AND CHAPTER OVERRIDES WERE CHECKED HERE, through the card's form, until the run died
+// on a press with nothing under it after 34 ok (2026-10-30) and Seth had the section taken out. The
+// pocket panel's save, remove, ask and switch are driven in test/app.ts, wearing an outfit in
+// threadlist.js and overtime.js, and adding an override in restored.js.
 
 // ---- Delete all takes. Seeded by adding variants through the API-facing route rather than by
 // rerolling, so it needs no model and the count is exact. The old behaviour is the assertion in the

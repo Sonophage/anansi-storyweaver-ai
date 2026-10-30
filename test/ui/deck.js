@@ -1,5 +1,7 @@
 // The Workbench deck (#74): one card at a time, yes on the right and no on the left, by a press,
-// an arrow key or a swipe, with an undo for a no.
+// an arrow key or a swipe, with an undo for a no. The press and the arrow key are checked here; the
+// swipe and the string cards were, until they failed on main and Seth had them taken out
+// (2026-10-30), so nothing here checks a swipe or a string.
 //
 //   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/deck.js
 //
@@ -41,6 +43,18 @@ const fit = await page.eval(`JSON.stringify((() => { const card = document.query
 ok(`ONE-SEW: the card says Sew it in once (${fit.sew})`, fit.sew === 1);
 ok(`EDITS-44: Anansi edits is at least 44px tall (${fit.h}px)`, fit.h >= 44);
 ok(`EDITS-HINT: the box's hint fits it (${fit.text}px of ${fit.room}px)`, fit.text > 0 && fit.text <= fit.room);
+// ONE HEIGHT FROM CARD TO CARD (usability walkthrough, 2026-10-30): the sheet grew and shrank with each
+// card, so Back and Next jumped under the thumb. Read on every card, then back to the first.
+const heights = [];
+for (let i = 0; i < 8; i++) {
+  heights.push(await page.eval("Math.round(document.querySelector('.deckcard:not([hidden])')?.getBoundingClientRect().height ?? 0)"));
+  if (!(await page.eval("!!document.querySelector('[data-deckmove=\"1\"]:not([disabled])')"))) break;
+  await page.eval("(() => { document.querySelector('[data-deckmove=\"1\"]')?.click(); return 1; })()"); await wait(250);
+}
+ok(`DECK-STEADY: every card on the deck is one height (${heights.join(', ')}px)`,
+   heights.length >= 2 && heights.every((h) => h > 0 && h === heights[0]));
+for (let i = 0; i < 8 && (await page.eval("!!document.querySelector('[data-deckmove=\"-1\"]:not([disabled])')")); i++) {
+  await page.eval("(() => { document.querySelector('[data-deckmove=\"-1\"]')?.click(); return 1; })()"); await wait(250); }
 await page.viewport(1440, 900);
 await wait(300);
 await page.eval("(() => { document.querySelector('.deckcard:not([hidden]) [data-deckleft]')?.click(); return 1; })()");
@@ -58,45 +72,6 @@ const v = await view(sid);
 ok("the right arrow sews the top card in", !v.proposals.some((p) => p.id === rain.id) && v.entries.some((e) => e.title === 'The Vantic Rain'));
 ok("  as a new thread whose text is its Always true",
    /gutters have given up/.test(v.entries.find((e) => e.title === 'The Vantic Rain')?.addons?.find((a) => a.slot === 'facts')?.body ?? ''));
-
-// ---- a swipe, from the card itself, which on a phone is most of what there is to touch. A string
-// is chalked first, so the deck has a card on it whatever the steps above left.
-await page.eval(`(async () => { await fetch('/api/string', { method: 'POST', headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ storyId: ${JSON.stringify(sid)}, string: { title: 'The debt nobody has called in', body: 'Owed since the spring.' } }) }); return 1; })()`);
-await page.goto(B + "/#" + sid + "/waiting");
-await until("!!document.querySelector('.deckcard:not([hidden])')");
-const before = (await view(sid)).proposals.length + (await view(sid)).strings.filter((x) => x.status === 'open').length;
-const swiped = await page.eval(`(async () => {
-  const card = document.querySelector('.deckcard:not([hidden])');
-  const from = card.querySelector('summary, .decktitle') ?? card;
-  const r = from.getBoundingClientRect(), y = r.top + r.height / 2, x0 = r.left + 20;
-  const ev = (type, x) => from.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerType: 'touch', isPrimary: true }));
-  ev('pointerdown', x0);
-  for (let i = 1; i <= 8; i++) ev('pointermove', x0 - i * 30);
-  const lean = card.dataset.lean;
-  ev('pointerup', x0 - 240);
-  return lean; })()`);
-await wait(1200);
-const after = (await view(sid)).proposals.length + (await view(sid)).strings.filter((x) => x.status === 'open').length;
-ok(`a swipe left from a section's heading leans the card and says no (lean ${swiped}, ${before} -> ${after} waiting)`,
-   swiped === 'left' && after === before - 1);
-
-// ---- EVERY YES AND NO MOVES ON (Seth, 2026-10-26: "pressing an action or sliding it doesn't move on
-// to the next card"). Putting it in play leaves the string open, so its card stayed on top.
-await page.eval(`(async () => { await fetch('/api/string', { method: 'POST', headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ storyId: ${JSON.stringify(sid)}, string: { title: 'The letter in the drawer', body: 'Unopened.' } }) }); return 1; })()`);
-await page.goto(B + "/#" + sid + "/waiting");
-await until("!!document.querySelector('.deckcard:not([hidden])')");
-const topTitle = () => page.eval("document.querySelector('.deckcard:not([hidden]) .decktitle')?.innerText ?? ''");
-for (let i = 0; i < 12 && (await topTitle()) !== 'The letter in the drawer'; i++) {
-  await page.eval("(() => { document.querySelector('[data-deckmove=\"1\"]:not([disabled])')?.click(); return 1; })()"); await wait(150); }
-ok("the string is on the deck", (await topTitle()) === 'The letter in the drawer');
-await page.eval("(() => { document.querySelector('.deckcard:not([hidden]) [data-deckright]')?.click(); return 1; })()");
-await wait(1200);
-const letter = (await view(sid)).strings.find((x) => x.title === 'The letter in the drawer');
-ok("Put in play from the deck switches it on (#127: its pocket's switch)", !!letter?.summoned);
-ok("  and leaves the deck, so the next card is on top",
-   !(await page.eval("[...document.querySelectorAll('.deckcard .decktitle')].some((t) => t.innerText === 'The letter in the drawer')")));
 
 // ---- ONE COUNT FOR THE WORKBENCH (UX review, 2026-10-29: at phone size the header said "1 new", the
 // menu said 4 and the drawer said "3 to decide"). The out-of-reach card is worked out from what he
