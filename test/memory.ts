@@ -81,6 +81,9 @@ const srv = createServer((req, res) => {
       inflight--; }
     if (failIf?.(asked.system)) { res.writeHead(500); return res.end('{"error":"held down"}'); }
     // Where the tale stands is plain prose since 2026-10-30, as the summary is.
+    // And where the strings stand, one line each (2026-10-30).
+    if (asked.system.startsWith('Below is where a story stands, the strings it carries')) return send({ choices: [{ message: {
+      content: stringsSay.map((x: any) => `${x.n}: ${x.now}`).join('\n') } }], usage: { prompt_tokens: 200, completion_tokens: 60 } });
     if (asked.system.startsWith(TALE_HEAD)) return send({ choices: [{ message: { content: taleSays } }],
       usage: { prompt_tokens: 200, completion_tokens: 60 } });
     if (summed !== null) return send({ choices: [{ message: { content: summed } }],

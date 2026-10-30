@@ -5,7 +5,7 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, TALE_STANDS, STRINGS_STAND, STRINGS_STAND_SCHEMA, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, TALE_STANDS, STRINGS_STAND, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
 import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -1596,8 +1596,8 @@ async function taleStands(c: Ctx, storyId: string, chapterId: string, scene?: st
   return { chalked: added ? 1 : 0 };
 }
 
-/** A paragraph a string, and a floor so one or two come back whole. */
-const stringTokens = (n: number) => Math.min(3000, 400 + 300 * n);
+/** A few sentences a string, and a floor; on `chat` the cap is the hard stop (2026-10-30). */
+const stringTokens = (n: number) => Math.min(1200, 80 + 180 * n);
 
 /** #127 · ADR 0011. WHERE EACH STRING IN PLAY STANDS AFTER THE SCENE JUST HEMMED, beside where the tale
  *  stands and in the same pass. Each one that moved is chalked onto the hem's card as a change to its
@@ -1620,18 +1620,23 @@ async function stringsStand(c: Ctx, storyId: string, chapterId: string, scene?: 
   // 'hem-strings', with its time. NOT MEASURED against the narration.
   const sum = summaryReaches(ch) ? String(ch.summary ?? '').trim() : '';
   const text = sum || narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
+  // PLAIN LINES, NOT JSON (2026-10-30): asked for a JSON array, the Featherless model ran on inside it
+  // as it did for where the tale stands. One line a string, "<n>: <text>", read back below.
   const t0 = Date.now(), using = backgroundModel(c, v);
-  const r = await structured(STRINGS_STAND, [
+  const r = await chat(STRINGS_STAND, [
     `WHERE THE STORY STANDS: ${resolveBody(tale, ch.index).trim() || v.story.premise || '(not written)'}`,
     `THE STRINGS IT CARRIES:\n${live.map((x: any, i: number) => `${i + 1}. ${x.kind === 'question' ? 'Open question' : 'Promise'}, `
       + `"${x.title}": ${String(x.body ?? '').trim() || x.title}`).join('\n')}`,
-    sum ? `THE SCENE, IN SUMMARY:\n${text}` : `THE SCENE:\n${text}`].join('\n\n'), STRINGS_STAND_SCHEMA,
-    { model: using, max_tokens: stringTokens(live.length) });
+    sum ? `THE SCENE, IN SUMMARY:\n${text}` : `THE SCENE:\n${text}`].join('\n\n'),
+    { model: using, temperature: 0.3, max_tokens: stringTokens(live.length), chat_template_kwargs: { enable_thinking: false } })
+    .catch((e: any) => ({ prose: '', error: String(e?.message ?? e) }) as any);
   db.logGeneration({ storyId, chapterId: ch.id, model: using, role: 'hem-strings',
-    params: { max_tokens: stringTokens(live.length) }, latencyMs: Date.now() - t0, error: r.error ?? null });
-  if (!r.data) return { error: r.error ?? 'nothing usable came back' };
+    params: { max_tokens: stringTokens(live.length) }, latencyMs: Date.now() - t0, error: (r as any).error ?? null });
+  const lines = [...String(r.prose ?? '').matchAll(/^\s*(\d+)\s*[:.)\-]\s*(.+)$/gm)]
+    .map((m) => ({ n: Number(m[1]), now: trimToSentence(clean(m[2])) }));
+  if ((r as any).error || !lines.length) return { error: (r as any).error ?? 'nothing usable came back' };
   let chalked = 0;
-  for (const a of (Array.isArray(r.data.strings) ? r.data.strings : []) as any[]) {
+  for (const a of lines) {
     const x = live[Number(a?.n) - 1];
     if (!x) continue;
     // Plain, as `upsertAddon` will store it; not "none", and not the text it has now.

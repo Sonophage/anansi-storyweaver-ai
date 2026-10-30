@@ -315,17 +315,10 @@ If the scene did not touch a string, give its text back exactly as it is.
 Never what comes next: not how a promise will be paid, not what anyone will do. Never answer an
 open question: it stays open, whatever the scene did to it.
 
-Only the narration commits the story. Dialogue has been removed already; do not infer from what is
-missing. No names in front, no brackets, no headings, no list. Answer each string by its number.`;
+Only the narration commits the story. No names in front, no brackets, no headings.
 
-export const STRINGS_STAND_SCHEMA = {
-  type: 'object',
-  properties: {
-    strings: { type: 'array', items: { type: 'object',
-      properties: { n: { type: 'integer' }, now: { type: 'string' } }, required: ['n', 'now'] } },
-  },
-  required: ['strings'],
-} as const;
+Answer with one line for each string and nothing else: its number, a colon, then where it stands,
+in the shape "<number>: <where it stands now>".`;
 
 /** #73 · TIDY THIS THREAD. An old thread is often one box holding who it is, what it wears and what
  *  has happened to it (Halsey's Info did all three), with pockets written as descriptions. This sorts
