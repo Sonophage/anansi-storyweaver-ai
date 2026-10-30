@@ -1522,8 +1522,8 @@ function passageHTML(p, newest, opening) {
   const body = spoken
     ? `<div class="who">${p.speaker ? esc(p.speaker)
          : mine ? `You · ${esc(V.story.persona || 'you')}` : esc(V.story.title)}</div>
-       <div class="said" data-edit="${p.id}">${accent(esc(p.body))}</div>`
-    : `<div class="narr" data-edit="${p.id}">${
+       <div class="said${mine && p.mode === 'speak' ? ' spoke' : ''}" data-edit="${p.id}">${accent(esc(p.body))}</div>`
+    : `<div class="narr${mine && p.mode === 'speak' ? ' spoke' : ''}" data-edit="${p.id}">${
          // Paragraphs for READING. Alter edits the passage's own text from S.passEdit, never this
          // markup: textContent over <p> children would glue the paragraphs into one line.
          // Accented across the whole passage at once, one paragraph a line, so a quote that runs on
@@ -1540,7 +1540,11 @@ function passageHTML(p, newest, opening) {
    * A list of its own rather than adding Continue to `MODES`, which would put a fifth button in the
    * composer. `--m-continue` is derived in `themeVars` beside the other four. */
   const ACCENTED = [...MODES.map(([k]) => k), 'continue'];
-  const m = ACCENTED.includes(p.mode) ? ` m-${p.mode}` : '';
+  /* WOVEN (Seth, 2026-10-29): what the model wrote "shouldn't use the actions", it has its own name
+   * and a bar that is none of theirs (`--m-woven`, web/model.js). The press stays on the passages
+   * a writer wrote, which is what the accents were for: telling what YOU did apart. */
+  const woven = p.author === 'model';
+  const m = woven ? ' m-woven' : ACCENTED.includes(p.mode) ? ` m-${p.mode}` : '';
 
   // Only on the last passage. On any earlier passage Reweave lives in its tray, where it has always
   // been; the last passage's is on the bar at the foot of the screen (#71).
@@ -1563,12 +1567,13 @@ function passageHTML(p, newest, opening) {
    *
    * IT IS HIDDEN WHILE READING, in the CSS with the rest of the apparatus. A chip over every
    * paragraph is a writing tool, and reading is the mode that takes the tools away. */
-  const press = MODES.find(([k]) => k === p.mode)?.[1]
-    ?? (p.mode === 'continue' ? 'Continue'
-    : mine ? 'Yours' : spoken ? 'Spoken' : p.directed ? 'Direct' : 'Anansi');
+  const press = woven ? 'Woven' : MODES.find(([k]) => k === p.mode)?.[1]
+    ?? (p.mode === 'continue' ? 'Continue' : mine ? 'Yours' : spoken ? 'Spoken' : 'Anansi');
   const from = `<div class="from"><i></i>${esc(press)}${
     p.speaker ? ` &middot; ${esc(p.speaker)}` : ''}</div>`;
-  const cls = `block${mine ? ' you' : spoken ? ' speak' : ''}${p.directed && !mine ? ' directed' : ''}${m}${p.id === S.found ? ' found' : ''}${p.id === S.arrived ? ' arrived' : ''}`
+  // `directed` stays on a passage written to order: it says so (the reweave box reads it), and the
+  // Woven bar is the later rule, so it is the colour that shows.
+  const cls = `block${mine ? ' you' : spoken && !woven ? ' speak' : ''}${p.directed && !mine ? ' directed' : ''}${m}${p.id === S.found ? ' found' : ''}${p.id === S.arrived ? ' arrived' : ''}`
     // The drop cap goes on narration, whoever wrote it. Not on speech — a two-inch quotation mark
     // is not a drop cap. The writer's own passages were left out too, because they were once
     // right-aligned (on Sutera the first passage was the writer's, and a left-floated capital sat
@@ -9748,12 +9753,12 @@ function ghost(replaces = null) {
     const g = document.createElement('div');
     // The label and the accent it will land with: "Speak · Aldis Fen", "Continue" (Seth, 2026-10-26:
     // "add the label too"). The same words passageHTML writes on the landed passage.
-    const accented = [...MODES.map(([k]) => k), 'continue'].includes(GHOST_MODE);
-    const press = MODES.find(([k]) => k === GHOST_MODE)?.[1] ?? (GHOST_MODE === 'continue' ? 'Continue' : 'Anansi');
+    // The model is writing it, so it is Woven from the first word, as it will land (passageHTML).
+    const press = 'Woven';
     // THE DROP CAP TOO, when this is the scene's first passage: it lands with one (`opening`,
     // passageHTML), so it is written with one rather than gaining it as it lands (2026-10-27).
     const opens = !GHOST_VOICE && !(V?.passages ?? []).some((p) => p.chapterId === V?.currentChapter?.id && !p.isBreak);
-    g.id = 'ghost'; g.className = `block inlive${accented ? ` m-${GHOST_MODE}` : ''}${GHOST_VOICE ? ' speak' : ''}${opens ? ' opening' : ''}`;
+    g.id = 'ghost'; g.className = `block inlive m-woven${opens ? ' opening' : ''}`;
     // SET AS IT WILL LAND. A passage with a named voice lands as speech — the name above it, in the
     // same face and size as narration since 2026-10-29 — and one that opens on a quote does too
     // (`spoken`, passageHTML). It was always written as narration and changed font the moment it

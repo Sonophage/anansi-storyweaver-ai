@@ -207,7 +207,7 @@ const STORY = {
     { id: 'p-2', ordinal: 2, body: '"You came alone."', author: 'model', speaker: 'Envoy Sereth',
       mode: 'speak',
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-2', selected: true }] },
-    { id: 'p-3', ordinal: 3, body: '"I came alone because."', author: 'human', speaker: null,
+    { id: 'p-3', ordinal: 3, body: '"I came alone because."', author: 'human', speaker: null, mode: 'speak',
       isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-3', selected: true }] },
     // UNCLAIMED, added 2026-09-01. bugs.md #9: the server persists a generation at completion now, so
     // a passage can land while the browser is away. This is one of those — model-authored, real, and
@@ -1113,18 +1113,26 @@ assert.match(html('col'), /class="block you(?: [^"]*)?"/, 'the writer\'s own lin
   const one = col.slice(col.indexOf('class="block'));
   assert.ok(one.indexOf('class="from"') < one.indexOf('data-edit='),
     'the chip comes before the words it is about');
-  // A MODE IS NAMED BY ITS PRESS. p-4 is a human narration and p-5 is spoken as someone else, so a
-  // chip that just said "You" for every human row would fail here.
-  // CONTINUE IS ONE OF THEM. It is a press beside the four modes rather than one of them, so it fell
-  // through both the accent class and the chip's label and read as a passage from nowhere.
-  assert.ok(col.includes('class="block you m-continue"') || /m-continue/.test(col),
-    'a passage Continue wrote carries the accent class, like every other press');
-  assert.ok(chips.includes('Continue'), `and its chip names it — got ${JSON.stringify(chips)}`);
-  assert.ok(chips.some((c) => /Speak|Act|Direct|Narrate/.test(c)),
-    `at least one chip names the press that made it — got ${JSON.stringify(chips)}`);
+  // WOVEN (Seth, 2026-10-29): what the model wrote is not an action, so it is not labelled or
+  // coloured as one. Every model passage says Woven, whatever press asked for it, with its own bar.
+  for (const id of ['p-1', 'p-2']) {
+    const b = col.slice(col.lastIndexOf('<div class="block', col.indexOf(`data-edit="${id}"`)));
+    assert.match(b, /^<div class="block[^"]*\bm-woven\b/, `WOVEN-BAR: ${id}, written by the model, wears the Woven bar`);
+    assert.doesNotMatch(b.slice(0, b.indexOf('>')), /\bm-(speak|act|direct|narrate|continue|coop)\b/,
+      `  and no action's accent (${id})`);
+  }
+  assert.ok(!/class="block[^"]*\bm-continue\b/.test(col), 'WOVEN-NOT-CONTINUE: a passage Continue asked for is Woven, not Continue');
+  assert.ok(chips.includes('Woven'), `WOVEN-CHIP: its chip says Woven — got ${JSON.stringify(chips)}`);
+  assert.ok(!chips.includes('Continue') && !chips.some((c) => /^Direct/.test(c)), '  and never the action that asked for it');
+  // THE WRITER'S OWN PASSAGES keep their press: p-3 is a line the writer spoke.
+  assert.ok(chips.some((c) => /^Speak/.test(c)), `a passage the writer wrote names its press — got ${JSON.stringify(chips)}`);
   // AND A SPOKEN LINE CARRIES WHO SAID IT, which is the one thing the colour cannot say.
-  assert.match(col, /<div class="from(?: [^"]*)?"><i><\/i>[^<]*&middot; Envoy Sereth</,
-    'a line spoken as someone else names them on the chip');
+  assert.match(col, /<div class="from(?: [^"]*)?"><i><\/i>Woven &middot; Envoy Sereth</,
+    'a line the model voiced for someone names them on the chip');
+  // THE SPEAK ACTION IS IN THE SPEECH HIGHLIGHT (Seth, 2026-10-29): the writer's spoken line reads in
+  // the colour quoted speech has in the prose.
+  assert.match(col, /class="said spoke" data-edit="p-3"/, 'SPEAK-HIGHLIGHT: the line the writer spoke is drawn in the speech highlight');
+  assert.doesNotMatch(col, /class="said spoke" data-edit="p-2"/, '  and a line the model voiced is not');
 }
 ok('every passage carries a chip saying where it came from, above the prose');
 // #94 · NO KNOT ROWS IN THE PROSE. The fixture's two violations are on p-2; a page that still drew
@@ -1898,7 +1906,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   const NEEDED = ['--doc-bg', '--doc-wash', '--rail', '--sheet', '--body', '--ink', '--ink-bright',
     '--narr', '--label', '--mute', '--dim', '--faint', '--ink-ghost', '--rule', '--line', '--edge',
     '--edge-lit', '--chip', '--field', '--gold', '--gold-dim', '--gold-lit', '--on-gold', '--bad',
-    '--good', '--warn', '--you-rule', '--speak-rule', '--chrome', '--m-coop',
+    '--good', '--warn', '--you-rule', '--speak-rule', '--chrome', '--m-coop', '--m-woven',
     '--chrome-ink', '--chrome-dim', '--chrome-line', '--src-local', '--src-remote'];
   // --head, --dock and --panel-line came out of this list AND out of themeVars on 2026-09-05,
   // together, because no rule in app.html or web/ ever named one of them. Taking a name out of
@@ -1942,6 +1950,15 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
       assert.ok(a >= 4.5, `ACCENT-CONTRAST: ${name}'s ${k} is ${a.toFixed(2)}:1 against its own paper`);
     }
     assert.notStrictEqual(v['--accent-soft'], v['--accent-said'], `ACCENT-CONTRAST: ${name}'s emphasis is a softer tint, not the same colour`);
+    // WOVEN (2026-10-29) is a mark down the margin, so 3:1 on the paper, and it must be none of the
+    // press accents: at least 70 apart (RGB distance) from each of the six and from the speech accent.
+    const w = rgb(v['--m-woven']);
+    assert.ok(ratio(v['--m-woven'], (spec as any).paper) >= 3, `WOVEN-CONTRAST: ${name}'s Woven bar reads on its paper`);
+    for (const k of ['--m-speak-ink', '--m-act-ink', '--m-direct-ink', '--m-narrate-ink', '--m-continue', '--m-coop', '--accent-said']) {
+      const o = rgb(String(v[k]));
+      const d = Math.hypot(w![0] - o![0], w![1] - o![1], w![2] - o![2]);
+      assert.ok(d >= 70, `WOVEN-APART: ${name}'s Woven bar is only ${Math.round(d)} from ${k}`);
+    }
   }
   ok('nine themes, every token derived from one row each, every hint above 4.5:1');
 

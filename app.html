@@ -804,6 +804,9 @@ html[data-ui-font="readex"] :is(.narr, .said) { font-family:'Readex Pro',system-
    italic, so emphasis there turns upright, the way a printer sets it. */
 :is(.narr, .said) .q, :is(.narr, .said) strong { color:var(--accent-said, var(--gold)); }
 :is(.narr, .said) em { font-style:italic; color:var(--accent-soft, var(--gold)); }
+/* THE SPEAK ACTION IN THE SPEECH HIGHLIGHT (Seth, 2026-10-29): the line the writer spoke reads
+   in the colour quoted speech has in the prose, quoted or not. */
+:is(.said, .narr).spoke { color:var(--accent-said, var(--gold)); }
 html[data-ui-font="serif"] :is(.narr, .said) em { font-style:normal; }
 
 /* THREE rules down the left margin, and the margin is the only place they are.
@@ -843,7 +846,10 @@ html[data-ui-font="serif"] :is(.narr, .said) em { font-style:normal; }
    than off a press accent — the other five say which press produced a passage, this one says a
    second hand did. */
 :is(.block, .carry).m-coop    { --m:var(--m-coop); }
-.block:is(.m-speak,.m-act,.m-direct,.m-narrate,.m-continue,.m-coop) {
+/* WOVEN (2026-10-29): every passage the model wrote, whatever press asked for it. Its colour is
+   searched for to sit apart from all six press accents (`--m-woven`, web/model.js). */
+:is(.block, .carry).m-woven   { --m:var(--m-woven); }
+.block:is(.m-speak,.m-act,.m-direct,.m-narrate,.m-continue,.m-coop,.m-woven) {
   padding-left:16px; border-left:3px solid var(--m);
 }
 /* THE LAST PASSAGE LOOKS LIKE EVERY OTHER ONE. Seth, 2026-10-29: "Remove the box around the last

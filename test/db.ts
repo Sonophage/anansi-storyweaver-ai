@@ -61,7 +61,10 @@ ok('every press the page draws an accent for is a mode the column will store', (
   // selector became `:is(.block, .carry).m-X` — so the check went red on a rule that had only moved.
   // What identifies an accent rule is that it SETS `--m`; the selector is free to change again.
   const drawn = [...readFileSync(new URL('../app.html', import.meta.url), 'utf8')
-    .matchAll(/\.m-(\w+)\s*\{\s*--m:/g)].map((m) => m[1]);
+    .matchAll(/\.m-(\w+)\s*\{\s*--m:/g)].map((m) => m[1])
+    // Woven (2026-10-29) is drawn from who wrote a passage, the model, and not from a press, so it is
+    // not a mode the column stores.
+    .filter((m) => m !== 'woven');
   assert.ok(drawn.length >= 5, 'the accent rules should be findable in app.html');
   const sm = db.createStory(o, { title: 'M', premise: 'p' });
   for (const mode of drawn) {

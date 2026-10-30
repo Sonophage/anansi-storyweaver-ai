@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### What Anansi writes is marked Woven
+A passage Anansi wrote no longer wears the name or the colour of the action that asked for it.
+It is marked Woven, with a line down its side in a colour of its own that none of the actions
+use. Your own passages keep their action's name and colour, so reading back you can tell what you
+did from what he wove. A line you speak is now shown in the same highlight as speech in the prose.
+
 ### The model you pick shows at once
 Picking a model while you are in a tale now updates the model named at the foot of the menu
 straight away, and the list lights the one that is writing. Before, it went on naming the old one

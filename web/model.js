@@ -856,6 +856,40 @@ const opposite = (hex) => {
   return `rgb(${[R, G, B].map((v) => Math.round((v + m) * 255)).join(',')})`;
 };
 
+/** A COLOUR THAT IS NONE OF THE OTHERS (2026-10-29, for Woven). Seth: what the model writes "shouldn't
+ *  conform to any used accent from the actions". The theme table has no column for it, and each
+ *  theme's accents sit in different places on the wheel, so it is searched for, not picked: around
+ *  the wheel in 15-degree steps at three lightnesses, every candidate that reads as a mark on the
+ *  paper (3:1, the floor for a line that is not text), and the one farthest from the nearest colour
+ *  in `avoid`. Deterministic: the same theme gives the same colour every time. */
+const rgbOf = (c) => {
+  const s = String(c).trim();
+  if (s.startsWith('#')) return [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16));
+  return (s.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+};
+const lum = ([r, g, b]) => {
+  const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+};
+const hsl = (h, s, l) => {
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+  const [R, G, B] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
+    : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return [R, G, B].map((v) => Math.round((v + m) * 255));
+};
+const apart = (avoid, paper, dark) => {
+  const bg = lum(rgbOf(paper)), others = avoid.map(rgbOf);
+  let best = null, far = -1;
+  for (const l of dark ? [0.58, 0.66, 0.74] : [0.3, 0.38, 0.46])
+    for (let h = 0; h < 360; h += 15) {
+      const c = hsl(h, 0.42, l), y = lum(c);
+      if ((Math.max(y, bg) + 0.05) / (Math.min(y, bg) + 0.05) < 3) continue;
+      const near = Math.min(...others.map((o) => Math.hypot(c[0] - o[0], c[1] - o[1], c[2] - o[2])));
+      if (near > far) { far = near; best = c; }
+    }
+  return `rgb(${best.join(',')})`;
+};
+
 /** Every custom property a theme sets, derived from its row.
  *
  *  "toward" brightens the ink; "away" fades it toward the paper. Fading toward black on a light
@@ -933,6 +967,11 @@ export function themeVars(key) {
      * which press produced a passage, and this one says a second writer did — it should read as a
      * different hand, not as a different setting. */
     '--m-coop': mix(S.good, toward, .12),
+    /* WOVEN, what the model wrote, whatever press asked for it (2026-10-29). Not an action, so not
+     * an action's colour: the colour farthest from all six press accents and from the accent the
+     * prose highlights speech in (`apart`). Its own label is "Woven". */
+    '--m-woven': apart([opaque(S.speak), opaque(S.good), mix(S.accent, away, .22), opaque(S.warn),
+      mix(S.ink, away, S.dark ? .42 : .28), mix(S.good, toward, .12), mix(S.accent, S.ink, .15)], S.paper, S.dark),
     /* WHERE A MODEL RUNS (#53): the circle on every model row. Local is the theme's own `good`,
      * the colour the awake dot already had, so a local model looks as it did. Remote is that same
      * colour turned to the far side of the colour wheel, at the same saturation and lightness, so
