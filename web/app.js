@@ -3992,6 +3992,21 @@ async function findSearch(whole = false) {
   loadTags(f.hits.map((m) => m.id));
 }
 
+/** IS THE SCENE THE HEM DRAWER WILL SHOW ALREADY HEMMED? For the words on This scene's door, which
+ *  must say what the drawer behind it holds. The door clears `S.ritualOf`, so this is `ritualPanel`'s
+ *  rule with none: the scene you are in once it has a passage, the one before it otherwise; hemmed
+ *  if it is closed or is not the scene you are in. A copy of one rule in two places, so test/app.ts
+ *  reads both sides (HEM-DOOR): the door says "See how it was hemmed" exactly when the drawer has
+ *  no Hem button.
+ *  ponytail: a copy, because ritualPanel was being rewritten at the same time (2026-10-30). Have
+ *  ritualPanel call this when that work lands, and the copy goes. */
+function hemShownIsDone() {
+  const cur = V.currentChapter;
+  const started = (V.passages ?? []).some((p) => p.chapterId === cur.id && !p.isBreak);
+  const ch = started ? cur : (V.chapters.at(-2) ?? cur);
+  return ch.status === 'closed' || ch.id !== cur.id;
+}
+
 const PANELS = {
   entry: entryEditor,
   /** #76. WHAT AN UPDATE MOVED IN THIS TALE, one line per thing, each naming its thread. Written by
@@ -5097,11 +5112,22 @@ const PANELS = {
         with the model told not to steer toward it or wrap the scene up to reach it. Neither box
         is shown to the reader.</p>`)}
       <textarea class="field" id="f-chapter-note" data-chapter-note="1">${esc(ch.authorsNote ?? '')}</textarea>
-      ${tipCard('chRitual', 'Hem this scene', `<p>Opens the scene's own screen, where it is hemmed:
-        closed, summarised, and the next scene opened.</p>`)}
+      ${/* THE DOOR, NOT THE ACT (usability walkthrough, 2026-10-30). It had the same words as the
+            gold button inside the drawer it opens, which is the one that hems, so it read as the
+            hem itself. The ellipsis says there is a step after it; a hemmed scene's door says
+            what is there instead. */ ''}
+      ${hemShownIsDone()
+        ? `${tipCard('chRitual', 'See how it was hemmed', `<p>Opens the hemmed scene's own screen:
+        its summary, and what the hem found in it.</p>`)}
       <div class="push-14 line-2">
-        <button class="btn ghost fill" data-ritual="1">Hem this scene</button>
-        ${tipMark('chRitual', 'Hem this scene')}</div>
+        <button class="btn ghost fill" data-ritual="1">See how it was hemmed</button>
+        ${tipMark('chRitual', 'See how it was hemmed')}</div>`
+        : `${tipCard('chRitual', 'Hem this scene', `<p>Opens the scene's own screen, where it is hemmed:
+        closed, summarised, and the next scene opened. Nothing is closed until you press Hem this
+        scene there.</p>`)}
+      <div class="push-14 line-2">
+        <button class="btn ghost fill" data-ritual="1">Hem this scene&hellip;</button>
+        ${tipMark('chRitual', 'Hem this scene')}</div>`}
 
       <!-- ISSUE #31, filed as "there is no way to delete a chapter". There was one, and it is the
            same button as below — but its ONLY door was the chapter's own screen, which you reach by
@@ -6982,7 +7008,9 @@ function setupPanel() {
            being empty is a box the writer has to retype the premise into. It is editable, because
            the whole point of a steer is that it is yours. -->
       ${inventTray(kind, `Have Anansi write ${kind === 'character' ? 'someone' : 'something'} for this scene`,
-        'what this scene needs', form.note.trim())}
+        'what this scene needs', form.note.trim(),
+        `<label class="lbl flush" for="f-invdir">What Anansi writes them from</label>
+        <div class="hint flush">It starts from where the scene heads. Change it to steer him.</div>`)}
       <!-- THE NEW THREADS, HERE. Anansi's offers land in one queue wherever they came from, and a
            card asked for in the tray directly above this used to appear two steps away. Both sources
            are the same thing to a writer: a thread this book does not have yet. -->
@@ -7174,8 +7202,11 @@ const slotLabel = (slot) => (slot === 'facts' ? 'always true' : slot === 'questi
 /** A pocket's name as a heading or a chip: capitalised, not the raw key (usability check). */
 const pocketTitle = (slot) => { const l = slotLabel(slot); return l.charAt(0).toUpperCase() + l.slice(1); };
 
-function inventTray(kind, label, placeholder, value = '') {
+function inventTray(kind, label, placeholder, value = '', named = '') {
   const searchable = V?.searchable !== false;
+  // `named` IS A VISIBLE LABEL AND ITS HINT, for a box that arrives already filled. With only an
+  // aria-label, the setup's copy of Heads toward read as typing that had landed in the wrong field
+  // (usability walkthrough, 2026-10-30). One tray per screen, so one id.
   // data-invtray, because there were once TWO of these on one screen (the card's own and the
   // wardrobe's, before #126), and `document.querySelector('[data-invdir]')` takes the first one it finds. That
   // would read the writer's steer for a coat out of the box they typed the character into, which
@@ -7183,7 +7214,8 @@ function inventTray(kind, label, placeholder, value = '') {
   return `<div data-invtray style="display:flex; flex-direction:column; gap:7px; margin-top:4px;
       padding-top:9px; border-top:1px solid var(--line)">
     ${weaveFitRow(`invent:${kind}`)}
-    <textarea class="field" data-invdir aria-label="Steer what Anansi writes"
+    ${named}
+    <textarea class="field" data-invdir id="f-invdir" ${named ? '' : 'aria-label="Steer what Anansi writes"'}
       placeholder="${esc(placeholder)}"
       style="min-height:44px; font-size:12.5px">${esc(value)}</textarea>
     <div class="line">
@@ -13197,7 +13229,9 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId);
     // Only this chapter's draft is spent. Another chapter's is still waiting for its own Save.
     if (draft) S.setup = null;
-    S.setupStep = null; S.panel = 'context'; syncHash(); paint(); refreshManifest();
+    // ONTO THE PAGE, DRAWER SHUT. It opened What he reads, token counts over the scene the writer
+    // had just pressed Start writing for (usability walkthrough, 2026-10-30).
+    S.setupStep = null; S.panel = null; syncHash(); paint(); refreshManifest();
     toast(note.trim() ? 'Set. Write when ready.' : 'Saved. No beat set, which is fine.');
     // AFTER the beat is set, never before. This used to fire from the close, which meant the first
     // passage of every chapter was the only one written without the line that steers the rest of it.

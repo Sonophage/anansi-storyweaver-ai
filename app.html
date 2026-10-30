@@ -1090,6 +1090,11 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 #ctxread button { color:var(--gold-dim); font-size:11px; letter-spacing:.1em;
   text-transform:uppercase; }
 @media (max-width:719px) { #ctxread { padding:8px 18px; gap:13px; } }
+/* EACH READING ON ONE LINE, AND THE ROW WRAPS INSTEAD. At 390px the row squeezed "what is in it ›"
+   into 45px and three lines (usability walkthrough, 2026-10-30); the readings beside it broke the
+   same way. A reading that does not fit goes to a second row whole. */
+#ctxread > * { white-space:nowrap; }
+@media (max-width:719px) { #ctxread { flex-wrap:wrap; row-gap:4px; } }
 /* SHUT, THE ROW IS ITS ⌄ ALONE: a thin strip, the arrow in the middle. Small to the eye, 44px to
    the finger by its negative margin, so the strip stays thin. Open, the arrow ends the row. */
 #ctxread.shut { justify-content:center; padding-top:0; padding-bottom:0; height:16px; position:relative; z-index:3; }
@@ -1454,6 +1459,11 @@ html[data-work="ai"]       { --work:var(--gold); }
   width:28px; height:44px; border-radius:var(--r); background:var(--gold); color:var(--on-gold);
   display:flex; align-items:center; justify-content:center; font-size:14px; flex:0 0 auto;
 }
+/* THE SAME SHAPE, NOT THE SAME GOLD. ADR 0004 (2026-10-25) is newer than "style it the same as the
+   send button" (Seth, 2026-09-02): one filled gold button per screen, and on the composer that is
+   Send. A blank new scene showed Full screen and Send both filled, and the box ringed, three golds
+   (usability walkthrough, 2026-10-30). Full screen keeps the shape and wears the outline in ink. */
+#inputRow button[data-bigin] { background:none; border:1px solid var(--chip); color:var(--mute); }
 #send:disabled { opacity:.4; }
 /* Writing. The same button, in the same place, saying the one thing it can do now — a disabled
    "…" was a control you could look at and not use, which is what a Stop button is for. Not red:
@@ -2179,7 +2189,7 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
    sized in JS and a box that grew by 2px would move the dock, which this project has three separate
    bug reports about. */
 #inputWrap { position:relative; flex:1; min-width:0; display:flex; --field-pad:13px;
-  background:var(--field); border:1px solid var(--gold-dim); border-radius:var(--r);
+  background:var(--field); border:1px solid var(--chip); border-radius:var(--r);
   padding:0 var(--field-pad); transition:border-color var(--t) var(--ease); }
 html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
 /* DIM UNTIL YOU ARE IN IT, and the full accent when you are — Seth, 2026-09-02: "the original one
@@ -2188,7 +2198,9 @@ html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
    focus; on a textarea inside a padded wrapper that drew a second, smaller accent inside the first
    — "theres another accent that is smaller than the box. that needs to go." Dropped only for this
    one field, and only because the box it sits in lights up instead: a control with no focus
-   indicator at all is the thing that rule exists to prevent. */
+   indicator at all is the thing that rule exists to prevent.
+   THE DIM EDGE IS INK NOW, not dim gold (usability walkthrough, 2026-10-30): under ADR 0004 a gold
+   ring at rest was a second "press here" beside Send. Gold still comes on with focus. */
 #inputWrap:focus-within { border-color:var(--gold); }
 #inputWrap > #input:focus-visible { outline:none; }
 /* The full-screen composer has no field to outline — it IS the screen. */
@@ -2314,6 +2326,12 @@ html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
 .deckredo .btn { min-height:44px; display:flex; align-items:center; justify-content:center; }
 .deckbar { display:flex; gap:8px; margin-top:4px; }
 .deckbar > button { flex:1; }
+/* ONE HEIGHT AT PHONE SIZE (usability walkthrough, 2026-10-30): the sheet grew and shrank with each
+   card, so Back and Next jumped under the thumb. A floor rather than a fixed height, so a long card
+   still shows all of itself; the yes and no sit at the foot of a short one.
+   ponytail: a floor sized for the cards seen so far. A card taller than it still moves the sheet;
+   give the card its own scroll if writers meet that often. */
+@media (max-width:719px) { .deckcard { min-height:min(60svh, 520px); } .deckbar { margin-top:auto; } }
 @media (prefers-reduced-motion: reduce) { .deckcard { transition:none; } }
 
 /* The dev-server banner. In flow above the header rather than floating over it: a strip that

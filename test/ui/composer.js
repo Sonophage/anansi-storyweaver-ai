@@ -117,14 +117,14 @@ console.log("  send/expand: " + JSON.stringify(pair));
 ok("both buttons are on the page", !!pair.send && !!pair.big);
 ok(`  the expand button is the same size as Send (${pair.big?.w} vs ${pair.send?.w})`,
    pair.big?.w === pair.send?.w);
-ok(`  the same fill and the same shape (${pair.big?.bg})`,
-   pair.big?.bg === pair.send?.bg && pair.big?.radius === pair.send?.radius);
-// VERTICAL RECTANGLES, not discs, and the glyph in the fill's own ink. That last one is the
-// second time an inline `color:var(--faint)` on this exact button beat a stylesheet and left the
-// arrow grey inside a gold plate — asserted now rather than looked at.
+// THE SAME SHAPE, NOT THE SAME GOLD (2026-10-30). ADR 0004 is newer than "style it the same as the
+// send button": one filled gold button per screen, and here that is Send. Full screen is the outline.
+ok(`  the same shape, and only Send is filled gold (${pair.big?.bg} vs ${pair.send?.bg})`,
+   pair.big?.bg !== pair.send?.bg && pair.big?.radius === pair.send?.radius);
+// VERTICAL RECTANGLES, not discs.
 ok(`  taller than they are wide (${pair.big?.w}x${pair.big?.h})`, (pair.big?.h ?? 0) > (pair.big?.w ?? 0));
-ok(`  and the glyph wears the fill's own ink, not a grey (${pair.big?.color})`,
-   pair.big?.color === pair.send?.color);
+ok(`  and the glyph is the outline's ink, not the gold fill's (${pair.big?.color})`,
+   pair.big?.color !== pair.send?.color);
 // BOTH ARE DRAWN MARKS NOW, from web/model.js's own set, rather than characters scavenged out of
 // Unicode. The maximize wears what Threads used to wear and Send wears what Preferences did, and
 // the menu took new ones — so the check is that each button holds an svg, not which glyph it is.

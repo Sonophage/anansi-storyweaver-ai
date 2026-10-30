@@ -51,6 +51,30 @@ A step that failed now says "Did not run" and why, in plain words, with its own 
 says "Trying…" while it runs. Each step has one name everywhere, and "Hem it again" replaces the
 separate block of re-run buttons. An answer from the model that came back broken now says so in
 plain words.
+## 2026-10-30 · Small fixes around starting a new scene
+
+### Start writing takes you to the page
+On the next scene's setup, Start writing used to open the drawer of what Anansi reads, full of
+numbers, over the scene you wanted to write. It now shuts the drawer and leaves you on the page.
+
+### The door to the hem says where it goes
+On This scene, the button that opens the hem had the same words as the gold button inside that
+actually hems the scene. It now says "Hem this scene…" while the scene is open, and "See how it was
+hemmed" once it is hemmed. Nothing is closed until you press the gold button inside.
+
+### The box on Anyone new has a name
+The box under Character, Place, Lore and Item starts with where your scene heads, and it looked as
+if you had typed into the wrong place. It now has a label, "What Anansi writes them from", and a
+line saying why it is already filled.
+
+### Steadier screens on a phone
+The scene's numbers under the header keep "what is in it" on one line. The Workbench stays one
+height as you move from card to card, so Back and Next do not jump under your thumb.
+
+### One gold button on a new scene
+A blank new scene showed Full screen and Send both in gold, with a gold ring round the box. Send is
+the only gold button now; Full screen is an outline, and the box turns gold only while you are
+typing in it.
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 

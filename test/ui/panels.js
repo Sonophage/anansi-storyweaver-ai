@@ -83,7 +83,7 @@ for (const [what, re] of [['the chapter name', /Name/],
                           ['where it heads', /Heads toward/],
                           ['what the scene chalked', /What this scene chalked/],
                           ['the summaries', /Scene summaries/], ['branches', /Branches/],
-                          ['and hemming it', /Hem this scene/]]) {
+                          ['and hemming it', /Hem this scene|See how it was hemmed/]]) {
   ok(`Chapter holds ${what}`, re.test(chapter));
 }
 // AND THE OLD DEMAND IS GONE FROM THE SURFACE TOO, not just from the prompt: the wording is what

@@ -6253,6 +6253,12 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   const anyoneNew = html('sideBody');
   assert.match(anyoneNew, /The ferryman/, 'and the card is on that step');
   assert.match(anyoneNew, /data-invent=/, 'beside the tray that asks for another — the same thing');
+  // THE PREFILLED BOX SAYS WHAT IT IS (usability walkthrough, 2026-10-30): with no label, the scene's
+  // Heads toward sitting under the kind chips read as typing that had gone into the wrong field.
+  assert.match(anyoneNew, /<label[^>]*for="f-invdir"[^>]*>What Anansi writes them from</,
+    'SETUP-STEER-LABEL: the box on Anyone new has a label saying what it is for');
+  assert.match(anyoneNew, /<textarea[^>]*id="f-invdir"/, '  and the label belongs to that box');
+  assert.match(anyoneNew, /starts from where the scene heads/, '  and a hint says why it is already filled');
 
   /* AND THE TWO KINDS DO NOT BLEED, which needs BOTH present at once: with only new threads the
    * panel redirects off the empty cards step, so "the ferryman is not on the cards step" was true
@@ -7687,8 +7693,48 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   click({ savesetup: '1' }); await settle();
   assert.strictEqual(titleOf('c-3'), "The Fell Omen's Tale",
     'and the chapter that opened gets the name proposed for it');
+  // START WRITING LANDS ON THE PAGE (usability walkthrough, 2026-10-30): it opened What he reads,
+  // a drawer of token counts over the scene the writer had just said they wanted to write.
+  assert.ok(nodes.get('side').hidden, 'SETUP-LANDS: Start writing shuts the drawer and leaves the page');
   (globalThis as any).fetch = canned;
   ok('a name proposed for the next chapter lands on the next chapter, not the one that closed');
+}
+
+// ---- THE DOOR TO THE HEM IS NOT THE HEM (usability walkthrough, 2026-10-30). This scene's door and
+// the gold button inside the drawer it opens both said "Hem this scene", so the door read as the act.
+// The door says what the drawer will show, and the check reads BOTH sides: the door says "See how it
+// was hemmed" exactly when the drawer behind it has no Hem button.
+{
+  const settle = () => sleep(40);
+  const wasChapters = STORY.chapters, wasCurrent = STORY.currentChapter;
+  const door = () => html('sideBody').match(/data-ritual="1">([^<]*)</)?.[1] ?? '';
+  const behind = async () => { click({ ritual: '1' }); await settle(); return /data-endchapter="1"/.test(html('sideBody')); };
+  try {
+    click({ open: 's-1' }); await settle();
+    click({ panel: 'chapter' }); await settle();
+    assert.strictEqual(door(), 'Hem this scene&hellip;', 'HEM-DOOR: an open scene\'s door says the hem is behind it');
+    assert.ok(await behind(), '  and the drawer behind it has the Hem button');
+    // The scene on screen is closed and has prose: the drawer reports on it.
+    STORY.chapters = STORY.chapters.map((c: any) => ({ ...c, status: 'closed' }));
+    STORY.currentChapter = { ...wasCurrent, status: 'closed' };
+    click({ open: 's-1' }); await settle();
+    click({ panel: 'chapter' }); await settle();
+    assert.strictEqual(door(), 'See how it was hemmed', 'HEM-DOOR: a hemmed scene\'s door says it shows the hem');
+    assert.ok(!(await behind()), '  and the drawer behind it has no Hem button');
+    // A fresh scene just opened by a hem, nothing written: the drawer reports on the one before it.
+    const c3 = { id: 'c-door3', index: 3, title: 'Scene 3', summary: null, authorsNote: null, opensWith: null,
+      status: 'open', coversThrough: null, summaryStale: false, keepWhole: false };
+    STORY.chapters = [...wasChapters.map((c: any) => ({ ...c, status: 'closed' })), c3];
+    STORY.currentChapter = { ...c3 };
+    click({ open: 's-1' }); await settle();
+    click({ panel: 'chapter' }); await settle();
+    assert.strictEqual(door(), 'See how it was hemmed', 'HEM-DOOR: on an empty new scene the door goes to the last hem');
+    assert.ok(!(await behind()), '  and that is what the drawer shows');
+  } finally {
+    STORY.chapters = wasChapters; STORY.currentChapter = wasCurrent;
+  }
+  click({ open: 's-1' }); await settle();
+  ok('the door to the hem says what is behind it, and the drawer agrees (usability walkthrough, 2026-10-30)');
 }
 
 // ---- #126 · ONE POCKET PANEL. ＋ in the thread's header opens it to add; a row on the Pockets tab
