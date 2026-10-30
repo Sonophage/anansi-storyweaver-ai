@@ -34,23 +34,37 @@
  * is not capped, because it puts back what the writer had, which can be longer than anything Talk
  * may write.
  */
-import { ALL_SLOTS, KINDS, STRING_SLOTS, slotsFor, plain, wrapperNames } from './slots.ts';
+import { ALL_SLOTS, KINDS, STRING_SLOTS, slotsFor, plain, tidyGenre, wrapperNames } from './slots.ts';
 import { retiredAt } from './context.ts';
 
 /** What the model may ask for. #97 cut the path with the first two; #98 adds the rest; #128 adds a
- *  string, a pocket of the tale's own thread (ADR 0011), which no other operation reaches. */
+ *  string, a pocket of the tale's own thread (ADR 0011), which no other operation reaches. Then the
+ *  tale's own pockets, which no thread operation reaches either (Seth, 2026-10-29: Talk should do
+ *  what it could not): where a string stands, the tale's rules (ADR 0005) and the writer's own
+ *  instructions, each added, changed, or switched on or off. */
 export const ASKED = ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire',
-  'tale.set', 'scene.set', 'string.set'] as const;
-/** What only an Undo may do, beside putting back old text. */
-export const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake', 'retire.unmake', 'takeover.unmake'] as const;
+  'tale.set', 'scene.set', 'string.set', 'string.stand', 'rule.set', 'rule.switch',
+  'instruction.set', 'instruction.switch'] as const;
+/** What only an Undo may do, beside putting back old text. `pocket.unmake` takes away a rule or an
+ *  instruction Talk added, which hang off no thread, so `room.unmake` (which finds a thread first)
+ *  cannot reach them. */
+export const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake', 'retire.unmake', 'takeover.unmake',
+  'pocket.unmake'] as const;
 /** What an Undo may put back as it was: the asked operations that write over a value, by id. */
-const PUT_BACK = ['thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set'] as const;
+const PUT_BACK = ['thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set', 'string.stand',
+  'rule.set', 'rule.switch', 'instruction.set', 'instruction.switch'] as const;
 
-/** THE TALE'S OWN FIELDS TALK MAY CHANGE: its premise and setting, the story's own columns.
- *  ponytail: Talk cannot add or change a rule. Rules were threads, reached by the thread operations,
- *  until 2026-10-29 (ADR 0005); they are pockets of the tale now and no operation reaches them. Add
- *  a `rule.set` beside `string.set` when a writer asks Talk for a rule and it cannot do it. */
-const TALE_FIELDS = ['premise', 'setting'] as const;
+/** THE TALE'S OWN FIELDS TALK MAY CHANGE, the story's own columns, as the writer names them. The
+ *  voice is `writingStyle` and the style note `styleNote` in the story and in `db.updateStory`;
+ *  `TALE_KEY` is the one copy of that, and the change carries the key so the route writes to it. */
+const TALE_FIELDS = ['premise', 'setting', 'title', 'genre', 'voice', 'style_note'] as const;
+const TALE_KEY: Record<string, string> = { premise: 'premise', setting: 'setting', title: 'title', genre: 'genre',
+  voice: 'writingStyle', style_note: 'styleNote' };
+/** WHERE A STRING STANDS, in the writer's words (GLOSSARY: Put in play / Set aside, Tied off / Let
+ *  go), and what each is on the pocket: its switch and its mark, as `standString` on the page writes
+ *  them through `db.upsertString`. */
+const STANDS = ['in_play', 'set_aside', 'tied_off', 'let_go'] as const;
+const STAND_MARK: Record<string, string> = { in_play: 'open', set_aside: 'open', tied_off: 'paid', let_go: 'dropped' };
 /** A SCENE'S FIELDS TALK MAY CHANGE: its title and Heads toward (`authors_note` in the column). Opens
  *  with is not on it: the ticket names these two, and an opening is the writer's first beat. */
 const SCENE_FIELDS = ['title', 'heads_toward'] as const;
@@ -72,16 +86,20 @@ export const CHANGES_SCHEMA = {
       text: { type: 'string', maxLength: 600 },
       // thread.overtime: what changed, in a few words.
       label: { type: 'string', maxLength: 60 },
-      // thread.new, and string.set: the string's name.
+      // thread.new: its name. string.set, string.stand, rule.*, instruction.*: the pocket's name.
       title: { type: 'string', maxLength: 80 },
       type: { type: 'string', enum: [...KINDS] },
       // string.set: a promise or an open question. Left out on a string the tale has, it keeps its own.
       kind: { type: 'string', enum: [...STRING_SLOTS] },
-      // thread.new, and thread.wake: Always on or On a word, and the wake words.
+      // string.stand: where the string stands now.
+      stand: { type: 'string', enum: [...STANDS] },
+      // rule.switch, instruction.switch: on or off.
+      on: { type: 'boolean' },
+      // thread.new, thread.wake and rule.set: Always on or On a word, and the wake words.
       keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
       activation: { type: 'string', enum: ['always_on', 'triggered'] },
       // tale.set: which of the tale's own fields. scene.set: which of the scene's.
-      field: { type: 'string', enum: [...TALE_FIELDS, ...SCENE_FIELDS] },
+      field: { type: 'string', enum: [...new Set([...TALE_FIELDS, ...SCENE_FIELDS])] },
       // scene.set: the scene by its number. thread.overtime: the scene it holds from. None is the
       // scene the writer is in. thread.retire: the scene it is retired from; none is the next one.
       scene: { type: 'integer', minimum: 1 },
@@ -103,13 +121,20 @@ type Thread = { id: string; title: string; entryType: string; addons?: Room[]; s
   events?: { id: string; kind: string; fromChapter: number }[]; retiredAtChapter?: number | null };
 type State = { id: string; fromChapter: number; body: string; label?: string | null; beforeMode?: string | null };
 type Scene = { id: string; index: number; title?: string | null; authorsNote?: string | null };
+/** A pocket of no thread: one of the tale's rules or the writer's own instructions, as the view has them. */
+type Own = { id: string; name: string; body: string; keys?: string[]; active: boolean };
+/** A string as the view has it: its switch (`summoned`) and its mark (`status`, open, paid or dropped). */
+type Str = { id: string; title: string; kind?: string; status?: string | null; summoned?: boolean };
 /** The tale as the route read it through the gate: its threads, and since #98 its own fields, its
  *  scenes and the scene the writer is in. The later three are optional so a check that needs only
  *  threads can be handed only threads. */
-export type Tale = { entries: Thread[]; story?: { premise?: string | null; setting?: string | null };
+export type Tale = { entries: Thread[]; story?: Record<string, any>;
   chapters?: Scene[]; at?: number;
   /** #128 · The tale's own thread, whose pockets are its strings; null until it is first needed. */
-  taleThread?: Thread | null };
+  taleThread?: Thread | null;
+  /** The tale's rules and the writer's own instructions, and its strings with where each stands, by
+   *  the view's own names, so the route hands them over as it read them. */
+  taleRules?: Own[]; talePockets?: Own[]; strings?: Str[] };
 
 export type Change =
   | { op: 'thread.new'; title: string; type: string; always: string; keys: string[]; activation: string }
@@ -119,8 +144,9 @@ export type Change =
       name: string; keys: string[]; text: string; before: string | null; undo?: true }
   | { op: 'thread.unmake'; thread: string; title: string }
   | { op: 'room.unmake'; thread: string; title: string; addon: string; room: string }
-  /** `before` is the field's text before the change; on an Undo, the text being put back. */
-  | { op: 'tale.set'; field: string; text: string; before: string; undo?: true }
+  /** `before` is the field's text before the change; on an Undo, the text being put back. `key` is
+   *  the story's own name for the field (`TALE_KEY`), which the route writes to. */
+  | { op: 'tale.set'; field: string; key: string; text: string; before: string; undo?: true }
   | { op: 'scene.set'; chapter: string; index: number; field: string; text: string; before: string; undo?: true }
   /** `before` is how it woke before the change; on an Undo, how it is being put back. */
   | { op: 'thread.wake'; thread: string; title: string; activation: string; keys: string[];
@@ -141,11 +167,20 @@ export type Change =
    *  and put in play; `before` is that string's text, null when there was none. `wasKind` is the kind
    *  it had, when the change makes it the other one. */
   | { op: 'string.set'; thread: string | null; title: string; kind: string; name: string; addon: string | null;
-      from: number | null; text: string; before: string | null; wasKind?: string };
+      from: number | null; text: string; before: string | null; wasKind?: string }
+  /** Where a string stands now (`stand`) and stood before (`was`). On an Undo, `stand` is the one put back. */
+  | { op: 'string.stand'; addon: string; name: string; kind: string; stand: string; was: string; undo?: true }
+  /** A rule or an instruction: `addon` is the one it writes over, null for a new one, which is made
+   *  on; `before` is its text and wake words, null when there was none. An instruction has no words. */
+  | { op: 'rule.set' | 'instruction.set'; addon: string | null; name: string; text: string; keys: string[];
+      before: { text: string; keys: string[] } | null; undo?: true }
+  | { op: 'rule.switch' | 'instruction.switch'; addon: string; name: string; on: boolean; undo?: true }
+  /** A rule or an instruction Talk added, taken away by an Undo. */
+  | { op: 'pocket.unmake'; addon: string; slot: string; name: string };
 export type Checked = { ok: true; change: Change } | { ok: false; said: string; why: string };
 
-const NOT_TALK = 'that is not something Talk can do. It changes the tale, its threads and its scenes; '
-  + 'it does not delete anything or touch prose.';
+const NOT_TALK = 'that is not something Talk can do. It changes the tale, its threads, its rules, instructions '
+  + 'and strings, and its scenes; it does not delete anything or touch prose.';
 
 /** A name as both sides of a comparison read it: case, punctuation and a leading article gone. */
 const norm = (t: unknown) => String(t ?? '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
@@ -226,6 +261,9 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   if (op === 'tale.set') return taleSet(tale, raw, said, false);
   if (op === 'scene.set') return sceneSet(tale, raw, said, false);
   if (op === 'string.set') return stringSet(tale, raw, said);
+  if (op === 'string.stand') return standOn(tale, raw, said, false);
+  if (op === 'rule.set' || op === 'instruction.set') return ownSet(tale, op, raw, said, false);
+  if (op === 'rule.switch' || op === 'instruction.switch') return ownSwitch(tale, op, raw, said, false);
   const { hit, why } = threadNamed(tale, raw.thread);
   if (!hit) return { ok: false, said, why: why! };
   if (op === 'thread.wake') return wakeOn(hit, raw, said, false);
@@ -356,18 +394,23 @@ const followed = (t: Thread, said: string): Checked => ({ ok: false, said,
 const SINCE = 'it has been changed since';
 const stillWrote = (wrote: unknown, now: unknown) => typeof wrote === 'string' && String(now ?? '').trim() === wrote.trim();
 
-/** #98 · THE TALE'S PREMISE OR SETTING. Shared by a request and an Undo; an Undo may put back an
- *  empty field, because that is what was there. */
+/** #98 · ONE OF THE TALE'S OWN FIELDS: its premise or setting, and since 2026-10-29 its title, genre,
+ *  voice and style note. Shared by a request and an Undo; an Undo may put back an empty field,
+ *  because that is what was there. A GENRE IS CHECKED AND REMEMBERED TIDIED, as `db.updateStory`
+ *  stores it (`tidyGenre`): remembered as asked, "noir / gothic" would never match the "noir, gothic"
+ *  stored, and its Undo would always be refused. */
 function taleSet(tale: Tale, raw: any, said: string, undo: boolean): Checked {
-  const field = String(raw?.field ?? '').trim().toLowerCase();
+  const field = String(raw?.field ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
   if (!(TALE_FIELDS as readonly string[]).includes(field)) return { ok: false, said,
-    why: `Talk changes the tale's premise or its setting, not its ${field || 'nothing'}` };
-  const text = String(raw.text ?? '').trim();
-  const before = String((tale.story as any)?.[field] ?? '');
+    why: `Talk changes the tale's premise, setting, title, genre, voice or style note, not its ${field.replace(/_/g, ' ') || 'nothing'}` };
+  const key = TALE_KEY[field];
+  const asked = String(raw.text ?? '').trim();
+  const text = field === 'genre' && !undo ? tidyGenre(asked) : asked;
+  const before = String(tale.story?.[key] ?? '');
   if (undo && !stillWrote(raw.wrote, before)) return { ok: false, said, why: SINCE };
   if (!undo && !text) return { ok: false, said, why: 'it came with no text' };
-  if (!undo && before.trim() === text) return { ok: false, said, why: `the tale's ${field} already says that` };
-  return { ok: true, change: { op: 'tale.set', field, text, before: undo ? text : before,
+  if (!undo && before.trim() === text) return { ok: false, said, why: `the tale's ${field.replace(/_/g, ' ')} already says that` };
+  return { ok: true, change: { op: 'tale.set', field, key, text, before: undo ? text : before,
     ...(undo ? { undo: true as const } : {}) } };
 }
 
@@ -420,6 +463,133 @@ function stringSet(tale: Tale, raw: any, said: string): Checked {
     ...(wasKind ? { wasKind } : {}) } };
 }
 
+/** WHERE A STRING STANDS NOW, in the writer's words: tied off or let go by its mark, else in play
+ *  while it is on and set aside while it is off. The page's `stringStand` reads it the same way. */
+const standOf = (x: Str) => x.status === 'paid' ? 'tied_off' : x.status === 'dropped' ? 'let_go'
+  : x.summoned ? 'in_play' : 'set_aside';
+const standWords: Record<string, string> = { in_play: 'in play', set_aside: 'set aside', tied_off: 'tied off', let_go: 'let go' };
+const stringLabel = (kind: string) => kind === 'question' ? 'open question' : 'promise';
+
+/** A STRING PUT IN PLAY, SET ASIDE, TIED OFF OR LET GO (ADR 0011), by its name. Putting a tied-off or
+ *  let-go string in play reopens it, as switching it on does on the page. A request for where it
+ *  already stands is refused, as every "already says that" is. An Undo names it by id, and puts the
+ *  old stand back only while it still stands where Talk left it. */
+function standOn(tale: Tale, raw: any, said: string, undo: boolean): Checked {
+  const stand = String(raw?.stand ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (!(STANDS as readonly string[]).includes(stand)) return { ok: false, said,
+    why: 'a string is in play, set aside, tied off or let go' };
+  const strings = tale.strings ?? [];
+  let cur: Str | undefined;
+  if (undo) {
+    cur = strings.find((x) => x.id === String(raw?.addon ?? ''));
+    if (!cur) return { ok: false, said, why: 'that string is no longer in this tale' };
+    if (standOf(cur) !== raw?.wrote) return { ok: false, said, why: SINCE };
+  } else {
+    const title = String(raw?.title ?? raw?.thread ?? '').trim();
+    const near = byName(strings, title, (x) => x.title);
+    if (!title) return { ok: false, said, why: 'it did not name a string' };
+    if (near.length > 1) return { ok: false, said, why: `more than one string could be "${title}": `
+      + `${near.map((x) => x.title).join(', ')}. Say which` };
+    if (!near.length) return { ok: false, said, why: `there is no string called "${title}" in this tale` };
+    cur = near[0];
+    if (standOf(cur) === stand) return { ok: false, said, why: `${cur.title} is already ${standWords[stand]}` };
+  }
+  return { ok: true, change: { op: 'string.stand', addon: cur.id, name: cur.title, kind: cur.kind ?? 'promise', stand,
+    was: undo ? stand : standOf(cur), ...(undo ? { undo: true as const } : {}) } };
+}
+
+/** THE TALE'S OWN POCKETS BY KIND: its rules (ADR 0005), a law the tale obeys, sent always or on its
+ *  wake words; and the writer's own instructions ("Your own"), sent while on. Both hang off no
+ *  thread (`db.TALE_OWN`), so no thread operation can reach them. */
+const OWN_OF = { rule: { list: 'taleRules', label: 'rule', the: 'the rule', none: 'rule' },
+  instruction: { list: 'talePockets', label: 'instruction of your own', the: 'your instruction', none: 'instruction of yours' } } as const;
+const ownSlot = (op: string) => op.startsWith('rule.') ? 'rule' : 'instruction';
+const ownList = (tale: Tale, slot: string): Own[] => (slot === 'rule' ? tale.taleRules : tale.talePockets) ?? [];
+
+/** One of the tale's own pockets by its name, by `threadNamed`'s rule: the exact name, else the one
+ *  whose words hold the name's. Two is a question. */
+function ownNamed(tale: Tale, slot: 'rule' | 'instruction', name: string): { hit?: Own; why?: string } {
+  const near = byName(ownList(tale, slot), name, (x) => x.name);
+  if (near.length > 1) return { why: `more than one ${slot} could be "${name}": ${near.map((x) => x.name).join(', ')}. Say which` };
+  return near.length ? { hit: near[0] } : {};
+}
+
+/** A RULE OR AN INSTRUCTION, ADDED OR CHANGED, by its name. A new name adds one, switched on, as the
+ *  Thread tab's Add does; it needs text. A name the tale has rewrites its text, or for a rule its wake
+ *  words, or both: words given replace its own, Always on takes them away, and On a word with no words
+ *  given or kept is refused, as a thread's is (`wakeOn`). Text is stored plain (`db.upsertAddon` takes
+ *  a wrapper off by the same rule, with no thread's name), so it is checked and remembered plain. An
+ *  Undo names the pocket by id and puts back its text and words, while it holds what Talk wrote. */
+function ownSet(tale: Tale, op: 'rule.set' | 'instruction.set', raw: any, said: string, undo: boolean): Checked {
+  const slot = ownSlot(op) as 'rule' | 'instruction';
+  const rule = slot === 'rule';
+  if (undo) {
+    const cur = ownList(tale, slot).find((x) => x.id === String(raw?.addon ?? ''));
+    if (!cur) return { ok: false, said, why: `that ${slot} is no longer in this tale` };
+    const w = raw?.wrote;
+    if (!w || !stillWrote(w.text, cur.body) || (rule && !sameKeys(keysOf(w.keys), cur.keys ?? [])))
+      return { ok: false, said, why: SINCE };
+    const text = String(raw.text ?? ''), keys = rule ? keysOf(raw.keys) : [];
+    return { ok: true, change: { op, addon: cur.id, name: cur.name, text, keys, before: { text, keys }, undo: true } };
+  }
+  const title = String(raw?.title ?? raw?.thread ?? '').trim();
+  if (!title) return { ok: false, said, why: `the ${slot} had no name` };
+  const { hit: cur, why } = ownNamed(tale, slot, title);
+  if (why) return { ok: false, said, why };
+  const name = cur?.name ?? title;
+  const text = plain(String(raw?.text ?? '').trim(), wrapperNames(slot, '', name)) || (cur?.body.trim() ?? '');
+  if (!text) return { ok: false, said, why: 'it came with no text' };
+  const had = cur?.keys ?? [];
+  const given = rule ? keysOf(raw?.keys) : [];
+  const keys = !rule || raw?.activation === 'always_on' ? [] : given.length ? given : had;
+  if (rule && raw?.activation === 'triggered' && !keys.length) return { ok: false, said,
+    why: `On a word needs wake words, and ${name} has none. Say which words` };
+  if (cur && cur.body.trim() === text && sameKeys(keys, had)) return { ok: false, said, why: `${name} already says that` };
+  return { ok: true, change: { op, addon: cur?.id ?? null, name, text, keys,
+    before: cur ? { text: cur.body, keys: had } : null } };
+}
+
+/** A RULE OR AN INSTRUCTION SWITCHED ON OR OFF, by its name, as its switch on the Thread tab does. An
+ *  Undo names it by id and switches it back while it is still as Talk left it. */
+function ownSwitch(tale: Tale, op: 'rule.switch' | 'instruction.switch', raw: any, said: string, undo: boolean): Checked {
+  const slot = ownSlot(op) as 'rule' | 'instruction';
+  if (raw?.on !== true && raw?.on !== false) return { ok: false, said, why: `say whether the ${slot} is on or off` };
+  let cur: Own | undefined;
+  if (undo) {
+    cur = ownList(tale, slot).find((x) => x.id === String(raw?.addon ?? ''));
+    if (!cur) return { ok: false, said, why: `that ${slot} is no longer in this tale` };
+    if (cur.active !== raw.wrote) return { ok: false, said, why: SINCE };
+  } else {
+    const title = String(raw?.title ?? raw?.thread ?? '').trim();
+    const { hit, why } = ownNamed(tale, slot, title);
+    if (why) return { ok: false, said, why };
+    if (!hit) return { ok: false, said, why: `there is no ${OWN_OF[slot].none} called "${title}" in this tale` };
+    cur = hit;
+    if (cur.active === raw.on) return { ok: false, said, why: `${cur.name} is already ${raw.on ? 'on' : 'off'}` };
+  }
+  return { ok: true, change: { op, addon: cur.id, name: cur.name, on: raw.on, ...(undo ? { undo: true as const } : {}) } };
+}
+
+/** WHAT TALK IS SHOWN OF THE TALE'S OWN POCKETS, so it can name them: every rule, instruction and
+ *  string by name, with where it stands, and its text cut short. The prompt sends only the rules and
+ *  instructions that are on, and only the strings in play, and none of them by name, so without this
+ *  Talk could not name one to change, nor switch on one that is off. Empty when the tale has none.
+ *  ponytail: the first 30 of each; a tale with more cannot have the rest named until a search is added. */
+export function talesOwn(tale: Tale): string {
+  const cut = (xs: any[]) => xs.slice(0, 30);
+  const line = (name: string, state: string, body?: string) =>
+    `- ${name} (${state})${body?.trim() ? `: ${clip(body.trim().replace(/\s+/g, ' '), 140)}` : ''}`;
+  const parts = [
+    tale.taleRules?.length && `Rules:\n${cut(tale.taleRules).map((r) => line(r.name, `${r.active ? 'on' : 'off'}, ${
+      (r.keys ?? []).length ? `on a word: ${r.keys!.join(', ')}` : 'always'}`, r.body)).join('\n')}`,
+    tale.talePockets?.length && `The writer's own instructions:\n${cut(tale.talePockets).map((p) =>
+      line(p.name, p.active ? 'on' : 'off', p.body)).join('\n')}`,
+    tale.strings?.length && `Strings:\n${cut(tale.strings).map((x) =>
+      line(x.title, `${an(stringLabel(x.kind ?? 'promise'))}, ${standWords[standOf(x)]}`, (x as any).body)).join('\n')}`,
+  ].filter(Boolean);
+  return parts.length ? `The tale's own, which a change names by name (on means sent to the model):\n${parts.join('\n')}` : '';
+}
+
 /** The scene a number names, or `dflt`'s when none is given. Never the nearest one. */
 const sceneAt = (tale: Tale, n: unknown, dflt?: number) => {
   const want = n == null || n === '' ? dflt : Number(n);
@@ -465,6 +635,19 @@ export function checkUndo(raw: any, tale: Tale): Checked {
     return { ok: false, said, why: 'that is not something Undo can do' };
   if (op === 'tale.set') return taleSet(tale, raw, said, true);
   if (op === 'scene.set') return sceneSet(tale, raw, said, true);
+  if (op === 'string.stand') return standOn(tale, raw, said, true);
+  if (op === 'rule.set' || op === 'instruction.set') return ownSet(tale, op, raw, said, true);
+  if (op === 'rule.switch' || op === 'instruction.switch') return ownSwitch(tale, op, raw, said, true);
+  // A RULE OR INSTRUCTION TALK ADDED, taken away while it holds exactly the text Talk wrote. Looked for
+  // in its own list only, so an Undo naming a rule never reaches an instruction or a thread's pocket.
+  if (op === 'pocket.unmake') {
+    const slot = raw?.slot === 'rule' ? 'rule' : raw?.slot === 'instruction' ? 'instruction' : null;
+    const a = slot ? ownList(tale, slot).find((x) => x.id === String(raw.addon ?? '')) : undefined;
+    if (!slot || !a) return { ok: false, said, why: 'that pocket is no longer in this tale' };
+    if (a.body.trim() !== String(raw.text ?? '').trim()) return { ok: false, said,
+      why: `${a.name} has changed since Talk made it. Delete it by hand if you mean to` };
+    return { ok: true, change: { op: 'pocket.unmake', addon: a.id, slot, name: a.name } };
+  }
   // #128 · THE TALE'S OWN THREAD only for one of its strings: a string put back, or one Talk added
   // taken away. Never its Always true, never the thread itself, which Talk did not make.
   const own = tale.taleThread && tale.taleThread.id === String(raw.thread ?? '') ? tale.taleThread : null;
@@ -533,13 +716,33 @@ export function wordsFor(c: Change): string {
   if (c.op === 'takeover.unmake') return `Gave ${c.title} back to its World: this tale reads the World's version again.`;
   if (c.op === 'thread.overtime') return c.undo ? `Put back ${c.title}'s Over time from scene ${c.from}.`
     : `${c.state ? 'Changed' : 'Added to'} ${c.title}'s Over time from scene ${c.from}: “${clip(c.text)}”`;
-  if (c.op === 'tale.set') return c.undo ? `Put back the tale's ${c.field}.`
-    : `Changed the tale's ${c.field}: “${clip(c.text)}”`;
+  if (c.op === 'tale.set') return c.undo ? `Put back the tale's ${c.field.replace(/_/g, ' ')}.`
+    : `Changed the tale's ${c.field.replace(/_/g, ' ')}: “${clip(c.text)}”`;
   if (c.op === 'thread.wake') return c.undo ? `Put back how ${c.title} wakes: ${wakeWords(c.activation, c.keys)}.`
     : c.activation === 'triggered' ? `${c.title} is On a word now: ${c.keys.join(', ')}.` : `${c.title} is Always on now.`;
   if (c.op === 'scene.set') return c.field === 'title'
     ? c.undo ? `Put back scene ${c.index}'s title.` : `Changed scene ${c.index}'s title: “${clip(c.text)}”`
     : c.undo ? `Put back where scene ${c.index} heads.` : `Changed where scene ${c.index} heads: “${clip(c.text)}”`;
+  if (c.op === 'string.stand') {
+    const s = `the ${stringLabel(c.kind)} ${c.name}`;
+    if (c.undo) return `Put back where ${s} stood: ${standWords[c.stand]}.`;
+    if (c.stand === 'in_play') return c.was === 'tied_off' || c.was === 'let_go' ? `Reopened ${s}: it is in play.` : `Put ${s} in play.`;
+    return c.stand === 'set_aside' ? `Set ${s} aside.` : c.stand === 'tied_off' ? `Tied off ${s}.` : `Let go of ${s}.`;
+  }
+  if (c.op === 'rule.set' || c.op === 'instruction.set') {
+    const o = OWN_OF[ownSlot(c.op) as 'rule' | 'instruction'];
+    if (c.undo) return `Put back ${o.the} ${c.name}.`;
+    if (!c.before) return `Added ${an(o.label)} to the tale, on: ${c.name}${c.keys.length ? `, on a word: ${c.keys.join(', ')}` : ''}.`;
+    // In thread.wake's words, so a rule and a thread say the same thing about waking.
+    const words = sameKeys(c.keys, c.before.keys) ? '' : c.keys.length ? ` ${c.name} is On a word now: ${c.keys.join(', ')}.`
+      : ` ${c.name} is Always on now.`;
+    return c.text.trim() === c.before.text.trim() ? words.trim() : `Changed ${o.the} ${c.name}: “${clip(c.text)}”${words}`;
+  }
+  if (c.op === 'rule.switch' || c.op === 'instruction.switch') {
+    const o = OWN_OF[ownSlot(c.op) as 'rule' | 'instruction'];
+    return c.undo ? `Put back ${o.the} ${c.name}: ${c.on ? 'on' : 'off'}.` : `Switched ${o.the} ${c.name} ${c.on ? 'on' : 'off'}.`;
+  }
+  if (c.op === 'pocket.unmake') return `Took away ${OWN_OF[c.slot as 'rule' | 'instruction'].the} ${c.name}.`;
   if (c.op === 'string.set' && c.wasKind) return `Made ${c.name} ${an(roomLabel(c.kind))}${
     c.text.trim() === (c.before ?? '').trim() ? '.' : `: “${clip(c.text)}”`}`;
   if (c.op === 'string.set') return c.addon ? `Changed the ${roomLabel(c.kind)} ${c.name}: “${clip(c.text)}”`
@@ -560,6 +763,11 @@ export function textsOf(c: Change): { before: string; after: string } | null {
   if (c.op === 'thread.set' || c.op === 'tale.set' || c.op === 'scene.set' || c.op === 'string.set')
     return { before: c.before ?? '', after: c.text };
   if (c.op === 'thread.overtime') return { before: c.before?.body ?? '', after: c.text };
+  // A rule's words changed and not its text: the diff is of the words, as a thread's wake is.
+  if (c.op === 'rule.set' || c.op === 'instruction.set') return c.before && c.text.trim() === c.before.text.trim()
+    ? { before: wakeWords(c.before.keys.length ? 'triggered' : 'always_on', c.before.keys),
+        after: wakeWords(c.keys.length ? 'triggered' : 'always_on', c.keys) }
+    : { before: c.before?.text ?? '', after: c.text };
   if (c.op === 'thread.wake') return { before: wakeWords(c.before.activation, c.before.keys), after: wakeWords(c.activation, c.keys) };
   return null;
 }
@@ -570,10 +778,15 @@ function saidOf(raw: any): string {
   if (raw?.op === 'thread.new') return `Make a new thread${name ? `: ${name}` : ''}`;
   if (raw?.op === 'scene.set') return `Change scene ${raw?.scene ?? 'this one'}`;
   if (raw?.op === 'string.set') return `Add or change the string ${name || 'with no name'}`;
+  if (raw?.op === 'string.stand') return `Change where the string ${name || 'with no name'} stands`;
+  if (raw?.op === 'rule.set') return `Add or change the rule ${name || 'with no name'}`;
+  if (raw?.op === 'instruction.set') return `Add or change your instruction ${name || 'with no name'}`;
+  if (raw?.op === 'rule.switch' || raw?.op === 'instruction.switch')
+    return `Switch the ${raw.op === 'rule.switch' ? 'rule' : 'instruction'} ${name || 'with no name'} ${raw?.on ? 'on' : 'off'}`;
   if (raw?.op === 'thread.wake') return `Change how ${name || 'a thread'} wakes`;
   if (raw?.op === 'thread.retire') return `Retire ${name || 'a thread'}`;
   if (raw?.op === 'thread.overtime') return `Add to ${name || 'a thread'}'s Over time${raw?.scene ? ` from scene ${raw.scene}` : ''}`;
-  if (raw?.op === 'tale.set') return `Change the tale's ${String(raw?.field ?? '').trim() || 'premise or setting'}`;
+  if (raw?.op === 'tale.set') return `Change the tale's ${String(raw?.field ?? '').trim().replace(/_/g, ' ') || 'own fields'}`;
   if (raw?.op === 'thread.set') return `Change ${name || 'a thread'}${raw?.room && roomOf(raw.room) !== 'facts'
     ? `'s ${roomLabel(roomOf(raw.room))}` : ''}`;
   return `${String(raw?.op ?? 'something') || 'something'}${name ? ` on ${name}` : ''}`;
@@ -792,6 +1005,12 @@ export function undoFor(c: Change, made: { thread?: string; addon?: string; stat
     : { op: 'state.unmake', thread: c.thread, state: made.state, text: c.text };
   // `wrote` on each of these is what Talk left there, which the Undo checks is still there.
   if (c.op === 'tale.set') return { op: 'tale.set', field: c.field, text: c.before, wrote: c.text };
+  if (c.op === 'string.stand') return { op: 'string.stand', addon: c.addon, stand: c.was, wrote: c.stand };
+  // A rule or instruction Talk added is taken away; one it changed gets its text and words back.
+  if (c.op === 'rule.set' || c.op === 'instruction.set') return c.before
+    ? { op: c.op, addon: c.addon, text: c.before.text, keys: c.before.keys, wrote: { text: c.text, keys: c.keys } }
+    : { op: 'pocket.unmake', slot: ownSlot(c.op), addon: made.addon, text: c.text };
+  if (c.op === 'rule.switch' || c.op === 'instruction.switch') return { op: c.op, addon: c.addon, on: !c.on, wrote: c.on };
   if (c.op === 'scene.set') return { op: 'scene.set', chapter: c.chapter, field: c.field, text: c.before, wrote: c.text };
   if (c.op === 'thread.wake') return { op: 'thread.wake', thread: c.thread, ...c.before,
     wrote: { activation: c.activation, keys: c.keys } };

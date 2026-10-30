@@ -558,8 +558,8 @@ export const retireSchema = (titles: string[]) => ({
  *  a skeleton that saved nobody anything, so both now get a length worth filling. The premise rides
  *  in the spine on EVERY call, which is what keeps it at a handful of sentences rather than a page.
  *
- *  Genre stays "a comma-separated list of two or three tags" and no more: `tidyGenre` in db.ts
- *  splits, trims and de-duplicates on the way in, so telling the model to do it too is one
+ *  Genre stays "a comma-separated list of two or three tags" and no more: `tidyGenre` (slots.ts, run
+ *  by db.ts) splits, trims and de-duplicates on the way in, so telling the model to do it too is one
  *  instruction paying for work already done. */
 /** What a new story's "voice of the weave" starts as, in Seth's own words.
  *
@@ -1873,7 +1873,10 @@ done the moment you answer, so a thing they did not ask for is never a change; o
 - thread.wake: the thread, always_on or triggered (On a word), and the wake words as keys.
 - thread.retire: the thread, and the scene it stops from (none for the next scene). "Get rid of it"
   means this: you never delete a thread.
-- tale.set: the field (premise or setting) and its whole new text.
+- tale.set: the field (premise, setting, title, genre, voice or style_note) and its whole new text.
+  The voice is how the narration sounds, written as instructions; the style note is how this tale
+  is written, under the voice. You are not shown either, so change one only when the writer gives
+  the whole of what it should say.
 - scene.set: the scene by its number (none for the scene being written), the field (title or
   heads_toward) and its whole new text.
 - string.set: a string of the tale, by its name as title, and its whole text as it should read. A
@@ -1881,6 +1884,21 @@ done the moment you answer, so a thing they did not ask for is never a change; o
   for an open question. A promise is set up to pay off and an open question is kept open; neither
   says how it ends or what happens next. Give a string the tale has the other kind only when the
   writer asks for that in so many words; its text may then be left out.
+- string.stand: a string the tale has, by its name as title, and where it stands now: in_play,
+  set_aside, tied_off (the tale kept it) or let_go (the tale abandoned it). in_play reopens one
+  that was tied off or let go.
+- rule.set: a rule of the tale, a law it obeys, by its name as title. A new name adds one, switched
+  on, with its whole text; a name the tale has changes its text, its wake words, or both. Wake
+  words go in keys and the rule is then sent only when one appears; always_on in activation takes
+  them away.
+- rule.switch: a rule by its name as title, and on true or false.
+- instruction.set: one of the writer's own instructions for the whole tale, by its name as title,
+  and its whole text. A new name adds one, switched on.
+- instruction.switch: one of the writer's own instructions by its name as title, and on true or
+  false.
+
+The rules, the writer's own instructions and the strings the tale has are listed by name above
+the writer's message, with whether each is on and where each string stands. Name them as listed.
 
 When the tale follows a World, a change to a thread also says to: world when it is the canon of the
 IP, for every tale that follows the World, or tale when it is the writer's own version, for this

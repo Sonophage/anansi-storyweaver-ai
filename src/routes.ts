@@ -18,7 +18,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
-import { checkAsked, checkUndo, undoFor, wordsFor, textsOf, checkDraft, draftWords, aimOf, askWhich, fingerprint } from './changes.ts';
+import { checkAsked, checkUndo, undoFor, wordsFor, textsOf, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
@@ -707,9 +707,30 @@ function applyChange(storyId: string, owner: string, ch: Change):
     if (!ch.addon) db.setAddonActive(storyId, id, true);
     return { thread: tale, addon: id };
   }
-  // #98. The premise or the setting, through the save the tale's own panel makes. Only the one
-  // field is named, and `updateStory` leaves every field it is not handed as it was.
-  if (ch.op === 'tale.set') { db.updateStory(storyId, { [ch.field]: ch.text }); return {}; }
+  // #98. One of the tale's own fields, through the save the tale's own panel makes, under the
+  // story's own name for it (`key`: the voice is `writingStyle`). Only the one field is named, and
+  // `updateStory` leaves every field it is not handed as it was, and tidies a genre as every save does.
+  if (ch.op === 'tale.set') { db.updateStory(storyId, { [ch.key]: ch.text }); return {}; }
+  // WHERE A STRING STANDS, through the one door the Strings screen and the pocket panel use
+  // (`standString` on the page, `POST /api/string`): `upsertString` writes the switch and the mark.
+  // It writes the whole string, so the rest of it is handed back as it stands, owed by included.
+  if (ch.op === 'string.stand') {
+    const x = (db.stringsOf(storyId) as any[]).find((s) => s.id === ch.addon);
+    if (!x) return null;
+    const mark = ch.stand === 'tied_off' ? 'paid' : ch.stand === 'let_go' ? 'dropped' : 'open';
+    return db.upsertString(storyId, { id: x.id, title: x.title, body: x.body, kind: x.kind, fromChapter: x.from_chapter,
+      owedBy: x.owed_by, status: mark, summoned: ch.stand === 'in_play' }) ? {} : null;
+  }
+  // A RULE OR ONE OF THE WRITER'S OWN INSTRUCTIONS, a pocket of no thread, through the Thread tab's
+  // own save. A new one is switched on, as that tab's Add does.
+  if (ch.op === 'rule.set' || ch.op === 'instruction.set') {
+    const id = db.upsertAddon(storyId, null, { id: ch.addon ?? undefined, slot: ch.op === 'rule.set' ? 'rule' : 'instruction',
+      name: ch.name, body: ch.text, keys: ch.keys });
+    if (!id) return null;
+    if (!ch.addon) db.setAddonActive(storyId, id, true);
+    return { addon: id };
+  }
+  if (ch.op === 'rule.switch' || ch.op === 'instruction.switch') return db.setAddonActive(storyId, ch.addon, ch.on) ? {} : null;
   // How a thread wakes, through the thread's own save. `upsertEntry` writes the whole row, so the
   // rest of it is handed back as it stands. `last_editor` is left as it was: how a thread wakes is
   // not its text, and keeping it is what lets the Undo put the row back exactly. On a word with no
@@ -744,6 +765,7 @@ function applyChange(storyId: string, owner: string, ch: Change):
   // since — `checkUndo` refused anything else before this was reached.
   if (ch.op === 'thread.unmake') { db.delEntry(storyId, ch.thread); return {}; }
   if (ch.op === 'room.unmake') { db.delAddon(storyId, ch.addon); return {}; }
+  if (ch.op === 'pocket.unmake') { db.delAddon(storyId, ch.addon); return {}; }
   if (ch.op === 'state.unmake') { db.delState(storyId, ch.state); return {}; }
   // The retirement taken out of its Over time, the way the ✕ on that line takes it out by hand.
   if (ch.op === 'retire.unmake') return db.delEvent(storyId, ch.event) ? {} : null;
@@ -1053,11 +1075,13 @@ const talkReply = (reply: unknown, notDone: { said: string; why: string }[], sea
     .filter(Boolean).join('\n\n');
 
 /** #98 · THE TALE A CHANGE IS CHECKED AGAINST, read through the gate as it stands now: its threads,
- *  its premise and setting, its scenes, and the scene the writer is in. #128 · And the tale's own
- *  thread, whose pockets are its strings. */
-const taleOf = (id: string) => { const v = bookOf(id);
+ *  its own fields, its scenes, and the scene the writer is in. #128 · And the tale's own thread,
+ *  whose pockets are its strings, and its rules, its own instructions and its strings with where
+ *  each stands. */
+const taleOf = (id: string) => { const v = bookOf(id) as any;
   return { entries: v.entries as any[], story: v.story, chapters: v.chapters, at: v.currentChapter?.index ?? 1,
-    taleThread: (v as any).taleThread ?? null }; };
+    taleThread: v.taleThread ?? null, taleRules: v.taleRules ?? [], talePockets: v.talePockets ?? [],
+    strings: v.strings ?? [] }; };
 
 /** #101 · THE WORLD A TALK CHANGE MAY REACH: the one this tale follows, read as `taleOf` reads a
  *  tale, and only when the writer OWNS both. Not `MINE()`: being called in to write in a tale is not
@@ -3991,6 +4015,10 @@ export const routes: Record<string, Handler> = {
           .map((e) => e.title).slice(0, 60).join(', ') || 'none'}. The tale has its own version of: `
         + `${(v.entries as any[]).filter((e) => !e.sharedFrom && world.entries.some((w) => w.id === e.originId
           || w.title.trim().toLowerCase() === String(e.title).trim().toLowerCase())).map((e) => e.title).slice(0, 60).join(', ') || 'none'}.`,
+      // THE TALE'S OWN POCKETS BY NAME, so a change can name one: the prompt sends the rules and
+      // instructions that are on and the strings in play, by text and never by name, and none of
+      // the ones that are off. A fact, like the lines above; `checkAsked` is the guard.
+      talesOwn(v as any),
       turns && `Earlier in this conversation:\n${turns}`,
       sourcesText(sources),
       said,

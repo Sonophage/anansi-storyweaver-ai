@@ -72,3 +72,6 @@ body, each consequence switched on); one on a word kept its words. Rules reach t
 where rule threads did. `rule` is no longer a kind of thread, so the cast, extraction, Talk and the
 World lookup no longer offer one, and a rule no longer ends at a hem. Talk cannot add or change a
 rule yet. A tale does not read its World's rules; no World had one.
+
+2026-10-29, later: Talk adds a rule, changes its text or wake words, and switches it on or off, each
+with Undo (ADR 0007).

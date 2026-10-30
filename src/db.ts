@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 // The slot names live in one module because `entries.field_editors` keys provenance by them and
 // the partial unique index below names them as a literal. Three copies of one list is the drift
 // `src/blocks.ts` exists to stop for the block order; this is the same rule for slots.
-import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, STRING_SLOTS, TO_OVER_TIME, foldLine, plain, slotsFor, wrapperNames } from './slots.ts';
+import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, STRING_SLOTS, TO_OVER_TIME, foldLine, plain, slotsFor, tidyGenre, wrapperNames } from './slots.ts';
 import { factsLost } from './context.ts';
 import { isRemote } from './llama.ts';
 
@@ -1132,18 +1132,10 @@ migrate();
 const now = () => Date.now();
 const uid = (p = '') => p + randomBytes(4).toString('hex');
 
-/** Genre, normalised to a comma-separated list.
- *
- *  The shelf splits this on commas and draws one pill per tag, so a genre that arrives as
- *  "noir / gothic and horror" became one long pill. Applied on the way IN — on create and on every
- *  save, so an old row is fixed the next time its story is touched — because normalising on the way
- *  out would mean every reader had to remember to do it.
- *
- *  Splits on commas, semicolons, slashes and a standalone "and". NOT on spaces: "dark fantasy" is
- *  one genre, and a space-splitter turns it into two. */
-export const tidyGenre = (g?: string | null): string =>
-  [...new Map(String(g ?? '').split(/[,;/]|\band\b/i).map((t) => t.trim()).filter(Boolean)
-    .map((t) => [t.toLowerCase(), t])).values()].join(', ');
+/** Genre, normalised to a comma-separated list, on create and on every save. The rule is
+ *  `slots.tidyGenre`, a pure module, so Talk's change slice can check a genre as it will be stored
+ *  without opening the database; it is re-exported here for every caller that already reads it here. */
+export { tidyGenre };
 const q = (sql: string) => db.prepare(sql);
 
 export function owner(login = 'sonophage'): string {

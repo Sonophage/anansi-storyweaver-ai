@@ -27,13 +27,22 @@ Back to writing puts it away. The conversation lasts until you leave the tale, a
 ### Back after closing a drawer
 Closing a drawer with its own ✕ and then pressing Back now goes back where you came from, instead
 of stopping on the same tale a second time. A drawer opened over Reading mode no longer ends it.
+### Ask Anansi to change your rules, your own instructions and your strings
+In Talk, Anansi can now do more of what you ask in so many words. He can add a rule, change what it
+says or its wake words, and switch it on or off. He can add one of your own instructions for the
+whole tale, change it, and switch it on or off. He can put a string in play, set it aside, tie it
+off, let it go, or reopen it. And he can change the tale's title, genre, voice and style note, as
+well as its premise and setting. Each change shows in the conversation with Undo, and where text
+was replaced you see the old and the new. He now sees every rule, instruction and string by name,
+with whether it is on and where each string stands, so he can find the one you mean. He is not
+shown the voice or the style note, so give him the whole of what either should say.
 
 ### Rules live on the tale's own thread
 A rule of your tale is no longer a thread of its own. Rules are on the Tale panel's Thread tab, under
 Rules: each has its name, what it says, and its wake words. With no wake words a rule is sent every
 time; with them, when one comes up. Your existing rules moved there with everything they said, and
 the update report on the tale says so. New tale and Read the scene no longer suggest rules as
-threads. Anansi in Talk cannot add or change a rule yet.
+threads. Anansi in Talk can add, change and switch them too (below).
 
 ### Tap the tale to carry on, and choose how much Anansi reads
 The big card for the tale you were last writing no longer has a Carry on writing button: tap

@@ -129,6 +129,21 @@ export const plain = (body: unknown, names: string[]): string => {
   return text;
 };
 
+/** Genre, normalised to a comma-separated list. Here beside `plain` for the same reason: it is how a
+ *  value is STORED, and Talk's change slice (`src/changes.ts`) must check and remember a genre as
+ *  `db.updateStory` will store it, or its Undo never matches what is there.
+ *
+ *  The shelf splits this on commas and draws one pill per tag, so a genre that arrives as
+ *  "noir / gothic and horror" became one long pill. Applied on the way IN — on create and on every
+ *  save, so an old row is fixed the next time its story is touched — because normalising on the way
+ *  out would mean every reader had to remember to do it.
+ *
+ *  Splits on commas, semicolons, slashes and a standalone "and". NOT on spaces: "dark fantasy" is
+ *  one genre, and a space-splitter turns it into two. */
+export const tidyGenre = (g?: string | null): string =>
+  [...new Map(String(g ?? '').split(/[,;/]|\band\b/i).map((t) => t.trim()).filter(Boolean)
+    .map((t) => [t.toLowerCase(), t])).values()].join(', ');
+
 /** WHAT `facts` IS FOR, because it is the one slot whose reason is a defect rather than a subject.
  *
  *  Seth, 2026-08-29: *"the current body gets rewritten at chapter end. theres no place to keep the

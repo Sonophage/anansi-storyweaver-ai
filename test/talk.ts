@@ -149,6 +149,25 @@ const srv = createServer((req, res) => {
       UNSURE: { reply: 'Done, he is blind.',
         changes: [{ op: 'thread.set', thread: 'Morgott', room: 'none', text: 'Morgott is blind.' },
                   { op: 'tale.set', field: 'premise', text: 'Ash over Leyndell.' }] },
+      // The tale's own pockets: rules (ADR 0005), the writer's own instructions, where a string
+      // stands (ADR 0011), and the tale's own fields beside its premise and setting.
+      RULES: { reply: 'The tide turns at night, the toll is two coins, and dawn law is on.',
+        changes: [{ op: 'rule.set', title: 'The tide', text: 'The river runs backward at night.', keys: ['night'] },
+                  { op: 'rule.set', title: 'the toll', text: 'Every crossing costs two coins.' },
+                  { op: 'rule.switch', title: 'Dawn law', on: true }] },
+      OWNINSTR: { reply: 'Weather carries it now, the tense is present, and no oaths is on.',
+        changes: [{ op: 'instruction.set', title: 'Weather', text: 'Let the weather carry the feeling.' },
+                  { op: 'instruction.set', title: 'Tense', text: 'Keep to the present tense.' },
+                  { op: 'instruction.switch', title: 'No oaths', on: true }] },
+      STAND: { reply: 'The letter is tied off and the debt is in play again.',
+        changes: [{ op: 'string.stand', title: 'the letter', stand: 'tied_off' },
+                  { op: 'string.stand', title: 'the debt', stand: 'in_play' },
+                  { op: 'string.stand', title: 'the oath', stand: 'let_go' }] },
+      TALEMORE: { reply: 'Renamed, regenred, revoiced, and noted.',
+        changes: [{ op: 'tale.set', field: 'title', text: 'The Far Bank' },
+                  { op: 'tale.set', field: 'genre', text: 'noir / gothic and horror' },
+                  { op: 'tale.set', field: 'voice', text: 'Long, slow sentences; the river does the feeling.' },
+                  { op: 'tale.set', field: 'style_note', text: 'Rain in every scene.' }] },
       RETIRE: { reply: 'The letter is gone.',
         changes: [{ op: 'thread.retire', thread: 'The letter' }, { op: 'thread.delete', thread: 'The letter' }] },
     };
@@ -1449,7 +1468,8 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.ok(!age.error, age.error);
   const ops = calls[0].response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum;
   assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire', 'tale.set', 'scene.set',
-    'string.set'], `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
+    'string.set', 'string.stand', 'rule.set', 'rule.switch', 'instruction.set', 'instruction.switch'],
+    `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
 
   // Always true, changed at once.
   assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is thirty.', 'CHANGE-DONE: Talia\'s Always true is changed');
@@ -2622,6 +2642,99 @@ ok('emptying the box gives her back the voice she shipped with');
   const ok2: any = del(voice);
   assert.ok(!ok2.error && !(db.addonsOf(tale.id) as any[]).some((a) => a.id === voice), 'KEEP-ALWAYS: any other pocket still goes');
   ok('a thread keeps its Always true; other pockets can still be removed');
+}
+
+// ---- THE TALE'S OWN POCKETS ASKED FOR IN TALK: rules, the writer's own instructions, where a string
+// stands, and the tale's own fields. Each done at once through the write the screens use, and each
+// with an Undo that puts it back.
+{
+  const tale = db.createStory(me, { title: 'The Ford', genre: 'noir', premise: 'A ferry and a debt.' }) as any;
+  db.addPassage({ ...tale, storyId: tale.id, body: 'The ferry left without her.' });
+  const ctxOf = (body: any) => ({ body: { storyId: tale.id, ...body }, query: new URLSearchParams(),
+    owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+  const say = (said: string) => { calls = []; return routes['POST /api/talk'](ctxOf({ said })) as Promise<any>; };
+  const undo = (u: any) => routes['POST /api/talk/undo'](ctxOf({ undo: u })) as any;
+  const own = (slot: string) => (db.addonsOf(tale.id) as any[]).filter((a) => !a.entry_id && a.slot === slot)
+    .map((a) => ({ name: a.name, body: a.body, keys: JSON.parse(a.keys || '[]'), on: !!a.active }));
+  const named = (slot: string, name: string) => own(slot).find((a) => a.name === name);
+  const toll = db.upsertAddon(tale.id, null, { slot: 'rule', name: 'The toll', body: 'Every crossing costs a coin.' });
+  db.setAddonActive(tale.id, toll, true);
+  db.upsertAddon(tale.id, null, { slot: 'rule', name: 'Dawn law', body: 'Nobody crosses after dawn.', keys: ['dawn'] });
+  const tense = db.upsertAddon(tale.id, null, { slot: 'instruction', name: 'Tense', body: 'Keep to the past tense.' });
+  db.setAddonActive(tale.id, tense, true);
+  db.upsertAddon(tale.id, null, { slot: 'instruction', name: 'No oaths', body: 'Nobody swears in narration.' });
+  db.upsertString(tale.id, { title: 'The letter he has not opened', body: 'Sent by his brother.', kind: 'promise', summoned: true,
+    fromChapter: 1, owedBy: 4 });
+  db.upsertString(tale.id, { title: 'The debt', body: 'Owed since spring.', kind: 'promise', status: 'dropped' });
+  const rulesBefore = own('rule'), instrBefore = own('instruction');
+  const str = (title: string) => (db.stringsOf(tale.id) as any[]).find((x) => x.title === title);
+  const undoAll = (r: any) => [...r.changes].reverse().map((c: any) => { const u: any = undo(c.undo);
+    assert.ok(!u.error, `${c.words}: ${u.error}`); return u.undone; });
+
+  // RULES
+  const rules = await say('CHANGE-RULES: add a tide rule, make the toll two coins, and switch dawn law on');
+  assert.ok(!rules.error, rules.error);
+  const shown = String(calls[0].messages[1].content);
+  assert.match(shown, /Rules:[\s\S]*- Dawn law \(off, on a word: dawn\): Nobody crosses after dawn\./,
+    'TALK-SEES-OWN: Talk is shown a rule that is off, by name, with its words');
+  assert.match(shown, /- No oaths \(off\)/, 'TALK-SEES-OWN: and an instruction that is off');
+  assert.match(shown, /- The debt \(a promise, let go\)/, 'TALK-SEES-OWN: and a string with where it stands');
+  assert.strictEqual(rules.changes.length, 3, `TALK-RULE: all three are done (${rules.reply})`);
+  assert.deepStrictEqual(named('rule', 'The tide'), { name: 'The tide', body: 'The river runs backward at night.', keys: ['night'], on: true },
+    'TALK-RULE-NEW: a new rule is added on, with its wake words');
+  assert.strictEqual(named('rule', 'The toll')?.body, 'Every crossing costs two coins.', 'TALK-RULE-EDIT: the toll is rewritten in place');
+  assert.strictEqual(own('rule').length, 3, '  and not added twice');
+  assert.strictEqual(named('rule', 'Dawn law')?.on, true, 'TALK-RULE-SWITCH: dawn law is on');
+  assert.deepStrictEqual(rules.changes[1].diff, { before: 'Every crossing costs a coin.', after: 'Every crossing costs two coins.' },
+    'TALK-RULE-DIFF: the line draws the old and new text');
+  assert.deepStrictEqual(rules.changes.map((c: any) => c.words), ['Added a rule to the tale, on: The tide, on a word: night.',
+    'Changed the rule The toll: “Every crossing costs two coins.”', 'Switched the rule Dawn law on.']);
+  assert.deepStrictEqual(undoAll(rules), ['Put back the rule Dawn law: off.', 'Put back the rule The toll.', 'Took away the rule The tide.']);
+  assert.deepStrictEqual(own('rule'), rulesBefore, 'TALK-RULE-UNDO: Undo puts every rule back as it was');
+  ok('asked for a rule, Talk adds, changes or switches it at once, and Undo puts each back');
+
+  // THE WRITER'S OWN INSTRUCTIONS
+  const instr = await say('CHANGE-OWNINSTR: add a weather instruction, make it present tense, and switch no oaths on');
+  assert.ok(!instr.error, instr.error);
+  assert.strictEqual(instr.changes.length, 3, `TALK-INSTRUCTION: all three are done (${instr.reply})`);
+  assert.deepStrictEqual(named('instruction', 'Weather'), { name: 'Weather', body: 'Let the weather carry the feeling.', keys: [], on: true },
+    'TALK-INSTRUCTION-NEW: added on');
+  assert.strictEqual(named('instruction', 'Tense')?.body, 'Keep to the present tense.', 'TALK-INSTRUCTION-EDIT');
+  assert.strictEqual(named('instruction', 'No oaths')?.on, true, 'TALK-INSTRUCTION-SWITCH');
+  undoAll(instr);
+  assert.deepStrictEqual(own('instruction'), instrBefore, 'TALK-INSTRUCTION-UNDO: Undo puts every instruction back as it was');
+  ok("asked for one of the writer's own instructions, Talk adds, changes or switches it, and Undo puts each back");
+
+  // WHERE A STRING STANDS
+  const stand = await say('CHANGE-STAND: tie off the letter, and bring the debt back');
+  assert.ok(!stand.error, stand.error);
+  assert.strictEqual(stand.changes.length, 2, `TALK-STAND: two are done (${stand.reply})`);
+  assert.match(stand.reply, /Not done\. Change where the string the oath stands: there is no string called "the oath"/,
+    'TALK-STAND-UNKNOWN: a string the tale does not have is said not done');
+  const letter = str('The letter he has not opened');
+  assert.deepStrictEqual([letter.status, letter.summoned, letter.from_chapter, letter.owed_by, letter.body],
+    ['paid', 0, 1, 4, 'Sent by his brother.'], 'TALK-STAND-TIE: tied off and out of play, everything else as it was');
+  assert.deepStrictEqual([str('The debt').status, str('The debt').summoned], ['open', 1], 'TALK-STAND-REOPEN: the debt is open and in play');
+  assert.strictEqual(stand.changes[1].words, 'Reopened the promise The debt: it is in play.');
+  undoAll(stand);
+  assert.deepStrictEqual([str('The letter he has not opened').status, str('The letter he has not opened').summoned,
+    str('The letter he has not opened').owed_by], ['open', 1, 4], 'TALK-STAND-UNDO: the letter is in play again');
+  assert.deepStrictEqual([str('The debt').status, str('The debt').summoned], ['dropped', 0], 'TALK-STAND-UNDO: the debt is let go again');
+  ok('asked where a string stands, Talk ties it off, reopens it or sets it aside, and Undo puts it back');
+
+  // THE TALE'S OWN FIELDS
+  const more = await say('CHANGE-TALEMORE: rename it, regenre it, revoice it, and add a style note');
+  assert.ok(!more.error, more.error);
+  const st = () => db.getStory(tale.id) as any;
+  assert.deepStrictEqual([st().title, st().genre, st().writing_style, st().style_note],
+    ['The Far Bank', 'noir, gothic, horror', 'Long, slow sentences; the river does the feeling.', 'Rain in every scene.'],
+    `TALK-TALE-FIELDS: title, genre (tidied), voice and style note are changed (${more.reply})`);
+  undoAll(more);
+  assert.deepStrictEqual([st().title, st().genre, st().style_note ?? ''], ['The Ford', 'noir', ''],
+    'TALK-TALE-FIELDS-UNDO: Undo puts each back, the tidied genre included');
+  assert.notStrictEqual(st().writing_style, 'Long, slow sentences; the river does the feeling.', '  and the voice');
+  ok("asked to change the tale's title, genre, voice or style note, Talk does it, and Undo puts each back");
 }
 
 srv.close();

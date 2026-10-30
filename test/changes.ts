@@ -226,13 +226,13 @@ ok('TALE-SET: the premise or the setting, with the old one for Undo', () => {
   assert.match(ch.wordsFor(u), /Put back the tale's setting/);
 });
 
-ok('TALE-SET-REFUSED: a field that is not the premise or setting, no text, or the same text', () => {
-  refused(ch.checkAsked({ op: 'tale.set', field: 'title', text: 'The Crossing II' }, whole), /premise or its setting/i);
-  refused(ch.checkAsked({ op: 'tale.set', field: 'genre', text: 'Horror' }, whole), /premise or its setting/i);
+ok('TALE-SET-REFUSED: a field that is not one of the tale\'s own, no text, or the same text', () => {
+  refused(ch.checkAsked({ op: 'tale.set', field: 'spice', text: '5' }, whole), /premise.*setting.*title.*genre.*voice.*style note/i);
+  refused(ch.checkAsked({ op: 'tale.set', field: 'pov', text: 'first person' }, whole), /not its pov/i);
   refused(ch.checkAsked({ op: 'tale.set', field: 'premise', text: ' ' }, whole), /no text/i);
   refused(ch.checkAsked({ op: 'tale.set', field: 'premise', text: 'A river between the living and the dead.' }, whole),
     /already says/i);
-  refused(ch.checkUndo({ op: 'tale.set', field: 'spice', text: '5' }, whole), /premise or its setting/i);
+  refused(ch.checkUndo({ op: 'tale.set', field: 'spice', text: '5' }, whole), /not its spice/i);
 });
 
 ok('SCENE-SET: a scene\'s title or where it heads, by its number, with the old text for Undo', () => {
@@ -411,7 +411,15 @@ ok('UNDO-FORGED: an Undo cannot make a pocket, or leave a thread On a word with 
 // ONE-SIDED PAIR. Every operation the model may ask for must have an Undo, and every operation that
 // can be applied (asked, or an Undo's own) must be one the route's `applyChange` writes. A new
 // operation added to the list without both lands with `undo: null`, or as "the tale refused it".
-const every = { ...dated, entries: [...dated.entries,
+const OWN = {
+  taleRules: [{ id: 'r-toll', name: 'The toll', body: 'Every crossing costs a coin.', keys: [], active: true },
+              { id: 'r-dawn', name: 'Dawn law', body: 'Nobody crosses after dawn.', keys: ['dawn', 'sunrise'], active: false }],
+  talePockets: [{ id: 'i-tense', name: 'Tense', body: 'Keep to the past tense.', active: true },
+                { id: 'i-oaths', name: 'No oaths', body: 'Nobody swears in narration.', active: false }],
+  strings: [{ id: 'st-letter', title: 'The letter he has not opened', kind: 'promise', status: 'open', summoned: true },
+            { id: 'st-ring', title: 'Who took the ring', kind: 'question', status: 'paid', summoned: false },
+            { id: 'st-debt', title: 'The debt', kind: 'promise', status: 'open', summoned: false }] };
+const every = { ...dated, ...OWN, entries: [...dated.entries,
   { id: 'e-letter', title: 'The letter', entryType: 'item', activation: 'triggered', keys: ['letter'], addons: [], events: [] }] };
 const ASKS: Record<string, any> = {
   'thread.new': { title: 'The ferryman', type: 'character', text: 'Rows.' },
@@ -422,6 +430,11 @@ const ASKS: Record<string, any> = {
   'tale.set': { field: 'premise', text: 'A darker river.' },
   'scene.set': { scene: 1, field: 'title', text: 'The Ford' },
   'string.set': { kind: 'promise', title: 'The debt', text: 'Owed since spring.' },
+  'string.stand': { title: 'the letter', stand: 'tied_off' },
+  'rule.set': { title: 'The tide', text: 'The river runs backward at night.', keys: ['night'] },
+  'rule.switch': { title: 'The toll', on: false },
+  'instruction.set': { title: 'Weather', text: 'Let the weather carry the feeling.' },
+  'instruction.switch': { title: 'Tense', on: false },
 };
 
 ok('ONE-SIDED-PAIR: every operation on the list has an Undo, and the Undo is one Undo can do', () => {
@@ -669,6 +682,156 @@ ok('STRING-ONLY: the tale\'s thread is reached by string.set alone, and an Undo 
   refused(ch.checkUndo({ op: 'room.unmake', thread: 'e-tale', addon: 'tf', text: 'A port town.' }, strung), /no longer in this tale/i);
   // And a string's kind is never a pocket of anyone else's thread.
   refused(ch.checkAsked({ op: 'thread.set', thread: 'Talia Venn', room: 'promise', text: 'x' }, strung), /no promise/i);
+});
+
+// ---- THE TALE'S OWN POCKETS IN TALK: its rules (ADR 0005), its own instructions, and where each
+// string stands (ADR 0011). Each found by its name, as a thread is; each with an Undo by id.
+const owned = { ...whole, ...OWN };
+const withRule = (r: any) => ({ ...owned, taleRules: [...owned.taleRules.filter((x) => x.id !== r.id), r] });
+
+ok('RULE-NEW: a rule with a new name is added on, with its wake words, and Undo takes it away', () => {
+  const c = done(ch.checkAsked({ op: 'rule.set', title: 'The tide', text: '[The tide: The river runs backward at night.]',
+    keys: ['night', ' dark '] }, owned));
+  assert.deepStrictEqual([c.addon, c.name, c.text, c.keys, c.before], [null, 'The tide', 'The river runs backward at night.',
+    ['night', 'dark'], null], 'RULE-NEW-ASKED: a new pocket, its text plain, its words trimmed');
+  assert.strictEqual(ch.wordsFor(c), 'Added a rule to the tale, on: The tide, on a word: night, dark.');
+  assert.deepStrictEqual(ch.textsOf(c), { before: '', after: 'The river runs backward at night.' });
+  const undo = ch.undoFor(c, { addon: 'r-new' });
+  assert.deepStrictEqual(undo, { op: 'pocket.unmake', slot: 'rule', addon: 'r-new', text: 'The river runs backward at night.' });
+  const after = withRule({ id: 'r-new', name: 'The tide', body: 'The river runs backward at night.', keys: ['night', 'dark'], active: true });
+  const gone = done(ch.checkUndo(undo, after));
+  assert.strictEqual(ch.wordsFor(gone), 'Took away the rule The tide.', 'RULE-NEW-UNDO: the Undo takes it away');
+  refused(ch.checkUndo(undo, withRule({ id: 'r-new', name: 'The tide', body: 'Edited by hand.', keys: [], active: true })),
+    /changed since Talk made it/i);
+  // Always on when no words are given.
+  assert.deepStrictEqual(done(ch.checkAsked({ op: 'rule.set', title: 'Coins', text: 'A coin is a life.' }, owned)).keys, []);
+});
+
+ok('RULE-CHANGE: a rule the tale has, by its name, gets new text or new wake words, and Undo puts both back', () => {
+  const c = done(ch.checkAsked({ op: 'rule.set', title: 'the toll', text: 'Every crossing costs two coins.' }, owned));
+  assert.deepStrictEqual([c.addon, c.name, c.keys, c.before], ['r-toll', 'The toll', [],
+    { text: 'Every crossing costs a coin.', keys: [] }], 'RULE-CHANGE-ASKED: a near name finds it; no words given keeps its own');
+  assert.match(ch.wordsFor(c), /^Changed the rule The toll: “Every crossing costs two coins\.”$/);
+  const undo = ch.undoFor(c, {});
+  assert.deepStrictEqual(undo, { op: 'rule.set', addon: 'r-toll', text: 'Every crossing costs a coin.', keys: [],
+    wrote: { text: 'Every crossing costs two coins.', keys: [] } });
+  const after = withRule({ ...owned.taleRules[0], body: 'Every crossing costs two coins.' });
+  const back = done(ch.checkUndo(undo, after));
+  assert.deepStrictEqual([back.text, back.undo], ['Every crossing costs a coin.', true]);
+  assert.strictEqual(ch.wordsFor(back), 'Put back the rule The toll.');
+  refused(ch.checkUndo(undo, owned), /changed since/i);
+  // Wake words alone: its text is kept, and the diff is of the words.
+  const w = done(ch.checkAsked({ op: 'rule.set', title: 'Dawn law', keys: ['first light'] }, owned));
+  assert.deepStrictEqual([w.text, w.keys], ['Nobody crosses after dawn.', ['first light']], 'RULE-WAKE: new words, the same text');
+  assert.deepStrictEqual(ch.textsOf(w), { before: 'On a word: dawn, sunrise', after: 'On a word: first light' });
+  assert.match(ch.wordsFor(w), /^Dawn law is On a word now: first light\.$/);
+  const always = done(ch.checkAsked({ op: 'rule.set', title: 'Dawn law', activation: 'always_on' }, owned));
+  assert.deepStrictEqual(always.keys, [], 'RULE-WAKE-ALWAYS: Always on takes its words away');
+});
+
+ok('RULE-REFUSED: no name, a new rule with no text, the same text and words, words asked for and none given', () => {
+  refused(ch.checkAsked({ op: 'rule.set', text: 'x' }, owned), /no name/i);
+  refused(ch.checkAsked({ op: 'rule.set', title: 'The tide' }, owned), /no text/i);
+  refused(ch.checkAsked({ op: 'rule.set', title: 'The toll', text: 'Every crossing costs a coin.' }, owned), /already/i);
+  refused(ch.checkAsked({ op: 'rule.set', title: 'The toll', activation: 'triggered' }, owned), /wake words/i);
+  const two = { ...owned, taleRules: [{ id: 'r-f', name: 'Toll of the ferry', body: 'A coin.', keys: [], active: true },
+    { id: 'r-b', name: 'Toll of the bridge', body: 'A song.', keys: [], active: true }] };
+  refused(ch.checkAsked({ op: 'rule.set', title: 'toll', text: 'x' }, two), /more than one rule.*Toll of the ferry.*Toll of the bridge/i);
+});
+
+ok('RULE-SWITCH: a rule switched on or off by its name, and Undo puts the switch back', () => {
+  const c = done(ch.checkAsked({ op: 'rule.switch', title: 'The toll', on: false }, owned));
+  assert.deepStrictEqual([c.addon, c.on], ['r-toll', false]);
+  assert.strictEqual(ch.wordsFor(c), 'Switched the rule The toll off.');
+  assert.strictEqual(ch.textsOf(c), null, 'a switch rewrites no text');
+  const undo = ch.undoFor(c, {});
+  assert.deepStrictEqual(undo, { op: 'rule.switch', addon: 'r-toll', on: true, wrote: false });
+  const back = done(ch.checkUndo(undo, withRule({ ...owned.taleRules[0], active: false })));
+  assert.strictEqual(ch.wordsFor(back), 'Put back the rule The toll: on.');
+  refused(ch.checkUndo(undo, owned), /changed since/i);
+  refused(ch.checkAsked({ op: 'rule.switch', title: 'The toll', on: true }, owned), /already on/i);
+  refused(ch.checkAsked({ op: 'rule.switch', title: 'The toll' }, owned), /on or off/i);
+  refused(ch.checkAsked({ op: 'rule.switch', title: 'The ferry', on: true }, owned), /no rule called "The ferry"/i);
+});
+
+ok('INSTRUCTION: one of the writer\'s own, added on, changed, or switched, each with its Undo', () => {
+  const c = done(ch.checkAsked({ op: 'instruction.set', title: 'Weather', text: 'Let the weather carry the feeling.' }, owned));
+  assert.deepStrictEqual([c.addon, c.name, c.before], [null, 'Weather', null]);
+  assert.strictEqual(ch.wordsFor(c), 'Added an instruction of your own to the tale, on: Weather.');
+  assert.deepStrictEqual(ch.undoFor(c, { addon: 'i-new' }), { op: 'pocket.unmake', slot: 'instruction', addon: 'i-new',
+    text: 'Let the weather carry the feeling.' });
+  const e = done(ch.checkAsked({ op: 'instruction.set', title: 'tense', text: 'Keep to the present tense.' }, owned));
+  assert.deepStrictEqual([e.addon, e.before.text], ['i-tense', 'Keep to the past tense.']);
+  assert.match(ch.wordsFor(e), /^Changed your instruction Tense: “Keep to the present tense\.”$/);
+  const undo = ch.undoFor(e, {});
+  assert.strictEqual(undo!.op, 'instruction.set');
+  const after = { ...owned, talePockets: [{ ...owned.talePockets[0], body: 'Keep to the present tense.' }, owned.talePockets[1]] };
+  assert.strictEqual(done(ch.checkUndo(undo, after)).text, 'Keep to the past tense.');
+  const on = done(ch.checkAsked({ op: 'instruction.switch', title: 'No oaths', on: true }, owned));
+  assert.strictEqual(ch.wordsFor(on), 'Switched your instruction No oaths on.');
+  refused(ch.checkAsked({ op: 'instruction.switch', title: 'The toll', on: true }, owned), /no instruction of yours called/i);
+  // A rule's Undo cannot reach an instruction, nor the other way: each looks in its own list.
+  refused(ch.checkUndo({ op: 'rule.switch', addon: 'i-tense', on: false, wrote: true }, owned), /no longer in this tale/i);
+  refused(ch.checkUndo({ op: 'pocket.unmake', slot: 'rule', addon: 'i-tense', text: 'Keep to the past tense.' }, owned),
+    /no longer in this tale/i);
+  // Nor a thread's pocket, by its id.
+  refused(ch.checkUndo({ op: 'pocket.unmake', slot: 'rule', addon: 'a-tv', text: 'Quick and dry.' }, owned), /no longer in this tale/i);
+});
+
+ok('STRING-STAND: a string put in play, set aside, tied off or let go by its name, and Undo puts it back', () => {
+  const c = done(ch.checkAsked({ op: 'string.stand', title: 'the letter', stand: 'tied_off' }, owned));
+  assert.deepStrictEqual([c.addon, c.stand, c.was], ['st-letter', 'tied_off', 'in_play']);
+  assert.strictEqual(ch.wordsFor(c), 'Tied off the promise The letter he has not opened.');
+  assert.strictEqual(ch.textsOf(c), null);
+  const undo = ch.undoFor(c, {});
+  assert.deepStrictEqual(undo, { op: 'string.stand', addon: 'st-letter', stand: 'in_play', wrote: 'tied_off' });
+  const tied = { ...owned, strings: [{ ...owned.strings[0], status: 'paid', summoned: false }, ...owned.strings.slice(1)] };
+  const back = done(ch.checkUndo(undo, tied));
+  assert.strictEqual(ch.wordsFor(back), 'Put back where the promise The letter he has not opened stood: in play.');
+  refused(ch.checkUndo(undo, owned), /changed since/i);
+  const re = done(ch.checkAsked({ op: 'string.stand', title: 'Who took the ring', stand: 'in_play' }, owned));
+  assert.strictEqual(ch.wordsFor(re), 'Reopened the open question Who took the ring: it is in play.', 'STRING-REOPEN');
+  assert.strictEqual(ch.wordsFor(done(ch.checkAsked({ op: 'string.stand', title: 'The debt', stand: 'let_go' }, owned))),
+    'Let go of the promise The debt.');
+  refused(ch.checkAsked({ op: 'string.stand', title: 'The debt', stand: 'set_aside' }, owned), /already set aside/i);
+  refused(ch.checkAsked({ op: 'string.stand', title: 'The debt', stand: 'paid' }, owned), /in play, set aside, tied off or let go/i);
+  refused(ch.checkAsked({ op: 'string.stand', title: 'The oath', stand: 'let_go' }, owned), /no string called "The oath"/i);
+});
+
+ok('TALE-SET-MORE: the tale\'s title, genre, voice and style note, beside its premise and setting', () => {
+  const st = { ...whole, story: { ...whole.story, title: 'The Crossing', genre: 'noir', writingStyle: 'Short sentences.', styleNote: '' } };
+  const t = done(ch.checkAsked({ op: 'tale.set', field: 'title', text: 'The Far Bank' }, st));
+  assert.deepStrictEqual([t.key, t.before], ['title', 'The Crossing']);
+  const g = done(ch.checkAsked({ op: 'tale.set', field: 'genre', text: 'noir / gothic and horror' }, st));
+  assert.strictEqual(g.text, 'noir, gothic, horror', 'TALE-SET-GENRE: tidied as every save tidies it, so its Undo matches');
+  assert.strictEqual(ch.undoFor(g, {})!.wrote, 'noir, gothic, horror');
+  refused(ch.checkAsked({ op: 'tale.set', field: 'genre', text: ' Noir ' }, { ...st, story: { ...st.story, genre: 'Noir' } }), /already/i);
+  const v = done(ch.checkAsked({ op: 'tale.set', field: 'voice', text: 'Long sentences.' }, st));
+  assert.deepStrictEqual([v.key, v.before], ['writingStyle', 'Short sentences.'], 'TALE-SET-VOICE: the story\'s writingStyle');
+  assert.strictEqual(ch.wordsFor(v), 'Changed the tale\'s voice: “Long sentences.”');
+  const n = done(ch.checkAsked({ op: 'tale.set', field: 'style note', text: 'Rain in every scene.' }, st));
+  assert.deepStrictEqual([n.field, n.key, n.before], ['style_note', 'styleNote', '']);
+  assert.match(ch.wordsFor(n), /tale's style note/);
+  const u = done(ch.checkUndo({ op: 'tale.set', field: 'voice', text: 'Short sentences.', wrote: 'Long sentences.' },
+    { ...st, story: { ...st.story, writingStyle: 'Long sentences.' } }));
+  assert.deepStrictEqual([u.key, u.text], ['writingStyle', 'Short sentences.']);
+});
+
+ok('TALK-SEES-OWN: Talk is shown the tale\'s rules, instructions and strings by name, with where each stands', () => {
+  const lines = ch.talesOwn(owned);
+  assert.match(lines, /Rules:.*The toll \(on, always\)/s, 'TALK-SEES-RULE');
+  assert.match(lines, /Dawn law \(off, on a word: dawn, sunrise\)/);
+  assert.match(lines, /instructions.*Tense \(on\).*No oaths \(off\)/s, 'TALK-SEES-INSTRUCTION');
+  assert.match(lines, /Strings:.*The letter he has not opened \(a promise, in play\).*Who took the ring \(an open question, tied off\).*The debt \(a promise, set aside\)/s,
+    'TALK-SEES-STRING');
+  assert.strictEqual(ch.talesOwn(whole), '', 'nothing to show is no line');
+});
+
+// ONE-SIDED PAIR, the model's half. An operation on the list that the contract never describes is
+// one the model is allowed to send and never told how: it is on the wire and never used.
+const { TALK_CONTRACT } = await import('../src/prompts.ts');
+ok('CONTRACT-EVERY-OP: TALK_CONTRACT describes every operation the model may ask for', () => {
+  for (const op of ch.ASKED) assert.ok(TALK_CONTRACT.includes(`- ${op}:`), `CONTRACT-EVERY-OP: TALK_CONTRACT does not describe ${op}`);
 });
 
 console.log(`\n${n} checks passed`);
