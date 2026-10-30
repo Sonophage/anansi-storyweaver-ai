@@ -1439,13 +1439,15 @@ ok('the next scene can be asked again with a direction, away from the last sugge
   assert.ok(!asks.some((a) => a.system.startsWith(prompts.CHAPTER.slice(0, 80))), '  and never asks the model for it');
   assert.strictEqual(hem.suggestion, null, '  so there is no suggestion yet');
 
+  // NO DIRECTION ON THE HEM (2026-10-30): the hem's question sends the opening as `opens`, and no
+  // screen sends `steer` to it any more, so the route does not read one. The Ask Anansi press on the
+  // setup still takes a direction (`/api/chapter/propose`, STEER-WANT above).
   const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next',
     steer: 'He swims after the ferry and loses the bell.' }));
   assert.ok(!v.error, v.error);
   await hemSettled(t.id);
   const user = String(askOf(prompts.CHAPTER)?.user ?? '');
-  assert.match(user, /THE WRITER WANTS THIS CHAPTER TO: He swims after the ferry and loses the bell\./,
-    'HEM-STEER: the writer\'s direction reaches the next-scene ask');
+  assert.doesNotMatch(user, /THE WRITER WANTS THIS CHAPTER TO/, 'HEM-NO-STEER: the hem does not read a direction no screen sends');
   hem = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.strictEqual(hem.passes.next, null, '  and the pass ran');
   const next = (db.chapters(t.id) as any[]).find((c) => c.id === opened);
@@ -1453,19 +1455,19 @@ ok('the next scene can be asked again with a direction, away from the last sugge
   assert.strictEqual(next.authors_note, NEXT.note, '  and where it heads');
   assert.strictEqual(next.title, NEXT.title, '  and its name, over the placeholder');
 
-  // ASKED AGAIN WITH A NEW DIRECTION, what Anansi wrote is replaced; what the writer typed is not.
+  // ASKED AGAIN, what Anansi wrote is replaced; what the writer typed is not.
   db.updateChapter(t.id, opened, { opensWith: 'Written by hand.' });
   tidied = { title: 'The Far Bank', note: 'He reaches the far bank with nothing in his hands at all.', opens: 'Cold water.' };
-  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', steer: 'He gives up.' }));
+  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next' }));
   await hemSettled(t.id);
   const again = (db.chapters(t.id) as any[]).find((c) => c.id === opened);
-  assert.strictEqual(again.title, 'The Far Bank', 'HEM-AGAIN-REPLACES: a new direction replaces what Anansi wrote');
+  assert.strictEqual(again.title, 'The Far Bank', 'HEM-AGAIN-REPLACES: asked again, the new answer replaces what Anansi wrote');
   assert.strictEqual(again.authors_note, tidied.note, '  in every box it wrote');
   assert.strictEqual(again.opens_with, 'Written by hand.', 'HEM-AGAIN-KEEPS: and keeps what the writer typed');
   // A scene the writer has started is left alone: its heading is theirs to set.
   db.updateChapter(t.id, opened, { authorsNote: '' });
   db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: opened, body: 'He stood on the jetty.' });
-  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', steer: 'Anything.' }));
+  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next' }));
   await hemSettled(t.id);
   assert.strictEqual((db.chapters(t.id) as any[]).find((c) => c.id === opened).authors_note, '',
     'HEM-STARTED-ALONE: a scene already being written is not set behind the writer');
@@ -1524,6 +1526,50 @@ ok('a hem asks for the next scene rather than guessing it, and the answer goes i
   tidied = {}; taleSays = '';
 }
 ok('the opening the writer sends from the hem is the scene\'s, as written, and the pass names the scene from it');
+
+// ---- PAUSED UNTIL THE WRITER SAYS HOW THE NEXT SCENE STARTS (Seth, 2026-10-30) ----
+// A close that asks holds where the tale stands, the people and the next scene. What is held is kept
+// on the hem's row, so the screens can say so after a reload: asked while it is held, paused on the
+// scene's card if the writer never answers, and one press there runs them, reading the opening the
+// next scene has by then.
+{
+  const t = db.createStory(me, { title: 'Never answered', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The ferry left without Oren.' });
+  tidied = { ...NEXT }; asks.length = 0; taleSays = 'Oren is ashore.';
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false, ask: true }));
+  await hemSettled(t.id);
+  let hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.strictEqual(hem.state, 'done', '  the passes that run at the close are done');
+  assert.deepStrictEqual(hem.held, ['tale', 'memory', 'next'],
+    `HEM-HELD-STORED: what waits on the writer is on the hem's row (${JSON.stringify(hem.held)})`);
+  // The writer moves on and types the opening on the setup, never answering on the hem.
+  const later = 'At dawn, on the far bank, Oren wakes in the reeds.';
+  db.updateChapter(t.id, r.opened, { opensWith: later });
+  // ONE PRESS picks it up: the same answer, with no opening sent.
+  const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', asked: true }));
+  assert.ok(!v.error, v.error);
+  assert.deepStrictEqual(sceneOf(v, ch0.id).hem?.held, [],
+    'HEM-ANSWERED-AT-ONCE: the answer clears what was held before the passes run, so a reload does not ask again');
+  await hemSettled(t.id);
+  hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.deepStrictEqual(Object.keys(hem.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary', 'tale'],
+    'HEM-RESUMED: the press runs where the tale stands, the people and the next scene');
+  assert.match(String(askOf(TALE_HEAD)?.user ?? ''), /HOW THE NEXT SCENE OPENS[\s\S]*At dawn, on the far bank/,
+    'HEM-RESUMED-READS: where the tale stands reads the opening the scene has by then');
+  assert.strictEqual((db.chapters(t.id) as any[]).find((c) => c.id === r.opened).opens_with, later,
+    '  and the opening stays as the writer typed it');
+  // A CLOSE THAT DOES NOT ASK holds nothing.
+  const t2 = db.createStory(me, { title: 'Not asked', premise: 'A ferry town.' }) as any;
+  const c2 = (db.chapters(t2.id)[0] as any);
+  db.addPassage({ storyId: t2.id, branchId: t2.branchId, chapterId: c2.id, body: 'The ferry left.' });
+  await routes['POST /api/chapter/end'](ctx({ storyId: t2.id }));
+  await hemSettled(t2.id);
+  assert.deepStrictEqual(sceneOf(await viewNow(t2.id), c2.id).hem?.held, [], 'HEM-HELD-NONE: a close that does not ask holds nothing');
+  tidied = {}; taleSays = '';
+}
+ok('a hem the writer never answered is paused on its row, and one press picks it up');
 
 // ---- NEW THREADS, SIX AT MOST PER HEM (2026-10-27) ----
 // One hem of Seth's chalked 8 characters, 6 places and 2 items. The rest are held, named on the card,

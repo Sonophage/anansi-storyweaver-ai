@@ -711,6 +711,10 @@ function migrate() {
   add('hems', 'pass', 'TEXT');
   add('hems', 'pass_at', 'INTEGER');
   add('hems', 'extra', 'TEXT');
+  // The passes a close held for the writer's answer to how the next scene starts (JSON, 2026-10-30),
+  // emptied when they answer. Kept on the row so a reload neither asks again once answered nor loses
+  // that they are paused when never answered. NULL on rows from before it, which read as none held.
+  add('hems', 'held', 'TEXT');
   backfillActPrints();
 
   // PLAN-08, the last step of the wardrobe move. The copy above has run on every boot since Phase 2
@@ -1966,12 +1970,22 @@ const scenePrint = (chapterId: string) => proseHash(passagesOfChapter(chapterId)
 const hemJSON = (t: string | null) => { try { return t ? JSON.parse(t) : null; } catch { return null; } };
 
 /** A hem starts: the row is written, or replaced by a hem again, before any pass runs. Returns the
- *  run's number, which `finishHem` is handed back. */
-export function beginHem(storyId: string, chapterId: string): number {
+ *  run's number, which `finishHem` is handed back. `held` names the passes this hem holds until the
+ *  writer says how the next scene starts (`hemAnswered` empties it); a hem again holds none. */
+export function beginHem(storyId: string, chapterId: string, held: string[] = []): number {
   const run = ((q('SELECT run FROM hems WHERE chapter_id = ?').get(chapterId) as any)?.run ?? 0) + 1;
-  q(`INSERT OR REPLACE INTO hems (chapter_id, story_id, started_at, finished_at, prose_hash, passes, kept, suggestion, run)
-     VALUES (?, ?, ?, NULL, ?, NULL, 0, NULL, ?)`).run(chapterId, storyId, now(), scenePrint(chapterId), run);
+  q(`INSERT OR REPLACE INTO hems (chapter_id, story_id, started_at, finished_at, prose_hash, passes, kept, suggestion, run, held)
+     VALUES (?, ?, ?, NULL, ?, NULL, 0, NULL, ?, ?)`)
+    .run(chapterId, storyId, now(), scenePrint(chapterId), run, held.length ? JSON.stringify(held) : null);
   return run;
+}
+
+/** The writer has said how the next scene starts, or pressed to run what was held without saying:
+ *  nothing is held any more. Returns what was, which is what the answer runs. */
+export function hemAnswered(storyId: string, chapterId: string): string[] {
+  const h = q('SELECT held FROM hems WHERE chapter_id = ? AND story_id = ?').get(chapterId, storyId) as any;
+  q('UPDATE hems SET held = NULL WHERE chapter_id = ? AND story_id = ?').run(chapterId, storyId);
+  return hemJSON(h?.held ?? null) ?? [];
 }
 
 /** A hem ends, with its pass report and the next-scene suggestion (null when that pass gave none).
@@ -2043,16 +2057,20 @@ export function reopenHem(storyId: string, chapterId: string): number | null {
  *  stopped. Called by `serve.ts` before it listens, and by nothing else: a second process opening a
  *  library a server is hemming in would stop a hem that is still running.
  *
- *  ponytail: which passes a run was asked for is not stored, so every pass from the one it was on is
- *  reported. Ceiling: a hem with a pass switched off, or a try-again of one pass, cut off by a
+ *  A pass HELD for the writer's answer (`held`) never started, so it is left out: the card shows it
+ *  paused, with its own press.
+ *
+ *  ponytail: which passes a run was asked for is not stored, so every other pass from the one it was
+ *  on is reported. Ceiling: a hem with a pass switched off, or a try-again of one pass, cut off by a
  *  restart, offers Try again for passes nobody asked for. Trigger: a writer asking why; then store the
  *  run's asked-for passes on the row. */
 export function stopUnfinishedHems(order: readonly string[]): number {
-  const rows = q('SELECT chapter_id, story_id, passes, pass FROM hems WHERE finished_at IS NULL').all() as any[];
+  const rows = q('SELECT chapter_id, story_id, passes, pass, held FROM hems WHERE finished_at IS NULL').all() as any[];
   for (const h of rows) {
     const report: Record<string, string | null> = hemJSON(h.passes) ?? {};
     const from = Math.max(0, order.indexOf(String(h.pass ?? '')));
-    for (const k of order.slice(from)) {
+    const held: string[] = hemJSON(h.held) ?? [];
+    for (const k of order.slice(from).filter((x) => !held.includes(x))) {
       if (k === h.pass) report[k] = 'the server restarted while this was running';
       else if (report[k] !== null) report[k] = 'the server restarted before this ran';
     }
@@ -2096,6 +2114,7 @@ const hemView = (h: any) => ({
   startedAt: h.started_at, finishedAt: h.finished_at ?? null,
   passes: hemJSON(h.passes) ?? {}, keptSummary: !!h.kept, suggestion: hemJSON(h.suggestion),
   overflow: hemJSON(h.overflow) ?? [],
+  held: hemJSON(h.held) ?? [],
   outOfDate: scenePrint(h.chapter_id) !== h.prose_hash,
 });
 

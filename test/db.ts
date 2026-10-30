@@ -4423,6 +4423,15 @@ ok('a hem left running by a restart is stopped, naming the passes it did not fin
   db.hemAt(t.id, one.id, r1, 'memory');
   assert.strictEqual(db.hemOf(t.id, one.id)?.current?.pass, 'memory', 'HEM-AT-ANY-RUN: the first run moves the screen on, after a reopen');
   db.stopUnfinishedHems(ORDER);
+  // WHAT IS HELD FOR THE WRITER IS NOT REPORTED AS CUT OFF: those passes never started, and the
+  // scene's card shows them paused, with their own press.
+  const r2 = db.beginHem(t.id, one.id, ['tale', 'memory', 'next']);
+  db.hemAt(t.id, one.id, r2, 'summary');
+  db.stopUnfinishedHems(ORDER);
+  const h3 = db.hemOf(t.id, one.id)!;
+  assert.deepStrictEqual(Object.keys(h3.passes).sort(), ['facts', 'finished', 'summary'],
+    `HEM-SWEEP-HELD: a pass held for the writer is not reported as cut off (${Object.keys(h3.passes)})`);
+  assert.deepStrictEqual(h3.held, ['tale', 'memory', 'next'], '  and is still held');
   // NOTHING LEFT RUNNING, nothing written: a second boot finds none.
   assert.strictEqual(db.stopUnfinishedHems(ORDER), 0, 'HEM-SWEEP-ONCE: a later boot stops nothing');
   db.delStory(t.id);

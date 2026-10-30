@@ -7958,6 +7958,9 @@ const hemCardOf = (side: string) => {
     currentChapter: { ...c3 } });
   const running = { ...HEM_DONE, state: 'running', finishedAt: null, suggestion: null, overflow: [],
     passes: {} };
+  // What the close holds for the writer's answer is on the hem's row (`held`), as the server keeps it;
+  // the answer empties it.
+  const holding = { ...running, held: ['tale', 'memory', 'next'] };
   const rows = HEM_ROWS.map((p) => ({ ...p, chapterId: 'c-2', grp: 'scene:c-2' }));
   let VIEW: any = { ...STORY, chapters: STORY.chapters.map((c: any) => ({ ...c, hem: null })) };
   let reads = 0;
@@ -7966,10 +7969,14 @@ const hemCardOf = (side: string) => {
     if (url.startsWith('/api/story?')) { reads++; return reply(VIEW); }
     if (url === '/api/chapter/end') {
       POSTED.push({ url, body: JSON.parse(init.body) });
-      VIEW = after(running, []);
+      VIEW = after(holding, []);
       return reply({ closed: 'c-2', opened: 'c-hem3', ...VIEW });
     }
-    if (url === '/api/chapter/hem') { POSTED.push({ url, body: JSON.parse(init.body) }); return reply(VIEW); }
+    if (url === '/api/chapter/hem') {
+      POSTED.push({ url, body: JSON.parse(init.body) });
+      if (JSON.parse(init.body).asked) VIEW = after(running, []);
+      return reply(VIEW);
+    }
     return canned(url, init);
   };
   // The watches the blocks above left waiting, run against a tale with nothing hemming: each
@@ -8091,6 +8098,52 @@ const hemCardOf = (side: string) => {
   }
   click({ open: 's-1' }); await settle();
   ok('Hem this scene asks how the next one starts while it runs, and the card arrives without a reload (#92)');
+}
+
+// ---- ASKED ONCE, AND PAUSED IF NEVER ANSWERED (Seth, 2026-10-30) ----
+// Whether the hem still waits on how the next scene starts is the hem's row (`held`), not the tab: a
+// reload after answering does not ask again, and a hem never answered shows paused on the scene's
+// Workbench card, with one press that runs what it held.
+{
+  const canned = (globalThis as any).fetch;
+  (globalThis as any).fetch = hemFetch(canned);
+  const settle = () => sleep(40);
+  const c3 = { id: 'c-pz3', index: 3, title: 'Scene 3', summary: null, authorsNote: null, opensWith: null,
+    status: 'open', coversThrough: null, summaryStale: false, keepWhole: false, hem: null };
+  const at = (hem: any, opensWith: string | null = null) => ({ ...STORY, strings: [], proposals: [],
+    // Its own id for the hemmed scene: the block above answered `c-2` in this tab, which is the very
+    // memory a reload loses.
+    chapters: [{ ...STORY.chapters[0], hem: null }, { ...STORY.chapters[1], id: 'c-pz2', status: 'closed', hem }, { ...c3, opensWith }],
+    currentChapter: { ...c3, opensWith } });
+  const done = { ...HEM_DONE, overflow: [], suggestion: null, passes: { summary: null, facts: null, finished: null } };
+  try {
+    // ANSWERED, STILL RUNNING, AFTER A RELOAD: the tab remembers nothing, the row says it was answered.
+    HEM_VIEW = at({ ...done, state: 'running', finishedAt: null, held: [] });
+    click({ open: 's-1' }); await settle();
+    click({ panel: 'ritual' }); await settle();
+    assert.doesNotMatch(html('sideBody'), /data-hemsteer=/, 'HEM-ASKED-STORED: a reload does not ask again once the hem was answered');
+    // HELD, AND NOT ASKED HERE (the writer typed the opening on the setup): paused on the card.
+    HEM_VIEW = at({ ...done, held: ['tale', 'memory', 'next'] }, 'At dawn, on the far bank.');
+    click({ open: 's-1' }); await settle();
+    click({ panel: 'waiting' }); await settle();
+    const card = hemCardOf(html('sideBody'));
+    assert.match(card, /Paused[\s\S]*Where the tale stands[\s\S]*Changes to the people in it/, 'HEM-PAUSED-CARD: the scene\'s card says what is paused');
+    assert.match(card, /<button class="btn ghost" data-hemresume="c-pz2">/, '  with one press to run them');
+    POSTED.length = 0;
+    click({ hemresume: 'c-pz2' }); await settle();
+    assert.deepStrictEqual(POSTED.find((p: any) => p.url === '/api/chapter/hem')?.body,
+      { storyId: 's-1', chapterId: 'c-pz2', pass: 'next', asked: true },
+      'HEM-RESUME: the press is the answer with no opening sent, so the passes read the scene\'s own');
+    // NOTHING HELD: no paused line.
+    HEM_VIEW = at({ ...done, held: [] }, 'At dawn, on the far bank.');
+    click({ open: 's-1' }); await settle();
+    click({ panel: 'waiting' }); await settle();
+    assert.doesNotMatch(html('sideBody'), /data-hemresume=/, 'HEM-NOT-PAUSED: a hem holding nothing is not paused');
+  } finally {
+    (globalThis as any).fetch = canned;
+  }
+  click({ open: 's-1' }); await settle();
+  ok('the hem asks once, by what its row holds, and a hem never answered is paused with a press to run it');
 }
 
 // ---- ASKED AGAIN WITH A DIRECTION, THE BOXES TAKE THE NEW ANSWER (Seth, 2026-10-30: "the how it

@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · The next scene starts the way you say
 
+### A hem you never answered waits for you
+If you leave the hem without saying how the next scene starts, where the tale stands and the
+changes to the people in it are not lost: the scene's card on the Workbench says they are paused.
+Press Run them now and Anansi does them, reading the next scene's opening if you have written one
+since. And once you have answered, the hem does not ask again after you reload the page.
 ### Hemming asks about the next scene first, then who is in it, then shows the summary
 As soon as you hem a scene, the hem asks how the next scene should start. What you write is the
 next scene's opening, word for word; press Enter and Anansi names the scene and says where it heads

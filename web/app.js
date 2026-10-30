@@ -627,7 +627,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // Merge two threads: open it, pick the other, pick which stays, Cancel, Merge.
   'mergestart', 'mergewith', 'mergekeep', 'mergex', 'mergego',
   // The hem's ask for the next scene, and who is in it (2026-10-30).
-  'hemnext', 'hemwhodone', 'droppocket'].map((k) => `[data-${k}]`).join(',');
+  'hemnext', 'hemwhodone', 'hemresume', 'droppocket'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -3396,7 +3396,7 @@ const hemNext = (ch) => {
  *  the next scene is set up on the setup, not here. */
 // A DISMISSED hem keeps its card only while threads still wait on it: Dismiss never hides a decision.
 const hemShows = (ch, ps) => ch.hem.state === 'running' || ps.length > 0 || (!ch.hem.dismissed
-  && (!!ch.hem.outOfDate || missedPasses(ch).length > 0));
+  && (!!ch.hem.outOfDate || missedPasses(ch).length > 0 || hemPaused(ch)));
 
 /** What a chalked row would change, as it stands now: the Over time entry in force for a row about
  *  where the thread stands, the pocket it lands in for a pocket row. Null when there is nothing
@@ -3460,6 +3460,7 @@ function hemCardParts(c) {
     was hemmed, so what is still chalked here was read from text that is gone. What you sewed in or
     rejected stays.</div>
     <button class="btn ghost push-8" data-hemagain="${id}">Hem again</button>`);
+  if (!c.inHem) state.push(hemPausedHTML(ch));
   for (const m of c.inHem ? [] : missedPasses(ch)) state.push(`<div class="line-8 wraps push-8"><span class="note">
     <span class="inked">${esc(m.label)}</span> did not run &mdash; ${esc(m.why)}</span>
     <button class="btn ghost" data-hemagain="${id}" data-pass="${esc(m.key)}">Try again</button></div>`);
@@ -3907,10 +3908,22 @@ const isStringRow = (p) => !!p.field && (V.slots?.tale ?? []).some((sl) => sl.na
  *  where it heads (`suggestScene`). Empty, Anansi chooses the opening too. The close sends
  *  `next: false`, so that pass waits for this.
  *
- *  Asked once: the pass has run or is queued (`S.hemAsked`, this tab), or the scene has an opening.
- *  Only on the latest hem, while the scene it opened is the one being written (`hemNext`). */
-const hemAsking = (ch) => !!ch?.hem && !('next' in (ch.hem.passes ?? {})) && !!hemNext(ch)
-  && !S.hemAsked?.has(ch.id) && !String(hemNext(ch).opensWith ?? '').trim();
+ *  Asked while the hem holds the next scene for the answer (`hem.held`, on the hem's row, so a reload
+ *  does not ask again once answered) and the scene has no opening. Only on the latest hem, while the
+ *  scene it opened is the one being written (`hemNext`). Otherwise what is held is paused (`hemPaused`). */
+const hemAsking = (ch) => (ch?.hem?.held ?? []).includes('next') && !!hemNext(ch)
+  && !String(hemNext(ch).opensWith ?? '').trim();
+/** PAUSED (Seth, 2026-10-30): the hem holds passes for an answer the writer has not given, and is not
+ *  asking for it here. The scene's card says so, and one press runs them, reading the next scene's
+ *  opening if it has one by then. */
+const hemPaused = (ch) => (ch?.hem?.held ?? []).length > 0 && !hemAsking(ch);
+function hemPausedHTML(ch) {
+  if (!hemPaused(ch)) return '';
+  const names = PASSES.filter(([k]) => ch.hem.held.includes(k)).map(([, name]) => name);
+  return `<div class="line-8 wraps push-8"><span class="note">Paused: <span class="inked">${esc(names.join(', '))}</span>
+    wait for how the next scene starts.</span>
+    <button class="btn ghost" data-hemresume="${esc(ch.id)}">Run them now</button></div>`;
+}
 function hemAsk(ch) {
   if (!hemAsking(ch)) return '';
   return `<div class="card hemask push-8">
@@ -3983,10 +3996,11 @@ function hemStepStates(ch, closed) {
       : state === 'fail' ? `Did not run: ${plainWhy(report[k])}`
       : state === 'done' ? found[k]
       : state === 'you' ? 'Waiting for how you want it to start'
+      : hemPaused(ch) && ch.hem.held.includes(k) ? 'Paused until the next scene\'s opening is said'
       // A summary written by hand before any hem shows as one, on a step not run yet.
       : k === 'summary' && summary ? found.summary
       : trying ? 'Trying again'
-      : closed && running ? (k === 'next' && S.hemAsked?.has(ch.id) ? 'Next, after the passes above' : 'Waiting') : '';
+      : closed && running ? (k === 'next' ? 'Next, after the passes above' : 'Waiting') : '';
     return { k, name, state, line, done };
   });
   // The writer's two steps wait until Anansi's are over: a hem still running may yet chalk more.
@@ -4052,7 +4066,7 @@ function ritualPanel() {
       ${tipMark('ritEnd', 'Hem this scene')}</div>`);
   // How the next scene starts, then who is in it, while the scans run; then the summary, once both
   // are done and the scans are over (see `hemAsking`).
-  if (closed) act.push(hemAsk(ch), hemWho(ch));
+  if (closed) act.push(hemAsk(ch), hemPausedHTML(ch), hemWho(ch));
   // THE SUMMARY AS SOON AS IT IS WRITTEN (the speed pass, 2026-10-30: it was ready a minute and a half
   // before the rest of the hem, and waited for it). While the other passes run, a line under it says so.
   const told = closed && !!ch.hem && !hemAsking(ch) && !hemWhoOpen(ch);
@@ -13702,7 +13716,7 @@ document.addEventListener('click', async (e) => {
     // was never asked about). The new scene is open behind it; no setup is stepped through and no
     // opening passage is written: that is `savesetup`'s. Not What he reads (Seth, 2026-10-27).
     // A scene hemmed again in this tab is asked again: what was asked and done was the last hem's.
-    S.ritualOf = closing.id; S.hemSteer = ''; S.hemAsked?.delete(closing.id); S.hemWho?.delete(closing.id);
+    S.ritualOf = closing.id; S.hemSteer = ''; S.hemWho?.delete(closing.id);
     S.setup = null; S.setupStep = null; S.panel = 'ritual';
     syncHash(); paint(); refreshManifest();
     return;
@@ -13714,10 +13728,18 @@ document.addEventListener('click', async (e) => {
     const opens = (S.hemSteer ?? '').trim();
     const r = await api.hemAgain(S.storyId, d.hemnext, { pass: 'next', asked: true, ...(opens ? { opens } : {}) });
     if (r.error) return toast(r.error);
-    (S.hemAsked ??= new Set()).add(d.hemnext); S.hemWho?.delete(d.hemnext);
+    S.hemWho?.delete(d.hemnext);
     S.hemSteer = '';
     V = r; paint();
     return toast(opens ? 'Kept as you wrote it. Anansi names the scene from it.' : 'Anansi chooses how it starts.');
+  }
+  // PAUSED, PICKED UP (Seth, 2026-10-30): the same answer with no opening sent, so the passes read the
+  // next scene's opening as it is now, or Anansi chooses it.
+  if (d.hemresume) {
+    const r = await api.hemAgain(S.storyId, d.hemresume, { pass: 'next', asked: true });
+    if (r.error) return toast(r.error);
+    V = r; paint();
+    return toast('Running them now. They land on the card.');
   }
   if (d.droppocket) {
     const r = await api.dropPocket(S.storyId, d.droppocket, d.slot);
