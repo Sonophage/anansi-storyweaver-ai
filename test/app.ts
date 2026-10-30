@@ -4913,6 +4913,15 @@ ok("both menus: the model on top, a list down the left (scenes, or tales), and t
   assert.match(toMain, /aria-label="The main menu" title="The main menu"/, '  and says so, out loud and on hover');
   assert.strictEqual(pic(toMain), mark('menu').replace(/\s+/g, ' '), "  wearing the menu's mark");
   assert.doesNotMatch(toMain, /gold/, '  in ink, not gold (ADR 0004)');
+  // ON THE LEFT, so the model sits in the middle with the ✕ on the right (Seth, 2026-10-30).
+  {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+    const rule = css.match(/\.railswap \{[^}]*\}/)?.[0] ?? '';
+    assert.match(rule, /\bleft:/, 'SWAP-LEFT: the icon sits on the left of the menu head');
+    assert.doesNotMatch(rule, /\bright:/, '  not beside the close');
+    assert.match(css, /\.talemodel > button\[data-modelmenu\] \{[^}]*justify-content:center/, 'MODEL-CENTRE: and the model between them, centred');
+  }
   click({ railview: 'workspace' }); await sleep(20);
   assert.match(html('rail'), /data-nav="stories"/, 'SWAP-TALE: pressing it shows the main menu');
   assert.strictEqual(root.dataset.uiRail, 'open', '  with the menu still open');

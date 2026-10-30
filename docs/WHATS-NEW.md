@@ -18,6 +18,10 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### The model sits in the middle of the menu
+The icon that switches between the main menu and the tale's menu is now on the left of the menu's
+top row, with the model in the middle and the close on the right.
+
 ### Hemming and the next scene's setup are full screen
 The hem screen and the next scene's setup now fill the screen, like the editor, instead of sitting
 in the side drawer. While Anansi is still reading the scene you hemmed, the setup waits: its steps,

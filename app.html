@@ -1642,11 +1642,15 @@ html[data-ui-rail="closed"] #rail.tale3 { width:76px; }
 @media (max-width:719px) { #rail.tale3, html[data-ui-rail="closed"] #rail.tale3 { width:auto; } }   /* the sheet is the whole screen */
 .talemodel { position:relative; flex:0 0 auto; padding-top:env(safe-area-inset-top, 0px); }
 .talemodel > button[data-modelmenu] { border-top:0 !important; border-bottom:1px solid var(--line); margin-top:0 !important;
-  padding-right:104px !important; padding-top:18px !important; }
+  padding-left:60px !important; padding-right:60px !important; padding-top:18px !important;
+  justify-content:center; text-align:center; }
+/* THE MODEL IN THE MIDDLE (Seth, 2026-10-30): the other menu's icon on the left, the ✕ on the right. */
+.talemodel > button[data-modelmenu] > .txt { flex:0 1 auto; align-items:center; }
 .talemodel > .railclose { position:absolute; top:calc(14px + env(safe-area-inset-top, 0px)); right:10px; }
-/* THE OTHER MENU'S ICON, left of the close (drawRail, 2026-10-30). Ink like the close, a tile's icon
-   size, a 44px press. The desk's closed rail is 76px of icons with no room for it. */
-.railswap { position:absolute; top:calc(14px + env(safe-area-inset-top, 0px)); right:56px; color:var(--mute);
+/* THE OTHER MENU'S ICON, on the left of the menu's head, so the model sits between it and the close
+   (drawRail, 2026-10-30). Ink like the close, a tile's icon size, a 44px press. The desk's closed
+   rail is 76px of icons with no room for it. */
+.railswap { position:absolute; top:calc(14px + env(safe-area-inset-top, 0px)); left:10px; color:var(--mute);
   display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; }
 html[data-ui-rail="closed"] .railswap { display:none; }
 .railclose { color:var(--faint); display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; }
