@@ -6419,7 +6419,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     // THE WRITER'S TURN IS GOLD: what it chalked waits on the writer, decided here on the hem's own card.
     assert.match(step('decide'), /data-state="you"/, 'HEM-YOU: deciding what it found is the gold step while things wait');
     assert.strictEqual((side.match(/data-state="you"/g) ?? []).length, 1, 'HEM-ONE-GOLD: one gold step, the next');
-    assert.match(below(side), /data-deckkind="hem"/, 'HEM-DECIDE-HERE: and the scene\'s card is below the steps, to decide here');
+    assert.match(below(side), /data-deckkind="(hemthread|chalk)"/, 'HEM-DECIDE-HERE: and what it found is below the steps, to decide here');
     assert.doesNotMatch(below(side), /did not run &mdash; the model did not answer<\/span>\s*<button class="btn ghost" data-hemagain="c-2" data-pass="facts">Try again<\/button><\/div>\s*<\/div>\s*<div class="note/, '  without the card repeating the hem\'s state');
     side = await reportOn({ ...ran, tale: null, memory: 'model returned unparseable JSON' });
     assert.doesNotMatch(side, /unparseable JSON/, 'HEM-PLAIN: the raw error is not shown');
@@ -7328,69 +7328,45 @@ const hemCardOf = (side: string) => {
   click({ open: 's-1' }); await settle();
   click({ panel: 'waiting' }); await settle();
   const side = html('sideBody');
-  assert.strictEqual([...side.matchAll(/data-deckkind="hem"/g)].length, 1,
-    'one card for the hemmed scene, however many threads it changed');
-  const card = hemCardOf(side);
-  for (const p of HEM_ROWS) assert.match(card, new RegExp(`data-decide="accept" data-id="${p.id}"`),
-    `  and ${p.id} is decided on it, with its own Sew it in`);
-  assert.doesNotMatch(card, /hp-1/, '  and an old per-thread card is not folded into it');
-  // THE SUMMARY FIRST, editable, before any thread.
-  assert.ok(card.indexOf('data-hemsumtext="c-1"') > 0
-    && card.indexOf('data-hemsumtext="c-1"') < card.indexOf('data-decide'),
-    'the summary comes first on the card, in a box, before any thread');
-  assert.match(card, /data-hemsumtext="c-1"[^>]*>Ilva arrives\./, '  holding the scene summary');
-  assert.doesNotMatch(card, /<button[^>]*data-hemsum="c-1"/, '  and no Save press: it saves as you go (ADR 0004)');
-  // BEFORE AND AFTER, AS ONE DIFF (#122): the Over time entry in force against the chalked text,
-  // drawn by the one renderer, above the row's own box.
+  // EACH THREAD IS ONE CARD (Seth, 2026-10-30: "Each thread as a whole should be one card. That way
+  // it's easy to swipe left or right or edit in place"), in the order the hem's threads were: the
+  // threads the tale has, then new ones. The scene keeps a card for the hem's own state.
+  const cards = [...side.matchAll(/data-deckcard="\d+" data-deckkind="([a-z]+)"/g)].map((m) => m[1]);
+  assert.deepStrictEqual(cards.filter((k) => k === 'hem').length, 1, 'THREAD-CARDS: one card for the scene itself');
+  const tcard = (title: string) => {
+    const at = side.search(new RegExp(`data-deckkind="hemthread"[^>]*>\\s*<div class="decksub">[^<]*</div>\\s*<div class="serif decktitle">${title}<`));
+    if (at < 0) return '';
+    const next = side.indexOf('data-deckcard=', at);
+    return side.slice(at, next < 0 ? undefined : next);
+  };
+  const sereth = tcard('Envoy Sereth'), stair = tcard('The stair'), bell = tcard('The bellringer');
+  assert.ok(sereth && stair && bell, 'THREAD-CARDS: each thread it changed is a card of its own');
+  assert.ok(side.indexOf(sereth) < side.indexOf(stair) && side.indexOf(stair) < side.indexOf(bell),
+    '  the threads the tale has first, then new threads');
+  assert.match(sereth, /class="decksub">Character · from Ashfall</, '  saying what kind of thread, and which scene');
+  assert.match(sereth, /Where it stands[\s\S]*data-deckdiff="hs-1"[\s\S]*How she sounds[\s\S]*data-deckdiff="hs-2"/,
+    '  with each change on it, by what it is');
+  assert.match(sereth, /data-deckall="accept" data-ids="hs-1,hs-2" data-deckright="1">Sew it in/, 'THREAD-ONE-YES: one Sew it in, for the whole thread, the swipe right');
+  assert.match(sereth, /data-deckall="reject" data-ids="hs-1,hs-2" data-deckleft="1">&larr; Reject/, '  and one Reject, the swipe left');
+  assert.doesNotMatch(side, /data-decide="(accept|reject)" data-id="hs-/, 'THREAD-NO-ROW-BUTTONS: no Sew it in or Reject on each change');
+  assert.doesNotMatch(sereth, />Edit</, '  and no Edit fold');
+  // EDITED IN PLACE: a tap on the text opens its box, which is what Sew it in sends.
+  assert.match(sereth, /data-hemedit="hs-1"[^>]*>[\s\S]*?<div class="hembox" hidden>\s*<textarea class="field" data-pbody="hs-1"[^>]*>She has stopped waiting\./,
+    'THREAD-EDIT: tapping the text opens its box in place, holding the chalked text');
   const { diffHTML } = await import('../web/model.js');
-  const diffAt = (id: string, was: string) => {
-    const at = card.indexOf(`data-deckdiff="${id}">`);
-    const body = card.match(new RegExp(`data-pbody="${id}"[^>]*>([^<]*)<`))?.[1] ?? '';
-    return at > 0 && at < card.indexOf(`data-pbody="${id}"`)
-      && card.slice(at + `data-deckdiff="${id}">`.length).startsWith(diffHTML(was, body)) && /<del>/.test(diffHTML(was, body));
-  };
-  assert.match(card, /data-pbody="hs-1"[^>]*>She has stopped waiting\./, 'the chalked text is in its own box');
-  assert.ok(diffAt('hs-1', 'She waits by the door, gloved.'),
-    'an Over time row shows the entry in force against the chalked text, as a diff, before the box');
-  assert.ok(diffAt('hs-2', 'Flat, unhurried.'),
-    'a pocket row shows the pocket as it is against the chalked text, as a diff, before the box');
-  // SEW ALL / REJECT ALL, over every row on the card.
-  assert.match(card, /data-deckall="accept" data-ids="hs-1,hs-2,hs-3,hs-4"[^>]*>Sew all/,
-    'Sew all takes every row on the card');
-  assert.match(card, /data-deckall="reject" data-ids="hs-1,hs-2,hs-3,hs-4"[^>]*>&larr; Reject all/,
-    'Reject all takes every row on the card');
-  // ONE BLOCK PER THREAD (Seth, 2026-10-29: "Thread changes and its pockets should show as a single
-  // thread and its pockets instead of a long list of every change"). A thread's rows sit together,
-  // a retirement with the rest of its thread; new threads come after the threads the tale has.
-  const blocks = [...card.matchAll(/data-hemthread="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepStrictEqual(blocks, ['e-1', 'e-2', 'new:The bellringer'],
-    'HEM-THREADS: one block per thread, the threads the tale has first, then new threads');
-  const block = (k: string) => {
-    const at = card.indexOf(`data-hemthread="${k}"`), end = card.indexOf('data-hemthread=', at + 1);
-    return card.slice(at, end < 0 ? card.indexOf('data-hemopen=') : end);
-  };
-  const sereth = block('e-1');
-  assert.match(sereth, /data-hemthreadname[^>]*>Envoy Sereth</, '  its head names the thread');
-  assert.match(sereth, /Character/, '  and its kind');
-  assert.strictEqual(sereth.match(/>Envoy Sereth</g)?.length, 1, '  and names it once, not once per row');
-  assert.match(sereth, /Where it stands[\s\S]*data-deckdiff="hs-1"/, '  each row says what it is: where it stands');
-  assert.match(sereth, /How she sounds[\s\S]*data-deckdiff="hs-2"/, '  and the pocket by its name');
-  assert.match(sereth, /data-deckall="accept" data-ids="hs-1,hs-2"[^>]*>Sew in all of it/,
-    'HEM-THREAD-ALL: Sew in takes the whole thread');
-  assert.match(sereth, /data-deckall="reject" data-ids="hs-1,hs-2"[^>]*>Reject all of it/, '  and so does Reject');
-  for (const id of ['hs-1', 'hs-2']) {
-    assert.match(sereth, new RegExp(`data-decide="accept" data-id="${id}"`), `  and ${id} has its own Sew it in`);
-    assert.match(sereth, new RegExp(`data-decide="reject" data-id="${id}"`), `  and its own Reject`);
-  }
-  assert.match(block('e-2'), /The stair[\s\S]*Retire[\s\S]*Nobody climbs it/, 'a retirement sits in its thread\'s block');
-  assert.match(block('new:The bellringer'), /The bellringer[\s\S]*New[\s\S]*Rings the hour/,
-    'a new thread is its own block, marked new, with what it would say');
-  // THE ORDER ON THE CARD (Seth, 2026-10-29): "summary first, ready to edit. Then the threads. Then
-  // the next scene setup."
-  assert.ok(card.indexOf('data-hemsumtext') < card.indexOf('data-hemthread=')
-    && card.indexOf('data-hemthread=') < card.indexOf('data-hemopen='),
-    'HEM-ORDER: the summary, then the threads, then Set up the next scene');
-  // THE THREADS PAST THE CAP, named, with a way to ask for them.
+  assert.ok(sereth.includes(`data-deckdiff="hs-1">${diffHTML('She waits by the door, gloved.', 'She has stopped waiting.')}`),
+    'an Over time change shows the entry in force against the chalked text, as a diff');
+  assert.ok(sereth.includes(`data-deckdiff="hs-2">${diffHTML('Flat, unhurried.', 'Clipped now, every word counted.')}`),
+    'a pocket change shows the pocket as it is against the chalked text, as a diff');
+  assert.match(stair, /Retire[\s\S]*Nobody climbs it/, 'a retirement is its thread\'s card');
+  assert.doesNotMatch(stair, /data-hemedit/, '  with no text to edit');
+  assert.match(bell, /New character[\s\S]*Rings the hour/, 'a new thread is a card, marked new, with what it would say');
+  // THE SCENE'S CARD: its summary, the threads past the cap, and Reopen the hem; no threads.
+  const card = hemCardOf(side);
+  assert.match(card, /data-hemsumtext="c-1"[^>]*>Ilva arrives\./, 'the scene card holds the summary, in a box');
+  assert.doesNotMatch(card, /<button[^>]*data-hemsum="c-1"/, '  with no Save press: it saves as you go (ADR 0004)');
+  assert.doesNotMatch(card, /data-hemthread=|data-deckdiff=/, '  and none of the threads, which have cards of their own');
+  assert.ok(card.indexOf('data-hemsumtext') < card.indexOf('data-hemopen='), 'HEM-ORDER: the summary, then Reopen the hem');
   assert.match(card, /Coyle/, 'the threads past the cap are named');
   assert.match(card, /Vantic law/);
   assert.match(card, /data-hemagain="c-1" data-names="[^"]*Coyle[^"]*Vantic law[^"]*"/,
@@ -7399,13 +7375,14 @@ const hemCardOf = (side: string) => {
   assert.match(side, /Hemming found[\s\S]*?data-deckall="accept" data-ids="hp-1"[^>]*>Sew it in/,
     'an old per-thread hem card is drawn as before');
   // A CHALKED CHANGE OUTSIDE A HEM shows the same diff (#122): the thread's text against the chalk.
-  assert.ok(side.includes(`data-deckdiff="hp-1">${diffHTML('[comes at six]', 'He came at five, not six.')}`),
+  const { diffHTML: diffOf } = await import('../web/model.js');
+  assert.ok(side.includes(`data-deckdiff="hp-1">${diffOf('[comes at six]', 'He came at five, not six.')}`),
     'a chalk card reads what is there now against what is chalked, with the one renderer');
   // And a row with nothing before it (a new thread, a retirement) has no diff to read.
   assert.doesNotMatch(side, /data-deckdiff="hs-[34]"/, '  and a new thread or a retirement has none');
   (globalThis as any).fetch = canned;
   click({ open: 's-1' }); await settle();
-  ok('a hemmed scene is one Workbench card: summary first, before and after, Sew all and Reject all (#92)');
+  ok('each thread a hem changed is one Workbench card, with one Sew it in and one Reject, edited in place');
 }
 
 // ---- #125 · WHERE THE TALE STANDS: ON THE HEM'S CARD AS A DIFF, AND IN THE TALE'S SETTINGS ----
@@ -7426,14 +7403,15 @@ const hemCardOf = (side: string) => {
     [HEM_ROWS[0], row, str]), taleThread: TALE };
   click({ open: 's-1' }); await settle();
   click({ panel: 'waiting' }); await settle();
-  const card = hemCardOf(html('sideBody'));
-  assert.ok(card.includes(`data-deckdiff="ht-1">${diffHTML('Six houses.', NOW)}`),
-    "TALE-DIFF: the hem's card shows where the tale stands against the premise, as a diff");
-  assert.deepStrictEqual([...card.matchAll(/data-hemthread="([^"]+)"/g)].map((m) => m[1]), ['e-tale', 'e-1'],
-    "TALE-BLOCK: the tale's thread is one block, first, with where it stands and its strings together");
-  assert.match(card.slice(card.indexOf('data-hemthread="e-tale"'), card.indexOf('data-hemthread="e-1"')),
-    /The tale[\s\S]*Where it stands[\s\S]*data-deckdiff="ht-1"[\s\S]*The debt[\s\S]*data-decide="accept" data-id="ht-2"/,
-    '  where the tale stands, then the string by its name');
+  const wb = html('sideBody'), card = hemCardOf(wb);
+  // The tale's thread is a card of its own (2026-10-30), first, before the threads the tale has.
+  const at = wb.search(/data-deckkind="hemthread"[^>]*>\s*<div class="decksub">[^<]*<\/div>\s*<div class="serif decktitle">The tale</);
+  const taleCard = at < 0 ? '' : wb.slice(at, wb.indexOf('data-deckcard=', at) < 0 ? undefined : wb.indexOf('data-deckcard=', at));
+  assert.ok(taleCard.includes(`data-deckdiff="ht-1">${diffHTML('Six houses.', NOW)}`),
+    "TALE-DIFF: the tale's card shows where the tale stands against the premise, as a diff");
+  assert.ok(at > 0 && at < wb.search(/<div class="serif decktitle">Envoy Sereth</), "TALE-BLOCK: the tale's thread is one card, first");
+  assert.match(taleCard, /Where it stands[\s\S]*data-deckdiff="ht-1"[\s\S]*The debt[\s\S]*data-deckall="accept" data-ids="ht-1,ht-2"/,
+    '  where the tale stands, then the string by its name, sewn in together');
   assert.match(card, /Where the tale stands<\/span> did not run/, 'TALE-PASS: and names the pass when it did not run');
 
   // THE TALE'S SETTINGS: the premise is how the tale began; where it stands now shows once one is sewn in.
@@ -7519,7 +7497,7 @@ const hemCardOf = (side: string) => {
   card = await show({ ...HEM_DONE, overflow: [], outOfDate: true, dismissed: true }, []);
   assert.strictEqual(card, '', '  and a dismissed hem with nothing chalked leaves the deck');
   card = await show({ ...HEM_DONE, overflow: [], outOfDate: true, dismissed: true }, HEM_ROWS);
-  assert.notStrictEqual(card, '', '  but never hides threads still waiting to be sewn in or rejected');
+  assert.match(html('sideBody'), /data-deckkind="hemthread"/, '  but never hides threads still waiting to be sewn in or rejected: they are cards of their own');
   // WHICH PASS, FOR HOW LONG, and the new threads held past six (2026-10-27).
   card = await show({ ...HEM_DONE, state: 'running', finishedAt: null, overflow: [],
     current: { pass: 'memory', since: Date.now() - 3 * 60000 - 5000 } }, []);
@@ -7545,9 +7523,9 @@ const hemCardOf = (side: string) => {
   click({ panel: 'waiting' }); await settle();
   const card = hemCardOf(html('sideBody'));
   assert.match(card, /data-hemsumtext="c-1"/, 'HEM-CARD-SUM: the card has the summary');
-  assert.match(card, /data-hemthread="e-1"/, '  and the threads');
+  assert.match(html('sideBody'), /data-deckkind="hemthread"[\s\S]*?Envoy Sereth/, '  and the threads, each a card of its own');
   const setupAt = card.search(/<button[^>]*data-hemopen="c-1"[^>]*>Reopen the hem &rarr;</);
-  assert.ok(setupAt > card.lastIndexOf('data-hemthread='), 'HEM-CARD-REOPEN: and ends with Reopen the hem, after the threads');
+  assert.ok(setupAt > card.indexOf('data-hemsumtext='), 'HEM-CARD-REOPEN: and ends with Reopen the hem, after the summary');
   for (const [re, what] of [[/data-hemnext=/, "the next scene's boxes"], [/data-hemsteer=/, 'a direction for Anansi'],
     [/data-hemreroll=/, 'Something else'], [/data-usehem=/, 'Use these'], [/data-hemwho|data-pin=/, 'who is in it']] as const)
     assert.doesNotMatch(card, re, `HEM-CARD-GONE: the card has no ${what}`);
@@ -7609,12 +7587,11 @@ const hemCardOf = (side: string) => {
   click({ panel: 'setup' }); await settle();
   click({ setupstep: 'cards' }); await settle();
   const left = html('sideBody');
-  const card = hemCardOf(left);
-  assert.match(card, /data-hemthread="e-1"/, 'SETUP-LEFT: What it left has the scene\'s card, with its threads');
+  assert.match(left, /data-deckkind="hemthread"[\s\S]*?decktitle">Envoy Sereth</, 'SETUP-LEFT: What it left has the scene\'s threads, a card each');
   assert.doesNotMatch(left, /data-hemsumtext=/, 'SETUP-LEFT-NOSUM: and not the summary, which is on the Workbench');
   assert.doesNotMatch(left, /data-hemopen=/, '  nor Reopen the hem');
   assert.doesNotMatch(left, /The bellringer/, 'SETUP-LEFT-NONEW: nor a new thread, which is Anyone new\'s');
-  assert.match(card, /data-deckall="accept" data-ids="hs-1,hs-2,hs-3"[^>]*>Sew all/, '  and Sew all takes only what it shows');
+  assert.match(left, /data-deckall="accept" data-ids="hs-1,hs-2"[^>]*>Sew it in/, '  each thread sewn in whole from its card');
   assert.match(left, /1 &middot; What it left <span[^>]*>3</, '  and its count is the three changes');
   assert.match(left, /3 &middot; Anyone new <span[^>]*>1</, "  and Anyone new's is the new thread");
   click({ setupstep: 'more' }); await settle();
@@ -7847,7 +7824,7 @@ const hemCardOf = (side: string) => {
     assert.match(side, /data-hemstep="next"[\s\S]*?(Next, after the passes above|Writing the next scene)/, '  and the next-scene step says it is on its way');
     // Setup opens on what the scene left (its card, running), and the new scene is one step on.
     click({ panel: 'setup' }); await settle();
-    assert.match(hemCardOf(html('sideBody')), /still hemming/, 'its setup opens on the running card');
+    assert.match(html('sideBody'), /<ol class="hemsteps">[\s\S]*data-state="(run|wait)"/, 'its setup opens with the hem\'s steps, still going');
     assert.strictEqual(rootEl.dataset.sidefull, '1', '  and so is the setup');
     assert.match(html('sideBody'), /<ol class="hemsteps">[\s\S]*data-hemstep="setup"/, 'HEM-STEPS-SETUP: the hem\'s steps stay on top of the setup');
     // THE WIZARD WAITS FOR THE SCANS (Seth, 2026-10-30: "don't let the wizard move until the scans
@@ -7876,7 +7853,7 @@ const hemCardOf = (side: string) => {
     VIEW = after({ ...HEM_DONE, overflow: [] }, rows);
     timers.shift()!(); await settle();
     const card = hemCardOf(html('sideBody'));
-    assert.match(card, /data-decide="accept" data-id="hs-1"/, 'when the hem finishes, its card fills in without a reload');
+    assert.match(html('sideBody'), /data-deckall="accept" data-ids="hs-1/, 'when the hem finishes, its thread cards arrive without a reload');
     assert.doesNotMatch(card, /still hemming/, '  and no longer says it is running');
     // AND ONCE IT IS DONE THE WIZARD MOVES.
     click({ panel: 'setup' }); await settle();

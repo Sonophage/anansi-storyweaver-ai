@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### One card per thread
+What a hem finds is now one card for each thread, instead of one long card with a Sew it in, a
+Reject and an Edit on every change. Swipe a thread's card right to sew in all of it, left to reject
+all of it, or use its two buttons. To change what it says first, tap the text: it opens for editing
+right there, with Anansi edits under it. The scene keeps a small card of its own for its summary and
+for anything the hem still needs from you.
+
 ### Where the tale stands is quicker
 Anansi writes "where the tale stands" as one paragraph with a set length now, so he cannot run on
 until he is cut off and has to start again. It ends on a whole sentence.

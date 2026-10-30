@@ -2377,6 +2377,9 @@ html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
 @media (prefers-reduced-motion:reduce) { .hemsteps li[data-state="run"] .hemmark { animation:none; } }
 /* Below the steps, only what needs the writer (ritualPanel); the rarer presses folded under More. */
 .hemact { display:flex; flex-direction:column; gap:12px; }
+/* A CHALKED CHANGE ON A THREAD'S CARD IS EDITED WHERE IT IS (2026-10-30): its text is the press. */
+.hemedit { cursor:text; border-radius:var(--r); margin:0 -6px; padding:2px 6px; }
+.hemedit:hover, .hemedit:focus-visible { background:color-mix(in srgb, var(--ink) 6%, transparent); }
 .hemact:empty { display:none; }
 .hemfail { gap:8px; border-color:rgba(200,112,90,.35); }
 .hemmore > summary { cursor:pointer; min-height:44px; display:flex; align-items:center; color:var(--mute); }

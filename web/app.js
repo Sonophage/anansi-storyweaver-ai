@@ -601,7 +601,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
   'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra',
   // #92. A hemmed scene's card: run its passes again, set up the next scene.
-  'hemagain', 'hemopen',
+  'hemagain', 'hemopen', 'hemedit',
   // #75. The tale's own thread.
   'taleadd',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
@@ -3263,18 +3263,29 @@ function deckCards(only = null, inHem = false) {
   // #92 · A HEMMED SCENE IS ONE CARD: everything one hem chalked is the scene's group (#89), and
   // the card is drawn from the chapter's hem, so it is there while the hem runs and before anything
   // is chalked. `only` names a scene's card by its group, `scene:<chapterId>`.
-  const hems = (V?.chapters ?? []).filter((ch) => ch.hem).map((ch) => {
+  /* EACH THREAD IS ONE CARD (Seth, 2026-10-30: "The sheer amount of accept edit sew it in button per
+   * entry is too much ... Each thread as a whole should be one card. That way it's easy to swipe left
+   * or right or edit in place"). What a hem chalked against one thread, or one new thread, is a card
+   * of its own: swipe right sews all of it in, left rejects all of it, and a tap on its text edits it
+   * there. The scene keeps a card of its own only for the hem's state (running, a pass that did not
+   * run, out of date, the next scene waiting): `hemShows` with nothing chalked.
+   * ON THE SETUP (`only`, not `inHem`), What it left: new threads are Anyone new's. ON THE HEM SCREEN
+   * (`inHem`) there is no scene card: the steps above say all it would. */
+  const hems = (V?.chapters ?? []).filter((ch) => ch.hem).flatMap((ch) => {
     const key = `scene:${ch.id}`, ps = all.filter((p) => p.grp === key);
-    if (only ? !only.has(key) : !hemShows(ch, ps)) return null;
-    // ON THE SETUP (`only`), What it left: its new threads are Anyone new's, and the summary and Set
-    // up the next scene stay on the Workbench (`inSetup`), so nothing is shown twice.
-    // ON THE HEM SCREEN (`inHem`), everything it chalked, and none of the hem's own state: the steps
-    // above the card already say what ran and what did not.
-    return { kind: 'hem', key, ch, ps: only && !inHem ? ps.filter((p) => !isNewThread(p)) : ps, inSetup: !!only, inHem,
-      title: sceneName(ch), line: '',
-      sub: ch.hem.state === 'running' ? 'Hemming this scene' : 'Hemmed scene' };
-  }).filter(Boolean);
-  const taken = new Set(hems.map((c) => c.key));
+    if (only && !only.has(key)) return [];
+    const mine = only && !inHem ? ps.filter((p) => !isNewThread(p)) : ps;
+    // Its own card while the hem is going, a pass did not run, it is out of date, the next scene waits,
+    // or threads past the cap wait to be asked for: until it is dismissed.
+    const asks = !ch.hem.dismissed && ((ch.hem.extra ?? []).length > 0 || (ch.hem.overflow ?? []).length > 0);
+    const scene = !only && (hemShows(ch, []) || asks) ? [{ kind: 'hem', key, ch, ps: [], inSetup: false, inHem: false,
+      title: sceneName(ch), line: '', sub: ch.hem.state === 'running' ? 'Hemming this scene' : 'Hemmed scene' }] : [];
+    const threads = hemThreads(mine).map(([k, rows, thread]) => ({ kind: 'hemthread', key: `${key}:${k}`, ch, ps: rows,
+      title: k === (V.taleThread?.id ?? 'tale') ? 'The tale' : rows[0].title, line: '',
+      sub: `${threadKind(k, rows, thread)} \u00b7 from ${sceneName(ch)}` }));
+    return [...scene, ...threads];
+  });
+  const taken = new Set(hems.map((c) => c.key.split(':').slice(0, 2).join(':')));
   const groups = new Map();
   for (const p of props.filter((x) => !taken.has(x.grp))) { const k = p.grp || p.id; groups.set(k, [...(groups.get(k) ?? []), p]); }
   const what = (ps) => ps[0].entryType === 'string' ? 'A string, chalked' : ps.some((p) => !p.entryId) ? 'New thread'
@@ -3376,7 +3387,8 @@ function hemCardParts(c) {
     <textarea class="field" id="hemsum-${id}" data-hemsumtext="${id}" aria-label="The summary of ${esc(c.title)}"
       placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>`;
   const ps = c.ps;
-  const threads = hemThreads(ps).map(hemThreadBlock).join('');
+  // ITS THREADS ARE CARDS OF THEIR OWN now (deckCards); this card is the hem's own state.
+  const threads = '';
   const past = h.overflow ?? [];
   const overflow = past.length ? `<div class="hint push-8">Also changed in this scene, past the six:
     ${past.map(esc).join(', ')}.</div>
@@ -3439,17 +3451,22 @@ function hemThreads(ps) {
 
 /** One thread's block on a hem's card: its name and kind once, each chalked row under it, and
  *  Sew in or Reject for the whole thread when it has more than one row. */
+/** What kind of thread a group of chalked rows is about, in the words a card shows. */
+function threadKind(k, rows, thread) {
+  const type = thread?.entryType ?? rows.find((p) => p.entryType !== 'string')?.entryType ?? rows[0].entryType;
+  return k === (V.taleThread?.id ?? 'tale') ? "The tale's own thread" : thread ? pocketTitle(type)
+    : `New ${String(type).replace(/_/g, ' ')}`;
+}
 function hemThreadBlock([k, rows, thread]) {
   const isTale = k === (V.taleThread?.id ?? 'tale');
-  const type = thread?.entryType ?? rows.find((p) => p.entryType !== 'string')?.entryType ?? rows[0].entryType;
-  const kind = isTale ? "The tale's own thread" : thread ? pocketTitle(type)
-    : `New ${String(type).replace(/_/g, ' ')}`;
+  const kind = threadKind(k, rows, thread);
   const ids = esc(rows.map((p) => p.id).join(','));
   return threadBlock(`data-hemthread="${esc(k)}"`, isTale ? 'The tale' : rows[0].title, kind, `
     ${rows.map(hemRow).join('')}
-    ${rows.length > 1 ? `<div class="btnrow">
-      <button class="btn ghost fill" data-deckall="reject" data-ids="${ids}">Reject all of it</button>
-      <button class="btn fill" data-deckall="accept" data-ids="${ids}">Sew in all of it</button></div>` : ''}`);
+    ${/* The thread's one decision, however many rows it has: its rows carry no buttons (2026-10-30). */ ''}
+    <div class="btnrow">
+      <button class="btn ghost fill" data-deckall="reject" data-ids="${ids}">Reject</button>
+      <button class="btn fill" data-deckall="accept" data-ids="${ids}">Sew it in</button></div>`);
 }
 
 /** ONE THREAD AS A BLOCK: its name and kind once, then what is under it. The one shell for a thread
@@ -3486,28 +3503,29 @@ function whoBlock(e, pin, scene) {
   </div>`;
 }
 
-/** One chalked row inside a thread's block: what it is, before and after as one diff (#122), its
- *  box to edit and Anansi edits behind one fold, and its own Sew it in and Reject. A row with
- *  nothing before it (a new thread, an empty pocket, a retirement) shows what is chalked. */
+/** ONE CHALKED ROW ON A THREAD'S CARD: what it is, and before and after as one diff (#122). No
+ *  buttons of its own (Seth, 2026-10-30): the card's swipe or its two buttons decide the whole
+ *  thread. A TAP ON THE TEXT EDITS IT IN PLACE: the diff gives way to its box, which is what Sew it in
+ *  sends (`deckall` reads `data-pbody`), with Anansi edits under it. A retirement has no text to edit. */
 function hemRow(p) {
-  const was = hemBefore(p);
-  return `<div class="hemrow stack">
+  const was = hemBefore(p), id = esc(p.id);
+  const shown = was == null ? `<div class="note">${esc(p.body ?? '')}</div>` : diffHTML(was, p.body ?? '');
+  return `<div class="hemrow stack" data-hemrow="${id}">
     <div class="lbl sub-lbl flush">${rowLabel(p)}</div>
-    ${was == null ? `<div class="note">${esc(p.body ?? '')}</div>`
-      : `<div data-deckdiff="${esc(p.id)}">${diffHTML(was, p.body ?? '')}</div>`}
+    ${p.entryType === 'retire' ? shown : `<div class="hemedit" data-hemedit="${id}" role="button" tabindex="0"
+      aria-label="Edit what ${esc(p.title)} will say"${was == null ? '' : ` data-deckdiff="${id}"`}>${shown}</div>
+    <div class="hembox" hidden>
+      <textarea class="field" data-pbody="${id}" aria-label="What ${esc(p.title)} will say"
+        style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
+      <div class="deckredo">
+        <input class="field" data-aeask="${id}" placeholder="What to change (optional)"
+          aria-label="What should change, for Anansi to write it again" style="margin:0; flex:1; font-size:12px">
+        <button class="btn ghost" data-anansiedit="${id}" style="flex:0 0 auto; width:auto; padding:0 14px">Anansi edits</button>
+      </div></div>`}
     ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint trail-6">It arrives with these:</div>
       ${Object.entries(p.rooms).map(([slot, r]) => `<div class="hint flush">
         <span class="lbl flush">${slot === 'stands' ? 'Where it stands' : esc(pocketTitle(slot))}${r?.name && r.name !== slot ? ` &middot; ${esc(r.name)}` : ''}</span>
         ${esc(typeof r === 'object' ? r.body ?? '' : String(r))}</div>`).join('')}` : ''}
-    ${p.entryType === 'retire' ? '' : `<details class="decksec"><summary><span class="lbl flush">Edit</span></summary>
-      <textarea class="field" data-pbody="${esc(p.id)}" aria-label="What ${esc(p.title)} will say"
-        style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
-      <div class="deckredo">
-        <input class="field" data-aeask="${esc(p.id)}" placeholder="What to change (optional)"
-          aria-label="What should change, for Anansi to write it again" style="margin:0; flex:1; font-size:12px">
-        <button class="btn ghost" data-anansiedit="${esc(p.id)}" style="flex:0 0 auto; width:auto; padding:0 14px">Anansi edits</button>
-      </div></details>`}
-    ${decideButtons(p)}
   </div>`;
 }
 
@@ -3604,6 +3622,11 @@ function deckCard(c, i, top) {
     left = `<button class="btn ghost" data-deckall="reject" data-ids="${esc(ids)}" data-deckleft="1">&larr; Reject</button>`;
   } else if (c.kind === 'hem') {
     ({ body, right, left } = hemCardParts(c));
+  } else if (c.kind === 'hemthread') {
+    const ids = esc(c.ps.map((p) => p.id).join(','));
+    body = c.ps.map(hemRow).join('');
+    right = `<button class="btn" data-deckall="accept" data-ids="${ids}" data-deckright="1">Sew it in &rarr;</button>`;
+    left = `<button class="btn ghost" data-deckall="reject" data-ids="${ids}" data-deckleft="1">&larr; Reject</button>`;
   } else if (c.kind === 'upkeep') {
     body = `<div class="note">${esc(c.body)}</div>`;
     right = c.right; left = c.left;
@@ -12838,6 +12861,15 @@ document.addEventListener('click', async (e) => {
     V = await api.story(S.storyId); paint(); refreshManifest(); return toast(pk.id ? 'Saved.' : 'Added.');
   }
   // #74 · THE DECK. A card's yes or no for every section on it, its arrows, and the undo of a no.
+  // A TAP ON A CHALKED ROW'S TEXT EDITS IT THERE (2026-10-30): the diff gives way to its box. No
+  // repaint, so the deck and its place stay put.
+  if (d.hemedit) {
+    const row = t.closest('[data-hemrow]'), box = row?.querySelector('.hembox');
+    if (!box) return;
+    t.hidden = true; box.hidden = false; growFields(box);
+    row.querySelector('textarea')?.focus({ preventScroll: true });
+    return;
+  }
   if (d.deckall) {
     const ids = String(d.ids ?? '').split(',').filter(Boolean);
     const yes = d.deckall === 'accept';
