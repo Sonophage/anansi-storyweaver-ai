@@ -322,8 +322,10 @@ export const OPEN_ROUTES = new Set([
   'POST /api/spark/review', 'POST /api/spark/style',
   // #40. One field of the skeleton, asked again. Names no story — there is not one yet.
   'POST /api/spark/field',
-  // #100. Talk while a tale is set up: on the draft the page sends, and it writes nothing.
+  // #100. Talk while a tale is set up: on the draft the page sends. It writes only the talk itself.
   'POST /api/spark/talk',
+  // And the setup talks it keeps: no tale to name, and every read and write takes c.owner in SQL.
+  'GET /api/spark/talk/sessions', 'GET /api/spark/talk/session', 'POST /api/spark/talk/session/remove',
   'GET /api/search',
   'POST /api/import', 'POST /api/import/preview',
   'GET /api/models', 'GET /api/ledger', 'GET /api/stats', 'POST /api/bug',
@@ -3244,11 +3246,12 @@ export const routes: Record<string, Handler> = {
   /** #100 · TALK WHILE A NEW TALE IS SET UP, on the draft. The same Talk as in a tale (ADR 0007:
    *  asked means done, offered means offered), on a tale that does not exist yet.
    *
-   *  WRITES NOTHING. Not a row: no tale, no thread, no proposal, not even the generation log a tale's
-   *  Talk keeps, because that log is per tale and there is none. The draft is the page's (`S.spark`)
+   *  WRITES ONE ROW, THE TALK ITSELF (2026-10-30: kept so the writer can revisit it, `db.talkSay`).
+   *  Nothing of the tale: no tale, no thread, no proposal, not even the generation log a tale's Talk
+   *  keeps, because that log is per tale and there is none. The draft is the page's (`S.spark`)
    *  until Start, so each change the writer asked for is checked here against the draft the page
    *  sent (`checkDraft`) and handed back for the page to apply, with what it said before so the
-   *  page can hold the Undo. Discard then leaves nothing behind, because nothing was ever left.
+   *  page can hold the Undo. Discard leaves no draft behind; the talk stays in the writer's list.
    *
    *  THE STEP COMES FIRST in what he reads, then the draft: the ticket's "advice is about the step
    *  named". The step arrives as the page's own words for it (its STEPS list), so there is one list
@@ -3308,9 +3311,9 @@ export const routes: Record<string, Handler> = {
     const t0 = Date.now();
     const system = `${TALK_SETUP}\n\n${ask}\n\n${anansiOf(c.owner)}`;
     const thisTurn = [sourcesText(sources), said].filter(Boolean).join('\n\n');
+    const messages = [{ role: 'system', content: system }, ...turnMessages(c.body.turns), { role: 'user', content: thisTurn }];
     const r = await structuredRetry(system, thisTurn, TALK_SETUP_SCHEMA,
-      { model: using, temperature: 0.8, presence_penalty: 0.4, frequency_penalty: 0.3, max_tokens: TALK_TOKENS,
-        messages: [{ role: 'system', content: system }, ...turnMessages(c.body.turns), { role: 'user', content: thisTurn }] });
+      { model: using, temperature: 0.8, presence_penalty: 0.4, frequency_penalty: 0.3, max_tokens: TALK_TOKENS, messages });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
     // Each change checked against the draft as the ones before it left it, so "add the ferryman and
@@ -3356,10 +3359,23 @@ export const routes: Record<string, Handler> = {
       .map((e) => sparkThread(e.title, e.type, e.body, []));
     outsideOnly(entries, you.held);
     const answer = talkReply(r.data.reply, notDone, searchFailed);
+    // KEPT, as a setup talk with no tale (`db.talkSay`): the one row this route writes. `prompt` is
+    // exactly what was sent, for the page's Copy prompt, and is not kept.
+    const sessionId = db.talkSay(c.owner, null, c.body.sessionId, said, answer.trim());
     return { reply: answer.trim(), changes, notDone, entries,
              sources: sources.map((x) => ({ title: x.title, url: x.url })),
-             seconds: +((Date.now() - t0) / 1000).toFixed(1), searchable: searchConfigured() };
+             seconds: +((Date.now() - t0) / 1000).toFixed(1), searchable: searchConfigured(),
+             sessionId, prompt: messages };
   },
+
+  /** THE SETUP TALKS KEPT (2026-10-30): this writer's talks beside a tale being set up, newest
+   *  first; one of them whole, to carry on; and one deleted. OPEN, as the setup Talk is: there is no
+   *  tale to name. Owner-scoped in SQL (`talkScope` in db.ts), so another writer's id finds nothing. */
+  'GET /api/spark/talk/sessions': (c: Ctx) => ({ sessions: db.talkSessions(c.owner, null) }),
+  'GET /api/spark/talk/session': (c: Ctx) =>
+    db.talkSession(c.owner, null, c.query.get('session')) ?? { error: 'no such talk' },
+  'POST /api/spark/talk/session/remove': (c: Ctx) => db.delTalkSession(c.owner, null, c.body.session)
+    ? { sessions: db.talkSessions(c.owner, null) } : { error: 'no such talk' },
 
   // ---- one story ----
   'GET /api/story':      (c) => {
@@ -3968,8 +3984,8 @@ export const routes: Record<string, Handler> = {
     return { copied: made, into, ...viewOf(c, into) };
   },
 
-  /** Anansi: the conversation. Ephemeral — turns come from the client and are never stored, so
-   *  there is no table, no export question and nothing for the round-trip invariant to cover.
+  /** Anansi: the conversation. The turns sent come from the page; each exchange is also kept in
+   *  the writer's session (`db.talkSay`, 2026-10-30), so it survives a reload and can be revisited.
    *
    *  Four outputs, and since #97 one of them lands here. The reply is returned; threads Anansi
    *  OFFERS go to the proposals queue where they wait like every other proposal; the directive is
@@ -4132,10 +4148,10 @@ export const routes: Record<string, Handler> = {
     // a model reads as a document to answer from, not a talk it is in, and it handed back its last
     // reply word for word. Warmer, and told not to say a thing it has said already. NOT MEASURED.
     const system = `${TALK_CONTRACT}\n\n${prompt.slice(SYSTEM.length)}\n\n${anansiOf(c.owner)}`;
+    const messages = [{ role: 'system', content: system }, ...turnMessages(c.body.turns), { role: 'user', content: thisTurn }];
     const r = await structuredRetry(system, thisTurn, TALK_SCHEMA,
       { model: using, temperature: 0.8, presence_penalty: 0.4, frequency_penalty: 0.3,
-        max_tokens: reply.maxTokens, remoteCap: true,
-        messages: [{ role: 'system', content: system }, ...turnMessages(c.body.turns), { role: 'user', content: thisTurn }],
+        max_tokens: reply.maxTokens, remoteCap: true, messages,
         chat_template_kwargs: { enable_thinking: reply.weaves } });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'talk',
       params: wove(reply, r), manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
@@ -4237,12 +4253,25 @@ export const routes: Record<string, Handler> = {
     }
     const answer = [talkReply(r.data.reply, notDone, searchFailed),
       unsure.length ? askWhich(unsure, world!.title) : ''].filter(Boolean).join('\n\n');
+    // KEPT: the writer's words and the answer they were shown, in this writer's session in this
+    // tale (`db.talkSay`). `prompt` is exactly what was sent, for the page's Copy prompt; it holds
+    // the whole story material, so it is handed back and never kept.
+    const sessionId = db.talkSay(c.owner, v.id, c.body.sessionId, said, answer.trim());
 
     return { reply: answer.trim(), directive: r.data.directive || null, changes, notDone,
              proposed, sources: sources.map((x) => ({ title: x.title, url: x.url })),
              seconds: +((Date.now() - t0) / 1000).toFixed(1),
-             tokens: manifest.totals.used, searchable: searchConfigured() };
+             tokens: manifest.totals.used, searchable: searchConfigured(), sessionId, prompt: messages };
   },
+
+  /** THE TALKS KEPT IN THIS TALE (2026-10-30): this writer's, newest first; one of them whole, to
+   *  carry on; and one deleted. Gated like every route that names a tale, and owner-scoped in SQL
+   *  besides (`talkScope` in db.ts): in a shared book a writer sees only their own talks. */
+  'GET /api/talk/sessions': (c: Ctx) => ({ sessions: db.talkSessions(c.owner, c.query.get('story')!) }),
+  'GET /api/talk/session': (c: Ctx) =>
+    db.talkSession(c.owner, c.query.get('story')!, c.query.get('session')) ?? { error: 'no such talk' },
+  'POST /api/talk/session/remove': (c: Ctx) => db.delTalkSession(c.owner, String(c.body.storyId), c.body.session)
+    ? { sessions: db.talkSessions(c.owner, String(c.body.storyId)) } : { error: 'no such talk' },
 
   /** #97 · UNDO ONE CHANGE TALK MADE. The client holds the `undo` each change came back with and
    *  sends it here; nothing about the conversation is stored. It goes through the same slice and

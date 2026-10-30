@@ -39,13 +39,14 @@ const QUESTIONS = [{ title: 'Whether the debt is real', line: 'Nobody has seen t
 
 let calls: any[] = [];
 let breakFirst = false;   // answer the first call with a truncated object, as running out of room does
+let breakAll = false;     // and every call, for an answer that fails outright
 const srv = createServer((req, res) => {
   let raw = '';
   req.on('data', (d) => { raw += d; });
   req.on('end', () => {
     const b = JSON.parse(raw || '{}');
     calls.push(b);
-    const cut = breakFirst && calls.length === 1;
+    const cut = breakAll || (breakFirst && calls.length === 1);
     // Answer by the shape of the schema asked for: an outfit wants
     // a name and a body, a ledger entry wants a title and keys, everything else is a reply.
     const props = b.response_format?.json_schema?.schema?.properties ?? {};
@@ -2045,11 +2046,13 @@ ok('emptying the box gives her back the voice she shipped with');
 {
   const { DatabaseSync } = await import('node:sqlite');
   const { OPEN_ROUTES } = await import('../src/routes.ts');
-  // Every row of every table, read through a connection of its own, so a write anywhere shows.
+  // Every row of every table, read through a connection of its own, so a write anywhere shows. All
+  // but the talks kept (2026-10-30): the route writes its own talk, and the checks count that apart.
   const rows = () => {
     const raw = new DatabaseSync(DB, { readOnly: true });
     try {
-      const names = (raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as any[]).map((r) => r.name);
+      const names = (raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as any[]).map((r) => r.name)
+        .filter((t) => t !== 'talk_sessions');
       return Object.fromEntries(names.map((t) => [t, (raw.prepare(`SELECT count(*) AS n FROM "${t}"`).get() as any).n]));
     } finally { raw.close(); }
   };
@@ -2075,6 +2078,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.ok(OPEN_ROUTES.has('POST /api/spark/talk'), 'SETUP-OPEN: the setup Talk names no tale, so it is open like Spark');
 
   const before = rows();
+  const talksBefore = db.talkSessions(me, null).length;
   const r = await setup('CHANGE-SETUP: make it darker, lose the innkeeper, Ilva speaks low, and add the ferryman',
     { turns: [{ you: true, text: 'Who matters in Kesh?' }, { you: false, text: 'The houses, mostly.' }] });
   assert.ok(!r.error, r.error);
@@ -2101,8 +2105,10 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.match(made.thread.body, /Rows the dead across for a coin/, 'SETUP-NEW: with its Always true');
   for (const x of r.changes) assert.ok(String(x.words ?? '').trim(), 'SETUP-WORDS: each change says what it did');
   assert.match(r.reply, /^Darker/, 'SETUP-REPLY: the reply is Anansi\'s');
-  assert.deepStrictEqual(rows(), before, 'SETUP-WRITES-NOTHING: not one row anywhere in the database');
-  ok('setup Talk names the step first, sees the whole draft, and returns the asked changes without writing anything');
+  assert.deepStrictEqual(rows(), before, 'SETUP-WRITES-NOTHING: not one row of the tale anywhere in the database');
+  // The one row it writes is the talk itself (2026-10-30), so it can be revisited.
+  assert.strictEqual(db.talkSessions(me, null).length, talksBefore + 1, 'SETUP-WRITES-NOTHING: and one row for the talk itself');
+  ok('setup Talk names the step first, sees the whole draft, and returns the asked changes, writing only the talk');
 
   // The model it uses is the one Spark uses.
   calls = [];
@@ -2803,6 +2809,75 @@ ok('Talk sends the threads the question, the conversation or the page names, and
     'TALK-TALE-FIELDS-UNDO: Undo puts each back, the tidied genre included');
   assert.notStrictEqual(st().writing_style, 'Long, slow sentences; the river does the feeling.', '  and the voice');
   ok("asked to change the tale's title, genre, voice or style note, Talk does it, and Undo puts each back");
+}
+
+// TALK IS KEPT (Seth, 2026-10-30: "Anansi should hold sessions ... that way I can revisit"). The route
+// writes each exchange itself, the writer's words then the answer, into the session the page names,
+// and starts one when it names none. Each answer hands back exactly what was sent, for Copy prompt.
+{
+  const at = (body: any) => { calls = []; return routes['POST /api/talk']({ body: { storyId: story.id, ...body },
+    query: new URLSearchParams(), owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any) as Promise<any>; };
+  const first = await at({ said: 'Who keeps the ledger in the lower tiers of the city?' });
+  assert.ok(!first.error, first.error);
+  assert.match(String(first.sessionId), /^ts-/, 'TALK-KEPT: the first answer starts a session and names it');
+  let kept = db.talkSession(me, story.id, first.sessionId)!;
+  assert.deepStrictEqual(kept.turns.map((t: any) => [!!t.you, t.text]),
+    [[true, 'Who keeps the ledger in the lower tiers of the city?'], [false, first.reply]],
+    'TALK-KEPT: the writer\'s words, then the answer as it was shown');
+  assert.strictEqual(kept.title, 'Who keeps the ledger in the lower tiers…', 'TALK-TITLE: the first few words of the first message');
+  assert.deepStrictEqual(first.prompt, calls.at(-1).messages, 'TALK-PROMPT: the answer carries exactly the messages sent');
+  assert.ok(!JSON.stringify(kept).includes('lower tiers still pulse'), 'TALK-PROMPT: and the story material is not kept');
+
+  const second = await at({ said: 'And who reads it?', sessionId: first.sessionId,
+    turns: [{ you: true, text: 'Who keeps the ledger in the lower tiers of the city?' }, { text: first.reply }] });
+  assert.strictEqual(second.sessionId, first.sessionId, 'TALK-KEPT-ON: naming the session carries it on');
+  kept = db.talkSession(me, story.id, first.sessionId)!;
+  assert.deepStrictEqual(kept.turns.map((t: any) => t.text).slice(2), ['And who reads it?', second.reply],
+    'TALK-KEPT-ON: the next exchange is added after the first');
+  assert.strictEqual(kept.title, 'Who keeps the ledger in the lower tiers…', '  and the title stays');
+
+  // A session of another place is not written to: a setup talk named in a tale starts a new one.
+  const setupId = db.talkSay(me, null, null, 'A setup question', 'A setup answer');
+  const stray = await at({ said: 'Named with a setup talk', sessionId: setupId });
+  assert.notStrictEqual(stray.sessionId, setupId, 'TALK-KEPT-PLACE: a session from elsewhere is not carried on here');
+  assert.strictEqual(db.talkSession(me, null, setupId)!.turns.length, 2, '  and is left as it was');
+
+  // A failed answer keeps nothing: both tries cut.
+  breakAll = true;
+  const failed = await at({ said: 'This one fails', sessionId: first.sessionId }).finally(() => { breakAll = false; });
+  assert.ok(failed.error, 'the detector: the answer failed');
+  assert.strictEqual(db.talkSession(me, story.id, first.sessionId)!.turns.length, 4, 'TALK-KEPT-FAIL: a failed answer keeps nothing');
+
+  // Listed newest first, opened whole, and removed.
+  const q = (s: string) => new URLSearchParams(s);
+  const ctx = (body: any, query = '') => ({ body, query: q(query), owner: me } as any);
+  const list = (await routes['GET /api/talk/sessions'](ctx({}, `story=${story.id}`)) as any).sessions;
+  assert.deepStrictEqual(list.map((x: any) => x.id).slice(0, 2), [stray.sessionId, first.sessionId], 'TALK-LIST: newest first');
+  assert.strictEqual(list.find((x: any) => x.id === first.sessionId).turns, 4, '  with how many turns each holds');
+  assert.ok(!list.some((x: any) => x.id === setupId), '  and no setup talk among a tale\'s');
+  const open = await routes['GET /api/talk/session'](ctx({}, `story=${story.id}&session=${first.sessionId}`)) as any;
+  assert.strictEqual(open.turns.length, 4, 'TALK-OPEN: one session, with its turns');
+  const gone = await routes['POST /api/talk/session/remove'](ctx({ storyId: story.id, session: stray.sessionId })) as any;
+  assert.ok(!gone.sessions.some((x: any) => x.id === stray.sessionId), 'TALK-REMOVE: removed, and gone from the list');
+  ok('a Talk answer is kept in its session, newest first in the list, and carries exactly the prompt that was sent');
+
+  // AND IN THE SETUP TALK, with no tale.
+  calls = [];
+  const s1 = await routes['POST /api/spark/talk']({ body: { draft: { story: { title: 'Kesh' }, entries: [] },
+    step: 'The tale', said: 'How should Kesh begin, do you think?' }, query: q(''), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {}, setGen: () => {}, defaultModel: null } as any) as any;
+  assert.ok(!s1.error, s1.error);
+  assert.deepStrictEqual(s1.prompt, calls.at(-1).messages, 'SETUP-PROMPT: the setup answer carries exactly the messages sent');
+  assert.deepStrictEqual(db.talkSession(me, null, s1.sessionId)!.turns.map((t: any) => t.text),
+    ['How should Kesh begin, do you think?', s1.reply], 'SETUP-KEPT: the setup talk is kept, with no tale');
+  const setups = (await routes['GET /api/spark/talk/sessions'](ctx({})) as any).sessions;
+  assert.strictEqual(setups[0].id, s1.sessionId, 'SETUP-LIST: newest first among the setup talks');
+  assert.strictEqual((await routes['GET /api/spark/talk/session'](ctx({}, `session=${s1.sessionId}`)) as any).turns.length, 2,
+    'SETUP-OPEN: opened whole');
+  assert.ok(!(await routes['POST /api/spark/talk/session/remove'](ctx({ session: s1.sessionId })) as any).error, 'SETUP-REMOVE');
+  assert.strictEqual(db.talkSession(me, null, s1.sessionId), null, '  and it is gone');
+  ok('a setup Talk answer is kept too, listed, opened and removed, and carries exactly the prompt that was sent');
 }
 
 srv.close();

@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -299,6 +299,8 @@ const S = {
   setupQ: '',           // filter over the ledger on the next-chapter setup page
   lore: null,           // the + Lore tray above the composer, when it is open
   talk: { turns: [], busy: false, search: readWebSearch(), draft: null, searchable: null },
+  // The Past talks list on screen, and whose it is: a tale's id, or 'setup' (2026-10-30).
+  talkPast: null,
   // #71 · THE BOTTOM OF THE WRITING SCREEN. Once a passage has landed it is three buttons, and the
   // composer is behind the middle one, the quill: `dockOpen` is the composer shown above them, `dockTalk` is
   // the same box and Send going to Talk, and `ideaBusy` is the bulb under the last passage waiting
@@ -541,6 +543,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'dockopen', 'dockfold', 'idea', 'ideapick', 'dockwrite', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'wear', 'storymodel', 'lbook',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'talkundo', 'talkadd', 'copyentry', 'delcover', 'drawcover', 'usecover',
+  // The talks kept (2026-10-30): the list, one opened, one deleted; and an answer's prompt copied.
+  'talkpast', 'talkopen', 'talkdel', 'copyprompt',
   // A cover found on the web rather than drawn, 2026-09-01.
   'findcover', 'takeweb',
   // Another batch of the same search — see moreRows for why it deduplicates.
@@ -2387,7 +2391,7 @@ function drawDock() {
     ${/* TALK LIVES IN THE COMPOSER (Seth, 2026-10-29: drop the Talk drawer). The conversation sits
          above the box, small or full screen, drawn by the one renderer the setup drawer also uses;
          under it the drafted directive, a refusal's row, and the search switch and Clear. */
-      S.dockTalk ? `<div id="talkthread" aria-live="polite">${S.talk.turns.length ? talkTurns(S.talk)
+      S.dockTalk ? `<div id="talkthread" aria-live="polite">${pastHere() ? talkPast(S.talk) : S.talk.turns.length ? talkTurns(S.talk)
         : talkEmpty(false)}${talkBusy(S.talk)}</div>
       ${talkDraft(S.talk)}
       ${weaveFitRow('talk')}
@@ -2397,7 +2401,8 @@ function drawDock() {
           : 'He decides when a question needs the web, and searches up to three times'}">
           <input type="checkbox" data-websearch="1" ${S.talk.search ? 'checked' : ''}
             ${(V?.searchable ?? S.talk.searchable) === false ? 'disabled' : ''}> Anansi may search</label>
-        ${S.talk.turns.length ? '<button data-clearchat="1">Clear</button>' : ''}
+        <button data-talkpast="1" aria-pressed="${pastHere()}">Past talks</button>
+        ${S.talk.turns.length ? '<button data-clearchat="1">New talk</button>' : ''}
         <button data-dockwrite="1">Back to writing</button></div>` : ''}
     <div id="modes">
       <!-- ONE DIAL, NOT FOUR BUTTONS. Seth, 2026-09-02: "make speak, act, direct and narrate into
@@ -3184,7 +3189,29 @@ function talkTurns(t) {
               ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
                 border-color:var(--edge-lit); color:var(--ink-bright)">${turn.proposed} chalked &mdash; under This scene</button>` : ''}
               ${turn.meta ? `<div class="caption">${esc(turn.meta)}</div>` : ''}
+              ${/* COPY PROMPT (2026-10-30): exactly what this answer was sent, held on the turn in the
+                   page's memory only, so a talk opened from the list has none to copy. */
+                turn.prompt ? `<button class="tag" data-copyprompt="${i}" style="align-self:flex-start; cursor:pointer"
+                  >Copy prompt</button>` : ''}
             </div>`).join('');
+}
+
+/** THE TALKS KEPT (2026-10-30), for Past talks in both Talks: this tale's, or the setup talks, newest
+ *  first, each with its title and when it was last added to. A row opens it to carry on, Delete takes
+ *  two presses (`armed`). `S.talkPast` is the list on screen and where it belongs. */
+const pastHere = () => !!S.talkPast && S.talkPast.for === (onSetup() ? 'setup' : S.storyId);
+function talkPast(t) {
+  const xs = S.talkPast?.list ?? [];
+  return `<div class="stack" id="talkpast">
+    <div class="lbl flush">Past talks</div>
+    ${xs.length ? xs.map((x) => `<div class="pocketrow${x.id === t.sessionId ? ' lit' : ''}">
+      <button class="pocketopen" data-talkopen="${esc(x.id)}" aria-label="Open the talk ${esc(x.title)}"
+        ${x.id === t.sessionId ? 'aria-current="true"' : ''}>
+        <span class="pkname">${esc(x.title)}</span>
+        <span class="pkline">${esc(touchedAgo(x.updatedAt))} &middot; ${x.turns} turns</span></button>
+      <button class="tag pocketsw" data-talkdel="${esc(x.id)}" aria-label="Delete the talk ${esc(x.title)}">Delete</button></div>`).join('')
+    : '<div class="hint flush">No talks kept yet. Each one is kept as you talk.</div>'}
+  </div>`;
 }
 
 /** #75 · THE TALE'S OWN THREAD, the Thread tab of the Tale panel (Seth, 2026-10-29: "Put the tale
@@ -5408,8 +5435,8 @@ const PANELS = {
 
 
 
-  // The conversation. Ephemeral by choice: turns live in S.talk and go nowhere else, so there is
-  // no table, no export question, and nothing for the round-trip invariant to cover.
+  // The conversation. Its turns live in S.talk, and the server keeps each exchange in the writer's
+  // session as it answers (2026-10-30), so Past talks can open it again.
   //
   // What the writer ASKED to be changed in a thread is already done when the answer arrives (#97,
   // ADR 0007), and each change is a line here with its Undo. Everything else waits: a thread Anansi
@@ -5428,7 +5455,7 @@ const PANELS = {
       : { ...S.talk, searchable: V?.searchable ?? S.talk.searchable };
     return `<div style="display:flex; flex-direction:column; height:100%">
       <div style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding-bottom:10px">
-        ${t.turns.length ? talkTurns(t)
+        ${pastHere() ? talkPast(t) : t.turns.length ? talkTurns(t)
           : talkEmpty(setup)}
         ${talkBusy(t)}
       </div>
@@ -5455,7 +5482,8 @@ const PANELS = {
             <input type="checkbox" data-websearch="1" ${t.search ? 'checked' : ''}
               ${t.searchable === false ? 'disabled' : ''}> Anansi may search
           </label>
-          ${t.turns.length ? `<button class="caption" data-clearchat="1">Clear</button>` : ''}
+          <button class="caption" data-talkpast="1" aria-pressed="${pastHere()}">Past talks</button>
+          ${t.turns.length ? `<button class="caption" data-clearchat="1">New talk</button>` : ''}
           ${/* FILL IN THE TALE FROM THE TALK (Seth, 2026-10-30): talk the tale through, then one press
                 has Anansi set every empty box and the threads it needs, as asked changes with Undo. */
             setup && t.turns.length ? `<button class="caption" data-fillsetup="1" ${t.busy ? 'disabled' : ''}>Fill in the tale</button>` : ''}
@@ -5859,7 +5887,8 @@ const stepNow = () => STEPS[Math.min(Math.max(Number(S.sparkStep) || 1, 1), STEP
  * nothing. What comes back asked for is applied here, to the draft, at once; each change keeps
  * what it replaced so its Undo, held by this page and nowhere else, puts exactly that back. What
  * comes back offered has an Add press. The conversation lives on the draft (`S.spark.talk`), so
- * Discard takes it with everything else, and nothing is saved until Start.
+ * Discard takes it off the page with everything else, and nothing of the tale is saved until Start.
+ * The talk itself is kept by the server as it answers (2026-10-30), for Past talks.
  *
  * A BOX THE WRITER TYPED IN IS NOT CHANGED UNLESS THEY ASKED. The contract tells the model so; this
  * is the floor under it, because a prompt clause is the weak half here (.claude/CLAUDE.md). The
@@ -5972,11 +6001,11 @@ async function talkSetup(said) {
   const t = setupTalk();
   harvestSpark();
   const [, name, hint] = stepNow();
-  t.busy = true;
+  t.busy = true; S.talkPast = null;
   drawSide(); working('direct');
   const r = await api.sparkTalk({ said, step: `${name}: ${hint}`, search: S.talk.search || undefined,
     turns: t.turns.slice(0, -1).map((x) => ({ you: x.you, text: setupTurnText(x) })),
-    draft: { story: S.spark.story, entries: S.spark.entries } });
+    draft: { story: S.spark.story, entries: S.spark.entries }, sessionId: t.sessionId || undefined });
   working(null);
   t.busy = false;
   // Discarded, or started, while he answered: this answer is about a draft that is gone.
@@ -5990,8 +6019,9 @@ async function talkSetup(said) {
     return undo ? { words: x.words, undo, diff: draftDiff(x.change) }
       : { words: `Not done. ${x.words} The draft changed while he answered.`, refused: true };
   });
+  t.sessionId = r.sessionId ?? t.sessionId;
   t.turns = [...t.turns, { you: false, text: r.reply || '(nothing came back)', sources: r.sources ?? [],
-    changes, offers: r.entries ?? [], meta: `${r.seconds}s` }];
+    changes, offers: r.entries ?? [], meta: `${r.seconds}s`, prompt: r.prompt ?? null }];
   paint();
   // #101 · AN IP NAMED IN TALK HANDS OVER TO THE WORLD STEP, the one the World box runs on every
   // move: the writer's World of that name is followed, or the IP is looked up for a new one.
@@ -10755,7 +10785,7 @@ function mentionsSaid(said, list) {
  *  is Write anyway, and the conversation sent is the one before the question either way. */
 async function talk(said, mentions, anyway = false) {
   if (S.weaveFit?.where === 'talk') S.weaveFit = null;
-  S.talk.busy = true;
+  S.talk.busy = true; S.talkPast = null;
   weaveStart('talk');
   drawSide(); drawDock(); working('direct');
   const r = await api.talk(S.storyId, {
@@ -10763,6 +10793,8 @@ async function talk(said, mentions, anyway = false) {
     // Permission, not a query (#99): Anansi writes his own searches, and only when he has this.
     search: S.talk.search || undefined,
     mentions: mentions.length ? mentions : undefined,
+    // The session this talk is kept in, once the first answer has named one (2026-10-30).
+    sessionId: S.talk.sessionId || undefined,
     ...(anyway ? { weaveAnyway: true } : {}),
   });
   working(null); weaveStop('talk');
@@ -10770,9 +10802,10 @@ async function talk(said, mentions, anyway = false) {
   if (r.weaveFit) return weaveRefused(r, (a) => talk(said, mentions, a), 'talk');
   if (r.error) { drawSide(); drawDock(); return toast(r.error); }
   S.talk.searchable = r.searchable ?? S.talk.searchable;
+  S.talk.sessionId = r.sessionId ?? S.talk.sessionId;
   S.talk.turns = [...S.talk.turns, { you: false, text: r.reply || '(nothing came back)',
     sources: r.sources ?? [], proposed: r.proposed ?? 0, changes: r.changes ?? [],
-    meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens read` }];
+    meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens read`, prompt: r.prompt ?? null }];
   S.talk.draft = r.directive || null;
   // A thread that landed is a proposal, and the queue lives under Chapter. A change is in the tale.
   if (r.proposed || r.changes?.length) V = await api.story(S.storyId);
@@ -12726,10 +12759,54 @@ document.addEventListener('click', async (e) => {
     catch { toast('Could not reach the clipboard — select it and copy by hand.'); }
     return;
   }
+  // NEW TALK. What Clear did, and the talk on screen is kept: the server has it, under Past talks.
   if (d.clearchat) {
-    if (onSetup()) setupTalk().turns = [];
-    else S.talk = { ...S.talk, turns: [], draft: null };
+    if (onSetup()) Object.assign(setupTalk(), { turns: [], sessionId: null });
+    else S.talk = { ...S.talk, turns: [], draft: null, sessionId: null };
+    S.talkPast = null;
     drawSide(); drawDock(); return;
+  }
+  // PAST TALKS (2026-10-30): the list for this tale, or for the setup talks, in place of the
+  // conversation. A second press puts it away.
+  if (d.talkpast) {
+    const where = onSetup() ? 'setup' : S.storyId;
+    if (pastHere()) { S.talkPast = null; drawSide(); drawDock(); return; }
+    const r = where === 'setup' ? await api.sparkTalks() : await api.talks(where);
+    if (r.error) return toast(r.error);
+    S.talkPast = { for: where, list: r.sessions ?? [] };
+    drawSide(); drawDock(); return;
+  }
+  // One opened, to carry on: its turns, words only, and its id, so the next answer is added to it.
+  if (d.talkopen) {
+    const setup = onSetup();
+    if (setup ? setupTalk().busy : S.talk.busy) return;
+    const r = setup ? await api.sparkTalkOf(d.talkopen) : await api.talkOf(S.storyId, d.talkopen);
+    if (r.error) return toast(r.error);
+    const turns = (r.turns ?? []).map((x) => ({ you: !!x.you, text: String(x.text ?? '') }));
+    if (setup) Object.assign(setupTalk(), { turns, sessionId: r.id });
+    else S.talk = { ...S.talk, turns, sessionId: r.id, draft: null };
+    S.talkPast = null;
+    drawSide(); drawDock(); return;
+  }
+  if (d.talkdel) {
+    if (!armed(t, 'talkdel:' + d.talkdel, 'Press again to delete this talk.')) return;
+    const setup = onSetup();
+    const r = setup ? await api.sparkTalkDel(d.talkdel) : await api.talkDel(S.storyId, d.talkdel);
+    if (r.error) return toast(r.error);
+    if (S.talkPast) S.talkPast.list = r.sessions ?? [];
+    // The talk on screen, deleted: it is gone, so the next question starts a new one.
+    const on = setup ? setupTalk() : S.talk;
+    if (on.sessionId === d.talkdel) { on.turns = []; on.sessionId = null; }
+    drawSide(); drawDock(); return toast('Talk deleted.');
+  }
+  // COPY PROMPT: what this answer was sent, as plain text (`promptText`). The clipboard needs a
+  // secure page, which the live server is; anywhere it is not, the toast says so.
+  if (d.copyprompt !== undefined) {
+    const p = (onSetup() ? setupTalk() : S.talk).turns[Number(d.copyprompt)]?.prompt;
+    if (!p) return;
+    try { await navigator.clipboard.writeText(promptText(p)); toast('Prompt copied.'); }
+    catch { toast('Could not reach the clipboard. It needs the secure (https) address.'); }
+    return;
   }
   // #100 · ADD ONE OFFER to the draft: the same as a thread Talk was asked to add, so it gets a line
   // and an Undo of its own.

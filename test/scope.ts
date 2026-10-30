@@ -783,6 +783,10 @@ ok('a story cannot be deleted by someone who does not own it');
 {
   const bPassage = db.addPassage({ ...bStory, storyId: bStory.id, body: 'Bob wrote this.' });
   const bEntry = db.upsertEntry(bStory.id, bob, { title: "Bob's secret", body: '[bob spoiler]' });
+  // Talks (2026-10-30): hers in this book, his in his, and a setup talk of hers that is in no book.
+  const aTalk = db.talkSay(alice, aStory.id, null, 'About this book', 'Yes.');
+  db.talkSay(bob, bStory.id, null, 'About his book', 'Yes.');
+  db.talkSay(alice, null, null, 'About a book not made yet', 'Yes.');
   const { file } = db.exportStory(aStory.id, alice, '/tmp/anansi-export-test');
   const { DatabaseSync } = await import('node:sqlite');
   const out = new DatabaseSync(file);
@@ -795,6 +799,8 @@ ok('a story cannot be deleted by someone who does not own it');
   // isolated and useless.
   assert.strictEqual(one('SELECT COUNT(*) c FROM passages WHERE id = ?', aPassage).c, 1, "alice's prose must survive");
   assert.strictEqual(one('SELECT COUNT(*) c FROM entries WHERE id = ?', aEntry).c, 1, "alice's canon must survive");
+  assert.deepStrictEqual((out.prepare('SELECT id FROM talk_sessions').all() as any[]).map((r) => r.id), [aTalk],
+    "EXPORT-TALKS: her talks in this book ship, and neither his nor a setup talk in no book does");
   // Bob is gone, including from the three tables that carry no story_id and would have been
   // exactly what a hand-written list of tables to copy leaked.
   assert.strictEqual(one('SELECT COUNT(*) c FROM passages WHERE id = ?', bPassage).c, 0, "bob's prose must not ship");
@@ -1555,6 +1561,28 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
     const peek = await fetch(url + `/api/after?story=${aStory.id}&id=${aPassage}`);
     assert.strictEqual(peek.status, 404, "delete-after's first press must refuse another writer's story id");
 
+    // TALK SESSIONS (2026-10-30), alice's, asked for by the server running as bob. In her tale the
+    // gate refuses before the route runs; through his own tale, and for a setup talk, the SQL does.
+    const herTalk = db.talkSay(alice, aStory.id, null, 'What does alice keep?', 'Her secret.');
+    const herSetup = db.talkSay(alice, null, null, 'A tale alice has not made', 'Then make it.');
+    assert.strictEqual((await fetch(url + `/api/talk/sessions?story=${aStory.id}`)).status, 404,
+      "TALK-SCOPE-LIST: the talks in another writer's tale are refused");
+    assert.strictEqual((await fetch(url + `/api/talk/session?story=${aStory.id}&session=${herTalk}`)).status, 404,
+      "TALK-SCOPE-OPEN: and so is opening one");
+    assert.strictEqual((await post('/api/talk/session/remove', { storyId: aStory.id, session: herTalk })).status, 404,
+      "TALK-SCOPE-REMOVE: and so is deleting one");
+    const viaOwn = await fetch(url + `/api/talk/session?story=${bStory.id}&session=${herTalk}`);
+    assert.strictEqual(viaOwn.status, 200, '  through his own tale the gate lets it through');
+    assert.ok((await viaOwn.json()).error, "TALK-SCOPE-SQL: and her talk is not found in his tale");
+    assert.ok((await (await post('/api/talk/session/remove', { storyId: bStory.id, session: herTalk })).json()).error,
+      "  nor deleted through it");
+    const setupOpen = await (await fetch(url + `/api/spark/talk/session?session=${herSetup}`)).json();
+    assert.ok(setupOpen.error && !JSON.stringify(setupOpen).includes('alice has not made'), "TALK-SCOPE-SETUP: her setup talk does not open for him");
+    const setupList = await (await fetch(url + '/api/spark/talk/sessions')).json();
+    assert.ok(Array.isArray(setupList.sessions) && !setupList.sessions.some((x: any) => x.id === herSetup), "  nor is it in his list");
+    assert.ok((await (await post('/api/spark/talk/session/remove', { session: herSetup })).json()).error, '  nor can he delete it');
+    assert.ok(db.talkSession(alice, aStory.id, herTalk) && db.talkSession(alice, null, herSetup), 'TALK-SCOPE: both of hers are still there');
+
     // ✦ (#71), aimed at alice's book as bob. Her book would be read into the prompt, so the gate
     // has to refuse before anything is sent to a model. The control is bob's own book, which the
     // gate lets through: a 404 for both would be a route that is not there, not a gate.
@@ -1806,6 +1834,30 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
   await routes['POST /api/shortlist/remove'](ctx(alice, { model: HERS }));
   assert.deepStrictEqual(await ids(alice), [], 'alice can remove her own');
   ok("a writer's shortlist is unreachable from another writer's account, through all three routes");
+
+  // TALK SESSIONS IN A SHARED BOOK (2026-10-30). The gate lets both writers in, so it is the SQL that
+  // keeps each writer's talks their own; and taking the guest out takes their talks there with them.
+  {
+    const both = db.createStory(alice, { title: 'Talked over together' });
+    db.addWriter(both.id, bob);
+    const list = async (owner: string) => ((await routes['GET /api/talk/sessions']({ ...ctx(owner),
+      query: new URLSearchParams(`story=${both.id}`) })) as any).sessions.map((x: any) => x.id);
+    const hers = db.talkSay(alice, both.id, null, 'Alice asks', 'Alice is answered');
+    const his = db.talkSay(bob, both.id, null, 'Bob asks', 'Bob is answered');
+    assert.deepStrictEqual(await list(alice), [hers], 'TALK-SHARED: alice sees her talks in the shared book, not his');
+    assert.deepStrictEqual(await list(bob), [his], 'TALK-SHARED: and bob his, not hers');
+    assert.ok(((await routes['GET /api/talk/session']({ ...ctx(bob), query: new URLSearchParams(`story=${both.id}&session=${hers}`) })) as any).error,
+      'TALK-SHARED: bob cannot open hers by its id');
+    await routes['POST /api/talk/session/remove'](ctx(bob, { storyId: both.id, session: hers }));
+    assert.ok(db.talkSession(alice, both.id, hers), 'TALK-SHARED: nor delete it');
+    // Bob naming his own session while asking as alice writes nothing to his.
+    assert.notStrictEqual(db.talkSay(alice, both.id, his, 'Alice again', 'Answered'), his, 'TALK-SHARED: nor can she carry his on');
+    assert.strictEqual(db.talkSession(bob, both.id, his)!.turns.length, 2, '  and his is as it was');
+    db.dropWriter(both.id, bob);
+    assert.strictEqual(db.talkSession(bob, both.id, his), null, 'TALK-SHARED-OUT: taken out of the book, his talks there are out of reach');
+    db.delStory(both.id, alice);
+  }
+  ok("in a shared book each writer's Talk sessions are their own, and leave with them");
 
   // THE CATALOGUE SEARCH. It holds nothing of anyone's, so the two-owner question is whether the
   // admin and a writer who is not are shown the same models. They are since 2026-10-25, when Seth

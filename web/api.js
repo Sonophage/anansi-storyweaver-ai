@@ -131,6 +131,10 @@ export const api = {
   // #100. Talk while a tale is set up: the draft, the step and the turns. Writes nothing; the page
   // applies the changes that come back to its own draft.
   sparkTalk:    (o)              => j('/api/spark/talk', 'POST', o),
+  // The talks kept beside a tale being set up (2026-10-30): the list, one whole, and one deleted.
+  sparkTalks:   ()               => j('/api/spark/talk/sessions'),
+  sparkTalkOf:  (id)             => j(`/api/spark/talk/session?session=${encodeURIComponent(id)}`),
+  sparkTalkDel: (id)             => j('/api/spark/talk/session/remove', 'POST', { session: id }),
   // `into` sends the book's threads to another of yours before it goes. The prose is the book and
   // goes with it; a cast and a city are work that outlives the story they were written for.
   deleteStory:  (id, into)       => j('/api/stories', 'DELETE', { id, ...(into ? { into } : {}) }),
@@ -256,6 +260,10 @@ export const api = {
   models:       ()               => j('/api/models'),
   stats:        ()               => j('/api/stats?tzo=' + new Date().getTimezoneOffset()),
   talk:         (storyId, o)     => j('/api/talk', 'POST', { storyId, ...o }),
+  // And the talks kept in a tale.
+  talks:        (storyId)        => j(`/api/talk/sessions?story=${encodeURIComponent(storyId)}`),
+  talkOf:       (storyId, id)    => j(`/api/talk/session?story=${encodeURIComponent(storyId)}&session=${encodeURIComponent(id)}`),
+  talkDel:      (storyId, id)    => j('/api/talk/session/remove', 'POST', { storyId, session: id }),
   // #97. Puts back one change Talk made: `undo` is that change's own, as the server returned it.
   talkUndo:     (storyId, undo)  => j('/api/talk/undo', 'POST', { storyId, undo }),
   // ✦ (#71). Three ideas for the next beat, for the writer to pick from. Writes nothing.

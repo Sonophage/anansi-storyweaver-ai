@@ -23,6 +23,16 @@ When you set up a new tale, talk it through with Anansi in the chat beside the w
 Fill in the tale. He sets every box that is still empty (title, premise, genre, setting and voice)
 from what you have said, and adds the threads the tale needs. What you have written yourself stays,
 and each change has its Undo.
+### Your talks with Anansi are kept
+Every talk with Anansi is now kept as you go, in a tale and beside a new tale you are setting up, so
+a reload no longer loses it. Press Past talks to see your earlier talks, newest first, each named by
+how it began and when you last spoke. Open one to carry on where you left off. New talk starts a
+fresh one and keeps the old. Delete takes two presses.
+
+### Copy what Anansi was sent
+Under each of Anansi's answers, Copy prompt copies exactly what he was sent for it: the notes on your
+tale, the talk so far, and your last message, as plain text. Paste it into another model, or read it
+to see what he knew.
 
 ### See each thread's pockets when you spark a tale
 On the threads step of a new tale, each thread now shows the pockets Anansi wrote for it (how they

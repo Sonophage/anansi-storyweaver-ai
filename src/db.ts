@@ -1125,6 +1125,25 @@ CREATE TABLE IF NOT EXISTS entry_images (
   set_at INTEGER NOT NULL,
   FOREIGN KEY (entry_id, story_id) REFERENCES entries(id, story_id) ON DELETE CASCADE);
 
+-- TALK, KEPT (Seth, 2026-10-30: "Anansi should hold sessions ... that way I can revisit"). One row
+-- is one conversation with Anansi: in a tale, or beside a tale being set up (story_id NULL, since
+-- there is no tale yet). The writer's, not the book's: in a shared book each writer keeps their own
+-- talks, so owner_id is the one who talked, and reading one in a tale also asks MINE() of its book.
+--
+-- turns is a JSON list of what was said, each side's words only. NOT the prompt each answer was
+-- sent with: that holds the whole story material, and it lives in the page's memory for Copy
+-- prompt and nowhere else. Written by the two Talk routes after each answer, so nothing on the page
+-- has to remember to save it.
+CREATE TABLE IF NOT EXISTS talk_sessions (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  story_id TEXT REFERENCES stories(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  turns TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS talk_sessions_by_tale ON talk_sessions(owner_id, story_id, updated_at);
+
 `);
 
 migrate();
@@ -1465,6 +1484,72 @@ export const storyOwner = (storyId: string): string | null =>
 
 export const ownsStory = (storyId: string, ownerId: string) =>
   !!q(`SELECT 1 FROM stories s WHERE s.id = ? AND ${MINE()}`).get(storyId, ownerId, ownerId);
+
+/** TALK SESSIONS (2026-10-30). A conversation with Anansi, kept so the writer can come back to it.
+ *  `story` null is a talk beside a tale being set up.
+ *
+ *  THE KEEP CAP. The routes send the model only the last six turns; the session keeps them all, up
+ *  to this many, and drops the oldest past it. The row is rewritten whole on every answer, and a
+ *  reply is a few thousand characters at most, so 200 turns holds a row under a megabyte while being
+ *  a hundred exchanges, far more than one sitting. The title stays when the oldest go.
+ *  ponytail: how MANY talks a writer keeps is not capped, and the list is read whole. Trigger: Past
+ *  talks slow to open, or a few hundred talks in one tale; then page the list. */
+export const TALK_KEEP = 200;
+
+/** WHOSE SESSION, in SQL: the writer who talked, and in a tale only while it is still a book they
+ *  may write in (`MINE()`), so taking a writer out of a shared book takes their talks there out of
+ *  reach too. One place builds the clause and its values together, because a clause and a values
+ *  list built apart are the pair this file has seen disagree. */
+function talkScope(ownerId: string, storyId: string | null) {
+  return storyId
+    ? { where: `t.owner_id = ? AND t.story_id = ? AND EXISTS (SELECT 1 FROM stories s WHERE s.id = t.story_id AND ${MINE()})`,
+        args: [ownerId, storyId, ownerId, ownerId] }
+    : { where: 't.owner_id = ? AND t.story_id IS NULL', args: [ownerId] };
+}
+/** The first few words of the first thing the writer said, for the list. */
+const talkTitle = (said: string) => {
+  const words = said.trim().split(/\s+/);
+  const head = words.slice(0, 8).join(' ');
+  return head.length > 80 ? `${head.slice(0, 79)}…` : words.length > 8 ? `${head}…` : head;
+};
+
+/** One exchange added to a session: the writer's words, then Anansi's. Returns the session's id.
+ *  An id that is not this writer's session in this place (another tale's, another writer's, gone)
+ *  starts a new one rather than writing to it or saying whether it exists. */
+export function talkSay(ownerId: string, storyId: string | null, sessionId: unknown, said: string, reply: string) {
+  const { where, args } = talkScope(ownerId, storyId);
+  const at = now();
+  const pair = [{ you: true, text: said, at }, { text: reply, at }];
+  const had = sessionId ? q(`SELECT t.id, t.turns FROM talk_sessions t WHERE t.id = ? AND ${where}`)
+    .get(String(sessionId), ...args) as any : null;
+  if (had) {
+    const turns = [...JSON.parse(had.turns), ...pair].slice(-TALK_KEEP);
+    q('UPDATE talk_sessions SET turns = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(turns), at, had.id);
+    return had.id as string;
+  }
+  const id = uid('ts-');
+  q(`INSERT INTO talk_sessions (id, owner_id, story_id, title, turns, created_at, updated_at) VALUES (?,?,?,?,?,?,?)`)
+    .run(id, ownerId, storyId, talkTitle(said), JSON.stringify(pair), at, at);
+  return id;
+}
+/** This writer's sessions here, newest first, without their turns: a list to pick from. */
+export function talkSessions(ownerId: string, storyId: string | null) {
+  const { where, args } = talkScope(ownerId, storyId);
+  return (q(`SELECT t.id, t.title, t.created_at, t.updated_at, json_array_length(t.turns) AS n
+    FROM talk_sessions t WHERE ${where} ORDER BY t.updated_at DESC, t.rowid DESC`).all(...args) as any[])
+    .map((r) => ({ id: r.id, title: r.title, createdAt: r.created_at, updatedAt: r.updated_at, turns: r.n }));
+}
+/** One session with its turns, or null when it is not this writer's here. */
+export function talkSession(ownerId: string, storyId: string | null, id: unknown) {
+  const { where, args } = talkScope(ownerId, storyId);
+  const r = q(`SELECT t.* FROM talk_sessions t WHERE t.id = ? AND ${where}`).get(String(id ?? ''), ...args) as any;
+  return r ? { id: r.id, title: r.title, createdAt: r.created_at, updatedAt: r.updated_at, turns: JSON.parse(r.turns) } : null;
+}
+/** Delete one session. Whether it was this writer's to delete. */
+export function delTalkSession(ownerId: string, storyId: string | null, id: unknown) {
+  const { where, args } = talkScope(ownerId, storyId);
+  return Number(q(`DELETE FROM talk_sessions AS t WHERE t.id = ? AND ${where}`).run(String(id ?? ''), ...args).changes) > 0;
+}
 
 /** Who writes in this book: the owner first, then anyone called in, as logins. */
 export const writersOf = (storyId: string) => q(
@@ -3766,6 +3851,9 @@ export function exportStory(storyId: string, ownerId: string, dir = join(dirname
   try {
     copy.exec('PRAGMA foreign_keys = ON;');
     copy.prepare('DELETE FROM stories WHERE id != ?').run(storyId);
+    // A TALK BESIDE A TALE BEING SET UP belongs to no book, so no book's export carries it. Talks in
+    // other books went with their book, above; another writer's go with that writer, below.
+    copy.prepare('DELETE FROM talk_sessions WHERE story_id IS NULL').run();
     /* THE OTHER WRITERS' PROMPT OVERRIDES GO BEFORE THE WRITERS DO.
      *
      * `prompt_overrides.owner_id REFERENCES users(id)` with NO cascade, so deleting a user who has

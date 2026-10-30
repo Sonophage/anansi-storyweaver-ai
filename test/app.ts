@@ -8554,4 +8554,141 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   ok('Merge with another thread: pick it, pick which stays, review the draft as diffs, then Merge or Cancel');
 }
 
+// TALK IS KEPT, AND AN ANSWER'S PROMPT CAN BE COPIED (Seth, 2026-10-30). The page sends the session the
+// first answer named with every later question; Past talks lists this tale's talks, opens one to
+// carry on, and deletes one in two presses; New talk starts again and keeps the old one; Copy prompt
+// copies exactly the messages the answer came back with, as plain text.
+const SESSIONS = [{ id: 'ts-old', title: 'Who is Marek, really', createdAt: Date.now() - 864e5, updatedAt: Date.now() - 3 * 36e5, turns: 4 },
+                  { id: 'ts-older', title: 'The debt', createdAt: Date.now() - 3 * 864e5, updatedAt: Date.now() - 2 * 864e5, turns: 2 }];
+const OLD_TURNS = [{ you: true, text: 'Who is Marek, really?', at: 1 }, { text: 'A man who owes.', at: 2 },
+                   { you: true, text: 'Owes whom?', at: 3 }, { text: 'The house.', at: 4 }];
+const PROMPT = [{ role: 'system', content: 'You are Anansi. The tale: a debt.' },
+                { role: 'user', content: 'Who is Marek?' }, { role: 'assistant', content: 'A man who owes.' },
+                { role: 'user', content: 'And the house?' }];
+const sessionFetch = (canned: any, got: string[]) => async (url: string, init?: any) => {
+  if (!init?.body) got.push(url);
+  if (/^\/api\/(spark\/)?talk\/sessions/.test(url)) return { ok: true, json: async () => ({ sessions: SESSIONS }) };
+  if (/^\/api\/(spark\/)?talk\/session\?/.test(url)) return { ok: true, json: async () => ({ id: 'ts-old', title: 'Who is Marek, really', turns: OLD_TURNS }) };
+  if (/^\/api\/(spark\/)?talk\/session\/remove/.test(url)) {
+    POSTED.push({ url, body: JSON.parse(init.body) });
+    return { ok: true, json: async () => ({ sessions: SESSIONS.slice(1) }) };
+  }
+  return canned(url, init);
+};
+const withClipboard = (writeText: ((t: string) => Promise<void>) | null) => {
+  if (writeText) Object.defineProperty(globalThis.navigator, 'clipboard', { value: { writeText }, configurable: true });
+  else delete (globalThis.navigator as any).clipboard;
+};
+{
+  const canned = (globalThis as any).fetch;
+  const got: string[] = [];
+  (globalThis as any).fetch = sessionFetch(canned, got);
+  const talks = () => POSTED.filter((p: any) => p.url === '/api/talk');
+  const send = async (said: string) => { (document as any).getElementById('input').value = said; click({ send: '1' }); await sleep(80); };
+  const copied: string[] = [];
+  try {
+    click({ open: 's-1' }); await sleep(40);
+    click({ panel: 'anansi' }); await sleep(30);
+    POSTED.length = 0;
+    stubTalk = { reply: 'A man who owes.', seconds: 1, tokens: 10, sessionId: 'ts-new', prompt: PROMPT };
+    await send('Who is Marek?');
+    assert.strictEqual(talks()[0].body.sessionId, undefined, 'TALK-SESSION-FIRST: the first question names no session');
+    await send('And the house?');
+    assert.strictEqual(talks()[1].body.sessionId, 'ts-new', 'TALK-SESSION-ON: the next one names the session the answer gave');
+
+    // COPY PROMPT, on each answer that came back with one.
+    const presses = [...html('dockCol').matchAll(/data-copyprompt="(\d+)"[^>]*>\s*Copy prompt/g)].map((m) => m[1]);
+    assert.deepStrictEqual(presses, ['1', '3'], `COPY-PROMPT-PRESS: each answer has Copy prompt, and no question does (${presses})`);
+    withClipboard(async (t) => { copied.push(t); });
+    click({ copyprompt: '3' }); await sleep(20);
+    assert.strictEqual(copied[0], 'SYSTEM:\nYou are Anansi. The tale: a debt.\n\nWRITER:\nWho is Marek?\n\nANANSI:\nA man who owes.\n\nWRITER:\nAnd the house?',
+      'COPY-PROMPT-TEXT: exactly the messages sent, as plain text');
+    assert.match(String(nodes.get('toast').textContent), /Prompt copied/, 'COPY-PROMPT-TOAST: and says so');
+    withClipboard(null);
+    click({ copyprompt: '3' }); await sleep(20);
+    assert.match(String(nodes.get('toast').textContent), /Could not reach the clipboard/, 'COPY-PROMPT-NO-CLIPBOARD: without a clipboard it says so');
+
+    // PAST TALKS: this tale's, newest first, with title and when.
+    got.length = 0;
+    click({ talkpast: '1' }); await sleep(30);
+    assert.ok(got.includes('/api/talk/sessions?story=s-1'), `TALK-PAST-ASKS: this tale's talks are asked for (${got})`);
+    const list = html('dockCol');
+    assert.ok(list.indexOf('Who is Marek, really') >= 0 && list.indexOf('Who is Marek, really') < list.indexOf('The debt'),
+      'TALK-PAST-LIST: each talk by its title, newest first');
+    assert.match(list, /3 hours ago/, 'TALK-PAST-LIST: with when it was last added to');
+    assert.doesNotMatch(list, /A man who owes/, '  in place of the conversation');
+
+    // OPEN ONE: its turns, and the next question carries it on.
+    click({ talkopen: 'ts-old' }); await sleep(30);
+    assert.ok(html('dockCol').includes('Owes whom?') && html('dockCol').includes('The house.'), 'TALK-OPEN: its turns are on the page');
+    assert.doesNotMatch(html('dockCol'), /data-copyprompt/, 'TALK-OPEN: an opened talk has no prompt to copy: prompts are not kept');
+    stubTalk = { reply: 'Yes.', seconds: 1, tokens: 10, sessionId: 'ts-old' };
+    await send('Go on');
+    assert.strictEqual(talks().at(-1).body.sessionId, 'ts-old', 'TALK-OPEN-ON: the next question carries the opened talk on');
+    assert.deepStrictEqual(talks().at(-1).body.turns.map((t: any) => t.text), OLD_TURNS.map((t) => t.text), '  with its turns');
+
+    // NEW TALK: the page starts again, and the next question names no session.
+    click({ clearchat: '1' }); await sleep(20);
+    assert.doesNotMatch(html('dockCol'), /Owes whom\?/, 'TALK-NEW: New talk clears the page');
+    stubTalk = { reply: 'Fresh.', seconds: 1, tokens: 10, sessionId: 'ts-fresh' };
+    await send('Start again');
+    assert.strictEqual(talks().at(-1).body.sessionId, undefined, 'TALK-NEW: and the next question starts a new talk');
+
+    // DELETE: two presses.
+    click({ talkpast: '1' }); await sleep(30);
+    const removes = () => POSTED.filter((p: any) => p.url === '/api/talk/session/remove');
+    click({ talkdel: 'ts-old' }); await sleep(20);
+    assert.strictEqual(removes().length, 0, 'TALK-DELETE-ARMED: one press deletes nothing');
+    assert.match(String(nodes.get('toast').textContent), /Press again/, '  and asks for a second');
+    click({ talkdel: 'ts-old' }); await sleep(30);
+    assert.deepStrictEqual(removes().map((p: any) => p.body), [{ storyId: 's-1', session: 'ts-old' }], 'TALK-DELETE: the second press deletes it');
+    assert.doesNotMatch(html('dockCol'), /Who is Marek, really/, 'TALK-DELETE: and it leaves the list');
+  } finally { (globalThis as any).fetch = canned; stubTalk = null; withClipboard(null); click({ dockwrite: '1' }); await sleep(20); }
+}
+ok('Talk names its session, Copy prompt copies what was sent, and Past talks opens, starts anew and deletes');
+
+// AND THE SETUP TALK, beside a tale being set up.
+{
+  const doc = (globalThis as any).document;
+  const canned = (globalThis as any).fetch;
+  const got: string[] = [];
+  const settle = async (re: RegExp, id = 'page') => { for (let i = 0; i < 40 && !re.test(html(id)); i++) await sleep(25); };
+  const sparkTalks = () => POSTED.filter((p) => p.url === '/api/spark/talk');
+  const ask = async (said: string) => { (document as any).getElementById('askBox').value = said; click({ ask: '1' }); await sleep(80); return sparkTalks().at(-1); };
+  const copied: string[] = [];
+  click({ railview: 'workspace' }); await sleep(30);
+  click({ nav: 'create' }); await sleep(30);
+  doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
+  try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
+  finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
+  (globalThis as any).fetch = sessionFetch(canned, got);
+  try {
+    click({ panel: 'anansi' }); await settle(/askBox/, 'sideBody');
+    POSTED.length = 0;
+    stubSparkTalk = { reply: 'Start with the frost.', seconds: 1, sessionId: 'ts-setup', prompt: PROMPT };
+    assert.strictEqual((await ask('How should it begin?')).body.sessionId, undefined, 'SETUP-SESSION-FIRST: the first question names no session');
+    assert.strictEqual((await ask('And then?')).body.sessionId, 'ts-setup', 'SETUP-SESSION-ON: the next names the one the answer gave');
+    withClipboard(async (t) => { copied.push(t); });
+    assert.match(html('sideBody'), /data-copyprompt="3"/, 'SETUP-COPY-PROMPT: each setup answer has Copy prompt');
+    click({ copyprompt: '3' }); await sleep(20);
+    assert.strictEqual(copied[0], 'SYSTEM:\nYou are Anansi. The tale: a debt.\n\nWRITER:\nWho is Marek?\n\nANANSI:\nA man who owes.\n\nWRITER:\nAnd the house?',
+      'SETUP-COPY-PROMPT: exactly what was sent');
+    click({ talkpast: '1' }); await sleep(30);
+    assert.ok(got.includes('/api/spark/talk/sessions'), `SETUP-PAST: the setup talks are asked for (${got})`);
+    assert.match(html('sideBody'), /Who is Marek, really/, 'SETUP-PAST: and listed');
+    click({ talkopen: 'ts-old' }); await sleep(30);
+    assert.match(html('sideBody'), /Owes whom\?/, 'SETUP-OPEN: one opens');
+    assert.strictEqual((await ask('Go on')).body.sessionId, 'ts-old', 'SETUP-OPEN-ON: and is carried on');
+    click({ talkpast: '1' }); await sleep(30);
+    click({ talkdel: 'ts-old' }); await sleep(20);
+    click({ talkdel: 'ts-old' }); await sleep(30);
+    assert.deepStrictEqual(POSTED.filter((p: any) => p.url === '/api/spark/talk/session/remove').map((p: any) => p.body),
+      [{ session: 'ts-old' }], 'SETUP-DELETE: two presses delete a setup talk');
+  } finally {
+    (globalThis as any).fetch = canned; stubSparkTalk = null; withClipboard(null);
+    click({ dropSpark: '1' }); await sleep(30);
+  }
+}
+ok('the setup Talk names its session, copies its prompt, and opens and deletes past setup talks');
+
 console.log(`\n${n} checks passed`);

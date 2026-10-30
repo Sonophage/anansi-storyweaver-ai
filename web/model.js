@@ -322,6 +322,12 @@ export const touchedAgo = (t) => {
   const days = Math.floor(hrs / 24);
   return days === 1 ? 'yesterday' : `${days} days ago`;
 };
+/** COPY PROMPT (2026-10-30): the messages a Talk answer was sent, as plain text that reads in a text
+ *  box. Each role by the name the page gives it: the system message, then the writer and Anansi. */
+const SPEAKER = { system: 'SYSTEM', user: 'WRITER', assistant: 'ANANSI' };
+export const promptText = (messages) => (messages ?? [])
+  .map((m) => `${SPEAKER[m.role] ?? String(m.role).toUpperCase()}:\n${m.content}`).join('\n\n');
+
 // Escapes quotes as well as tags: this is interpolated into value="..." attributes on both
 // surfaces, so a character named  The "Bell"  used to truncate its own name field on edit.
 export const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) =>

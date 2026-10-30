@@ -4472,4 +4472,27 @@ ok('a rule is a pocket of the tale, never a thread, and old rule threads move ac
   db.delStory(st.id);
 });
 
+// TALK SESSIONS (2026-10-30). Kept per writer and per place, capped, and gone with their tale.
+ok('a talk session keeps every turn up to its cap, and goes with its tale', () => {
+  const me = db.owner('talk-keeper');
+  const st = db.createStory(me, { title: 'Kept talk' });
+  let id: string | null = null;
+  // One exchange more than the cap holds, so the first must go.
+  for (let i = 0; i < db.TALK_KEEP / 2 + 1; i++) id = db.talkSay(me, st.id, id, `question ${i} and some more words after it`, `answer ${i}`);
+  const kept = db.talkSession(me, st.id, id)!;
+  assert.strictEqual(kept.turns.length, db.TALK_KEEP, `TALK-CAP: a session keeps ${db.TALK_KEEP} turns, not ${kept.turns.length}`);
+  assert.strictEqual(kept.turns[0].text, 'question 1 and some more words after it', 'TALK-CAP: the oldest go first');
+  assert.strictEqual(kept.turns.at(-1).text, `answer ${db.TALK_KEEP / 2}`, '  and the newest is last');
+  assert.strictEqual(kept.title, 'question 0 and some more words after it', 'TALK-CAP: the title stays when its turn is dropped');
+  assert.strictEqual(db.talkSessions(me, st.id).length, 1, 'TALK-ONE: it was all one session');
+  // A setup talk is listed apart from a tale's.
+  db.talkSay(me, null, null, 'A tale not made yet', 'Then make it.');
+  assert.deepStrictEqual([db.talkSessions(me, null).length, db.talkSessions(me, st.id).length], [1, 1], 'TALK-PLACE: setup talks and a tale\'s are apart');
+  db.delStory(st.id);
+  assert.strictEqual(db.talkSession(me, st.id, id), null, 'TALK-CASCADE: a deleted tale takes its talks');
+  const raw = new RawDb('/tmp/anansi-test.db', { readOnly: true });
+  assert.strictEqual((raw.prepare('SELECT count(*) AS n FROM talk_sessions WHERE id = ?').get(id) as any).n, 0, '  the row itself');
+  raw.close();
+});
+
 console.log(`\n${n} checks passed`);
