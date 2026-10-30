@@ -601,7 +601,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
   'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra',
   // #92. A hemmed scene's card: run its passes again, set up the next scene.
-  'hemagain', 'hemsetup',
+  'hemagain', 'hemopen',
   // #75. The tale's own thread.
   'taleadd',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
@@ -3389,7 +3389,10 @@ function hemCardParts(c) {
     <button class="btn ghost" data-hemextra="${id}">Chalk ${heldNew.length === 1 ? 'it' : 'these'} too</button>` : '';
   // ONE PRESS FOR THE NEXT SCENE (Seth, 2026-10-29): its title, note, opening and who is in it are
   // set up on the setup and nowhere else, so the card only opens it, on The next scene.
-  const setup = hemNext(ch) && !c.inSetup ? `<button class="btn ghost push-12" data-hemsetup="${id}">Set up the next scene &rarr;</button>` : '';
+  // REOPEN THE HEM, not "Set up the next scene" (Seth, 2026-10-30: it "should just say reopen the hem
+  // so it says what it would do if you click it"). The hem screen holds the steps, what is left to
+  // decide and the way on to the setup. Not on the hem screen itself, which is where it leads.
+  const setup = !c.inSetup && !c.inHem ? `<button class="btn ghost push-12" data-hemopen="${id}">Reopen the hem &rarr;</button>` : '';
   const ids = esc(ps.map((p) => p.id).join(','));
   return {
     body: `${state.join('')}${summary}${threads}${overflow}${held}${setup}`,
@@ -13398,10 +13401,9 @@ document.addEventListener('click', async (e) => {
     return toast(d.pass ? 'Trying that again. It lands on the card.' : d.names ? 'Asking for them. They land on the card.'
       : 'Hemming it again. The card fills in when it is done.');
   }
-  // SET UP THE NEXT SCENE, from a hem's card (Seth, 2026-10-29): the setup, on The next scene. The
-  // card only draws it while the scene the hem opened is the one being written (`hemNext`), so the
-  // setup is that scene's; its boxes read the hem's suggestion through `setupForm`.
-  if (d.hemsetup) { S.panel = 'setup'; S.setupStep = 'premise'; syncHash(); paint(); return; }
+  // REOPEN THE HEM, from a hem's card (Seth, 2026-10-30): the hem screen on that scene, whose steps
+  // lead on to the setup.
+  if (d.hemopen) { S.ritualOf = d.hemopen; S.panel = 'ritual'; syncHash(); paint(); return; }
   // The way back when the router was asleep at the close. Same shape as data-remember.
   if (d.refinished) {
     const r = await whileWorking(t, 'Looking…',

@@ -18,6 +18,18 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### Where the tale stands is quicker
+Anansi writes "where the tale stands" as one paragraph with a set length now, so he cannot run on
+until he is cut off and has to start again. It ends on a whole sentence.
+
+### Reopen the hem
+On the Workbench, a hemmed scene's card now ends with "Reopen the hem", which takes you back to its
+hem screen: the steps, what is left to decide, and the way on to setting up the next scene.
+
+### The handle sits under the scene's numbers
+When the scene's numbers under the header are open, their handle is now on its own line under them,
+in the same place you opened them from.
+
 ### Hemming is its steps
 The hem screen now always shows its steps at the top: Anansi's six, then yours, deciding what he
 found and setting up the next scene. Each is coloured by where it is: grey waiting, pulsing while

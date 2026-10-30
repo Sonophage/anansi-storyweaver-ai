@@ -1407,6 +1407,12 @@ ok('the header names the book, and carries no reading of its own');
   assert.match(read, /data-ctxtoggle="1"[\s\S]*?<span class="grip" aria-hidden="true"><\/span>/, 'HANDLE-CTX: the numbers open by a small handle');
   assert.doesNotMatch(read, /\u2304|\u2303/, '  and no arrow');
   assert.match(html('dockCol'), /id="fold"[^>]*>\s*<span class="grip" aria-hidden="true"><\/span>/, 'HANDLE-BOX: the box folds by the same handle');
+  {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+    assert.match(css, /#ctxread:not\(\.shut\) \.ctxtoggle \{[^}]*flex-basis:100%[^}]*order:99/,
+      'HANDLE-UNDER: open, the handle is on a line of its own under the numbers (Seth, 2026-10-30)');
+  }
   click({ ctxtoggle: '1' });
   const opened = html('ctxread');
   assert.match(opened, /data-ctxtoggle="1"[^>]*aria-expanded="true"/, 'one press opens it, and the arrow says so');
@@ -7361,7 +7367,7 @@ const hemCardOf = (side: string) => {
     'HEM-THREADS: one block per thread, the threads the tale has first, then new threads');
   const block = (k: string) => {
     const at = card.indexOf(`data-hemthread="${k}"`), end = card.indexOf('data-hemthread=', at + 1);
-    return card.slice(at, end < 0 ? card.indexOf('data-hemsetup=') : end);
+    return card.slice(at, end < 0 ? card.indexOf('data-hemopen=') : end);
   };
   const sereth = block('e-1');
   assert.match(sereth, /data-hemthreadname[^>]*>Envoy Sereth</, '  its head names the thread');
@@ -7382,7 +7388,7 @@ const hemCardOf = (side: string) => {
   // THE ORDER ON THE CARD (Seth, 2026-10-29): "summary first, ready to edit. Then the threads. Then
   // the next scene setup."
   assert.ok(card.indexOf('data-hemsumtext') < card.indexOf('data-hemthread=')
-    && card.indexOf('data-hemthread=') < card.indexOf('data-hemsetup='),
+    && card.indexOf('data-hemthread=') < card.indexOf('data-hemopen='),
     'HEM-ORDER: the summary, then the threads, then Set up the next scene');
   // THE THREADS PAST THE CAP, named, with a way to ask for them.
   assert.match(card, /Coyle/, 'the threads past the cap are named');
@@ -7540,8 +7546,8 @@ const hemCardOf = (side: string) => {
   const card = hemCardOf(html('sideBody'));
   assert.match(card, /data-hemsumtext="c-1"/, 'HEM-CARD-SUM: the card has the summary');
   assert.match(card, /data-hemthread="e-1"/, '  and the threads');
-  const setupAt = card.search(/<button[^>]*data-hemsetup="c-1"[^>]*>Set up the next scene &rarr;</);
-  assert.ok(setupAt > card.lastIndexOf('data-hemthread='), 'HEM-CARD-SETUP: and ends with Set up the next scene, after the threads');
+  const setupAt = card.search(/<button[^>]*data-hemopen="c-1"[^>]*>Reopen the hem &rarr;</);
+  assert.ok(setupAt > card.lastIndexOf('data-hemthread='), 'HEM-CARD-REOPEN: and ends with Reopen the hem, after the threads');
   for (const [re, what] of [[/data-hemnext=/, "the next scene's boxes"], [/data-hemsteer=/, 'a direction for Anansi'],
     [/data-hemreroll=/, 'Something else'], [/data-usehem=/, 'Use these'], [/data-hemwho|data-pin=/, 'who is in it']] as const)
     assert.doesNotMatch(card, re, `HEM-CARD-GONE: the card has no ${what}`);
@@ -7561,10 +7567,13 @@ const hemCardOf = (side: string) => {
   leave('   '); await settle();
   assert.strictEqual(sums().length, saved, '  and an emptied box saves nothing: removing a summary stays on Chapters');
 
-  // SET UP THE NEXT SCENE opens the setup on The next scene, for the scene the hem opened, showing
-  // what `nextSetup` reads: the scene's own title (The Envoy), the suggestion where it has nothing.
+  // REOPEN THE HEM opens the hem screen on that scene (Seth, 2026-10-30).
+  click({ hemopen: 'c-1' }); await settle();
+  assert.match(html('sideBody'), /<ol class="hemsteps">/, 'HEM-REOPEN: Reopen the hem opens the hem screen, its steps on top');
+  // THE SETUP, from there, opens on The next scene, for the scene the hem opened, showing what
+  // `nextSetup` reads: the scene's own title (The Envoy), the suggestion where it has nothing.
   const chapterSaves = POSTED.filter((p: any) => p.url === '/api/chapter').length;
-  click({ hemsetup: 'c-1' }); await settle();
+  click({ panel: 'setup' }); click({ setupstep: 'premise' }); await settle();
   const setup = html('sideBody');
   assert.deepStrictEqual([...setup.matchAll(/data-setupstep="([a-z]+)"([^>]*?)>/g)]
     .filter((m) => /rgba\(217,178,106,\.42\)/.test(m[2])).map((m) => m[1]), ['premise'],
@@ -7579,13 +7588,13 @@ const hemCardOf = (side: string) => {
     currentChapter: { ...HEM_VIEW.currentChapter, authorsNote: 'Her own note.' } };
   click({ open: 's-1' }); await settle();
   click({ panel: 'waiting' }); await settle();
-  click({ hemsetup: 'c-1' }); await settle();
+  click({ panel: 'setup' }); click({ setupstep: 'premise' }); await settle();
   assert.match(html('sideBody'), /data-setup="note"[^>]*>Her own note\./, "HEM-SETUP-OWN: the scene's own note, once it has one");
   assert.doesNotMatch(html('sideBody'), /with Marek in the room/, '  and not the suggestion');
   (globalThis as any).fetch = canned;
   click({ skipsetup: '1' }); await settle();
   click({ open: 's-1' }); await settle();
-  ok('the hem card is the summary, the threads and Set up the next scene, which opens The next scene');
+  ok('the hem card is the summary, the threads and Reopen the hem; the setup opens The next scene');
 }
 
 // ---- NOTHING TWICE ACROSS THE SETUP (Seth, 2026-10-29). The summary lives on the Workbench, so What
@@ -7603,7 +7612,7 @@ const hemCardOf = (side: string) => {
   const card = hemCardOf(left);
   assert.match(card, /data-hemthread="e-1"/, 'SETUP-LEFT: What it left has the scene\'s card, with its threads');
   assert.doesNotMatch(left, /data-hemsumtext=/, 'SETUP-LEFT-NOSUM: and not the summary, which is on the Workbench');
-  assert.doesNotMatch(left, /data-hemsetup=/, '  nor Set up the next scene');
+  assert.doesNotMatch(left, /data-hemopen=/, '  nor Reopen the hem');
   assert.doesNotMatch(left, /The bellringer/, 'SETUP-LEFT-NONEW: nor a new thread, which is Anyone new\'s');
   assert.match(card, /data-deckall="accept" data-ids="hs-1,hs-2,hs-3"[^>]*>Sew all/, '  and Sew all takes only what it shows');
   assert.match(left, /1 &middot; What it left <span[^>]*>3</, '  and its count is the three changes');
@@ -7754,7 +7763,7 @@ const hemCardOf = (side: string) => {
   click({ panel: 'setup' }); await settle();
   for (const step of ['cards', 'premise', 'more']) { click({ setupstep: step }); await settle(); screens[step] = html('sideBody'); }
   const controls: Record<string, RegExp> = {
-    'the summary': /data-hemsumtext=/, 'Set up the next scene': /data-hemsetup=/,
+    'the summary': /data-hemsumtext=/, 'Reopen the hem': /data-hemopen=/,
     "the next scene's title": /data-setup="title"/, 'its note': /data-setup="note"/, 'its opening': /data-setup="opens"/,
     'Have Anansi suggest another': /data-name=/, 'how a thread comes in': /data-howin=/, 'taking a thread out': /data-howout=/,
     'finding a thread to bring in': /id="setupQ"/, "the tale's setting": /data-tip="setSetting"/,
@@ -7968,7 +7977,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   // Close c-2 ('The Envoy'). Its hem suggests a name for c-3, and Set up the next scene shows it in
   // c-3's boxes.
   click({ endchapter: '1' }); await settle(); await settle();
-  click({ hemsetup: 'c-2' }); await settle();
+  click({ panel: 'setup' }); click({ setupstep: 'premise' }); await settle();
   assert.match(html('sideBody'), /data-setup="title" value="The Fell Omen&#39;s Tale"/,
     "Set up the next scene shows the hem's suggestion in the boxes of the scene it opened");
   // The writer looks back at the chapter that just closed, and saves setup THERE. The suggestion is

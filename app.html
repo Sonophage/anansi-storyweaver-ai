@@ -1106,11 +1106,15 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
    same way. A reading that does not fit goes to a second row whole. */
 #ctxread > * { white-space:nowrap; }
 @media (max-width:719px) { #ctxread { flex-wrap:wrap; row-gap:4px; } }
-/* SHUT, THE ROW IS ITS ⌄ ALONE: a thin strip, the arrow in the middle. Small to the eye, 44px to
-   the finger by its negative margin, so the strip stays thin. Open, the arrow ends the row. */
+/* SHUT, THE ROW IS ITS HANDLE ALONE: a thin strip, the handle in the middle. Small to the eye, 44px
+   to the finger by its negative margin, so the strip stays thin. Open, it goes under the row (below). */
 #ctxread.shut { justify-content:center; padding-top:0; padding-bottom:0; height:16px; position:relative; z-index:3; }
 .ctxtoggle { position:relative; z-index:3; flex:0 0 auto; min-width:44px; min-height:44px; margin:-14px 0;
   display:flex; align-items:center; justify-content:center; color:var(--label); font-size:13px; line-height:1; }
+/* OPEN, THE HANDLE GOES UNDER THE NUMBERS (Seth, 2026-10-30: "the handle for context can go below it
+   when it's open"), on a line of its own, where the strip shut is: the same place to put it away. */
+#ctxread:not(.shut) { flex-wrap:wrap; row-gap:0; }
+#ctxread:not(.shut) .ctxtoggle { flex-basis:100%; order:99; min-height:24px; margin:2px 0 -9px; }
 
 /* NO GROUND UNDER THE DOCK. Seth: "remove the dark background. when its minimized that color
    should only be in the input box." The gradient was a slab the width of the window fading up

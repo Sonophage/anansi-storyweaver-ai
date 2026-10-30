@@ -2001,6 +2001,21 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   assert.ok(spine().includes(LATER) && !spine().includes(NOW), 'TALE-LATEST: and the latest in force is the one sent');
   taleSays = '';
   ok('each hem chalks the next entry from the one in force, and every entry is kept');
+
+  // A PARAGRAPH, BOUNDED (Seth, 2026-10-30: "writing where it is now is taking forever"). Remote models
+  // ran on inside the one string until the cap cut them, twice with the retry. The schema bounds the
+  // string, and what comes back stops at its last whole sentence.
+  const schema = prompts.TALE_STANDS_SCHEMA.properties.tale as any;
+  assert.ok(Number(schema.maxLength) > 0 && Number(schema.maxLength) <= 1600, `TALE-BOUND: the paragraph is bounded (${schema.maxLength})`);
+  const ch3 = db.chapters(t.id).at(-1) as any;
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch3.id, body: 'Mara reached the harbour at dusk.' });
+  taleSays = 'Mara is ashore at last. The lamp on the rock is dark and nobody is keeping it, and the mainland har';
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
+  await hemSettled(t.id);
+  const cut = (db.proposalsOf(t.id) as any[]).filter((x) => x.entry_id === tale.id && x.status === 'open').at(-1);
+  assert.strictEqual(cut?.body, 'Mara is ashore at last.', 'TALE-WHOLE: a paragraph stopped by the bound keeps its last whole sentence');
+  taleSays = '';
+  ok('where the tale stands is one bounded paragraph, ending on a whole sentence');
 }
 
 // ---- #127 · ADR 0011. EACH HEM CHALKS WHERE EACH STRING IN PLAY STANDS NOW, AND SEWN IN IT IS KEPT ----

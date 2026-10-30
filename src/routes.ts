@@ -1572,8 +1572,11 @@ async function taleStands(c: Ctx, storyId: string, chapterId: string, scene?: st
     `THE SCENE:\n${text}`].join('\n\n'), TALE_STANDS_SCHEMA,
     { model: backgroundModel(c, v), max_tokens: TALE_TOKENS });
   if (!r.data) return { error: r.error ?? 'nothing usable came back' };
-  // Plain, as it will be stored; not "none", and not the text already in force.
-  const stands = db.plainStands(r.data.tale, [tale.title]);
+  // Plain, as it will be stored; not "none", and not the text already in force. Back to its last whole
+  // sentence: the schema's bound closes the string wherever it falls (TALE_STANDS_SCHEMA).
+  const said = String(r.data.tale ?? '').trim();
+  const whole = /[.!?…]["'”’)\]]*$/.test(said) ? said : (said.match(/^[\s\S]*[.!?…]["'”’)\]]*(?=\s)/)?.[0] ?? said);
+  const stands = db.plainStands(whole, [tale.title]);
   if (!stands || /^none[.\s]*$/i.test(stands) || stands === db.plainStands(was, [tale.title])) return { chalked: 0 };
   const added = db.addProposal(storyId, { kind: 'memory', entry_id: id, chapterId: ch.id, title: tale.title,
     body: stands, entryType: 'state', delta: 'where the tale stands', keys: [String(ch.index + 1)],

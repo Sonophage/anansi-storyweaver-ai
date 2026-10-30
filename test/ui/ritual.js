@@ -162,8 +162,13 @@ const body = (await page.text('#sideBody') || '');
     // The card may not be the top one on the deck, and only the top one shows, so the press is
     // made on the button itself.
     await page.goto(B + "/#" + sid + "/waiting");
-    for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('[data-hemsetup]')")); i++) await wait(250);
-    await page.eval("(() => { document.querySelector('[data-hemsetup]')?.click(); return 1; })()");
+    for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('[data-hemopen]')")); i++) await wait(250);
+    await page.eval("(() => { document.querySelector('[data-hemopen]')?.click(); return 1; })()");
+    // Reopen the hem (2026-10-30) opens the hem screen; its Set up the next scene leads on.
+    await wait(600);
+    await page.eval("(() => { document.querySelector('#sideBody [data-panel=\\"setup\\"]')?.click(); return 1; })()");
+    await wait(600);
+    if (!(await page.visible('[data-setup="title"]'))) await page.click('[data-setupstep="premise"]');
     for (let i = 0; i < 20 && !(await page.visible('[data-setup="title"]')); i++) await wait(250);
     filled = await boxes();
     ok(`Set up the next scene shows it named (${JSON.stringify((filled?.title ?? '').slice(0, 30))})`,
