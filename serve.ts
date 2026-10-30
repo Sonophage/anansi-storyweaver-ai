@@ -580,8 +580,8 @@ const handler = async (req: any, res: any) => {
   if (PRIMARY && FAR && FAR !== 'off') {
     let farSaid = false;
     const far = () => { try {
-      const b = db.backup(FAR, 14);
-      if (!farSaid) { console.log(`  off-disk      ${FAR}, ${(b.bytes / 1024 / 1024).toFixed(1)} MB, keeping 14`); farSaid = true; }
+      const b = db.backup(FAR, db.KEEP_FAR);
+      if (!farSaid) { console.log(`  off-disk      ${FAR}, ${(b.bytes / 1024 / 1024).toFixed(1)} MB, keeping ${db.KEEP_FAR}`); farSaid = true; }
     } catch (e: any) {
       if (!farSaid) { console.error(`  off-disk backup FAILED at ${FAR}: ${e?.message} — set ANANSI_BACKUP_DIR, or 'off' to stop asking`); farSaid = true; }
     } };

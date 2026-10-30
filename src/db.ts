@@ -3597,7 +3597,10 @@ export function snapshot(path: string) {
  *  a handoff as the way back — was pruned this way before anyone read the error.
  *
  *  So: prefix, not extension. A file this function did not write is not its business. */
-export function backup(dir = join(dirname(FILE), 'backups'), keep = 12) {
+/** How many of its own backups each rotation keeps: beside the library, and off-disk (serve.ts).
+ *  Exported so `status.ts` reports the numbers the code uses instead of copies of them. */
+export const KEEP_NEAR = 12, KEEP_FAR = 14;
+export function backup(dir = join(dirname(FILE), 'backups'), keep = KEEP_NEAR) {
   mkdirSync(dir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const out = join(dir, `anansi-${stamp}.db`);

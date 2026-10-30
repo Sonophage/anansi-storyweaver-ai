@@ -93,8 +93,14 @@ if (lib && code) {
   /* THE SEARCH INDEX, and it is asked the way that actually works. COUNT(*) on an external-content
    * FTS5 table reads the CONTENT table, so it answers "full" on a completely empty index -- which is
    * exactly how the first cut of the search feature shipped returning nothing for every query. The
-   * b-tree shadow is empty until the index is built; that is the honest question. */
-  for (const [fts, src] of [['fts_passages', 'passages'], ['fts_entries', 'entries'], ['fts_chapters', 'chapters']]) {
+   * b-tree shadow is empty until the index is built; that is the honest question.
+   *
+   * WHICH INDEXES is asked of the code's own schema in memory, not typed here: the list was three
+   * names written by hand, so a fourth index would have been absent from this report and nobody
+   * told. From the code and not the file, so an index the file has lost still reads "no such index". */
+  const indexes = all(code.db, "SELECT name, sql FROM sqlite_master WHERE type='table' AND sql LIKE 'CREATE VIRTUAL TABLE%fts5%'")
+    .map((t) => [t.name, String(t.sql).match(/content='([^']+)'/)?.[1] ?? t.name] as const);
+  for (const [fts, src] of indexes) {
     const idx = count(`select count(*) n from ${fts}_idx;`);
     const rows = count(`select count(*) n from ${src};`);
     row(`search index ${src}`, idx === '' ? 'no such index' : Number(idx) > 0 ? `built (${rows} rows indexed)` : `EMPTY — search returns nothing for ${rows} rows`);
@@ -130,8 +136,11 @@ if (pid && pid !== '0' && existsSync(`/proc/${pid}/environ`)) {
 
 // ---- backups, which are only real if they are recent ----
 console.log('');
-for (const [label, dir, keep] of [['near backups', root + 'backups', 12],
-                                  ['off-disk backups', process.env.ANANSI_BACKUP_DIR ?? '/data/anansi/backups', 14],
+// The keep counts are the ones `backup()` is called with, read from db.ts rather than copied: these
+// were the literals 12 and 14, which would have gone on saying so after the rotation changed. When
+// db.ts could not be loaded there is no number to give, and none is printed.
+for (const [label, dir, keep] of [['near backups', root + 'backups', code?.KEEP_NEAR ?? 0],
+                                  ['off-disk backups', process.env.ANANSI_BACKUP_DIR ?? '/data/anansi/backups', code?.KEEP_FAR ?? 0],
                                   ['book exports', process.env.ANANSI_EXPORT_DIR ?? '/data/anansi/books', 0]] as const) {
   if (!existsSync(dir)) { row(label, `${dir} — does not exist`); continue; }
   const fs = readdirSync(dir).filter((f) => f.endsWith('.db'));
