@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### Where the tale stands reads the scene's summary
+When a hem works out where the tale stands, Anansi now reads the scene's summary, which the hem has
+just written, instead of the whole scene again. On a long scene that is the difference between a
+few seconds and several minutes.
+
 ### One card per thread
 What a hem finds is now one card for each thread, instead of one long card with a Sew it in, a
 Reject and an Edit on every change. Swipe a thread's card right to sew in all of it, left to reject

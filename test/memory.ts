@@ -1961,11 +1961,13 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   await hemSettled(t.id);
   // This tale's ask: another tale's hem may still be running on the same fake.
   const taleAsk = (said: string) => asks.findLast((a) => a.system.startsWith(prompts.TALE_STANDS.slice(0, 80)) && a.user.includes(said));
-  const ask = taleAsk('burned the last of the oil');
+  const ask = taleAsk(PREMISE);
   assert.ok(ask, 'TALE-ASKED: the hem asks where the tale stands');
   assert.ok(ask.user.includes(PREMISE), '  from where it stood before: the premise, for the first hem');
   assert.ok(ask.user.includes('A rock in the North Sea'), "  with what the tale is: its thread's Always true, the setting");
-  assert.ok(ask.user.includes('burned the last of the oil') && !ask.user.includes(SPOKEN), '  reading the narration and not the dialogue');
+  // FROM THE SCENE'S SUMMARY, which the hem writes first (Seth, 2026-10-30: it "still takes ages").
+  assert.ok(ask.user.includes('THE SCENE, IN SUMMARY') && !ask.user.includes('burned the last of the oil'),
+    'TALE-FROM-SUMMARY: reading the summary the hem just wrote, not the whole scene');
   const tale = db.taleThreadOf(t.id);
   assert.ok(tale, "TALE-THREAD: the first hem makes the tale's thread");
   const p = (db.proposalsOf(t.id) as any[]).find((x) => x.entry_id === tale.id);
@@ -1994,7 +1996,7 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   taleSays = LATER;
   await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
   await hemSettled(t.id);
-  assert.ok(taleAsk('rowed the dinghy')?.user.includes(NOW), 'TALE-NEXT-ASK: the next hem starts from the entry in force');
+  assert.ok(taleAsk(`WHERE IT STOOD BEFORE THIS SCENE: ${NOW}`), 'TALE-NEXT-ASK: the next hem starts from the entry in force');
   sew((db.proposalsOf(t.id) as any[]).find((x) => x.entry_id === tale.id).id);
   assert.deepStrictEqual((db.statesForStory(t.id).get(tale.id) ?? []).map((x: any) => x.body), [NOW, LATER],
     'TALE-HISTORY: every entry sewn in is kept, in order');
@@ -2010,10 +2012,13 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   const ch3 = db.chapters(t.id).at(-1) as any;
   db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch3.id, body: 'Mara reached the harbour at dusk.' });
   taleSays = 'Mara is ashore at last. The lamp on the rock is dark and nobody is keeping it, and the mainland har';
-  await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
+  // With no summary to read (the summary pass off), the narration, without its dialogue.
+  await routes['POST /api/chapter/end'](ctx({ storyId: t.id, summarise: false }));
   await hemSettled(t.id);
   const cut = (db.proposalsOf(t.id) as any[]).filter((x) => x.entry_id === tale.id && x.status === 'open').at(-1);
   assert.strictEqual(cut?.body, 'Mara is ashore at last.', 'TALE-WHOLE: a paragraph stopped by the bound keeps its last whole sentence');
+  assert.ok(taleAsk('reached the harbour at dusk')?.user.includes('THE SCENE:\nMara reached the harbour'),
+    'TALE-NO-SUMMARY: with no summary, it reads the narration');
   taleSays = '';
   ok('where the tale stands is one bounded paragraph, ending on a whole sentence');
 }

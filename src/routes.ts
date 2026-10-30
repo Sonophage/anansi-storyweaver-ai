@@ -1564,12 +1564,17 @@ async function taleStands(c: Ctx, storyId: string, chapterId: string, scene?: st
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
   if (!ps.length) return { chalked: 0 };
-  const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
+  // FROM THE SCENE'S SUMMARY when it has a current one (Seth, 2026-10-30: it "still takes ages"). The
+  // hem writes the summary first, so it is there; the whole scene was the slow half of this call
+  // (Starlight Deception's scene 3 is about 16,500 tokens of prose, against a 200-word summary).
+  // The narration only when there is no summary to read. NOT MEASURED against the narration.
+  const sum = summaryReaches(ch) ? String(ch.summary ?? '').trim() : '';
+  const text = sum || narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
   const was = resolveBody(tale, ch.index).trim();
   const r = await structuredRetry(TALE_STANDS, [
     `WHAT THE STORY IS: ${alwaysTrue(tale) || '(not written)'}`,
     `WHERE IT STOOD BEFORE THIS SCENE: ${was || '(nothing yet)'}`,
-    `THE SCENE:\n${text}`].join('\n\n'), TALE_STANDS_SCHEMA,
+    sum ? `THE SCENE, IN SUMMARY:\n${text}` : `THE SCENE:\n${text}`].join('\n\n'), TALE_STANDS_SCHEMA,
     { model: backgroundModel(c, v), max_tokens: TALE_TOKENS });
   if (!r.data) return { error: r.error ?? 'nothing usable came back' };
   // Plain, as it will be stored; not "none", and not the text already in force. Back to its last whole

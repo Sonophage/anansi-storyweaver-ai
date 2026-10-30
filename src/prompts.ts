@@ -280,7 +280,8 @@ export const MEMORY_SCHEMA = {
  *  NOT MEASURED: none of this wording has been run against the real model, and the swap it feeds is
  *  owed an A/B against the premise-only prompt before anyone calls it better (ADR 0010). */
 export const TALE_STANDS =
-`Below is what a story is, where it stood before its latest scene, and that scene's narration.
+`Below is what a story is, where it stood before its latest scene, and that scene: its summary, or
+its narration.
 
 Write where the story stands now, after this scene: ONE paragraph, a plain description in the
 present tense. The situation now and what is in play: who is where, what each of them wants now,
