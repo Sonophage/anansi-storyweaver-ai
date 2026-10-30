@@ -1911,6 +1911,30 @@ export function finishHem(storyId: string, chapterId: string, run: number,
     .run(run, now(), JSON.stringify({ ...before, ...r.passes }), kept ? 1 : 0, suggestion, run, chapterId, storyId);
 }
 
+/** THE HEM'S NEXT SCENE GOES INTO THE SCENE (Seth, 2026-10-30: "how it starts ... is not passed to the
+ *  scene"). The writing prompt reads a scene's own title, opening and heading; a suggestion kept only on
+ *  the hem reached the model when the writer saved the setup, and not otherwise. Each box is written
+ *  when it is empty or still holds what Anansi wrote last time (`was`, the hem's previous suggestion),
+ *  so a new direction replaces Anansi's words and never the writer's. A title that is the scene's
+ *  placeholder (`Scene N`, as `endChapter` writes it) counts as empty. */
+export function offerScene(storyId: string, chapterId: string,
+    was: { title?: string; note?: string; opens?: string } | null, s: { title: string; note: string; opens: string }) {
+  const cur = q('SELECT idx, title, authors_note, opens_with FROM chapters WHERE id = ? AND story_id = ?')
+    .get(chapterId, storyId) as any;
+  // A SCENE ALREADY BEING WRITTEN IS LEFT ALONE: a hem again on an older scene must not set where
+  // the writer's current scene heads behind their back. The suggestion stays on the hem's card.
+  if (!cur || passagesOfChapter(chapterId).some((p: any) => !p.is_break && String(p.body ?? '').trim())) return;
+  const free = (now: unknown, last: unknown, placeholder = '') => {
+    const v = String(now ?? '').trim();
+    return !v || v === placeholder || (!!last && v === String(last).trim());
+  };
+  const patch: Record<string, string> = {};
+  if (s.title?.trim() && free(cur.title, was?.title, `Scene ${cur.idx}`)) patch.title = s.title.trim();
+  if (s.note?.trim() && free(cur.authors_note, was?.note)) patch.authorsNote = s.note.trim();
+  if (s.opens?.trim() && free(cur.opens_with, was?.opens)) patch.opensWith = s.opens.trim();
+  if (Object.keys(patch).length) updateChapter(storyId, chapterId, patch);
+}
+
 /** #91. HEM AGAIN drops what the last hem left chalked in the scene's group, and only that: a row
  *  sewn in or rejected is the writer's decision and stays. */
 export const dropChalked = (storyId: string, grp: string) =>

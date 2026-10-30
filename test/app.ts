@@ -6007,20 +6007,20 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // to two different places.
   side = await reportOn({ ...ran, facts: 'the model did not answer' });
   assert.match(side, /One pass did not run/, 'a failed pass is reported, and counted');
-  assert.match(side, /the threads pass/, 'named as the writer knows it (#77: not facts, which is Always true)');
+  assert.match(side, /New threads/, 'named as the writer knows it (#77: not facts, which is Always true)');
   assert.match(side, /the model did not answer/, 'with the reason, verbatim');
   // NOT AS A LOST SCENE. The prose is committed before any pass runs, and a writer who reads this
   // box has to know that before they go looking for their words.
   assert.match(side, /Nothing was lost/, 'and says the scene itself closed');
   // The ones that ran are not listed. A report that names every pass every time is a report nobody
   // reads to the end.
-  assert.doesNotMatch(side, /the character memory/, 'and a pass that ran is not in the list');
+  assert.doesNotMatch(side.match(/did not run[\s\S]*?Nothing was lost/)?.[0] ?? '', /Changes to the people in it/, 'and a pass that ran is not in the list');
   assert.match(side, /data-hemagain="c-2" data-pass="facts"/, '  and that pass alone can be tried again');
 
   side = await reportOn({ summary: 'llama-server is not running', facts: 'llama-server is not running' });
   assert.match(side, /2 passes did not run/, 'two failures are counted as two');
-  assert.match(side, /the summary/, 'both are named');
-  assert.match(side, /the threads pass/, 'both are named');
+  assert.match(side, /Summary<\/span> &mdash;/, 'both are named');
+  assert.match(side, /New threads<\/span> &mdash;/, 'both are named');
 
   // #46. A HEM THAT KEPT YOURS SAYS SO, and not as a pass that did not run. The hem reports it as
   // `keptSummary`; the summary line reads the author off the chapter, so a summary Anansi has since
@@ -6066,6 +6066,19 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     side = await reportOn({ ...ran, tale: null, facts: 'the model did not answer' });
     assert.deepStrictEqual(steps(side), order.map((k) => `${k}:${k === 'facts' ? 0 : 1}`),
       'HEM-STEPS: after a hem, the passes that ran are done and the one that did not is not');
+    // A FAILED PASS SAYS SO ON ITS OWN STEP (walkthrough, 2026-10-30): it read "No new threads came out
+    // of this scene" when the pass never ran. In plain words, with its one Try again beside it.
+    const step = (k: string) => side.match(new RegExp(`data-hemstep="${k}"[\\s\\S]*?</li>`))?.[0] ?? '';
+    assert.match(step('facts'), /Did not run/, 'HEM-FAILED-STEP: the step that failed says it did not run');
+    assert.doesNotMatch(step('facts'), /No new threads/, '  and not that it found nothing');
+    assert.match(step('facts'), /data-hemagain="c-2" data-pass="facts"/, '  and Try again is on that step');
+    assert.doesNotMatch(side, /Run a pass again/, 'HEM-ONE-RERUN: no second block of re-run presses');
+    assert.match(side, /data-hemagain="c-2"(?! data-pass)[^>]*>Hem it again/, '  but the whole hem can be run again');
+    side = await reportOn({ ...ran, tale: null, memory: 'model returned unparseable JSON' });
+    assert.doesNotMatch(side, /unparseable JSON/, 'HEM-PLAIN: the raw error is not shown');
+    assert.match(step('memory'), /Anansi&#39;s answer came back broken|Anansi's answer came back broken/, '  but what it means');
+    // Names are one per pass, the same in the failure box and the steps.
+    assert.match(side, /Changes to the people in it<\/span> &mdash;/, 'HEM-NAMES: the failure box names the pass as the steps do');
     STORY.chapters = wasChapters; STORY.currentChapter = wasCurrent;
     click({ open: 's-1' }); await sleep(40);
   }
@@ -7070,7 +7083,7 @@ const hemCardOf = (side: string) => {
   assert.match(card.slice(card.indexOf('data-hemthread="e-tale"'), card.indexOf('data-hemthread="e-1"')),
     /The tale[\s\S]*Where it stands[\s\S]*data-deckdiff="ht-1"[\s\S]*The debt[\s\S]*data-decide="accept" data-id="ht-2"/,
     '  where the tale stands, then the string by its name');
-  assert.match(card, /where the tale stands<\/span> did not run/, 'TALE-PASS: and names the pass when it did not run');
+  assert.match(card, /Where the tale stands<\/span> did not run/, 'TALE-PASS: and names the pass when it did not run');
 
   // THE TALE'S SETTINGS: the premise is how the tale began; where it stands now shows once one is sewn in.
   const book = () => html('sideBody').match(/data-group="book"[\s\S]*?data-group="world"/)?.[0] ?? '';
@@ -7112,9 +7125,9 @@ const hemCardOf = (side: string) => {
 
   // A PASS THAT DID NOT RUN, named with its reason, and Try again for that pass alone.
   card = await show({ ...HEM_DONE, passes: { ...HEM_DONE.passes, memory: 'the model did not answer' } }, HEM_ROWS);
-  assert.match(card, /the character memory<\/span> did not run &mdash; the model did not answer/,
+  assert.match(card, /Changes to the people in it<\/span> did not run &mdash; the model did not answer/,
     'a pass that did not run is named on the card, with the reason');
-  assert.doesNotMatch(card, /the threads pass/, '  and a pass that ran is not');
+  assert.doesNotMatch(card, /New threads<\/span> did not run/, '  and a pass that ran is not');
   let before = asked().length;
   click({ hemagain: 'c-1', pass: 'memory' }); await settle();
   assert.strictEqual(asked().length, before + 1, 'Try again asks once');
@@ -7159,7 +7172,7 @@ const hemCardOf = (side: string) => {
   // WHICH PASS, FOR HOW LONG, and the new threads held past six (2026-10-27).
   card = await show({ ...HEM_DONE, state: 'running', finishedAt: null, overflow: [],
     current: { pass: 'memory', since: Date.now() - 3 * 60000 - 5000 } }, []);
-  assert.match(card, /data-hemnow="c-1">Writing the character memory&hellip; 3 min</, 'HEM-NOW: a running hem says which pass and for how long');
+  assert.match(card, /data-hemnow="c-1">Working on Changes to the people in it&hellip; 3 min</, 'HEM-NOW: a running hem says which pass and for how long');
   card = await show({ ...HEM_DONE, overflow: [], extra: ['Keeper 7', 'Keeper 8'] }, HEM_ROWS);
   assert.match(card, /Keeper 7, Keeper 8[\s\S]*data-hemextra="c-1">Chalk these too</, 'HEM-HELD: new threads past six are named, with Chalk these too');
   STORY.currentChapter = wasCurrent;
@@ -7443,6 +7456,7 @@ const hemCardOf = (side: string) => {
       VIEW = after(running, []);
       return reply({ closed: 'c-2', opened: 'c-hem3', ...VIEW });
     }
+    if (url === '/api/chapter/hem') { POSTED.push({ url, body: JSON.parse(init.body) }); return reply(VIEW); }
     return canned(url, init);
   };
   // The watches the blocks above left waiting, run against a tale with nothing hemming: each
@@ -7454,12 +7468,26 @@ const hemCardOf = (side: string) => {
     assert.strictEqual(timers.length, 0, 'nothing is read again while no hem is running');
     const proposes = POSTED.filter((p: any) => p.url === '/api/chapter/propose').length;
     click({ endchapter: '1' }); await settle(); await settle();
-    assert.ok(POSTED.some((p: any) => p.url === '/api/chapter/end'), 'Hem this scene closes the scene');
-    assert.doesNotMatch(html('sideBody'), /data-setupstep=/, '  and lands in the new scene, not on its setup');
-    // NO DRAWER OPENS (Seth, 2026-10-27: "When the scene is hemmed it opens the context window").
-    assert.ok(nodes.get('side').hidden, 'HEM-NO-DRAWER: and no drawer opens over the new scene');
-    assert.match(String(nodes.get('toast').textContent), /Workbench/,
-      '  and a short line says the card will wait on the Workbench');
+    const end = POSTED.find((p: any) => p.url === '/api/chapter/end');
+    assert.ok(end, 'Hem this scene closes the scene');
+    // THE HEM ASKS FOR THE NEXT SCENE (Seth, 2026-10-30): the close does not guess it first, and the
+    // drawer stays open on the hem, asking how the next scene should start while the passes run.
+    assert.strictEqual(end.body.next, false, 'HEM-ASKS: the close leaves the next scene to be asked for');
+    assert.ok(!nodes.get('side').hidden, 'HEM-STAYS: the hem drawer stays open while it runs');
+    let side = html('sideBody');
+    assert.match(side, /data-hemsteer="c-2"/, 'HEM-ASK-BOX: it asks how the next scene should start');
+    assert.match(side, /class="btn fill[^"]*" data-hemnext="c-2"/, '  with one gold press to ask Anansi for it');
+    assert.strictEqual((side.match(/class="btn (?!ghost)[^"]*"/g) ?? []).length, 1, '  and no other gold on the drawer');
+    assert.match(side, /data-hemstep="summary"[\s\S]*data-hemstep="next"/, '  above the steps, which keep running');
+    assert.match(side, /data-hemstep="next"[^>]*>[\s\S]*?Waiting for how you want it to start/, '  and the next-scene step waits on the writer');
+    (listeners.input ?? []).forEach((f: Function) => f({ target: { dataset: { hemsteer: 'c-2' }, value: 'She opens the letter at dawn.' } }));
+    click({ hemnext: 'c-2' }); await settle();
+    const asked = POSTED.filter((p: any) => p.url === '/api/chapter/hem').at(-1);
+    assert.deepStrictEqual(asked?.body, { storyId: 's-1', chapterId: 'c-2', pass: 'next', steer: 'She opens the letter at dawn.' },
+      'HEM-ASKED: the direction asks for the next scene, as that pass');
+    side = html('sideBody');
+    assert.doesNotMatch(side, /data-hemsteer=/, '  and the box gives way once asked');
+    assert.match(side, /data-hemstep="next"[^>]*>[\s\S]*?(Waiting|Running now)/, '  and the next-scene step says it is on its way');
     // Setup opens on what the scene left (its card, running), and the new scene is one step on.
     click({ panel: 'setup' }); await settle();
     assert.match(hemCardOf(html('sideBody')), /still hemming/, 'its setup opens on the running card');
@@ -7489,8 +7517,43 @@ const hemCardOf = (side: string) => {
     (globalThis as any).fetch = canned;
   }
   click({ open: 's-1' }); await settle();
-  ok('Hem this scene opens the next scene at once, blank, and the card arrives without a reload (#92)');
+  ok('Hem this scene asks how the next one starts while it runs, and the card arrives without a reload (#92)');
 }
+
+// ---- ASKED AGAIN WITH A DIRECTION, THE BOXES TAKE THE NEW ANSWER (Seth, 2026-10-30: "the how it
+// starts from hemming a scene doesn't update when I give anansi a new direction"). Typing the
+// direction copied the boxes into the draft, and the draft's words, Anansi's own from the last ask,
+// were then kept as if the writer had typed them. Only a box the writer typed in is kept.
+{
+  const doc = (globalThis as any).document;
+  const wasQS = doc.querySelector;
+  const boxes: Record<string, any> = {
+    title: { dataset: { setup: 'title' }, value: 'The Old Name' },
+    note: { dataset: { setup: 'note' }, value: 'Where Anansi said it went before, long enough to count.' },
+    opens: { dataset: { setup: 'opens' }, value: 'How Anansi said it opened before.' },
+    steer: { dataset: { setup: 'steer' }, value: '' } };
+  const typeIn = (k: string, v: string) => { boxes[k].value = v;
+    (listeners.input ?? []).forEach((f: Function) => f({ target: boxes[k] })); };
+  try {
+    click({ open: 's-1' }); await sleep(40);
+    click({ panel: 'setup' }); click({ setupstep: 'premise' }); await sleep(30);
+    doc.querySelector = (sel: string) => boxes[sel.match(/data-setup="(\w+)"/)?.[1] ?? ''] ?? wasQS(sel);
+    typeIn('steer', 'Make it rain.');
+    click({ name: 'c-2' }); await sleep(60);
+    doc.querySelector = wasQS;
+    let side = html('sideBody');
+    assert.match(side, /data-setup="title" value="The Rust Year"/, 'SETUP-AGAIN: a new direction replaces the name Anansi gave before');
+    assert.match(side, /By the end the debt has to be called in/, '  and where it heads');
+    assert.doesNotMatch(side, /How Anansi said it opened before/, '  and how it opens');
+    doc.querySelector = (sel: string) => boxes[sel.match(/data-setup="(\w+)"/)?.[1] ?? ''] ?? wasQS(sel);
+    typeIn('note', 'Where I want it to go, typed by me, long enough to count.');
+    click({ name: 'c-2' }); await sleep(60);
+    doc.querySelector = wasQS;
+    side = html('sideBody');
+    assert.match(side, /Where I want it to go, typed by me/, 'SETUP-KEEPS-TYPED: a box the writer typed in is kept');
+  } finally { doc.querySelector = wasQS; }
+}
+ok('asked again with a direction, the setup takes the new answer and keeps what the writer typed');
 
 // ---- #66. THE NAME PROPOSED FOR THE NEXT CHAPTER LANDS ON THE NEXT CHAPTER.
 //

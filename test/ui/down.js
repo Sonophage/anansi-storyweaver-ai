@@ -49,11 +49,10 @@ const before = await page.eval("(async () => (await (await fetch('/api/story?sto
 await page.eval("(() => { document.querySelector('#sideBody [data-endchapter]').click(); return 1; })()");
 await until(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).currentChapter.id !== ${JSON.stringify(before)})()`, 60);
 await wait(800);
-// #92. The route answers before the passes run, so the press says only that the scene is being
-// hemmed and where its card will be; what did not run is on the card and the report, once known.
-const toast = await page.eval("document.getElementById('toast')?.textContent ?? ''");
-ok(`the hem says the scene is being hemmed and its card will wait (${JSON.stringify(toast.slice(0, 90))})`,
-   /being hemmed/.test(toast) && /Workbench/.test(toast));
+// #92. The route answers before the passes run. Since 2026-10-30 the hem drawer stays open on the
+// scene that closed and asks how the next one should start, while the passes run behind it.
+ok("the hem drawer stays open and asks how the next scene should start",
+   await page.visible('#sideBody [data-hemsteer]'));
 await until(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).chapters.find((c) => c.id === ${JSON.stringify(before)})?.hem?.state === 'done')()`, 60);
 // The row at the top of the next scene's screen that names the scene just closed. It was a green
 // dot and "hemmed" beside a red report of what did not run.

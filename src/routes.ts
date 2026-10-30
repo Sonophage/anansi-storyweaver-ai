@@ -1724,7 +1724,7 @@ function queueHem(storyId: string, job: () => Promise<void>) {
 }
 
 async function hemPasses(c: Ctx, storyId: string, closing: string, opened: string | undefined, want: HemWant,
-    run: number, names?: string[]) {
+    run: number, names?: string[], steer?: string) {
   /** WHICH OF THE PASSES DID NOT RUN, and why. Issue #32: "Facts are not being written
    *  based on the last chapter anymore."
    *
@@ -1794,8 +1794,13 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // accepting one is the only decision in the app that changes what the model is told for the
   // rest of the book.
   await pass('finished', want.finished, () => retire(c, storyId, closing, scene));
-  // The next scene's suggestion, last: it reads the summary the first pass just wrote.
-  const next = await pass('next', want.next, () => suggestScene(c, storyId, opened));
+  // The next scene's suggestion, last: it reads the summary the first pass just wrote. With the
+  // writer's direction when the hem asked for one (2026-10-30), and INTO THE SCENE: the writing
+  // prompt reads the scene's own name, opening and heading, never the hem's suggestion, so a
+  // suggestion left only on the hem was never sent ("it's not passed to the scene").
+  const before = opened ? db.hemOf(storyId, closing)?.suggestion ?? null : null;
+  const next = await pass('next', want.next, () => suggestScene(c, storyId, opened, steer));
+  if (opened && next?.title) db.offerScene(storyId, opened, before, { title: next.title, note: next.note, opens: next.opens });
   // A pass that did not run this time leaves its line, the kept flag and the suggestion as stored (#91).
   db.finishHem(storyId, closing, run, { passes, kept: want.summary ? keptSummary : undefined,
     suggestion: !want.next ? undefined : next?.title ? { title: next.title, note: next.note, opens: next.opens } : null });
@@ -3594,7 +3599,9 @@ export const routes: Record<string, Handler> = {
     }
     const run = db.reopenHem(storyId, chapterId);
     if (run == null) return { error: 'This scene has not been hemmed yet.' };
-    queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want, run, names ?? undefined));
+    // The writer's direction for the next scene, when that is the pass asked for (2026-10-30).
+    const steer = pass === 'next' && String(c.body.steer ?? '').trim() ? String(c.body.steer).trim().slice(0, 1500) : undefined;
+    queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want, run, names ?? undefined, steer));
     return viewOf(c, storyId);
   },
   'POST /api/chapter/end': async (c) => {
@@ -3608,8 +3615,11 @@ export const routes: Record<string, Handler> = {
     const r = db.endChapter(v.id, v.branchId!, c.body.nextTitle);
     // #89. THE PASSES RUN AFTER THE ANSWER: the writer starts the next scene while they work, and
     // the view shows the hem running, then done.
+    // THE NEXT SCENE IS ASKED FOR, NOT GUESSED FIRST (Seth, 2026-10-30): the hem drawer sends
+    // `next: false` and asks the writer how the next scene should start while the other passes run;
+    // their answer asks for it through `/api/chapter/hem` with `pass: 'next'` and `steer`.
     const want: HemWant = { summary: c.body.summarise !== false, tale: true, memory: c.body.remember !== false,
-      facts: c.body.extract !== false, finished: c.body.retire !== false, next: true };
+      facts: c.body.extract !== false, finished: c.body.retire !== false, next: c.body.next !== false };
     const run = db.beginHem(v.id, closing);
     queueHem(v.id, () => hemPasses(c, v.id, closing, r.opened, want, run));
     return { ...r, ...viewOf(c, v.id) };

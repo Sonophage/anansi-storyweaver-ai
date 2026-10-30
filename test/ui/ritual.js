@@ -52,13 +52,18 @@ for (let i = 0; i < 40; i++) {
   await wait(250);
 }
 await wait(600);
-ok("closing a scene lands in the new scene at once, not on its setup",
-   !(await page.visible('[data-setupstep]')) && !(await page.visible('[data-savesetup="1"]')));
+// SINCE 2026-10-30 THE HEM ASKS how the next scene should start, and the drawer stays open on it
+// while the other passes run; the answer asks for the next scene as the hem's last pass.
+ok("closing a scene keeps the hem drawer open and asks how the next scene starts",
+   await page.visible('#sideBody [data-hemsteer]') && !(await page.visible('[data-savesetup="1"]')));
+await page.eval("(() => { const t = document.querySelector('#sideBody [data-hemsteer]'); t.value = 'She opens the letter at dawn.';"
+  + " t.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()");
+await page.click('#sideBody [data-hemnext]');
 console.log("  hem running (summary, thread changes, threads, retirements, next scene)…");
 let hem = null;
-for (let i = 0; i < 180; i++) {
+for (let i = 0; i < 240; i++) {
   hem = (await story()).chapters.find((c) => c.id === closing.id)?.hem;
-  if (hem?.state === 'done') break;
+  if (hem?.state === 'done' && 'next' in (hem.passes ?? {})) break;
   await wait(1000);
 }
 ok(`  and the hem finishes in the background (${hem?.state ?? 'no hem'})`, hem?.state === 'done');
@@ -119,11 +124,9 @@ if (owed) {
   ok("  and a chapter that proposed nothing offers no queue to decide",
      !(await page.visible('[data-panel="waiting"]')));
 }
-// The way back when the router was asleep at the close: one Try again for each of the five passes.
-// #92: a scene hemmed in the background runs each pass again through its hem.
-ok("  and every pass can be run again from the report", await page.visible('[data-hemagain][data-pass="summary"]')
-   && await page.visible('[data-hemagain][data-pass="memory"]') && await page.visible('[data-hemagain][data-pass="facts"]')
-   && await page.visible('[data-hemagain][data-pass="finished"]') && await page.visible('[data-hemagain][data-pass="next"]'));
+// The way back when the router was asleep at the close: a failed pass has Try again on its own step,
+// and the whole hem can be run again (walkthrough, 2026-10-30: one re-run control, not three).
+ok("  and the whole hem can be run again from the report", await page.visible('#sideBody [data-hemagain]:not([data-pass])'));
 
 await page.goto(B + "/#" + sid + "/setup");
 // A RELOAD LANDS ON WHAT THE SCENE LEFT while any of it is undecided — the panel's own rule, keyed

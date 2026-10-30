@@ -16,6 +16,30 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-30 · Hemming asks how the next scene starts
+
+### Hemming asks you how the next scene should start
+Press Hem this scene and the hem screen stays open. At the top it asks how the next scene should
+start. While you write your answer, Anansi gets on with the rest: the summary, where the tale stands,
+the changes to the people in it, new threads and the threads it is done with. When you press Ask
+Anansi for the next scene, he names it and writes how it opens and where it heads from what you
+said. Leave the box empty and he chooses. You can watch each step tick off as it finishes.
+
+### The next scene gets what Anansi wrote for it
+The name, Opens with and Heads toward that Anansi writes for the next scene now go into that scene
+straight away, so they reach him when he writes its first passage. If you have already typed in one
+of those boxes, he leaves it alone. Once you have started writing the scene, he does not change it.
+
+### Asking again with a new direction changes the boxes
+On the next scene's setup, asking Anansi again with a new direction now replaces what he wrote
+before, including how it opens. Only what you typed yourself is kept.
+
+### Clearer hem steps
+A step that failed now says "Did not run" and why, in plain words, with its own Try again. Try again
+says "Trying…" while it runs. Each step has one name everywhere, and "Hem it again" replaces the
+separate block of re-run buttons. An answer from the model that came back broken now says so in
+plain words.
+
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
 ### Small grey words are easier to read

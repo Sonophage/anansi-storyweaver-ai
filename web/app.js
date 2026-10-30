@@ -618,7 +618,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // and Use this.
   'pocketnew', 'pockettab', 'pocketkind', 'pocketx', 'pocketsave', 'pocketdel', 'pocketask', 'pocketuse',
   // Merge two threads: open it, pick the other, pick which stays, Cancel, Merge.
-  'mergestart', 'mergewith', 'mergekeep', 'mergex', 'mergego'].map((k) => `[data-${k}]`).join(',');
+  'mergestart', 'mergewith', 'mergekeep', 'mergex', 'mergego',
+  // The hem's ask for the next scene (2026-10-30).
+  'hemnext'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -655,7 +657,15 @@ function announce(msg) {
   setTimeout(() => { el.textContent = msg; }, 60);
 }
 
+/** WHAT A RAW ERROR MEANS, in the writer's words (walkthrough, 2026-10-30: "model returned unparseable
+ *  JSON" was shown on cards and in toasts). The server's words stay for anything not listed here. */
+const RAW_WHY = [[/unparseable JSON|nothing usable came back|returned nothing usable/i, "Anansi's answer came back broken"],
+  [/fetch failed|ECONNREFUSED|cannot reach llama-server|did not answer/i, 'the model did not answer']];
+const plainWhy = (why) => RAW_WHY.find(([re]) => re.test(String(why ?? '')))?.[1] ?? String(why ?? '');
+/** One floor for every toast: a raw error reads as what it means, and that nothing changed. */
 function toast(msg) {
+  const plain = plainWhy(msg);
+  if (plain !== String(msg)) msg = `${plain[0].toUpperCase()}${plain.slice(1)}. Nothing changed. Try again.`;
   const t = $('toast'); t.textContent = msg; t.hidden = false;
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 4200);
 }
@@ -1977,10 +1987,14 @@ async function nameChapter(chapterId, auto = false) {
   const box = (k) => (here ? document.querySelector(`[data-setup="${k}"]`)?.value
                            : draftFor(chapterId)?.[k]) ?? '';
   const live = { title: box('title'), note: box('note'), opens: box('opens') };
-  const typed = !numbered(live.title, ch?.index) ? live.title.trim() : '';
-  // The opening rides back with the other two, and is kept the same way: typed wins over offered.
-  S.setup = { chapterId, title: typed || r.title, note: live.note.trim() || r.note,
-              opens: live.opens.trim() || (r.opens ?? '') };
+  // ONLY WHAT THE WRITER TYPED IS KEPT (Seth, 2026-10-30: "how it starts ... doesn't update when I
+  // give anansi a new direction"). A box was kept whenever it held anything, and after a hem it holds
+  // Anansi's own last answer, so a new direction changed nothing. Typed in this session, and not the
+  // placeholder name, wins; everything else takes the new answer.
+  const mine = S.setupTyped?.chapterId === chapterId ? S.setupTyped.keys : new Set();
+  const kept = (k) => mine.has(k) && live[k].trim() && !(k === 'title' && numbered(live.title, ch?.index));
+  S.setup = { chapterId, title: kept('title') ? live.title.trim() : r.title, note: kept('note') ? live.note.trim() : r.note,
+              opens: kept('opens') ? live.opens.trim() : (r.opens ?? '') };
   drawSide();
   // Do not claim he filled a box he left empty. The beat is the half that matters — it rides
   // near the generation point on every call of this chapter — so a silent blank is the one thing
@@ -3198,7 +3212,7 @@ function hemCardParts(c) {
     const cur = h.current, label = cur && PASSES.find(([k]) => k === cur.pass)?.[1];
     const mins = cur?.since ? Math.max(0, Math.floor((Date.now() - cur.since) / 60000)) : 0;
     state.push(`<div class="note">Anansi is still hemming this scene. What it finds lands on this card.</div>${
-      label ? `<div class="hint flush" data-hemnow="${id}">Writing ${esc(label)}&hellip; ${
+      label ? `<div class="hint flush" data-hemnow="${id}">Working on ${esc(label)}&hellip; ${
         mins < 1 ? 'under a minute' : `${mins} min`}</div>` : ''}`);
   }
   if (!running && h.outOfDate) state.push(`<div class="note warned">Out of date: the scene changed after it
@@ -3613,6 +3627,81 @@ const isStringRow = (p) => !!p.field && (V.slots?.tale ?? []).some((sl) => sl.na
  *  can close with the model down, and "0 proposed" and "the router was asleep" are not the same
  *  sentence. The re-run buttons live here because this is the screen that says which one to press.
  */
+/** THE HEM ASKS HOW THE NEXT SCENE STARTS (Seth, 2026-10-30: "we start hemming and it asks how the
+ *  next scene should start. While that's filled out the ai does the rest ... So it wouldn't run that
+ *  check first"). The close sends `next: false`, so the next scene is the one pass left waiting, and
+ *  this box asks for it while the others run. What the writer writes is a direction to Anansi, never
+ *  a field of the scene: he names the scene, says how it opens and where it heads from it, and the
+ *  server writes those into the scene. Empty, he chooses on his own.
+ *
+ *  Only on the latest hem, while the scene it opened is the one being written (`hemNext`), and only
+ *  until it is asked: S.hemAsked holds the scenes asked for this session.
+ *  ponytail: "asked" lives in the tab, not on the hem's row. Ceiling: a reload while the ask waits in
+ *  the queue shows the box again, and asking twice runs the pass twice. Trigger: a writer seeing two
+ *  suggestions; then store the asked-for pass on the row (the same fix stopUnfinishedHems names). */
+const hemAsking = (ch) => !!ch?.hem && !('next' in (ch.hem.passes ?? {})) && !!hemNext(ch)
+  && !S.hemAsked?.has(ch.id);
+function hemAsk(ch) {
+  if (!hemAsking(ch)) return '';
+  return `<div class="card hemask push-8">
+    <label class="lbl flush" for="hemsteer-${esc(ch.id)}">How should the next scene start?</label>
+    <textarea class="field grow" id="hemsteer-${esc(ch.id)}" data-hemsteer="${esc(ch.id)}"
+      placeholder="Where it opens, who is there, where it is going">${esc(S.hemSteer ?? '')}</textarea>
+    <div class="hint flush">Anansi names it, writes how it opens and where it heads from this, while he
+      finishes hemming this one. Leave it empty and he chooses.</div>
+    <button class="btn fill push-8" data-hemnext="${esc(ch.id)}">Ask Anansi for the next scene</button>
+  </div>`;
+}
+/** THE PASSES AS ONE LIST OF STEPS (UX review, 2026-10-29), in the order the hem runs them (PASSES),
+ *  each marked done or not yet with the same marker: done is a pass that ran (its report line is
+ *  null), or any pass of a scene hemmed before #89, which kept no report. A pass that failed says
+ *  "Did not run" on its own step, with why and its one Try again (walkthrough, 2026-10-30: a failed
+ *  pass read "No new threads came out of this scene"). Its own function so the hem watch can redraw
+ *  the steps alone while the writer types in the box above them. */
+function hemSteps(ch, closed) {
+  const ps = (V.proposals ?? []).filter((p) => p.chapterId === ch.id);
+  const of = (t) => ps.filter((p) => p.entryType === t);
+  const facts = ps.filter((p) => !['state', 'string', 'retire'].includes(p.entryType));
+  const summary = ch.summary, words = summary ? summary.trim().split(/\s+/).length : 0;
+  const report = ch.hem?.passes ?? {};
+  const ran = (k) => closed && (ch.hem ? report[k] === null : true);
+  const failed = (k) => closed && !!ch.hem && typeof report[k] === 'string' && !!report[k];
+  const found = {
+    summary: summary ? `${ch.hem?.keptSummary && ch.summaryAuthor === 'human' ? 'Kept your summary,'
+      : ch.summaryAuthor === 'human' ? 'Your summary,' : 'Summarised in'} ${plural(words, 'word', 'words')}`
+      : 'Not summarised',
+    tale: '',
+    memory: of('state').length ? `${plural(of('state').length, 'change', 'changes')} chalked` : 'Nothing changed anybody',
+    facts: facts.length ? `${plural(facts.length, 'thread', 'threads')} chalked` : 'No new threads came out of this scene',
+    finished: of('retire').length ? `${plural(of('retire').length, 'thread', 'threads')} chalked to be retired`
+      : 'No thread was chalked to be retired',
+    next: ch.hem?.suggestion?.title ? `Suggested: ${ch.hem.suggestion.title}` : '',
+  };
+  const running = ch.hem?.state === 'running';
+  return `<ol class="hemsteps">${PASSES.map(([k, name]) => {
+    const done = ran(k), bad = failed(k);
+    const trying = running && S.hemTrying === `${ch.id}:${k}`;
+    const now = !done && running && ch.hem?.current?.pass === k ? 'Running now' : '';
+    // A summary written by hand before any hem is shown as one, on a step not run yet.
+    const line = now || (bad ? `Did not run: ${plainWhy(report[k])}` : done || (k === 'summary' && summary) ? found[k]
+      : k === 'next' && closed && hemAsking(ch) ? 'Waiting for how you want it to start'
+      : k === 'next' && closed && S.hemAsked?.has(ch.id) ? 'Waiting for the passes above' : closed && running ? 'Waiting' : 'Not yet');
+    const more = k === 'summary' && done && summary ? `<div class="hint flush">${esc(summary)}</div>` : '';
+    const again = bad ? `<button class="tag pressable" data-hemagain="${esc(ch.id)}" data-pass="${k}" ${trying ? 'disabled' : ''}
+      >${trying ? 'Trying&hellip;' : 'Try again'}</button>` : '';
+    return `<li data-hemstep="${k}" data-done="${done ? 1 : 0}"><span class="hemmark" aria-hidden="true">${done ? '&#10003;' : '&#9675;'}</span>
+      <span class="hembody"><span class="hemname">${name}<span class="vh">${done ? ', done' : bad ? ', did not run' : ', not yet'}</span></span>
+        ${line ? `<span class="hint flush">${esc(line)}</span>` : ''}${again}${more}</span></li>`;
+  }).join('')}</ol>`;
+}
+
+/** Which scene the hem drawer is about, and whether it is closed. See ritualPanel. */
+function ritualScene() {
+  const started = (V.passages ?? []).some((p) => p.chapterId === V.currentChapter.id && !p.isBreak);
+  const ch = V.chapters.find((c) => c.id === S.ritualOf)
+    ?? (started ? V.currentChapter : (V.chapters.at(-2) ?? V.currentChapter));
+  return { ch, closed: ch.status === 'closed' || ch.id !== V.currentChapter.id };
+}
 function ritualPanel() {
   // WHICH CHAPTER THIS SCREEN IS ABOUT, and it has to survive a reload. `S.ritualOf` is session
   // state, so a cold load at `#story/ritual` has none — and falling back to `currentChapter` there
@@ -3623,20 +3712,12 @@ function ritualPanel() {
   // The fallback is `wholeFrom`'s rule in `src/context.ts`, for the same reason it exists there: a
   // chapter with no passage of its own yet has nothing to report on, and the one before it does.
   // Write a passage and the screen is about the chapter you are in again.
-  const started = (V.passages ?? []).some((p) => p.chapterId === V.currentChapter.id && !p.isBreak);
-  const ch = V.chapters.find((c) => c.id === S.ritualOf)
-    ?? (started ? V.currentChapter : (V.chapters.at(-2) ?? V.currentChapter));
-  const closed = ch.status === 'closed' || ch.id !== V.currentChapter.id;
+  const { ch, closed } = ritualScene();
   const ps = (V.proposals ?? []).filter((p) => p.chapterId === ch.id);
-  const of = (t) => ps.filter((p) => p.entryType === t);
-  const facts = ps.filter((p) => !['state', 'string', 'retire'].includes(p.entryType));
   // ONE STEP PER PASS. It was a heading, a sentence, a re-run button and every proposal card the
   // pass produced, five times over — so a chapter that found nothing rendered a checklist of
   // absences, and a chapter that found something rendered Waiting a second time. Council 07, seats
-  // 3 and 4. The steps are drawn below (UX review, 2026-10-29).
-
-  const summary = ch.summary;
-  const words = summary ? summary.trim().split(/\s+/).length : 0;
+  // 3 and 4. The steps are `hemSteps` (UX review, 2026-10-29).
   // What this chapter left waiting, as ONE number. The cards themselves live on `waiting()`, which
   // exists precisely to be the one place a proposal is decided — its own note says the problem it
   // solves is "four panels to find out whether anything wanted you". Rendering them here made this
@@ -3660,6 +3741,7 @@ function ritualPanel() {
       <button class="btn fill" data-endchapter="1">${
         S.ritual ? esc(S.ritual) : 'Hem this scene'}</button>
       ${tipMark('ritEnd', 'Hem this scene')}</div>`}
+    ${hemAsk(ch)}
 
     <div class="push-20">
     ${(() => {
@@ -3678,40 +3760,7 @@ function ritualPanel() {
         !closed ? '<div class="hint flush">Nothing below has run.</div>' : running ? '<div class="hint flush">Its card waits on the Workbench.</div>' : ''}</div>`;
     })()}
     ${closed ? passReport(ch) : ''}
-    ${/* THE PASSES AS ONE LIST OF STEPS (UX review, 2026-10-29). They were five lines, four grey and
-          one green, that did not read as a sequence. One step per pass, in the order the hem runs
-          them (PASSES), each marked done or not yet with the same marker: done is a pass that ran
-          (its report line is null), or any pass of a scene hemmed before #89, which kept no report.
-          What it found is the line under it, in the words this screen has always used. */ ''}
-    ${(() => {
-      const ran = (k) => closed && (ch.hem ? ch.hem.passes?.[k] === null : true);
-      const found = {
-        summary: summary ? `${ch.hem?.keptSummary && ch.summaryAuthor === 'human' ? 'Kept your summary,'
-          : ch.summaryAuthor === 'human' ? 'Your summary,' : 'Summarised in'} ${plural(words, 'word', 'words')}`
-          : closed ? 'Not summarised' : '',
-        tale: '',
-        memory: of('state').length ? `Remembered — ${plural(of('state').length, 'change', 'changes')} to the people in it`
-          : closed ? 'Nothing changed anybody' : '',
-        facts: facts.length ? `Read for threads — ${plural(facts.length, 'chalked', 'chalked')}`
-          : closed ? 'No new threads came out of this scene' : '',
-        finished: of('retire').length ? `${plural(of('retire').length, 'thread', 'threads')} chalked to be retired`
-          : closed ? 'No thread was chalked to be retired' : '',
-        next: ch.hem?.suggestion?.title ? `Suggested: ${ch.hem.suggestion.title}` : '',
-      };
-      const name = { summary: 'Summary', tale: 'Where the tale stands', memory: 'Changes to the people in it',
-        facts: 'New threads', finished: 'Threads it is done with', next: 'The next scene' };
-      return `<ol class="hemsteps">${PASSES.map(([k]) => {
-        const done = ran(k);
-        // #46. "Kept" is what the hem reported it did, and the summary is shown whole under its step.
-        const more = k !== 'summary' ? '' : summary ? `<div class="hint flush">${esc(summary)}</div>`
-          : closed && !done ? '<div class="hint flush">It did not come back — the router may have been asleep. Run it again below.</div>' : '';
-        // While the hem runs, the step it is on says so (`current` is the pass the server is on).
-        const now = !done && ch.hem?.current?.pass === k ? 'Running now' : '';
-        return `<li data-hemstep="${k}" data-done="${done ? 1 : 0}"><span class="hemmark" aria-hidden="true">${done ? '&#10003;' : '&#9675;'}</span>
-          <span class="hembody"><span class="hemname">${name[k]}<span class="vh">${done ? ', done' : ', not yet'}</span></span>
-            ${now || found[k] ? `<span class="hint flush">${esc(now || found[k])}</span>` : done ? '' : '<span class="hint flush">Not yet</span>'}${more}</span></li>`;
-      }).join('')}</ol>`;
-    })()}
+    ${hemSteps(ch, closed)}
     </div>
 
     ${queued ? `${tipCard('ritDecide', 'Deciding what is chalked', `<p>On the Workbench, beside
@@ -3725,28 +3774,25 @@ function ritualPanel() {
     ${tipCard('ritSetup', 'Setting up the next scene', `<p>Its name, its brief, and who is in
       it.</p>`)}
     <div class="push-8 line-2">
-      <button class="btn ghost fill" data-panel="setup">Set up the next scene</button>
+      ${/* GOLD ONCE THE NEXT SCENE HAS COME BACK, on the scene whose hem asked for it: it is the
+            drawer's one thing left to do (walkthrough, 2026-10-30). An outline otherwise. */ ''}
+      ${closed && !hemAsking(ch) && ch.hem?.passes?.next === null && hemNext(ch)
+        ? '<button class="btn fill" data-panel="setup">Set up the next scene</button>'
+        : '<button class="btn ghost fill" data-panel="setup">Set up the next scene</button>'}
       ${tipMark('ritSetup', 'Setting up the next scene')}</div>
 
-    ${closed ? `<div class="lbl" style="letter-spacing:.1em; margin-top:24px">Run a pass again${
-      tipMark('ritAgain', 'Running a pass again')}</div>
-    ${tipCard('ritAgain', 'Running a pass again', `<p>Every pass of hemming is wrapped so the scene
-      still closes with the model down. If a line above came back blank, this is the way
-      back.</p>`)}
-    ${/* #92. A scene hemmed in the background runs a pass again through its hem, so what it finds
-         lands on the scene's card; a scene hemmed before #89 keeps the four old presses. */
-      ch.hem ? `<div class="row-6 wraps">
-      <button class="btn ghost half" data-hemagain="${esc(ch.id)}" data-pass="summary">Summary</button>
-      <button class="btn ghost half" data-hemagain="${esc(ch.id)}" data-pass="memory">Changes</button>
-      <button class="btn ghost half" data-hemagain="${esc(ch.id)}" data-pass="facts">Threads</button>
-      <button class="btn ghost half" data-hemagain="${esc(ch.id)}" data-pass="finished">Threads to retire</button>
-      <button class="btn ghost half" data-hemagain="${esc(ch.id)}" data-pass="next">The next scene</button>
-    </div>` : `<div class="row-6 wraps">
+    ${/* ONE WAY TO RUN IT AGAIN (walkthrough, 2026-10-30: four Try again chips and a block of five
+          re-run presses for the same passes). A failed pass has its Try again on its own step; the
+          whole hem runs again from here, in two presses, since it drops what is still chalked. A
+          scene hemmed before #89 has no report to hang a step on, so it keeps the four old presses. */
+      !closed ? '' : ch.hem ? `<button class="btn ghost push-14" data-hemagain="${esc(ch.id)}">Hem it again</button>`
+      : `<div class="lbl" style="letter-spacing:.1em; margin-top:24px">Run a pass again</div>
+    <div class="row-6 wraps">
       <button class="btn ghost half" data-summarize="1">Summary</button>
-      <button class="btn ghost half" data-remember="1">Changes</button>
-      <button class="btn ghost half" data-extract="1">Threads</button>
-      <button class="btn ghost half" data-refinished="1">Threads to retire</button>
-    </div>`}` : ''}
+      <button class="btn ghost half" data-remember="1">Changes to the people in it</button>
+      <button class="btn ghost half" data-extract="1">New threads</button>
+      <button class="btn ghost half" data-refinished="1">Threads it is done with</button>
+    </div>`}
 
     <!-- DELETE THE CHAPTER. Seth, 2026-08-30: "we also need a delete chapter", "deletion is
          deletion". Here and not on the chapter list, because this is the screen that says what
@@ -6677,15 +6723,17 @@ const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next scene'], [
  *  for; one whose value is null ran; one with a string failed and the string is why. Since #89 the
  *  report is on the scene's hem (`ch.hem.passes`), so it survives a reload; #92 reads it there.
  */
-const PASSES = [['summary', 'the summary'], ['tale', 'where the tale stands'], ['memory', 'the character memory'],
-                ['facts', 'the threads pass'], ['finished', 'the scan for threads to retire'],
-                ['next', "Anansi's title and note for the next scene"]];
+// ONE NAME PER PASS, the same on the hem drawer's steps, its failure box and the Workbench card
+// (walkthrough, 2026-10-30: the same pass was "the character memory", "Changes to the people in it"
+// and "Changes" on three screens).
+const PASSES = [['summary', 'Summary'], ['tale', 'Where the tale stands'], ['memory', 'Changes to the people in it'],
+                ['facts', 'New threads'], ['finished', 'Threads it is done with'], ['next', 'The next scene']];
 
 /** Which of them did not run on this scene's hem, in the order they run in. Empty when everything
  *  ran, which is the normal case — so every caller can treat length as "is there anything to say". */
 const missedPasses = (ch) => PASSES
   .filter(([k]) => ch?.hem?.passes?.[k])
-  .map(([k, label]) => ({ key: k, label, why: String(ch.hem.passes[k]) }));
+  .map(([k, label]) => ({ key: k, label, why: plainWhy(ch.hem.passes[k]) }));
 
 /** The same thing on the report, where it stays after the toast has gone.
  *
@@ -6701,10 +6749,9 @@ function passReport(ch) {
     <span style="font-size:11px; letter-spacing:.12em; text-transform:uppercase;
       color:var(--bad)">${missed.length === 1 ? 'One pass did not run' : `${missed.length} passes did not run`}</span>
     ${missed.map((m) => `<span class="note">
-      <span class="inked">${esc(m.label)}</span> &mdash; ${esc(m.why)}
-      <button class="tag pressable" data-hemagain="${esc(ch.id)}" data-pass="${esc(m.key)}">Try again</button></span>`).join('')}
+      <span class="inked">${esc(m.label)}</span> &mdash; ${esc(m.why)}</span>`).join('')}
     <span class="hint flush">Nothing was lost: the scene is hemmed and the prose is
-      untouched. Try each again when the model is back up.</span></div>`;
+      untouched. Try each again from its step below.</span></div>`;
 }
 
 function setupPanel() {
@@ -9465,6 +9512,9 @@ function paint() {
 let HEM_WATCH = null;
 const HEM_POLL_MS = 3000;
 const hemsRunning = (v) => (v?.chapters ?? []).filter((c) => c.hem?.state === 'running').map((c) => c.id).join(',');
+/** Which pass each running hem is on, and what its report holds: what the hem drawer's steps draw. */
+const hemProgress = (v) => (v?.chapters ?? []).filter((c) => c.hem?.state === 'running')
+  .map((c) => `${c.id}:${c.hem.current?.pass ?? ''}:${JSON.stringify(c.hem.passes ?? {})}`).join(',');
 function watchHems() {
   if (HEM_WATCH || S.place !== 'story' || !hemsRunning(V)) return;
   const sid = S.storyId;
@@ -9474,7 +9524,22 @@ function watchHems() {
     HEM_WATCH = null;
     // The writer may have left the tale while it was read; then this answer is about nothing on screen.
     if (S.storyId !== sid || !V) return;
-    if (!r.error && hemsRunning(r) !== hemsRunning(V)) { V = r; paint(); return; }
+    if (!r.error && hemsRunning(r) !== hemsRunning(V)) {
+      // The hem drawer's question may be part-way answered: its words are on S, and the caret goes back.
+      const typing = document.activeElement?.dataset?.hemsteer;
+      V = r; paint();
+      const box = typing && document.querySelector(`[data-hemsteer="${typing}"]`);
+      if (box) { box.focus({ preventScroll: true }); box.setSelectionRange?.(box.value.length, box.value.length); }
+      return;
+    }
+    // THE STEPS MOVE WHILE YOU WATCH (walkthrough, 2026-10-30: nothing on the drawer moved until the
+    // whole hem was done). With the hem drawer open, a new pass under way redraws its list of steps
+    // alone, so the box above them is not touched.
+    if (!r.error && S.panel === 'ritual' && hemProgress(r) !== hemProgress(V)) {
+      V = r;
+      const ol = document.querySelector('#sideBody .hemsteps'), { ch, closed } = ritualScene();
+      if (ol) ol.outerHTML = hemSteps(ch, closed);
+    }
     watchHems();
   }, HEM_POLL_MS);
 }
@@ -13184,22 +13249,32 @@ document.addEventListener('click', async (e) => {
     // waits on them. `S.ritual` only guards the second press while the close itself is in flight.
     S.ritual = 'Hemming…'; paint();
     const closing = V.currentChapter;
-    const r = await api.endChapter(S.storyId, {});
+    // THE NEXT SCENE IS ASKED FOR, NOT GUESSED FIRST (Seth, 2026-10-30): `next: false` leaves that
+    // pass waiting, and the drawer asks how the next scene should start (`hemAsk`) while the others run.
+    const r = await api.endChapter(S.storyId, { next: false });
     S.ritual = null;
     if (r.error) { paint(); return toast(r.error); }
     // The answer is the view. The hem report (`ch.hem`) is on the scene, so it survives a reload.
     V = r;
-    // The ritual panel stays on the scene that just closed.
-    S.ritualOf = closing.id;
-    // LAND IN THE NEW SCENE, BLANK. The writer starts it themselves (spec #82, stories 1 and 2):
-    // no setup to step through, no name asked of Anansi — the hem brings its suggestion, and Set up
-    // the next scene on its card shows it in the boxes. No opening passage is written either: that is `savesetup`'s.
-    // AND NO DRAWER OPENS over it. This set What he reads open (Seth, 2026-10-27: "When the scene is
-    // hemmed it opens the context window, that shouldn't happen").
-    S.setup = null; S.setupStep = null; S.panel = null;
+    // THE DRAWER STAYS ON THE SCENE THAT JUST CLOSED (walkthrough, 2026-10-30: the press shut it and
+    // dropped the writer in an empty scene, so the steps were never seen running and the next scene
+    // was never asked about). The new scene is open behind it; no setup is stepped through and no
+    // opening passage is written: that is `savesetup`'s. Not What he reads (Seth, 2026-10-27).
+    S.ritualOf = closing.id; S.hemSteer = '';
+    S.setup = null; S.setupStep = null; S.panel = 'ritual';
     syncHash(); paint(); refreshManifest();
-    toast(`${sceneName(closing)} is being hemmed. Its card will wait on the Workbench.`);
     return;
+  }
+  // The writer's answer to "How should the next scene start?", asked as the hem's next-scene pass.
+  // It waits in the tale's hem queue behind the passes still running, so it reads their summary.
+  if (d.hemnext) {
+    const steer = (S.hemSteer ?? '').trim();
+    const r = await api.hemAgain(S.storyId, d.hemnext, { pass: 'next', ...(steer ? { steer } : {}) });
+    if (r.error) return toast(r.error);
+    (S.hemAsked ??= new Set()).add(d.hemnext);
+    S.hemSteer = '';
+    V = r; paint();
+    return toast(steer ? 'Asked. The next scene is written from what you said.' : 'Asked. Anansi chooses the next scene.');
   }
   if (d.hemextra) {
     const r = await api.hemAgain(S.storyId, d.hemextra, { extra: true });
@@ -13214,8 +13289,11 @@ document.addEventListener('click', async (e) => {
     const o = d.pass ? { pass: d.pass } : d.names ? { names: JSON.parse(d.names) } : {};
     if (!d.pass && !d.names && !armed(t, `hem:${d.hemagain}`,
       'Press again to hem this scene again. What is still chalked on its card goes; what you sewed in or rejected stays.')) return;
+    // TRY AGAIN SAYS IT IS TRYING (walkthrough, 2026-10-30: the press changed nothing on screen). The
+    // step reads "Trying…" while the hem runs; the step's own line takes over once it is done.
+    if (d.pass) S.hemTrying = `${d.hemagain}:${d.pass}`;
     const r = await api.hemAgain(S.storyId, d.hemagain, o);
-    if (r.error) return toast(r.error);
+    if (r.error) { S.hemTrying = null; return toast(r.error); }
     V = r; paint();
     return toast(d.pass ? 'Trying that again. It lands on the card.' : d.names ? 'Asking for them. They land on the card.'
       : 'Hemming it again. The card fills in when it is done.');
@@ -15138,7 +15216,16 @@ document.addEventListener('input', (e) => {
     if (box) { box.focus(); box.setSelectionRange(at, at); }
     return;
   }
+  // The hem's question about the next scene, kept on S so the hem watch's redraw puts it back.
+  if (e.target.dataset?.hemsteer !== undefined) { S.hemSteer = e.target.value; return; }
   if (e.target.dataset?.setup) {
+    // WHICH BOXES THE WRITER TYPED IN, so asking Anansi again replaces his words and not theirs.
+    // The direction is not one of them: it is an instruction, never a box of the scene.
+    const k = e.target.dataset.setup;
+    if (k !== 'steer') {
+      if (S.setupTyped?.chapterId !== V.currentChapter.id) S.setupTyped = { chapterId: V.currentChapter.id, keys: new Set() };
+      S.setupTyped.keys.add(k);
+    }
     S.setup = { chapterId: V.currentChapter.id,
                 title: document.querySelector('[data-setup="title"]')?.value ?? '',
                 note: document.querySelector('[data-setup="note"]')?.value ?? '',

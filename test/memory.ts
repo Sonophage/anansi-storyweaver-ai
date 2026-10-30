@@ -1376,6 +1376,58 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 ok('the next scene can be asked again with a direction, away from the last suggestion');
 
+// ---- THE HEM ASKS FOR THE NEXT SCENE, AND DOES NOT GUESS IT FIRST (Seth, 2026-10-30) ----
+// "we start hemming and it asks how the next scene should start. While that's filled out the ai does
+// the rest ... So it wouldn't run that check first." The close runs every pass but the next scene;
+// the writer's direction asks for it, and what comes back goes into the scene itself, where the
+// writing prompt reads it ("it's not passed to the scene").
+{
+  const t = db.createStory(me, { title: 'Asked first', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The ferry left without him.' });
+  tidied = { ...NEXT }; asks.length = 0;
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false }));
+  await hemSettled(t.id);
+  const opened = r.opened;
+  let hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.ok(!('next' in (hem?.passes ?? {})), `HEM-ASKS: the close does not suggest the next scene itself (${Object.keys(hem?.passes ?? {})})`);
+  assert.ok(!asks.some((a) => a.system.startsWith(prompts.CHAPTER.slice(0, 80))), '  and never asks the model for it');
+  assert.strictEqual(hem.suggestion, null, '  so there is no suggestion yet');
+
+  const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next',
+    steer: 'He swims after the ferry and loses the bell.' }));
+  assert.ok(!v.error, v.error);
+  await hemSettled(t.id);
+  const user = String(askOf(prompts.CHAPTER)?.user ?? '');
+  assert.match(user, /THE WRITER WANTS THIS CHAPTER TO: He swims after the ferry and loses the bell\./,
+    'HEM-STEER: the writer\'s direction reaches the next-scene ask');
+  hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.strictEqual(hem.passes.next, null, '  and the pass ran');
+  const next = (db.chapters(t.id) as any[]).find((c) => c.id === opened);
+  assert.strictEqual(next.opens_with, NEXT.opens, `HEM-INTO-SCENE: how it opens is the scene's own now (${next.opens_with})`);
+  assert.strictEqual(next.authors_note, NEXT.note, '  and where it heads');
+  assert.strictEqual(next.title, NEXT.title, '  and its name, over the placeholder');
+
+  // ASKED AGAIN WITH A NEW DIRECTION, what Anansi wrote is replaced; what the writer typed is not.
+  db.updateChapter(t.id, opened, { opensWith: 'Written by hand.' });
+  tidied = { title: 'The Far Bank', note: 'He reaches the far bank with nothing in his hands at all.', opens: 'Cold water.' };
+  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', steer: 'He gives up.' }));
+  await hemSettled(t.id);
+  const again = (db.chapters(t.id) as any[]).find((c) => c.id === opened);
+  assert.strictEqual(again.title, 'The Far Bank', 'HEM-AGAIN-REPLACES: a new direction replaces what Anansi wrote');
+  assert.strictEqual(again.authors_note, tidied.note, '  in every box it wrote');
+  assert.strictEqual(again.opens_with, 'Written by hand.', 'HEM-AGAIN-KEEPS: and keeps what the writer typed');
+  // A scene the writer has started is left alone: its heading is theirs to set.
+  db.updateChapter(t.id, opened, { authorsNote: '' });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: opened, body: 'He stood on the jetty.' });
+  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', steer: 'Anything.' }));
+  await hemSettled(t.id);
+  assert.strictEqual((db.chapters(t.id) as any[]).find((c) => c.id === opened).authors_note, '',
+    'HEM-STARTED-ALONE: a scene already being written is not set behind the writer');
+  tidied = {};
+}
+ok('a hem asks for the next scene rather than guessing it, and the answer goes into the scene');
+
 // ---- NEW THREADS, SIX AT MOST PER HEM (2026-10-27) ----
 // One hem of Seth's chalked 8 characters, 6 places and 2 items. The rest are held, named on the card,
 // and "Chalk these too" puts them in without asking the model again.
