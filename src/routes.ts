@@ -1797,7 +1797,7 @@ function queueHem(storyId: string, job: () => Promise<void>) {
 }
 
 async function hemPasses(c: Ctx, storyId: string, closing: string, opened: string | undefined, want: HemWant,
-    run: number, names?: string[], steer?: string) {
+    run: number, names?: string[], steer?: string, opening?: string) {
   /** WHICH OF THE PASSES DID NOT RUN, and why. Issue #32: "Facts are not being written
    *  based on the last chapter anymore."
    *
@@ -1884,7 +1884,7 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // prompt reads the scene's own name, opening and heading, never the hem's suggestion, so a
   // suggestion left only on the hem was never sent ("it's not passed to the scene").
   const before = opened ? db.hemOf(storyId, closing)?.suggestion ?? null : null;
-  const next = await pass('next', want.next, () => suggestScene(c, storyId, opened, steer));
+  const next = await pass('next', want.next, () => suggestScene(c, storyId, opened, steer, undefined, opening));
   if (opened && next?.title) db.offerScene(storyId, opened, before, { title: next.title, note: next.note, opens: next.opens });
   // A pass that did not run this time leaves its line, the kept flag and the suggestion as stored (#91).
   db.finishHem(storyId, closing, run, { passes, kept: want.summary ? keptSummary : undefined,
@@ -3703,7 +3703,14 @@ export const routes: Record<string, Handler> = {
     if (run == null) return { error: 'This scene has not been hemmed yet.' };
     // The writer's direction for the next scene, when that is the pass asked for (2026-10-30).
     const steer = pass === 'next' && String(c.body.steer ?? '').trim() ? String(c.body.steer).trim().slice(0, 1500) : undefined;
-    queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want, run, names ?? undefined, steer));
+    // HOW IT STARTS, AS THE WRITER WROTE IT (Seth, 2026-10-30: "What I enter should be what's used"):
+    // into the scene now, before the pass, so it is the scene's opening whatever the pass does; the
+    // pass names the scene and says where it heads from it, and leaves the opening alone (`offerScene`
+    // writes only a box that is empty or Anansi's own). Not into a scene already being written.
+    const opening = pass === 'next' && String(c.body.opens ?? '').trim() ? String(c.body.opens).trim().slice(0, 2000) : undefined;
+    if (opening && opened && !db.passagesOfChapter(opened).some((p: any) => !p.is_break && String(p.body ?? '').trim()))
+      db.updateChapter(storyId, opened, { opensWith: opening });
+    queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want, run, names ?? undefined, steer, opening));
     return viewOf(c, storyId);
   },
   'POST /api/chapter/end': async (c) => {
@@ -3717,9 +3724,9 @@ export const routes: Record<string, Handler> = {
     const r = db.endChapter(v.id, v.branchId!, c.body.nextTitle);
     // #89. THE PASSES RUN AFTER THE ANSWER: the writer starts the next scene while they work, and
     // the view shows the hem running, then done.
-    // THE NEXT SCENE IS ASKED FOR, NOT GUESSED (Seth, 2026-10-30): the hem drawer sends `next: false`,
-    // and once the hem is done the setup asks the writer how the next scene starts, then names it
-    // through `/api/chapter/propose` with their opening (`suggestScene`).
+    // THE NEXT SCENE IS ASKED FOR, NOT GUESSED (Seth, 2026-10-30): the hem drawer sends `next: false`
+    // and asks the writer how the next scene starts while the other passes run; their answer comes
+    // through `/api/chapter/hem` with `pass: 'next'` and `opens`, their words as the scene's opening.
     const want: HemWant = { summary: c.body.summarise !== false, tale: true, memory: c.body.remember !== false,
       facts: c.body.extract !== false, finished: c.body.retire !== false, next: c.body.next !== false };
     const run = db.beginHem(v.id, closing);

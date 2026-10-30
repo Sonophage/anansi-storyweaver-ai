@@ -52,16 +52,22 @@ for (let i = 0; i < 40; i++) {
   await wait(250);
 }
 await wait(600);
-// The drawer stays open on the hem while the passes run. It does not ask about the next scene: the
-// setup asks, once the hem is done (Seth, 2026-10-30).
-ok("closing a scene keeps the hem drawer open on its steps, with no question about the next scene",
-   await page.visible('#sideBody .hemsteps') && !(await page.visible('#sideBody [data-hemsteer]'))
-   && !(await page.visible('[data-savesetup="1"]')));
-console.log("  hem running (summary, thread changes, threads, retirements)…");
+// The drawer stays open on the hem while the passes run, and asks how the next scene starts; Enter
+// sends it, then who is in it, then Done (Seth, 2026-10-30).
+ok("closing a scene keeps the hem drawer open and asks how the next scene starts",
+   await page.visible('#sideBody [data-hemsteer]') && !(await page.visible('[data-savesetup="1"]')));
+await page.eval("(() => { const t = document.querySelector('#sideBody [data-hemsteer]'); t.value = 'She opens the letter at dawn.';"
+  + " t.dispatchEvent(new Event('input', { bubbles: true }));"
+  + " t.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()");
+await wait(800);
+ok("  Enter sends it, and who is in the next scene comes next",
+   await page.visible('#sideBody [data-hemwhodone]') && !(await page.visible('#sideBody [data-hemsteer]')));
+await page.click('#sideBody [data-hemwhodone]');
+console.log("  hem running (summary, thread changes, threads, retirements, next scene)…");
 let hem = null;
 for (let i = 0; i < 240; i++) {
   hem = (await story()).chapters.find((c) => c.id === closing.id)?.hem;
-  if (hem?.state === 'done') break;
+  if (hem?.state === 'done' && 'next' in (hem.passes ?? {})) break;
   await wait(1000);
 }
 ok(`  and the hem finishes in the background (${hem?.state ?? 'no hem'})`, hem?.state === 'done');

@@ -6527,8 +6527,8 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     click({ open: 's-1' }); await sleep(40);
     click({ ritual: '1' }); await sleep(30);
     let side = html('sideBody');
-    // NO NEXT-SCENE STEP before a hem: a hem no longer runs that pass, the setup asks (Seth, 2026-10-30).
-    assert.deepStrictEqual(states(side), order.filter((k) => k !== 'next').map((k) => `${k}:wait`), 'HEM-STEPS: before a hem, every step is shown, waiting, in order');
+    // Who is in the next scene is a step only once there is a next scene, after the close.
+    assert.deepStrictEqual(states(side), order.map((k) => `${k}:wait`), 'HEM-STEPS: before a hem, every step is shown, waiting, in order');
     assert.match(below(side), /class="btn fill" data-endchapter="1"/, 'HEM-ACT: and below them only the press that hems');
     assert.strictEqual((side.match(/class="btn fill"/g) ?? []).length, 1, 'HEM-GOLD: one gold press');
     assert.doesNotMatch(side, /data-panel="waiting"|passes did not run/, 'HEM-QUIET: no Decide button and no report box');
@@ -6541,6 +6541,15 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     assert.match(below(side), /data-hemagain="c-2" data-pass="facts"/, 'HEM-ACT-FAIL: its Try again is below the steps');
     assert.doesNotMatch(side, /Run a pass again/, 'HEM-ONE-RERUN: no block of re-run presses');
     assert.match(side, /<details class="hemmore[\s\S]*data-hemagain="c-2"(?! data-pass)[^>]*>Hem it again/, '  and the whole hem runs again from More');
+    // WHO IS IN THE NEXT SCENE COMES FIRST (Seth, 2026-10-30: "once I press enter then I can remove or
+    // add currently existing threads ... before it shows me the summary"): it is gold, with its list
+    // and Done below the steps, and neither the summary nor the cards show until Done.
+    assert.match(step('who'), /data-state="you"/, 'HEM-WHO: who is in the next scene is the gold step once how it starts is said');
+    assert.match(below(side), /data-hemwhodone="c-2"/, '  with its Done below the steps');
+    assert.doesNotMatch(below(side), /data-hemsumtext|data-deckkind=/, '  and no summary or cards yet');
+    click({ hemwhodone: 'c-2' }); await sleep(30);
+    side = html('sideBody');
+    assert.match(below(side), /data-hemsumtext="c-2"[^>]*>The envoy waits\./, 'HEM-SUMMARY-AFTER: after Done, with the scans over, the summary shows');
     // THE WRITER'S TURN IS GOLD: what it chalked waits on the writer, decided here on the hem's own card.
     assert.match(step('decide'), /data-state="you"/, 'HEM-YOU: deciding what it found is the gold step while things wait');
     assert.strictEqual((side.match(/data-state="you"/g) ?? []).length, 1, 'HEM-ONE-GOLD: one gold step, the next');
@@ -7949,7 +7958,6 @@ const hemCardOf = (side: string) => {
     click({ open: 's-1' }); await settle();
     assert.strictEqual(timers.length, 0, 'nothing is read again while no hem is running');
     const proposes = POSTED.filter((p: any) => p.url === '/api/chapter/propose').length;
-    const hemAsks = POSTED.filter((p: any) => p.url === '/api/chapter/hem').length;
     click({ endchapter: '1' }); await settle(); await settle();
     const end = POSTED.find((p: any) => p.url === '/api/chapter/end');
     assert.ok(end, 'Hem this scene closes the scene');
@@ -7960,13 +7968,30 @@ const hemCardOf = (side: string) => {
     // THE EDITOR'S FULL SCREEN (Seth, 2026-10-30: "It should use the editor full screen ui").
     const rootEl = (globalThis as any).document.documentElement;
     assert.strictEqual(rootEl.dataset.sidefull, '1', 'HEM-FULL: the hem drawer is full screen');
-    // THE NEXT SCENE IS ASKED AFTER THE HEM, NOT DURING IT (Seth, 2026-10-30: "it shouldn't be written
-    // there but once I'm done with the hemming"): no question on the hem screen and no step for it.
+    // THE HEM, IN THE WRITER'S ORDER (Seth, 2026-10-30: "while the steps start it should ask me about
+    // the next scene and once I press enter then I can remove or add currently existing threads"):
+    // how it starts first, gold, while the passes run.
     let side = html('sideBody');
-    assert.doesNotMatch(side, /How should the next scene start|data-hemsteer|data-hemnext/, 'HEM-NO-ASK: the hem does not ask about the next scene');
-    assert.doesNotMatch(side, /data-hemstep="next"/, '  and has no next-scene step');
-    assert.match(side, /data-hemstep="summary"[\s\S]*data-hemstep="setup"/, '  the steps run on to Set up the next scene');
-    assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/chapter/hem').length, hemAsks, '  and nothing asks the hem for it');
+    assert.match(side, /data-hemsteer="c-2"/, 'HEM-ASK-BOX: it asks how the next scene should start');
+    assert.match(side, /class="btn fill[^"]*" data-hemnext="c-2"/, '  with one gold press to send it');
+    assert.strictEqual((side.match(/class="btn (?!ghost)[^"]*"/g) ?? []).length, 1, '  and no other gold on the drawer');
+    assert.match(side, /data-hemstep="next"[^>]*>[\s\S]*?Waiting for how you want it to start/, '  and the next-scene step waits on the writer');
+    assert.doesNotMatch(side, /data-hemwhodone=/, '  and who is in it waits its turn');
+    (listeners.input ?? []).forEach((f: Function) => f({ target: { dataset: { hemsteer: 'c-2' }, value: 'Days later, in his bookstore.' } }));
+    click({ hemnext: 'c-2' }); await settle();
+    const asked = POSTED.filter((p: any) => p.url === '/api/chapter/hem').at(-1);
+    assert.deepStrictEqual(asked?.body, { storyId: 's-1', chapterId: 'c-2', pass: 'next', opens: 'Days later, in his bookstore.' },
+      'HEM-ASKED: the opening is sent as written, as the next-scene pass');
+    // THEN WHO IS IN IT, gold, with the list and Done; the summary waits for Done and for the scans.
+    side = html('sideBody');
+    assert.doesNotMatch(side, /data-hemsteer=/, 'HEM-WHO-NEXT: the box gives way once sent');
+    assert.match(side, /data-hemstep="who"[^>]*data-state="you"/, '  to who is in the next scene, the gold step');
+    assert.match(side, /class="card hemwho[\s\S]*data-hemwhodone="c-2"/, '  with its list and Done');
+    assert.doesNotMatch(side, /data-hemsumtext=/, '  and no summary yet');
+    click({ hemwhodone: 'c-2' }); await settle();
+    side = html('sideBody');
+    assert.doesNotMatch(side, /data-hemwhodone=/, 'HEM-WHO-DONE: Done puts it away');
+    assert.match(side, /still reading the scene/, '  and while the scans run, it says the summary comes when they are done');
     // Setup opens on what the scene left (its card, running), and the new scene is one step on.
     click({ panel: 'setup' }); await settle();
     assert.match(html('sideBody'), /<ol class="hemsteps">[\s\S]*data-state="(run|wait)"/, 'its setup opens with the hem\'s steps, still going');

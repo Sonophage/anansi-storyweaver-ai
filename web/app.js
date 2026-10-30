@@ -625,7 +625,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // and Use this.
   'pocketnew', 'pockettab', 'pocketkind', 'pocketx', 'pocketsave', 'pocketdel', 'pocketask', 'pocketuse',
   // Merge two threads: open it, pick the other, pick which stays, Cancel, Merge.
-  'mergestart', 'mergewith', 'mergekeep', 'mergex', 'mergego'].map((k) => `[data-${k}]`).join(',');
+  'mergestart', 'mergewith', 'mergekeep', 'mergex', 'mergego',
+  // The hem's ask for the next scene, and who is in it (2026-10-30).
+  'hemnext', 'hemwhodone'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -3885,10 +3887,47 @@ const isStringRow = (p) => !!p.field && (V.slots?.tale ?? []).some((sl) => sl.na
  *  can close with the model down, and "0 proposed" and "the router was asleep" are not the same
  *  sentence. The re-run buttons live here because this is the screen that says which one to press.
  */
-/** THE NEXT SCENE IS ASKED FOR AFTER THE HEM, NOT DURING IT (Seth, 2026-10-30: the question "shouldn't
- *  be written there but once I'm done with the hemming"). The close sends `next: false`, so a hem runs
- *  no next-scene pass, and Set up the next scene asks how it starts: the writer's words go into the
- *  scene as written, and Anansi names it and says where it heads from them (`nameChapter`). */
+/** THE HEM, IN THE WRITER'S ORDER (Seth, 2026-10-30: "while the steps start it should ask me about the
+ *  next scene and once I press enter then I can remove or add currently existing threads. That should
+ *  be enough time for the hemming to finish its scans before it shows me the summary"). While the
+ *  passes run: first how the next scene starts, then who is in it; once both are done and the scans
+ *  are over, the summary and what the hem found.
+ *
+ *  HOW IT STARTS is the next scene's opening, as written ("What I enter should be what's used"): the
+ *  server writes it into the scene and runs the next-scene pass on it, which names the scene and says
+ *  where it heads (`suggestScene`). Empty, Anansi chooses the opening too. The close sends
+ *  `next: false`, so that pass waits for this.
+ *
+ *  Asked once: the pass has run or is queued (`S.hemAsked`, this tab), or the scene has an opening.
+ *  Only on the latest hem, while the scene it opened is the one being written (`hemNext`). */
+const hemAsking = (ch) => !!ch?.hem && !('next' in (ch.hem.passes ?? {})) && !!hemNext(ch)
+  && !S.hemAsked?.has(ch.id) && !String(hemNext(ch).opensWith ?? '').trim();
+function hemAsk(ch) {
+  if (!hemAsking(ch)) return '';
+  return `<div class="card hemask push-8">
+    <label class="lbl flush" for="hemsteer-${esc(ch.id)}">How should the next scene start?</label>
+    <textarea class="field grow" id="hemsteer-${esc(ch.id)}" data-hemsteer="${esc(ch.id)}"
+      placeholder="Where it opens, who is there, and when">${esc(S.hemSteer ?? '')}</textarea>
+    <div class="hint flush">Used as you write it. Anansi names the scene and says where it heads from it
+      while he finishes hemming this one. Enter to send; leave it empty and he chooses.</div>
+    <button class="btn fill push-8" data-hemnext="${esc(ch.id)}">That is how it starts</button>
+  </div>`;
+}
+/** WHO IS IN THE NEXT SCENE, once how it starts is said, while the scans finish. Done is this tab's
+ *  (`S.hemWho`).
+ *  ponytail: a reload during the hem asks it again. Ceiling: one more press. Trigger: a writer asked
+ *  twice minding it; then keep it on the hem's row. */
+const hemWhoOpen = (ch) => !!hemNext(ch) && !hemAsking(ch) && !S.hemWho?.has(ch.id);
+function hemWho(ch) {
+  const next = hemNext(ch);
+  if (!next || !hemWhoOpen(ch)) return '';
+  return `<div class="card hemwho push-8">
+    <div class="lbl flush">Who is in ${esc(sceneName(next))}</div>
+    <div class="hint flush">Take out who is not in it, bring in who is.</div>
+    ${whoList(next)}
+    <button class="btn fill push-8" data-hemwhodone="${esc(ch.id)}">Done</button>
+  </div>`;
+}
 /** WHAT THIS SCENE LEFT TO DECIDE: everything its hem chalked (the scene's group), and anything else
  *  chalked against the scene (Talk, an older hem). The hem screen decides all of it. */
 const hemOwed = (ch) => (V.proposals ?? []).filter((p) => p.grp === `scene:${ch.id}` || p.chapterId === ch.id);
@@ -3927,7 +3966,7 @@ function hemStepStates(ch, closed) {
     const now = running && h?.current?.pass === k;
     const trying = running && S.hemTrying === `${ch.id}:${k}`;
     const state = !closed ? 'wait' : now ? 'run' : bad && !trying ? 'fail' : done ? 'done'
-      : 'wait';
+      : k === 'next' && hemAsking(ch) ? 'you' : 'wait';
     const line = state === 'run' ? `${HEM_DOING[k]} · ${mins < 1 ? 'under a minute' : `${mins} min`}`
       : state === 'fail' ? `Did not run: ${plainWhy(report[k])}`
       : state === 'done' ? found[k]
@@ -3935,24 +3974,29 @@ function hemStepStates(ch, closed) {
       // A summary written by hand before any hem shows as one, on a step not run yet.
       : k === 'summary' && summary ? found.summary
       : trying ? 'Trying again'
-      : closed && running ? 'Waiting' : '';
+      : closed && running ? (k === 'next' && S.hemAsked?.has(ch.id) ? 'Next, after the passes above' : 'Waiting') : '';
     return { k, name, state, line, done };
-  // A hem that was not asked for the next scene has no step for it: the setup asks (see above). A hem
-  // from before that, which ran the pass, keeps its step.
-  }).filter((x) => x.k !== 'next' || (h && 'next' in report) || x.state === 'run');
+  });
   // The writer's two steps wait until Anansi's are over: a hem still running may yet chalk more.
   const passesOver = closed && !running;
   const owed = hemOwed(ch).length;
   const next = closed ? hemNext(ch) : null;
   const started = !!next && (V.passages ?? []).some((p) => p.chapterId === next.id && !p.isBreak);
-  const decide = { k: 'decide', name: 'Decide what it found', done: passesOver && !owed,
-    state: !passesOver ? 'wait' : owed ? 'you' : 'done',
-    line: !passesOver ? '' : owed ? `${plural(owed, 'thing', 'things')} waiting for you` : 'Nothing left to decide' };
-  const setup = { k: 'setup', name: 'Set up the next scene', done: passesOver && (!next || started),
-    state: !passesOver || owed ? 'wait' : !next || started ? 'done' : 'you',
-    line: !passesOver || owed ? '' : !next || started ? 'Under way' : 'Ready when you are' };
+  // WHO IS IN THE NEXT SCENE, the writer's while the scans run (`hemWho`), and nothing after it
+  // shows until it is done.
+  const whoOpen = closed && hemWhoOpen(ch);
+  const who = next ? [{ k: 'who', name: 'Who is in the next scene', done: !whoOpen && !hemAsking(ch),
+    state: hemAsking(ch) ? 'wait' : whoOpen ? 'you' : 'done',
+    line: whoOpen ? 'Add or take out threads, then Done' : hemAsking(ch) ? '' : 'Done' }] : [];
+  const ready = passesOver && !whoOpen && !hemAsking(ch);
+  const decide = { k: 'decide', name: 'Decide what it found', done: ready && !owed,
+    state: !ready ? 'wait' : owed ? 'you' : 'done',
+    line: !ready ? '' : owed ? `${plural(owed, 'thing', 'things')} waiting for you` : 'Nothing left to decide' };
+  const setup = { k: 'setup', name: 'Set up the next scene', done: ready && (!next || started),
+    state: !ready || owed ? 'wait' : !next || started ? 'done' : 'you',
+    line: !ready || owed ? '' : !next || started ? 'Under way' : 'Ready when you are' };
   // ONE GOLD STEP, the next one: a later step that also waits on the writer waits its turn.
-  const all = [...passes, decide, setup], first = all.find((x) => x.state === 'you');
+  const all = [...passes, ...who, decide, setup], first = all.find((x) => x.state === 'you');
   for (const x of all) if (x.state === 'you' && x !== first) x.state = 'wait';
   return all;
 }
@@ -3990,6 +4034,16 @@ function ritualPanel() {
     <div class="line-2">
       <button class="btn fill" data-endchapter="1">${S.ritual ? esc(S.ritual) : 'Hem this scene'}</button>
       ${tipMark('ritEnd', 'Hem this scene')}</div>`);
+  // How the next scene starts, then who is in it, while the scans run; then the summary, once both
+  // are done and the scans are over (see `hemAsking`).
+  if (closed) act.push(hemAsk(ch), hemWho(ch));
+  const told = closed && !!ch.hem && !hemAsking(ch) && !hemWhoOpen(ch);
+  if (told && ch.hem.state === 'running') act.push(`<div class="hint">Anansi is still reading the scene.
+    What he wrote about it shows here when he is done.</div>`);
+  else if (told) act.push(`<label class="lbl sub-lbl" for="hemsum-${esc(ch.id)}">${
+      ch.summaryAuthor === 'human' ? 'Your summary' : 'The summary'}</label>
+    <textarea class="field" id="hemsum-${esc(ch.id)}" data-hemsumtext="${esc(ch.id)}" aria-label="The summary of ${esc(sceneName(ch))}"
+      placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>`);
   if (failed.length) act.push(`<div class="card hemfail">${failed.map((x) => `<div class="line-8 wraps">
       <span class="note fill"><span class="inked">${esc(x.name)}</span> did not run &mdash; ${esc(x.line.replace(/^Did not run: /, ''))}</span>
       <button class="btn ghost" data-hemagain="${esc(ch.id)}" data-pass="${x.k}">Try again</button></div>`).join('')}
@@ -7007,19 +7061,31 @@ const missedPasses = (ch) => PASSES
 const hemScanning = () => V?.chapters?.find((c) => c.index === V.currentChapter.index - 1)?.hem?.state === 'running';
 const SCANNING_NOTE = 'Anansi is still reading the last scene. The next step opens when he is done.';
 
-function setupPanel() {
-  const ch = V?.currentChapter;
-  if (!ch) return '<div class="hint">No scene open.</div>';
+/** WHO IS IN THE SCENE being written (Seth, 2026-10-29): every thread sent for it whatever is said
+ *  (`inContext` read from the pins alone, so it says what the presses change), and every thread the
+ *  writer chose or sewn in for it (`S.setupHere`), so a thread put on a word stays in view; then a box
+ *  to find one to bring in. On Anyone new, and on the hem screen while the hem runs (2026-10-30). */
+function whoList(ch) {
   const pin = pinModes();
-  // WHO IS IN THE SCENE, on Anyone new (Seth, 2026-10-29): every thread sent for it whatever is said
-  // (`inContext` read from the pins alone, so it says what the presses change), and every thread the
-  // writer chose or sewn in on this setup (`S.setupHere`), so a thread put on a word stays in view.
   const here = S.setupHere ?? new Set();
   const live = V.entries.filter((e) => e.entryType !== 'tale' && e.retiredAtChapter == null);
   const inIt = live.filter((e) => inContext(e, pin, null) || here.has(`${ch.id}:${e.id}`));
   const q = (S.setupQ ?? '').trim().toLowerCase();
   const found = q ? live.filter((e) => !inIt.includes(e)
     && `${e.title} ${e.body} ${(e.keys ?? []).join(' ')}`.toLowerCase().includes(q)).slice(0, 8) : [];
+  return `${inIt.length ? `<div class="card wholist">${inIt.map((e) => whoBlock(e, pin, sceneName(ch))).join('')}</div>`
+      : '<div class="hint flush">Nobody is sent for it unless they are named.</div>'}
+    <input class="field push-8" id="setupQ" aria-label="Find a thread to bring into ${esc(sceneName(ch))}"
+      value="${esc(S.setupQ ?? '')}"
+      placeholder="Find a thread to bring in">
+    ${found.map((e) => `<button class="tag pressable" data-howin="${esc(e.id)}" data-how="scene"
+      aria-label="Bring ${esc(e.title)} into ${esc(sceneName(ch))}">+ ${esc(e.title)}</button>`).join(' ')}
+    ${q && !found.length ? '<div class="hint flush">Nothing else matches that.</div>' : ''}`;
+}
+
+function setupPanel() {
+  const ch = V?.currentChapter;
+  if (!ch) return '<div class="hint">No scene open.</div>';
   // Rendered from state, not from the DOM. Ticking a character repaints this panel, and reading
   // the inputs back afterwards found them freshly rebuilt and empty — so the beat you had just
   // typed was gone. Same fault as the search boxes and the click delegation, in a third place.
@@ -7266,14 +7332,7 @@ function setupPanel() {
         it for this scene whatever is said; When it's named sends it when one of its wake words is in
         the prose. Press a name to read the thread. &#10005; takes it out of this scene. Each one
         costs space on every call, so keep what is actually in the scene.</p>`)}
-      ${inIt.length ? `<div class="card wholist">${inIt.map((e) => whoBlock(e, pin, sceneName(ch))).join('')}</div>`
-        : '<div class="hint flush">Nobody is sent for it unless they are named.</div>'}
-      <input class="field push-8" id="setupQ" aria-label="Find a thread to bring into ${esc(sceneName(ch))}"
-        value="${esc(S.setupQ ?? '')}"
-        placeholder="Find a thread to bring in">
-      ${found.map((e) => `<button class="tag pressable" data-howin="${esc(e.id)}" data-how="scene"
-        aria-label="Bring ${esc(e.title)} into ${esc(sceneName(ch))}">+ ${esc(e.title)}</button>`).join(' ')}
-      ${q && !found.length ? '<div class="hint flush">Nothing else matches that.</div>' : ''}
+      ${whoList(ch)}
       <div class="end-row push-12"><span class="hint flush fill">The tale's setting</span>${
         tipMark('setSetting', "The tale's setting")}</div>
       ${tipCard('setSetting', "The tale's setting", `<p>Anansi reads the tale's setting every time
@@ -9782,7 +9841,11 @@ function watchHems() {
     // The writer may have left the tale while it was read; then this answer is about nothing on screen.
     if (S.storyId !== sid || !V) return;
     if (!r.error && hemsRunning(r) !== hemsRunning(V)) {
+      // The hem drawer's question may be part-way answered: its words are on S, and the caret goes back.
+      const typing = document.activeElement?.dataset?.hemsteer;
       V = r; paint();
+      const box = typing && document.querySelector(`[data-hemsteer="${typing}"]`);
+      if (box) { box.focus({ preventScroll: true }); box.setSelectionRange?.(box.value.length, box.value.length); }
       return;
     }
     // THE STEPS MOVE WHILE YOU WATCH (walkthrough, 2026-10-30: nothing on the drawer moved until the
@@ -13589,8 +13652,8 @@ document.addEventListener('click', async (e) => {
     // waits on them. `S.ritual` only guards the second press while the close itself is in flight.
     S.ritual = 'Hemming…'; paint();
     const closing = V.currentChapter;
-    // THE NEXT SCENE IS ASKED FOR, NOT GUESSED (Seth, 2026-10-30): `next: false` runs no next-scene
-    // pass, and Set up the next scene asks how it starts once the hem is done.
+    // THE NEXT SCENE IS ASKED FOR, NOT GUESSED (Seth, 2026-10-30): `next: false` leaves that pass
+    // waiting, and the drawer asks how the next scene starts (`hemAsk`) while the others run.
     const r = await api.endChapter(S.storyId, { next: false });
     S.ritual = null;
     if (r.error) { paint(); return toast(r.error); }
@@ -13600,11 +13663,25 @@ document.addEventListener('click', async (e) => {
     // dropped the writer in an empty scene, so the steps were never seen running and the next scene
     // was never asked about). The new scene is open behind it; no setup is stepped through and no
     // opening passage is written: that is `savesetup`'s. Not What he reads (Seth, 2026-10-27).
-    S.ritualOf = closing.id;
+    // A scene hemmed again in this tab is asked again: what was asked and done was the last hem's.
+    S.ritualOf = closing.id; S.hemSteer = ''; S.hemAsked?.delete(closing.id); S.hemWho?.delete(closing.id);
     S.setup = null; S.setupStep = null; S.panel = 'ritual';
     syncHash(); paint(); refreshManifest();
     return;
   }
+  // How the next scene starts (`hemAsk`): the writer's words go into the scene as written, and the
+  // hem's next-scene pass names it from them. It waits in the tale's hem queue behind the passes still
+  // running, so it reads their summary.
+  if (d.hemnext) {
+    const opens = (S.hemSteer ?? '').trim();
+    const r = await api.hemAgain(S.storyId, d.hemnext, { pass: 'next', ...(opens ? { opens } : {}) });
+    if (r.error) return toast(r.error);
+    (S.hemAsked ??= new Set()).add(d.hemnext); S.hemWho?.delete(d.hemnext);
+    S.hemSteer = '';
+    V = r; paint();
+    return toast(opens ? 'Kept as you wrote it. Anansi names the scene from it.' : 'Anansi chooses how it starts.');
+  }
+  if (d.hemwhodone) { (S.hemWho ??= new Set()).add(d.hemwhodone); S.setupQ = ''; paint(); return; }
   if (d.hemextra) {
     const r = await api.hemAgain(S.storyId, d.hemextra, { extra: true });
     if (r.error) return toast(r.error);
@@ -15600,6 +15677,8 @@ document.addEventListener('input', (e) => {
     if (box) { box.focus(); box.setSelectionRange(at, at); }
     return;
   }
+  // The hem's question about the next scene, kept on S so the hem watch's redraw puts it back.
+  if (e.target.dataset?.hemsteer !== undefined) { S.hemSteer = e.target.value; return; }
   if (e.target.dataset?.setup) {
     // WHICH BOXES THE WRITER TYPED IN, so asking Anansi again replaces his words and not theirs.
     // The direction is not one of them: it is an instruction, never a box of the scene.
@@ -15659,6 +15738,15 @@ document.addEventListener('input', (e) => {
   }
 });
 /** THE MENU'S SEARCH BAR (2026-10-28): Enter opens Prose search on what was typed, and runs it. */
+// ENTER SENDS how the next scene starts (Seth, 2026-10-30: "once I press enter"); Shift+Enter is a new
+// line, and a composing IME keeps its Enter.
+document.addEventListener('keydown', (e) => {
+  const id = e.target?.dataset?.hemsteer;
+  if (e.key !== 'Enter' || e.shiftKey || e.isComposing || !id) return;
+  e.preventDefault();
+  S.hemSteer = e.target.value;
+  document.querySelector(`[data-hemnext="${id}"]`)?.click();
+});
 document.addEventListener('keydown', async (e) => {
   if (e.key !== 'Enter' || !e.target?.dataset?.railsearch) return;
   e.preventDefault();

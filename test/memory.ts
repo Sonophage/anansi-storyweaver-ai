@@ -1420,9 +1420,8 @@ ok('the next scene can be asked again with a direction, away from the last sugge
 // "we start hemming and it asks how the next scene should start. While that's filled out the ai does
 // the rest ... So it wouldn't run that check first." The close runs every pass but the next scene;
 // the writer's direction asks for it, and what comes back goes into the scene itself, where the
-// writing prompt reads it ("it's not passed to the scene"). Later the same day the client stopped
-// asking during the hem: the setup asks once it is done (`suggestScene` with the writer's opening).
-// The route keeps the pass, for Try again on a hem that ran it.
+// writing prompt reads it ("it's not passed to the scene"). Since the evening the writer's words are
+// sent as `opens` and are the scene's opening as written (see the block after this one).
 {
   const t = db.createStory(me, { title: 'Asked first', premise: 'A ferry town.' }) as any;
   const ch0 = (db.chapters(t.id)[0] as any);
@@ -1469,6 +1468,34 @@ ok('the next scene can be asked again with a direction, away from the last sugge
   tidied = {};
 }
 ok('a hem asks for the next scene rather than guessing it, and the answer goes into the scene');
+
+// ---- HOW IT STARTS, AS WRITTEN (Seth, 2026-10-30: "What I enter should be what's used"). The hem's
+// question sends the writer's words as `opens`: they are the scene's opening at once, word for word,
+// they reach the next-scene ask, and the pass names the scene and says where it heads without
+// replacing them.
+{
+  const t = db.createStory(me, { title: 'Opened as said', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The ferry left without him.' });
+  tidied = { ...NEXT }; asks.length = 0;
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false }));
+  await hemSettled(t.id);
+  const mine = 'Two days later, in his bookstore, two strangers walk in.';
+  const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', opens: mine }));
+  assert.ok(!v.error, v.error);
+  assert.strictEqual((db.chapters(t.id) as any[]).find((c) => c.id === r.opened).opens_with, mine,
+    'HEM-OPENS-NOW: the opening is the scene\'s as soon as it is sent, before the pass runs');
+  await hemSettled(t.id);
+  assert.match(String(askOf(prompts.CHAPTER)?.user ?? ''), /THE WRITER SAYS HOW CHAPTER 2 OPENS[\s\S]*Two days later, in his bookstore/,
+    'HEM-OPENS-ASKED: the next-scene ask is written from it');
+  const next = (db.chapters(t.id) as any[]).find((c) => c.id === r.opened);
+  assert.strictEqual(next.opens_with, mine, 'HEM-OPENS-KEPT: and the opening is still the writer\'s words after the pass');
+  assert.strictEqual(next.title, NEXT.title, '  while the pass names the scene');
+  assert.strictEqual(next.authors_note, NEXT.note, '  and says where it heads');
+  assert.strictEqual(sceneOf(await viewNow(t.id), ch0.id).hem.suggestion?.opens, mine, '  and the hem\'s suggestion carries the same opening');
+  tidied = {};
+}
+ok('the opening the writer sends from the hem is the scene\'s, as written, and the pass names the scene from it');
 
 // ---- NEW THREADS, SIX AT MOST PER HEM (2026-10-27) ----
 // One hem of Seth's chalked 8 characters, 6 places and 2 items. The rest are held, named on the card,

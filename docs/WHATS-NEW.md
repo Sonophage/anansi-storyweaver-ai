@@ -18,11 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · The next scene starts the way you say
 
-### You say how the next scene starts, after the hem
-Hemming no longer asks about the next scene while it runs. When it is done, Set up the next scene
-asks first: How should this scene start? What you write there is the scene's opening, word for
-word. Have Anansi name it then gives the scene a title and says where it heads from your opening,
-and never rewrites the opening itself. Nothing is written until you press Save and write.
+### Hemming asks about the next scene first, then who is in it, then shows the summary
+As soon as you hem a scene, the hem asks how the next scene should start. What you write is the
+next scene's opening, word for word; press Enter and Anansi names the scene and says where it heads
+from it, while he finishes reading this one. Then you choose who is in the next scene: take out who
+is not, bring in who is, and press Done. By then the hem has usually finished, and it shows you the
+summary it wrote and what it found to decide. Nothing is written until you start the next scene.
 ### A new scene opens where you said, not where the last one stopped
 The first passage of a new scene kept picking up the scene before it, even when you said it opens
 somewhere else days later. Anansi is now told plainly that the scene before has ended, and to open
