@@ -208,10 +208,10 @@ const body = (await page.text('#sideBody') || '');
   console.log("  propose says: " + said);
   ok(`  and it reports a missing beat as missing (${got.n} chars, noteMissing ${got.missing})`,
      got.missing === (got.n < 40));
-  // PROPOSED. Asking again writes nothing until Save, which is what makes it safe to fire unasked.
+  // PROPOSED. Asking again writes nothing until Start writing, which is what makes it safe to fire unasked.
   // (The hem's own suggestion IS in the scene already, by design since 2026-10-30: `offerScene`.)
   const chNow = (await story()).chapters.at(-1);
-  ok("  and asking again writes neither until you press Save",
+  ok("  and asking again writes neither until you press Start writing",
      (chNow?.title ?? '') === (before?.title ?? '') && (chNow?.authorsNote ?? '') === (before?.authorsNote ?? ''));
 }
 

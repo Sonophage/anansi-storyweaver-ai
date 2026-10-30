@@ -279,6 +279,10 @@ An empty Always true is never kept: Done says so and stays open.
 ### Adding something says Add
 Where a press makes something new, it now says Add and not Save: a new pocket, a new change over
 time, and a new pocket while you set up a tale. It does the same as before.
+### Start writing, and Send to
+Setting up the next scene ends with Start writing, which was Save and write. A thread your tale
+follows from a world has Send to and the world's name, which was Save to: it sends your words to the
+world, so every tale that follows the thread sees them. Both do the same as before.
 
 ## 2026-10-30 · The next scene starts the way you say
 

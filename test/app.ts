@@ -6088,7 +6088,9 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   // face was read-only, and `db.upsertEntry`'s redirect is what makes the box safe.
   assert.match(shared, /data-followedbody="e-shared"/, 'its description can be edited here');
   assert.match(shared, /data-savefollowed="e-shared"/, 'and saved');
-  assert.match(shared, /Save to The Ash Cycle/, 'saying which book the save lands in');
+  // RENAMED Send to (Seth, 2026-10-30): it sends the words to the book the thread lives in.
+  assert.match(shared, /Send to The Ash Cycle/, 'SEND-TO: saying which book the words are sent to');
+  assert.doesNotMatch(shared, /Save to /, '  and no longer Save to');
   assert.match(shared, /data-takeover="e-shared"/, 'it can be taken over');
   assert.match(shared, /data-dropfollow="e-shared"/, 'or taken out of this book');
   // AND NOT THE PRESSES THAT CANNOT WORK FROM HERE. `upsertAddon`, the states and the outfits all
@@ -7233,8 +7235,8 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
    * anyone new button the accented one and move it to the top above save and write."
    *
    * Asserted as an ORDER and as an exclusive accent, not as "the button exists": it was already
-   * there, below Save and write, wearing the ghost style. A check for its presence was green
-   * throughout. */
+   * there, below Start writing (Save and write until 2026-10-30), wearing the ghost style. A check for
+   * its presence was green throughout. */
   click({ setupstep: 'premise' });
   await sleep(30);
   const beat = html('sideBody');
@@ -7242,10 +7244,12 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   const anyone = at(/<button class="btn(?! ghost)(?: [^"]*)?" data-setupstep="more"/);
   const saveWrite = at(/data-savesetup="1"/);
   assert.ok(anyone > -1, 'Anyone new is the accented button — class "btn", not "btn ghost"');
-  assert.ok(saveWrite > -1, 'and Save and write is still there');
+  assert.ok(saveWrite > -1, 'and Start writing is still there');
+  assert.match(beat, /data-savesetup="1">Start writing</, 'START-WRITING: the way out of the setup says Start writing');
+  assert.doesNotMatch(beat, /Save and write/, '  and not Save and write');
   assert.ok(anyone < saveWrite, 'with Anyone new above it');
   assert.match(beat, /<button class="btn ghost(?: [^"]*)?" data-savesetup="1"/,
-    'Save and write gives up the accent — one accent per screen, and it is the way out rather than '
+    'Start writing gives up the accent — one accent per screen, and it is the way out rather than '
     + 'the way through');
   /* AND A QUEUE FROM FURTHER BACK IS NOT A DEBRIEF. The fallback is the chapter BEFORE this one and
    * only that one: a writer on chapter three with undecided cards from chapter one should not be

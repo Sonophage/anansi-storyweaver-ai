@@ -150,7 +150,7 @@ export const api = {
   saveChapter:  (storyId, chapterId, chapter) => j('/api/chapter', 'POST', { storyId, chapterId, chapter }),
   endChapter:   (storyId, o)     => j('/api/chapter/end', 'POST', { storyId, ...o }),
   // What the chapter about to be written should be called and what it has to do. Proposes only —
-  // the setup panel fills its two fields with this and nothing is saved until you press Save.
+  // the setup panel fills its two fields with this and nothing is saved until you press Start writing.
   // `avoid`: the last suggestion, so asking again gives a different scene (2026-10-27).
   proposeChapter: (storyId, chapterId, steer, avoid, opens, brief) => j('/api/chapter/propose', 'POST', { storyId, chapterId, steer, avoid, opens, brief }),
   // #91. Run a hem's passes again: `pass` tries one again, `names` asks for threads past the cap,

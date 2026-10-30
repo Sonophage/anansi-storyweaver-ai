@@ -2198,7 +2198,7 @@ async function nameChapter(chapterId, auto = false) {
   toast(r.noteMissing && !live.note.trim()
     ? 'Anansi named the scene but did not say where it heads. Write that yourself, or '
       + 'press again — it is the line that steers every call in this scene.'
-    : 'Anansi suggests. Both boxes are yours to change, and nothing is saved until you press Save.');
+    : 'Anansi suggests. Both boxes are yours to change, and nothing is saved until you press Start writing.');
 }
 
 /** THE CHAPTER'S BRIEF, WRITTEN BY ANANSI, from inside the chapter panel.
@@ -7824,8 +7824,8 @@ function setupPanel() {
     <!-- ANYONE NEW IS THE ACCENTED PRESS AND IT COMES FIRST, at Seth's direction 2026-09-01: "make
          the anyone new button the accented one and move it to the top above save and write." The
          beat is what says who is needed, so the step after writing the beat is the one worth
-         offering — Save and write is the way OUT of the ritual, not the way through it. One accent
-         per screen, so Save and write gives it up rather than competing. -->
+         offering — Start writing is the way OUT of the ritual, not the way through it. One accent
+         per screen, so Start writing gives it up rather than competing. -->
     <button class="btn push-20" data-setupstep="more">Next &mdash; anyone new${
       fresh.length ? ` &middot; ${fresh.length} chalked` : ''}</button>
     <button class="btn ghost push-8" data-savesetup="1">Start writing</button>
@@ -8134,13 +8134,14 @@ function cardFace(e, slots) {
         >Open that world</button></div>
     <textarea class="field" data-followedbody="${e.id}" aria-label="What ${esc(e.title)} says"
       style="min-height:110px; font-size:12.5px; line-height:1.55">${esc(e.body ?? '')}</textarea>
-    ${tipCard('faceShared', 'Saving a followed thread', `<p>One thread, not two: saving writes it in
+    ${tipCard('faceShared', 'Sending a followed thread', `<p>One thread, not two: sending writes it in
       <strong>${esc(e.sharedFrom)}</strong>, so every tale following it sees the change. Its
       pockets, its timeline and its wake words are altered there.</p>`)}
     <div style="display:flex; align-items:center; gap:2px; margin-bottom:12px">
-      <button class="btn ghost flush fill" data-savefollowed="${e.id}">Save to ${
+      ${/* Send to, not Save to (Seth, 2026-10-30): it sends the words to the book the thread lives in. */''}
+      <button class="btn ghost flush fill" data-savefollowed="${e.id}">Send to ${
         esc(e.sharedFrom)}</button>
-      ${tipMark('faceShared', 'Saving a followed thread')}</div>
+      ${tipMark('faceShared', 'Sending a followed thread')}</div>
     ${tipCard('faceLeave', 'Taking it over, or removing it', `<p>Taking it over copies it here as
       it stands &mdash; pockets, outfit and all &mdash; and it stops following. Removing it leaves it
       untouched where it lives and only stops this tale from seeing it. Both are reversible.</p>`)}
@@ -13393,7 +13394,7 @@ document.addEventListener('click', async (e) => {
       allowNoKeys: true });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId); paint(); refreshManifest();
-    return toast(`Saved in ${e.sharedFrom}. Every tale following it sees this.`);
+    return toast(`Sent to ${e.sharedFrom}. Every tale following it sees this.`);
   }
   if (d.takeover) {
     const r = await api.takeover({ storyId: S.storyId, entryId: d.takeover });

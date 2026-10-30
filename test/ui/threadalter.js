@@ -281,17 +281,17 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   const fh = await page.eval(`JSON.stringify({ back: !!document.querySelector('#sideHead [data-backentry]'),
     more: !!document.querySelector('#sideHead [data-readmenu]'), save: !!document.querySelector('[data-savefollowed]'),
     take: !!document.querySelector('[data-takeover]'), drop: !!document.querySelector('[data-dropfollow]') })`).then(JSON.parse);
-  ok(`its Read screen has "‹ Threads", no ⋯, and its own Save, Take over and Remove (${JSON.stringify(fh)})`,
+  ok(`its Read screen has "‹ Threads", no ⋯, and its own Send to, Take over and Remove (${JSON.stringify(fh)})`,
      fh.back && !fh.more && fh.save && fh.take && fh.drop);
   await typeInto('[data-followedbody]', '[The Tide Bell: rings at low water, and once at high]');
   await page.click('[data-savefollowed]'); await wait(900);
-  ok("  and Save writes it in the world book it lives in",
+  ok("  and Send to writes it in the world book it lives in",
      /once at high/.test((await story(made.world)).entries.find((e) => e.title === 'The Tide Bell')?.body ?? ''));
   await page.click('#sideHead [data-backentry]'); await wait(600);
   ok("  and ‹ Threads goes back to that tale's list", (await where()).list);
 }
 
-// ---- The cross-book Threads page: Esc is Cancel there too, at a desk's width
+// ---- The cross-book Threads page: Esc is Done there too, at a desk's width
 // The page draws Alter in the page rather than in a drawer, and Esc was gated on the drawer being
 // an overlay, so on a wide screen it did nothing.
 {
