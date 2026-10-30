@@ -197,7 +197,7 @@ export const YOURS_VOICE = (name: string) =>
 export const MEMORY =
 `Below is a scene's narration, then the threads it names: people, places, lore, items and rules.
 Each comes with its Always true (who or what it is, which does not change), where it stands now
-(the entry in force), and the pockets its kind can have.
+(the entry in force), the pockets it has with what each says, and the pockets its kind can have.
 
 Consider a thread ONLY if the narration shows it acting or being acted on. A mention is not a
 change: a thread that is named, remembered, looked at or merely present is left out entirely.

@@ -14,7 +14,7 @@ import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultMode
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
 import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, narrationOnly, retirable, fires, summaryReaches,
-         weaveFit, actSpan, reweaveOf } from './context.ts';
+         weaveFit, actSpan, reweaveOf, pocketText } from './context.ts';
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
@@ -1362,6 +1362,11 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
 
 /** #90. The most threads one hem chalks changes for. The rest are named on the hem's card. */
 const HEM_THREADS = 6;
+/** #93 · The most of one pocket's text the thread-change ask shows. Over the live library's longest
+ *  but one percent on 2026-10-29 (1,237 pockets: half under 144 characters, 99% under 440, the
+ *  longest 834), so it cuts only an outlier, and a thread's eight pockets stay a few thousand
+ *  characters. */
+const POCKET_SHOWN = 600;
 
 /** What the scene just hemmed did to the threads it names, as chalked proposals (#73, ADR 0005).
  *
@@ -1401,7 +1406,11 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
   const inForce = named.map((e: any) => [`${e.title} (${e.entryType})`,
     `  Always true: ${alwaysTrue(e) || '(empty)'}`,
     `  Where it stands now: ${resolveBody(e, ch.index).trim() || '(nothing yet)'}`,
-    `  Pockets it has: ${(e.addons ?? []).filter((a: any) => a.slot !== 'facts').map((a: any) => `${a.slot} (${a.name})`).join(', ') || 'none'}`,
+    // #93 · WITH THEIR TEXT, which the ask is told never to repeat. Each cut at POCKET_SHOWN, marked.
+    `  Pockets it has:${(e.addons ?? []).filter((a: any) => a.slot !== 'facts').map((a: any) => {
+      const t = pocketText(e, a).replace(/\s*\n\s*/g, ' ');
+      return `\n    ${a.slot} (${a.name}): ${t.length > POCKET_SHOWN ? `${t.slice(0, POCKET_SHOWN).trimEnd()}…` : t}`;
+    }).join('') || ' none'}`,
     `  Pockets its kind can have: ${slotsFor(e.entryType).map((sl) => sl.name).filter((n) => n !== 'facts').join(', ')}`,
   ].join('\n')).join('\n\n');
   // #90 · OUTSIDE ONLY: the character the writer plays, and the Hands off one while the switch is on.

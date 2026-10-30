@@ -1539,6 +1539,33 @@ ok('a hem chalks six new threads at most, and the rest wait by name until asked 
 }
 
 
+// #93 · THE POCKETS A THREAD HAS ARRIVE WITH THEIR TEXT. The prompt says never repeat what the thread
+// already says, and the ask showed a pocket's name only, so the model could not see what it said.
+// Wrapped the old way, the wrapper comes off, as it does in every prompt; a long one is cut, marked.
+{
+  const t = db.createStory(me, { title: 'Pocket text', premise: 'p' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const ilse = db.upsertEntry(t.id, me, { title: 'Ilse', body: 'poles the ferry at Sallow', entryType: 'character', keys: ['Ilse'] })!;
+  db.upsertAddon(t.id, ilse, { slot: 'voice', name: 'Few words', body: 'Write her lines short; one word where three would do.' });
+  const worn = db.upsertAddon(t.id, ilse, { slot: 'appearance', name: 'Weathered', body: 'tar on her hands, a split lip' })!;
+  // Wrapped the way a pocket was stored before the floor took wrappers off (#110): past the floor.
+  { const { DatabaseSync } = await import('node:sqlite'); const raw = new DatabaseSync(DB);
+    raw.prepare('UPDATE addons SET body = ? WHERE id = ?').run('[Ilse: tar on her hands, a split lip]', worn); raw.close(); }
+  db.upsertAddon(t.id, ilse, { slot: 'relationships', name: 'Debts', body: 'owes ' + 'the ferry guild '.repeat(80) + 'END' });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'Ilse poled the ferry across and tied it off.' });
+  answer = []; asked = null;
+  await routes['POST /api/remember'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  const u = String(asked?.user ?? '');
+  assert.match(u, /voice \(Few words\): Write her lines short; one word where three would do\./,
+    'POCKET-TEXT: a pocket the thread has arrives with its text');
+  assert.match(u, /appearance \(Weathered\): tar on her hands, a split lip/, 'POCKET-TEXT: with the old wrapper off');
+  assert.doesNotMatch(u, /\[Ilse: tar/, '  and not wrapped twice');
+  const long = u.split('\n').find((l) => l.includes('relationships (Debts)')) ?? '';
+  assert.ok(long && !long.includes('END') && long.endsWith('…'), `POCKET-TEXT-BOUND: a long pocket is cut, and says so (${long.length} chars)`);
+  db.delStory(t.id);
+  ok("the thread-change ask shows each pocket's text, unwrapped and bounded");
+}
+
 // A change equal to the entry in force, or a pocket that says what the thread already says, is not
 // news, and is not chalked. Case and punctuation do not make it news either.
 {

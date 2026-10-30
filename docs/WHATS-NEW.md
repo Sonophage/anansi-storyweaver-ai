@@ -34,6 +34,10 @@ more before showing an error. On some models the second try can take as long as 
 If the app restarted while it was hemming a scene, that scene used to say it was still hemming, for
 good. Now the card says the hem was stopped by the restart, and each step it did not finish has a
 Try again beside it.
+### Hemming reads what your pockets say
+When a hem looks at what a scene changed for each thread, it now sees what each of the thread's
+pockets says, not only their names. It is told never to offer back what a thread already says, and
+now it can see what that is.
 
 ### The tale's own thread has its own tab
 The tale's own thread now lives in the Tale panel, on a new Thread tab: where the tale stands, its

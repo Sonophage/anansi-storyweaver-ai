@@ -356,6 +356,12 @@ export function retiredAt(e: Entry, at: number): number | null {
 const unwrapped = (body: string, names: string[]): string =>
   plain(body, names).split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
 
+/** #93 · A POCKET'S TEXT AS A PROMPT SHOWS IT UNFRAMED, by its kind and name: the thread-change ask
+ *  (routes.ts `remember`), whose answer names pockets by kind. The same strip `rooms` frames, so an
+ *  old wrapper is never shown twice. */
+export const pocketText = (e: Entry, a: { slot: string; name?: string | null; body: string }): string =>
+  unwrapped(a.body, wrapperNames(a.slot, (e.title || '').trim(), (a.name || '').trim()));
+
 /** #109 · THE FRAME EACH POCKET KIND READS UNDER, for the kinds in `SLOTS` that had none (outfit,
  *  voice and interiority are framed in `rooms` itself). NOT MEASURED, every one: owed an A/B
  *  against the generic `[label: text]` form before anyone calls it an improvement. */
