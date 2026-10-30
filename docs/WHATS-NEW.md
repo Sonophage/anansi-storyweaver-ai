@@ -264,6 +264,11 @@ after you stop. Done closes it, and Undo my changes puts it back as it was when 
 thread's Alterations keep what a pocket said before once, when you press Done, and not once per
 pause. A scene summary is marked out of date only then, and only if the pocket lost something it
 said. A new pocket is still added with its own press.
+### Scene 1 in Over time saves as you type
+When a later change is where a thread stands now, you open where it stood from scene 1 in Over
+time. That now keeps what you type, as the change rows already did. Done closes it, and Undo my
+changes puts it back as it was when you opened it. Its old wording goes into Alterations once, when
+you press Done, and a scene summary is marked out of date only then, if something it said is gone.
 
 ## 2026-10-30 · The next scene starts the way you say
 

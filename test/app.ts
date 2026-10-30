@@ -5705,12 +5705,23 @@ ok("the tale's own thread is on the Tale panel's Thread tab, one ＋ adds to it 
   box = html('pocketPanel');
   assert.match(box, /id="pk-body"[^>]*>\[speaks for Kesh\]</, 'OT-FIRST-OPEN: scene 1 opens on the thread\'s own text');
   assert.doesNotMatch(box, /id="pk-from"|id="pk-label"|data-delstate/, '  with no scene, label or Remove: it is the thread itself');
-  type('pk-body', '[speaks for Kesh, and for herself]');
+  // SAVED AS YOU TYPE, as the thread (ADR 0004, pass three): a pause writes a draft, which keeps no
+  // revision and stales nothing, and Done the last write, naming the text it opened on.
+  assert.doesNotMatch(box, /data-savestate|>Save</, 'OT-FIRST-NO-SAVE: scene 1 has no Save');
+  assert.match(box, /data-pocketundo="1"[\s\S]*data-pocketdone="1"/, 'OT-FIRST-FOOT: Undo my changes and Done in its foot');
+  const entries = () => POSTED.filter((x) => x.url === '/api/entry').map((x) => x.body);
   POSTED.length = 0;
-  click({ savestate: '1' }); await sleep(40);
-  const sent = POSTED.find((x) => x.url === '/api/entry');
-  assert.deepStrictEqual({ id: sent?.body.entry.id, body: sent?.body.entry.body, title: sent?.body.entry.title },
-    { id: 'e-1', body: '[speaks for Kesh, and for herself]', title: 'Envoy Sereth' }, 'OT-FIRST-SAVE: Save writes it as the thread\'s text');
+  type('pk-body', '[speaks for Kesh, and for herself]');
+  await sleep(1000);
+  const sent = entries()[0];
+  assert.deepStrictEqual({ id: sent?.entry.id, body: sent?.entry.body, title: sent?.entry.title, draft: sent?.draft },
+    { id: 'e-1', body: '[speaks for Kesh, and for herself]', title: 'Envoy Sereth', draft: true },
+    'OT-FIRST-DRAFT: the pause writes it as the thread\'s text, as a draft');
+  click({ pocketdone: '1' }); await sleep(40);
+  assert.deepStrictEqual(entries().slice(1).map((b: any) => [b.entry.body, b.draft ?? null, b.opened]),
+    [['[speaks for Kesh, and for herself]', null, { body: '[speaks for Kesh]' }]],
+    'OT-FIRST-DONE: Done sends the last write, naming the text it opened on');
+  assert.strictEqual(html('pocketPanel'), '', '  and shuts it');
   // With no later change in force, scene 1 IS where it stands now, edited on The thread: not a row that opens.
   at([LATER], null);
   pane = await openTime();
@@ -5718,7 +5729,7 @@ ok("the tale's own thread is on the Tale panel's Thread tab, one ＋ adds to it 
   STORY.entries = was;
   click({ cardview: null }); click({ backentry: '1' });
 }
-ok('Over time: one ＋ adds a change, a tap opens one in the pocket panel, and Save writes it');
+ok('Over time: one ＋ adds a change, a tap opens one in the pocket panel, and one that exists saves as you type');
 
 // ---- SCENE SUMMARIES AND CHAPTERS: A TAP OPENS ONE (Seth, 2026-10-30: "edit is opened by tapping the
 // field"). Each was a card with its buttons on it and Alter opening boxes and Save inside the list;

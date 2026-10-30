@@ -2996,8 +2996,8 @@ function statePanel(pk, e) {
     <div class="pkhead"><div class="lbl flush wide">${head} &middot; ${esc(e.title)}</div></div>
     <div class="pkscroll scroll">${fields}</div>
     <div class="pkfoot">
-      ${/* A change that exists saves as you type (POCKET_AUTO). A new one is made by its press, and
-            scene 1 is the thread's own text, which is saved with the thread. */
+      ${/* A change that exists, and scene 1, save as you type (POCKET_AUTO): scene 1 as the thread's
+            own text. A new one is made by its press. */
         pocketAuto(pk) ? AUTO_FOOT : `<button class="btn ghost" data-pocketx="1">Cancel</button>
       <button class="btn" data-savestate="1">Save</button>`}
     </div>
@@ -3202,7 +3202,7 @@ const POCKET_AUTO = {
   arc: { fields: ['title', 'text'], write: (pk, v, storyId) => api.saveArc(storyId, pk.arc, v.title, v.text),
     never: (v) => (v.text.trim() ? null : 'A chapter summary cannot be empty. To remove the chapter, press Remove this chapter.') },
   // A change over time that exists. `upsertState` keeps no history and stales nothing, so a write per
-  // pause costs nothing but the write. Scene 1 is not one of these: it is the thread's own text.
+  // pause costs nothing but the write. Scene 1 is not one of these: it is the thread's own text (`first`).
   state: { fields: ['from', 'mode', 'body', 'label'],
     write: (pk, v, storyId) => api.saveState(storyId, pk.entryId, { id: pk.id, fromChapter: Number(v.from),
       body: v.body, beforeMode: v.mode, label: v.label.trim() || null }),
@@ -3222,6 +3222,14 @@ const POCKET_AUTO = {
   // ponytail: a draft with no last write after it (the page shut or the server gone before Done or
   // the hidden tab sent it) keeps no revision and stales nothing, so a summary can stay in the prompt
   // that the pocket no longer agrees with. Stale on the server from drafts if a writer reports one.
+  // Over time's scene 1, while a later change is in force: the thread's own text, written as the thread.
+  // `upsertEntry` keeps a revision and stales summaries, so it drafts as a pocket does.
+  first: { drafts: true, fields: ['body'], write: (pk, v, storyId, final) => {
+    const e = pocketOwners().find((x) => x.id === pk.entryId);
+    if (!e) return { error: 'That thread is not in this tale any more.' };
+    return api.saveEntry(storyId, { ...e, body: v.body, allowNoKeys: true },
+      final ? { opened: { body: (pk.base ?? pk.was).body } } : { draft: true });
+  }, never: (v) => (v.body.trim() ? null : 'Where it stands from scene 1 needs something in it.') },
   pocket: { drafts: true, fields: ['name', 'body', 'keys', 'owed', 'slot'],
     write: (pk, v, storyId, final) => {
       // A promise of the tale's thread carries the scene it is owed by, as its press did.
@@ -3234,7 +3242,7 @@ const POCKET_AUTO = {
     never: (v) => (!v.name.trim() ? 'A pocket needs a name.' : !v.body.trim() ? 'A pocket needs something in it.' : null) },
 };
 const pocketAuto = (pk) => (pk?.sum ? POCKET_AUTO.sum : pk?.arc ? POCKET_AUTO.arc
-  : pk?.ot ? (pk.id && pk.id !== 'first' ? POCKET_AUTO.state : null)
+  : pk?.ot ? (pk.id === 'first' ? POCKET_AUTO.first : pk.id ? POCKET_AUTO.state : null)
   : pk?.draft ? (pk.id ? POCKET_AUTO.draft : null) : pk?.id ? POCKET_AUTO.pocket : null);
 const pocketVals = (pk, auto) => Object.fromEntries(auto.fields.map((f) => [f, pk[f]]));
 const sameVals = (a, b) => Object.keys(a).every((k) => a[k] === b[k]);
@@ -13714,26 +13722,20 @@ document.addEventListener('click', async (e) => {
     syncHash(); paint(); return;
   }
 
-  // OVER TIME'S ＋ AND ITS ROWS open the pocket panel (`openState`); its Save writes the change, or the
-  // thread's own text for scene 1, and shuts the panel. The routes are the ones the old form used.
+  // OVER TIME'S ＋ AND ITS ROWS open the pocket panel (`openState`). Save is a new change's only: it
+  // writes the change and shuts the panel. One that exists, and scene 1, save as you type (POCKET_AUTO).
   if (d.addstate || d.stateopen) {
     openState(S.entryId, d.stateopen || null); drawPocket(); syncLayers();
     $(d.stateopen === 'first' ? 'pk-body' : 'pk-from')?.focus?.(); return;
   }
   if (d.savestate) {
     const pk = S.pocket; if (!pk?.ot) return;
-    const e = pocketThread(); if (!e) return;
-    if (pk.id === 'first') {
-      if (!pk.body.trim()) return toast('Where it stands from scene 1 needs something in it.');
-      const r = await api.saveEntry(S.storyId, { ...e, body: pk.body, allowNoKeys: true });
-      if (r.error) return toast(/not saved/i.test(r.error) ? r.error : `Not saved. ${r.error}`);
-    } else {
-      const from = Number(pk.from);
-      if (!from || !pk.body.trim()) return toast('A scene number and where it stands, at least.');
-      const r = await api.saveState(S.storyId, e.id, { ...(pk.id ? { id: pk.id } : {}), fromChapter: from,
-        body: pk.body, beforeMode: pk.mode, label: pk.label.trim() || null });
-      if (r.error) return toast(r.error);
-    }
+    const e = pocketThread(); if (!e || pk.id === 'first') return;
+    const from = Number(pk.from);
+    if (!from || !pk.body.trim()) return toast('A scene number and where it stands, at least.');
+    const r = await api.saveState(S.storyId, e.id, { ...(pk.id ? { id: pk.id } : {}), fromChapter: from,
+      body: pk.body, beforeMode: pk.mode, label: pk.label.trim() || null });
+    if (r.error) return toast(r.error);
     S.pocket = null;
     V = await api.story(S.storyId); paint(); refreshManifest(); return toast(pk.id ? 'Saved.' : 'Added.');
   }
