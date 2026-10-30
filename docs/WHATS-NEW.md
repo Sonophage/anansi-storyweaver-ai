@@ -61,6 +61,13 @@ screen a pocket opens in, where you pick what you are adding: a promise, an open
 or one of your own. Rules and your own are rows now, like promises and open questions: tap one to
 change it, remove it or switch it off.
 
+### Over time: one ＋, and a tap opens a change
+A thread's Over time tab no longer has a form under its list or a Save button on every change. The ＋
+beside Over time opens a screen to add a change: the scene it starts from, whether it is hidden or
+hinted before then, where the thread stands from that scene on and what changed. Tap a change to open
+it on the same screen, change it, save it or remove it. Where the thread stands now is still written
+on The thread tab.
+
 ### Clearer hem steps
 A step that failed now says "Did not run" and why, in plain words, with its own Try again. Try again
 says "Trying…" while it runs. Each step has one name everywhere, and "Hem it again" replaces the

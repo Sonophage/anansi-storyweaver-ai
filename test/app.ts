@@ -5073,6 +5073,97 @@ ok('Account → Writing shows When you reweave after the five modes, filled with
 }
 ok("the tale's own thread is on the Tale panel's Thread tab, one ＋ adds to it and a tap opens a row");
 
+// ---- OVER TIME: ONE ＋, AND A TAP OPENS A CHANGE (Seth, 2026-10-30: "throughout the app make any add
+// a plus button with the entry and tabs kind of like threads to keep the ui simple and edit is opened
+// by tapping the field"). The Over time tab had an add form under its list and a set of boxes with
+// Save on every change; each is a row now, and the pocket panel holds the boxes.
+{
+  const was = STORY.entries;
+  const at = (st: any[], now: string | null) => {
+    STORY.entries = was.map((e: any) => e.id === 'e-1' ? { ...e, states: st, nowStateId: now } : e);
+  };
+  const LATER = { id: 'st-3', fromChapter: 3, body: '[Envoy Sereth: speaks for Kesh; owes the crowns]',
+    label: 'owes the crowns', beforeMode: 'hide' };
+  at([LATER], null);
+  const openTime = async () => {
+    click({ open: 's-1' }); await sleep(40);
+    click({ panel: 'threads' }); click({ entry: 'e-1' }); click({ cardview: 'form' }); click({ cardtab: 'time' });
+    await sleep(20);
+    return html('sideBody').match(/<div class="pane"(?![^>]*hidden)[^>]*>[\s\S]*?Over time[\s\S]*/)?.[0] ?? '';
+  };
+  let pane = await openTime();
+  assert.match(pane, /data-addstate="1" class="headadd"/, 'OT-PLUS: Over time has one ＋ to add a change');
+  assert.doesNotMatch(pane, /data-st="|data-stb=|data-stf=|data-stl=|data-savestate/,
+    'OT-PLUS: and no add form or Save buttons in the list');
+  assert.match(pane, /class="pocketopen" data-stateopen="st-3"[\s\S]*?Scene 3[\s\S]*?owes the crowns/,
+    'OT-ROWS: a change is a row with its scene and label, that opens');
+  assert.match(pane, /data-otrow="3"/, '  marked with its scene');
+  // The ＋: the panel, with the fields a change has and no kinds or Ask Anansi.
+  click({ addstate: '1' }); await sleep(20);
+  let box = html('pocketPanel');
+  for (const id of ['pk-from', 'pk-mode', 'pk-body', 'pk-label'])
+    assert.match(box, new RegExp(`id="${id}"`), `OT-NEW: the ＋ opens the panel with ${id}`);
+  assert.match(box, /id="pk-from"[^>]*value="2"/, '  its scene the one being written');
+  assert.doesNotMatch(box, /data-pocketkind|data-pockettab|data-delstate/, '  and no kinds, tabs or Remove');
+  assert.match(box, /data-pocketx="1"[\s\S]*data-savestate="1"/, '  with Cancel and Save in its foot');
+  const type = (id: string, value: string) => (listeners.input ?? []).forEach((f: Function) => f({ target: { id, value } }));
+  type('pk-from', '4'); type('pk-mode', 'hint'); type('pk-body', '[Envoy Sereth: gone home]'); type('pk-label', 'went home');
+  POSTED.length = 0;
+  click({ savestate: '1' }); await sleep(40);
+  assert.deepStrictEqual(POSTED.filter((x) => x.url === '/api/state').map((x) => x.body),
+    [{ storyId: 's-1', entryId: 'e-1', state: { fromChapter: 4, body: '[Envoy Sereth: gone home]', beforeMode: 'hint', label: 'went home' } }],
+    'OT-NEW-SAVE: Save adds the change as typed, with no id');
+  assert.strictEqual(html('pocketPanel'), '', '  and shuts the panel');
+  // A tap on a row opens that change, every field in a box, with Remove.
+  pane = await openTime();
+  click({ stateopen: 'st-3' }); await sleep(20);
+  box = html('pocketPanel');
+  assert.match(box, /id="pk-from"[^>]*value="3"/, 'OT-OPEN: tapping a change opens it on its scene');
+  assert.match(box, /id="pk-label"[^>]*value="owes the crowns"/, '  its label');
+  assert.match(box, /id="pk-body"[^>]*>\[Envoy Sereth: speaks for Kesh; owes the crowns\]</, '  and where it stands');
+  assert.match(box, /data-delstate="st-3"/, '  with Remove inside it');
+  type('pk-label', 'owes twelve crowns');
+  POSTED.length = 0;
+  click({ savestate: '1' }); await sleep(40);
+  assert.deepStrictEqual(POSTED.filter((x) => x.url === '/api/state').map((x) => x.body.state),
+    [{ id: 'st-3', fromChapter: 3, body: LATER.body, beforeMode: 'hide', label: 'owes twelve crowns' }],
+    'OT-EDIT-SAVE: Save writes that change, by its id');
+  // Cancel with something typed asks twice, as the pocket panel does.
+  click({ stateopen: 'st-3' }); await sleep(20);
+  type('pk-label', 'changed my mind');
+  click({ pocketx: '1' }); await sleep(10);
+  assert.notStrictEqual(html('pocketPanel'), '', 'OT-CANCEL: Cancel with a change typed asks first');
+  click({ pocketx: '1' }); await sleep(10);
+  assert.strictEqual(html('pocketPanel'), '', '  and the second press shuts it');
+  // THE ONE IN FORCE: its text is The thread's box, so the panel shows it and does not hold a second box.
+  at([LATER], 'st-3');
+  pane = await openTime();
+  assert.match(pane, /data-stateopen="first"[\s\S]*?From scene 1/, 'OT-FIRST: scene 1 is a row that opens while a later change is in force');
+  click({ stateopen: 'st-3' }); await sleep(20);
+  box = html('pocketPanel');
+  assert.doesNotMatch(box, /id="pk-body"/, 'OT-NOW: the change in force has no second box for its text');
+  assert.match(box, /edited on The thread/, '  and says where it is edited');
+  click({ pocketx: '1' }); await sleep(10);
+  // Scene 1, while a later change is in force: the thread's own text, saved as the thread.
+  click({ stateopen: 'first' }); await sleep(20);
+  box = html('pocketPanel');
+  assert.match(box, /id="pk-body"[^>]*>\[speaks for Kesh\]</, 'OT-FIRST-OPEN: scene 1 opens on the thread\'s own text');
+  assert.doesNotMatch(box, /id="pk-from"|id="pk-label"|data-delstate/, '  with no scene, label or Remove: it is the thread itself');
+  type('pk-body', '[speaks for Kesh, and for herself]');
+  POSTED.length = 0;
+  click({ savestate: '1' }); await sleep(40);
+  const sent = POSTED.find((x) => x.url === '/api/entry');
+  assert.deepStrictEqual({ id: sent?.body.entry.id, body: sent?.body.entry.body, title: sent?.body.entry.title },
+    { id: 'e-1', body: '[speaks for Kesh, and for herself]', title: 'Envoy Sereth' }, 'OT-FIRST-SAVE: Save writes it as the thread\'s text');
+  // With no later change in force, scene 1 IS where it stands now, edited on The thread: not a row that opens.
+  at([LATER], null);
+  pane = await openTime();
+  assert.doesNotMatch(pane, /data-stateopen="first"/, 'OT-FIRST-NOW: scene 1 does not open while it is where it stands now');
+  STORY.entries = was;
+  click({ cardview: null }); click({ backentry: '1' });
+}
+ok('Over time: one ＋ adds a change, a tap opens one in the pocket panel, and Save writes it');
+
 // ---- THE THREAD'S MENU, ONE FLAT LIST, AND TIDY AS AN ICON BESIDE IT (Seth, 2026-10-27).
 {
   click({ entry: 'e-1' });

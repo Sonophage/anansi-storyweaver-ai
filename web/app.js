@@ -532,7 +532,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'share', 'unshare',
   'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc', 'editarc', 'savearc', 'cancelarc',
   'stringnew', 'summon', 'stringstatus', 'looktab', 'askfill',
-  'reroll', 'reseed', 'addstate', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
+  'reroll', 'reseed', 'addstate', 'stateopen', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'howin', 'howout', 'savesetup',
   'skipsetup', 'doimport', 'dropimport', 'openimported',
   'continue', 'tolore', 'usetake',
@@ -1693,7 +1693,8 @@ document.addEventListener('input', (e) => {
   if (S.reroll && e.target?.matches?.('[data-rerollbox]')) S.reroll.text = e.target.value;
   if (S.reroll && e.target?.matches?.('[data-rerollwhy]')) S.reroll.why = e.target.value;
   // #126. The pocket panel's boxes, by id, for the same reason: drawPocket draws them from S.pocket.
-  const pk = { 'pk-name': 'name', 'pk-body': 'body', 'pk-keys': 'keys', 'pk-steer': 'steer', 'pk-owed': 'owed' }[e.target?.id];
+  const pk = { 'pk-name': 'name', 'pk-body': 'body', 'pk-keys': 'keys', 'pk-steer': 'steer', 'pk-owed': 'owed',
+    'pk-from': 'from', 'pk-mode': 'mode', 'pk-label': 'label' }[e.target?.id];
   if (S.pocket && pk) S.pocket[pk] = e.target.value;
   // Merge two threads: the search redraws only its list, so the box keeps the caret; the review's
   // boxes, by id, as the pocket panel's.
@@ -2683,8 +2684,54 @@ function openPocket(entryId, id = null) {
 /** Whether leaving would throw something away: a box changed, or an answer of Anansi's not yet used.
  *  A kind picked while adding and nothing typed is one press to make again, so it is not asked about;
  *  a string made the other kind and not saved is. */
-const pocketDirty = () => !!S.pocket && (['name', 'body', 'keys', 'owed'].some((k) => S.pocket[k] !== S.pocket.was[k])
+const pocketDirty = () => !!S.pocket && (Object.keys(S.pocket.was).some((k) => S.pocket[k] !== S.pocket.was[k])
   || !!S.pocket.offer || (!!S.pocket.id && S.pocket.slot !== S.pocket.wasSlot));
+/** OVER TIME IN THE POCKET PANEL (Seth, 2026-10-30): the ＋ opens it on a new change, a tap on a row on
+ *  that change, and `first` on where the thread stands from scene 1, which is the thread's own text.
+ *  A change is not a pocket (a scene, a hint mode and a label in place of a name and wake words), so
+ *  `ot` marks it and `statePanel` draws it; the panel's box, Cancel, Esc and Back are the pocket's. A
+ *  new change starts at the scene being written. Whichever text is where it stands now is read from
+ *  The thread's box, as typed, since that box is where it is edited and Save sends what is shown. */
+function openState(entryId, id = null) {
+  const e = pocketOwners().find((x) => x.id === entryId); if (!e) return;
+  const st = id && id !== 'first' ? (e.states ?? []).find((x) => x.id === id) : null;
+  if (id && id !== 'first' && !st) return;
+  const typed = (sel) => document.querySelector(sel)?.value;
+  const now = standsNow(e);
+  const was = id === 'first' ? { body: e.body ?? '' }
+    : { from: String(st?.fromChapter ?? V.currentChapter?.index ?? 1), mode: st?.beforeMode ?? 'hide',
+      body: (st && now?.id === st.id ? typed('[data-f="now"]') : null) ?? st?.body ?? '', label: st?.label ?? '' };
+  S.pocket = { entryId, id, ot: true, tab: 'write', slot: null, wasSlot: null, ...was, was };
+}
+function statePanel(pk, e) {
+  const first = pk.id === 'first', adding = !pk.id;
+  const inForce = !adding && !first && standsNow(e)?.id === pk.id;
+  const body = inForce ? `<label class="lbl">${esc(nowWords())}</label>
+    <div class="note">${esc(unbracket(pk.body, e.title))}</div>
+    <div class="hint flush">${esc(nowWords())}, so its text is edited on The thread.</div>`
+    : `<label class="lbl" for="pk-body">Where it stands from ${first ? 'scene 1' : 'that scene on'}</label>
+    <textarea class="field grow pkbody" id="pk-body" placeholder="Where it stands from that scene on: the whole of it">${esc(pk.body)}</textarea>`;
+  const fields = first ? body : `
+    <label class="lbl" for="pk-from">From scene</label>
+    <input class="field" id="pk-from" type="number" min="1" inputmode="numeric" value="${esc(pk.from)}">
+    <label class="lbl" for="pk-mode">Before that scene</label>
+    <select class="field" id="pk-mode">
+      <option value="hide" ${pk.mode === 'hint' ? '' : 'selected'}>hidden before</option>
+      <option value="hint" ${pk.mode === 'hint' ? 'selected' : ''}>hinted before</option></select>
+    ${body}
+    <label class="lbl" for="pk-label">What changed</label>
+    <input class="field" id="pk-label" value="${esc(pk.label)}" placeholder="What changed, in a few words">
+    ${adding ? '' : `<button class="btn ghost danger push-14" data-delstate="${esc(pk.id)}">Remove this change</button>`}`;
+  const head = adding ? 'New change over time' : first ? 'From scene 1' : `Scene ${esc(String(pk.from))}`;
+  return `<div class="pocketbox" role="dialog" aria-label="${adding ? `A new change over time for ${esc(e.title)}` : `${head} · ${esc(e.title)}`}">
+    <div class="pkhead"><div class="lbl flush wide">${head} &middot; ${esc(e.title)}</div></div>
+    <div class="pkscroll scroll">${fields}</div>
+    <div class="pkfoot">
+      <button class="btn ghost" data-pocketx="1">Cancel</button>
+      <button class="btn" data-savestate="1">Save</button>
+    </div>
+  </div>`;
+}
 
 /** WHERE A STRING STANDS (GLOSSARY: Put in play / Set aside, Tied off / Let go): in play is on, set
  *  aside is off, and tied off and let go are off and marked (`addons.status` = paid / dropped). */
@@ -2706,6 +2753,7 @@ async function standString(id, stand) {
 function pocketPanel() {
   const pk = S.pocket, e = pocketThread();
   if (!pk || !e) return '';
+  if (pk.ot) return statePanel(pk, e);
   const adding = !pk.id;
   // #127 · THE TALE'S OWN THREAD: its pockets are its strings, sent while they are on and never on a
   // wake word, so there is no wake word box. #128 · A promise has the scene it is owed by instead, and
@@ -7902,8 +7950,9 @@ function entryEditor() {
       /* #78 · OVER TIME, EVERY ENTRY IN SCENE ORDER, FROM SCENE 1. The first row is the thread's own
        * text (shown as Info until now): where it stands from scene 1. Each later one is where it
        * stands from its scene on, under the label hemming gave it, with the parts that are new since
-       * the row before marked. The one in force now is edited on The thread, so it is read here,
-       * and the scene-1 text is edited here while a later entry is in force: one box each. */
+       * the row before marked. ONE ＋, AND A TAP OPENS A ROW in the pocket panel (Seth, 2026-10-30):
+       * no add form under the list and no Save on each row. Whichever text is where it stands now is
+       * The thread's box, so the panel shows it and holds no second box for it (`statePanel`). */
       const now = standsNow(e);
       const rows = [...(e.states ?? [])].sort((a, b) => a.fromChapter - b.fromChapter);
       // The card format is `[Name: trait, trait; trait]`, so a part is what lies between commas,
@@ -7914,37 +7963,21 @@ function entryEditor() {
       const fresh = (t, before) => { const was = new Set(parts(before).map((x) => x.toLowerCase()));
         return parts(t).filter((x) => !was.has(x.toLowerCase())); };
       const newLine = (t, before) => { const n = fresh(t, before);
-        return n.length ? `<div style="font-size:11.5px; line-height:1.45; color:var(--gold)">New: ${esc(n.join('; '))}</div>` : ''; };
-      const readOnly = (t) => `<div class="note">${esc(unbracket(t, e.title))}</div>
-        <div class="hint flush">${esc(nowWords())}, so it is edited on The thread.</div>`;
-      const first = `<div class="card snug below-8" data-otrow="1">
-        <div class="lbl flush wide">From scene 1${now ? '' : ` &middot; ${esc(nowWords().toLowerCase())}`}</div>
-        ${now ? `<textarea class="field grow flush box-56" id="f-card-body" data-f="body" aria-label="Where it stands from scene 1"
-         >${esc(e.body ?? '')}</textarea>`
-          : readOnly(e.body)}</div>`;
-      const later = rows.map((st, k) => ({ from: st.fromChapter, html: (() => {
-        const before = k ? rows[k - 1].body : e.body;
-        const head = `<div class="lbl flush wide">Scene ${esc(String(st.fromChapter))}${
-          st.label ? ` &middot; ${esc(st.label)}` : ''}${now?.id === st.id ? ` &middot; ${esc(nowWords().toLowerCase())}` : ''}</div>`;
-        // THE ONE IN FORCE keeps every control but its text, which is The thread's box: its scene,
-        // its hint and its label are edited here, and Save here reads the text from there.
-        const mine = now?.id === st.id;
-        return `<div class="card snug below-8" data-otrow="${st.fromChapter}">
-        ${head}${newLine(st.body, before)}
-        <div style="display:flex; align-items:center; gap:7px">
-          <input class="field" data-stf="${st.id ?? ''}" type="number" min="1" value="${st.fromChapter}"
-            aria-label="From scene" style="margin:0; width:92px">
-          <select class="field flush" data-stm="${st.id ?? ''}" aria-label="Before that scene">
-            <option value="hide" ${(st.beforeMode ?? 'hide') === 'hide' ? 'selected' : ''}>hidden before</option>
-            <option value="hint" ${st.beforeMode === 'hint' ? 'selected' : ''}>hinted before</option></select>
-          <button class="del-right" data-delstate="${st.id ?? ''}" aria-label="Remove">✕</button></div>
-        ${mine ? readOnly(st.body) : `<textarea class="field grow flush box-56" data-stb="${st.id ?? ''}" aria-label="Where it stands from that scene on"
-         >${esc(st.body)}</textarea>`}
-        <input class="field flush" data-stl="${st.id ?? ''}" aria-label="What changed, in a few words"
-          value="${esc(st.label ?? '')}"
-          placeholder="What changed, in a few words">
-        <button class="btn ghost" data-savestate="${st.id ?? ''}">Save this change</button></div>`;
-      })() }));
+        return n.length ? `<span class="pkline" style="color:var(--gold)">New: ${esc(n.join('; '))}</span>` : ''; };
+      const line = (t) => `<span class="pkline">${esc(String(unbracket(t, e.title) ?? '').split('\n')[0])}</span>`;
+      const nowTag = ` <span class="faded">&middot; ${esc(nowWords().toLowerCase())}</span>`;
+      // Scene 1 while it is where it stands now is The thread's box, so its row does not open.
+      const first = now ? `<div class="pocketrow" data-otrow="1">
+        <button class="pocketopen" data-stateopen="first" aria-label="Open where it stands from scene 1">
+          <span class="pkname">From scene 1</span>${line(e.body)}</button></div>`
+        : `<div class="pocketrow" data-otrow="1"><div class="pocketopen">
+          <span class="pkname">From scene 1${nowTag}</span>${line(e.body)}
+          <span class="pkline faint">${esc(nowWords())}, so it is edited on The thread.</span></div></div>`;
+      const later = rows.map((st, k) => ({ from: st.fromChapter, html: `<div class="pocketrow${now?.id === st.id ? ' lit' : ''}" data-otrow="${st.fromChapter}">
+        <button class="pocketopen" data-stateopen="${esc(st.id ?? '')}" aria-label="Open the change from scene ${esc(String(st.fromChapter))}">
+          <span class="pkname">Scene ${esc(String(st.fromChapter))}${st.label ? ` &middot; ${esc(st.label)}` : ''}${
+            now?.id === st.id ? nowTag : ''}</span>
+          ${line(st.body)}${newLine(st.body, k ? rows[k - 1].body : e.body)}</button></div>` }));
       // #79. THE WARDROBE AND RETIREMENT, dated, in the same list: what was put on or taken off,
       // and when the thread was retired or brought back, each from its scene.
       const outfitName = (id) => (e.outfits ?? []).find((o) => o.id === id)?.name ?? 'an outfit no longer here';
@@ -7957,22 +7990,11 @@ function entryEditor() {
         <button class="del-right" data-delevent="${esc(x.id)}" aria-label="Remove">✕</button></div>` }));
       const listed = [...later, ...events].map((r, i) => ({ ...r, i })).sort((a, b) => a.from - b.from || a.i - b.i)
         .map((r) => r.html).join('');
-      return `<div class="lbl wide push-16">Over time${helpMark('states')}</div>
+      return `<div class="end-row push-16"><span class="lbl wide flush fill">Over time${helpMark('states')}</span>
+        <button data-addstate="1" class="headadd" aria-label="Add a change over time" title="Add a change over time"
+          ><span>${mark('create', 16)}</span></button></div>
         ${tipCard('states', HELP.states.title, helpText('states'))}
-        ${first}${listed}
-    <div class="card snug">
-      <div class="btnrow">
-        <input class="field" data-st="fromChapter" type="number" min="1" aria-label="From scene"
-          placeholder="Scene" style="width:96px">
-        <select class="field" data-st="beforeMode" aria-label="Before that scene">
-          <option value="hide">hidden before</option>
-          <option value="hint">hinted before</option>
-        </select></div>
-      <textarea class="field grow" data-st="body" aria-label="Where it stands from that scene on"
-        placeholder="Where it stands from that scene on: the whole of it" style="min-height:56px; max-height:40vh"></textarea>
-      <input class="field" data-st="label" aria-label="What changed, in a few words"
-        placeholder="What changed, in a few words">
-      <button class="btn ghost" data-addstate="1">Add a change over time</button></div>`;
+        ${first}${listed}`;
     })()}
     </div>
     <div class="pane"${tab === 'more' ? '' : ' hidden'}>
@@ -12375,19 +12397,16 @@ document.addEventListener('click', async (e) => {
     // Same reason as the chips: the writer is looking at the entry. Emptying the keys box and
     // saving leaves it triggered-and-dark, which the hint below now says out loud — better than
     // silently switching it always-on and changing what every call sends without being asked.
-    // WHERE IT STANDS NOW (#78), when a later Over time entry is the one in force: that entry, saved
-    // FIRST and whole — its text from The thread's box, its scene, hint and label from its row in
-    // Over time — so a refusal leaves nothing half-saved. Then the thread itself.
+    // WHERE IT STANDS NOW (#78), when a later Over time entry is the one in force: its text from The
+    // thread's box, saved FIRST, so a refusal leaves nothing half-saved. Then the thread itself. Its
+    // scene, hint and label keep what they have: those are changed in its own panel from Over time,
+    // which saves them there (2026-10-30).
     const nowBox = document.querySelector('[data-f="now"]');
     const st = nowBox && (e.states ?? []).find((x) => x.id === nowBox.dataset.nowstate);
-    if (st) {
-      const f = (a) => document.querySelector(`[data-${a}="${st.id}"]`);
-      if ([nowBox, f('stf'), f('stm'), f('stl')].some((el) => el && el.value !== (el.tagName === 'SELECT'
-        ? [...el.options].find((o) => o.defaultSelected)?.value : el.defaultValue))) {
-        const r2 = await api.saveState(S.storyId, e.id, { id: st.id, fromChapter: Number(f('stf')?.value) || st.fromChapter,
-          body: nowBox.value, beforeMode: f('stm')?.value ?? st.beforeMode, label: (f('stl')?.value ?? st.label) || null });
-        if (r2.error) return toast(`Not saved. ${r2.error}`);
-      }
+    if (st && nowBox.value !== nowBox.defaultValue) {
+      const r2 = await api.saveState(S.storyId, e.id, { id: st.id, fromChapter: st.fromChapter,
+        body: nowBox.value, beforeMode: st.beforeMode, label: st.label || null });
+      if (r2.error) return toast(`Not saved. ${r2.error}`);
     }
     const r = await api.saveEntry(S.storyId, { ...e, id: e.id, title: get('title') ?? e.title,
       body: get('body') ?? e.body, notes: get('notes') ?? e.notes, keys, allowNoKeys: true });
@@ -12744,26 +12763,28 @@ document.addEventListener('click', async (e) => {
     syncHash(); paint(); return;
   }
 
-  if (d.addstate) {
-    const get = (f) => document.querySelector(`[data-st="${f}"]`)?.value;
-    const from = Number(get('fromChapter'));
-    if (!from || !String(get('body') ?? '').trim()) return toast('A scene number and where it stands, at least.');
-    const r = await api.saveState(S.storyId, S.entryId,
-      { fromChapter: from, body: get('body'), beforeMode: get('beforeMode'), label: get('label') || null });
-    if (r.error) return toast(r.error);
-    V = await api.story(S.storyId); paint(); refreshManifest(); toast('Added.'); return;
+  // OVER TIME'S ＋ AND ITS ROWS open the pocket panel (`openState`); its Save writes the change, or the
+  // thread's own text for scene 1, and shuts the panel. The routes are the ones the old form used.
+  if (d.addstate || d.stateopen) {
+    openState(S.entryId, d.stateopen || null); drawPocket(); syncLayers();
+    $(d.stateopen === 'first' ? 'pk-body' : 'pk-from')?.focus?.(); return;
   }
-  if (d.savestate !== undefined) {
-    if (!d.savestate) return toast('That change has no id to save.');
-    const get = (a) => document.querySelector(`[data-${a}="${d.savestate}"]`)?.value;
-    // The entry in force has its text in The thread's box (#78), not here.
-    const body = get('stb') ?? get('nowstate');
-    const from = Number(get('stf'));
-    if (!from || !String(body ?? '').trim()) return toast('A scene number and where it stands, at least.');
-    const r = await api.saveState(S.storyId, S.entryId, { id: d.savestate, fromChapter: from,
-      body, beforeMode: get('stm'), label: get('stl') || null });
-    if (r.error) return toast(r.error);
-    V = await api.story(S.storyId); paint(); refreshManifest(); toast('Saved.'); return;
+  if (d.savestate) {
+    const pk = S.pocket; if (!pk?.ot) return;
+    const e = pocketThread(); if (!e) return;
+    if (pk.id === 'first') {
+      if (!pk.body.trim()) return toast('Where it stands from scene 1 needs something in it.');
+      const r = await api.saveEntry(S.storyId, { ...e, body: pk.body, allowNoKeys: true });
+      if (r.error) return toast(/not saved/i.test(r.error) ? r.error : `Not saved. ${r.error}`);
+    } else {
+      const from = Number(pk.from);
+      if (!from || !pk.body.trim()) return toast('A scene number and where it stands, at least.');
+      const r = await api.saveState(S.storyId, e.id, { ...(pk.id ? { id: pk.id } : {}), fromChapter: from,
+        body: pk.body, beforeMode: pk.mode, label: pk.label.trim() || null });
+      if (r.error) return toast(r.error);
+    }
+    S.pocket = null;
+    V = await api.story(S.storyId); paint(); refreshManifest(); return toast(pk.id ? 'Saved.' : 'Added.');
   }
   // #74 · THE DECK. A card's yes or no for every section on it, its arrows, and the undo of a no.
   if (d.deckall) {
@@ -12820,7 +12841,9 @@ document.addEventListener('click', async (e) => {
     if (!armed(t, 'state:' + d.delstate, 'Press again to remove this change over time.')) return;
     const r = await api.delState(S.storyId, d.delstate);
     if (r.error) return toast(r.error);
-    V = await api.story(S.storyId); paint(); refreshManifest(); return;
+    // Remove is inside the panel now, so it shuts the panel too.
+    if (S.pocket?.ot && S.pocket.id === d.delstate) S.pocket = null;
+    V = await api.story(S.storyId); paint(); refreshManifest(); return toast('Removed.');
   }
   if (d.fieldhistory) {
     if (S.fieldHistory) { S.fieldHistory = null; paint(); return; }

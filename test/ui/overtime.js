@@ -64,20 +64,22 @@ const time = await page.eval(`(() => { const p = [...document.querySelectorAll('
   const rows = [...(p?.querySelectorAll('[data-otrow]') ?? [])];
   return JSON.stringify({ rows: rows.map((r) => r.dataset.otrow), first: (rows[0]?.innerText ?? '').toLowerCase(),
     two: (rows.find((r) => r.dataset.otrow === '2')?.innerText ?? '').toLowerCase(),
-    base: !!p?.querySelector('[data-f="body"]'), all: (p?.innerText ?? '').toLowerCase() }); })()`).then(JSON.parse);
+    base: !!p?.querySelector('[data-stateopen="first"]'), all: (p?.innerText ?? '').toLowerCase() }); })()`).then(JSON.parse);
 ok(`Over time lists every entry in scene order, from scene 1 (${time.rows})`, JSON.stringify(time.rows) === '["1","2","4"]');
-ok("  the first is where he stood from scene 1, and is edited here", time.first.includes('scene 1') && time.base);
+ok("  the first is where he stood from scene 1, and a tap opens it", time.first.includes('scene 1') && time.base);
 ok(`  scene 2 carries its label and what it changed (${JSON.stringify(time.two.slice(0, 160))})`,
    time.two.includes('owes the crowns') && /new:?[^\\n]*owed twelve crowns/.test(time.two));
 ok("  and no Info", !/\binfo\b/.test(time.all));
 
-// ---- Save on the header saves the in-force entry whole: its label from its row here, too
-await page.eval(`(() => { const l = document.querySelector('[data-stl="${two.id}"]'); if (!l) return 0;
+// ---- The in-force entry's label is changed in its own panel, opened by a tap on its row (2026-10-30)
+await page.eval(`(() => { document.querySelector('[data-stateopen="${two.id}"]')?.click(); return 1; })()`);
+await until("!!document.getElementById('pk-label')");
+await page.eval(`(() => { const l = document.getElementById('pk-label'); if (!l) return 0;
   l.value = 'owes twelve'; l.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
-await page.eval("(() => { document.querySelector('#sideHead [data-saveentry]')?.click(); return 1; })()");
+await page.eval("(() => { document.querySelector('[data-savestate]')?.click(); return 1; })()");
 await wait(1200);
 v = await view(sid);
-ok("Save keeps the in-force entry's row in step: its label is saved too",
+ok("the panel's Save writes the in-force entry's label",
    v.entries.find((e) => e.id === marek.id).states.find((s) => s.id === two.id)?.label === 'owes twelve');
 
 // ---- At scene 1, before the scene 2 entry opens, he stands where he stood from scene 1

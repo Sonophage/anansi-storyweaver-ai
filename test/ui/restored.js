@@ -37,17 +37,21 @@ const openFold = async (name) => {
     await page.click(`[data-fold="${name}"]`);
   await wait(300);
 };
-ok("the entry editor offers a progression form", await page.eval("!!document.querySelector('[data-st=\"body\"]')"));
 await openFold('states');
+// ONE ＋ ON OVER TIME, AND THE CHANGE IN THE POCKET PANEL (2026-10-30): no form under the list.
+ok("the entry editor offers a ＋ for a change over time", await page.eval("!!document.querySelector('[data-addstate=\"1\"]')"));
 const before = ((await story()).entries.find((e) => e.id === eid)?.states ?? []).length;
 // Anchor it at the CURRENT chapter, or resolveBody correctly withholds it as not yet open —
 // which is the engine being right and the test being wrong about which chapter it is on.
 const nowCh = (await story()).currentChapter.index;
 console.log("  current chapter: " + nowCh);
-await page.eval("(() => { document.querySelector('[data-st=\"fromChapter\"]').value = '" + nowCh + "';"
-  + " document.querySelector('[data-st=\"body\"]').value = '[Probe: a fact that opens at this chapter]';"
-  + " return 1; })()");
 await page.click('[data-addstate="1"]');
+await wait(300);
+// Typed through input events: the panel is drawn from what they record, not from the boxes.
+await page.eval("(() => { const set = (id, v) => { const b = document.getElementById(id); b.value = v;"
+  + " b.dispatchEvent(new Event('input', { bubbles: true })); }; set('pk-from', '" + nowCh + "');"
+  + " set('pk-body', '[Probe: a fact that opens at this chapter]'); return 1; })()");
+await page.click('[data-savestate="1"]');
 await wait(900);
 let states = (await story()).entries.find((e) => e.id === eid)?.states ?? [];
 ok(`adding a progression persists (${before} -> ${states.length})`, states.length === before + 1);
@@ -62,6 +66,9 @@ ok("  and the state carries an id so it can be removed", !!mine);
 // deletion in the app arms on the first press and fires on the second, within four seconds — one
 // helper, `armed()` in web/app.js, rather than a guard per handler. A driver that presses once now
 // arms and returns, which is the behaviour and not a fault.
+// Remove is inside the change's panel, opened by a tap on its row.
+await page.click('[data-stateopen="' + mine + '"]');
+await wait(300);
 await page.click('[data-delstate="' + mine + '"]');
 await page.click('[data-delstate="' + mine + '"]');
 await wait(800);
