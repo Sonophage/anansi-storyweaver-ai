@@ -61,6 +61,16 @@ shows on Anyone new, under New threads, ready to sew in.
 ### A finished hem leaves the Workbench
 Once everything a hem found is decided, its card leaves the Workbench, instead of staying there for
 the whole of the next scene.
+### The hem no longer takes what people say as what happened
+When a passage stopped in the middle of someone speaking, the hem could read the rest of the scene
+inside out: the lines people spoke were taken as what happened, and what happened was skipped. It
+now reads the scene correctly after a cut-off line.
+### Where someone stands, scene after scene
+If you hem a scene before you decide the last scene's cards, the new scene's change to where
+someone stands now shows too. Before, it was dropped while the earlier one waited.
+### Deleting the scene after a hem
+If you delete the scene after one you hemmed and ask for the next scene again, Anansi now reads the
+hemmed scene and names the one after it. Before, it left the hemmed scene out.
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
