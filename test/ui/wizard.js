@@ -1,6 +1,7 @@
 // The spark wizard, driven without the model. #84 (2026-10-27) put You before the threads and a
 // preview after Try it on; this file was updated for it without being run, and its first run
 // (#95, 2026-10-28) found that the press to hold who you play never appeared.
+// 2026-10-30: updated for the four-step wizard without being run (the browser harness was not run).
 //
 //   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/wizard.js
 //
@@ -110,8 +111,9 @@ await wait(1200);
 ok(`  a double press on Spark sends ONE request (${await page.eval("window.__spark")})`,
    (await page.eval("window.__spark")) === 1);
 
-// EIGHT STEPS, and they are asserted BY NAME because that is now what the app keys off. #84 moved
-// You ahead of the threads (the cast call is told who you play) and added the preview.
+// FOUR STEPS, and they are asserted BY NAME because that is what the app keys off. #84 moved You
+// ahead of the threads (the cast call is told who you play) and added the preview; Seth, 2026-10-30,
+// folded Try it on, the preview, the first scene and the opening into Begin.
 //
 // The order, after #40 on 2026-09-01: the book, the threads, a second look, you, the first scene,
 // the opening, begin. What changed from eight: the idea screen went — Seth, "skip step one it's just
@@ -154,12 +156,11 @@ const stepNames = JSON.parse(await page.eval(
   `JSON.stringify([...document.querySelectorAll('[data-sparkstep][aria-label]')]
      .map(e => e.getAttribute('aria-label')))`));
 ok(`the skeleton arrives as steps, not one scroll (${stepNames.length} step controls)`,
-   stepNames.length === 8);
+   stepNames.length === 4);
 // THE ORDER ITSELF, asserted. It is the thing #40 changed and the thing a later reorder would
 // change again by accident — the array in app.js is now the only place it lives.
 ok(`  in order: ${stepNames.join(' -> ')}`,
-   JSON.stringify(stepNames) === JSON.stringify(['The tale', 'You', 'The threads', 'Try it on',
-     'The preview', 'The first scene', 'The opening', 'Begin']));
+   JSON.stringify(stepNames) === JSON.stringify(['The tale', 'You', 'The threads', 'Begin']));
 // AND THE IDEA SCREEN IS GONE, which is the ask. Asserted as an absence so putting it back is a red.
 ok('  the idea is no longer a screen of its own', !stepNames.includes('Your idea'));
 
@@ -341,8 +342,8 @@ ok("  and the cast call was told who you play, and who is Hands off",
   // THE KEPT ONE IS NAMED AS TAKEN, or the model hands back somebody already on screen.
   ok(`  and the one still ticked rides as taken, not as something to rewrite`,
      /"replacing":\["Ilva Marren"\]/.test(sent));
-  const names = await page.eval(`(() => [...document.querySelectorAll('[data-spname]')]
-    .map(n => n.value).join('|'))()`);
+  const names = await page.eval(`(() => [...document.querySelectorAll('[data-spopen] .platename')]
+    .map(n => n.textContent.trim()).join('|'))()`);
   ok(`  the ticked thread survived and the unticked one was replaced (${names})`,
      names === 'Ilva Marren|Ossian Rede');
 }
@@ -354,8 +355,8 @@ ok("  and the cast call was told who you play, and who is Hands off",
   const before = await page.eval("window.__cast");
   await page.click('[data-sprecast="1"]');
   await wait(700);
-  const names = await page.eval(`(() => [...document.querySelectorAll('[data-spname]')]
-    .map(n => n.value).join('|'))()`);
+  const names = await page.eval(`(() => [...document.querySelectorAll('[data-spopen] .platename')]
+    .map(n => n.textContent.trim()).join('|'))()`);
   ok(`  re-rolling one card replaces only that one (${names})`,
      (await page.eval("window.__cast")) === before + 1
      && names === 'Ilva Marren|Ossian Rede');
@@ -384,8 +385,8 @@ ok("  and the cast call was told who you play, and who is Hands off",
   await wait(700);
   // #84: Ilva is who you play, so her tick stays and she rides as taken; the rest is rewritten.
   ok("  unticking everything and asking again rewrites all but the one you play",
-     (await page.eval(`(() => [...document.querySelectorAll('[data-spname]')]
-       .map(n => n.value).join('|'))()`)) === 'Ilva Marren|Ossian Rede');
+     (await page.eval(`(() => [...document.querySelectorAll('[data-spopen] .platename')]
+       .map(n => n.textContent.trim()).join('|'))()`)) === 'Ilva Marren|Ossian Rede');
 }
 
 // #28 · AND THE LIBRARY IS ON THIS STEP. Seth: "i should be abel to set up lore books or pull from
@@ -393,6 +394,9 @@ ok("  and the cast call was told who you play, and who is Hands off",
 // `lore` has been a kind chip since #21 §2 — but pulling one in had no door in the wizard at all.
 ok("  the cast step can also pull threads out of books you already have",
    (await page.eval("!!document.getElementById('seedq') && !!document.getElementById('seeds')")) === true);
+// Under Bring threads in since 2026-10-30, so it is unfolded first, as a writer would.
+await page.click('[data-fold="spbring"]');
+await wait(300);
 {
   // A REAL PICK, CARRIED THROUGH TO THE CREATED BOOK. The picker existing is not the feature — the
   // thread arriving in the new book is, and that happens after Accept through the copy route a
@@ -459,9 +463,9 @@ ok("  and once there is one, You offers it",
 
 // #21 §3 · STEP 5 · A SECOND LOOK, and it fires from a BUTTON. A model call nobody asked for is
 // what made "what changed" slow, and #24 is the whole argument against it.
-await go("Try it on");
+await go("Begin");
 await wait(400);
-ok("  step 5 asks nothing until it is asked", (await page.eval("window.__review")) === 0);
+ok("  Try it on asks nothing until it is asked", (await page.eval("window.__review")) === 0);
 await page.click('[data-spreview="1"]');
 await wait(600);
 ok("  and reads the whole skeleton back when it is", (await page.eval("window.__review")) === 1);
@@ -479,7 +483,7 @@ ok("  and the field it replaced carries the new words",
 // Put the title back for the assertions at the end.
 await page.eval(`(() => { const t = document.querySelector('[data-sp="title"]');
   t.value = 'The Drowned Ledger'; return 1; })()`);
-await go("Try it on");
+await go("Begin");
 await wait(400);
 await page.click('[data-spaddone="0"]');
 await wait(400);
@@ -506,7 +510,10 @@ ok("  and nobody stays available, because a story can be narrated from outside",
 // a name the cast no longer contains and silently falling back to Nobody.
 await go("The threads");
 await wait(400);
-ok("  a proposed character can be edited in place",
+// A thread opens to be edited, as a tale's thread does (2026-10-30).
+await page.click('[data-spopen="0"]');
+await wait(400);
+ok("  a proposed character can be edited once opened",
    (await page.eval("!!document.querySelector('[data-spname=\"0\"]')")) === true
    && (await page.eval("!!document.querySelector('[data-spbody=\"0\"]')")) === true);
 await page.eval(`(() => { document.querySelector('[data-spname="0"]').value = 'Ilva Vane';
@@ -515,8 +522,9 @@ await page.eval(`(() => { document.querySelector('[data-spname="0"]').value = 'I
 // And a blank one you started and abandoned must not reach the ledger as "Untitled".
 await page.click('[data-spadd]');
 await wait(400);
-ok("  writing one of your own gives you a field to type in, not a row called Untitled",
-   (await page.eval("document.querySelectorAll('[data-spname]').length")) === 4
+// It harvests the rename above on the way, and opens the new thread to be named.
+ok("  writing one of your own opens it, with a field to type in, not a row called Untitled",
+   (await page.eval("document.querySelectorAll('[data-spname]').length")) === 1
    && (await page.eval("document.querySelector('[data-spname=\"3\"]')?.value")) === '');
 await go("You");
 await wait(400);
@@ -590,24 +598,22 @@ ok("  and the switch can be turned off before the book exists", unticked === tru
 await wait(300);
 
 // #84 · THE PREVIEW: everything that will be made, on one page, and nothing made yet.
-await go("The preview");
+await go("Begin");
 await wait(500);
 {
   const pv = await page.eval("document.querySelector('#page')?.innerText || ''");
   // `i`: innerText is the text as drawn, and the heading is drawn in capitals.
   ok("  the preview opens on the tale's own thread", /The tale's own thread/i.test(pv));
-  ok("  and lists the threads you kept, folded to their name",
-     /Ilva Vane/.test(pv) && (await page.eval("document.querySelectorAll('[data-spfold]').length")) >= 1);
+  ok("  and lists the threads you kept, each opening on The threads",
+     /Ilva Vane/.test(pv) && (await page.eval("document.querySelectorAll('[data-spopen]').length")) >= 1);
   const none = await page.eval(`(async () => { const r = await (await fetch('/api/stories')).json();
     return r.stories.filter(x => x.title === 'The Drowned Ledger').length; })()`);
   ok(`  and nothing has been created yet (${none})`, none === 0);
 }
 
-// #21 §3 · STEP 8 SAYS WHAT ACCEPTING WILL WRITE, before it is pressed.
-await go("Begin");
-await wait(400);
-const begin = await page.eval("document.querySelector('#page')?.innerText || ''");
-ok("  the last step says what will be created rather than asking for more",
+// #21 §3 · BEGIN SAYS WHAT ACCEPTING WILL WRITE, in one line at its top, before it is pressed.
+const begin = await page.eval("document.querySelector('[data-spsummary]')?.innerText || ''");
+ok(`  the last step says what will be created in one line (${begin})`,
    /Ilva Vane/.test(begin) && /thread/.test(begin));
 
 // COUNCIL 09 §1 · THE ONE THAT MATTERED. Accept does not call the model, it WRITES — so the second

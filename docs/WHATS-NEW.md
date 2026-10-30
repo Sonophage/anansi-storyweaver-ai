@@ -18,6 +18,17 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### Starting a new tale takes four steps, not eight
+A new tale is now The tale, You, The threads and Begin. The tale shows only what every tale needs:
+your idea, the title, genre and premise, each with Reweave, Reweave all from your idea, and the Voice.
+The rest is folded away: Voice options holds your voice, Anansi's voice and the one he wrote for this
+tale; More about the tale holds the story or game it is set in, the world or tale it follows, and the
+genre flavour. The threads look and work as they do in a tale: tap one to open it, Always true
+first, and its pockets open full screen to change, add or remove. Pasting threads and searching your
+other tales are under Bring threads in. Begin puts Try it on at the top, then reads the tale back,
+with Change to go back to the title, premise or voice, and asks the setting and how the first scene
+opens there and nowhere else.
+
 ### Anansi changes your threads again when you ask
 After tonight's change to make Talk more conversational, Anansi stopped making the changes you
 asked for: he answered with a stray word like "changes" or "pocket" and nothing happened. That is

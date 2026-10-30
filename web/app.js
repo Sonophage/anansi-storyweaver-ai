@@ -566,8 +566,11 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'spfield',
   // #40 stage 3. A whole book, followed rather than copied.
   'spfollow',
-  // #84. The preview: fold a thread, remove or add a pocket, remove a thread, undo, fix the Voice.
-  'spfold', 'spdroppocket', 'spaddpocket', 'spdropthread', 'spundo', 'spvoicefix', 'spaddtp', 'spdroptp',
+  // #84. Remove a thread, undo, fix the Voice, and the tale's own pockets.
+  'spdropthread', 'spundo', 'spvoicefix', 'spaddtp', 'spdroptp',
+  // Seth, 2026-10-30. A draft thread opened, its pockets in the pocket panel (open, add, switch,
+  // save, remove), and Begin's Change, back to The tale.
+  'spopen', 'sppocketopen', 'sppocketnew', 'sppocketon', 'sppocketsave', 'sppocketdel', 'spchange',
   // #117. A contradiction Try it on found: take its fix, or leave it.
   'spfix', 'spleave',
   // #123. The Voice the spark wrote, taken in place of the writer's own.
@@ -2800,6 +2803,8 @@ async function standString(id, stand) {
  *  panel when it is gone. The boxes keep their `data-sumtext`, `data-arctitle` and `data-arctext`, so
  *  the one `input` listener that kept the old in-place drafts keeps these, and moves the word count. */
 const pocketHome = () => (!S.pocket ? null
+  // A pocket of a thread in the new tale's draft (`draftPocketPanel`): while that thread is in it.
+  : S.pocket.draft ? ((S.spark?.entries ?? []).includes(S.pocket.draft) ? S.pocket.draft : null)
   : S.pocket.sum ? (V?.chapters ?? []).find((c) => c.id === S.pocket.sum) ?? null
   : S.pocket.arc ? (V?.arcs ?? []).find((a) => a.id === S.pocket.arc) ?? null
   : pocketThread());
@@ -2842,6 +2847,7 @@ function arcPanel(pk, a) {
 }
 function pocketPanel() {
   const pk = S.pocket;
+  if (pk?.draft) { const e = pocketHome(); return e ? draftPocketPanel(pk, e) : ''; }
   if (pk?.sum || pk?.arc) { const h = pocketHome(); return h ? (pk.sum ? sumPanel(pk, h) : arcPanel(pk, h)) : ''; }
   const e = pocketThread();
   if (!pk || !e) return '';
@@ -5863,16 +5869,16 @@ function searchHits() {
  *      never persona, so it loses nothing by moving; and it can PROPOSE missing threads, which
  *      until now arrived after the writer had already picked a persona out of the cast.
  *    - #84, 2026-10-27: `you` moved ahead of `threads`, and `preview` follows `look`. See above.
+ *    - Seth, 2026-10-30, eight steps to four: `look`, `preview`, `scene` and `opening` folded into
+ *      `begin`. Try it on goes at its top, where the contradictions it finds are listed once; the
+ *      preview reads the draft back and edits only what has no other home (the setting, how the
+ *      first scene opens, the open questions, Your own); then who writes the opening, then Start.
  */
 const STEPS = [
-  ['book',    'The tale',        'What it is, and how the prose sounds.'],
-  ['you',     'You',             'Who you play, and whom he keeps his hands off.'],
-  ['threads', 'The threads',     'What this tale needs, if anything.'],
-  ['look',    'Try it on',       'Anansi reads it back and says what he would change.'],
-  ['preview', 'The preview',     'Everything that will be made. Nothing is saved until you start it.'],
-  ['scene',   'The first scene', 'Where it opens.'],
-  ['opening', 'The opening',     'Who writes the first passage.'],
-  ['begin',   'Begin',           'What gets written when you start it.'],
+  ['book',    'The tale',    'What it is, and how the prose sounds.'],
+  ['you',     'You',         'Who you play, and whom he keeps his hands off.'],
+  ['threads', 'The threads', 'What this tale needs, if anything.'],
+  ['begin',   'Begin',       'Try it on, read it through, and start writing.'],
 ];
 
 /** The 1-based position of a named step, for the places that jump to one by intent rather than by
@@ -5913,7 +5919,7 @@ document.addEventListener('input', (e) => {
   const d = e.target?.dataset;
   if (!d || !S.spark) return;
   if (d.sp) (S.spark.typed ??= {})[d.sp] = true;
-  const i = d.spbody ?? d.spname ?? String(d.sppocket ?? d.sppname ?? '').split(':')[0];
+  const i = d.spbody ?? d.spname;
   if (i !== undefined && i !== '' && S.spark.entries?.[Number(i)]) S.spark.entries[Number(i)].typed = true;
 });
 
@@ -6069,19 +6075,16 @@ function harvestSpark() {
     const e = S.spark.entries[Number(t.dataset.spstands)];
     if (e) e.stands = t.value;
   }
-  // #84 · A POCKET EDITED IN THE PREVIEW, keyed `index:slot`: its words, and its name.
-  // And the tale's own pockets ("Your own"), keyed by their place in the list.
+  // The tale's own pockets ("Your own"), keyed by their place in the list. A thread's pockets are
+  // not read here: the pocket panel saves them into the draft itself (`sppocketsave`).
   for (const [sel, key, field] of [['[data-sptpbody]', 'sptpbody', 'body'], ['[data-sptpname]', 'sptpname', 'name']])
     for (const t of document.querySelectorAll(sel)) {
       const p = (S.spark.talePockets ?? [])[Number(t.dataset[key])];
       if (p) p[field] = t.value;
     }
-  for (const [sel, key, field] of [['[data-sppocket]', 'sppocket', 'body'], ['[data-sppname]', 'sppname', 'name']])
-    for (const t of document.querySelectorAll(sel)) {
-      const [i, slot] = String(t.dataset[key]).split(':');
-      const p = S.spark.entries[Number(i)]?.rooms?.[slot];
-      if (p) p[field] = t.value;
-    }
+  // Who writes the opening, on Begin: read on every move, so a Change and back does not undo the tick.
+  const openBox = document.querySelector('[data-sp-open]');
+  if (openBox && typeof openBox.checked === 'boolean') S.spark.autoOpen = openBox.checked;
   // Renaming somebody here has to carry what points AT them, or who you play names somebody the
   // cast no longer contains and their thread is lost from under them. Same failure the server fixes
   // for a rename after the story exists; this is the half hour before it exists.
@@ -6163,7 +6166,7 @@ const seedOf = (ids) => (ids ?? []).map((id) => (LEDGER ?? []).find((e) => e.id 
 /** #103 · THE IP NAMED ON THE TALE'S OWN STEP, MATCHED TO A WORLD THE WRITER ALREADY HAS. Asked
  *  once per name, on every move and at Create, through POST /api/spark/world, which writes nothing
  *  and finds only the writer's own Worlds. A match makes the draft follow that World (the same
- *  `follow` the threads step's picker sets), and the preview lists its people. A changed or emptied
+ *  `follow` the picker under More about the tale sets), and the preview lists its people. A changed or emptied
  *  name lets go of the World an earlier name followed, and never of one picked by hand.
  *
  *  #104 · NO WORLD OF THAT NAME: the IP is looked up (`ipLook`) for a new World, which the threads
@@ -6367,8 +6370,9 @@ function sparkReview() {
   // causes cannot start a second one.
   if (key === 'book' && !S.spark.styled && !S.spark.styling && !(s.styleNote ?? '').trim()
       && ((s.genre ?? '').trim() || (s.premise ?? '').trim())) sparkStyle(true);
-  // The library, for the picker on the cast step. `loadLedger` paints when it lands.
-  if ((key === 'threads' || key === 'preview') && LEDGER === null) loadLedger();
+  // The library, for the picker on the threads step, and the pockets each kind has, for the pocket
+  // panel there. `loadLedger` paints when it lands.
+  if (key === 'threads' && LEDGER === null) loadLedger();
   // `busy` and not `sparking` alone: step 2 carries TWO model buttons now — this one and the house
   // style — so a re-roll pressed while the style is being written would be a second concurrent call
   // on a router that does not queue. The style button already read the shared flag; this is the
@@ -6382,10 +6386,11 @@ function sparkReview() {
    *
    * HARVEST FIRST, in the handler — what is on screen is what the re-roll should be written against,
    * including edits the writer has just made and not navigated away from. */
+  // ONE WORD FOR IT (Seth, 2026-10-30): every re-roll press on these steps says Reweave.
   const rerollField = (k) => `<button data-spfield="${k}" ${busy || S.spark.spField ? 'disabled' : ''}
       style="background:none; border:0; padding:2px 0 0; cursor:pointer; font-size:11px;
       letter-spacing:.1em; text-transform:uppercase; color:var(--gold-dim)"
-    >${S.spark.spField === k ? 'asking&hellip;' : 'reweave this'}</button>`;
+    >${S.spark.spField === k ? 'asking&hellip;' : 'Reweave'}</button>`;
 
   const reroll = (label) => S.spark.idea
     ? `<button class="btn ghost push-6" data-spreroll="1" ${busy ? 'disabled' : ''}
@@ -6400,41 +6405,50 @@ function sparkReview() {
      * story, it is what the story was asked FOR, and every re-roll sends exactly it — so a screen
      * that echoed him was carrying the one input a re-roll needs. As a line it does both: he stops
      * reading his own sentence back, and he can still edit it and ask again from the change. */
+    /* THE TALE, ABOUT ELEVEN CONTROLS ON SCREEN (Seth, 2026-10-30; it was nineteen). What every
+     * tale needs is open: the idea, title, genre and premise with a Reweave each, one Reweave all,
+     * and the Voice. What most tales never touch is folded: the two stock voices and the one the
+     * spark offered under Voice options; the World, the tale it follows and the genre flavour under
+     * More about the tale, which is the World's one home (the threads step had the follow picker
+     * too). A fold remembers its state through `S.folds`, so a repaint does not shut it. */
     ? `${area('idea', 'From your idea', S.spark.idea ?? '',
-         'Every reweave here starts again from exactly this. Change it and the next answer changes '
-         + 'with it.', 60)}
+         'Every reweave here starts again from exactly this.', 60)}
        ${row('title', 'Title', s.title)}
        ${rerollField('title')}
-       ${row('genre', 'Genre', s.genre, 'Comma separated. Each one becomes its own tag in the library.')}
+       ${row('genre', 'Genre', s.genre)}
        ${rerollField('genre')}
-       ${row('world', 'Set in a story or game that already exists',  s.world, S.spark.ipWorld
-         ? `You have a World called ${esc(S.spark.ipWorld.title)}. This tale follows it, and its people come in with it.`
-         : S.spark.ipNew ? `You have no World called ${esc(S.spark.ipNew.title)}. Anansi looks it up, and on The threads you tick who comes in.`
-         : 'Name it, or leave it empty for a tale of your own. If you have a World by that name, this tale follows it; if not, Anansi looks it up.')}
-       ${area('premise', 'Premise', s.premise, 'Anansi reads it every time he writes.', 110)}
+       ${area('premise', 'Premise', s.premise, '', 110)}
        ${rerollField('premise')}
-       ${forgeCopy('premise', 'Copy the premise pattern')}
-       ${reroll('Reweave from your idea')}
-       ${S.spark.idea ? `<div class="hint">Same idea, another skeleton. What is typed here is
-         replaced; the cast is not.</div>` : ''}
+       ${reroll('Reweave all from your idea')}
        ${area('writingStyle', 'Voice', s.writingStyle,
          'How the narration behaves, as instructions.', 150)}
-       ${sparkVoiceOffer(s)}
-       ${S.prompts?.voice ? `<div style="display:flex; gap:7px; margin:-4px 0 10px">
-         <button class="btn ghost fill fs-115" data-spvoice="mine">Use your voice</button>
-         <button class="btn ghost fill fs-115" data-spvoice="shipped">Use Anansi's voice</button>
-       </div>` : ''}
-       ${forgeCopy('voice', 'Copy the voice pattern')}
-       ${area('styleNote', 'Genre flavour', s.styleNote,
-         "This tale's genre flavour, kept apart from the voice: romance and science fiction are not "
-         + 'the same writing style. It is sent on its own, under the voice.', 80)}
-       <!-- #28. Anansi fills this once, on arriving here with a genre and a premise and an empty
-            box, then never again unasked — the same bargain the chapter's two fields make. The
-            button is the other half of "be able to be rerolled to fit the story", and neither
-            saves: this is a skeleton and nothing here is written until Accept. -->
-       <button class="btn ghost" data-spstyle="1" ${busy ? 'disabled' : ''}
-         style="margin:-4px 0 10px; font-size:11.5px">${S.spark.styling ? 'Asking&hellip;'
-           : s.styleNote ? 'Reweave it' : 'Have Anansi write it'}</button>`
+       ${(() => {
+         const offer = sparkVoiceOffer(s);
+         const stock = S.prompts?.voice ? `<div style="display:flex; gap:7px; margin:4px 0 10px">
+           <button class="btn ghost fill fs-115" data-spvoice="mine">Use your voice</button>
+           <button class="btn ghost fill fs-115" data-spvoice="shipped">Use Anansi's voice</button>
+         </div>` : '';
+         // Said on the fold itself, so a Voice he wrote is not hidden behind a shut fold unannounced.
+         const offered = String(S.spark.voiceOffer ?? '').trim() && String(S.spark.voiceOffer).trim() !== String(s.writingStyle ?? '').trim();
+         return offer || stock ? foldSection('spvoice', `Voice options${offered ? ' &middot; he wrote one' : ''}`,
+           `${stock}${offer}`) : '';
+       })()}
+       ${foldSection('spmore', `More about the tale${String(s.world ?? '').trim() ? ` &middot; set in ${esc(s.world)}` : ''}`, `
+         ${row('world', 'Set in a story or game that already exists', s.world, S.spark.ipWorld
+           ? `You have a World called ${esc(S.spark.ipWorld.title)}. This tale follows it, and its people come in with it.`
+           : S.spark.ipNew ? `You have no World called ${esc(S.spark.ipNew.title)}. Anansi looks it up, and on The threads you tick who comes in.`
+           : 'Name it, or leave it empty for a tale of your own. If you have a World by that name, this tale follows it; if not, Anansi looks it up.')}
+         ${sparkFollow()}
+         ${area('styleNote', 'Genre flavour', s.styleNote,
+           "Kept apart from the voice, and sent on its own under it: romance and science fiction are not "
+           + 'the same writing style.', 80)}
+         <!-- #28. Anansi fills this once, on arriving here with a genre and a premise and an empty
+              box, then never again unasked. Neither saves: nothing here is written until Start. -->
+         <button class="btn ghost" data-spstyle="1" ${busy ? 'disabled' : ''}
+           style="margin:-4px 0 10px; font-size:11.5px">${S.spark.styling ? 'Asking&hellip;'
+             : s.styleNote ? 'Reweave' : 'Have Anansi write it'}</button>
+         ${SRV.admin ? `<div class="btnrow push-6 wraps">${forgeCopy('premise', 'Copy the premise pattern')}
+           ${forgeCopy('voice', 'Copy the voice pattern')}</div>` : ''}`)}`
     : key === 'you'
     // YOU, BEFORE THE THREADS (#84): the cast call is told who you play and writes them from the
     // outside. One box, offering the cast so far on a second visit, or a new name, and a line about
@@ -6468,182 +6482,8 @@ function sparkReview() {
          `<option value="${i + 1}" ${Number(s.spice) === i + 1 ? 'selected' : ''}>${i + 1} &middot; ${esc(l)}</option>`).join('')}</select>
        <div class="hint">Changeable per tale at any time, and a written-out register can replace the
          level entirely under Tale.</div>`
-    : key === 'threads'
-    // THE THREADS, and only the kinds this book needs. #21 §2 made it its own call.
-    //
-    // #28 · THREE THINGS WERE ADDED HERE 2026-08-30, all from one sentence of Seth's: *"i should
-    // be able to reroll characters or direct it based on my input. also i should be abel to set up
-    // lore books or pull from already existing lore if i want to pull that information."*
-    //
-    // The steer, a re-roll on each card, and the library. Setting up a lore book needed nothing
-    // new — `lore` has been one of the kind chips since #21 §2, so asking for places instead of
-    // people was already a press.
-    ? `${ipNewList()}<div class="lead-10 row-6 wraps">
-         ${KINDS.map((k) => {
-           const on = (S.spark.kinds ?? KINDS).includes(k);
-           // aria-pressed, added 2026-09-01: it is a toggle and every other toggle in this app says
-           // so. A screen reader had no way to know which kinds were on, and a check had to read the
-           // inline background colour to find out.
-           return `<button data-spkind="${k}" aria-pressed="${on}" style="font-size:11.5px; padding:7px 14px;
-             border-radius:var(--r-pill); border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
-             background:${on ? 'rgba(217,178,106,.12)' : 'transparent'};
-             color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(KIND_PLURAL[k] ?? k)}</button>`;
-         }).join('')}
-       </div>
-       ${S.spark.entries.length ? '' : `<button class="btn ghost below-10" data-spwritecast="1" ${busy ? 'disabled' : ''}
-        >${S.spark.casting ? 'Writing them&hellip;' : 'Write the threads'}</button>
-       <div class="hint lead-10">Pick what this tale needs, then ask. A tale with no
-         threads is a real answer &mdash; skip this step and write them as you go.</div>`}
-       ${S.spark.entries.map((e, i) => `<div class="card" style="margin-bottom:7px; gap:7px">
-         <div class="line-8">
-           <input class="field" data-spname="${i}" aria-label="Name of thread ${i + 1}"
-             value="${esc(e.title)}" placeholder="Their name"
-             style="margin:0; font-size:14px; color:var(--ink-bright)">
-           <span class="tag keep">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></div>
-         <textarea class="field" data-spbody="${i}" aria-label="What thread ${i + 1} says" placeholder="What they are, what they want, what it costs"
-           style="margin:0; min-height:64px; font-size:12.5px; line-height:1.45"
-           >${esc(e.body ?? '')}</textarea>
-         ${/* ITS POCKETS TOO, not only its Always true (Seth, 2026-10-30: "I should be also able to see
-               the pockets the ai has created for a character"). Open, to read and change in place;
-               `harvestSpark` reads them by the same attributes the preview's cards use. */
-           (() => { const rooms = Object.entries(e.rooms ?? {}).filter(([slot]) => slot !== 'facts');
-             return rooms.length ? `<details class="decksec" open><summary><span class="lbl flush">Pockets &middot; ${rooms.length}</span></summary>
-             ${rooms.map(([slot, p]) => `<div class="stack-6 push-6">
-               <div class="line"><input class="field flush name-field" data-sppname="${i}:${esc(slot)}" value="${esc(p.name ?? '')}"
-                 aria-label="What to call this ${esc(slotLabel(slot))} pocket"><span class="tag">${esc(pocketTitle(slot))}</span></div>
-               <textarea class="field grow flush min-52" data-sppocket="${i}:${esc(slot)}"
-                 aria-label="How to write ${esc(e.title)}'s ${esc(slotLabel(slot))}">${esc(p.body ?? '')}</textarea></div>`).join('')}
-             </details>` : ''; })()}
-         <div class="line-8">
-           <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint)">
-             <input type="checkbox" data-spcast="${i}" ${e.keep === false ? '' : 'checked'}> keep this one</label>
-           <button class="btn ghost" data-sprecast="${i}" ${busy ? 'disabled' : ''}
-             style="margin-left:auto; width:auto; padding:0 13px; height:30px; font-size:11.5px"
-             >${S.spark.recasting === i ? 'Asking&hellip;' : 'Reweave this one'}</button>
-         </div></div>`).join('')}
-       <!-- #40, 2026-09-01 · SUGGESTED FIRST, THEN KEPT OR DROPPED, THEN STEERED. Seth: "having them
-            suggested is good and then the writer can state what they need after choosing what stays
-            or goes." So this box sits UNDER the list it is about, not above it: before you have read
-            anything it is a brief written blind, and after you have ticked and unticked it is an
-            addendum to what survived. -->
-       ${S.spark.entries.length ? `
-       ${area('castSteer', 'Now say what else you need', S.spark.castSteer ?? '',
-         'Optional. It reaches every ask on this step, including a single thread you reweave: a rival '
-         + 'who is family, nobody over thirty, a city that is a character.', 56)}
-       <button class="btn ghost below-6" data-spwritecast="1" ${busy ? 'disabled' : ''}
-        >${S.spark.casting ? 'Writing them&hellip;'
-           : dropped ? `Keep the ${kept} ticked and reweave the rest`
-           : 'Ask for more'}</button>
-       <div class="hint lead-10">${dropped
-         ? `The ${kept === 1 ? 'one' : kept} you have ticked stay exactly as they are. The ${dropped}
-            you unticked are replaced by whatever comes back.`
-         : `Everything is ticked, so nothing is replaced &mdash; this asks for MORE alongside them.
-            Untick the ones you do not want first and they are what gets rewritten.`}</div>` : ''}
-
-       <button class="btn ghost push-6" data-spadd="1">&#65291; Write one of your own</button>
-
-       <!-- #30 · FORGED SOMEWHERE ELSE. The same paste a tale's New thread box takes, except
-            there is no story yet — so it lands in the wizard's cast and is written on Accept with
-            everything else. Rooms ride along and reach the ledger through POST /api/stories. -->
-       ${SRV.admin ? `<div class="btnrow push-16 wraps">
-         ${forgeCopy('character', 'Copy the character pattern')}
-         ${forgeCopy('location', 'Copy the place pattern')}
-       </div>` : ''}
-       <textarea class="field" data-castpaste aria-label="Paste threads as JSON"
-         placeholder="Or paste JSON from Export &mdash; one thread, or a list"
-         style="min-height:60px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
-       <button class="btn ghost" data-pastecast="1">Read it and add to the threads</button>
-       <div class="hint">It joins the threads above, to read and alter before you start the tale.
-         Nothing is written until then, and its pockets travel with it.</div>
-
-       <!-- #28 · FROM THE BOOKS YOU ALREADY HAVE. The same picker the blank-start form uses, and
-            the same copy at Create (seedOf), because "db.copyEntry" refuses unless BOTH books are
-            yours and a second copy path is a second place for that check to be forgotten. -->
-       <div class="lbl sect">Or bring threads you already have</div>
-       <input class="field" id="seedq" aria-label="Search every tale for threads to bring in"
-         value="${esc(S.seedQ ?? '')}"
-         placeholder="Search every tale for a character, a place, a rule&hellip;">
-       <div id="seeds">${seedList()}</div>
-
-       <!-- #40 stage 3 · A WHOLE BOOK, FOLLOWED. Seth: "for bring your own threads I should be able
-            to select a full Book or a lore bible in as well not just individual threads."
-            FOLLOWS rather than copies, his call: the new book READS that book's cards, so editing one
-            later changes it in both, and a local card of the same name still wins where this book
-            needs to disagree. It is the same "lore_from" column that "Start a book here" on the
-            Threads page already sets — no new route, no new column, one behaviour for one word.
-            NO BACKTICKS IN HERE: one closes the template literal holding this markup. -->
-       <div class="lbl sect">Or follow a world or a tale you already have</div>
-       <select class="field flush" data-spfollow="1" aria-label="The world or tale this one follows">
-         <option value="">Stands on its own</option>
-         ${(LIB ?? []).map((b) => `<option value="${esc(b.id)}"${
-           S.spark.follow === b.id ? ' selected' : ''}>Follows ${esc(b.title)}${
-           b.is_world ? ' — a world' : ''}</option>`).join('')}
-       </select>
-       <div class="hint">${S.spark.follow
-         ? `Every thread in it reaches this tale and wakes by the same rules. They are the same
-            threads, not copies &mdash; alter one there and it changes here.`
-         : `A world is a collection of threads that tales draw on, with no prose of its own. Follow
-            one and its cast, its places and its rules reach this tale without being copied into
-            it.`}</div>`
-    : key === 'look'
-    // A SECOND LOOK. From a button, never on arriving: a model call nobody asked for is what
-    // made "what changed" slow, and #24 is the whole argument.
-    ? `<button class="btn ghost below-10" data-spreview="1" ${S.spark.reviewing ? 'disabled' : ''}
-        >${S.spark.reviewing ? 'Reading it back&hellip;'
-           : S.spark.review ? 'Read it back again' : 'Ask what he would change'}</button>
-       ${!S.spark.review ? `<div class="hint flush">Nothing has been asked yet. This is the
-         first point where the tale can be read as a whole &mdash; the premise was written before
-         the cast existed, and the cast from a premise you may have rewritten since. Skipping it
-         costs nothing.</div>`
-       : (S.spark.review.changes.length || S.spark.review.entries.length || sparkClashCount())
-       ? `${sparkClashes()}${S.spark.review.changes.map((ch, i) => `<div class="card below-8 gap-6">
-           <div class="kind">${esc(ch.field)}</div>
-           <div class="note">${esc(ch.value)}</div>
-           <div class="hint flush">${esc(ch.why)}</div>
-           <button class="btn ghost small-btn" data-spapply="${i}">Use this instead</button></div>`).join('')}
-          ${S.spark.review.entries.length ? `<div class="lbl wide push-14"
-            >Threads he would add</div>
-            ${S.spark.review.entries.map((e, i) => `<div class="card below-8 gap-6">
-              <div class="base-8">
-                <span class="name-14">${esc(e.title)}</span>
-                <span class="tag">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></div>
-              <div class="note">${esc(e.body)}</div>
-              <button class="btn ghost small-btn" data-spaddone="${i}">Add to the cast</button></div>`).join('')}` : ''}`
-       : `<div class="hint flush">He would not change anything. That is a real answer and
-          it is the one a skeleton that hangs together gets.</div>`}`
-    : key === 'preview'
-    ? sparkPreview(s, { row, area })
-    : key === 'scene'
-    // THE FIRST SCENE. It asked for "Where this is going" as well until 2026-08-30, when that
-    // field came out of the whole app — Seth: "no ones going to use it. ive asked."
-    // #121: the setting is the place for the whole tale; the moment the scene opens in is its own box.
-    ? `${row('setting', 'Setting', s.setting,
-         'What stays true of the place for the whole tale. Lore written later can replace this.')}
-       ${sparkOpensWith(area)}
-       ${cast.length ? `<div class="hint push-10">Everyone you kept is in the tale
-         from the first line &mdash; the people always on, and places and things when their name
-         comes up. Who is in a given SCENE is that scene's own question, and the scene's screen
-         asks it.</div>` : ''}`
-    : key === 'opening'
-    // THE OPENING.
-    ? `<label style="display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--mute)">
-         <input type="checkbox" data-sp-open="1" ${S.spark.autoOpen === false ? '' : 'checked'}>
-         Let the model write the opening passage</label>
-       <div class="hint">And the first passage of every scene after it. Changeable per tale under
-         Storyteller. Leave it off and the first page is yours.</div>`
-    // BEGIN. What accepting actually writes, said before it is pressed.
-    : `<div class="hint lead-12">Nothing has been written yet. Starting the tale
-         creates all of this at once.</div>
-       ${[[`${esc(s.title || 'Untitled')}`, 'the tale, with its premise, voice and flavour'],
-          [`${cast.length} ${cast.length === 1 ? 'thread' : 'threads'}`,
-           cast.length ? 'people always on, the rest on their names' : 'no threads yet'],
-          [(() => { const w = sparkWorld(); return w ? esc(w[0].toUpperCase() + w.slice(1)) : 'No World'; })(),
-           'the World it follows'],
-          [s.persona ? esc(s.persona) : 'Nobody', 'the one you play'],
-          [s.lockedCharacter ? esc(s.lockedCharacter) : 'Nobody', 'hands off: the model leaves them to you'],
-          [S.spark.autoOpen === false ? 'You write it' : 'Anansi writes it', 'the first passage']]
-         .map(([what, why]) => `<div class="row"><span class="inked">${what}</span>
-           <span style="margin-left:auto; color:var(--faint); font-size:11.5px">${why}</span></div>`).join('')}`;
+    : key === 'threads' ? sparkThreads({ area, busy, kept, dropped })
+    : sparkBegin(s, { row, area });
 
   return `<div style="display:flex; gap:5px; margin-bottom:14px">${STEPS.map(([, t], i) => `
       <button data-sparkstep="${i + 1}" aria-pressed="${step === i + 1}" style="flex:1; height:5px;
@@ -6670,20 +6510,9 @@ function sparkReview() {
       ? `<button data-accept-spark="1" style="margin-top:10px; align-self:flex-start; font-size:12px;
           color:var(--faint); text-decoration:underline">Skip the other steps and start writing</button>`
       : '<button class="btn push-8" data-accept-spark="1">Start writing</button>'}
-    <button class="btn ghost push-8" data-drop-spark="1">Discard it</button>
-    <div class="hint">Nothing has been written yet. Starting it creates the tale and its threads.</div>`;
+    <button class="btn ghost push-8" data-drop-spark="1">Discard it</button>`;
 }
 
-/** #84 · THE PREVIEW: everything Start writing will make, on one page, before any of it exists.
- *
- *  The tale's own thread first (premise, setting, Voice and any Rules), then every thread folded to
- *  its name and Always true, with its pockets named; unfolded, every pocket can be edited, removed
- *  or added to. It is the wizard's own state (`S.spark`), so nothing here posts: Start writing
- *  sends the whole draft once through POST /api/stories. Removals, additions and the Voice fix keep
- *  one step of undo (`S.spark.undo`).
- *
- *  THE VOICE AGAINST THE POINT OF VIEW is warned about, never enforced: a deliberate mismatch is the
- *  writer's to keep, so the warning does not stand between them and Start writing. */
 /** The thread of the character you play: it stays while you play them (Seth, 2026-10-27). */
 const playsThis = (e) => !!S.spark?.story?.persona
   && String(e.title ?? '').trim().toLowerCase() === String(S.spark.story.persona).trim().toLowerCase();
@@ -6698,8 +6527,8 @@ const sparkQuestions = () => (S.spark?.questions ?? []).filter((q) => q.keep !==
   .map(({ title, line }) => ({ title, line }));
 
 /** #117 · WHERE THE DRAFT CONTRADICTS ITSELF, as Try it on found it: both places, each with what it
- *  says, the fix and why, with Use this and Leave it. On Try it on and again on the preview, from the
- *  one list, so a press on either takes it off both. */
+ *  says, the fix and why, with Use this and Leave it. Listed once, under Try it on at the top of
+ *  Begin (Seth, 2026-10-30), and a press takes it off the list. */
 const sparkClashCount = () => (S.spark?.review?.contradictions ?? []).length;
 const clashPart = (part) => part === 'premise' ? 'The premise' : part === 'always_true' ? 'Always true'
   : part === 'stands' ? 'Where it stands as the tale opens' : `${pocketTitle(part)} pocket`;
@@ -6735,64 +6564,264 @@ function sparkVoiceOffer(s) {
 
 /** #121 · HOW THE FIRST SCENE OPENS: the weather, the light and the hour the spark returned apart
  *  from the setting, as an editable box. Create writes it to scene 1's Opens with, which Anansi reads
- *  only until the scene has prose; the setting is read for the whole tale. On the preview and on the
- *  first scene's step, from the one field (`S.spark.story.opensWith`, harvested by `data-sp`). */
+ *  only until the scene has prose; the setting is read for the whole tale. On Begin, its one home
+ *  (`S.spark.story.opensWith`, harvested by `data-sp`). */
 const sparkOpensWith = (area) => area('opensWith', 'How the first scene opens', S.spark?.story?.opensWith,
   'The weather, the light and the time as the tale begins. Anansi reads it until the first passage is written.', 60);
 
-function sparkPreview(s, { row, area }) {
-  const kept = (S.spark.entries ?? []).map((e, i) => [e, i])
+/** #40 stage 3 · THE WORLD OR TALE THIS ONE FOLLOWS, beside Set in under The tale's More fold: the
+ *  World's one home (Seth, 2026-10-30; the threads step had this picker as well). FOLLOWS rather than
+ *  copies, Seth's call: the new tale reads that one's threads, so altering one there changes it here,
+ *  and a thread of its own of the same name still wins where it needs to disagree. It is the same
+ *  `lore_from` column "Start a tale here" sets. A <select>, so the `change` listener reads it. */
+function sparkFollow() {
+  return `<label class="lbl" for="f-sp-follow">Or follow a world or a tale you already have</label>
+    <select class="field flush" id="f-sp-follow" data-spfollow="1">
+      <option value="">Stands on its own</option>
+      ${(LIB ?? []).map((b) => `<option value="${esc(b.id)}"${
+        S.spark.follow === b.id ? ' selected' : ''}>Follows ${esc(b.title)}${
+        b.is_world ? ' — a world' : ''}</option>`).join('')}
+    </select>
+    <div class="hint">${S.spark.follow
+      ? `Every thread in it reaches this tale and wakes by the same rules. They are the same
+         threads, not copies &mdash; alter one there and it changes here.`
+      : `A world is a collection of threads that tales draw on, with no prose of its own. Follow
+         one and its cast, its places and its rules reach this tale without being copied into it.`}</div>`;
+}
+
+/** THE THREADS STEP, AS A TALE'S THREADS LOOK (Seth, 2026-10-30: "for the wizard the threads ui and
+ *  ux as much as possible"). The list is a tale's list: grouped by kind with a count, one row per
+ *  thread in the tale's own `thplate` look, ＋ in the header to write one of your own. A tap opens the
+ *  thread (`draftRead`), as a tale's list opens its Read screen; its pockets open the pocket panel.
+ *  The two things a draft has that a tale's thread does not stay on each row: the keep tick and
+ *  Reweave. The threads are the draft's (`S.spark.entries`), so nothing here posts.
+ *
+ *  #28 · The steer, a Reweave on each thread and the library are from one sentence of Seth's,
+ *  2026-08-30: "i should be able to reroll characters or direct it based on my input. also i should
+ *  be abel to set up lore books or pull from already existing lore." Setting up a lore book needed
+ *  nothing new: `lore` is one of the kind chips. About eight fixed controls are on screen: the kind
+ *  chips, ＋, the steer and Ask for more; the paste box, the library search and the admin's copy
+ *  presses are under Bring threads in, because most tales never use them. */
+function sparkThreads({ area, busy, kept, dropped }) {
+  const list = S.spark.entries ?? [];
+  const at = list.indexOf(S.spark.open);
+  if (at >= 0) return draftRead(at, busy);
+  const undo = S.spark.undo ? `<button class="btn ghost below-10" data-spundo="1">Undo ${esc(S.spark.undo.what)}</button>` : '';
+  const kinds = [...KINDS, ...new Set(list.map((e) => e.entryType ?? 'character').filter((k) => !KINDS.includes(k)))];
+  const groups = kinds.map((k) => {
+    const rows = list.map((e, i) => [e, i]).filter(([e]) => (e.entryType ?? 'character') === k);
+    return rows.length ? `<div class="lbl wide push-6">${esc(KIND_PLURAL[k] ?? k)} &middot; <span class="tnum">${rows.length}</span></div>
+      <div class="stack-roomy">${rows.map(([e, i]) => draftPlate(e, i, busy)).join('')}</div>` : '';
+  }).join('');
+  return `${undo}${ipNewList()}<div class="lead-10 row-6 wraps">
+      ${KINDS.map((k) => {
+        const on = (S.spark.kinds ?? KINDS).includes(k);
+        // aria-pressed, added 2026-09-01: it is a toggle and every other toggle in this app says
+        // so. A screen reader had no way to know which kinds were on, and a check had to read the
+        // inline background colour to find out.
+        return `<button data-spkind="${k}" aria-pressed="${on}" style="font-size:11.5px; padding:7px 14px;
+          border-radius:var(--r-pill); border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
+          background:${on ? 'rgba(217,178,106,.12)' : 'transparent'};
+          color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(KIND_PLURAL[k] ?? k)}</button>`;
+      }).join('')}
+    </div>
+    <div class="line-8 push-6"><span class="lbl wide flush fill">The threads &middot; <span class="tnum">${list.length}</span></span>
+      <button class="headadd" data-spadd="1" aria-label="Write one of your own" title="Write one of your own"
+        ><span>${mark('create', 16)}</span></button></div>
+    ${list.length ? groups : `<button class="btn ghost below-10" data-spwritecast="1" ${busy ? 'disabled' : ''}
+      >${S.spark.casting ? 'Writing them&hellip;' : 'Write the threads'}</button>
+      <div class="hint lead-10">Pick what this tale needs, then ask. A tale with no threads is a real
+        answer &mdash; go on and write them as you go.</div>`}
+    ${/* #40, 2026-09-01 · SUGGESTED FIRST, THEN KEPT OR DROPPED, THEN STEERED. Seth: "having them
+          suggested is good and then the writer can state what they need after choosing what stays
+          or goes." So the steer sits UNDER the list it is about: before anything is read it is a
+          brief written blind, and after the ticks it is an addendum to what survived. */
+      list.length ? `<label class="lbl push-10" for="f-sp-castSteer">Now say what else you need</label>
+      <textarea class="field" id="f-sp-castSteer" data-sp="castSteer" style="min-height:56px"
+        placeholder="a rival who is family, nobody over thirty, a city that is a character">${esc(S.spark.castSteer ?? '')}</textarea>
+      <button class="btn ghost below-6" data-spwritecast="1" ${busy ? 'disabled' : ''}
+        >${S.spark.casting ? 'Writing them&hellip;' : dropped ? 'Reweave the unticked' : 'Ask for more'}</button>
+      <div class="hint lead-10">${dropped
+        ? `The ${kept === 1 ? 'one' : kept} ticked stay as they are; the ${dropped} unticked are replaced.`
+        : 'Everything is ticked, so this asks for more beside them. Untick one to have it rewritten.'}</div>` : ''}
+    ${/* #30 · FORGED SOMEWHERE ELSE: the paste a tale's New thread box takes, landing in this draft
+          with its pockets, to be written at Start with the rest. #28 · AND FROM THE TALES YOU HAVE: the
+          picker the blank start uses, and the same copy at Create (`seedOf`), because
+          `db.copyEntry` refuses unless both tales are yours and a second copy path is a second place
+          for that check to be forgotten. */
+      foldSection('spbring', 'Bring threads in', `
+      <textarea class="field push-6" data-castpaste aria-label="Paste threads as JSON"
+        placeholder="Paste JSON from Export &mdash; one thread, or a list"
+        style="min-height:60px; font-size:12px; font-family:ui-monospace, monospace"></textarea>
+      <button class="btn ghost" data-pastecast="1">Read it and add to the threads</button>
+      <div class="hint">It joins the threads above with its pockets, to read and alter before you start the tale.</div>
+      <label class="lbl sect" for="seedq">Threads you already have</label>
+      <input class="field" id="seedq" value="${esc(S.seedQ ?? '')}"
+        placeholder="Search every tale for a character, a place, a rule&hellip;">
+      <div id="seeds">${seedList()}</div>
+      ${SRV.admin ? `<div class="btnrow push-16 wraps">
+        ${forgeCopy('character', 'Copy the character pattern')}
+        ${forgeCopy('location', 'Copy the place pattern')}
+      </div>` : ''}`)}`;
+}
+
+/** A draft thread's keep tick and Reweave, on its row and on it opened. The thread you play stays
+ *  ticked while you play them (#84): `harvestSpark` keeps it however the box reads. */
+const draftActs = (e, i, busy) => `<div class="line-8 push-6">
+    <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint)">
+      <input type="checkbox" data-spcast="${i}" ${e.keep === false ? '' : 'checked'}> Keep</label>
+    <button class="btn ghost" data-sprecast="${i}" ${busy ? 'disabled' : ''}
+      style="margin-left:auto; width:auto; padding:0 13px; height:30px; font-size:11.5px"
+      >${S.spark.recasting === i ? 'Asking&hellip;' : 'Reweave'}</button></div>`;
+
+/** One draft thread in the list, in the tale's `threadPlate` look: its name, two lines of its text
+ *  with the bracket off, and a tag only for what is needed at a glance. No eye: how a thread reaches
+ *  the model is set once the tale exists. */
+function draftPlate(e, i, busy) {
+  const pockets = Object.keys(e.rooms ?? {}).filter((slot) => slot !== 'facts').length;
+  const text = unbracket(e.body ?? '', e.title);
+  const tags = [pockets ? `<span class="tag">${plural(pockets, 'pocket', 'pockets')}</span>` : '',
+    playsThis(e) ? '<span class="tag">you play</span>' : '',
+    e.keep === false ? '<span class="tag faint">not kept</span>' : ''].join('');
+  return `<div class="throw">
+    <button class="card plate thplate" data-spopen="${i}">
+      <span class="platename">${esc(String(e.title ?? '').trim() || 'A new thread')}</span>
+      ${text ? `<span class="clamp2 thtext">${esc(text)}</span>` : ''}
+      ${tags ? `<span class="thtags">${tags}</span>` : ''}</button>
+    ${draftActs(e, i, busy)}</div>`;
+}
+
+/** One draft pocket's row, as a tale's Pockets tab draws one: its name and kind, one line of its
+ *  text, and its switch. The name opens the pocket panel on it. `on` is what Create switches on. */
+function draftPocketRow(i, slot, p) {
+  const on = !!p.on, name = String(p.name ?? '').trim() || pocketTitle(slot);
+  return `<div class="pocketrow${on ? ' lit' : ''}">
+    <button class="pocketopen" data-sppocketopen="${i}:${esc(slot)}" aria-label="Open ${esc(name)}">
+      <span class="pkname">${esc(name)} <span class="faded">&middot; ${esc(slotLabel(slot))}</span></span>
+      <span class="pkline">${esc(String(p.body ?? '').split('\n')[0])}</span></button>
+    <button data-sppocketon="${i}:${esc(slot)}" class="tag pocketsw" aria-pressed="${on}"
+      aria-label="${esc(name)} is ${on ? 'on. Tap to turn it off' : 'off. Tap to turn it on'}">${on ? 'On' : 'Off'}</button></div>`;
+}
+
+/** ONE DRAFT THREAD OPENED, as a tale's Read screen is: "‹ Threads" back to the list and ＋ for a
+ *  pocket in its header, Always true first, then where it stands as the tale opens, then its pockets
+ *  as rows that open the pocket panel (`S.pocket.draft`). Remove it is here, as in a tale. */
+function draftRead(i, busy) {
+  const e = S.spark.entries[i];
+  const order = (LEDGER_SLOTS?.[e.entryType] ?? []).map((x) => x.name);
+  const rank = (slot) => (order.includes(slot) ? order.indexOf(slot) : order.length);
+  const rooms = Object.entries(e.rooms ?? {}).filter(([slot]) => slot !== 'facts')
+    .sort(([a], [b]) => rank(a) - rank(b));
+  const on = rooms.filter(([, p]) => p.on), off = rooms.filter(([, p]) => !p.on);
+  const row = ([slot, p]) => draftPocketRow(i, slot, p);
+  const name = String(e.title ?? '').trim() || 'this thread';
+  return `${S.spark.undo ? `<button class="btn ghost below-10" data-spundo="1">Undo ${esc(S.spark.undo.what)}</button>` : ''}
+    <div class="line-8 below-10">
+      <button class="headback" data-spopen="" aria-label="Back to the threads">&lsaquo;&nbsp;<span
+        class="serif">Threads</span></button>
+      <span class="fill"></span>
+      <button class="headadd" data-sppocketnew="${i}" aria-label="Add a pocket to ${esc(name)}" title="Add a pocket"
+        ><span>${mark('create', 16)}</span></button></div>
+    <label class="lbl" for="f-sp-name-${i}">Name</label>
+    <div class="line-8"><input class="field flush fill" id="f-sp-name-${i}" data-spname="${i}" value="${esc(e.title ?? '')}"
+      placeholder="Their name"><span class="tag">${esc(KIND_PLURAL[e.entryType] ?? e.entryType ?? 'thread')}</span></div>
+    <label class="lbl" for="f-sp-at-${i}">Always true</label>
+    <textarea class="field grow" id="f-sp-at-${i}" data-spbody="${i}"
+      placeholder="What they are, what they want, what it costs">${esc(e.body ?? '')}</textarea>
+    <label class="lbl" for="f-sp-st-${i}">Where it stands as the tale opens</label>
+    <textarea class="field grow" id="f-sp-st-${i}" data-spstands="${i}">${esc(e.stands ?? '')}</textarea>
+    <div class="lbl sect">Pockets &middot; <span class="tnum">${rooms.length}</span></div>
+    ${on.map(row).join('')}${off.length ? `<div class="lbl sect-rule">Not turned on</div>
+      <div class="hint lead-4">Written down, and not sent once the tale starts until you turn it on.</div>${off.map(row).join('')}` : ''}
+    ${rooms.length ? '' : '<div class="hint push-10">No pockets yet.</div>'}
+    <button class="btn ghost push-14" data-sppocketnew="${i}">+ Add a pocket</button>
+    ${draftActs(e, i, busy)}
+    ${playsThis(e) ? `<div class="hint push-14">You play ${esc(e.title)}, so their thread stays. Choose
+      somebody else on You first to remove it.</div>`
+      : `<button class="btn ghost danger push-14" data-spdropthread="${i}">Remove ${esc(name)}</button>`}`;
+}
+
+/** THE POCKET PANEL ON A DRAFT THREAD (Seth, 2026-10-30): the tale's full-screen box, opened from a
+ *  draft pocket row or ＋, saving into `S.spark.entries[i].rooms` rather than posting, since there is
+ *  no tale yet. `S.pocket.draft` is the thread itself, so a thread removed or replaced while it is
+ *  open shuts it (`pocketHome`). Write it only: Ask Anansi writes a pocket from the tale, and there
+ *  is no tale to read yet; Reweave on the thread rewrites its pockets with it. */
+function draftPocketPanel(pk, e) {
+  const adding = !pk.id;
+  const free = (LEDGER_SLOTS?.[e.entryType] ?? []).map((x) => x.name)
+    .filter((n) => n !== 'facts' && !(e.rooms ?? {})[n]);
+  const [namePh, bodyPh] = SLOT_HINT[pk.slot] ?? ['What it is called', 'A plain description'];
+  const name = esc(String(e.title ?? '').trim() || 'this thread');
+  const kinds = adding ? `<div class="pkkinds">${free.map((n) => `<button data-pocketkind="${esc(n)}"
+      class="pkkind" aria-pressed="${pk.slot === n}">${esc(pocketTitle(n))}</button>`).join('')
+      || '<div class="hint flush">It has every pocket its kind can have.</div>'}</div>` : '';
+  return `<div class="pocketbox" role="dialog" aria-label="${adding ? `A new pocket for ${name}` : esc(pk.name || pocketTitle(pk.slot))}">
+    <div class="pkhead"><div class="lbl flush wide">${adding ? `New pocket &middot; ${name}` : `${esc(pocketTitle(pk.slot))} &middot; ${name}`}</div></div>
+    <div class="pkscroll scroll">${kinds}
+      <label class="lbl" for="pk-name">Name</label>
+      <input class="field" id="pk-name" value="${esc(pk.name)}" placeholder="${esc(namePh)}">
+      <label class="lbl" for="pk-body">The description</label>
+      <textarea class="field grow pkbody" id="pk-body" placeholder="${esc(bodyPh)}">${esc(pk.body)}</textarea>
+      ${adding ? '' : `<button class="btn ghost danger push-14" data-sppocketdel="1">Remove this pocket</button>`}</div>
+    <div class="pkfoot">
+      <button class="btn ghost" data-pocketx="1">Cancel</button>
+      <button class="btn" data-sppocketsave="1">Save</button>
+    </div>
+  </div>`;
+}
+
+/** #84 · BEGIN: TRY IT ON, THE PREVIEW, THE OPENING, START (Seth, 2026-10-30, four steps from eight).
+ *
+ *  One line at the top says what Start writing makes. Try it on follows, from a button, never on
+ *  arriving (#24), and its contradictions are listed here and nowhere else. Then the preview reads the
+ *  draft back: the title, premise and Voice as text with Change, which goes to The tale where they
+ *  are written; the threads as names, Always true and pocket names, each opening on The threads. It
+ *  edits only what lives here alone: the setting and how the first scene opens (their one home), the
+ *  open questions, the World's people in the opening, and Your own. Nothing posts: Start writing
+ *  sends the whole draft once through POST /api/stories. A removal, an addition and the Voice fix
+ *  keep one step of undo (`S.spark.undo`).
+ *
+ *  THE VOICE AGAINST THE POINT OF VIEW is warned about, never enforced: a deliberate mismatch is the
+ *  writer's to keep, so the warning does not stand between them and Start writing. */
+function sparkBegin(s, { row, area }) {
+  const threads = (S.spark.entries ?? []).map((e, i) => [e, i])
     .filter(([e]) => e.keep !== false && (e.title ?? '').trim());
-  // Rules are pockets of the tale since 2026-10-29 (ADR 0005): the cast offers none.
-  const threads = kept;
   const clash = voiceClash(s.writingStyle, s.pov);
   // #103. The World the IP matched, while the tale still follows it (the picker can change that).
   const ipWorld = S.spark.ipWorld && S.spark.follow === S.spark.ipWorld.id ? S.spark.ipWorld : null;
   // #104. The new World's ticked names, made at Create.
   const ipNew = ipTicked();
-  const card = ([e, i]) => {
-    const open = !!S.spark.unfolded?.[i];
-    const rooms = Object.entries(e.rooms ?? {}).filter(([slot]) => slot !== 'facts');
-    const free = (LEDGER_SLOTS?.[e.entryType] ?? []).map((x) => x.name)
-      .filter((n) => n !== 'facts' && !(e.rooms ?? {})[n]);
-    return `<div class="card below-8 gap-6">
-      <button data-spfold="${i}" aria-expanded="${open}" style="display:flex; flex-direction:column;
-        gap:4px; width:100%; text-align:left">
-        <span class="base-8"><span class="name-14">${esc(e.title)}</span>
-          <span class="tag">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></span>
-        ${open ? '' : `<span class="note">${esc(e.body ?? '')}</span>`}
-        <span class="hint flush">${rooms.length
-          ? rooms.map(([slot, p]) => esc(p.name || pocketTitle(slot))).join(' &middot; ')
-          : 'No pockets'}</span></button>
-      ${!open ? '' : `
-      <input class="field flush" data-spname="${i}" aria-label="Name of ${esc(e.title)}" value="${esc(e.title)}">
-      <label class="lbl" for="f-sp-at-${i}">Always true</label>
-      <textarea class="field grow flush min-52" id="f-sp-at-${i}" data-spbody="${i}">${esc(e.body ?? '')}</textarea>
-      <label class="lbl" for="f-sp-st-${i}">Where it stands as the tale opens</label>
-      <textarea class="field grow flush min-52" id="f-sp-st-${i}" data-spstands="${i}">${esc(e.stands ?? '')}</textarea>
-      ${rooms.map(([slot, p]) => `<div class="card snug gap-6">
-        <div class="line">
-          <input class="field flush name-field" data-sppname="${i}:${esc(slot)}" value="${esc(p.name ?? '')}"
-            aria-label="What to call this ${esc(slotLabel(slot))} pocket">
-          <span class="tag">${esc(pocketTitle(slot))}</span>
-          <button class="del-x" data-spdroppocket="${i}:${esc(slot)}" aria-label="Remove this pocket">&#10005;</button></div>
-        <textarea class="field grow flush min-52" data-sppocket="${i}:${esc(slot)}"
-          aria-label="How to write ${esc(e.title)}'s ${esc(slotLabel(slot))}">${esc(p.body ?? '')}</textarea>
-      </div>`).join('')}
-      ${free.length ? `<div class="card snug gap-6">
-        <select class="field flush" data-spnewslot="${i}" aria-label="Which pocket to add">${free.map((n) =>
-          `<option value="${esc(n)}">${esc(pocketTitle(n))}</option>`).join('')}</select>
-        <textarea class="field grow flush min-52" data-spnewpocket="${i}" aria-label="The new pocket"
-          placeholder="How to write it, as an instruction"></textarea>
-        <button class="btn ghost" data-spaddpocket="${i}">Add the pocket</button></div>` : ''}
-      ${playsThis(e) ? `<div class="hint flush">You play ${esc(e.title)}, so their thread stays. Choose
-        somebody else on You first to remove it.</div>`
-        : `<button class="btn ghost" data-spdropthread="${i}">Remove ${esc(e.title)}</button>`}`}
-    </div>`;
-  };
-  return `${S.spark.undo ? `<button class="btn ghost below-10" data-spundo="1">Undo ${esc(S.spark.undo.what)}</button>` : ''}
-    ${sparkClashes()}
-    ${clash.length ? `<div class="card below-10 gap-6" role="alert">
+  const world = sparkWorld();
+  const summary = [esc(s.title || 'Untitled'), plural(threads.length, 'thread', 'threads'),
+    world ? `follows ${esc(world)}` : 'follows no World', `you play ${esc(s.persona || 'nobody')}`,
+    `hands off ${esc(s.lockedCharacter || 'nobody')}`].join(' &middot; ');
+  const review = S.spark.review;
+  const said = (k, label, text, more = '') => `<div class="line-8 push-10"><span class="lbl flush fill">${label}</span>
+      <button class="btn ghost small-btn" data-spchange="${k}" aria-label="Change the ${label.toLowerCase()} on The tale">Change</button></div>
+    <div class="note">${esc(String(text ?? '').trim() || 'Not written yet.')}</div>${more}`;
+  return `<div class="note" data-spsummary="1">${summary}</div>
+    <div class="lbl sect">Try it on</div>
+    <button class="btn ghost below-10" data-spreview="1" ${S.spark.reviewing ? 'disabled' : ''}
+      >${S.spark.reviewing ? 'Reading it back&hellip;' : review ? 'Read it back again' : 'Ask what he would change'}</button>
+    ${!review ? `<div class="hint flush">He reads the whole tale back, says what he would change, and
+        lists where two parts of it disagree. Skipping it costs nothing.</div>`
+    : (review.changes.length || review.entries.length || sparkClashCount())
+    ? `${sparkClashes()}${review.changes.map((ch, i) => `<div class="card below-8 gap-6">
+        <div class="kind">${esc(ch.field)}</div>
+        <div class="note">${esc(ch.value)}</div>
+        <div class="hint flush">${esc(ch.why)}</div>
+        <button class="btn ghost small-btn" data-spapply="${i}">Use this instead</button></div>`).join('')}
+      ${review.entries.length ? `<div class="lbl wide push-14">Threads he would add</div>
+        ${review.entries.map((e, i) => `<div class="card below-8 gap-6">
+          <div class="base-8">
+            <span class="name-14">${esc(e.title)}</span>
+            <span class="tag">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></div>
+          <div class="note">${esc(e.body)}</div>
+          <button class="btn ghost small-btn" data-spaddone="${i}">Add to the threads</button></div>`).join('')}` : ''}`
+    : `<div class="hint flush">He would not change anything. That is a real answer, and it is the one a
+        tale that hangs together gets.</div>`}
+    ${S.spark.undo ? `<button class="btn ghost push-14" data-spundo="1">Undo ${esc(S.spark.undo.what)}</button>` : ''}
+    ${clash.length ? `<div class="card push-14 gap-6" role="alert">
       <div class="kind">The Voice and the point of view disagree</div>
       <div class="note">Your Voice says ${esc(clash.map((c) => c.said).join('; '))}, and the point of view
         is ${esc(s.pov)}. The model would be told both.</div>
@@ -6800,13 +6829,15 @@ function sparkPreview(s, { row, area }) {
       <button class="btn ghost small-btn" data-spvoicefix="1">Take ${clash.length === 1 ? 'that sentence'
         : 'those sentences'} out of the Voice</button>
       <div class="hint flush">Or keep it: you can still start the tale with this showing.</div></div>` : ''}
-    <div class="lbl wide">The tale's own thread</div>
+    <div class="lbl wide push-16">The tale's own thread</div>
     <div class="hint lead-6">What Anansi is told about the whole tale, every time.</div>
-    ${row('title', 'Title', s.title)}
-    ${area('premise', 'Premise', s.premise, '', 110)}
-    ${row('setting', 'Setting', s.setting)}
-    ${area('writingStyle', 'Voice', s.writingStyle, `How the narration sounds, as instructions. Point of
-      view: ${esc(s.pov ?? 'not set')}.`, 120)}
+    ${said('title', 'Title', s.title)}
+    ${said('premise', 'Premise', s.premise)}
+    ${said('writingStyle', 'Voice', s.writingStyle, `<div class="hint flush">Point of view: ${esc(s.pov ?? 'not set')}.</div>`)}
+    ${/* #121: the setting is the place for the whole tale; the moment the scene opens in is its own
+          box. Both are asked here and nowhere else. */
+      row('setting', 'Setting', s.setting, 'What stays true of the place for the whole tale.')}
+    ${sparkOpensWith(area)}
     ${(S.spark.questions ?? []).length ? `<div class="lbl sect">Open questions</div>
       <div class="hint lead-6">What the tale keeps asking. Each one you tick becomes a string from the
         first scene, and Anansi is told not to answer it yet.</div>
@@ -6814,8 +6845,6 @@ function sparkPreview(s, { row, area }) {
         <span class="base-8"><input type="checkbox" data-spquestion="${i}"${q.keep === false ? '' : ' checked'}>
           <span class="name-14">${esc(q.title)}</span></span>
         <span class="note">${esc(q.line)}</span></label>`).join('')}` : ''}
-    <div class="lbl sect">The first scene</div>
-    ${sparkOpensWith(area)}
     ${ipWorld ? `<div class="lbl sect">From your World, ${esc(ipWorld.title)} &middot;
         <span class="tnum">${ipWorld.people.length}</span></div>
       <div class="hint lead-6">This tale follows it, so its people come in with it. They are the World's
@@ -6846,9 +6875,20 @@ function sparkPreview(s, { row, area }) {
       <textarea class="field grow flush min-52" data-sptpnew="body" aria-label="The instruction" placeholder="The instruction, for the whole tale"></textarea>
       <button class="btn ghost" data-spaddtp="1">Add it</button></div>
     <div class="lbl sect">The threads &middot; <span class="tnum">${threads.length}</span></div>
-    <div class="hint lead-6">You play ${esc(s.persona || 'nobody')}${s.lockedCharacter && s.lockoutOn !== false
-      ? `; hands off ${esc(s.lockedCharacter)}` : ''}. Press a thread to open its pockets.</div>
-    ${threads.length ? threads.map(card).join('') : '<div class="hint flush">No threads. Write them as you go.</div>'}`;
+    <div class="hint lead-6">Press a thread to change it on The threads.</div>
+    ${threads.length ? threads.map(([e, i]) => {
+      const rooms = Object.entries(e.rooms ?? {}).filter(([slot]) => slot !== 'facts');
+      return `<button class="card below-8 gap-6" data-spopen="${i}" style="display:flex; flex-direction:column; width:100%; text-align:left">
+        <span class="base-8"><span class="name-14">${esc(e.title)}</span>
+          <span class="tag">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></span>
+        <span class="note">${esc(e.body ?? '')}</span>
+        <span class="hint flush">${rooms.length
+          ? rooms.map(([slot, p]) => esc(p.name || pocketTitle(slot))).join(' &middot; ') : 'No pockets'}</span></button>`;
+    }).join('') : '<div class="hint flush">No threads. Write them as you go.</div>'}
+    <label class="push-16" style="display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--mute)">
+      <input type="checkbox" data-sp-open="1" ${S.spark.autoOpen === false ? '' : 'checked'}>
+      Let the model write the opening passage</label>
+    <div class="hint">And the first passage of every scene after it. Leave it off and the first page is yours.</div>`;
 }
 
 /** The new chapter's setup. Three fields, none of them new machinery: the beat is the chapter's
@@ -13053,7 +13093,8 @@ document.addEventListener('click', async (e) => {
   // Pressing the same web again shuts it, so the icon is a toggle rather than a one-way door.
   // The native <summary> click has already flipped the element; this records it so the repaint
   // agrees rather than snapping the section shut under whatever was pressed inside it.
-  if (d.fold) { S.folds = { ...S.folds, [d.fold]: !S.folds?.[d.fold] }; paint(); return; }
+  // The wizard's folds repaint the wizard, so what is typed on the step is read back first.
+  if (d.fold) { harvestSpark(); S.folds = { ...S.folds, [d.fold]: !S.folds?.[d.fold] }; paint(); return; }
   // One press goes to the work, not to a list of where the work might be.
   /** The band's two doors into the last-written book, and the difference between them.
    *
@@ -13693,6 +13734,8 @@ document.addEventListener('click', async (e) => {
       // the INDEX being re-rolled rather than a boolean, because the button that says "Asking…"
       // has to be the one that was pressed.
       castSteer: '', recasting: null,
+      // The draft thread opened on the threads step, the thread itself (Seth, 2026-10-30).
+      open: null,
       // The house style: `styling` is the call in flight, `styled` is the once-only autofill having
       // happened. Two flags, because "asked and came back empty" must not ask again forever.
       styling: false, styled: false,
@@ -13715,7 +13758,7 @@ document.addEventListener('click', async (e) => {
       // #123. The Voice the spark wrote, offered beside the writer's own (`sparkVoiceOffer`).
       voiceOffer: r.voiceOffer ?? '' };
     S.sparkStep = 1;
-    if (S.prompts === null) loadPrompts();   // step 5 offers the writer's own voice
+    if (S.prompts === null) loadPrompts();   // Voice options offers the writer's own voice
     paint();
     toast('The skeleton. The cast is the next step, once you say what this tale needs.');
     return;
@@ -13768,6 +13811,8 @@ document.addEventListener('click', async (e) => {
     // `keep` rides across: a card you had already ticked off stays ticked off after a re-roll, and
     // one you had kept stays kept.
     S.spark.entries = S.spark.entries.map((e, j) => (j === i ? { ...one, keep: e.keep } : e));
+    // Reweaved while it was open: the new version stays open in its place.
+    if (S.spark.open === was) S.spark.open = S.spark.entries[i];
     for (const k of ['persona', 'lockedCharacter'])
       if (S.spark.story[k] === was.title && one.title !== was.title) S.spark.story[k] = null;
     paint();
@@ -13846,37 +13891,82 @@ document.addEventListener('click', async (e) => {
     paint();
     return toast(`${e.title} added to the cast.`);
   }
-  /* #84 · THE PREVIEW'S PRESSES. Each changes the draft and nothing else; nothing posts until
-   * Start writing. A removal, an addition and the Voice fix keep one step of undo: the part they
-   * change, as it was, put back on its own, so an edit typed since is not thrown away. The Voice fix
-   * is the exception: its undo puts the whole Voice back as it was before the fix. */
-  if (d.spfold !== undefined) {
+  /* #84 · THE DRAFT'S PRESSES. Each changes the draft and nothing else; nothing posts until Start
+   * writing. A removal, an addition and the Voice fix keep one step of undo: the part they change,
+   * as it was, put back on its own, so an edit typed since is not thrown away. The Voice fix is the
+   * exception: its undo puts the whole Voice back as it was before the fix.
+   *
+   * A THREAD OPENED (Seth, 2026-10-30), as a tale's list opens its Read screen: `S.spark.open` is the
+   * thread itself, not its place, so a thread Talk adds or takes away does not open another one. An
+   * empty `data-spopen` is "‹ Threads". From Begin it opens on The threads, where it is changed. */
+  if (d.spopen !== undefined) {
     harvestSpark();
-    S.spark.unfolded = { ...(S.spark.unfolded ?? {}), [d.spfold]: !S.spark.unfolded?.[d.spfold] };
+    S.spark.open = d.spopen === '' ? null : S.spark.entries[Number(d.spopen)] ?? null;
+    if (S.spark.open && stepNow()[0] !== 'threads') S.sparkStep = stepAt('threads');
+    paint();
+    $('page')?.scrollTo?.(0, 0); document.scrollingElement?.scrollTo?.(0, 0);
+    return;
+  }
+  // Begin's Change: back to The tale, at the box it names.
+  if (d.spchange) {
+    harvestSpark();
+    S.sparkStep = stepAt('book');
+    paint();
+    $(`f-sp-${d.spchange}`)?.focus?.();
+    return;
+  }
+  // A DRAFT THREAD'S POCKET IN THE POCKET PANEL, opened from its row (`index:slot`) or added from ＋
+  // (`index`). The panel's boxes keep what is typed in S.pocket (the `pk-*` input listener).
+  if (d.sppocketopen || d.sppocketnew !== undefined) {
+    harvestSpark();
+    const [i, slot] = String(d.sppocketopen ?? d.sppocketnew).split(':');
+    const e = S.spark.entries[Number(i)];
+    const p = slot ? e?.rooms?.[slot] : null;
+    if (!e || (slot && !p)) return;
+    const was = { name: p?.name ?? '', body: p?.body ?? '' };
+    S.pocket = { draft: e, id: slot || null, tab: 'write', slot: slot || null, wasSlot: slot || null,
+      ...was, keys: '', owed: '', steer: '', offer: null, was };
+    paint();
+    $('pk-name')?.focus?.();
+    return;
+  }
+  // Its switch: what Create switches on (`writeCast` on the server reads `on`).
+  if (d.sppocketon) {
+    harvestSpark();
+    const [i, slot] = d.sppocketon.split(':');
+    const p = S.spark.entries[Number(i)]?.rooms?.[slot];
+    if (!p) return;
+    p.on = !p.on;
     paint();
     return;
   }
-  if (d.spdroppocket) {
+  if (d.sppocketsave) {
+    const pk = S.pocket, e = pk?.draft;
+    if (!e || !pocketHome()) return;
+    const name = pk.name.trim(), body = pk.body.trim();
+    if (!pk.slot) return toast('Pick what you are adding first.');
+    if (!name) return toast('A pocket needs a name.');
+    if (!body) return toast('A pocket needs something in it.');
     harvestSpark();
-    const [i, slot] = d.spdroppocket.split(':');
-    const e = S.spark.entries[Number(i)];
-    if (!e?.rooms?.[slot]) return;
-    S.spark.undo = { what: `removing a pocket from ${e.title}`, entry: e, slot, pocket: e.rooms[slot] };
-    const { [slot]: _gone, ...rest } = e.rooms;
-    e.rooms = rest;
-    paint();
-    return toast(`${pocketTitle(slot)} taken off ${e.title}.`);
+    if (!pk.id) S.spark.undo = { what: `adding a pocket to ${e.title}`, entry: e, slot: pk.slot, pocket: null };
+    // A new pocket starts on, as the cast's own do; one altered keeps its switch.
+    e.rooms = { ...(e.rooms ?? {}), [pk.slot]: { ...(e.rooms?.[pk.slot] ?? { on: true }), name, body } };
+    // #100 · the writer wrote it, so Talk leaves this thread alone unless asked for it by name.
+    e.typed = true;
+    S.pocket = null;
+    paint(); syncLayers();
+    return toast(pk.id ? 'Changed. Nothing is saved until you start the tale.' : `${pocketTitle(pk.slot)} added to ${e.title}.`);
   }
-  if (d.spaddpocket !== undefined) {
+  if (d.sppocketdel) {
+    const pk = S.pocket, e = pk?.draft;
+    if (!e || !pk.id || !e.rooms?.[pk.id]) return;
     harvestSpark();
-    const i = Number(d.spaddpocket), e = S.spark.entries[i];
-    const slot = document.querySelector(`[data-spnewslot="${i}"]`)?.value;
-    const body = String(document.querySelector(`[data-spnewpocket="${i}"]`)?.value ?? '').trim();
-    if (!e || !slot || !body) return toast('Pick the pocket and say how to write it.');
-    S.spark.undo = { what: `adding a pocket to ${e.title}`, entry: e, slot, pocket: null };
-    e.rooms = { ...(e.rooms ?? {}), [slot]: { name: pocketTitle(slot), body, on: true } };
-    paint();
-    return toast(`${pocketTitle(slot)} added to ${e.title}.`);
+    S.spark.undo = { what: `removing a pocket from ${e.title}`, entry: e, slot: pk.id, pocket: e.rooms[pk.id] };
+    const { [pk.id]: _gone, ...rest } = e.rooms;
+    e.rooms = rest;
+    S.pocket = null;
+    paint(); syncLayers();
+    return toast(`${pocketTitle(pk.id)} taken off ${e.title}.`);
   }
   if (d.spdropthread !== undefined) {
     harvestSpark();
@@ -13885,7 +13975,7 @@ document.addEventListener('click', async (e) => {
     if (playsThis(e)) return toast(`You play ${e.title}, so their thread stays. Choose somebody else on You first.`);
     S.spark.undo = { what: `removing ${e.title}`, thread: e, at: i };
     S.spark.entries = S.spark.entries.filter((_, j) => j !== i);
-    S.spark.unfolded = {};
+    S.spark.open = null;
     paint();
     return toast(`${e.title} removed. Nothing is saved yet.`);
   }
@@ -13931,8 +14021,7 @@ document.addEventListener('click', async (e) => {
     const u = S.spark.undo;
     if (!u) return;
     // THE ONE CHANGE IS REVERSED, not the whole draft put back, so an edit typed since survives.
-    // A thread coming back moves the indices the folds are keyed on; a pocket coming back does not.
-    if (u.thread) { S.spark.entries.splice(u.at, 0, u.thread); S.spark.unfolded = {}; }
+    if (u.thread) S.spark.entries.splice(u.at, 0, u.thread);
     if (u.tale) S.spark.talePockets.splice(u.at, 0, u.tale);
     if (u.taleAdded) S.spark.talePockets.pop();
     if (u.slot) {
@@ -14001,6 +14090,7 @@ document.addEventListener('click', async (e) => {
     harvestSpark();
     const was = STEPS[Math.min(Math.max(Number(S.sparkStep) || 1, 1), STEPS.length) - 1][0];
     S.sparkStep = Number(d.sparkstep);
+    S.spark.open = null;
     paint();
     void ipFollow();
     // AT THE TOP OF THE STEP. A reviewer saw step 2 open at its own bottom on a phone (second
@@ -14058,8 +14148,10 @@ document.addEventListener('click', async (e) => {
   }
   if (d.spadd) {
     harvestSpark();
-    S.spark.entries.push({ title: '', body: '', entryType: 'character',
-      activation: 'always_on', keys: [], keep: true });
+    const e = { title: '', body: '', entryType: 'character', activation: 'always_on', keys: [], keep: true };
+    S.spark.entries.push(e);
+    // Opened at once, to be named and written, as a tale's ＋ opens a new thread.
+    S.spark.open = e;
     paint();
     document.querySelector(`[data-spname="${S.spark.entries.length - 1}"]`)?.focus();
     return;

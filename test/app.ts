@@ -3916,7 +3916,8 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
 
 // #88 · THE WIZARD ASKS WHO YOU PLAY FIRST AND ENDS IN A PREVIEW. Driven from the wizard the block
 // above left on screen. Nothing may post but the spark calls until Start writing, and Start writing
-// must carry the draft as the preview left it.
+// must carry the draft as the threads step and Begin left it. Seth, 2026-10-30: four steps, the
+// tale's rarer boxes in folds, the threads as a tale's threads look, and Begin reading it back.
 {
   const doc = (globalThis as any).document;
   const wasQSA = doc.querySelectorAll, wasQS = doc.querySelector;
@@ -3924,16 +3925,55 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
   // What the wizard reads off the screen when it harvests: a list per selector, nothing by default.
   let onScreen: Record<string, any[]> = {};
   doc.querySelectorAll = (sel: string) => onScreen[sel] ?? [];
+  // A <details> fold's markup, found by its summary's words; and the markup with every fold cut out,
+  // which is what is on screen before anything is unfolded.
+  const foldOf = (h: string, label: string) => {
+    const at = h.indexOf(label), start = h.lastIndexOf('<details', at);
+    return at < 0 || start < 0 ? '' : h.slice(start, h.indexOf('</details>', at));
+  };
+  const bare = (h: string) => h.replace(/<details[\s\S]*?<\/details>/g, '');
+  // The step's own controls: the step dots, Talk, Next, Back, Skip and Discard are on every step.
+  const CHROME = /data-(?:sparkstep|panel|accept-spark|drop-spark)=/;
+  const controls = (h: string) => [...h.matchAll(/<(?:button|input|textarea|select)\b[^>]*>/g)]
+    .map((m) => m[0]).filter((t) => !CHROME.test(t));
+  // An input event from a box of the pocket panel, which keeps what is typed in S.pocket.
+  const typeIn = (id: string, value: string) =>
+    (listeners.input ?? []).forEach((f: Function) => f({ target: { id, value, dataset: {} } }));
   try {
     const steps = [...html('page').matchAll(/data-sparkstep="\d+"[^>]*?aria-label="([^"]+)"/g)].map((m) => m[1]);
-    assert.deepStrictEqual(steps, ['The tale', 'You', 'The threads', 'Try it on', 'The preview',
-      'The first scene', 'The opening', 'Begin'], 'WIZ-ORDER: You comes before the threads, and the preview after Try it on');
+    assert.deepStrictEqual(steps, ['The tale', 'You', 'The threads', 'Begin'],
+      'WIZ-ORDER: four steps, You before the threads, and Begin last (Seth, 2026-10-30)');
+
+    // THE TALE: about eleven controls on screen, and the rest in two folds.
+    let tale = html('page');
+    const more = foldOf(tale, 'More about the tale');
+    assert.match(more, /data-sp="world"/, 'WIZ-MORE: the Set in box is in the More about the tale fold');
+    assert.match(more, /data-spfollow="1"/, 'WIZ-WORLD-HOME: and the follow picker beside it, its one home');
+    assert.match(more, /data-sp="styleNote"[\s\S]*data-spstyle="1"/, '  and the genre flavour with its Reweave');
+    const vo = foldOf(tale, 'Voice options');
+    assert.match(vo, /data-spvoice="mine"[\s\S]*data-spvoice="shipped"/, 'WIZ-VOICE-FOLD: your voice and Anansi\'s voice are in Voice options');
+    assert.match(vo, /data-spvoiceoffer="1"/, '  with the Voice he offered');
+    const onTale = controls(bare(tale));
+    assert.ok(onTale.length <= 11, `WIZ-TALE-COUNT: about eleven controls on The tale, not nineteen (${onTale.length})`);
+    for (const k of ['idea', 'title', 'genre', 'premise', 'writingStyle'])
+      assert.ok(onTale.some((t) => t.includes(`data-sp="${k}"`)), `  ${k} is on screen`);
+    // The step's own hints, from its dots down: the page heading above them says nothing is written yet.
+    const hints = (bare(tale.slice(tale.indexOf('data-sparkstep'))).match(/class="hint\b/g) ?? []).length;
+    assert.ok(hints <= 3, `WIZ-TALE-HINTS: about three hints on The tale, not eight (${hints})`);
+    // ONE WORD: every re-roll press says Reweave.
+    const fieldPresses = [...tale.matchAll(/data-spfield="(\w+)"[^>]*>([^<]*)</g)].map((m) => [m[1], m[2].trim()]);
+    assert.deepStrictEqual(fieldPresses, [['title', 'Reweave'], ['genre', 'Reweave'], ['premise', 'Reweave']],
+      'WIZ-REWEAVE-WORD: title, genre and premise each have a press that says Reweave');
+    assert.match(tale, /data-spreroll="1"[^>]*>\s*Reweave all from your idea\s*</, '  and one Reweave all from your idea');
+    assert.doesNotMatch(tale, /reweave this|Reweave it\b/, '  and no other word for it');
+    assert.doesNotMatch(tale, /data-sp="setting"|data-sp="opensWith"/, 'WIZ-ONE-HOME: the setting is not asked on The tale');
 
     POSTED.length = 0;
     click({ sparkstep: '2' });
     await settle(/data-sp="persona"/);
     assert.match(html('page'), /data-sp="persona"/, 'WIZ-YOU: the You step asks who you play');
     assert.match(html('page'), /data-sp="personaAbout"/, '  and who they are, if they are new');
+    assert.doesNotMatch(html('page'), /Nothing has been written yet/, 'WIZ-NO-FOOTER: the footer no longer says nothing has been written');
     // WIZ-HOLD (#95): the press that holds the one you play, and Hands off's offer of them, follow
     // the name as it is typed. Both were drawn only from the name the step opened with, so a writer
     // who typed one saw neither until they left the step and came back.
@@ -3953,89 +3993,156 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
       { dataset: { sp: 'lockedCharacter' }, value: 'Mara Voss' }] };
     click({ sparkstep: '3' });
     onScreen = {};
-    await settle(/a courier who owes the envoy/);
+    await settle(/Teodor Ash/);
     const cast = POSTED.find((p) => p.url === '/api/spark/cast');
     assert.ok(cast, 'WIZ-CAST: arriving at the threads asks for them');
     assert.strictEqual(cast.body.story.persona, 'Mara Voss', 'WIZ-CAST: with who you play');
     assert.strictEqual(cast.body.story.lockedCharacter, 'Mara Voss', '  and who is Hands off');
     assert.strictEqual(cast.body.story.personaAbout, 'a courier who owes the envoy', '  and what you said of them');
-    // AND EACH THREAD'S POCKETS, not only its Always true (Seth, 2026-10-30: "I should be also able to
-    // see the pockets the ai has created for a character"), on the step that shows the threads.
-    assert.match(html('page'), /data-sppname="(\d+):voice"[^>]*value="Envoy"[\s\S]*?data-sppocket="\1:voice"[^>]*>Write her lines formal and short\./,
-      'WIZ-POCKETS: the threads step shows a thread\'s pockets, named, to read and change');
-    assert.match(html('page'), /data-sppocket="\d+:interiority"[^>]*>Never let her say she is afraid\./, '  every one of them');
+
+    // THE THREADS, AS A TALE'S THREADS LOOK (Seth, 2026-10-30): a row per thread that opens it, with
+    // its keep tick and its Reweave; ＋ in the header; and the ways to bring threads in, folded.
+    let th = html('page');
+    assert.match(th, /<button class="card plate thplate" data-spopen="2"[^>]*>[\s\S]*?class="platename">Teodor Ash</,
+      'WIZ-THREAD-ROWS: each thread is a row that opens it, as in a tale');
+    assert.match(th, /data-spopen="2"[\s\S]*?2 pockets/, '  saying how many pockets it has');
+    assert.doesNotMatch(th, /data-spname=|data-spbody=/, '  and no boxes to edit on the list itself');
+    assert.match(th, /data-spcast="2"[\s\S]*?data-sprecast="2"[^>]*>\s*Reweave\s*</, '  each with its keep tick and its Reweave');
+    assert.match(th, /<button[^>]*class="headadd"[^>]*data-spadd="1"/, 'WIZ-THREAD-ADD: Write one of your own is the ＋ in the header');
+    const bring = foldOf(th, 'Bring threads in');
+    assert.match(bring, /data-castpaste[\s\S]*data-pastecast="1"/, 'WIZ-BRING: the paste box and Read are in Bring threads in');
+    assert.match(bring, /id="seedq"/, '  and the library search');
+    assert.doesNotMatch(th, /data-spfollow/, 'WIZ-WORLD-HOME: the follow picker is not on The threads');
+    const fixed = controls(bare(th)).filter((t) => !/data-sp(?:open|cast|recast)=/.test(t));
+    assert.ok(fixed.length <= 8, `WIZ-THREADS-COUNT: about eight fixed controls on The threads (${fixed.length}: ${fixed.map((t) => t.slice(0, 40)).join(' | ')})`);
+
+    // A THREAD OPENED: Always true first, where it stands, then its pockets as a tale's pocket rows.
+    click({ spopen: '2' });
+    th = html('page');
+    assert.match(th, /data-spopen=""[^>]*class="headback"|class="headback"[^>]*data-spopen=""/, 'WIZ-THREAD-OPEN: an opened thread has a way back to the list');
+    assert.match(th, /<textarea[^>]*data-spbody="2"[^>]*>\[Teodor Ash: a clerk who counts the dead\]</, '  its Always true, to change');
+    assert.match(th, /data-spstands="2"/, '  and where it stands as the tale opens');
+    assert.match(th, /<div class="pocketrow lit">\s*<button class="pocketopen" data-sppocketopen="2:voice"[\s\S]*?Envoy[\s\S]*?Write her lines formal and short\./,
+      'WIZ-POCKETS: its pockets are pocket rows, each named, with a line of its text');
+    assert.match(th, /data-sppocketopen="2:interiority"/, '  every one of them');
+    assert.ok(th.indexOf('data-spbody="2"') < th.indexOf('data-sppocketopen="2:voice"'), '  Always true shown first');
+    assert.match(th, /data-sppocketnew="2"/, '  and a press to add a pocket');
+
+    // THE POCKET PANEL, ON THE DRAFT: open one, change it, Save; nothing posts.
+    click({ sppocketopen: '2:voice' });
+    let panel = html('pocketPanel');
+    assert.match(panel, /id="pk-name" value="Envoy"/, 'WIZ-POCKET-PANEL: a pocket row opens the pocket panel on it');
+    assert.match(panel, /id="pk-body"[^>]*>Write her lines formal and short\.</, '  holding its words');
+    assert.strictEqual(nodes.get('pocketPanel').hidden, false, '  shown');
+    typeIn('pk-body', 'Write her lines formal, and shorter.');
+    click({ sppocketsave: '1' });
+    assert.strictEqual(nodes.get('pocketPanel').hidden, true, 'WIZ-EDIT: Save shuts the panel');
+    assert.match(html('page'), /formal, and shorter/, '  and the change is in the draft');
+    click({ sppocketopen: '2:interiority' });
+    click({ sppocketdel: '1' });
+    let pv = html('page');
+    assert.doesNotMatch(pv, /Never let her say she is afraid/, 'WIZ-REMOVE: a pocket removed from the panel is gone');
+    assert.match(pv, /data-spundo="1"/, '  and the removal can be undone, on The threads');
+    click({ spundo: '1' });
+    assert.match(html('page'), /Never let her say she is afraid/, 'WIZ-UNDO: undo brings it back');
+    assert.match(html('page'), /formal, and shorter/, '  and keeps the edit made before it');
+    click({ sppocketopen: '2:interiority' });
+    click({ sppocketdel: '1' });
+    // UNDO KEEPS AN EDIT MADE AFTER THE CHANGE IT TAKES BACK (review, 2026-10-27).
+    click({ sppocketopen: '2:voice' });
+    typeIn('pk-body', 'Write his lines formal and spare.');
+    click({ sppocketsave: '1' });
+    click({ spundo: '1' });
+    assert.match(html('page'), /formal and spare/, 'WIZ-UNDO: an edit typed after the removal survives its undo');
+    assert.match(html('page'), /Never let her say she is afraid/, '  and the removed pocket is back');
+    click({ sppocketopen: '2:interiority' });
+    click({ sppocketdel: '1' });
+    // A NEW POCKET: the ＋, a kind, a name and its words.
+    click({ sppocketnew: '2' });
+    panel = html('pocketPanel');
+    assert.match(panel, /data-pocketkind="outfit"/, 'WIZ-ADD: the panel offers the kinds of pocket the thread has');
+    assert.doesNotMatch(panel, /data-pocketkind="voice"/, '  and not one it has already');
+    click({ pocketkind: 'outfit' });
+    typeIn('pk-name', 'Grey wool');
+    typeIn('pk-body', 'Dress her in grey wool.');
+    click({ sppocketsave: '1' });
+    assert.match(html('page'), /data-sppocketopen="2:outfit"[\s\S]*?Grey wool[\s\S]*?Dress her in grey wool/, 'WIZ-ADD: an added pocket is in the draft');
+
+    // THE THREAD YOU PLAY STAYS while you play them (Seth, 2026-10-27), and the screen says why.
+    click({ spopen: '1' });
+    assert.doesNotMatch(html('page'), /data-spdropthread="1"/, 'WIZ-KEEP-YOU: no remove on the thread you play');
+    assert.match(html('page'), /You play Mara Voss, so (?:her|their) thread stays/, '  and it says why');
+    click({ spdropthread: '1' });
+    assert.match(html('page'), /a courier who owes the envoy/, '  and a press that reaches the handler anyway removes nothing');
+    // Remove Ring Law, undo, remove it again.
+    click({ spopen: '3' });
+    click({ spdropthread: '3' });
+    assert.doesNotMatch(html('page'), /class="platename">Ring Law</, 'WIZ-DROP: a removed thread is gone');
+    assert.match(html('page'), /data-spopen="2"/, '  and the list is back');
+    click({ spundo: '1' });
+    assert.match(html('page'), /class="platename">Ring Law</, 'WIZ-UNDO: undo brings the thread back');
+    click({ spopen: '3' });
+    click({ spdropthread: '3' });
 
     // THE THREAD YOU PLAY CANNOT BE UNTICKED on the threads step either (round-two review).
     onScreen = { '[data-spcast]': [{ dataset: { spcast: '1' }, checked: false }] };
     click({ sparkstep: '4' });
     onScreen = {};
-    click({ sparkstep: '5' });
     await settle(/The tale's own thread/);
-    assert.match(html('page'), /a courier who owes the envoy/, 'WIZ-KEEP-YOU: unticking the thread you play keeps it');
-    let pv = html('page');
-    assert.match(pv, /The tale's own thread/, "WIZ-PREVIEW: the tale's own thread is at the top");
+    pv = html('page');
+    assert.match(pv, /a courier who owes the envoy/, 'WIZ-KEEP-YOU: unticking the thread you play keeps it');
+    // BEGIN: Try it on, then the preview, then who writes the opening, then Start writing.
+    const at = (re: RegExp) => pv.search(re);
+    assert.ok(at(/data-spreview="1"/) >= 0 && at(/data-spreview="1"/) < at(/The tale's own thread/)
+      && at(/The tale's own thread/) < at(/data-sp-open="1"/) && at(/data-sp-open="1"/) < at(/data-accept-spark="1"/),
+      'WIZ-BEGIN: Try it on first, then the preview, then the opening, then Start writing');
+    const summary = /<div class="note" data-spsummary="1">([^<]*)<\/div>/.exec(pv);
+    assert.ok(summary, 'WIZ-SUMMARY: Begin says what will be made in one line at the top');
+    assert.match(summary![1], /The Winter Signature[\s\S]*3 threads[\s\S]*no World[\s\S]*Mara Voss/, `  naming the tale, its threads, its World and who you play (${summary?.[1]})`);
+    assert.ok(at(/data-spsummary/) < at(/data-spreview="1"/), '  above Try it on');
+    assert.match(pv, /The tale's own thread/, "WIZ-PREVIEW: the tale's own thread is at the top of the preview");
     assert.ok(pv.indexOf("The tale's own thread") < pv.indexOf('Teodor Ash'), '  above the threads');
-    assert.match(pv, /Six houses have one winter/, '  with its premise');
+    // THE PREVIEW READS: the title, premise and voice are text, each with a Change.
+    assert.doesNotMatch(pv, /data-sp="(?:title|premise|writingStyle|idea|genre)"/, 'WIZ-READS: the preview does not edit the title, premise or voice again');
+    assert.match(pv, /Six houses have one winter/, '  it reads the premise back');
+    for (const k of ['title', 'premise', 'writingStyle'])
+      assert.match(pv, new RegExp(`data-spchange="${k}"`), `  with a Change for the ${k}`);
+    assert.doesNotMatch(pv, /data-sppocketopen|data-spdroppocket|data-spdropthread|data-spstands/, '  and its threads are read, not edited');
+    // ONE HOME for the setting and the first scene's opening.
+    assert.match(pv, /data-sp="setting"/, 'WIZ-ONE-HOME: the setting is asked on Begin');
     // A rule is a pocket of the tale since 2026-10-29 (ADR 0005): the preview offers no Rules from the cast.
     assert.doesNotMatch(pv, />Rules &middot;/, '  and no Rules from the cast');
     // ADR 0009 · THE OPEN QUESTIONS, offered ticked, each with its line; unticking one keeps it off.
     assert.match(pv, /<input type="checkbox" data-spquestion="0" checked>/, 'WIZ-QUESTIONS: the open questions are offered ticked');
     assert.match(pv, /<input type="checkbox" data-spquestion="1" checked>/, '  every one of them');
     assert.match(pv, /Who signs first[\s\S]*Each house waits for another to sign\./, '  with the title and its line');
-    assert.doesNotMatch(pv.slice(pv.indexOf('data-sp="premise"'), pv.indexOf('</textarea>', pv.indexOf('data-sp="premise"'))),
-      /Who signs first/, '  and never inside the premise');
     onScreen = { '[data-spquestion]': [{ dataset: { spquestion: '0' }, checked: true },
                                        { dataset: { spquestion: '1' }, checked: false }] };
-    click({ sparkstep: '5' });
+    click({ sparkstep: '4' });
     onScreen = {};
     assert.match(html('page'), /<input type="checkbox" data-spquestion="1">/, 'WIZ-QUESTIONS: an unticked one stays unticked');
-    // #121 · THE OPENING MOMENT, an editable box of its own on the preview, apart from the setting.
+    // #121 · THE OPENING MOMENT, an editable box of its own, apart from the setting.
     const opensBox = /<textarea[^>]*data-sp="opensWith"[^>]*>([^<]*)<\/textarea>/.exec(pv);
-    assert.ok(opensBox, 'WIZ-OPENS: the preview shows how the first scene opens as an editable box');
+    assert.ok(opensBox, 'WIZ-OPENS: Begin shows how the first scene opens as an editable box');
     assert.strictEqual(opensBox![1], 'The east gallery, the first frost; snow on the leads, a grey morning.',
       '  holding the moment the spark returned');
     onScreen = { '[data-sp]': [{ dataset: { sp: 'opensWith' }, value: 'The east gallery at noon; thaw.' }] };
-    click({ sparkstep: '5' });
+    click({ sparkstep: '4' });
     onScreen = {};
-    for (const t of ['Ilva Marren', 'Mara Voss', 'Teodor Ash', 'Road dust', 'Their lines are yours', 'Envoy', 'Fear', 'The fine'])
+    for (const t of ['Ilva Marren', 'Mara Voss', 'Teodor Ash', 'Road dust', 'Their lines are yours', 'Envoy', 'Grey wool'])
       assert.ok(pv.includes(t.replace(/'/g, '&#39;')), `WIZ-PREVIEW: every thread and pocket is listed: ${t}`);
-    assert.doesNotMatch(pv, /Write her lines formal and short/, 'WIZ-FOLD: folded to its name and Always true');
+    assert.doesNotMatch(pv, /Write his lines formal and spare/, 'WIZ-FOLD: a thread reads as its name, Always true and pocket names');
     assert.doesNotMatch(pv, /data-spvoicefix/, 'WIZ-WARN: a Voice that agrees is not warned about');
+    // A thread on the preview opens it on The threads, where it is changed.
+    click({ spopen: '2' });
+    assert.match(html('page'), /data-spbody="2"/, 'WIZ-OPEN-FROM-BEGIN: a thread on Begin opens it on The threads');
+    click({ sparkstep: '4' });
+    // Change goes back to The tale, where the premise is written.
+    click({ spchange: 'premise' });
+    assert.match(html('page'), /data-sp="premise"/, 'WIZ-CHANGE: Change on the premise goes to The tale');
 
-    // Unfold Teodor (index 2: the spark's own Ilva is 0), edit his voice, take off her interiority, undo, take it off again, add an outfit.
-    click({ spfold: '2' });
-    assert.match(html('page'), /data-sppocket="2:voice"/, 'WIZ-UNFOLD: unfolded, his pockets can be edited');
-    onScreen = { '[data-sppocket]': [{ dataset: { sppocket: '2:voice' }, value: 'Write her lines formal, and shorter.' }] };
-    click({ spdroppocket: '2:interiority' });
-    onScreen = {};
-    pv = html('page');
-    assert.doesNotMatch(pv, /Never let her say she is afraid/, 'WIZ-REMOVE: a removed pocket is gone');
-    assert.match(pv, /formal, and shorter/, 'WIZ-EDIT: an edit stays');
-    assert.match(pv, /data-spundo="1"/, '  and the removal can be undone');
-    click({ spundo: '1' });
-    assert.match(html('page'), /Never let her say she is afraid|Fear/, 'WIZ-UNDO: undo brings it back');
-    assert.match(html('page'), /formal, and shorter/, '  and keeps the edit made before it');
-    click({ spdroppocket: '2:interiority' });
-    // UNDO KEEPS AN EDIT MADE AFTER THE CHANGE IT TAKES BACK (review, 2026-10-27).
-    onScreen = { '[data-sppocket]': [{ dataset: { sppocket: '2:voice' }, value: 'Write his lines formal and spare.' }] };
-    click({ spundo: '1' });
-    onScreen = {};
-    assert.match(html('page'), /formal and spare/, 'WIZ-UNDO: an edit typed after the removal survives its undo');
-    assert.match(html('page'), /Never let her say she is afraid/, '  and the removed pocket is back');
-    click({ spdroppocket: '2:interiority' });
-    doc.querySelector = (sel: string) => sel === '[data-spnewslot="2"]' ? { value: 'outfit' }
-      : sel === '[data-spnewpocket="2"]' ? { value: 'Dress her in grey wool.' } : null;
-    click({ spaddpocket: '2' });
-    doc.querySelector = wasQS;
-    assert.match(html('page'), /Dress her in grey wool/, 'WIZ-ADD: an added pocket is in the draft');
-    // THE THREAD YOU PLAY STAYS while you play them (Seth, 2026-10-27), and the screen says why.
-    assert.doesNotMatch(html('page'), /data-spdropthread="1"/, 'WIZ-KEEP-YOU: no remove on the thread you play');
-    click({ spfold: '1' });
-    assert.match(html('page'), /You play Mara Voss, so (?:her|their) thread stays/, '  and it says why');
-    click({ spdropthread: '1' });
-    assert.match(html('page'), /a courier who owes the envoy/, '  and a press that reaches the handler anyway removes nothing');
-    click({ spfold: '1' });
     // THE TALE'S OWN POCKETS ("Your own"): add, edit, remove, undo.
+    click({ sparkstep: '4' });
     doc.querySelector = (sel: string) => sel === '[data-sptpnew="name"]' ? { value: 'Slow burn' }
       : sel === '[data-sptpnew="body"]' ? { value: 'Keep it a slow burn.' } : null;
     click({ spaddtp: '1' });
@@ -4053,16 +4160,12 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
     click({ spundo: '1' });
     assert.match(html('page'), /never names him/, '  and the removal undone');
     click({ spdroptp: '1' });
-    // Remove the Rule, undo, remove it again.
-    click({ spdropthread: '3' });
-    assert.doesNotMatch(html('page'), /nobody descends without a writ/, 'WIZ-DROP: a removed thread is gone');
-    click({ spundo: '1' });
-    assert.match(html('page'), /nobody descends without a writ/, 'WIZ-UNDO: undo brings the thread back');
-    click({ spdropthread: '3' });
 
-    // THE VOICE AGAINST THE POINT OF VIEW: warned, fixed, undone, and Start writing still works.
+    // THE VOICE AGAINST THE POINT OF VIEW: written on The tale, warned on Begin, fixed, undone, and
+    // Start writing still works.
+    click({ sparkstep: '1' });
     onScreen = { '[data-sp]': [{ dataset: { sp: 'writingStyle' }, value: 'Cold, spare. Narrate in first person, present tense.' }] };
-    click({ sparkstep: '5' });
+    click({ sparkstep: '4' });
     onScreen = {};
     pv = html('page');
     assert.match(pv, /data-spvoicefix="1"/, 'WIZ-WARN: a Voice in first person over a third-person tale is warned about');
@@ -4084,11 +4187,12 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
     assert.match(made.body.writingStyle, /first person/, '  and keeps the Voice as the writer left it');
     assert.doesNotMatch(made.body.writingStyle, /frost/, 'VOICE-OFFER: the offered Voice is not sent when it was not chosen');
     assert.deepStrictEqual(made.body.entries.map((e: any) => e.title), ['Ilva Marren', 'Mara Voss', 'Teodor Ash'],
-      'WIZ-CREATE: the draft goes as the preview left it, the removed thread too');
+      'WIZ-CREATE: the draft goes as the threads step left it, the removed thread too');
     const ilva = made.body.entries[2];
-    assert.strictEqual(ilva.rooms.voice.body, 'Write his lines formal and spare.', '  with the edited pocket');
+    assert.strictEqual(ilva.rooms.voice.body, 'Write his lines formal and spare.', '  with the pocket changed in the pocket panel');
+    assert.strictEqual(ilva.rooms.voice.name, 'Envoy', '  its name kept');
     assert.ok(!ilva.rooms.interiority, '  without the removed one');
-    assert.strictEqual(ilva.rooms.outfit.body, 'Dress her in grey wool.', '  with the added one');
+    assert.deepStrictEqual(ilva.rooms.outfit, { on: true, name: 'Grey wool', body: 'Dress her in grey wool.' }, '  with the added one, on');
     assert.strictEqual(made.body.entries[1].rooms.voice.name, 'Their lines are yours', "  and the yours pocket on Mara's thread");
     assert.strictEqual(made.body.persona, 'Mara Voss', '  who you play');
     assert.strictEqual(made.body.lockedCharacter, 'Mara Voss', '  and Hands off');
@@ -4102,12 +4206,12 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
     await sleep(60);
   } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
 }
-ok('the wizard asks who you play before the threads, and ends in a preview that edits only the draft');
+ok('the wizard is four steps: the tale and its threads in folds and rows, and Begin reads the draft back');
 
 // #117 · TRY IT ON'S CONTRADICTIONS, with Use this and Leave it, on the draft. Each shows both places
 // and the fix; Use this changes the one place the fix names (Always true, where it stands, a pocket,
 // or the premise) and nothing else; Leave it changes nothing; both take it off the list. Shown on Try
-// it on and again on the preview. Nothing posts but the spark calls until Start writing.
+// it on, at the top of Begin, once. Nothing posts but the spark calls until Start writing.
 {
   const doc = (globalThis as any).document;
   const wasQS = doc.querySelector;
@@ -4126,15 +4230,13 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
   click({ spreview: '1' });
   await settle(/data-spfix/);
   let pg = html('page');
-  assert.strictEqual((pg.match(/data-spfix="/g) ?? []).length, 4, 'CLASH-SHOWN: Try it on lists each contradiction with Use this');
+  // ONE LIST (Seth, 2026-10-30): Try it on is at the top of Begin, so its contradictions are shown once.
+  assert.strictEqual((pg.match(/data-spfix="/g) ?? []).length, 4, 'CLASH-SHOWN: Try it on lists each contradiction with Use this, once');
   assert.strictEqual((pg.match(/data-spleave="/g) ?? []).length, 4, '  and Leave it');
   assert.match(pg, /Teodor Ash[^<]*Always true[\s\S]*a clerk who counts the dead[\s\S]*The premise[\s\S]*Six houses have one winter/,
     'CLASH-PLACES: both places, each with what it says');
   assert.match(pg, /The premise has six houses[\s\S]*Fix: Teodor Ash[^<]*Always true[\s\S]*A clerk of House Marren who counts the dead\./, '  why, and the fix');
-  click({ sparkstep: '5' });
-  await settle(/The tale's own thread/);
-  pg = html('page');
-  assert.strictEqual((pg.match(/data-spfix="/g) ?? []).length, 4, 'CLASH-PREVIEW: and the preview shows them too');
+  assert.match(pg, /The tale's own thread/, 'CLASH-BEGIN: on the same page as the preview');
   click({ spfix: '0' });   // Teodor's Always true
   click({ spfix: '0' });   // Mara's where it stands
   click({ spleave: '0' }); // the premise: left
@@ -4143,13 +4245,14 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
   assert.doesNotMatch(pg, /data-spfix=|data-spleave=/, 'CLASH-DONE: each one pressed leaves the list');
   assert.match(pg, /A clerk of House Marren who counts the dead\./, 'CLASH-USE: Use this changes the Always true it names');
   assert.match(pg, /Six houses have one winter to sign a peace none of them wants\./, 'CLASH-LEAVE: Leave it changes nothing');
-  click({ spfold: '1' });
-  assert.match(html('page'), /data-spstands="1"[^>]*>Waits at the hall gate for Teodor\.</, 'CLASH-USE: where she stands is changed, and shown to edit');
-  click({ spfold: '1' });
-  // Where a thread stands is the writer's to edit in the preview, like the rest of it.
+  click({ spopen: '1' });
+  assert.match(html('page'), /data-spstands="1"[^>]*>Waits at the hall gate for Teodor\.</, 'CLASH-USE: where she stands is changed, and shown to edit on The threads');
+  click({ spopen: '' });
+  // Where a thread stands is the writer's to edit on the thread, opened on The threads.
   const wasQSA = doc.querySelectorAll;
+  click({ spopen: '2' });
   doc.querySelectorAll = (sel: string) => sel === '[data-spstands]' ? [{ dataset: { spstands: '2' }, value: 'Counting the dead at the gate.' }] : [];
-  click({ spfold: '2' });
+  click({ spopen: '' });
   doc.querySelectorAll = wasQSA;
   assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')), `CLASH-NOTHING: nothing posts but the spark calls (${POSTED.map((p) => p.url).join(', ')})`);
   doc.querySelector = (sel: string) => sel === '[data-sp-open]' ? { checked: false } : null;
@@ -4163,7 +4266,7 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
   assert.strictEqual(by('Teodor Ash').rooms.voice.body, 'Formal, and he counts aloud.', '  the fixed pocket');
   assert.strictEqual(by('Teodor Ash').rooms.voice.name, 'Envoy', '  its name kept');
   assert.strictEqual(by('Mara Voss').stands, 'Waits at the hall gate for Teodor.', '  and where she stands');
-  assert.strictEqual(by('Teodor Ash').stands, 'Counting the dead at the gate.', 'CLASH-EDIT: where a thread stands, edited in the preview, is sent');
+  assert.strictEqual(by('Teodor Ash').stands, 'Counting the dead at the gate.', 'CLASH-EDIT: where a thread stands, edited on the thread, is sent');
   assert.strictEqual(made.body.premise, 'Six houses have one winter to sign a peace none of them wants.', '  and the premise left alone');
   await sleep(60);
 }
@@ -4378,7 +4481,7 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
     for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/spark/world'); i++) await sleep(25);
     assert.strictEqual(POSTED.find((p) => p.url === '/api/spark/world')?.body.name, 'elden RING',
       'IP-LOOK: leaving the step looks the IP up among the writer\'s Worlds');
-    click({ sparkstep: '5' });
+    click({ sparkstep: '4' });
     await settle(/Morgott/);
     const pv = html('page');
     assert.match(pv, /Elden Ring/, 'IP-PREVIEW: the preview names the World the tale follows');
@@ -4387,9 +4490,9 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
       `IP-NOTHING: nothing is made before Start writing (${POSTED.map((p) => p.url).join(', ')})`);
     // #107 · THE BEGIN STEP SAYS WHICH WORLD THE TALE FOLLOWS, beside everything else it will make.
-    click({ sparkstep: '8' });
-    await settle(/What gets written|creates all of this/);
-    assert.match(html('page'), /Elden Ring<\/span>\s*<span[^>]*>the World it follows/,
+    click({ sparkstep: '4' });
+    await settle(/data-spsummary/);
+    assert.match(html('page'), /data-spsummary="1">[^<]*follows Elden Ring/,
       'BEGIN-WORLD: the Begin step names the World the tale follows');
     const sent = await create();
     const made = sent.find((p) => p.url === '/api/stories');
@@ -4401,7 +4504,7 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
     // An IP with no World of that name: the World field alone, as before #103. #104 looks it up.
     await startWizard();
     onScreen = { '[data-sp]': [{ dataset: { sp: 'world' }, value: 'Dune' }] };
-    click({ sparkstep: '5' });
+    click({ sparkstep: '4' });
     onScreen = {};
     await settle(/The tale's own thread/);
     await sleep(40);
@@ -4425,16 +4528,16 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
     onScreen = {};
     for (let i = 0; i < 40 && worldDown > 0; i++) await sleep(25);
     await sleep(40);
-    click({ sparkstep: '5' });
+    click({ sparkstep: '4' });
     await settle(/Morgott/);
     assert.match(html('page'), /Morgott/, 'IP-RETRY: a failed lookup is asked again on the next move');
     await create();
 
     // A blank IP: an original tale, as today.
     await startWizard();
-    click({ sparkstep: '8' });
-    await settle(/creates all of this/);
-    assert.match(html('page'), /No World<\/span>\s*<span[^>]*>the World it follows/,
+    click({ sparkstep: '4' });
+    await settle(/data-spsummary/);
+    assert.match(html('page'), /data-spsummary="1">[^<]*follows no World/,
       'BEGIN-NO-WORLD: with no IP the Begin step says the tale follows no World');
     const blank = (await create()).find((p) => p.url === '/api/stories');
     assert.deepStrictEqual([blank?.body.world ?? null, blank?.body.loreFrom ?? null], [null, null],
@@ -4469,14 +4572,14 @@ ok('a new tale naming an IP the writer has a World for follows it, shows its peo
     click({ ask: '1' });
     for (let i = 0; i < 40 && !looked().length; i++) await sleep(25);
     assert.deepStrictEqual(looked(), ['Elden Ring'], 'SETUP-IP-HANDOVER: the World step looks the IP up among the writer\'s Worlds');
-    click({ sparkstep: '8' });
-    await settle(/creates all of this/);
-    assert.match(html('page'), /Elden Ring<\/span>\s*<span[^>]*>the World it follows/,
+    click({ sparkstep: '4' });
+    await settle(/data-spsummary/);
+    assert.match(html('page'), /data-spsummary="1">[^<]*follows Elden Ring/,
       'SETUP-IP-HANDOVER: and the tale follows the World of that name');
     // Undone where the writer stands, with no move to another step: the Begin step says it at once.
     click({ talkundo: '1:0' });
-    await settle(/No World<\/span>/);
-    assert.match(html('page'), /No World<\/span>\s*<span[^>]*>the World it follows/,
+    await settle(/follows no World/);
+    assert.match(html('page'), /data-spsummary="1">[^<]*follows no World/,
       'SETUP-IP-UNDO: Undo lets go of the World again');
     // A World box the writer typed in is still changed by a turn that names the IP it is changed to.
     (listeners.input ?? []).forEach((f: Function) => f({ target: { dataset: { sp: 'world' }, value: 'Dune' } }));
@@ -4484,8 +4587,8 @@ ok('a new tale naming an IP the writer has a World for follows it, shows its peo
       changes: [{ words: 'Set in Elden Ring.', change: { op: 'tale.set', field: 'world', key: 'world', text: 'Elden Ring', before: '' } }] };
     (document as any).getElementById('askBox').value = 'No, make it Elden Ring';
     click({ ask: '1' });
-    await settle(/Elden Ring<\/span>\s*<span[^>]*>the World it follows/);
-    assert.match(html('page'), /Elden Ring<\/span>\s*<span[^>]*>the World it follows/,
+    await settle(/follows Elden Ring/);
+    assert.match(html('page'), /data-spsummary="1">[^<]*follows Elden Ring/,
       'SETUP-IP-TYPED: naming the IP is asking for the World box by name');
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
       `SETUP-IP-NOTHING: nothing is saved (${POSTED.map((p) => p.url).join(', ')})`);
@@ -4550,16 +4653,16 @@ ok('naming an IP in Talk during setup starts the World step, and its Undo lets g
     await settle(/Duncan Idaho/);
     assert.match(html('page'), /Duncan Idaho/, 'IP-ADD: a name can be added by hand');
     changeIn({ dataset: { ippick: '1' }, checked: false });
-    click({ sparkstep: '5' });
+    click({ sparkstep: '4' });
     await settle(/A new World, Dune/);
     page = html('page');
     for (const n of ['Paul Atreides', 'Chani', 'Duncan Idaho']) assert.match(page, new RegExp(n), `IP-PREVIEW: the preview shows ${n}`);
     assert.doesNotMatch(page, /The desert planet/, 'IP-PREVIEW: and not Arrakis, who was unticked');
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
       `IP-NOTHING: nothing is made before Start writing (${POSTED.map((p) => p.url).join(', ')})`);
-    click({ sparkstep: '8' });
-    await settle(/creates all of this/);
-    assert.match(html('page'), /A new World, Dune, of 3 threads<\/span>\s*<span[^>]*>the World it follows/,
+    click({ sparkstep: '4' });
+    await settle(/data-spsummary/);
+    assert.match(html('page'), /data-spsummary="1">[^<]*follows a new World, Dune, of 3 threads/,
       'BEGIN-NEW-WORLD: the Begin step names the new World and how many threads it gets');
     const sent = await create();
     const made = sent.find((p) => p.url === '/api/stories');
@@ -4575,7 +4678,7 @@ ok('naming an IP in Talk during setup starts the World step, and its Undo lets g
     await settle(/Fallen London/);
     assert.strictEqual((html('page').match(/from memory, not looked up/g) ?? []).length, 2,
       'IP-MEMORY: each name from memory is marked so in the list');
-    click({ sparkstep: '5' });
+    click({ sparkstep: '4' });
     await settle(/A new World, Sunless Sea/);
     assert.strictEqual((html('page').match(/from memory, not looked up/g) ?? []).length, 2, 'IP-MEMORY: and in the preview');
     const mem = (await create()).find((p) => p.url === '/api/stories');
@@ -4674,17 +4777,17 @@ ok('the picked threads and the open switch are sent in the one create, and nothi
       await sleep(25); click({ sparkstep: '2' }); }
     assert.match(html('page'), /id="f-sp-cast">[\s\S]*<option value="Morgott">/, 'YOU-WORLD: You play offers the World\'s people');
     assert.match(html('page'), /id="f-sp-lockedCharacter"[\s\S]*<option value="Morgott"/, 'YOU-WORLD-HELD: and so does Hands off');
-    click({ sparkstep: '5' });
+    click({ sparkstep: '4' });
     await settle(/data-spopening="Morgott"/);
     assert.match(html('page'), /<input type="checkbox" data-spopening="Morgott"\s*>/, 'OPENING-MARK: the preview offers to mark him in the opening, unmarked');
     changeIn({ dataset: { spopening: 'Morgott' }, checked: true });
-    click({ sparkstep: '5' });
+    click({ sparkstep: '4' });
     await settle(/data-spopening="Morgott" checked/);
     assert.match(html('page'), /data-spopening="Morgott" checked/, 'OPENING-KEPT: the mark is kept across a repaint');
     assert.deepStrictEqual((await create())?.body.inOpening, ['Morgott'], 'OPENING-SENT: Start writing sends him as in the opening');
 
     // A new World: its ticked people can be marked, and an unmarked or unticked one is not sent.
-    await startIn('Dune', '5');
+    await startIn('Dune', '4');
     await settle(/data-spopening="Paul Atreides"/);
     assert.doesNotMatch(html('page'), /data-spopening="Arrakis"/, 'OPENING-PEOPLE: a place is not offered as in the opening');
     changeIn({ dataset: { spopening: 'Paul Atreides' }, checked: true });
@@ -4693,7 +4796,7 @@ ok('the picked threads and the open switch are sent in the one create, and nothi
     assert.ok(dune?.body.newWorld, '  with the new World');
 
     // Nothing marked: nobody is sent.
-    await startIn('Dune', '5');
+    await startIn('Dune', '4');
     await settle(/data-spopening="Paul Atreides"/);
     assert.deepStrictEqual((await create())?.body.inOpening, [], 'OPENING-NONE: nobody marked, nobody sent');
   } finally { doc.querySelectorAll = wasQSA; }
