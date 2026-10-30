@@ -32,6 +32,20 @@ When you talk to Anansi, he is now sent the threads your question names, the one
 or two, and anything you point at with @, rather than every thread that is always on. The others
 are listed for him by name, so he knows they are there and can ask you for one. What he writes
 for the story still reads every thread as before.
+### One press between the main menu and the tale's menu
+At the top of each menu, beside the close, there is now an icon for the other menu. In a tale's
+menu, the three lines open the main menu. In the main menu, the web opens the menu of the tale you
+are in, or of the tale you had open last. The menu changes where it is, and the page under it stays
+as it was until you choose something. Before, getting from a tale's menu to the main menu meant
+leaving the tale.
+
+### A scene picked in the menu puts the menu away
+On a phone or a tablet, pressing a scene in the tale's menu opens that scene and closes the menu, so
+you land on the page and not on the menu still covering it.
+
+### The menus' buttons are one size
+The squares in both menus are now the same size, the Demo library one too, and every scene and tale
+in the lists is at least as tall as a fingertip.
 
 ### Hemming asks you how the next scene should start
 Press Hem this scene and the hem screen stays open. At the top it asks how the next scene should

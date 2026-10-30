@@ -481,7 +481,7 @@ html[data-ui-rail="closed"] #rail { width:76px; }
 html[data-ui-rail="closed"] #rail .txt { opacity:0; }
 /* An open menu's row wraps rather than cutting its name: "Prompts to take elsewhere" lost its last
    word at the desk's 248px (usability check, 2026-10-24). Closed, the names are hidden anyway. */
-html[data-ui-rail="open"] #rail [data-nav] .txt { white-space:normal; line-height:1.3; }
+html[data-ui-rail="open"] #rail .railtile .txt { white-space:normal; line-height:1.3; }
 
 #scrim {
   position:absolute; inset:0; z-index:20; background:rgba(5,5,7,.6); backdrop-filter:blur(3px);
@@ -1620,8 +1620,9 @@ textarea.field { resize:vertical; min-height:70px; }
 .readrow[disabled] { opacity:.5; }
 .readnote { font-size:12px; color:var(--faint); }
 .headmore[disabled] { opacity:.5; }
-/* THE TALE'S MENU, TWO COLUMNS (2026-10-27). Rows are drawn with inline styles by drawRail, so the
-   tile shape has to say !important. Only while the rail is open: the desk's closed rail is 76px of
+/* THE TALE'S MENU, TWO COLUMNS (2026-10-27). Rows were drawn with inline styles by drawRail, so the
+   tile shape had to say !important; the `.navgrid` rules below still do. Since 2026-10-30 the two
+   menus' tiles and rows are `.railtile` and `.railrow`, with their sizes in the class. Only while the rail is open: the desk's closed rail is 76px of
    icons, and there the list stays a list. On a phone the closed rail is off-screen at full width. */
 /* THE TALE'S MENU IN THREE COLUMNS (2026-10-28): the model on top, then the scenes (newest first,
    scrolling on their own) beside two columns of tiles. The rail widens for it on a desk. */
@@ -1630,14 +1631,24 @@ html[data-ui-rail="closed"] #rail.tale3 { width:76px; }
 @media (max-width:719px) { #rail.tale3, html[data-ui-rail="closed"] #rail.tale3 { width:auto; } }   /* the sheet is the whole screen */
 .talemodel { position:relative; flex:0 0 auto; padding-top:env(safe-area-inset-top, 0px); }
 .talemodel > button[data-modelmenu] { border-top:0 !important; border-bottom:1px solid var(--line); margin-top:0 !important;
-  padding-right:60px !important; padding-top:18px !important; }
+  padding-right:104px !important; padding-top:18px !important; }
 .talemodel > .railclose { position:absolute; top:calc(14px + env(safe-area-inset-top, 0px)); right:10px; }
+/* THE OTHER MENU'S ICON, left of the close (drawRail, 2026-10-30). Ink like the close, a tile's icon
+   size, a 44px press. The desk's closed rail is 76px of icons with no room for it. */
+.railswap { position:absolute; top:calc(14px + env(safe-area-inset-top, 0px)); right:56px; color:var(--mute);
+  display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; }
+html[data-ui-rail="closed"] .railswap { display:none; }
 .railclose { color:var(--faint); display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; }
 .taleside { display:flex; flex-direction:column; min-height:0; }
 .taleside > .railsearch { margin:auto 0 8px; flex:0 0 auto; }
 .taleside > .taletiles { flex:0 1 auto; overflow-y:auto; min-height:0; }
 /* A row's picture under a dark wash (rowArt in web/app.js). The words sit above both. */
-.arted { position:relative; overflow:hidden; isolation:isolate; margin-bottom:4px; min-height:44px; }
+/* ONE LIST ROW for both menus' lists, scenes and tales (drawRail, 2026-10-30): one padding, one font,
+   at least 44px to press whether it wears a picture or not. Plain rows were 33px until then. */
+.railrow { display:block; width:100%; min-height:44px; margin-bottom:4px; padding:8px 12px; font-size:13px;
+  border-radius:var(--r); text-align:left; }
+.railrow > .txt { display:block; }
+.arted { position:relative; overflow:hidden; isolation:isolate; }
 .arted > .rowart { position:absolute; inset:0; z-index:-2; background-size:cover; background-position:center; }
 .arted::after { content:''; position:absolute; inset:0; z-index:-1; background:rgba(0,0,0,.55); pointer-events:none; }
 .arted .txt { color:var(--ink); text-shadow:0 1px 3px rgba(0,0,0,.6); }
@@ -1651,15 +1662,21 @@ html[data-ui-rail="closed"] #rail.tale3 { width:76px; }
 .tale3scenes { min-height:0; max-height:100%; overflow-y:auto; border-right:1px solid var(--line); padding-right:6px; }
 .tale3scenes .railhead { padding-top:4px; }
 /* Whole scene names in their column, wrapping, not cut to "The Long W…". */
-.tale3scenes [data-chapter] .txt, .tale3scenes [data-open] .txt { white-space:normal !important; overflow:visible !important;
+.tale3scenes .railrow .txt { white-space:normal !important; overflow:visible !important;
   text-overflow:clip !important; line-height:1.3; }
-.tale3scenes [data-chapter], .tale3scenes [data-open] { text-align:left; }
 /* The page you are on, as a tile: a quiet ground, not the list's side rule (which drew a bracket on a tile). */
 .taletiles > button[aria-current] { border-left-color:transparent !important; background:var(--chip) !important; }
 .taletiles { display:grid; grid-template-columns:1fr 1fr; gap:4px; align-content:start; }
-.taletiles > button { flex-direction:column; justify-content:center; gap:5px !important; margin:0 !important;
-  padding:9px 4px !important; text-align:center; }
-.taletiles > button .txt { font-size:11.5px !important; white-space:normal; line-height:1.2; }
+/* ONE TILE for both menus (drawRail's `tile`, 2026-10-30). As a list row, which is how the world
+   book's short menu draws it on the desk's closed rail; as a tile in two columns, everywhere else. */
+.railtile { display:flex; align-items:center; gap:13px; padding:11px 12px; border-radius:var(--r); margin-bottom:3px;
+  white-space:nowrap; overflow:hidden; width:100%; }
+.railtile > .tileicon { position:relative; width:19px; height:19px; display:flex; align-items:center;
+  justify-content:center; flex:0 0 auto; }
+.railtile > .txt { font-size:14px; }
+.taletiles > .railtile { flex-direction:column; justify-content:center; gap:5px; margin:0; min-height:44px;
+  padding:9px 4px; text-align:center; }
+.taletiles > .railtile > .txt { font-size:11.5px; white-space:normal; }
 /* The Workbench's count, beside its icon and on the icon's line (drawRail, 2026-10-29). Out of the
    flow, so the tile keeps the same two rows as every other. */
 .navcount { position:absolute; left:calc(100% + 4px); top:50%; transform:translateY(-50%);

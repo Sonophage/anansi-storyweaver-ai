@@ -223,6 +223,9 @@ const S = {
   // one. Set to 'story' on open and back to 'workspace' on leave, so the default still follows
   // you and only a deliberate press disagrees with it.
   railView: 'workspace',
+  // The tale last open, for the main menu's icon to its menu (`lastTale`, by drawRail). Kept when
+  // the tale is left, which `storyId` is not.
+  lastTale: null,
   entryId: null, historyOf: null, folds: {},
   // #126. The pocket panel, open: { entryId, id (null when adding), tab, slot, name, body, keys,
   // steer, offer, was }. Everything typed in it lives here, so a repaint draws it back.
@@ -854,44 +857,73 @@ const writingNow = () => inBookNow() ? V.model : SRV.model;
 const modelsHere = () => withPin(S.models, inBookNow() ? V.pin : null);
 
 // ---------- rail ----------
+/* THE TWO MENUS TALK TO EACH OTHER (Seth, 2026-10-30: "make the main menu and tale menu talk to each
+ * other so you can reach either from an icon in it"). Each menu has one icon at its top that swaps the
+ * rail to the other, in place: the page under it does not change until something in the menu is
+ * pressed. Before it, the tale's menu had no way to the main one but leaving the tale with ‹ and
+ * pressing ☰, and the Library had no way to a tale's menu but opening the tale.
+ *
+ * From the Library the main menu's icon is for the tale LAST OPEN. The header's ‹ forgets the open
+ * tale (`V` goes), so the menu keeps the tale's id (`S.lastTale`) and fetches its view afresh when
+ * the icon is pressed (`MENUV`), rather than drawing a copy that went stale while the writer was away.
+ * A tile or a scene pressed in it then opens the tale (`intoTale`). No tale opened yet, no icon. */
+let MENUV = null;
+/** The id of the tale last open, while it is still on the shelf. */
+const lastTale = () => (S.lastTale && (LIB ?? []).some((b) => b.id === S.lastTale) ? S.lastTale : null);
+/** The tale the tale's menu is for: the open one, or the last one fetched for it by the icon. */
+const menuTale = () => (S.place === 'story' && V ? V : MENUV && MENUV.id === lastTale() ? MENUV : null);
+/** Which menu the rail shows. ONE predicate for drawRail and for the press on a row in it (`d.nav`),
+ *  which must agree on which list the row came from. */
+const taleMenuShown = () => S.railView === 'story' && !!menuTale();
+/** Open the tale the tale's menu is for, when the menu is showing over a Library page. */
+async function intoTale() {
+  if (S.place === 'story') return true;
+  await openStory(lastTale());
+  return S.place === 'story';
+}
+
 function drawRail() {
-  // Which menu, not where you are. Inside a story the rail can be showing either one.
-  const inStory = S.place === 'story' && V;
-  const storyMenu = inStory && S.railView === 'story';
+  // Which menu, not where you are. Inside a story the rail can be showing either one, and on a
+  // Library page it can be showing the last tale's.
+  const storyMenu = taleMenuShown();
+  const T = menuTale();
   const rows = storyMenu ? SNAV : wnav();
   // THE DEMO LIBRARY, as a switch rather than a second login. Seth, 2026-08-31: "can we do the demo
   // account as a switch in my menu both accounts should be able to reach it." Only on the workspace
   // menu: it swaps which library you are looking at, which is a thing you do from outside a book.
-  const demoRow = storyMenu ? '' : `<button data-demo="${SRV.demo ? '0' : '1'}"
-    aria-pressed="${SRV.demo}" style="display:flex; align-items:center; gap:13px; padding:11px 12px;
-    border-radius:var(--r); margin-top:10px; white-space:nowrap; overflow:hidden; width:100%;
-    background:${SRV.demo ? 'rgba(217,178,106,.10)' : 'transparent'};
-    border:1px solid ${SRV.demo ? 'rgba(217,178,106,.28)' : 'var(--line)'}">
-    <span style="width:19px; height:19px; display:flex; align-items:center; justify-content:center;
-      flex:0 0 auto; color:${SRV.demo ? 'var(--gold)' : 'var(--faint)'}">${mark('shelf')}</span>
-    <span class="txt" style="font-size:13px; color:${SRV.demo ? 'var(--gold-lit)' : 'var(--mute)'}">${
-      SRV.demo ? 'Leave the demo library' : 'Demo library'}</span></button>`;
+  /* ONE TILE, FOR BOTH MENUS (Seth, 2026-10-30: "make sure that the sizes of all its items match").
+   * Its shape and size are `.railtile` in app.html; only the colours, which are worked out per tile,
+   * are written on it. The demo switch was a row of its own with its own padding and font, squeezed
+   * into a tile by !important rules, and came out a pixel shorter than the tiles beside it.
+   * The action is spelled out, `data-nav` or `data-demo`, so test/web.ts can see the button does
+   * something; `more` is its other attributes. */
+  const tile = ({ nav, demo, more = '' }, glyph, label, { icon = 'var(--faint)', word = 'var(--mute)',
+    ground = 'transparent', edge = 'transparent', rule = edge, badge = '' } = {}) => `<button class="railtile" ${
+      nav ? `data-nav="${nav}"` : `data-demo="${demo}"`}${more}
+      style="background:${ground}; border:1px solid ${edge}; border-left:2px solid ${rule}">
+      <span class="tileicon" style="color:${icon}">${mark(glyph)}${badge}</span>
+      <span class="txt" style="color:${word}">${esc(label)}</span></button>`;
+  const demoRow = storyMenu ? '' : tile({ demo: SRV.demo ? '0' : '1', more: ` aria-pressed="${SRV.demo}"` }, 'shelf',
+    SRV.demo ? 'Leave the demo library' : 'Demo library', SRV.demo
+      ? { icon: 'var(--gold)', word: 'var(--gold-lit)', ground: 'rgba(217,178,106,.10)', edge: 'rgba(217,178,106,.28)' }
+      : { edge: 'var(--line)' });
   const active = storyMenu ? S.panel : S.wpage;
   const item = ([k, g, l]) => {
     const on = k === active;
     // WHICH ROW IS THE OPEN ONE, said and not only coloured. `aria-current` and not
     // `aria-pressed`: these are places you go, one of which you are on, rather than switches.
-    return `<button data-nav="${k}"${on ? ' aria-current="page"' : ''} style="display:flex; align-items:center; gap:13px; padding:11px 12px;
-      border-radius:var(--r); margin-bottom:3px; white-space:nowrap; overflow:hidden; width:100%;
-      background:transparent; border:1px solid transparent;
-      ${/* ADR 0004: the row you are on is bright ink with a rule beside it, not gold. */ ''}
-      border-left:2px solid ${on ? 'var(--ink-bright)' : 'transparent'}">
-      ${/* THE COUNT RIDES ON THE ICON (2026-10-29, Seth: "in the menu the number is not aligned"). It
-            was a third flex item with margin-left:auto: in a tile, which is a column, that pushed it
-            to the right edge on a line of its own under the word, and made the tile a row taller than
-            the one beside it. Inside the icon's box, placed beside it (.navcount in app.html), it
-            takes no room, so the icon and the word sit where every other tile's do. */ ''}
-      <span style="position:relative; width:19px; height:19px; display:flex; align-items:center; justify-content:center;
-        flex:0 0 auto; color:${on ? 'var(--ink-bright)' : 'var(--faint)'}">${mark(g)}${k === 'waiting' && owedHere()
-        ? `<span class="tnum navcount">${owedHere()}</span>` : ''}</span>
-      <span class="txt" style="font-size:14px; color:${
-        k === 'waiting' && owedHere() ? 'var(--warn)' : on ? 'var(--ink-bright)' : 'var(--mute)'
-      }">${esc(l)}</span></button>`;
+    // ADR 0004: the row you are on is bright ink with a rule beside it, not gold.
+    // THE COUNT RIDES ON THE ICON (2026-10-29, Seth: "in the menu the number is not aligned"). It
+    // was a third flex item with margin-left:auto: in a tile, which is a column, that pushed it to
+    // the right edge on a line of its own under the word, and made the tile a row taller than the one
+    // beside it. Inside the icon's box, placed beside it (.navcount in app.html), it takes no room, so
+    // the icon and the word sit where every other tile's do.
+    const owed = k === 'waiting' && owedHere();
+    return tile({ nav: k, more: on ? ' aria-current="page"' : '' }, g, l, {
+      icon: on ? 'var(--ink-bright)' : 'var(--faint)',
+      word: owed ? 'var(--warn)' : on ? 'var(--ink-bright)' : 'var(--mute)',
+      rule: on ? 'var(--ink-bright)' : 'transparent',
+      badge: owed ? `<span class="tnum navcount">${owedHere()}</span>` : '' });
   };
   // "Anansi's web" used to sit here as the way out of a story. It went on 2026-08-27: the menu
   // button in the bar opens the workspace menu from anywhere, which is the same one press, and two
@@ -909,7 +941,7 @@ function drawRail() {
   // back empty.
   const localStatus = modelsHere()?.find((m) => m.id === writing)?.status
     ?? (S.models === null && SRV.slot ? 'loaded' : 'unloaded');
-  const tail = storyMenu && V?.story?.is_world
+  const tail = storyMenu && T?.story?.is_world
     // A world book has no chapters to list and nothing to write in. What it has is its lore, and
     // the rail says so rather than showing an empty Chapters heading.
     ? `<div class="hint" style="padding:22px 12px 10px; margin:0">A world: threads that tales draw on.
@@ -918,14 +950,14 @@ function drawRail() {
     : storyMenu
     // The rail IS the menu, and the menu is excepted — see tipCard. Its rows were never uppercased;
     // this heading was the only thing in here that was.
+    // A SCENE ROW AND A TALE ROW ARE ONE ROW, `.railrow` (2026-10-30): one height, one padding, one
+    // font, and never under 44px to press. Only the colour is the row's own.
     ? `<div class="txt railhead">Scenes</div>
-       ${[...V.chapters].reverse().map((c, i) => `<button data-chapter="${c.id}"${
-         V.cover ? ' class="arted"' : ''}${
-         c.id === V.currentChapter.id ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px;
-         border-radius:var(--r); width:100%;
-         color:${c.id === V.currentChapter.id ? 'var(--ink-bright)' : 'var(--faint)'}"><span class="txt"
-         style="display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${
-         esc(sceneName(c))}</span>${rowArt(V.cover ? api.coverUrl(S.storyId, V.cover) : '', i)}</button>`).join('')}`
+       ${[...T.chapters].reverse().map((c, i) => `<button data-chapter="${c.id}" class="railrow${
+         T.cover ? ' arted' : ''}"${
+         c.id === T.currentChapter.id ? ' aria-current="true"' : ''}
+         style="color:${c.id === T.currentChapter.id ? 'var(--ink-bright)' : 'var(--faint)'}"><span class="txt">${
+         esc(sceneName(c))}</span>${rowArt(T.cover ? api.coverUrl(T.id, T.cover) : '', i)}</button>`).join('')}`
     // NO "Open" LIST HERE, only the demo switch. It reprinted the first four books in a rail whose first row is already
     // My stories (Library, now), which is the same door with a complete list behind it. Seth, 2026-08-31: "the
     // open option in the main menu that should be removed."
@@ -1009,11 +1041,18 @@ function drawRail() {
         >${overlay() && S.rail ? '<span aria-hidden="true" style="font-size:15px; line-height:1">\u2715</span>'
         : `<span style="display:flex; transform:rotate(${phone() ? 90 : (S.rail ? 180 : 0)}deg);
           transition:transform var(--t-slow) var(--ease-out)">${mark('chevron', 16)}</span>`}</button>`;
+  // THE OTHER MENU, one press away (see MENUV above). Ink, not gold: it is not the screen's one main
+  // action (ADR 0004). Each wears the mark of the header button that opens that menu: the web for the
+  // tale's, the three lines for the main one. Absent on the main menu until a tale has been opened.
+  const other = storyMenu ? ['workspace', 'menu', 'The main menu']
+    : (S.place === 'story' && V) || lastTale() ? ['story', 'webfull', "The tale's menu"] : null;
+  const swapBtn = other ? `<button class="railswap" data-railview="${other[0]}" aria-label="${other[2]}" title="${other[2]}"
+        >${mark(other[1])}</button>` : '';
   $('rail').innerHTML = `
     ${'' /* THE WORDMARK ROW LEFT BOTH MENUS on 2026-10-28; the close sits with the model, and the
            Library row is the way home. */}
     ${back}
-    <div class="talemodel">${modelBlock}${closeBtn}</div>
+    <div class="talemodel">${modelBlock}${swapBtn}${closeBtn}</div>
     <!-- flex:1 with min-height:0 is what makes overflow-y:auto actually engage. A flex child's
          min-height is auto by default, so it refuses to shrink below its content and GROWS instead
          of scrolling — the list ran off the bottom of a rail that is overflow:hidden, and on a
@@ -1022,7 +1061,7 @@ function drawRail() {
       >${/* THE TALE'S MENU IN TWO COLUMNS (Seth, 2026-10-27: "can we somehow shorten it without
             losing whats there"). Same rows, same order: Tale across the top, the other nine as tiles,
             icon over word. Six rows tall instead of ten. The workspace menu keeps its list. */
-        storyMenu && !V?.story?.is_world
+        storyMenu && !T?.story?.is_world
           ? `<div class="tale3"><div class="tale3scenes scroll">${tail}</div>
               <div class="taleside"><div class="taletiles">${TALE_MENU.map((k) => rows.find(([key]) => key === k))
                 .filter(Boolean).map(item).join('')}</div>
@@ -1037,9 +1076,9 @@ function drawRail() {
           : `<div class="tale3"><div class="tale3scenes scroll"><div class="txt railhead">Tales</div>${
               shelfOrder((LIB ?? []).filter((b) => !b.is_world)).sort((a, b) =>
                 (a.status === 'archived') - (b.status === 'archived')).map((b, i) => `<button data-open="${esc(b.id)}"
-                ${b.cover ? ' class="arted"' : ''}${b.id === S.storyId ? ' aria-current="true"' : ''} style="padding:8px 12px; font-size:13px; border-radius:var(--r); width:100%;
-                color:${b.id === S.storyId ? 'var(--ink-bright)' : b.status === 'archived' ? 'var(--dim)' : 'var(--faint)'}"><span class="txt"
-                style="display:block">${esc(b.title || 'Untitled')}</span>${rowArt(b.cover ? api.coverUrl(b.id, b.cover) : '', i)}</button>`).join('')
+                class="railrow${b.cover ? ' arted' : ''}"${b.id === S.storyId ? ' aria-current="true"' : ''}
+                style="color:${b.id === S.storyId ? 'var(--ink-bright)' : b.status === 'archived' ? 'var(--dim)' : 'var(--faint)'}"><span class="txt"
+                >${esc(b.title || 'Untitled')}</span>${rowArt(b.cover ? api.coverUrl(b.id, b.cover) : '', i)}</button>`).join('')
               || '<div class="hint flush" style="padding:0 12px">No tales yet.</div>'}</div>
               <div class="taletiles">${rows.map(item).join('')}${tail}</div></div>`}</div>
 `;
@@ -9737,10 +9776,11 @@ async function openStory(id) {
   const r = await api.story(id);
   if (OPENING !== id) return;                   // superseded before the story even arrived
   if (r.error) return toast(r.error);
-  V = r; S.storyId = id; S.place = 'story';
+  V = r; S.storyId = id; S.place = 'story'; S.lastTale = id;
   // Opening a book puts the rail on that book's menu. The menu button is how you get back to the
-  // workspace one without leaving the story.
-  S.railView = 'story';
+  // workspace one without leaving the story. The copy fetched to show its menu from the Library
+  // goes: `V` is the tale now.
+  S.railView = 'story'; MENUV = null;
   // THE THREAD SEARCH IS PER BOOK AND DOES NOT TRAVEL. Threads are story-scoped, so a query left
   // over from the last book filters this one's list against a word that is not in it — an empty
   // panel under a box the writer did not type into here, which reads as the book having no threads.
@@ -11571,10 +11611,23 @@ document.addEventListener('click', async (e) => {
   // the workspace, the story's own name asks for the story. Asking for the menu already open and
   // showing shuts it; asking for the other one swaps the rail over instead of closing it, which
   // is what makes them two doors rather than one toggle drawn twice.
+  // The icon at the top of each menu asks for the other one the same way (drawRail). From a Library
+  // page the tale's menu is the last tale's, fetched now so its scenes are as they are now.
   if (d.railview) {
     const want = d.railview;
-    if (S.rail && S.railView === want) S.rail = false;
-    else { S.railView = want; S.rail = true; }
+    // The menu SHOWN, not `S.railView`: that can still say 'story' after the tale has gone (‹ and
+    // Back forget it), and then the main menu's icon to the last tale shut the menu instead.
+    if (S.rail && (taleMenuShown() ? 'story' : 'workspace') === want) S.rail = false;
+    else {
+      if (want === 'story' && S.place !== 'story') {
+        if (!lastTale()) return;
+        const r = await api.story(lastTale());
+        if (r.error) return toast(r.error);
+        MENUV = r;
+      }
+      if (want === 'workspace') MENUV = null;
+      S.railView = want; S.rail = true;
+    }
     paint();
     return;
   }
@@ -12015,7 +12068,10 @@ document.addEventListener('click', async (e) => {
     // not `S.place`, which since the two menus split can say "story" while the rail is showing
     // the workspace. Reading the wrong one put My stories and Import inside the story as panels
     // that do not exist.
-    if (S.place === 'story' && S.railView === 'story') {
+    // `taleMenuShown`, the predicate drawRail drew with. Over a Library page the tale's menu is the
+    // last tale's, and a tile in it opens that tale first.
+    if (taleMenuShown()) {
+      if (!await intoTale()) return;
       S.panel = PANEL_WAS[d.nav] ?? d.nav; S.entryId = null; S.historyOf = null; syncHash();
       if (overlay()) S.rail = false;
       paint();
@@ -12096,9 +12152,14 @@ document.addEventListener('click', async (e) => {
    * Scrolled AFTER `paint`, deliberately — `drawDoc` runs inside it and has a scroll rule of its own
    * for arrivals. This is a navigation the writer asked for and it wins. */
   if (d.chapter) {
+    if (!await intoTale()) return;
     const r = await api.story(S.storyId, d.chapter);
     if (r.error) return toast(r.error);
-    V = r; paint();
+    // THE MENU GOES WHERE IT COVERS THE PAGE (Seth, 2026-10-30: "hitting a chapter in tale menu
+    // should just open the chapter and hide the menu"): the phone's sheet and the tablet's drawer.
+    // At a desk the rail sits beside the page, and stays.
+    V = r; if (overlay()) S.rail = false;
+    paint();
     const read = $('read'); if (!read) return;
     const writing = (V.chapters ?? []).find((c) => c.status === 'open')?.id
       ?? (V.chapters ?? []).at(-1)?.id;
@@ -15328,6 +15389,8 @@ document.addEventListener('input', (e) => {
 document.addEventListener('keydown', async (e) => {
   if (e.key !== 'Enter' || !e.target?.dataset?.railsearch) return;
   e.preventDefault();
+  // Over a Library page the bar is the last tale's (drawRail): search it in that tale.
+  if (!await intoTale()) return;
   S.query = String(e.target.value ?? '').trim();
   S.panel = 'search'; if (overlay()) S.rail = false;
   syncHash(); paint();

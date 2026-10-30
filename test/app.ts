@@ -664,6 +664,8 @@ for (const id of ['rail', 'bar', 'page']) {
 ok('the workspace boots with no undefined fields');
 
 assert.match(html('rail'), /Library/);
+// NO WAY TO A TALE'S MENU BEFORE A TALE HAS BEEN OPENED (2026-10-30): there is no tale for it to be.
+assert.doesNotMatch(html('rail'), /class="railswap"/, 'SWAP-NONE: the main menu has no tale-menu icon before a tale is opened');
 // The id is what the router answers to and what ANANSI_MODEL takes, so it stays — in the title,
 // where it is one hover away instead of the first thing the rail says.
 assert.match(html('rail'), /Write \u00b7 Qwen3\.6/, 'the rail names the model in words');
@@ -4895,12 +4897,106 @@ ok('an empty Strings says what a string is and where to add one');
 }
 ok("both menus: the model on top, a list down the left (scenes, or tales), and two columns of tiles");
 
+// ---- THE TWO MENUS TALK TO EACH OTHER (Seth, 2026-10-30: "make the main menu and tale menu talk to
+// each other so you can reach either from an icon in it"). One ink icon at the top of each swaps to
+// the other in place: the page under the menu stays what it was until something in it is pressed.
+{
+  const root = (globalThis as any).document.documentElement;
+  const swap = (h: string) => h.match(/<button class="railswap"[\s\S]*?<\/button>/)?.[0] ?? '';
+  const { mark } = await import('../web/model.js');
+  const pic = (h: string) => (h.match(/<svg[\s\S]*?<\/svg>/)?.[0] ?? '').replace(/\s+/g, ' ');
+  click({ open: 's-1' }); await sleep(40);
+  click({ railview: 'story' });
+  if (root.dataset.uiRail !== 'open') click({ railview: 'story' });
+  const toMain = swap(html('rail'));
+  assert.match(toMain, /data-railview="workspace"/, 'SWAP-TALE: the tale menu has an icon that asks for the main menu');
+  assert.match(toMain, /aria-label="The main menu" title="The main menu"/, '  and says so, out loud and on hover');
+  assert.strictEqual(pic(toMain), mark('menu').replace(/\s+/g, ' '), "  wearing the menu's mark");
+  assert.doesNotMatch(toMain, /gold/, '  in ink, not gold (ADR 0004)');
+  click({ railview: 'workspace' }); await sleep(20);
+  assert.match(html('rail'), /data-nav="stories"/, 'SWAP-TALE: pressing it shows the main menu');
+  assert.strictEqual(root.dataset.uiRail, 'open', '  with the menu still open');
+  assert.match(html('bar'), /data-home="1"/, '  and the tale still on the page under it');
+  const toTale = swap(html('rail'));
+  assert.match(toTale, /data-railview="story"/, 'SWAP-MAIN: the main menu has an icon that asks for the tale menu');
+  assert.match(toTale, /aria-label="The tale's menu" title="The tale's menu"/, '  and says so');
+  assert.strictEqual(pic(toTale), mark('webfull').replace(/\s+/g, ' '), "  wearing the tale menu's mark, the one on its header button");
+  click({ railview: 'story' }); await sleep(20);
+  assert.match(html('rail'), /data-nav="chapter"/, 'SWAP-MAIN: pressing it shows the tale menu again');
+  // FROM THE LIBRARY, THE TALE LAST OPEN. The header's ‹ leaves the tale and forgets it as the open
+  // one; the main menu still knows which tale was last open, and its menu comes up over the Library.
+  // The tale's menu was the one showing when ‹ was pressed, and the desk's rail stays open: what it
+  // shows now is the main menu, so its icon must swap, not read as "that menu again" and shut it.
+  click({ home: 1 }); await sleep(40);
+  assert.strictEqual(root.dataset.uiRail, 'open', 'SWAP-LAST: the desk rail is still open on the Library');
+  assert.doesNotMatch(html('bar'), /data-home="1"/, 'SWAP-LAST: on the Library now');
+  assert.match(html('rail'), /data-nav="stories"/, '  showing the main menu');
+  assert.match(swap(html('rail')), /data-railview="story"/, "SWAP-LAST: the main menu still offers the last tale's menu");
+  click({ railview: 'story' }); await sleep(40);
+  assert.strictEqual(root.dataset.uiRail, 'open', 'SWAP-LAST: pressing it swaps the menu, and does not shut it');
+  assert.match(html('rail'), /data-chapter="c-/, "SWAP-LAST: pressing it shows that tale's menu, its scenes and all");
+  assert.doesNotMatch(html('bar'), /data-home="1"/, '  over the Library, which has not moved');
+  click({ nav: 'threads' }); await sleep(60);
+  assert.match(html('bar'), /data-home="1"/, 'SWAP-LAST: a tile in it then opens the tale');
+  assert.match(html('sideHead') + html('sideBody'), /[Tt]hreads/, '  on the page the tile names');
+}
+ok("each menu has an ink icon that swaps to the other in place, and from the Library it is the last tale's");
+
+// ---- THE TWO MENUS' ITEMS ARE ONE SIZE (Seth, 2026-10-30: "make sure that the sizes of all its items
+// match"). The tiles of both menus wear one class and the list rows (scenes, tales) another, and their
+// sizes live in those classes, so neither menu can grow a size of its own.
+{
+  const classesIn = (h: string, box: RegExp) => [...(h.match(box)?.[1] ?? '').matchAll(/<button ([^>]*)>/g)]
+    .map((m) => m[1].match(/class="([^"]*)"/)?.[1] ?? '(none)');
+  const tilesIn = /<div class="taletiles">([\s\S]*?)<\/div>/;
+  const rowsIn = /<div class="tale3scenes scroll">([\s\S]*?)<div class="tale(?:side|tiles)">/;
+  click({ open: 's-1' }); await sleep(40);
+  click({ railview: 'story' }); await sleep(20);
+  const tale = html('rail');
+  click({ railview: 'workspace' }); await sleep(20);
+  const main = html('rail');
+  const tTiles = classesIn(tale, tilesIn), mTiles = classesIn(main, tilesIn);
+  assert.ok(tTiles.length >= 6 && mTiles.length >= 6, `SAME-TILES: both menus' tiles are read (${tTiles.length}, ${mTiles.length})`);
+  assert.deepStrictEqual([...new Set([...tTiles, ...mTiles])], ['railtile'], 'SAME-TILES: every tile in both menus, the demo switch too, is a railtile');
+  const tRows = classesIn(tale, rowsIn), mRows = classesIn(main, rowsIn);
+  assert.ok(tRows.length >= 2 && mRows.length >= 1, `SAME-ROWS: both menus' rows are read (${tRows.length}, ${mRows.length})`);
+  assert.deepStrictEqual([...new Set([...tRows, ...mRows].map((c) => c.replace(/\s*arted\s*/, '')))], ['railrow'],
+    'SAME-ROWS: every scene row and every tale row is a railrow');
+  // The sizes are the classes', not each item's own: no padding or font size written on one.
+  for (const [h, name] of [[tale, 'tale'], [main, 'main']] as const)
+    assert.doesNotMatch(h.match(/<div class="tale3">[\s\S]*/)?.[0] ?? '', /<button class="rail(?:tile|row)[^"]*"[^>]*style="[^"]*(?:padding|font-size)/,
+      `SAME-SIZE: no tile or row in the ${name} menu sets its own padding or font size`);
+}
+ok("both menus' tiles share one class and their rows another, with the sizes in the classes");
+
+// ---- A SCENE PRESSED IN THE TALE'S MENU OPENS IT AND PUTS THE MENU AWAY (Seth, 2026-10-30: "hitting
+// a chapter in tale menu should just open the chapter and hide the menu"), where the menu covers the
+// page. At a desk the rail sits beside the page and stays.
+{
+  const root = (globalThis as any).document.documentElement;
+  const wide = (globalThis as any).matchMedia;
+  click({ open: 's-1' }); await sleep(40);
+  (globalThis as any).matchMedia = () => ({ matches: true, addEventListener() {} });   // phone width
+  try {
+    click({ railview: 'story' });
+    if (root.dataset.uiRail !== 'open') click({ railview: 'story' });
+    assert.strictEqual(root.dataset.uiRail, 'open', 'SCENE-SHUTS: the menu is open before the scene is pressed');
+    click({ chapter: STORY.chapters[0].id }); await sleep(40);
+    assert.strictEqual(root.dataset.uiRail, 'closed', 'SCENE-SHUTS: on a phone a scene pressed in the menu shuts it');
+  } finally { (globalThis as any).matchMedia = wide; }
+  click({ railview: 'story' });
+  if (root.dataset.uiRail !== 'open') click({ railview: 'story' });
+  click({ chapter: STORY.chapters[0].id }); await sleep(40);
+  assert.strictEqual(root.dataset.uiRail, 'open', 'SCENE-SHUTS: at a desk the rail stays beside the page');
+}
+ok('a scene pressed in the tale menu opens it and shuts the menu where the menu covers the page');
+
 // ---- EVERY ROW ITS OWN PICTURE, AND A CLOSE YOU CAN SEE (UX review, 2026-10-29). The main menu drew
 // the open book for What changed and for Demo library, and the plain circle for Tale and for Report
 // an issue (it named a mark, `bug`, that did not exist, and `mark` falls back to the circle). On a
 // phone the menu is the whole screen, and its only way out was a chevron that read as the model's.
 {
-  const rows = (h: string) => [...h.matchAll(/<button (data-nav|data-demo)="([^"]*)"[\s\S]*?(<svg[\s\S]*?<\/svg>)/g)]
+  const rows = (h: string) => [...h.matchAll(/<button class="railtile" (data-nav|data-demo)="([^"]*)"[\s\S]*?(<svg[\s\S]*?<\/svg>)/g)]
     .map((m) => ({ key: m[1] === 'data-demo' ? 'demo' : m[2], pic: m[3].replace(/\s+/g, ' ') }));
   const { mark } = await import('../web/model.js');
   const circle = mark('story').replace(/\s+/g, ' ');
