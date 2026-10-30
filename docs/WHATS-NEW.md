@@ -32,6 +32,10 @@ remove a summary, empty it and press Done twice: an empty box is never saved whi
 The same for a chapter: its title and summary are kept as you type, Done closes it, and Undo my
 changes puts them back as they were when you opened it. A chapter summary cannot be empty, so an
 empty box is not saved; Remove this chapter is still how a chapter goes.
+### The five modes in your words save as you type
+In Account, under Writing, a mode's instruction you open and change is kept a moment after you
+stop typing, and when you close it. Undo my changes puts back what it said when you opened it;
+Reset still gives you Anansi's own wording.
 
 ## 2026-10-30 · The next scene starts the way you say
 

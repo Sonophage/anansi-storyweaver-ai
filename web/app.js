@@ -532,7 +532,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // ago, so these say what they do to a followed thread instead of reusing that word.
   'takeover', 'dropfollow', 'handback', 'sendup', 'bringback', 'savefollowed',
   'share', 'unshare',
-  'editprompt', 'saveprompt', 'resetprompt', 'rollup', 'delarc', 'editarc',
+  'editprompt', 'undoprompt', 'resetprompt', 'rollup', 'delarc', 'editarc',
   'stringnew', 'summon', 'stringstatus', 'looktab', 'askfill',
   'reroll', 'reseed', 'addstate', 'stateopen', 'delstate', 'fieldhistory', 'revertfield', 'exportdb',
   'delstory', 'send', 'accept-spark', 'drop-spark', 'ritual', 'howin', 'howout', 'savesetup',
@@ -9122,14 +9122,14 @@ function writingDefaults() {
                 written with again, so this is what it says on the way back round too. ${
                 k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
                   k === 'speak' || k === 'act' ? '<code>{{speaker}}</code> is whoever you play. ' : ''}
-                Empty it and press Save, or press Reset, to have Anansi's own
-                again.</p>`)}
+                Press Reset, or empty it, to have Anansi's own again. It saves as you type.</p>`)}
               <textarea class="field" data-prompttext aria-label="${rw ? 'The wording around what did not work'
                 : `The whole instruction for ${esc(k)}`}"
                 style="min-height:132px; font-family:ui-monospace,monospace;
-                font-size:11.5px; line-height:1.5">${esc(mine ?? defaults[k] ?? '')}</textarea>
+                font-size:11.5px; line-height:1.5">${esc(S.promptEdit?.key === k ? S.promptEdit.text
+                  : mine ?? defaults[k] ?? '')}</textarea>
               <div class="btnrow">
-                <button class="btn ghost fill" data-saveprompt="${k}">Save</button>
+                <button class="btn ghost fill" data-undoprompt="${k}">Undo my changes</button>
                 <button class="btn ghost fill" data-resetprompt="${k}">Reset</button>
               </div>` : ''}
           </div>`;
@@ -11812,6 +11812,54 @@ document.addEventListener('visibilitychange', () => {
   for (const [key, w] of [...soonWait]) { dropSoon(key); void w.run(); }
 });
 
+/** A MODE'S INSTRUCTION, IN YOUR WORDS (Account → Writing), SAVES AS YOU TYPE (ADR 0004, pass
+ *  three). `S.promptEdit` is the open box: what it opened on (`shown`, and `was`, yours or null for
+ *  Anansi's own), what is typed, and what was last written. The writer's, on every tale, so no book is
+ *  named. The page is not redrawn by a write, so the caret stays; the box is drawn from `text` when it
+ *  is. Writes go in turn; a refusal is said and leaves the text unwritten for the next try. */
+function writePrompt(pe, text = pe.text) {
+  pe.chain = (pe.chain ?? Promise.resolve()).then(async () => {
+    if (text === pe.saved) return {};
+    const r = await api.savePrompt(pe.key, text);
+    if (!r || r.error) { toast(`Not saved. ${r?.error ?? 'The server did not answer.'}`); return r ?? { error: 'no answer' }; }
+    // An empty box is the reset: the route deletes it, and the box is Anansi's own again.
+    pe.saved = text.trim() ? text : (r.defaults?.[pe.key] ?? pe.saved);
+    if (S.prompts) S.prompts = { ...S.prompts, defaults: r.defaults ?? S.prompts.defaults, yours: r.yours ?? S.prompts.yours };
+    return r;
+  });
+  return pe.chain;
+}
+/** Shut, or another opened: the last of the typing is written now. */
+function finishPrompt(pe) { dropSoon(`prompt:${pe.key}`); return writePrompt(pe); }
+/** UNDO MY CHANGES: what the box opened on, put back and written. Opened on Anansi's own, that is the
+ *  reset. With a change typed, two presses, since it throws the typing away. */
+async function undoPrompt(t = null) {
+  const pe = S.promptEdit; if (!pe) return;
+  if (pe.text !== pe.shown && !armed(t, `undoprompt:${pe.key}`,
+    'Press Undo my changes again to put it back as it was when you opened it.')) return;
+  dropSoon(`prompt:${pe.key}`);
+  pe.text = pe.shown;
+  // Nothing written yet: nothing to write back.
+  if (pe.saved !== pe.shown) {
+    const r = await writePrompt(pe, pe.was ?? '');
+    if (r?.error) return;
+    pe.saved = pe.text;
+  }
+  paint();
+}
+/** The open box's record, from what the page shows for it. */
+function openPromptEdit(k) {
+  const shown = S.prompts?.yours?.[k] ?? S.prompts?.defaults?.[k] ?? '';
+  return (S.promptEdit = { key: k, was: S.prompts?.yours?.[k] ?? null, shown, text: shown, saved: shown });
+}
+document.addEventListener('input', (e) => {
+  if (!e.target?.matches?.('[data-prompttext]') || !S.promptOpen) return;
+  // A box left open by Reset has no record yet: it starts from what it shows.
+  const pe = S.promptEdit?.key === S.promptOpen ? S.promptEdit : openPromptEdit(S.promptOpen);
+  pe.text = String(e.target.value ?? '');
+  saveSoon(`prompt:${pe.key}`, () => writePrompt(pe));
+});
+
 /** The number beside a slider, while it is moving.
  *
  *  Nothing else redraws it: the save happens on release and deliberately does not repaint, so
@@ -12169,20 +12217,29 @@ document.addEventListener('click', async (e) => {
     drawPocket(); syncLayers(); $('pk-arctext')?.focus?.(); return;
   }
 
-  if (d.editprompt) { S.promptOpen = S.promptOpen === d.editprompt ? null : d.editprompt; paint(); return; }
-  if (d.saveprompt || d.resetprompt) {
-    const key = d.saveprompt || d.resetprompt;
-    // Reset is Save with nothing in it — the route deletes rather than storing blank, so there is
-    // one path and no state where a mode is overridden with an empty string.
-    const text = d.resetprompt ? '' : (document.querySelector('[data-prompttext]')?.value ?? '');
-    const r = await api.savePrompt(key, text);
+  if (d.editprompt) {
+    // Shutting one writes what the pause has not yet; opening one keeps what it opened on, for Undo.
+    if (S.promptEdit) { void finishPrompt(S.promptEdit); S.promptEdit = null; }
+    S.promptOpen = S.promptOpen === d.editprompt ? null : d.editprompt;
+    if (S.promptOpen && S.prompts) openPromptEdit(S.promptOpen);
+    paint(); return;
+  }
+  if (d.undoprompt) return void undoPrompt(t);
+  if (d.resetprompt) {
+    const key = d.resetprompt;
+    // Reset writes nothing in it — the route deletes rather than storing blank, so there is one path
+    // and no state where a mode is overridden with an empty string. A write waiting on the pause
+    // would undo the reset, so it is dropped first, and a write already going is waited for.
+    dropSoon(`prompt:${key}`);
+    if (S.promptEdit?.key === key) { await S.promptEdit.chain; S.promptEdit = null; }
+    const r = await api.savePrompt(key, '');
     if (r.error) return toast(r.error);
     // Spread, like the library's handlers: this used to replace the whole object with the two
     // fields here, and the voice box above went back to "Reading it" after any Save.
     S.prompts = { ...S.prompts, defaults: r.defaults ?? {}, yours: r.yours ?? {} };
     if (r.reset) S.promptOpen = null;
     paint(); refreshManifest();
-    return toast(r.reset ? `${key} is reset to Anansi's own.` : `${key} is yours now.`);
+    return toast(`${key} is reset to Anansi's own.`);
   }
 
   if (d.invent) {

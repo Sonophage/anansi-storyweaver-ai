@@ -5211,7 +5211,9 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
 
   click({ editprompt: 'reweave' });
   const open = html('page');
-  assert.match(open, /data-saveprompt="reweave"/, 'opened, it can be saved');
+  // SAVED AS YOU TYPE (ADR 0004, pass three): no Save, and Undo my changes in its place.
+  assert.doesNotMatch(open, /data-saveprompt|>Save</, 'PROMPT-NO-SAVE: opened, there is no Save');
+  assert.match(open, /data-undoprompt="reweave"[^>]*>Undo my changes</, 'PROMPT-UNDO-SHOWN: Undo my changes in its place');
   assert.match(open, /data-resetprompt="reweave"/, 'and reset');
   assert.match(open, /<textarea[^>]*data-prompttext[^>]*>\[A note from the writer on what did not work in the last version of this passage\. That version is not shown\. Avoid what the note describes: \{\{whatfailed\}\}\]<\/textarea>/,
     'opened, the box is filled with the shipped note frame, its one placeholder in');
@@ -5228,14 +5230,36 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
   const box: any = { value: 'Take the other road. {{whatfailed}}' };
   const wasQS = doc.querySelector;
   doc.querySelector = (sel: string) => (sel === '[data-prompttext]' ? box : null);
+  const prompts = () => POSTED.filter((x) => String(x.url) === '/api/prompts').map((x) => x.body);
+  const typePrompt = (value: string) => { box.value = value; (listeners.input ?? []).forEach((f: Function) =>
+    f({ target: { ...box, id: '', dataset: { prompttext: '' }, matches: (q: string) => q === '[data-prompttext]', closest: () => null } })); };
   try {
     POSTED.length = 0;
-    click({ saveprompt: 'reweave' });
-    await sleep(30);
-    assert.deepStrictEqual(POSTED.filter((x) => String(x.url) === '/api/prompts').map((x) => x.body),
-      [{ key: 'reweave', text: 'Take the other road. {{whatfailed}}' }], 'Save sends what is in the box, as reweave');
+    typePrompt('Take the other road. {{whatfailed}}');
+    await sleep(400);
+    assert.deepStrictEqual(prompts(), [], 'PROMPT-PAUSE: nothing is written while the typing goes on');
+    await sleep(700);
+    assert.deepStrictEqual(prompts(), [{ key: 'reweave', text: 'Take the other road. {{whatfailed}}' }],
+      'PROMPT-AUTOSAVE: the pause writes what is in the box, as reweave');
     // Saving a box must not blank the rest of the page: the voice editor above it stays drawn.
-    assert.match(html('page'), /data-mydefaultvoice/, 'and the voice box above it is still there after Save');
+    assert.match(html('page'), /data-mydefaultvoice/, 'and the voice box above it is still there after it saves');
+    // SHUT INSIDE THE PAUSE, the last of the typing is written as it shuts.
+    typePrompt('Take the other road at once. {{whatfailed}}');
+    click({ editprompt: 'reweave' }); await sleep(30);
+    assert.deepStrictEqual(prompts().at(-1), { key: 'reweave', text: 'Take the other road at once. {{whatfailed}}' },
+      'PROMPT-SHUT-FLUSH: shutting the box writes what the pause had not');
+    await sleep(1000);
+    assert.strictEqual(prompts().length, 2, '  once');
+    // UNDO MY CHANGES: it opened on Anansi's own, so putting it back is the reset. Two presses.
+    click({ editprompt: 'reweave' });
+    POSTED.length = 0;
+    typePrompt('Something else. {{whatfailed}}');
+    await sleep(1000);
+    click({ undoprompt: 'reweave' }); await sleep(30);
+    assert.strictEqual(prompts().length, 1, 'PROMPT-UNDO-ASKS: the first press of Undo my changes asks');
+    click({ undoprompt: 'reweave' }); await sleep(30);
+    assert.deepStrictEqual(prompts().map((b: any) => b.text), ['Something else. {{whatfailed}}', ''],
+      'PROMPT-UNDO: the second puts back what it opened on, here Anansi\'s own');
     POSTED.length = 0;
     click({ resetprompt: 'reweave' });
     await sleep(30);

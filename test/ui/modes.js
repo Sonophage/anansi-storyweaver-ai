@@ -209,9 +209,10 @@ await page.click('[data-editprompt="speak"]');
 await wait(300);
 ok("  opening one shows the shipped wording to edit",
    (await page.eval("document.querySelector('[data-prompttext]')?.value") || '').includes('whole answer'));
-await page.eval("(() => { document.querySelector('[data-prompttext]').value = 'ANSWER AS THE ROOM DOES, for {{speaker}}.'; return 1; })()");
-await page.click('[data-saveprompt="speak"]');
-await wait(900);
+// SAVED AS YOU TYPE (ADR 0004, pass three): the input event, then the pause.
+await page.eval("(() => { const t = document.querySelector('[data-prompttext]'); t.value = 'ANSWER AS THE ROOM DOES, for {{speaker}}.';"
+  + " t.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()");
+await wait(1800);
 const own = await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
   + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'speak'})})).json();"
   + " return r.prompt; })()");
