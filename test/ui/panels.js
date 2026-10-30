@@ -1921,7 +1921,9 @@ ok("  and it is still there a moment later, not eaten by a repaint",
   await page.click('[data-ritual="1"]');
   for (let i = 0; i < 40 && !(await page.visible('#sideBody')); i++) await wait(250);
   await wait(400);
-  const said = (await page.eval("document.querySelector('#sideBody')?.textContent || ''")).replace(/\s+/g, ' ');
+  // THE HEADING, not the whole drawer: since 2026-10-30 the hem's next-scene step names the scene it
+  // suggested ("Suggested: <title>"), and that is the new scene's name by design.
+  const said = (await page.eval("document.querySelector('#sideBody .lbl.wide')?.textContent || ''")).replace(/\s+/g, ' ');
   // The chapter that just closed is chapter 1. Reporting on chapter 2 is the defect.
   const closed = chs[0].t, opened = chs[1].t;
   ok(`  the door opens the ritual on the chapter that CLOSED (${closed}), not the empty new one (${opened})`,
