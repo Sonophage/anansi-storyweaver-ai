@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### See each thread's pockets when you spark a tale
+On the threads step of a new tale, each thread now shows the pockets Anansi wrote for it (how they
+look, how they sound, what they hide), not only what is always true of them. You can rename and
+change them right there.
+
 ### Talking to Anansi is a conversation
 Anansi's chat now works like a conversation: he holds your tale in mind, and your messages and
 his replies go back and forth as they were said, instead of being pasted together as one document.

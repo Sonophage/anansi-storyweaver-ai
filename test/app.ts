@@ -3959,6 +3959,11 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
     assert.strictEqual(cast.body.story.persona, 'Mara Voss', 'WIZ-CAST: with who you play');
     assert.strictEqual(cast.body.story.lockedCharacter, 'Mara Voss', '  and who is Hands off');
     assert.strictEqual(cast.body.story.personaAbout, 'a courier who owes the envoy', '  and what you said of them');
+    // AND EACH THREAD'S POCKETS, not only its Always true (Seth, 2026-10-30: "I should be also able to
+    // see the pockets the ai has created for a character"), on the step that shows the threads.
+    assert.match(html('page'), /data-sppname="(\d+):voice"[^>]*value="Envoy"[\s\S]*?data-sppocket="\1:voice"[^>]*>Write her lines formal and short\./,
+      'WIZ-POCKETS: the threads step shows a thread\'s pockets, named, to read and change');
+    assert.match(html('page'), /data-sppocket="\d+:interiority"[^>]*>Never let her say she is afraid\./, '  every one of them');
 
     // THE THREAD YOU PLAY CANNOT BE UNTICKED on the threads step either (round-two review).
     onScreen = { '[data-spcast]': [{ dataset: { spcast: '1' }, checked: false }] };

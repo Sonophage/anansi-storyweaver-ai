@@ -6468,6 +6468,17 @@ function sparkReview() {
          <textarea class="field" data-spbody="${i}" aria-label="What thread ${i + 1} says" placeholder="What they are, what they want, what it costs"
            style="margin:0; min-height:64px; font-size:12.5px; line-height:1.45"
            >${esc(e.body ?? '')}</textarea>
+         ${/* ITS POCKETS TOO, not only its Always true (Seth, 2026-10-30: "I should be also able to see
+               the pockets the ai has created for a character"). Open, to read and change in place;
+               `harvestSpark` reads them by the same attributes the preview's cards use. */
+           (() => { const rooms = Object.entries(e.rooms ?? {}).filter(([slot]) => slot !== 'facts');
+             return rooms.length ? `<details class="decksec" open><summary><span class="lbl flush">Pockets &middot; ${rooms.length}</span></summary>
+             ${rooms.map(([slot, p]) => `<div class="stack-6 push-6">
+               <div class="line"><input class="field flush name-field" data-sppname="${i}:${esc(slot)}" value="${esc(p.name ?? '')}"
+                 aria-label="What to call this ${esc(slotLabel(slot))} pocket"><span class="tag">${esc(pocketTitle(slot))}</span></div>
+               <textarea class="field grow flush min-52" data-sppocket="${i}:${esc(slot)}"
+                 aria-label="How to write ${esc(e.title)}'s ${esc(slotLabel(slot))}">${esc(p.body ?? '')}</textarea></div>`).join('')}
+             </details>` : ''; })()}
          <div class="line-8">
            <label style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--faint)">
              <input type="checkbox" data-spcast="${i}" ${e.keep === false ? '' : 'checked'}> keep this one</label>
