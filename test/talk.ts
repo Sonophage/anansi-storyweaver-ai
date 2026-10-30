@@ -2563,6 +2563,36 @@ ok('emptying the box gives her back the voice she shipped with');
   ok('a chapter named in a question sends a current summary, and says a stale one is stale');
 }
 
+// ---- TALK READS WHAT IS ASKED (Seth, 2026-10-30: "it should only really look through everything
+// based on what I've prompted it"). An always-on thread is sent to Talk when the question, the
+// conversation or the last passages name it; the rest are listed by name only, so Anansi knows they
+// exist and can ask for one. The writing prompt is not changed: it still sends every always-on thread.
+{
+  const tale = db.createStory(me, { title: 'The Narrow Sea', premise: 'Two ports and a debt.' }) as any;
+  const base = { storyId: tale.id, branchId: tale.branchId, chapterId: tale.chapterId };
+  db.upsertEntry(tale.id, me, { title: 'Oren', body: 'Oren keeps the lighthouse and owes the harbourmaster.', activation: 'always_on', keys: ['Oren'] });
+  db.upsertEntry(tale.id, me, { title: 'Maren', body: 'Maren sails the night ferry and never pays tolls.', activation: 'always_on', keys: ['Maren'] });
+  db.upsertEntry(tale.id, me, { title: 'The Toll House', body: 'The toll house burned in the spring.', activation: 'always_on', keys: ['toll house'] });
+  db.addPassage({ ...base, body: 'Oren lit the lamp an hour early and watched the water.' });
+  const wire = () => calls.map((b: any) => (b.messages ?? []).map((m: any) => m.content).join('\n')).join('\n');
+  const talk = (said: string) => routes['POST /api/talk']({ body: { storyId: tale.id, said },
+    query: new URLSearchParams(), owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null } as any);
+  calls = [];
+  const r: any = await talk('What does Maren want?');
+  assert.ok(!r.error, r.error);
+  assert.match(wire(), /never pays tolls/, 'TALK-ASKED: the thread the question names is sent');
+  assert.match(wire(), /owes the harbourmaster/, 'TALK-PAGE: and the one the last passage names');
+  assert.doesNotMatch(wire(), /burned in the spring/, 'TALK-NOT-ASKED: an always-on thread nothing names is not sent');
+  assert.match(wire(), /not sent[^\n]*:[^\n]*The Toll House/, 'TALK-INDEX: but it is named, so Anansi knows it is there');
+  // The writing prompt is untouched: an always-on thread still reaches every passage.
+  const { assemble, view } = await import('../src/story.ts');
+  const v: any = view(tale.id);
+  const prose = assemble(v, { global: 100_096, slots: 2, perSlot: 50_048 } as any, 'continue');
+  assert.match(prose.prompt, /burned in the spring/, 'TALK-ONLY: the writing prompt still sends every always-on thread');
+}
+ok('Talk sends the threads the question, the conversation or the page names, and lists the rest by name');
+
 // ---- ✦ (#71). Anansi's three ideas for what comes next: one small call, weaving off, writing nothing.
 //
 // The writers share four Featherless units, so the call is the smallest that does the job: the

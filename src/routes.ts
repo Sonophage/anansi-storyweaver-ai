@@ -3936,9 +3936,13 @@ export const routes: Record<string, Handler> = {
     // What Anansi reads is NOT what the composer reads. A prose prompt is 28,100 tokens on a
     // long story, most of it the recent tail, and a question about who someone is does not need
     // the last forty passages. Six is enough to ground "what just happened".
-    const grounded = { ...v, passages: v.passages.slice(-6) };
-
     const turns = turnsOf(c.body.turns);
+    // AND ONLY THE THREADS IT IS ASKED ABOUT (Seth, 2026-10-30: "it should only really look through
+    // everything based on what I've prompted it"): an always-on thread reaches Talk when the question,
+    // the conversation or the last passages name it; the others go by name (context.ts `reach`).
+    // What the writer pointed at with @ joins it below, once it is resolved.
+    const grounded: any = { ...v, passages: v.passages.slice(-6), talkReach: [turns, said].filter(Boolean).join('\n') };
+
     const world = worldOf(c.owner, v);
 
     // #99 · ANANSI CHOOSES HIS OWN SEARCHES. `search` is the writer's permission, no longer the
@@ -3999,6 +4003,7 @@ export const routes: Record<string, Handler> = {
       }
     }
 
+    if (summoned.length) grounded.talkReach += `\n${summoned.join('\n')}`;
     const ask = [
       summoned.length && 'The writer pointed at these by name. They are what the question is '
         + 'about, and they are canon — not a suggestion and not a stranger\'s text:\n\n'

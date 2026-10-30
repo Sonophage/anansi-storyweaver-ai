@@ -105,6 +105,11 @@ export interface Input {
   arcs?: Arc[];                    // act-level summaries, replacing the chapters they cover
   mode: 'continue' | 'speak' | 'act' | 'direct' | 'narrate' | 'talk';
   directive?: string;
+  /** TALK READS WHAT IS ASKED (Seth, 2026-10-30: "it should only really look through everything
+   *  based on what I've prompted it"). The writer's question and the conversation so far, apart from
+   *  the rest of the directive. Set by the Talk route only: when it is, an always-on thread is sent
+   *  when this or the last passages name it, and the others are listed by name in the MODE block. */
+  reach?: string;
   // Who the last passage belongs to, for speak and act. The writer's own line is already on the
   // page when those two generate, so the model's job is to answer it — and it cannot do that
   // without being told whose line it is.
@@ -1113,6 +1118,11 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     story.lockoutOn === false ? '' : story.lockedCharacter?.trim() ?? '', firstOrSecond);
 
   const pins = input.pins ?? {};
+  // See `reach`. The question and the page decide; the rest of the directive (the tale's own
+  // pockets by name, the World's thread list) is excluded, or every thread it names would wake.
+  const reach = input.reach != null
+    ? [...passages.slice(-8).map((p) => p.body), input.reach].join('\n') : null;
+  const unasked: string[] = [];
   for (const e of entries) {
     // force_out is a hard filter and is applied first here so nothing downstream can
     // resurrect it — SPEC §7.4 has it last in the sequence, which is the same outcome and
@@ -1137,7 +1147,12 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
       continue;
     }
     const body = bodyOf(e);
-    if (e.activation === 'always_on') {
+    if (e.activation === 'always_on' && reach != null && pins[e.id] !== 'force_in' && !isPov(e)
+      && !fires(e, reach).length) {
+      blocks.push({ kind: 'CANON-ALWAYS', id: e.id, text: '', tokens: 0, state: 'omitted',
+        reason: 'not named in what was asked' });
+      unasked.push(e.title);
+    } else if (e.activation === 'always_on') {
       add('CANON-ALWAYS', e.id, body, 'always_on', ['always_on']);
     } else if (pins[e.id] === 'force_in') {
       // The fact matters in this scene even though nobody says its keyword.
@@ -1491,7 +1506,10 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     const failed = input.whatFailed?.trim() || undefined;
     const mine = failed ? input.reweave?.trim() : undefined;
     const frame = failed ? reweaveOf(mine).replace(/\{\{\s*whatfailed\s*\}\}/g, () => failed) : '';
-    const text = [said, frame].filter(Boolean).join('\n');
+    // TALK'S OTHER THREADS BY NAME (see `reach`): Anansi knows they exist, and can ask for one.
+    const others = unasked.length ? `The tale's other threads, not sent because nothing in the question or on `
+      + `the page names them: ${unasked.join(', ')}. If an answer needs one, say which, and the writer can name it.` : '';
+    const text = [others, said, frame].filter(Boolean).join('\n');
     // THE LENGTH TARGET, and everything about where it sits is deliberate.
     //
     // Appended here rather than written into the MODE map, because those five strings are what

@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### Talking to Anansi reads what you ask about
+When you talk to Anansi, he is now sent the threads your question names, the ones on the last page
+or two, and anything you point at with @, rather than every thread that is always on. The others
+are listed for him by name, so he knows they are there and can ask you for one. What he writes
+for the story still reads every thread as before.
+
 ### Hemming asks you how the next scene should start
 Press Hem this scene and the hem screen stays open. At the top it asks how the next scene should
 start. While you write your answer, Anansi gets on with the rest: the summary, where the tale stands,

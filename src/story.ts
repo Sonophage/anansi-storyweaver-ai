@@ -447,6 +447,8 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     story: withVoice as any, chapters: v.chapters, passages, arcs: v.arcs,
     entries: v.entries.map((e) => ({ ...e, body: entryText(e) })),
     mode: mode as any, directive, speaker, currentChapter: v.currentChapter,
+    // Talk's question and conversation, which decide the always-on threads it is sent (context.ts `reach`).
+    reach: (v as any).talkReach,
     /* SHIPPED ON, 2026-09-01, at Seth's word. F53 measured it: marking the writer's own passages
      * HALVES the model's action for the locked character (2.47 -> 1.16 per 1,000 words of narration,
      * p = 0.00001, 650 generations an arm against a simultaneous control). The mechanism is that he
