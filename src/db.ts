@@ -4523,6 +4523,16 @@ export const setProposalStatus = (storyId: string, id: string, status: string) =
 /** #74 · Anansi's redo of one section of a Workbench card: its text, still chalked. */
 export const setProposalBody = (storyId: string, id: string, body: string) =>
   q("UPDATE proposals SET body = ? WHERE id = ? AND story_id = ? AND status = 'open'").run(body, id, storyId).changes > 0;
+/** One pocket out of a chalked new thread's rooms. False when the row is not open or has no such pocket. */
+export function dropProposalRoom(storyId: string, id: string, slot: string): boolean {
+  const p = q("SELECT rooms FROM proposals WHERE id = ? AND story_id = ? AND status = 'open'").get(id, storyId) as any;
+  const rooms = (() => { try { return JSON.parse(p?.rooms || 'null'); } catch { return null; } })();
+  if (!rooms || !(slot in rooms)) return false;
+  delete rooms[slot];
+  q('UPDATE proposals SET rooms = ? WHERE id = ? AND story_id = ?')
+    .run(Object.keys(rooms).length ? JSON.stringify(rooms) : null, id, storyId);
+  return true;
+}
 /** #74 · UNDO A REJECT: a rejected proposal back on the Workbench. Only a reject: one sewn in has
  *  written the tale, and its undo is altering the thread. */
 export const reopenProposal = (storyId: string, id: string) =>

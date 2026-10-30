@@ -627,7 +627,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // Merge two threads: open it, pick the other, pick which stays, Cancel, Merge.
   'mergestart', 'mergewith', 'mergekeep', 'mergex', 'mergego',
   // The hem's ask for the next scene, and who is in it (2026-10-30).
-  'hemnext', 'hemwhodone'].map((k) => `[data-${k}]`).join(',');
+  'hemnext', 'hemwhodone', 'droppocket'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -3588,11 +3588,18 @@ function whoBlock(e, pin, scene) {
  *  buttons of its own (Seth, 2026-10-30): the card's swipe or its two buttons decide the whole
  *  thread. A TAP ON THE TEXT EDITS IT IN PLACE: the diff gives way to its box, which is what Sew it in
  *  sends (`deckall` reads `data-pbody`), with Anansi edits under it. A retirement has no text to edit. */
-function hemRow(p) {
+/* ONE POCKET OUT, NOT THE THREAD (Seth, 2026-10-30: "I should be able to discard per pocket not the line
+ * as a whole"). A small ✕ on each row of a thread's card rejects that row alone, and on each pocket a
+ * new thread arrives with drops that pocket (`/api/proposal/droppocket`); Sew it in takes the rest.
+ * Only where there is a rest: a card of one row is decided by its own Reject. */
+function hemRow(p, i, rows) {
   const was = hemBefore(p), id = esc(p.id);
   const shown = was == null ? `<div class="note">${esc(p.body ?? '')}</div>` : diffHTML(was, p.body ?? '');
+  const many = (rows?.length ?? 1) > 1;
   return `<div class="hemrow stack" data-hemrow="${id}">
-    <div class="lbl sub-lbl flush">${rowLabel(p)}</div>
+    <div class="line-8"><span class="lbl sub-lbl flush fill">${rowLabel(p)}</span>${
+      many ? `<button class="hemdrop" data-decide="reject" data-id="${id}" aria-label="Discard ${
+        rowLabel(p).replace(/&middot;/g, '-')}" title="Discard this one">&#10005;</button>` : ''}</div>
     ${/* NO role="button" ON THE TEXT (2026-10-30: "the was button opens the card to edit"). On a
           touch screen the browser steers a tap toward the nearest thing that says it is a button,
           and the text around the Was / Now switch out-pulled the switch's own small buttons. The
@@ -3608,9 +3615,11 @@ function hemRow(p) {
         <button class="btn ghost" data-anansiedit="${id}" style="flex:0 0 auto; width:auto; padding:0 14px">Anansi edits</button>
       </div></div>`}
     ${p.rooms && Object.keys(p.rooms).length ? `<div class="hint trail-6">It arrives with these:</div>
-      ${Object.entries(p.rooms).map(([slot, r]) => `<div class="hint flush">
-        <span class="lbl flush">${slot === 'stands' ? 'Where it stands' : esc(pocketTitle(slot))}${r?.name && r.name !== slot ? ` &middot; ${esc(r.name)}` : ''}</span>
-        ${esc(typeof r === 'object' ? r.body ?? '' : String(r))}</div>`).join('')}` : ''}
+      ${Object.entries(p.rooms).map(([slot, r]) => `<div class="hint flush line-8" data-hemroom="${esc(slot)}">
+        <span class="fill"><span class="lbl flush">${slot === 'stands' ? 'Where it stands' : esc(pocketTitle(slot))}${r?.name && r.name !== slot ? ` &middot; ${esc(r.name)}` : ''}</span>
+        ${esc(typeof r === 'object' ? r.body ?? '' : String(r))}</span>${
+        `<button class="hemdrop" data-droppocket="${id}" data-slot="${esc(slot)}" aria-label="Discard ${
+          slot === 'stands' ? 'where it stands' : esc(pocketTitle(slot))}" title="Discard this pocket">&#10005;</button>`}</div>`).join('')}` : ''}
   </div>`;
 }
 
@@ -3996,7 +4005,11 @@ function hemStepStates(ch, closed) {
     state: !ready || owed ? 'wait' : !next || started ? 'done' : 'you',
     line: !ready || owed ? '' : !next || started ? 'Under way' : 'Ready when you are' };
   // ONE GOLD STEP, the next one: a later step that also waits on the writer waits its turn.
-  const all = [...passes, ...who, decide, setup], first = all.find((x) => x.state === 'you');
+  // IN THE ORDER IT HAPPENS (Seth, 2026-10-30): the next scene and who is in it first, then the
+  // summary, then the rest of Anansi's passes, then the writer's. Only the drawing order.
+  const at = (k) => passes.filter((x) => x.k === k);
+  const all = [...at('next'), ...who, ...at('summary'), ...passes.filter((x) => x.k !== 'next' && x.k !== 'summary'),
+    decide, setup], first = all.find((x) => x.state === 'you');
   for (const x of all) if (x.state === 'you' && x !== first) x.state = 'wait';
   return all;
 }
@@ -13654,7 +13667,7 @@ document.addEventListener('click', async (e) => {
     const closing = V.currentChapter;
     // THE NEXT SCENE IS ASKED FOR, NOT GUESSED (Seth, 2026-10-30): `next: false` leaves that pass
     // waiting, and the drawer asks how the next scene starts (`hemAsk`) while the others run.
-    const r = await api.endChapter(S.storyId, { next: false });
+    const r = await api.endChapter(S.storyId, { next: false, ask: true });
     S.ritual = null;
     if (r.error) { paint(); return toast(r.error); }
     // The answer is the view. The hem report (`ch.hem`) is on the scene, so it survives a reload.
@@ -13674,12 +13687,18 @@ document.addEventListener('click', async (e) => {
   // running, so it reads their summary.
   if (d.hemnext) {
     const opens = (S.hemSteer ?? '').trim();
-    const r = await api.hemAgain(S.storyId, d.hemnext, { pass: 'next', ...(opens ? { opens } : {}) });
+    const r = await api.hemAgain(S.storyId, d.hemnext, { pass: 'next', asked: true, ...(opens ? { opens } : {}) });
     if (r.error) return toast(r.error);
     (S.hemAsked ??= new Set()).add(d.hemnext); S.hemWho?.delete(d.hemnext);
     S.hemSteer = '';
     V = r; paint();
     return toast(opens ? 'Kept as you wrote it. Anansi names the scene from it.' : 'Anansi chooses how it starts.');
+  }
+  if (d.droppocket) {
+    const r = await api.dropPocket(S.storyId, d.droppocket, d.slot);
+    if (r.error) return toast(r.error);
+    V = r; paint();
+    return toast('That pocket is left out. Sew it in takes the rest.');
   }
   if (d.hemwhodone) { (S.hemWho ??= new Set()).add(d.hemwhodone); S.setupQ = ''; paint(); return; }
   if (d.hemextra) {

@@ -6522,7 +6522,8 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // below the steps change"). Anansi's six passes, then the writer's two, each in one state.
   {
     const states = (side: string) => [...side.matchAll(/data-hemstep="([a-z]+)" data-done="[01]"\s*data-state="([a-z]+)"/g)].map((m) => `${m[1]}:${m[2]}`);
-    const order = ['summary', 'tale', 'memory', 'facts', 'finished', 'next', 'decide', 'setup'];
+    // IN THE ORDER IT HAPPENS (Seth, 2026-10-30): the next scene first, then the summary and the rest.
+    const order = ['next', 'summary', 'tale', 'memory', 'facts', 'finished', 'decide', 'setup'];
     const below = (side: string) => side.match(/<div class="hemact">([\s\S]*?)<\/div>\s*<details class="hemmore/)?.[1] ?? 'NO HEMACT';
     click({ open: 's-1' }); await sleep(40);
     click({ ritual: '1' }); await sleep(30);
@@ -6533,7 +6534,11 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     assert.strictEqual((side.match(/class="btn fill"/g) ?? []).length, 1, 'HEM-GOLD: one gold press');
     assert.doesNotMatch(side, /data-panel="waiting"|passes did not run/, 'HEM-QUIET: no Decide button and no report box');
     side = await reportOn({ ...ran, tale: null, facts: 'the model did not answer' });
-    assert.deepStrictEqual(states(side).slice(0, 6), order.slice(0, 6).map((k) => `${k}:${k === 'facts' ? 'fail' : 'done'}`),
+    assert.deepStrictEqual(states(side).map((x) => x.split(':')[0]),
+      ['next', 'who', 'summary', 'tale', 'memory', 'facts', 'finished', 'decide', 'setup'],
+      'HEM-ORDER: after a hem, the next scene and who is in it come first, then the summary, then the rest');
+    assert.deepStrictEqual(states(side).filter((x) => !/^(who|decide|setup):/.test(x)).sort(),
+      ['facts:fail', 'finished:done', 'memory:done', 'next:done', 'summary:done', 'tale:done'],
       'HEM-STATES: after a hem, the passes that ran are done and the one that did not failed');
     const step = (k: string) => side.match(new RegExp(`data-hemstep="${k}"[\\s\\S]*?</li>`))?.[0] ?? '';
     assert.match(step('facts'), /Did not run/, 'HEM-FAILED-STEP: the step that failed says it did not run');
@@ -7421,7 +7426,8 @@ const HEM_ROWS = [
   { id: 'hs-3', entryId: 'e-2', title: 'The stair', body: 'Nobody climbs it after this scene.',
     entryType: 'retire', kind: 'retire', keys: ['2'], chapterId: 'c-1', grp: 'scene:c-1' },
   { id: 'hs-4', entryId: null, title: 'The bellringer', body: 'Rings the hour, never the alarm.',
-    entryType: 'character', kind: 'new', field: 'facts', keys: [], chapterId: 'c-1', grp: 'scene:c-1' },
+    entryType: 'character', kind: 'new', field: 'facts', keys: [], chapterId: 'c-1', grp: 'scene:c-1',
+    rooms: { voice: { name: 'Hoarse', body: 'Hoarse from the tower.' } } },
 ];
 // A card from before #89: one thread's group. It must be drawn exactly as it always was.
 const OLD_ROW = { id: 'hp-1', entryId: 'e-fired', title: 'The lamplighter', body: 'He came at five, not six.',
@@ -7489,7 +7495,13 @@ const hemCardOf = (side: string) => {
     '  with each change on it, by what it is');
   assert.match(sereth, /data-deckall="accept" data-ids="hs-1,hs-2" data-deckright="1">Sew it in/, 'THREAD-ONE-YES: one Sew it in, for the whole thread, the swipe right');
   assert.match(sereth, /data-deckall="reject" data-ids="hs-1,hs-2" data-deckleft="1">&larr; Reject/, '  and one Reject, the swipe left');
-  assert.doesNotMatch(side, /data-decide="(accept|reject)" data-id="hs-/, 'THREAD-NO-ROW-BUTTONS: no Sew it in or Reject on each change');
+  assert.doesNotMatch(side, /data-decide="accept" data-id="hs-/, 'THREAD-NO-ROW-BUTTONS: no Sew it in on each change');
+  // ONE POCKET OUT, NOT THE THREAD (Seth, 2026-10-30: "I should be able to discard per pocket not the
+  // line as a whole"): each row of a card with more than one has a quiet ✕ that rejects it alone.
+  assert.match(sereth, /class="hemdrop" data-decide="reject" data-id="hs-1"[\s\S]*class="hemdrop" data-decide="reject" data-id="hs-2"/,
+    'THREAD-ROW-DISCARD: each change on a thread\'s card can be discarded on its own');
+  assert.match(bell, /data-hemroom="voice"[\s\S]*?class="hemdrop" data-droppocket="hs-4" data-slot="voice"/,
+    '  and each pocket a new thread arrives with, on its own');
   assert.doesNotMatch(sereth, />Edit</, '  and no Edit fold');
   // EDITED IN PLACE: a tap on the text opens its box, which is what Sew it in sends.
   assert.doesNotMatch(sereth, /class="hemedit"[^>]*role="button"/, 'THREAD-EDIT-TOUCH: the text is not a role=button, or a tap on Was opens the box (2026-10-30)');
@@ -7964,6 +7976,7 @@ const hemCardOf = (side: string) => {
     // THE HEM ASKS FOR THE NEXT SCENE (Seth, 2026-10-30): the close does not guess it first, and the
     // drawer stays open on the hem, asking how the next scene should start while the passes run.
     assert.strictEqual(end.body.next, false, 'HEM-ASKS: the close leaves the next scene to be asked for');
+    assert.strictEqual(end.body.ask, true, 'HEM-HOLDS-ASKED: and holds where things stand until it is (2026-10-30)');
     assert.ok(!nodes.get('side').hidden, 'HEM-STAYS: the hem drawer stays open while it runs');
     // THE EDITOR'S FULL SCREEN (Seth, 2026-10-30: "It should use the editor full screen ui").
     const rootEl = (globalThis as any).document.documentElement;
@@ -7980,7 +7993,7 @@ const hemCardOf = (side: string) => {
     (listeners.input ?? []).forEach((f: Function) => f({ target: { dataset: { hemsteer: 'c-2' }, value: 'Days later, in his bookstore.' } }));
     click({ hemnext: 'c-2' }); await settle();
     const asked = POSTED.filter((p: any) => p.url === '/api/chapter/hem').at(-1);
-    assert.deepStrictEqual(asked?.body, { storyId: 's-1', chapterId: 'c-2', pass: 'next', opens: 'Days later, in his bookstore.' },
+    assert.deepStrictEqual(asked?.body, { storyId: 's-1', chapterId: 'c-2', pass: 'next', asked: true, opens: 'Days later, in his bookstore.' },
       'HEM-ASKED: the opening is sent as written, as the next-scene pass');
     // THEN WHO IS IN IT, gold, with the list and Done; the summary waits for Done and for the scans.
     side = html('sideBody');

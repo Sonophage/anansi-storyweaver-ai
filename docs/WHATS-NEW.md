@@ -24,6 +24,18 @@ next scene's opening, word for word; press Enter and Anansi names the scene and 
 from it, while he finishes reading this one. Then you choose who is in the next scene: take out who
 is not, bring in who is, and press Done. By then the hem has usually finished, and it shows you the
 summary it wrote and what it found to decide. Nothing is written until you start the next scene.
+### The hem's steps are in the order they happen
+The next scene and who is in it are at the top of the list now, then the summary, then the rest.
+### Where things stand follows how you said the next scene opens
+Where the tale stands, and where each person stands, now wait until you have said how the next
+scene starts, and are written knowing it, so they stop guessing at things that have not happened.
+### Discard one pocket, not the whole thread
+On a thread's card, each change and each pocket has a small ✕ that discards just that one. Sew it
+in takes the rest.
+### Anyone new has suggestions waiting
+Once Anansi has named the next scene, he works out who or what it needs that the tale does not have
+yet, from the summary, your opening and where the scene heads. They are waiting on Anyone new when
+you get there.
 ### A new scene opens where you said, not where the last one stopped
 The first passage of a new scene kept picking up the scene before it, even when you said it opens
 somewhere else days later. Anansi is now told plainly that the scene before has ended, and to open

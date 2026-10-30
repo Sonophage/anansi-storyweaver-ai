@@ -229,6 +229,7 @@ export const api = {
   relink:       (o)              => j('/api/entry/relink', 'POST', o),
   dropfollowed: (o)              => j('/api/entry/drop', 'POST', o),
   decide:       (o)              => j('/api/proposal', 'POST', o),
+  dropPocket:   (storyId, id, slot) => j('/api/proposal/droppocket', 'POST', { storyId, id, slot }),
   redo:         (storyId, id, steer) => j('/api/proposal/redo', 'POST', { storyId, id, steer }),
   reopen:       (storyId, ids) => j('/api/proposal/reopen', 'POST', { storyId, ids }),
   // Move a proposal before deciding it: which room, and the words that wake the card.

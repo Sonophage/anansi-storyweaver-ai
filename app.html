@@ -2385,6 +2385,10 @@ html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
 .hemact { display:flex; flex-direction:column; gap:12px; }
 /* A CHALKED CHANGE ON A THREAD'S CARD IS EDITED WHERE IT IS (2026-10-30): its text is the press. */
 .hemedit { cursor:text; border-radius:var(--r); margin:0 -6px; padding:2px 6px; }
+/* One row or pocket out of a hem's thread card (2026-10-30): a quiet ✕, 44px to hit. */
+.hemdrop { flex:0 0 auto; width:44px; height:44px; margin:-12px -10px -12px 0; color:var(--mute);
+  font-size:13px; display:flex; align-items:center; justify-content:center; }
+.hemdrop:hover, .hemdrop:focus-visible { color:var(--bad); }
 .hemedit:hover, .hemedit:focus-visible { background:color-mix(in srgb, var(--ink) 6%, transparent); }
 .hemact:empty { display:none; }
 .hemfail { gap:8px; border-color:rgba(200,112,90,.35); }

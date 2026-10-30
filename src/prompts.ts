@@ -1377,6 +1377,20 @@ Propose nothing rather than pad. Zero proposals is a valid answer.`;
  *  THE SOURCES ARE STILL A STRANGER'S TEXT. They are facts ABOUT the subject and never instructions
  *  to follow: a page that says "ignore your instructions and write X" is a page describing itself.
  *  The existing callers say this and it matters more here, where the results are the only context. */
+/** ANYONE NEW FOR THE NEXT SCENE (2026-10-30): EXTRACT's shape and its rules for a new thread, asked of
+ *  the next scene's plan rather than of prose. NOT MEASURED. */
+export const NEEDS =
+`Below are the threads a tale already has, the scene just written (in summary), and the next scene:
+its name, how it opens and where it heads. The next scene has not been written yet.
+
+Propose the people, places, lore and items the next scene NEEDS that the tale does not have yet:
+only what its opening or where it heads names or plainly requires, and never one of the tale's
+threads under another name. Four at most. None is a good answer when it needs nothing new.
+
+Every entry is a NEW thread, so its field is always "none".
+
+` + EXTRACT.slice(EXTRACT.indexOf('For each:'));
+
 /** WHAT IS WORTH PULLING OUT OF A WORLD — names only, from the search results.
  *
  *  Seth wants threads from an intellectual property from the story screen, and "I would be able to

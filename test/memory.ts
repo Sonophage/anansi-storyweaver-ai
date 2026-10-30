@@ -56,6 +56,8 @@ let stringsSay: any[] = [];
 /** And what the scene-name ask returns (2026-10-30): a blob-shaped answer until a block sets it, which
  *  the hem must refuse as a name. */
 let sceneNamed = '{"title":"not a name"}';
+/** And what the next scene's needs ask returns (NEEDS, 2026-10-30): nothing, until a block sets it. */
+let needsFound: any[] = [];
 
 /** #89. A fake that HOLDS its answer while `gate` is pending: how a test proves the hem answers
  *  before its passes do, and that a second hem waits for the first. `inflight` counts asks being
@@ -88,6 +90,8 @@ const srv = createServer((req, res) => {
     // And where the strings stand, one line each (2026-10-30).
     if (asked.system.startsWith('Below is where a story stands, the strings it carries')) return send({ choices: [{ message: {
       content: stringsSay.map((x: any) => `${x.n}: ${x.now}`).join('\n') } }], usage: { prompt_tokens: 200, completion_tokens: 60 } });
+    if (asked.system.startsWith('Below are the threads a tale already has')) return send({ choices: [{ message: {
+      content: JSON.stringify({ entries: needsFound }) } }], usage: { prompt_tokens: 200, completion_tokens: 60 } });
     if (asked.system.startsWith('Below is a scene of a story that has just been written')) return send({ choices: [{ message: {
       content: sceneNamed } }], usage: { prompt_tokens: 200, completion_tokens: 6 } });
     if (asked.system.startsWith(TALE_HEAD)) return send({ choices: [{ message: { content: taleSays } }],
@@ -1476,12 +1480,19 @@ ok('a hem asks for the next scene rather than guessing it, and the answer goes i
 {
   const t = db.createStory(me, { title: 'Opened as said', premise: 'A ferry town.' }) as any;
   const ch0 = (db.chapters(t.id)[0] as any);
-  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The ferry left without him.' });
-  tidied = { ...NEXT }; asks.length = 0;
-  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false }));
+  db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The ferry left without Oren.' });
+  tidied = { ...NEXT }; asks.length = 0; taleSays = 'Oren is ashore.';
+  // THE HEM DRAWER'S CLOSE (`ask`) HOLDS where things stand until the writer says how the next scene
+  // opens (Seth, 2026-10-30: "otherwise it's confusing and writes things that hasn't happened").
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false, ask: true }));
   await hemSettled(t.id);
+  const held = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.deepStrictEqual(Object.keys(held.passes).sort(), ['facts', 'finished', 'summary'],
+    `HEM-HOLDS: the close runs the summary, new threads and retirements, and holds the rest (${Object.keys(held.passes)})`);
+  assert.ok(!askOf(prompts.MEMORY) && !askOf(TALE_HEAD), '  so nothing about where things stand is asked yet');
   const mine = 'Two days later, in his bookstore, two strangers walk in.';
-  const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', opens: mine }));
+  const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', asked: true, opens: mine }));
   assert.ok(!v.error, v.error);
   assert.strictEqual((db.chapters(t.id) as any[]).find((c) => c.id === r.opened).opens_with, mine,
     'HEM-OPENS-NOW: the opening is the scene\'s as soon as it is sent, before the pass runs');
@@ -1493,7 +1504,15 @@ ok('a hem asks for the next scene rather than guessing it, and the answer goes i
   assert.strictEqual(next.title, NEXT.title, '  while the pass names the scene');
   assert.strictEqual(next.authors_note, NEXT.note, '  and says where it heads');
   assert.strictEqual(sceneOf(await viewNow(t.id), ch0.id).hem.suggestion?.opens, mine, '  and the hem\'s suggestion carries the same opening');
-  tidied = {};
+  // THE ANSWER RUNS WHAT WAS HELD, and both of them read the opening.
+  const done = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.deepStrictEqual(Object.keys(done.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary', 'tale'],
+    'HEM-ASKED-RUNS: the answer runs where the tale stands, the people and the next scene');
+  assert.match(String(askOf(TALE_HEAD)?.user ?? ''), /HOW THE NEXT SCENE OPENS[\s\S]*Two days later, in his bookstore/,
+    'STANDS-READS-OPENING: where the tale stands is asked with how the next scene opens');
+  assert.match(String(askOf(prompts.MEMORY)?.user ?? ''), /HOW THE NEXT SCENE OPENS[\s\S]*Two days later, in his bookstore/,
+    '  and so is where each person stands');
+  tidied = {}; taleSays = '';
 }
 ok('the opening the writer sends from the hem is the scene\'s, as written, and the pass names the scene from it');
 
@@ -1530,12 +1549,13 @@ ok('a hem chalks six new threads at most, and the rest wait by name until asked 
     body: 'Oren cut the bell down from the ferry post and carried it home.' });
   answer = [{ name: 'Oren', stands: '[Oren: the ferryman, who has taken the ferry bell home]', label: 'took the bell',
     line: 'Oren cut the bell down from the ferry post', always: '', pockets: [] }];
-  found = [{ title: 'The Ferry Bell', body: 'Bronze, green with river damp.', type: 'item', keys: ['bell'] }];
-  tidied = { ...NEXT };
+  found = [{ title: 'The Ferry Bell', body: 'Bronze, green with river damp.', type: 'item', keys: ['bell'],
+    pockets: [{ slot: 'appearance', name: 'Green bronze', body: 'Green with river damp.' }] }];
+  tidied = { ...NEXT }; needsFound = found;
   failIf = (system) => system.startsWith(prompts.EXTRACT.slice(0, 80));
   await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
   await hemSettled(t.id);
-  failIf = null; tidied = {};
+  failIf = null; tidied = {}; needsFound = [];
   const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.strictEqual(hem?.state, 'done', 'the hem still finishes');
   assert.ok(typeof hem.passes.facts === 'string' && hem.passes.facts.length > 0,
@@ -1544,7 +1564,23 @@ ok('a hem chalks six new threads at most, and the rest wait by name until asked 
   assert.strictEqual(hem.passes.next, null, '  and the next-scene suggestion');
   assert.deepStrictEqual(hem.suggestion, NEXT, '  which arrived');
   assert.ok((db.proposalsOf(t.id) as any[]).some((p) => p.entry_type === 'state'), '  and the thread change was chalked');
-  assert.ok(!(db.proposalsOf(t.id) as any[]).some((p) => p.title === 'The Ferry Bell'), '  and the failed pass chalked nothing');
+  assert.ok(!(db.proposalsOf(t.id) as any[]).some((p) => p.title === 'The Ferry Bell' && p.chapter_id === ch0.id),
+    '  and the failed pass chalked nothing');
+  // ANYONE NEW, ASKED BEFORE THE WRITER GETS THERE (2026-10-30): the next-scene pass asks what that
+  // scene needs (NEEDS, which the fake answers with `found`), chalked as new against that scene.
+  const opened = (db.chapters(t.id) as any[])[1].id;
+  const need = (db.proposalsOf(t.id) as any[]).find((p) => p.title === 'The Ferry Bell' && p.chapter_id === opened);
+  assert.ok(need && need.kind === 'new', 'NEEDS-CHALKED: what the next scene needs is chalked as new, against that scene');
+  assert.match(String(askOf(prompts.NEEDS)?.user ?? ''), /THE NEXT SCENE: The Ferry at Dusk[\s\S]*HOW IT OPENS:\nThe river was low\.[\s\S]*WHERE IT HEADS/,
+    '  asked from the next scene\'s name, opening and where it heads');
+  assert.ok(JSON.parse(need.rooms || '{}').appearance, '  with the pockets it came with');
+  // ONE POCKET OUT, NOT THE THREAD (Seth, 2026-10-30).
+  const dropped: any = routes['POST /api/proposal/droppocket'](ctx({ storyId: t.id, id: need.id, slot: 'appearance' }));
+  assert.ok(!dropped.error, dropped.error);
+  const after = (db.proposalsOf(t.id) as any[]).find((p) => p.id === need.id);
+  assert.ok(after.status === 'open' && !JSON.parse(after.rooms || '{}').appearance, 'DROP-POCKET: one pocket goes, and the thread stays chalked');
+  assert.ok((routes['POST /api/proposal/droppocket'](ctx({ storyId: t.id, id: need.id, slot: 'appearance' })) as any).error,
+    '  and a pocket already gone is refused');
   ok('a pass that fails is named in the hem report, and the others still run');
 }
 
