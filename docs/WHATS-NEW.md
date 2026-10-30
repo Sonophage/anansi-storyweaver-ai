@@ -18,6 +18,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### Talk opens full screen
+Talking to Anansi now always opens full screen, with the conversation above the box. Full screen's
+own button still makes it small, and going back to writing gives you the small box again.
+
+### A handle instead of an arrow
+The small arrow that showed the scene's numbers under the header, and the one on top of the box
+that folds it away, are now a short handle, like the one on a phone's sheets. They do the same
+things.
+
 ### Talking to Anansi reads what you ask about
 When you talk to Anansi, he is now sent the threads your question names, the ones on the last page
 or two, and anything you point at with @, rather than every thread that is always on. The others

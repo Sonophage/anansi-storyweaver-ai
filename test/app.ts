@@ -1395,11 +1395,16 @@ ok('the header names the book, and carries no reading of its own');
   assert.ok(!/\d+ words|\d+% (full|used)/.test(html('bar')),
     'and the header carries neither the word count nor the percentage any more');
 
-  // A ⌄ IN ITS PLACE UNTIL IT IS PRESSED — Seth, 2026-10-26: the stats "should be replaced by a down
+  // A HANDLE (a ⌄ until 2026-10-30) IN ITS PLACE UNTIL IT IS PRESSED — Seth, 2026-10-26: the stats "should be replaced by a down
   // arrow that when triggered show those stats, hitting again can hide it". Always open before that.
   const read = html('ctxread');
   assert.doesNotMatch(read, /scene 2 of 2|words/, 'the reading is shut with nothing pressed');
-  assert.match(read, /data-ctxtoggle="1"[^>]*aria-expanded="false"/, 'and is a ⌄ in its place, saying so');
+  assert.match(read, /data-ctxtoggle="1"[^>]*aria-expanded="false"/, 'and is a handle in its place, saying so');
+  // A HANDLE, NOT AN ARROW (Seth, 2026-10-30: "instead of the down caret for the context line and the
+  // bottom input let's add a small handle"). The same handle on the box's top edge.
+  assert.match(read, /data-ctxtoggle="1"[\s\S]*?<span class="grip" aria-hidden="true"><\/span>/, 'HANDLE-CTX: the numbers open by a small handle');
+  assert.doesNotMatch(read, /\u2304|\u2303/, '  and no arrow');
+  assert.match(html('dockCol'), /id="fold"[^>]*>\s*<span class="grip" aria-hidden="true"><\/span>/, 'HANDLE-BOX: the box folds by the same handle');
   click({ ctxtoggle: '1' });
   const opened = html('ctxread');
   assert.match(opened, /data-ctxtoggle="1"[^>]*aria-expanded="true"/, 'one press opens it, and the arrow says so');
@@ -3287,6 +3292,8 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
   click({ panel: 'anansi' }); await sleep(30);
   assert.ok((document as any).getElementById('side').hidden, 'TALK-NO-DRAWER: the Talk drawer does not open in a tale');
   assert.match(html('dockCol'), /id="talkthread"/, '  the composer turns to Talk instead, with the conversation above the box');
+  // ALWAYS FULL SCREEN (Seth, 2026-10-30: "Anansi chat should always open full screen").
+  assert.match(html('dockCol'), /data-bigin="1" aria-pressed="true"/, 'TALK-OPENS-FULL: Talk opens full screen');
   POSTED.length = 0;
   (document as any).getElementById('input').value = 'Who is Marek?';
   click({ send: '1' }); await sleep(80);
@@ -3296,10 +3303,11 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
   assert.ok(dock.indexOf('id="talkthread"') < dock.indexOf('id="input"'), '  above the box');
   assert.ok((document as any).getElementById('side').hidden, '  and no drawer opened for the answer');
   click({ bigin: '1' }); await sleep(20);
-  assert.ok(html('dockCol').includes('Who is Marek?'), 'TALK-FULL: full screen keeps the same conversation');
+  assert.ok(html('dockCol').includes('Who is Marek?'), 'TALK-SMALL: made small, it keeps the same conversation');
   click({ bigin: '1' }); await sleep(20);
   click({ dockwrite: '1' }); await sleep(30);
   assert.doesNotMatch(html('dockCol'), /id="talkthread"/, '  Back to writing puts the conversation away');
+  assert.match(html('dockCol'), /data-bigin="1" aria-pressed="false"/, 'TALK-LEAVES-FULL: and the box it leaves is the small one');
 }
 ok('Talk lives in the composer, small or full screen, with the conversation above the box and no drawer');
 

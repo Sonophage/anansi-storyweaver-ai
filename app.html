@@ -1342,12 +1342,16 @@ html[data-work="ai"]       { --work:var(--gold); }
 /* ONE STATE OR THE OTHER (Seth, 2026-10-25): with the box up the bar is hidden, and with the bar
    showing the box is folded. */
 #dock:not(.folded) #nextbar { display:none; }
-/* ⌄, the way to fold the box with a finger, on the box's top edge: a 44px press, half of it over
+/* The handle (once a ⌄), the way to fold the box with a finger, on the box's top edge: a 44px press, half of it over
    the prose, like a sheet's handle. Only drawn when there is a bar to fold back to. */
 #fold { position:absolute; top:-24px; left:50%; transform:translateX(-50%); width:56px; height:44px;
   display:flex; align-items:center; justify-content:center; z-index:2; color:var(--gold-dim);
   font-size:22px; line-height:1; }
 #fold:hover, #fold:focus-visible { color:var(--gold); }
+/* THE HANDLE (Seth, 2026-10-30): a short rounded bar, the sheet handle a phone already teaches, on
+   the box's top edge and on the scene's numbers, in place of a ⌄. The press around it stays 44px. */
+.grip { display:block; width:36px; height:4px; border-radius:2px; background:currentColor; opacity:.55; }
+:is(#fold, .ctxtoggle):hover .grip, :is(#fold, .ctxtoggle):focus-visible .grip { opacity:.9; }
 #dock.folded #fold, #dock.big #fold { display:none; }
 #nextrow { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
 #nextrow button { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }

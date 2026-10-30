@@ -1131,7 +1131,7 @@ function drawMeter() {
   bar.innerHTML = V.chapters.map((c, i) =>
     `<i class="${i === at ? 'at' : i < at ? 'past' : ''}"></i>`).join('');
 
-  /* A ⌄ IN ITS PLACE UNTIL IT IS PRESSED. It was always open from 2026-09-02 ("have this always
+  /* A HANDLE IN ITS PLACE UNTIL IT IS PRESSED (a ⌄ until Seth, 2026-10-30: "a small handle instead"). It was always open from 2026-09-02 ("have this always
    * visible") until Seth, 2026-10-26: the stats "should be replaced by a down arrow that when
    * triggered show those stats, hitting again can hide it unless you click what is in it". So the
    * row is the arrow alone, the arrow opens the stats and shuts them again, and "what is in it"
@@ -1140,7 +1140,7 @@ function drawMeter() {
   read.classList.toggle('shut', !CTX_OPEN);
   const toggle = `<button data-ctxtoggle="1" class="ctxtoggle" aria-expanded="${CTX_OPEN}"
     aria-label="${CTX_OPEN ? 'Hide' : 'Show'} the scene's numbers" title="${CTX_OPEN ? 'Hide' : 'Show'} the scene's numbers"
-    ><span aria-hidden="true">${CTX_OPEN ? '\u2303' : '\u2304'}</span></button>`;
+    ><span class="grip" aria-hidden="true"></span></button>`;
   if (!CTX_OPEN) { read.innerHTML = toggle; return; }
   read.innerHTML = `
     <span>scene ${at + 1} of ${V.chapters.length}</span>
@@ -2244,6 +2244,9 @@ function foldBox() {
  *  hides, and the line above the box says where the words go and how to come back. */
 function dockTalk(on = true) {
   S.dockTalk = on;
+  // TALK OPENS FULL SCREEN (Seth, 2026-10-30: "Anansi chat should always open full screen"), and
+  // back to writing is the small box again. Full screen's own press still makes it small.
+  S.bigInput = on;
   if (on) S.dockOpen = true;
   drawDock();
   $('input')?.focus({ preventScroll: true });
@@ -2343,7 +2346,7 @@ function drawDock() {
 
   $('dockCol').innerHTML = `${weaveFitRow()}
     ${last ? `<button id="fold" data-dockfold="1" aria-label="Fold the box away" title="Fold the box away"
-      ><span aria-hidden="true">⌄</span></button>` : ''}
+      ><span class="grip" aria-hidden="true"></span></button>` : ''}
     ${/* TALK LIVES IN THE COMPOSER (Seth, 2026-10-29: drop the Talk drawer). The conversation sits
          above the box, small or full screen, drawn by the one renderer the setup drawer also uses;
          under it the drafted directive, a refusal's row, and the search switch and Clear. */
@@ -9504,7 +9507,7 @@ function closeLayersBack() {
  *  which has no composer (#100). Here, where every repaint passes, so no door can miss it. */
 function talkToComposer() {
   if (S.panel !== 'anansi' || S.place !== 'story' || onSetup()) return;
-  S.panel = null; S.dockTalk = true; S.dockOpen = true; TALK_FOR = S.storyId;
+  S.panel = null; S.dockTalk = true; S.dockOpen = true; S.bigInput = true; TALK_FOR = S.storyId;
 }
 
 function paint() {

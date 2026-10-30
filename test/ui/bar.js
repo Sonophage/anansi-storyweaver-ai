@@ -101,14 +101,14 @@ ok("QUILL-WRITES-NOTHING: and writes nothing", (await models()) === m0 && !(awai
 
 // ---- one state or the other: with the box up the bar is hidden, and every way of folding it works
 ok("BAR-HIDDEN-UP: with the box up the three buttons are hidden", !(await shown('#nextbar')));
-ok("FOLD-CONTROL: a ⌄ on the box's top edge, 44px to the finger",
+ok("FOLD-CONTROL: a handle on the box's top edge, 44px to the finger",
    await page.eval(`(() => { const f = document.getElementById('fold'); if (!f) return false;
      const r = f.getBoundingClientRect(), d = document.getElementById('dock').getBoundingClientRect();
      return r.width >= 44 && r.height >= 44 && r.top < d.top && r.bottom > d.top; })()`));
 await page.eval(`(() => { const i = document.getElementById('input'); i.value = 'half a line, unsent';
   i.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
 await press('#fold'); await wait(250);
-ok("FOLD-TAP: the ⌄ folds the box", await folded());
+ok("FOLD-TAP: the handle folds the box", await folded());
 ok("BAR-BACK: and the three buttons come back", await shown('#nextbar') && JSON.stringify(await barButtons()) === '["re","quill","cont"]');
 ok("  and nothing was written", (await models()) === m0 && !(await page.eval("!!document.getElementById('ghost')")));
 await press('#quill'); await wait(250);
