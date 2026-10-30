@@ -211,7 +211,12 @@ ok("  and the scaffold call brought back no cast at all", (await page.eval("wind
   ok("  and does not ask again on every visit, though the box it would fill is still empty",
      (await page.eval("window.__style")) === 1);
 
-  // The button is the other half of "be able to be rerolled", and it is a real second call.
+  // The button is the other half of "be able to be rerolled", and it is a real second call. It is
+  // under More about the tale, folded (2026-10-30), so the fold is opened first.
+  if (!(await page.eval("!!document.querySelector('[data-fold=\"spmore\"]')?.parentElement?.open"))) {
+    await page.click('[data-fold="spmore"]');
+    await wait(400);
+  }
   await page.click('[data-spstyle="1"]');
   await wait(700);
   ok(`  but the button asks again when it is pressed, and fills the box (${await page.eval("window.__style")} calls)`,
@@ -519,7 +524,10 @@ ok("  a proposed character can be edited once opened",
 await page.eval(`(() => { document.querySelector('[data-spname="0"]').value = 'Ilva Vane';
   document.querySelector('[data-spbody="0"]').value = '[Ilva Vane: a tide-clerk who lies about it.]';
   return 1; })()`);
-// And a blank one you started and abandoned must not reach the ledger as "Untitled".
+// And a blank one you started and abandoned must not reach the ledger as "Untitled". An open thread
+// fills the step (2026-10-30), so it is closed first, back to the list where ＋ is.
+await page.click('[data-spopen=""]');
+await wait(300);
 await page.click('[data-spadd]');
 await wait(400);
 // It harvests the rename above on the way, and opens the new thread to be named.

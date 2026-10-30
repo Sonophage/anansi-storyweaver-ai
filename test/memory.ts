@@ -53,6 +53,10 @@ let TALE_HEAD = 'Below is what a story is, where it stood before its latest scen
 /** And what the where-each-string-stands pass returns (#127): by number. Empty, so no hem moves a string. */
 let stringsSay: any[] = [];
 
+/** And what the scene-name ask returns (2026-10-30): a blob-shaped answer until a block sets it, which
+ *  the hem must refuse as a name. */
+let sceneNamed = '{"title":"not a name"}';
+
 /** #89. A fake that HOLDS its answer while `gate` is pending: how a test proves the hem answers
  *  before its passes do, and that a second hem waits for the first. `inflight` counts asks being
  *  held at once. `failIf` answers 500 to an ask whose system prompt it matches: one pass failing. */
@@ -84,6 +88,8 @@ const srv = createServer((req, res) => {
     // And where the strings stand, one line each (2026-10-30).
     if (asked.system.startsWith('Below is where a story stands, the strings it carries')) return send({ choices: [{ message: {
       content: stringsSay.map((x: any) => `${x.n}: ${x.now}`).join('\n') } }], usage: { prompt_tokens: 200, completion_tokens: 60 } });
+    if (asked.system.startsWith('Below is a scene of a story that has just been written')) return send({ choices: [{ message: {
+      content: sceneNamed } }], usage: { prompt_tokens: 200, completion_tokens: 6 } });
     if (asked.system.startsWith(TALE_HEAD)) return send({ choices: [{ message: { content: taleSays } }],
       usage: { prompt_tokens: 200, completion_tokens: 60 } });
     if (summed !== null) return send({ choices: [{ message: { content: summed } }],
@@ -185,6 +191,32 @@ const ok = (m: string, fn?: unknown) => {
   assert.ok(!db.entriesOf(story.id).some((e: any) => e.title === 'The Dead God'),
     'nothing may become canon without being accepted');
   ok('closing a chapter reads it for facts, as proposals, with nothing pressed');
+}
+
+// A HEMMED SCENE IS NAMED FROM ITS SUMMARY while its title is the placeholder (Seth, 2026-10-30: "when
+// the synopsis comes in let anansi suggest a new chapter title"), and a title the writer gave is kept.
+{
+  const book = db.createStory(me, { title: 'Naming', premise: 'A ferry.' }) as any;
+  const base = { storyId: book.id, branchId: book.branchId };
+  const c1 = book.chapterId;
+  db.addPassage({ ...base, chapterId: c1, body: 'Aldis rowed the last crossing of the year.' });
+  // A blob is not a name: the placeholder stays.
+  await routes['POST /api/chapter/end'](ctx({ storyId: book.id }));
+  await hemSettled(book.id);
+  assert.match(String((db.chapters(book.id)[0] as any).title ?? ''), /^(Scene 1)?$/, 'HEM-NAME-REFUSED: an answer that is not a name is not written');
+  sceneNamed = '"The Last Crossing."';
+  await routes['POST /api/chapter/hem'](ctx({ storyId: book.id, chapterId: c1, pass: 'summary' }));
+  await hemSettled(book.id);
+  assert.strictEqual((db.chapters(book.id)[0] as any).title, 'The Last Crossing', 'HEM-NAME: a placeholder scene is named, without the quotes and full stop');
+  const c2 = (db.chapters(book.id)[1] as any).id;
+  db.updateChapter(book.id, c2, { title: 'Mine' });
+  db.addPassage({ ...base, chapterId: c2, body: 'The river froze.' });
+  sceneNamed = 'The Frozen River';
+  await routes['POST /api/chapter/end'](ctx({ storyId: book.id }));
+  await hemSettled(book.id);
+  assert.strictEqual((db.chapters(book.id)[1] as any).title, 'Mine', 'HEM-NAME-KEPT: a title the writer gave is never replaced');
+  sceneNamed = '{"title":"not a name"}';
+  ok('a hemmed scene is named from its summary, and only while it has no name of its own');
 }
 
 // And the way out, on the same terms as summarise and remember: a flag, not a special case.
@@ -1388,7 +1420,9 @@ ok('the next scene can be asked again with a direction, away from the last sugge
 // "we start hemming and it asks how the next scene should start. While that's filled out the ai does
 // the rest ... So it wouldn't run that check first." The close runs every pass but the next scene;
 // the writer's direction asks for it, and what comes back goes into the scene itself, where the
-// writing prompt reads it ("it's not passed to the scene").
+// writing prompt reads it ("it's not passed to the scene"). Later the same day the client stopped
+// asking during the hem: the setup asks once it is done (`suggestScene` with the writer's opening).
+// The route keeps the pass, for Try again on a hem that ran it.
 {
   const t = db.createStory(me, { title: 'Asked first', premise: 'A ferry town.' }) as any;
   const ch0 = (db.chapters(t.id)[0] as any);

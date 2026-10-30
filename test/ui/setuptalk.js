@@ -88,7 +88,8 @@ const n = await page.eval(`(() => { const b = [...document.querySelectorAll('[da
   .find((e) => e.getAttribute('aria-label') === 'The threads'); return b ? b.dataset.sparkstep : null; })()`);
 await page.click(`[data-sparkstep="${n}"]`);
 ok("Add puts the offer in the draft, on the threads step",
-   await until("[...document.querySelectorAll('[data-spname]')].some((e) => e.value === 'The Harbour Keeper')"));
+   // A thread on the step is a plate, opened to edit (2026-10-30), so its name is the plate's text.
+   await until("[...document.querySelectorAll('[data-spopen] .platename')].some((e) => e.textContent.trim() === 'The Harbour Keeper')"));
 
 // Discard: nothing was saved, and nothing is.
 await page.click('[data-drop-spark="1"]');

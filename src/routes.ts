@@ -7,7 +7,7 @@ import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 // The hem's structured asks: plain lines on a remote model, read back into the schema's object.
 import { shaped } from './shaped.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, TALE_STANDS, STRINGS_STAND, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, SCENE_NAME, TALE_STANDS, STRINGS_STAND, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
 import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -1608,6 +1608,32 @@ async function taleStands(c: Ctx, storyId: string, chapterId: string, scene?: st
   return { chalked: added ? 1 : 0 };
 }
 
+/** A HEMMED SCENE IS NAMED FROM ITS SUMMARY, while its title is still the placeholder (`Scene N` as
+ *  `endChapter` writes it, or `Chapter N`, or nothing). A title the writer gave is never replaced, and
+ *  the name is written into the scene, where the writer renames it like any title. Part of the summary
+ *  pass and never its failure: a name that does not come back leaves the placeholder. Logged as
+ *  `hem-name`, so its time can be read. NOT MEASURED. */
+async function nameScene(c: Ctx, storyId: string, chapterId: string) {
+  const v = bookOf(storyId);
+  const ch = v.chapters.find((x: any) => x.id === chapterId);
+  if (!ch || !new RegExp(`^((scene|chapter)\\s+${ch.index})?$`, 'i').test(String(ch.title ?? '').trim())) return;
+  const sum = summaryReaches(ch) ? String(ch.summary ?? '').trim() : '';
+  const text = sum || narrationOnly(db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break)
+    .map((p: any) => p.body).join('\n\n')).slice(-6000);
+  if (!text.trim()) return;
+  const t0 = Date.now(), using = backgroundModel(c, v);
+  const r = await chat(SCENE_NAME, `THE BOOK: ${v.story.title}\n\n${sum ? 'THE SCENE, IN SUMMARY' : 'THE SCENE'}:\n${text}`,
+    { model: using, temperature: 0.5, max_tokens: 24, remoteCap: true, chat_template_kwargs: { enable_thinking: false } })
+    .catch((e: any) => ({ prose: '', error: String(e?.message ?? e) }) as any);
+  db.logGeneration({ storyId, chapterId: ch.id, model: using, role: 'hem-name', params: { max_tokens: 24 },
+    latencyMs: Date.now() - t0, error: (r as any).error ?? null });
+  // The first line, without the quotes or the full stop a model adds anyway.
+  const name = String(r.prose ?? '').trim().split('\n')[0].replace(/^["'“‘*\s]+|["'”’*.\s]+$/g, '').slice(0, 80);
+  // A name, not an answer in some other shape: a few words, no braces or brackets.
+  if (!(r as any).error && name && name.split(/\s+/).length <= 8 && !/[{}[\]<>]/.test(name))
+    db.updateChapter(storyId, ch.id, { title: name });
+}
+
 /** A few sentences a string, and a floor; on `chat` the cap is the hard stop (2026-10-30). */
 const stringTokens = (n: number) => Math.min(1200, 80 + 180 * n);
 
@@ -1671,7 +1697,11 @@ async function stringsStand(c: Ctx, storyId: string, chapterId: string, scene?: 
  *
  *  Reads the summaries and the tail of the prose rather than the whole book: what it needs is
  *  where the story has got to, and the chapter it is naming has nothing in it yet by definition. */
-async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?: unknown, avoid?: any) {
+async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?: unknown, avoid?: any, opening?: unknown) {
+  // THE WRITER'S OPENING IS USED AS WRITTEN (Seth, 2026-10-30: "What I enter should be what's used").
+  // He says how the scene starts; Anansi names it and says where it heads from there, and gives the
+  // opening back untouched rather than a rewrite of it.
+  const mine = String(opening ?? '').trim().slice(0, 2000);
   const v = bookOf(storyId);
   const ch = v.chapters.find((x: any) => x.id === chapterId) ?? v.currentChapter;
   // A STALE SUMMARY STAYS OUT, as it does from the writing prompt: it describes prose that moved.
@@ -1707,7 +1737,9 @@ async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?:
     // measured findings put anything that has to be obeyed. Optional: the button asked for a
     // suggestion with no way to say what it should be about until 2026-08-30.
     String(steer ?? '').trim() ? `THE WRITER WANTS THIS CHAPTER TO: ${String(steer).trim()}` : '',
-    `NAME CHAPTER ${ch.index}, SAY HOW IT OPENS, AND SAY WHERE IT IS GOING.`,
+    mine ? `THE WRITER SAYS HOW CHAPTER ${ch.index} OPENS (theirs, as written; it may be another place or a later day):\n${mine}` : '',
+    mine ? `NAME CHAPTER ${ch.index} AND SAY WHERE IT IS GOING FROM THAT OPENING. Give "opens" back as the writer wrote it.`
+      : `NAME CHAPTER ${ch.index}, SAY HOW IT OPENS, AND SAY WHERE IT IS GOING.`,
   ].filter(Boolean).join('\n\n');
 
   // The note is the point of this call, not a bonus on the title: it rides near the generation
@@ -1728,7 +1760,7 @@ async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?:
   // `opens` rides back beside the note. Not in `enough` above: the retry is spent on the note,
   // which is the long one and the one that was arriving blank, and a second length bar would
   // spend a whole extra call on a sentence the writer can type in five seconds.
-  const opens = String(r.data.opens ?? '').trim();
+  const opens = mine || String(r.data.opens ?? '').trim();
   return { chapterId: ch.id, title: String(r.data.title).trim(), note, opens,
     ...(note.length >= 40 ? {} : { noteMissing: true }) };
 }
@@ -1812,7 +1844,12 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // YOURS IS KEPT (#46). No `replace` here, so `summarise` refuses over a summary the writer
   // saved by hand. That is the pass doing its job, not failing: it is reported as `keptSummary`
   // and not in `passes`, which the surface reads as "did not run".
-  const summed = await pass('summary', want.summary, () => summarise(c, storyId, closing));
+  // And named from it, while it has no name of its own (`nameScene`).
+  const summed = await pass('summary', want.summary, async () => {
+    const r = await summarise(c, storyId, closing);
+    await nameScene(c, storyId, closing).catch(() => {});
+    return r;
+  });
   const keptSummary = summed?.kept === true;
   if (keptSummary) passes.summary = null;
   // #125 · Where the tale stands, after the summary and before the threads: one entry on the tale's
@@ -3628,7 +3665,7 @@ export const routes: Record<string, Handler> = {
   /** What the scene about to be written should be called, and what it has to do. The body is
    *  `suggestScene`, which a hem also runs (#89); this route stays for the client's own button. */
   'POST /api/chapter/propose': (c: Ctx) => suggestScene(c, c.body.storyId, c.body.chapterId, c.body.steer,
-    c.body.avoid && typeof c.body.avoid === 'object' ? c.body.avoid : undefined),
+    c.body.avoid && typeof c.body.avoid === 'object' ? c.body.avoid : undefined, c.body.opens),
   /** #91 · RUN A HEM'S PASSES AGAIN, from the scene's Workbench card. `pass` names one pass of the
    *  report (try again): only that pass runs, and only its line changes. With no `pass` it is HEM
    *  AGAIN: a new record on the prose as it is now (so the scene is in date), and every pass again.
@@ -3680,9 +3717,9 @@ export const routes: Record<string, Handler> = {
     const r = db.endChapter(v.id, v.branchId!, c.body.nextTitle);
     // #89. THE PASSES RUN AFTER THE ANSWER: the writer starts the next scene while they work, and
     // the view shows the hem running, then done.
-    // THE NEXT SCENE IS ASKED FOR, NOT GUESSED FIRST (Seth, 2026-10-30): the hem drawer sends
-    // `next: false` and asks the writer how the next scene should start while the other passes run;
-    // their answer asks for it through `/api/chapter/hem` with `pass: 'next'` and `steer`.
+    // THE NEXT SCENE IS ASKED FOR, NOT GUESSED (Seth, 2026-10-30): the hem drawer sends `next: false`,
+    // and once the hem is done the setup asks the writer how the next scene starts, then names it
+    // through `/api/chapter/propose` with their opening (`suggestScene`).
     const want: HemWant = { summary: c.body.summarise !== false, tale: true, memory: c.body.remember !== false,
       facts: c.body.extract !== false, finished: c.body.retire !== false, next: c.body.next !== false };
     const run = db.beginHem(v.id, closing);

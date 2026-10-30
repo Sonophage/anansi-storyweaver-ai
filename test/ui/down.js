@@ -50,9 +50,9 @@ await page.eval("(() => { document.querySelector('#sideBody [data-endchapter]').
 await until(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).currentChapter.id !== ${JSON.stringify(before)})()`, 60);
 await wait(800);
 // #92. The route answers before the passes run. Since 2026-10-30 the hem drawer stays open on the
-// scene that closed and asks how the next one should start, while the passes run behind it.
-ok("the hem drawer stays open and asks how the next scene should start",
-   await page.visible('#sideBody [data-hemsteer]'));
+// scene that closed, on its steps, while the passes run behind it; the setup asks about the next scene.
+ok("the hem drawer stays open on its steps",
+   await page.visible('#sideBody .hemsteps') && !(await page.visible('#sideBody [data-hemsteer]')));
 await until(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).chapters.find((c) => c.id === ${JSON.stringify(before)})?.hem?.state === 'done')()`, 60);
 // The row at the top of the next scene's screen that names the scene just closed. It was a green
 // dot and "hemmed" beside a red report of what did not run.
@@ -67,7 +67,7 @@ ok(`the row for the closed scene does not say hemmed in green (${JSON.stringify(
 await page.click('#sideBody button[data-panel="ritual"]');
 await wait(700);
 // Since 2026-10-30 the hem screen is its steps: a pass that did not run is a red step, not green.
-const failedSteps = await page.eval("[...document.querySelectorAll('#sideBody .hemsteps li[data-state=\\"fail\\"]')].length");
+const failedSteps = await page.eval("[...document.querySelectorAll('#sideBody .hemsteps li[data-state=\"fail\"]')].length");
 ok(`  and the hem's steps show what did not run in red (${failedSteps} steps)`, failedSteps > 0);
 
 // After a reload, the scene hemmed with no summary is on the Workbench with its button. It was

@@ -2585,6 +2585,16 @@ ok('emptying the box gives her back the voice she shipped with');
     + 'prose the book no longer has');
   ok('chapter proposals send the current summary and hold the stale one back');
 
+  // THE WRITER'S OPENING IS USED AS WRITTEN (Seth, 2026-10-30: "What I enter should be what's used"):
+  // it reaches the model, and it comes back as the opening, whatever the model wrote there.
+  calls = [];
+  const mine = 'Days later, Aldis wakes in the moneylender\'s attic.';
+  const o: any = await routes['POST /api/chapter/propose'](req({ chapterId: c3, opens: mine }));
+  assert.ok(!o.error, o.error);
+  assert.ok(wire().includes(mine), 'PROPOSE-OPENS-SENT: the writer\'s opening reaches the model');
+  assert.strictEqual(o.opens, mine, 'PROPOSE-OPENS-KEPT: and comes back as the opening, untouched');
+  ok('a scene named from the writer\'s opening keeps that opening as written');
+
   // A CHAPTER THE WRITER NAMES. Held back, and SAID to be held back: the writer pointed at it, so
   // a silent gap would read to the model as "nothing happened in chapter two".
   const named = (id: string) => routes['POST /api/talk'](req({

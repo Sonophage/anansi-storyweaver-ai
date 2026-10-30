@@ -175,11 +175,23 @@ ok('the chapter brief is two halves, and only one of them rides every call', () 
   // AND THE MODE, NEAREST THE GENERATION POINT, SAYS IT TOO (Seth, 2026-10-30: "the opening has
   // nothing to do with what we said"). His Continue says "Start where the last line above ends", and
   // the last line above is the scene before: the nearest instruction won (F37) and the scene opened
-  // where the old one stopped. So the MODE block of an empty scene ends by opening the scene.
+  // where the old one stopped. A line added after his words lost to them on the live tale the same
+  // day, so for Continue the opening REPLACES the mode's words, his or the shipped ones.
   const own = { ...fresh, mode: 'continue' as const, modePrompts: { continue: 'Start where the last line above ends.' } };
   const mf = buildContext(own, count).blocks.find((b) => b.kind === 'MODE')!;
-  assert.match(mf.text, /Start where the last line above ends\.[\s\S]*new scene[\s\S]*How this chapter opens/,
-    'OPEN-MODE: an empty scene\'s mode ends by opening the scene as How this chapter opens says');
+  assert.match(mf.text, /new scene[\s\S]*How this chapter opens[\s\S]*later day/,
+    'OPEN-MODE: an empty scene\'s Continue opens the scene as How this chapter opens says');
+  assert.doesNotMatch(mf.text, /Start where the last line above ends/, '  and the writer\'s Continue is not sent beside it');
+  const shipped = buildContext({ ...fresh, mode: 'continue' as const }, count).blocks.find((b) => b.kind === 'MODE')!;
+  assert.doesNotMatch(shipped.text, /Do not skip time/, '  nor the shipped one');
+  // ANOTHER MODE KEEPS ITS WORDS, which carry the writer's direction, and gets the line after them.
+  const dir = buildContext({ ...fresh, mode: 'direct' as const, directive: 'Marek lies about the key.' }, count)
+    .blocks.find((b) => b.kind === 'MODE')!;
+  assert.match(dir.text, /Marek lies about the key[\s\S]*begins a new scene/, 'OPEN-MODE-OTHER: Direct keeps its order, then the opening line');
+  // THE BREAK IS SAID: the scene before ends on a line that says so, never on an empty passage.
+  const broke = { ...fresh, passages: [...fresh.passages, { id: 'pb', ordinal: 99, body: '', author: 'human', isBreak: true, chapterId: fresh.passages.at(-1)?.chapterId }] } as any;
+  const said = buildContext(broke, count).blocks.filter((b) => b.kind === 'PROSE' || b.kind === 'TAIL').at(-1)!;
+  assert.strictEqual(said.text, '[The scene ends here.]', 'OPEN-BREAK: a scene break is sent as the end of the scene');
 
   // ONE PASSAGE IN, AND THE OPENING IS GONE. This is the half that matters: left in, the model is
   // asked to open a chapter it opened four passages ago. `chapterId` is what says a passage

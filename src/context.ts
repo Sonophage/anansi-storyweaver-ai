@@ -205,6 +205,14 @@ const SPICE: Record<number, string> = {
  *  writer's text is an INSTRUCTION and never reaches the page; in `speak`, `act` and `narrate`
  *  the writer's text is already the last passage and the model's job is to answer it. Getting
  *  that backwards is what made typed dialogue vanish into the prompt. */
+/** THE FIRST PASSAGE OF A SCENE THAT HAS AN OPENING, in Continue's place (see where MODE is sent). */
+const OPENING = 'Write the first beat of a new scene, and stop.\n'
+  + 'The scene above has ended. Open where and when "How this chapter opens" says, even if that is\n'
+  + 'another place or a later day. Do not continue the scene above, and do not repeat or summarise it.\n'
+  + 'Stop when the beat is done, however short that is.';
+/** The same, as one line after another mode's own words. */
+const OPENING_LINE = 'This passage begins a new scene. Open it as "How this chapter opens" above says, not where the prose above ends.';
+
 const MODE: Record<string, (d?: string, who?: string) => string> = {
   /* THERE IS NO `regenerate` HERE, AND THAT IS THE POINT. One lived here from 2026-09-01 to
    * 2026-09-18 — "Write this passage again. Same moment, same canon, a different take on it." —
@@ -1342,7 +1350,12 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   const marking = !!input.proseAuthor && !!lockedNow;
   // A directed passage is the model's prose to the writer's order. NOT MEASURED: F53 measured the
   // writer's own passages only; this is owed a bench/lockout-book.ts A/B.
-  const mark = (p: Passage) => !marking ? p.body
+  // A SCENE BREAK IS SAID, never sent as an empty passage (Seth, 2026-10-30: a new scene "in a new
+  // place days later" came back as more of the scene before). It reached the model as a blank, and
+  // with the lockout on as a blank marked the writer's own, so nothing above the opening said the
+  // scene before it was over. NOT MEASURED.
+  const mark = (p: Passage) => p.isBreak ? `[The scene ends here.${p.body?.trim() ? ` ${p.body.trim()}` : ''}]`
+    : !marking ? p.body
     : p.author === 'human' ? `[the writer's own, not yours]\n${p.body}`
     : p.directed ? `[written to the writer's order, not yours]\n${p.body}` : p.body;
   for (const p of head)
@@ -1494,7 +1507,17 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // `anansi`, `reweave`, the library), and a request naming one as its mode must not send that
     // text as the whole instruction.
     const own = MODE[key] ? input.modePrompts?.[key]?.trim() : undefined;
-    const said = own
+    // AN EMPTY SCENE OPENS AS ITS OPENING SAYS, and the mode says so last (Seth, 2026-10-30: "the opening
+    // has nothing to do with what we said"). DIRECTIVE carries the opening, but the mode sits nearest
+    // the generation point, and Continue's own words, the shipped ones and his, say "start where the
+    // last line above ends" and "do not skip time": the last line above is the scene before, and the
+    // nearest instruction wins (F37). A line added after them lost to them on the live tale the same
+    // day, so for Continue the opening REPLACES the mode's words; another mode keeps its own (it
+    // carries the writer's direction) and gets the line. Not for Talk, and only while the scene has
+    // no prose and has an opening, the condition DIRECTIVE's own line uses. NOT MEASURED.
+    const opening = !started && input.mode !== 'talk' && !!currentChapter.opensWith?.trim();
+    const said = opening && key === 'continue' ? OPENING
+      : own
       ? own.replace(/\{\{\s*directive\s*\}\}/g, input.directive ?? '')
            .replace(/\{\{\s*speaker\s*\}\}/g, input.speaker || 'the point-of-view character')
       : (MODE[key] ?? MODE.continue)(input.directive, input.speaker);
@@ -1511,14 +1534,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // TALK'S OTHER THREADS BY NAME (see `reach`): Anansi knows they exist, and can ask for one.
     const others = unasked.length ? `The tale's other threads, not sent because nothing in the question or on `
       + `the page names them: ${unasked.join(', ')}. If an answer needs one, say which, and the writer can name it.` : '';
-    // AN EMPTY SCENE OPENS AS ITS OPENING SAYS, and the mode says so last (Seth, 2026-10-30: "the opening
-    // has nothing to do with what we said"). DIRECTIVE carries the opening, but the mode sits nearest
-    // the generation point and his Continue reads "Start where the last line above ends": the last line
-    // above is the scene before, and the nearest instruction wins (F37). Not for Talk, and only while
-    // the scene has no prose and has an opening, the condition DIRECTIVE's own line uses.
-    const opening = !started && input.mode !== 'talk' && currentChapter.opensWith?.trim()
-      ? 'This passage begins a new scene. Open it as "How this chapter opens" above says, not where the prose above ends.' : '';
-    const text = [others, said, frame, opening].filter(Boolean).join('\n');
+    const text = [others, said, frame, opening && key !== 'continue' ? OPENING_LINE : ''].filter(Boolean).join('\n');
     // THE LENGTH TARGET, and everything about where it sits is deliberate.
     //
     // Appended here rather than written into the MODE map, because those five strings are what

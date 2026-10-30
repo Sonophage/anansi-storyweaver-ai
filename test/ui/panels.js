@@ -994,7 +994,8 @@ if (anyEntry) {
   // list of the pockets the card HOLDS, one row each, and adding is the pocket panel. This card has
   // none yet, so the list is empty and nothing offers a kind until the panel is opened.
   const formSlots = await page.eval(`(() => ({
-    rows: document.querySelectorAll('.pocketrow').length,
+    // Not Over time's rows, which share the row's look (data-otrow) and are drawn on their own tab.
+    rows: document.querySelectorAll('.pocketrow:not([data-otrow])').length,
     pills: document.querySelectorAll('[data-pocketkind], [data-newroom]').length }))()`);
   console.log("  form pockets: " + JSON.stringify(formSlots));
   ok(`  where only the pockets it HOLDS are drawn, and no kinds are offered outside the panel (${
@@ -1974,6 +1975,9 @@ console.log(red ? `\n  ${red} RED` : "\n  all green");
   await page.goto(B + "/#" + sid);
   for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
   await page.click('[data-panel="story"], [data-nav="story"]');
+  // Point of view is in the Setting group, which a tab shows (the groups switch in CSS).
+  for (let i = 0; i < 40 && !(await page.visible('[data-storytab="world"]')); i++) await wait(250);
+  await page.click('[data-storytab="world"]');
   for (let i = 0; i < 40 && !(await page.visible('[data-story="pov"]')); i++) await wait(250);
 
   // An option that is not the one already chosen, taken from the select itself rather than assumed.

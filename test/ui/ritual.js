@@ -52,18 +52,16 @@ for (let i = 0; i < 40; i++) {
   await wait(250);
 }
 await wait(600);
-// SINCE 2026-10-30 THE HEM ASKS how the next scene should start, and the drawer stays open on it
-// while the other passes run; the answer asks for the next scene as the hem's last pass.
-ok("closing a scene keeps the hem drawer open and asks how the next scene starts",
-   await page.visible('#sideBody [data-hemsteer]') && !(await page.visible('[data-savesetup="1"]')));
-await page.eval("(() => { const t = document.querySelector('#sideBody [data-hemsteer]'); t.value = 'She opens the letter at dawn.';"
-  + " t.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()");
-await page.click('#sideBody [data-hemnext]');
-console.log("  hem running (summary, thread changes, threads, retirements, next scene)…");
+// The drawer stays open on the hem while the passes run. It does not ask about the next scene: the
+// setup asks, once the hem is done (Seth, 2026-10-30).
+ok("closing a scene keeps the hem drawer open on its steps, with no question about the next scene",
+   await page.visible('#sideBody .hemsteps') && !(await page.visible('#sideBody [data-hemsteer]'))
+   && !(await page.visible('[data-savesetup="1"]')));
+console.log("  hem running (summary, thread changes, threads, retirements)…");
 let hem = null;
 for (let i = 0; i < 240; i++) {
   hem = (await story()).chapters.find((c) => c.id === closing.id)?.hem;
-  if (hem?.state === 'done' && 'next' in (hem.passes ?? {})) break;
+  if (hem?.state === 'done') break;
   await wait(1000);
 }
 ok(`  and the hem finishes in the background (${hem?.state ?? 'no hem'})`, hem?.state === 'done');
@@ -75,7 +73,7 @@ await wait(700);
 const vDone = await story();
 const sceneRows = vDone.proposals.filter((p) => p.grp === `scene:${closing.id}`);
 const missedNow = Object.values(hem?.passes ?? {}).filter(Boolean).length;
-const cardOwed = sceneRows.length > 0 || missedNow > 0 || !!hem?.suggestion;
+const cardOwed = sceneRows.length > 0 || missedNow > 0 || (hem?.overflow ?? []).length > 0;
 if (cardOwed) {
   ok(`  and its one card is on the Workbench (${sceneRows.length} chalked, ${missedNow} passes did not run)`,
      await page.eval("!!document.querySelector('#sideBody [data-deckkind=\"hem\"]')"));
@@ -166,7 +164,7 @@ const body = (await page.text('#sideBody') || '');
     await page.eval("(() => { document.querySelector('[data-hemopen]')?.click(); return 1; })()");
     // Reopen the hem (2026-10-30) opens the hem screen; its Set up the next scene leads on.
     await wait(600);
-    await page.eval("(() => { document.querySelector('#sideBody [data-panel=\\"setup\\"]')?.click(); return 1; })()");
+    await page.eval("(() => { document.querySelector('#sideBody [data-panel=\"setup\"]')?.click(); return 1; })()");
     await wait(600);
     if (!(await page.visible('[data-setup="title"]'))) await page.click('[data-setupstep="premise"]');
     for (let i = 0; i < 20 && !(await page.visible('[data-setup="title"]')); i++) await wait(250);

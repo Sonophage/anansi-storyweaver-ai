@@ -16,6 +16,27 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-30 · The next scene starts the way you say
+
+### You say how the next scene starts, after the hem
+Hemming no longer asks about the next scene while it runs. When it is done, Set up the next scene
+asks first: How should this scene start? What you write there is the scene's opening, word for
+word. Have Anansi name it then gives the scene a title and says where it heads from your opening,
+and never rewrites the opening itself. Nothing is written until you press Save and write.
+### A new scene opens where you said, not where the last one stopped
+The first passage of a new scene kept picking up the scene before it, even when you said it opens
+somewhere else days later. Anansi is now told plainly that the scene before has ended, and to open
+where and when you said.
+### A hemmed scene gets a name
+When the hem writes a scene's summary, Anansi also names the scene from it, if you have not named it
+yourself. A name you gave is never changed. Rename it any time.
+### New threads you ask for on Anyone new show there
+Have Anansi write someone on Anyone new used to send the thread only to the Workbench. It now
+shows on Anyone new, under New threads, ready to sew in.
+### A finished hem leaves the Workbench
+Once everything a hem found is decided, its card leaves the Workbench, instead of staying there for
+the whole of the next scene.
+
 ## 2026-10-30 · Hemming asks how the next scene starts
 
 ### Starting a new tale takes four steps, not eight

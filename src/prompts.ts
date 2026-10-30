@@ -279,6 +279,17 @@ export const MEMORY_SCHEMA = {
  *  Shapes, not example sentences: the real model copies examples (ADR 0009).
  *  NOT MEASURED: none of this wording has been run against the real model, and the swap it feeds is
  *  owed an A/B against the premise-only prompt before anyone calls it better (ADR 0010). */
+/** THE NAME OF A SCENE JUST HEMMED, from its summary (Seth, 2026-10-30: "when the synopsis comes in
+ *  let anansi suggest a new chapter title"). Plain text, one line, so it is quick on any model. The
+ *  title rule is CHAPTER's, word for word in spirit. NOT MEASURED. */
+export const SCENE_NAME =
+`Below is a scene of a story that has just been written: its summary, or its narration.
+
+Name it. Five words at most, out of this book's own vocabulary: an object, a place, a phrase
+somebody says. Not "Scene Four", not a summary of what happens.
+
+Reply with the name and nothing else: no quotes, no full stop.`;
+
 export const TALE_STANDS =
 `Below is what a story is, where it stood before its latest scene, and that scene: its summary, or
 its narration.

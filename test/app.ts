@@ -6527,7 +6527,8 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     click({ open: 's-1' }); await sleep(40);
     click({ ritual: '1' }); await sleep(30);
     let side = html('sideBody');
-    assert.deepStrictEqual(states(side), order.map((k) => `${k}:wait`), 'HEM-STEPS: before a hem, every step is shown, waiting, in order');
+    // NO NEXT-SCENE STEP before a hem: a hem no longer runs that pass, the setup asks (Seth, 2026-10-30).
+    assert.deepStrictEqual(states(side), order.filter((k) => k !== 'next').map((k) => `${k}:wait`), 'HEM-STEPS: before a hem, every step is shown, waiting, in order');
     assert.match(below(side), /class="btn fill" data-endchapter="1"/, 'HEM-ACT: and below them only the press that hems');
     assert.strictEqual((side.match(/class="btn fill"/g) ?? []).length, 1, 'HEM-GOLD: one gold press');
     assert.doesNotMatch(side, /data-panel="waiting"|passes did not run/, 'HEM-QUIET: no Decide button and no report box');
@@ -6682,7 +6683,14 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     'a new thread must not also sit under What it left — that step is what changed');
   // The count on the rail is per step, so each says what IT owes rather than the whole queue.
   assert.match(whatLeft, /1 &middot; What it left <span[^>]*>1</, 'one change owed on step one');
-  assert.match(whatLeft, /3 &middot; Anyone new <span[^>]*>1</, 'and one new thread on step three');
+  // THREE: the ferryman from the close, and the fixture's two new threads chalked against the scene
+  // being set up (pr-1, pr-5), which is where Have Anansi write someone chalks (Seth, 2026-10-30: "any
+  // new threads anansi makes isn't shown to me"). The string chalked there (pr-2) is not a thread.
+  assert.match(whatLeft, /3 &middot; Anyone new <span[^>]*>3</, 'and three new threads on step three');
+  click({ setupstep: 'more' }); await sleep(30);
+  assert.match(html('sideBody'), /The lamplighter/, 'SETUP-ASKED-HERE: a new thread chalked against this scene is on Anyone new');
+  assert.doesNotMatch(html('sideBody'), /The debt nobody has called in/, '  and a string is not');
+  click({ setupstep: 'cards' }); await sleep(30);
 
   click({ setupstep: 'more' });
   await sleep(30);
@@ -7636,6 +7644,24 @@ const hemCardOf = (side: string) => {
   ok('the scene card shows a running hem, a pass that did not run, and out of date, each with its press (#92)');
 }
 
+// ---- A HEM WITH NOTHING LEFT TO DECIDE LEAVES THE WORKBENCH (Seth, 2026-10-30: "Once I'm done
+// hemming it still shows in the workbench"): its next-scene suggestion waiting is not a decision.
+{
+  const canned = (globalThis as any).fetch;
+  (globalThis as any).fetch = hemFetch(canned);
+  HEM_VIEW = hemView({ ...HEM_DONE, overflow: [] }, []);
+  click({ open: 's-1' }); await sleep(40);
+  click({ panel: 'waiting' }); await sleep(40);
+  assert.doesNotMatch(html('sideBody'), /data-deckkind="hem"/, 'HEM-GONE-WHEN-DONE: a done hem with nothing chalked has no card on the Workbench');
+  HEM_VIEW = hemView({ ...HEM_DONE, overflow: [], outOfDate: true }, []);
+  click({ open: 's-1' }); await sleep(40);
+  click({ panel: 'waiting' }); await sleep(40);
+  assert.match(html('sideBody'), /data-deckkind="hem"/, '  and one out of date still has, with Hem again on it');
+  (globalThis as any).fetch = canned;
+  click({ open: 's-1' }); await sleep(40);
+  ok('a hem with nothing left to decide leaves the Workbench');
+}
+
 // ---- THE HEM CARD SETS UP NOTHING ITSELF (Seth, 2026-10-29): the summary, the threads, and one
 // press, Set up the next scene, which opens the setup on The next scene. The next scene's boxes,
 // Something else, Use these and who is in it are the setup's, and only the setup's.
@@ -7923,6 +7949,7 @@ const hemCardOf = (side: string) => {
     click({ open: 's-1' }); await settle();
     assert.strictEqual(timers.length, 0, 'nothing is read again while no hem is running');
     const proposes = POSTED.filter((p: any) => p.url === '/api/chapter/propose').length;
+    const hemAsks = POSTED.filter((p: any) => p.url === '/api/chapter/hem').length;
     click({ endchapter: '1' }); await settle(); await settle();
     const end = POSTED.find((p: any) => p.url === '/api/chapter/end');
     assert.ok(end, 'Hem this scene closes the scene');
@@ -7933,20 +7960,13 @@ const hemCardOf = (side: string) => {
     // THE EDITOR'S FULL SCREEN (Seth, 2026-10-30: "It should use the editor full screen ui").
     const rootEl = (globalThis as any).document.documentElement;
     assert.strictEqual(rootEl.dataset.sidefull, '1', 'HEM-FULL: the hem drawer is full screen');
+    // THE NEXT SCENE IS ASKED AFTER THE HEM, NOT DURING IT (Seth, 2026-10-30: "it shouldn't be written
+    // there but once I'm done with the hemming"): no question on the hem screen and no step for it.
     let side = html('sideBody');
-    assert.match(side, /data-hemsteer="c-2"/, 'HEM-ASK-BOX: it asks how the next scene should start');
-    assert.match(side, /class="btn fill[^"]*" data-hemnext="c-2"/, '  with one gold press to ask Anansi for it');
-    assert.strictEqual((side.match(/class="btn (?!ghost)[^"]*"/g) ?? []).length, 1, '  and no other gold on the drawer');
-    assert.match(side, /data-hemstep="summary"[\s\S]*data-hemstep="next"/, '  above the steps, which keep running');
-    assert.match(side, /data-hemstep="next"[^>]*>[\s\S]*?Waiting for how you want it to start/, '  and the next-scene step waits on the writer');
-    (listeners.input ?? []).forEach((f: Function) => f({ target: { dataset: { hemsteer: 'c-2' }, value: 'She opens the letter at dawn.' } }));
-    click({ hemnext: 'c-2' }); await settle();
-    const asked = POSTED.filter((p: any) => p.url === '/api/chapter/hem').at(-1);
-    assert.deepStrictEqual(asked?.body, { storyId: 's-1', chapterId: 'c-2', pass: 'next', steer: 'She opens the letter at dawn.' },
-      'HEM-ASKED: the direction asks for the next scene, as that pass');
-    side = html('sideBody');
-    assert.doesNotMatch(side, /data-hemsteer=/, '  and the box gives way once asked');
-    assert.match(side, /data-hemstep="next"[\s\S]*?(Next, after the passes above|Writing the next scene)/, '  and the next-scene step says it is on its way');
+    assert.doesNotMatch(side, /How should the next scene start|data-hemsteer|data-hemnext/, 'HEM-NO-ASK: the hem does not ask about the next scene');
+    assert.doesNotMatch(side, /data-hemstep="next"/, '  and has no next-scene step');
+    assert.match(side, /data-hemstep="summary"[\s\S]*data-hemstep="setup"/, '  the steps run on to Set up the next scene');
+    assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/chapter/hem').length, hemAsks, '  and nothing asks the hem for it');
     // Setup opens on what the scene left (its card, running), and the new scene is one step on.
     click({ panel: 'setup' }); await settle();
     assert.match(html('sideBody'), /<ol class="hemsteps">[\s\S]*data-state="(run|wait)"/, 'its setup opens with the hem\'s steps, still going');
@@ -7961,7 +7981,7 @@ const hemCardOf = (side: string) => {
     click({ setupstep: 'premise' }); await settle();
     assert.doesNotMatch(html('sideBody'), /data-setup="title"/, 'HEM-WAIT-PRESS: a press on it does not move the wizard');
     assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/chapter/propose').length, proposes,
-      '  and nothing asks Anansi to name it: the hem brings the suggestion');
+      '  and nothing asks Anansi to name it while the hem runs');
     click({ panel: 'waiting' }); await settle();
     assert.strictEqual(rootEl.dataset.sidefull, '0', 'HEM-FULL-ONLY: the Workbench is the drawer as before');
 
@@ -7984,6 +8004,23 @@ const hemCardOf = (side: string) => {
     click({ panel: 'setup' }); await settle();
     click({ setupstep: 'premise' }); await settle();
     assert.match(html('sideBody'), /data-setup="title"/, 'HEM-WAIT-DONE: once the hem is done, the wizard moves on');
+    // AND ASKS HOW THE SCENE STARTS, FIRST, and names nothing until asked (Seth, 2026-10-30: "What I
+    // enter should be what's used").
+    const premise = html('sideBody');
+    assert.ok(premise.indexOf('How should this scene start?') >= 0
+      && premise.indexOf('How should this scene start?') < premise.indexOf('data-setup="title"'),
+      'SETUP-OPENS-FIRST: the setup asks how the scene starts, above its title');
+    assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/chapter/propose').length, proposes,
+      'SETUP-NO-AUTONAME: after a hem, Anansi does not name the scene before the writer says how it starts');
+    const opensBox = { dataset: { setup: 'opens' }, value: 'Days later, in his bookstore.' };
+    const doc = (globalThis as any).document, q0 = doc.querySelector;
+    doc.querySelector = (sel: string) => (sel === '[data-setup="opens"]' ? opensBox : q0.call(doc, sel));
+    try {
+      (listeners.input ?? []).forEach((f: Function) => f({ target: opensBox }));
+      click({ name: 'c-hem3' }); await settle();
+    } finally { doc.querySelector = q0; }
+    assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/chapter/propose').at(-1)?.body?.opens,
+      'Days later, in his bookstore.', 'SETUP-OPENS-SENT: asking Anansi sends the opening as the writer typed it');
     click({ panel: 'waiting' }); await settle();
     assert.strictEqual(timers.length, 0, '  and the reading stops');
   } finally {
