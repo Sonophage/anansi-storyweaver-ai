@@ -2346,27 +2346,37 @@ function pickIdea(i) {
 
 function drawDock() {
   syncLayers();
-  if (!(S.place === 'story' && V)) { $('dock').hidden = true; DOCK_FOR = null; return; }
+  // #100 · AND OVER A TALE BEING SET UP, while its Talk is open (Seth, 2026-10-30: "make sure the
+  // chat here matches the input full screen ui we've been using"). The same dock, always full
+  // screen and always Talk: there is no tale to write in, so no modes, no small box, and Back closes
+  // it. The same element rather than a copy, so the look is the stylesheet's #dock.big and cannot
+  // drift from the one in a tale.
+  const setup = setupTalking();
+  if (!setup && !(S.place === 'story' && V)) { $('dock').hidden = true; DOCK_FOR = null; return; }
+  const big = setup || !!S.bigInput;
   $('dock').hidden = false;
-  $('dock').classList.toggle('big', !!S.bigInput);
+  $('dock').classList.toggle('big', big);
   // #71. A different tale starts folded, with no Talk and no ideas carried over from the last one.
   // Unless Talk was asked for in this tale before its first draw (the Talk address, `talkToComposer`).
-  if (DOCK_FOR !== S.storyId) { S.ideas = null; if (TALK_FOR !== S.storyId) { S.dockOpen = false; S.dockTalk = false; } }
+  if (!setup && DOCK_FOR !== S.storyId) { S.ideas = null; if (TALK_FOR !== S.storyId) { S.dockOpen = false; S.dockTalk = false; } }
   // THE THREE BUTTONS ARE DRAWN ONCE A PASSAGE HAS LANDED in the scene on screen: before that there
   // is nothing to reweave or carry on from, and the composer is the whole bottom, as it always was.
   // Folded is the composer hidden behind them. Hidden, not absent: the box is still drawn, so a
   // draft in it survives the fold the way it survives every other repaint.
-  const last = lastPassage();
-  const folded = !!last && !S.dockOpen && !S.bigInput;
+  const last = setup ? null : lastPassage();
+  const folded = !!last && !S.dockOpen && !big;
   $('dock').classList.toggle('folded', folded);
-  $('dock').classList.toggle('talking', !!S.dockTalk);
+  $('dock').classList.toggle('talking', setup || !!S.dockTalk);
+  // The setup box carries its half-written question across a repaint like a tale's does, under its
+  // own name, so neither is ever handed the other's draft.
+  const here = setup ? 'setup' : S.storyId;
   // Read the live box BEFORE it is replaced. drawDock sets innerHTML, so every caller — every
   // panel open, every chapter page, every mode switch — threw away whatever was half-written in
   // it. One handler had already grown its own save-and-restore, with a comment calling this "the
   // seventh instance of this same repaint bug"; this is that fix at the place they all pass
   // through, so there is one of it rather than seven.
   const live = $('input');
-  const draft = live && DOCK_FOR === S.storyId
+  const draft = live && DOCK_FOR === here
     ? { text: live.value, start: live.selectionStart, end: live.selectionEnd,
         focused: document.activeElement === live }
     : null;
@@ -2374,8 +2384,8 @@ function drawDock() {
   // Speak and Act happen AS someone. Everyone else in the story is fair game, which is what the
   // `speaker` column on a passage has always been for — there was simply no way to set it.
   const asWhom = S.mode === 'speak' || S.mode === 'act';
-  const cast = V.entries.filter((e) => e.entryType === 'character');
-  const me = V.story.persona || 'you';
+  const cast = (V?.entries ?? []).filter((e) => e.entryType === 'character');
+  const me = V?.story.persona || 'you';
   const who = S.speaker || me;
 
   // WHO you are speaking or acting as is drawn INSIDE the rail now, beside the dial that says
@@ -2388,25 +2398,13 @@ function drawDock() {
   // <html> and an action, so `closest()` matched <html> on every click and nothing was editable.
   root.dataset.uiMode = S.mode;
 
-  $('dockCol').innerHTML = `${weaveFitRow()}
+  $('dockCol').innerHTML = setup ? setupDock() : `${weaveFitRow()}
     ${last ? `<button id="fold" data-dockfold="1" aria-label="Fold the box away" title="Fold the box away"
       ><span class="grip" aria-hidden="true"></span></button>` : ''}
     ${/* TALK LIVES IN THE COMPOSER (Seth, 2026-10-29: drop the Talk drawer). The conversation sits
-         above the box, small or full screen, drawn by the one renderer the setup drawer also uses;
-         under it the drafted directive, a refusal's row, and the search switch and Clear. */
-      S.dockTalk ? `<div id="talkthread" aria-live="polite">${pastHere() ? talkPast(S.talk) : S.talk.turns.length ? talkTurns(S.talk)
-        : talkEmpty(false)}${talkBusy(S.talk)}</div>
-      ${talkDraft(S.talk)}
-      ${weaveFitRow('talk')}
-      <div id="talkhead">
-        <span>${mark('webfull', 15)} Talking to Anansi</span>
-        <label class="talksearch" title="${(V?.searchable ?? S.talk.searchable) === false ? 'Web search is not set up on this server'
-          : 'He decides when a question needs the web, and searches up to three times'}">
-          <input type="checkbox" data-websearch="1" ${S.talk.search ? 'checked' : ''}
-            ${(V?.searchable ?? S.talk.searchable) === false ? 'disabled' : ''}> Anansi may search</label>
-        <button data-talkpast="1" aria-pressed="${pastHere()}">Past talks</button>
-        ${S.talk.turns.length ? '<button data-clearchat="1">New talk</button>' : ''}
-        <button data-dockwrite="1">Back to writing</button></div>` : ''}
+         above the box, small or full screen, drawn by the one renderer the setup's Talk also uses
+         (`talkDock`); under it the drafted directive, a refusal's row, and Talk's own row. */
+      S.dockTalk ? talkDock(S.talk, false) : ''}
     <div id="modes">
       <!-- ONE DIAL, NOT FOUR BUTTONS. Seth, 2026-09-02: "make speak, act, direct and narrate into
            a drop down. the selection should look like a button." Four modes on a rail alongside
@@ -2515,7 +2513,7 @@ function drawDock() {
   // `max-height:140px` in the stylesheet — which is two numbers for one decision, and the pair
   // that drifted apart this morning was a breakpoint. Expanded, the box is flexed to the panel
   // and an inline height would fight it.
-  const fit = () => { if (S.bigInput) { ta.style.height = ''; return; }
+  const fit = () => { if (big) { ta.style.height = ''; return; }
     ta.style.height = 'auto'; ta.style.height = `${ta.scrollHeight}px`; };
   ta.addEventListener('input', fit);
   // ENTER MAKES A LINE. It used to send unless Shift was held, and Seth reported the modifier not
@@ -2569,7 +2567,52 @@ function drawDock() {
   else if (hwkb && (document.activeElement === document.body || !document.activeElement)) ta.focus({ preventScroll: true });
   // The textarea is new on every repaint, so the inputmode goes on again with it.
   applyHwkb();
-  DOCK_FOR = S.storyId;
+  DOCK_FOR = here;
+}
+
+/** THE CONVERSATION AND THE ROW UNDER IT, for Talk in a tale's composer and over a tale being set up
+ *  (#100), drawn once so the two cannot drift. Above the box: the turns (or Past talks), the drafted
+ *  directive, a refusal's row; then the row of Talk's own presses. Its last press is the one that
+ *  differs: a tale goes Back to writing, and a setup has nothing to write in, so it has Fill in the
+ *  tale there instead, once there is a talk to fill it from. */
+function talkDock(t, setup) {
+  const searchable = setup ? S.talk.searchable : (V?.searchable ?? S.talk.searchable);
+  return `<div id="talkthread" aria-live="polite">${pastHere() ? talkPast(t) : t.turns.length ? talkTurns(t)
+        : talkEmpty(setup)}${talkBusy(t)}</div>
+      ${talkDraft(t)}
+      ${weaveFitRow('talk')}
+      <div id="talkhead">
+        <span>${mark('webfull', 15)} Talking to Anansi</span>
+        <label class="talksearch" title="${searchable === false ? 'Web search is not set up on this server'
+          : 'He decides when a question needs the web, and searches up to three times'}">
+          <input type="checkbox" data-websearch="1" ${S.talk.search ? 'checked' : ''}
+            ${searchable === false ? 'disabled' : ''}> Anansi may search</label>
+        <button data-talkpast="1" aria-pressed="${pastHere()}">Past talks</button>
+        ${t.turns.length ? '<button data-clearchat="1">New talk</button>' : ''}
+        ${/* FILL IN THE TALE FROM THE TALK (Seth, 2026-10-30): talk the tale through, then one press
+              has Anansi set every empty box and the threads it needs, as asked changes with Undo. */
+          !setup ? '<button data-dockwrite="1">Back to writing</button>'
+          : t.turns.length ? `<button data-fillsetup="1" ${t.busy ? 'disabled' : ''}>Fill in the tale</button>` : ''}</div>`;
+}
+
+/** #100 · THE SETUP'S TALK, as the dock draws it: the conversation, then the box between Back and
+ *  Send, laid out as a tale's full-screen composer lays them out. Back is the full-screen press in
+ *  the same place, and here it closes Talk, because there is no small box to go back to. */
+function setupDock() {
+  const t = setupTalk();
+  return `${talkDock(t, true)}
+    <div id="inputRow">
+      <button data-bigin="1" aria-pressed="true" title="Back to setting up the tale"
+        aria-label="Close Talk, back to setting up the tale">${mark('expand', 18)}<span class="btnword">Back</span></button>
+      <div id="inputWrap">
+        <div id="inputMirror" aria-hidden="true"></div>
+        <textarea id="input" rows="1" aria-label="Ask Anansi about this tale"
+          placeholder="Ask Anansi about this tale…"></textarea>
+      </div>
+      <div id="atlistInput" hidden></div>
+      <button id="send" data-send="1" aria-label="Send to Anansi" ${t.busy ? 'disabled' : ''}
+        title="Send to Anansi">${mark('send', 18)}<span class="btnword">Send</span></button>
+    </div>`;
 }
 
 // ---------- side panel ----------
@@ -2596,9 +2639,9 @@ function drawSide() {
   // The model panel is the exception: it is about the box rather than about a book, and the rail
   // footer that opens it is on screen outside a story too. Every other panel reads V. Find a model
   // is the same kind of panel, opened from the same footer.
-  // And Talk while a tale is set up (#100): it reads the draft, not a book.
-  side.hidden = !S.panel || (S.place !== 'story' && S.panel !== 'model' && S.panel !== 'findmodel'
-    && !(S.panel === 'anansi' && onSetup()));
+  // Talk while a tale is set up (#100) is not a drawer any more: it is the full-screen composer
+  // (`drawDock`), as in a tale.
+  side.hidden = !S.panel || (S.place !== 'story' && S.panel !== 'model' && S.panel !== 'findmodel');
   // A shut drawer stays in the page at width 0; inert keeps Tab out of it, as for the menu.
   side.inert = side.hidden;
   // THE HEM AND THE NEXT SCENE'S SETUP ARE FULL SCREEN, as the editor's box is (Seth, 2026-10-30: "It
@@ -2606,9 +2649,6 @@ function drawSide() {
   // spreads it over the page (`html[data-sidefull]`).
   root.dataset.sidefull = !side.hidden && (S.panel === 'ritual' || S.panel === 'setup') ? '1' : '0';
   if (side.hidden) return;
-  // #100 · TALK DURING SETUP has no Talk explainer: that one is about a tale, where an offer waits on
-  // the Workbench. Here an offer has its own Add, under the answer that made it.
-  const setupTalking = S.panel === 'anansi' && onSetup();
   // THE THREADS LIST CARRIES ITS COUNT AND ITS + UP HERE (v2 redesign, 2026-10-25). The + was a
   // full-width "+ Thread, or read the scene" button above the list, and on the Titan's 360x360 it
   // and the filters took the whole screen before the first thread. The + opens the same tray with
@@ -2639,7 +2679,7 @@ function drawSide() {
     ${/* OUTSIDE the heading span, and deliberately: decode() writes textContent on that span, so a
           button inside it is destroyed on the next repaint. Its body goes at the top of #sideBody
           instead, because the span is nowrap and would clip it. */
-      PANEL_HELP[S.panel] && !setupTalking ? helpMark(PANEL_HELP[S.panel]) : ''}
+      PANEL_HELP[S.panel] ? helpMark(PANEL_HELP[S.panel]) : ''}
     <span class="fill"></span>
     ${thList ? `<button data-newlore="1" class="headadd" aria-label="Add a thread, or read the scene"
       title="Add a thread, or read the scene"><span>${mark('create', 16)}</span></button>` : ''}
@@ -2649,7 +2689,7 @@ function drawSide() {
       title="Add a string"><span>${mark('create', 16)}</span></button>` : ''}
     <button class="caps-btn" data-panel="">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
-  $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !setupTalking && !thRead && !isAltering() && !(S.panel === 'threads' && S.lore && !S.entryId)
+  $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead && !isAltering() && !(S.panel === 'threads' && S.lore && !S.entryId)
     ? helpBody(PANEL_HELP[S.panel]) : '')
     + (PANELS[S.panel] ?? (() => ''))();
   // After the markup, because a textarea has no scrollHeight until it is in the document.
@@ -3097,7 +3137,7 @@ function stringList(all, none) {
     ${done.length ? `<div class="lbl sect-rule">Tied off or let go</div>${done.map(stringRow).join('')}` : ''}`;
 }
 /** TALK WITH NOTHING SAID YET: four openings, each a thing Talk is built to do. One function for
- *  the composer's Talk and the setup drawer. */
+ *  the composer's Talk in a tale and over a tale being set up. */
 function talkEmpty(setup) {
             // The empty state was two paragraphs of explanation over a panel-height void. It said
             // what Anansi could do in prose and then left you to compose the question yourself.
@@ -3156,8 +3196,8 @@ const talkDraft = (t) => t.draft ? `<div class="card" style="gap:8px; border-col
           before you send it.</p>`)}
       </div>` : '';
 
-/** THE CONVERSATION'S TURNS, drawn once for the Talk drawer and for Talk in the full-screen composer
- *  (2026-10-29), so the two cannot draw a change line, its Undo or its diff differently. `t` is the
+/** THE CONVERSATION'S TURNS, drawn once for Talk in a tale's composer (2026-10-29) and in the setup's
+ *  full-screen one (`talkDock`), so the two cannot draw a change line, its Undo or its diff differently. `t` is the
  *  conversation: `S.talk`, or the setup draft's. Indices are into `t.turns`, which the Undo reads. */
 function talkTurns(t) {
   return t.turns.map((turn, i) => turn.you
@@ -5454,8 +5494,11 @@ const PANELS = {
     // opens. It used to start null and only learn the truth from the first answer, which meant
     // offering a switch that could not work and then taking it away.
     //
-    // #100 · WHILE A TALE IS SET UP it is the same window on the draft's own conversation, which goes
-    // with the draft. The search switch is the writer's one stored permission either way.
+    // #100 · WHILE A TALE IS SET UP it was the same window on the draft's own conversation. Since
+    // 2026-10-30 the setup's Talk is the full-screen composer (`setupDock`) and no longer opens this
+    // drawer, so its `setup` branches here are not reached.
+    // ponytail: the drawer is kept, unreachable in setup. Delete it and #askBox once nothing in a
+    // tale draws it either (`talkToComposer` already turns every tale door to the composer).
     const setup = onSetup();
     const t = setup ? { ...setupTalk(), search: S.talk.search, searchable: S.talk.searchable }
       : { ...S.talk, searchable: V?.searchable ?? S.talk.searchable };
@@ -5888,8 +5931,8 @@ const stepAt = (k) => Math.max(1, STEPS.findIndex(([x]) => x === k) + 1);
 /** The step the writer is on, clamped as `sparkReview` clamps it. */
 const stepNow = () => STEPS[Math.min(Math.max(Number(S.sparkStep) || 1, 1), STEPS.length) - 1];
 
-/* #100 · TALK WHILE A TALE IS SET UP. The same Talk window as in a tale (`PANELS.anansi`), opened
- * from every step, working on the draft (`S.spark`) through POST /api/spark/talk, which writes
+/* #100 · TALK WHILE A TALE IS SET UP. The same Talk as in a tale, the full-screen composer (`setupDock`),
+ * opened from every step, working on the draft (`S.spark`) through POST /api/spark/talk, which writes
  * nothing. What comes back asked for is applied here, to the draft, at once; each change keeps
  * what it replaced so its Undo, held by this page and nowhere else, puts exactly that back. What
  * comes back offered has an Add press. The conversation lives on the draft (`S.spark.talk`), so
@@ -5907,6 +5950,9 @@ const stepNow = () => STEPS[Math.min(Math.max(Number(S.sparkStep) || 1, 1), STEP
  * typing the premise is refused once and costs the writer one sentence; the other way round
  * would cost them what they typed. */
 const onSetup = () => S.place !== 'story' && S.wpage === 'create' && !!S.spark;
+/** The setup's Talk is open. Its doors are the Talk doors a tale has (`data-panel="anansi"`), so the
+ *  panel key is the state; it is drawn by the dock, full screen, and never as a drawer. */
+const setupTalking = () => S.panel === 'anansi' && onSetup();
 const setupTalk = () => (S.spark.talk ??= { turns: [], busy: false });
 const draftNamed = (title) => (S.spark?.entries ?? [])
   .find((e) => e.keep !== false && String(e.title ?? '').trim() === title);
@@ -6008,7 +6054,7 @@ async function talkSetup(said) {
   harvestSpark();
   const [, name, hint] = stepNow();
   t.busy = true; S.talkPast = null;
-  drawSide(); working('direct');
+  drawDock(); working('direct');
   const r = await api.sparkTalk({ said, step: `${name}: ${hint}`, search: S.talk.search || undefined,
     turns: t.turns.slice(0, -1).map((x) => ({ you: x.you, text: setupTurnText(x) })),
     draft: { story: S.spark.story, entries: S.spark.entries }, sessionId: t.sessionId || undefined });
@@ -6016,7 +6062,7 @@ async function talkSetup(said) {
   t.busy = false;
   // Discarded, or started, while he answered: this answer is about a draft that is gone.
   if (S.spark?.talk !== t) return;
-  if (r.error) { drawSide(); return toast(r.error); }
+  if (r.error) { drawDock(); return toast(r.error); }
   S.talk.searchable = r.searchable ?? S.talk.searchable;
   const changes = (r.changes ?? []).map((x) => {
     const why = typedHere(x.change, said);
@@ -6032,7 +6078,21 @@ async function talkSetup(said) {
   // #101 · AN IP NAMED IN TALK HANDS OVER TO THE WORLD STEP, the one the World box runs on every
   // move: the writer's World of that name is followed, or the IP is looked up for a new one.
   if (changes.some((x) => x.undo?.key === 'world')) void ipFollow();
-  const b = $('askBox'); if (b) { b.value = ''; b.focus(); }
+  // The box was emptied when the question was sent (`setupAsk`), so what is in it now was typed
+  // while he answered, and stays.
+  $('input')?.focus({ preventScroll: true });
+}
+
+/** #100 · Send, in the setup's Talk: the composer's Send, as `dockAsk` is in a tale. No mentions:
+ *  there is no tale to name yet. */
+function setupAsk() {
+  const said = ($('input')?.value ?? '').trim();
+  const t = setupTalk();
+  if (!said) return toast('Ask Anansi something first.');
+  if (t.busy) return;
+  t.turns = [...t.turns, { you: true, text: said }];
+  clearComposer();
+  return talkSetup(said);
 }
 
 /** Read whatever this step has on screen back into state. Called before every move, including
@@ -9615,7 +9675,8 @@ function closeThreadBack() {
  *  Back shuts it. Called from drawBar and drawDock, which every change to the three goes through.
  *  ponytail: one layer at a time, the topmost. Two open at once (Look over the big composer) share
  *  one entry, so Back shuts both. Give each its own entry if anyone opens them together. */
-const layerNow = () => (S.passEdit ? 'alter' : S.pocket ? 'pocket' : S.merge ? 'merge' : S.reroll ? 'reweave' : S.appearance ? 'look' : S.bigInput ? 'big' : S.reading ? 'read' : null);
+const layerNow = () => (S.passEdit ? 'alter' : S.pocket ? 'pocket' : S.merge ? 'merge' : S.reroll ? 'reweave' : S.appearance ? 'look'
+  : setupTalking() ? 'setuptalk' : S.bigInput ? 'big' : S.reading ? 'read' : null);
 function syncLayers() {
   const want = layerNow(), have = history.state?.layer ?? null;
   if (!ROUTED || BACKING || want === have) return;
@@ -9656,12 +9717,16 @@ function closeLayersBack() {
   }
   if (S.appearance && l !== 'look') { S.appearance = false; drawAppearance(); drawBar(); }
   if (S.bigInput && l !== 'big' && l !== 'look') { S.bigInput = false; drawDock(); syncTray(); }
+  // #100 · The setup's Talk is full screen over the wizard, so Back closes it and leaves the step
+  // where it was. Without its own entry Back left the wizard altogether.
+  if (setupTalking() && l !== 'setuptalk' && l !== 'look') { S.panel = null; paint(); }
   if (S.reading && !l) { S.reading = false; root.dataset.reading = '0'; drawBar(); drawDoc(); }
 }
 
 /** THE TALK DRAWER IS GONE FROM A TALE (Seth, 2026-10-29): every way that opens it (the address, a
- *  menu, a help link) turns the composer to Talk instead. The drawer stays for a tale being set up,
- *  which has no composer (#100). Here, where every repaint passes, so no door can miss it. */
+ *  menu, a help link) turns the composer to Talk instead. A tale being set up keeps the panel key as
+ *  its open state, and the dock draws it (`setupTalking`, #100). Here, where every repaint passes, so
+ *  no door can miss it. */
 function talkToComposer() {
   if (S.panel !== 'anansi' || S.place !== 'story' || onSetup()) return;
   S.panel = null; S.dockTalk = true; S.dockOpen = true; S.bigInput = true; TALK_FOR = S.storyId;
@@ -9690,6 +9755,7 @@ function paint() {
   // and a composer, which is a book with nothing in it, not a world.
   const world = S.place === 'story' && V && !!V.story?.is_world;
   if (S.place === 'story' && V && !world) { drawDoc(); drawDock(); }
+  else if (setupTalking()) drawDock();
   else { $('dock').hidden = true; if (world) drawDoc(); }
   watchHems();
 }
@@ -12327,6 +12393,7 @@ document.addEventListener('click', async (e) => {
   // #71, round two: an empty box sends as Continue, so Send makes Anansi write whatever is in it.
   // Not in Co-op, which never calls the model and says so when the box is empty.
   if (d.send) {
+    if (setupTalking()) return setupAsk();
     if (S.dockTalk) return dockAsk();
     if (!($('input')?.value ?? '').trim() && S.mode !== 'coop') { S.ideas = null; await generate('continue'); return; }
     await generate(); return;
@@ -12361,6 +12428,8 @@ document.addEventListener('click', async (e) => {
     for (const b of box.querySelectorAll('[data-diffview]')) b.setAttribute('aria-pressed', String(b.dataset.diffview === box.dataset.view));
     return;
   }
+  // #100 · Over a setup it is Back, and closes Talk: there is no small box under it.
+  if (d.bigin && setupTalking()) { S.panel = null; paint(); return; }
   if (d.bigin) { S.bigInput = !S.bigInput; drawDock(); syncTray(); $('input')?.focus(); return; }
 
   // PLAN-08 Phase 4. A THRESHOLD, not a delete: the card stops reaching the model from the chapter
@@ -14628,6 +14697,8 @@ document.addEventListener('keydown', (e) => {
   // for it, so on the Titan's keyboard the only way out was a tap (usability check, 2026-10-24).
   if (e.key === 'Escape' && root.dataset.tray === '1') { openTray(null); return; }
   if (e.key === 'Escape' && S.rail && overlay()) { S.rail = false; paint(); return; }
+  // #100 · Esc closes the setup's Talk at every width, as it shuts the full-screen composer in a tale.
+  if (e.key === 'Escape' && setupTalking() && !AT) { S.panel = null; paint(); return; }
   if (e.key === 'Escape' && S.bigInput) { S.bigInput = false; drawDock(); $('input')?.focus(); return; }
   // A THREAD'S ⋯, THEN THE THREAD, THEN THE DRAWER: one layer per Esc, the same order as Back.
   if (e.key === 'Escape' && S.readMenu && isReading()) { S.readMenu = false; paint(); return; }

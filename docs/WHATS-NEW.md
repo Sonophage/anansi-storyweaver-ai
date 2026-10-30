@@ -28,6 +28,12 @@ first, and its pockets open full screen to change, add or remove. Pasting thread
 other tales are under Bring threads in. Begin puts Try it on at the top, then reads the tale back,
 with Change to go back to the title, premise or voice, and asks the setting and how the first scene
 opens there and nowhere else.
+### Talking to Anansi while you set up a tale is full screen
+The chat with Anansi while you spark a new tale used to open as a panel at the side. It now opens
+full screen, the same as Talk inside a tale: the conversation above, your box and Send below, and
+Past talks, New talk, Fill in the tale and the search switch in the row between. Back, Esc or your
+browser's Back closes it and leaves you on the step you were on, with the talk kept for when you
+open it again.
 
 ### Anansi changes your threads again when you ask
 After tonight's change to make Talk more conversational, Anansi stopped making the changes you

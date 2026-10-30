@@ -140,7 +140,9 @@ const stored = new Map<string, string>();
 // what a glyph looks like fourteen frames in, and a live loop would run for the life of the suite.
 (globalThis as any).requestAnimationFrame = () => 0;
 (globalThis as any).cancelAnimationFrame = () => {};
-(globalThis as any).window = { addEventListener() {} };
+// Kept, not swallowed, so a check can fire `popstate` the way the browser's Back does.
+const winListeners: Record<string, Function[]> = {};
+(globalThis as any).window = { addEventListener: (k: string, f: Function) => { (winListeners[k] ??= []).push(f); } };
 (globalThis as any).location = { hash: '', pathname: '/' };
 (globalThis as any).history = { replaceState() {}, pushState() {}, back() {}, state: null };
 // #17. The draw path keeps the bytes it fetched, so picking one costs no second request. Object
@@ -4283,9 +4285,9 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
   const settle = async (re: RegExp, id = 'page') => { for (let i = 0; i < 40 && !re.test(html(id)); i++) await sleep(25); };
   const sparkTalks = () => POSTED.filter((p) => p.url === '/api/spark/talk');
   const ask = async (said: string) => {
-    (document as any).getElementById('askBox').value = said;
+    (document as any).getElementById('input').value = said;
     const n = sparkTalks().length;
-    click({ ask: '1' });
+    click({ send: '1' });
     for (let i = 0; i < 40 && sparkTalks().length === n; i++) await sleep(25);
     await sleep(40);
     return sparkTalks().at(-1);
@@ -4306,16 +4308,17 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
   try {
     assert.match(html('page'), /data-panel="anansi"/, 'SETUP-TALK-OPEN: the setup step has a Talk press');
     click({ panel: 'anansi' });
-    await settle(/askBox/, 'sideBody');
-    assert.strictEqual(nodes.get('side').hidden, false, 'SETUP-TALK-OPEN: Talk opens beside the setup step');
-    assert.match(html('sideBody'), /id="askBox"/, 'SETUP-TALK-OPEN: the same Talk window, with its ask box');
+    await settle(/id="input"/, 'dockCol');
+    assert.strictEqual(nodes.get('side').hidden, true, 'SETUP-TALK-OPEN: Talk is not a drawer beside the setup step');
+    assert.strictEqual(nodes.get('dock').hidden, false, 'SETUP-TALK-OPEN: it is the composer, over the step');
+    assert.match(html('dockCol'), /id="input"/, 'SETUP-TALK-OPEN: with its box');
 
     // FILL IN THE TALE FROM THE TALK (Seth, 2026-10-30: "talk to anansi, get as much about a story set
     // and have it fill in whatever is needed"). Once there is a conversation, one press asks for it.
-    assert.doesNotMatch(html('sideBody'), /data-fillsetup/, 'SETUP-FILL: no Fill in before anything is said');
+    assert.doesNotMatch(html('dockCol'), /data-fillsetup/, 'SETUP-FILL: no Fill in before anything is said');
     stubSparkTalk = { reply: 'Ask me anything.', seconds: 1 };
     await ask('A ferry town on a dead river.');
-    assert.match(html('sideBody'), /data-fillsetup="1"/, 'SETUP-FILL: once there is a conversation, a Fill in the tale press');
+    assert.match(html('dockCol'), /data-fillsetup="1"/, 'SETUP-FILL: once there is a conversation, a Fill in the tale press');
     const before = sparkTalks().length;
     click({ fillsetup: '1' });
     for (let i = 0; i < 40 && sparkTalks().length === before; i++) await sleep(25);
@@ -4336,7 +4339,7 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     assert.strictEqual(sent.body.draft.story.premise, ORIGINAL, 'SETUP-TALK-SENDS: with the draft');
     assert.match(sent.body.step, /^The tale/, `SETUP-TALK-SENDS: and the step the writer is on (${sent.body.step})`);
     assert.match(html('page'), new RegExp(DARKER), 'SETUP-TALK-APPLIED: the setup step shows the new premise at once');
-    const side = html('sideBody');
+    const side = html('dockCol');
     assert.match(side, /Changed the premise/, 'SETUP-TALK-LINES: each change is a line in the conversation');
     assert.match(side, /data-talkundo="1:0"/, 'SETUP-TALK-LINES: with its Undo');
     // #122 · the premise line shows the premise before against the premise now; the new thread
@@ -4353,7 +4356,7 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     await sleep(30);
     assert.doesNotMatch(html('page'), new RegExp(DARKER), 'SETUP-TALK-UNDO: Undo takes the change back');
     assert.match(html('page'), new RegExp(ORIGINAL), 'SETUP-TALK-UNDO: and puts back exactly what was there');
-    assert.match(html('sideBody'), /Undone/, 'SETUP-TALK-UNDO: and the line says so');
+    assert.match(html('dockCol'), /Undone/, 'SETUP-TALK-UNDO: and the line says so');
 
     // What was offered and not added rides back in the turns, so "add them" can be asked for later.
     stubSparkTalk = { reply: 'Yes.', seconds: 1 };
@@ -4368,7 +4371,7 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     let titles = next.body.draft.entries.map((e: any) => e.title);
     assert.ok(titles.includes('House Marren'), `SETUP-TALK-ADD: Add puts the offer in the draft (${titles})`);
     assert.ok(titles.includes('The Ferryman'), `SETUP-TALK-APPLIED: and the thread Talk added is in it (${titles})`);
-    const addLine = html('sideBody').match(/Added a thread: House Marren[\s\S]*?data-talkundo="([^"]+)"/);
+    const addLine = html('dockCol').match(/Added a thread: House Marren[\s\S]*?data-talkundo="([^"]+)"/);
     assert.ok(addLine, 'SETUP-TALK-ADD: the Add is a line with its own Undo');
     click({ talkundo: addLine![1] });
     await sleep(30);
@@ -4390,7 +4393,7 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     onScreen = {};
     assert.match(html('page'), /My own premise, typed\./, 'SETUP-TALK-TYPED: a box the writer typed in is kept');
     assert.doesNotMatch(html('page'), />Better\.</, 'SETUP-TALK-TYPED: and the change is not applied');
-    assert.match(html('sideBody'), /Not done[^<]*premise/, 'SETUP-TALK-TYPED: and the conversation says why');
+    assert.match(html('dockCol'), /Not done[^<]*premise/, 'SETUP-TALK-TYPED: and the conversation says why');
     // ...and is changed by one that asks for it.
     await ask('Rewrite my premise, please');
     assert.match(html('page'), />Better\.</, 'SETUP-TALK-TYPED-ASKED: asked for by name, it is changed');
@@ -4407,7 +4410,7 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
         before: 'Typed, then I moved on.' } }] };
     const elsewhere = await ask('Who else is in it?');
     assert.match(elsewhere.body.step, /^The threads/, `SETUP-TALK-TYPED-ANY-STEP: asked from another step (${elsewhere.body.step})`);
-    assert.match(html('sideBody'), /A sharper one\.[\s\S]*Not done[^<]*premise/, 'SETUP-TALK-TYPED-ANY-STEP: the conversation says why');
+    assert.match(html('dockCol'), /A sharper one\.[\s\S]*Not done[^<]*premise/, 'SETUP-TALK-TYPED-ANY-STEP: the conversation says why');
     stubSparkTalk = { reply: 'Yes.', seconds: 1 };
     const after = await ask('Anything else?');
     assert.strictEqual(after.body.draft.story.premise, 'Typed, then I moved on.',
@@ -4424,7 +4427,7 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     stubSparkTalk = { reply: 'Done.', seconds: 1, changes: checked.map((change: any) => ({ words: 'Changed.', change })) };
     await ask('Change the Ferryman and the voice');
     // #122 · the Always true line reads the old Always true against the new, as the server checked them.
-    assert.ok(html('sideBody').includes(setupDiff(checked[0].before ?? '', 'rows twice for a liar.')),
+    assert.ok(html('dockCol').includes(setupDiff(checked[0].before ?? '', 'rows twice for a liar.')),
       'SETUP-TALK-DIFF: a thread change\'s line is a diff of the text the server checked');
     stubSparkTalk = { reply: 'Yes.', seconds: 1 };
     const mapped = (await ask('And?')).body.draft;
@@ -4439,7 +4442,7 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
       `SETUP-TALK-NOTHING: nothing is saved before Start (${POSTED.map((p) => p.url).join(', ')})`);
     click({ dropSpark: '1' });
     await sleep(30);
-    assert.strictEqual(nodes.get('side').hidden, true, 'SETUP-TALK-DISCARD: Talk closes with the draft');
+    assert.strictEqual(nodes.get('dock').hidden, true, 'SETUP-TALK-DISCARD: Talk closes with the draft');
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')), 'SETUP-TALK-DISCARD: and Discard posts nothing');
   } finally { doc.querySelectorAll = wasQSA; stubSparkTalk = null; }
 }
@@ -4565,11 +4568,11 @@ ok('a new tale naming an IP the writer has a World for follows it, shows its peo
   POSTED.length = 0;
   try {
     click({ panel: 'anansi' });
-    await settle(/askBox/, 'sideBody');
+    await settle(/id="input"/, 'dockCol');
     stubSparkTalk = { reply: 'Elden Ring it is.', seconds: 1,
       changes: [{ words: 'Set in Elden Ring.', change: { op: 'tale.set', field: 'world', key: 'world', text: 'Elden Ring', before: '' } }] };
-    (document as any).getElementById('askBox').value = 'It is set in Elden Ring';
-    click({ ask: '1' });
+    (document as any).getElementById('input').value = 'It is set in Elden Ring';
+    click({ send: '1' });
     for (let i = 0; i < 40 && !looked().length; i++) await sleep(25);
     assert.deepStrictEqual(looked(), ['Elden Ring'], 'SETUP-IP-HANDOVER: the World step looks the IP up among the writer\'s Worlds');
     click({ sparkstep: '4' });
@@ -4585,8 +4588,8 @@ ok('a new tale naming an IP the writer has a World for follows it, shows its peo
     (listeners.input ?? []).forEach((f: Function) => f({ target: { dataset: { sp: 'world' }, value: 'Dune' } }));
     stubSparkTalk = { reply: 'Elden Ring, then.', seconds: 1,
       changes: [{ words: 'Set in Elden Ring.', change: { op: 'tale.set', field: 'world', key: 'world', text: 'Elden Ring', before: '' } }] };
-    (document as any).getElementById('askBox').value = 'No, make it Elden Ring';
-    click({ ask: '1' });
+    (document as any).getElementById('input').value = 'No, make it Elden Ring';
+    click({ send: '1' });
     await settle(/follows Elden Ring/);
     assert.match(html('page'), /data-spsummary="1">[^<]*follows Elden Ring/,
       'SETUP-IP-TYPED: naming the IP is asking for the World box by name');
@@ -8532,6 +8535,8 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   const wait = (ms = 40) => sleep(ms);
   stored.set('anansi.veil', '0');
   for (const k of Object.keys(listeners)) listeners[k] = [];
+  // And the window's (popstate), which the harness keeps so Back can be pressed.
+  for (const k of Object.keys(winListeners)) winListeners[k] = [];
   // The harness's one #ghost answers as the inline passage (see the reweave-quiet check above).
   (document as any).getElementById('ghost').classList.contains = (c: string) => c === 'inlive';
   await import('../web/app.js?inline');
@@ -8757,7 +8762,7 @@ ok('Talk names its session, Copy prompt copies what was sent, and Past talks ope
   const got: string[] = [];
   const settle = async (re: RegExp, id = 'page') => { for (let i = 0; i < 40 && !re.test(html(id)); i++) await sleep(25); };
   const sparkTalks = () => POSTED.filter((p) => p.url === '/api/spark/talk');
-  const ask = async (said: string) => { (document as any).getElementById('askBox').value = said; click({ ask: '1' }); await sleep(80); return sparkTalks().at(-1); };
+  const ask = async (said: string) => { (document as any).getElementById('input').value = said; click({ send: '1' }); await sleep(80); return sparkTalks().at(-1); };
   const copied: string[] = [];
   click({ railview: 'workspace' }); await sleep(30);
   click({ nav: 'create' }); await sleep(30);
@@ -8766,21 +8771,21 @@ ok('Talk names its session, Copy prompt copies what was sent, and Past talks ope
   finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
   (globalThis as any).fetch = sessionFetch(canned, got);
   try {
-    click({ panel: 'anansi' }); await settle(/askBox/, 'sideBody');
+    click({ panel: 'anansi' }); await settle(/id="input"/, 'dockCol');
     POSTED.length = 0;
     stubSparkTalk = { reply: 'Start with the frost.', seconds: 1, sessionId: 'ts-setup', prompt: PROMPT };
     assert.strictEqual((await ask('How should it begin?')).body.sessionId, undefined, 'SETUP-SESSION-FIRST: the first question names no session');
     assert.strictEqual((await ask('And then?')).body.sessionId, 'ts-setup', 'SETUP-SESSION-ON: the next names the one the answer gave');
     withClipboard(async (t) => { copied.push(t); });
-    assert.match(html('sideBody'), /data-copyprompt="3"/, 'SETUP-COPY-PROMPT: each setup answer has Copy prompt');
+    assert.match(html('dockCol'), /data-copyprompt="3"/, 'SETUP-COPY-PROMPT: each setup answer has Copy prompt');
     click({ copyprompt: '3' }); await sleep(20);
     assert.strictEqual(copied[0], 'SYSTEM:\nYou are Anansi. The tale: a debt.\n\nWRITER:\nWho is Marek?\n\nANANSI:\nA man who owes.\n\nWRITER:\nAnd the house?',
       'SETUP-COPY-PROMPT: exactly what was sent');
     click({ talkpast: '1' }); await sleep(30);
     assert.ok(got.includes('/api/spark/talk/sessions'), `SETUP-PAST: the setup talks are asked for (${got})`);
-    assert.match(html('sideBody'), /Who is Marek, really/, 'SETUP-PAST: and listed');
+    assert.match(html('dockCol'), /Who is Marek, really/, 'SETUP-PAST: and listed');
     click({ talkopen: 'ts-old' }); await sleep(30);
-    assert.match(html('sideBody'), /Owes whom\?/, 'SETUP-OPEN: one opens');
+    assert.match(html('dockCol'), /Owes whom\?/, 'SETUP-OPEN: one opens');
     assert.strictEqual((await ask('Go on')).body.sessionId, 'ts-old', 'SETUP-OPEN-ON: and is carried on');
     click({ talkpast: '1' }); await sleep(30);
     click({ talkdel: 'ts-old' }); await sleep(20);
@@ -8793,5 +8798,86 @@ ok('Talk names its session, Copy prompt copies what was sent, and Past talks ope
   }
 }
 ok('the setup Talk names its session, copies its prompt, and opens and deletes past setup talks');
+
+// #100 · THE SETUP'S TALK IS THE FULL-SCREEN COMPOSER (Seth, 2026-10-30: "make sure the chat here
+// matches the input full screen ui we've been using"). The same dock a tale has, full screen and Talk
+// only: the conversation above the box, Back and Send either side of it, Talk's presses in the row
+// above, and Back, Esc and the browser's Back all close it and leave the step as it was.
+{
+  const doc = (globalThis as any).document;
+  const hist = (globalThis as any).history;
+  const settle = async (re: RegExp, id = 'page') => { for (let i = 0; i < 40 && !re.test(html(id)); i++) await sleep(25); };
+  const sparkTalks = () => POSTED.filter((p) => p.url === '/api/spark/talk');
+  const dock = nodes.get('dock');
+  // The stub's classList forgets; this one remembers, because `big` and `talking` ARE the look.
+  const cls = new Set<string>();
+  const wasClass = dock.classList;
+  dock.classList = { toggle: (c: string, on: boolean) => { if (on) cls.add(c); else cls.delete(c); },
+    add: (c: string) => cls.add(c), remove: (c: string) => cls.delete(c), contains: (c: string) => cls.has(c) };
+  // A history that is a stack, and a Back that fires popstate after the press, as a browser's does.
+  const was = { push: hist.pushState, replace: hist.replaceState, back: hist.back, state: hist.state };
+  const stack: any[] = [null];
+  hist.pushState = (st: any) => { stack.push(st); hist.state = st; };
+  hist.replaceState = (st: any) => { stack[stack.length - 1] = st; hist.state = st; };
+  hist.back = () => { if (stack.length > 1) stack.pop(); hist.state = stack.at(-1);
+    setImmediate(() => (winListeners.popstate ?? []).forEach((f) => f({}))); };
+  hist.state = null;
+  const open = async () => { click({ panel: 'anansi' }); await settle(/id="input"/, 'dockCol'); };
+  click({ railview: 'workspace' }); await sleep(30);
+  click({ nav: 'create' }); await sleep(30);
+  doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
+  try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
+  finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
+  try {
+    await open();
+    assert.strictEqual(dock.hidden, false, 'SETUP-DOCK-FULL: Talk during setup is the composer');
+    assert.ok(cls.has('big') && cls.has('talking') && !cls.has('folded'),
+      `SETUP-DOCK-FULL: full screen and turned to Talk, as in a tale (${[...cls]})`);
+    assert.strictEqual(nodes.get('side').hidden, true, 'SETUP-DOCK-FULL: and no drawer');
+    const col = html('dockCol');
+    assert.doesNotMatch(col, /id="modes"|data-modesel/, 'SETUP-DOCK-TALK-ONLY: no writing modes, there is no tale to write in');
+    const at = ['id="talkthread"', 'id="talkhead"', 'id="input"', 'data-send="1"'].map((x) => col.indexOf(x));
+    assert.ok(at.every((x, i) => x >= 0 && (i === 0 || x > at[i - 1])),
+      `SETUP-DOCK-ORDER: the conversation, Talk's row, the box, then Send (${at})`);
+    assert.match(col, /data-bigin="1" aria-pressed="true"[\s\S]*?Back</, 'SETUP-DOCK-BACK-PRESS: Back where the full-screen press is');
+    const head = () => html('dockCol').slice(html('dockCol').indexOf('id="talkhead"'), html('dockCol').indexOf('id="inputRow"'));
+    assert.match(head(), /data-websearch="1"/, 'SETUP-DOCK-HEAD: the search switch in Talk\'s row');
+    assert.match(head(), /data-talkpast="1"/, 'SETUP-DOCK-HEAD: and Past talks');
+    assert.doesNotMatch(head(), /data-dockwrite/, 'SETUP-DOCK-HEAD: and no Back to writing');
+    assert.ok(stack.some((x) => x?.layer === 'setuptalk'), 'SETUP-DOCK-LAYER: opening it is a step in the history');
+
+    // SEND, from the composer's box.
+    stubSparkTalk = { reply: 'Begin at the gate.', seconds: 1 };
+    POSTED.length = 0;
+    nodes.get('input').value = 'Where should it begin?';
+    click({ send: '1' });
+    for (let i = 0; i < 40 && !sparkTalks().length; i++) await sleep(25);
+    await sleep(40);
+    assert.strictEqual(sparkTalks()[0]?.body.said, 'Where should it begin?', 'SETUP-DOCK-SEND: Send asks Anansi about the draft');
+    assert.strictEqual(nodes.get('input').value, '', 'SETUP-DOCK-SEND: and empties the box');
+    assert.match(html('dockCol'), /Begin at the gate\./, 'SETUP-DOCK-SEND: the answer lands above the box');
+    assert.match(head(), /data-clearchat="1"/, 'SETUP-DOCK-HEAD: New talk, once there is a talk');
+    assert.match(head(), /data-fillsetup="1"/, 'SETUP-DOCK-HEAD: and Fill in the tale');
+
+    // THREE WAYS OUT, each leaving the step where it was and the talk kept for next time.
+    click({ bigin: '1' }); await sleep(30);
+    assert.strictEqual(dock.hidden, true, 'SETUP-DOCK-CLOSE: Back closes it');
+    assert.match(html('page'), /data-sp="premise"/, 'SETUP-DOCK-CLOSE: onto the step it was opened from');
+    await open();
+    assert.match(html('dockCol'), /Begin at the gate\./, 'SETUP-DOCK-KEPT: opened again, the talk is still there');
+    (listeners.keydown ?? []).forEach((f: Function) => f({ key: 'Escape', target: { closest: () => null }, preventDefault() {} }));
+    await sleep(30);
+    assert.strictEqual(dock.hidden, true, 'SETUP-DOCK-ESC: Esc closes it');
+    await open();
+    hist.back(); await sleep(30);
+    assert.strictEqual(dock.hidden, true, 'SETUP-DOCK-BROWSER-BACK: the browser\'s Back closes it');
+    assert.match(html('page'), /data-sp="premise"/, 'SETUP-DOCK-BROWSER-BACK: and the wizard stays');
+  } finally {
+    Object.assign(hist, { pushState: was.push, replaceState: was.replace, back: was.back, state: was.state });
+    dock.classList = wasClass; stubSparkTalk = null;
+    click({ dropSpark: '1' }); await sleep(30);
+  }
+}
+ok('the setup Talk is the full-screen composer: the talk above the box, Back and Send, and Back, Esc and the browser close it');
 
 console.log(`\n${n} checks passed`);
