@@ -4030,15 +4030,26 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
     assert.ok(th.indexOf('data-spbody="2"') < th.indexOf('data-sppocketopen="2:voice"'), '  Always true shown first');
     assert.match(th, /data-sppocketnew="2"/, '  and a press to add a pocket');
 
-    // THE POCKET PANEL, ON THE DRAFT: open one, change it, Save; nothing posts.
+    // THE POCKET PANEL, ON THE DRAFT: open one, change it, Done; nothing posts. An open pocket saves
+    // into the draft as you type (ADR 0004, pass three).
     click({ sppocketopen: '2:voice' });
     let panel = html('pocketPanel');
     assert.match(panel, /id="pk-name" value="Envoy"/, 'WIZ-POCKET-PANEL: a pocket row opens the pocket panel on it');
     assert.match(panel, /id="pk-body"[^>]*>Write her lines formal and short\.</, '  holding its words');
     assert.strictEqual(nodes.get('pocketPanel').hidden, false, '  shown');
+    assert.doesNotMatch(panel, /data-sppocketsave|>Save</, 'WIZ-NO-SAVE: an open draft pocket has no Save');
+    assert.match(panel, /data-pocketundo="1"[\s\S]*data-pocketdone="1"/, 'WIZ-FOOT: Undo my changes and Done in its foot');
+    // Undo my changes, after the pause has written the change into the draft, puts the words back.
+    typeIn('pk-body', 'Something she would never say.');
+    await sleep(1000);
+    click({ pocketundo: '1' }); click({ pocketundo: '1' }); await sleep(20);
+    assert.strictEqual(nodes.get('pocketPanel').hidden, true, 'WIZ-UNDO-SHUT: Undo my changes shuts the panel');
+    assert.match(html('page'), /Write her lines formal and short\./, 'WIZ-UNDO-MINE: and the draft has the words it opened with');
+    assert.doesNotMatch(html('page'), /never say/, '  and not the ones typed');
+    click({ sppocketopen: '2:voice' });
     typeIn('pk-body', 'Write her lines formal, and shorter.');
-    click({ sppocketsave: '1' });
-    assert.strictEqual(nodes.get('pocketPanel').hidden, true, 'WIZ-EDIT: Save shuts the panel');
+    click({ pocketdone: '1' }); await sleep(20);
+    assert.strictEqual(nodes.get('pocketPanel').hidden, true, 'WIZ-EDIT: Done shuts the panel');
     assert.match(html('page'), /formal, and shorter/, '  and the change is in the draft');
     click({ sppocketopen: '2:interiority' });
     click({ sppocketdel: '1' });
@@ -4053,7 +4064,7 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
     // UNDO KEEPS AN EDIT MADE AFTER THE CHANGE IT TAKES BACK (review, 2026-10-27).
     click({ sppocketopen: '2:voice' });
     typeIn('pk-body', 'Write his lines formal and spare.');
-    click({ sppocketsave: '1' });
+    click({ pocketdone: '1' }); await sleep(20);
     click({ spundo: '1' });
     assert.match(html('page'), /formal and spare/, 'WIZ-UNDO: an edit typed after the removal survives its undo');
     assert.match(html('page'), /Never let her say she is afraid/, '  and the removed pocket is back');

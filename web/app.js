@@ -3065,9 +3065,19 @@ const POCKET_AUTO = {
     write: (pk, v, storyId) => api.saveState(storyId, pk.entryId, { id: pk.id, fromChapter: Number(v.from),
       body: v.body, beforeMode: v.mode, label: v.label.trim() || null }),
     never: (v) => (Number(v.from) && v.body.trim() ? null : 'A scene number and where it stands, at least.') },
+  // A pocket of a thread in the new tale's draft that exists: written into the draft, not posted, since
+  // there is no tale yet (`draftPocketPanel`). It keeps its switch. A new one is added by its press.
+  draft: { fields: ['name', 'body'], write: (pk, v) => {
+    const e = pk.draft;
+    if (!e?.rooms?.[pk.id]) return { error: 'That pocket is not in the draft any more.' };
+    e.rooms = { ...e.rooms, [pk.id]: { ...e.rooms[pk.id], name: v.name.trim(), body: v.body.trim() } };
+    // #100 · the writer wrote it, so Talk leaves this thread alone unless asked for it by name.
+    e.typed = true;
+    return {};
+  }, never: (v) => (!v.name.trim() ? 'A pocket needs a name.' : !v.body.trim() ? 'A pocket needs something in it.' : null) },
 };
 const pocketAuto = (pk) => (pk?.sum ? POCKET_AUTO.sum : pk?.arc ? POCKET_AUTO.arc
-  : pk?.ot && pk.id && pk.id !== 'first' ? POCKET_AUTO.state : null);
+  : pk?.ot && pk.id && pk.id !== 'first' ? POCKET_AUTO.state : pk?.draft && pk.id ? POCKET_AUTO.draft : null);
 const pocketVals = (pk, auto) => Object.fromEntries(auto.fields.map((f) => [f, pk[f]]));
 const sameVals = (a, b) => Object.keys(a).every((k) => a[k] === b[k]);
 /** One write of an open panel. In turn, never two at once, so a slow write cannot land after a later
@@ -3085,11 +3095,13 @@ function writePocket(pk, storyId = S.storyId, vals = null, forced = false) {
   });
   return pk.chain;
 }
-/** Shut the panel, and draw the tale again from the server when anything was written. */
+/** Shut the panel, and draw the tale again from the server when anything was written: or the setup
+ *  page from the draft, for a draft's pocket, keeping what is typed on it (harvestSpark). */
 async function shutPocket(pk) {
   if (S.pocket === pk) S.pocket = null;
   drawPocket(); syncLayers();
-  if (pk.wrote && S.storyId && V) { V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); }
+  if (pk.wrote && pk.draft) { harvestSpark(); paint(); }
+  else if (pk.wrote && S.storyId && V) { V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); }
   return true;
 }
 /** DONE, and Esc and Back on a panel that saves as you type: what the pause has not written is written
@@ -7035,8 +7047,9 @@ function draftPocketPanel(pk, e) {
       <textarea class="field grow pkbody" id="pk-body" placeholder="${esc(bodyPh)}">${esc(pk.body)}</textarea>
       ${adding ? '' : `<button class="btn ghost danger push-14" data-sppocketdel="1">Remove this pocket</button>`}</div>
     <div class="pkfoot">
-      <button class="btn ghost" data-pocketx="1">Cancel</button>
-      <button class="btn" data-sppocketsave="1">Save</button>
+      ${/* One that exists saves into the draft as you type (POCKET_AUTO); a new one is added by its press. */
+        pocketAuto(pk) ? AUTO_FOOT : `<button class="btn ghost" data-pocketx="1">Cancel</button>
+      <button class="btn" data-sppocketsave="1">Save</button>`}
     </div>
   </div>`;
 }

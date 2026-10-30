@@ -40,6 +40,10 @@ Reset still gives you Anansi's own wording.
 When you open a thread's change over time and alter its scene, what it says or what changed, it is
 kept as you type. Done closes it, and Undo my changes puts it back as it was when you opened it. A
 new change is still added with its own press.
+### Pockets in a new tale's setup save as you type
+While you set up a new tale, a pocket you open on one of its threads keeps what you type. Done
+closes it, and Undo my changes puts back what it said when you opened it. A new pocket is still
+added with its own press.
 
 ## 2026-10-30 · The next scene starts the way you say
 
