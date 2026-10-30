@@ -787,8 +787,9 @@ if (await page.visible('[data-setup="title"]')) {
   ok("the setup page offers a search to bring a thread in", await page.visible('#setupQ'));
   if (always) {
     // WHO IS IN IT ARE THREAD BLOCKS, each with how it comes in and ✕ (Seth, 2026-10-29).
+    // One pill per thread now (Who A): it names how the thread comes in on `data-now`.
     ok("  and an always-on character is listed as a thread, with Always on chosen",
-       await page.visible(`[data-howin="${always}"][data-how="always"][aria-pressed="true"]`));
+       await page.visible(`[data-howin="${always}"][data-now="always"]`));
     await page.click(`[data-howout="${always}"]`);
     await wait(1000);
     const pins = (await story()).pins ?? [];
@@ -1970,15 +1971,15 @@ console.log(red ? `\n  ${red} RED` : "\n  all green");
     const now = (await story()).story.pov;
     ok(`  a picker saves itself with no Save pressed (server now says ${JSON.stringify(now)})`, now === other);
 
-    // And free text does not. Typed into and left alone; only the Save press commits it.
+    // AND TYPED TEXT DOES, since ADR 0004's third pass (2026-10-29): leaving the box saves it.
     const title = (await story()).story.title;
     await page.eval(`(() => { const t = document.querySelector('[data-story="title"]');
-      if (!t) return 0; t.value = 'Autosaved By Mistake';
+      if (!t) return 0; t.value = 'Saved When Left';
       t.dispatchEvent(new Event('input', { bubbles: true }));
       t.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
     await wait(800);
     const after = (await story()).story.title;
-    ok(`  and typing in a text field does not (still ${JSON.stringify(after)})`, after === title);
+    ok(`  and so does a typed box, once it is left (${JSON.stringify(after)}, was ${JSON.stringify(title)})`, after === 'Saved When Left');
   } else {
     ok("  AUTOSAVE ASSERTIONS DID NOT RUN — no second option to choose", false);
   }
