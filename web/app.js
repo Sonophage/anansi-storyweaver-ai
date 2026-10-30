@@ -520,7 +520,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  carries `data-tip` like every other folded explanation — one mark, one handler, one
   //  state. A name left here would match nothing and read as a live action.)
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'ctxtoggle', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home',
-  're', 'del', 'ed', 'hi', 'vp', 'vn', 'hwkb', 'bigin',
+  're', 'del', 'ed', 'hi', 'vp', 'vn', 'hwkb', 'bigin', 'talkfull',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'delbranch', 'newthread', 'entry',
   'carryon',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
@@ -2223,7 +2223,9 @@ async function dockAsk() {
   S.mentions = [];
   S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true, draft: null };
   clearComposer();
-  S.panel = 'anansi'; syncHash(); paint();
+  // Full screen keeps the conversation where it is asked; folded small, the drawer opens to show it.
+  if (!S.bigInput) { S.panel = 'anansi'; syncHash(); }
+  paint();
   return talk(said, mentions);
 }
 
@@ -2305,8 +2307,15 @@ function drawDock() {
   $('dockCol').innerHTML = `${weaveFitRow()}
     ${last ? `<button id="fold" data-dockfold="1" aria-label="Fold the box away" title="Fold the box away"
       ><span aria-hidden="true">⌄</span></button>` : ''}
+    ${/* TALK, FULL SCREEN (Seth, 2026-10-29): the conversation above the box, drawn by the drawer's
+         own renderer. Folded small, the head offers the way in, with how many turns there are. */
+      S.dockTalk && S.bigInput ? `<div id="talkthread" aria-live="polite">${S.talk.turns.length ? talkTurns(S.talk)
+        : '<div class="hint flush">Ask Anansi anything about this tale. The conversation stays here until you leave the tale.</div>'}${
+        S.talk.busy ? '<div class="hint flush">Asking&hellip;</div>' : ''}</div>` : ''}
     ${S.dockTalk ? `<div id="talkhead">
       <span>${mark('webfull', 15)} Talking to Anansi</span>
+      ${S.bigInput ? '' : `<button data-talkfull="1">${S.talk.turns.length
+        ? `See the conversation &middot; ${S.talk.turns.length}` : 'Full screen'}</button>`}
       <button data-dockwrite="1">Back to writing</button></div>` : ''}
     <div id="modes">
       <!-- ONE DIAL, NOT FOUR BUTTONS. Seth, 2026-09-02: "make speak, act, direct and narrate into
@@ -2458,6 +2467,8 @@ function drawDock() {
   // reported a second time AFTER the repaint fix, because that fix made focus() run more often,
   // not less. The box is already on screen; it is the dock. Nothing needs scrolling to reach it.
   if (draft?.focused) ta.focus({ preventScroll: true });
+  // The newest turn of a full-screen Talk is the one on screen, as in any conversation.
+  const thread = $('talkthread'); if (thread) thread.scrollTop = thread.scrollHeight;
   // HARDWARE KEYBOARD: the caret comes back on its own. Pressing a button moves focus to that
   // button, and a repaint then throws the button away — leaving focus on <body> and the writer
   // reaching for the mouse to get back into the box. With a physical keyboard there is no soft
@@ -2874,6 +2885,48 @@ function stringList(all, none) {
     ${off.length ? `<div class="lbl sect-rule">Set aside</div>${off.map(stringRow).join('')}` : ''}
     ${done.length ? `<div class="lbl sect-rule">Tied off or let go</div>${done.map(stringRow).join('')}` : ''}`;
 }
+/** THE CONVERSATION'S TURNS, drawn once for the Talk drawer and for Talk in the full-screen composer
+ *  (2026-10-29), so the two cannot draw a change line, its Undo or its diff differently. `t` is the
+ *  conversation: `S.talk`, or the setup draft's. Indices are into `t.turns`, which the Undo reads. */
+function talkTurns(t) {
+  return t.turns.map((turn, i) => turn.you
+          ? `<div style="align-self:flex-end; max-width:88%; padding:9px 13px; border-radius:var(--r) 14px 4px 14px;
+              background:rgba(217,178,106,.10); border:1px solid rgba(217,178,106,.22);
+              font-size:13px; line-height:1.5; color:var(--ink)">${esc(turn.text)}</div>`
+          : `<div style="max-width:94%; display:flex; flex-direction:column; gap:7px">
+              <div style="font-size:13.5px; line-height:1.62; color:var(--ink); white-space:pre-wrap">${esc(turn.text)}</div>
+              <!-- THE PAGES HE READ, each with its link (#99). Seth, 2026-09-01, asked that links not
+                   be written into what Anansi made ("i dont need anansi to post where the
+                   information is coming from like the url links"), and that holds: no link goes in
+                   a thread's text. Since Anansi chooses his own searches (spec #96, 2026-10-28), the
+                   writer is shown what he read, as one caption line that wraps on a phone. Only an
+                   http(s) link is drawn: a search result is a stranger's text. -->
+              ${(turn.sources ?? []).some((s) => /^https?:\/\//i.test(s.url ?? '')) ? `<div class="caption"
+                style="display:flex; flex-wrap:wrap; gap:3px 10px">Pages read: ${turn.sources
+                  .filter((s) => /^https?:\/\//i.test(s.url ?? ''))
+                  .map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noreferrer"
+                    style="color:var(--mute)">${esc(s.title || s.url)}</a>`).join('')}</div>` : ''}
+              ${/* #122 · UNDER EACH LINE AND ITS UNDO, what it changed, word by word (`diff` is the text
+                   before and after; none for a change that rewrote no text). */
+                (turn.changes ?? []).map((ch, j) => `<div class="line-2" style="align-items:center; gap:8px">
+                <span style="font-size:12.5px; line-height:1.45; color:var(--ink-bright); flex:1">${esc(ch.words)}</span>
+                ${ch.undone ? '<span class="caption">Undone</span>' : ch.refused || !ch.undo ? ''
+                  : `<button class="tag" data-talkundo="${i}:${j}" style="cursor:pointer">Undo</button>`}</div>${
+                  ch.diff && !ch.refused ? diffHTML(ch.diff.before, ch.diff.after) : ''}`).join('')}
+              ${/* #100 · WHAT HE OFFERED during setup, each with Add: one press puts it in the draft,
+                   and it then has a line and an Undo like any change. */
+                (turn.offers ?? []).map((o, j) => `<div class="line-2" style="align-items:flex-start; gap:8px">
+                <span style="font-size:12.5px; line-height:1.45; color:var(--mute); flex:1"><span class="inked">${
+                  esc(o.title)}</span> &middot; ${esc(KIND_PLURAL[o.entryType] ?? o.entryType)} &middot; ${
+                  esc(String(o.body ?? '').replace(/^\[[^:]*:\s*|\]$/g, ''))}</span>
+                ${o.added ? '<span class="caption">Added</span>'
+                  : `<button class="tag" data-talkadd="${i}:${j}" style="cursor:pointer">Add</button>`}</div>`).join('')}
+              ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
+                border-color:var(--edge-lit); color:var(--ink-bright)">${turn.proposed} chalked &mdash; under This scene</button>` : ''}
+              ${turn.meta ? `<div class="caption">${esc(turn.meta)}</div>` : ''}
+            </div>`).join('');
+}
+
 /** #75 · THE TALE'S OWN THREAD, the Thread tab of the Tale panel (Seth, 2026-10-29: "Put the tale
  *  thread and its pockets under tale as a new tab"; it was its own page, opened from the first card in
  *  Threads, and that card now opens this tab). What the writer gives the model about the whole tale.
@@ -5101,42 +5154,7 @@ const PANELS = {
       : { ...S.talk, searchable: V?.searchable ?? S.talk.searchable };
     return `<div style="display:flex; flex-direction:column; height:100%">
       <div style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding-bottom:10px">
-        ${t.turns.length ? t.turns.map((turn, i) => turn.you
-          ? `<div style="align-self:flex-end; max-width:88%; padding:9px 13px; border-radius:var(--r) 14px 4px 14px;
-              background:rgba(217,178,106,.10); border:1px solid rgba(217,178,106,.22);
-              font-size:13px; line-height:1.5; color:var(--ink)">${esc(turn.text)}</div>`
-          : `<div style="max-width:94%; display:flex; flex-direction:column; gap:7px">
-              <div style="font-size:13.5px; line-height:1.62; color:var(--ink); white-space:pre-wrap">${esc(turn.text)}</div>
-              <!-- THE PAGES HE READ, each with its link (#99). Seth, 2026-09-01, asked that links not
-                   be written into what Anansi made ("i dont need anansi to post where the
-                   information is coming from like the url links"), and that holds: no link goes in
-                   a thread's text. Since Anansi chooses his own searches (spec #96, 2026-10-28), the
-                   writer is shown what he read, as one caption line that wraps on a phone. Only an
-                   http(s) link is drawn: a search result is a stranger's text. -->
-              ${(turn.sources ?? []).some((s) => /^https?:\/\//i.test(s.url ?? '')) ? `<div class="caption"
-                style="display:flex; flex-wrap:wrap; gap:3px 10px">Pages read: ${turn.sources
-                  .filter((s) => /^https?:\/\//i.test(s.url ?? ''))
-                  .map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noreferrer"
-                    style="color:var(--mute)">${esc(s.title || s.url)}</a>`).join('')}</div>` : ''}
-              ${/* #122 · UNDER EACH LINE AND ITS UNDO, what it changed, word by word (`diff` is the text
-                   before and after; none for a change that rewrote no text). */
-                (turn.changes ?? []).map((ch, j) => `<div class="line-2" style="align-items:center; gap:8px">
-                <span style="font-size:12.5px; line-height:1.45; color:var(--ink-bright); flex:1">${esc(ch.words)}</span>
-                ${ch.undone ? '<span class="caption">Undone</span>' : ch.refused || !ch.undo ? ''
-                  : `<button class="tag" data-talkundo="${i}:${j}" style="cursor:pointer">Undo</button>`}</div>${
-                  ch.diff && !ch.refused ? diffHTML(ch.diff.before, ch.diff.after) : ''}`).join('')}
-              ${/* #100 · WHAT HE OFFERED during setup, each with Add: one press puts it in the draft,
-                   and it then has a line and an Undo like any change. */
-                (turn.offers ?? []).map((o, j) => `<div class="line-2" style="align-items:flex-start; gap:8px">
-                <span style="font-size:12.5px; line-height:1.45; color:var(--mute); flex:1"><span class="inked">${
-                  esc(o.title)}</span> &middot; ${esc(KIND_PLURAL[o.entryType] ?? o.entryType)} &middot; ${
-                  esc(String(o.body ?? '').replace(/^\[[^:]*:\s*|\]$/g, ''))}</span>
-                ${o.added ? '<span class="caption">Added</span>'
-                  : `<button class="tag" data-talkadd="${i}:${j}" style="cursor:pointer">Add</button>`}</div>`).join('')}
-              ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
-                border-color:var(--edge-lit); color:var(--ink-bright)">${turn.proposed} chalked &mdash; under This scene</button>` : ''}
-              ${turn.meta ? `<div class="caption">${esc(turn.meta)}</div>` : ''}
-            </div>`).join('')
+        ${t.turns.length ? talkTurns(t)
           : (() => {
             // The empty state was two paragraphs of explanation over a panel-height void. It said
             // what Anansi could do in prose and then left you to compose the question yourself.
@@ -5215,6 +5233,7 @@ const PANELS = {
               ${t.searchable === false ? 'disabled' : ''}> Anansi may search
           </label>
           ${t.turns.length ? `<button class="caption" data-clearchat="1">Clear</button>` : ''}
+          ${setup ? '' : `<button class="caption" data-talkfull="1" title="Talk in the full-screen composer, with the conversation above the box">Full screen</button>`}
           <button class="btn" data-ask="1" ${t.busy ? 'disabled' : ''}
             style="margin-left:auto; width:auto; padding:0 22px; height:38px">${t.busy ? '&hellip;' : 'Ask'}</button>
         </div>
@@ -9249,15 +9268,25 @@ function syncHash() {
   if (!ROUTED || ROUTING || BACKING || location.hash === want) return;
   const from = depth(location.hash), to = depth(want);
   // The layer rides along, so a drawer opened over Reading mode does not end it on Back.
-  if (to > from) history.pushState({ under: location.hash, layer: layerNow() }, '', want);
+  if (to > from) { history.pushState({ under: location.hash, layer: layerNow() }, '', want); ADDRESS = want; }
   // A thread open in the drawer is one or two entries ABOVE the drawer's own (`syncThread`), at
   // the same address. Shutting the drawer steps back over all of them, or Back would land on the
   // thread's entry and open the drawer again.
   else if (to < from && history.state?.under === want) { BACKING = true; history.go(-1 - (history.state.thread ?? 0)); }
-  else history.replaceState(history.state, '', want || location.pathname);
+  else { history.replaceState(history.state, '', want || location.pathname); ADDRESS = location.hash; }
 }
 // popstate comes before the hashchange that routes, on every step through history.
-window.addEventListener('popstate', () => { BACKING = false; closeLayersBack(); closeThreadBack(); });
+// A NEW ADDRESS TYPED OR SET IS A popstate TOO (the browser fires one before hashchange), with no
+// state and one level deeper than the address it left. That is a step forward, not Back, so it must
+// not shut what covers the tale: opening a drawer by its address over Reading mode ended Reading.
+let ADDRESS = location.hash;
+window.addEventListener('popstate', () => {
+  const forward = !history.state && depth(location.hash) > depth(ADDRESS);
+  ADDRESS = location.hash;
+  BACKING = false;
+  if (forward) return;
+  closeLayersBack(); closeThreadBack();
+});
 
 /** A THREAD OPEN IN THE THREADS DRAWER IS A STEP OF ITS OWN, AND ITS ⋯ IS ANOTHER (v2 redesign,
  *  2026-10-25). Back from a thread went past the list and shut the drawer, because opening one
@@ -11940,6 +11969,10 @@ document.addEventListener('click', async (e) => {
   if (d.hwkb) { setHwkb(!hwkb); drawAppearance(); return toast(hwkb
     ? 'Your cursor goes back to the writing box on this device.' : 'Your cursor stays where you put it.'); }
   if (d.bigin) { S.bigInput = !S.bigInput; drawDock(); syncTray(); $('input')?.focus(); return; }
+  // Talk in the full-screen composer, from the drawer or the Talk head: the drawer shuts, the box
+  // turns to Talk and fills the screen, and the conversation is above it.
+  if (d.talkfull) { if (S.panel === 'anansi') { S.panel = null; syncHash(); }
+    S.dockTalk = true; S.dockOpen = true; S.bigInput = true; paint(); $('input')?.focus({ preventScroll: true }); return; }
 
   // PLAN-08 Phase 4. A THRESHOLD, not a delete: the card stops reaching the model from the chapter
   // named and every chapter before it still has them, which is what makes going back to revise
@@ -15106,7 +15139,19 @@ async function route() {
 }
 
 // Changing only the hash does not reload, so a pasted deep link into an open tab did nothing.
-window.addEventListener('hashchange', route);
+// A DRAWER OPENED BY THE ADDRESS is a step of its own, as one opened by a press is (`syncHash` marks
+// those `under` the tale's address). The browser pushes this entry with no state, so without the
+// mark the drawer's own close replaced it with the tale's address and left a second copy of the
+// tale behind it: Back from there stayed in the tale (test/ui/back.js, broken since before
+// 2026-10-29). Marked only when the step came from the address just under it, so a deep link pasted
+// into a fresh tab does not step back out of the app on close.
+window.addEventListener('hashchange', (e) => {
+  const from = new URL(e.oldURL).hash, to = location.hash;
+  if (!history.state && to.startsWith(from + '/') && depth(to) === depth(from) + 1)
+    history.replaceState({ under: from, layer: layerNow() }, '', to);
+  ADDRESS = to;
+  return route();
+});
 
 (async () => {
   applyLook();

@@ -18,6 +18,16 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Talk with Anansi full screen
+Talking to Anansi can now fill the screen the way the full-screen composer does: the conversation
+sits above the box and scrolls, and a question asked there is answered there. Open it with Full
+screen in the Talk drawer, or with "See the conversation" on the line above the box while you talk.
+Back to writing puts it away. The conversation lasts until you leave the tale, as before.
+
+### Back after closing a drawer
+Closing a drawer with its own ✕ and then pressing Back now goes back where you came from, instead
+of stopping on the same tale a second time. A drawer opened over Reading mode no longer ends it.
+
 ### Rules live on the tale's own thread
 A rule of your tale is no longer a thread of its own. Rules are on the Tale panel's Thread tab, under
 Rules: each has its name, what it says, and its wake words. With no wake words a rule is sent every

@@ -189,6 +189,22 @@ ok("HINT-STAYS-GONE: after a hold the hint does not come back on the next load",
 await page.click('#quill');
 await page.mode('talk');
 ok("TALK-DIAL: Talk to Anansi on the dial turns the box to Talk", await talking());
+// TALK, FULL SCREEN (2026-10-29): the head offers the conversation, and it opens above the box. (The
+// reload above emptied it, so the thread holds its opening line; test/app.ts checks the turns.)
+await press('#talkhead [data-talkfull]');
+await wait(300);
+{
+  const m = JSON.parse(await page.eval("(() => { const t = document.getElementById('talkthread'), i = document.getElementById('input');"
+    + " const a = t?.getBoundingClientRect(), b = i?.getBoundingClientRect();"
+    + " return JSON.stringify({ thread: a ? [Math.round(a.top), Math.round(a.bottom)] : null, input: b ? [Math.round(b.top), Math.round(b.bottom)] : null,"
+    + " said: !!t, big: document.getElementById('dock').classList.contains('big') }); })()"));
+  ok(`TALK-FULL: See the conversation fills the screen with it, above the box (${JSON.stringify(m)})`,
+     !!m.thread && !!m.input && m.thread[1] - m.thread[0] > 80 && m.input[1] - m.input[0] > 40
+     && m.thread[1] <= m.input[0] + 1 && m.said && m.big);
+}
+ok("  and the drawer is not open over it", await page.eval("document.getElementById('side').hidden"));
+await press('[data-bigin]');
+await wait(200);
 await press('#talkhead [data-dockwrite]');
 await wait(200);
 ok("  and Back to writing turns it back", (await shown('#modes')) && !(await talking()));

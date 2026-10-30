@@ -3141,6 +3141,33 @@ ok('the Context panel carries the weaving refusal the press would get, and nothi
 }
 ok('a refused Talk or invention gets the same row where it was asked, and each button asks again');
 
+// TALK, FULL SCREEN (Seth, 2026-10-29: "use the ui from the maximized edit screen for ai chat and an easy
+// way to see the conversation"). The drawer's Full screen hands the conversation to the full-screen
+// composer: the turns above, the box below, and a question asked there stays there.
+{
+  const talks = () => POSTED.filter((p: any) => p.url === '/api/talk');
+  click({ open: 's-1' }); await sleep(40);
+  click({ panel: 'anansi' }); await sleep(30);
+  (document as any).getElementById('askBox').value = 'Who is Marek?';
+  click({ ask: '1' }); await sleep(80);
+  assert.match(html('sideBody'), /data-talkfull="1"/, 'TALK-FULL-DOOR: the Talk drawer has a Full screen');
+  click({ talkfull: '1' }); await sleep(40);
+  const dock = html('dockCol');
+  assert.match(dock, /id="talkthread"/, 'TALK-FULL: the full-screen composer shows the conversation');
+  assert.ok(dock.includes('Who is Marek?') && dock.includes('It is about a debt.'), '  both sides of it');
+  assert.ok(dock.indexOf('id="talkthread"') < dock.indexOf('id="input"'), '  above the box');
+  POSTED.length = 0;
+  (document as any).getElementById('input').value = 'And the key?';
+  click({ send: '1' }); await sleep(80);
+  assert.strictEqual(talks().length, 1, 'TALK-FULL-SEND: Send there asks Anansi');
+  assert.ok(html('dockCol').includes('And the key?'), 'TALK-FULL-STAYS: and the question lands in the same conversation');
+  assert.ok((document as any).getElementById('side').hidden, '  and the drawer does not open over it');
+  click({ dockwrite: '1' }); await sleep(30);
+  assert.doesNotMatch(html('dockCol'), /id="talkthread"/, '  Back to writing puts the conversation away');
+  click({ bigin: '1' }); await sleep(20);
+}
+ok('Talk goes full screen with the conversation above the box, and a question asked there stays there');
+
 // #97 · WHAT TALK CHANGED, IN THE CONVERSATION, WITH UNDO. Each change the server made comes back as a
 // line in the writer's words; Undo sends that change's own `undo` back, untouched, and the line then
 // says it was undone. A failed Undo says why and leaves the line as it was.
