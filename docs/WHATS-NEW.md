@@ -57,6 +57,12 @@ This scene; it still asks twice.
 The hem screen lists what hemming does as steps, in the order it does them: the summary, where the
 tale stands, changes to the people in it, new threads, threads it is done with, and the next scene.
 Each is marked done or not yet. Hem this scene is the one gold button there.
+### Storyteller says which settings are this tale's and which are yours
+The Storyteller now opens on "This tale": the tale's model, Plans first, and how much he reads.
+Below it, "Yours, on every tale" holds how he picks words, which you set once for every tale. The
+warning at the top that said none of it was per tale is gone, since the model is. Your default
+model is still changed from the model named in the menu, and Account → Model now says so plainly.
+
 ### No more Save on the Tale, This scene and Storyteller
 What you type on the Tale and This scene saves itself, a moment after you stop typing and again
 when you leave the box. The Save at the top of those panels, and of the Storyteller, is gone. Your

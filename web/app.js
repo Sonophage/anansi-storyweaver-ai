@@ -5347,18 +5347,13 @@ const PANELS = {
           min="0" max="${max}" step="${max > 2 ? 10 : 0.01}"
           value="${value}" style="width:100%; accent-color:var(--gold)">
       </div>`;
+    // TWO HOMES ON ONE PANEL, SAID AS TWO (Seth's item 9 of the 2026-10-29 review). It opened on
+    // "These are yours, not per tale" above a model picker that IS per tale. ADR 0003: what is this
+    // tale's comes first under its own heading, what is the writer's on every tale under another.
     return `<div class="stack">
-      <div style="display:flex; align-items:flex-start; gap:12px; padding:0 0 4px">
-        <span style="width:8px; height:8px; border-radius:50%; background:var(--warn); margin-top:5px; flex:0 0 auto"></span>
-        <span class="col-4">
-          <span class="body-135">These are yours, not per tale${
-            tipMark('genShared', 'These are yours, not per tale')}</span>
-          ${tipCard('genShared', 'These are yours, not per tale', `<p>The sampler belongs to you,
-            not to the server: changing it here changes it for every tale YOU write and leaves the
-            other writer alone.</p>
-            <p>It is set from inside a tale, which makes it look per-tale; it is not. Per-tale
-            sampling was never built.</p>`)}</span></div>
-      <div class="lbl sect">Model</div>
+      <div class="lbl sect" style="margin-top:0">This tale</div>
+      <div class="hint flush below-14">Its model, whether he plans first, and how much he reads. Only this tale.</div>
+      <div class="lbl">Model</div>
       ${listed === null ? '<div class="hint flush">Asking the router&hellip;</div>'
         : listed.length === 0 ? emptyModels()
         : `<select class="field" data-storymodel="1" aria-label="This tale's model">
@@ -5406,7 +5401,7 @@ const PANELS = {
             : V.story.model
             ? `This tale's model is <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
                whatever any other tale uses.`
-            : 'This tale uses your model, the one at the foot of the menu. Name one here and it becomes this tale&rsquo;s model, whatever your model becomes.'}</div>`}
+            : 'This tale uses your model, the one named in the menu. Name one here and it becomes this tale&rsquo;s model, whatever your model becomes.'}</div>`}
       <!-- #55. WEAVING, this book's own switch, beside the model that writes it. It replaced a note
            that said thinking was off and not a setting, which is no longer true once a book can
            weave. A [data-story] checkbox, so it saves itself and the Context panel asks again: the
@@ -5434,7 +5429,11 @@ const PANELS = {
         .map(([v, label]) => `<option value="${v}"${String(V.story.maxContext ?? '') === v ? ' selected' : ''}>${label}</option>`).join('')}</select>
       <div class="hint">Less is faster and keeps him on the recent pages; more lets him see further back.</div>
 
-      <div class="lbl sect">How he picks words</div>
+      <div class="lbl sect">Yours, on every tale${tipMark('genShared', 'Yours, on every tale')}</div>
+      ${tipCard('genShared', 'Yours, on every tale', `<p>How he picks words belongs to you, not to the
+        server: changing it here changes it for every tale you write, and leaves the other writer
+        alone. Per-tale sampling was never built.</p>`)}
+      <div class="lbl">How he picks words</div>
       ${slider('Surprise', 'temperature', g.temperature ?? 0.85, 2,
         'How far Anansi reaches for a less obvious word. Only for prose: his notes and suggestions always stay steady.')}
       ${slider('Focus', 'top_p', g.top_p ?? 0.95, 1,
@@ -8671,7 +8670,7 @@ const WPAGES = {
               on the server, never in this page: <code>${esc(me.featherless?.file ?? '')}</code></div>`}
         <div class="lbl wide push-18">Your model</div>
         <div class="hint flush"><code>${esc(modelName(SRV.model ?? '').name || 'the local default')}</code>
-          writes every tale that does not name its own. Change it from the model list at the foot of the menu.</div>`
+          writes every tale that does not name its own. To change it, press the model named in the menu and pick from its list.</div>`
       : `
         <div class="acctface">${me.avatar
           ? `<img class="acctpic" src="${api.avatarUrl(me.avatar)}" alt="Your picture">`

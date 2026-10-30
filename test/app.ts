@@ -2905,6 +2905,15 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   const at = (re: RegExp) => teller.search(re);
   assert.ok(at(/data-storymodel/) < at(/data-story="weaving"/) && at(/data-story="weaving"/) < at(/>How he picks words</),
     'between the book\'s model and the sampler');
+  // TWO HOMES ON ONE PANEL, SAID AS TWO (Seth's item 9, 2026-10-29). The panel opened on "These are
+  // yours, not per tale" above a model picker that is per tale. Now "This tale" heads the model,
+  // Plans first and the reading cap, and "Yours, on every tale" heads the sampler.
+  assert.doesNotMatch(teller, /not per tale/, 'TELLER-HOMES: no banner that says the whole panel is not per tale');
+  assert.ok(at(/>This tale</) !== -1 && at(/>This tale</) < at(/data-storymodel/),
+    'TELLER-HOMES: "This tale" heads the model');
+  assert.ok(at(/data-story="maxContext"/) < at(/>Yours, on every tale</) && at(/>Yours, on every tale</) < at(/data-gen=/),
+    'TELLER-HOMES: and "Yours, on every tale" comes after the tale\'s own settings and heads the sampler');
+  assert.doesNotMatch(teller, /foot of the menu/, 'TELLER-HOMES: and it does not send the writer to the foot of a menu that is at the top on a phone');
 
   STORY.story.weaving = true;
   click({ panel: 'teller' }); click({ panel: 'teller' });
