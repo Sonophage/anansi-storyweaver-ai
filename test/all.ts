@@ -36,7 +36,10 @@ serialise();
 const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'memory.ts', 'report.ts', 'talk.ts', 'changes.ts', 'diff.ts', 'forge.ts', 'web.ts', 'app.ts', 'remote.ts', 'keys.ts', 'account.ts', 'weave.ts', 'status.ts',
                 ...['order', 'contractions', 'lockout', 'quote', 'ledger-audit', 'modes', 'drift',
                     'fires', 'retire', 'cast', 'voice', 'utilisation', 'weight',
-                    'council06', 'lockout-book', 'weave-json', 'repetition', 'lockout-cheap', 'words', 'preview'].map((b) => `../bench/${b}.ts check`)];
+                    'council06', 'lockout-book', 'weave-json', 'repetition', 'lockout-cheap', 'words', 'preview',
+                    // Both green and both run by nobody until 2026-10-29. `stats.ts` runs its
+                    // self-check when invoked directly, so it takes no subcommand.
+                    'stale'].map((b) => `../bench/${b}.ts check`), '../bench/stats.ts'];
 const started = Date.now();
 
 /* EVERY BENCH ENTRY GETS ITS OWN DATABASE, and this is not tidiness.
@@ -55,7 +58,8 @@ const started = Date.now();
  * So the guard is on the SPAWN and not on the one file that needs it today. A check added next
  * month that opens a database is covered without anybody remembering this. Under it is a floor in
  * `src/db.ts`: a `check` run with no ANANSI_DB is refused the default library outright. */
-const runs = suites.map((s) => new Promise<{ s: string; out: string; ok: boolean }>((done) => {
+const runs = suites.map((s) => new Promise<{ s: string; out: string; ok: boolean; ms: number }>((done) => {
+  const t0 = Date.now();
   const bench = s.startsWith('../bench/');
   /* AND NO SUITE EVER REACHES THE REAL FEATHERLESS. This machine has a real key at the default path,
    * so a suite that so much as names a remote id would otherwise spend plan units. A missing key
@@ -68,7 +72,7 @@ const runs = suites.map((s) => new Promise<{ s: string; out: string; ok: boolean
     : { ...process.env, ...offline };
   execFile(process.execPath, ['--experimental-strip-types', ...s.split(' ')],
     { cwd: import.meta.dirname, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, env },
-    (err, stdout, stderr) => done({ s, out: (stdout ?? '') + (stderr ?? ''), ok: !err }));
+    (err, stdout, stderr) => done({ s, out: (stdout ?? '') + (stderr ?? ''), ok: !err, ms: Date.now() - t0 }));
 }));
 
 // NAME THE ONES THAT FAILED. The summary counted them and stopped there, so a run whose tail read
@@ -76,8 +80,11 @@ const runs = suites.map((s) => new Promise<{ s: string; out: string; ok: boolean
 // which is exactly the shape of failure where the name is the whole of the information. Twice on
 // 2026-08-29 this cost a diagnosis; the output was above, but nothing pointed at it.
 const bad: string[] = [];
+// EACH HEADER CARRIES ITS SUITE'S OWN WALL TIME. The total alone said the run took 45 s and not
+// which suite took them; one suite was 44 of the 45, and finding that took a hand-timed loop.
 for (const r of await Promise.all(runs)) {
-  process.stdout.write(`\n── ${r.s} ${'─'.repeat(46 - r.s.length)}\n`);
+  const t = `${(r.ms / 1000).toFixed(1)}s`;
+  process.stdout.write(`\n── ${r.s} ${'─'.repeat(Math.max(1, 46 - r.s.length - t.length - 1))} ${t}\n`);
   process.stdout.write(r.out);
   if (!r.ok) bad.push(r.s);
 }
