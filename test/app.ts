@@ -3784,7 +3784,7 @@ ok('sparking replaces the screen with the wizard rather than sitting it beside a
   assert.match(voiceBox(pv), />Cold, spare\.$/, 'VOICE-START: the Voice box holds the Voice the tale started with');
   assert.doesNotMatch(voiceBox(pv), /frost/, '  and not the one the spark wrote');
   assert.match(pv, /data-spvoiceoffer="1"/, 'VOICE-OFFER: the spark\'s Voice is offered with Use this');
-  assert.match(pv, /<div class="diff">[\s\S]*<ins>[^<]*Long sentences/, '  as a diff against the writer\'s own');
+  assert.match(pv, /<div class="diff" data-view="now">[\s\S]*<ins>[^<]*Long sentences/, '  as a diff against the writer\'s own');
   click({ spvoiceoffer: '1' });
   pv = html('page');
   assert.match(voiceBox(pv), /frost in every one\.$/, 'VOICE-USE: Use this puts the offered Voice in the box');
@@ -7132,15 +7132,16 @@ const hemCardOf = (side: string) => {
   // WHO IS IN IT, AS BLOCKS: the always-on threads; not a thread on a word with no pin. (Rules are
   // pockets of the tale since 2026-10-29, not threads, so none can be in it.)
   const sereth = who(side, 'e-1');
-  assert.match(sereth, /class="card hemthread"/, 'WHO-BLOCK: a thread in the scene is a thread block, as What it left draws one');
-  assert.match(sereth, /data-hemthreadname[^>]*>Envoy Sereth</, '  with its name');
-  assert.match(sereth, /<span class="tag">Character</, '  its kind');
-  assert.match(sereth, /How she sounds[\s\S]*Flat, unhurried\./, '  and its pockets');
+  // ONE LINE A THREAD (Seth, 2026-10-29, option A): the name, its kind, one pill, ✕; no pockets.
+  assert.match(sereth, /class="whorow" data-whothread="e-1"/, 'WHO-LINE: a thread in the scene is one line');
+  assert.match(sereth, /data-entry="e-1"[\s\S]*?data-hemthreadname[^>]*>Envoy Sereth</, '  with its name, which opens the thread');
+  assert.match(sereth, /<span class="whokind">Character</, '  its kind');
+  assert.doesNotMatch(sereth, /Flat, unhurried\./, '  and no pockets: they are a press away');
   assert.ok(who(side, 'e-shared'), '  every thread in it');
   assert.strictEqual(who(side, 'e-2'), '', '  and not a thread on a word with no pin');
-  for (const [how, label] of [['scene', 'This scene only'], ['always', 'Always on'], ['named', 'When it&#39;s named']])
-    assert.match(sereth, new RegExp(`data-howin="e-1" data-how="${how}"[^>]*>${label}<`), `WHO-HOW: it offers ${label.replace('&#39;', "'")}`);
-  assert.match(sereth, /data-how="always" aria-pressed="true"/, '  with Always on chosen for an always-on thread');
+  assert.match(sereth, /data-howin="e-1" data-how="scene" data-now="always"[^>]*>Always on</,
+    'WHO-PILL: one pill says how it comes in (Always on), and a press moves it to This scene only');
+  assert.strictEqual((sereth.match(/data-howin=/g) ?? []).length, 1, '  one pill, not three chips');
   assert.doesNotMatch(side, /data-pin=|data-place=/, 'WHO-NO-TICKS: the old tick list is gone');
 
   // THIS SCENE ONLY, for an always-on thread: on a word from now on, and pinned in for this scene.
@@ -7149,12 +7150,12 @@ const hemCardOf = (side: string) => {
   assert.deepStrictEqual(sent(from), ['entry e-1 triggered', 'pin e-1 force_in'],
     'WHO-SCENE: This scene only puts it on a word and pins it into the scene');
   side = html('sideBody');
-  assert.match(who(side, 'e-1'), /data-how="scene" aria-pressed="true"/, '  and it reads This scene only');
+  assert.match(who(side, 'e-1'), /data-how="named" data-now="scene"[^>]*>This scene only</, '  and it reads This scene only, the next press When it\'s named');
   // WHEN IT'S NAMED: the pin comes off; it stays on the list, where the writer chose it.
   from = POSTED.length;
   click({ howin: 'e-1', how: 'named' }); await settle(); await settle();
   assert.deepStrictEqual(sent(from), ['pin e-1 null'], "WHO-NAMED: When it's named takes the pin off, and nothing else");
-  assert.match(who(html('sideBody'), 'e-1'), /data-how="named" aria-pressed="true"/, '  and it stays listed, on a word');
+  assert.match(who(html('sideBody'), 'e-1'), /data-how="always" data-now="named"[^>]*>When it&#39;s named</, '  and it stays listed, on a word');
   // ALWAYS ON: the thread is always on, and no pin.
   from = POSTED.length;
   click({ howin: 'e-1', how: 'always' }); await settle(); await settle();
@@ -7173,7 +7174,7 @@ const hemCardOf = (side: string) => {
   click({ howin: 'e-2', how: 'scene' }); await settle(); await settle();
   assert.deepStrictEqual(sent(from), ['pin e-2 force_in'], '  and bringing it in pins it into the scene');
   typeIn('setupQ', ''); await settle();
-  assert.match(who(html('sideBody'), 'e-2'), /data-how="scene" aria-pressed="true"/, '  and it is listed, This scene only');
+  assert.match(who(html('sideBody'), 'e-2'), /data-now="scene"[^>]*>This scene only</, '  and it is listed, This scene only');
   // ✕ ON A PINNED THREAD unpins it.
   from = POSTED.length;
   click({ howout: 'e-2' }); await settle(); await settle();
@@ -7184,8 +7185,8 @@ const hemCardOf = (side: string) => {
   assert.match(side, /data-hemthread="new:The bellringer"/, 'the new thread is chalked here');
   click({ decide: 'accept', id: 'hs-4' }); await settle(); await settle();
   side = html('sideBody');
-  assert.match(who(side, 'e-bell'), /data-hemthreadname[^>]*>The bellringer</, 'WHO-SEWN: sewn in, the new thread is a block on the list');
-  assert.match(who(side, 'e-bell'), /data-howin="e-bell" data-how="scene"/, '  with how it comes in');
+  assert.match(who(side, 'e-bell'), /data-hemthreadname[^>]*>The bellringer</, 'WHO-SEWN: sewn in, the new thread is a line on the list');
+  assert.match(who(side, 'e-bell'), /data-howin="e-bell" data-how="\w+" data-now="\w+"/, '  with how it comes in');
   from = POSTED.length;
   click({ howin: 'e-bell', how: 'always' }); await settle(); await settle();
   assert.deepStrictEqual(sent(from), ['entry e-bell always_on'], '  and the choice goes through');
@@ -7469,7 +7470,7 @@ const hemCardOf = (side: string) => {
   assert.strictEqual(asked?.kind, 'voice', 'PANEL-ASK: the existing invent call, for this kind');
   assert.match(String(asked?.direction), /^colder[\s\S]*Flat, unhurried\./, 'PANEL-ASK: with the steer and the text it rewrites');
   const offer = html('pocketPanel');
-  assert.match(offer, /<div class="diff">[\s\S]*<del>[^<]*unhurried[\s\S]*<ins>[^<]*colder/, 'PANEL-ASK: his rewrite is a diff against the text');
+  assert.match(offer, /<div class="diff" data-view="now">[\s\S]*<ins>[^<]*colder[\s\S]*<del>[^<]*unhurried/, 'PANEL-ASK: his rewrite is a diff against the text');
   assert.match(offer, /data-pocketuse="1"/, 'PANEL-ASK: with Use this');
   click({ pocketuse: '1' }); await wait();
   assert.match(html('pocketPanel'), /id="pk-body"[^>]*>Flat, and colder\.<\/textarea>/, 'PANEL-USE: Use this fills the box');
@@ -7590,7 +7591,7 @@ const hemCardOf = (side: string) => {
     assert.strictEqual(sent?.entryId, 'e-tale', "  on the tale's thread");
     assert.match(String(sent?.direction), /^sealed[\s\S]*Sent by his brother/, '  with the steer and the text it rewrites');
     const offer = html('pocketPanel');
-    assert.match(offer, /<div class="diff">[\s\S]*<ins>[^<]*black wax/, 'STRINGS-ASK-DIFF: his rewrite is a diff against the string');
+    assert.match(offer, /<div class="diff" data-view="now">[\s\S]*<ins>[^<]*black wax/, 'STRINGS-ASK-DIFF: his rewrite is a diff against the string');
     click({ pocketuse: '1' }); await wait();
     assert.match(html('pocketPanel'), /id="pk-body"[^>]*>Sent by his brother, sealed in black wax\.<\/textarea>/,
       'STRINGS-ASK-USE: Use this fills the box');

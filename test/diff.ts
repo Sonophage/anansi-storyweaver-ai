@@ -125,36 +125,42 @@ ok('DIFF-BIG: a long text still diffs, and still spells both sides', () => {
   assert.deepStrictEqual(marked(wordDiff(r.join(' '), s.join(' ')), '+'), ['X', 'Y', 'Z']);
 });
 
-ok('DIFF-HTML: removed words are <del>, added are <ins>, and the text is escaped', () => {
+ok('DIFF-HTML: a Was / Now switch over the text, the changed words marked in each, escaped', () => {
+  // Seth chose the switch on 2026-10-29 (design canvas, option D): one paragraph at a time, Now first,
+  // the words that changed marked in place so they stand out as it flips. <del> and <ins> stay, so a
+  // screen reader still hears which is which.
   const h = diffHTML('Wren keeps the <silver> key.', 'Wren keeps the iron key & cord.');
-  assert.ok(/^<div class="diff">/.test(h), 'one wrapper the stylesheet can find');
-  assert.ok(h.includes('<del>&lt;silver&gt;</del>'), 'the removed word, escaped');
-  assert.ok(h.includes('<ins>iron</ins>'), 'the added word');
-  assert.ok(h.includes('&amp;'), 'kept and added text escaped too');
-  assert.ok(!/<del>|<ins>/.test(diffHTML('same', 'same')), 'identical text has no marks');
-  // A screen reader hears which is which: the marks carry words, not only a colour.
-  assert.ok(/<del>/.test(diffHTML('a', '')) && /<ins>/.test(diffHTML('', 'a')));
+  assert.ok(/^<div class="diff" data-view="now">/.test(h), 'DIFF-NOW-FIRST: one wrapper, opening on Now');
+  assert.match(h, /<button[^>]*data-diffview="was"[^>]*aria-pressed="false"[^>]*>Was<\/button>/, 'DIFF-SWITCH: a Was press');
+  assert.match(h, /<button[^>]*data-diffview="now"[^>]*aria-pressed="true"[^>]*>Now<\/button>/, '  and a Now press, pressed');
+  const now = h.match(/<p class="dnow">([\s\S]*?)<\/p>/)?.[1] ?? '', was = h.match(/<p class="dwas">([\s\S]*?)<\/p>/)?.[1] ?? '';
+  assert.ok(now.includes('<ins>iron</ins>') && !now.includes('<del>'), 'DIFF-NOW: Now is the new text, the added words marked');
+  assert.ok(was.includes('<del>&lt;silver&gt;</del>') && !was.includes('<ins>'), 'DIFF-WAS: Was is the old text, the removed words marked, escaped');
+  assert.ok(now.includes('&amp;'), 'kept and added text escaped too');
+  assert.ok(!/<del>|<ins>|data-diffview/.test(diffHTML('same', 'same')), 'identical text has no marks and no switch');
+  assert.match(diffHTML('', 'a'), /<p class="dwas"><span class="dnone">Nothing yet<\/span><\/p>/, 'DIFF-EMPTY: an empty Was says so');
+  assert.match(diffHTML('a', ''), /<p class="dnow"><span class="dnone">Nothing<\/span><\/p>/, '  and an empty Now');
 });
 
-// IN EVERY THEME: the marks are coloured from the theme's own bad (removed) and good (added), and
-// each must read against the theme's paper and its card sheet. 3:1 is the WCAG floor for text that
-// carries meaning beside other marks (the strike and the underline carry it too). Measured over every
-// theme in the table, including the light ones it was not tuned on.
-ok('DIFF-THEMES: removed and added words read against the paper and the sheet of every theme', () => {
-  const lum = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+// IN EVERY THEME: the changed words are the bright ink over the accent's line (Now) or the faded ink
+// over a fainter line (Was), and the line must read on the paper and the card sheet: 3:1, the floor
+// for a mark that is not text. No red and green any more: the switch, not a colour, says which is which.
+ok('DIFF-THEMES: the marks read against the paper and the sheet of every theme', () => {
+  const rgb = (c: string) => c.startsWith('#') ? [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16))
+    : (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+  const lum = (c: string) => rgb(c).map((v) => v / 255)
     .map((v) => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
     .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
   const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
   const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
-  assert.match(css, /\.diff del \{[^}]*color:var\(--bad\)/, 'removed words take the theme\'s bad');
-  assert.match(css, /\.diff ins \{[^}]*color:var\(--good\)/, 'added words take the theme\'s good');
+  assert.match(css, /\.diff ins \{[^}]*var\(--gold\)/, 'added words sit on the accent\'s line');
+  assert.match(css, /\.diff del \{[^}]*var\(--dim\)/, 'removed words on a fainter one');
   assert.doesNotMatch(css.match(/\.diff[^{]*\{[^}]*\}/g)!.join(''), /#[0-9a-f]{3,8}\b|rgba?\(/i, 'and no literal colour');
   const low: string[] = [];
   for (const [k, t] of Object.entries(THEMES) as [string, any][]) {
     const v = themeVars(k);
-    assert.strictEqual(v['--bad'], t.warn); assert.strictEqual(v['--good'], t.good);
-    for (const [mark, c] of [['removed', t.warn], ['added', t.good]]) for (const bg of [t.paper, t.sheet]) {
-      const r = ratio(c, bg);
+    for (const [mark, c] of [['the Now line', v['--gold']], ['the Was line', v['--dim']]]) for (const bg of [t.paper, t.sheet]) {
+      const r = ratio(String(c), bg);
       if (r < 3) low.push(`${k} ${mark} ${c} on ${bg}: ${r.toFixed(2)}`);
     }
   }

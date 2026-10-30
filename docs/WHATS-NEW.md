@@ -18,6 +18,17 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Changes show as Was and Now
+Wherever a change to a thread is shown (the Workbench, Alterations, Talk, Ask Anansi), you now see
+the text as it will read, with the changed words underlined, and a Was / Now switch beside it. Press
+Was to see how it read before, with the words that went marked. No more red and green crossed
+through each other in one small line.
+
+### Who is in it: one line each
+On the next scene's setup, each thread in the scene is now one line: its name, what kind it is, and
+one pill that says how it comes in. Press the pill to move it on: Always on, then This scene only,
+then When it's named. Press the name to read the thread. ✕ still takes it out of the scene.
+
 ### Hemming on Featherless no longer stalls
 A hem asks Anansi six things about the scene. On some Featherless models one of them could run on
 for minutes before it gave up, so a hem took nine minutes and still missed "where the tale stands".

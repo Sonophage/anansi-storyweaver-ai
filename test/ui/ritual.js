@@ -231,6 +231,23 @@ await page.click('[data-setupstep="more"]');
 for (let i = 0; i < 20 && !(await page.visible('[data-howout]')); i++) await wait(250);
 const castBtn = await page.eval("document.querySelector('[data-howout]')?.dataset.howout");
 ok("the setup page lists at least one thread in the scene", !!castBtn);
+// ONE LINE A THREAD (2026-10-29, option A): a row no taller than a line and its kind, one pill, and
+// a press on the pill moves it on to the next way in.
+{
+  const row = JSON.parse(await page.eval(`(() => { const r = document.querySelector('.whorow');
+    if (!r) return 'null'; const b = r.getBoundingClientRect(), p = r.querySelector('.whopill');
+    return JSON.stringify({ h: Math.round(b.height), pills: r.querySelectorAll('[data-howin]').length,
+      label: p?.textContent.trim(), next: p?.dataset.how, id: p?.dataset.howin, pw: Math.round(p?.getBoundingClientRect().height ?? 0) }); })()`));
+  ok(`WHO-LINE: a thread is one line with one pill (${JSON.stringify(row)})`, !!row && row.h <= 76 && row.pills === 1 && row.pw >= 36);
+  if (row?.id) {
+    await page.click(`.whopill[data-howin="${row.id}"]`);
+    for (let i = 0; i < 20; i++) { const l = await page.eval(`document.querySelector('.whopill[data-howin="${row.id}"]')?.textContent.trim()`); if (l && l !== row.label) break; await wait(250); }
+    const after = await page.eval(`document.querySelector('.whopill[data-howin="${row.id}"]')?.textContent.trim() ?? ''`);
+    ok(`  a press on the pill moves it on (${row.label} -> ${after})`, !!after && after !== row.label);
+    // And back round to where it was, so the checks below find the scene as it was.
+    for (let k = 0; k < 2; k++) { await page.click(`.whopill[data-howin="${row.id}"]`); await wait(900); }
+  }
+}
 if (castBtn) {
   const before = await story();
   const ent = before.entries.find((e) => e.id === castBtn);
@@ -256,7 +273,8 @@ if (castBtn) {
   ok("  and bringing it back in pins it into the scene",
      (v2.pins ?? []).some((p) => p.entryId === castBtn && p.chapterId === v2.currentChapter.id && p.mode === 'force_in'));
   // Leave it as the fixture had it, so later assertions read a story nobody has quietly changed.
-  if (always) { await page.click('[data-howin="' + castBtn + '"][data-how="always"]'); await wait(900); }
+  // The pill moves it on one way at a time (This scene only → When it's named → Always on), so two presses.
+  if (always) for (let k = 0; k < 2; k++) { await page.click('.whopill[data-howin="' + castBtn + '"]'); await wait(900); }
   const v3 = await story();
   ok("  and choosing how it was puts it back",
      v3.entries.find((e) => e.id === castBtn)?.activation === ent?.activation

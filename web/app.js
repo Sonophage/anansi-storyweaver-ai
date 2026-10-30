@@ -520,7 +520,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  carries `data-tip` like every other folded explanation — one mark, one handler, one
   //  state. A name left here would match nothing and read as a live action.)
   'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'ctxtoggle', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home',
-  're', 'del', 'ed', 'hi', 'vp', 'vn', 'hwkb', 'bigin',
+  're', 'del', 'ed', 'hi', 'vp', 'vn', 'hwkb', 'bigin', 'diffview',
   'savestory', 'summarize', 'extract', 'decide', 'branch', 'delbranch', 'newthread', 'entry',
   'carryon',
   'spark', 'blank', 'backup', 'savegen', 'hit', 'expand', 'saveentry', 'delentry', 'backentry',
@@ -3286,16 +3286,23 @@ const HOW_IN = [['scene', 'This scene only'], ['always', 'Always on'], ['named',
 const howIn = (e, pin) => pin.get(e.id) === 'force_in' ? 'scene'
   : e.activation === 'always_on' && pin.get(e.id) !== 'force_out' ? 'always' : 'named';
 
-/** ONE THREAD IN THE SCENE, on Anyone new: the thread block with its pockets, how it comes in, and
- *  ✕ to take it out. The presses are `data-howin` and `data-howout`. */
+/** ONE THREAD IN THE SCENE, on Anyone new: ONE LINE (Seth, 2026-10-29, option A of the design
+ *  canvas). Its name, which opens the thread and its pockets; its kind under it; one pill that says
+ *  how it comes in, and a press moves it on, Always on → This scene only → When it's named → Always
+ *  on (`data-how` is the NEXT one, so the press is the same `data-howin` the three chips were); and
+ *  ✕ to take it out (`data-howout`). The pockets are no longer drawn here: they were most of the
+ *  page and none of the decision. */
+const HOW_NEXT = { always: 'scene', scene: 'named', named: 'always' };
 function whoBlock(e, pin, scene) {
-  const how = howIn(e, pin), id = esc(e.id);
-  const pockets = [...(e.addons ?? []), ...(e.outfits ?? [])].map((a) => `<div class="hint flush">
-    <span class="lbl flush">${esc(pocketTitle(a.slot))}${a.name && a.name !== a.slot ? ` &middot; ${esc(a.name)}` : ''}</span>
-    ${peek(a.body)}</div>`).join('');
-  return threadBlock(`data-whothread="${id}"`, e.title, pocketTitle(e.entryType), `${pockets}
-    <div class="line-8 wraps">${HOW_IN.map(([k, l]) => `<button class="tag pressable" data-howin="${id}" data-how="${k}" aria-pressed="${k === how}">${esc(l)}</button>`).join('')}
-      <button class="del-x" data-howout="${id}" aria-label="Take ${esc(e.title)} out of ${esc(scene)}">&#10005;</button></div>`);
+  const how = howIn(e, pin), id = esc(e.id), next = HOW_NEXT[how];
+  const label = (k) => HOW_IN.find(([x]) => x === k)[1];
+  return `<div class="whorow" data-whothread="${id}">
+    <button class="whoname" data-entry="${id}"><span class="name-145" data-hemthreadname>${esc(e.title)}</span>
+      <span class="whokind">${esc(pocketTitle(e.entryType))}</span></button>
+    <button class="whopill" data-howin="${id}" data-how="${next}" data-now="${how}"
+      aria-label="${esc(e.title)} comes in: ${esc(label(how))}. Press for ${esc(label(next))}">${esc(label(how))}</button>
+    <button class="del-x" data-howout="${id}" aria-label="Take ${esc(e.title)} out of ${esc(scene)}">&#10005;</button>
+  </div>`;
 }
 
 /** One chalked row inside a thread's block: what it is, before and after as one diff (#122), its
@@ -6926,12 +6933,12 @@ function setupPanel() {
         hemThreads(fresh).map(hemThreadBlock).join('')}</div>` : ''}
       <div class="lbl sect">Who is in it${
         tipMark('setWho', 'Who is in it')}</div>
-      ${tipCard('setWho', 'Who is in it', `<p>Each thread here is in this scene. Choose how it comes
-        in: This scene only sends it for this scene whatever is said; Always on sends it for every
-        scene; When it's named sends it when one of its wake words is in the prose. &#10005; takes it
-        out of this scene. Each one costs space on every call, so keep what is actually in the
-        scene.</p>`)}
-      ${inIt.length ? inIt.map((e) => whoBlock(e, pin, sceneName(ch))).join('')
+      ${tipCard('setWho', 'Who is in it', `<p>Each thread here is in this scene. The pill says how it
+        comes in, and a press moves it on: Always on sends it for every scene; This scene only sends
+        it for this scene whatever is said; When it's named sends it when one of its wake words is in
+        the prose. Press a name to read the thread. &#10005; takes it out of this scene. Each one
+        costs space on every call, so keep what is actually in the scene.</p>`)}
+      ${inIt.length ? `<div class="card wholist">${inIt.map((e) => whoBlock(e, pin, sceneName(ch))).join('')}</div>`
         : '<div class="hint flush">Nobody is sent for it unless they are named.</div>'}
       <input class="field push-8" id="setupQ" aria-label="Find a thread to bring into ${esc(sceneName(ch))}"
         value="${esc(S.setupQ ?? '')}"
@@ -11997,6 +12004,14 @@ document.addEventListener('click', async (e) => {
       paint(); refreshHistory(); } return; }
   if (d.hwkb) { setHwkb(!hwkb); drawAppearance(); return toast(hwkb
     ? 'Your cursor goes back to the writing box on this device.' : 'Your cursor stays where you put it.'); }
+  // THE DIFF'S WAS / NOW SWITCH (diffHTML): flips the one diff it sits in, in place. No repaint, so a
+  // box being typed in nearby keeps its words; a repaint shows Now again, which is where it opens.
+  if (d.diffview) {
+    const box = t.closest('.diff'); if (!box) return;
+    box.dataset.view = d.diffview === 'was' ? 'was' : 'now';
+    for (const b of box.querySelectorAll('[data-diffview]')) b.setAttribute('aria-pressed', String(b.dataset.diffview === box.dataset.view));
+    return;
+  }
   if (d.bigin) { S.bigInput = !S.bigInput; drawDock(); syncTray(); $('input')?.focus(); return; }
 
   // PLAN-08 Phase 4. A THRESHOLD, not a delete: the card stops reaching the model from the chapter

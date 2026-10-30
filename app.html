@@ -2276,14 +2276,35 @@ html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
 .deckpeek { font-size:12px; color:var(--faint); }
 .decksec[open] .deckpeek { display:none; }
 .decksec .card { margin-top:8px; }
-/* #122 · THE ONE DIFF (diffHTML in web/model.js): removed words struck through, added words underlined,
-   each tinted from the theme's own bad and good, so it reads in every theme and without colour too.
+/* WHO IS IN IT, ONE LINE A THREAD (2026-10-29): the name and kind, one pill for how it comes in, ✕.
+   The pill is a state, so it wears ink, not gold (ADR 0004); When it's named, the quiet one, is the
+   muted chip line. */
+.wholist { padding:0; gap:0; }
+.whorow { display:flex; align-items:center; gap:10px; min-height:60px; padding:8px 6px 8px 14px; }
+.whorow + .whorow { border-top:1px solid var(--line); }
+.whoname { flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:2px;
+  text-align:left; min-height:44px; justify-content:center; background:transparent; border:0; padding:0; color:inherit; }
+.whokind { font-size:11.5px; color:var(--faint); }
+.whopill { flex:0 0 auto; min-height:36px; padding:0 12px; border-radius:999px; font-size:12px;
+  border:1px solid var(--ink-bright); color:var(--ink-bright); background:transparent; }
+.whopill[data-now="named"] { border-color:var(--chip); color:var(--mute); }
+/* #122 · THE ONE DIFF (diffHTML in web/model.js), a Was / Now switch since 2026-10-29: the text as
+   it reads now or as it read, one at a time, the changed words marked in place. The switch wears the
+   chips' pressed look (ink, not gold: gold means press here, ADR 0004). The changed words are the
+   bright ink over the accent's line in Now, and the faded ink over a fainter line in Was.
    pre-wrap keeps the writer's line breaks; anywhere lets a long word wrap on a 390px phone. */
-.diff { font-size:12.5px; line-height:1.55; color:var(--mute); white-space:pre-wrap; overflow-wrap:anywhere; }
-.diff del { color:var(--bad); text-decoration:line-through; background:color-mix(in srgb, var(--bad) 13%, transparent); border-radius:2px; }
-/* A removal straight before its addition gets a little room, so the two words read as two. */
-.diff del + ins { margin-left:.25em; }
-.diff ins { color:var(--good); text-decoration:underline; text-underline-offset:2px; background:color-mix(in srgb, var(--good) 15%, transparent); border-radius:2px; }
+.diff { position:relative; font-size:13px; line-height:1.6; color:var(--narr); white-space:pre-wrap; overflow-wrap:anywhere; }
+.diff p { margin:0; }
+.diff[data-view="now"] .dwas, .diff[data-view="was"] .dnow { display:none; }
+.diff .dwas { color:var(--mute); }
+.diffswitch { float:right; display:flex; gap:2px; margin:0 0 6px 10px; padding:2px; white-space:normal;
+  border:1px solid var(--chip); border-radius:999px; }
+.diffswitch button { min-width:44px; min-height:30px; padding:0 10px; border:1px solid transparent; border-radius:999px;
+  font-size:11.5px; color:var(--mute); background:transparent; }
+.diffswitch button[aria-pressed="true"] { border-color:var(--ink-bright); color:var(--ink-bright); }
+.diff ins { color:var(--ink-bright); text-decoration:none; box-shadow:inset 0 -2px 0 var(--gold); }
+.diff del { color:var(--mute); text-decoration:none; box-shadow:inset 0 -2px 0 var(--dim); }
+.diff .dnone { color:var(--faint); font-style:italic; }
 .deckredo { display:flex; gap:7px; align-items:center; margin-top:8px; }
 .deckbar { display:flex; gap:8px; margin-top:4px; }
 .deckbar > button { flex:1; }

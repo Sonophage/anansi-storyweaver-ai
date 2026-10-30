@@ -500,12 +500,26 @@ export function wordDiff(a, b) {
   return pieces;
 }
 
-/** THE ONE RENDERING of a diff: removed words struck through in `<del>`, added words underlined in
- *  `<ins>`, kept words plain, all escaped. Colour comes from the theme tokens in app.html's `.diff`
- *  rules, and the strike and the underline carry it without colour. It wraps anywhere, so a long
- *  word cannot push a 390px phone sideways. */
-export const diffHTML = (a, b) => `<div class="diff">${wordDiff(a, b).map((p) =>
-  p.op === '=' ? esc(p.text) : p.op === '-' ? `<del>${esc(p.text)}</del>` : `<ins>${esc(p.text)}</ins>`).join('')}</div>`;
+/** THE ONE RENDERING of a diff, as a Was / Now switch (Seth, 2026-10-29: option D of the design
+ *  canvas). It opens on Now, the text as it will read, with the added words marked in `<ins>`; Was is
+ *  the text as it read, with the removed words marked in `<del>`. The words that change stay in the
+ *  same place, so the eye catches them as it flips. Both views are drawn and the wrapper's
+ *  `data-view` picks one in the stylesheet, so a press (`data-diffview`, app.js) repaints nothing.
+ *  Identical text is plain text with no switch. All escaped; it wraps anywhere, so a long word cannot
+ *  push a 390px phone sideways. */
+export const diffHTML = (a, b) => {
+  const parts = wordDiff(a, b);
+  if (!parts.some((p) => p.op !== '=')) return `<div class="diff"><p class="dnow">${esc(b)}</p></div>`;
+  const side = (keep, tag, none) => {
+    const html = parts.filter((p) => p.op === '=' || p.op === keep)
+      .map((p) => (p.op === '=' ? esc(p.text) : `<${tag}>${esc(p.text)}</${tag}>`)).join('');
+    return html.trim() ? html : `<span class="dnone">${none}</span>`;
+  };
+  return `<div class="diff" data-view="now"><div class="diffswitch" role="group" aria-label="Show the text before or after">`
+    + `<button type="button" data-diffview="was" aria-pressed="false">Was</button>`
+    + `<button type="button" data-diffview="now" aria-pressed="true">Now</button></div>`
+    + `<p class="dnow">${side('+', 'ins', 'Nothing')}</p><p class="dwas">${side('-', 'del', 'Nothing yet')}</p></div>`;
+};
 
 /** #122 · A THREAD'S ALTERATIONS AS PAIRS: each earlier version (`was`) and the version that replaced
  *  it (`now`). `rows` is `db.entryHistory`, newest first, so a field's next version is the nearest
