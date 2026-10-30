@@ -1713,28 +1713,35 @@ async function stringsStand(c: Ctx, storyId: string, chapterId: string, scene?: 
  *
  *  Reads the summaries and the tail of the prose rather than the whole book: what it needs is
  *  where the story has got to, and the chapter it is naming has nothing in it yet by definition. */
-async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?: unknown, avoid?: any, opening?: unknown) {
+async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?: unknown, avoid?: any, opening?: unknown,
+    after?: string) {
   // THE WRITER'S OPENING IS USED AS WRITTEN (Seth, 2026-10-30: "What I enter should be what's used").
   // He says how the scene starts; Anansi names it and says where it heads from there, and gives the
   // opening back untouched rather than a rewrite of it.
   const mine = String(opening ?? '').trim().slice(0, 2000);
   const v = bookOf(storyId);
-  const ch = v.chapters.find((x: any) => x.id === chapterId) ?? v.currentChapter;
+  const named = v.chapters.find((x: any) => x.id === chapterId);
+  // #93 · A HEM NAMES THE SCENE IT CLOSED (`after`), for when the scene after it is gone. Deleting the
+  // open scene reopens the hemmed one, and falling back to the open scene then asked about the hemmed
+  // scene itself: its own prose and summary left out, and its own number named.
+  const prior = named ? null : v.chapters.find((x: any) => x.id === after);
+  const ch = named ?? v.currentChapter;
+  const at: number = prior ? prior.index + 1 : ch.index;
   // A STALE SUMMARY STAYS OUT, as it does from the writing prompt: it describes prose that moved.
-  const before = v.chapters.filter((x: any) => x.index < ch.index && summaryReaches(x));
+  const before = v.chapters.filter((x: any) => x.index < at && summaryReaches(x));
   // The tail of the previous chapter, narration only. Dialogue may lie, and this is being asked
   // where the story has GOT to — the same rule extract and remember follow.
   // ONLY THE CHAPTERS BEFORE THIS ONE. A hem asks last, when the writer may already be writing the
   // new scene, and a hem again can name a scene with later scenes written after it: their prose is
   // not where the closed scene ended.
-  const earlier = new Set(v.chapters.filter((x: any) => x.index < ch.index).map((x: any) => x.id));
+  const earlier = new Set(v.chapters.filter((x: any) => x.index < at).map((x: any) => x.id));
   const tail = narrationOnly(v.passages.filter((p: any) => !p.isBreak && earlier.has(p.chapterId))
     .slice(-6).map((p: any) => p.body).join('\n\n')).slice(-2400);
   const body = [
     // #125 · WHERE THE TALE STANDS, once a hem has written it, in the premise's place, as the
     // writing prompt does (ADR 0010): the premise is how the tale began, true on page one only.
     `THE BOOK: ${v.story.title}. ${(v as any).taleThread
-      ? (resolveBody((v as any).taleThread, ch.index).trim() || v.story.premise || '') : (v.story.premise ?? '')}`,
+      ? (resolveBody((v as any).taleThread, at).trim() || v.story.premise || '') : (v.story.premise ?? '')}`,
     v.story.setting ? `SETTING: ${v.story.setting}` : '',
     before.length ? `WHAT HAS HAPPENED:\n${before.map((x: any) =>
       `Chapter ${x.index}${x.title ? ` — ${x.title}` : ''}: ${x.summary}`).join('\n')}` : '',
@@ -1753,9 +1760,9 @@ async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?:
     // measured findings put anything that has to be obeyed. Optional: the button asked for a
     // suggestion with no way to say what it should be about until 2026-08-30.
     String(steer ?? '').trim() ? `THE WRITER WANTS THIS CHAPTER TO: ${String(steer).trim()}` : '',
-    mine ? `THE WRITER SAYS HOW CHAPTER ${ch.index} OPENS (theirs, as written; it may be another place or a later day):\n${mine}` : '',
-    mine ? `NAME CHAPTER ${ch.index} AND SAY WHERE IT IS GOING FROM THAT OPENING. Give "opens" back as the writer wrote it.`
-      : `NAME CHAPTER ${ch.index}, SAY HOW IT OPENS, AND SAY WHERE IT IS GOING.`,
+    mine ? `THE WRITER SAYS HOW CHAPTER ${at} OPENS (theirs, as written; it may be another place or a later day):\n${mine}` : '',
+    mine ? `NAME CHAPTER ${at} AND SAY WHERE IT IS GOING FROM THAT OPENING. Give "opens" back as the writer wrote it.`
+      : `NAME CHAPTER ${at}, SAY HOW IT OPENS, AND SAY WHERE IT IS GOING.`,
   ].filter(Boolean).join('\n\n');
 
   // The note is the point of this call, not a bonus on the title: it rides near the generation
@@ -1777,7 +1784,7 @@ async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?:
   // which is the long one and the one that was arriving blank, and a second length bar would
   // spend a whole extra call on a sentence the writer can type in five seconds.
   const opens = mine || String(r.data.opens ?? '').trim();
-  return { chapterId: ch.id, title: String(r.data.title).trim(), note, opens,
+  return { chapterId: prior ? null : ch.id, title: String(r.data.title).trim(), note, opens,
     ...(note.length >= 40 ? {} : { noteMissing: true }) };
 }
 
@@ -1908,7 +1915,7 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // prompt reads the scene's own name, opening and heading, never the hem's suggestion, so a
   // suggestion left only on the hem was never sent ("it's not passed to the scene").
   const before = opened ? db.hemOf(storyId, closing)?.suggestion ?? null : null;
-  const next = await pass('next', want.next, () => suggestScene(c, storyId, opened, undefined, undefined, opening));
+  const next = await pass('next', want.next, () => suggestScene(c, storyId, opened, undefined, undefined, opening, closing));
   if (opened && next?.title) db.offerScene(storyId, opened, before, { title: next.title, note: next.note, opens: next.opens });
   // A pass that did not run this time leaves its line, the kept flag and the suggestion as stored (#91).
   db.finishHem(storyId, closing, run, { passes, kept: want.summary ? keptSummary : undefined,

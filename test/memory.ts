@@ -1475,6 +1475,29 @@ ok('the next scene can be asked again with a direction, away from the last sugge
 }
 ok('a hem asks for the next scene rather than guessing it, and the answer goes into the scene');
 
+// ---- #93 · THE SCENE AFTER A HEMMED ONE IS DELETED. Deleting the open scene reopens the hemmed one,
+// so the hem's next scene has no row. The ask fell back to the open scene, which is the hemmed scene
+// itself: it read only the prose BEFORE it, and named it, rather than the scene after it.
+{
+  const t = db.createStory(me, { title: 'Next one gone', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The bell sank off the end of the jetty.' });
+  tidied = { ...NEXT }; asks.length = 0;
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false }));
+  await hemSettled(t.id);
+  assert.ok(r.opened, 'the close opened the next scene');
+  assert.ok(!db.delChapter(t.id, r.opened).error, 'and it is deleted');
+  const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', steer: 'He dives for it.' }));
+  assert.ok(!v.error, v.error);
+  await hemSettled(t.id);
+  const user = String(askOf(prompts.CHAPTER)?.user ?? '');
+  assert.match(user, /The bell sank off the end of the jetty/,
+    `HEM-NEXT-GONE: the next-scene ask still reads the hemmed scene's prose, got: ${user.slice(-600)}`);
+  assert.match(user, new RegExp(`NAME CHAPTER ${ch0.idx + 1}\\b`), '  and names the scene after it, not the hemmed one');
+  tidied = {};
+}
+ok('with the scene after a hem deleted, its next-scene ask still reads the hemmed scene');
+
 // ---- HOW IT STARTS, AS WRITTEN (Seth, 2026-10-30: "What I enter should be what's used"). The hem's
 // question sends the writer's words as `opens`: they are the scene's opening at once, word for word,
 // they reach the next-scene ask, and the pass names the scene and says where it heads without
