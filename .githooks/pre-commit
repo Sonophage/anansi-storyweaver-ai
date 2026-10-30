@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Every unit suite before a commit, about 11 seconds. Until 2026-10-15 nothing ran it but memory.
+# Every unit suite before a commit; test/all.ts prints how long it took. Until 2026-10-15 nothing
+# ran it but memory.
 # A second checkout's run is queued behind test/lock.ts, so parallel worktrees wait rather than
 # collide. The browser harness is too slow for every commit and stays a separate step.
 # Skip once, on purpose: git commit --no-verify.

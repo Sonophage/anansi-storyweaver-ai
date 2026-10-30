@@ -33,8 +33,8 @@ node --experimental-strip-types test/all.ts     # every suite; it prints its own
 turn instead of colliding on the fixed ports and `/tmp` databases.
 
 Run it before and after. No model needed, so there is no excuse for skipping it. It runs every unit
-suite **and every listed `check` mode under `bench/`**, in parallel, in about 30 seconds
-(`suites` in `test/all.ts` is the list; it prints its own total).
+suite **and every listed `check` mode under `bench/`**, in parallel
+(`suites` in `test/all.ts` is the list; it prints each suite's time and the total).
 Each bench entry is spawned with its own `ANANSI_DB`: none of the listed checks opens one today
 (`bench/rooms.ts` did until it was retired on 2026-10-28), and without that guard the next one that
 does would open the live library read-write and migrate it mid-run. Under it, `src/db.ts` refuses the default library to any `test/` script, any
