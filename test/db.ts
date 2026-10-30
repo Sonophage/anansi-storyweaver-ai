@@ -2333,6 +2333,14 @@ ok('the extraction schema and src/slots.ts name the same slots', () => {
     assert.strictEqual(add({ field: 'voice' }), false, 'the same room again');
     assert.strictEqual(add({ kind: 'retire', entryType: 'retire', keys: ['9'] }), false, 'finished again');
     assert.strictEqual(db.proposalsOf(s2.id).length, 5, 'nothing was added by the four refusals');
+
+    // #93 · WHERE SHE STANDS IS ONE PLACE PER SCENE. An Over time entry is written at the scene it
+    // comes into force in (`upsertState` keys on the thread and that scene), so a later hem's change
+    // does not write over an earlier one that is still open, and must not be dropped as its repeat.
+    assert.strictEqual(add({ kind: 'memory', entryType: 'state', keys: ['3'] }), true,
+      'a later scene\'s change to where she stands, while the earlier scene\'s is still open');
+    assert.strictEqual(add({ kind: 'memory', entryType: 'state', keys: ['3'] }), false,
+      'and the same scene\'s change again is still one offer');
   });
 
   ok('  and the dedupe asks the same question the accept path does', () => {

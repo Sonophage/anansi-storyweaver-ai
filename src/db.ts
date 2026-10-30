@@ -4500,11 +4500,15 @@ export function addProposal(storyId: string, p: any) {
   // SAME PLACE, NOT SAME PERSON — see `proposalTarget` above for what this replaced and why. The
   // first version of this lane was `retire`-only, which fixed one case of a general defect and left
   // the rest of it standing.
+  const target = proposalTarget({ ...p, entry_type: p.entryType ?? p.entry_type });
   const hash = createHash('sha256')
     // #114 · AND THE POCKET IT REPLACES, when it names one: a tidy that rewrites two relationships
     // pockets is two places, and the second was dropped as a repeat of the first.
-    .update([subject, p.entry_id ?? '', proposalTarget({ ...p, entry_type: p.entryType ?? p.entry_type }),
-      ...(p.target ? [p.target] : [])].join('\u0000')).digest('hex').slice(0, 32);
+    // #93 · AND THE SCENE AN OVER TIME ENTRY COMES INTO FORCE IN (its `keys`, as the accept path reads
+    // it): `upsertState` writes one per thread per scene, so a later hem's change was dropped while
+    // an earlier scene's was still open.
+    .update([subject, p.entry_id ?? '', target, ...(p.target ? [p.target] : []),
+      ...(target === 'state' ? [String((p.keys ?? [])[0] ?? '')] : [])].join('\u0000')).digest('hex').slice(0, 32);
   try {
     q(`INSERT INTO proposals (id,story_id,chapter_id,entry_id,title,body,entry_type,keys,kind,delta,
         field,activation,target,content_hash,source,rooms,grp,line,pocket,merges,created_at)
