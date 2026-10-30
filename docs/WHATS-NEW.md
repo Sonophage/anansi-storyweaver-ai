@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### The tale's own thread has its own tab
+The tale's own thread now lives in the Tale panel, on a new Thread tab: where the tale stands, its
+rules, its promises and open questions, and your own instructions for the whole tale. The first card
+in Threads opens it. The setting and the voice stay on their own tabs.
+
 ### Passage length is a limit now
 The length you set is now sent as a limit ("no more than"), not a rough aim, so passages should stop
 closer to it. At the most explicit spice level, the instruction no longer tells the model to keep

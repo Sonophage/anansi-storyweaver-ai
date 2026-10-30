@@ -2056,7 +2056,7 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
    the document region stays on screen behind the workspace pages. */
 #read[hidden], #dock[hidden], #page[hidden] { display:none !important; }
 
-/* THE STORY PANEL'S FOUR GROUPS. Only one is on screen and the container's attribute says which —
+/* THE STORY PANEL'S FIVE GROUPS. Only one is on screen and the container's attribute says which —
    see the note in `story()` for why this is CSS and not a redraw: every field in there is free text
    that Save commits, and a repaint on a tab press loses whatever was half-typed. */
 .sgroup { display:none; flex-direction:column; }
@@ -2064,6 +2064,7 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 [data-tab="book"]  > .sgroup[data-group="book"],
 [data-tab="world"] > .sgroup[data-group="world"],
 [data-tab="keep"]  > .sgroup[data-group="keep"],
+[data-tab="thread"] > .sgroup[data-group="thread"],
 /* AND THE CHAPTER PANEL'S FOUR, on the same mechanism. Seth, 2026-09-03: "everything here should
    also use the tab system to split information." The two panels are never on screen together —
    there is one side panel — so they share `data-tab` and `.sgroup` rather than growing a second

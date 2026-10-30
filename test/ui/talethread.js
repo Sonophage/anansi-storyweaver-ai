@@ -1,5 +1,6 @@
-// The tale's own thread (#75): the first card in Threads, holding the premise and setting, the Voice,
-// the tale's Rules, and instructions of the writer's own, which reach the model while switched on.
+// The tale's own thread (#75): the first card in Threads opens the Thread tab of the Tale panel
+// (2026-10-29), holding where the tale stands, the tale's Rules, its strings, and instructions of the
+// writer's own, which reach the model while switched on.
 //
 //   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/talethread.js
 const B = "http://127.0.0.1:5179";
@@ -14,10 +15,12 @@ await until("!!document.querySelector('[data-taleopen]')");
 ok("the tale's own thread is the first card in Threads",
    await page.eval("(() => { const t = document.querySelector('#sideBody [data-taleopen]'), l = document.getElementById('thlist'); return !!t && !!l && !!(t.compareDocumentPosition(l) & Node.DOCUMENT_POSITION_FOLLOWING); })()"));
 await page.eval("(() => { document.querySelector('#sideBody [data-taleopen]')?.click(); return 1; })()");
-await until("!!document.querySelector('.taleface')");
-const face = await page.eval("(document.querySelector('.taleface')?.innerText ?? '').toLowerCase()");
-ok("it holds Always true (the premise and setting), the Voice, Rules and Your own",
-   ['always true', 'premise', 'setting', 'voice', 'rules', 'your own'].every((w) => face.includes(w)));
+await until("document.querySelector('[data-tab]')?.dataset.tab === 'thread'");
+const face = await page.eval("(document.querySelector('.sgroup[data-group=\"thread\"]')?.innerText ?? '').toLowerCase()");
+ok("it opens the Thread tab of the Tale panel, holding where the tale stands, Rules, the strings and Your own",
+   ['where the tale stands', 'rules', 'promises', 'open questions', 'your own'].every((w) => face.includes(w)));
+ok("  and only that group is on screen", await page.eval(
+  "[...document.querySelectorAll('.sgroup')].filter(g => getComputedStyle(g).display !== 'none').map(g => g.dataset.group).join(',') === 'thread'"));
 
 // ---- an instruction of the writer's own, which reaches the model
 await page.eval(`(() => { document.querySelector('[data-talenew="name"]').value = 'Slow burn';

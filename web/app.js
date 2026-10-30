@@ -602,7 +602,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #92. A hemmed scene's card: run its passes again, set up the next scene.
   'hemagain', 'hemsetup',
   // #75. The tale's own thread.
-  'taleopen', 'taleclose', 'newrule', 'addtalepocket',
+  'taleopen', 'newrule', 'addtalepocket',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
   'accttab', 'savename', 'delavatar', 'acctgo',
   // A card out as JSON and back in again: copy, save to a file, read one.
@@ -2835,13 +2835,6 @@ function closeMerge(t = null) {
  *  Right and left are buttons on the card (`data-deckright`, `data-deckleft`), each an ordinary
  *  press with its own handler; a swipe and the arrow keys only press them. One way in for all
  *  three, so a swipe cannot do anything a press does not. */
-/** #75 · THE TALE'S OWN THREAD, the first card in Threads: what the writer gives the model about the
- *  whole tale. Its Always true is the premise and the setting; its pockets are the Voice, the tale's
- *  Rules, and any instruction of the writer's own. Stored where each always was — the premise,
- *  setting and Voice on the tale, a Rule as a thread of kind rule, an instruction as a pocket of the
- *  tale — so what the model is sent, and where in the prompt, does not move. Its Over time is where
- *  the tale stands (#125, ADR 0010), written at each hem and sewn in, and read in the premise's place
- *  from then on; the premise stays as how the tale began. */
 /** #125 · WHERE THE TALE STANDS NOW: the tale's thread's Over time entry in force at this scene, or
  *  nothing while none is sewn in (the premise is then what is sent). Read-only: a hem writes it. */
 function taleNowBox() {
@@ -2881,25 +2874,22 @@ function stringList(all, none) {
     ${off.length ? `<div class="lbl sect-rule">Set aside</div>${off.map(stringRow).join('')}` : ''}
     ${done.length ? `<div class="lbl sect-rule">Tied off or let go</div>${done.map(stringRow).join('')}` : ''}`;
 }
+/** #75 · THE TALE'S OWN THREAD, the Thread tab of the Tale panel (Seth, 2026-10-29: "Put the tale
+ *  thread and its pockets under tale as a new tab"; it was its own page, opened from the first card in
+ *  Threads, and that card now opens this tab). What the writer gives the model about the whole tale.
+ *  Its Always true is the setting and its Voice is the voice of the weave, and both are edited on
+ *  their own tabs of this panel: a second box for the same field here would be a second thing for
+ *  Save to read. This tab holds the rest: where the tale stands (its Over time, #125, ADR 0010), the
+ *  tale's Rules, its strings (ADR 0011) and any instruction of the writer's own. Stored where each
+ *  always was, so what the model is sent, and where in the prompt, does not move. */
 function taleThread() {
-  const st = V.story;
   const rules = (V.entries ?? []).filter((e) => e.entryType === 'rule');
   const pin = pinModes(), mani = manifestNow();
   const own = V.talePockets ?? [];
-  return `<div class="taleface stack">
-    <button data-taleclose="1" class="headback" style="align-self:flex-start">&lsaquo;&nbsp;<span class="serif">Threads</span></button>
-    <div class="talebanner tbhead" style="${taleArt()}"><h2 class="readname">${esc(st.title || 'This tale')}</h2></div>
-    <div class="hint lead-10">The tale's own thread: what Anansi is told about the whole tale, every time.</div>
-    <div class="lbl wide">Always true</div>
-    <label class="lbl push-4" for="f-tale-premise">How the tale began</label>
-    <textarea class="field grow" id="f-tale-premise" data-story="premise">${esc(st.premise ?? '')}</textarea>
-    ${taleNowBox()}
-    <label class="lbl" for="f-tale-setting">Setting</label>
-    <input class="field" id="f-tale-setting" data-story="setting" value="${esc(st.setting ?? '')}">
-    <div class="lbl wide push-18">Voice</div>
-    <label class="lbl push-4" for="f-tale-voice">How the narration sounds, as instructions</label>
-    <textarea class="field grow" id="f-tale-voice" data-story="writingStyle">${esc(st.writingStyle ?? '')}</textarea>
-    <button class="btn push-10" data-savestory="1">Save</button>
+  return `<div class="hint lead-10">The tale's own thread: what Anansi is told about the whole tale, every
+      time. Its Always true is the setting, on the Setting tab, and its voice is on the Voice tab.</div>
+    <div class="lbl wide">Where the tale stands</div>
+    ${taleNowBox() || '<div class="hint flush">Nothing yet. Each hem writes where the tale stands, and you sew it in from its card.</div>'}
     <div class="lbl sect">Rules &middot; <span class="tnum">${rules.length}</span></div>
     <div class="hint lead-6">The laws this tale obeys. Each is sent always, or when one of its wake words comes up.</div>
     <div class="stack-roomy">${rules.map((e) => threadPlate(e, inContext(e, pin, mani))).join('')}</div>
@@ -2931,9 +2921,9 @@ function taleThread() {
     <div class="card snug">
       <input class="field flush" data-talenew="name" aria-label="A name for the instruction" placeholder="A name: Slow burn">
       <textarea class="field grow flush min-52" data-talenew="body" aria-label="The instruction" placeholder="The instruction, for the whole tale"></textarea>
-      <button class="btn ghost" data-addtalepocket="1">Add it, switched on</button></div>
-  </div>`;
+      <button class="btn ghost" data-addtalepocket="1">Add it, switched on</button></div>`;
 }
+
 
 /** A chalked thread the tale does not have yet: Anyone new's on the setup. A new string is not one;
  *  it is a pocket of the tale's own thread. */
@@ -4156,7 +4146,6 @@ const PANELS = {
   // lists them across every story, which is a different question.
   threads() {
     if (S.entryId) return entryEditor();
-    if (S.taleOpen) return taleThread();
     // NEW THREAD (v2 redesign, 2026-10-25). One box takes a name or a pasted thread; "Write it as"
     // picks the kind; Write it makes the thread and opens Alter on it. Under "Or let Anansi", three
     // cards use the same box and the same kind: write one from what you typed, look the name up
@@ -4388,10 +4377,11 @@ const PANELS = {
            world link are The world; the exports, the archive and the delete are Keep.
            THEY SWITCH IN CSS, NOT BY REDRAWING. Every box in here is free text that Save commits,
            and a repaint on a tab press throws away whatever was half-typed — the bug this file
-           records seven separate times. All four groups are drawn and the attribute on the
-           container picks the one you see, so switching cannot lose a word. -->
+           records seven separate times. Every group is drawn and the attribute on the
+           container picks the one you see, so switching cannot lose a word. The fifth, Thread, is the
+           tale's own thread (2026-10-29). -->
       <div class="lead-14 row-6">
-        ${[['voice', 'Voice'], ['book', 'The tale'], ['world', 'Setting'], ['keep', 'Keep']]
+        ${[['voice', 'Voice'], ['book', 'The tale'], ['thread', 'Thread'], ['world', 'Setting'], ['keep', 'Keep']]
           .map(([k, label]) => `<button class="chip fill center-press" data-storytab="${k}"
             aria-pressed="${tab === k}"
             >${label}</button>`).join('')}
@@ -4427,8 +4417,6 @@ const PANELS = {
 
       </div>
       <div class="sgroup" data-group="book">
-      <!-- #75. The premise and setting are the tale's own thread's Always true too, opened from here. -->
-      <button class="btn ghost lead-12" data-taleopen="1">Open the tale's own thread</button>
       <div class="lbl sect-top">The cover${
         tipMark('sCover', 'The cover')}</div>
       ${tipCard('sCover', 'The cover', `<p>Shrunk to 900px wide in the browser and stored in the
@@ -4723,7 +4711,10 @@ const PANELS = {
           do not: scene nine there is not scene nine here. Strings and prose stay with the tale.</p>
           ${V.follows ? `<p>Threads taken over from ${esc(V.follows.title)} go back onto the thread
             they came from, so nothing is doubled &mdash; anything written here is new to it.</p>`
-            : ''}`)}</div>` : ''}      </div></div>`;
+            : ''}`)}</div>` : ''}      </div>
+      <!-- #75 · THE TALE'S OWN THREAD, its own tab (2026-10-29). Last in the markup so each group
+           above still ends where the next begins; the chips put it after The tale. -->
+      <div class="sgroup" data-group="thread">${taleThread()}</div></div>`;
   },
 
   // The chapter you are writing, whole: its name, how it has to end, where the story is going,
@@ -12547,9 +12538,10 @@ document.addEventListener('click', async (e) => {
     V = r; paint(); return toast('Written again. Still chalked: nothing changes until you sew it in.');
   }
   // #75 · THE TALE'S OWN THREAD: open it, leave it, add a rule or an instruction of your own.
-  if (d.taleopen) { S.panel = 'threads'; S.entryId = null; S.lore = null; S.taleOpen = true; syncHash(); paint(); return; }
-  if (d.taleclose) { S.taleOpen = false; paint(); return; }
-  if (d.newrule) { S.taleOpen = false; S.entryId = null; S.lore = { kind: 'rule' }; paint(); return; }
+  // The first card in Threads opens the Tale panel on its Thread tab, where the tale's own thread lives.
+  if (d.taleopen) { S.panel = 'story'; S.storyTab = 'thread'; S.entryId = null; S.lore = null; syncHash(); paint(); return; }
+  // A rule is a thread of kind rule, written in the Threads drawer, wherever the press came from.
+  if (d.newrule) { S.panel = 'threads'; S.entryId = null; S.lore = { kind: 'rule' }; syncHash(); paint(); return; }
   if (d.addtalepocket) {
     const name = document.querySelector('[data-talenew="name"]')?.value.trim();
     const body = document.querySelector('[data-talenew="body"]')?.value.trim();

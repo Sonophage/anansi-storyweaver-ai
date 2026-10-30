@@ -1408,7 +1408,7 @@ ok('the bar counts chapters, and the reading is always open');
   click({ panel: 'story' });
   await new Promise((r) => setTimeout(r, 40));
   const panel = html('sideBody');
-  for (const g of ['voice', 'book', 'world', 'keep'])
+  for (const g of ['voice', 'book', 'thread', 'world', 'keep'])
     assert.match(panel, new RegExp(`data-group="${g}"`), `the panel must draw the ${g} group`);
   // ALL FOUR ARE DRAWN AND ONE IS SHOWN. The container says which, and the stylesheet does the
   // hiding — asserted here as the attribute, because that is the contract the CSS reads.
@@ -4738,12 +4738,15 @@ ok('Account → Writing shows When you reweave after the five modes, filled with
   click({ panel: 'threads' }); click({ backentry: '1' });   // a thread left open by an earlier check
   assert.match(html('sideBody'), /class="card plate thplate talebanner full-left" data-taleopen="1" style="background:/,
     'the tale heads the threads as a banner with a background');
+  // 2026-10-29: the banner opens the Tale panel on its Thread tab, which is where the thread lives.
   click({ taleopen: '1' });
-  assert.match(html('sideBody'), /class="talebanner tbhead" style="background:[^"]*"><h2 class="readname">/,
-    'and its own page opens under the same banner');
-  click({ taleclose: '1' });
+  assert.match(html('sideBody'), /data-tab="thread"/, 'TALE-TAB: and it opens the Tale panel on the Thread tab');
+  assert.match(html('sideBody'), /data-storytab="thread"[^>]*aria-pressed="true"/, '  with the Thread chip pressed');
+  assert.match(html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '', /data-newrule="1"[\s\S]*data-addtalepocket="1"/,
+    "  and the tab holds the tale's rules and its own instructions");
+  click({ panel: 'threads' });
 }
-ok("the tale's own thread is a banner in the list and on its page");
+ok("the tale's own thread is a banner in the list, and it opens the Thread tab of the Tale panel");
 
 // ---- THE THREAD'S MENU, ONE FLAT LIST, AND TIDY AS AN ICON BESIDE IT (Seth, 2026-10-27).
 {
@@ -6788,9 +6791,8 @@ const hemCardOf = (side: string) => {
   click({ panel: 'story' }); await settle();
   assert.match(book(), new RegExp(`Where it stands now[\\s\\S]*?${NOW}`), 'TALE-NOW: and where it stands now, once sewn in');
   click({ taleopen: '1' }); await settle();
-  assert.match(html('sideBody'), /How the tale began[\s\S]*?Where it stands now[\s\S]*?the sixth has burned/,
-    "TALE-OWN: the tale's own thread shows both too");
-  click({ taleclose: '1' });
+  assert.match(html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '', /Where the tale stands[\s\S]*?Where it stands now[\s\S]*?the sixth has burned/,
+    "TALE-OWN: the tale's own thread shows where it stands too");
   (globalThis as any).fetch = canned;
   click({ open: 's-1' }); await settle();
   ok("where the tale stands is a diff on the hem's card, and the tale's settings show how it began and where it stands now");
@@ -7596,7 +7598,7 @@ const hemCardOf = (side: string) => {
   try {
     click({ open: 's-1' }); await wait();
     click({ taleopen: '1' }); await wait();
-    const page = html('sideBody');
+    const page = html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '';
     const rules = page.indexOf('data-newrule='), prom = page.indexOf('>Promises'), ques = page.indexOf('>Open questions');
     assert.ok(rules > 0 && prom > rules && ques > prom, `TALE-STRINGS: Promises, then Open questions, under Rules (${rules}, ${prom}, ${ques})`);
     const promises = page.slice(prom, ques), questions = page.slice(ques);
@@ -7622,9 +7624,7 @@ const hemCardOf = (side: string) => {
       assert.match(add, new RegExp(`data-pocketkind="${other}"[^>]*aria-pressed="false"`), `  and not ${other}`);
       click({ pocketx: '1' }); await wait();
     }
-    click({ taleopen: '1' }); await wait();
-
-    click({ taleclose: '1' }); click({ panel: 'strings' }); await wait();
+    click({ panel: 'strings' }); await wait();
     const screen = html('sideBody');
     for (const id of ['p-on', 'p-done', 'q-gone']) {
       assert.ok(rowOf(screen, id), `TALE-SAME: the Strings screen draws a row for ${id}`);
