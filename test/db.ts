@@ -169,6 +169,66 @@ ok('a name that is still a card does not stale a summary, a fact that has left t
 
   db.delStory(sc.id);   // off the shelf again: 'deleting a story cascades' counts what is on it
 });
+// ADR 0004, pass three: a thread's Alter, its Always true and an open pocket save as you type. A write
+// per pause is a DRAFT: it stores the text and keeps no revision and stales nothing, or a word typed
+// halfway would drop a scene summary out of the prompt and every pause would add a row to
+// Alterations. The last write (Done) carries the text the editor OPENED on, so the revision and the
+// staling are worked out once, against that, and not against the last draft.
+ok('DRAFT: a draft write keeps no revision and stales nothing; the last one does both once, against the opening text', () => {
+  const sc = db.createStory(o, { title: 'Drafts', premise: 'p' });
+  db.addPassage({ ...sc, storyId: sc.id, body: 'Talia drank the Ironjar by the Weir.' });
+  const ch = db.chapters(sc.id)[0] as any;
+  const fresh = () => db.setSummary(ch.id, 'Talia drinks the Ironjar by the Weir.', 1,
+    db.proseHash(db.passagesOfChapter(ch.id).map((x: any) => x.body)), 'model');
+  const hash = () => (db.db.prepare('SELECT summary_hash FROM chapters WHERE id = ?').get(ch.id) as any).summary_hash;
+  const revs = (field: string) => db.entryHistory(sc.id, 'e-dt').filter((r: any) => r.field === field);
+  const opened = { title: 'Talia', body: 'Dosed with the Ironjar aromatic.', keys: ['talia'] };
+  db.upsertEntry(sc.id, o, { id: 'e-dt', ...opened });
+  fresh();
+  db.upsertEntry(sc.id, o, { id: 'e-dt', title: 'Talia', body: 'Dosed with the', keys: ['talia'] }, { draft: true });
+  db.upsertEntry(sc.id, o, { id: 'e-dt', title: 'Talia', body: 'A Tarnished, and sober.', keys: ['talia'] }, { draft: true });
+  assert.deepStrictEqual(revs('body'), [], 'DRAFT-NO-REVISION: a draft of the text keeps no revision');
+  assert.ok(hash(), 'DRAFT-NO-STALE: a draft that drops a fact leaves the summary in the prompt');
+  assert.strictEqual((db.db.prepare('SELECT body FROM entries WHERE id = ?').get('e-dt') as any).body, 'A Tarnished, and sober.',
+    'DRAFT-STORED: and the text is stored');
+  // Done: the same text, and the text it opened on.
+  db.upsertEntry(sc.id, o, { id: 'e-dt', title: 'Talia', body: 'A Tarnished, and sober.', keys: ['talia'] }, { opened });
+  assert.deepStrictEqual(revs('body').map((r: any) => r.previous_value), ['Dosed with the Ironjar aromatic.'],
+    'DRAFT-FINAL-REVISION: the last write keeps one revision, of the text it opened on');
+  assert.strictEqual(hash(), null, 'DRAFT-FINAL-STALE: and stales against the text it opened on');
+  // AWAY AND BACK: drafts that end where they began leave nothing behind.
+  fresh();
+  const now = { title: 'Talia', body: 'A Tarnished, and sober.', keys: ['talia'] };
+  db.upsertEntry(sc.id, o, { id: 'e-dt', ...now, body: 'Gone.' }, { draft: true });
+  db.upsertEntry(sc.id, o, { id: 'e-dt', ...now }, { draft: true });
+  db.upsertEntry(sc.id, o, { id: 'e-dt', ...now }, { opened: now });
+  assert.strictEqual(revs('body').length, 1, 'DRAFT-NET-NOTHING: nothing changed in all, so no revision');
+  assert.ok(hash(), 'DRAFT-NET-NOTHING: and nothing staled');
+
+  // ALWAYS TRUE AND A POCKET, the same rule (`upsertAddon`).
+  const fid = db.upsertAddon(sc.id, 'e-dt', { slot: 'facts', name: 'facts', body: 'Keeps the Ironjar by the Weir.' }) as string;
+  fresh();
+  db.upsertAddon(sc.id, 'e-dt', { id: fid, slot: 'facts', name: 'facts', body: 'Keeps the' }, { draft: true });
+  db.upsertAddon(sc.id, 'e-dt', { id: fid, slot: 'facts', name: 'facts', body: 'Keeps nothing.' }, { draft: true });
+  assert.deepStrictEqual(revs(`pocket:${fid}`), [], 'DRAFT-ADDON-NO-REVISION: a draft of Always true keeps no revision');
+  assert.ok(hash(), 'DRAFT-ADDON-NO-STALE: and stales nothing');
+  db.upsertAddon(sc.id, 'e-dt', { id: fid, slot: 'facts', name: 'facts', body: 'Keeps nothing.' },
+    { opened: { name: 'facts', body: 'Keeps the Ironjar by the Weir.' } });
+  assert.deepStrictEqual(revs(`pocket:${fid}`).map((r: any) => r.previous_value), ['Keeps the Ironjar by the Weir.'],
+    'DRAFT-ADDON-FINAL: the last write keeps one revision, of the text it opened on');
+  assert.strictEqual(hash(), null, 'DRAFT-ADDON-FINAL: and stales against it');
+  fresh();
+  db.upsertAddon(sc.id, 'e-dt', { id: fid, slot: 'facts', name: 'facts', body: 'Keeps a lamp.' }, { draft: true });
+  db.upsertAddon(sc.id, 'e-dt', { id: fid, slot: 'facts', name: 'facts', body: 'Keeps nothing.' },
+    { opened: { name: 'facts', body: 'Keeps nothing.' } });
+  assert.strictEqual(revs(`pocket:${fid}`).length, 1, 'DRAFT-ADDON-NET-NOTHING: undone, no revision');
+  assert.ok(hash(), 'DRAFT-ADDON-NET-NOTHING: and nothing staled');
+  // A FLAG RIDING IN THE ROW IS NOT ONE. Every importer spreads what it read into these writers, so a
+  // `draft` in a pasted thread must not switch the history off: only the second argument does.
+  db.upsertEntry(sc.id, o, { id: 'e-dt', title: 'Talia', body: 'Pasted in.', keys: ['talia'], draft: true });
+  assert.strictEqual(revs('body').length, 2, 'DRAFT-NOT-IN-ROW: a `draft` inside the thread itself keeps its revision');
+  db.delStory(sc.id);
+});
 ok('ending a chapter closes the old one and opens the next', () => {
   const r = db.endChapter(s.id, s.branchId, 'Two');
   assert.strictEqual(r.idx, 2);

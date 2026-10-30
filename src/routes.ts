@@ -283,6 +283,10 @@ const weaveAssemble = (c: Ctx, v: { story: any; entries?: any[] }, role: string,
  *  would bring the old bug back unnoticed. `model` is the model that writes this book;
  *  `defaultModel` the writer's own; `pin` the book's remote pin as a model row; `weaves` whether a
  *  passage in this book weaves; `budget` the room a passage's prompt for `model` may take. */
+/** A write's `draft` flag and `opened` text (`db.WriteHow`), read off the request beside the row.
+ *  `draft` only when it is the boolean true; `opened` only when it is an object. */
+const writeHow = (b: any): db.WriteHow => ({ draft: b?.draft === true,
+  opened: b?.opened && typeof b.opened === 'object' ? b.opened : null });
 const viewOf = (c: Ctx, id: string, chapter?: string) => {
   const v = bookOf(id, chapter);
   const model = writerModel(c, v);
@@ -4369,8 +4373,9 @@ export const routes: Record<string, Handler> = {
   // ---- ledger ----
   // A refused write says so. `upsertEntry` refuses an activation that is not one of its two words,
   // and this answered with the view as if the save had landed.
+  // `draft` and `opened` ride beside the thread (ADR 0004, pass three: `db.WriteHow`, `writeHow` here).
   'POST /api/entry':   (c) => {
-    if (!db.upsertEntry(c.body.storyId, c.owner, c.body.entry))
+    if (!db.upsertEntry(c.body.storyId, c.owner, c.body.entry, writeHow(c.body)))
       return { error: 'That thread was not saved: it must be always on or on a word.' };
     return viewOf(c, c.body.storyId);
   },
@@ -4902,7 +4907,7 @@ export const routes: Record<string, Handler> = {
     // tale needs it (`db.taleThread`), as the Strings screen's ＋ adds one before the thread exists.
     const entry = c.body.entryId ?? (STRING_SLOTS.includes(String(c.body.addon?.slot ?? ''))
       ? db.taleThread(c.body.storyId) : null);
-    const id = db.upsertAddon(c.body.storyId, entry, c.body.addon ?? {});
+    const id = db.upsertAddon(c.body.storyId, entry, c.body.addon ?? {}, writeHow(c.body));
     if (!id) return { error: 'that is not a pocket this kind of thread has, or not a thread in this tale' };
     return { addonId: id, ...viewOf(c, c.body.storyId) };
   },

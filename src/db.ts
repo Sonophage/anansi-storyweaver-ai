@@ -2714,7 +2714,22 @@ const ACTIVATIONS = ['always_on', 'triggered', 'off'] as const;
  *  (`plainStandsAll`); `context.ts` frames it for the model. */
 export function plainStands(body: unknown, titles: unknown[]) { return plain(body, titles.map((t) => String(t ?? ''))); }
 
-export function upsertEntry(storyId: string, o: string, e: any) {
+/** HOW A WRITE OF A THREAD OR A POCKET IS TOLD (ADR 0004, pass three: the editors save as you type).
+ *  `draft`: one pause in the typing. The text is stored, and no revision is kept and nothing is staled,
+ *  or a word typed halfway would drop a scene summary from the prompt and every pause would add a row
+ *  to Alterations. `opened`: the last write of an opening (Done, or the tab hidden). What the editor
+ *  opened on, so the revision and the staling are worked out once against that and not against the
+ *  last draft; nothing changed in all, nothing is kept or staled. A field left out of `opened` is
+ *  compared with the row as it is.
+ *  A second argument and not a field of the row, because every importer spreads what it read into the
+ *  row, and a `draft` in a pasted file must not switch the history off.
+ *  ponytail: a draft with no last write after it (the browser shut, or the server gone, before Done or
+ *  the hidden tab could send it) keeps no revision and stales nothing, so a summary can stay in the
+ *  prompt that no longer agrees with the thread. Send the opening text with every draft and stale on
+ *  the server at the next read of the tale if a writer reports a summary that outlived its thread. */
+export type WriteHow = { draft?: boolean; opened?: { title?: unknown; body?: unknown; keys?: unknown; name?: unknown } | null };
+
+export function upsertEntry(storyId: string, o: string, e: any, how: WriteHow = {}) {
   // THE ONE FLOOR FOR AN ACTIVATION (Seth, 2026-10-25: refuse anything else). The column stored
   // whatever it was handed — test/db.ts wrote 'keyed' for weeks, which the engine read as on a word
   // and the screen as neither. Every write of a thread crosses this function: the app's save, the
@@ -2775,7 +2790,7 @@ export function upsertEntry(storyId: string, o: string, e: any) {
     // book that this one has stopped following per-card, and writing to it would edit the world
     // through a door the writer closed.
     if (there && src?.owner_id === st.owner_id && !claimedOrigins(storyId).has(String(e.id)))
-      return upsertEntry(from, o, e);
+      return upsertEntry(from, o, e, how);
   }
 
   // PLAN-06 2e, the half the evidence supports. A `triggered` entry with no keys never reaches the
@@ -2813,13 +2828,20 @@ export function upsertEntry(storyId: string, o: string, e: any) {
     e = { ...e, activation: 'always_on' };
 
   if (cur) {
+    // WHAT THE REVISION AND THE STALING ARE WORKED OUT AGAINST: the row, or what the editor opened on
+    // (`WriteHow`), put through the same floors as the write so a stored text compares equal to itself.
+    const op = how.opened ?? {};
+    const was = { ...cur,
+      ...('title' in op ? { title: String(op.title ?? '') } : {}),
+      ...('body' in op ? { body: plainStands(op.body ?? '', [op.title ?? cur.title, cur.title]) } : {}),
+      ...('keys' in op ? { keys: JSON.stringify(keysOf(op.keys)) } : {}) };
     // Per-field provenance, recorded per field rather than described in a comment.
     const editors = { ...JSON.parse(cur.field_editors || '{}') };
     for (const [col, val] of [['title', e.title], ['body', e.body], ['keys', JSON.stringify(e.keys)]]) {
-      if (cur[col] === val) continue;
+      if (cur[col] !== val || was[col] !== val) editors[col as string] = e.lastEditor;
+      if (how.draft || was[col] === val) continue;
       q('INSERT INTO entry_revisions (id,entry_id,field,previous_value,replaced_at,replaced_by) VALUES (?,?,?,?,?,?)')
-        .run(uid('er-'), e.id, col, cur[col], t, e.lastEditor);
-      editors[col as string] = e.lastEditor;
+        .run(uid('er-'), e.id, col, was[col], t, e.lastEditor);
     }
     q(`UPDATE entries SET title=?,body=?,notes=?,entry_type=?,activation=?,keys=?,last_editor=?,
        field_editors=?,updated_at=? WHERE id=? AND story_id=?`)
@@ -2845,7 +2867,7 @@ export function upsertEntry(storyId: string, o: string, e: any) {
     // `title: body` and not `title\nbody`, so the title lands where `labelOf` looks. Without the
     // colon a card with an empty body reduced to a bare word at index 0, which the positional rule
     // reads as a sentence opening and skips — and a rename is the sharpest case there is.
-    staleSummariesFor(storyId, `${cur.title}: ${cur.body ?? ''}`, `${e.title}: ${e.body ?? ''}`);
+    if (!how.draft) staleSummariesFor(storyId, `${was.title}: ${was.body ?? ''}`, `${e.title}: ${e.body ?? ''}`);
     touch(storyId); return e.id;
   }
   // Reuse a supplied id only if it is actually free. Seeding with known ids is useful; an
@@ -2933,7 +2955,7 @@ export const addonsOf = (storyId: string) =>
 /** The slots of the tale's own pockets, which hang off no thread. */
 export const TALE_OWN = ['instruction', 'rule'];
 
-export function upsertAddon(storyId: string, entryId: string | null, a: any) {
+export function upsertAddon(storyId: string, entryId: string | null, a: any, how: WriteHow = {}) {
   const t = now();
   const slot = String(a.slot ?? '').trim();
   // #75. THE TALE'S OWN POCKETS hang off no thread and have two slots no thread has: `instruction`,
@@ -2952,10 +2974,14 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
   // #110 · A PLAIN DESCRIPTION, AND NOTHING ELSE (ADR 0008). Every writer of a pocket or an Always
   // true crosses here (the lookup, the cast, Talk, hemming, import, paste, the writer's own save), so
   // the wrapper and the name in front come off here, by the rule the prompt frames by (`slots.plain`).
+  // What the editor opened on (`WriteHow`) goes through the same floor, so a stored text equals itself.
+  let openedBody: string | null = null;
   if (a.body != null) {
     const owner = entryId ?? (a.id ? (q('SELECT entry_id FROM addons WHERE id = ? AND story_id = ?').get(a.id, storyId) as any)?.entry_id : null);
     const title = owner ? String((q('SELECT title FROM entries WHERE id = ?').get(owner) as any)?.title ?? '') : '';
     a = { ...a, body: plain(a.body, wrapperNames(slot, title, String(a.name ?? ''))) };
+    if (how.opened && 'body' in how.opened)
+      openedBody = plain(how.opened.body ?? '', wrapperNames(slot, title, String(how.opened.name ?? a.name ?? '')));
   }
   const keys = JSON.stringify(keysOf(a.keys));
   // #77 · ONE ALWAYS TRUE PER THREAD, AND ON. Always true is stored as the `facts` addon and is not a
@@ -2985,15 +3011,18 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
       if (!(isString && STRING_SLOTS.includes(was.slot))) return null;
       q(`UPDATE addons SET slot = ?${slot === 'question' ? ', owed_by = NULL' : ''} WHERE id = ?`).run(slot, a.id);
     }
-    const wasBody = String(was?.body ?? '');
+    // The row's text, or the one the editor opened on (`WriteHow`): what the history and the staling
+    // compare against. A draft does neither.
+    const wasBody = openedBody ?? String(was?.body ?? '');
+    const wasName = how.opened && 'name' in how.opened ? String(how.opened.name ?? '') : was.name;
     // #111 · THE OLD TEXT IS KEPT, in the thread's own history beside its title and its text, under
     // `pocket:<id>`, so Alterations shows it and `revertEntryField` puts it back. Here because every
     // writer of a pocket or an Always true crosses here: the writer's save, Talk and its Undo, accept,
     // the lookups. A tale's own pocket hangs off no thread, and the history is a thread's, so it is
     // not kept.
-    if (was?.entry_id && a.body != null && String(a.body) !== wasBody)
+    if (!how.draft && was?.entry_id && a.body != null && String(a.body) !== wasBody)
       q('INSERT INTO entry_revisions (id,entry_id,field,previous_value,replaced_at,replaced_by,slot,name) VALUES (?,?,?,?,?,?,?,?)')
-        .run(uid('er-'), was.entry_id, `pocket:${a.id}`, wasBody, t, 'human', was.slot, was.name ?? null);
+        .run(uid('er-'), was.entry_id, `pocket:${a.id}`, wasBody, t, 'human', was.slot, wasName ?? null);
     q(`UPDATE addons SET name = ?, body = ?, keys = ?, from_chapter = ?, retired_at_chapter = ?
        WHERE id = ? AND story_id = ?`)
       .run(a.name, a.body, keys, from, till, a.id, storyId);
@@ -3003,7 +3032,7 @@ export function upsertAddon(storyId: string, entryId: string | null, a: any) {
     // Since the body moved into `facts` on 2026-08-29 the ROOMS are where a card's facts live, so
     // a room edit stales a summary on exactly the same rule as a body edit. Read before the write,
     // because after it the old text is gone from the row.
-    staleSummariesFor(storyId, wasBody, String(a.body ?? ''));
+    if (!how.draft) staleSummariesFor(storyId, wasBody, String(a.body ?? ''));
     touch(storyId);
     return a.id;
   }

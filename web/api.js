@@ -173,7 +173,8 @@ export const api = {
   fork:         (storyId, passageId, name) => j('/api/fork', 'POST', { storyId, passageId, name }),
   switchBranch: (storyId, id)    => j('/api/branch', 'POST', { storyId, id }),
   delBranch:    (storyId, id)    => j('/api/branch/delete', 'POST', { storyId, id }),
-  saveEntry:    (storyId, entry) => j('/api/entry', 'POST', { storyId, entry }),
+  // `how`: `{ draft: true }` for a pause's write, `{ opened }` for the last one (ADR 0004, `db.WriteHow`).
+  saveEntry:    (storyId, entry, how = {}) => j('/api/entry', 'POST', { storyId, entry, ...how }),
   delEntry:     (storyId, id)    => j('/api/entry', 'DELETE', { storyId, id }),
   // `storyId` is the book the entry lives in, which is what the ownership gate reads; `into` is
   // where it is going and the route checks that one itself. Both have to be the caller's.
@@ -237,7 +238,7 @@ export const api = {
   // Move a proposal before deciding it: which room, and the words that wake the card.
   moveprop:     (o)              => j('/api/proposal/where', 'POST', o),
   // PLAN-08. entryId null is a story-level addon, which is where a string will live.
-  saveAddon:    (storyId, entryId, addon) => j('/api/addon', 'POST', { storyId, entryId, addon }),
+  saveAddon:    (storyId, entryId, addon, how = {}) => j('/api/addon', 'POST', { storyId, entryId, addon, ...how }),
   addonOn:      (storyId, id, on, atChapter) => j('/api/addon/on', 'POST', { storyId, id, on, atChapter }),
   delAddon:     (storyId, id)    => j('/api/addon', 'DELETE', { storyId, id }),
   // PLAN-08 Phase 4. A thread can be finished, and brought back: atChapter null lifts it. Its own

@@ -2674,4 +2674,24 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
   ok('a hem is paid for by the book\'s owner, through a real server, on every pass');
 }
 
+// ADR 0004, pass three. THE ROUTES CARRY THE DRAFT FLAG, beside the row and not in it (`db.WriteHow`):
+// a pause's write keeps no revision, and Done's, which names what the editor opened on, keeps one.
+{
+  const bk = db.createStory(alice, { title: 'Drafted through the route' });
+  const id = db.upsertEntry(bk.id, alice, { title: 'Wren', body: 'Keeps the lamp.' }) as string;
+  const fid = db.upsertAddon(bk.id, id, { slot: 'facts', name: 'facts', body: 'A ferrywoman.' }) as string;
+  const rows = () => db.entryHistory(bk.id, id).length;
+  const entry = { id, title: 'Wren', body: 'Keeps the lamp lit.', keys: [], allowNoKeys: true };
+  routes['POST /api/entry'](ctxI(alice, { storyId: bk.id, entry, draft: true }));
+  routes['POST /api/addon'](ctxI(alice, { storyId: bk.id, entryId: id, addon: { id: fid, slot: 'facts', name: 'facts', body: 'A ferry' }, draft: true }));
+  assert.strictEqual(rows(), 0, 'ROUTE-DRAFT: a draft through either route keeps no revision');
+  routes['POST /api/entry'](ctxI(alice, { storyId: bk.id, entry, opened: { title: 'Wren', body: 'Keeps the lamp.', keys: [] } }));
+  routes['POST /api/addon'](ctxI(alice, { storyId: bk.id, entryId: id, addon: { id: fid, slot: 'facts', name: 'facts', body: 'A ferry' },
+    opened: { name: 'facts', body: 'A ferrywoman.' } }));
+  assert.deepStrictEqual(db.entryHistory(bk.id, id).map((r: any) => r.previous_value).sort(), ['A ferrywoman.', 'Keeps the lamp.'],
+    'ROUTE-OPENED: the last write through each keeps one revision, of what it opened on');
+  db.delStory(bk.id);
+  ok('POST /api/entry and /api/addon take a draft flag and the opening text beside the row');
+}
+
 console.log(`\n${n} checks passed`);
