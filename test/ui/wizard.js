@@ -234,12 +234,12 @@ await wait(700);
  * at the `d.sparkstep` handler in web/app.js. The step still arrives empty and the cast is still its
  * own call, which is what the assertions below this one are written against.
  */
-// Five kinds since #80 added Places.
+// Five kinds since #80 added Places; four since rules became pockets of the tale (2026-10-29).
 ok("  every kind is on from the start, not characters alone",
-   (await page.eval(`document.querySelectorAll('[data-spkind][aria-pressed="true"]').length`)) === 5);
+   (await page.eval(`document.querySelectorAll('[data-spkind][aria-pressed="true"]').length`)) === 4);
 ok("  the step arrives empty, and asks what kinds this book needs",
    (await page.eval("document.querySelectorAll('[data-spcast]').length")) === 0
-   && (await page.eval("document.querySelectorAll('[data-spkind]').length")) === 5);
+   && (await page.eval("document.querySelectorAll('[data-spkind]').length")) === 4);
 /* #40 · AND THE THREADS SUGGEST THEMSELVES on leaving the book. Seth: "having them suggested is
  * good." Fired on LEAVING rather than arriving, which is what keeps it inside #24's rule — pressing
  * on IS the ask. The stub refused this first one, so what is on screen is the model-down state.
@@ -289,7 +289,7 @@ ok("  and holding the one you play is one press",
  * them tests the chips as well, and it keeps forty assertions saying what they were written to say
  * instead of being rewritten to match a fixture. */
 await go("The threads");
-for (const k of ['place', 'lore', 'item', 'rule']) {
+for (const k of ['place', 'lore', 'item']) {
   await page.click(`[data-spkind="${k}"]`);
   await wait(150);
 }
@@ -396,16 +396,18 @@ ok("  the cast step can also pull threads out of books you already have",
 {
   // A REAL PICK, CARRIED THROUGH TO THE CREATED BOOK. The picker existing is not the feature — the
   // thread arriving in the new book is, and that happens after Accept through the copy route a
-  // single card already uses. Vantic law is a RULE in the seeded book: any kind travels, not only
-  // characters, which is the half "pull from already existing lore" is actually about.
+  // single card already uses. The Silver Key is an ITEM in the seeded book (it was the rule Vantic law
+  // until rules became pockets of the tale): any kind travels, not only characters, which is the half
+  // "pull from already existing lore" is actually about.
   await page.eval(`(() => { const q = document.getElementById('seedq');
-    q.value = 'Vantic law'; q.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+    q.value = 'Silver Key'; q.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
   await wait(500);
   const rows = await page.eval("document.querySelectorAll('[data-seedpick]').length");
   const shown = await page.eval("document.getElementById('seeds')?.innerText || ''");
   ok(`  searching it finds a thread from a book you already have (${rows} shown)`,
-     rows >= 1 && /Vantic law/.test(shown));
-  await page.click('[data-seedpick]');
+     rows >= 1 && /Silver Key/.test(shown));
+  // The thread's own row: every row also names its book, and the seeded book is The Silver Key too.
+  await page.eval("(() => { [...document.querySelectorAll('[data-seedpick]')].find((b) => /^the Silver Key/.test(b.textContent.trim()))?.click(); return 1; })()");
   await wait(400);
   ok("  and picking one says it is coming over",
      /1 chosen/.test(await page.eval("document.getElementById('seeds')?.innerText || ''")));
@@ -628,10 +630,10 @@ const made = await page.eval(`(async () => { const r = await (await fetch('/api/
 ok(`accepting from step 2 creates the story with every step's answers (${JSON.stringify(made)})`, !!made);
 if (made) {
   ok("  the title edited on step 1 is the one that was saved", made.title === 'The Drowned Ledger');
-  // Two: the one character kept from the cast, and the rule picked out of the library. The blank
+  // Two: the one character kept from the cast, and the item picked out of the library. The blank
   // row started with + and abandoned is dropped, and so is the unticked one.
   ok(`  the kept cast and the picked thread were written, and nothing else (${made.names})`,
-     made.entries === 2 && made.names === 'Ilva Vane|Vantic law');
+     made.entries === 2 && made.names === 'Ilva Vane|the Silver Key');
   ok("  the persona survived the rename", made.persona === 'Ilva Vane');
   // The writer chose Ilva for both on You, and nothing drops a name the writer chose.
   ok("  and the locked character with it", made.locked === 'Ilva Vane');

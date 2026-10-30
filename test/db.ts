@@ -4416,4 +4416,48 @@ ok('a hem left running by a restart is stopped, naming the passes it did not fin
   db.delStory(t.id);
 });
 
+// RULES ARE POCKETS OF THE TALE'S THREAD (ADR 0005, built 2026-10-29). A rule hangs off no thread,
+// as the tale's own instructions do: slot `rule`, with wake words. A rule thread is refused at the
+// one write of a thread, and the ones already stored move across at load.
+ok('a rule is a pocket of the tale, never a thread, and old rule threads move across', () => {
+  const me = db.owner('rules-move');
+  const st = db.createStory(me, { title: 'Ruled' });
+  const id = db.upsertAddon(st.id, null, { slot: 'rule', name: 'Debts', body: 'A debt survives the debtor.', keys: ['debt'] });
+  assert.ok(id, 'RULE-POCKET: a rule is a story-level pocket');
+  const row = db.addonsOf(st.id).find((a: any) => a.id === id);
+  assert.strictEqual(row.entry_id, null, '  that hangs off no thread');
+  assert.deepStrictEqual(JSON.parse(row.keys), ['debt'], '  and keeps its wake words');
+  const char = db.upsertEntry(st.id, me, { title: 'Aldis', body: 'a clerk', entryType: 'character' });
+  assert.strictEqual(db.upsertAddon(st.id, char, { slot: 'rule', name: 'x', body: 'y' }), null,
+    'RULE-NOT-ON-A-THREAD: a rule on a character is refused');
+  assert.strictEqual(db.upsertEntry(st.id, me, { title: 'Gate law', body: 'Nobody passes unpaid.', entryType: 'rule' }), null,
+    'RULE-NOT-A-THREAD: a rule thread is refused at the one write of a thread');
+  assert.ok(db.addonsOf(st.id).some((a: any) => a.slot === 'rule' && a.name === 'Gate law' && a.body === 'Nobody passes unpaid.'),
+    '  and becomes a rule pocket instead, so no caller loses it');
+  // AN OLD RULE THREAD, written the way one was, past the floor: Always true, a consequence, wake words.
+  const raw = new RawDb('/tmp/anansi-test.db');
+  const t0 = Date.now();
+  raw.prepare(`INSERT INTO entries (id, story_id, owner_id, title, body, entry_type, activation, keys, last_editor, created_at, updated_at)
+    VALUES ('e-oldrule', ?, ?, 'The Great Game', 'Every October the estate hosts the Game.', 'rule', 'triggered', '["game"]', 'human', ?, ?)`)
+    .run(st.id, me, t0, t0);
+  raw.prepare(`INSERT INTO addons (id, story_id, entry_id, slot, name, body, keys, active, created_at)
+    VALUES ('a-oldfacts', ?, 'e-oldrule', 'facts', 'facts', 'A hunting ritual at the estate.', '[]', 1, ?)`).run(st.id, t0);
+  raw.prepare(`INSERT INTO addons (id, story_id, entry_id, slot, name, body, keys, active, created_at)
+    VALUES ('a-oldcons', ?, 'e-oldrule', 'consequences', 'Survival', 'Innocents survive by enduring.', '[]', 1, ?)`).run(st.id, t0);
+  raw.close();
+  assert.strictEqual(db.rulesToPockets(), 1, 'RULE-MOVE: one rule thread moved');
+  const left = new RawDb('/tmp/anansi-test.db', { readOnly: true });
+  assert.ok(!left.prepare("SELECT 1 FROM entries WHERE id = 'e-oldrule'").get()
+    && !left.prepare("SELECT 1 FROM addons WHERE entry_id = 'e-oldrule'").get(), 'RULE-MOVE-GONE: the thread and its pockets are gone');
+  left.close();
+  const moved = (db.addonsOf(st.id) as any[]).find((a) => a.slot === 'rule' && a.name === 'The Great Game');
+  assert.ok(moved, 'RULE-MOVE-NAME: the rule pocket has the thread\'s name');
+  for (const part of ['A hunting ritual at the estate.', 'Every October the estate hosts the Game.', 'Innocents survive by enduring.'])
+    assert.ok(moved.body.includes(part), `RULE-MOVE-TEXT: nothing the model was sent is lost: ${part}`);
+  assert.deepStrictEqual(JSON.parse(moved.keys), ['game'], 'RULE-MOVE-KEYS: a rule on a word keeps its words');
+  assert.strictEqual(moved.active, 1, '  and it is on');
+  assert.strictEqual(db.rulesToPockets(), 0, 'RULE-MOVE-ONCE: a second load moves nothing');
+  db.delStory(st.id);
+});
+
 console.log(`\n${n} checks passed`);

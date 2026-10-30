@@ -119,7 +119,7 @@ const ok = (m: string, fn?: unknown) => {
   for (const f of ['title', 'genre', 'premise', 'setting', 'pov', 'spice', 'persona',
                    'lockedCharacter', 'writingStyle', 'styleNote'])
     assert.ok(b.includes(`"${f}"`), `the book prompt names the ${f} field`);
-  for (const k of ['character', 'lore', 'item', 'rule'])
+  for (const k of ['character', 'lore', 'item'])
     for (const sl of slotsFor(k)) assert.ok(b.includes(`"${sl.name}"`), `and ${k}'s ${sl.name} room`);
   assert.match(b, /ONE RULE PER LINE/, 'and carries F37 into the voice field it asks for');
   assert.ok(b.includes('"story"') && b.includes('"entries"'), 'and asks for both halves at once');
@@ -211,7 +211,10 @@ const paste = (text: string, o = me) => routes['POST /api/thread/paste'](ctx({ s
 {
   const r = paste('```json\n{"kind":"rule","title":"Vantic law","body":"[Vantic law: a debt survives the debtor]"}\n```');
   assert.ok(!r.error, r.error);
-  assert.ok(db.entriesOf(story.id).some((x: any) => x.title === 'Vantic law'), 'the card landed');
+  // A rule lands as a rule of the tale (ADR 0005, 2026-10-29), not as a thread.
+  assert.ok(db.addonsOf(story.id).some((x: any) => x.slot === 'rule' && x.name === 'Vantic law' && /debt survives/.test(x.body)),
+    'the card landed, as a rule of the tale');
+  assert.ok(!db.entriesOf(story.id).some((x: any) => x.title === 'Vantic law'), '  and not as a thread');
   ok('a fenced answer is unwrapped rather than refused');
 }
 

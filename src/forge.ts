@@ -51,7 +51,6 @@ export const ROOM_MEANING: Record<string, string> = {
   who_is_here:   'Who you find there, and in what capacity. Names if you have them, roles if not.',
   what_it_does:  'What it does, exactly, and what it does not do. A key that opens one door says '
                + 'which door.',
-  consequences:  'What breaking it costs, and who collects.',
 };
 
 const roomBlock = (kind: EntryKind) => SLOTS[kind]
@@ -211,12 +210,12 @@ THE STORY FIELDS, all of them:
              style note that repeats them makes two instructions argue over one sentence.
 
 THE ENTRIES. Four to eight of them, and make them the ones the premise actually needs — the people
-it names, the place it happens in, the thing everyone wants, the law that holds until it breaks.
+it names, the place it happens in, the thing everyone wants.
 
 Each entry is exactly the card shape:
 
 {
-  "kind": "character" | "lore" | "item" | "rule",
+  "kind": "character" | "lore" | "item",
   "title": "the name, spelled as the prose spells it",
   "body": "the notes",
   "keys": ["words that make this card fire"],

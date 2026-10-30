@@ -70,7 +70,7 @@ _In code_: `opens_with`, `authors_note`
 
 **Thread**:
 Something the tale remembers: a character, a place, lore or an item. Each tale also has one
-thread about itself. (Rules moved into the tale's thread on 2026-10-26; not built.)
+thread about itself. (Rules moved into the tale's thread on 2026-10-26; built 2026-10-29.)
 _Avoid_: card, cards, entry, entries, canon, ledger, ledger entry
 _In code_: entry
 
@@ -102,7 +102,9 @@ hem: Always true the setting, its first Over time entry the premise. Its pockets
 _Avoid_: story card, tale instructions, author's note
 
 **Rule**:
-A pocket of the tale's thread: a law the tale obeys, sent always or on its wake words.
+A pocket of the tale's thread: a law the tale obeys, sent always or on its wake words. Added and
+edited on the Tale panel's Thread tab.
+_In code_: an `addons` row of slot `rule` with no entry, as the writer's own instructions are
 _Avoid_: rule thread, constraint
 
 **Always true**:

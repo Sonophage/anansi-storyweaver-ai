@@ -4483,10 +4483,21 @@ export const routes: Record<string, Handler> = {
 
     const notes: string[] = [];
     const made: { id: string; title: string; rooms: number }[] = [];
+    let ruled = 0;
     for (const [i, raw] of list.entries()) {
       const where = list.length > 1 ? ` (thread ${i + 1})` : '';
       if (!raw || typeof raw !== 'object') { notes.push(`Skipped something that is not a thread${where}.`); continue; }
       const kind = String(raw.kind ?? raw.entryType ?? 'character').trim();
+      // A RULE IS A POCKET OF THE TALE (ADR 0005, 2026-10-29), not a thread: a pasted one becomes a rule
+      // on the Thread tab, through the floor every write of a thread crosses (`db.upsertEntry`).
+      if (kind === 'rule' && String(raw.title ?? raw.name ?? '').trim()) {
+        const title = String(raw.title ?? raw.name).trim();
+        db.upsertEntry(v.id, c.owner, { title, body: plain(raw.body, [title]), entryType: 'rule',
+          activation: raw.activation, keys: raw.keys });
+        notes.push(`"${title}"${where} is a rule: it is on the tale's own thread now, the Tale panel's Thread tab.`);
+        ruled++;
+        continue;
+      }
       if (!(KINDS as string[]).includes(kind)) {
         notes.push(`Skipped "${String(raw.title ?? 'untitled')}"${where}: there is nothing called a "${kind}".`);
         continue;
@@ -4518,7 +4529,7 @@ export const routes: Record<string, Handler> = {
       notes.push(...w.notes);
       made.push({ id, title, rooms: w.made });
     }
-    if (!made.length) return { error: notes[0] ?? 'nothing in that paste was a thread' };
+    if (!made.length && !ruled) return { error: notes[0] ?? 'nothing in that paste was a thread' };
     return { made, notes, ...viewOf(c, c.body.storyId) };
   },
 

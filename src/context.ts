@@ -13,7 +13,7 @@ interface EntryState {
 }
 export interface Entry {
   id: string; title: string; body: string;
-  entryType: 'character' | 'place' | 'lore' | 'item' | 'rule';
+  entryType: 'character' | 'place' | 'lore' | 'item';
   activation: 'always_on' | 'triggered';
   keys: string[];
   lastEditor: 'human' | 'model';   // decides arbitration (COUNCIL-03 S1)
@@ -78,6 +78,9 @@ export interface Story {
   stands?: string;
   /** #75. The tale's own pockets, switched on: instructions for the whole tale ("keep it a slow burn"). */
   pockets?: string[];
+  /** ADR 0005 · The tale's rules that are switched on: laws the tale obeys, pockets of its own thread
+   *  since 2026-10-29. With no wake words a rule is sent always; with them, when one comes up. */
+  rules?: { id: string; name: string; body: string; keys?: string[] }[];
   pov: string; writingStyle: string; spice: 1 | 2 | 3 | 4 | 5;
   /** The world or intellectual property the book belongs to, and what is true in it. Both ride in
    *  SPINE: the name is identity and is kept, the note is furniture and is trimmable. */
@@ -870,7 +873,8 @@ export function weaveFit(normal: Manifest, woven: Manifest): { drops: Block[]; o
 export function retirable(entries: Entry[], window: string, persona?: string | null): Entry[] {
   const who = String(persona ?? '').trim().toLowerCase();
   return entries.filter((e) => {
-    if (e.entryType !== 'character' && e.entryType !== 'rule') return false;
+    // People only. A rule was the other kind that could end, until rules became pockets of the tale.
+    if (e.entryType !== 'character') return false;
     // NEVER A WORLD'S THREAD: other tales follow it, so one tale's scene cannot end it (ADR 0006).
     if (e.sharedFrom) return false;
     if (e.retiredAtChapter != null) return false;
@@ -1153,6 +1157,20 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
         if (then.length) { add('CANON-TRIGGERED', e.id, body, `sticky ${back} back`, ['sticky', ...then]); break; }
       }
     }
+  }
+
+  // THE TALE'S RULES (ADR 0005), in canon where rule threads were until 2026-10-29, so a rule is
+  // budgeted and evicted as it was: always when it has no wake words, else when one fires in the
+  // same window a thread's do. Framed with its name, as a thread's Always true is.
+  for (const r of story.rules ?? []) {
+    const name = String(r.name ?? '').trim();
+    const said = unwrapped(String(r.body ?? ''), [name]).trim();
+    if (!said) continue;
+    const text = `[A rule of this tale${name ? `, ${name}` : ''}: ${said}]`;
+    if (!(r.keys ?? []).length) { add('CANON-ALWAYS', r.id, text, 'rule', ['rule']); continue; }
+    const hit = fires({ id: r.id, title: name, body: '', entryType: 'lore', activation: 'triggered',
+      keys: r.keys!, lastEditor: 'human' } as Entry, recent);
+    if (hit.length) add('CANON-TRIGGERED', r.id, text, 'keyword', hit);
   }
 
   // THE INHERITED PULL — PLAN-08 Phase 3. `entry_edges` has been written since Phase 2 and read by

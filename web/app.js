@@ -602,7 +602,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #92. A hemmed scene's card: run its passes again, set up the next scene.
   'hemagain', 'hemsetup',
   // #75. The tale's own thread.
-  'taleopen', 'newrule', 'addtalepocket',
+  'taleopen', 'addtalerule', 'saverule', 'addtalepocket',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
   'accttab', 'savename', 'delavatar', 'acctgo',
   // A card out as JSON and back in again: copy, save to a file, read one.
@@ -2883,17 +2883,32 @@ function stringList(all, none) {
  *  tale's Rules, its strings (ADR 0011) and any instruction of the writer's own. Stored where each
  *  always was, so what the model is sent, and where in the prompt, does not move. */
 function taleThread() {
-  const rules = (V.entries ?? []).filter((e) => e.entryType === 'rule');
-  const pin = pinModes(), mani = manifestNow();
+  const rules = V.taleRules ?? [];
   const own = V.talePockets ?? [];
   return `<div class="hint lead-10">The tale's own thread: what Anansi is told about the whole tale, every
       time. Its Always true is the setting, on the Setting tab, and its voice is on the Voice tab.</div>
     <div class="lbl wide">Where the tale stands</div>
     ${taleNowBox() || '<div class="hint flush">Nothing yet. Each hem writes where the tale stands, and you sew it in from its card.</div>'}
     <div class="lbl sect">Rules &middot; <span class="tnum">${rules.length}</span></div>
-    <div class="hint lead-6">The laws this tale obeys. Each is sent always, or when one of its wake words comes up.</div>
-    <div class="stack-roomy">${rules.map((e) => threadPlate(e, inContext(e, pin, mani))).join('')}</div>
-    <button class="btn ghost push-8" data-newrule="1">+ Add a rule</button>
+    <div class="hint lead-6">The laws this tale obeys. With no wake words a rule is sent always; with
+      them, when one comes up. Sent while it is on.</div>
+    ${/* ADR 0005 · A RULE IS A POCKET OF THE TALE (2026-10-29), drawn as Your own is, plus its wake words. */
+      rules.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px; border-color:${a.active ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
+      <div class="line">
+        <input class="field flush name-field" data-rulename="${esc(a.id)}" aria-label="The rule's name" value="${esc(a.name)}">
+        <button class="del-x" data-deladdon="${esc(a.id)}" aria-label="Remove">&#10005;</button></div>
+      <textarea class="field grow flush min-52" data-rulebody="${esc(a.id)}" aria-label="The rule">${esc(a.body)}</textarea>
+      <input class="field flush" data-rulekeys="${esc(a.id)}" aria-label="Wake words, comma separated"
+        placeholder="Wake words, or none to send it always" value="${esc((a.keys ?? []).join(', '))}">
+      <div class="btnrow">
+        <button class="btn ghost fill" data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}">${a.active ? 'On — take it off' : 'Turn it on'}</button>
+        <button class="btn ghost btn-side" data-saverule="${esc(a.id)}">Save</button></div>
+    </div>`).join('')}
+    <div class="card snug">
+      <input class="field flush" data-rulenew="name" aria-label="A name for the rule" placeholder="A name">
+      <textarea class="field grow flush min-52" data-rulenew="body" aria-label="The rule" placeholder="The law, as the tale holds it"></textarea>
+      <input class="field flush" data-rulenew="keys" aria-label="Wake words, comma separated" placeholder="Wake words, or none to send it always">
+      <button class="btn ghost" data-addtalerule="1">Add the rule, switched on</button></div>
     ${/* #129 · THE TALE'S STRINGS, which are pockets of this thread (ADR 0011): one list per kind, each
           drawn as the Strings screen draws it. */
       [['promise', 'Promises', 'What the tale has set up and owes the reader.', 'No promises yet.'],
@@ -4179,8 +4194,8 @@ const PANELS = {
         <div class="hint trail-6">A thread pasted from Export is read in as it is.</div>
         <div class="lbl sect">Write it as</div>
         <div style="display:flex; flex-wrap:wrap; gap:8px">
-          ${/* #75. A rule is added from the tale's own thread; offered here only when that is where this came from. */
-            KINDS.filter((k) => k !== 'rule' || kind === 'rule').map((k) => `<button data-lorekind="${k}" aria-pressed="${kind === k}" style="flex:1 1 40%;
+          ${/* A rule is not a kind of thread: it is added on the Tale panel's Thread tab (ADR 0005). */
+            KINDS.map((k) => `<button data-lorekind="${k}" aria-pressed="${kind === k}" style="flex:1 1 40%;
             text-align:center; font-size:13px; min-height:46px; border-radius:var(--r-pill); ${chip(kind === k)}">${
               esc(pocketTitle(k))}</button>`).join('')}
         </div>
@@ -4252,8 +4267,7 @@ const PANELS = {
            so they share one box. -->
       ${(() => {
         const pin = pinModes();
-        // Of the threads THIS LIST draws: rules are on the tale's own thread (#75), not here.
-        const n = V.entries.filter((e) => e.entryType !== 'rule' && inContext(e, pin)).length;
+        const n = V.entries.filter((e) => inContext(e, pin)).length;
         return `<div class="thfind">
           <span class="thfindmark">${mark('search', 17)}</span>
           <input id="thq" type="search" aria-label="Search this tale's threads"
@@ -4283,7 +4297,7 @@ const PANELS = {
         <span class="platename">The tale</span>
         <span class="clamp2 thtext">${esc(V.story.premise || 'Its premise, its voice and its rules.')}</span>
         <span class="thtags"><span class="tag">premise &middot; voice${
-          (V.entries ?? []).some((e) => e.entryType === 'rule') ? ' &middot; rules' : ''}</span></span></button>
+          (V.taleRules ?? []).length ? ' &middot; rules' : ''}</span></span></button>
       <div class="stack-roomy" id="thlist">${threadRows()}</div>
       ${shown.length ? '' : '<div class="hint flush">Nothing written down yet. A thread is a fact the model is told and never allowed to contradict.</div>'}
       ${shown.length && S.onlyIn && !S.threadQ.trim() && !V.entries.some((e) => inContext(e, pinModes()))
@@ -6445,8 +6459,8 @@ const sparkOpensWith = (area) => area('opensWith', 'How the first scene opens', 
 function sparkPreview(s, { row, area }) {
   const kept = (S.spark.entries ?? []).map((e, i) => [e, i])
     .filter(([e]) => e.keep !== false && (e.title ?? '').trim());
-  const rules = kept.filter(([e]) => e.entryType === 'rule');
-  const threads = kept.filter(([e]) => e.entryType !== 'rule');
+  // Rules are pockets of the tale since 2026-10-29 (ADR 0005): the cast offers none.
+  const threads = kept;
   const clash = voiceClash(s.writingStyle, s.pov);
   // #103. The World the IP matched, while the tale still follows it (the picker can change that).
   const ipWorld = S.spark.ipWorld && S.spark.follow === S.spark.ipWorld.id ? S.spark.ipWorld : null;
@@ -6535,8 +6549,6 @@ function sparkPreview(s, { row, area }) {
         <span class="name-14">${esc(f.name)}</span>${f.memory
           ? '<span class="hint flush">from memory, not looked up</span>' : ''}<span class="note">${esc(f.line ?? '')}</span>
         ${openingMark(f.name)}</div>`).join('')}` : ''}
-    <div class="lbl sect">Rules &middot; <span class="tnum">${rules.length}</span></div>
-    ${rules.length ? rules.map(card).join('') : '<div class="hint flush">None. A tale needs a rule only when the idea does.</div>'}
     <div class="lbl sect">Your own</div>
     <div class="hint lead-6">Anything else for the whole tale, as an instruction. Sent while it is on, and it starts on.</div>
     ${(S.spark.talePockets ?? []).map((p, i) => `<div class="card snug gap-6">
@@ -6644,7 +6656,7 @@ function setupPanel() {
   // (`inContext` read from the pins alone, so it says what the presses change), and every thread the
   // writer chose or sewn in on this setup (`S.setupHere`), so a thread put on a word stays in view.
   const here = S.setupHere ?? new Set();
-  const live = V.entries.filter((e) => !['rule', 'tale'].includes(e.entryType) && e.retiredAtChapter == null);
+  const live = V.entries.filter((e) => e.entryType !== 'tale' && e.retiredAtChapter == null);
   const inIt = live.filter((e) => inContext(e, pin, null) || here.has(`${ch.id}:${e.id}`));
   const q = (S.setupQ ?? '').trim().toLowerCase();
   const found = q ? live.filter((e) => !inIt.includes(e)
@@ -8037,8 +8049,7 @@ function threadRows() {
   // EACH KIND CARRIES ITS COUNT (v2 redesign, 2026-10-25), and it is the count of what is SHOWN,
   // after Sent now and the search. "Characters · 2" under a search for "aldis" is the answer to the
   // question you just asked; the book's own totals are the All chip and the header.
-  // #75. Rules are drawn on the tale's own thread, at the top, not as a group of their own.
-  const out = KINDS.filter((k) => k !== 'rule').map((k) => {
+  const out = KINDS.map((k) => {
     const rows = (V.entries ?? []).filter((e) => e.entryType === k
       && (!S.onlyIn || inContext(e, pin, mani)) && hit(e));
     if (!rows.length) return '';
@@ -8427,9 +8438,9 @@ function resumeBand(s) {
   return `<section class="resumeband${s.cover ? ' haspic' : ''}" aria-label="Where you left off: ${esc(s.title)}">
     <!-- THE WHOLE HERO IS THE ONE DOOR (Seth, 2026-10-29: "the button can be removed, let's just tap
          the square to enter"). The picture is a real button under everything else on the band, so a
-         press anywhere on it carries on writing with the cursor in the composer, and a keyboard
-         reaches it. What is owed rides in its label and as the dot in the corner. -->
-    <button class="art" data-carryon="${esc(s.id)}" aria-label="Carry on writing ${esc(s.title)}${owed.length
+         press anywhere on it opens the tale, as a cover does, and a keyboard reaches it. What is
+         owed rides in its label and as the dot in the corner. -->
+    <button class="art" data-open="${esc(s.id)}" aria-label="Open ${esc(s.title)}${owed.length
       ? `. Waiting: ${esc(owed.join(', '))}` : ''}"${s.cover
       ? ` style="background:url('${api.coverUrl(s.id, s.cover)}') center/cover no-repeat, ${ART[0]}"` : ''}></button>
     ${owed.length ? '<span class="owedot" aria-hidden="true"></span>' : ''}
@@ -10216,7 +10227,7 @@ async function refreshManifest() {
   if (S.panel === 'threads' && $('thlist')) {
     $('thlist').innerHTML = threadRows();
     const n = $('sideBody').querySelector('[data-onlyin="1"] .tnum');
-    if (n) n.textContent = String(V.entries.filter((e) => e.entryType !== 'rule' && inContext(e, pinModes())).length);
+    if (n) n.textContent = String(V.entries.filter((e) => inContext(e, pinModes())).length);
   }
 }
 
@@ -12550,8 +12561,18 @@ document.addEventListener('click', async (e) => {
   // #75 · THE TALE'S OWN THREAD: open it, leave it, add a rule or an instruction of your own.
   // The first card in Threads opens the Tale panel on its Thread tab, where the tale's own thread lives.
   if (d.taleopen) { S.panel = 'story'; S.storyTab = 'thread'; S.entryId = null; S.lore = null; syncHash(); paint(); return; }
-  // A rule is a thread of kind rule, written in the Threads drawer, wherever the press came from.
-  if (d.newrule) { S.panel = 'threads'; S.entryId = null; S.lore = { kind: 'rule' }; syncHash(); paint(); return; }
+  // ADR 0005 · A RULE OF THE TALE, added or saved on the Thread tab: a pocket of no thread, slot
+  // `rule`, with its wake words. Added switched on, as the tale's own instructions are.
+  if (d.addtalerule || d.saverule) {
+    const box = (k) => document.querySelector(d.saverule ? `[data-rule${k}="${d.saverule}"]` : `[data-rulenew="${k}"]`);
+    const name = box('name')?.value.trim(), body = box('body')?.value.trim();
+    if (!name || !body) return toast('A rule needs a name and something in it.');
+    const r = await api.saveAddon(S.storyId, null, { id: d.saverule || undefined, slot: 'rule', name, body,
+      keys: box('keys')?.value ?? '' });
+    if (r.error) return toast(r.error);
+    if (!d.saverule && r.addonId) await api.addonOn(S.storyId, r.addonId, true);
+    V = await api.story(S.storyId); paint(); return toast(d.saverule ? 'Saved.' : 'Added, and on.');
+  }
   if (d.addtalepocket) {
     const name = document.querySelector('[data-talenew="name"]')?.value.trim();
     const body = document.querySelector('[data-talenew="body"]')?.value.trim();

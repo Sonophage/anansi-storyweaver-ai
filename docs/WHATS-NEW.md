@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Rules live on the tale's own thread
+A rule of your tale is no longer a thread of its own. Rules are on the Tale panel's Thread tab, under
+Rules: each has its name, what it says, and its wake words. With no wake words a rule is sent every
+time; with them, when one comes up. Your existing rules moved there with everything they said, and
+the update report on the tale says so. New tale and Read the scene no longer suggest rules as
+threads. Anansi in Talk cannot add or change a rule yet.
+
 ### Tap the tale to carry on, and choose how much Anansi reads
 The big card for the tale you were last writing no longer has a Carry on writing button: tap
 anywhere on it to carry on. Its genre now sits on the left under the last line, and its word count

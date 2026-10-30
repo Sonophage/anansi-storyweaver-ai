@@ -884,6 +884,25 @@ ok('an oversized voice REFUSES rather than shortening, and DIRECTIVE keeps every
   assert.match(out, /must be forced/, 'the chapter beat survives');
 });
 
+// RULES ARE POCKETS OF THE TALE'S THREAD (ADR 0005, 2026-10-29), and they reach the model where rule
+// threads did, in canon: a rule with no wake words always, one with wake words when a word fires.
+ok('a rule of the tale is sent always, or when one of its wake words comes up', () => {
+  const withRules = (directive?: string) => {
+    const i = base();
+    (i.story as any).rules = [{ id: 'r-1', name: 'Debts', body: 'A debt survives the debtor.', keys: [] },
+                              { id: 'r-2', name: 'Bells', body: 'The bell rings once for the dead.', keys: ['bell'] }];
+    return buildContext({ ...i, directive } as any, count);
+  };
+  const quiet = withRules('He waits.');
+  const debts = quiet.blocks.find((b) => b.text.includes('A debt survives the debtor.'));
+  assert.ok(debts && debts.kind === 'CANON-ALWAYS' && debts.state === 'included', 'RULE-ALWAYS: a rule with no wake words is always sent, as canon');
+  assert.match(debts!.text, /Debts/, '  under its name');
+  assert.ok(!quiet.blocks.some((b) => b.state === 'included' && b.text.includes('The bell rings once')), 'RULE-WAKE: a rule on a word waits for it');
+  const rung = withRules('The bell sounds over the yard.');
+  assert.ok(rung.blocks.some((b) => b.kind === 'CANON-TRIGGERED' && b.state === 'included' && b.text.includes('The bell rings once')),
+    '  and comes when the word does');
+});
+
 // 2026-10-29 · THE SAME CLASS AS SPICE 5, on the other levels and in Direct and SYSTEM: an
 // instruction that ends a scene, skips time or sets a second length, beside the ones that forbid it.
 ok('no level ends the scene or skips time, Direct has one length rule, SYSTEM names what the model sees', () => {

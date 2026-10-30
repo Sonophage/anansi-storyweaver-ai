@@ -46,9 +46,10 @@ export const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake', 'retire.u
 /** What an Undo may put back as it was: the asked operations that write over a value, by id. */
 const PUT_BACK = ['thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set'] as const;
 
-/** THE TALE'S OWN FIELDS TALK MAY CHANGE. Until the tale's thread is built (GLOSSARY), its premise
- *  and setting are the story's own columns, and these are the two. Rules are rule threads today, so
- *  they are changed through the thread operations. */
+/** THE TALE'S OWN FIELDS TALK MAY CHANGE: its premise and setting, the story's own columns.
+ *  ponytail: Talk cannot add or change a rule. Rules were threads, reached by the thread operations,
+ *  until 2026-10-29 (ADR 0005); they are pockets of the tale now and no operation reaches them. Add
+ *  a `rule.set` beside `string.set` when a writer asks Talk for a rule and it cannot do it. */
 const TALE_FIELDS = ['premise', 'setting'] as const;
 /** A SCENE'S FIELDS TALK MAY CHANGE: its title and Heads toward (`authors_note` in the column). Opens
  *  with is not on it: the ticket names these two, and an opening is the writer's first beat. */

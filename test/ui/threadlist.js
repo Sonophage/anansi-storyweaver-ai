@@ -92,8 +92,8 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
       eyeInside: er ? er.left >= r.left && er.right <= r.right + 0.5 : false,
       tags: [...c.querySelectorAll('.tag')].map((x) => x.textContent.trim()), h: Math.round(r.height) };
   }))`).then(JSON.parse);
-  // Rules are on the tale's own thread (#75), so the list has a card for every other thread.
-  const listed = v.entries.filter((e) => e.entryType !== 'rule').length;
+  // Rules are pockets of the tale (ADR 0005), not threads, so the list has a card for every thread.
+  const listed = v.entries.length;
   ok(`one card per thread (${cards.length} of ${listed})`, cards.length === listed);
   ok("  each with its name and two lines of its text, and no kind line under the name",
      cards.length > 0 && cards.every((c) => {

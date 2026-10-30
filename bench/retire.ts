@@ -94,8 +94,11 @@ const CASES: Case[] = [
       // the model needs to know it is a ruin now — which is its `history`, not its absence.
       { title: 'the Sallow Gate', body: '[the Sallow Gate: timber, four centuries, a toll]',
         keys: ['Sallow Gate'], kind: 'lore', label: 'changed' },
+      // A RULE UNTIL 2026-10-29, labelled finished. Rules are pockets of the tale now (ADR 0005)
+      // and no longer end at a hem, so the repealed toll is lore that changed. F40's runs had it as
+      // a rule; a re-run is not comparable on this card.
       { title: 'the Gate Toll', body: '[the Gate Toll: a coin to pass, paid at dawn]',
-        keys: ['Gate Toll'], kind: 'rule', label: 'finished' },
+        keys: ['Gate Toll'], kind: 'lore', label: 'changed' },
       { title: 'Halloway', body: '[Halloway: took the seal and ran]', keys: ['Halloway'],
         kind: 'character', label: 'offstage' },
       { title: 'the Long Market', body: '[the Long Market: opens at dawn, closes at dusk]',
@@ -114,7 +117,7 @@ const CASES: Case[] = [
       { title: 'the Iron Bridge', body: '[the Iron Bridge: two hundred years, never repaired]',
         keys: ['Iron Bridge'], kind: 'lore', label: 'background' },
       { title: 'the Watch', body: '[the Watch: takes bribes, keeps order]', keys: ['Watch'],
-        kind: 'rule', label: 'background' },
+        kind: 'lore', label: 'background' },
     ],
   },
   {

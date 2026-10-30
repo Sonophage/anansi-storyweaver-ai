@@ -1129,7 +1129,7 @@ if (anyEntry) {
   })()`);
   console.log("  invent trays in the entry editor: " + JSON.stringify(trays));
   ok(`the open card can be written by Anansi (${trays && trays.kinds.join(',')})`,
-     !!trays && trays.kinds.some((k) => ['character', 'lore', 'item', 'rule'].includes(k)));
+     !!trays && trays.kinds.some((k) => ['character', 'lore', 'item'].includes(k)));
   ok("  and every tray on the screen has its own direction box",
      !!trays && trays.trays > 0 && trays.ownBox === true);
   await page.click('#bar [data-goblock="threads:"]');

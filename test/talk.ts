@@ -756,7 +756,8 @@ ok('a kind that does not exist is refused rather than assembled');
   // NEVER WHAT HAPPENS NEXT, in every wizard prompt that writes a thread (#81: "he does not take the money").
   assert.ok(CAST.includes(NO_OUTCOMES), 'SPARK-NO-OUTCOME: the cast forbids what happens next');
   assert.ok(REVIEW.includes(NO_OUTCOMES), '  and so does Try it on');
-  assert.match(CAST, /rule only\s+when/i, 'SPARK-RULE: a Rule is proposed only when the idea needs one');
+  // A rule is a pocket of the tale since 2026-10-29 (ADR 0005), so the cast never offers one as a thread.
+  assert.doesNotMatch(CAST, /^\s*rule\s/m, 'SPARK-RULE: the cast offers no rule as a thread');
 
   // TRY IT ON reads the tale with your character chosen, and its threads come with pockets.
   calls = [];
@@ -1430,7 +1431,7 @@ ok('emptying the box gives her back the voice she shipped with');
   const talia = db.upsertEntry(tale.id, me, { title: 'Talia Venn', body: '', activation: 'always_on' });
   db.upsertAddon(tale.id, talia, { slot: 'facts', name: 'facts', body: 'Talia is twenty.' });
   const morgott = db.upsertEntry(tale.id, me, { title: 'Morgott', body: '', activation: 'always_on' });
-  db.upsertEntry(tale.id, me, { title: 'Ring Law', entryType: 'rule', body: '', activation: 'always_on' });
+  db.upsertEntry(tale.id, me, { title: 'Ring Law', entryType: 'item', body: 'a ring', activation: 'always_on' });
   db.addPassage({ ...tale, storyId: tale.id, body: 'The ferry left without her.' });
   const ctxOf = (storyId: string, body: any) => ({ body: { storyId, ...body }, query: new URLSearchParams(),
     owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
@@ -1560,7 +1561,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(JSON.stringify(db.entriesOf(tale.id)), entriesBefore, 'CHANGE-REFUSED: no thread changed, none deleted');
   assert.strictEqual(JSON.stringify(db.addonsOf(tale.id)), roomsBefore, 'CHANGE-REFUSED: no room changed');
   assert.match(bad.reply, /no thread called "Nobody"/, `CHANGE-REFUSED: the reply names the thread that is not there:\n${bad.reply}`);
-  assert.match(bad.reply, /a rule has no voice/, 'CHANGE-REFUSED: and the room the kind does not have');
+  assert.match(bad.reply, /an item has no voice/, 'CHANGE-REFUSED: and the room the kind does not have');
   assert.strictEqual(bad.reply.match(/not something Talk can do/g)?.length, 2,
     'CHANGE-REFUSED: and each operation that is not on the list: a delete, and prose');
   assert.strictEqual(bad.notDone?.length, 4, 'CHANGE-REFUSED: four asked, four not done');

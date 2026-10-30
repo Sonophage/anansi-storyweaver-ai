@@ -54,6 +54,7 @@ export interface Incoming {
   entries: Record<string, any>[];
   passages: { body: string; author?: string }[];
   strings?: Record<string, any>[];   // unpaid promises; only an Anansi export carries them
+  rules?: { name: string; body: string; keys: string[]; active: boolean }[];   // ADR 0005; only an Anansi export
   notes: string[];            // things deliberately not imported, shown to the writer
 }
 
@@ -120,6 +121,14 @@ export function fromExport(file: string): Incoming {
       try { strings = src.prepare('SELECT * FROM strings WHERE story_id = ?').all(story.id) as any[]; }
       catch { /* a file written after the table was dropped, or before strings existed */ }
     }
+    // ADR 0005 · The tale's rules, pockets of no thread since 2026-10-29. A file from before has its
+    // rules as threads of kind `rule` in `entries`, and those become rules on the way in
+    // (`db.upsertEntry`'s floor).
+    let rules: any[] = [];
+    try {
+      rules = src.prepare("SELECT name, body, keys, active FROM addons WHERE story_id = ? AND entry_id IS NULL AND slot = 'rule' ORDER BY created_at")
+        .all(story.id) as any[];
+    } catch { /* an older file */ }
     const passages = src.prepare(
       'SELECT body, author FROM passages WHERE story_id = ? AND branch_id = ? AND selected = 1 ORDER BY ordinal')
       .all(story.id, branch?.id) as any[];
@@ -158,6 +167,8 @@ export function fromExport(file: string): Incoming {
         // summoned is deliberately NOT carried. It means "in play in the scene I am writing now",
         // which is about the session rather than the book.
       })),
+      rules: cap(rules, MAX_ENTRIES, 'rules', notes).map((r: any) => ({ name: clip(r.name, 200), body: clip(r.body),
+        keys: keysOf(r.keys && JSON.parse(r.keys)), active: !!r.active })),
       notes,
     };
   } finally { src.close(); }
@@ -433,11 +444,21 @@ function plant(storyId: string, entryId: string | null, outfits?: any[]) {
 /** Insert an Incoming as a NEW story owned by `owner`. Ids are always fresh, so importing
  *  the same file twice gives two stories rather than a primary-key collision — an import
  *  that can fail on its second run is an import people stop trusting. */
+/** ADR 0005 · The rules an import brings, as rules of the tale. One writer for both paths. */
+function takeRules(storyId: string, inc: Incoming) {
+  for (const r of (inc.rules ?? []).slice(0, MAX_ENTRIES)) {
+    const id = clip(r.body) ? db.upsertAddon(storyId, null, { slot: 'rule', name: r.name, body: clip(r.body), keys: r.keys }) : null;
+    if (id && r.active) db.setAddonActive(storyId, id, true);
+  }
+}
+
 export function absorb(owner: string, inc: Incoming) {
   const story = db.createStory(owner, inc.story);
   let entries = 0, passages = 0;
   for (const e of inc.entries.slice(0, MAX_ENTRIES)) {
     if (!clip(e.body)) continue;
+    // A rule thread from an older file: `upsertEntry` makes it a rule of the tale and returns no thread.
+    if (e.entryType === 'rule') { db.upsertEntry(story.id, owner, { ...e, body: clip(e.body) }); continue; }
     const id = db.upsertEntry(story.id, owner, { ...e, body: clip(e.body), lastEditor: 'human' });
     // Refused by the floor in `upsertEntry` (an activation that is not one of its two words), and
     // said in the import's own notes rather than counted as written.
@@ -446,6 +467,7 @@ export function absorb(owner: string, inc: Incoming) {
     entries++;
   }
   for (const x of tiedStrings(inc)) db.upsertString(story.id, x);
+  takeRules(story.id, inc);
   for (const p of inc.passages.slice(0, MAX_PASSAGES)) {
     if (!clip(p.body, 20_000)) continue;
     db.addPassage({ ...story, storyId: story.id, body: clip(p.body, 20_000), author: p.author ?? 'model' });
@@ -474,6 +496,7 @@ export function merge(owner: string, storyId: string, inc: Incoming) {
   let entries = 0, updated = 0, passages = 0;
   for (const e of inc.entries.slice(0, MAX_ENTRIES)) {
     if (!clip(e.body)) continue;
+    if (e.entryType === 'rule') { db.upsertEntry(storyId, owner, { ...e, body: clip(e.body) }); continue; }
     const hit = byTitle.get(String(e.title ?? '').toLowerCase());
     const id = db.upsertEntry(storyId, owner, { ...e, id: hit ?? '', body: clip(e.body), lastEditor: 'human' });
     if (!id) { inc.notes.push(`"${e.title}" was not imported: its activation is not always on or on a word.`); continue; }
@@ -481,6 +504,7 @@ export function merge(owner: string, storyId: string, inc: Incoming) {
     if (hit) updated++; else entries++;
   }
   for (const x of tiedStrings(inc)) db.upsertString(storyId, x);
+  takeRules(storyId, inc);
   for (const p of inc.passages.slice(0, MAX_PASSAGES)) {
     if (!clip(p.body, 20_000)) continue;
     db.addPassage({ storyId, branchId: v.branchId!, chapterId: v.currentChapter.id,

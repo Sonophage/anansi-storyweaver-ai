@@ -43,10 +43,10 @@ ok(`   and carries a sentence of the writer's own prose (${JSON.stringify(bandTe
 // THE HERO (v3, 2026-10-25): Carry on writing alone. Read from scene one came off with Seth's
 // "simplify it to match the design"; the Scenes list reaches scene one. Since 2026-10-29 the whole
 // hero is that press ("let's just tap the square to enter"), a button under everything on it.
-ok("   the whole hero is one press, Carry on writing, and nothing else",
+ok("   the whole hero is one press that opens the tale, and nothing else",
    await page.eval("(() => { const b = document.querySelector('.resumeband'), r = b.getBoundingClientRect();"
      + " const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);"
-     + " return document.querySelectorAll('.resumeband button').length === 1 && !!at?.closest('[data-carryon]'); })()"));
+     + " return document.querySelectorAll('.resumeband button').length === 1 && !!at?.closest('[data-open]'); })()"));
 ok("   it says how long ago the tale was touched, over the title",
    /Where you left off\s*·\s*(just now|\d+ (minutes|hours?|days) ago|yesterday)/.test(bandText));
 ok("   and no hero card survives beside it",

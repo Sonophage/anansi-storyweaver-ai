@@ -38,7 +38,7 @@ export const MODES = [
 ];
 
 // #80. A copy of `slots.KINDS` (the browser cannot import the .ts); test/db.ts holds them equal.
-export const KINDS = ['character', 'place', 'lore', 'item', 'rule'];
+export const KINDS = ['character', 'place', 'lore', 'item'];
 
 /** A THREAD'S WAKE WORDS FROM WHAT WAS TYPED, by the rules of `keysOf` in src/db.ts, which re-parses
  *  them on the way in and is the authority. The Alter screen's chips use this so a chip never shows

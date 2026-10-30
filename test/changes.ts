@@ -24,7 +24,7 @@ const tale = {
     { id: 'e-morgott', title: 'Morgott, the Omen King', entryType: 'character',
       addons: [room('a-mr1', 'relationships', 'Hates his brother.', { active: false }),
                room('a-mr2', 'relationships', 'Owes Talia.', { active: true })] },
-    { id: 'e-ring', title: 'Ring Law', entryType: 'rule', addons: [] },
+    { id: 'e-ring', title: 'Ring Law', entryType: 'item', addons: [] },
     { id: 'e-tal', title: 'Tal Harrow', entryType: 'character', addons: [] },
     { id: 'e-tally', title: 'The Tally House', entryType: 'place', addons: [] },
     { id: 'e-world', title: 'The Erdtree', entryType: 'lore', sharedFrom: 'Lands Between',
@@ -74,13 +74,13 @@ ok('CHANGE-TWO-THREADS: a name that could be two threads is refused, and names b
 
 ok('CHANGE-ROOM-KIND: a room the thread\'s kind does not have is refused; one it has is not', () => {
   refused(ch.checkAsked({ op: 'thread.set', thread: 'Ring Law', room: 'voice', text: 'Loud.' }, tale),
-    /a rule has no voice/i);
+    /an item has no voice/i);
   refused(ch.checkAsked({ op: 'thread.set', thread: 'Talia', room: 'atmosphere', text: 'Damp.' }, tale),
     /a character has no atmosphere/i);
   refused(ch.checkAsked({ op: 'thread.set', thread: 'Talia', room: 'mood', text: 'Damp.' }, tale),
     /no mood/i);
-  const c = done(ch.checkAsked({ op: 'thread.set', thread: 'Ring Law', room: 'consequences', text: 'A fine.' }, tale));
-  assert.strictEqual(c.room, 'consequences');
+  const c = done(ch.checkAsked({ op: 'thread.set', thread: 'Ring Law', room: 'what_it_does', text: 'A fine.' }, tale));
+  assert.strictEqual(c.room, 'what_it_does');
   assert.strictEqual(c.addon, null, 'a room the thread does not have yet is made');
   assert.strictEqual(c.before, null);
   assert.deepStrictEqual(ch.undoFor(c, { addon: 'a-new' }),
@@ -166,7 +166,7 @@ ok('UNDO-SET: an Undo puts back the exact text, by id, and only on this tale\'s 
   refused(ch.checkUndo({ op: 'thread.set', thread: 'e-talia', room: 'facts', addon: 'a-mr1', text: 'x' }, tale),
     /no longer in this tale/i, );
   refused(ch.checkUndo({ op: 'thread.set', thread: 'e-ring', room: 'voice', addon: null, text: 'x' }, tale),
-    /a rule has no voice/i);
+    /an item has no voice/i);
 });
 
 ok('UNDO-UNMAKE: a thread or room Talk made is taken away only while it is as Talk made it', () => {
@@ -567,7 +567,7 @@ ok('the change slice never reaches for the database itself', () => {
 ok('CHANGE-TEXTS: before and after for what a change rewrote, none where it rewrote nothing', () => {
   const set = done(ch.checkAsked({ op: 'thread.set', thread: 'Talia Venn', text: 'Talia is thirty.' }, tale));
   assert.deepStrictEqual(ch.textsOf(set), { before: 'Talia is twenty.', after: 'Talia is thirty.' });
-  const fresh = done(ch.checkAsked({ op: 'thread.set', thread: 'Ring Law', room: 'consequences', text: 'A fine.' }, tale));
+  const fresh = done(ch.checkAsked({ op: 'thread.set', thread: 'Ring Law', room: 'what_it_does', text: 'A fine.' }, tale));
   assert.deepStrictEqual(ch.textsOf(fresh), { before: '', after: 'A fine.' }, 'a pocket it made had nothing before it');
   assert.deepStrictEqual(ch.textsOf({ op: 'tale.set', field: 'premise', text: 'A debt.', before: 'A loan.' }),
     { before: 'A loan.', after: 'A debt.' });

@@ -2454,6 +2454,46 @@ export const stringsOf = (storyId: string) => (q(`SELECT a.* FROM addons a JOIN 
  *  floors, so a moved string is made exactly as a new one is, and those need `q` and `uid`, which
  *  are declared below the `migrate()` call. It runs at the foot of this module instead, at load. A
  *  tale's `updated_at` is put back after, so the update does not reorder the shelf. */
+/** One rule pocket from what a rule THREAD held: its name, and every text of it the model was sent
+ *  (Always true, the body, each consequence switched on), joined, so moving it loses nothing. Wake
+ *  words only when it was on a word. On unless it was retired. */
+function ruleFrom(storyId: string, e: any, parts: string[] = []) {
+  const texts = [...new Set([...parts, String(e.body ?? '')].map((x) => plain(x, [String(e.title ?? '')]).trim()).filter(Boolean))];
+  const id = upsertAddon(storyId, null, { slot: 'rule', name: String(e.title ?? '').trim() || 'A rule',
+    body: texts.join('\n\n'), keys: e.activation === 'triggered' ? e.keys : [] });
+  if (id && e.retiredAtChapter == null) q('UPDATE addons SET active = 1 WHERE id = ?').run(id);
+  return id;
+}
+
+/** ADR 0005 · RULE THREADS BECOME RULE POCKETS OF THEIR TALE, once, at load (built 2026-10-29). A
+ *  backup first; each tale's update report says what moved. A World's rule moves onto the World,
+ *  and a tale following it does not read it (see the ponytail in `story.ts`). */
+export function rulesToPockets() {
+  const rows = q("SELECT * FROM entries WHERE entry_type = 'rule' AND COALESCE(sync, '') != 'dropped'").all() as any[];
+  if (!rows.length) return 0;
+  beforeRewrite();
+  db.exec('BEGIN');
+  try {
+    const moved = new Map<string, string[]>();
+    for (const r of rows) {
+      const own = q('SELECT slot, body, active FROM addons WHERE entry_id = ? ORDER BY slot = \'facts\' DESC, created_at').all(r.id) as any[];
+      const parts = own.filter((a) => a.slot === 'facts' || a.active).map((a) => String(a.body ?? ''));
+      ruleFrom(r.story_id, { title: r.title, body: r.body, activation: r.activation, keys: JSON.parse(r.keys || '[]'),
+        retiredAtChapter: r.retired_at_chapter }, parts);
+      q('DELETE FROM addons WHERE entry_id = ?').run(r.id);
+      delEntry(r.story_id, r.id);
+      moved.set(r.story_id, [...(moved.get(r.story_id) ?? []), `"${String(r.title).trim()}"`]);
+    }
+    for (const [story, names] of moved)
+      noteUpdate(story, `${names.length === 1 ? 'Its rule' : `Its ${names.length} rules`}, ${names.join(', ')}, `
+        + `moved onto the tale's own thread: the Tale panel's Thread tab, under Rules. Each says everything the `
+        + 'old thread said, and one on a word keeps its words.');
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  console.log(`  moved ${rows.length} rule thread${rows.length === 1 ? '' : 's'} onto the tales' own threads — ADR 0005`);
+  return rows.length;
+}
+
 export function stringsToPockets() {
   if (!(q("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'strings'").get() as any).n) return 0;
   const rows = q('SELECT * FROM strings ORDER BY story_id, created_at, rowid').all() as any[];
@@ -2542,6 +2582,11 @@ export function upsertEntry(storyId: string, o: string, e: any) {
   // nowhere else. Left out (undefined or null) is the default below, which is how a partial edit
   // has always worked. Refused is null, the same answer as any other write that did not happen.
   if (e.activation != null && !(ACTIVATIONS as readonly unknown[]).includes(e.activation)) return null;
+  // A RULE IS NOT A THREAD (ADR 0005, 2026-10-29). Whatever asks for a rule thread (an old export, a
+  // paste, a model that still says `rule`) gets a rule pocket of the tale instead, and no thread: the
+  // answer is null, as for any other thread not written. Here because every write of a thread
+  // crosses this function.
+  if (e.entryType === 'rule') { ruleFrom(storyId, e); return null; }
   const t = now();
   // Defaults once, before either branch. The update path previously had none, so a partial
   // edit bound undefined and threw at the driver instead of failing usefully.
@@ -2742,13 +2787,17 @@ export function upsertOutfit(storyId: string, entryId: string, o: any) {
 export const addonsOf = (storyId: string) =>
   q('SELECT * FROM addons WHERE story_id = ? ORDER BY slot, created_at').all(storyId) as any[];
 
+/** The slots of the tale's own pockets, which hang off no thread. */
+export const TALE_OWN = ['instruction', 'rule'];
+
 export function upsertAddon(storyId: string, entryId: string | null, a: any) {
   const t = now();
   const slot = String(a.slot ?? '').trim();
-  // #75. THE TALE'S OWN POCKETS hang off no thread and have one slot, `instruction`, which no
-  // thread has: an instruction for telling the whole tale.
+  // #75. THE TALE'S OWN POCKETS hang off no thread and have two slots no thread has: `instruction`,
+  // for telling the whole tale, and `rule`, a law the tale obeys, sent always or on its wake words
+  // (ADR 0005; a kind of thread until 2026-10-29, see `rulesToPockets`).
   const isString = STRING_SLOTS.includes(slot);
-  if (slot === 'instruction' ? !!entryId : !(ALL_SLOTS.includes(slot) || isString)) return null;
+  if (TALE_OWN.includes(slot) ? !!entryId : !(ALL_SLOTS.includes(slot) || isString)) return null;
   // A story-level addon has no entry; an entry-level one must point at an entry in THIS story, or
   // a row can be hung off another writer's card. Same shape as `wearOutfit`'s ownership check.
   if (entryId && !q('SELECT 1 FROM entries WHERE id = ? AND story_id = ?').get(entryId, storyId)) return null;
@@ -4525,3 +4574,4 @@ export { ftsQuery } from './search.ts';
 // #127 · The one update that writes through the floors, so it runs here, once everything above is
 // declared, and not in `migrate()`. See `stringsToPockets`.
 try { stringsToPockets(); } catch (e: any) { console.log(`  the strings were NOT moved: ${e?.message}`); }
+try { rulesToPockets(); } catch (e: any) { console.log(`  the rules were NOT moved: ${e?.message}`); }

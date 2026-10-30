@@ -64,3 +64,11 @@ choices and the model stay settings. It has no Over time: the scene summaries ar
 - One hem call for every thread or one per thread is decided on a measurement, not here.
 
 2026-10-28: the canon check (knots) was deleted (#94); what this record says about it no longer applies.
+
+2026-10-29: rules built. A rule is a pocket of no thread (`addons`, slot `rule`, with wake words),
+beside the writer's own instructions, and not on the `tale` entry, which is made only at the first
+hem. Each rule thread became one rule whose text is everything the thread sent (Always true, its
+body, each consequence switched on); one on a word kept its words. Rules reach the model in canon,
+where rule threads did. `rule` is no longer a kind of thread, so the cast, extraction, Talk and the
+World lookup no longer offer one, and a rule no longer ends at a hem. Talk cannot add or change a
+rule yet. A tale does not read its World's rules; no World had one.

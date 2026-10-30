@@ -15,7 +15,7 @@
 // of them: `interiority` does that work — and on 2026-08-29 he confirmed it does in practice, so
 // this is a settled decision rather than a deferral. #13 carries the exchange.
 
-export type EntryKind = 'character' | 'place' | 'lore' | 'item' | 'rule' | 'tale';
+export type EntryKind = 'character' | 'place' | 'lore' | 'item' | 'tale';
 
 /** EXCLUSIVE means one at a time, the way an outfit already is — you have one appearance, one
  *  voice, one outfit on. The rest accumulate: three relationships are three rows, each firing on
@@ -52,10 +52,8 @@ export const SLOTS: Record<EntryKind, { name: string; exclusive: boolean }[]> = 
     { name: 'appearance',    exclusive: true  },
     { name: 'what_it_does',  exclusive: false },
   ],
-  rule: [
-    { name: 'facts',         exclusive: true  },
-    { name: 'consequences',  exclusive: false },
-  ],
+  // `rule` was a kind until 2026-10-29: a rule is a pocket of the tale's own thread now (ADR 0005,
+  // `db.rulesToPockets`), and its `consequences` went into the rule's text.
   // #127 · ADR 0011. THE TALE'S OWN THREAD (#125), one per tale, made by the code and never by the
   // writer, so it is not in `KINDS`. Its Always true is the setting; its strings are its pockets: a
   // promise (set up to pay off) or an open question (kept open). On is in play and sent.

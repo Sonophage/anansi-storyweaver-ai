@@ -265,7 +265,7 @@ const STORY = {
               notes: '', addons: [], sharedFrom: 'The Ash Cycle', sharedFromId: 's-9' },
             // And one this book TOOK OVER: an ordinary card of its own that remembers the origin.
             { id: 'e-took', title: 'Vantic law', body: '[nobody descends without a writ]',
-              entryType: 'rule', activation: 'always_on', keys: [], lastEditor: 'human', states: [],
+              entryType: 'lore', activation: 'always_on', keys: [], lastEditor: 'human', states: [],
               notes: '', addons: [], originId: 'e-origin' },
             /* THE TWO CARDS THAT CAN TELL THE TWO ANSWERS APART (2026-09-11). `In context` was
              * computed from activation and pins, which is a guess about what WILL fire rather than
@@ -281,7 +281,7 @@ const STORY = {
             /* Always on, and the manifest says the canon ceiling threw it out. The old rule says
              * "in", for a card the model never saw. */
             { id: 'e-evicted', title: 'The Kesh Accord', body: '[signed under duress]',
-              entryType: 'rule', activation: 'always_on', keys: [], lastEditor: 'human',
+              entryType: 'lore', activation: 'always_on', keys: [], lastEditor: 'human',
               states: [], notes: '', addons: [] }],
   follows: { id: 's-9', title: 'The Ash Cycle' },
   // WHICH THREADS HAVE A PICTURE. `e-1` does and `e-2` does not, so a view that draws one for every
@@ -515,7 +515,7 @@ let worldDown = 0;
         // A card in the WORLD BOOK, so it has a group on the Threads page at all — the list is
         // grouped by book and built from entries, so a world book with no cards is not on it.
         { id: 'e-3', story: 's-5', storyTitle: 'The Tessellate', title: 'Ring Law',
-          body: 'Nobody descends without a writ.', entryType: 'rule',
+          body: 'Nobody descends without a writ.', entryType: 'lore',
           activation: 'always_on', keys: [], addons: [], outfits: [] }] }
     // #25. The three-source shape `GET /api/models` actually returns: the router's status, the
     // preset file's context, and this database's measured speed. The third row is deliberately a
@@ -612,9 +612,9 @@ let worldDown = 0;
           body: '[Teodor Ash: a clerk who counts the dead]',
           rooms: { voice: { name: 'Envoy', body: 'Write her lines formal and short.', on: true },
                    interiority: { name: 'Fear', body: 'Never let her say she is afraid.', on: true } } },
-        { title: 'Ring Law', entryType: 'rule', activation: 'always_on', keys: ['writ'],
+        { title: 'Ring Law', entryType: 'item', activation: 'always_on', keys: ['writ'],
           body: '[Ring Law: nobody descends without a writ]',
-          rooms: { consequences: { name: 'The fine', body: 'Show the fine paid in public.', on: true } } }] }
+          rooms: { what_it_does: { name: 'The fine', body: 'Show the fine paid in public.', on: true } } }] }
     : url.startsWith('/api/spark') ? { story: { title: 'The Winter Signature', genre: 'political fantasy',
         premise: 'Six houses have one winter to sign a peace none of them wants.',
         setting: 'Ashfall Hall', pov: 'third limited, past tense', spice: 2,
@@ -826,7 +826,7 @@ assert.match(html('page'), /The Ashfall Concordat/);
     'and no hero card survives beside it — two answers to "which book" is one too many');
   // The band's job is the sentence. A band that renders with the chrome and no prose in it is the
   // old shelf wearing a new shape, and it would pass every structural check above.
-  assert.match(shelf, /data-carryon="/, 'the band carries the one gold action');
+  assert.match(shelf, /<button class="art" data-open="/, 'the band is the one door into the tale');
   assert.match(shelf, /Where you left off/, 'and says what it is showing you');
   assert.doesNotMatch(shelf, /data-open="new"/,
     'the shelf itself offers no New story button — the rail is the one door');
@@ -2191,10 +2191,10 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   const page = html('page');
   // 2026-10-29 (Seth: "the button can be removed, let's just tap the square to enter"): the whole
   // hero is the one door, and it is a real button so a keyboard reaches it.
-  const go = /<button class="art" data-carryon="s-1"([^>]*)>/.exec(page);
-  assert.ok(go, 'HERO-TAP: the whole hero is the Carry on writing press');
+  const go = /<button class="art" data-open="s-1"([^>]*)>/.exec(page);
+  assert.ok(go, 'HERO-TAP: the whole hero is the press that opens the tale');
   assert.doesNotMatch(page, /class="btn bandgo"/, 'HERO-TAP: and there is no separate button on it');
-  assert.match(go![1], /aria-label="Carry on writing [^"]*\. Waiting: 2 threads chalked, 1 string not tied off"/,
+  assert.match(go![1], /aria-label="Open [^"]*\. Waiting: 2 threads chalked, 1 string not tied off"/,
     'its label says what is owed, by kind, with the real count, singular as singular');
   assert.match(page, /<section class="resumeband[\s\S]*?class="owedot(?: [^"]*)?"/, 'and the hero carries the dot');
   // GENRE ON THE LEFT, WORDS ON THE RIGHT, on the glass card under the last line.
@@ -2202,7 +2202,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     'HERO-META: the genre on the left and the words on the right');
   assert.doesNotMatch(page, /data-owed=|data-readfrom=/, 'the chips and Read from scene one are gone from the rack');
   // THE COST, WRITTEN DOWN, as before: a tale that is not the hero says nothing about what it owes.
-  assert.ok(!/data-carryon="s-2"/.test(page), 'a tale that is not the hero has no Carry on and no dot');
+  assert.ok(!/class="owedot/.test(page.slice(page.indexOf('</section>'))), 'a tale that is not the hero has no dot');
 }
 ok('what is owed is a dot on the hero\'s Carry on, and its label says what');
 }
@@ -2500,15 +2500,15 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
     assert.match(first, new RegExp(`class="letcard" data-${k}="${v}"`), `Anansi's card: ${k}`);
   assert.doesNotMatch(first, /data-pastebox|data-pastethread/, 'the paste box is gone into the one box');
 
-  click({ lorekind: 'rule' });
+  click({ lorekind: 'item' });
   const second = html('sideBody');
-  assert.match(second, /data-lorekind="rule" aria-pressed="true"/, 'a kind pressed is lit');
-  assert.match(second, /data-newthread="rule"/, 'and Write it writes it');
-  assert.match(second, /data-invent="rule"/, 'and so does Write one for me');
-  assert.match(second, /data-fromweb="rule"/, 'and Look it up online');
+  assert.match(second, /data-lorekind="item" aria-pressed="true"/, 'a kind pressed is lit');
+  assert.match(second, /data-newthread="item"/, 'and Write it writes it');
+  assert.match(second, /data-invent="item"/, 'and so does Write one for me');
+  assert.match(second, /data-fromweb="item"/, 'and Look it up online');
   assert.doesNotMatch(second, /data-lorekind="scope"/, 'a kind still offers no pockets');
   click({ lorekind: 'outfit' });
-  assert.match(html('sideBody'), /data-lorekind="rule" aria-pressed="true"/, 'a word that is not a kind changes nothing');
+  assert.match(html('sideBody'), /data-lorekind="item" aria-pressed="true"/, 'a word that is not a kind changes nothing');
   click({ newlore: '1' });   // shut it again: the blocks below open it by the same toggle
   assert.doesNotMatch(html('sideBody'), /id="newname"/, 'the same press shuts it');
   ok('New thread offers one box, the four kinds as a choice, Write it, and three cards that write the lit kind');
@@ -2572,12 +2572,12 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   const picked = (h: string) => (h.match(/data-lslot="([^"]*)"[^>]*border:1px solid var\(--ink-bright\)/) ?? [])[1];
   click({ lslot: 'voice' });
   assert.strictEqual(picked(html('page')), 'voice', 'the room chip takes the selection');
-  click({ lkind: 'rule' });
+  click({ lkind: 'item' });
   const rules = html('page');
   assert.strictEqual(picked(rules), '',
     'and changing kind puts it back on Any room — a filter left on from a kind you are no longer '
     + 'looking at is a page that shows nothing for no visible reason');
-  assert.match(rules, /data-lslot="consequences"/, 'while the new kind offers its own rooms');
+  assert.match(rules, /data-lslot="what_it_does"/, 'while the new kind offers its own rooms');
   click({ lkind: 'all' });
   ok('the cross-shelf page opens on one book, spans the shelf on a press, and filters by room');
 }
@@ -3793,7 +3793,8 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
     assert.match(pv, /The tale's own thread/, "WIZ-PREVIEW: the tale's own thread is at the top");
     assert.ok(pv.indexOf("The tale's own thread") < pv.indexOf('Teodor Ash'), '  above the threads');
     assert.match(pv, /Six houses have one winter/, '  with its premise');
-    assert.ok(pv.indexOf('Ring Law') < pv.indexOf('Teodor Ash'), '  and a Rule is in it, not among the threads');
+    // A rule is a pocket of the tale since 2026-10-29 (ADR 0005): the preview offers no Rules from the cast.
+    assert.doesNotMatch(pv, />Rules &middot;/, '  and no Rules from the cast');
     // ADR 0009 · THE OPEN QUESTIONS, offered ticked, each with its line; unticking one keeps it off.
     assert.match(pv, /<input type="checkbox" data-spquestion="0" checked>/, 'WIZ-QUESTIONS: the open questions are offered ticked');
     assert.match(pv, /<input type="checkbox" data-spquestion="1" checked>/, '  every one of them');
@@ -4778,11 +4779,20 @@ ok('Account → Writing shows When you reweave after the five modes, filled with
   assert.match(html('sideBody'), /class="card plate thplate talebanner full-left" data-taleopen="1" style="background:/,
     'the tale heads the threads as a banner with a background');
   // 2026-10-29: the banner opens the Tale panel on its Thread tab, which is where the thread lives.
+  // ADR 0005 · A RULE IS A POCKET OF THE TALE (2026-10-29): drawn on this tab with its wake words.
+  const wasRules = (STORY as any).taleRules;
+  (STORY as any).taleRules = [{ id: 'r-1', name: 'Debts', body: 'A debt survives the debtor.', keys: ['debt', 'loan'], active: true }];
+  click({ open: 's-1' }); await sleep(40);
+  click({ panel: 'threads' });
   click({ taleopen: '1' });
   assert.match(html('sideBody'), /data-tab="thread"/, 'TALE-TAB: and it opens the Tale panel on the Thread tab');
   assert.match(html('sideBody'), /data-storytab="thread"[^>]*aria-pressed="true"/, '  with the Thread chip pressed');
-  assert.match(html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '', /data-newrule="1"[\s\S]*data-addtalepocket="1"/,
-    "  and the tab holds the tale's rules and its own instructions");
+  const tab = html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '';
+  assert.match(tab, /data-rulename="r-1"[^>]*value="Debts"[\s\S]*A debt survives the debtor\.[\s\S]*data-rulekeys="r-1"[^>]*value="debt, loan"/,
+    'RULE-CARD: a rule is drawn with its name, its text and its wake words');
+  assert.match(tab, /data-saverule="r-1"[\s\S]*data-addtalerule="1"[\s\S]*data-addtalepocket="1"/,
+    "  and the tab holds the tale's rules, a way to add one, and its own instructions");
+  (STORY as any).taleRules = wasRules;
   click({ panel: 'threads' });
 }
 ok("the tale's own thread is a banner in the list, and it opens the Thread tab of the Tale panel");
@@ -7058,7 +7068,8 @@ const hemCardOf = (side: string) => {
   click({ open: 's-1' }); await settle();
   click({ panel: 'setup' }); await settle();
   let side = await more();
-  // WHO IS IN IT, AS BLOCKS: the always-on threads; not a thread on a word with no pin, nor a rule.
+  // WHO IS IN IT, AS BLOCKS: the always-on threads; not a thread on a word with no pin. (Rules are
+  // pockets of the tale since 2026-10-29, not threads, so none can be in it.)
   const sereth = who(side, 'e-1');
   assert.match(sereth, /class="card hemthread"/, 'WHO-BLOCK: a thread in the scene is a thread block, as What it left draws one');
   assert.match(sereth, /data-hemthreadname[^>]*>Envoy Sereth</, '  with its name');
@@ -7066,7 +7077,6 @@ const hemCardOf = (side: string) => {
   assert.match(sereth, /How she sounds[\s\S]*Flat, unhurried\./, '  and its pockets');
   assert.ok(who(side, 'e-shared'), '  every thread in it');
   assert.strictEqual(who(side, 'e-2'), '', '  and not a thread on a word with no pin');
-  assert.strictEqual(who(side, 'e-took'), '', '  nor a rule');
   for (const [how, label] of [['scene', 'This scene only'], ['always', 'Always on'], ['named', 'When it&#39;s named']])
     assert.match(sereth, new RegExp(`data-howin="e-1" data-how="${how}"[^>]*>${label}<`), `WHO-HOW: it offers ${label.replace('&#39;', "'")}`);
   assert.match(sereth, /data-how="always" aria-pressed="true"/, '  with Always on chosen for an always-on thread');
@@ -7641,7 +7651,7 @@ const hemCardOf = (side: string) => {
     click({ open: 's-1' }); await wait();
     click({ taleopen: '1' }); await wait();
     const page = html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '';
-    const rules = page.indexOf('data-newrule='), prom = page.indexOf('>Promises'), ques = page.indexOf('>Open questions');
+    const rules = page.indexOf('data-addtalerule='), prom = page.indexOf('>Promises'), ques = page.indexOf('>Open questions');
     assert.ok(rules > 0 && prom > rules && ques > prom, `TALE-STRINGS: Promises, then Open questions, under Rules (${rules}, ${prom}, ${ques})`);
     const promises = page.slice(prom, ques), questions = page.slice(ques);
     const order = (s: string) => [...s.matchAll(/data-editroom="([\w-]+)"/g)].map((m) => m[1]);
