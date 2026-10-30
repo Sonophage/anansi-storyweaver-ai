@@ -4156,9 +4156,16 @@ export const routes: Record<string, Handler> = {
    *  `weaveAssemble` and `replyFor` Talk and Invent use. It is not on WEAVE_ROOM, so it is sent with
    *  weaving off in every book and gets no room on top of its cap.
    *
-   *  ponytail: one call and no retry. `structuredRetry` would double the cap on a cut answer, and a
-   *  small cap is the point of this call. Ceiling: a cut answer is an error and the writer taps
-   *  ✦ again. Revisit if the generation log shows `idea` rows failing as cut more than now and then. */
+   *  ONE CALL ON THIS MACHINE, ONE RETRY ON FEATHERLESS. Locally `structuredRetry` would double the
+   *  cap on a cut answer, and a small cap is the point of the call, so a cut answer is an error and
+   *  the writer taps ✦ again. A remote call carries no cap at all (llama.ts, `featherless`), so the
+   *  retry there asks for no more room, only a cooler second try. It was the log that asked: on
+   *  2026-10-29, 10 of the 21 remote `idea` rows had failed, 9 of them cut.
+   *
+   *  ponytail: a retry, not a cure. The four cut after the cap came off ran 190 to 214 seconds each,
+   *  which reads as a model running on rather than one short of room, and a retry can double that
+   *  wait. Revisit if remote `idea` rows still fail as cut with this in: read what the model wrote,
+   *  and decide with Seth whether ✦ alone may send a remote model a cap again. */
   'POST /api/idea': async (c: Ctx) => {
     const v = viewOf(c, c.body.storyId);
     // The same six passages Talk reads. The next beat follows from the last few, not from forty.
@@ -4169,7 +4176,7 @@ export const routes: Record<string, Handler> = {
     if (manifest.overflowed) return { error: manifest.overflowReason, manifest };
     const using = writerModel(c, v);
     const t0 = Date.now();
-    const r = await structured(IDEA, prompt.slice(SYSTEM.length), IDEA_SCHEMA,
+    const r = await (isRemote(using) ? structuredRetry : structured)(IDEA, prompt.slice(SYSTEM.length), IDEA_SCHEMA,
       { model: using, temperature: 0.9, max_tokens: reply.maxTokens,
         chat_template_kwargs: { enable_thinking: reply.weaves } });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'idea',

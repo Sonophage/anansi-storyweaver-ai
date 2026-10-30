@@ -149,6 +149,10 @@ const flSrv = createServer((req, res) => {
           ? JSON.stringify({ note: words }) : words }, finish_reason: how === 'overcap' ? 'length' : 'stop' }],
           usage: { prompt_tokens: 321, completion_tokens: n } });
       }
+      // ✦'s own one-field schema gets three ideas, so a test can tell an answer that came back whole.
+      if (!body.stream && body.response_format?.json_schema?.schema?.properties?.ideas)
+        return json(200, { choices: [{ message: { content: JSON.stringify({ ideas: ['One.', 'Two.', 'Three.'] }) },
+          finish_reason: 'stop' }], usage: { prompt_tokens: 321, completion_tokens: 12 } });
       if (!body.stream) return json(200, { choices: [{ message, finish_reason: 'stop' }],
         usage: { prompt_tokens: 321, completion_tokens: 5 } });
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
@@ -864,6 +868,20 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
     `IDEA-REMOTE: ✦ goes to the remote model the writer chose, once (${ideaed.length} calls)`);
   assert.strictEqual(since(i).local.length, 0, 'IDEA-REMOTE: and not to the local router');
   assert.strictEqual(ideaed[0].body.response_format?.json_schema?.strict, true, 'IDEA-REMOTE: with its schema, strict');
+
+  // A REMOTE ✦ CUT AT ITS LENGTH IS ASKED ONCE MORE. On the live library 10 of 21 remote `idea`
+  // rows failed, most of them cut (2026-10-29). A remote call carries no cap, so the retry asks for
+  // no more room than the first; it is the cooler second try `structuredRetry` gives every caller.
+  const cutOnce = mark();
+  script.push('overcap');
+  const again: any = await routes['POST /api/idea'](ctx(me, { storyId: story.id }));
+  const tries = since(cutOnce).fl;
+  assert.strictEqual(tries.length, 2, `IDEA-REMOTE-RETRY: a cut remote answer is asked again, once (${tries.length} calls)`);
+  assert.ok(!again.error, `IDEA-REMOTE-RETRY: and the second answer is used (${again.error})`);
+  assert.deepStrictEqual(again.ideas, ['One.', 'Two.', 'Three.'], 'IDEA-REMOTE-RETRY: three ideas come back');
+  assert.ok(Number(tries[1].body.temperature) < Number(tries[0].body.temperature),
+    'IDEA-REMOTE-RETRY: the second try is cooler than the first');
+  assert.ok(!('max_tokens' in tries[1].body), 'IDEA-REMOTE-RETRY: and, like every remote answer, carries no cap');
 
   // The one door. Every writer-facing call resolves its model through `writerModel`, which is the
   // only place the shortlist is asked; a second `modelFor(` would be a call that can skip it.

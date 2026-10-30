@@ -27,6 +27,10 @@ written" now describes the texture of the genre (what it notices, what it linger
 how the narration sounds to your voice, so the two cannot disagree. New tale no longer puts the
 spice level into the voice it suggests. The shipped voice no longer overrides the spice level.
 
+### ✦ tries once more on a Featherless model
+When ✦ asks a Featherless model for ideas and the answer comes back cut off, Anansi now asks once
+more before showing an error. On some models the second try can take as long as the first.
+
 ### The tale's own thread has its own tab
 The tale's own thread now lives in the Tale panel, on a new Thread tab: where the tale stands, its
 rules, its promises and open questions, and your own instructions for the whole tale. The first card
