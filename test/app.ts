@@ -3,6 +3,33 @@
 // web/app.js were wrong on the first pass — guessed rather than read — and every one of them
 // would have rendered the string "undefined" into the page instead of throwing.
 import assert from 'node:assert';
+import { mock } from 'node:test';
+
+/* THE SUITE RUNS ON A VIRTUAL CLOCK, since 2026-10-29. It took 44 of test/all.ts's 45 seconds on
+ * 1.1 seconds of CPU: some 350 fixed waits of 20 to 1,100 ms, each one real time, against a fake
+ * fetch that answers at once. The waits could not simply be removed: the app's own timers are real
+ * behaviour under test — the 60 ms announcement, the 180 ms tap, the 220 and 250 ms search
+ * debounces, the 450 ms hold, the one-second weaving count — and a check written as "wait 300 ms,
+ * then the search has run" means exactly that.
+ *
+ * So `setTimeout`, `setInterval` and `Date` are node's mocks from here on, and `sleep(ms)` moves the
+ * clock forward by `ms` in small steps, giving the event loop real turns between steps so a fetch
+ * answered inside a timer is read before the next one fires. Every wait still lets the same amount
+ * of app time pass, in the same order; it just no longer costs it. `setImmediate` stays real — it
+ * is what the steps yield on.
+ *
+ * Two side effects, both wanted. A timer still pending when the last check runs (the toast's
+ * 4.2-second hide, a weaving count) can no longer hold the process open after the verdict, which
+ * cost 4.2 s at the end of every run. And nothing in this file may wait with a bare
+ * `setTimeout(r, n)` any more: under the mock it never resolves unless a `sleep` is running, and
+ * the suite hangs instead of failing. */
+mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: Date.now() });
+const STEP = 5;
+const turns = async () => { for (let i = 0; i < 3; i++) await new Promise((r) => setImmediate(r)); };
+const sleep = async (ms: number) => {
+  for (let left = ms; left > 0; left -= STEP) { await turns(); mock.timers.tick(Math.min(STEP, left)); }
+  await turns();
+};
 
 let n = 0;
 // `ok` here takes a MESSAGE ONLY — assertions run inline above it. `test/db.ts`, `test/engine.ts`
@@ -625,7 +652,7 @@ stored.set('anansi.veil', '1');
 // writing code tells the veil from the inline passage by its class.
 (document as any).getElementById('ghost').classList.contains = (c: string) => c === 'veil';
 await import('../web/app.js');
-await new Promise((r) => setTimeout(r, 30));   // let the boot IIFE settle
+await sleep(30);   // let the boot IIFE settle
 
 const html = (id: string) => String(nodes.get(id).innerHTML);
 
@@ -832,10 +859,10 @@ const holdRe = async (id: string) => {
   const b = { dataset: { re: id }, disabled: false };
   const target = { closest: (s: string) => (/\[data-re\]/.test(s) ? b : null) };
   (listeners.pointerdown ?? []).forEach((f: Function) => f({ target, clientX: 0, clientY: 0, pointerType: 'mouse' }));
-  await new Promise((r) => setTimeout(r, 520));
+  await sleep(520);
   (listeners.pointerup ?? []).forEach((f: Function) => f({ target, pointerType: 'mouse' }));
   click({ re: id });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
 };
 // Switching mode is a change on the dial now, not a click on one of four buttons — see the rail
 // block below. `data-modesel` carries no value of its own; the chosen mode is the select's.
@@ -862,7 +889,7 @@ const typeIn = (id: string, value: string) =>
               getBoundingClientRect: () => ({ top: 0, bottom: 0, height: 0 }) },
   }));
 click({ open: 's-1' });
-await new Promise((r) => setTimeout(r, 40));
+await sleep(40);
 
 for (const id of ['rail', 'bar', 'col', 'dockCol', 'sideBody']) {
   assert.ok(!/\bundefined\b/.test(html(id)), `#${id} rendered "undefined": ${html(id).match(/.{0,60}undefined.{0,40}/)?.[0]}`);
@@ -926,7 +953,7 @@ ok('a chapter wears the book cover as its plate, and the title moves onto it');
   STORY.story.chapterSticky = true;
   STORY.story.coverOpacity = 45;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const back = html('backdrop');
   assert.ok(!nodes.get('backdrop').hidden, 'the backdrop shows when the book asks for it');
   assert.match(back, /api\/cover\?story=s-1/, 'and it is the story cover');
@@ -935,14 +962,14 @@ ok('a chapter wears the book cover as its plate, and the title moves onto it');
   assert.match(back, /<u style="--reach:0\.214">/, 'the strength also sets how far the picture reaches');
   const drawn = nodes.get('backdrop').innerHTML;
   nodes.get('backdrop').innerHTML = drawn + '<!--kept-->';
-  click({ panel: 'chapters' }); await new Promise((r) => setTimeout(r, 20));
+  click({ panel: 'chapters' }); await sleep(20);
   assert.match(html('backdrop'), /<!--kept-->/, 'a repaint with nothing changed leaves the picture alone');
   (STORY.story as any).coverBlur = 6; STORY.story.coverFlip = true;
-  click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
+  click({ open: 's-1' }); await sleep(40);
   assert.doesNotMatch(html('backdrop'), /<!--kept-->/, 'a change to it does redraw it');
   assert.strictEqual(nodes.get('backdrop').className, 'blur flip', 'blurred and flipped when the tale asks');
   (STORY.story as any).coverFade = false;
-  click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
+  click({ open: 's-1' }); await sleep(40);
   assert.strictEqual(nodes.get('backdrop').className, 'blur flip nofade', 'COVER-FADE: and the fade can be off, leaving the blur alone');
   (STORY.story as any).coverFade = true;
   assert.match(html('backdrop'), /filter:blur\(6px\); inset:-12px/, 'by the amount the tale asks');
@@ -968,7 +995,7 @@ ok('a chapter wears the book cover as its plate, and the title moves onto it');
 
   STORY.story.chapterSticky = false;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   assert.ok(nodes.get('backdrop').hidden, 'off again, the backdrop goes');
   assert.match(html('col'), /class="plate(?: [^"]*)?"/, 'and the plate comes back');
 }
@@ -981,9 +1008,9 @@ ok('a book can keep its cover behind the prose instead, at a strength it chooses
   // `openStory` paints twice — it awaits the story, then the activity — so a panel chosen between
   // the two is repainted over by the second. Let it settle before choosing, and again before
   // reading, or this reads whichever panel that second paint left behind.
-  await new Promise((r) => setTimeout(r, 60));
+  await sleep(60);
   click({ panel: 'waiting' });
-  await new Promise((r) => setTimeout(r, 20));
+  await sleep(20);
   const w = html('sideBody');
   // Proposals: the card carries the editable box, because POST /api/proposal reads the BOX and not
   // the model's wording — a copy without it would quietly accept something else.
@@ -1010,7 +1037,7 @@ ok('everything Waiting lists can be decided in Waiting');
 
 // Leaving takes the book's look off with it, or the shelf wears whichever book you opened last.
 click({ leave: '1' });
-await new Promise((r) => setTimeout(r, 40));
+await sleep(40);
 {
   const root = (globalThis as any).document.documentElement;
   assert.strictEqual(root.dataset.uiTheme, 'parchment', 'the shelf is back to the writer default');
@@ -1020,7 +1047,7 @@ ok('leaving a book takes its look with it');
 
 // Back into the story, because everything below this reads the story surface.
 click({ open: 's-1' });
-await new Promise((r) => setTimeout(r, 40));
+await sleep(40);
 
 assert.match(html('col'), /The hall smells of cold iron/);
 // ACCENTED PROSE ON THE PAGE (2026-10-29): quotes, *emphasis* and **strong**, asterisks hidden, in a
@@ -1308,12 +1335,12 @@ ok('the header names the book, and carries no reading of its own');
   const realBudget = MANIFEST.manifest.totals.budget;
   MANIFEST.manifest.totals.budget = 0;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   assert.ok(!nodes.get('ctxbar').hidden, 'the bar stays when there is no room — that is when it matters');
   assert.match(html('ctxread'), /no space/, 'and the reading says so in words');
   MANIFEST.manifest.totals.budget = realBudget;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
 }
 ok('the bar counts chapters, and the reading is always open');
 
@@ -1332,9 +1359,9 @@ ok('the bar counts chapters, and the reading is always open');
  * always-on and was evicted. The old rule gets both backwards. */
 {
   click({ panel: 'threads' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ onlyin: '1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const inCtx = html('sideBody');
   assert.match(inCtx, /The lamplighter/,
     'a TRIGGERED thread the manifest says fired is in context — the old rule called it out');
@@ -1349,7 +1376,7 @@ ok('the bar counts chapters, and the reading is always open');
   // ---- AND THE LIST HAS A SEARCH BAR. Seth, 2026-09-11: "in the story under all threads can i get
   // a search bar there?"
   click({ onlyin: '0' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const all = html('sideBody');
   assert.match(all, /id="thq"/, 'the threads list has its own search box');
   assert.match(all, /id="thlist"/, 'and the rows are in a container it can redraw by itself');
@@ -1406,7 +1433,7 @@ ok('the bar counts chapters, and the reading is always open');
 // one scroll.
 {
   click({ panel: 'story' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const panel = html('sideBody');
   for (const g of ['voice', 'book', 'thread', 'world', 'keep'])
     assert.match(panel, new RegExp(`data-group="${g}"`), `the panel must draw the ${g} group`);
@@ -1444,7 +1471,7 @@ ok('the bar counts chapters, and the reading is always open');
   // BACK TO THE PANEL THIS FILE WAS ON. The checks below read #sideBody for the context inspector,
   // and a block that leaves another panel open makes them fail a long way from the cause.
   click({ panel: 'context' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
 }
 ok('the story panel is four groups behind four chips, and switching cannot lose what you typed');
 
@@ -1482,7 +1509,7 @@ assert.match(html('sideBody'), /stale summary/, 'an omitted block must say why')
   const realExact = (MANIFEST as any).exact;
   (MANIFEST as any).exact = null;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'context' });
   const asleep = html('sideBody');
   assert.match(asleep, /27,401 of 46,146 tokens, estimated/,
@@ -1493,7 +1520,7 @@ assert.match(html('sideBody'), /stale summary/, 'an omitted block must say why')
     + 'writer something it does not know, and 2a is exactly how wrong it can be.');
   (MANIFEST as any).exact = realExact;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'context' });
   assert.ok(!/of his room, roughly/.test(html('sideBody')),
     'and the mark goes when the tokenizer answers again — a label that never clears is noise');
@@ -1565,9 +1592,9 @@ ok('a book past its horizon says so on the bar, not only in a dimmed row');
   STORY.currentChapter.title = 'Chapter 2';
   // Re-open the book so the surface re-reads the canned response rather than the copy it holds.
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'setup' });
-  await new Promise((r) => setTimeout(r, 20));
+  await sleep(20);
   assert.strictEqual(asked(), before + 1,
     'a chapter still holding the title endChapter gave it has not been named, and must be');
   STORY.currentChapter.title = 'The Envoy';
@@ -1576,7 +1603,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 
   // #127 · A CHALKED STRING IS A WORKBENCH CARD (ADR 0011); the strings the tale already has are not.
   click({ panel: 'waiting' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const strings = html('sideBody');
   const chalked = strings.slice(strings.indexOf('A string, chalked'));
   assert.match(chalked, /^A string, chalked[\s\S]*?The debt nobody has called in/, 'a proposed string waits on the Workbench');
@@ -1585,7 +1612,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.doesNotMatch(chalked.slice(0, chalked.indexOf('data-deckcard=')), /Witness rite/, 'and not on a thread proposal\'s card');
 
   click({ panel: 'chapter' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const chapter = html('sideBody');
   assert.match(chapter, /Witness rite/, 'the chapter queue keeps the thread proposals');
   assert.doesNotMatch(chapter, /The debt nobody has called in/,
@@ -1615,7 +1642,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     'Add all is not offered over a mixed queue, where it would accept conflicts and room edits too');
 
   click({ pkind: 'conflict' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const onlyConflict = html('sideBody');
   assert.match(onlyConflict, /The stair/, 'a chip narrows the queue to its kind');
   assert.doesNotMatch(onlyConflict, /Witness rite/, 'and drops the others');
@@ -1623,7 +1650,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     'and Add all is still not offered — a conflict is sometimes the model being wrong');
 
   click({ pkind: 'new' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const onlyNew = html('sideBody');
   assert.match(onlyNew, /data-acceptall="new"/, 'Add all appears on new, which is the additive kind');
   assert.doesNotMatch(onlyNew, /The stair/);
@@ -1633,7 +1660,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   // destination of a change was read after the change and on a long body was off the card entirely.
   // Asserted by POSITION, because "the text is present somewhere" was already true before.
   click({ pkind: 'changed' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const onlyChanged = html('sideBody');
   const landsAt = onlyChanged.indexOf('Lands in the appearance pocket');
   const bodyAt = onlyChanged.indexOf('data-pbody');
@@ -1676,7 +1703,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   // SPOKEN, NOT STORED, the same rule the chip above already follows. Proved on a slot that has
   // underscores, which means a lore card — a character has none. `pr-4` is a change to the stair.
   click({ pkind: 'conflict' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const onlyConflict2 = html('sideBody');
   assert.match(onlyConflict2, /data-pwhere="pr-4"/, 'a conflict on an existing card offers rooms too');
   assert.match(onlyConflict2, /<option value="who_is_here"[^>]*>who is here</,
@@ -1688,7 +1715,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   // it, the server drops a field on one (`roomAsked`), and offering a control that cannot work is
   // worse than offering none.
   click({ pkind: 'new' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const fresh = html('sideBody');
   assert.match(fresh, /data-pbody="pr-1"/, 'the new thread is on screen');
   assert.doesNotMatch(fresh, /data-pwhere="pr-1"/,
@@ -1700,7 +1727,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   // recomputed for the room chosen, and that rule lives in `roomOffer`. Deciding it here would
   // put one rule in two places, which is the drift the fix exists to end.
   click({ pkind: 'changed' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   {
     const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
     const doc = (globalThis as any).document;
@@ -1712,7 +1739,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     try {
       POSTED.length = 0;
       changeIn({ dataset: { pwhere: 'pr-3' } });
-      await new Promise((r) => setTimeout(r, 60));
+      await sleep(60);
       const sent = POSTED.find((x) => String(x.url) === '/api/proposal/where');
       assert.ok(sent, 'changing the room posted nothing — the choice lived only on screen');
       assert.strictEqual(sent.body.field, 'interiority', 'and carries the room chosen');
@@ -1726,7 +1753,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
       // Editing the keys alone goes through the same door.
       POSTED.length = 0;
       changeIn({ dataset: { pkeys: 'pr-3' } });
-      await new Promise((r) => setTimeout(r, 60));
+      await sleep(60);
       assert.ok(POSTED.some((x) => String(x.url) === '/api/proposal/where'),
         'editing the trigger words saved nothing');
       ok('moving a proposal or keying it is saved on the server, edit and all');
@@ -1738,7 +1765,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
         : sel === '[data-pchap="pr-3"]' ? { value: '4' } : null;
       POSTED.length = 0;
       click({ decide: 'accept', id: 'pr-3' });
-      await new Promise((r) => setTimeout(r, 60));
+      await sleep(60);
       const took = POSTED.find((x) => String(x.url) === '/api/proposal');
       assert.ok(took, 'accepting posts to the route');
       assert.strictEqual(took.body.asState, 4,
@@ -1764,7 +1791,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   ok('a model row says its per-slot context and what it has actually measured');
 }
   click({ pkind: 'all' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
 
 // Editing a proposal before it lands. The route has honoured an incoming body since it was
 // written and the surface never sent one, so what the model wrote was what entered canon even
@@ -1777,7 +1804,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   assert.match(chapter, /New fact\./, 'with the delta still shown beside it');
 
   click({ panel: 'waiting' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   assert.match(html('sideBody'), /data-pbody="pr-2"/, 'and so does a proposed string, on the Workbench (#127)');
 
   // The box lives in the DOM, so the handler has to read it. Only this selector answers.
@@ -1788,7 +1815,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   try {
     POSTED.length = 0;
     click({ decide: 'accept', id: 'pr-1' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     const sent = POSTED.find((x) => String(x.url).startsWith('/api/proposal'));
     assert.ok(sent, 'accepting a proposal posts to the route');
     assert.strictEqual(sent.body.accept, true);
@@ -1799,7 +1826,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     // of something thrown away mattered.
     POSTED.length = 0;
     click({ decide: 'reject', id: 'pr-1' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     const dropped = POSTED.find((x) => String(x.url).startsWith('/api/proposal'));
     assert.ok(dropped, 'rejecting posts too');
     assert.strictEqual(dropped.body.accept, false);
@@ -1813,24 +1840,24 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 // name box keeps the name it has; one with an empty body is still refused.
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'threads' });
   click({ entry: 'e-1' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const doc = (globalThis as any).document;
   const wasQS = doc.querySelector;
   doc.querySelector = (sel: string) => sel === '[data-ab="a-on"]' ? { value: 'Flat, slower now.' } : null;
   try {
     POSTED.length = 0;
     click({ saveaddon: 'a-on' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     const sent = POSTED.find((x) => String(x.url).startsWith('/api/addon'));
     assert.ok(sent, 'ALWAYS-TRUE-SAVE: a row with no name box saves');
     assert.strictEqual(sent.body.addon?.name ?? sent.body.name, 'How she sounds', 'ALWAYS-TRUE-SAVE: and keeps the name it had');
     doc.querySelector = (sel: string) => sel === '[data-ab="a-on"]' ? { value: '  ' } : null;
     POSTED.length = 0;
     click({ saveaddon: 'a-on' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     assert.ok(!POSTED.some((x) => String(x.url).startsWith('/api/addon')), 'ALWAYS-TRUE-EMPTY: an empty one is not saved');
   } finally { doc.querySelector = wasQS; }
   ok('Always true saves with no name box, keeping its name');
@@ -1841,7 +1868,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 {
   click({ panel: 'threads' }); click({ entry: 'e-2' });
   click({ cardview: 'form' }); click({ cardtab: 'card' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   assert.match(html('sideBody'), /data-ab="facts"[\s\S]*data-saveaddon="facts"/, 'ALWAYS-TRUE-NEW: an empty box with Save');
   const doc = (globalThis as any).document;
   const wasQS = doc.querySelector;
@@ -1849,7 +1876,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   try {
     POSTED.length = 0;
     click({ saveaddon: 'facts' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body,
       { storyId: 's-1', entryId: 'e-2', addon: { slot: 'facts', name: 'facts', body: 'Unlit, below the counting floor.', keys: '' } },
       'ALWAYS-TRUE-NEW: Save makes the Always true, with no id');
@@ -1994,7 +2021,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 // grid still reads as part of the shelf.
 {
   click({ leave: '1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const page = html('page');
   // The SECTION, by its own hook — not the word "Archived", which storyCard already prints as the
   // status badge on the card itself. Matching the word passed with the split disabled.
@@ -2037,9 +2064,9 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 // the header"). It counted proposals one by one plus open strings, and left out hem and upkeep cards.
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'waiting' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const cards = (html('sideBody').match(/data-deckcard="/g) ?? []).length;
   const shown = Number((html('rail').match(/class="tnum navcount">(\d+)</) ?? [])[1] ?? 0);
   assert.ok(cards > 0, `MENU-COUNT: the fixture has cards on the Workbench (${cards})`);
@@ -2097,7 +2124,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 // input bar as a faded or unfaded option in the input bar beside threads so i dont have to enter
 // all these menus." It is a per-scene decision that lived three panels deep.
 {
-  const open = async () => { click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40)); };
+  const open = async () => { click({ open: 's-1' }); await sleep(40); };
   const dock = () => html('dockCol');
 
   // NAMED NOBODY, NO CONTROL. A switch for a setting you have not made is a control with no
@@ -2132,9 +2159,9 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 {
   click({ leave: '1' });
   click({ railview: 'workspace' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ nav: 'create' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   // The screen is the one we think it is, asserted before anything is read off it: the two
   // absence checks below would both pass on a blank page.
   assert.match(html('page'), /id="idea"/, 'the create screen is open');
@@ -2160,7 +2187,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 // tale owes something, and the button's label says what, by kind and with the real count.
 {
   click({ leave: '1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const page = html('page');
   const go = /<button class="btn bandgo" data-carryon="s-1"([^>]*)>([\s\S]*?)<\/button>/.exec(page);
   assert.ok(go, 'the hero has its Carry on writing');
@@ -2401,7 +2428,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
 // one of the three would look right and be wrong.
 {
   click({ nav: 'prefs' });
-  await new Promise((r) => setTimeout(r, 40));   // the page paints after its stats call is queued
+  await sleep(40);   // the page paints after its stats call is queued
   const page = html('page');
   assert.doesNotMatch(page, /llama-server/, 'the server address is gone');
   assert.doesNotMatch(page, /data-router=/, 'and the restart and stop controls with it');
@@ -2451,7 +2478,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
 // tray are added from the thread itself now, so no pocket is offered here.
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'threads' }); click({ newlore: '1' });
   const first = html('sideBody');
   assert.match(first, /New thread/, 'the screen is called New thread');
@@ -2489,10 +2516,10 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   // opened a story, where the rail is `data-panel` instead. A nav click inside a story does nothing
   // and the page stays whatever it was — which is how this read as a rendering bug for a minute.
   click({ railview: 'workspace' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ nav: 'canon' });
   // The page paints "Reading the threads…" first and fetches; loadLedger repaints when it lands.
-  for (let i = 0; i < 20 && !/data-lbook=/.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25));
+  for (let i = 0; i < 20 && !/data-lbook=/.test(html('page')); i++) await sleep(25);
   const page = html('page');
   assert.match(page, /data-lbook=/, 'every book is a heading you can press');
   assert.match(page, /class="clamp3(?: [^"]*)?"/,
@@ -2557,7 +2584,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   const side = () => (globalThis as any).document.getElementById('side');
   click({ modelinfo: 'Qwen3.6-WNTH-35B-A3B-NN' });
   // The panel can be the first thing on screen, so it asks the router itself; that is a fetch.
-  for (let i = 0; i < 20 && !/words a second/.test(html('sideBody')); i++) await new Promise((r) => setTimeout(r, 25));
+  for (let i = 0; i < 20 && !/words a second/.test(html('sideBody')); i++) await sleep(25);
 
   // THE WRITER'S VIEW FIRST. The usability check of 2026-10-24 scored this page 1 of 5: tokens,
   // tok/s, the raw id, the router's preset file and the bakeoff notes. A writer who is not the admin
@@ -2574,9 +2601,9 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
     'WRITER-MODEL: and the page about the model that writes has a way to choose another');
 
   libAdmin = true; click({ home: 1 });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ modelinfo: 'Qwen3.6-WNTH-35B-A3B-NN' });
-  for (let i = 0; i < 20 && !/tokens a second/.test(html('sideBody')); i++) await new Promise((r) => setTimeout(r, 25));
+  for (let i = 0; i < 20 && !/tokens a second/.test(html('sideBody')); i++) await sleep(25);
 
   assert.strictEqual(side().hidden, false, 'the model panel opens with no story open');
   const panel = html('sideBody');
@@ -2639,7 +2666,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   const strip = (h: string) => h.replace(/<!--[\s\S]*?-->/g, '');
   const FAR = 'featherless:Grey/Kestrel-Heretic-24B';
   click({ modelinfo: FAR });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const far = strip(html('sideBody'));
   assert.doesNotMatch(far, /preset file/, 'REMOTE-PANEL: no preset-file wording for a remote model');
   assert.doesNotMatch(far, /router/, 'REMOTE-PANEL: and no router wording');
@@ -2654,16 +2681,16 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   // With a key, the switch is back. The list is read again so the panel learns it.
   modelsRemote = true;
   click({ dropshort: 'featherless:Other/Unused-12B' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ modelinfo: FAR });
   assert.match(html('sideBody'), /data-pickmodel="featherless:Grey\/Kestrel-Heretic-24B"/,
     'and with Featherless set up, the switch is on the panel');
   modelsRemote = false;
   click({ dropshort: 'featherless:Other/Unused-12B' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
 }
 libAdmin = false; click({ home: 1 });
-await new Promise((r) => setTimeout(r, 40));
+await sleep(40);
 ok('the model panel reads the router, the preset file, this database and the id, and names each');
 
 // THE SAME DECODE ON EVERY SURFACE THAT NAMES A MODEL. Seth, 2026-08-29: "we need the uncensored
@@ -2680,7 +2707,7 @@ ok('the model panel reads the router, the preset file, this database and the id,
   const wasModel = STORY.model;
   STORY.model = 'Qwen3.6-WNTH-35B-A3B-NN';
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
 
   // COMMENTS ARE NOT SURFACE. The first version of this asserted /uncensored/ against the whole
   // rail and stayed GREEN with the badges deleted, because the comment above them quotes the
@@ -2699,7 +2726,7 @@ ok('the model panel reads the router, the preset file, this database and the id,
   // the label above it — the two render the same badge string for the same model, and a check
   // that cannot tell them apart proves nothing about the one it names.
   click({ modelmenu: '1' });
-  for (let i = 0; i < 20 && !/tok\/s/.test(html('rail')); i++) await new Promise((r) => setTimeout(r, 25));
+  for (let i = 0; i < 20 && !/data-modelinfo=/.test(html('rail')); i++) await sleep(25);
   const rail = visible(html('rail'));
   const list = rail.slice(rail.indexOf('data-modelinfo='));
   assert.ok(list.length > 200, 'the list must actually be open');
@@ -2715,7 +2742,7 @@ ok('the model panel reads the router, the preset file, this database and the id,
 
   // 3 · THE STORYTELLER, which is where a book pins its own.
   click({ panel: 'teller' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const teller = visible(html('sideBody'));
   assert.match(teller, /<span class="tag(?: [^"]*)?">Write<\/span>/, 'the badges are chips here, where there is room');
   assert.match(teller, /<span class="tag(?: [^"]*)?">uncensored<\/span>/);
@@ -2738,9 +2765,9 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   const visible = (h: string) => h.replace(/<!--[\s\S]*?-->/g, '');
   const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'teller' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const teller = visible(html('sideBody'));
   assert.doesNotMatch(teller, /Thinking is off/, 'the old note is gone');
   assert.doesNotMatch(teller, /genThinking/, 'and its tip card with it');
@@ -2766,14 +2793,14 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
 
   STORY.story.weaving = true;
   click({ panel: 'teller' }); click({ panel: 'teller' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   assert.match(visible(html('sideBody')).match(/<input type="checkbox" data-story="weaving"[^>]*>/)?.[0] ?? '',
     /checked/, 'and on, for a book that does');
   STORY.story.weaving = false;
 
   POSTED.length = 0;
   changeIn({ dataset: { story: 'weaving' }, type: 'checkbox', checked: true });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const saved = POSTED.find((p: any) => String(p.url) === '/api/story');
   assert.strictEqual(saved?.body.story.weaving, true, 'turning it on saves it to the book, with no Save pressed');
   assert.ok(POSTED.some((p: any) => String(p.url).startsWith('/api/manifest')),
@@ -2791,9 +2818,9 @@ ok('the Storyteller has a Weaving switch where the thinking note was, and it sav
   const teller = async (note: string) => {
     (STORY as any).weaveNote = note;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     click({ panel: 'teller' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     return visible(html('sideBody'));
   };
   try {
@@ -2816,16 +2843,16 @@ ok('a book whose model cannot be asked to weave, or always weaves, says so in th
   const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
   try {
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     (STORY as any).toast = 'Weaving is off for this book now (fixture).';
     changeIn({ dataset: { storymodel: '1' }, value: 'featherless:someone/No-Switch' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     const said = String(nodes.get('toast').textContent);
     assert.match(said, /Weaving is off for this book now \(fixture\)\./, `MOVE-TOAST: the writer is told weaving went off: ${said}`);
     assert.match(said, /This tale's model is/, 'MOVE-TOAST: beside the model it picked');
     delete (STORY as any).toast;
     changeIn({ dataset: { storymodel: '1' }, value: 'Qwen3.6-WNTH-35B-A3B-NN' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     assert.doesNotMatch(String(nodes.get('toast').textContent), /Weaving/, 'the control: a move that clears nothing says nothing of weaving');
   } finally { delete (STORY as any).toast; }
 }
@@ -2837,30 +2864,30 @@ ok('a book moved to a model that cannot take the switch says its weaving went of
 // scenario test/ui/weave.js reads that one.
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   let open!: () => void;
   const weaving = (STORY as any).weaves;
   try {
     // A book that does not weave says nothing of the kind while it waits.
     streamGate = new Promise<void>((r) => { open = r; });
     void click({ continue: '1' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.doesNotMatch(html('dockCol'), /Planning/, 'a book that does not plan never says Planning');
-    open(); await new Promise((r) => setTimeout(r, 60));
+    open(); await sleep(60);
 
     (STORY as any).weaves = true;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     streamGate = new Promise<void>((r) => { open = r; });
     void click({ continue: '1' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     // OFF THE BAR since 2026-10-27 (Seth: "remove the thinking from above the middle circle"). The
     // count lives in the passage being written, which this stub cannot read; test/ui/weave.js does.
     assert.doesNotMatch(html('dockCol'), /Planning/, 'nothing above the middle circle says Planning');
     let end!: () => void;
     endGate = new Promise<void>((r) => { end = r; });
-    open(); await new Promise((r) => setTimeout(r, 60));
-    end(); await new Promise((r) => setTimeout(r, 60));
+    open(); await sleep(60);
+    end(); await sleep(60);
   } finally { streamGate = null; endGate = null; (STORY as any).weaves = weaving; }
 }
 ok('a weaving book keeps its planning count off the bar above the middle circle');
@@ -2880,12 +2907,12 @@ ok('a weaving book keeps its planning count off the bar above the middle circle'
   try {
     (STORY as any).weaves = true; STORY.story.weaving = true;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
 
     // Refused: the row says what the server said, with both ways on, and nothing was written.
     stubRefuse = refusal(); POSTED.length = 0;
     click({ continue: '1' });
-    await new Promise((r) => setTimeout(r, 120));
+    await sleep(120);
     assert.ok(row(), `a refusal draws the row on the composer: ${html('dockCol').slice(0, 200)}`);
     assert.ok(row().includes('4 oldest passages still in view'), 'saying what would drop out');
     assert.match(row(), /data-weaveanyway[^>]*>\s*Write anyway\s*</, 'offering to write anyway');
@@ -2897,7 +2924,7 @@ ok('a weaving book keeps its planning count off the bar above the middle circle'
     // Write anyway: the same press again, with the override, and the row goes.
     stubRefuse = null; POSTED.length = 0;
     click({ weaveanyway: '1' });
-    await new Promise((r) => setTimeout(r, 300));
+    await sleep(300);
     assert.strictEqual(gens().length, 1, 'write anyway sends one generation');
     assert.strictEqual(gens()[0].body.weaveAnyway, true, 'with the override');
     assert.strictEqual(gens()[0].body.mode, 'continue', 'as the same press');
@@ -2906,11 +2933,11 @@ ok('a weaving book keeps its planning count off the bar above the middle circle'
     // Turn weaving off: the book's switch flips, then the same press writes without the override.
     stubRefuse = refusal(); POSTED.length = 0;
     click({ continue: '1' });
-    await new Promise((r) => setTimeout(r, 120));
+    await sleep(120);
     assert.ok(row(), 'refused again');
     stubRefuse = null; POSTED.length = 0;
     click({ weaveoff: '1' });
-    await new Promise((r) => setTimeout(r, 300));
+    await sleep(300);
     const saved = POSTED.findIndex((p: any) => p.url === '/api/story' && p.body.story?.weaving === false);
     const sent = POSTED.findIndex((p: any) => String(p.url).startsWith('/api/generate'));
     assert.ok(saved >= 0, 'turning weaving off saves the switch');
@@ -2924,11 +2951,11 @@ ok('a weaving book keeps its planning count off the bar above the middle circle'
     nodes.get('input').value = 'Hold the door.';
     stubRefuse = refusal(); POSTED.length = 0;
     click({ send: '1' });
-    await new Promise((r) => setTimeout(r, 200));
+    await sleep(200);
     assert.ok(row(), 'a speaking line can be refused too');
     stubRefuse = null;
     click({ weaveanyway: '1' });
-    await new Promise((r) => setTimeout(r, 300));
+    await sleep(300);
     assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/write').length, 1, 'your line goes on the page once');
     assert.strictEqual(gens().at(-1)?.body.weaveAnyway, true, 'and the model is asked again, with the override');
     assert.strictEqual(gens().at(-1)?.body.mode, 'speak', 'in the same mode');
@@ -2937,24 +2964,24 @@ ok('a weaving book keeps its planning count off the bar above the middle circle'
     // A re-roll that is refused re-rolls the same passage when written anyway.
     stubRefuse = refusal(); POSTED.length = 0;
     click({ re: 'p-4' });
-    await new Promise((r) => setTimeout(r, 200));
+    await sleep(200);
     assert.ok(row(), 'a re-roll can be refused');
     stubRefuse = null; POSTED.length = 0;
     click({ weaveanyway: '1' });
-    await new Promise((r) => setTimeout(r, 300));
+    await sleep(300);
     assert.strictEqual(gens()[0]?.body.regenerateOf, 'p-4', 'write anyway re-rolls the same passage');
     assert.strictEqual(gens()[0]?.body.weaveAnyway, true, 'with the override');
 
     // An overflow cannot be written anyway: the prompt would not fit beside the plan's room.
     stubRefuse = refusal(true);
     click({ continue: '1' });
-    await new Promise((r) => setTimeout(r, 120));
+    await sleep(120);
     assert.ok(row(), 'an overflow is refused on the row');
     assert.doesNotMatch(row(), /data-weaveanyway/, 'with no Write anyway, because it would not fit');
     assert.match(row(), /data-weaveoff/, 'and Turn weaving off still there');
   } finally {
     stubRefuse = null; (STORY as any).weaves = weaving; STORY.story.weaving = false;
-    click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
+    click({ open: 's-1' }); await sleep(40);
   }
 }
 ok('a weaving refusal is a row on the composer with Write anyway and Turn weaving off, and each sends the press again');
@@ -2972,11 +2999,11 @@ ok('a weaving refusal is a row on the composer with Write anyway and Turn weavin
   try {
     (STORY as any).weaves = true;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
 
     stubRefuse = refusal(); POSTED.length = 0;
     click({ continue: '1' });
-    await new Promise((r) => setTimeout(r, 120));
+    await sleep(120);
     assert.ok(row(), 'ALWAYS-ROW: a refusal on a model that always weaves draws the row');
     assert.doesNotMatch(row(), /data-weaveoff/, 'ALWAYS-ROW: with no Turn weaving off, which cannot work for it');
     assert.match(row(), /data-weaveanyway[^>]*>\s*Write anyway\s*</, 'ALWAYS-ROW: Write anyway');
@@ -2985,7 +3012,7 @@ ok('a weaving refusal is a row on the composer with Write anyway and Turn weavin
     // Use another model: the Storyteller opens on the book's model picker, nothing is saved or sent.
     stubRefuse = null; POSTED.length = 0;
     click({ weavemodel: '1' });
-    await new Promise((r) => setTimeout(r, 80));
+    await sleep(80);
     assert.match(html('sideBody'), /data-storymodel/, 'ALWAYS-MODEL: the Storyteller opens on the book\'s model picker');
     assert.ok(!row(), 'ALWAYS-MODEL: and the row is gone');
     assert.ok(!POSTED.some((p: any) => p.url === '/api/story' || String(p.url).startsWith('/api/generate')),
@@ -2996,14 +3023,14 @@ ok('a weaving refusal is a row on the composer with Write anyway and Turn weavin
     // An overflow: another model is the only way on.
     stubRefuse = refusal(true);
     click({ continue: '1' });
-    await new Promise((r) => setTimeout(r, 120));
+    await sleep(120);
     assert.ok(row(), 'ALWAYS-OVERFLOW: an overflow is refused on the row');
     assert.doesNotMatch(row(), /data-weaveanyway|data-weaveoff/, 'ALWAYS-OVERFLOW: with neither Write anyway nor Turn weaving off');
     assert.match(row(), /data-weavemodel/, 'ALWAYS-OVERFLOW: only Use another model for this book');
     stubRefuse = null;
   } finally {
     stubRefuse = null; (STORY as any).weaves = weaving;
-    click({ panel: '' }); click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
+    click({ panel: '' }); click({ open: 's-1' }); await sleep(40);
   }
 }
 ok('a refusal on a model that always weaves offers Write anyway and another model, never Turn weaving off');
@@ -3017,15 +3044,15 @@ ok('a refusal on a model that always weaves offers Write anyway and another mode
   try {
     (MANIFEST as any).weaveFit = { overflows: false, message: MSG, drops: [{ kind: 'PROSE', id: 'p-1' }] };
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     click({ panel: 'context' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     assert.ok(html('sideBody').includes('the oldest passage still in view'), 'the Context panel carries the refusal');
     delete (MANIFEST as any).weaveFit;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     if (!html('sideBody').includes('What he will read next time')) click({ panel: 'context' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     assert.ok(html('sideBody').includes('What he will read next time'), 'precondition: the Context panel is open');
     assert.ok(!html('sideBody').includes('still in view'), 'and says nothing when weaving fits');
   } finally { delete (MANIFEST as any).weaveFit; }
@@ -3043,21 +3070,21 @@ ok('the Context panel carries the weaving refusal the press would get, and nothi
   const rowIn = (id: string) => html(id).match(/<div id="weavefit"[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? '';
   try {
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     click({ panel: 'anansi' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     // Talk: refused, then written anyway, and the question is asked once, not twice.
     stubTalk = refusal; POSTED.length = 0;
     (document as any).getElementById('askBox').value = 'What is this story about?';
     click({ ask: '1' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     assert.ok(rowIn('sideBody').includes('2 oldest passages'), `a refused Talk draws the row in the Talk panel: ${rowIn('sideBody')}`);
     assert.match(rowIn('sideBody'), /data-weaveanyway/, 'with Write anyway');
     assert.match(rowIn('sideBody'), /data-weaveoff/, 'and Turn weaving off');
     assert.ok(!rowIn('dockCol'), 'and not on the composer, which did not make the press');
     stubTalk = null;
     click({ weaveanyway: '1' });
-    await new Promise((r) => setTimeout(r, 80));
+    await sleep(80);
     assert.strictEqual(talks().length, 2, 'write anyway asks again');
     assert.strictEqual(talks()[1].body.weaveAnyway, true, 'with the override');
     assert.strictEqual(talks()[1].body.said, 'What is this story about?', 'the same question');
@@ -3069,10 +3096,10 @@ ok('the Context panel carries the weaving refusal the press would get, and nothi
     stubTalk = refusal; POSTED.length = 0;
     (document as any).getElementById('askBox').value = 'Who is Marek?';
     click({ ask: '1' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     stubTalk = null;
     click({ weaveoff: '1' });
-    await new Promise((r) => setTimeout(r, 100));
+    await sleep(100);
     const off = POSTED.findIndex((p: any) => p.url === '/api/story' && p.body.story?.weaving === false);
     const again = POSTED.findLastIndex((p: any) => p.url === '/api/talk');
     assert.ok(off >= 0 && again > off, 'turn weaving off saves the switch, then asks again');
@@ -3080,16 +3107,16 @@ ok('the Context panel carries the weaving refusal the press would get, and nothi
 
     // Invent: the tray in the new-thread form.
     click({ panel: 'threads' }); click({ newlore: '1' }); click({ lorekind: 'lore' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     stubInvent = refusal; POSTED.length = 0;
     const press = (dataset: any) => (listeners.click ?? []).forEach((f: Function) => f({ target: { closest: () => ({
       dataset, querySelector: () => null, disabled: false, textContent: '', style: {}, closest: () => null }) } }));
     press({ invent: 'lore' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     assert.ok(rowIn('sideBody').includes('2 oldest passages'), 'a refused invention draws the row in its tray');
     stubInvent = null;
     click({ weaveanyway: '1' });
-    await new Promise((r) => setTimeout(r, 80));
+    await sleep(80);
     const inv = POSTED.filter((p: any) => p.url === '/api/invent');
     assert.strictEqual(inv.length, 2, 'write anyway invents again');
     assert.strictEqual(inv[1].body.weaveAnyway, true, 'with the override');
@@ -3097,7 +3124,7 @@ ok('the Context panel carries the weaving refusal the press would get, and nothi
     assert.ok(!rowIn('sideBody'), 'and the row is gone');
   } finally {
     stubTalk = null; stubInvent = null;
-    click({ newlore: '1' }); click({ open: 's-1' }); await new Promise((r) => setTimeout(r, 40));
+    click({ newlore: '1' }); click({ open: 's-1' }); await sleep(40);
   }
 }
 ok('a refused Talk or invention gets the same row where it was asked, and each button asks again');
@@ -3109,16 +3136,16 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
   const UNDO = { op: 'thread.set', thread: 'e-1', room: 'facts', addon: 'a-1', text: 'Marek is twenty.' };
   try {
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     click({ panel: 'anansi' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     stubTalk = { reply: 'Done: he is thirty now.', seconds: 1, tokens: 10,
       changes: [{ words: "Changed Marek's Always true: “Marek is thirty.”", undo: UNDO,
         diff: { before: 'Marek is twenty.', after: 'Marek is thirty.' } }] };
     POSTED.length = 0;
     (document as any).getElementById('askBox').value = 'Make Marek thirty';
     click({ ask: '1' });
-    await new Promise((r) => setTimeout(r, 80));
+    await sleep(80);
     const side = html('sideBody');
     assert.ok(side.includes('Changed Marek&#39;s Always true') || side.includes("Changed Marek's Always true"),
       `TALK-CHANGE-LINE: the change shows in the conversation, in the writer's words:\n${side.slice(0, 600)}`);
@@ -3135,7 +3162,7 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
     stubUndo = { error: 'Not undone: Marek has changed since Talk made it.' };
     POSTED.length = 0;
     click({ talkundo: btn![1] });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     const sent = POSTED.filter((p: any) => p.url === '/api/talk/undo');
     assert.strictEqual(sent.length, 1, 'TALK-UNDO-SENDS: one press, one Undo');
     assert.deepStrictEqual(sent[0].body.undo, UNDO, 'TALK-UNDO-SENDS: the change\'s own undo, as the server gave it');
@@ -3144,7 +3171,7 @@ ok('a refused Talk or invention gets the same row where it was asked, and each b
 
     stubUndo = null;
     click({ talkundo: btn![1] });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     assert.strictEqual(POSTED.filter((p: any) => p.url === '/api/talk/undo').length, 2,
       'TALK-UNDO-REFUSED: and a second press tries again');
     const after = html('sideBody');
@@ -3161,9 +3188,9 @@ ok('a change Talk made shows in the conversation with Undo, and Undo sends that 
   const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
   try {
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     click({ panel: 'anansi' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.match(html('sideBody'), /data-websearch="1"[^>]*>\s*Anansi may search/, 'SEARCH-LABEL: the switch reads "Anansi may search"');
     changeIn({ dataset: { websearch: '1' }, checked: true });
     stubTalk = { reply: 'Charon rows the dead.', seconds: 1, tokens: 10,
@@ -3172,7 +3199,7 @@ ok('a change Talk made shows in the conversation with Undo, and Undo sends that 
     POSTED.length = 0;
     (document as any).getElementById('askBox').value = 'Who is the ferryman?';
     click({ ask: '1' });
-    await new Promise((r) => setTimeout(r, 80));
+    await sleep(80);
     const sent = POSTED.find((p: any) => p.url === '/api/talk');
     assert.strictEqual(sent?.body.search, true, `SEARCH-PERMISSION: the ask sends permission, not the words (${sent?.body.search})`);
     const side = html('sideBody');
@@ -3191,17 +3218,17 @@ ok('the switch reads Anansi may search, sends permission, and every page he read
   const said = async (weaves: boolean) => {
     (STORY as any).weaves = weaves;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     click({ panel: 'anansi' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     let open!: (v: any) => void;
     stubTalk = new Promise((r) => { open = r; });
     (document as any).getElementById('askBox').value = 'What is this story about?';
     click({ ask: '1' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     const busy = html('sideBody');
     open({ reply: 'It is about a debt.', seconds: 1, tokens: 10 });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     return busy;
   };
   try {
@@ -3212,20 +3239,20 @@ ok('the switch reads Anansi may search, sends permission, and every page he read
     // A weaving Talk call gets the composer's count, and the composer does not: it made no press.
     (STORY as any).weaves = true;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     click({ panel: 'anansi' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     let open!: (v: any) => void;
     stubTalk = new Promise((r) => { open = r; });
     (document as any).getElementById('askBox').value = 'What is this story about?';
     click({ ask: '1' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.match(html('sideBody'), /id="talkweaving"[^>]*>Planning… 0s</, 'TALK-COUNT: a weaving Talk call says Weaving with the seconds');
     assert.doesNotMatch(html('dockCol'), /id="weaving"/, 'TALK-COUNT: and the composer, which made no press, shows no count');
-    await new Promise((r) => setTimeout(r, 1100));
+    await sleep(1100);
     assert.strictEqual(String(nodes.get('talkweaving')?.textContent), 'Planning… 1s', 'TALK-COUNT: and the count runs');
     open({ reply: 'It is about a debt.', seconds: 1, tokens: 10 });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     assert.doesNotMatch(html('sideBody'), /Planning…/, 'TALK-COUNT: the answer ends it');
     assert.doesNotMatch(html('sideBody'), /Thinking/, 'and never Thinking');
   } finally { stubTalk = null; (STORY as any).weaves = weaving; }
@@ -3239,18 +3266,18 @@ ok('the Talk panel counts the seconds while a weaving call waits, and says Askin
   const pressed = async (weaves: boolean) => {
     (STORY as any).weaves = weaves;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     let open!: (v: any) => void;
     stubInvent = new Promise((r) => { open = r; });
     const t: any = { dataset: { invent: 'lore' }, querySelector: () => null, disabled: false, textContent: 'Invent',
       style: {}, closest: () => null };
     (listeners.click ?? []).forEach((f: Function) => f({ target: { closest: () => t } }));
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     const busy = String(t.textContent);
-    await new Promise((r) => setTimeout(r, 1100));
+    await sleep(1100);
     const later = String(t.textContent);
     open({ title: 'The Rust Choir', duplicate: false });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     return { busy, later, after: String(t.textContent) };
   };
   try {
@@ -3273,34 +3300,34 @@ ok('an invention that weaves counts the seconds on its button, and one that does
   try {
     (STORY as any).weaves = true;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     streamGate = new Promise<void>((r) => { open = r; });
     let end!: () => void;
     endGate = new Promise<void>((r) => { end = r; });
     void click({ continue: '1' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     click({ panel: 'anansi' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     stubTalk = new Promise((r) => { answer = r; });
     (document as any).getElementById('askBox').value = 'What is this story about?';
     click({ ask: '1' });
     // Seconds as numbers, and rising rather than exact: Talk's count starts a turn after its press,
     // so an exact second is a race with this suite's own load.
     const secs = (id: string) => Number(/^Planning… (\d+)s$/.exec(String(nodes.get(id)?.textContent))?.[1] ?? NaN);
-    await new Promise((r) => setTimeout(r, 1100));
+    await sleep(1100);
     assert.ok(secs('weaving') >= 1, `TWO-COUNTS: a Talk press leaves the weaving passage's count running (${nodes.get('weaving')?.textContent})`);
     const talkAt = secs('talkweaving');
     assert.ok(talkAt >= 0, `TWO-COUNTS: and Talk counts its own (${nodes.get('talkweaving')?.textContent})`);
-    open(); await new Promise((r) => setTimeout(r, 60));
+    open(); await sleep(60);
     assert.strictEqual(String(nodes.get('weaving')?.textContent ?? ''), '', 'TWO-COUNTS: the passage\'s first word ends the passage\'s count');
     // POLLED, NOT ONE FIXED WAIT. A single 1.1 s sleep raced the next one-second tick, and under
     // test/all.ts's parallel load the tick landed late and this read the same second twice (flaked
     // 2026-10-26 and 2026-10-27). Up to 3 s for the count to rise; a stopped count still fails.
-    for (let i = 0; i < 30 && !(secs('talkweaving') > talkAt); i++) await new Promise((r) => setTimeout(r, 100));
+    for (let i = 0; i < 30 && !(secs('talkweaving') > talkAt); i++) await sleep(100);
     assert.ok(secs('talkweaving') > talkAt,
       `TWO-COUNTS: and Talk, still weaving, keeps counting (${talkAt} then ${nodes.get('talkweaving')?.textContent})`);
     answer({ reply: 'It is about a debt.', seconds: 1, tokens: 10 });
-    end(); await new Promise((r) => setTimeout(r, 60));
+    end(); await sleep(60);
   } finally { streamGate = null; endGate = null; stubTalk = null; (STORY as any).weaves = weaving; }
 }
 ok('a passage and a Talk call that weave at once each keep their own count');
@@ -3312,22 +3339,22 @@ ok('a passage and a Talk call that weave at once each keep their own count');
   try {
     (STORY as any).weaves = true;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     stubInvent = new Promise((r) => { answer = r; });
     const t: any = { dataset: { invent: 'lore' }, querySelector: () => null, disabled: false, textContent: 'Invent',
       style: {}, closest: () => null };
     const press = () => (listeners.click ?? []).forEach((f: Function) => f({ target: { closest: () => t } }));
     const secs = () => Number(/^Planning… (\d+)s$/.exec(String(t.textContent))?.[1] ?? NaN);
     press();
-    await new Promise((r) => setTimeout(r, 1050));
+    await sleep(1050);
     const first = secs();
     press();
-    await new Promise((r) => setTimeout(r, 1100));
+    await sleep(1100);
     assert.ok(secs() > first, `BUSY-INVENT: the second press leaves the first call's count running (${first} then ${t.textContent})`);
     assert.ok((globalThis as any).document.documentElement.dataset.work,
       'BUSY-INVENT: and the working ring stays up while the first call runs');
     answer({ title: 'The Rust Choir', duplicate: false });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     assert.strictEqual(String(t.textContent), 'Invent', 'BUSY-INVENT: and the button comes back when it answers');
   } finally { stubInvent = null; (STORY as any).weaves = weaving; }
 }
@@ -3354,7 +3381,7 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   };
 
   click({ modelmenu: '1' });
-  for (let i = 0; i < 20 && !/tok\/s/.test(html('rail')); i++) await new Promise((r) => setTimeout(r, 25));
+  for (let i = 0; i < 20 && !/data-modelinfo=/.test(html('rail')); i++) await sleep(25);
   const rail = visible(html('rail'));
   const row = (id: string) => {
     const at = rail.indexOf(`<button data-modelinfo="${id}"`);
@@ -3392,9 +3419,9 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   const wasModel = STORY.model;
   STORY.model = 'featherless:Grey/Kestrel-Heretic-24B';
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'teller' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const teller = visible(html('sideBody'));
   const option = (id: string) => teller.match(new RegExp(`<option value="${id}"[^>]*>([^<]*)</option>`))?.[1] ?? '';
   assert.match(option('Qwen3\\.6-WNTH-35B-A3B-NN'), / · local, awake$/, 'a loaded local option says so');
@@ -3410,7 +3437,7 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   // model list is read again first (taking another model off the shortlist does that), because a
   // fresh list is what put the writer default back on the strip while the book wrote remotely.
   click({ dropshort: 'featherless:Other/Unused-12B' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ modelmenu: '1' }); click({ modelmenu: '1' });
   const bookStrip = visible(html('rail'));
   const sAt = bookStrip.indexOf('<button data-modelmenu=');
@@ -3421,7 +3448,7 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   assert.match(stripBtn, /Kestrel Heretic 24B/, 'BOOK-STRIP: and names the model that writes the book');
   STORY.model = wasModel;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   ok('menu rows, the strip and the book\'s picker carry the circle and the spider or the feather');
 }
 
@@ -3436,21 +3463,21 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   const was = { model: STORY.model, pin: (STORY as any).pin, story: (STORY.story as any).model };
   const panelFor = async (id: string) => {
     click({ modelinfo: id });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     return strip(html('sideBody'));
   };
   modelsRemote = true;
   click({ dropshort: 'featherless:Other/Unused-12B' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
 
   // A guest in a book the owner pinned to a remote model on the OWNER's shortlist.
   STORY.model = LENT; (STORY as any).pin = lentRow; (STORY.story as any).model = LENT;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   // The list read again, which puts the writer default back in SRV.model: opening a book had set it
   // to the book's model, so a panel comparing with SRV.model passed right after opening.
   click({ dropshort: 'featherless:Other/Unused-12B' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const lent = await panelFor(LENT);
   // In words for a writer since 2026-10-25 (32,768 tokens); the admin sees "Featherless holds".
   assert.match(lent, /about 25,000 words/, 'LENT-PANEL: the limit, from the pin row the book carries');
@@ -3465,7 +3492,7 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   // panel still offers no switch, because the guest's own shortlist does not hold it.
   STORY.model = 'Qwen3.6-WNTH-35B-A3B-NN';
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const idle = await panelFor(LENT);
   assert.doesNotMatch(idle, /writing now/, 'the detector: here the pin is not writing');
   assert.doesNotMatch(idle, /data-pickmodel=/,
@@ -3478,9 +3505,9 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   STORY.model = was.model; (STORY as any).pin = was.pin; (STORY.story as any).model = was.story;
   modelsRemote = false;
   click({ dropshort: 'featherless:Other/Unused-12B' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
 }
 ok('the model panel in a book names what writes it, reads a lent pin\'s limit and cost, and offers no switch it cannot make');
 
@@ -3533,9 +3560,9 @@ ok('the model panel in a book names what writes it, reads a lent pin\'s limit an
   // The tray is SHUT until asked for — it is the only control in the app that sends any of the
   // book off the machine, so it does not sit open beside a Save button.
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'story' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const shut = html('sideBody');
   assert.match(shut, /data-drawcover="open"/, 'there is a door');
   assert.doesNotMatch(shut, /data-drawprompt/, 'and it is shut');
@@ -3565,7 +3592,7 @@ ok('the model panel in a book names what writes it, reads a lent pin\'s limit an
     // testing the wait rather than the guard.
     const settled = () => [...html('sideBody').matchAll(/data-usecover=|did not arrive/g)].length;
     const until = async (n: number) => {
-      for (let i = 0; i < 80 && settled() < n; i++) await new Promise((r) => setTimeout(r, 15));
+      for (let i = 0; i < 80 && settled() < n; i++) await sleep(15);
     };
     // ONE PER PRESS. Measured against the live endpoint: the first draw lands in 2.6s and every one
     // after it in about 45s, so a batch of four is two and a half minutes of blank grid before
@@ -3582,7 +3609,7 @@ ok('the model panel in a book names what writes it, reads a lent pin\'s limit an
     click({ drawcover: 'go' });
     click({ drawcover: 'go' });
     await until(2);
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     assert.strictEqual(peakFlight, 1,
       'the free tier holds one request per address, so two can never be in flight at once');
     assert.strictEqual(DRAWN.length, 2, 'the press that arrived mid-draw was dropped, not queued');
@@ -3640,9 +3667,9 @@ ok('a cover can be drawn: the book seeds the words, the writer owns them, and th
   const doc = (globalThis as any).document;
   const wasQS = doc.querySelector;
   click({ railview: 'workspace' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ nav: 'create' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
 
   const before = html('page');
   assert.match(before, /id="idea"/, 'before it sparks, the idea box is the screen');
@@ -3653,7 +3680,7 @@ ok('a cover can be drawn: the book seeds the words, the writer owns them, and th
     id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
   try {
     click({ spark: '1' });
-    for (let i = 0; i < 40 && !/data-sp=/.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25));
+    for (let i = 0; i < 40 && !/data-sp=/.test(html('page')); i++) await sleep(25);
   } finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
 
   const after = html('page');
@@ -3703,7 +3730,7 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
 {
   const doc = (globalThis as any).document;
   const wasQSA = doc.querySelectorAll, wasQS = doc.querySelector;
-  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await sleep(25); };
   // What the wizard reads off the screen when it harvests: a list per selector, nothing by default.
   let onScreen: Record<string, any[]> = {};
   doc.querySelectorAll = (sel: string) => onScreen[sel] ?? [];
@@ -3855,7 +3882,7 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
     doc.querySelector = (sel: string) => sel === '[data-sp-open]' ? { checked: false } : null;
     click({ acceptSpark: '1' });
     doc.querySelector = wasQS;
-    for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
+    for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/stories'); i++) await sleep(25);
     const made = POSTED.find((p) => p.url === '/api/stories');
     assert.ok(made, 'WIZ-CREATE: Start writing works with the warning showing');
     assert.match(made.body.writingStyle, /first person/, '  and keeps the Voice as the writer left it');
@@ -3876,7 +3903,7 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
       'WIZ-CREATE-QUESTIONS: only the ticked open questions are sent, to be made as strings');
     assert.strictEqual(made.body.opensWith, 'The east gallery at noon; thaw.',
       "WIZ-CREATE-OPENS: the opening moment goes as the writer left it, for scene 1's Opens with");
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
   } finally { doc.querySelectorAll = wasQSA; doc.querySelector = wasQS; }
 }
 ok('the wizard asks who you play before the threads, and ends in a preview that edits only the draft');
@@ -3888,11 +3915,11 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
 {
   const doc = (globalThis as any).document;
   const wasQS = doc.querySelector;
-  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await sleep(25); };
   click({ railview: 'workspace' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   click({ nav: 'create' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
   try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
   finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
@@ -3932,7 +3959,7 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
   doc.querySelector = (sel: string) => sel === '[data-sp-open]' ? { checked: false } : null;
   click({ acceptSpark: '1' });
   doc.querySelector = wasQS;
-  for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
+  for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/stories'); i++) await sleep(25);
   const made = POSTED.find((p) => p.url === '/api/stories');
   assert.ok(made, 'CLASH-CREATE: the tale is made');
   const by = (t: string) => made.body.entries.find((e: any) => e.title === t);
@@ -3942,7 +3969,7 @@ ok('the wizard asks who you play before the threads, and ends in a preview that 
   assert.strictEqual(by('Mara Voss').stands, 'Waits at the hall gate for Teodor.', '  and where she stands');
   assert.strictEqual(by('Teodor Ash').stands, 'Counting the dead at the gate.', 'CLASH-EDIT: where a thread stands, edited in the preview, is sent');
   assert.strictEqual(made.body.premise, 'Six houses have one winter to sign a peace none of them wants.', '  and the premise left alone');
-  await new Promise((r) => setTimeout(r, 60));
+  await sleep(60);
 }
 ok("Try it on's contradictions are shown with both places and a fix, and Use this changes only the draft");
 
@@ -3954,14 +3981,14 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
   const doc = (globalThis as any).document;
   const wasQSA = doc.querySelectorAll;
   let onScreen: Record<string, any[]> = {};
-  const settle = async (re: RegExp, id = 'page') => { for (let i = 0; i < 40 && !re.test(html(id)); i++) await new Promise((r) => setTimeout(r, 25)); };
+  const settle = async (re: RegExp, id = 'page') => { for (let i = 0; i < 40 && !re.test(html(id)); i++) await sleep(25); };
   const sparkTalks = () => POSTED.filter((p) => p.url === '/api/spark/talk');
   const ask = async (said: string) => {
     (document as any).getElementById('askBox').value = said;
     const n = sparkTalks().length;
     click({ ask: '1' });
-    for (let i = 0; i < 40 && sparkTalks().length === n; i++) await new Promise((r) => setTimeout(r, 25));
-    await new Promise((r) => setTimeout(r, 40));
+    for (let i = 0; i < 40 && sparkTalks().length === n; i++) await sleep(25);
+    await sleep(40);
     return sparkTalks().at(-1);
   };
   const ORIGINAL = 'Six houses have one winter to sign a peace none of them wants.';
@@ -3969,9 +3996,9 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
   const FERRY = { title: 'The Ferryman', entryType: 'character', activation: 'always_on',
     body: '[The Ferryman: rows the dead across for a coin]', keys: ['The Ferryman'] };
   click({ railview: 'workspace' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   click({ nav: 'create' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
   try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
   finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
@@ -4011,7 +4038,7 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
 
     // UNDO: the premise goes back to exactly what it was.
     click({ talkundo: '1:0' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.doesNotMatch(html('page'), new RegExp(DARKER), 'SETUP-TALK-UNDO: Undo takes the change back');
     assert.match(html('page'), new RegExp(ORIGINAL), 'SETUP-TALK-UNDO: and puts back exactly what was there');
     assert.match(html('sideBody'), /Undone/, 'SETUP-TALK-UNDO: and the line says so');
@@ -4024,7 +4051,7 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
 
     // ADD: the offer goes into the draft; its own Undo takes it out again.
     click({ talkadd: add![1] });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     next = await ask('Does that hold together?');
     let titles = next.body.draft.entries.map((e: any) => e.title);
     assert.ok(titles.includes('House Marren'), `SETUP-TALK-ADD: Add puts the offer in the draft (${titles})`);
@@ -4032,7 +4059,7 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     const addLine = html('sideBody').match(/Added a thread: House Marren[\s\S]*?data-talkundo="([^"]+)"/);
     assert.ok(addLine, 'SETUP-TALK-ADD: the Add is a line with its own Undo');
     click({ talkundo: addLine![1] });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     next = await ask('And now?');
     titles = next.body.draft.entries.map((e: any) => e.title);
     assert.ok(!titles.includes('House Marren'), `SETUP-TALK-ADD-UNDO: Undo takes the added thread out (${titles})`);
@@ -4061,7 +4088,7 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     (listeners.input ?? []).forEach((f: Function) => f({ target: typed2 }));
     onScreen = { '[data-sp]': [typed2] };
     click({ sparkstep: '3' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     onScreen = {};
     stubSparkTalk = { reply: 'A sharper one.', seconds: 1,
       changes: [{ words: 'Changed the premise: “Worse.”', change: { op: 'tale.set', field: 'premise', key: 'premise', text: 'Worse.',
@@ -4099,7 +4126,7 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
       `SETUP-TALK-NOTHING: nothing is saved before Start (${POSTED.map((p) => p.url).join(', ')})`);
     click({ dropSpark: '1' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.strictEqual(nodes.get('side').hidden, true, 'SETUP-TALK-DISCARD: Talk closes with the draft');
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')), 'SETUP-TALK-DISCARD: and Discard posts nothing');
   } finally { doc.querySelectorAll = wasQSA; stubSparkTalk = null; }
@@ -4113,13 +4140,13 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
 {
   const doc = (globalThis as any).document;
   const wasQSA = doc.querySelectorAll, wasQS = doc.querySelector;
-  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await sleep(25); };
   let onScreen: Record<string, any[]> = {};
   const startWizard = async () => {
     click({ railview: 'workspace' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     click({ nav: 'create' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
     try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
     finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
@@ -4127,8 +4154,8 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
   const create = async () => {
     const n = POSTED.length;
     click({ acceptSpark: '1' });
-    for (let i = 0; i < 40 && !POSTED.slice(n).some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
-    await new Promise((r) => setTimeout(r, 60));
+    for (let i = 0; i < 40 && !POSTED.slice(n).some((p) => p.url === '/api/stories'); i++) await sleep(25);
+    await sleep(60);
     return POSTED.slice(n);
   };
   doc.querySelectorAll = (sel: string) => onScreen[sel] ?? [];
@@ -4139,7 +4166,7 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
     onScreen = { '[data-sp]': [{ dataset: { sp: 'world' }, value: '  elden RING ' }] };
     click({ sparkstep: '2' });
     onScreen = {};
-    for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/spark/world'); i++) await new Promise((r) => setTimeout(r, 25));
+    for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/spark/world'); i++) await sleep(25);
     assert.strictEqual(POSTED.find((p) => p.url === '/api/spark/world')?.body.name, 'elden RING',
       'IP-LOOK: leaving the step looks the IP up among the writer\'s Worlds');
     click({ sparkstep: '5' });
@@ -4168,7 +4195,7 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
     click({ sparkstep: '5' });
     onScreen = {};
     await settle(/The tale's own thread/);
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     assert.doesNotMatch(html('page'), /Morgott/, 'IP-NONE: an IP with no World of that name brings nobody in');
     const none = (await create()).find((p) => p.url === '/api/stories');
     assert.deepStrictEqual([none?.body.world, none?.body.loreFrom ?? null], ['Dune', null],
@@ -4187,8 +4214,8 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
     onScreen = { '[data-sp]': [{ dataset: { sp: 'world' }, value: 'Elden Ring' }] };
     click({ sparkstep: '2' });
     onScreen = {};
-    for (let i = 0; i < 40 && worldDown > 0; i++) await new Promise((r) => setTimeout(r, 25));
-    await new Promise((r) => setTimeout(r, 40));
+    for (let i = 0; i < 40 && worldDown > 0; i++) await sleep(25);
+    await sleep(40);
     click({ sparkstep: '5' });
     await settle(/Morgott/);
     assert.match(html('page'), /Morgott/, 'IP-RETRY: a failed lookup is asked again on the next move');
@@ -4213,12 +4240,12 @@ ok('a new tale naming an IP the writer has a World for follows it, shows its peo
 {
   const doc = (globalThis as any).document;
   const wasQSA = doc.querySelectorAll;
-  const settle = async (re: RegExp, id = 'page') => { for (let i = 0; i < 40 && !re.test(html(id)); i++) await new Promise((r) => setTimeout(r, 25)); };
+  const settle = async (re: RegExp, id = 'page') => { for (let i = 0; i < 40 && !re.test(html(id)); i++) await sleep(25); };
   const looked = () => POSTED.filter((p) => p.url === '/api/spark/world').map((p) => p.body.name);
   click({ railview: 'workspace' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   click({ nav: 'create' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   doc.getElementById = (id: string) => id === 'idea' ? { value: 'A queen for the Omen King.' } : (nodes.get(id) ?? el(id));
   try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
   finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
@@ -4231,7 +4258,7 @@ ok('a new tale naming an IP the writer has a World for follows it, shows its peo
       changes: [{ words: 'Set in Elden Ring.', change: { op: 'tale.set', field: 'world', key: 'world', text: 'Elden Ring', before: '' } }] };
     (document as any).getElementById('askBox').value = 'It is set in Elden Ring';
     click({ ask: '1' });
-    for (let i = 0; i < 40 && !looked().length; i++) await new Promise((r) => setTimeout(r, 25));
+    for (let i = 0; i < 40 && !looked().length; i++) await sleep(25);
     assert.deepStrictEqual(looked(), ['Elden Ring'], 'SETUP-IP-HANDOVER: the World step looks the IP up among the writer\'s Worlds');
     click({ sparkstep: '8' });
     await settle(/creates all of this/);
@@ -4254,7 +4281,7 @@ ok('a new tale naming an IP the writer has a World for follows it, shows its peo
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
       `SETUP-IP-NOTHING: nothing is saved (${POSTED.map((p) => p.url).join(', ')})`);
     click({ dropSpark: '1' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
   } finally { doc.querySelectorAll = wasQSA; stubSparkTalk = null; }
 }
 ok('naming an IP in Talk during setup starts the World step, and its Undo lets go of the World');
@@ -4266,14 +4293,14 @@ ok('naming an IP in Talk during setup starts the World step, and its Undo lets g
 {
   const doc = (globalThis as any).document;
   const wasQSA = doc.querySelectorAll, wasQS = doc.querySelector;
-  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await sleep(25); };
   const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
   let onScreen: Record<string, any[]> = {};
   const startWizard = async () => {
     click({ railview: 'workspace' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     click({ nav: 'create' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
     try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
     finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
@@ -4281,8 +4308,8 @@ ok('naming an IP in Talk during setup starts the World step, and its Undo lets g
   const create = async () => {
     const n = POSTED.length;
     click({ acceptSpark: '1' });
-    for (let i = 0; i < 40 && !POSTED.slice(n).some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
-    await new Promise((r) => setTimeout(r, 60));
+    for (let i = 0; i < 40 && !POSTED.slice(n).some((p) => p.url === '/api/stories'); i++) await sleep(25);
+    await sleep(60);
     return POSTED.slice(n);
   };
   const nameIp = async (name: string) => {
@@ -4374,23 +4401,23 @@ ok('a new IP is looked up, ticked, added to and previewed, and only the ticked n
 {
   const doc = (globalThis as any).document;
   const wasQS = doc.querySelector;
-  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await sleep(25); };
   click({ railview: 'workspace' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   click({ nav: 'create' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
   try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
   finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
   click({ sparkstep: '3' });   // the threads step reads the library for its picker
-  await new Promise((r) => setTimeout(r, 80));
+  await sleep(80);
   click({ seedpick: 'e-1' });
   doc.querySelector = (sel: string) => sel === '[data-sp-open]' ? { checked: false } : wasQS.call(doc, sel);
   try {
     const n = POSTED.length;
     click({ acceptSpark: '1' });
-    for (let i = 0; i < 40 && !POSTED.slice(n).some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
-    await new Promise((r) => setTimeout(r, 80));
+    for (let i = 0; i < 40 && !POSTED.slice(n).some((p) => p.url === '/api/stories'); i++) await sleep(25);
+    await sleep(80);
     const sent = POSTED.slice(n);
     const made = sent.find((p) => p.url === '/api/stories');
     assert.deepStrictEqual(made?.body.seed, [{ storyId: 's-1', entryId: 'e-1' }],
@@ -4408,14 +4435,14 @@ ok('the picked threads and the open switch are sent in the one create, and nothi
 {
   const doc = (globalThis as any).document;
   const wasQSA = doc.querySelectorAll;
-  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25)); };
+  const settle = async (re: RegExp) => { for (let i = 0; i < 40 && !re.test(html('page')); i++) await sleep(25); };
   const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
   let onScreen: Record<string, any[]> = {};
   const startIn = async (ip: string, step: string) => {
     click({ railview: 'workspace' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     click({ nav: 'create' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     doc.getElementById = (id: string) => id === 'idea' ? { value: 'Six houses, one winter.' } : (nodes.get(id) ?? el(id));
     try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
     finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
@@ -4426,8 +4453,8 @@ ok('the picked threads and the open switch are sent in the one create, and nothi
   const create = async () => {
     const n = POSTED.length;
     click({ acceptSpark: '1' });
-    for (let i = 0; i < 40 && !POSTED.slice(n).some((p) => p.url === '/api/stories'); i++) await new Promise((r) => setTimeout(r, 25));
-    await new Promise((r) => setTimeout(r, 60));
+    for (let i = 0; i < 40 && !POSTED.slice(n).some((p) => p.url === '/api/stories'); i++) await sleep(25);
+    await sleep(60);
     return POSTED.slice(n).find((p) => p.url === '/api/stories');
   };
   doc.querySelectorAll = (sel: string) => onScreen[sel] ?? [];
@@ -4435,7 +4462,7 @@ ok('the picked threads and the open switch are sent in the one create, and nothi
     // A World the writer has: Morgott is offered on You, then marked in the opening on the preview.
     await startIn('Elden Ring', '2');
     for (let i = 0; i < 40 && !/<option value="Morgott"/.test(html('page')); i++) {
-      await new Promise((r) => setTimeout(r, 25)); click({ sparkstep: '2' }); }
+      await sleep(25); click({ sparkstep: '2' }); }
     assert.match(html('page'), /id="f-sp-cast">[\s\S]*<option value="Morgott">/, 'YOU-WORLD: You play offers the World\'s people');
     assert.match(html('page'), /id="f-sp-lockedCharacter"[\s\S]*<option value="Morgott"/, 'YOU-WORLD-HELD: and so does Hands off');
     click({ sparkstep: '5' });
@@ -4540,10 +4567,10 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
 // §8: "once you click on a card the marked as finished should only show in the edit version."
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'threads' });
   click({ entry: 'e-1' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const face = html('sideBody');
 
   const onAt = face.indexOf('How she sounds');
@@ -4561,7 +4588,7 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
 
   // §8 · READ SAYS WHAT IS TRUE; EDIT IS WHERE YOU CHANGE IT.
   click({ entry: 'e-done' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const done = html('sideBody');
   assert.match(done, /Retired at scene 2/, 'the face marks a retired thread');
   assert.doesNotMatch(done, /data-unretire=/, 'and offers no control — that is what the form is for');
@@ -4587,7 +4614,7 @@ ok('a card face reads body, then what is on, then what is not — and finishing 
 // ---- EVERY SCENE CAN BE DELETED FROM THE SCENES LIST (Seth, 2026-10-27).
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'chapters' });
   const list = html('sideBody');
   const rows = [...list.matchAll(/data-chapter="([^"]+)"/g)].map((m) => m[1]);
@@ -4601,7 +4628,7 @@ ok('every scene in Scenes has a delete beside it');
 // ---- THIS SCENE: A DIRECTION, AND SOMETHING ELSE (2026-10-27) ----
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'chapter' });
   const panel = html('sideBody');
   assert.match(panel, /data-chsteer="1"/, 'CH-STEER: This scene takes a direction for Anansi');
@@ -4611,7 +4638,7 @@ ok('every scene in Scenes has a delete beside it');
     : /data-chapter-title/.test(sel) ? { value: 'The Envoy' } : /data-chapter-opens/.test(sel) ? { value: '' }
     : /data-chapter-note/.test(sel) ? { value: 'Somewhere.' } : wasQS?.call(doc, sel) ?? null;
   click({ chbrief: 'again' });
-  await new Promise((r) => setTimeout(r, 60));
+  await sleep(60);
   doc.querySelector = wasQS;
   const ask = POSTED.filter((p: any) => p.url === '/api/chapter/propose').at(-1);
   assert.deepStrictEqual([ask?.body?.steer, ask?.body?.avoid], ['She stays.', { title: 'The Envoy', opens: '', note: 'Somewhere.' }],
@@ -4622,7 +4649,7 @@ ok('This scene takes a direction and asks for something else');
 // ---- THE TALE'S MENU: THE MODEL ON TOP, THEN SCENES BESIDE TWO COLUMNS OF TILES (Seth, 2026-10-28).
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ railview: 'story' });
   const rail = html('rail');
   assert.ok(rail.indexOf('class="talemodel"') > 0 && rail.indexOf('class="talemodel"') < rail.indexOf('class="tale3"'),
@@ -4658,7 +4685,7 @@ ok("both menus: the model on top, a list down the left (scenes, or tales), and t
 // your books; Import, Export and What you have written left the menu for it.
 {
   click({ railview: 'workspace' }); click({ nav: 'account' });
-  for (let i = 0; i < 40 && !/f-me-name/.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25));
+  for (let i = 0; i < 40 && !/f-me-name/.test(html('page')); i++) await sleep(25);
   const tabsOf = (h: string) => [...h.matchAll(/data-accttab="([a-z]+)"/g)].map((m) => m[1]);
   assert.deepStrictEqual(tabsOf(html('page')), ['profile', 'model', 'look', 'writing', 'books'], 'five pages, not one');
   assert.match(html('page'), /id="f-me-name" value="Seth"/, 'You: your name');
@@ -4683,7 +4710,7 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
 {
   const doc = (globalThis as any).document;
   click({ railview: 'workspace' }); click({ nav: 'account' }); click({ accttab: 'writing' });
-  for (let i = 0; i < 40 && !/data-editprompt=/.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25));
+  for (let i = 0; i < 40 && !/data-editprompt=/.test(html('page')); i++) await sleep(25);
   const page = html('page');
   assert.doesNotMatch(page, /The five modes and Reweave/, 'the heading no longer names a Reweave box it did not have');
   assert.match(page, /The five modes, in your words/, 'it names the five modes');
@@ -4715,14 +4742,14 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
   try {
     POSTED.length = 0;
     click({ saveprompt: 'reweave' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.deepStrictEqual(POSTED.filter((x) => String(x.url) === '/api/prompts').map((x) => x.body),
       [{ key: 'reweave', text: 'Take the other road. {{whatfailed}}' }], 'Save sends what is in the box, as reweave');
     // Saving a box must not blank the rest of the page: the voice editor above it stays drawn.
     assert.match(html('page'), /data-mydefaultvoice/, 'and the voice box above it is still there after Save');
     POSTED.length = 0;
     click({ resetprompt: 'reweave' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.deepStrictEqual(POSTED.filter((x) => String(x.url) === '/api/prompts').map((x) => x.body),
       [{ key: 'reweave', text: '' }], 'Reset sends it empty, which the route takes as the reset');
   } finally { doc.querySelector = wasQS; }
@@ -4734,7 +4761,7 @@ ok('Account → Writing shows When you reweave after the five modes, filled with
 // ---- THE TALE'S OWN THREAD IS A BANNER: its picture, or the colour its Library card wears (2026-10-27).
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'threads' }); click({ backentry: '1' });   // a thread left open by an earlier check
   assert.match(html('sideBody'), /class="card plate thplate talebanner full-left" data-taleopen="1" style="background:/,
     'the tale heads the threads as a banner with a background');
@@ -4777,7 +4804,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
 // attribute to the same condition the colour uses.
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
 
   // THE RAIL: exactly one row is the one you are on. `aria-current`, not `aria-pressed` — these
   // are places you go, one of which you are at, rather than switches.
@@ -4795,9 +4822,12 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
 
   // THE CHAPTER LIST: same rule, and the fixture has more than one chapter so it can fail.
   click({ railview: 'story' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const chapters = [...html('rail').matchAll(/data-chapter="([^"]+)"([^>]*?)>/g)];
-  if (chapters.length > 1) {
+  // Asserted rather than guarded: it was `if (chapters.length > 1)` with no else, so a rail that
+  // drew no chapter rows at all skipped both checks below and printed green.
+  assert.ok(chapters.length > 1, `the rail lists the fixture's chapters, and it drew ${chapters.length}`);
+  {
     const marked = chapters.filter((m) => /aria-current="true"/.test(m[2])).map((m) => m[1]);
     assert.strictEqual(marked.length, 1, 'one chapter is the one you are writing');
     assert.strictEqual(marked[0], 'c-2', 'and it is the open one, not the first in the list');
@@ -4811,7 +4841,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   // panel could not be reached from here without unwinding it.
   click({ entry: 'e-1' });
   click({ cardview: 'form' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const worn = html('sideBody');
   assert.match(worn, /data-wear="e-1:o-worn"[^>]*>\s*Worn — take it off/,
     'the coat that is on says so in its label');
@@ -4827,7 +4857,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   // three wizard helpers and the Story panel's field loop, which is where most of this app's fields
   // come from — four sites rather than the sixty-odd call sites.
   click({ panel: 'story' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const story = html('sideBody');
   const fors = [...story.matchAll(/<label[^>]*\bfor="([^"]+)"/g)].map((m) => m[1]);
   const ids = new Set([...story.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
@@ -4847,12 +4877,12 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
 // to offer only the presses that can actually work from where the card lives.
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'threads' });
 
   // ---- READ THROUGH from the book this one follows. One card, not two copies kept in step.
   click({ entry: 'e-shared' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const shared = html('sideBody');
   assert.match(shared, /This thread lives in The Ash Cycle/, 'the face says where it lives');
   // THE BODY IS EDITABLE AND SAVES TO THE OTHER BOOK. It could not before: `upsertEntry` is scoped
@@ -4876,7 +4906,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   // ---- TAKEN OVER. An ordinary card of this book that remembers the origin, so there are two
   // ways back and the face has to offer both — keeping this version or keeping the world's.
   click({ entry: 'e-took' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const took = html('sideBody');
   assert.match(took, /This tale's own copy, taken from The Ash Cycle/,
     'the face says it is a copy and where from — otherwise it is indistinguishable from a card '
@@ -4891,7 +4921,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   // name under Part of a world. Without that list, removing a thread is a one-way door with no
   // undo on any screen.
   click({ panel: 'story' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const story = html('sideBody');
   assert.match(story, /Taken out of this tale/, 'what this book has removed is named');
   assert.match(story, /The Quay Office/, 'by title');
@@ -4913,7 +4943,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
 // and scrolls above the bottom; the fallback slams to `scrollHeight`. The two are different numbers.
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const read = nodes.get('read');
   // A DETERMINISTIC REDRAW OF THE COLUMN AND NOTHING ELSE. `readmode` calls `drawDoc()` directly and
   // setting it to the value it already has changes no state — so each call is exactly one draw,
@@ -4982,9 +5012,9 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
 // margin — invisible as the top of a column, nothing at all between two chapters.
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ readmode: '1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const doc = html('col');
   const chapters = [...doc.matchAll(/<section class="chap(?: [^"]*)?" id="ch-(\d+)"/g)].map((m) => m[1]);
   assert.ok(chapters.length > 1, `reading mode draws every chapter and drew ${chapters.length}`);
@@ -4998,7 +5028,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   assert.ok(doc.indexOf('class="chapbreak"') > doc.indexOf('id="ch-1"'),
     'and the first break comes after the first chapter has started, not before it');
   click({ readmode: '0' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   // WRITING STILL DRAWS ONE, which is the trade #37 deliberately kept — so no break at all.
   assert.strictEqual((html('col').match(/class="chapbreak(?: [^"]*)?"/g) ?? []).length, 0,
     'writing draws one chapter, so there is nothing to separate');
@@ -5028,10 +5058,10 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   // below read a card bar and report that the list has no pictures in it, which is true and not
   // what they are asking.
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ backentry: '1' });
   click({ panel: 'threads' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   // AND SHUT THE WRITE-IT-DOWN TRAY IF IT IS OPEN, which an earlier block leaves it. The panel draws
   // the tray INSTEAD of the list, so this is about reaching the list at all.
   //
@@ -5040,7 +5070,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   // the tray it was trying to close, and every assertion below then failed for the wrong reason.
   if (!/data-entry=/.test(html('sideBody'))) {
     click({ newlore: '1' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
   }
   const list = html('sideBody');
   assert.match(list, /data-entry=/, 'the thread LIST is what these assertions read');
@@ -5053,7 +5083,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
 
   // 2 · THE READ FACE.
   click({ entry: 'e-1' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const face = html('sideBody');
   assert.ok(src(face, 'e-1'), 'the read face shows it');
   assert.ok(before(face, 'entry=e-1', 'Envoy Sereth'), 'above the name');
@@ -5062,7 +5092,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   // under More, at the top with the kind (Seth, 2026-10-25: "move em under more"). Both halves:
   // past the thread tab's fields, and first under More.
   click({ cardview: 'form' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const form = html('sideBody');
   assert.ok(src(form, 'e-1'), 'the form shows it');
   assert.ok(before(form, 'f-card-body', 'entry=e-1'),
@@ -5075,9 +5105,9 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   // 4 · A FOLLOWED THREAD'S FACE. Its picture lives in the book the thread lives in, and this face
   // is read-only about everything else — the picture is the one thing it can still show.
   click({ panel: 'threads' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   click({ entry: 'e-shared' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const shared = html('sideBody');
   assert.ok(src(shared, 'e-shared'), 'a followed thread shows its picture too');
   assert.ok(before(shared, 'entry=e-shared', 'The Ambersand'), 'above its name');
@@ -5092,13 +5122,13 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
     { id: 'er-1', field: 'pocket:ad-9', label: 'Always true', previous_value: 'a ferryman, forty', replaced_at: 1, replaced_by: 'human' },
     { id: 'er-2', field: 'title', label: null, previous_value: 'Sereth', replaced_at: 1, replaced_by: 'human' }] };
   click({ panel: 'threads' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   click({ entry: 'e-1' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   click({ cardview: 'form' });
   click({ cardtab: 'more' });
   click({ fieldhistory: '1' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const more = html('sideBody');
   assert.match(more, /<span class="kind">Always true<\/span>/, 'POCKET-SHOWN: the Always true is named as itself');
   assert.match(more, /a ferryman, forty/, '  with its old text');
@@ -5118,13 +5148,13 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
 // ids — a followed thread has a picture in the book it lives in and not in the book following it.
 {
   click({ leave: '1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   // `canon` is the KEY; `threads` is only the glyph beside it in WNAV. And `loadLedger` is async and
   // paints when it lands, so the first read says "Reading the threads…" — waited for rather than
   // slept past, or this asserts a loading line.
   click({ nav: 'canon' });
   for (let i = 0; i < 40 && !/data-entry=/.test(html('page')); i++)
-    await new Promise((r) => setTimeout(r, 25));
+    await sleep(25);
   const page = html('page');
   assert.match(page, /Halsey/, 'the cross-story page is up');
   assert.match(page, /<img src="[^"]*story=s-1[^"]*entry=e-1/,
@@ -5143,19 +5173,19 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
 {
   const doc = (globalThis as any).document;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'story' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   // §1 · THE THIRD PLACE. Blank-create and spark step 2 had the example; editing an existing book
   // did not, and it is the one you come back to.
   assert.match(html('sideBody'), /She came up the stair and the rain came with her/,
     'the Story panel shows a line of prose for the point of view it is set to');
 
   click({ railview: 'workspace' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   click({ nav: 'create' });
   click({ blank: '1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const form = html('page');
   assert.match(form, /id="seedq"/, 'the form offers the library');
   // Unsearched it shows what is picked and nothing else — the library is hundreds of cards, and a
@@ -5184,7 +5214,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
 
     POSTED.length = 0;
     click({ makeblank: '1' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     const made = POSTED.find((x) => String(x.url) === '/api/stories');
     assert.ok(made, `the story is created (${POSTED.map((x) => x.url).join(', ')})`);
     assert.strictEqual(made.body.premise, typed,
@@ -5210,9 +5240,9 @@ ok('a book can be started from threads already in the library, and they are copi
 // to open that panel. The card is where you look before you press.
 {
   click({ railview: 'workspace' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   click({ nav: 'stories' });
-  for (let i = 0; i < 40 && !/model missing/.test(html('page')); i++) await new Promise((r) => setTimeout(r, 25));
+  for (let i = 0; i < 40 && !/model missing/.test(html('page')); i++) await sleep(25);
   const shelf = html('page');
 
   const card = (id: string) => {
@@ -5262,9 +5292,9 @@ ok('the shelf marks a book pinned to a model the router no longer serves');
 {
   const doc = (globalThis as any).document;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'story' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const panel = html('sideBody');
   assert.match(panel, /data-restyle="1"/, 'the style field has a re-roll');
   // ONE FIELD, NOT ALL OF THEM. Voice is yours and a premise cannot guess it; the house style is
@@ -5278,7 +5308,7 @@ ok('the shelf marks a book pinned to a model the router no longer serves');
   try {
     POSTED.length = 0;
     click({ restyle: '1' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     assert.ok(POSTED.some((x) => String(x.url) === '/api/style'), 'it asks the route');
     assert.strictEqual(box.value, 'Wet streets and short sentences.',
       'and writes what came back into the box');
@@ -5300,13 +5330,13 @@ ok('the house style can be re-rolled, into the box and not into the story');
 {
   const doc = (globalThis as any).document;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   // In Account → Writing since 2026-10-27; the Storyteller keeps a door to it.
   click({ panel: 'teller' });
   assert.match(html('sideBody'), /data-acctgo="writing"/, 'the Storyteller points at Account → Writing');
   click({ acctgo: 'writing' });
   for (let i = 0; i < 40 && !/data-mydefaultvoice/.test(html('page')); i++) {
-    await new Promise((r) => setTimeout(r, 25));
+    await sleep(25);
   }
   const teller = html('page');
   // THE DEFAULT VOICE HAD NO SURFACE AT ALL. Only the two spark buttons read it, while the server
@@ -5320,9 +5350,9 @@ ok('the house style can be re-rolled, into the box and not into the story');
   assert.doesNotMatch(teller, /data-editprompt="voice:Noir"/, 'and it is not listed as a mode');
 
   click({ open: 's-1' });   // back into the tale, which Account took us out of
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ panel: 'story' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const story = html('sideBody');
   assert.match(story, /data-applylib="voice:Noir"/, 'the saved voice is on the shelf beside the field');
   assert.match(story, /data-dellib="voice:Noir"/, 'with a way to forget it');
@@ -5338,7 +5368,7 @@ ok('the house style can be re-rolled, into the box and not into the story');
   try {
     POSTED.length = 0;
     click({ applylib: 'voice:Noir' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.strictEqual(box.value, 'Wet streets. Nobody explains themselves.', 'it copies in');
     assert.deepStrictEqual(POSTED.map((x) => String(x.url)), [],
       'and writes nothing anywhere — Save is still the press that keeps it');
@@ -5353,7 +5383,7 @@ ok('the house style can be re-rolled, into the box and not into the story');
   try {
     POSTED.length = 0;
     click({ savelib: 'voice' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     const sent = POSTED.find((x) => String(x.url) === '/api/prompts');
     assert.ok(sent, 'it saves through the prompt route rather than a table of its own');
     assert.strictEqual(sent.body.key, 'voice:Harbour', 'namespaced by kind and name');
@@ -5378,7 +5408,7 @@ ok('a voice can be saved to the library, pulled back into any book, and the defa
     // Nothing on the shelf, and the router down.
     shelf({ stories: [], model: null, slot: null, gen: STORY.gen, look: null });
     click({ home: '1' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     const cold = html('page');
     assert.match(cold, /Nothing in the library yet/, 'an empty shelf is the idea box, not a heading');
     assert.match(cold, /id="idea"/, 'and the box is on it, rather than a button that goes to find one');
@@ -5393,7 +5423,7 @@ ok('a voice can be saved to the library, pulled back into any book, and the defa
     // unconditionally passes every assertion above and lies to everyone whose model is running.
     shelf({ stories: [], model: 'Qwen3.6-WNTH-35B-A3B-NN', slot: SLOT, gen: STORY.gen, look: null });
     click({ home: '1' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     const warm = html('page');
     assert.match(warm, /Nothing in the library yet/, 'still the idea box');
     assert.doesNotMatch(warm, /The model is asleep/,
@@ -5404,7 +5434,7 @@ ok('a voice can be saved to the library, pulled back into any book, and the defa
   } finally {
     shelfOverride = null;
     click({ home: '1' });
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
   }
 }
 ok('a first run is the idea box, and says the model is asleep only when it is');
@@ -5422,14 +5452,14 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 {
   click({ leave: '1' });
   click({ railview: 'workspace' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ nav: 'canon' });
-  await new Promise((r) => setTimeout(r, 60));
+  await sleep(60);
   // THE PAGE OPENS ON ONE BOOK — the one you were last writing in — so every other book has no
   // group at all until this. The first version of this test pressed a group that was not on the
   // page and read the word "World book" off the New-world-book row instead, which passed.
   click({ lookall: '1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const page = html('page');
   assert.doesNotMatch(page, /Reading the threads/,
     'the Threads page finishes loading — it hung here for ever when a world book threw');
@@ -5442,7 +5472,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
   // Open the world book's group and it wears its own tag rather than a writing status.
   click({ lbook: 's-5' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   // #books, not #page: opening a group repaints only that element.
   const opened = html('books');
   assert.match(opened, /class="lbanner(?: [^"]*)?"/, 'the world book gets a banner too');
@@ -5532,7 +5562,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // this one leaves the app on Threads. Asserted rather than assumed: without this the whole
   // section passes for the wrong reason if the guard is ever what breaks.
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   // The sampler reads the whole panel, so the fake has to BE a panel of sliders.
   const gens = [
     { dataset: { gen: 'temperature' }, type: 'range', value: '1.1' },
@@ -5543,7 +5573,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   try {
     POSTED.length = 0;
     changeIn(gens[0]);
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     const gen = POSTED.find((p: any) => String(p.url) === '/api/settings');
     assert.ok(gen, 'letting go of a sampler slider saves it with no Save pressed');
     // ALL THREE, because that is what the Save button always sent and what the route merges.
@@ -5555,12 +5585,12 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     // Storyteller redraws its sliders from the saved values, so moving another one cannot send the
     // old ones back.
     click({ panel: 'teller' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.match(html('sideBody'), /data-gen="temperature"[^>]*value="1\.1"/, 'GEN-KEPT: the Storyteller draws the saved Surprise');
 
     POSTED.length = 0;
     changeIn({ dataset: { story: 'coverOpacity' }, type: 'range', value: '55' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     const cov = POSTED.find((p: any) => String(p.url) === '/api/story');
     assert.ok(cov, 'and so does the cover slider on the story panel');
     assert.strictEqual(cov.body.story.coverOpacity, 55, 'as a number the column can clamp');
@@ -5568,7 +5598,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     // The two that already worked, asserted here so a future guard cannot drop them quietly.
     POSTED.length = 0;
     changeIn({ dataset: { story: 'lockoutOn' }, type: 'checkbox', checked: false });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     const box = POSTED.find((p: any) => String(p.url) === '/api/story');
     assert.ok(box, 'a checkbox still saves itself');
     assert.strictEqual(box.body.story.lockoutOn, false,
@@ -5576,7 +5606,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
     POSTED.length = 0;
     changeIn({ dataset: { story: 'pov' }, tagName: 'SELECT', type: 'select-one', value: 'first' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.ok(POSTED.find((p: any) => String(p.url) === '/api/story'), 'a picker still saves itself');
 
     // AND THE ABSENCE, which is the half that passes for the wrong reason. Text must still wait:
@@ -5584,7 +5614,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     POSTED.length = 0;
     changeIn({ dataset: { story: 'premise' }, type: 'text', value: 'half a th' });
     changeIn({ dataset: { story: 'title' }, tagName: 'TEXTAREA', type: 'textarea', value: 'half a ti' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.strictEqual(POSTED.filter((p: any) => String(p.url) === '/api/story').length, 0,
       'and typing into free text still commits nothing until Save');
   } finally { doc.querySelectorAll = wasQSA; }
@@ -5622,7 +5652,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     sideBody.innerHTML = 'STALE';
     box.value = 'half a premise';
     changeIn({ dataset: { story: 'chapterHero' }, type: 'checkbox', checked: true });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     assert.notStrictEqual(html('sideBody'), 'STALE',
       'ticking a checkbox redraws the panel, with no Save pressed');
     assert.strictEqual(box.value, 'half a premise',
@@ -5634,7 +5664,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     // commitStory's own comment and this is what keeps it fixed.
     sideBody.innerHTML = 'STALE';
     changeIn({ dataset: { story: 'spice' }, tagName: 'SELECT', type: 'select-one', value: 'custom' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     assert.strictEqual(html('sideBody'), 'STALE',
       'and a picker still does not redraw the panel under the writer');
   } finally {
@@ -5666,15 +5696,15 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     // The report is about the chapter being written until one closes, and that is `currentChapter`.
     STORY.currentChapter = { ...STORY.currentChapter, summary: 'The envoy waits.', summaryAuthor: 'human' } as any;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     click({ panel: 'ritual' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.doesNotMatch(html('sideBody'), /Kept your summary/i,
       'before a close, the closing report does not say it kept your summary');
     assert.match(html('sideBody'), /Your summary/, '  and it says the summary is yours');
     STORY.chapters = wasChapters; STORY.currentChapter = wasCurrent;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
   }
 
   /** The tale as it is after Scene 2 was hemmed: Scene 2 closed and carrying its hem, and an empty
@@ -5689,9 +5719,9 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
         coversThrough: null, summaryStale: false, keepWhole: false, hem: null }] as any;
     STORY.currentChapter = { ...STORY.chapters[2] } as any;
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     click({ ritual: '1' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     return html('sideBody');
   };
   const ran = { summary: null, memory: null, facts: null, finished: null, next: null };
@@ -5727,7 +5757,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(side, /Kept your summary/, 'a hem over yours says it kept your summary');
   assert.doesNotMatch(side, /did not run/, '  and not as a pass that did not run');
   click({ panel: 'setup' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   assert.match(html('sideBody'), /hemmed, kept your summary/, '  and the row for the scene that was hemmed says it');
   side = await reportOn(ran, { kept: true, author: 'model' });
   assert.doesNotMatch(side, /Kept your summary/,
@@ -5741,7 +5771,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(side, /Your summary/, '  and it still says the summary is yours');
   STORY.chapters = wasChapters; STORY.currentChapter = wasCurrent;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   ok('the hem report says which of its passes did not run, and why, from the scene itself (#32, #92)');
 
   // ---- DELETE-AFTER NAMES THE SUMMARIES OF YOURS IT WOULD CLEAR (#46). It clears the summary of
@@ -5756,10 +5786,10 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     }));
     const said = () => String(nodes.get('toast').textContent);
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     afterYours = [{ id: 'c-2', index: 2, title: 'The Envoy' }];
     press({ delafter: 'p-0' });
-    await new Promise((r) => setTimeout(r, 20));
+    await sleep(20);
     assert.strictEqual(afterAsked, 'p-0', 'the first press asks about the passage pressed');
     assert.match(said(), /clears your summary of The Envoy\./,
       'delete-after names the chapter whose summary of yours it clears');
@@ -5767,13 +5797,13 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     // Nothing of yours below the cut: it says only what it always said.
     afterYours = [];
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     press({ delafter: 'p-1' });
-    await new Promise((r) => setTimeout(r, 20));
+    await sleep(20);
     assert.match(said(), /^Press again to delete every passage below this one\.$/,
       "  and with nothing of yours below the cut it says only what it always said");
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     ok('delete-after names the chapters whose summary of yours it would clear');
   }
 
@@ -5799,9 +5829,9 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // #92. Hem this scene lands the writer in the new scene now, not on this panel; the panel opens
   // on the cards whenever it is opened while they are owed.
   click({ skipsetup: '1' });
-  await new Promise((r) => setTimeout(r, 20));
+  await sleep(20);
   click({ panel: 'setup' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   side = html('sideBody');
   assert.match(side, /data-setupstep="cards"/, 'the setup panel has a cards step');
   // THE STEP THAT IS LIT, not merely present. Read off the rail's own highlight, which is what a
@@ -5828,9 +5858,9 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
    * `skipsetup` clears `S.setupStep` (and only that), so it stands in for the reload exactly: the
    * next open has no remembered step and must fall back on the DATA. */
   click({ skipsetup: '1' });
-  await new Promise((r) => setTimeout(r, 20));
+  await sleep(20);
   click({ panel: 'setup' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   assert.deepStrictEqual(litStep(html('sideBody')), ['cards'],
     'with no remembered step and a proposal still open against a closed chapter, the panel opens on '
     + 'the cards — this is the half a reload used to lose');
@@ -5843,9 +5873,9 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     body: 'He takes coin from one hand only.', entryType: 'lore', keys: [], kind: 'new',
     delta: 'New face.', chapterId: 'c-1' } as any);
   click({ skipsetup: '1' });
-  await new Promise((r) => setTimeout(r, 20));
+  await sleep(20);
   click({ panel: 'setup' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   assert.deepStrictEqual(litStep(html('sideBody')), ['more'],
     'a close that proposed only NEW threads opens on Anyone new, where they now live');
   const anyoneNew = html('sideBody');
@@ -5859,7 +5889,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     body: 'She has stopped waiting.', entryType: 'character', keys: [], kind: 'changed',
     delta: 'stopped waiting', chapterId: 'c-1' } as any);
   click({ setupstep: 'cards' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const whatLeft = html('sideBody');
   assert.deepStrictEqual(litStep(whatLeft), ['cards'], 'the cards step is reachable with a change on it');
   assert.match(whatLeft, /stopped waiting/, 'and holds what the chapter changed');
@@ -5870,14 +5900,14 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(whatLeft, /3 &middot; Anyone new <span[^>]*>1</, 'and one new thread on step three');
 
   click({ setupstep: 'more' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   assert.doesNotMatch(html('sideBody'), /stopped waiting/,
     'and a change must not sit under Anyone new either');
   STORY.proposals = STORY.proposals.filter((p: any) => !['pr-new', 'pr-old'].includes(p.id));
   click({ skipsetup: '1' });
-  await new Promise((r) => setTimeout(r, 20));
+  await sleep(20);
   click({ panel: 'setup' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   assert.deepStrictEqual(litStep(html('sideBody')), ['premise'],
     'and with nothing owed from a closed chapter it opens on the next chapter');
   /* ANYONE NEW IS THE ACCENTED PRESS ON THE BEAT STEP, AND IT IS FIRST. Seth, 2026-09-01: "make the
@@ -5887,7 +5917,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
    * there, below Save and write, wearing the ghost style. A check for its presence was green
    * throughout. */
   click({ setupstep: 'premise' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   const beat = html('sideBody');
   const at = (re) => beat.search(re);
   const anyone = at(/<button class="btn(?! ghost)(?: [^"]*)?" data-setupstep="more"/);
@@ -5923,11 +5953,11 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     // fallback exists for. Without it the pointer from the close above still names c-2 and wins,
     // correctly, and the fallback under test is never reached.
     click({ ritual: '1' });
-    await new Promise((r) => setTimeout(r, 20));
+    await sleep(20);
     click({ skipsetup: '1' });
-    await new Promise((r) => setTimeout(r, 20));
+    await sleep(20);
     click({ panel: 'setup' });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     assert.deepStrictEqual(litStep(html('sideBody')), ['premise'],
       'a queue from two chapters back is not a debrief — it opens on the next chapter');
     assert.doesNotMatch(html('sideBody'), /Two chapters ago/, 'and does not draw it');
@@ -5962,7 +5992,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
   for (const [panel, label] of [['story', 'Tale'], ['chapter', 'This scene'], ['teller', 'Storyteller']]) {
     click({ panel });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     const body = html('sideBody');
     const bar = body.match(/<div class="savebar(?: [^"]*)?">[\s\S]*?<\/div>/)?.[0] ?? '';
     assert.ok(bar, `the ${label} panel draws a .savebar`);
@@ -5996,7 +6026,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   const { readFileSync } = await import('node:fs');
   const sheet = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
   click({ panel: 'chapter' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   const body = html('sideBody');
 
   const GROUPS = ['this', 'proposed', 'summaries', 'branches'];
@@ -6084,7 +6114,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
   // AND IT STARTS SHUT, ON THE PANEL, which is the half the source cannot answer.
   click({ panel: 'story' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   let body = html('sideBody');
   assert.match(body, /data-tip="sCover"/, 'the Story panel draws its marks');
   assert.match(body, /id="tip-sCover" hidden/, 'and the explanation behind one starts folded away');
@@ -6126,19 +6156,19 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // correct redraw, because both leave the markup looking right.
   nodes.get('sideBody').innerHTML = 'STALE';
   click({ tip: 'sCover' });
-  await new Promise((r) => setTimeout(r, 30));
+  await sleep(30);
   assert.strictEqual(html('sideBody'), 'STALE',
     'opening an explanation does not repaint the panel under the writer');
 
   // ...and the state survives the next repaint that DOES happen, or a checkbox would shut it.
   click({ panel: 'story' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   body = html('sideBody');
   assert.match(body, /id="tip-sCover"(?! hidden)/,
     'and it is still open after an unrelated repaint');
   click({ tip: 'sCover' });
   click({ panel: 'story' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   assert.match(html('sideBody'), /id="tip-sCover" hidden/, 'pressing it again folds it back');
 
   /* ---- A WEB DRAWN ON TWO SCREENS OPENS ON BOTH. `persona` and `locked` are on the Story panel
@@ -6170,7 +6200,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 // The tap is asserted on a DIRECTED passage, because that is the one whose press used to open the box
 // and generate nothing: the half that would pass for the wrong reason on an undirected one.
 {
-  const wait = (ms = 40) => new Promise((r) => setTimeout(r, ms));
+  const wait = (ms = 40) => sleep(ms);
   const gens = () => POSTED.filter((x: any) => String(x.url).startsWith('/api/generate'));
   click({ open: 's-1' }); await wait();
 
@@ -6216,7 +6246,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 // before, and What didn't work, empty. Both are drawn from S, so a repaint keeps what was typed, and
 // the press sends both: the instruction as the directive, the note as `whatFailed`.
 {
-  const wait = () => new Promise((r) => setTimeout(r, 40));
+  const wait = () => sleep(40);
   const box = (attr: string) => html('col').match(new RegExp(`<textarea[^>]*${attr}[^>]*>([^<]*)</textarea>`));
   const type = (attr: string, value: string) => (listeners.input ?? []).forEach((f: Function) => f({
     target: { matches: (s: string) => s === `[${attr}]`, dataset: {}, value } }));
@@ -6237,7 +6267,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(box('data-rerollwhy')?.[1] ?? '', /The envoy was too friendly\./, 'and so does the note');
 
   POSTED.length = 0;
-  click({ rerollgo: 'p-1' }); await new Promise((r) => setTimeout(r, 200));
+  click({ rerollgo: 'p-1' }); await sleep(200);
   const sent = POSTED.find((x: any) => String(x.url).startsWith('/api/generate'))?.body;
   assert.ok(sent, 'the press sends a reweave');
   assert.strictEqual(sent.regenerateOf, 'p-1', 'of that passage');
@@ -6248,7 +6278,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   await holdRe('p-1');
   assert.strictEqual(box('data-rerollwhy')?.[1], '', 'a new box starts with an empty note');
   POSTED.length = 0;
-  click({ rerollgo: 'p-1' }); await new Promise((r) => setTimeout(r, 200));
+  click({ rerollgo: 'p-1' }); await sleep(200);
   const bare = sentNow();
   assert.ok(bare && !('whatFailed' in bare), 'with the note empty, the press sends no whatFailed');
 
@@ -6263,7 +6293,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     "with no mode wording in it and no hint about one");
   type('data-rerollwhy', 'Too polite.');
   POSTED.length = 0;
-  click({ rerollgo: 'p-2' }); await new Promise((r) => setTimeout(r, 200));
+  click({ rerollgo: 'p-2' }); await sleep(200);
   const own = sentNow();
   assert.ok(own, 'empty, the press still reweaves');
   assert.ok(!('directive' in own) && !('mode' in own && own.mode === 'direct'),
@@ -6273,7 +6303,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   await holdRe('p-2');
   type('data-rerollbox', 'have the guard answer instead');
   POSTED.length = 0;
-  click({ rerollgo: 'p-2' }); await new Promise((r) => setTimeout(r, 200));
+  click({ rerollgo: 'p-2' }); await sleep(200);
   assert.strictEqual(sentNow()?.directive, 'have the guard answer instead', 'a direction typed into it is sent as the directive');
   assert.ok(!('whatFailed' in (sentNow() ?? {})), 'and no note when none was written');
 
@@ -6283,7 +6313,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   await holdRe('p-5');
   type('data-rerollwhy', 'Wrong voice.');
   POSTED.length = 0;
-  click({ rerollgo: 'p-5' }); await new Promise((r) => setTimeout(r, 200));
+  click({ rerollgo: 'p-5' }); await sleep(200);
   assert.strictEqual(sentNow()?.whatFailed, 'Wrong voice.', "the box reweaves the writer's own passage on its one press, note and all");
   ok("the Reweave box has the instruction and What didn't work, both survive a repaint, and the press sends both");
 }
@@ -6300,10 +6330,10 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   gh.classList.contains = (c: string) => c === 'inlive';
   try {
     click({ open: 's-1' });
-    await new Promise((r) => setTimeout(r, 40));
+    await sleep(40);
     // p-5 is the last passage and the writer's own, so the press is asked twice.
     click({ re: 'p-5' }); click({ re: 'p-5' });
-    await new Promise((r) => setTimeout(r, 200));
+    await sleep(200);
     assert.ok(GENERATED.length > 0, 'the reweave was sent');
     const landed = html('col').match(/<div class="block[^"]*"[^>]*>(?:(?!<div class="block)[\s\S])*?data-edit="p-5"/)?.[0] ?? '';
     assert.match(landed, /class="block[^"]* newest quiet/, 'the new version lands quiet: no rise, so no blink');
@@ -6323,7 +6353,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 // still be scoped to one chapter, or this "fix" is a regression in the mode people spend hours in.
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 60));
+  await sleep(60);
 
   const chapters = STORY.chapters.length;
   assert.ok(chapters > 1, `the fixture needs more than one chapter to tell these apart (${chapters})`);
@@ -6335,7 +6365,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
   // Reading: one band per chapter.
   click({ readmode: '1' });
-  await new Promise((r) => setTimeout(r, 60));
+  await sleep(60);
   const reading = html('col');
   const bandsReading = (reading.match(/class="band(?: [^"]*)?"/g) ?? []).length;
   assert.strictEqual(bandsReading, chapters,
@@ -6357,7 +6387,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
   // Back to writing, and back to one chapter.
   click({ readmode: '0' });
-  await new Promise((r) => setTimeout(r, 60));
+  await sleep(60);
   assert.strictEqual((html('col').match(/class="band(?: [^"]*)?"/g) ?? []).length, 1,
     'leaving reading mode scopes the column back to one chapter');
   ok('reading mode draws every chapter, writing draws one, and only one passage is newest (#37)');
@@ -6376,7 +6406,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 // watched appear. What is marked is `claimed === false` MINUS what this page saw arrive.
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 60));
+  await sleep(60);
   const doc = html('col');
 
   assert.match(doc, /class="cameback(?: [^"]*)?"/, 'an unclaimed passage this page did not watch is marked');
@@ -6406,7 +6436,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 // the lit case is the default and the dark case has to be made by emptying it.
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   assert.strictEqual(nodes.get('owed').hidden, false,
     'the light is on while the shelf has proposals or unpaid promises');
   // THE WHOLE BUTTON, not a fixed window after the attribute. A `{0,400}` window stopped short of
@@ -6424,14 +6454,14 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // looks at would pass with the light stuck on.
   shelfOwes = false;
   click({ home: '1' });
-  await new Promise((r) => setTimeout(r, 60));
+  await sleep(60);
   assert.strictEqual(nodes.get('owed').hidden, true, 'and out when nothing is waiting anywhere');
   // AND THE STATE IS PUT BACK. `home` leaves V null, and the block below re-rolls a passage in an
   // open book — so ending here would fail the next check for a reason that has nothing to do with
   // it. Left open on the same book this block found open.
   shelfOwes = true;
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 60));
+  await sleep(60);
   ok('the top light and the Waiting row come on when something is owed, and go out when it is not');
 }
 
@@ -6449,7 +6479,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.ok(MODES.some(([k]: any) => k === 'coop'), 'co-op is one of the modes');
 
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   // #dockCol, not #dock: drawDock writes the composer into the inner element, and reading the
   // outer one gives an empty string that satisfies doesNotMatch on any code at all.
   assert.match(html('dockCol'), /data-modesel/, 'the mode dial is drawn at all');
@@ -6458,7 +6488,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
   STORY.writers = [{ id: 'u-me', login: 'sonophage', owns: 1 }, { id: 'u-kia', login: 'kia', owns: 0 }];
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   assert.match(html('dockCol'), /value="coop"/, 'and IS offered once the book has a second writer');
 
   // AND IT NEVER CALLS THE MODEL. That is the whole of the mode: the text goes to the write route
@@ -6470,7 +6500,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // typeIn only dispatches — so a send after it sees an empty box and refuses with a toast.
   nodes.get('input').value = 'She set the lamp down and said nothing.';
   click({ send: '1' });
-  await new Promise((r) => setTimeout(r, 300));
+  await sleep(300);
   assert.ok(POSTED.some((p: any) => String(p.url) === '/api/write'),
     'co-op puts your part on the page');
   assert.ok(!POSTED.some((p: any) => String(p.url).includes('/api/generate')),
@@ -6486,7 +6516,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 // markup" is a feature nobody has seen render.
 {
   click({ open: 's-1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ storytab: 'keep' });
   const keep = html('sideBody');
   assert.match(keep, /Write it with someone/, 'the owner is offered a way to call somebody in');
@@ -6500,7 +6530,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // because before one it passed.
   assert.match(keep, /f-share/, 'the picker survives opening a book — SRV is merged, not rebuilt');
   click({ open: 's-2' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   click({ storytab: 'keep' });
   assert.match(html('sideBody'), /Write it with someone/,
     'and survives opening a second one — a rebuild that names fields drops the next one added');
@@ -6519,7 +6549,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   click({ re: 'p-4' });
   // Long enough for the whole chain: the streamed generation and the refetch of the story. 80ms was
   // not, and the failure looked exactly like the marker never clearing.
-  await new Promise((r) => setTimeout(r, 600));
+  await sleep(600);
 
   // THE PAGE WAITS FOR THE VEIL NOW (2026-09-02). Seth: "dont send the content to the main page
   // until that tap happens ... otherwise it overloads the browser." `paint()` rebuilt the whole
@@ -6534,7 +6564,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // `closest` answers every selector, so a fake tap looks like a tap on a button.
   typeIn('input', 'x');
   for (let i = 0; i < 40 && /class="cameback"/.test(html('col')); i++) {
-    await new Promise((r) => setTimeout(r, 25));
+    await sleep(25);
   }
   assert.doesNotMatch(html('col'), /class="cameback(?: [^"]*)?"/,
     'a passage this page watched arrive is not marked as having arrived while away');
@@ -6549,7 +6579,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // NOT the prose: the passage is in the document already and a reader moves to it, so reading it
   // into a live region too says the whole thing twice. And not `aria-live` on #col, which is
   // rewritten whole on every repaint — that would read the chapter out again on every panel press.
-  await new Promise((r) => setTimeout(r, 120));
+  await sleep(120);
   assert.match(String(nodes.get('announce').textContent), /^(Passage added|New take), \d+ words\.$/,
     `a passage that lands is announced with its length — said ${JSON.stringify(nodes.get('announce').textContent)}`);
   {
@@ -6574,7 +6604,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 {
   POSTED.length = 0;
   click({ stop: '1' });
-  await new Promise((r) => setTimeout(r, 40));
+  await sleep(40);
   assert.ok(POSTED.find((x: any) => String(x.url) === '/api/stop'),
     'Stop posts to /api/stop — the abort alone would not reach the server');
   ok('Stop tells the server, now that a dropped connection does not');
@@ -6668,7 +6698,7 @@ const hemCardOf = (side: string) => {
 {
   const canned = (globalThis as any).fetch;
   (globalThis as any).fetch = hemFetch(canned);
-  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const settle = () => sleep(40);
   HEM_VIEW = hemView(HEM_DONE, [...HEM_ROWS, OLD_ROW]);
   click({ open: 's-1' }); await settle();
   click({ panel: 'waiting' }); await settle();
@@ -6757,7 +6787,7 @@ const hemCardOf = (side: string) => {
 {
   const canned = (globalThis as any).fetch;
   (globalThis as any).fetch = hemFetch(canned);
-  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const settle = () => sleep(40);
   const { diffHTML } = await import('../web/model.js');
   const NOW = 'Five houses now; the sixth has burned.';
   const TALE = { id: 'e-tale', title: 'The tale', body: 'Six houses.', entryType: 'tale', keys: [], addons: [],
@@ -6804,7 +6834,7 @@ const hemCardOf = (side: string) => {
 {
   const canned = (globalThis as any).fetch;
   (globalThis as any).fetch = hemFetch(canned);
-  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const settle = () => sleep(40);
   const show = async (hem: any, rows: any[]) => {
     HEM_VIEW = hemView(hem, rows);
     click({ open: 's-1' }); await settle();
@@ -6884,7 +6914,7 @@ const hemCardOf = (side: string) => {
 {
   const canned = (globalThis as any).fetch;
   (globalThis as any).fetch = hemFetch(canned);
-  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const settle = () => sleep(40);
   HEM_VIEW = hemView(HEM_DONE, HEM_ROWS);
   click({ open: 's-1' }); await settle();
   click({ panel: 'waiting' }); await settle();
@@ -6945,7 +6975,7 @@ const hemCardOf = (side: string) => {
 {
   const canned = (globalThis as any).fetch;
   (globalThis as any).fetch = hemFetch(canned);
-  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const settle = () => sleep(40);
   HEM_VIEW = hemView(HEM_DONE, HEM_ROWS);
   click({ open: 's-1' }); await settle();
   click({ panel: 'setup' }); await settle();
@@ -6977,7 +7007,7 @@ const hemCardOf = (side: string) => {
 // choice. A stateful fake, so each press changes what the next read hands back.
 {
   const canned = (globalThis as any).fetch;
-  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const settle = () => sleep(40);
   HEM_VIEW = { ...hemView(HEM_DONE, HEM_ROWS), pins: [] };
   (globalThis as any).fetch = async (url: string, init?: any) => {
     const body = init?.body ? JSON.parse(init.body) : null;
@@ -7096,7 +7126,7 @@ const hemCardOf = (side: string) => {
 {
   const canned = (globalThis as any).fetch;
   (globalThis as any).fetch = hemFetch(canned);
-  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const settle = () => sleep(40);
   HEM_VIEW = hemView(HEM_DONE, HEM_ROWS);
   click({ open: 's-1' }); await settle();
   click({ panel: 'waiting' }); await settle();
@@ -7129,7 +7159,7 @@ const hemCardOf = (side: string) => {
 // again now and then; when it finishes the card is on the Workbench, and the reading stops.
 {
   const canned = (globalThis as any).fetch;
-  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const settle = () => sleep(40);
   // Before: Scene 2 being written. After: Scene 2 closed and hemming, Scene 3 blank.
   // Its own id: the panel asks for a name once per scene id per session, and earlier blocks here
   // have already opened a `c-3`, so reusing one would pass without the rule under test.
@@ -7243,7 +7273,7 @@ const hemCardOf = (side: string) => {
     }
     return canned(url, init);
   };
-  const settle = () => new Promise((r) => setTimeout(r, 40));
+  const settle = () => sleep(40);
   const titleOf = (id: string) => chs.find((c) => c.id === id)?.title;
 
   click({ open: 's-1' }); await settle();
@@ -7277,7 +7307,7 @@ const hemCardOf = (side: string) => {
 // ---- #126 · ONE POCKET PANEL. ＋ in the thread's header opens it to add; a row on the Pockets tab
 // opens it on that pocket. Two tabs, Write it and Ask Anansi; Cancel and Save at its foot.
 {
-  const wait = () => new Promise((r) => setTimeout(r, 40));
+  const wait = () => sleep(40);
   click({ open: 's-1' }); await wait();
   click({ panel: 'threads' }); click({ entry: 'e-1' }); await wait();
   const head = html('sideHead');
@@ -7376,7 +7406,7 @@ const hemCardOf = (side: string) => {
 // ---- #127 · ADR 0011. THE STRINGS SCREEN IS A LIST OF THE TALE'S STRING POCKETS, a row opens the pocket
 // panel on one, and the Workbench sews a chalked string in and ties off or lets go one that is open.
 {
-  const wait = () => new Promise((r) => setTimeout(r, 40));
+  const wait = () => sleep(40);
   const was = { tale: (STORY as any).taleThread, strings: STORY.strings, proposals: STORY.proposals };
   const LETTER = { id: 'st-1', slot: 'promise', name: 'The letter he has not opened', body: 'Sent by his brother',
     keys: [], active: true, status: null, fromChapter: 1, owedBy: 4 };
@@ -7517,7 +7547,7 @@ const hemCardOf = (side: string) => {
 // choose, and Ask Anansi writes one. The old add form is gone. A tale with no thread of its own yet
 // still adds one: Save names no thread, and the server makes the tale's.
 {
-  const wait = () => new Promise((r) => setTimeout(r, 40));
+  const wait = () => sleep(40);
   const was = { tale: (STORY as any).taleThread, strings: STORY.strings };
   try {
     (STORY as any).taleThread = null; STORY.strings = [] as any;
@@ -7578,7 +7608,7 @@ const hemCardOf = (side: string) => {
 // ---- #129 · THE TALE'S OWN THREAD PAGE LISTS ITS STRINGS: Promises and Open questions under Rules, each
 // row the one the Strings screen draws, the open ones before those tied off or let go.
 {
-  const wait = () => new Promise((r) => setTimeout(r, 40));
+  const wait = () => sleep(40);
   const was = { tale: (STORY as any).taleThread, strings: STORY.strings };
   const st = (id: string, kind: string, title: string, status: string, summoned: boolean) =>
     ({ id, title, body: `${title}, the line`, fromChapter: 1, owedBy: null, status, summoned, kind });
@@ -7665,7 +7695,7 @@ const hemCardOf = (side: string) => {
 // press reaches only the second. LAST IN THE FILE for that reason: nothing after it can be sure
 // which copy it is driving.
 {
-  const wait = (ms = 40) => new Promise((r) => setTimeout(r, ms));
+  const wait = (ms = 40) => sleep(ms);
   stored.set('anansi.veil', '0');
   for (const k of Object.keys(listeners)) listeners[k] = [];
   // The harness's one #ghost answers as the inline passage (see the reweave-quiet check above).
@@ -7726,7 +7756,7 @@ const hemCardOf = (side: string) => {
 // which stays → Anansi drafts → a full-screen review, each part against the kept thread's text and
 // editable → Merge writes it. Cancel writes nothing.
 {
-  const wait = () => new Promise((r) => setTimeout(r, 40));
+  const wait = () => sleep(40);
   const canned = (globalThis as any).fetch;
   const { diffHTML } = await import('../web/model.js');
   const DRAFT = { keep: { id: 'e-2', title: 'The stair' }, gone: { id: 'e-1', title: 'Envoy Sereth' },

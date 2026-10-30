@@ -1148,7 +1148,10 @@ ok("a string's kind changes between promise and open question, and no pocket mov
 
 // Entity resolution. Exercised directly because model output is not reproducible.
 const { classify } = await import('../src/routes.ts');
-if (classify) {
+// ASSERTED, NOT GUARDED. This was `if (classify) {`, with no else: a rename or a dropped export
+// would have skipped every check below and the suite would still have printed green.
+assert.strictEqual(typeof classify, 'function', 'routes.ts exports classify');
+{
   const F = (who: string) => JSON.stringify({ title: who, body: who, keys: who });
   const ledger = [
     { id: 'e1', title: 'Aldis Fen', body: '[Aldis Fen: sergeant]', last_editor: 'human',
