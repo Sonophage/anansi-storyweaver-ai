@@ -2616,4 +2616,62 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
   ok('the book owner pays in a shared book, each writer pays for their own, and no key means local');
 }
 
+// ---- #93 · AND A HEM IS PAID FOR THE SAME WAY, through a real server. The block above asks only
+// whether a key is ready. A hem's passes run AFTER the answer, queued behind any hem already on the
+// tale, so the payer has to ride from the request into work the response no longer waits on. A fake
+// Featherless records the key on every model call. Bob (the desk) closes a scene in alice's book,
+// shared with him, and then one in his own; both books are pinned to a remote model on their owner's
+// shortlist. Fixture keys only: the real key files are never read.
+{
+  const { mkdtempSync, writeFileSync: put } = await import('node:fs');
+  const dir = mkdtempSync('/tmp/anansi-scope-hemkeys-');
+  put(`${dir}/featherless-alice.key`, 'fl-ALICE\n');
+  put(`${dir}/featherless-bob.key`, 'fl-BOB\n');
+  const paid: string[] = [];
+  const fl = createServer((req, res) => {
+    let raw = ''; req.on('data', (d) => { raw += d; });
+    req.on('end', () => {
+      if (req.method === 'POST') paid.push(String(req.headers.authorization ?? '(none)'));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(req.url?.endsWith('/models') ? { data: [] } : { choices: [{ message: {
+        content: 'Nothing happened.' }, finish_reason: 'stop' }] }));
+    });
+  });
+  await new Promise<void>((r) => fl.listen(0, '127.0.0.1', r));
+  const PAY = 'featherless:someone/Pay-Model-heretic';
+  const book = (who: string, title: string) => {
+    const s = db.createStory(who, { title }) as any;
+    db.updateStory(s.id, { model: PAY });
+    db.addToShortlist(who, PAY, 32768);
+    db.addPassage({ storyId: s.id, branchId: s.branchId, chapterId: (db.chapters(s.id)[0] as any).id,
+      body: 'The ferry left without him, and the bell went with it.' });
+    return s;
+  };
+  const hers = book(alice, 'Hemmed on her plan'), his = book(bob, 'Hemmed on his plan');
+  db.addWriter(hers.id, bob);
+  const { srv, url } = await bootServer(5194, { ANANSI_FEATHERLESS_KEY_FILE: '', ANANSI_FEATHERLESS_KEY_DIR: dir,
+    ANANSI_FEATHERLESS_URL: `http://127.0.0.1:${(fl.address() as any).port}/v1` });
+  /** Close the scene as bob, wait for its hem to finish, and hand back the keys its calls carried. */
+  const hem = async (s: any) => {
+    const scene = (db.chapters(s.id)[0] as any).id;
+    paid.length = 0;
+    const r = await (await fetch(`${url}/api/chapter/end`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storyId: s.id, next: false }) })).json();
+    assert.ok(!r.error, `the close answered: ${r.error}`);
+    for (let i = 0; i < 160 && !db.hemOf(s.id, scene)?.finishedAt; i++) await new Promise((w) => setTimeout(w, 250));
+    assert.ok(db.hemOf(s.id, scene)?.finishedAt, 'the hem finished');
+    return [...paid];
+  };
+  try {
+    const onHers = await hem(hers);
+    assert.ok(onHers.length > 0, 'HEM-PAYER: the hem in alice\'s book called Featherless at all');
+    assert.deepStrictEqual([...new Set(onHers)], ['Bearer fl-ALICE'],
+      `HEM-PAYER: bob's hem in alice's shared book is on alice's plan, every pass (${onHers.length} calls)`);
+    const onHis = await hem(his);
+    assert.ok(onHis.length > 0, '  and the hem in his own book called it too');
+    assert.deepStrictEqual([...new Set(onHis)], ['Bearer fl-BOB'], `  and his own book's hem is on his (${onHis.length} calls)`);
+  } finally { srv.kill(); fl.close(); }
+  ok('a hem is paid for by the book\'s owner, through a real server, on every pass');
+}
+
 console.log(`\n${n} checks passed`);
