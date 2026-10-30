@@ -7351,6 +7351,7 @@ const hemCardOf = (side: string) => {
   assert.doesNotMatch(side, /data-decide="(accept|reject)" data-id="hs-/, 'THREAD-NO-ROW-BUTTONS: no Sew it in or Reject on each change');
   assert.doesNotMatch(sereth, />Edit</, '  and no Edit fold');
   // EDITED IN PLACE: a tap on the text opens its box, which is what Sew it in sends.
+  assert.doesNotMatch(sereth, /class="hemedit"[^>]*role="button"/, 'THREAD-EDIT-TOUCH: the text is not a role=button, or a tap on Was opens the box (2026-10-30)');
   assert.match(sereth, /data-hemedit="hs-1"[^>]*>[\s\S]*?<div class="hembox" hidden>\s*<textarea class="field" data-pbody="hs-1"[^>]*>She has stopped waiting\./,
     'THREAD-EDIT: tapping the text opens its box in place, holding the chalked text');
   const { diffHTML } = await import('../web/model.js');

@@ -3512,8 +3512,12 @@ function hemRow(p) {
   const shown = was == null ? `<div class="note">${esc(p.body ?? '')}</div>` : diffHTML(was, p.body ?? '');
   return `<div class="hemrow stack" data-hemrow="${id}">
     <div class="lbl sub-lbl flush">${rowLabel(p)}</div>
-    ${p.entryType === 'retire' ? shown : `<div class="hemedit" data-hemedit="${id}" role="button" tabindex="0"
-      aria-label="Edit what ${esc(p.title)} will say"${was == null ? '' : ` data-deckdiff="${id}"`}>${shown}</div>
+    ${/* NO role="button" ON THE TEXT (2026-10-30: "the was button opens the card to edit"). On a
+          touch screen the browser steers a tap toward the nearest thing that says it is a button,
+          and the text around the Was / Now switch out-pulled the switch's own small buttons. The
+          keyboard's way in is the hidden button beside it. */
+      p.entryType === 'retire' ? shown : `<div class="hemedit" data-hemedit="${id}"${was == null ? '' : ` data-deckdiff="${id}"`}>${shown}</div>
+    <button class="vh" data-hemedit="${id}">Edit what ${esc(p.title)} will say</button>
     <div class="hembox" hidden>
       <textarea class="field" data-pbody="${id}" aria-label="What ${esc(p.title)} will say"
         style="margin:0; min-height:76px; font-size:12.5px; line-height:1.5">${esc(p.body ?? '')}</textarea>
@@ -12866,7 +12870,8 @@ document.addEventListener('click', async (e) => {
   if (d.hemedit) {
     const row = t.closest('[data-hemrow]'), box = row?.querySelector('.hembox');
     if (!box) return;
-    t.hidden = true; box.hidden = false; growFields(box);
+    const shown = row.querySelector('.hemedit'); if (shown) shown.hidden = true;
+    box.hidden = false; growFields(box);
     row.querySelector('textarea')?.focus({ preventScroll: true });
     return;
   }

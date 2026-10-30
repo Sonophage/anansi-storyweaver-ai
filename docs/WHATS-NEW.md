@@ -18,6 +18,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### A new scene opens the way you set it up
+The first passage of a new scene now opens as its "Opens with" says. Before, your Continue asked
+Anansi to start where the last line above ends, and the last line above was the end of the previous
+scene, so he carried that scene on instead.
+
+### Was and Now no longer open the editor
+On a thread's card, pressing Was or Now switches the view again, as it should. On a phone the press
+was landing on the text around them and opening it for editing.
+
 ### A quicker hem on Featherless
 On a Featherless model, a hem now asks for its findings as plain lines of text and turns them into
 suggestions afterwards, instead of asking for a structured answer the model could keep writing

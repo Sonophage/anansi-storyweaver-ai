@@ -172,6 +172,14 @@ ok('the chapter brief is two halves, and only one of them rides every call', () 
   assert.match(df.text, /How this chapter opens: Marek is already inside/,
     'an empty chapter is told how it opens');
   assert.match(df.text, /first passage of the chapter/, 'and that this is the passage that does it');
+  // AND THE MODE, NEAREST THE GENERATION POINT, SAYS IT TOO (Seth, 2026-10-30: "the opening has
+  // nothing to do with what we said"). His Continue says "Start where the last line above ends", and
+  // the last line above is the scene before: the nearest instruction won (F37) and the scene opened
+  // where the old one stopped. So the MODE block of an empty scene ends by opening the scene.
+  const own = { ...fresh, mode: 'continue' as const, modePrompts: { continue: 'Start where the last line above ends.' } };
+  const mf = buildContext(own, count).blocks.find((b) => b.kind === 'MODE')!;
+  assert.match(mf.text, /Start where the last line above ends\.[\s\S]*new scene[\s\S]*How this chapter opens/,
+    'OPEN-MODE: an empty scene\'s mode ends by opening the scene as How this chapter opens says');
 
   // ONE PASSAGE IN, AND THE OPENING IS GONE. This is the half that matters: left in, the model is
   // asked to open a chapter it opened four passages ago. `chapterId` is what says a passage
@@ -182,6 +190,8 @@ ok('the chapter brief is two halves, and only one of them rides every call', () 
   const dg = buildContext(going, count).blocks.find((b) => b.kind === 'DIRECTIVE')!;
   assert.doesNotMatch(dg.text, /How this chapter opens/,
     'once the chapter has prose, how it opened is no longer an instruction');
+  const mg = buildContext({ ...going, mode: 'continue' as const }, count).blocks.find((b) => b.kind === 'MODE')!;
+  assert.doesNotMatch(mg.text, /new scene/, '  and a scene under way does not');
 
   // AND THE FAR END IS A DIRECTION IN BOTH, worded as the chapter's destination rather than as a
   // demand on this passage. Asserted BOTH ways: the new clause present, and the old wording gone —

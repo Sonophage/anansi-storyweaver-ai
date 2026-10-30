@@ -1509,7 +1509,14 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // TALK'S OTHER THREADS BY NAME (see `reach`): Anansi knows they exist, and can ask for one.
     const others = unasked.length ? `The tale's other threads, not sent because nothing in the question or on `
       + `the page names them: ${unasked.join(', ')}. If an answer needs one, say which, and the writer can name it.` : '';
-    const text = [others, said, frame].filter(Boolean).join('\n');
+    // AN EMPTY SCENE OPENS AS ITS OPENING SAYS, and the mode says so last (Seth, 2026-10-30: "the opening
+    // has nothing to do with what we said"). DIRECTIVE carries the opening, but the mode sits nearest
+    // the generation point and his Continue reads "Start where the last line above ends": the last line
+    // above is the scene before, and the nearest instruction wins (F37). Not for Talk, and only while
+    // the scene has no prose and has an opening, the condition DIRECTIVE's own line uses.
+    const opening = !started && input.mode !== 'talk' && currentChapter.opensWith?.trim()
+      ? 'This passage begins a new scene. Open it as "How this chapter opens" above says, not where the prose above ends.' : '';
+    const text = [others, said, frame, opening].filter(Boolean).join('\n');
     // THE LENGTH TARGET, and everything about where it sits is deliberate.
     //
     // Appended here rather than written into the MODE map, because those five strings are what
