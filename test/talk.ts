@@ -373,7 +373,10 @@ await routes['POST /api/talk']({ body: { storyId: story.id, said: 'And who am I?
     'TALK-CHAT: the conversation goes as turns, writer and Anansi, then this message');
   assert.match(String(calls[0].messages[0].content), /lower tiers still pulse[\s\S]*$/, 'TALK-CHAT: and the story is in the system message');
   assert.doesNotMatch(calls[0].messages.map((m: any) => m.content).join('\n'), /Earlier in this conversation/, '  not pasted in as a document');
-  assert.ok(Number(calls[0].temperature) >= 0.7 && Number(calls[0].presence_penalty) > 0, 'TALK-WARM: warmer, and leaning off what it has said');
+  assert.ok(Number(calls[0].temperature) > 0.4, 'TALK-WARM: warmer than it was');
+  // No repetition penalties on a JSON answer: they penalise the answer's own keys and quotes, and Talk
+  // wrote "changes" and "pocket" as its reply with no change made (Seth, 2026-10-30).
+  assert.ok(calls[0].presence_penalty == null && calls[0].frequency_penalty == null, 'TALK-NO-PENALTY: no presence or frequency penalty on Talk');
 }
 ok('Talk is a chat: the story in the system message, the conversation as turns');
 

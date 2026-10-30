@@ -3307,13 +3307,13 @@ export const routes: Record<string, Handler> = {
     ].filter(Boolean).join('\n\n');
 
     // A CHAT, as Talk in a tale is (2026-10-30): the draft in the system message, the conversation as
-    // turns, this message last, warmer and leaning off what was said already.
+    // turns, this message last, a little warmer. No repetition penalties: see the Talk route.
     const t0 = Date.now();
     const system = `${TALK_SETUP}\n\n${ask}\n\n${anansiOf(c.owner)}`;
     const thisTurn = [sourcesText(sources), said].filter(Boolean).join('\n\n');
     const messages = [{ role: 'system', content: system }, ...turnMessages(c.body.turns), { role: 'user', content: thisTurn }];
     const r = await structuredRetry(system, thisTurn, TALK_SETUP_SCHEMA,
-      { model: using, temperature: 0.8, presence_penalty: 0.4, frequency_penalty: 0.3, max_tokens: TALK_TOKENS, messages });
+      { model: using, temperature: 0.6, max_tokens: TALK_TOKENS, messages });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
     // Each change checked against the draft as the ones before it left it, so "add the ferryman and
@@ -4146,11 +4146,14 @@ export const routes: Record<string, Handler> = {
     // conversation (F37's order). The conversation is the turns themselves, writer and Anansi, then
     // this message. It was one user message with "Earlier in this conversation" pasted into it, which
     // a model reads as a document to answer from, not a talk it is in, and it handed back its last
-    // reply word for word. Warmer, and told not to say a thing it has said already. NOT MEASURED.
+    // reply word for word. A little warmer (0.6), and told not to say a thing it has said already.
+    // NO PRESENCE OR FREQUENCY PENALTY (2026-10-30): on a JSON answer they push the model off the
+    // tokens the answer is made of, its own keys and quotes. With them on, Talk wrote field names into
+    // its reply ("changes", "pocket") and no change came back at all. NOT MEASURED.
     const system = `${TALK_CONTRACT}\n\n${prompt.slice(SYSTEM.length)}\n\n${anansiOf(c.owner)}`;
     const messages = [{ role: 'system', content: system }, ...turnMessages(c.body.turns), { role: 'user', content: thisTurn }];
     const r = await structuredRetry(system, thisTurn, TALK_SCHEMA,
-      { model: using, temperature: 0.8, presence_penalty: 0.4, frequency_penalty: 0.3,
+      { model: using, temperature: 0.6,
         max_tokens: reply.maxTokens, remoteCap: true, messages,
         chat_template_kwargs: { enable_thinking: reply.weaves } });
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'talk',

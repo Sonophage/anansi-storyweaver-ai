@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### Anansi changes your threads again when you ask
+After tonight's change to make Talk more conversational, Anansi stopped making the changes you
+asked for: he answered with a stray word like "changes" or "pocket" and nothing happened. That is
+fixed, in Talk and in the chat beside a new tale.
+
 ### Fill in the tale from your talk with Anansi
 When you set up a new tale, talk it through with Anansi in the chat beside the wizard, then press
 Fill in the tale. He sets every box that is still empty (title, premise, genre, setting and voice)
