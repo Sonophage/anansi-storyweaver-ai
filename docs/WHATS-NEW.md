@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### A quicker hem on Featherless
+On a Featherless model, a hem now asks for its findings as plain lines of text and turns them into
+suggestions afterwards, instead of asking for a structured answer the model could keep writing
+inside for minutes. Every step also has a firm length limit there now. If an answer is cut short,
+the suggestions it finished still arrive.
+
 ### Where the tale stands is quick
 When a hem works out where the tale stands, Anansi now reads the scene's summary, which the hem has
 just written, instead of the whole scene again, and writes his paragraph as plain text. Where each

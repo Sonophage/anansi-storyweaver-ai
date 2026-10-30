@@ -35,6 +35,8 @@ process.env.ANANSI_FEATHERLESS_KEY_FILE = KEY_FILE;
 process.env.ANANSI_FEATHERLESS_BACKOFF_MS = '10,10,10';
 
 const REMOTE = 'llmfan46/Qwen3.6-35B-A3B-uncensored-heretic';
+/** What the fake says to a plain-lines ask (the hem's, on a remote model). */
+let shapedSays = '';
 const SMALL = 'someone/Tiny-Ctx-heretic';
 const NOT_LISTED = 'nobody/Not-In-The-Catalogue';
 // Takes the whole plan. Every writer may add it since 2026-10-25; uncensored, so the default search
@@ -125,7 +127,10 @@ const flSrv = createServer((req, res) => {
       // Two models plan when told not to, each the way a provider can show it: in the reasoning
       // field, and inline in the prose. The field is `reasoning`, as the real Featherless names it
       // (checked 2026-10-22); llama-server's `reasoning_content` is covered in test/stream.ts.
-      const message = body.model === STUBBORN
+      // THE HEM'S ASK IN PLAIN LINES (src/shaped.ts): it says so in its system message.
+      const plainAsk = String(body.messages?.[0]?.content ?? '').includes('ANSWER IN PLAIN TEXT, NOT JSON');
+      const message = plainAsk ? { content: shapedSays }
+        : body.model === STUBBORN
         ? { content: 'ok', reasoning: 'The user wants a short answer.' }
         : body.model === PLANS_INLINE ? { content: '<think>A short answer, then.</think>ok' }
         : { content: 'The remote wrote this.' };
@@ -1767,6 +1772,24 @@ const guarded = (body: any) => { const c: any = ctx(me, body); c.gen = { ...c.ge
   assert.ok(!(db.shortlistOf(w) as any[]).some((x) => x.id === `featherless:${REMOTE}`), 'and is not stored');
   script.length = 0;
   ok('a 400 the switch did not cause is reported as before, and never stored as a refusal of it');
+}
+
+// THE HEM ON A REMOTE MODEL ASKS IN PLAIN LINES, NOT JSON (Seth, 2026-10-30: "Let's use text during the
+// hem and in the background we add it to the db after"), and reads them back into the schema's object.
+{
+  const { shaped } = await import('../src/shaped.ts');
+  const { MEMORY, MEMORY_SCHEMA } = await import('../src/prompts.ts');
+  shapedSays = '[threads]\nname: Vel\nstands: She waits.\nlabel: waits\nline: She waited.\nalways:\noverflow:';
+  const m = mark();
+  const r: any = await shaped(MEMORY, 'The scene.', MEMORY_SCHEMA, { model: ID, max_tokens: 4000 });
+  const sent = since(m).fl;
+  assert.strictEqual(sent.length, 1, `SHAPED-ONE: one call, no retry (${sent.length})`);
+  assert.ok(!sent[0].body.response_format, 'SHAPED-TEXT: and it asks for no JSON');
+  assert.strictEqual(sent[0].body.max_tokens, 4000, "SHAPED-CAP: at the caller's cap, not doubled");
+  assert.deepStrictEqual(r.data?.threads?.[0], { name: 'Vel', stands: 'She waits.', label: 'waits', line: 'She waited.', always: '', pockets: [] },
+    'SHAPED-READ: the lines come back as the object the JSON would have been');
+  shapedSays = '';
+  ok("the hem's structured ask goes to a remote model as plain lines, once, and reads back as its object");
 }
 
 console.log(`\n${n} checks green`);

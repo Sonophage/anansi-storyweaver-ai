@@ -5,6 +5,8 @@ import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingF
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
+// The hem's structured asks: plain lines on a remote model, read back into the schema's object.
+import { shaped } from './shaped.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, TALE_STANDS, STRINGS_STAND, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
 import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
@@ -1446,7 +1448,7 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
       && all.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
   const outsideLine = outside.length ? `\n\nOUTSIDE ONLY: ${outside.join(', ')}` : '';
 
-  const r = await structuredRetry(MEMORY, `${text}\n\n---\n\n${inForce}${outsideLine}`, MEMORY_SCHEMA,
+  const r = await shaped(MEMORY, `${text}\n\n---\n\n${inForce}${outsideLine}`, MEMORY_SCHEMA,
     { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
   if (!r.data?.threads) return { remembered: 0, error: r.error ?? null };
 
@@ -1581,7 +1583,8 @@ async function taleStands(c: Ctx, storyId: string, chapterId: string, scene?: st
     `WHAT THE STORY IS: ${alwaysTrue(tale) || '(not written)'}`,
     `WHERE IT STOOD BEFORE THIS SCENE: ${was || '(nothing yet)'}`,
     sum ? `THE SCENE, IN SUMMARY:\n${text}` : `THE SCENE:\n${text}`].join('\n\n'),
-    { model: using, temperature: 0.3, max_tokens: TALE_TOKENS, chat_template_kwargs: { enable_thinking: false } })
+    // `remoteCap`: without it the Featherless adapter drops the cap, as it does for prose.
+    { model: using, temperature: 0.3, max_tokens: TALE_TOKENS, remoteCap: true, chat_template_kwargs: { enable_thinking: false } })
     .catch((e: any) => ({ prose: '', error: String(e?.message ?? e) }) as any);
   db.logGeneration({ storyId, chapterId: ch.id, model: using, role: 'hem-tale', params: { max_tokens: TALE_TOKENS },
     latencyMs: Date.now() - t0, error: (r as any).error ?? null });
@@ -1628,7 +1631,7 @@ async function stringsStand(c: Ctx, storyId: string, chapterId: string, scene?: 
     `THE STRINGS IT CARRIES:\n${live.map((x: any, i: number) => `${i + 1}. ${x.kind === 'question' ? 'Open question' : 'Promise'}, `
       + `"${x.title}": ${String(x.body ?? '').trim() || x.title}`).join('\n')}`,
     sum ? `THE SCENE, IN SUMMARY:\n${text}` : `THE SCENE:\n${text}`].join('\n\n'),
-    { model: using, temperature: 0.3, max_tokens: stringTokens(live.length), chat_template_kwargs: { enable_thinking: false } })
+    { model: using, temperature: 0.3, max_tokens: stringTokens(live.length), remoteCap: true, chat_template_kwargs: { enable_thinking: false } })
     .catch((e: any) => ({ prose: '', error: String(e?.message ?? e) }) as any);
   db.logGeneration({ storyId, chapterId: ch.id, model: using, role: 'hem-strings',
     params: { max_tokens: stringTokens(live.length) }, latencyMs: Date.now() - t0, error: (r as any).error ?? null });
@@ -1863,7 +1866,7 @@ async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string
   const existing = db.entriesOf(v.id);
   const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
   if (!text.trim()) return { error: 'this scene is all dialogue — nothing the narrator committed' };
-  const r = await structuredRetry(EXTRACT, text, EXTRACT_SCHEMA, { model: backgroundModel(c, v), max_tokens: EXTRACT_TOKENS });
+  const r = await shaped(EXTRACT, text, EXTRACT_SCHEMA, { model: backgroundModel(c, v), max_tokens: EXTRACT_TOKENS });
   if (!r.data?.entries) return { error: r.error ?? 'extraction returned nothing usable' };
   let added = 0;
   // SIX NEW THREADS AT MOST FROM A HEM (2026-10-27): one hem of Seth's chalked sixteen. The rest are
@@ -2027,7 +2030,7 @@ async function retire(c: Ctx, storyId: string, chapterId?: string, grp?: string)
   if (!cands.length) return { proposed: 0, eligible: 0, chapter: ch.index };
 
   const inForce = cands.map((e: any) => `${e.title}: ${cardText(e, ch.index)}`).join('\n\n');
-  const r = await structuredRetry(RETIRE,
+  const r = await shaped(RETIRE,
     `${text}\n\n---\n\n${inForce}`, retireSchema(cands.map((e: any) => e.title)) as any,
     { model: backgroundModel(c, v), max_tokens: RETIRE_TOKENS });
   if (!r.data?.finished) return { proposed: 0, eligible: cands.length, error: r.error ?? null };
