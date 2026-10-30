@@ -2944,7 +2944,9 @@ function openPocket(entryId, id = null) {
   if (id && !a) return;
   // #128 · A promise's "owed by" scene is on the string's own row (`V.strings`), not the pocket's.
   const owed = id ? (V.strings ?? []).find((x) => x.id === id)?.owedBy : null;
-  const was = { name: a?.name ?? '', body: a?.body ?? '', keys: (a?.keys ?? []).join(', '), owed: owed == null ? '' : String(owed) };
+  // One that exists keeps its kind in `was` too: a string's may change, and Undo my changes puts it back.
+  const was = { name: a?.name ?? '', body: a?.body ?? '', keys: (a?.keys ?? []).join(', '), owed: owed == null ? '' : String(owed),
+    ...(a ? { slot: a.slot } : {}) };
   S.pocket = { entryId, id, slot: a?.slot ?? null, wasSlot: a?.slot ?? null, ...was, steer: '', offer: null, was };
 }
 /** Whether leaving would throw something away: a box changed, or an answer of Anansi's not yet used.
@@ -3013,9 +3015,17 @@ const stringStand = (x) => x.status === 'paid' || x.status === 'dropped' ? x.sta
 async function standString(id, stand) {
   const x = (V.strings ?? []).find((s2) => s2.id === id);
   if (!x || !STANDS.some(([k]) => k === stand)) return { error: 'That string is not in this tale any more.' };
-  const r = await api.saveString(S.storyId, { ...x, status: stand === 'paid' || stand === 'dropped' ? stand : 'open',
-    summoned: stand === 'play' });
+  // OPEN IN THE PANEL, IT CARRIES WHAT IS TYPED THERE, as a draft (POCKET_AUTO `pocket`): the row as the
+  // tale was last drawn would write the panel's drafts away, and keep a revision of them. The panel's
+  // last write still works out the revision and the staling, against what it opened on.
+  const pk = S.pocket?.id === id && pocketAuto(S.pocket) === POCKET_AUTO.pocket ? S.pocket : null;
+  if (pk) { dropSoon('pocket'); await pk.chain; }
+  const v = pk ? pocketVals(pk, POCKET_AUTO.pocket) : null, typed = v && !POCKET_AUTO.pocket.never(v);
+  const r = await api.saveString(S.storyId, { ...x, ...(typed ? { title: v.name.trim(), body: v.body.trim(), kind: v.slot,
+    owedBy: v.slot === 'promise' ? Number(v.owed) || null : null } : {}),
+    status: stand === 'paid' || stand === 'dropped' ? stand : 'open', summoned: stand === 'play' }, typed ? { draft: true } : {});
   if (r.error) return r;
+  if (typed) { pk.saved = v; pk.drafted = true; pk.wrote = true; }
   V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest();
   return r;
 }
@@ -3092,7 +3102,7 @@ function pocketPanel() {
   const label = pk.slot ? slotLabel(pk.slot) : tale ? 'string' : 'pocket';
   const [namePh, bodyPh] = SLOT_HINT[pk.slot] ?? ['What it is called', 'A plain description'];
   // THE KINDS, while adding: Ask Anansi needs one as much as Write it does, so they head both tabs.
-  // A string shows them open too: it may be made the other kind (Seth, 2026-10-28), and Save sends it.
+  // A string shows them open too: it may be made the other kind (Seth, 2026-10-28), and Done sends it.
   const kinds = adding || (tale && !own) ? `<div class="pkkinds">${slots.map((sl) => `<button data-pocketkind="${esc(sl.name)}"
       class="pkkind" aria-pressed="${pk.slot === sl.name}">${esc(pocketTitle(sl.name))}</button>`).join('')}</div>` : '';
   // WHERE AN OPEN STRING STANDS, as four choices that act at once, as the Workbench's buttons do (`standString`).
@@ -3133,14 +3143,17 @@ function pocketPanel() {
       ${diffHTML(pk.body, pk.offer.body)}
       <button class="btn push-10" data-pocketuse="1">Use this</button>` : ''}</div>`;
   const what = own ? slotLabel(pk.slot) : tale ? (adding && !pk.kinds ? 'entry' : 'string') : 'pocket';
-  /* ALTER'S LOOK, FULL SCREEN STILL (Seth, 2026-11-02): Cancel and the Save pill in a bar at the top,
-   * as Alter's header has them (`threadBar('alter')`); its tab chips (`tabRow`) and its name field
-   * (`.altname`). The big Cancel and Save at the foot went. */
+  /* ALTER'S LOOK, FULL SCREEN STILL (Seth, 2026-11-02): the two presses in a bar at the top, as
+   * Alter's header has them (`threadBar('alter')`). One that exists saves as you type (POCKET_AUTO),
+   * so its bar is Undo my changes and Done; a new one is made by its press, Cancel and Save. */
   return `<div class="pocketbox" role="dialog" aria-label="${adding ? `A new ${what} for ${esc(e.title)}` : esc(pk.name || label)}">
-    <div class="pkbar">
+    <div class="pkbar">${pocketAuto(pk) ? `
+      <button data-pocketundo="1" class="headback"><span class="serif">Undo my changes</span></button>
+      <span class="fill"></span>
+      <button data-pocketdone="1" class="headsave">Done</button>` : `
       <button data-pocketx="1" class="headback" aria-label="Cancel"><span class="serif">Cancel</span></button>
       <span class="fill"></span>
-      <button data-pocketsave="1" class="headsave">Save</button>
+      <button data-pocketsave="1" class="headsave">Save</button>`}
     </div>
     <div class="pkhead">
       <div class="lbl flush wide">${adding ? `New ${what} &middot; ${esc(e.title)}` : `${esc(pocketTitle(pk.slot))} &middot; ${esc(e.title)}`}</div>
@@ -3173,6 +3186,10 @@ function closePocket(t = null) {
  *  `fields` are what it writes; `write` sends them for the book they were typed in; `held` names a
  *  change the pause must not write, because it loses words, and the ask Done makes before it does;
  *  `never` names one that cannot be written at all, and what Done says instead of writing it.
+ *  `drafts`: a kind whose route keeps a revision and stales scene summaries on every write (a pocket,
+ *  through `upsertAddon`). Its pauses write drafts, which do neither, and Done, Undo my changes and a
+ *  hidden tab send one last write naming what the panel opened on (`base`), so the revision and the
+ *  staling are worked out once, against that (`db.WriteHow`). `write` is told which (`final`).
  *  A kind not listed keeps Cancel and Save until it joins. */
 const POCKET_AUTO = {
   // An empty summary is a removed one (`writeSummary`).
@@ -3200,22 +3217,42 @@ const POCKET_AUTO = {
     e.typed = true;
     return {};
   }, never: (v) => (!v.name.trim() ? 'A pocket needs a name.' : !v.body.trim() ? 'A pocket needs something in it.' : null) },
+  // A pocket that exists, of a thread, of the tale's thread (a string), or of the tale (a rule, one of
+  // your own). The payload is the one its press sent; a string's kind may change (`slot`).
+  // ponytail: a draft with no last write after it (the page shut or the server gone before Done or
+  // the hidden tab sent it) keeps no revision and stales nothing, so a summary can stay in the prompt
+  // that the pocket no longer agrees with. Stale on the server from drafts if a writer reports one.
+  pocket: { drafts: true, fields: ['name', 'body', 'keys', 'owed', 'slot'],
+    write: (pk, v, storyId, final) => {
+      // A promise of the tale's thread carries the scene it is owed by, as its press did.
+      const base = pk.base ?? pk.was, promise = v.slot === 'promise'
+        && pocketOwners().find((x) => x.id === pk.entryId)?.entryType === 'tale';
+      return api.saveAddon(storyId, pocketEntry(pk), { id: pk.id, slot: v.slot, name: v.name.trim(), body: v.body.trim(),
+        keys: keysFrom(v.keys.split(',')), ...(promise ? { owedBy: Number(v.owed) || null } : {}) },
+      final ? { opened: { name: base.name.trim(), body: base.body.trim() } } : { draft: true });
+    },
+    never: (v) => (!v.name.trim() ? 'A pocket needs a name.' : !v.body.trim() ? 'A pocket needs something in it.' : null) },
 };
 const pocketAuto = (pk) => (pk?.sum ? POCKET_AUTO.sum : pk?.arc ? POCKET_AUTO.arc
-  : pk?.ot && pk.id && pk.id !== 'first' ? POCKET_AUTO.state : pk?.draft && pk.id ? POCKET_AUTO.draft : null);
+  : pk?.ot ? (pk.id && pk.id !== 'first' ? POCKET_AUTO.state : null)
+  : pk?.draft ? (pk.id ? POCKET_AUTO.draft : null) : pk?.id ? POCKET_AUTO.pocket : null);
 const pocketVals = (pk, auto) => Object.fromEntries(auto.fields.map((f) => [f, pk[f]]));
 const sameVals = (a, b) => Object.keys(a).every((k) => a[k] === b[k]);
 /** One write of an open panel. In turn, never two at once, so a slow write cannot land after a later
  *  one. Nothing is sent when it says what was last written, or when it is held and not `forced`. A
- *  refusal is said and leaves it unwritten, so Done tries again. Resolves to the server's answer. */
-function writePocket(pk, storyId = S.storyId, vals = null, forced = false) {
+ *  refusal is said and leaves it unwritten, so Done tries again. Resolves to the server's answer.
+ *  `final` (Done, Undo my changes, a hidden tab) is the last write of a kind that `drafts`: owed after
+ *  any draft even when the words are the same, and it moves `base` on to what it wrote. */
+function writePocket(pk, storyId = S.storyId, vals = null, forced = false, final = forced) {
   const auto = pocketAuto(pk); if (!auto) return Promise.resolve({});
   const v = vals ?? pocketVals(pk, auto);
   pk.chain = (pk.chain ?? Promise.resolve()).then(async () => {
-    if (sameVals(v, pk.saved ?? pk.was) || auto.never?.(v) || (!forced && auto.held?.(v))) return {};
-    const r = await auto.write(pk, v, storyId);
+    const owed = final && auto.drafts && pk.drafted;
+    if ((!owed && sameVals(v, pk.saved ?? pk.was)) || auto.never?.(v) || (!forced && auto.held?.(v))) return {};
+    const r = await auto.write(pk, v, storyId, final);
     if (!r || r.error) { toast(`Not saved. ${r?.error ?? 'The server did not answer.'}`); return r ?? { error: 'no answer' }; }
     pk.saved = v; pk.wrote = true;
+    if (auto.drafts) { pk.drafted = !final; if (final) pk.base = v; }
     return r;
   });
   return pk.chain;
@@ -12081,6 +12118,9 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'hidden') return;
   for (const [el, w] of [...typedWait]) saveTyped(el, w.where);
   for (const [key, w] of [...soonWait]) { dropSoon(key); void w.run(); }
+  // And an open panel that drafts sends its last write after that, so its revision and its staling
+  // are worked out now and not left to a Done that may never come (POCKET_AUTO `drafts`).
+  if (pocketAuto(S.pocket)?.drafts) void writePocket(S.pocket, S.storyId, null, false, true);
 });
 
 /** A MODE'S INSTRUCTION, IN YOUR WORDS (Account → Writing), SAVES AS YOU TYPE (ADR 0004, pass
@@ -12714,7 +12754,8 @@ document.addEventListener('click', async (e) => {
   }
 
   // #126 · THE POCKET PANEL'S SAVE, REMOVE, ASKS AND USE THIS. Save writes the pocket as the panel
-  // holds it (an id when altering one, the chosen kind when adding) and shuts the panel.
+  // holds it, the chosen kind, and shuts the panel. Only a new one has Save: one that exists saves
+  // as you type (POCKET_AUTO `pocket`), so the id branches below are for a caller that names one.
   if (d.pocketsave) {
     const pk = S.pocket; if (!pk) return;
     const name = pk.name.trim(), body = pk.body.trim();
@@ -12750,7 +12791,8 @@ document.addEventListener('click', async (e) => {
   if (d.pocketuse) {
     const pk = S.pocket; if (!pk?.offer) return;
     pk.body = pk.offer.body; pk.offer = null;
-    drawPocket(); return toast('In the box, not saved. Read it, then press Save.');
+    // Only a pocket that exists is offered a version, and it saves as you type (POCKET_AUTO).
+    drawPocket(); return toast('In the box. Done keeps it, and Undo my changes puts back what was there.');
   }
   if (d.wear !== undefined) {
     // "entryId:outfitId", with an empty outfit id meaning take it all off. One attribute rather

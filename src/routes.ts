@@ -5734,7 +5734,7 @@ export const routes: Record<string, Handler> = {
 
   /** Collapse a run of chapters into one act-level summary. The chapters it covers stop
    *  being sent individually, which is what stops EARLIER growing with the book. */
-  'POST /api/string':   (c) => { db.upsertString(c.body.storyId, c.body.string ?? {});
+  'POST /api/string':   (c) => { db.upsertString(c.body.storyId, c.body.string ?? {}, writeHow(c.body));
                                  return viewOf(c, c.body.storyId); },
 
   'POST /api/rollup': async (c) => {

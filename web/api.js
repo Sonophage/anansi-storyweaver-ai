@@ -224,7 +224,7 @@ export const api = {
   // Waved away, for this state of it. Edit the chapter or write past the horizon and it returns.
   dismiss:      (storyId, kind, ref) => j('/api/dismiss', 'POST', { storyId, kind, ref }),
   invent:       (storyId, o)     => j('/api/invent', 'POST', { storyId, ...o }),
-  saveString:   (storyId, x)     => j('/api/string', 'POST', { storyId, string: x }),
+  saveString:   (storyId, x, how = {}) => j('/api/string', 'POST', { storyId, string: x, ...how }),
   prompts:      ()               => j('/api/prompts'),
   savePrompt:   (key, text)      => j('/api/prompts', 'POST', { key, text }),
   // #36. A followed card, per card: take it over, hand it back, or take it out of this book.

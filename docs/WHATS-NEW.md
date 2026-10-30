@@ -258,6 +258,12 @@ new change is still added with its own press.
 While you set up a new tale, a pocket you open on one of its threads keeps what you type. Done
 closes it, and Undo my changes puts back what it said when you opened it. A new pocket is still
 added with its own press.
+### A pocket you open saves as you type
+A pocket you open on a thread, a string, a rule or one of your own keeps what you type a moment
+after you stop. Done closes it, and Undo my changes puts it back as it was when you opened it. A
+thread's Alterations keep what a pocket said before once, when you press Done, and not once per
+pause. A scene summary is marked out of date only then, and only if the pocket lost something it
+said. A new pocket is still added with its own press.
 
 ## 2026-10-30 · The next scene starts the way you say
 

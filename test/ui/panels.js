@@ -1066,7 +1066,8 @@ if (anyEntry) {
   console.log("  landed: " + JSON.stringify(landed));
   ok("  pressing it opens the pocket panel on that pocket",
      landed.panel === true && landed.name === 'her fear' && landed.body === 'will not cross at night' && landed.remove);
-  await page.click('[data-pocketx]'); await wait(400);
+  // One that exists saves as you type: Done, not Cancel, shuts it (ADR 0004, pass three).
+  await page.click('[data-pocketdone]'); await wait(400);
   // THE POCKETS TAB, ON THEN OFF. This one is off at this point in the run, so its row belongs
   // BELOW the divider, and the check further down watches it move above it once it is on.
   await page.click('[data-cardview="form"]'); await wait(600);

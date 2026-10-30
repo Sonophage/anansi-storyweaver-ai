@@ -8885,17 +8885,51 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   click({ pocketx: '1' }); await wait();
   ok('the Pockets tab is a list, and a row opens the panel on that pocket');
 
-  // WHAT IS TYPED SURVIVES A REPAINT, and SAVE SENDS THE POCKET AS THE PANEL HOLDS IT.
+  // WHAT IS TYPED SURVIVES A REPAINT. A POCKET THAT EXISTS SAVES AS YOU TYPE (ADR 0004, pass three):
+  // a pause writes a draft, which keeps no revision and stales nothing, and Done sends the last write
+  // with the text the panel opened on, so the revision and the staling are worked out once, against it.
   click({ editroom: 'a-off' }); await wait();
+  assert.doesNotMatch(html('pocketPanel'), /data-pocketsave|>Save</, 'POCKET-NO-SAVE: an open pocket has no Save');
+  assert.match(html('pocketPanel'), /data-pocketundo="1"[\s\S]*data-pocketdone="1"/, 'POCKET-FOOT: Undo my changes and Done in its foot');
+  const addons = () => POSTED.filter((x) => x.url === '/api/addon').map((x) => x.body);
+  POSTED.length = 0;
   typeIn('pk-body', 'To go home, and not say so.'); typeIn('pk-keys', 'home, harbour');
   click({ cardtab: 'rooms' }); await wait();   // any press that repaints
   assert.match(html('pocketPanel'), />To go home, and not say so\.<\/textarea>/, 'PANEL-REPAINT: the typed text is drawn back');
+  assert.deepStrictEqual(addons(), [], 'POCKET-PAUSE: nothing is written while the typing goes on');
+  await sleep(1000);
+  const typed = { id: 'a-off', slot: 'interiority', name: 'What she wants', body: 'To go home, and not say so.', keys: ['home', 'harbour'] };
+  assert.deepStrictEqual(addons(), [{ storyId: 's-1', entryId: 'e-1', addon: typed, draft: true }],
+    'POCKET-DRAFT: the pause writes the pocket as a draft');
+  click({ pocketdone: '1' }); await wait();
+  assert.deepStrictEqual(addons().slice(1), [{ storyId: 's-1', entryId: 'e-1', addon: typed,
+    opened: { name: 'What she wants', body: 'To go home.' } }], 'POCKET-DONE: Done sends the last write, naming what it opened on');
+  assert.doesNotMatch(html('pocketPanel'), /role="dialog"/, 'POCKET-DONE: and shuts the panel');
+  // UNDO MY CHANGES after a draft: the opening text, as the last write, so nothing is kept or staled.
+  click({ editroom: 'a-off' }); await wait();
   POSTED.length = 0;
-  click({ pocketsave: '1' }); await wait();
-  const saved = POSTED.find((x) => x.url === '/api/addon');
-  assert.deepStrictEqual(saved?.body, { storyId: 's-1', entryId: 'e-1', addon: { id: 'a-off', slot: 'interiority',
-    name: 'What she wants', body: 'To go home, and not say so.', keys: ['home', 'harbour'] } }, 'PANEL-SAVE: Save sends the pocket');
-  assert.doesNotMatch(html('pocketPanel'), /role="dialog"/, 'PANEL-SAVE: and shuts the panel');
+  typeIn('pk-body', 'Somewhere else.'); await sleep(1000);
+  click({ pocketundo: '1' }); await wait();
+  assert.notStrictEqual(html('pocketPanel'), '', 'POCKET-UNDO-ASKS: Undo my changes with a change typed asks first');
+  click({ pocketundo: '1' }); await wait();
+  assert.deepStrictEqual(addons().map((b: any) => [b.addon.body, b.draft ?? null, b.opened?.body ?? null]),
+    [['Somewhere else.', true, null], ['To go home.', null, 'To go home.']],
+    'POCKET-UNDO: the second press writes back what it opened on, as the last write');
+  assert.doesNotMatch(html('pocketPanel'), /role="dialog"/, '  and shuts it');
+  // A HIDDEN TAB sends the last write too, with or without a pause still waiting.
+  click({ editroom: 'a-off' }); await wait();
+  POSTED.length = 0;
+  typeIn('pk-body', 'Home, by spring.');
+  const doc = (globalThis as any).document;
+  doc.visibilityState = 'hidden';
+  try { (listeners.visibilitychange ?? []).forEach((f: Function) => f({})); await wait(); } finally { doc.visibilityState = 'visible'; }
+  assert.deepStrictEqual(addons().map((b: any) => [b.addon.body, b.draft ?? null, b.opened?.body ?? null]),
+    [['Home, by spring.', true, null], ['Home, by spring.', null, 'To go home.']],
+    'POCKET-HIDDEN: a hidden tab writes the pause, then the last write');
+  // Done after: the last write was sent and nothing has changed since, so nothing more.
+  POSTED.length = 0;
+  click({ pocketdone: '1' }); await wait();
+  assert.deepStrictEqual(addons(), [], 'POCKET-HIDDEN-ONCE: and Done after it sends nothing more');
   // A NEW ONE: the kind chosen, no id.
   click({ pocketnew: 'e-1' }); click({ pocketkind: 'voice' });
   typeIn('pk-name', 'At court'); typeIn('pk-body', 'Formal, and slower.');
@@ -8903,7 +8937,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   click({ pocketsave: '1' }); await wait();
   assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body.addon,
     { slot: 'voice', name: 'At court', body: 'Formal, and slower.', keys: [] }, 'PANEL-SAVE: a new one carries its kind and no id');
-  ok('the pocket panel keeps what is typed through a repaint, and Save sends the pocket');
+  ok('the pocket panel keeps what is typed through a repaint; one that exists saves as you type, and a new one is sent by its press');
 
   // REMOVE ASKS TWICE.
   click({ editroom: 'a-off' }); await wait();
@@ -8930,7 +8964,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   click({ pocketuse: '1' }); await wait();
   assert.match(html('pocketPanel'), /id="pk-body"[^>]*>Flat, and colder\.<\/textarea>/, 'PANEL-USE: Use this fills the box');
   assert.match(html('pocketPanel'), /id="pk-steer"/, 'PANEL-USE: with the ask row still under it');
-  click({ pocketx: '1' }); click({ pocketx: '1' }); await wait();
+  click({ pocketundo: '1' }); click({ pocketundo: '1' }); await wait();
   ok("Ask Anansi's rewrite of a pocket is a diff, and Use this fills the box");
 
   // ON AND OFF FROM THE LIST.
@@ -8979,12 +9013,12 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     assert.match(p, /id="pk-owed"[^>]*value="4"/, '  with the scene a promise is owed by');
     typeIn('pk-body', 'Sent by his brother, and sealed.');
     POSTED.length = 0;
-    click({ pocketsave: '1' }); await wait();
+    click({ pocketdone: '1' }); await wait();
     assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body, { storyId: 's-1', entryId: 'e-tale',
       addon: { id: 'st-1', slot: 'promise', name: 'The letter he has not opened', body: 'Sent by his brother, and sealed.', keys: [],
-        owedBy: 4 } },
-      "STRINGS-SAVE: Save sends the string as a pocket of the tale's thread");
-    ok('a string opens in the pocket panel, and Save sends it as a pocket of the tale');
+        owedBy: 4 }, opened: { name: 'The letter he has not opened', body: 'Sent by his brother' } },
+      "STRINGS-SAVE: Done sends the string as a pocket of the tale's thread");
+    ok('a string opens in the pocket panel, and Done sends it as a pocket of the tale');
 
     // Seth, 2026-10-28: "I can't change a string's status or what it's for, like a promise." Open, the
     // panel shows the string's kind as two pills and where it stands as four choices.
@@ -9008,6 +9042,15 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
         `STRINGS-PANEL-STAND: ${stand} is ${status}, ${summoned ? 'on' : 'off'}`);
     }
     assert.ok(html('pocketPanel').includes('role="dialog"'), '  and the panel stays open');
+    // WITH TYPING IN THE PANEL: the choice carries what is typed, as a draft (ADR 0004, pass three),
+    // and not the string as the tale was last drawn, which would write the typing away.
+    typeIn('pk-body', 'Sent by his brother, unread.'); await sleep(1000);
+    POSTED.length = 0;
+    click({ stringstatus: 'st-1:play' }); await wait();
+    const typedStand = POSTED.find((x) => x.url === '/api/string')?.body;
+    assert.deepStrictEqual([typedStand?.string?.body, typedStand?.draft], ['Sent by his brother, unread.', true],
+      'STRINGS-STAND-TYPED: a choice made while typing carries the typing, as a draft');
+    typeIn('pk-body', 'Sent by his brother'); await sleep(1000);
     // The Workbench's switch goes through the same door.
     POSTED.length = 0;
     click({ summon: 'st-1' }); await wait();
@@ -9018,10 +9061,10 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     assert.match(html('pocketPanel'), /data-pocketkind="question"[^>]*aria-pressed="true"/, 'STRINGS-PANEL-KIND: question is chosen');
     assert.doesNotMatch(html('pocketPanel'), /id="pk-owed"/, '  and the owed by box goes');
     POSTED.length = 0;
-    click({ pocketsave: '1' }); await wait();
+    click({ pocketdone: '1' }); await wait();
     assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body?.addon,
       { id: 'st-1', slot: 'question', name: 'The letter he has not opened', body: 'Sent by his brother', keys: [] },
-      'STRINGS-PANEL-KIND-SAVE: Save sends the string as an open question, with no owed by');
+      'STRINGS-PANEL-KIND-SAVE: Done sends the string as an open question, with no owed by');
     // One tied off shows so.
     click({ editroom: 'st-2' }); await wait();
     const open2 = html('pocketPanel');

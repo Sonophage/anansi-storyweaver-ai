@@ -2690,8 +2690,14 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
     opened: { name: 'facts', body: 'A ferrywoman.' } }));
   assert.deepStrictEqual(db.entryHistory(bk.id, id).map((r: any) => r.previous_value).sort(), ['A ferrywoman.', 'Keeps the lamp.'],
     'ROUTE-OPENED: the last write through each keeps one revision, of what it opened on');
+  // A string's choice made while its panel is open carries the panel's typing as a draft too.
+  const sid = db.upsertString(bk.id, { title: 'The ferry debt', body: 'Owed since spring.' }) as string;
+  const tale = db.taleThread(bk.id) as string, strRows = () => db.entryHistory(bk.id, tale).length;
+  const had = strRows();
+  routes['POST /api/string'](ctxI(alice, { storyId: bk.id, string: { id: sid, title: 'The ferry debt', body: 'Owed since', summoned: true }, draft: true }));
+  assert.strictEqual(strRows(), had, 'ROUTE-STRING-DRAFT: a string written as a draft keeps no revision');
   db.delStory(bk.id);
-  ok('POST /api/entry and /api/addon take a draft flag and the opening text beside the row');
+  ok('POST /api/entry, /api/addon and /api/string take a draft flag and the opening text beside the row');
 }
 
 console.log(`\n${n} checks passed`);

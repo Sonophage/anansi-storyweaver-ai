@@ -2553,7 +2553,7 @@ export const stringStatus = (s: unknown): 'paid' | 'dropped' | null =>
 
 const STRING_IN = STRING_SLOTS.map((n) => `'${n}'`).join(',');
 
-export function upsertString(storyId: string, v: any) {
+export function upsertString(storyId: string, v: any, how: WriteHow = {}) {
   const cur = v.id ? q(`SELECT a.id, a.slot FROM addons a JOIN entries e ON e.id = a.entry_id
     WHERE a.id = ? AND a.story_id = ? AND e.entry_type = 'tale' AND a.slot IN (${STRING_IN})`).get(v.id, storyId) as any : null;
   const tale = taleThread(storyId);
@@ -2562,7 +2562,7 @@ export function upsertString(storyId: string, v: any) {
   const kind = stringKind(v.kind) ?? cur?.slot ?? 'promise';
   const status = stringStatus(v.status);
   const id = upsertAddon(storyId, tale, { id: cur?.id, slot: kind, name: v.title ?? 'Untitled', body: v.body ?? '',
-    fromChapter: v.fromChapter ?? null, owedBy: v.owedBy ?? null, status });
+    fromChapter: v.fromChapter ?? null, owedBy: v.owedBy ?? null, status }, how);
   // Tied off or let go is off, which `upsertAddon` has done; open follows the switch it was given.
   if (id && !status) setAddonActive(storyId, id, !!v.summoned);
   return id;
