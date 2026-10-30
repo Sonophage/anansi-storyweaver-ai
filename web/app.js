@@ -3704,9 +3704,9 @@ function hemSteps(ch, closed) {
 }
 
 /** Which scene the hem drawer is about, and whether it is closed. See ritualPanel. */
-function ritualScene() {
+function ritualScene(of = S.ritualOf) {
   const started = (V.passages ?? []).some((p) => p.chapterId === V.currentChapter.id && !p.isBreak);
-  const ch = V.chapters.find((c) => c.id === S.ritualOf)
+  const ch = V.chapters.find((c) => c.id === of)
     ?? (started ? V.currentChapter : (V.chapters.at(-2) ?? V.currentChapter));
   return { ch, closed: ch.status === 'closed' || ch.id !== V.currentChapter.id };
 }
@@ -3993,19 +3993,10 @@ async function findSearch(whole = false) {
 }
 
 /** IS THE SCENE THE HEM DRAWER WILL SHOW ALREADY HEMMED? For the words on This scene's door, which
- *  must say what the drawer behind it holds. The door clears `S.ritualOf`, so this is `ritualPanel`'s
- *  rule with none: the scene you are in once it has a passage, the one before it otherwise; hemmed
- *  if it is closed or is not the scene you are in. A copy of one rule in two places, so test/app.ts
- *  reads both sides (HEM-DOOR): the door says "See how it was hemmed" exactly when the drawer has
- *  no Hem button.
- *  ponytail: a copy, because ritualPanel was being rewritten at the same time (2026-10-30). Have
- *  ritualPanel call this when that work lands, and the copy goes. */
-function hemShownIsDone() {
-  const cur = V.currentChapter;
-  const started = (V.passages ?? []).some((p) => p.chapterId === cur.id && !p.isBreak);
-  const ch = started ? cur : (V.chapters.at(-2) ?? cur);
-  return ch.status === 'closed' || ch.id !== cur.id;
-}
+ *  must say what the drawer behind it holds. The door clears `S.ritualOf`, so this is `ritualScene`
+ *  with none. test/app.ts reads both sides (HEM-DOOR): the door says "See how it was hemmed" exactly
+ *  when the drawer has no Hem button. */
+const hemShownIsDone = () => ritualScene(null).closed;
 
 const PANELS = {
   entry: entryEditor,

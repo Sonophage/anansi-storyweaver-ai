@@ -51,7 +51,6 @@ A step that failed now says "Did not run" and why, in plain words, with its own 
 says "Trying…" while it runs. Each step has one name everywhere, and "Hem it again" replaces the
 separate block of re-run buttons. An answer from the model that came back broken now says so in
 plain words.
-## 2026-10-30 · Small fixes around starting a new scene
 
 ### Start writing takes you to the page
 On the next scene's setup, Start writing used to open the drawer of what Anansi reads, full of
