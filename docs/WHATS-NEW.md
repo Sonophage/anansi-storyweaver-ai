@@ -18,6 +18,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-30 · Hemming asks how the next scene starts
 
+### Hemming is its steps
+The hem screen now always shows its steps at the top: Anansi's six, then yours, deciding what he
+found and setting up the next scene. Each is coloured by where it is: grey waiting, pulsing while
+Anansi works on it (with what he is doing and for how long), green done, red when it did not run,
+and gold for the one that is waiting on you. Underneath, the screen only shows something when you
+have something to do: the question about the next scene, a step to try again, the things he found
+to sew in or reject (right there, and still on the Workbench too), then setting up the next scene.
+Hem it again and Delete are folded under More. The steps stay on top while you set up the next scene.
+
 ### The model sits in the middle of the menu
 The icon that switches between the main menu and the tale's menu is now on the left of the menu's
 top row, with the model in the middle and the close on the right.

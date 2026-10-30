@@ -2350,14 +2350,32 @@ html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
 .diff del { color:var(--mute); text-decoration:none; box-shadow:inset 0 -2px 0 var(--dim); }
 .diff .dnone { color:var(--faint); font-style:italic; }
 .deckredo { display:flex; gap:7px; align-items:center; margin-top:8px; }
-/* The hem's passes as one list of steps, done or not yet, one marker for both (UX review, 2026-10-29). */
-.hemstate { font-size:13.5px; color:var(--ink-bright); margin-bottom:12px; }
-.hemsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+/* THE HEM AS ITS STEPS, COLOUR CODED (Seth, 2026-10-30): grey waiting, the accent pulsing while
+   Anansi works on it, green done, red when it did not run, gold for the step waiting on the writer
+   ("gold for next": the one press the screen is asking for). The mark carries the colour and the
+   name follows it, so the state reads without the colour too (○ ● ✓ ✕ →). */
+.hemsteps { list-style:none; margin:14px 0 18px; padding:0; display:flex; flex-direction:column; gap:10px; }
 .hemsteps li { display:flex; gap:10px; align-items:flex-start; }
 .hemmark { flex:0 0 18px; height:18px; display:flex; align-items:center; justify-content:center;
   border:1px solid var(--chip); border-radius:50%; font-size:11px; line-height:1; color:var(--ink); }
 .hembody { display:flex; flex-direction:column; gap:2px; min-width:0; }
 .hemname { font-size:13.5px; color:var(--ink-bright); }
+.hemsteps li[data-state="wait"] .hemmark { color:var(--faint); border-color:var(--chip); }
+.hemsteps li[data-state="wait"] .hemname { color:var(--mute); }
+.hemsteps li[data-state="run"] .hemmark { color:var(--accent-soft); border-color:var(--accent-soft); animation:hempulse 1.6s var(--ease) infinite; }
+.hemsteps li[data-state="run"] .hemline { color:var(--accent-soft); }
+.hemsteps li[data-state="done"] .hemmark { color:var(--good); border-color:var(--good); }
+.hemsteps li[data-state="fail"] .hemmark { color:var(--bad); border-color:var(--bad); }
+.hemsteps li[data-state="fail"] .hemline { color:var(--bad); }
+.hemsteps li[data-state="you"] .hemmark { color:var(--gold); border-color:var(--gold); }
+.hemsteps li[data-state="you"] .hemname { color:var(--gold); }
+@keyframes hempulse { 50% { opacity:.35; } }
+@media (prefers-reduced-motion:reduce) { .hemsteps li[data-state="run"] .hemmark { animation:none; } }
+/* Below the steps, only what needs the writer (ritualPanel); the rarer presses folded under More. */
+.hemact { display:flex; flex-direction:column; gap:12px; }
+.hemact:empty { display:none; }
+.hemfail { gap:8px; border-color:rgba(200,112,90,.35); }
+.hemmore > summary { cursor:pointer; min-height:44px; display:flex; align-items:center; color:var(--mute); }
 /* Anansi edits, 44px to the finger: it was 18px tall (UX review, 2026-10-29). */
 .deckredo .btn { min-height:44px; display:flex; align-items:center; justify-content:center; }
 .deckbar { display:flex; gap:8px; margin-top:4px; }

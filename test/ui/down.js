@@ -66,10 +66,9 @@ ok(`the row for the closed scene does not say hemmed in green (${JSON.stringify(
    !!row && /did not run/.test(row.text) && !/hemmed/.test(row.text) && !/--good/.test(row.dot));
 await page.click('#sideBody button[data-panel="ritual"]');
 await wait(700);
-const first = await page.eval("(() => { const d = [...document.querySelectorAll('#sideBody span')].find((x) => /next one opened/.test(x.textContent));"
-  + " return d ? { text: d.textContent.trim(), dot: d.previousElementSibling?.getAttribute('style') ?? '' } : null; })()");
-ok(`  and the report's first line says the same (${JSON.stringify(first?.text)})`,
-   !!first && /did not run/.test(first.text) && !/--good/.test(first.dot));
+// Since 2026-10-30 the hem screen is its steps: a pass that did not run is a red step, not green.
+const failedSteps = await page.eval("[...document.querySelectorAll('#sideBody .hemsteps li[data-state=\\"fail\\"]')].length");
+ok(`  and the hem's steps show what did not run in red (${failedSteps} steps)`, failedSteps > 0);
 
 // After a reload, the scene hemmed with no summary is on the Workbench with its button. It was
 // reachable only from This scene → Summaries (second usability check, 2026-10-25).

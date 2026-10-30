@@ -6349,21 +6349,19 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // classified — "the model did not answer" and "nothing to read in this chapter" send a writer
   // to two different places.
   side = await reportOn({ ...ran, facts: 'the model did not answer' });
-  assert.match(side, /One pass did not run/, 'a failed pass is reported, and counted');
-  assert.match(side, /New threads/, 'named as the writer knows it (#77: not facts, which is Always true)');
+  assert.match(side, /New threads<\/span> did not run/, 'a failed pass is reported, named as the writer knows it (#77: not facts)');
   assert.match(side, /the model did not answer/, 'with the reason, verbatim');
   // NOT AS A LOST SCENE. The prose is committed before any pass runs, and a writer who reads this
   // box has to know that before they go looking for their words.
   assert.match(side, /Nothing was lost/, 'and says the scene itself closed');
   // The ones that ran are not listed. A report that names every pass every time is a report nobody
   // reads to the end.
-  assert.doesNotMatch(side.match(/did not run[\s\S]*?Nothing was lost/)?.[0] ?? '', /Changes to the people in it/, 'and a pass that ran is not in the list');
+  assert.doesNotMatch(side.match(/class="card hemfail">[\s\S]*?Nothing was lost/)?.[0] ?? '', /Changes to the people in it/, 'and a pass that ran is not in the list');
   assert.match(side, /data-hemagain="c-2" data-pass="facts"/, '  and that pass alone can be tried again');
 
   side = await reportOn({ summary: 'llama-server is not running', facts: 'llama-server is not running' });
-  assert.match(side, /2 passes did not run/, 'two failures are counted as two');
-  assert.match(side, /Summary<\/span> &mdash;/, 'both are named');
-  assert.match(side, /New threads<\/span> &mdash;/, 'both are named');
+  assert.match(side, /Summary<\/span> did not run/, 'two failures are both named');
+  assert.match(side, /New threads<\/span> did not run/, 'both are named');
 
   // #46. A HEM THAT KEPT YOURS SAYS SO, and not as a pass that did not run. The hem reports it as
   // `keptSummary`; the summary line reads the author off the chapter, so a summary Anansi has since
@@ -6389,43 +6387,40 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   await sleep(40);
   ok('the hem report says which of its passes did not run, and why, from the scene itself (#32, #92)');
 
-  // ---- THE HEM'S PASSES ARE ONE LIST OF STEPS (UX review, 2026-10-29). "Not hemmed yet / Not
-  // summarised / Nothing changed anybody" in grey, then one line in green, did not read as a
-  // sequence. Each pass is a step in the order the hem runs them, marked done or not yet with one
-  // marker, and the drawer has one gold button.
+  // ---- THE HEM IS ITS STEPS, ALWAYS, COLOUR CODED (Seth, 2026-10-30: "it should always show the
+  // steps and what the ai is doing, color coded. If there's an actionable only then does the screen
+  // below the steps change"). Anansi's six passes, then the writer's two, each in one state.
   {
-    const steps = (side: string) => [...side.matchAll(/data-hemstep="([a-z]+)" data-done="([01])"/g)].map((m) => `${m[1]}:${m[2]}`);
-    const order = ['summary', 'tale', 'memory', 'facts', 'finished', 'next'];
+    const states = (side: string) => [...side.matchAll(/data-hemstep="([a-z]+)" data-done="[01]"\s*data-state="([a-z]+)"/g)].map((m) => `${m[1]}:${m[2]}`);
+    const order = ['summary', 'tale', 'memory', 'facts', 'finished', 'next', 'decide', 'setup'];
+    const below = (side: string) => side.match(/<div class="hemact">([\s\S]*?)<\/div>\s*<details class="hemmore/)?.[1] ?? 'NO HEMACT';
     click({ open: 's-1' }); await sleep(40);
     click({ ritual: '1' }); await sleep(30);
     let side = html('sideBody');
-    assert.deepStrictEqual(steps(side), order.map((k) => `${k}:0`), 'HEM-STEPS: before a hem, every pass is a step not yet done, in the order they run');
-    const list = side.match(/<ol class="hemsteps">[\s\S]*?<\/ol>/)?.[0] ?? '';
-    assert.ok(list && !/var\(--good\)|var\(--warn\)/.test(list), 'HEM-STEPS: one marker style, no green or amber for some steps');
-    assert.strictEqual((side.match(/class="btn fill"/g) ?? []).length, 1, 'HEM-GOLD: Hem this scene is the one gold button');
-    assert.match(side, /class="btn fill" data-endchapter="1"/, '  and it is Hem this scene');
-    if (/data-panel="waiting"/.test(side)) assert.match(side, /class="btn ghost fill" data-panel="waiting"/, '  and Decide is an outline');
-    else assert.fail('HEM-GOLD: the fixture chalks on this scene, so Decide must be on the drawer');
+    assert.deepStrictEqual(states(side), order.map((k) => `${k}:wait`), 'HEM-STEPS: before a hem, every step is shown, waiting, in order');
+    assert.match(below(side), /class="btn fill" data-endchapter="1"/, 'HEM-ACT: and below them only the press that hems');
+    assert.strictEqual((side.match(/class="btn fill"/g) ?? []).length, 1, 'HEM-GOLD: one gold press');
+    assert.doesNotMatch(side, /data-panel="waiting"|passes did not run/, 'HEM-QUIET: no Decide button and no report box');
     side = await reportOn({ ...ran, tale: null, facts: 'the model did not answer' });
-    assert.deepStrictEqual(steps(side), order.map((k) => `${k}:${k === 'facts' ? 0 : 1}`),
-      'HEM-STEPS: after a hem, the passes that ran are done and the one that did not is not');
-    // A FAILED PASS SAYS SO ON ITS OWN STEP (walkthrough, 2026-10-30): it read "No new threads came out
-    // of this scene" when the pass never ran. In plain words, with its one Try again beside it.
+    assert.deepStrictEqual(states(side).slice(0, 6), order.slice(0, 6).map((k) => `${k}:${k === 'facts' ? 'fail' : 'done'}`),
+      'HEM-STATES: after a hem, the passes that ran are done and the one that did not failed');
     const step = (k: string) => side.match(new RegExp(`data-hemstep="${k}"[\\s\\S]*?</li>`))?.[0] ?? '';
     assert.match(step('facts'), /Did not run/, 'HEM-FAILED-STEP: the step that failed says it did not run');
     assert.doesNotMatch(step('facts'), /No new threads/, '  and not that it found nothing');
-    assert.match(step('facts'), /data-hemagain="c-2" data-pass="facts"/, '  and Try again is on that step');
-    assert.doesNotMatch(side, /Run a pass again/, 'HEM-ONE-RERUN: no second block of re-run presses');
-    assert.match(side, /data-hemagain="c-2"(?! data-pass)[^>]*>Hem it again/, '  but the whole hem can be run again');
+    assert.match(below(side), /data-hemagain="c-2" data-pass="facts"/, 'HEM-ACT-FAIL: its Try again is below the steps');
+    assert.doesNotMatch(side, /Run a pass again/, 'HEM-ONE-RERUN: no block of re-run presses');
+    assert.match(side, /<details class="hemmore[\s\S]*data-hemagain="c-2"(?! data-pass)[^>]*>Hem it again/, '  and the whole hem runs again from More');
+    // THE WRITER'S TURN IS GOLD: what it chalked waits on the writer, decided here on the hem's own card.
+    assert.match(step('decide'), /data-state="you"/, 'HEM-YOU: deciding what it found is the gold step while things wait');
+    assert.match(below(side), /data-deckkind="hem"/, 'HEM-DECIDE-HERE: and the scene\'s card is below the steps, to decide here');
+    assert.doesNotMatch(below(side), /did not run &mdash; the model did not answer<\/span>\s*<button class="btn ghost" data-hemagain="c-2" data-pass="facts">Try again<\/button><\/div>\s*<\/div>\s*<div class="note/, '  without the card repeating the hem\'s state');
     side = await reportOn({ ...ran, tale: null, memory: 'model returned unparseable JSON' });
     assert.doesNotMatch(side, /unparseable JSON/, 'HEM-PLAIN: the raw error is not shown');
     assert.match(step('memory'), /Anansi&#39;s answer came back broken|Anansi's answer came back broken/, '  but what it means');
-    // Names are one per pass, the same in the failure box and the steps.
-    assert.match(side, /Changes to the people in it<\/span> &mdash;/, 'HEM-NAMES: the failure box names the pass as the steps do');
     STORY.chapters = wasChapters; STORY.currentChapter = wasCurrent;
     click({ open: 's-1' }); await sleep(40);
   }
-  ok("the hem's passes are one list of steps, done or not yet, with one gold button");
+  ok("the hem is its steps, colour coded, and below them only what needs the writer");
 
   // ---- DELETE-AFTER NAMES THE SUMMARIES OF YOURS IT WOULD CLEAR (#46). It clears the summary of
   // every chapter that loses a passage, and a summary that is yours is words the writer typed. The
@@ -7839,11 +7834,12 @@ const hemCardOf = (side: string) => {
       'HEM-ASKED: the direction asks for the next scene, as that pass');
     side = html('sideBody');
     assert.doesNotMatch(side, /data-hemsteer=/, '  and the box gives way once asked');
-    assert.match(side, /data-hemstep="next"[^>]*>[\s\S]*?(Waiting|Running now)/, '  and the next-scene step says it is on its way');
+    assert.match(side, /data-hemstep="next"[\s\S]*?(Next, after the passes above|Writing the next scene)/, '  and the next-scene step says it is on its way');
     // Setup opens on what the scene left (its card, running), and the new scene is one step on.
     click({ panel: 'setup' }); await settle();
     assert.match(hemCardOf(html('sideBody')), /still hemming/, 'its setup opens on the running card');
     assert.strictEqual(rootEl.dataset.sidefull, '1', '  and so is the setup');
+    assert.match(html('sideBody'), /<ol class="hemsteps">[\s\S]*data-hemstep="setup"/, 'HEM-STEPS-SETUP: the hem\'s steps stay on top of the setup');
     // THE WIZARD WAITS FOR THE SCANS (Seth, 2026-10-30: "don't let the wizard move until the scans
     // are done"): its steps and its way out are shut while the hem runs, and it says why.
     let setup = html('sideBody');

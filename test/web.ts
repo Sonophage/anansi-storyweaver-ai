@@ -620,7 +620,7 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   // `ritual` is the chapter's own screen, opened from the Chapter panel's door and from the row at
   // the top of setup that says what the close found.
   const byClick = { entry: /S\.panel = 'entry'/, history: /S\.panel = 'history'/,
-                    setup: /<button class="btn ghost(?: [^"]*)?" data-panel="setup"/,
+                    setup: /<button class="btn(?: [^"]*)?" data-panel="setup"/,
                     ritual: /S\.panel = 'ritual'/,
                     // #25. Its door is a row in the rail's model list, which is why the opener is
                     // `data-modelinfo` and not `data-panel`: the row has to say WHICH model, and a
