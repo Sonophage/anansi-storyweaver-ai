@@ -28,7 +28,8 @@ summary it wrote and what it found to decide. Nothing is written until you start
 The next scene and who is in it are at the top of the list now, then the summary, then the rest.
 ### Where things stand follows how you said the next scene opens
 Where the tale stands, and where each person stands, now wait until you have said how the next
-scene starts, and are written knowing it, so they stop guessing at things that have not happened.
+scene starts. Anansi reads your opening as context: he writes where things stand at the end of this
+scene so that your opening can follow it, and does not write it as having happened.
 ### Discard one pocket, not the whole thread
 On a thread's card, each change and each pocket has a small ✕ that discards just that one. Sew it
 in takes the rest.

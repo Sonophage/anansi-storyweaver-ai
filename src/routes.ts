@@ -1424,15 +1424,17 @@ const POCKET_SHOWN = 600;
  *  enough to overflow the slot returns the overflow error rather than a partial memory. */
 /** HOW THE NEXT SCENE OPENS, for the passes that write where things stand (Seth, 2026-10-30: "the
  *  where it stands should be influenced by where the next scene starts prompt otherwise it's confusing
- *  and writes things that hasn't happened"). The writer's words on the scene after this one, framed as
- *  true and not yet written; '' while it has none. Read from the scene, so a try-again or a hem again
- *  reads it too. NOT MEASURED. */
+ *  and writes things that hasn't happened"). The writer's words on the scene after this one, AS CONTEXT
+ *  ONLY ("it should use it as context"): where things stand is the end of this scene, written so the
+ *  opening can follow, and never says the opening has happened. '' while it has none. Read from the
+ *  scene, so a try-again or a hem again reads it too. NOT MEASURED. */
 function nextOpening(storyId: string, chapterId: string): string {
   const chs = db.chapters(storyId) as any[];
   const at = chs.findIndex((x) => x.id === chapterId);
   const opens = String(chs[at + 1]?.opens_with ?? '').trim();
-  return at < 0 || !opens ? '' : `HOW THE NEXT SCENE OPENS, in the writer's words. It is true, and it has not been `
-    + `written yet. Where things stand must agree with it, and may say what it says; nothing else beyond this scene:\n${opens}`;
+  return at < 0 || !opens ? '' : `HOW THE NEXT SCENE OPENS, in the writer's words, as context only: it has not been `
+    + `written and has not happened yet. Write where things stand at the end of THIS scene, so that this opening can `
+    + `follow it; never write anything from it as having happened:\n${opens}`;
 }
 
 async function remember(c: Ctx, storyId: string, chapterId: string, scene?: string, names?: string[]) {
