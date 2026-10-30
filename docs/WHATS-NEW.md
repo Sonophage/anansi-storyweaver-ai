@@ -18,6 +18,22 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Small grey words are easier to read
+The small grey words around the page ("hold to talk", "on this machine", the little web you press
+to read what a setting does) are a shade brighter, in every theme, so they can be read on the page,
+in a drawer and in the menu. The word Woven over a passage Anansi wrote is brighter too, in its own
+colour.
+
+### The menu on a phone has a cross to close it
+On a phone the menu fills the screen, and the only way out was a small arrow beside the model that
+looked like it opened the model list. It is a ✕ now. The menu's rows each have their own picture:
+Report an issue is a beetle and the demo library is a shelf of books, so neither shares a picture
+with another row.
+
+### The model page shows a dot, not code
+For the admin, the model page printed a scrap of code between the words and the tokens, where a
+dot belongs. It shows the dot.
+
 ### Changes show as Was and Now
 Wherever a change to a thread is shown (the Workbench, Alterations, Talk, Ask Anansi), you now see
 the text as it will read, with the changed words underlined, and a Was / Now switch beside it. Press

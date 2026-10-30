@@ -852,7 +852,7 @@ function drawRail() {
     background:${SRV.demo ? 'rgba(217,178,106,.10)' : 'transparent'};
     border:1px solid ${SRV.demo ? 'rgba(217,178,106,.28)' : 'var(--line)'}">
     <span style="width:19px; height:19px; display:flex; align-items:center; justify-content:center;
-      flex:0 0 auto; color:${SRV.demo ? 'var(--gold)' : 'var(--faint)'}">${mark('book')}</span>
+      flex:0 0 auto; color:${SRV.demo ? 'var(--gold)' : 'var(--faint)'}">${mark('shelf')}</span>
     <span class="txt" style="font-size:13px; color:${SRV.demo ? 'var(--gold-lit)' : 'var(--mute)'}">${
       SRV.demo ? 'Leave the demo library' : 'Demo library'}</span></button>`;
   const active = storyMenu ? S.panel : S.wpage;
@@ -985,10 +985,14 @@ function drawRail() {
   // THE ANANSI WORDMARK GOES FROM THE TALE'S MENU, and its close moves beside the model (Seth,
   // 2026-10-28: "Remove the anansi text logo and do the menu exit on the right side of the model
   // selector so we can reclaim that space"). The workspace menu keeps both.
+  // A CROSS WHERE THE MENU COVERS THE SCREEN (UX review, 2026-10-29): there it only ever closes, and
+  // the chevron beside the model read as the model's own drop-down, so the full-screen menu had no
+  // way out you could see. The same ✕ the Look sheet closes with. A desk keeps the chevron.
   const closeBtn = `<button data-rail="1" class="railclose"
         aria-label="${S.rail ? 'Close the menu' : 'Open the menu'}"
-        ><span style="display:flex; transform:rotate(${phone() ? 90 : (S.rail ? 180 : 0)}deg);
-          transition:transform var(--t-slow) var(--ease-out)">${mark('chevron', 16)}</span></button>`;
+        >${overlay() && S.rail ? '<span aria-hidden="true" style="font-size:15px; line-height:1">\u2715</span>'
+        : `<span style="display:flex; transform:rotate(${phone() ? 90 : (S.rail ? 180 : 0)}deg);
+          transition:transform var(--t-slow) var(--ease-out)">${mark('chevron', 16)}</span>`}</button>`;
   $('rail').innerHTML = `
     ${'' /* THE WORDMARK ROW LEFT BOTH MENUS on 2026-10-28; the close sits with the model, and the
            Library row is the way home. */}
@@ -4033,11 +4037,13 @@ const PANELS = {
       ${/* CONTEXT AND SPEED IN WORDS, tokens beside them for the admin (Seth, 2026-10-29: "it needs to be
            clearer of context and speed"). A Featherless model is not shared any more: each writer
            has their own key and plan (#70), so its room is its own whole context. */ ''}
+      ${/* THE DOT IS THE CHARACTER, not `&middot;`: `fact` escapes its value, so an entity in it was
+           printed as text (UX review, 2026-10-29). */ ''}
       ${(() => {
         const room = remote ? m.perSlot : perSlot;
         const words = (n) => `about ${(Math.round(n * 0.75 / 1000) * 1000).toLocaleString()} words`;
         return fact('How much he reads at once (context)',
-          room ? `${words(room)}${SRV.admin ? ` &middot; ${room.toLocaleString()} tokens` : ''}` : '',
+          room ? `${words(room)}${SRV.admin ? ` \u00b7 ${room.toLocaleString()} tokens` : ''}` : '',
           remote ? "this model's whole limit on Featherless, and all of it is yours"
           : !SRV.admin ? 'half of what this machine holds, because both writers share it'
           : live ? `half of what this machine holds (${live.global.toLocaleString()} tokens), because both writers share it`
@@ -4047,7 +4053,7 @@ const PANELS = {
       ${remote ? fact('Cost', m.cost ? `${m.cost} ${m.cost === 1 ? 'unit' : 'units'} of your Featherless plan` : '',
         m.cost ? 'your own plan, counted while he writes' : 'Featherless did not say what this model costs') : ''}
       ${fact('How fast he writes',
-        m.tps ? `about ${Math.max(1, Math.round(m.tps * 0.75))} words a second${SRV.admin ? ` &middot; ${m.tps} tokens a second` : ''}` : '',
+        m.tps ? `about ${Math.max(1, Math.round(m.tps * 0.75))} words a second${SRV.admin ? ` \u00b7 ${m.tps} tokens a second` : ''}` : '',
         m.tps ? `the middle of ${m.runs} ${m.runs === 1 ? 'passage' : 'passages'} written with it here${m.runs < 5 ? ', too few to be sure of' : ''}`
           : 'nothing has been written with it here yet')}
 

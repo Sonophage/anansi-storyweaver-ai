@@ -903,6 +903,16 @@ const apart = (avoid, paper, dark) => {
     }
   return `rgb(${best.join(',')})`;
 };
+/** A COLOUR THAT READS AS SMALL TEXT: `c` leaned toward `ink` in 5% steps until it clears 4.5:1 on
+ *  every one of `grounds`. The colour itself when it already does; the ink if nothing short of it does. */
+const legible = (c, ink, grounds) => {
+  const a = rgbOf(c), b = rgbOf(ink), ys = grounds.map((g) => lum(rgbOf(g)));
+  for (let i = 0; i <= 20; i++) {
+    const m = a.map((v, j) => Math.round(v + (b[j] - v) * i / 20)), y = lum(m);
+    if (ys.every((g) => (Math.max(y, g) + 0.05) / (Math.min(y, g) + 0.05) >= 4.5)) return `rgb(${m.join(',')})`;
+  }
+  return ink;
+};
 
 /** Every custom property a theme sets, derived from its row.
  *
@@ -914,6 +924,8 @@ export function themeVars(key) {
   const S = THEMES[key] || THEMES.obsidian;
   const toward = S.dark ? '#FFFFFF' : '#000000';
   const away = S.paper;
+  const woven = apart([opaque(S.speak), opaque(S.good), mix(S.accent, away, .22), opaque(S.warn),
+    mix(S.ink, away, S.dark ? .42 : .28), mix(S.good, toward, .12), mix(S.accent, S.ink, .15)], S.paper, S.dark);
   return {
     '--doc-bg': S.paper, '--doc-wash': S.wash, '--rail': S.rail, '--sheet': S.sheet,
     '--body': S.ink, '--ink': S.ink,
@@ -924,8 +936,12 @@ export function themeVars(key) {
     // needs a shorter fade to hold the contrast a dark one gets for free.
     '--label': mix(S.ink, away, S.dark ? .34 : .2),
     '--mute': mix(S.ink, away, S.dark ? .34 : .2),
-    '--dim': mix(S.ink, away, S.dark ? .5 : .32),
-    '--faint': mix(S.ink, away, S.dark ? .5 : .32),
+    // 11px text wears these two ("hold to talk", "on this machine", the help marks), so they clear
+    // 4.5:1 too, on the paper, the sheet and the rail. At .5 and .32 they measured 3.70:1 on
+    // grimdark's sheet (UX review, 2026-10-29); .42 and .26 is the least fade that clears every
+    // theme, and it stays fainter than `--label`. test/app.ts checks all three grounds.
+    '--dim': mix(S.ink, away, S.dark ? .42 : .26),
+    '--faint': mix(S.ink, away, S.dark ? .42 : .26),
     '--ink-ghost': mix(S.ink, away, S.dark ? .62 : .44),
     '--rule': S.dark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.11)',
     '--line': S.dark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.09)',
@@ -984,8 +1000,11 @@ export function themeVars(key) {
     /* WOVEN, what the model wrote, whatever press asked for it (2026-10-29). Not an action, so not
      * an action's colour: the colour farthest from all six press accents and from the accent the
      * prose highlights speech in (`apart`). Its own label is "Woven". */
-    '--m-woven': apart([opaque(S.speak), opaque(S.good), mix(S.accent, away, .22), opaque(S.warn),
-      mix(S.ink, away, S.dark ? .42 : .28), mix(S.good, toward, .12), mix(S.accent, S.ink, .15)], S.paper, S.dark),
+    '--m-woven': woven,
+    /* ITS WORDS, the chip over the passage (UX review, 2026-10-29). The bar was searched for at the
+     * 3:1 a line needs, and the chip is 11px text: 2.67:1 on parchment. The same colour leaned
+     * toward the ink until it reads as text on the paper and the sheet (`legible`). */
+    '--m-woven-ink': legible(woven, S.ink, [S.paper, S.sheet]),
     /* WHERE A MODEL RUNS (#53): the circle on every model row. Local is the theme's own `good`,
      * the colour the awake dot already had, so a local model looks as it did. Remote is that same
      * colour turned to the far side of the colour wheel, at the same saturation and lightness, so
@@ -1076,6 +1095,16 @@ export const MARK = {
   book:     'M10 5.6V16.2M10 5.6C8.1 4.4 5.6 4.1 3.7 4.3V14.8C5.6 14.6 8.1 14.9 10 16.2'
           + 'M10 5.6C11.9 4.4 14.4 4.1 16.3 4.3V14.8C14.4 14.6 11.9 14.9 10 16.2',
   menu:     'M3 6.5h14M3 10h14M3 13.5h14',
+  // REPORT AN ISSUE: a beetle, head, shell split down the back, three legs a side and two feelers
+  // (UX review, 2026-10-29). The row named `bug` from the start and no mark had the name, so it
+  // fell back to `story`, the same plain circle as the tale's Tale row.
+  bug:      'M10 3.8A1.6 1.6 0 1 1 10 7A1.6 1.6 0 1 1 10 3.8'
+          + 'M10 7.4C12.6 7.4 13.6 9.6 13.6 12C13.6 14.8 12 16.6 10 16.6C8 16.6 6.4 14.8 6.4 12C6.4 9.6 7.4 7.4 10 7.4'
+          + 'M10 9V16.6M6.6 10 4 8.6M6.4 12.4H3.6M6.8 14.6 4.4 16.4M13.4 10 16 8.6M13.6 12.4H16.4M13.2 14.6 15.6 16.4'
+          + 'M9 4.2 7.6 2.6M11 4.2 12.4 2.6',
+  // THE DEMO LIBRARY: books standing on a shelf, one leaning (UX review, 2026-10-29). It wore the
+  // open book, which What changed wears on the same menu.
+  shelf:    'M2.8 16.4H17.2M4.4 16.4V5.6H7.2V16.4M8.6 16.4V7.6H11V16.4M12.4 16.4 14.6 7 17 7.6 14.8 16.4',
   // The Workbench: a bench top on two legs, a tool resting on it (2026-10-28; it shared Threads' rings).
   workbench: 'M2.8 9.4H17.2M4.6 9.4V16.2M15.4 9.4V16.2M4.6 13H15.4M7 9.4V6.6H11.4V9.4',
   // Tidy this thread: a broom (#126; three wavy strands until 2026-10-28, which read as water or a

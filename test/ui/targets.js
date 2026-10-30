@@ -39,8 +39,11 @@ const probe = `(() => {
       if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return false;
       const h = document.elementFromPoint(x, y);
       // The header and the composer sit over the scrolling page. A control half under one of them
-      // is scrolled, not small: scroll and it is whole again.
-      if (h?.closest('#bar, #dock')) return false;
+      // is scrolled, not small: scroll and it is whole again. Only a control OUTSIDE them: until
+      // 2026-10-29 this excused every probe that landed on the header, so the header's own buttons
+      // were never measured at all (a UX review measured Back at 29x31 and Read at 41x31).
+      const over = h?.closest('#bar, #dock');
+      if (over && !over.contains(e)) return false;
       return !h?.closest(C);
     });
     if (miss.length) bad.push(Math.round(r.width) + 'x' + Math.round(r.height) + ' '

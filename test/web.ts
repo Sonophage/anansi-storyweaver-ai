@@ -469,6 +469,19 @@ const ok = (m: string, fn?: unknown) => {
     ok(`reading mode spaces the passages as the writing view does (${reading.length} reading rules read)`);
   }
 
+  /* THE WOVEN CHIP'S WORDS READ AS TEXT (UX review, 2026-10-29). The bar's colour clears the 3:1 a
+   * line needs and no more, and `.from` wears it at 90% opacity: 2.67:1 on parchment. The chip over
+   * a Woven passage takes `--m-woven-ink` (test/app.ts checks it clears 4.5:1) at full strength. */
+  {
+    const sheet = (/<style>([\s\S]*?)<\/style>/.exec(read('app.html'))?.[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');
+    const chip = [...sheet.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+      .find(([, sel]) => /\.m-woven[^,]*\s\.from\s*$/.test(sel.trim()));
+    assert.ok(chip, 'WOVEN-CHIP: a rule sets the chip over a Woven passage');
+    assert.match(chip![2], /color:\s*var\(--m-woven-ink\)/, 'WOVEN-CHIP: its words wear --m-woven-ink');
+    assert.match(chip![2], /opacity:\s*1\b/, 'WOVEN-CHIP: at full strength');
+    ok('the chip over a Woven passage is set in the colour that reads as text');
+  }
+
   const comments = (js.match(/<!--[\s\S]*?-->/g) ?? []).length;
   assert.ok(comments > 20, `expected the markup comments to be found (${comments})`);
   ok(`${comments} html comments in the markup, none carrying a backtick`);

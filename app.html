@@ -876,6 +876,9 @@ html[data-ui-font="serif"] :is(.narr, .said) em { font-style:normal; }
    every passage, so passages sat closer while reading than while writing. `visibility` keeps
    the box and hides what is in it. test/web.ts refuses a reading rule that changes a passage's box. */
 html[data-reading="1"] .from { visibility:hidden; }
+/* THE WOVEN CHIP'S WORDS (UX review, 2026-10-29): the bar's colour clears the 3:1 a line needs, and
+   11px text needs 4.5. The dot keeps the bar's colour; the words take its ink, at full strength. */
+.block.m-woven .from { color:var(--m-woven-ink); opacity:1; }
 /* Where a search result put you. Fades on its own after a few seconds — a permanent mark on
    whatever you last looked for turns into furniture you stop seeing. */
 .block.found { animation: found 6s ease-out forwards; border-radius:var(--r); }

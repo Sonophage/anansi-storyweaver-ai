@@ -1906,7 +1906,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   const NEEDED = ['--doc-bg', '--doc-wash', '--rail', '--sheet', '--body', '--ink', '--ink-bright',
     '--narr', '--label', '--mute', '--dim', '--faint', '--ink-ghost', '--rule', '--line', '--edge',
     '--edge-lit', '--chip', '--field', '--gold', '--gold-dim', '--gold-lit', '--on-gold', '--bad',
-    '--good', '--warn', '--you-rule', '--speak-rule', '--chrome', '--m-coop', '--m-woven',
+    '--good', '--warn', '--you-rule', '--speak-rule', '--chrome', '--m-coop', '--m-woven', '--m-woven-ink',
     '--chrome-ink', '--chrome-dim', '--chrome-line', '--src-local', '--src-remote'];
   // --head, --dock and --panel-line came out of this list AND out of themeVars on 2026-09-05,
   // together, because no rule in app.html or web/ ever named one of them. Taking a name out of
@@ -1950,6 +1950,23 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
       assert.ok(a >= 4.5, `ACCENT-CONTRAST: ${name}'s ${k} is ${a.toFixed(2)}:1 against its own paper`);
     }
     assert.notStrictEqual(v['--accent-soft'], v['--accent-said'], `ACCENT-CONTRAST: ${name}'s emphasis is a softer tint, not the same colour`);
+    // SMALL TEXT ON EVERY GROUND (UX review, 2026-10-29). "hold to talk", "on this machine" and the
+    // help marks are 11px in `--faint` or `--dim`, which measured 3.70:1 on grimdark's sheet. The
+    // page, the drawer and the menu are three grounds, so each token is checked on all three.
+    for (const k of ['--label', '--mute', '--dim', '--faint'])
+      for (const ground of ['paper', 'sheet', 'rail']) {
+        const s = ratio(v[k], (spec as any)[ground]);
+        assert.ok(s >= 4.5, `SMALL-CONTRAST: ${name}'s ${k} is ${s.toFixed(2)}:1 on its ${ground}`);
+      }
+    // AND THE FAINT ONES STAY FAINTER than a label, or the lift has made them body text.
+    assert.ok(ratio(v['--faint'], (spec as any).paper) < ratio(v['--label'], (spec as any).paper),
+      `SMALL-CONTRAST: ${name}'s --faint is no fainter than its --label`);
+    // THE WOVEN CHIP IS 11px TEXT, and its bar's colour was searched for at the 3:1 a line needs
+    // (2.67:1 on parchment under the chip's opacity). The words wear `--m-woven-ink`.
+    for (const ground of ['paper', 'sheet']) {
+      const s = ratio(v['--m-woven-ink'], (spec as any)[ground]);
+      assert.ok(s >= 4.5, `WOVEN-INK: ${name}'s Woven chip is ${s.toFixed(2)}:1 on its ${ground}`);
+    }
     // WOVEN (2026-10-29) is a mark down the margin, so 3:1 on the paper, and it must be none of the
     // press accents: at least 70 apart (RGB distance) from each of the six and from the speech accent.
     const w = rgb(v['--m-woven']);
@@ -2647,6 +2664,10 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.match(panel, /the middle of 58 passages/);
   assert.doesNotMatch(panel, /too few to be sure of/, 'fifty-eight calls is not a thin sample');
   assert.match(panel, /How much he reads at once \(context\)/, 'CONTEXT-WORDS: the context is named as the context');
+  // A UX review on 2026-10-29 read "about 38,000 words &middot; 50,048 tokens" on this page: the
+  // value carried an entity and `fact` escaped it a second time.
+  assert.doesNotMatch(panel, /&amp;middot;/, 'FACT-DOT: the dot between words and tokens is a dot, not the entity as text');
+  assert.match(panel, /words · [\d,]+ tokens/, 'FACT-DOT: words and tokens with a dot between');
   assert.match(panel, /twelve times the speed/, 'the hand-written blurb, quoted from presets.ini');
   assert.match(panel, /data-pickmodel="Qwen3\.6-WNTH-35B-A3B-NN"/,
     'and the switch is on the panel, which is the whole of what checks.md asked for');
@@ -4754,6 +4775,40 @@ ok('This scene takes a direction and asks for something else');
   assert.doesNotMatch(main, /<span class="serif txt"[^>]*>Anansi<\/span>/, '  with no wordmark');
 }
 ok("both menus: the model on top, a list down the left (scenes, or tales), and two columns of tiles");
+
+// ---- EVERY ROW ITS OWN PICTURE, AND A CLOSE YOU CAN SEE (UX review, 2026-10-29). The main menu drew
+// the open book for What changed and for Demo library, and the plain circle for Tale and for Report
+// an issue (it named a mark, `bug`, that did not exist, and `mark` falls back to the circle). On a
+// phone the menu is the whole screen, and its only way out was a chevron that read as the model's.
+{
+  const rows = (h: string) => [...h.matchAll(/<button (data-nav|data-demo)="([^"]*)"[\s\S]*?(<svg[\s\S]*?<\/svg>)/g)]
+    .map((m) => ({ key: m[1] === 'data-demo' ? 'demo' : m[2], pic: m[3].replace(/\s+/g, ' ') }));
+  const { mark } = await import('../web/model.js');
+  const circle = mark('story').replace(/\s+/g, ' ');
+  for (const view of ['workspace', 'story']) {
+    click({ railview: view });
+    const r = rows(html('rail'));
+    assert.ok(r.length >= 6, `MENU-ICONS: the ${view} menu's rows are read (${r.length})`);
+    assert.strictEqual(new Set(r.map((x) => x.pic)).size, r.length, `MENU-ICONS: no two rows of the ${view} menu share a picture`);
+    // The plain circle is Tale's, and what `mark` draws for a name it does not know.
+    assert.deepStrictEqual(r.filter((x) => x.pic === circle && x.key !== 'story').map((x) => x.key), [],
+      `MENU-ICONS: no row of the ${view} menu wears the circle but Tale`);
+  }
+  const wide = (globalThis as any).matchMedia;
+  (globalThis as any).matchMedia = () => ({ matches: true, addEventListener() {} });   // phone width
+  try {
+    const rootNow = (globalThis as any).document.documentElement;
+    click({ railview: 'workspace' });
+    if (rootNow.dataset.uiRail !== 'open') click({ railview: 'workspace' });
+    assert.strictEqual(rootNow.dataset.uiRail, 'open', 'MENU-CLOSE: the menu is open before its close is read');
+    const close = html('rail').match(/<button data-rail="1" class="railclose"[\s\S]*?<\/button>/)?.[0] ?? '';
+    assert.match(close, /aria-label="Close the menu"/, 'MENU-CLOSE: the close says what it does');
+    assert.match(close, /\u2715/, 'MENU-CLOSE: and on a phone it is a cross, not the chevron');
+    click({ rail: '1' });
+    assert.strictEqual(rootNow.dataset.uiRail, 'closed', 'MENU-CLOSE: and it closes the menu');
+  } finally { (globalThis as any).matchMedia = wide; }
+}
+ok('every menu row has its own picture, and the phone menu has a cross to close it');
 
 // ---- THE ACCOUNT, FIVE PAGES (Seth, 2026-10-27): you, your key and model, the look, your writing,
 // your books; Import, Export and What you have written left the menu for it.
