@@ -8439,7 +8439,7 @@ function alterRecord() {
   // Over time's scene 1 instead, which saves it itself.
   const was = { title: e.title ?? '', ...(st ? { now: st.body ?? '' } : { body: e.body ?? '' }), notes: e.notes ?? '',
     keys: keysFrom(e.keys ?? []).join(', '), facts: facts?.body ?? '' };
-  return (S.alterEdit = { id: e.id, storyId: S.storyId, nowId: st?.id ?? null, factsId: facts?.id ?? null,
+  return (S.alterEdit = { id: e.id, storyId: S.storyId, entry: e, nowId: st?.id ?? null, factsId: facts?.id ?? null,
     factsName: facts?.name ?? 'facts', was, drafted: {} });
 }
 /** What the form holds now. A box not on the page keeps what was last written. The wake words are the
@@ -8462,8 +8462,9 @@ function alterVals(ae, final = false) {
 function writeAlter(ae, final = false, vals = null) {
   const v = vals ?? alterVals(ae, final);
   ae.chain = (ae.chain ?? Promise.resolve()).then(async () => {
-    const e = S.storyId === ae.storyId ? V?.entries?.find((x) => x.id === ae.id) : null;
-    if (!e) return { error: 'That thread is not in this tale any more.' };
+    // The thread as the open tale holds it now, so a chip pressed since is not undone; or, when another
+    // tale has been opened since (a last write sent on the way out), as it was when Alter opened.
+    const e = (S.storyId === ae.storyId ? V?.entries?.find((x) => x.id === ae.id) : null) ?? ae.entry;
     const last = ae.saved ?? ae.was, base = ae.base ?? ae.was, saved = { ...last };
     const how = (opened) => (final ? { opened } : { draft: true });
     const fail = (r) => {
