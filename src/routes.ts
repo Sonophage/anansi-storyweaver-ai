@@ -1775,15 +1775,22 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // read the threads again after the model answers and check against that.
   const scene = `scene:${closing}`;
   const passes: Record<string, string | null> = {};
+  // EACH PASS IS LOGGED WITH ITS TIME, as `hem-pass:<name>` (2026-10-30: "read the times from the
+  // hem"), so a slow hem can be read pass by pass rather than guessed at.
   const pass = async (name: string, on: boolean, fn: () => Promise<any>) => {
     if (!on) return null;
     db.hemAt(storyId, closing, run, name);   // the card says which pass, and since when
+    const t0 = Date.now();
+    const log = (error: string | null) => db.logGeneration({ storyId, chapterId: closing, model: backgroundModel(c, bookOf(storyId)),
+      role: `hem-pass:${name}`, params: {}, latencyMs: Date.now() - t0, error });
     try {
       const out = await fn();
       passes[name] = out?.error ?? null;
+      log(passes[name]);
       return out;
     } catch (e: any) {
       passes[name] = e?.message ?? 'the model did not answer';
+      log(passes[name]);
       return null;
     }
   };
