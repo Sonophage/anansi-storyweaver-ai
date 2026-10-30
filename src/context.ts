@@ -630,10 +630,27 @@ export const cardText = (e: Entry, at: number, window = '', locked = '', tells =
  *  what shipped — it fixes four more but breaks four real speeches that carry a newline inside
  *  them, which is a worse trade.
  *
- *  ITS CEILING, so a pass is not read as proof: a stray quote in the MIDDLE still mispairs every
- *  quote after it, and there is no fixing that without knowing which of the two is the stray one.
- *  Single-quote and em-dash dialogue are not seen at all (COUNCIL-06 §6, trap 1). */
-const QUOTED = () => /["“][^"”]*(?:["”]|$)/g;
+ *  A QUOTE THAT OPENS ENDS ANY SPAN STILL OPEN (#93). Every caller joins a scene's passages and then
+ *  strips, so one passage cut off mid-speech used to run its span into the next passage and close
+ *  on that passage's first OPENING quote; every quote after it paired the wrong way round, the
+ *  narration was stripped and the dialogue kept (The Lands Between, scene 7). A straight quote now
+ *  reads its neighbours: it opens at the start of a line, or after a space, bracket or dash with
+ *  text after it; anywhere else it closes. Curly quotes say which they are. A span ends at a closing
+ *  quote, or just before an opening one, or at the end. Stopping at a blank line instead was tried
+ *  and is NOT what shipped: in the library a passage often stops mid-speech and the next one carries
+ *  it on ("I approve of his" / "survival instinct."), and that rule reads the carried half as
+ *  narration. Measured on 2026-10-30 against the latest export of all 35 books (1,917 passages, 69 scenes
+ *  joined): 14 passages and 5 joined scenes change, and every changed line was read: the narration
+ *  gained is narration and the text lost is speech. A speech over two paragraphs, each opened and
+ *  only the last closed, is now read right as well.
+ *
+ *  ITS CEILING, so a pass is not read as proof: an unterminated speech still takes the narration
+ *  after it, up to the next opening quote. A closing quote with a space each side of it reads as
+ *  closing, and one with a space before it and text after it ("Stop! "he said) reads as opening.
+ *  Speech typed with no quotes at all (a writer's own turn) is narration to this, and nothing here
+ *  can tell it apart. Single-quote and em-dash dialogue are not seen at all (COUNCIL-06 §6, trap 1). */
+const OPENS = String.raw`(?:“|(?<![^\n])"|(?<![^\s(\[{—–-])"(?=\S))`;
+const QUOTED = () => new RegExp(String.raw`${OPENS}[^"“”]*(?:(?=${OPENS})|["”]|$)`, 'g');
 
 /** The quoted spans as offsets, for a caller that needs to know WHERE rather than get the text
  *  back without them (`bench/cast.ts`). One pattern, so the offsets and the strip cannot disagree. */

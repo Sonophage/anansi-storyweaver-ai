@@ -775,6 +775,52 @@ ok('a passage that stops mid-line does not hand its dialogue back as narration',
     'and the second span is the unterminated one, running to the end of the text');
 });
 
+ok('a passage cut off mid-speech does not turn the rest of the scene inside out', () => {
+  // #93, The Lands Between scene 7. Every caller joins a scene's passages BEFORE it strips them, and
+  // one passage ended inside a speech ("...for ages." with no closing quote). The span ran on into
+  // the next passage and closed on that passage's first opening quote, so every quote after it
+  // paired the wrong way round: the narration was stripped and the dialogue handed to the hem as
+  // narration ("As thou commandest", quoted in the raw text). These are the real shapes from the
+  // library, each in the direction it went wrong.
+  const tale = 'She pats the divan. "I\'ve been thinking about it for ages.\n\n'
+    + 'He lets out a breath. "Thou art insatiable," he murmurs. The cushions groan. "Come, then."';
+  const t = narrationOnly(tale);
+  assert.doesNotMatch(t, /insatiable|Come, then/, `the next passage's speech is dialogue, got: ${t}`);
+  assert.match(t, /he murmurs/, 'and its narration survives');
+  assert.match(t, /The cushions groan/, 'all of it, not only the part before the first quote');
+
+  // THE OTHER DIRECTION, which the old pairing got right by accident and a "stop at the blank line"
+  // rule breaks: the next passage CONTINUES the speech and opens on its closing quote.
+  const cont = narrationOnly('"You may keep this one. I approve of his\n\nsurvival instinct." Konrad grins. "Good."');
+  assert.doesNotMatch(cont, /survival instinct|Good/, `a speech carried into the next passage is one speech, got: ${cont}`);
+  assert.match(cont, /Konrad grins/, 'and the narration after its closing quote survives');
+
+  // A speech over two paragraphs opens each one and closes only the last.
+  const two = narrationOnly('"The first part.\n\n"The second part." She leaves.');
+  assert.doesNotMatch(two, /second part/, `a speech's second paragraph is speech, got: ${two}`);
+  assert.match(two, /She leaves/);
+
+  // A quote after a dash opens; a quote after a space with nothing after it closes; a quote at the
+  // start of a line opens even with a space after it. All three from the library.
+  const dash = narrationOnly('"This," she says—she jabs a finger at the mats—"looks like carnage." He winces.');
+  assert.doesNotMatch(dash, /carnage/, `a quote after a dash opens a speech, got: ${dash}`);
+  assert.match(dash, /she jabs a finger/);
+  assert.match(dash, /He winces/);
+  const cut = narrationOnly('"What— " My question is cut off by a tug deep inside me.');
+  assert.match(cut, /My question is cut off/, `a closing quote after a space still closes, got: ${cut}`);
+  const lead = narrationOnly('" That this is surreal," he finishes.');
+  assert.doesNotMatch(lead, /surreal/, `a quote at the start of a line opens, got: ${lead}`);
+  assert.match(lead, /he finishes/);
+
+  // THE CONTROL: plain, well-formed dialogue is read exactly as before.
+  assert.strictEqual(narrationOnly('He nodded. "I know," she said. The room went quiet.'), 'He nodded. she said. The room went quiet.');
+
+  // The offsets and the strip share a pattern, so they agree on the hard case too.
+  const spans = quotedSpans(tale);
+  assert.ok(spans.some(([a, b]) => tale.slice(a, b) === '"Thou art insatiable,"'),
+    `the next passage's speech is its own span, got: ${JSON.stringify(spans.map(([a, b]) => tale.slice(a, b)))}`);
+});
+
 ok('buildContext is pure: same input, same manifest', () => {
   const a = JSON.stringify(buildContext(base(), count));
   const b = JSON.stringify(buildContext(base(), count));
