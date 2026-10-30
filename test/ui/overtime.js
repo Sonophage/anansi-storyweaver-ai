@@ -48,11 +48,11 @@ ok(`Alter: the first tab's box holds where he stands now (${JSON.stringify(now.v
 ok("  under that name, with no Info", now.label.includes('where it stands now') && !/\binfo\b/.test(now.label));
 await page.eval(`(() => { const b = document.querySelector('[data-f="now"]'); if (!b) return 0; b.value = b.value.replace('eleven', 'twelve');
   b.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
-await page.eval("(() => { document.querySelector('#sideHead [data-saveentry]')?.click(); return 1; })()");
+await page.eval("(() => { document.querySelector('#sideHead [data-alterdone]')?.click(); return 1; })()");
 await wait(1200);
 v = await view(sid);
 const m2 = v.entries.find((e) => e.id === marek.id);
-ok("  and Save writes it to the scene 2 entry", /owed twelve crowns/.test(m2.states.find((s) => s.fromChapter === 2)?.body ?? ''));
+ok("  and Done writes it to the scene 2 entry", /owed twelve crowns/.test(m2.states.find((s) => s.fromChapter === 2)?.body ?? ''));
 ok("  and leaves where he stood from scene 1 as it was", m2.body === base);
 
 // ---- Over time: every entry, from scene 1, with its label and what it changed

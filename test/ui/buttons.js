@@ -32,9 +32,9 @@ ok("  with the name field populated", !!(await page.eval("document.querySelector
 
 // editing it actually saves
 await page.eval("document.querySelector('[data-f=\"title\"]').value = 'RENAMED BY TEST'");
-await page.click('[data-saveentry="1"]');
-await wait(500);
-ok("Save writes the new name", await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json(); return v.entries.some(e => e.title === 'RENAMED BY TEST'); })()"));
+await page.click('[data-alterdone="1"]');
+await wait(900);
+ok("Done writes the new name", await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json(); return v.entries.some(e => e.title === 'RENAMED BY TEST'); })()"));
 
 // ---- 2. New character
 await page.goto("http://127.0.0.1:5179/#" + sid + "/threads");

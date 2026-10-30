@@ -21,7 +21,7 @@ const list = async (sid) => {
 };
 const open = async () => { await page.click('#sideHead .headadd'); await wait(600); };
 const where = () => page.eval(`JSON.stringify({ add: !!document.getElementById('newname'),
-  list: !!document.getElementById('thq'), alter: !!document.querySelector('#sideHead [data-cancelalter]'),
+  list: !!document.getElementById('thq'), alter: !!document.querySelector('#sideHead [data-alterdone]'),
   read: !!document.querySelector('#sideBody .readface'), drawer: !document.getElementById('side').hidden })`).then(JSON.parse);
 const setBox = (text) => page.eval(`(() => { const el = document.getElementById('newname');
   el.value = ${JSON.stringify(text)}; el.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
@@ -137,8 +137,8 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
      !!made && made.entryType === 'lore' && (await story(sid)).entries.length === before + 1);
   ok(`  and opens it on Alter, the name in the name box (${JSON.stringify(at)})`,
      at.alter && (await page.eval("document.getElementById('f-card-title')?.value")) === 'Ilse Varga');
-  await page.click('#sideHead [data-cancelalter]'); await wait(600);
-  ok("  and Cancel goes to its Read screen", (await where()).read);
+  await page.click('#sideHead [data-alterdone]'); await wait(600);
+  ok("  and Done goes to its Read screen", (await where()).read);
 
   // ---- A pasted thread is read in as it is, and opens on Read
   await list(sid); await open();

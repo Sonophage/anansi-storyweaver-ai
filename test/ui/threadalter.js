@@ -2,10 +2,11 @@
 //
 //   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/threadalter.js
 //
-// The shape: Cancel and Save in the header, the four tabs as they were (The thread · Over time ·
-// Pockets · More — Seth, twice: Over time does not move into More), Picture and Kind under More,
-// and wake words as chips. And the rules around it: Cancel, Back and Esc ask before throwing away
-// what is not saved; Back from Alter returns to Read; a refused save says so and keeps the typing;
+// The shape: Undo my changes and Done in the header (ADR 0004, pass three: it saves as you type),
+// the four tabs as they were (The thread · Over time · Pockets · More — Seth, twice: Over time does
+// not move into More), Picture and Kind under More, and wake words as chips. And the rules around it:
+// Undo my changes asks before putting a change back; Back and Esc are Done and keep what was typed;
+// Back from Alter returns to Read; a refused save says so and keeps the typing;
 // the field being typed in stays above an on-screen keyboard; every control the form had is still
 // on it. Last, a thread followed from a world book, which the fixture did not have.
 const B = "http://127.0.0.1:5179";
@@ -28,7 +29,7 @@ const openThread = async (name) => {
   return id;
 };
 const alter = async () => { await page.click('#sideBody .readbody'); await wait(700); };
-const where = () => page.eval(`JSON.stringify({ alter: !!document.querySelector('#sideHead [data-cancelalter]'),
+const where = () => page.eval(`JSON.stringify({ alter: !!document.querySelector('#sideHead [data-alterdone]'),
   read: !!document.querySelector('#sideBody .readface'), list: !!document.getElementById('thq'),
   drawer: !document.getElementById('side').hidden })`).then(JSON.parse);
 const vis = (sel) => page.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
@@ -36,9 +37,9 @@ const vis = (sel) => page.eval(`(() => { const e = document.querySelector(${JSON
 const typeInto = (sel, text) => page.eval(`(() => { const el = document.querySelector(${JSON.stringify(sel)});
   el.value = ${JSON.stringify(text)}; el.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
 const chips = () => page.eval("[...document.querySelectorAll('#keychips .keychip')].map(c => c.firstChild.textContent.trim())");
-// Out of Alter whatever it asks: pressed until the form is gone, at most twice.
+// Out of Alter with nothing kept: Undo my changes, pressed until the form is gone, at most twice.
 const leaveAlter = async () => {
-  for (let i = 0; i < 2 && (await where()).alter; i++) { await page.click('#sideHead [data-cancelalter]'); await wait(600); }
+  for (let i = 0; i < 2 && (await where()).alter; i++) { await page.click('#sideHead [data-alterundo]'); await wait(600); }
 };
 const back = async (ms = 800) => { await page.eval("(() => { history.back(); return 1; })()"); await wait(ms); };
 
@@ -54,16 +55,16 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   console.log(`  -- ${size} (${w}x${h})`);
   await list(sid); await openThread('the Silver Key'); await alter();
 
-  // ---- The header: Cancel and Save, and nothing that would leave without asking
+  // ---- The header: Undo my changes and Done (ADR 0004, pass three: it saves as you type)
   const head = await page.eval(`JSON.stringify((() => {
-    const c = document.querySelector('#sideHead [data-cancelalter]'), s = document.querySelector('#sideHead [data-saveentry]');
+    const c = document.querySelector('#sideHead [data-alterundo]'), s = document.querySelector('#sideHead [data-alterdone]');
     const box = (x) => x ? [Math.round(x.getBoundingClientRect().width), Math.round(x.getBoundingClientRect().height)] : null;
     return { cancel: c?.textContent.trim() ?? null, save: s?.textContent.trim() ?? null,
       left: c ? c.getBoundingClientRect().left < innerWidth / 2 : false, right: s ? s.getBoundingClientRect().left > innerWidth / 2 : false,
-      saves: document.querySelectorAll('[data-saveentry]').length, close: !!document.querySelector('#sideHead [data-panel=""]'),
+      saves: document.querySelectorAll('[data-alterdone]').length, close: !!document.querySelector('#sideHead [data-panel=""]'),
       bar: !!document.querySelector('#sideBody .savebar'), cbox: box(c), sbox: box(s) }; })())`).then(JSON.parse);
-  ok(`the header is Cancel on the left and Save on the right (${JSON.stringify(head)})`,
-     head.cancel === 'Cancel' && head.save === 'Save' && head.left && head.right && head.saves === 1);
+  ok(`the header is Undo my changes on the left and Done on the right (${JSON.stringify(head)})`,
+     head.cancel === 'Undo my changes' && head.save === 'Done' && head.left && head.right && head.saves === 1);
   ok("  with no Close beside them and no bar in the form", !head.close && !head.bar);
 
   // ---- The four tabs, as they were
@@ -141,59 +142,61 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   await page.click('#keychips [data-keyx="0"]'); await wait(300);
   const afterX = await chips();
   ok(`  and x takes one off (${JSON.stringify(afterX)})`, JSON.stringify(afterX) === JSON.stringify(afterPaste.slice(1)));
-  // ---- Save: stores what the chips show, and goes back to Read
-  await page.click('#sideHead [data-saveentry]'); await wait(900);
+  // ---- Done: stores what the chips show, and goes back to Read
+  await page.click('#sideHead [data-alterdone]'); await wait(900);
   const saved = (await story(sid)).entries.find((e) => e.id === key.id);
-  ok(`Save stores exactly the words on the chips (${JSON.stringify(saved.keys)})`, JSON.stringify(saved.keys) === JSON.stringify(afterX));
+  ok(`Done stores exactly the words on the chips (${JSON.stringify(saved.keys)})`, JSON.stringify(saved.keys) === JSON.stringify(afterX));
   ok("  and returns to Read", (await where()).read);
 
   // ---- A reach chip saves itself and keeps what is typed above it
   await alter();
   await typeInto('#f-card-title', 'the Brass Key');
   await page.click('[data-act="always_on"]'); await wait(900);
-  ok("pressing Always on saves it and keeps the name typed above, unsaved",
+  ok("pressing Always on saves it and keeps the name typed above",
      (await story(sid)).entries.find((e) => e.id === key.id).activation === 'always_on'
        && (await page.eval("document.getElementById('f-card-title').value")) === 'the Brass Key');
   await page.click('[data-act="triggered"]'); await wait(900);
 
-  // ---- Cancel: straight out when nothing changed, two presses when something did
-  await page.click('#sideHead [data-cancelalter]'); await wait(600);
+  // ---- Undo my changes: straight out when nothing changed, two presses when something did, and the
+  // second puts back the name the pause had already written
+  await page.click('#sideHead [data-alterundo]'); await wait(600);
   const c1 = await where();
-  // Pressed again only if the first press asked: a Cancel that never asks has already left, and
-  // the check below should fail by its name rather than the scenario dying on a missing button.
-  if (c1.alter) { await page.click('#sideHead [data-cancelalter]'); await wait(700); }
+  // Pressed again only if the first press asked: one that never asks has already left, and the
+  // check below should fail by its name rather than the scenario dying on a missing button.
+  if (c1.alter) { await page.click('#sideHead [data-alterundo]'); await wait(900); }
   const c2 = await where();
-  ok(`Cancel with a change asks first (${JSON.stringify(c1)}) and the second press throws it away (${JSON.stringify(c2)})`,
+  ok(`Undo my changes with a change asks first (${JSON.stringify(c1)}) and the second press puts it back (${JSON.stringify(c2)})`,
      c1.alter && c2.read && (await story(sid)).entries.find((e) => e.id === key.id).title === 'the Silver Key');
-  if ((await where()).alter) { await page.click('#sideHead [data-cancelalter]'); await wait(600); }
+  if ((await where()).alter) { await page.click('#sideHead [data-alterundo]'); await wait(600); }
   await alter();
-  await page.click('#sideHead [data-cancelalter]'); await wait(600);
-  ok("  and Cancel with nothing changed goes straight back to Read", (await where()).read);
+  await page.click('#sideHead [data-alterundo]'); await wait(600);
+  ok("  and Undo my changes with nothing changed goes straight back to Read", (await where()).read);
 
-  // ---- Back from Alter returns to Read, and follows Cancel's rule
+  // ---- Back from Alter returns to Read, and is Done: what was typed is kept
   await list(sid); await openThread('the Silver Key'); await alter();
   await back();
   const b1 = await where();
   ok(`Back from Alter returns to Read, not to the list (${JSON.stringify(b1)})`, b1.read && !b1.list);
+  const bodyWas = (await story(sid)).entries.find((e) => e.id === key.id).body;
   await alter();
-  await typeInto('#f-card-body', '[the Silver Key: changed and not saved]');
-  await back();
+  await typeInto('#f-card-body', '[the Silver Key: changed, then Back]');
+  await back(1200);
   const b2 = await where();
-  await back();
-  const b3 = await where();
-  ok(`Back with a change stays and says so (${JSON.stringify(b2)}), and a second Back throws it away (${JSON.stringify(b3)})`,
-     b2.alter && b3.read && !/changed and not saved/.test((await story(sid)).entries.find((e) => e.id === key.id).body));
+  ok(`Back with a change keeps it and returns to Read (${JSON.stringify(b2)})`,
+     b2.read && /changed, then Back/.test((await story(sid)).entries.find((e) => e.id === key.id).body));
+  // Put back, so the next size starts from the same thread.
+  await alter(); await typeInto('#f-card-body', bodyWas); await page.click('#sideHead [data-alterdone]'); await wait(900);
   await back();
   ok("  and the next Back goes to the list", (await where()).list);
 
-  // ---- Esc is Cancel too
+  // ---- Esc is Done too
   await openThread('the Silver Key'); await alter();
   await typeInto('#f-card-title', 'Esc test');
-  await page.key('Escape', 27); await wait(500);
+  await page.key('Escape', 27); await wait(900);
   const e1 = await where();
-  await page.key('Escape', 27); await wait(600);
-  const e2 = await where();
-  ok(`Esc with a change asks first, and a second Esc throws it away (${JSON.stringify(e1)} > ${JSON.stringify(e2)})`, e1.alter && e2.read);
+  ok(`Esc with a change keeps it and returns to Read (${JSON.stringify(e1)})`,
+     e1.read && (await story(sid)).entries.find((e) => e.id === key.id).title === 'Esc test');
+  await alter(); await typeInto('#f-card-title', 'the Silver Key'); await page.click('#sideHead [data-alterdone]'); await wait(900);
 
   // ---- A thread opened on its own, from a passage: Alter is a Back step there too
   // The press is the one the passage's thread links make (data-goblock="entry:<id>"), put on the
@@ -212,13 +215,12 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   const s1 = await where();
   ok(`  Back from its Alter returns to Read, not out of the drawer (${JSON.stringify(s1)})`, s1.read && s1.drawer);
   await alter();
-  await typeInto('#f-card-body', '[the Silver Key: from a passage, not saved]');
-  await back();
+  await typeInto('#f-card-body', '[the Silver Key: from a passage, kept]');
+  await back(1200);
   const s2 = await where();
-  await back();
-  const s3 = await where();
-  ok(`  Back with a change stays and says so (${JSON.stringify(s2)}), a second Back throws it away (${JSON.stringify(s3)})`,
-     s2.alter && s3.read && s3.drawer && !/from a passage/.test((await story(sid)).entries.find((e) => e.id === key.id).body));
+  ok(`  Back with a change keeps it and returns to Read, in the drawer (${JSON.stringify(s2)})`,
+     s2.read && s2.drawer && /from a passage, kept/.test((await story(sid)).entries.find((e) => e.id === key.id).body));
+  await alter(); await typeInto('#f-card-body', bodyWas); await page.click('#sideHead [data-alterdone]'); await wait(900);
   await back();
   ok("  and the next Back shuts the drawer", !(await where()).drawer);
   await list(sid); await openThread('the Silver Key');
@@ -232,7 +234,7 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
       const b = JSON.parse(o.body); if (b.entry) b.entry.activation = 'keyed'; o = { ...o, body: JSON.stringify(b) }; }
       return real(u, o); }; return 1; })()`);
   await typeInto('#f-card-title', 'Refused name');
-  await page.click('#sideHead [data-saveentry]'); await wait(900);
+  await page.click('#sideHead [data-alterdone]'); await wait(900);
   const toast = (await page.text('#toast') || '').trim();
   ok(`a refused save says so plainly (${JSON.stringify(toast)})`, /not saved/i.test(toast) && /always on or on a word/.test(toast));
   ok("  and the form stays with what was typed",
@@ -301,15 +303,17 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
     if (!c) return ''; c.click(); return c.dataset.entry; })()`);
   await wait(1200);
   await page.eval("(() => { document.querySelector('.readbody')?.click(); return 1; })()"); await wait(800);
-  const pageAlter = () => page.eval("!!document.querySelector('.pagebar [data-cancelalter]')");
+  const pageAlter = () => page.eval("!!document.querySelector('.pagebar [data-alterdone]')");
   const opened = await pageAlter();
+  const titleWas = await page.eval("document.getElementById('f-card-title')?.value ?? ''");
   await typeInto('#f-card-title', 'Esc on the page');
-  await page.key('Escape', 27); await wait(500);
+  await page.key('Escape', 27); await wait(900);
   const p1 = await pageAlter();
-  await page.key('Escape', 27); await wait(700);
-  const p2 = await pageAlter();
-  ok(`on the cross-book page at 1280px, Esc with a change asks, and a second Esc leaves Alter (opened ${opened}, ${p1} > ${p2})`,
-     !!card && opened && p1 && !p2);
+  ok(`on the cross-book page at 1280px, Esc with a change keeps it and leaves Alter (opened ${opened}, then ${p1})`,
+     !!card && opened && !p1);
+  // Put back, so a second run starts from the same thread.
+  await page.eval("(() => { document.querySelector('.readbody')?.click(); return 1; })()"); await wait(800);
+  await typeInto('#f-card-title', titleWas); await page.key('Escape', 27); await wait(900);
 }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

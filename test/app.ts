@@ -2152,49 +2152,140 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   ok('a proposal shows what it will write, and an edit is what gets sent');
 }
 
-// ALWAYS TRUE IS SAVED BY THE HEADER'S SAVE (2026-11-02). It had a card and a Save of its own, and
-// before that a Save that read a name box Always true does not have (Seth, 2026-10-28: "it's saying a
-// pocket needs a name"). Now there is one Save. A thread with none gets an empty box and Save makes it
-// with no id; an unchanged box sends nothing; one emptied is refused and nothing else is saved.
+// A THREAD'S ALTER, AND ITS ALWAYS TRUE, SAVE AS YOU TYPE (ADR 0004, pass three). Every write of a
+// thread or a pocket keeps a revision and can mark scene summaries out of date, so a pause writes a
+// DRAFT, which does neither, and Done sends one last write naming what Alter opened on: the revision
+// and the staling are worked out once, against that. Always true has no name box and keeps the name it
+// has (Seth, 2026-10-28: "it's saying a pocket needs a name"); an emptied one is never written.
 {
+  const e1 = STORY.entries.find((x: any) => x.id === 'e-1') as any;
+  const wasEntries = STORY.entries;
+  // A copy, since a write updates the open tale's thread in place and the fixture is shared.
+  STORY.entries = wasEntries.map((x: any) => x === e1 ? { ...e1, addons: [...e1.addons,
+    { id: 'a-facts', slot: 'facts', name: 'Who she is', body: 'An envoy of Kesh.', keys: [], active: true }] } : x);
+  const doc = (globalThis as any).document;
+  const wasQS = doc.querySelector;
+  const boxes: Record<string, any> = {};
+  const fill = (title: string, body: string, facts: string, factsId = 'a-facts') => {
+    for (const k of Object.keys(boxes)) delete boxes[k];
+    Object.assign(boxes, { '[data-f="title"]': { value: title }, '[data-f="body"]': { value: body },
+      '[data-f="notes"]': { value: '' }, '[data-f="keys"]': { value: '' }, [`[data-ab="${factsId}"]`]: { value: facts } });
+  };
+  const type = (sel: string, value: string) => {
+    boxes[sel].value = value;
+    const m = /\[data-(f|ab)="([^"]+)"\]/.exec(sel)!;
+    (listeners.input ?? []).forEach((f: Function) => f({ target: { value, dataset: { [m[1]]: m[2] } } }));
+  };
+  const writes = () => POSTED.filter((x) => x.url === '/api/entry' || x.url === '/api/addon')
+    .map((x) => [x.url, x.url === '/api/entry' ? x.body.entry.body : x.body.addon.body, x.body.draft ?? null, x.body.opened ?? null]);
+  doc.querySelector = (sel: string) => boxes[sel] ?? null;
+  try {
+    click({ open: 's-1' }); await sleep(40);
+    click({ panel: 'threads' }); click({ entry: 'e-1' }); click({ cardview: 'form' }); click({ cardtab: 'card' });
+    await sleep(30);
+    fill('Envoy Sereth', '[speaks for Kesh]', 'An envoy of Kesh.');
+    const head = html('sideHead');
+    assert.doesNotMatch(head, /data-saveentry|data-cancelalter|>Save</, 'ALTER-THREAD-NO-SAVE: Alter has no Save and no Cancel');
+    assert.match(head, /data-alterundo="1"[\s\S]*Undo my changes[\s\S]*data-alterdone="1"[\s\S]*Done/,
+      'ALTER-THREAD-HEAD: Undo my changes on the left, Done on the right');
+    assert.doesNotMatch(html('sideBody'), /data-saveaddon/, 'ALWAYS-TRUE-NO-SAVE: Always true has no Save of its own');
+    POSTED.length = 0;
+    type('[data-f="body"]', '[speaks for Kesh, and lies]');
+    type('[data-ab="a-facts"]', 'An envoy of Kesh, and a spy.');
+    await sleep(400);
+    assert.deepStrictEqual(writes(), [], 'ALTER-THREAD-PAUSE: nothing is written while the typing goes on');
+    await sleep(700);
+    assert.deepStrictEqual(writes(), [['/api/addon', 'An envoy of Kesh, and a spy.', true, null],
+      ['/api/entry', '[speaks for Kesh, and lies]', true, null]],
+      'ALTER-THREAD-DRAFT: the pause writes Always true and the thread, each as a draft');
+    const facts = POSTED.find((x) => x.url === '/api/addon')?.body.addon;
+    assert.deepStrictEqual(facts, { id: 'a-facts', slot: 'facts', name: 'Who she is', body: 'An envoy of Kesh, and a spy.', keys: '' },
+      'ALWAYS-TRUE-NAME: with no name box, Always true keeps the name it has');
+    POSTED.length = 0;
+    type('[data-f="title"]', 'Envoy Sereth Vane');
+    click({ alterdone: '1' }); await sleep(60);
+    assert.deepStrictEqual(writes(), [['/api/addon', 'An envoy of Kesh, and a spy.', null, { name: 'Who she is', body: 'An envoy of Kesh.' }],
+      ['/api/entry', '[speaks for Kesh, and lies]', null, { title: 'Envoy Sereth', body: '[speaks for Kesh]', keys: [] }]],
+      'ALTER-THREAD-DONE: Done sends the last write of each, naming what Alter opened on');
+    assert.strictEqual(POSTED.find((x) => x.url === '/api/entry')?.body.entry.title, 'Envoy Sereth Vane', '  with the last of the typing');
+    assert.doesNotMatch(html('sideHead'), /data-alterdone/, '  and goes back to Read');
+
+    // The tale now holds what Done wrote, and Alter opens on that.
+    const T = 'Envoy Sereth Vane', B = '[speaks for Kesh, and lies]', F = 'An envoy of Kesh, and a spy.';
+    const opened = { title: T, body: B, keys: [] };
+    // UNDO MY CHANGES after a pause: the text Alter opened on, as the last write, so nothing is kept.
+    click({ cardview: 'form' }); await sleep(30);
+    fill(T, B, F);
+    POSTED.length = 0;
+    type('[data-f="body"]', '[speaks for nobody]'); await sleep(1000);
+    click({ alterundo: '1' }); await sleep(20);
+    assert.match(html('sideHead'), /data-alterdone/, 'ALTER-THREAD-UNDO-ASKS: Undo my changes with a change typed asks first');
+    click({ alterundo: '1' }); await sleep(60);
+    assert.deepStrictEqual(writes(), [['/api/entry', '[speaks for nobody]', true, null], ['/api/entry', B, null, opened]],
+      'ALTER-THREAD-UNDO: the second press writes back what it opened on, as the last write');
+    assert.doesNotMatch(html('sideHead'), /data-alterdone/, '  and goes back to Read');
+
+    // A HIDDEN TAB sends the last write, after the pause it cut short.
+    click({ cardview: 'form' }); await sleep(30);
+    fill(T, B, F);
+    POSTED.length = 0;
+    type('[data-f="body"]', '[speaks for Kesh, softly]');
+    doc.visibilityState = 'hidden';
+    try { (listeners.visibilitychange ?? []).forEach((f: Function) => f({})); await sleep(40); } finally { doc.visibilityState = 'visible'; }
+    assert.deepStrictEqual(writes(), [['/api/entry', '[speaks for Kesh, softly]', true, null],
+      ['/api/entry', '[speaks for Kesh, softly]', null, opened]],
+      'ALTER-THREAD-HIDDEN: a hidden tab writes the pause, then the last write');
+    POSTED.length = 0;
+    click({ alterdone: '1' }); await sleep(60);
+    assert.deepStrictEqual(writes(), [], 'ALTER-THREAD-HIDDEN-ONCE: and Done after it sends nothing more');
+
+    // AN EMPTIED ALWAYS TRUE is never written: Done says so and stays.
+    click({ cardview: 'form' }); await sleep(30);
+    fill(T, '[speaks for Kesh, softly]', F);
+    POSTED.length = 0;
+    type('[data-ab="a-facts"]', '  '); await sleep(1000);
+    click({ alterdone: '1' }); await sleep(60);
+    assert.deepStrictEqual(writes(), [], 'ALWAYS-TRUE-EMPTY: an empty Always true is not written');
+    assert.match(html('sideHead'), /data-alterdone/, '  and Done stays on Alter');
+    click({ alterundo: '1' }); click({ alterundo: '1' }); await sleep(60);
+  } finally { doc.querySelector = wasQS; STORY.entries = wasEntries; }
+  ok("a thread's Alter and its Always true save as you type, as drafts, and Done sends the last write");
+}
+
+// #126 · A THREAD WITH NO ALWAYS TRUE GETS ONE FROM THE THREAD TAB. The add tray offered it while a
+// thread had none; the pocket panel does not (it is not a pocket), so the box is drawn empty here, and
+// what is typed in it makes it, with no id.
+{
+  click({ open: 's-1' }); await sleep(40);
   click({ panel: 'threads' }); click({ entry: 'e-2' });
   click({ cardview: 'form' }); click({ cardtab: 'card' });
   await sleep(30);
-  const form = html('sideBody');
-  assert.match(form, /data-facts="facts"/, 'ALWAYS-TRUE-NEW: an empty box');
-  assert.doesNotMatch(form, /data-saveaddon/, 'ONE-SAVE: and no Save of its own');
+  assert.match(html('sideBody'), /data-ab="facts"/, 'ALWAYS-TRUE-NEW: an empty box');
   const doc = (globalThis as any).document;
   const wasQS = doc.querySelector;
-  const box = (value: string, defaultValue = '') => (sel: string) =>
-    sel === '[data-facts]' ? { value, defaultValue, dataset: { facts: 'facts' } } : null;
+  const box = { value: '' };
+  doc.querySelector = (sel: string) => sel === '[data-ab="facts"]' ? box : null;
+  // The route answers with the id it made, as the real one does.
+  const canned = (globalThis as any).fetch;
+  (globalThis as any).fetch = async (url: string, init?: any) => url === '/api/addon'
+    ? (POSTED.push({ url, body: JSON.parse(init.body), method: init.method }), { ok: true, json: async () => ({ addonId: 'a-made' }) })
+    : canned(url, init);
+  const e2 = STORY.entries.find((x: any) => x.id === 'e-2') as any, hadAddons = e2.addons;
   try {
     POSTED.length = 0;
-    doc.querySelector = box('Unlit, below the counting floor.');
-    click({ saveentry: '1' });
-    await sleep(60);
+    box.value = 'Unlit, below the counting floor.';
+    (listeners.input ?? []).forEach((f: Function) => f({ target: { value: box.value, dataset: { ab: 'facts' } } }));
+    await sleep(1000);
     assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body,
-      { storyId: 's-1', entryId: 'e-2', addon: { slot: 'facts', name: 'facts', body: 'Unlit, below the counting floor.', keys: '' } },
-      'ALWAYS-TRUE-NEW: Save makes the Always true, with no id');
-    assert.ok(POSTED.some((x) => x.url === '/api/entry'), 'ONE-SAVE: and saves the thread after it');
-
-    click({ panel: 'threads' }); click({ entry: 'e-2' }); click({ cardview: 'form' }); await sleep(30);
-    POSTED.length = 0;
-    doc.querySelector = box('', '');
-    click({ saveentry: '1' });
-    await sleep(60);
-    assert.ok(!POSTED.some((x) => x.url === '/api/addon'), 'ONE-SAVE: an unchanged box sends no Always true');
-    assert.ok(POSTED.some((x) => x.url === '/api/entry'), '  and the thread still saves');
-
-    click({ panel: 'threads' }); click({ entry: 'e-2' }); click({ cardview: 'form' }); await sleep(30);
-    POSTED.length = 0;
-    doc.querySelector = box('  ', 'Was here.');
-    click({ saveentry: '1' });
-    await sleep(60);
-    assert.ok(!POSTED.some((x) => x.url === '/api/addon' || x.url === '/api/entry'),
-      'ALWAYS-TRUE-EMPTY: an emptied one is refused, and nothing else is saved');
-  } finally { doc.querySelector = wasQS; }
-  click({ cardview: null }); click({ backentry: '1' });
-  ok("Always true is saved by the header's Save: made, left alone, or refused when emptied");
+      { storyId: 's-1', entryId: 'e-2', addon: { slot: 'facts', name: 'facts', body: 'Unlit, below the counting floor.', keys: '' }, draft: true },
+      'ALWAYS-TRUE-NEW: what is typed makes the Always true, with no id');
+    click({ cardtab: 'card' }); await sleep(20);
+    assert.match(html('sideBody'), /data-ab="a-made"[^>]*>Unlit, below the counting floor\.</,
+      'ALWAYS-TRUE-NEW-KEPT: a repaint after the pause draws the Always true it made, with its text');
+    click({ alterdone: '1' }); await sleep(60);
+  } finally { doc.querySelector = wasQS; (globalThis as any).fetch = canned; e2.addons = hadAddons; }
+  click({ backentry: '1' });
+  ok('a thread with no Always true gets one from The thread tab');
 }
 
 // Every theme one row, every token derived from it. Three hand-written CSS blocks is why
@@ -5145,7 +5236,7 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   assert.ok(kindBefore(face.slice(dividerAt), 'Interiority', 'What she wants'), 'POCKET-KINDS: and an off one under its kind, below Not turned on');
   click({ cardview: 'form' }); click({ cardtab: 'rooms' }); await sleep(30);
   assert.ok(kindBefore(html('sideBody'), 'Voice', 'How she sounds'), 'POCKET-KINDS: the Pockets tab groups them the same way');
-  click({ cancelalter: '1' }); await sleep(30);
+  click({ alterdone: '1' }); await sleep(30);
 
   // §8 · READ SAYS WHAT IS TRUE; EDIT IS WHERE YOU CHANGE IT.
   click({ entry: 'e-done' });
@@ -8846,11 +8937,11 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   click({ panel: 'threads' }); click({ entry: 'e-1' }); await wait();
   const head = html('sideHead');
   assert.match(head, /data-pocketnew="e-1"/, 'PANEL-PLUS: the header has a ＋ for a new pocket');
-  // AND THE EDITOR'S HEADER (Seth, 2026-11-03): ＋ beside Save, and no add link left in the Pockets tab.
+  // AND THE EDITOR'S HEADER (Seth, 2026-11-03): ＋ beside Done, and no add link left in the Pockets tab.
   click({ cardview: 'form' }); click({ cardtab: 'rooms' }); await wait();
-  assert.match(html('sideHead'), /data-pocketnew="e-1"[\s\S]*data-saveentry/, 'ALTER-PLUS: the editor has ＋ before Save');
+  assert.match(html('sideHead'), /data-pocketnew="e-1"[\s\S]*data-alterdone/, 'ALTER-PLUS: the editor has ＋ before Done');
   assert.doesNotMatch(html('sideBody'), /data-pocketnew=/, 'ALTER-PLUS: and the Pockets tab has no add link of its own');
-  click({ cancelalter: '1' }); await wait();
+  click({ alterdone: '1' }); await wait();
   const { MARK } = await import('../web/model.js');
   assert.doesNotMatch(MARK.tidy, /C6 5 8 8 10\.5 6\.5/, 'PANEL-BROOM: the wavy Tidy mark is gone');
   assert.match(MARK.tidy, /M15\.4 3\.2/, 'PANEL-BROOM: Tidy is the broom');
@@ -8873,7 +8964,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   click({ pocketx: '1' }); await wait();
   click({ cardview: 'form' }); await wait();
   assert.match(html('sideBody'), /<button class="tabchip" data-cardtab=/, '  the same chips Alter draws');
-  click({ cancelalter: '1' }); await wait();
+  click({ alterdone: '1' }); await wait();
   assert.doesNotMatch(html('pocketPanel'), /role="dialog"/, 'PANEL-ADD: Cancel shuts it');
   ok('＋ in the header opens the pocket panel to add, and Tidy is a broom');
 

@@ -2806,7 +2806,7 @@ export function upsertEntry(storyId: string, o: string, e: any, how: WriteHow = 
   //   So the flag marks the writes where somebody did choose, and the app passes it on all three:
   //   the highlight-to-thread button, which wants dark on purpose (an always-on entry made from a
   //   highlight costs tokens on every call before anyone has looked at it); the activation chip;
-  //   and the entry editor's Save. The chip one is not a nicety — the trigger-words field is
+  //   and the entry editor's writes. The chip one is not a nicety — the trigger-words field is
   //   DISABLED while an entry is always-on (`web/app.js:2233`), so switching to triggered and then
   //   typing keys is the only route there is, and a guard without this exemption bounces the
   //   switch back and makes a triggered entry impossible to create. `test/ui/handlers.js` caught

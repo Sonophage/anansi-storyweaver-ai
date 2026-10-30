@@ -269,6 +269,13 @@ When a later change is where a thread stands now, you open where it stood from s
 time. That now keeps what you type, as the change rows already did. Done closes it, and Undo my
 changes puts it back as it was when you opened it. Its old wording goes into Alterations once, when
 you press Done, and a scene summary is marked out of date only then, if something it said is gone.
+### Altering a thread saves as you type
+A thread's Alter screen has no Save any more. Its name, where it stands, your notes, its wake words
+and its Always true are kept a moment after you stop typing. Done keeps the last of it and goes back
+to reading the thread, and so do Back and Esc. Cancel is now Undo my changes: it puts the thread
+back as it was when you opened Alter. What the thread said before goes into Alterations once, when
+you press Done, and a scene summary is marked out of date only then, if something it said is gone.
+An empty Always true is never kept: Done says so and stays open.
 
 ## 2026-10-30 · The next scene starts the way you say
 

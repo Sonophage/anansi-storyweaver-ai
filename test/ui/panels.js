@@ -596,21 +596,19 @@ const mineId = (await story()).entries.length > cardsBefore
   ? (await story()).entries.at(-1).id : null;
 
 // An Always true on it, through the empty box The thread tab draws for a thread that has none (#126:
-// the add tray that used to be its door is gone, and the pocket panel does not offer it). Saved by
-// the header's Save since 2026-11-02, which goes back to reading it, so the form is opened again.
+// the add tray that used to be its door is gone, and the pocket panel does not offer it). Typed,
+// and saved once the typing pauses (ADR 0004, pass three).
 await page.click('[data-cardtab="card"]');
 await wait(500);
-await page.eval(`(() => { document.querySelector('[data-facts="facts"]').value = '[she is 41 and left-handed]';
-  document.querySelector('[data-saveentry]')?.click(); return 1; })()`);
+await page.eval(`(() => { const b = document.querySelector('[data-ab="facts"]'); b.value = '[she is 41 and left-handed]';
+  b.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
 await wait(1400);
-await page.click('[data-cardview="form"]');
-await wait(600);
 await page.click('[data-cardtab="card"]');
 await wait(700);
 const facts = await page.eval(`(() => {
   const pane = document.querySelector('.pane:not([hidden])');
   const at = pane?.querySelector('[data-slotat="facts"]');
-  const body = pane?.querySelector('[data-facts]');
+  const body = pane?.querySelector('[data-ab]');
   const info = pane?.querySelector('#f-card-body');
   return JSON.stringify({ heading: !!at, editable: !!body, value: body?.value ?? '',
     aboveInfo: !!(at && info) && at.compareDocumentPosition(info) === 4 }); })()`).then(JSON.parse);
@@ -960,10 +958,11 @@ if (anyEntry) {
   // card's own bar: "theres a space above it and the threads and close section can we remove the
   // padding and make the background full width of the panel." The bar is gone and its two presses
   // are in the header itself, which is the full width of the panel with nothing above it — so
-  // what this asserts is that the form draws no bar of its own and the header carries both.
+  // what this asserts is that the form draws no bar of its own and the header carries both. They
+  // are Undo my changes and Done since it saves as you type (ADR 0004, pass three).
   const barBox = await page.eval(`JSON.stringify({ bar: !!document.querySelector('#sideBody .savebar'),
-    cancel: !!document.querySelector('#sideHead [data-cancelalter]'), save: !!document.querySelector('#sideHead [data-saveentry]') })`);
-  ok(`  and the form's Cancel and Save are the drawer's header, with no bar under it (${barBox})`,
+    cancel: !!document.querySelector('#sideHead [data-alterundo]'), save: !!document.querySelector('#sideHead [data-alterdone]') })`);
+  ok(`  and the form's Undo my changes and Done are the drawer's header, with no bar under it (${barBox})`,
      barBox === JSON.stringify({ bar: false, cancel: true, save: true }));
 
   // THE FORM IS TABBED, 2026-09-02 handoff. VISIBLE, not merely present: a hidden pane keeps all
@@ -1096,9 +1095,9 @@ if (anyEntry) {
   // #78. Over time is its tab's whole content, not a fold, so only the other two fold.
   ok(`  and Brings in with it and Another book are folded shut, Over time is no fold (${JSON.stringify(tails)})`,
      tails.states === null && tails.edges === false && tails.copy === false);
-  // Back to Read by Cancel: nothing was typed, so it goes straight there (the old Read button is
-  // the drawer header's Cancel since the v2 Alter screen).
-  await page.click('#sideHead [data-cancelalter]');
+  // Back to Read by Done: nothing was typed, so nothing is written (the old Read button is the
+  // drawer header's Done since the v2 Alter screen and ADR 0004).
+  await page.click('#sideHead [data-alterdone]');
   await wait(500);
   // The switch is the writer's half of how a room reaches the model; its keys are the other half.
   ok(`  and the room starts off (${face && face.on})`, !!face && face.on === 'Off');
@@ -1115,7 +1114,7 @@ if (anyEntry) {
     divider: [...document.querySelectorAll('.lbl')].some(x => /Not turned on/.test(x.textContent)) }))()`);
   ok(`  and the form moves it up out of "Not turned on" when it goes on (${
        JSON.stringify(regrouped)})`, regrouped.box === true && regrouped.divider === false);
-  await page.click('#sideHead [data-cancelalter]');
+  await page.click('#sideHead [data-alterdone]');
   await wait(500);
 
   await page.click('[data-cardview="form"]');
@@ -1310,19 +1309,19 @@ await page.click('[data-pocketx]'); await wait(400);
 // the same scroll it always was.
 {
   // ON THE CARD TAB, because that is where the body field lives and this measures GEOMETRY. A field
-  // inside a hidden pane reports a rect of all zeros, so "Save is above the body" compares against
-  // a top of 0 and fails on a form where it is perfectly true. Save itself is in the bar above the
+  // inside a hidden pane reports a rect of all zeros, so "Done is above the body" compares against
+  // a top of 0 and fails on a form where it is perfectly true. Done itself is in the bar above the
   // tabs and is on screen whichever one is showing.
   await page.click('[data-cardtab="card"]');
   await wait(400);
-  const saves = await page.eval(`(() => { const s = [...document.querySelectorAll('[data-saveentry]')];
+  const saves = await page.eval(`(() => { const s = [...document.querySelectorAll('[data-alterdone]')];
     const body = document.querySelector('[data-f="body"]');
     return { n: s.length, above: s[0] && body
       ? s[0].getBoundingClientRect().top < body.getBoundingClientRect().top : null,
       // In the header, which is outside #sideBody — the one part of the drawer that scrolls.
       fixed: s[0] ? !!s[0].closest('#sideHead') && !s[0].closest('#sideBody') : null }; })()`);
   console.log("  save: " + JSON.stringify(saves));
-  ok(`the form has exactly one Save (${saves.n})`, saves.n === 1);
+  ok(`the form has exactly one Done (${saves.n})`, saves.n === 1);
   ok('  and it is above the body rather than under a dozen sections', saves.above === true);
   // Moving it up without pinning it only inverts the scroll: the bar rode #sideBody. The header
   // does not scroll at all.
