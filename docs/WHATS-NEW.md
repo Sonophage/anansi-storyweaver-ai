@@ -24,6 +24,10 @@ Done keeps the last of it and closes the box. Cancel is now Undo my changes: it 
 back as it was when you opened Alter. Esc and Back keep what you typed. If a change cannot be
 saved, Anansi says so and the box stays open with your words in it. One opening of Alter is still
 one entry in the passage's Alterations, however long you type.
+### A scene summary saves as you type
+When you open a scene's summary and change it, the change is kept a moment after you stop typing.
+Done closes it, and Undo my changes puts back the summary that was there when you opened it. To
+remove a summary, empty it and press Done twice: an empty box is never saved while you type.
 
 ## 2026-10-30 · The next scene starts the way you say
 

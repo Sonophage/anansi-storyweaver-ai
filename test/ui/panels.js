@@ -134,7 +134,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   await page.click('[data-pullback]');
   await wait(900);
   ok("  pressing it again lets the chapter go", (await pull())?.on === '1');
-  await page.click('[data-pocketx]');
+  await page.click('[data-pocketdone]');
   await wait(300);
   // WAIT FOR THE MANIFEST TO SETTLE before leaving this section. Every press here refreshes it,
   // and `refreshManifest` clears MANI while the /tokenize round trip is in flight — so walking on
@@ -195,7 +195,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
     const c = t?.closest('.pocketbox'), w = c?.querySelector('[data-wordwarn]');
     return t ? { text: t.value, count: c?.querySelector('[data-wordcount]')?.textContent ?? '',
       counts: (c.textContent.replace(/\\s+/g, ' ').match(/\\b\\d+ words?\\b/g) ?? []).length,
-      warn: !!w && w.offsetParent !== null, save: !!document.querySelector('[data-savesum]:not([disabled])') } : null; })()`);
+      warn: !!w && w.offsetParent !== null, save: !!document.querySelector('[data-pocketdone]:not([disabled])') } : null; })()`);
   const b0 = await box();
   ok(`Edit opens the summary in a text box (${JSON.stringify(b0?.text)})`, b0?.text === 'Aldis keeps the key.');
   ok(`  with its word count (${b0?.count})`, /^4 words/.test(b0?.count ?? ''));
@@ -204,7 +204,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   await type(Array(200).fill('word').join(' '));
   const b1 = await box();
   ok(`  the count follows the typing (${b1?.count})`, /^200 words/.test(b1?.count ?? ''));
-  ok('  past 180 words a quiet warning shows, and Save is still there', b1?.warn === true && b1?.save === true);
+  ok('  past 180 words a quiet warning shows, and Done is still there', b1?.warn === true && b1?.save === true);
   ok(`  and the card shows one count while editing, not two (${b1?.counts})`, b1?.counts === 1);
   await type('Aldis keeps the key and says nothing.');
   const b2 = await box();
@@ -215,19 +215,19 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   const b3 = await box();
   ok(`  a repaint keeps what was typed (${JSON.stringify(b3?.text)})`,
     b3?.text === 'Aldis keeps the key and says nothing.' && /^7 words/.test(b3?.count ?? ''));
-  // Cancel with a change typed asks first, as every panel does: the second press shuts it.
-  await press('[data-pocketx]');
-  await press('[data-pocketx]');
+  // Undo my changes (ADR 0004) with a change typed asks first: the second press puts it back and shuts it.
+  await press('[data-pocketundo]');
+  await press('[data-pocketundo]');
   await wait(300);
-  ok('Cancel leaves the summary exactly as it was', (await sumOf(cur)) === 'Aldis keeps the key.'
+  ok('Undo my changes leaves the summary exactly as it was', (await sumOf(cur)) === 'Aldis keeps the key.'
     && !(await page.eval("!!document.querySelector('[data-sumtext]')")));
 
   await press(`[data-editsum="${cur}"]`);
   await wait(300);
   await type('Aldis keeps the key, and the bell says nothing.');
-  await press(`[data-savesum="${cur}"]`);
+  await press('[data-pocketdone]');
   await wait(900);
-  ok('Save stores the new text', (await sumOf(cur)) === 'Aldis keeps the key, and the bell says nothing.');
+  ok('Done stores the new text', (await sumOf(cur)) === 'Aldis keeps the key, and the bell says nothing.');
   const shown = await page.eval(`document.querySelector('[data-sumcard="${cur}"]')?.textContent ?? ''`);
   ok('  and the card shows it, and the editor is closed', /the bell says nothing/.test(shown)
     && !(await page.eval("!!document.querySelector('[data-sumtext]')")));
@@ -235,10 +235,10 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   await press(`[data-editsum="${cur}"]`);
   await wait(300);
   await type('   ');
-  await press(`[data-savesum="${cur}"]`);
+  await press('[data-pocketdone]');
   await wait(900);
-  ok('saving it empty does nothing on the first press', (await sumOf(cur)) !== null);
-  await press(`[data-savesum="${cur}"]`);
+  ok('Done on it empty does nothing on the first press', (await sumOf(cur)) !== null);
+  await press('[data-pocketdone]');
   await wait(900);
   ok('  and removes the summary on the second', (await sumOf(cur)) === null);
   ok('  and with the current chapter off the list, Summarise this chapter is back at its foot', await foot());
@@ -318,7 +318,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   ok(`the second press sends that card's chapter (${asked === made.first ? 'its own' : asked})`, asked === made.first);
   ok(`  and asks to replace yours (${replace})`, replace === true);
   ok('  and the out-of-date note goes', !/Out of date/.test(await card()) && /rings twice/.test(await card()));
-  await page.eval(`(() => { document.querySelector('[data-pocketx]')?.click(); return 1; })()`);
+  await page.eval(`(() => { document.querySelector('[data-pocketdone]')?.click(); return 1; })()`);
   await wait(300);
 }
 
@@ -348,7 +348,7 @@ ok("  and no longer offers Where this is going, on this panel or any other",
   await page.eval('(() => { if (window.__realFetch) window.fetch = window.__realFetch; return 1; })()');
   ok(`one press of Summarise again over Anansi's sends it (${asked === first ? 'its own' : asked})`, asked === first);
   ok(`  without asking to replace anything (${replace})`, !replace);
-  await page.eval(`(() => { document.querySelector('[data-pocketx]')?.click(); return 1; })()`);
+  await page.eval(`(() => { document.querySelector('[data-pocketdone]')?.click(); return 1; })()`);
   await wait(300);
 }
 

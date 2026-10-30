@@ -556,7 +556,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   //  nothing to regenerate. The WNAV row is `data-nav="news"` and is unaffected.)
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
   // #43. A chapter summary edited or written by hand.
-  'editsum', 'savesum',
+  'editsum',
   'dismiss', 'modelmenu', 'choosemodel', 'editdone', 'editundo', 'sumtab', 'findtag', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
@@ -623,7 +623,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'iplook', 'ipadd', 'ipwithout', 'ipagain',
   // #126. The pocket panel: open it to add, its tabs, a kind, Cancel, Save, Remove, the two asks
   // and Use this.
-  'pocketnew', 'pockettab', 'pocketkind', 'pocketx', 'pocketsave', 'pocketdel', 'pocketask', 'pocketuse',
+  'pocketnew', 'pockettab', 'pocketkind', 'pocketx', 'pocketdone', 'pocketundo', 'pocketsave', 'pocketdel', 'pocketask', 'pocketuse',
   // Merge two threads: open it, pick the other, pick which stays, Cancel, Merge.
   'mergestart', 'mergewith', 'mergekeep', 'mergex', 'mergego',
   // The hem's ask for the next scene, and who is in it (2026-10-30).
@@ -2903,15 +2903,20 @@ const pocketHome = () => (!S.pocket ? null
   : S.pocket.sum ? (V?.chapters ?? []).find((c) => c.id === S.pocket.sum) ?? null
   : S.pocket.arc ? (V?.arcs ?? []).find((a) => a.id === S.pocket.arc) ?? null
   : pocketThread());
+/** THE FOOT OF A PANEL THAT SAVES AS YOU TYPE (ADR 0004, pass three): Undo my changes where Cancel
+ *  was, and Done, the main press, where Save was. See POCKET_AUTO for which panels do. */
+const AUTO_FOOT = `<button class="btn ghost" data-pocketundo="1">Undo my changes</button>
+      <button class="btn" data-pocketdone="1">Done</button>`;
 const panelShell = (label, head, body, foot) => `<div class="pocketbox" role="dialog" aria-label="${label}">
     <div class="pkhead"><div class="lbl flush wide">${head}</div></div>
     <div class="pkscroll scroll">${body}</div>
     <div class="pkfoot">
-      <button class="btn ghost" data-pocketx="1">Cancel</button>
-      ${foot}
+      ${foot === AUTO_FOOT ? foot : `<button class="btn ghost" data-pocketx="1">Cancel</button>
+      ${foot}`}
     </div>
   </div>`;
-/** #43 · A scene summary. Saving it empty removes it, which takes two presses (the `savesum` handler). */
+/** #43 · A scene summary. Saved as you type; emptying it removes it, which only Done does, on two
+ *  presses (`finishPocket`), since it is the one change here that loses words. */
 function sumPanel(pk, c) {
   const name = esc(sceneName(c));
   return panelShell(`The summary of ${name}`, `Summary &middot; ${name}${c.summary ? ` &middot; ${
@@ -2924,7 +2929,7 @@ function sumPanel(pk, c) {
       c.summary ? `<button class="btn ghost push-14" data-summarize="${c.id}">Summarise again</button>
     <button class="btn ghost push-8" data-pullback="${c.id}" data-on="${c.keepWhole ? '0' : '1'}" aria-pressed="${!!c.keepWhole}"
       >${c.keepWhole ? 'Sent whole &mdash; press to send its summary again' : 'Pull this scene back &mdash; send its prose, not its summary'}</button>` : ''}`,
-    `<button class="btn" data-savesum="${c.id}">Save</button>`);
+    AUTO_FOOT);
 }
 /** #44 · A chapter: its title and summary, and Remove, which gives its scenes their own summaries back. */
 function arcPanel(pk, a) {
@@ -3027,12 +3032,76 @@ function drawPocket() {
   sameOrSet('pocketPanel').innerHTML = pocketPanel();
   if (S.pocket) growFields(box);
 }
-/** Cancel, Esc and Back. With something typed, the app's two-press rule. */
+/** Cancel, Esc and Back. With something typed, the app's two-press rule. A panel that saves as you
+ *  type has no Cancel, and Esc and Back are its Done (`finishPocket`). */
 function closePocket(t = null) {
   if (!S.pocket) return true;
   if (pocketDirty() && !armed(t, 'pocket', 'You have changes that are not saved. Press Cancel again to throw them away, or Save.')) return false;
   S.pocket = null; drawPocket(); syncLayers();
   return true;
+}
+
+/** THE POCKET PANEL SAVES AS YOU TYPE, one kind at a time (ADR 0004, pass three). A kind listed here
+ *  is written once the typing pauses (the pause the Tale's boxes use), and its foot is AUTO_FOOT.
+ *  `fields` are what it writes; `write` sends them for the book they were typed in; `held` names a
+ *  change the pause must not write, because it loses words, and the ask Done makes before it does.
+ *  A kind not listed keeps Cancel and Save until it joins. */
+const POCKET_AUTO = {
+  // An empty summary is a removed one (`writeSummary`).
+  // ponytail: every write marks the summary yours, so Undo my changes after a pause has written puts
+  // Anansi's words back marked as yours, and Summarise again then asks twice. Give the route the author
+  // to put back if a writer reports it.
+  sum: { fields: ['text'], write: (pk, v, storyId) => api.saveSummary(storyId, pk.sum, v.text),
+    held: (v) => (v.text.trim() ? null : 'Press Done again to remove this summary: it is empty.') },
+};
+const pocketAuto = (pk) => (pk?.sum ? POCKET_AUTO.sum : null);
+const pocketVals = (pk, auto) => Object.fromEntries(auto.fields.map((f) => [f, pk[f]]));
+const sameVals = (a, b) => Object.keys(a).every((k) => a[k] === b[k]);
+/** One write of an open panel. In turn, never two at once, so a slow write cannot land after a later
+ *  one. Nothing is sent when it says what was last written, or when it is held and not `forced`. A
+ *  refusal is said and leaves it unwritten, so Done tries again. Resolves to the server's answer. */
+function writePocket(pk, storyId = S.storyId, vals = null, forced = false) {
+  const auto = pocketAuto(pk); if (!auto) return Promise.resolve({});
+  const v = vals ?? pocketVals(pk, auto);
+  pk.chain = (pk.chain ?? Promise.resolve()).then(async () => {
+    if (sameVals(v, pk.saved ?? pk.was) || (!forced && auto.held?.(v))) return {};
+    const r = await auto.write(pk, v, storyId);
+    if (!r || r.error) { toast(`Not saved. ${r?.error ?? 'The server did not answer.'}`); return r ?? { error: 'no answer' }; }
+    pk.saved = v; pk.wrote = true;
+    return r;
+  });
+  return pk.chain;
+}
+/** Shut the panel, and draw the tale again from the server when anything was written. */
+async function shutPocket(pk) {
+  if (S.pocket === pk) S.pocket = null;
+  drawPocket(); syncLayers();
+  if (pk.wrote && S.storyId && V) { V = await api.story(S.storyId, V.currentChapter.id); paint(); refreshManifest(); }
+  return true;
+}
+/** DONE, and Esc and Back on a panel that saves as you type: what the pause has not written is written
+ *  now, a held change after its ask, and the panel shuts. A refusal keeps it open. Whether it shut. */
+async function finishPocket(t = null) {
+  const pk = S.pocket; if (!pk) return true;
+  const auto = pocketAuto(pk); if (!auto) return closePocket(t);
+  dropSoon('pocket');
+  const v = pocketVals(pk, auto), ask = sameVals(v, pk.saved ?? pk.was) ? null : auto.held?.(v);
+  if (ask && !armed(t, 'pocketheld', ask)) return false;
+  const r = await writePocket(pk, S.storyId, v, true);
+  if (r?.error) return false;
+  return shutPocket(pk);
+}
+/** UNDO MY CHANGES (ADR 0004: the panel's Cancel). What was there when it opened, written back when
+ *  anything had been, and the panel shut. With a change typed, two presses: it throws typing away. */
+async function undoPocket(t = null) {
+  const pk = S.pocket, auto = pocketAuto(pk); if (!auto) return;
+  if (!sameVals(pocketVals(pk, auto), pk.was) && !armed(t, 'pocketundo',
+    'Press Undo my changes again to put it back as it was when you opened it.')) return;
+  dropSoon('pocket');
+  Object.assign(pk, pk.was);
+  const r = await writePocket(pk, S.storyId, pocketVals(pk, auto), true);
+  if (r?.error) return void drawPocket();
+  await shutPocket(pk);
 }
 /** ASK ANANSI, from the panel: `POST /api/invent` for the pocket's kind on this thread, the same
  *  call the old add tray made, with the web searched first for Look it up online. On a new pocket
@@ -9839,7 +9908,12 @@ function closeLayersBack() {
     });
   }
   // #126. The pocket panel, by the same rule.
-  if (S.pocket && l !== 'pocket') {
+  // One that saves as you type: Back is Done, and a refusal or an ask puts the step back.
+  if (S.pocket && l !== 'pocket' && pocketAuto(S.pocket)) {
+    void finishPocket().then((shut) => {
+      if (!shut) history.pushState({ ...history.state, layer: 'pocket' }, '', location.href);
+    });
+  } else if (S.pocket && l !== 'pocket') {
     if (pocketDirty() && !(S.backArmed && Date.now() - S.backArmed < 6000)) {
       S.backArmed = Date.now();
       history.pushState({ ...history.state, layer: 'pocket' }, '', location.href);
@@ -11756,6 +11830,13 @@ document.addEventListener('input', (e) => {
   if (count) count.textContent = plural(n, 'word', 'words');
   if (warn) warn.hidden = n <= Number(d.wordcap);
 });
+// AN OPEN PANEL THAT SAVES AS YOU TYPE (POCKET_AUTO) is written after the pause, for the book it was
+// typed in. After the listeners above, which keep S.pocket in step with the boxes.
+document.addEventListener('input', () => {
+  const pk = S.pocket, auto = pocketAuto(pk), storyId = S.storyId;
+  if (!auto || sameVals(pocketVals(pk, auto), pk.saved ?? pk.was)) return;
+  saveSoon('pocket', () => writePocket(pk, storyId));
+});
 
 // #51. The Find a model box. Searches a moment after the typing stops, and redraws only the results.
 let findTimer = null;
@@ -12151,6 +12232,8 @@ document.addEventListener('click', async (e) => {
   // ---- #126 · THE POCKET PANEL: open it to add or on one pocket, its tabs and kinds, and Cancel.
   if (d.pocketnew) { openPocket(d.pocketnew); S.readMenu = false; paint(); $('pk-name')?.focus?.(); return; }
   if (d.pocketx) { closePocket(t); return; }
+  if (d.pocketdone) return void finishPocket(t);
+  if (d.pocketundo) return void undoPocket(t);
   if (d.pockettab) { if (!S.pocket) return; S.pocket.tab = d.pockettab === 'ask' ? 'ask' : 'write'; drawPocket(); return; }
   // While adding, any kind the thread has; open, only a string, between promise and open question.
   if (d.pocketkind) {
@@ -13834,22 +13917,14 @@ document.addEventListener('click', async (e) => {
                             : `Nothing to hem, of ${r.eligible ?? 0} this scene names`);
   }
   // #43. A summary by hand, in the pocket panel, opened by a tap on its row (Seth, 2026-10-30).
-  // Saving it empty removes it, which is the one press here that loses words, so it takes two.
+  // Saved as you type (POCKET_AUTO). Emptying it removes it, the one change here that loses words, so
+  // only Done writes that, on two presses.
   if (d.editsum) {
     const c = V.chapters.find((x) => x.id === d.editsum); if (!c) return;
     const was = { text: c.summary ?? '' };
     S.pocket = { sum: c.id, tab: 'write', slot: null, wasSlot: null, ...was, was };
     drawPocket(); syncLayers(); $('pk-sum')?.focus?.();
     return;
-  }
-  if (d.savesum) {
-    if (S.pocket?.sum !== d.savesum) return;
-    const text = S.pocket.text;
-    if (!text.trim() && !armed(t, `sum:${d.savesum}`, 'Press again — this removes the summary.')) return;
-    const r = await api.saveSummary(S.storyId, d.savesum, text);
-    if (r.error) return toast(r.error);
-    S.pocket = null; V = r; paint(); refreshManifest();
-    return toast(text.trim() ? 'Saved. This summary is yours now.' : 'Summary removed.');
   }
   if (d.summarize) {
     // #45. A summary card names its own chapter; the other Summarise buttons say `1`, the current one.
@@ -13864,7 +13939,9 @@ document.addEventListener('click', async (e) => {
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId);
     // Pressed inside the summary's panel: the panel shows the new summary, as written and unchanged.
-    if (S.pocket?.sum === ch) S.pocket.text = S.pocket.was.text = V.chapters.find((x) => x.id === ch)?.summary ?? '';
+    // What it was opened on becomes his, so Undo my changes puts back his and the pause has nothing to write.
+    if (S.pocket?.sum === ch) { dropSoon('pocket'); S.pocket.saved = null;
+      S.pocket.text = S.pocket.was.text = V.chapters.find((x) => x.id === ch)?.summary ?? ''; }
     paint(); return; }
   if (d.extract) {
     const r = await whileWorking(t, 'Reading the scene…', () => api.extract(S.storyId, V.currentChapter.id));
@@ -14856,7 +14933,7 @@ $('scrim').addEventListener('click', () => {
 $('side').addEventListener('click', (e) => { if (phone() && e.target === $('side')) { S.panel = null; paint(); } });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && S.passEdit) { void finishPassEdit(); return; }
-  if (e.key === 'Escape' && S.pocket) { closePocket(); return; }
+  if (e.key === 'Escape' && S.pocket) { if (pocketAuto(S.pocket)) void finishPocket(); else closePocket(); return; }
   // #74 · THE DECK BY KEYS: right arrow is the top card's yes and left its no, as the buttons are,
   // when the Workbench is open and nothing is being typed.
   if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && (S.panel === 'waiting' || S.panel === 'setup')

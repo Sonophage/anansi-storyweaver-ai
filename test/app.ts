@@ -5408,9 +5408,12 @@ ok('Over time: one ＋ adds a change, a tap opens one in the pocket panel, and S
   const ARC = { id: 'a-1', fromChapter: 1, toChapter: 1, title: 'The Ash', summary: 'Ilva comes in on the ash road.', outOfDate: null };
   const wasArcs = STORY.arcs;
   STORY.arcs = [ARC];
+  // A server that refuses the write, for the checks that a refusal is said.
+  let refuse = false;
   (globalThis as any).fetch = async (url: string, init?: any) => {
     if (init?.body && ['/api/summary', '/api/arc', '/api/chapter'].includes(url)) {
       POSTED.push({ url, body: JSON.parse(init.body), method: init.method });
+      if (refuse) return { ok: false, status: 500, json: async () => ({ error: 'the disk is full' }) };
       return { ok: true, status: 200, json: async () => STORY, text: async () => JSON.stringify(STORY) };
     }
     return canned(url, init);
@@ -5428,28 +5431,66 @@ ok('Over time: one ＋ adds a change, a tap opens one in the pocket panel, and S
     'SUM-ROWS: and no box, Save, Summarise again or Pull back on the list');
   assert.match(g, /class="pocketopen" data-editarc="a-1"[\s\S]*?The Ash/, 'ARC-ROWS: a chapter is a row that opens');
   assert.doesNotMatch(g, /data-arctext|data-arctitle|data-savearc|data-delarc/, 'ARC-ROWS: and no boxes, Save or ✕ on the list');
-  // A summary's panel: its box with the word count, Summarise again, Pull back, Cancel and Save.
+  // A summary's panel: its box with the word count, Summarise again, Pull back, Undo my changes and
+  // Done. It saves as you type (ADR 0004, pass three): there is no Save.
+  const sums = () => POSTED.filter((x) => x.url === '/api/summary').map((x) => x.body.summary);
   click({ editsum: 'c-1' }); await sleep(20);
   let box = html('pocketPanel');
   assert.match(box, /<textarea[^>]*data-sumtext="c-1"[^>]*>Ilva arrives\.</, 'SUM-OPEN: tapping it opens the panel on its text');
   assert.match(box, /data-wordcount/, '  with its word count');
   assert.match(box, /data-summarize="c-1"/, '  Summarise again');
   assert.match(box, /data-pullback="c-1" data-on="1"/, '  and Pull back');
-  assert.match(box, /data-pocketx="1"[\s\S]*data-savesum="c-1"/, '  with Cancel and Save in its foot');
-  type({ sumtext: 'c-1', wordcap: '220' }, 'Ilva arrives at dusk.');
+  assert.doesNotMatch(box, /data-savesum|>Save</, 'SUM-NO-SAVE: and no Save');
+  assert.match(box, /data-pocketundo="1"[^>]*>Undo my changes<[\s\S]*data-pocketdone="1"[^>]*>Done</, 'SUM-FOOT: Undo my changes and Done in its foot');
   POSTED.length = 0;
-  click({ savesum: 'c-1' }); await sleep(40);
+  type({ sumtext: 'c-1', wordcap: '220' }, 'Ilva arrives at dusk.');
+  await sleep(400);
+  assert.deepStrictEqual(sums(), [], 'SUM-PAUSE: nothing is written while the typing goes on');
+  await sleep(700);
   assert.deepStrictEqual(POSTED.filter((x) => x.url === '/api/summary').map((x) => x.body),
-    [{ storyId: 's-1', chapterId: 'c-1', summary: 'Ilva arrives at dusk.' }], 'SUM-SAVE: Save sends what was typed');
+    [{ storyId: 's-1', chapterId: 'c-1', summary: 'Ilva arrives at dusk.' }], 'SUM-AUTOSAVE: the pause writes what was typed');
+  type({ sumtext: 'c-1', wordcap: '220' }, 'Ilva arrives at dusk, alone.');
+  click({ pocketdone: '1' }); await sleep(40);
+  assert.deepStrictEqual(sums(), ['Ilva arrives at dusk.', 'Ilva arrives at dusk, alone.'], 'SUM-DONE: Done writes the last of the typing');
   assert.strictEqual(html('pocketPanel'), '', '  and shuts the panel');
-  // Cancel with something typed asks first, as every panel does.
+  await sleep(1000);
+  assert.strictEqual(sums().length, 2, '  and the pause that was waiting writes nothing more');
+  // EMPTY IS NOT WRITTEN BY THE PAUSE: an empty summary is a removed one, and that takes two presses.
   g = await group();
   click({ editsum: 'c-1' }); await sleep(20);
+  POSTED.length = 0;
+  type({ sumtext: 'c-1', wordcap: '220' }, '');
+  await sleep(1000);
+  assert.deepStrictEqual(sums(), [], 'SUM-EMPTY-HELD: emptied, the pause writes nothing');
+  click({ pocketdone: '1' }); await sleep(20);
+  assert.notStrictEqual(html('pocketPanel'), '', 'SUM-EMPTY-ASKS: Done on an empty summary asks first');
+  click({ pocketdone: '1' }); await sleep(40);
+  assert.deepStrictEqual(sums(), [''], 'SUM-EMPTY-REMOVES: the second press removes it');
+  assert.strictEqual(html('pocketPanel'), '', '  and shuts the panel');
+  // UNDO MY CHANGES, with something written, asks, then writes back what was there when it opened.
+  g = await group();
+  click({ editsum: 'c-1' }); await sleep(20);
+  POSTED.length = 0;
   type({ sumtext: 'c-1', wordcap: '220' }, 'Something else.');
-  click({ pocketx: '1' }); await sleep(10);
-  assert.notStrictEqual(html('pocketPanel'), '', 'SUM-CANCEL: Cancel with a change typed asks first');
-  click({ pocketx: '1' }); await sleep(10);
-  assert.strictEqual(html('pocketPanel'), '', '  and the second press shuts it');
+  await sleep(1000);
+  click({ pocketundo: '1' }); await sleep(10);
+  assert.notStrictEqual(html('pocketPanel'), '', 'SUM-UNDO-ASKS: Undo my changes with a change typed asks first');
+  click({ pocketundo: '1' }); await sleep(40);
+  assert.deepStrictEqual(sums(), ['Something else.', 'Ilva arrives.'], 'SUM-UNDO: the second press puts the summary back as it was');
+  assert.strictEqual(html('pocketPanel'), '', '  and shuts the panel');
+  // A REFUSED WRITE IS SAID, and Done keeps the panel open with the words in it.
+  g = await group();
+  click({ editsum: 'c-1' }); await sleep(20);
+  POSTED.length = 0; refuse = true;
+  type({ sumtext: 'c-1', wordcap: '220' }, 'Kept?');
+  await sleep(1000);
+  assert.match(String(nodes.get('toast').textContent), /Not saved\. the disk is full/, 'SUM-REFUSED: a refused write is said');
+  click({ pocketdone: '1' }); await sleep(40);
+  assert.match(html('pocketPanel'), /data-sumtext="c-1"/, 'SUM-REFUSED-OPEN: Done keeps the panel open');
+  refuse = false;
+  click({ pocketdone: '1' }); await sleep(40);
+  assert.deepStrictEqual(sums(), ['Kept?', 'Kept?', 'Kept?'], 'SUM-REFUSED-RETRY: and writes them once the server takes them');
+  assert.strictEqual(html('pocketPanel'), '', '  and shuts');
   // A chapter's panel: its title and summary, Remove inside it, Cancel and Save.
   click({ editarc: 'a-1' }); await sleep(20);
   box = html('pocketPanel');
