@@ -132,11 +132,12 @@ fail=0
 #
 # The bounds are sized from the `at` stamps in the results file, not guessed. Most scenarios take
 # 10–100 s; `panels` takes 250–330 s, so it gets the long bound with the scenarios that wait on real
-# generations (a cold model loads for minutes first). ANANSI_UI_TIMEOUT and ANANSI_UI_SLOW_TIMEOUT
-# override the two, in seconds.
+# generations (a cold model loads for minutes first). `shots` takes the long bound too: on
+# 2026-10-29 it wrote 190 screenshots in about 310 s and was killed at 300 before its verdict.
+# ANANSI_UI_TIMEOUT and ANANSI_UI_SLOW_TIMEOUT override the two, in seconds.
 bound() {
   case "$1" in
-    panels|veil|model|ritual) echo "${ANANSI_UI_SLOW_TIMEOUT:-1200}" ;;
+    panels|veil|model|ritual|shots) echo "${ANANSI_UI_SLOW_TIMEOUT:-1200}" ;;
     *) echo "${ANANSI_UI_TIMEOUT:-300}" ;;
   esac
 }

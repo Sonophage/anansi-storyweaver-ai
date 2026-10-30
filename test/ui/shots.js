@@ -90,11 +90,31 @@ const snap = async (name, scroller) => {
 const book = async (hash) => { await page.viewport(1440, 900); await page.goto(B + "/#" + sid + hash); await ready(); };
 const press = async (sel) => { await page.click(sel); await wait(600); };
 
-// The workspace pages have no hash, so each is reached by its rail row from the shelf.
-for (const k of ['stories', 'create', 'canon', 'import', 'prefs', 'news', 'bug', 'forge']) {
-  await page.viewport(1440, 900);
-  await page.goto(B + "/"); await ready();
-  if (k !== 'stories') await press(`[data-nav="${k}"]`);
+// The workspace pages have no hash, so each is reached by its rail row from the shelf. THE ROWS
+// ARE READ OFF THE RAIL, not listed here: this was a typed list, and when Import, Export and What
+// you have written moved off the rail onto the Account page (2026-10-27) the press on
+// `[data-nav="import"]` found nothing and the scenario died before it wrote a single check.
+const home = async () => { await page.viewport(1440, 900); await page.goto(B + "/"); await ready(); };
+await home();
+const rows = await page.eval("[...document.querySelectorAll('#rail [data-nav]')].map((b) => b.dataset.nav)");
+for (const k of rows) {
+  await home();
+  if (k !== 'stories') await press(`#rail [data-nav="${k}"]`);
+  await snap(`w-${k}`, '#page');
+}
+// The Account page's tabs past the first, and the pages behind its Your books doors, under the
+// names they were shot under when they were rail rows. Both lists are read off the page as well.
+await home(); await press('#rail [data-nav="account"]');
+const tabs = await page.eval("[...document.querySelectorAll('#page [data-accttab]')].map((b) => b.dataset.accttab)");
+for (const t of tabs.slice(1)) {
+  await home(); await press('#rail [data-nav="account"]'); await press(`[data-accttab="${t}"]`);
+  await snap(`w-account-${t}`, '#page');
+}
+await press('[data-accttab="books"]');
+const doors = await page.eval("[...document.querySelectorAll('#page [data-nav]')].map((b) => b.dataset.nav)");
+for (const k of doors) {
+  await home(); await press('#rail [data-nav="account"]'); await press('[data-accttab="books"]');
+  await press(`#page [data-nav="${k}"]`);
   await snap(`w-${k}`, '#page');
 }
 
@@ -174,5 +194,8 @@ for (const [k, label] of steps) {
 }
 
 writeFileSync(`${OUT}/text.json`, JSON.stringify(TEXT, null, 1));
-console.log(`  ${steps.length ? 'ok  ' : 'FAIL'} ${n} screenshots in ${OUT}, ${steps.length} wizard steps`);
-console.log(steps.length ? '\n  all green' : '\n  1 RED');
+// The lists read off the page above count too: an empty one would skip its surfaces and say nothing.
+const whole = steps.length && rows.length && tabs.length > 1 && doors.length;
+console.log(`  ${whole ? 'ok  ' : 'FAIL'} ${n} screenshots in ${OUT}, ${steps.length} wizard steps, `
+  + `${rows.length} rail rows, ${tabs.length} account tabs, ${doors.length} account doors`);
+console.log(whole ? '\n  all green' : '\n  1 RED');
