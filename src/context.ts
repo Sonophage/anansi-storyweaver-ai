@@ -173,10 +173,13 @@ export interface Manifest {
  *  what it had and more, rather than a different register.
  */
 const SPICE: Record<number, string> = {
-  1: 'Register: no sexual content. Attraction, longing and a kiss may be on the page. The scene '
-   + 'ends at the kiss.',
+  // 1 and 2 said "The scene ends at the kiss" and "picks up past it" until 2026-10-29: an order to
+  // end a scene, and a skip in time, beside SYSTEM's "never resolve a scene" and Continue's "do not
+  // skip time". Seth approved the camera wording, which is the ladder this comment describes.
+  1: 'Register: no sexual content. Attraction, longing and a kiss may be on the page. The camera '
+   + 'stops at the kiss.',
   2: 'Register: desire is on the page and sex is not. Write the wanting, the approach, and what is '
-   + 'different afterwards. The camera stops at the door and picks up past it.',
+   + 'different afterwards. The camera stops at the door; skip past it only at a scene break.',
   3: 'Register: sex happens on the page, in the same voice as the rest of the book — what passes '
    + 'between them, what is said, what changes. Bodies are present and not itemised. Adult '
    + 'characters only.',
@@ -215,7 +218,7 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
   // the permission the number was denying, which is to be short.
   continue: () => 'Carry the scene forward by one small beat, and stop.\n'
     + 'Do not skip time. Do not introduce a new character, location, or revelation unless the\n'
-    + 'prose above set it up.\nStop when the beat is done, even if that is three sentences.',
+    + 'prose above set it up.\nStop when the beat is done, however short that is.',
 
   // The writer's line is ALREADY the last passage. The one instruction that earns its tokens is
   // not to keep talking in that character's voice.
@@ -242,10 +245,12 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
    * read it literally: Mythos-27B on Featherless gave back passage 31 nearly word for word with the
    * directive spliced in (80% of its 8-word runs). "based on this:" is kept, and the tests match it.
    *
-   * The three lines below it are what F29 cut this prompt down to and are untouched. */
+   * The lines below it are what F29 cut this prompt down to. */
+  // "The length follows the instruction: a small one is a small passage" ended this until
+  // 2026-10-29. The word limit appended below is the one length rule; two can disagree.
   direct: (d) => `Write what happens next, based on this: ${d}\n\n`
     + 'Cover that and nothing beyond it. Do not narrate past the instruction, and do not resolve it\n'
-    + 'faster than the scene wants. The length follows the instruction: a small one is a small\npassage.',
+    + 'faster than the scene wants.',
 
   // Not a writing mode. Anansi answers the writer rather than continuing the book, so this block
   // says what the material above IS — otherwise a model handed canon and prose does the thing it

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { buildContext, resolveBody, fires, retirable, narrationOnly, quotedSpans, factsIn, factsLost,
          weaveFit } from '../src/context.ts';
 import type { Input, Entry } from '../src/context.ts';
-import { render } from '../src/render.ts';
+import { render, SYSTEM } from '../src/render.ts';
 import { ORDER } from '../src/blocks.ts';
 import { YOURS_VOICE } from '../src/prompts.ts';
 
@@ -596,7 +596,8 @@ ok('each mode says the one thing that distinguishes it', () => {
     const t = modeText({ ...asked(m), directive: 'He drops it.' });
     assert.doesNotMatch(t, /\d\s*-\s*\d\s+paragraphs?|\b(one|two|three|four|five)\s+paragraphs?\b/i,
       `${m} names a paragraph count, which is the defect F18 measured`);
-    assert.doesNotMatch(t, /\b(\d+|a few|several)\s+(sentences|words)\b(?!\s+that takes)/i,
+    // Spelled-out numbers too: Continue said "even if that is three sentences" past this check.
+    assert.doesNotMatch(t, /\b(\d+|a few|several|one|two|three|four|five|six|seven|eight|nine|ten)\s+(sentences|words)\b(?!\s+that takes)/i,
       `${m} names a length in sentences or words`);
   }
 
@@ -881,6 +882,21 @@ ok('an oversized voice REFUSES rather than shortening, and DIRECTIVE keeps every
   assert.doesNotMatch(out, /for as long as the scene runs/, 'spice 5 does not tell the passage to run on');
   assert.match(out, /a scene can go on in the next passage/, 'and says where the rest of the scene goes');
   assert.match(out, /must be forced/, 'the chapter beat survives');
+});
+
+// 2026-10-29 · THE SAME CLASS AS SPICE 5, on the other levels and in Direct and SYSTEM: an
+// instruction that ends a scene, skips time or sets a second length, beside the ones that forbid it.
+ok('no level ends the scene or skips time, Direct has one length rule, SYSTEM names what the model sees', () => {
+  const at = (spice: number) => { const i = base(); i.story.spice = spice as any; return render(buildContext(i, count)); };
+  assert.match(at(1), /The camera stops at the kiss\./, 'SPICE-1: the camera stops at the kiss');
+  assert.doesNotMatch(at(1), /scene\s+ends at the kiss/, '  and the scene is not ended there');
+  assert.match(at(2), /The camera stops at the door; skip past it only at a scene break\./, 'SPICE-2: the door, and a skip only at a scene break');
+  assert.doesNotMatch(at(2), /picks up past it/, '  and no skip mid-scene');
+  const direct = buildContext({ ...base(), mode: 'direct' as any, directive: 'He drops it.', targetWords: 300 } as any, count)
+    .blocks.find((b) => b.kind === 'MODE')!.text;
+  assert.doesNotMatch(direct, /The length follows/, 'DIRECT-ONE-LENGTH: the word limit is the only length rule');
+  assert.doesNotMatch(SYSTEM, /ledger/i, 'SYSTEM-CANON: SYSTEM calls it canon, the word the prompt uses');
+  assert.doesNotMatch(SYSTEM, /final word of the provided text/, 'SYSTEM-WHERE: it does not point at the last thing in the prompt, which is an instruction');
 });
 
 ok('a compacted chapter can be pulled back in full, and it costs the recent window', () => {

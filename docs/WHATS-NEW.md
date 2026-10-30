@@ -18,6 +18,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-29 · A tidier hem card, a Workbench that says what is new, and merging threads
 
+### Instructions that no longer pull against each other
+A few of the instructions Anansi is sent were telling the model two things at once, and they no
+longer do. At the two gentlest spice levels, the scene is no longer told to end at the kiss or to
+jump past the door mid-scene: the camera stops there, and time only skips at a scene break. Direct
+and Continue no longer carry a length of their own beside the one you set. "How this book is
+written" now describes the texture of the genre (what it notices, what it lingers on) and leaves
+how the narration sounds to your voice, so the two cannot disagree. New tale no longer puts the
+spice level into the voice it suggests. The shipped voice no longer overrides the spice level.
+
 ### The tale's own thread has its own tab
 The tale's own thread now lives in the Tale panel, on a new Thread tab: where the tale stands, its
 rules, its promises and open questions, and your own instructions for the whole tale. The first card
@@ -82,11 +91,7 @@ The Workbench dealt every open string back to you on each visit, even after you 
 a string is on the Workbench only while it waits for you: newly chalked, or a hem's update to it.
 Put it in play, set it aside, tie it off or let it go on the Strings screen or the tale's page.
 
-### Reweave shows Anansi the version you are replacing
-When you reweave a passage, Anansi now sees the version you have now, marked as the one being
-replaced. It is told to write a new version of that passage from the same place, not to carry on
-from it and not to rewrite the passage before it.
-
+### Hold Reweave to change the instruction first
 A tap on Reweave now reweaves at once, for every passage, with the passage's own instruction. To
 change it first, hold Reweave (or Alt+click it at a desk). That opens the Reweave box, for any
 passage. The box has two fields: the instruction, and What didn't work. The instruction holds the

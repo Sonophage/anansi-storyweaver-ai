@@ -231,8 +231,8 @@ more rather than a different register.
 
 | Level | Camera stops | Line |
 |---|---|---|
-| 1 | at the kiss | `Register: no sexual content. Attraction, longing and a kiss may be on the page. The scene ends at the kiss.` |
-| 2 | at the door | `Register: desire is on the page and sex is not. Write the wanting, the approach, and what is different afterwards. The camera stops at the door and picks up past it.` |
+| 1 | at the kiss | `Register: no sexual content. Attraction, longing and a kiss may be on the page. The camera stops at the kiss.` |
+| 2 | at the door | `Register: desire is on the page and sex is not. Write the wanting, the approach, and what is different afterwards. The camera stops at the door; skip past it only at a scene break.` |
 | 3 | in the room | `Register: sex happens on the page, in the same voice as the rest of the book — what passes between them, what is said, what changes. Bodies are present and not itemised. Adult characters only.` |
 | 4 | on the act | `Register: sex is written directly, in plain words, with the acts named as they happen. It is a scene like any other and still has to move the story. Vocabulary follows the voice. Adult characters only.` |
 | 5 | nowhere | `Register: fully explicit, in unrestricted detail. Do not fade, summarise, cut away or skip ahead. Stop at the passage's length: a scene can go on in the next passage. Vocabulary follows the voice. Adult characters only.` |
@@ -269,7 +269,7 @@ the two lists may come back.
 Carry the scene forward by one small beat, and stop.
 Do not skip time. Do not introduce a new character, location, or revelation unless the
 prose above set it up.
-Stop when the beat is done, even if that is three sentences.
+Stop when the beat is done, however short that is.
 ```
 
 **Speak** — the writer's line is already the last passage, tagged with `speaker`.
@@ -292,8 +292,7 @@ Do not decide what {{speaker}} does next. Do not restate the action.
 Write what happens next, based on this: {{directive}}
 
 Cover that and nothing beyond it. Do not narrate past the instruction, and do not resolve it
-faster than the scene wants. The length follows the instruction: a small one is a small
-passage.
+faster than the scene wants.
 ```
 
 **Narrate** — the writer wrote prose. Saying so is the whole job: without it the model reads a

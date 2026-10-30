@@ -21,8 +21,8 @@ export type EntryKind = 'character' | 'place' | 'lore' | 'item' | 'rule' | 'tale
  *  voice, one outfit on. The rest accumulate: three relationships are three rows, each firing on
  *  its own words.
  *
- *  Exclusivity lives in the DATABASE and not on the screen. `outfits_one_active` is a partial
- *  unique index and `wearOutfit` is a transaction; both generalise by adding `slot`. A screen that
+ *  Exclusivity lives in the DATABASE and not on the screen. `addons_one_active` is a partial
+ *  unique index on (entry_id, slot) and `wearOutfit` is a transaction. A screen that
  *  merely declines to offer a second one is not a rule, it is a habit. */
 export const SLOTS: Record<EntryKind, { name: string; exclusive: boolean }[]> = {
   character: [

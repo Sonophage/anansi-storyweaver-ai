@@ -501,8 +501,8 @@ function migrate() {
   // A spice LEVEL picks one of five fixed lines. This replaces the line outright when a
   // story needs something the five do not say.
   add('stories', 'spice_note', 'TEXT');
-  // A take you regenerated away from. Recorded, not yet fed to the model — see the ponytail
-  // marker on `rejectTake`.
+  // A take you regenerated away from. Recorded, and not fed to the model: F44 measured telling it
+  // and found no benefit (see `rejectTake`).
   add('passages', 'rejected', 'INTEGER DEFAULT 0');
   // #14. WHICH PRESS PRODUCED THIS PASSAGE, so the page can colour it by the action rather than by
   // guesswork. It could not be derived from what was already stored: Speak leaves a speaker and

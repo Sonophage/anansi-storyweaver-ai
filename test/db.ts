@@ -524,10 +524,12 @@ ok('the reserve scales with the budget and with the reply length', () => {
 ok('the slot the router reports is worth seven times the floor assumed without it', () => {
   const floor = { global: 0, slots: 1, perSlot: 8192 };
   const real = { global: 100096, slots: 2, perSlot: 50048 };
-  assert.strictEqual(story.budgetFor({ maxContext: null }, floor, 900), 6245,
-    'the assumed floor leaves 6,245 tokens — the number that refused a healthy book for 33 hours');
-  assert.strictEqual(story.budgetFor({ maxContext: null }, real, 900), 45590,
-    "and the router's own answer leaves 45,590");
+  // 6,246 and 45,591 since 2026-10-29: three SYSTEM lines were reworded and it came out a token
+  // shorter. The 33-hour refusal happened at 6,245.
+  assert.strictEqual(story.budgetFor({ maxContext: null }, floor, 900), 6246,
+    'the assumed floor leaves about 6,245 tokens — the number that refused a healthy book for 33 hours');
+  assert.strictEqual(story.budgetFor({ maxContext: null }, real, 900), 45591,
+    "and the router's own answer leaves 45,591");
 });
 
 // The ceiling stopped being the setting on 2026-08-30, because it was a guillotine: 41 of 181
@@ -951,8 +953,11 @@ ok('a book is never written with no voice at all', () => {
   assert.ok(voice, 'a book with no voice of its own still gets one');
   // A distinctive phrase of the shipped voice, so this cannot pass on an empty block that merely
   // exists. If DEFAULT_VOICE is ever rewritten, change the phrase — do not delete the assertion.
-  assert.match(m.prompt, /Sunless Sea/,
+  assert.match(m.prompt, /Each line should cut or kiss/,
     'and it is the house voice, not an empty block wearing the name');
+  // 2026-10-29: the house voice leaves content to the spice level and names no one game's tone.
+  assert.doesNotMatch(prompts.DEFAULT_VOICE, /no restriction on tone|Sunless Sea/,
+    'DEFAULT-VOICE: the shipped voice neither overrules the spice level nor sets every genre in one game');
 });
 
 ok('firing decides what the model is TOLD — and since COUNCIL-04 #7, only that', () => {

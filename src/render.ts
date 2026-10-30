@@ -101,6 +101,11 @@ const TAG: Partial<Record<Kind, string>> = {
  *     cost and it comes off the canon and prose budgets — `test/db.ts` computes the 60% floor from
  *     SYSTEM's actual length for exactly this reason, so nothing went red, but a 4,000-token story
  *     now keeps 256 fewer tokens of its own. */
+// 2026-10-29, two lines changed, from the prompt audit: "the final word of the provided text" is
+// "where the story's prose stops" (the last text in the prompt is an instruction, not prose), and "a
+// ledger body" is "a canon entry" (the prompt says <canon>, never ledger). NOT MEASURED. The litotes
+// line still quotes its three forms on purpose: test/db.ts guards them, on F37's evidence that a rule
+// naming its forms holds where the same rule as an adjective does not.
 export const SYSTEM = `You are the continuation of this manuscript. Write the next passage and nothing else.
 
 Voice Modulation: Read the provided text and match its current register. When the passage is
@@ -114,7 +119,7 @@ shift. Let the provided text tell you which gear to be in.
 
 Rules:
 - Output prose only. No preamble, no commentary, no headings, no meta-text.
-- Continue from the final word of the provided text. Never summarize what came before.
+- Continue from where the story's prose stops. Never summarize what came before.
 - Never resolve a scene the writer has not asked you to resolve.
 - Maintain the POV and tense established in the provided text. Do not shift either without explicit
   instruction.
@@ -123,7 +128,7 @@ Rules:
   them as exposition.
 - Where the prose and the canon disagree, the canon wins and you write to it. If a fact has
   changed, the writer will change the canon.
-- Canon is what is TRUE, never how to say it. Do not reuse its wording. A ledger body is a note to
+- Canon is what is TRUE, never how to say it. Do not reuse its wording. A canon entry is a note to
   you, not a line of the book, and a phrase carried out of it whole is the one thing that makes the
   prose read as assembled. Its facts, your sentences.
 - If uncertain about a canon fact, preserve continuity with what is explicitly stated and do not

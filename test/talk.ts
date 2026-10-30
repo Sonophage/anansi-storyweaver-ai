@@ -933,9 +933,9 @@ ok('a kind that does not exist is refused rather than assembled');
   for (const [what, re] of [
     // ADR 0009: the premise is one paragraph, the opening, and that is its length.
     ['the premise', /premise is ONE paragraph/],
-    ['the setting', /setting is \w+ to \w+ sentences/],
+    ['the setting', /setting is no more than \w+\s+sentences/],
     // (the character length band moved to CAST with the cast itself — asserted below)
-    ['the voice', /One rule per line, eight to\s+twelve lines/],
+    ['the voice', /One rule per line, twelve lines at\s+most/],
   ] as const) assert.match(SPARK, re,
     `${what} needs a length worth filling, or the model gives it a line`);
   // THE FLOOR PARAGRAPH IS GONE (ADR 0009, 2026-10-28). It said every band was a floor as much as
@@ -963,6 +963,36 @@ ok('a kind that does not exist is refused rather than assembled');
          && !('maxLength' in (SPARK_SCHEMA.properties.writingStyle as any)),
     'and neither long field may be capped in the grammar');
   ok('the spark asks for a premise and a voice worth writing from, in the room they need');
+
+  // 2026-10-29 · PROMPT CLASHES, from the prompt audit. Each is the class the spice 5 line was: two
+  // instructions in one prompt that cannot both be followed, or a quoted line a model copies.
+  {
+    const P = await import('../src/prompts.ts') as any;
+    // THE VOICE DOES NOT WRITE ABOUT SPICE. The spice level is its own picker; a voice that restates
+    // it goes stale the day the writer moves the level.
+    const voicePart = P.SPARK.slice(P.SPARK.indexOf('The writing style is'), P.SPARK.indexOf('Infer the spice level'));
+    assert.ok(voicePart.length > 200, 'the voice paragraph must be findable');
+    assert.doesNotMatch(voicePart, /spice/i, 'SPARK-NO-SPICE: the voice the spark writes says nothing about the spice level');
+    // STYLE IS GENRE TEXTURE, AND NOTHING THE VOICE ALREADY OWNS (Seth chose this, 2026-10-29).
+    assert.doesNotMatch(P.STYLE_NOTE, /how long its sentences run|how close the narration sits|how much of a scene is\s+dialogue/,
+      'STYLE-TEXTURE: the style note no longer asks for what the voice says');
+    assert.match(P.STYLE_NOTE, /texture/, '  and asks for the genre\'s texture');
+    // ONE GENRE WORDING, in the spark and in a genre re-roll.
+    assert.ok(P.GENRE_FORM && P.SPARK.includes(P.GENRE_FORM) && P.SPARK_FIELD.includes(P.GENRE_FORM),
+      'GENRE-FORM: the spark and the re-roll carry the same genre wording');
+    // A COUNT IS A CEILING, NEVER A BAND (F18: a band reads as a target), in the spark, which is
+    // read on every call for the life of the tale. A card's and a room's bodies KEEP their bands:
+    // a ceiling alone made those bodies one line (the room-floor check above), so the floor stays.
+    assert.doesNotMatch(P.SPARK, /\b(two|three|four|five|six|eight|ten)\s+to\s+(three|four|five|eight|ten|twelve)\b/i,
+      'COUNT-CEILING: the spark asks for no band of sentences, lines or questions');
+    const src = readFileSync(new URL('../src/prompts.ts', import.meta.url), 'utf8')
+      .split('\n').filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l)).join('\n');
+    // NO QUOTED EXAMPLE A MODEL CAN LIFT. Each of these came back from a prompt, as written.
+    for (const q of ['Vel finds', 'arm broken', 'ferry pilot', 'Mourning grey', 'Court plate', 'Charon', 'Radahn',
+                     'Imperium executes', 'counts doorways'])
+      assert.ok(!src.includes(q), `QUOTED-EXAMPLE: "${q}" is still quoted in a prompt`);
+  }
+  ok('the voice leaves spice to its picker, the style note is texture only, one genre wording, counts are ceilings, no quoted examples');
 
   // A longer answer is a likelier truncation, so this was the last caller still on `structured`
   // with no retry: an object that ran out of room came back as "the spark returned nothing usable".
@@ -2560,9 +2590,11 @@ ok('emptying the box gives her back the voice she shipped with');
 {
   const { STYLE_NOTE } = await import('../src/prompts.ts');
   assert.doesNotMatch(STYLE_NOTE, /shaped like|what its chapters/i, 'STYLE-NO-SHAPE: it never asks what the chapters are shaped like');
-  for (const [asks, what] of [[/sentence/i, 'sentence length'], [/distance|how close the narration sits/i, 'distance'], [/notices/i, 'what the narration notices'],
-      [/unsaid/i, 'what it leaves unsaid'], [/dialogue/i, 'how much is dialogue']] as const)
-    assert.match(STYLE_NOTE, asks, `STYLE-PROSE: it asks for ${what}`);
+  // GENRE TEXTURE since 2026-10-29 (Seth chose it): the prose half — sentences, distance, what is
+  // left unsaid, dialogue — is the voice's, and STYLE-TEXTURE in the spark block checks it is gone.
+  for (const [asks, what] of [[/senses/i, 'the senses it reaches for'], [/lingers on/i, 'what it lingers on'],
+      [/textures/i, 'the textures its world is made of']] as const)
+    assert.match(STYLE_NOTE, asks, `STYLE-TEXTURE: it asks for ${what}`);
   assert.match(STYLE_NOTE, /never[^.]*chapter[^.]*end/i, 'STYLE-NO-PLOT: it forbids chapter shape and endings');
   assert.match(STYLE_NOTE, /never reuse the premise's images/i, "STYLE-NO-IMAGES: it forbids the premise's images");
   assert.match(STYLE_NOTE, /<[a-z][^<>]*>/, 'STYLE-SHAPE: it shows the form with angle-bracket placeholders');
