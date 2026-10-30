@@ -7665,6 +7665,16 @@ const hemCardOf = (side: string) => {
   ok('the scene card shows a running hem, a pass that did not run, and out of date, each with its press (#92)');
 }
 
+// ---- THE HEM'S SET UP THE NEXT SCENE OPENS ON ANYONE NEW (the speed pass, 2026-10-30): how it starts,
+// its name, where it heads and who is in it are said on the hem, so the step left is the one it opens.
+{
+  click({ open: 's-1' }); await sleep(40);
+  click({ panel: 'setup', setupat: 'more' }); await sleep(30);
+  assert.match(html('sideBody'), /<div class="serif title-md">Anyone new<\/div>/, 'HEM-SETUP-AT: it opens the setup on Anyone new');
+  click({ panel: '' }); await sleep(20);
+  ok('the hem\'s Set up the next scene opens on Anyone new');
+}
+
 // ---- A HEM WITH NOTHING LEFT TO DECIDE LEAVES THE WORKBENCH (Seth, 2026-10-30: "Once I'm done
 // hemming it still shows in the workbench"): its next-scene suggestion waiting is not a decision.
 {
@@ -8005,6 +8015,20 @@ const hemCardOf = (side: string) => {
     side = html('sideBody');
     assert.doesNotMatch(side, /data-hemwhodone=/, 'HEM-WHO-DONE: Done puts it away');
     assert.match(side, /still reading the scene/, '  and while the scans run, it says the summary comes when they are done');
+    // THE SUMMARY AS SOON AS IT IS WRITTEN (the speed pass, 2026-10-30): the next read, with the summary
+    // pass done and the rest still running, shows it; the cards wait for the hem to be done.
+    VIEW = after({ ...running, passes: { summary: null }, current: { pass: 'facts', since: Date.now() } }, rows);
+    VIEW.chapters[1] = { ...VIEW.chapters[1], summary: 'The envoy is seen home.' };
+    assert.ok(timers.length > 0, '  a read is waiting while the hem runs');
+    timers.shift()!(); await settle();
+    // The watch redraws the drawer's lower half in place, which this stub DOM cannot do; the drawer
+    // drawn again shows what it would put there.
+    click({ panel: 'ritual' }); await settle();
+    side = html('sideBody');
+    assert.match(side, /data-hemsumtext="c-2"[^>]*>The envoy is seen home\./, 'SUMMARY-EARLY: the summary shows as soon as it is written');
+    assert.match(side, /still on the rest/, '  with a line saying the rest is still running');
+    assert.doesNotMatch(side, /data-deckkind=/, '  and no cards until the hem is done');
+    VIEW = after(running, []);
     // Setup opens on what the scene left (its card, running), and the new scene is one step on.
     click({ panel: 'setup' }); await settle();
     assert.match(html('sideBody'), /<ol class="hemsteps">[\s\S]*data-state="(run|wait)"/, 'its setup opens with the hem\'s steps, still going');

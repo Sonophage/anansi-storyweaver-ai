@@ -3972,7 +3972,10 @@ function hemStepStates(ch, closed) {
   const passes = PASSES.map(([k, name]) => {
     const done = closed && (h ? report[k] === null : true);
     const bad = closed && !!h && typeof report[k] === 'string' && !!report[k];
-    const now = running && h?.current?.pass === k;
+    // Where the tale stands and the people run at the same time (`hemPasses`), so either one running
+    // shows both running until each has its line.
+    const pair = (x) => x === 'tale' || x === 'memory';
+    const now = running && (h?.current?.pass === k || (pair(k) && pair(h?.current?.pass) && !(k in report)));
     const trying = running && S.hemTrying === `${ch.id}:${k}`;
     const state = !closed ? 'wait' : now ? 'run' : bad && !trying ? 'fail' : done ? 'done'
       : k === 'next' && hemAsking(ch) ? 'you' : 'wait';
@@ -4050,19 +4053,26 @@ function ritualPanel() {
   // How the next scene starts, then who is in it, while the scans run; then the summary, once both
   // are done and the scans are over (see `hemAsking`).
   if (closed) act.push(hemAsk(ch), hemWho(ch));
+  // THE SUMMARY AS SOON AS IT IS WRITTEN (the speed pass, 2026-10-30: it was ready a minute and a half
+  // before the rest of the hem, and waited for it). While the other passes run, a line under it says so.
   const told = closed && !!ch.hem && !hemAsking(ch) && !hemWhoOpen(ch);
-  if (told && ch.hem.state === 'running') act.push(`<div class="hint">Anansi is still reading the scene.
-    What he wrote about it shows here when he is done.</div>`);
+  const summed = told && (ch.hem.state !== 'running' || 'summary' in (ch.hem.passes ?? {}));
+  if (told && !summed) act.push(`<div class="hint">Anansi is still reading the scene.
+    What he wrote about it shows here when he has it.</div>`);
   else if (told) act.push(`<label class="lbl sub-lbl" for="hemsum-${esc(ch.id)}">${
       ch.summaryAuthor === 'human' ? 'Your summary' : 'The summary'}</label>
     <textarea class="field" id="hemsum-${esc(ch.id)}" data-hemsumtext="${esc(ch.id)}" aria-label="The summary of ${esc(sceneName(ch))}"
-      placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>`);
+      placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>
+    ${ch.hem.state === 'running' ? `<div class="hint">Anansi is still on the rest. What he found to decide
+      shows here when he is done.</div>` : ''}`);
   if (failed.length) act.push(`<div class="card hemfail">${failed.map((x) => `<div class="line-8 wraps">
       <span class="note fill"><span class="inked">${esc(x.name)}</span> did not run &mdash; ${esc(x.line.replace(/^Did not run: /, ''))}</span>
       <button class="btn ghost" data-hemagain="${esc(ch.id)}" data-pass="${x.k}">Try again</button></div>`).join('')}
     <div class="hint flush">Nothing was lost: the scene is hemmed and the prose is untouched.</div></div>`);
   if (you?.k === 'decide') act.push(deckHTML(new Set([`scene:${ch.id}`, ...hemOwed(ch).map((p) => p.id)]), true));
-  if (you?.k === 'setup') act.push('<button class="btn fill" data-panel="setup">Set up the next scene</button>');
+  // ONTO ANYONE NEW (the speed pass, 2026-10-30): how it starts, its name, where it heads and who is in
+  // it are already said by now, so the setup opens on the step that is left. The others are on its rail.
+  if (you?.k === 'setup') act.push('<button class="btn fill" data-panel="setup" data-setupat="more">Set up the next scene</button>');
 
   return `<div class="lbl wide">${esc(sceneName(ch))}${closed ? ' &middot; hemmed' : ''}</div>
     ${hemSteps(ch, closed)}
@@ -9855,10 +9865,15 @@ function watchHems() {
     if (S.storyId !== sid || !V) return;
     if (!r.error && hemsRunning(r) !== hemsRunning(V)) {
       // The hem drawer's question may be part-way answered: its words are on S, and the caret goes back.
+      // So may the summary, which shows while the hem still runs: its words are only in the box until
+      // the writer leaves it, so they are carried across the repaint.
       const typing = document.activeElement?.dataset?.hemsteer;
+      const sum = document.activeElement?.dataset?.hemsumtext, sumText = sum ? document.activeElement.value : null;
       V = r; paint();
       const box = typing && document.querySelector(`[data-hemsteer="${typing}"]`);
       if (box) { box.focus({ preventScroll: true }); box.setSelectionRange?.(box.value.length, box.value.length); }
+      const sbox = sum && document.querySelector(`[data-hemsumtext="${sum}"]`);
+      if (sbox) { sbox.value = sumText; sbox.focus({ preventScroll: true }); }
       return;
     }
     // THE STEPS MOVE WHILE YOU WATCH (walkthrough, 2026-10-30: nothing on the drawer moved until the
@@ -9868,6 +9883,15 @@ function watchHems() {
       V = r;
       const ol = document.querySelector('#sideBody .hemsteps'), { ch, closed } = ritualScene();
       if (ol) ol.outerHTML = hemSteps(ch, closed);
+      // AND WHAT IS BELOW THEM, when a pass brought something to show (the summary, as soon as it is
+      // written), unless the writer is in it: a box being typed in is never redrawn under them.
+      const act = document.querySelector('#sideBody .hemact');
+      if (act && !act.contains(document.activeElement)) {
+        const fresh = document.createElement('div');
+        fresh.innerHTML = ritualPanel();
+        const now = fresh.querySelector('.hemact')?.innerHTML;
+        if (now != null && now !== act.innerHTML) act.innerHTML = now;
+      }
     }
     watchHems();
   }, HEM_POLL_MS);
@@ -12323,7 +12347,8 @@ document.addEventListener('click', async (e) => {
     return void await leaveTo(d.nav);
   }
   if (d.leave) { await leaveTo(d.leave === '1' ? 'stories' : d.leave); return; }
-  if (d.panel !== undefined) { S.panel = d.panel || null; syncHash(); paint(); return; }
+  // `setupat`: the setup opened on one of its steps (the hem's Set up the next scene, 2026-10-30).
+  if (d.panel !== undefined) { if (d.setupat) S.setupStep = d.setupat; S.panel = d.panel || null; syncHash(); paint(); return; }
   if (d.appearance !== undefined) { S.appearance = d.appearance === '1' ? !S.appearance : false; drawAppearance(); drawBar(); syncTray(); return; }
   if (d.looktab) { S.lookTab = d.looktab; drawAppearance(); return; }
   if (d.theme) return void changeLook({ theme: d.theme });

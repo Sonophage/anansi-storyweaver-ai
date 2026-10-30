@@ -1870,13 +1870,21 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   if (keptSummary) passes.summary = null;
   // #125 · Where the tale stands, after the summary and before the threads: one entry on the tale's
   // own thread, chalked on this scene's card. #127 · And where each string in play stands, beside it.
-  await pass('tale', want.tale, async () => {
-    const tale = await taleStands(c, storyId, closing, scene);
-    const strings = await stringsStand(c, storyId, closing, scene);
-    return { error: tale?.error ?? strings?.error ?? null };
-  });
   // The character memory, on the same terms: a chapter must be able to close with the model down.
-  await pass('memory', want.memory, () => remember(c, storyId, closing, scene, names));
+  // AT THE SAME TIME AS THE TALE'S (Seth, 2026-10-30, the speed pass): neither reads what the other
+  // writes, and both wait on the writer's answer, so they were the two serial calls on the writer's
+  // own wait. Two calls in flight on this tale for their length.
+  // ponytail: two at once on one plan. Ceiling: Featherless bills by concurrency, and a writer
+  // generating prose during the hem makes it three. Trigger: a 429 or a refused call on either pass;
+  // then put them back in a row.
+  await Promise.all([
+    pass('tale', want.tale, async () => {
+      const tale = await taleStands(c, storyId, closing, scene);
+      const strings = await stringsStand(c, storyId, closing, scene);
+      return { error: tale?.error ?? strings?.error ?? null };
+    }),
+    pass('memory', want.memory, () => remember(c, storyId, closing, scene, names)),
+  ]);
   // And read it for facts. The comment above summarise applies to this word for word: the ledger
   // is the only tier that survives compaction — prose falls out of the chapter window, summaries
   // roll into arcs, and entries are re-sent on every call forever — so leaving the tier that
@@ -1900,17 +1908,16 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // prompt reads the scene's own name, opening and heading, never the hem's suggestion, so a
   // suggestion left only on the hem was never sent ("it's not passed to the scene").
   const before = opened ? db.hemOf(storyId, closing)?.suggestion ?? null : null;
-  // And who or what the next scene needs that the tale has not got, from the summary, the opening and
-  // where it heads, so Anyone new has suggestions waiting (`needsFor`). Never the pass's failure.
-  const next = await pass('next', want.next, async () => {
-    const r = await suggestScene(c, storyId, opened, steer, undefined, opening);
-    if (opened && r?.title) await needsFor(c, storyId, closing, opened, r).catch(() => {});
-    return r;
-  });
+  const next = await pass('next', want.next, () => suggestScene(c, storyId, opened, steer, undefined, opening));
   if (opened && next?.title) db.offerScene(storyId, opened, before, { title: next.title, note: next.note, opens: next.opens });
   // A pass that did not run this time leaves its line, the kept flag and the suggestion as stored (#91).
   db.finishHem(storyId, closing, run, { passes, kept: want.summary ? keptSummary : undefined,
     suggestion: !want.next ? undefined : next?.title ? { title: next.title, note: next.note, opens: next.opens } : null });
+  // And who or what the next scene needs that the tale has not got, from the summary, the opening and
+  // where it heads, so Anyone new has suggestions waiting (`needsFor`). AFTER the hem is marked done
+  // (the speed pass, 2026-10-30: it held the summary and the cards back by half a minute); still in the
+  // tale's queue, so a second hem waits for it. Never a failure of the hem.
+  if (opened && next?.title) await needsFor(c, storyId, closing, opened, next).catch(() => {});
 }
 
 /** Read a chapter for facts and put them in the queue as PROPOSALS.
@@ -1976,7 +1983,13 @@ async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string
   const existing = db.entriesOf(v.id);
   const text = narrationOnly(ps.map((p: any) => p.body).join('\n\n'));
   if (!text.trim()) return { error: 'this scene is all dialogue — nothing the narrator committed' };
-  const r = await shaped(EXTRACT, text, EXTRACT_SCHEMA, { model: backgroundModel(c, v), max_tokens: EXTRACT_TOKENS });
+  // MEASURED, NOT GUESSED (the speed pass, 2026-10-30): the slowest pass, and the remote model reports
+  // no token counts, so how much went in and came out is logged as `hem-facts`, in characters.
+  const t0 = Date.now(), using = backgroundModel(c, v);
+  const r: any = await shaped(EXTRACT, text, EXTRACT_SCHEMA, { model: using, max_tokens: EXTRACT_TOKENS });
+  db.logGeneration({ storyId, chapterId: ch.id, model: using, role: 'hem-facts',
+    params: { max_tokens: EXTRACT_TOKENS, in_chars: EXTRACT.length + text.length, out_chars: String(r.raw ?? '').length,
+      entries: r.data?.entries?.length ?? 0 }, latencyMs: Date.now() - t0, error: r.error ?? null });
   if (!r.data?.entries) return { error: r.error ?? 'extraction returned nothing usable' };
   let added = 0;
   // SIX NEW THREADS AT MOST FROM A HEM (2026-10-27): one hem of Seth's chalked sixteen. The rest are

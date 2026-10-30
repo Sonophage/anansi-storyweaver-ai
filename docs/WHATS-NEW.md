@@ -24,6 +24,12 @@ next scene's opening, word for word; press Enter and Anansi names the scene and 
 from it, while he finishes reading this one. Then you choose who is in the next scene: take out who
 is not, bring in who is, and press Done. By then the hem has usually finished, and it shows you the
 summary it wrote and what it found to decide. Nothing is written until you start the next scene.
+### A quicker hem
+The summary shows as soon as Anansi has written it, once you have said who is in the next scene,
+instead of waiting for the rest of the hem. Where the tale stands and where each person stands are
+worked out at the same time now. What the hem found to decide arrives about half a minute sooner,
+because the suggestions for Anyone new are worked out after it. And Set up the next scene takes you
+straight to Anyone new, since the rest is already said.
 ### The hem's steps are in the order they happen
 The next scene and who is in it are at the top of the list now, then the summary, then the rest.
 ### Where things stand follows how you said the next scene opens

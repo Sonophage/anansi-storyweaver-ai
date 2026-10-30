@@ -1492,7 +1492,14 @@ ok('a hem asks for the next scene rather than guessing it, and the answer goes i
     `HEM-HOLDS: the close runs the summary, new threads and retirements, and holds the rest (${Object.keys(held.passes)})`);
   assert.ok(!askOf(prompts.MEMORY) && !askOf(TALE_HEAD), '  so nothing about where things stand is asked yet');
   const mine = 'Two days later, in his bookstore, two strangers walk in.';
+  // Held at the fake while both ask, so two in flight at once is seen (`mostInflight`).
+  mostInflight = 0;
+  let release!: () => void;
+  gate = new Promise<void>((r) => { release = r; });
   const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', asked: true, opens: mine }));
+  for (let i = 0; i < 100 && inflight < 2; i++) await new Promise((r) => setTimeout(r, 20));
+  const paired = inflight;
+  release(); gate = null;
   assert.ok(!v.error, v.error);
   assert.strictEqual((db.chapters(t.id) as any[]).find((c) => c.id === r.opened).opens_with, mine,
     'HEM-OPENS-NOW: the opening is the scene\'s as soon as it is sent, before the pass runs');
@@ -1512,6 +1519,8 @@ ok('a hem asks for the next scene rather than guessing it, and the answer goes i
     'STANDS-READS-OPENING: where the tale stands is asked with how the next scene opens');
   assert.match(String(askOf(prompts.MEMORY)?.user ?? ''), /HOW THE NEXT SCENE OPENS[\s\S]*Two days later, in his bookstore/,
     '  and so is where each person stands');
+  // THE SPEED PASS (2026-10-30): the tale's and the people's run at the same time.
+  assert.ok(paired >= 2, `HEM-PAIR: where the tale stands and the people are asked at once (${paired} in flight)`);
   tidied = {}; taleSays = '';
 }
 ok('the opening the writer sends from the hem is the scene\'s, as written, and the pass names the scene from it');
@@ -1571,6 +1580,11 @@ ok('a hem chalks six new threads at most, and the rest wait by name until asked 
   const opened = (db.chapters(t.id) as any[])[1].id;
   const need = (db.proposalsOf(t.id) as any[]).find((p) => p.title === 'The Ferry Bell' && p.chapter_id === opened);
   assert.ok(need && need.kind === 'new', 'NEEDS-CHALKED: what the next scene needs is chalked as new, against that scene');
+  // AFTER THE HEM IS DONE (the speed pass, 2026-10-30), so the summary and the cards do not wait on it.
+  const hemDone = sceneOf(await viewNow(t.id), ch0.id).hem.finishedAt;
+  const asked = (new (await import('node:sqlite')).DatabaseSync(DB, { readOnly: true }) as any)
+    .prepare("SELECT created_at FROM generations WHERE story_id = ? AND role = 'hem-new' ORDER BY created_at DESC LIMIT 1").get(t.id);
+  assert.ok(asked && hemDone && asked.created_at >= hemDone, `NEEDS-AFTER: asked after the hem is marked done (${asked?.created_at} vs ${hemDone})`);
   assert.match(String(askOf(prompts.NEEDS)?.user ?? ''), /THE NEXT SCENE: The Ferry at Dusk[\s\S]*HOW IT OPENS:\nThe river was low\.[\s\S]*WHERE IT HEADS/,
     '  asked from the next scene\'s name, opening and where it heads');
   assert.ok(JSON.parse(need.rooms || '{}').appearance, '  with the pockets it came with');
