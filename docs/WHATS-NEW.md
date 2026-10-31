@@ -16,6 +16,16 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-10-31 · The hem keeps every person it reads
+
+### Each person in a scene gets their own changes again
+On a Featherless model, a hem could read only the last person in its answer. Everyone before
+them was lost: where they stand and their new pockets never reached the hem's cards, and the
+last person could get the others' pockets instead. Now each person keeps their own.
+### Where the tale stands can be changed
+On the Tale's Thread tab, tap where the tale stands to open it and change it. It saves as you
+type, like the other panels.
+
 ## 2026-10-30 · Everything saves as you type
 
 ### Altering a passage saves as you type

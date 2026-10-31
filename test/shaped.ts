@@ -52,6 +52,39 @@ overflow: Coyle; Vantic law`;
   ok('a MEMORY answer in lines reads back as the object its JSON would have been');
 }
 
+// ---- ONE HEADER FOR EVERY ITEM, as the Featherless model answered ENCORE's scene 3 (2026-10-31): one
+// `[threads]`, then the threads one after another with a blank line between, a second pocket on a bare
+// line with no `pockets:` in front, and `always: ""`. Read as one block, each name overwrote the one
+// before it: Halsey and Seth were lost, and their pockets were read onto the last thread.
+{
+  const said = `[threads]
+name: Halsey
+stands: She has let him see her tired.
+label: guard down
+line: She sent the selfie anyway.
+pockets: interiority | Her guard | Lower than she lets anyone see.
+relationships | Halsey and Seth | More than a prop now.
+always: ""
+
+name: Seth
+stands: He answers her texts within the minute.
+label: hooked
+line: He typed back before he could stop.
+pockets: interiority | His hope | He wants this more than he says.
+always: ""
+
+overflow: The Book; Diner`;
+  const d = fromText(said, MEMORY_SCHEMA) as any;
+  assert.deepStrictEqual(d.threads.map((t: any) => t.name), ['Halsey', 'Seth'],
+    'ONE-HEADER: a field the item already has starts the next item of the same block');
+  assert.deepStrictEqual(d.threads[0].pockets.map((p: any) => p.name), ['Her guard', 'Halsey and Seth'],
+    'BARE-ITEM: a bare "a | b | c" line after a list of objects is one more of it');
+  assert.deepStrictEqual(d.threads[1].pockets.map((p: any) => p.name), ['His hope'], '  and stays on its own thread');
+  assert.strictEqual(d.threads[0].always, '', 'EMPTY-QUOTES: always: "" reads as empty, not as two quote marks');
+  assert.deepStrictEqual(d.overflow, ['The Book', 'Diner'], '  the list after the last item still reads');
+  ok('one header for many items reads as many items, each with its own pockets');
+}
+
 // ---- EXTRACT, with an enum and a list
 {
   const d = fromText(`[entries]

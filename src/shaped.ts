@@ -37,7 +37,8 @@ export function textShape(schema: Schema): string {
 
 /** A value read off a line, as its field's schema wants it; undefined when it cannot be. */
 function valueOf(raw: string, s: Schema): unknown {
-  const v = raw.trim();
+  // `""` is how a model writes an empty value it was told to leave empty (ENCORE, 2026-10-31).
+  const v = raw.trim().replace(/^(""|'')$/, '');
   if (isObjList(s)) {
     const parts = v.split('|').map((x) => x.trim());
     const fs = fieldsOf(s.items);
@@ -53,7 +54,13 @@ function valueOf(raw: string, s: Schema): unknown {
 
 /** The lines a model gave, read back into the schema's object. Never null: no blocks is an answer of
  *  none. An item missing a required field (cut off at the cap) or holding a value its enum does not
- *  allow is dropped; the whole ones are kept. */
+ *  allow is dropped; the whole ones are kept.
+ *
+ *  ONE HEADER FOR MANY ITEMS reads as many items (ENCORE, 2026-10-31): the Featherless model wrote one
+ *  `[threads]` and every thread under it, a blank line between. Read as one block, each name overwrote
+ *  the one before, and a hem chalked nothing for the people the scene was about. So a field the item
+ *  already has starts the next item of the same block, and a bare `a | b | c` line after a list of
+ *  objects is one more of it (the model left `pockets:` off the second pocket). */
 export function fromText(text: string, schema: Schema): Record<string, unknown> {
   const fields = fieldsOf(schema);
   const out: Record<string, any> = Object.fromEntries(fields.map(([k, s]) =>
@@ -62,6 +69,8 @@ export function fromText(text: string, schema: Schema): Record<string, unknown> 
   let cur: { k: string; s: Schema; o: Record<string, any>; bad: boolean } | null = null;
   // A LINE WITH NO FIELD carries on the string field before it: a model wraps a long value.
   let last: { o: Record<string, any>; f: string } | null = null;
+  // The list of objects the line before wrote to, for a bare item after it.
+  let list: [string, Schema] | null = null;
   const close = () => {
     if (!cur) return;
     const req = cur.s.items.required ?? [];
@@ -73,7 +82,7 @@ export function fromText(text: string, schema: Schema): Record<string, unknown> 
   for (const line of String(text ?? '').replace(/^```\w*$/gm, '').split('\n')) {
     const head = line.match(/^\s*\[([A-Za-z_]+)\]\s*$/);
     if (head) {
-      close(); last = null;
+      close(); last = null; list = null;
       const f = key(head[1], fields);
       if (f && isObjList(f[1])) cur = { k: f[0], s: f[1], o: {}, bad: false };
       continue;
@@ -81,16 +90,22 @@ export function fromText(text: string, schema: Schema): Record<string, unknown> 
     const m = line.match(/^\s*([A-Za-z_]+)\s*:(.*)$/);
     const named = m && (cur ? key(m[1], fieldsOf(cur.s.items)) : null) || (m && key(m[1], fields));
     if (!m || !named) {
+      if (cur && list && line.includes('|')) {
+        const v = valueOf(line, list[1]);
+        if (v !== undefined) cur.o[list[0]] = [...(cur.o[list[0]] ?? []), v];
+        continue;
+      }
       if (last && line.trim()) last.o[last.f] = `${last.o[last.f]} ${line.trim()}`.trim();
       continue;
     }
-    last = null;
+    last = null; list = null;
     if (cur) {
       const f = key(m[1], fieldsOf(cur.s.items));
       if (f) {
+        if (!isObjList(f[1]) && cur.o[f[0]] !== undefined) { const { k, s } = cur; close(); cur = { k, s, o: {}, bad: false }; }
         const v = valueOf(m[2], f[1]);
         if (v === undefined) { if (!isObjList(f[1])) cur.bad = true; continue; }
-        if (isObjList(f[1])) cur.o[f[0]] = [...(cur.o[f[0]] ?? []), v];
+        if (isObjList(f[1])) { cur.o[f[0]] = [...(cur.o[f[0]] ?? []), v]; list = f; }
         else { cur.o[f[0]] = v; if (typeof v === 'string') last = { o: cur.o, f: f[0] }; }
         continue;
       }

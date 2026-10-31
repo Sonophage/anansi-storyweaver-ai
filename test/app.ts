@@ -5338,6 +5338,24 @@ ok('Account → Writing shows When you reweave after the five modes, filled with
   assert.match(box, /id="pk-keys" value="debt, loan"/, '  with its wake words');
   assert.doesNotMatch(box, /data-pocketkind="promise"/, '  and it cannot become a string');
   click({ pocketx: '1' });
+  // WHERE THE TALE STANDS, TAPPED (Seth, 2026-10-31: "the tale's is not editable"). The tale has no box
+  // of its own on The thread, so its entry in force opens in the panel with its text in a box, and a
+  // pause writes it to the tale's thread.
+  (STORY as any).taleThread = { ...(STORY as any).taleThread, nowStateId: 'ts-2',
+    states: [{ id: 'ts-2', fromChapter: 2, body: 'The heir is in hiding.', beforeMode: 'hide', label: null }] };
+  click({ open: 's-1' }); await sleep(40);
+  click({ storytab: 'thread' }); click({ panel: 'story' });
+  assert.match(html('sideBody'), /<button[^>]*data-talestand="ts-2"[^>]*>The heir is in hiding\.</, 'TALE-NOW-TAP: where the tale stands is a press');
+  click({ talestand: 'ts-2' }); await sleep(20);
+  box = html('pocketPanel');
+  assert.match(box, /id="pk-body"[^>]*>The heir is in hiding\.</, 'TALE-NOW-EDIT: it opens with its text in a box');
+  POSTED.length = 0;
+  (listeners.input ?? []).forEach((f: Function) => f({ target: { id: 'pk-body', value: 'The heir has come out of hiding.' } }));
+  await sleep(1200);
+  const st = POSTED.find((x) => x.url === '/api/state');
+  assert.deepStrictEqual([st?.body.entryId, st?.body.state?.id, st?.body.state?.body], ['e-tale', 'ts-2', 'The heir has come out of hiding.'],
+    "TALE-NOW-SAVE: a pause writes it to the tale's thread");
+  click({ pocketdone: '1' }); await sleep(40);
   (STORY as any).taleRules = wasRules; (STORY as any).talePockets = wasOwn; (STORY as any).taleThread = wasTale;
   click({ panel: 'threads' });
 }

@@ -609,8 +609,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra',
   // #92. A hemmed scene's card: run its passes again, set up the next scene.
   'hemagain', 'hemopen', 'hemedit', 'fillsetup',
-  // #75. The tale's own thread.
-  'taleadd',
+  // #75. The tale's own thread: add to it, and open where it stands now.
+  'taleadd', 'talestand',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
   'accttab', 'delavatar', 'acctgo',
   // A card out as JSON and back in again: copy, save to a file, read one.
@@ -2848,7 +2848,8 @@ function openState(entryId, id = null) {
 }
 function statePanel(pk, e) {
   const first = pk.id === 'first', adding = !pk.id;
-  const inForce = !adding && !first && standsNow(e)?.id === pk.id;
+  // The tale's thread has no box of its own on The thread, so its entry in force is edited here.
+  const inForce = !adding && !first && e.entryType !== 'tale' && standsNow(e)?.id === pk.id;
   const body = inForce ? `<label class="lbl">${esc(nowWords())}</label>
     <div class="note">${esc(unbracket(pk.body, e.title))}</div>
     <div class="hint flush">${esc(nowWords())}, so its text is edited on The thread.</div>`
@@ -3249,12 +3250,13 @@ function closeMerge(t = null) {
  *  press with its own handler; a swipe and the arrow keys only press them. One way in for all
  *  three, so a swipe cannot do anything a press does not. */
 /** #125 · WHERE THE TALE STANDS NOW: the tale's thread's Over time entry in force at this scene, or
- *  nothing while none is sewn in (the premise is then what is sent). Read-only: a hem writes it. */
+ *  nothing while none is sewn in (the premise is then what is sent). A hem writes it, and a tap opens
+ *  it in the pocket panel to change (Seth, 2026-10-31: "the tale's is not editable"). */
 function taleNowBox() {
   const now = V?.taleThread ? standsNow(V.taleThread) : null;
   return now ? `<div class="lbl sub-lbl">${esc(nowWords())}</div>
-    <div class="note" data-talenow="1">${esc(now.body)}</div>
-    <div class="hint flush">Written at each hem and sewn in from its card. Anansi reads this, not the premise.</div>` : '';
+    <button class="readbody" data-talenow="1" data-talestand="${esc(now.id)}" aria-label="Change where the tale stands">${esc(now.body)}</button>
+    <div class="hint flush">Written at each hem and sewn in from its card. Tap it to change it. Anansi reads this, not the premise.</div>` : '';
 }
 /** #129 · ONE STRING'S ROW, for the Strings screen and the tale's own thread page alike: its name and
  *  kind, a line of its text, how long it has waited (or that it is tied off or let go), and the
@@ -12178,6 +12180,7 @@ document.addEventListener('click', async (e) => {
   // under each list on the tale's own page names its kind, and the panel opens with it chosen.
   // ONE ＋ ON THE TALE'S THREAD TAB (Seth, 2026-10-30): the pocket panel, to add any of its four kinds.
   if (d.taleadd) { openPocket(V?.taleThread?.id ?? TALE_NEW); paint(); $('pk-name')?.focus?.(); return; }
+  if (d.talestand) { if (!V?.taleThread) return; openState(V.taleThread.id, d.talestand); paint(); $('pk-body')?.focus?.(); return; }
   if (d.stringnew) {
     openPocket(V?.taleThread?.id ?? TALE_NEW);
     // From Strings, a string: the two kinds of string, not the rules and your own the Thread tab adds.
