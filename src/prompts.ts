@@ -134,13 +134,19 @@ export const EXTRACT_SCHEMA = {
  *  stands alone in his bookshop…"), copied the narration into it (ENCORE, 4,564 characters), and read
  *  "stands" as standing somewhere. One paragraph, in every prompt that writes where a thread stands.
  *  The code holds the length and refuses a copy (routes.ts `standsFit`). NOT MEASURED: no control run
- *  against the wording before it; Seth chose it without one. */
+ *  against the wording before it; Seth chose it without one.
+ *  HOW THEY FEEL, added the same day (Seth: "emotional state things that will help write those
+ *  threads"), as what carries into the next scene, not the moment's mood; never for a person written
+ *  from the outside. CLOTHES OUT: the model put Halsey's t-shirt in where she stands; the code moves
+ *  a sentence of clothes into an outfit pocket when it still does (routes.ts `clothesOut`). */
 export const STANDS_FORM =
-`Where a thread stands is at most three short sentences, in this order: where it is physically at the
-end of the scene; how it stands with the others in the story (who it is with or against, who holds
-it, what it wants from them or means to them); and the scene it was last seen in, as "Last seen in
-<the scene named under THIS SCENE>." Never the last moment of the scene told again, and never a
-sentence copied from the narration.`;
+`Where a thread stands is at most four short sentences, in this order: where it is physically at the
+end of the scene; for a person, how they feel now and what they want, as it will carry into the
+next scene (for a person under OUTSIDE ONLY, only what others can see of it); how it stands with the
+others in the story (who it is with or against, who holds it, what it wants from them or means to
+them); and the scene it was last seen in, as "Last seen in <the scene named under THIS SCENE>."
+Never the last moment of the scene told again, never a sentence copied from the narration, and never
+clothes: clothes the scene shows that the thread does not have yet go in an outfit pocket.`;
 
 export const POCKET_FORM =
 `A pocket is a plain DESCRIPTION of one part of the thread, in a sentence or two, the way the

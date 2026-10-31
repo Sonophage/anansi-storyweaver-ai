@@ -1451,7 +1451,7 @@ const thisScene = (ch: any) => {
  *  part of it is where he stands. LONG is past STANDS_WORDS, cut back to its last whole sentence.
  *  Only on what the hem chalks: the writer's own text is never cut. NOT MEASURED: the two numbers are
  *  set from that one entry and the shape the prompt asks for. */
-const STANDS_WORDS = 90;
+const STANDS_WORDS = 110;
 export function standsFit(stands: unknown, narration: string): string {
   const s = String(stands ?? '').trim();
   const words = (t: string) => t.toLowerCase().replace(/[^a-z0-9']+/g, ' ').split(' ').filter(Boolean);
@@ -1462,6 +1462,22 @@ export function standsFit(stands: unknown, narration: string): string {
   if (runs >= 4 && copied / runs >= 0.5) return '';
   const all = s.split(/\s+/);
   return all.length <= STANDS_WORDS ? s : trimToSentence(all.slice(0, STANDS_WORDS).join(' '));
+}
+
+/** CLOTHES OUT OF WHERE IT STANDS, INTO AN OUTFIT (Seth, 2026-10-31: "clothes if a new one is found
+ *  should go in outfit"). A sentence with a verb of wearing AND a garment is clothes: either alone
+ *  is not ("the grin she wore", "a crack in his armour"). Validated against what it was not written
+ *  for, the library's 24,161 sentences of prose and stands: 14 hits read as clothes, and one did not
+ *  ("heavier than his armor, heavier than the crown he does not wear").
+ *  ponytail: an English word list. Ceiling: clothes it does not name, and a simile that names one.
+ *  Trigger: a writer finding clothes left in where it stands, or an outfit that is not one; then ask
+ *  the model for the outfit as its own field. Either way the writer sees both on the hem's card. */
+const WORN = /\b(wear(s|ing)?|wore|dressed in|dresses in|has on|had on|clad in|changed into|pulled on|slipped on)\b/i;
+const GARMENT = /\b(?<!like (a |an |his |her |their )?)(t-?shirts?|shirts?|tees?|dress(es)?|jackets?|jeans|shorts|coats?|boots|heels|sneakers|trainers|skirts?|hoodies?|suits?|robes?|tunics?|trousers|pants|leathers|gowns?|sweaters?|jumpers?|blouses?|uniforms?|shoes|socks|hats?|scarf|scarves|gloves|flannel|cardigan|vest|leggings|sweatpants|pajamas|lingerie|bra|panties|underwear|armou?r|cloak|apron|overalls|crop top|sandals|slippers|beanie|cap)\b/i;
+export function clothesOut(stands: string): { stands: string; worn: string } {
+  const parts = String(stands ?? '').match(/[^.!?]+[.!?]+["'”’)]*\s*|[^.!?]+$/g) ?? [];
+  const isWorn = (p: string) => WORN.test(p) && GARMENT.test(p);
+  return { stands: parts.filter((p) => !isWorn(p)).join('').trim(), worn: parts.filter(isWorn).join('').trim() };
 }
 
 async function remember(c: Ctx, storyId: string, chapterId: string, scene?: string, names?: string[]) {
@@ -1537,7 +1553,14 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     // before), and not the text it already has. Empty when there is no such change.
     const said = resolveBody(who, ch.index);
     // #114 · Plain, as it will be stored, so "Ilse: poles the ferry" is the same as what she has.
-    let stands = db.plainStands(standsFit(m.stands, text), [who.title]);
+    // CLOTHES GO TO AN OUTFIT POCKET, on a kind that has one and when the model gave none of its own.
+    const kinds = slotsFor(who.entryType).map((sl) => sl.name)
+      .filter((k) => !(k === 'interiority' && outside.some((o) => norm(o) === norm(who.title))));
+    const fit = standsFit(m.stands, text), { worn } = clothesOut(fit);
+    const pockets = (Array.isArray(m.pockets) ? m.pockets : []) as any[];
+    if (worn && kinds.includes('outfit') && !pockets.some((pk) => pk?.slot === 'outfit'))
+      pockets.push({ slot: 'outfit', name: `As in scene ${ch.index}`, body: worn });
+    let stands = db.plainStands(worn && kinds.includes('outfit') ? clothesOut(fit).stands : fit, [who.title]);
     if (/^none[.\s]*$/i.test(stands) || norm(stands) === norm(said)) stands = '';
     // #90 · A WORLD PERSON'S CHANGE IS A NEW THREAD IN THE TALE, never a change to the World's
     // thread, which other tales follow (ADR 0006). Always true is copied from the World's, and the
@@ -1558,9 +1581,7 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
         body: stands, entryType: 'state', delta, keys: [String(ch.index + 1)], grp, line })) remembered++;
     // POCKETS: from the thread's own kind only, never Always true, never what it already says, and
     // never the inside of a character hemmed from the outside (#90): the prompt says so, this holds it.
-    const kinds = slotsFor(who.entryType).map((sl) => sl.name)
-      .filter((k) => !(k === 'interiority' && outside.some((o) => norm(o) === norm(who.title))));
-    for (const pk of (Array.isArray(m.pockets) ? m.pockets : []) as any[]) {
+    for (const pk of pockets) {
       const field = String(pk?.slot ?? '');
       let body = String(pk?.body ?? '').trim();
       if (field === 'facts' || !kinds.includes(field) || !body || /^none[.\s]*$/i.test(body)) continue;
@@ -2055,7 +2076,11 @@ async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string
         rooms[slot] = { name: String(pk?.name ?? '').trim() || slot, body };
     }
     // AND WHERE IT STANDS, its first Over time entry, riding as `stands` (not a pocket) to the accept.
-    const stands = cls.entry_id ? '' : standsFit(e.stands, text);
+    // Clothes in where it stands go to its outfit, as `remember` moves them, when it has none.
+    const fit = cls.entry_id ? '' : standsFit(e.stands, text), { worn } = clothesOut(fit);
+    const dress = !!worn && kinds.includes('outfit');
+    if (dress && !rooms.outfit) rooms.outfit = { name: `As in scene ${ch.index}`, body: worn };
+    const stands = dress ? clothesOut(fit).stands : fit;
     if (stands) rooms.stands = { body: stands };
     const one = { ...cls, chapterId: ch.id, title: e.title.trim(),
       body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],

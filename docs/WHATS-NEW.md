@@ -28,8 +28,10 @@ button's wording in Account → Writing, your next passage uses the new one. If 
 kept.
 
 ### Where a thread stands is short, and says where they are
-After a hem, where each person, place or thing stands is at most three short sentences: where it
-is, how it stands with the others, and the scene it was last seen in. Anansi no longer copies the
+After a hem, where each person, place or thing stands is at most four short sentences: where it
+is, how a person feels and what they want going into the next scene, how it stands with the
+others, and the scene it was last seen in. Clothes are not put there: new clothes the scene shows
+come to the hem's card as an outfit pocket instead. Anansi no longer copies the
 scene into it, and a long one is cut at the end of a sentence.
 
 ### Each person in a scene gets their own changes again

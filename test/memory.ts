@@ -1772,7 +1772,9 @@ ok('a hem chalks six new threads at most, and the rest wait by name until asked 
 {
   for (const [name, text] of [['MEMORY', prompts.MEMORY], ['EXTRACT', prompts.EXTRACT]] as const)
     assert.ok(text.includes(prompts.STANDS_FORM), `STANDS-FORM-${name}: the prompt carries the one shape`);
-  assert.match(prompts.STANDS_FORM, /physically[\s\S]*with the others[\s\S]*Last seen in/, '  where it is, how it stands with the others, last seen');
+  assert.match(prompts.STANDS_FORM, /physically[\s\S]*how they feel now and what they want[\s\S]*with the\s+others[\s\S]*Last seen in/,
+    '  where it is, how they feel, how it stands with the others, last seen');
+  assert.match(prompts.STANDS_FORM, /never\s+clothes[\s\S]*outfit pocket/, 'STANDS-NO-CLOTHES: and clothes go to an outfit pocket');
   assert.match(asked.user, /THIS SCENE: Scene 1\b/, 'STANDS-SCENE: the ask names the scene it is reading');
   const { standsFit } = await import('../src/routes.ts');
   const scene = 'Seth stands alone in his bookshop, the weight of her words settling over him like a shroud. '
@@ -1784,8 +1786,30 @@ ok('a hem chalks six new threads at most, and the rest wait by name until asked 
   assert.strictEqual(standsFit(own, scene), own, 'STANDS-OWN: three short sentences of its own are kept whole');
   const long = Array.from({ length: 30 }, (_, i) => `Sentence ${i} has a few words in it.`).join(' ');
   const cut = standsFit(long, scene);
-  assert.ok(cut.split(/\s+/).length <= 90 && /\.$/.test(cut), `STANDS-LONG: a long one is cut to 90 words at a sentence (${cut.split(/\s+/).length})`);
+  assert.ok(cut.split(/\s+/).length <= 110 && /\.$/.test(cut), `STANDS-LONG: a long one is cut to 110 words at a sentence (${cut.split(/\s+/).length})`);
   ok('where a thread stands is asked in one shape, with the scene named, and a copy or a long one is held in code');
+}
+// CLOTHES IN WHERE IT STANDS GO TO AN OUTFIT POCKET (Seth, 2026-10-31: "clothes if a new one is found
+// should go in outfit"). A verb of wearing and a garment, both, so a grin she wore stays where it is.
+{
+  const { clothesOut } = await import('../src/routes.ts');
+  assert.deepStrictEqual(clothesOut('In his car with Seth. She is wearing a faded band t-shirt and short shorts. Last seen in Scene 3.'),
+    { stands: 'In his car with Seth. Last seen in Scene 3.', worn: 'She is wearing a faded band t-shirt and short shorts.' },
+    'CLOTHES-OUT: a sentence of clothes comes out of where it stands');
+  for (const keep of ['She wore the grin she wore at the gallery.', 'Heavy as the crown he does not wear.', 'He wears his name like a mask.'])
+    assert.strictEqual(clothesOut(keep).worn, '', `CLOTHES-KEEP: "${keep}" is not clothes`);
+  const t = db.createStory(me, { title: 'Clothes out', premise: 'p' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const h = db.upsertEntry(t.id, me, { title: 'Halsey', body: 'at the venue', entryType: 'character', keys: ['Halsey'] })!;
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'Halsey climbed into the car and put her feet on the dash.' });
+  answer = [{ name: 'Halsey', stands: 'In his car, feet on the dash. She is wearing a faded band t-shirt. Last seen in Scene 1.',
+    label: 'in the car', line: '', always: '', pockets: [] }];
+  await routes['POST /api/remember'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  const mine = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === h);
+  assert.strictEqual(mine.find((p) => p.entry_type === 'state')?.body, 'In his car, feet on the dash. Last seen in Scene 1.',
+    'CLOTHES-STANDS: where she stands is chalked without the clothes');
+  assert.match(String(mine.find((p) => p.field === 'outfit')?.body ?? ''), /faded band t-shirt/, 'CLOTHES-OUTFIT: and they are chalked as an outfit pocket');
+  ok('clothes in where a person stands are moved to an outfit pocket, and a worn grin is not clothes');
 }
 // ONE NAME ONCE: the character the writer plays may also be the Hands off one.
 {
