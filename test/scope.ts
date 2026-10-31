@@ -2088,7 +2088,7 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
   // exactly what this assertion is about. Matched loosely on the directive plus the words around it
   // rather than on the whole sentence: the point here is that the instruction reaches the template
   // that carries it, not what that template's first line says this week.
-  assert.match(m1.prompt, /based on this: have him lose his nerve/,
+  assert.match(m1.prompt, /fits the narrative: have him lose his nerve/,
     'and sends it through the one mode template that carries a directive');
 
   // A directive in the request is the writer typing a new one, and it wins. Mode `direct` with it,
@@ -2175,8 +2175,8 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
   const ctx = (owner: string, body: any = {}) => ({ body, query: new URLSearchParams(), owner,
     slot: { global: 40_000, slots: 1, perSlot: 40_000 }, gen: { max_tokens: 900 }, setGen: () => {},
     defaultModel: null, setDefaultModel: () => {}, admin: false }) as any;
-  const SHIPPED = '[A note from the writer on what did not work in the last version of this passage. '
-    + 'That version is not shown. Avoid what the note describes: {{whatfailed}}]';
+  const SHIPPED = '[A note from the writer on what did not work the last time this passage was written. '
+    + 'That attempt is not shown. Do what the note asks, and avoid what it describes: {{whatfailed}}]';
   const TAKE = 'Marek laughs at the door.';
   const WHY = 'He would never laugh here.';
   const before = db.addPassage({ storyId: aStory.id, branchId: aStory.branchId,
@@ -2289,7 +2289,7 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
   const m = await ask({ regenerateOf: take, mode: 'direct', directive: 'have someone wait upstairs, silent',
     whatFailed: WHY });
   const t = modeOf(m);
-  const iInstr = t.search(/based on this: have someone wait upstairs, silent/);
+  const iInstr = t.search(/fits the narrative: have someone wait upstairs, silent/);
   const iWhy = t.search(/He would never laugh here\./);
   assert.ok(iInstr >= 0 && iWhy > iInstr, 'the MODE block carries the edited instruction, then the note');
   assert.doesNotMatch(m.prompt, /Corwin|laughs from the landing/, 'and no part of the take, anywhere in the prompt');

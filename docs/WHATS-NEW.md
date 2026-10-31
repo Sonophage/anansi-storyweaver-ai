@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-31 · The hem keeps every person it reads
 
+### New default wording for Continue, Speak, Act, Direct, Narrate and Reweave
+The wording each button sends is now the one Seth wrote for his own books. If you never changed a
+button's wording in Account → Writing, your next passage uses the new one. If you did, yours is
+kept.
+
 ### Where a thread stands is short, and says where they are
 After a hem, where each person, place or thing stands is at most three short sentences: where it
 is, how it stands with the others, and the scene it was last seen in. Anansi no longer copies the

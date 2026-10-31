@@ -107,7 +107,7 @@ ok("  nor does Narrate", !(await page.visible('#asWhom')));
 
 // ---- 6. what each mode actually tells the model
 const cont = await modeBlock('continue', null, 'IGNORE ME');
-ok("Continue asks for the next beat", /one small beat/.test(cont));
+ok("Continue asks for the next beat", /one full beat/.test(cont));
 ok("  and names no paragraph count — F18: a named length is a length it fills",
    !/\d\s*-\s*\d\s+paragraphs/.test(cont));
 ok("  and carries no directive, because it has no box", !/IGNORE ME/.test(cont));
@@ -116,7 +116,7 @@ const direct = await modeBlock('direct', null, 'He drops the key.');
 // Matched on the directive and the colon that introduces it, not on the line's opening verb: Seth
 // reworded that to "Re write what happens based on this:" on 2026-09-01, and what this asserts is
 // that the typed text REACHES the template that carries a directive.
-ok("Direct passes your text as an instruction", /based on this: He drops the key\./.test(direct));
+ok("Direct passes your text as an instruction", /fits the narrative: He drops the key\./.test(direct));
 
 const speak = await modeBlock('speak', 'Aldis Fen');
 ok(`Speak names who spoke (${JSON.stringify(speak.slice(0, 62))})`, /spoken as Aldis Fen/.test(speak));
@@ -134,7 +134,7 @@ ok("  and not to rewrite it", /Do not rewrite it/.test(narr));
 // than the neutral mode.
 const stale = await modeBlock('cowrite');
 ok(`a retired mode name degrades instead of erroring (${JSON.stringify(stale.slice(0, 34))})`,
-   /one small beat/.test(stale));
+   /one full beat/.test(stale));
 
 // ---- 7. the speaker reaches the prompt through the UI's own selector, not just the API
 await page.mode('speak');

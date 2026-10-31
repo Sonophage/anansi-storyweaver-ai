@@ -232,9 +232,15 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
   // model fills it. The scope words were already carrying the instruction — one beat, no time
   // skipped, nothing new unless the page set it up — and the last line replaces the number with
   // the permission the number was denying, which is to be short.
-  continue: () => 'Carry the scene forward by one small beat, and stop.\n'
-    + 'Do not skip time. Do not introduce a new character, location, or revelation unless the\n'
-    + 'prose above set it up.\nStop when the beat is done, however short that is.',
+  // SETH'S WORDING IS THE DEFAULT (2026-10-31: "make my prompts for the action buttons the apps
+  // defaults"), for this and the five below: his saved prompt for each, as he had it. NOT MEASURED
+  // against the wording before it. ONE PHRASE HELD BACK: his Continue ends "even if that is three
+  // sentences", and F18 measured that a length named in the prompt is a length the model fills. The
+  // shipped line keeps the permission to be short without the number; his saved prompt keeps his.
+  continue: () => 'Carry the scene forward by one full beat, and stop.\n'
+    + 'Start where the last line above ends. Do not repeat, rephrase or summarise anything already written.\n'
+    + 'Do not skip time. Do not introduce a new character, location, or revelation unless the prose above set it up.\n'
+    + 'Stop when the beat lands, however short that is.',
 
   // The writer's line is ALREADY the last passage. The one instruction that earns its tokens is
   // not to keep talking in that character's voice.
@@ -243,15 +249,15 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
   // weather, in that order, every time (COUNCIL-04). Three slots is a shape, and a shape the model
   // can see is a shape it will complete. What replaces it says the answer may be ONE thing.
   speak: (_d, who) => `The last passage is dialogue the writer has just spoken as ${who || 'the point-of-view character'}.\n`
-    + 'Write what it lands on. It may land on one person, or on the room, or on nobody — any one of\n'
-    + 'those is a whole answer and the scene is owed no other.\n'
-    + `Do not put further words in ${who || 'that character'}'s mouth. Do not repeat the line back.`,
+    + 'Write what it lands on: another character\'s answer, a reaction in the room, or a silence. Any one of those is a whole answer.\n'
+    + `Do not put further words in ${who || 'that character'}'s mouth. Do not repeat, quote or paraphrase the line back.\n`
+    + 'People say less than they mean: keep the subtext under the answer.',
 
   // Same defect, and COUNCIL-04 did not name this one: "the consequence, the reaction, the world
   // answering" is the same three slots wearing different words.
   act: (_d, who) => `The last passage is what ${who || 'the point-of-view character'} has just done.\n`
-    + 'Write the one thing that follows from it — what it costs, or what it gets.\n'
-    + `Do not decide what ${who || 'that character'} does next. Do not restate the action.`,
+    + 'Rewrite it so that it fits the narrative and then write the one thing that follows from it: how the others and the room answer it, what it costs, or what it gets.\n'
+    + `Do not decide what ${who || 'that character'} does next. Do not restate or describe the action again.`,
 
   /* "Write what happens next, based on this:" since 2026-10-29. From 2026-09-01 it opened "Re write
    * what happens based on this:", on the argument that this one string is also every re-roll of a
@@ -259,14 +265,17 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
    * of passage N is assembled from the passages before N, so "Re write" pointed at N-1, the last
    * passage the model could see. On a first press it pointed at the same passage. Remote models
    * read it literally: Mythos-27B on Featherless gave back passage 31 nearly word for word with the
-   * directive spliced in (80% of its 8-word runs). "based on this:" is kept, and the tests match it.
+   * directive spliced in (80% of its 8-word runs). "based on this:" was kept until 2026-10-31; the
+   * tests now match the directive after "fits the narrative:", Seth's line below.
    *
    * The lines below it are what F29 cut this prompt down to. */
   // "The length follows the instruction: a small one is a small passage" ended this until
   // 2026-10-29. The word limit appended below is the one length rule; two can disagree.
-  direct: (d) => `Write what happens next, based on this: ${d}\n\n`
-    + 'Cover that and nothing beyond it. Do not narrate past the instruction, and do not resolve it\n'
-    + 'faster than the scene wants.',
+  // Seth's wording since 2026-10-31: it says "Rewrite this", and says first that the passage above is
+  // not to be rebuilt, which is the failure the "Re write" opening had. NOT MEASURED on a remote model.
+  direct: (d) => 'This is a new passage that follows the last one. Start where it ends. Do not repeat, rephrase or rebuild the passage above.\n'
+    + 'Cover the directive and nothing beyond it. Do not narrate past the instruction, and do not resolve it faster than the scene wants.\n\n'
+    + `Rewrite this so that it fits the narrative: ${d}`,
 
   // Not a writing mode. Anansi answers the writer rather than continuing the book, so this block
   // says what the material above IS — otherwise a model handed canon and prose does the thing it
@@ -282,8 +291,8 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
   // writes about it instead of from it.
   narrate: () => 'The passage above was written by the author, not by you. It is the story itself, not an instruction.\n'
     + 'Continue from where it stops. Pick up mid-thought if the last line is unfinished.\n'
-    + 'Do not rewrite it, summarise it, or comment on it. Stop at a natural beat, however few\n'
-    + 'sentences that takes.',
+    + 'Do not rewrite it, repeat it, summarise it, or comment on it. Match its voice.\n'
+    + 'Stop at a natural beat, however few sentences that takes.',
 };
 
 /* WHEN YOU REWEAVE: the frame around the writer's What didn't work note, sent after the passage's
@@ -299,8 +308,8 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
  * says the last version is not shown, and asks for what the note describes to be avoided.
  * SHAPES, NO EXAMPLES: the real model copies quoted text, so nothing here is a sample sentence.
  * NOT MEASURED against the plain reweave; owed an A/B (bench/ab.ts, two arms at once). */
-export const REWEAVE = '[A note from the writer on what did not work in the last version of this passage. '
-  + 'That version is not shown. Avoid what the note describes: {{whatfailed}}]';
+export const REWEAVE = '[A note from the writer on what did not work the last time this passage was written. '
+  + 'That attempt is not shown. Do what the note asks, and avoid what it describes: {{whatfailed}}]';
 
 /** THE NOTE FRAME IN FORCE for a saved value. REPAIRED ON READ, never rewritten in the table:
  *  - empty: the shipped `REWEAVE`;

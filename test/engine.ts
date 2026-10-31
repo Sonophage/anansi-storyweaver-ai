@@ -594,7 +594,7 @@ ok('no mode instruction points at a passage the prompt does not contain', () => 
 
   // The ordinary modes still say their own thing — the guard above must not be passing because
   // every instruction went blank.
-  assert.match(modeText({ mode: 'continue' as any }), /one small beat/);
+  assert.match(modeText({ mode: 'continue' as any }), /one full beat/);
   assert.match(modeText({ mode: 'narrate' as any }), /written by the author, not by you/);
 });
 
@@ -607,7 +607,7 @@ ok('each mode says the one thing that distinguishes it', () => {
 
   // Continue takes no directive at all — it is a button, so there is nowhere to type one.
   const cont = modeText({ mode: 'continue' as any, directive: 'IGNORE ME' });
-  assert.ok(/one small beat/.test(cont), 'Continue must ask for the next beat');
+  assert.ok(/one full beat/.test(cont), 'Continue must ask for the next beat');
   assert.ok(!/IGNORE ME/.test(cont), 'Continue must not carry a directive it cannot be given');
 
   // NO PROMPT MAY NAME A LENGTH. F18: a named length is a length the model fills, and three of
@@ -654,7 +654,7 @@ ok('each mode says the one thing that distinguishes it', () => {
   // a shape the model can see is a shape it completes. Act had the same defect in other words.
   assert.doesNotMatch(modeText({ mode: 'speak' as any }), /speech, action, the room/);
   assert.doesNotMatch(modeText({ mode: 'act' as any }), /the consequence, the reaction, the world/);
-  assert.match(modeText({ mode: 'speak' as any }), /any one of\s*\n?those is a whole answer/,
+  assert.match(modeText({ mode: 'speak' as any }), /any one of\s*\n?those is a whole answer/i,
     'and Speak says explicitly that one thing is a whole answer');
 
   // Direct's text is an instruction and must appear as one. Matched on the directive and the colon
@@ -662,7 +662,7 @@ ok('each mode says the one thing that distinguishes it', () => {
   // ("Re write what happens based on this:") and this assertion is about the directive REACHING the
   // template, not about which verb the line opens with.
   assert.match(modeText({ mode: 'direct' as any, directive: 'He drops it.' }),
-    /based on this: He drops it\./);
+    /fits the narrative: He drops it\./);
 
   // Speak and Act name the speaker, and forbid the two failure modes each has: talking on in
   // that character's voice, and deciding what they do next.
@@ -680,7 +680,7 @@ ok('each mode says the one thing that distinguishes it', () => {
   assert.match(modeText({ mode: 'narrate' as any }), /written by the author, not by you/);
 
   // A stale tab sending a retired name degrades to the neutral mode instead of a 500.
-  assert.ok(/one small beat/.test(modeText({ mode: 'cowrite' as any })),
+  assert.ok(/one full beat/.test(modeText({ mode: 'cowrite' as any })),
     'an unknown mode must fall back, not throw');
 });
 
@@ -849,7 +849,7 @@ ok('the mode instruction is fenced, and the prose it follows is not', () => {
 
   const fence = out.match(/<mode>\n([\s\S]*?)\n<\/mode>/);
   assert.ok(fence, `MODE reached the prompt unfenced. The prompt ends:\n${out.slice(-240)}`);
-  assert.match(fence![1], /one small beat/,
+  assert.match(fence![1], /one full beat/,
     'and the fence must hold the mode instruction, not some neighbouring block that drifted in');
 
   // THE HALF THAT IS THE POINT. A fence that opened one block early would put the sentence the
