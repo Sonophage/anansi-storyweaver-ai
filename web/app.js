@@ -606,7 +606,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #79. Over time: take a dated wardrobe or retirement event out. #80: make a Lore thread a place.
   'delevent', 'makeplace',
   // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
-  'tidy', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra',
+  'tidy', 'restand', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra',
   // #92. A hemmed scene's card: run its passes again, set up the next scene.
   'hemagain', 'hemopen', 'hemedit', 'fillsetup',
   // #75. The tale's own thread: add to it, and open where it stands now.
@@ -3249,6 +3249,11 @@ function closeMerge(t = null) {
  *  Right and left are buttons on the card (`data-deckright`, `data-deckleft`), each an ordinary
  *  press with its own handler; a swipe and the arrow keys only press them. One way in for all
  *  three, so a swipe cannot do anything a press does not. */
+/** REWRITE WHERE IT STANDS (Seth, 2026-10-31: "make it a button on each thread and the tale"). Anansi
+ *  rewrites it from the last scene that names it, and it comes to the Workbench as a card: nothing
+ *  changes until it is sewn in. One button for a thread and the tale's own thread alike. */
+const restandButton = (e) => `<button class="btn ghost push-8" data-restand="${esc(e.id)}" ${S.restanding ? 'disabled aria-busy="true"' : ''}
+      aria-label="Have Anansi rewrite where ${esc(e.title)} stands">${S.restanding === e.id ? 'Rewriting&hellip;' : 'Rewrite where it stands'}</button>`;
 /** #125 · WHERE THE TALE STANDS NOW: the tale's thread's Over time entry in force at this scene, or
  *  nothing while none is sewn in (the premise is then what is sent). A hem writes it, and a tap opens
  *  it in the pocket panel to change (Seth, 2026-10-31: "the tale's is not editable"). */
@@ -3256,7 +3261,8 @@ function taleNowBox() {
   const now = V?.taleThread ? standsNow(V.taleThread) : null;
   return now ? `<div class="lbl sub-lbl">${esc(nowWords())}</div>
     <button class="readbody" data-talenow="1" data-talestand="${esc(now.id)}" aria-label="Change where the tale stands">${esc(now.body)}</button>
-    <div class="hint flush">Written at each hem and sewn in from its card. Tap it to change it. Anansi reads this, not the premise.</div>` : '';
+    <div class="hint flush">Written at each hem and sewn in from its card. Tap it to change it. Anansi reads this, not the premise.</div>
+    ${restandButton(V.taleThread)}` : '';
 }
 /** #129 · ONE STRING'S ROW, for the Strings screen and the tale's own thread page alike: its name and
  *  kind, a line of its text, how long it has waited (or that it is tied off or let go), and the
@@ -3515,7 +3521,8 @@ function deckCards(only = null, inHem = false) {
   const groups = new Map();
   for (const p of props.filter((x) => !taken.has(x.grp))) { const k = p.grp || p.id; groups.set(k, [...(groups.get(k) ?? []), p]); }
   const what = (ps) => ps[0].entryType === 'string' ? 'A string, chalked' : ps.some((p) => !p.entryId) ? 'New thread'
-    : ps.some((p) => (p.grp ?? '').startsWith('hem:')) ? 'Hemming found' : ps[0].kind === 'tidy' ? 'Tidy this thread'
+    : ps.some((p) => (p.grp ?? '').startsWith('hem:')) ? 'Hemming found'
+    : (ps[0].grp ?? '').startsWith('restand:') ? 'Where it stands, rewritten' : ps[0].kind === 'tidy' ? 'Tidy this thread'
     : 'Anansi chalked';
   const chalk = [...groups.values()].map((ps) => ({ kind: 'chalk', key: ps.map((p) => p.id).join(','),
     title: ps[0].title, sub: what(ps), line: ps.find((p) => p.line)?.line ?? '', ps,
@@ -7960,7 +7967,8 @@ function cardFace(e, slots) {
       return `<div class="lbl" style="letter-spacing:.1em; margin:8px 0 4px">${esc(nowWords())}${
         st ? ` <span class="faded">&middot; from scene ${esc(String(st.fromChapter))}</span>` : ''}</div>
     <button class="readbody" data-cardview="form" aria-label="Alter where ${esc(e.title)} stands now">${
-      esc(unbracket(st ? st.body : e.body, e.title) || 'Nothing written down yet.')}</button>`;
+      esc(unbracket(st ? st.body : e.body, e.title) || 'Nothing written down yet.')}</button>
+    ${e.sharedFrom ? '' : restandButton(e)}`;
     })()}
     <!-- #22 §6. WHAT IS ON, THEN WHAT IS NOT. Seth: "after the name comes the body, after the body
          comes what ever is turned on. all turned off option or non activated option live under a
@@ -13752,6 +13760,16 @@ document.addEventListener('click', async (e) => {
     const box = document.querySelector('[data-story="styleNote"]');
     if (box) fillTyped(box, r.style);
     return toast('Written and saved. Change it if you want; it saves as you type.');
+  }
+  if (d.restand) {
+    if (S.restanding) return;
+    S.restanding = d.restand; paint();
+    const r = await withRing(() => api.restand(S.storyId, d.restand));
+    S.restanding = null;
+    if (r.error) { paint(); return toast(r.error); }
+    V = r; paint();
+    return toast(r.added ? 'Rewritten and chalked. Nothing changes until you sew it in, on the Workbench.'
+      : 'It came back the same, so there is nothing to sew in.');
   }
   if (d.tidy) {
     // #73. Tidy this thread: Anansi's sort of it is chalked as one card, and nothing changes until

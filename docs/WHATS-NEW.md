@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-31 · The hem keeps every person it reads
 
+### Rewrite where it stands, on every thread and the tale
+Under where a thread stands, and under where the tale stands on the Tale's Thread tab, there is a
+Rewrite where it stands button. Anansi rewrites it from the last scene the thread was in: where it
+is, how they feel and what they want, how it stands with the others, and the scene it was last
+seen in. It comes to the Workbench as a card, and nothing changes until you sew it in. Pressing it
+again replaces the card.
+
 ### Storyteller's sliders have plainer names
 Surprise is now How bold his words are, Focus is How many words he weighs, and Passage length is
 Longest a passage runs, which reads "up to 400 words" and so on. They work as before.

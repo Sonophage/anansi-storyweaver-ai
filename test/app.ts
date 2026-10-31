@@ -5356,6 +5356,19 @@ ok('Account → Writing shows When you reweave after the five modes, filled with
   assert.deepStrictEqual([st?.body.entryId, st?.body.state?.id, st?.body.state?.body], ['e-tale', 'ts-2', 'The heir has come out of hiding.'],
     "TALE-NOW-SAVE: a pause writes it to the tale's thread");
   click({ pocketdone: '1' }); await sleep(40);
+  // REWRITE WHERE IT STANDS (Seth, 2026-10-31): a button under it, which asks for a card and writes nothing.
+  click({ open: 's-1' }); await sleep(40);
+  click({ storytab: 'thread' }); click({ panel: 'story' });
+  assert.match(html('sideBody'), /<button[^>]*data-restand="e-tale"[^>]*>Rewrite where it stands</, 'RESTAND-BUTTON: the tale has the button');
+  POSTED.length = 0;
+  const realFetch = (globalThis as any).fetch;
+  (globalThis as any).fetch = async (url: string, init?: any) => url === '/api/restand'
+    ? (POSTED.push({ url, body: JSON.parse(init.body) }), { ok: true, status: 200, json: async () => ({ added: 1, ...STORY }) })
+    : realFetch(url, init);
+  click({ restand: 'e-tale' }); await sleep(40);
+  (globalThis as any).fetch = realFetch;
+  assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/restand')?.body, { storyId: 's-1', entryId: 'e-tale' },
+    'RESTAND-ASKS: the press asks for the tale\'s own thread');
   (STORY as any).taleRules = wasRules; (STORY as any).talePockets = wasOwn; (STORY as any).taleThread = wasTale;
   click({ panel: 'threads' });
 }

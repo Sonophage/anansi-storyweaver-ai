@@ -213,6 +213,7 @@ export const api = {
   // itself; this is the way back when the router was down at the time.
   remember:     (storyId, chapterId) => j('/api/remember', 'POST', { storyId, chapterId }),
   tidy:         (storyId, entryId) => j('/api/tidy', 'POST', { storyId, entryId }),
+  restand:      (storyId, entryId) => j('/api/restand', 'POST', { storyId, entryId }),
   // Merge two threads: Anansi's draft of the one thread they make, then the write of it as approved.
   mergeDraft:   (storyId, keepId, goneId) => j('/api/merge/draft', 'POST', { storyId, keepId, goneId }),
   merge:        (storyId, parts) => j('/api/merge', 'POST', { storyId, ...parts }),

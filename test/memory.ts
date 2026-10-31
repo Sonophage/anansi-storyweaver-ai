@@ -52,6 +52,8 @@ let taleSays = '';
 let TALE_HEAD = 'Below is what a story is, where it stood before its latest scene';
 /** And what the where-each-string-stands pass returns (#127): by number. Empty, so no hem moves a string. */
 let stringsSay: any[] = [];
+/** And what Rewrite where it stands returns (RESTAND, 2026-10-31): plain prose. */
+let restated = '';
 
 /** And what the scene-name ask returns (2026-10-30): a blob-shaped answer until a block sets it, which
  *  the hem must refuse as a name. */
@@ -94,6 +96,8 @@ const srv = createServer((req, res) => {
       content: JSON.stringify({ entries: needsFound }) } }], usage: { prompt_tokens: 200, completion_tokens: 60 } });
     if (asked.system.startsWith('Below is a scene of a story that has just been written')) return send({ choices: [{ message: {
       content: sceneNamed } }], usage: { prompt_tokens: 200, completion_tokens: 6 } });
+    if (asked.system.startsWith('Below is one thread from a story: who or what it is')) return send({ choices: [{ message: {
+      content: restated } }], usage: { prompt_tokens: 200, completion_tokens: 60 } });
     if (asked.system.startsWith(TALE_HEAD)) return send({ choices: [{ message: { content: taleSays } }],
       usage: { prompt_tokens: 200, completion_tokens: 60 } });
     if (summed !== null) return send({ choices: [{ message: { content: summed } }],
@@ -2301,6 +2305,45 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   assert.strictEqual(kept?.previous_value, OIL, 'STRINGS-HISTORY: and the old version is kept in the thread\'s history');
   void why; void off; void tied;
   ok('sewn in, a string reads where it stands now, and the old version is kept');
+}
+
+// REWRITE WHERE IT STANDS (Seth, 2026-10-31: "make it a button on each thread and the tale"). The press
+// chalks one card and writes nothing; it reads the last closed scene that names the thread; the code
+// says "Last seen in", moves clothes to an outfit, and refuses an answer about someone else.
+{
+  const t = db.createStory(me, { title: 'Restand', premise: 'A ferry and its pilot.' }) as any;
+  const ch1 = (db.chapters(t.id)[0] as any);
+  const ilse = db.upsertEntry(t.id, me, { title: 'Ilse', body: 'poles the ferry at Sallow', entryType: 'character', keys: ['Ilse'] })!;
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch1.id, body: 'Ilse tied the ferry up at the far bank and walked into the reeds.' });
+  const press = (entryId: string) => routes['POST /api/restand'](ctx({ storyId: t.id, entryId }));
+  restated = 'Ilse is on the far bank.';
+  assert.match(String(((await press(ilse)) as any).error ?? ''), /No scene is hemmed yet/, 'RESTAND-NONE: with no closed scene it says so');
+  db.endChapter(t.id, t.branchId);
+  restated = 'Ilse is in the reeds past the far bank, alone. She wants to be found by no one. She is wearing a wet oilskin coat. Last seen in the wrong place.';
+  const r: any = await press(ilse);
+  assert.strictEqual(r.added, 2, `RESTAND-CHALK: where she stands and an outfit are chalked (${JSON.stringify(r.error ?? r.added)})`);
+  assert.match(asked.user, /THIS SCENE: Scene 1[\s\S]*ITS NARRATION:\n.*walked into the reeds/, 'RESTAND-READS: it reads the last scene that names her');
+  const mine = (db.proposalsOf(t.id) as any[]).filter((p) => p.grp === `restand:${ilse}`);
+  assert.strictEqual(mine.find((p) => !p.field)?.body,
+    'Ilse is in the reeds past the far bank, alone. She wants to be found by no one. Last seen in Scene 1.',
+    'RESTAND-SHAPE: the clothes come out, and "Last seen in" is the code\'s');
+  assert.match(String(mine.find((p) => p.field === 'outfit')?.body ?? ''), /oilskin coat/, 'RESTAND-OUTFIT: the clothes go to an outfit pocket');
+  assert.strictEqual((db.entriesOf(t.id) as any[]).find((e) => e.id === ilse).body, 'poles the ferry at Sallow', 'RESTAND-UNWRITTEN: nothing is written until it is sewn in');
+  restated = 'Ilse is back on the ferry, poling it home. Last seen in Scene 1.';
+  await press(ilse);
+  const again = (db.proposalsOf(t.id) as any[]).filter((p) => p.grp === `restand:${ilse}`);
+  assert.deepStrictEqual(again.map((p) => p.body), ['Ilse is back on the ferry, poling it home. Last seen in Scene 1.'],
+    'RESTAND-AGAIN: a second press replaces the first card, not adds to it');
+  restated = 'The ferryman waits on the near bank.';
+  assert.match(String(((await press(ilse)) as any).error ?? ''), /not about Ilse/, 'RESTAND-SUBJECT: an answer about someone else is refused');
+  // The tale's own thread: where the tale stands, from the last closed scene.
+  const tale = db.taleThread(t.id)!;
+  taleSays = 'The pilot has left the ferry on the far bank.';
+  const rt: any = await press(tale);
+  assert.strictEqual(rt.added, 1, `RESTAND-TALE: the tale's own thread is rewritten too (${JSON.stringify(rt.error ?? rt.added)})`);
+  assert.ok((db.proposalsOf(t.id) as any[]).some((p) => p.grp === `restand:${tale}` && /left the ferry/.test(p.body)), '  as a card of its own');
+  taleSays = ''; restated = '';
+  ok('Rewrite where it stands chalks one card from the last scene, in shape, for a thread and for the tale');
 }
 
 srv.close();

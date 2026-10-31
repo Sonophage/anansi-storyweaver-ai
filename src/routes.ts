@@ -7,7 +7,7 @@ import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 // The hem's structured asks: plain lines on a remote model, read back into the schema's object.
 import { shaped } from './shaped.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, NEEDS, SCENE_NAME, TALE_STANDS, STRINGS_STAND, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, RESTAND, NEEDS, SCENE_NAME, TALE_STANDS, STRINGS_STAND, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
 import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -1480,6 +1480,13 @@ export function clothesOut(stands: string): { stands: string; worn: string } {
   return { stands: parts.filter((p) => !isWorn(p)).join('').trim(), worn: parts.filter(isWorn).join('').trim() };
 }
 
+/** #90 · OUTSIDE ONLY: the character the writer plays, and the Hands off one while the switch is on.
+ *  Named by title, as the story stores them, and once: the played character can be the Hands off one
+ *  too. The hem and Rewrite where it stands both read this list. */
+const outsideOf = (story: any): string[] => [story.persona, story.lockoutOn ? story.lockedCharacter : null]
+  .map((x) => String(x ?? '').trim()).filter((x, i, all) => x
+    && all.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
+
 async function remember(c: Ctx, storyId: string, chapterId: string, scene?: string, names?: string[]) {
   // #91. `names` keeps the review to the threads asked for by title: the ones past the cap.
   const only = names?.length ? new Set(names.map((n) => n.trim().toLowerCase())) : null;
@@ -1510,9 +1517,7 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
   // #90 · OUTSIDE ONLY: the character the writer plays, and the Hands off one while the switch is on.
   // Neither is the hem's to get inside of. Named by title, as the story stores them, and once: the
   // played character can be the Hands off one too.
-  const outside = [v.story.persona, v.story.lockoutOn ? v.story.lockedCharacter : null]
-    .map((x) => String(x ?? '').trim()).filter((x, i, all) => x
-      && all.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
+  const outside = outsideOf(v.story);
   const outsideLine = outside.length ? `\n\nOUTSIDE ONLY: ${outside.join(', ')}` : '';
 
   const after = nextOpening(storyId, ch.id);
@@ -1670,6 +1675,78 @@ async function taleStands(c: Ctx, storyId: string, chapterId: string, scene?: st
     body: stands, entryType: 'state', delta: 'where the tale stands', keys: [String(ch.index + 1)],
     grp: scene ?? `hem:${ch.id}:${id}` });
   return { chalked: added ? 1 : 0 };
+}
+
+/** REWRITE WHERE ONE THREAD STANDS NOW (Seth, 2026-10-31: "make it a button on each thread and the
+ *  tale"). CHALKED, NEVER WRITTEN: one Tidy-shaped card on the Workbench (`restand:<id>`), sewn in like a
+ *  tidy, so it rewrites the Over time entry in force in place, or the thread's own text when none is.
+ *
+ *  As of the last closed scene that names the thread: its narration, every closed scene's summary,
+ *  and the text in force now (RESTAND). The tale's own thread is `taleStands` on the last closed scene,
+ *  which rewrites the entry that scene's hem wrote. What comes back is held as a hem's is: a copy of
+ *  any closed scene is refused and a long one cut (`standsFit`), clothes go to an outfit pocket
+ *  (`clothesOut`), and "Last seen in" is the code's, not the model's (it dropped or misnamed it on half
+ *  the threads of the one-off). An answer that does not begin with the thread's name is refused: the
+ *  Featherless model wrote Marcus's as Seth's. Logged as `restand`. NOT MEASURED. */
+async function restand(c: Ctx, storyId: string, entryId: string) {
+  const v = bookOf(storyId);
+  // A SECOND PRESS REPLACES THE FIRST CARD: two versions on one card would both be sewn in by one
+  // press, and the dedupe refuses a second row for the same entry and scene anyway. The old one is put
+  // aside just before the new is chalked, and back if nothing new was: a failed press loses nothing.
+  const old = (db.proposalsOf(storyId) as any[]).filter((p) => p.grp === `restand:${entryId}`).map((p) => p.id);
+  const aside = () => { for (const id of old) db.setProposalStatus(storyId, id, 'rejected'); };
+  const supersede = (added: number) => { if (!added) for (const id of old) db.reopenProposal(storyId, id); return added; };
+  const closed = (v.chapters as any[]).filter((x) => x.status === 'closed');
+  if (!closed.length) return { error: 'No scene is hemmed yet, so there is nothing to rewrite it from.' };
+  const tale = (v as any).taleThread;
+  if (tale && entryId === tale.id) {
+    aside();
+    const r: any = await taleStands(c, storyId, closed.at(-1).id, `restand:${tale.id}`);
+    const added = supersede(r?.error ? 0 : r?.chalked ?? 0);
+    return r?.error ? { error: r.error } : { added };
+  }
+  const e = (v.entries as any[]).find((x) => x.id === entryId && !x.sharedFrom);
+  if (!e) return { error: 'no such thread in this tale' };
+  const at = v.currentChapter?.index ?? 1;
+  const sceneName = (ch: any) => `Scene ${ch.index}${String(ch.title ?? '').trim()
+    && !new RegExp(`^(scene|chapter)\\s+${ch.index}$`, 'i').test(String(ch.title).trim()) ? `, "${String(ch.title).trim()}"` : ''}`;
+  const narr = new Map(closed.map((ch) => [ch.id, narrationOnly(db.passagesOfChapter(ch.id)
+    .filter((p: any) => !p.is_break).map((p: any) => p.body).join('\n\n'))]));
+  const seen = [...closed].reverse().find((ch) => fires({ ...e, keys: [...(e.keys ?? []), e.title] }, narr.get(ch.id) ?? '').length);
+  const now = resolveBody(e, at).trim();
+  const rel = (e.addons ?? []).filter((a: any) => a.slot === 'relationships' && a.active).map((a: any) => a.body).join(' ');
+  const out = outsideOf(v.story).some((o) => o.toLowerCase() === String(e.title).toLowerCase());
+  const ask = [`THE THREAD: ${e.title} (${e.entryType})${out ? ', OUTSIDE ONLY' : ''}`,
+    `WHO OR WHAT IT IS: ${alwaysTrue(e) || '(empty)'}`, `WHERE IT STANDS NOW, AS WRITTEN: ${now || '(nothing yet)'}`,
+    rel ? `ITS RELATIONSHIPS: ${rel}` : '',
+    `THE SCENES SO FAR:\n${closed.map((ch) => `${sceneName(ch)}: ${String(ch.summary ?? '').trim() || '(no summary)'}`).join('\n')}`,
+    `THIS SCENE: ${seen ? sceneName(seen) : 'none of the scenes so far names it'}`,
+    seen ? `ITS NARRATION:\n${narr.get(seen.id)}` : ''].filter(Boolean).join('\n\n');
+  const t0 = Date.now(), using = backgroundModel(c, v);
+  const r: any = await chat(RESTAND, ask, { model: using, temperature: 0.3, max_tokens: 400, remoteCap: true,
+    chat_template_kwargs: { enable_thinking: false } }).catch((err: any) => ({ prose: '', error: String(err?.message ?? err) }));
+  db.logGeneration({ storyId, chapterId: seen?.id ?? null, model: using, role: 'restand', params: { max_tokens: 400 },
+    latencyMs: Date.now() - t0, error: r.error ?? null });
+  if (r.error) return { error: r.error };
+  const fit = standsFit(trimToSentence(clean(String(r.prose ?? ''))), [...narr.values()].join('\n\n'));
+  const kinds = slotsFor(e.entryType).map((sl) => sl.name);
+  const { stands, worn } = clothesOut(fit);
+  const dress = !!worn && kinds.includes('outfit');
+  const text = (dress ? stands : fit).replace(/\s*Last seen in[^.]*\.?["”]?\s*$/i, '');
+  if (!text) return { error: 'What came back was a copy of the scene, so it was not chalked. Try again.' };
+  const title = String(e.title).toLowerCase(), low = text.toLowerCase();
+  if (!low.startsWith(title) && !low.startsWith(`the ${title}`))
+    return { error: `What came back was not about ${e.title}, so it was not chalked. Try again.` };
+  const body = db.plainStands(`${text}${seen ? ` Last seen in ${sceneName(seen)}.` : ''}`, [e.title]);
+  const inForce = stateInForce(e, at);
+  if (body === db.plainStands(inForce?.body ?? e.body, [e.title])) return { added: 0 };
+  aside();
+  const base = { kind: 'tidy', entry_id: e.id, chapterId: v.currentChapter?.id ?? null, title: e.title,
+    entryType: e.entryType, keys: [], grp: `restand:${e.id}`, delta: inForce?.label || 'where it stands, rewritten', line: null };
+  let added = db.addProposal(storyId, inForce ? { ...base, body, entryType: 'state', keys: [String(inForce.fromChapter)] }
+    : { ...base, body }) ? 1 : 0;
+  if (dress && db.addProposal(storyId, { ...base, body: worn, field: 'outfit', pocket: `As in scene ${seen?.index ?? at}` })) added++;
+  return { added: supersede(added) };
 }
 
 /** A HEMMED SCENE IS NAMED FROM ITS SUMMARY, while its title is still the placeholder (`Scene N` as
@@ -5118,6 +5195,11 @@ export const routes: Record<string, Handler> = {
    *  its pockets sorted into ADR 0005's three parts, as instructions, all chalked as one card. The
    *  one path besides a new thread's that may chalk a change to an Always true that is written: the
    *  writer asked for exactly that, and it is still theirs to sew in or not. */
+  // The writer's press on a thread or the tale: where it stands now, rewritten, as a card (`restand`).
+  'POST /api/restand': async (c: Ctx) => {
+    const r = await restand(c, c.body.storyId, String(c.body.entryId ?? ''));
+    return 'error' in r ? r : { ...r, ...viewOf(c, c.body.storyId) };
+  },
   'POST /api/tidy': async (c: Ctx) => {
     const v = bookOf(c.body.storyId);
     const e = v?.entries.find((x: any) => x.id === c.body.entryId && !x.sharedFrom);

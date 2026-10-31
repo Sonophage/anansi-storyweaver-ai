@@ -148,6 +148,35 @@ them); and the scene it was last seen in, as "Last seen in <the scene named unde
 Never the last moment of the scene told again, never a sentence copied from the narration, and never
 clothes: clothes the scene shows that the thread does not have yet go in an outfit pocket.`;
 
+/** REWRITE WHERE ONE THREAD STANDS NOW, the writer's press on a thread (Seth, 2026-10-31: "make it a
+ *  button on each thread and the tale"). Built from a one-off on ENCORE the same day, run three ways:
+ *  on the Featherless 24B with the narration, it wrote Marcus's and the bookshop's as Seth's and
+ *  Halsey's; with the subject rule below and the local 35B, every card was about its own thread, and
+ *  two of eleven still invented or misstated a fact. So it is chalked, never written. The route adds
+ *  "Last seen in", holds the length and refuses a copy (`standsFit`), and refuses an answer that does
+ *  not begin with the thread's name. NOT MEASURED beyond that one run. */
+export const RESTAND =
+`Below is one thread from a story: who or what it is, where it stands now as written, its relationships,
+the summaries of the scenes so far, and the narration of the last scene it was seen in. Rewrite where
+it stands now, as of the end of that scene.
+
+The text as written may be stale or only the last moment of an earlier scene: where the scene says
+otherwise, the scene wins. Keep what is still true. Invent nothing the scene, the summaries or the
+text do not give, and nothing from after that scene. Write it as a plain description in the present
+tense, third person, with no brackets.
+
+${STANDS_FORM}
+
+A thread marked OUTSIDE ONLY is written from the outside: what it did, what was done to it, what
+others can see. Never its thoughts or feelings.
+
+IT IS ABOUT THIS ONE THREAD AND NO OTHER: begin with its name, and make every sentence about it. A
+place, an item or a body of lore has no feelings: say where it is, who has it or who is there, and
+what it means to the people in the story. If the scene only mentions it, say only what the scene
+shows of it.
+
+Answer with the rewritten text and nothing else.`;
+
 export const POCKET_FORM =
 `A pocket is a plain DESCRIPTION of one part of the thread, in a sentence or two, the way the
 writer would note it: what it is like, specific enough to write from. Anansi turns it into the
