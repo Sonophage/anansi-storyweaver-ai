@@ -644,7 +644,7 @@ const READOUT = {
   // The whole left end of the track is the off position, and the server agrees with it to the
   // token: anything under 150 stores as zero, so there is no value the writer can set that reads
   // back as a different one.
-  target_words: (n) => (Number(n) < 150 ? 'let him decide' : `~${n} words`),
+  target_words: (n) => (Number(n) < 150 ? 'let him decide' : `up to ${n} words`),
   coverOpacity: (n) => `${n}%`,
   // Words, not the sampler's numbers (second usability check, 2026-10-25). The bands are the
   // writer's sense of the slider, not a measurement.
@@ -4724,7 +4724,7 @@ const PANELS = {
           <span class="tnum count">${MANI.totals.used.toLocaleString()} tokens</span></div>
         <div class="row"><span class="inked">Space for it</span>
           <span class="tnum danger right">none</span></div>
-        <div class="hint">Shorten Passage length in Storyteller, or turn Plans first off for this tale:
+        <div class="hint">Lower &ldquo;Longest a passage runs&rdquo; in Storyteller, or turn Plans first off for this tale:
           both are space kept for the reply.</div></div>`;
     }
     const budget = MANI.totals.budget;
@@ -5913,14 +5913,15 @@ const PANELS = {
         server: changing it here changes it for every tale you write, and leaves the other writer
         alone. Per-tale sampling was never built.</p>`)}
       <div class="lbl">How he picks words</div>
-      ${slider('Surprise', 'temperature', g.temperature ?? 0.85, 2,
-        'How far Anansi reaches for a less obvious word. Only for prose: his notes and suggestions always stay steady.')}
-      ${slider('Focus', 'top_p', g.top_p ?? 0.95, 1,
-        'How many words he considers at all. Lower is tighter and more predictable.')}
-      ${slider('Passage length', 'target_words', g.target_words ?? 0, 2000,
-        'Roughly how long a passage should run. Anansi aims for it and is allowed to come in under '
-        + 'it — he is not cut off at it. All the way left leaves the length to him, which is how '
-        + 'every tale here was written until now.')}
+      ${/* NAMED FOR WHAT THE WRITER FEELS (Seth, 2026-10-31: "the sliders need to be named more user
+            friendly"). Surprise, Focus and Passage length until then; the keys are the sampler's. */ ''}
+      ${slider('How bold his words are', 'temperature', g.temperature ?? 0.85, 2,
+        'Left, he picks the safe, expected word. Right, he reaches for a less obvious one. Only for prose: his notes and suggestions always stay steady.')}
+      ${slider('How many words he weighs', 'top_p', g.top_p ?? 0.95, 1,
+        'How many words he thinks about before he picks one. Fewer is tighter and more predictable.')}
+      ${slider('Longest a passage runs', 'target_words', g.target_words ?? 0, 2000,
+        'The most words a passage should run. Anansi stops sooner when the moment is done, and he is '
+        + 'not cut off at it. All the way left leaves the length to him.')}
       <!-- YOUR VOICE, HOW ANANSI TALKS AND THE FIVE MODES moved to Account → Writing on 2026-10-27:
            they are yours on every tale, and Account is where what is yours lives (ADR 0003, one
            home per setting). -->
@@ -11195,7 +11196,7 @@ function takeToast(r) {
   // A take that ran into the ceiling is a fact about the prose on the page, and for five days the
   // only sign was a paragraph that stopped mid-word — 41 of 181 of them, with nothing on screen.
   return r?.cut ? 'This version ran to the ceiling and was cut short, then trimmed back to its '
-    + 'last whole sentence. Reweave it, or raise Passage length.' : null;
+    + 'last whole sentence. Reweave it, or raise “Longest a passage runs” in Storyteller.' : null;
 }
 
 /** Mark the newest passage so it fades in once, and only once. The flag is cleared on a timer

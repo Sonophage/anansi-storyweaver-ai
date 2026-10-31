@@ -6444,6 +6444,10 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     click({ panel: 'teller' });
     await sleep(30);
     assert.match(html('sideBody'), /data-gen="temperature"[^>]*value="1\.1"/, 'GEN-KEPT: the Storyteller draws the saved Surprise');
+    // NAMED FOR WHAT THE WRITER FEELS (Seth, 2026-10-31): not the old Surprise, Focus and Passage length.
+    assert.deepStrictEqual([...html('sideBody').matchAll(/data-gen="(\w+)" aria-label="([^"]+)"/g)].map((m) => [m[1], m[2]]),
+      [['temperature', 'How bold his words are'], ['top_p', 'How many words he weighs'], ['target_words', 'Longest a passage runs']],
+      'GEN-NAMES: the three sliders carry the plain names');
 
     POSTED.length = 0;
     changeIn({ dataset: { story: 'coverOpacity' }, type: 'range', value: '55' });

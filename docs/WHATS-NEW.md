@@ -18,6 +18,10 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-31 · The hem keeps every person it reads
 
+### Storyteller's sliders have plainer names
+Surprise is now How bold his words are, Focus is How many words he weighs, and Passage length is
+Longest a passage runs, which reads "up to 400 words" and so on. They work as before.
+
 ### New default wording for Continue, Speak, Act, Direct, Narrate and Reweave
 The wording each button sends is now the one Seth wrote for his own books. If you never changed a
 button's wording in Account → Writing, your next passage uses the new one. If you did, yours is
