@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-31 · The hem keeps every person it reads
 
+### Where things stand no longer reads the next scene's opening
+When you hem a scene, or press Rewrite where it stands, Anansi no longer sees how you said the
+next scene starts. Where the tale and each person stand is written from the scene that was hemmed,
+so the next scene's opening can no longer appear in it as if it had already happened. Naming the
+next scene still uses your opening.
+
 ### Rewrite where it stands, on every thread and the tale
 Under where a thread stands, and under where the tale stands on the Tale's Thread tab, there is a
 Rewrite where it stands button. Anansi rewrites it from the last scene the thread was in: where it

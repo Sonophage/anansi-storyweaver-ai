@@ -1422,20 +1422,11 @@ const POCKET_SHOWN = 600;
  *  ponytail: one model call for every named thread at once, and the whole scene's narration in the
  *  prompt. Whether one call per thread places changes better is the #73 measurement; and a scene long
  *  enough to overflow the slot returns the overflow error rather than a partial memory. */
-/** HOW THE NEXT SCENE OPENS, for the passes that write where things stand (Seth, 2026-10-30: "the
- *  where it stands should be influenced by where the next scene starts prompt otherwise it's confusing
- *  and writes things that hasn't happened"). The writer's words on the scene after this one, AS CONTEXT
- *  ONLY ("it should use it as context"): where things stand is the end of this scene, written so the
- *  opening can follow, and never says the opening has happened. '' while it has none. Read from the
- *  scene, so a try-again or a hem again reads it too. NOT MEASURED. */
-function nextOpening(storyId: string, chapterId: string): string {
-  const chs = db.chapters(storyId) as any[];
-  const at = chs.findIndex((x) => x.id === chapterId);
-  const opens = String(chs[at + 1]?.opens_with ?? '').trim();
-  return at < 0 || !opens ? '' : `HOW THE NEXT SCENE OPENS, in the writer's words, as context only: it has not been `
-    + `written and has not happened yet. Write where things stand at the end of THIS scene, so that this opening can `
-    + `follow it; never write anything from it as having happened:\n${opens}`;
-}
+/* NO NEXT SCENE'S OPENING in where things stand (Seth, 2026-10-31: "stop sending the opening to the
+ * button and the hem"). From 2026-10-30 the tale's, the strings' and the people's passes were sent the
+ * writer's opening for the next scene "as context only"; the Featherless model wrote it as having
+ * happened anyway (ENCORE: the diner scene in where the tale stands, before scene 4 had a line). Where
+ * things stand is the end of the scene it reads, and nothing after it. */
 
 /** THE SCENE, AS STANDS_FORM'S "Last seen in" NAMES IT: its number, and its title when the writer or
  *  the hem gave it one (not the `Scene N` placeholder). */
@@ -1520,8 +1511,7 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
   const outside = outsideOf(v.story);
   const outsideLine = outside.length ? `\n\nOUTSIDE ONLY: ${outside.join(', ')}` : '';
 
-  const after = nextOpening(storyId, ch.id);
-  const r = await shaped(MEMORY, `${text}\n\n---\n\n${thisScene(ch)}\n\n${inForce}${outsideLine}${after ? `\n\n${after}` : ''}`, MEMORY_SCHEMA,
+  const r = await shaped(MEMORY, `${text}\n\n---\n\n${thisScene(ch)}\n\n${inForce}${outsideLine}`, MEMORY_SCHEMA,
     { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
   if (!r.data?.threads) return { remembered: 0, error: r.error ?? null };
 
@@ -1660,7 +1650,7 @@ async function taleStands(c: Ctx, storyId: string, chapterId: string, scene?: st
   const r = await chat(TALE_STANDS, [
     `WHAT THE STORY IS: ${alwaysTrue(tale) || '(not written)'}`,
     `WHERE IT STOOD BEFORE THIS SCENE: ${was || '(nothing yet)'}`,
-    sum ? `THE SCENE, IN SUMMARY:\n${text}` : `THE SCENE:\n${text}`, nextOpening(storyId, ch.id)].filter(Boolean).join('\n\n'),
+    sum ? `THE SCENE, IN SUMMARY:\n${text}` : `THE SCENE:\n${text}`].join('\n\n'),
     // `remoteCap`: without it the Featherless adapter drops the cap, as it does for prose.
     { model: using, temperature: 0.3, max_tokens: TALE_TOKENS, remoteCap: true, chat_template_kwargs: { enable_thinking: false } })
     .catch((e: any) => ({ prose: '', error: String(e?.message ?? e) }) as any);
@@ -1806,7 +1796,7 @@ async function stringsStand(c: Ctx, storyId: string, chapterId: string, scene?: 
     `WHERE THE STORY STANDS: ${resolveBody(tale, ch.index).trim() || v.story.premise || '(not written)'}`,
     `THE STRINGS IT CARRIES:\n${live.map((x: any, i: number) => `${i + 1}. ${x.kind === 'question' ? 'Open question' : 'Promise'}, `
       + `"${x.title}": ${String(x.body ?? '').trim() || x.title}`).join('\n')}`,
-    sum ? `THE SCENE, IN SUMMARY:\n${text}` : `THE SCENE:\n${text}`, nextOpening(storyId, ch.id)].filter(Boolean).join('\n\n'),
+    sum ? `THE SCENE, IN SUMMARY:\n${text}` : `THE SCENE:\n${text}`].join('\n\n'),
     { model: using, temperature: 0.3, max_tokens: stringTokens(live.length), remoteCap: true, chat_template_kwargs: { enable_thinking: false } })
     .catch((e: any) => ({ prose: '', error: String(e?.message ?? e) }) as any);
   db.logGeneration({ storyId, chapterId: ch.id, model: using, role: 'hem-strings',
@@ -3904,7 +3894,7 @@ export const routes: Record<string, Handler> = {
     const pass = names ? 'memory' : c.body.pass == null ? null : String(c.body.pass);
     if (pass !== null && !(HEM_PASSES as readonly string[]).includes(pass)) return { error: `There is no pass called "${pass}".` };
     // THE WRITER'S ANSWER (`asked`) runs what a close with `ask` held (`db.hemAnswered`): where the tale
-    // stands, the people, and the next scene, all reading the next scene's opening as it is now. The
+    // stands, the people, and the next scene; only the next scene reads its opening (2026-10-31). The
     // same press picks them up from the scene's card when the writer never answered: they wait,
     // paused, until then. Emptied here, before the passes run, so a reload does not ask again.
     const asked = pass === 'next' && c.body.asked === true;

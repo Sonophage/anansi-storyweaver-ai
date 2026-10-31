@@ -1540,14 +1540,15 @@ ok('with the scene after a hem deleted, its next-scene ask still reads the hemme
   assert.strictEqual(next.title, NEXT.title, '  while the pass names the scene');
   assert.strictEqual(next.authors_note, NEXT.note, '  and says where it heads');
   assert.strictEqual(sceneOf(await viewNow(t.id), ch0.id).hem.suggestion?.opens, mine, '  and the hem\'s suggestion carries the same opening');
-  // THE ANSWER RUNS WHAT WAS HELD, and both of them read the opening.
+  // THE ANSWER RUNS WHAT WAS HELD. Neither is sent the opening (Seth, 2026-10-31).
   const done = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.deepStrictEqual(Object.keys(done.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary', 'tale'],
     'HEM-ASKED-RUNS: the answer runs where the tale stands, the people and the next scene');
-  assert.match(String(askOf(TALE_HEAD)?.user ?? ''), /HOW THE NEXT SCENE OPENS[\s\S]*Two days later, in his bookstore/,
-    'STANDS-READS-OPENING: where the tale stands is asked with how the next scene opens');
-  assert.match(String(askOf(prompts.MEMORY)?.user ?? ''), /HOW THE NEXT SCENE OPENS[\s\S]*Two days later, in his bookstore/,
-    '  and so is where each person stands');
+  assert.ok(askOf(TALE_HEAD), '  where the tale stands is asked');
+  assert.doesNotMatch(String(askOf(TALE_HEAD)?.user ?? ''), /HOW THE NEXT SCENE OPENS|Two days later, in his bookstore/,
+    'STANDS-NO-OPENING: where the tale stands is not sent how the next scene opens');
+  assert.doesNotMatch(String(askOf(prompts.MEMORY)?.user ?? ''), /HOW THE NEXT SCENE OPENS|Two days later, in his bookstore/,
+    '  nor is where each person stands');
   // THE SPEED PASS (2026-10-30): the tale's and the people's run at the same time.
   assert.ok(paired >= 2, `HEM-PAIR: where the tale stands and the people are asked at once (${paired} in flight)`);
   tidied = {}; taleSays = '';
@@ -1583,8 +1584,8 @@ ok('the opening the writer sends from the hem is the scene\'s, as written, and t
   hem = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.deepStrictEqual(Object.keys(hem.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary', 'tale'],
     'HEM-RESUMED: the press runs where the tale stands, the people and the next scene');
-  assert.match(String(askOf(TALE_HEAD)?.user ?? ''), /HOW THE NEXT SCENE OPENS[\s\S]*At dawn, on the far bank/,
-    'HEM-RESUMED-READS: where the tale stands reads the opening the scene has by then');
+  assert.doesNotMatch(String(askOf(TALE_HEAD)?.user ?? ''), /At dawn, on the far bank/,
+    'HEM-RESUMED-NO-OPENING: where the tale stands does not read the opening');
   assert.strictEqual((db.chapters(t.id) as any[]).find((c) => c.id === r.opened).opens_with, later,
     '  and the opening stays as the writer typed it');
   // A CLOSE THAT DOES NOT ASK holds nothing.
