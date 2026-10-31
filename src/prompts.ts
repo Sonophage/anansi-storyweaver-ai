@@ -128,6 +128,20 @@ export const EXTRACT_SCHEMA = {
  *  sentence for the prose, which is why the voice frame keeps "the narration never names how they
  *  sound". One paragraph, in every prompt that writes a pocket, so they all ask for the same shape.
  *  NOT MEASURED: owed a control run before anyone calls it better or worse than the instruction form. */
+/** WHERE A THREAD STANDS, ONE SHAPE (Seth, 2026-10-31: "it should check where they are physically and
+ *  how they interact in the story and when they were last seen in the story for any thread"). Asked
+ *  for "the WHOLE of where it stands", the Featherless model wrote the last moment of the scene ("Seth
+ *  stands alone in his bookshop…"), copied the narration into it (ENCORE, 4,564 characters), and read
+ *  "stands" as standing somewhere. One paragraph, in every prompt that writes where a thread stands.
+ *  The code holds the length and refuses a copy (routes.ts `standsFit`). NOT MEASURED: no control run
+ *  against the wording before it; Seth chose it without one. */
+export const STANDS_FORM =
+`Where a thread stands is at most three short sentences, in this order: where it is physically at the
+end of the scene; how it stands with the others in the story (who it is with or against, who holds
+it, what it wants from them or means to them); and the scene it was last seen in, as "Last seen in
+<the scene named under THIS SCENE>." Never the last moment of the scene told again, and never a
+sentence copied from the narration.`;
+
 export const POCKET_FORM =
 `A pocket is a plain DESCRIPTION of one part of the thread, in a sentence or two, the way the
 writer would note it: what it is like, specific enough to write from. Anansi turns it into the
@@ -204,11 +218,11 @@ change: a thread that is named, remembered, looked at or merely present is left 
 
 For each thread the scene CHANGED, return:
 
-  stands   the WHOLE of where it stands now, after this scene, as a plain description with no
-           brackets and not its name in front: everything in "where it stands now" that is still
-           true, with the change folded in. It replaces that text from the next scene on, so
-           anything you leave out is lost from then on. If nothing in it differs from the entry in
-           force, the thread did not change: leave it out.
+  stands   where it stands now, after this scene, as a plain description with no brackets and
+           not its name in front, in the shape below. It replaces "where it stands now" from the
+           next scene on, so keep what is still true of how it stands with the others. If nothing
+           in it differs from the entry in force but the scene it was last seen in, the thread did
+           not change: leave it out.
   name     the thread's name exactly as it is given, without the kind in brackets.
   label    four words at most, for the timeline, in the shape "<what changed, in a few words>".
   line     the shortest phrase of the narration where the change happens, copied exactly.
@@ -220,6 +234,8 @@ For each thread the scene CHANGED, return:
   always   ONLY when its Always true is empty: who or what it is, as a plain description, with
            no brackets and not its name in front.
            Otherwise "".
+
+${STANDS_FORM}
 
 ${POCKET_FORM}
 
@@ -1334,10 +1350,11 @@ short title of its own, two or three words naming what it is about, never the sl
 Leave out a pocket the chapter says nothing for rather than invent it. For a thread that already
 exists, pockets is empty: use field, as above.
 
-And stands, for a NEW thread: where it stands at the end of this chapter, what has happened to it
-and what is at stake, as a plain description with no brackets and not its name in front. Never who
-it is, never looks or clothes. "" when the chapter does not say, and always "" for a thread that
-already exists.
+And stands, for a NEW thread: where it stands at the end of this chapter, as a plain description with
+no brackets and not its name in front. Never who it is, never looks or clothes. "" when the chapter
+does not say, and always "" for a thread that already exists.
+
+${STANDS_FORM}
 
 ${POCKET_FORM}
 

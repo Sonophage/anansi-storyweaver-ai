@@ -1766,6 +1766,27 @@ ok('a hem chalks six new threads at most, and the rest wait by name until asked 
   assert.ok(asked.user.includes('Where it stands now: on the quay'), 'CHALK-IN-FORCE: each thread arrives with the entry in force, stored plain (#114)');
   ok('the hem prompt carries the acting rule, the in-force entries, the outside-only rule and the cap of six');
 }
+// WHERE A THREAD STANDS HAS ONE SHAPE (Seth, 2026-10-31: "where they are physically and how they interact
+// in the story and when they were last seen in the story for any thread"), asked in both prompts that
+// write it, with the scene named so "Last seen in" can say which, and held in code (`standsFit`).
+{
+  for (const [name, text] of [['MEMORY', prompts.MEMORY], ['EXTRACT', prompts.EXTRACT]] as const)
+    assert.ok(text.includes(prompts.STANDS_FORM), `STANDS-FORM-${name}: the prompt carries the one shape`);
+  assert.match(prompts.STANDS_FORM, /physically[\s\S]*with the others[\s\S]*Last seen in/, '  where it is, how it stands with the others, last seen');
+  assert.match(asked.user, /THIS SCENE: Scene 1\b/, 'STANDS-SCENE: the ask names the scene it is reading');
+  const { standsFit } = await import('../src/routes.ts');
+  const scene = 'Seth stands alone in his bookshop, the weight of her words settling over him like a shroud. '
+    + 'He looks down at the counter, at the spot where the contract had lain, now empty and bare. The clock ticks on.';
+  assert.strictEqual(standsFit('Seth stands alone in his bookshop, the weight of her words settling over him like a shroud. '
+    + 'He looks down at the counter, at the spot where the contract had lain.', scene), '',
+    'STANDS-COPY: where it stands copied from the narration is refused');
+  const own = 'In his bookshop, alone. Wary of Halsey and drawn to her; he has not signed. Last seen in Scene 2.';
+  assert.strictEqual(standsFit(own, scene), own, 'STANDS-OWN: three short sentences of its own are kept whole');
+  const long = Array.from({ length: 30 }, (_, i) => `Sentence ${i} has a few words in it.`).join(' ');
+  const cut = standsFit(long, scene);
+  assert.ok(cut.split(/\s+/).length <= 90 && /\.$/.test(cut), `STANDS-LONG: a long one is cut to 90 words at a sentence (${cut.split(/\s+/).length})`);
+  ok('where a thread stands is asked in one shape, with the scene named, and a copy or a long one is held in code');
+}
 // ONE NAME ONCE: the character the writer plays may also be the Hands off one.
 {
   const t = db.createStory(me, { title: 'Played and held', premise: 'p', persona: 'Seth', lockedCharacter: 'seth' }) as any;

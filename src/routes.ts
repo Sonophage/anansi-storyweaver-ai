@@ -1437,6 +1437,33 @@ function nextOpening(storyId: string, chapterId: string): string {
     + `follow it; never write anything from it as having happened:\n${opens}`;
 }
 
+/** THE SCENE, AS STANDS_FORM'S "Last seen in" NAMES IT: its number, and its title when the writer or
+ *  the hem gave it one (not the `Scene N` placeholder). */
+const thisScene = (ch: any) => {
+  const t = String(ch.title ?? '').trim();
+  return `THIS SCENE: Scene ${ch.index}${t && !new RegExp(`^(scene|chapter)\\s+${ch.index}$`, 'i').test(t) ? `, "${t}"` : ''}`;
+};
+
+/** WHERE A THREAD STANDS, HELD TO STANDS_FORM IN CODE (Seth, 2026-10-31, the "a" of a and b). The
+ *  prompt asks for three short sentences and no copying; this holds both, whatever the model does.
+ *  COPIED is half or more of its six-word runs found in the scene's narration: ENCORE's Seth was
+ *  4,564 characters of scene 2 with the dialogue cut out. A copy is refused (''), not cut, since no
+ *  part of it is where he stands. LONG is past STANDS_WORDS, cut back to its last whole sentence.
+ *  Only on what the hem chalks: the writer's own text is never cut. NOT MEASURED: the two numbers are
+ *  set from that one entry and the shape the prompt asks for. */
+const STANDS_WORDS = 90;
+export function standsFit(stands: unknown, narration: string): string {
+  const s = String(stands ?? '').trim();
+  const words = (t: string) => t.toLowerCase().replace(/[^a-z0-9']+/g, ' ').split(' ').filter(Boolean);
+  const w = words(s), hay = ` ${words(narration).join(' ')} `;
+  const runs = w.length - 5;
+  let copied = 0;
+  for (let i = 0; i < runs; i++) if (hay.includes(` ${w.slice(i, i + 6).join(' ')} `)) copied++;
+  if (runs >= 4 && copied / runs >= 0.5) return '';
+  const all = s.split(/\s+/);
+  return all.length <= STANDS_WORDS ? s : trimToSentence(all.slice(0, STANDS_WORDS).join(' '));
+}
+
 async function remember(c: Ctx, storyId: string, chapterId: string, scene?: string, names?: string[]) {
   // #91. `names` keeps the review to the threads asked for by title: the ones past the cap.
   const only = names?.length ? new Set(names.map((n) => n.trim().toLowerCase())) : null;
@@ -1473,7 +1500,7 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
   const outsideLine = outside.length ? `\n\nOUTSIDE ONLY: ${outside.join(', ')}` : '';
 
   const after = nextOpening(storyId, ch.id);
-  const r = await shaped(MEMORY, `${text}\n\n---\n\n${inForce}${outsideLine}${after ? `\n\n${after}` : ''}`, MEMORY_SCHEMA,
+  const r = await shaped(MEMORY, `${text}\n\n---\n\n${thisScene(ch)}\n\n${inForce}${outsideLine}${after ? `\n\n${after}` : ''}`, MEMORY_SCHEMA,
     { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
   if (!r.data?.threads) return { remembered: 0, error: r.error ?? null };
 
@@ -1510,7 +1537,7 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     // before), and not the text it already has. Empty when there is no such change.
     const said = resolveBody(who, ch.index);
     // #114 · Plain, as it will be stored, so "Ilse: poles the ferry" is the same as what she has.
-    let stands = db.plainStands(m.stands, [who.title]);
+    let stands = db.plainStands(standsFit(m.stands, text), [who.title]);
     if (/^none[.\s]*$/i.test(stands) || norm(stands) === norm(said)) stands = '';
     // #90 · A WORLD PERSON'S CHANGE IS A NEW THREAD IN THE TALE, never a change to the World's
     // thread, which other tales follow (ADR 0006). Always true is copied from the World's, and the
@@ -1993,7 +2020,7 @@ async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string
   // MEASURED, NOT GUESSED (the speed pass, 2026-10-30): the slowest pass, and the remote model reports
   // no token counts, so how much went in and came out is logged as `hem-facts`, in characters.
   const t0 = Date.now(), using = backgroundModel(c, v);
-  const r: any = await shaped(EXTRACT, text, EXTRACT_SCHEMA, { model: using, max_tokens: EXTRACT_TOKENS });
+  const r: any = await shaped(EXTRACT, `${thisScene(ch)}\n\n${text}`, EXTRACT_SCHEMA, { model: using, max_tokens: EXTRACT_TOKENS });
   db.logGeneration({ storyId, chapterId: ch.id, model: using, role: 'hem-facts',
     params: { max_tokens: EXTRACT_TOKENS, in_chars: EXTRACT.length + text.length, out_chars: String(r.raw ?? '').length,
       entries: r.data?.entries?.length ?? 0 }, latencyMs: Date.now() - t0, error: r.error ?? null });
@@ -2028,7 +2055,8 @@ async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string
         rooms[slot] = { name: String(pk?.name ?? '').trim() || slot, body };
     }
     // AND WHERE IT STANDS, its first Over time entry, riding as `stands` (not a pocket) to the accept.
-    if (!cls.entry_id && String(e.stands ?? '').trim()) rooms.stands = { body: String(e.stands).trim() };
+    const stands = cls.entry_id ? '' : standsFit(e.stands, text);
+    if (stands) rooms.stands = { body: stands };
     const one = { ...cls, chapterId: ch.id, title: e.title.trim(),
       body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
       activation: e.activation, field: cls.entry_id ? field : 'facts', target,

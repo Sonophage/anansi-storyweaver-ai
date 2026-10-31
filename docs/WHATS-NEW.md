@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-10-31 · The hem keeps every person it reads
 
+### Where a thread stands is short, and says where they are
+After a hem, where each person, place or thing stands is at most three short sentences: where it
+is, how it stands with the others, and the scene it was last seen in. Anansi no longer copies the
+scene into it, and a long one is cut at the end of a sentence.
+
 ### Each person in a scene gets their own changes again
 On a Featherless model, a hem could read only the last person in its answer. Everyone before
 them was lost: where they stand and their new pockets never reached the hem's cards, and the
