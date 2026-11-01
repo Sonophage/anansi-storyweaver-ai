@@ -2349,18 +2349,18 @@ html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
 .deckpeek { font-size:12px; color:var(--faint); }
 .decksec[open] .deckpeek { display:none; }
 .decksec .card { margin-top:8px; }
-/* WHO IS IN IT, ONE LINE A THREAD (2026-10-29): the name and kind, one pill for how it comes in, ✕.
-   The pill is a state, so it wears ink, not gold (ADR 0004); When it's named, the quiet one, is the
-   muted chip line. */
+/* WHO IS IN IT, ONE LINE A THREAD (2026-10-29): the name and kind, the eye (the Threads list's
+   mark, 2026-11-01), ✕. The eye is a state, so it wears ink, not gold (ADR 0004). */
 .wholist { padding:0; gap:0; }
 .whorow { display:flex; align-items:center; gap:10px; min-height:60px; padding:8px 6px 8px 14px; }
 .whorow + .whorow { border-top:1px solid var(--line); }
 .whoname { flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:2px;
   text-align:left; min-height:44px; justify-content:center; background:transparent; border:0; padding:0; color:inherit; }
 .whokind { font-size:11.5px; color:var(--faint); }
-.whopill { flex:0 0 auto; min-height:36px; padding:0 12px; border-radius:999px; font-size:12px;
-  border:1px solid var(--ink-bright); color:var(--ink-bright); background:transparent; }
-.whopill[data-now="named"] { border-color:var(--chip); color:var(--mute); }
+.whoeye { flex:0 0 auto; width:44px; height:44px; display:flex; align-items:center; justify-content:center;
+  border-radius:var(--r-pill); color:var(--faint); }
+.whoeye[data-lit="1"] { color:var(--ink-bright); }
+.whoeye[data-reach="off"] { opacity:.5; }
 /* #122 · THE ONE DIFF (diffHTML in web/model.js), a Was / Now switch since 2026-10-29: the text as
    it reads now or as it read, one at a time, the changed words marked in place. The switch wears the
    chips' pressed look (ink, not gold: gold means press here, ADR 0004). The changed words are the

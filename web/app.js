@@ -1194,19 +1194,20 @@ function drawMeter() {
     ><span class="grip" aria-hidden="true"></span></button>`;
   if (!CTX_OPEN) { read.innerHTML = toggle; return; }
   /* OPEN: THE KINDS SENT, THEN THE WORDS (Seth, 2026-11-01). The first line counts the threads sent now
-   * by kind, each with its colour on the bar; the threads icon on its left opens Threads on Sent now and
-   * shuts it again, and the context icon on its right opens What is in it (flipped the same day, Seth).
+   * by kind, each with its colour on the bar; the context icon on its left opens What is in it, and the
+   * threads icon on its right opens Threads on Sent now and shuts it again (Seth flipped them and back
+   * the same day).
    * The second line is the scene's words and how much of his room is used. Both lines centred. */
   const counts = KINDS.map((k) => [k, sent.filter((x) => x.e.entryType === k).length]).filter(([, n]) => n);
   const onThreads = S.panel === 'threads' && S.onlyIn && !S.entryId && !S.lore;
   read.innerHTML = `
     <div class="ctxline">
-      <button class="ctxicon" data-ctxthreads="1" aria-pressed="${onThreads}" aria-label="${onThreads ? 'Shut' : 'Open'} the threads sent now"
-        title="Threads sent now">${mark('threads', 16)}</button>
+      <button class="ctxicon" data-panel="context" aria-label="What is in it: the context" title="What is in it">${mark('context', 16)}</button>
       <span class="ctxkinds">${counts.length ? counts.map(([k, n]) => `<span class="tnum"><i class="kinddot" style="background:${
         KIND_COLOR[k]}"></i>${n} ${esc(n === 1 ? pocketTitle(k).toLowerCase() : KIND_PLURAL[k].toLowerCase())}</span>`).join('')
         : '<span>no threads sent</span>'}</span>
-      <button class="ctxicon" data-panel="context" aria-label="What is in it: the context" title="What is in it">${mark('context', 16)}</button>
+      <button class="ctxicon" data-ctxthreads="1" aria-pressed="${onThreads}" aria-label="${onThreads ? 'Shut' : 'Open'} the threads sent now"
+        title="Threads sent now">${mark('threads', 16)}</button>
     </div>
     <div class="ctxline">
       <span class="tnum">${words.toLocaleString()} words</span>
@@ -3752,30 +3753,21 @@ const threadBlock = (attr, name, kind, inner) => `<div class="card hemthread" ${
       <span class="tag">${esc(kind)}</span></div>${inner}
   </div>`;
 
-/** How a thread comes into the scene being set up, as Anyone new offers it (Seth, 2026-10-29). */
-const HOW_IN = [['scene', 'This scene only'], ['always', 'Always on'], ['named', "When it's named"]];
-/** Which of `HOW_IN` a thread is in now: pinned in for the scene, always on (and not left out of
- *  it), else on a word. Read from the pins alone, not the last context reading, so it says what the
- *  presses below change. */
-const howIn = (e, pin) => pin.get(e.id) === 'force_in' ? 'scene'
-  : e.activation === 'always_on' && pin.get(e.id) !== 'force_out' ? 'always' : 'named';
-
 /** ONE THREAD IN THE SCENE, on Anyone new: ONE LINE (Seth, 2026-10-29, option A of the design
- *  canvas). Its name, which opens the thread and its pockets; its kind under it; one pill that says
- *  how it comes in, and a press moves it on, Always on → This scene only → When it's named → Always
- *  on (`data-how` is the NEXT one, so the press is the same `data-howin` the three chips were); and
- *  ✕ to take it out (`data-howout`). The pockets are no longer drawn here: they were most of the
- *  page and none of the decision. */
-const HOW_NEXT = { always: 'scene', scene: 'named', named: 'always' };
+ *  canvas). Its name, which opens the thread and its pockets; its kind under it; THE EYE, the Threads
+ *  list's own mark and switch (Seth, 2026-11-01: "make Anyone new use the eye too"), which shows the
+ *  four states and moves on, on a word, off in this scene (`reachMark`, `nextReach`); and ✕ to take it
+ *  off this list (`data-howout`). Until then a pill moved Always on → This scene only → When it's
+ *  named. Lit by the rules, not the manifest: the scene being set up has no prose to wake a word.
+ *  `data-whokeep` keeps a thread the eye put to sleep or off on the list (`S.setupHere`). */
 function whoBlock(e, pin, scene) {
-  const how = howIn(e, pin), id = esc(e.id), next = HOW_NEXT[how];
-  const label = (k) => HOW_IN.find(([x]) => x === k)[1];
+  const id = esc(e.id), lit = inContext(e, pin, null), m = reachMark(e, lit, pin);
   return `<div class="whorow" data-whothread="${id}">
     <button class="whoname" data-entry="${id}"><span class="name-145" data-hemthreadname>${esc(e.title)}</span>
       <span class="whokind">${esc(pocketTitle(e.entryType))}</span></button>
-    <button class="whopill" data-howin="${id}" data-how="${next}" data-now="${how}"
-      aria-label="${esc(e.title)} comes in: ${esc(label(how))}. Press for ${esc(label(next))}">${esc(label(how))}</button>
-    <button class="del-x" data-howout="${id}" aria-label="Take ${esc(e.title)} out of ${esc(scene)}">&#10005;</button>
+    <button class="whoeye" data-flipact="${id}" data-whokeep="1" data-look="${m.look}" data-reach="${m.state}" data-lit="${lit ? 1 : 0}"
+      aria-label="${esc(e.title)}: ${m.label}" title="${m.label}">${mark(m.look, 22)}</button>
+    <button class="del-x" data-howout="${id}" aria-label="Take ${esc(e.title)} off the list for ${esc(scene)}">&#10005;</button>
   </div>`;
 }
 
@@ -12953,7 +12945,9 @@ document.addEventListener('click', async (e) => {
     const patch = { ...e, id: e.id, keys: e.keys ?? [], allowNoKeys: true };
     // THE MARK MOVES THROUGH FOUR STATES (`reachMark`, `nextReach`): a pin for off in this scene, the
     // activation for on and on a word. The pin is written first, so an off never lands as on.
-    const step = d.flipact ? nextReach(reachMark(e, inContext(e, pinModes())).state) : null;
+    const step = d.flipact ? nextReach(reachMark(e, inContext(e, pinModes(), d.whokeep ? null : undefined)).state) : null;
+    // Anyone new keeps a thread the eye moved on the list, asleep or off (`whoBlock`).
+    if (d.whokeep) (S.setupHere = S.setupHere ?? new Set()).add(`${V.currentChapter.id}:${e.id}`);
     if (step && step.pin !== undefined) {
       const rp = await api.setPin(S.storyId, V.currentChapter?.id, e.id, step.pin);
       if (rp.error) return toast(rp.error);
@@ -13904,6 +13898,10 @@ document.addEventListener('click', async (e) => {
     const id = d.howin ?? d.howout, chId = V.currentChapter.id;
     const e = V.entries.find((x) => x.id === id); if (!e) return;
     const mode = (V.pins ?? []).find((p) => p.chapterId === chId && p.entryId === id)?.mode ?? null;
+    // ✕ ON A THREAD ALREADY OFF IN THIS SCENE takes it off the list and writes nothing: it is out.
+    if (d.howout && mode === 'force_out') {
+      S.setupHere?.delete(`${chId}:${id}`); paint(); return;
+    }
     const how = d.howout ? null : d.how;
     const act = how === 'always' ? 'always_on' : how ? 'triggered' : e.activation;
     // ✕: an always-on thread is already in, so it is held OUT with force_out; context.ts applies

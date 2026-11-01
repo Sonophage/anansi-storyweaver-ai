@@ -806,9 +806,9 @@ if (await page.visible('[data-setup="title"]')) {
   ok("the setup page offers a search to bring a thread in", await page.visible('#setupQ'));
   if (always) {
     // WHO IS IN IT ARE THREAD BLOCKS, each with how it comes in and ✕ (Seth, 2026-10-29).
-    // One pill per thread now (Who A): it names how the thread comes in on `data-now`.
-    ok("  and an always-on character is listed as a thread, with Always on chosen",
-       await page.visible(`[data-howin="${always}"][data-now="always"]`));
+    // The eye per thread now (2026-11-01): it names how the thread comes in on `data-reach`.
+    ok("  and an always-on character is listed as a thread, its eye open",
+       await page.visible(`.whoeye[data-flipact="${always}"][data-reach="on"]`));
     await page.click(`[data-howout="${always}"]`);
     await wait(1000);
     const pins = (await story()).pins ?? [];

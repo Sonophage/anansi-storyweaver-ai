@@ -1425,8 +1425,8 @@ ok('the header names the book, and carries no reading of its own');
   click({ ctxtoggle: '1' });   // left open: the checks below read the stats
   assert.match(opened, /<span class="tnum"><i class="kinddot"[^>]*><\/i>2 characters<\/span>/, 'COUNTS-KINDS: it counts the threads sent by kind');
   assert.match(opened, /words/, 'and how many words are in the scene');
-  assert.match(opened, /class="ctxicon" data-ctxthreads="1"[\s\S]*class="ctxkinds"[\s\S]*class="ctxicon" data-panel="context"/,
-    'COUNTS-ICONS: the threads icon on the left, the context icon on the right (flipped 2026-11-01)');
+  assert.match(opened, /class="ctxicon" data-panel="context"[\s\S]*class="ctxkinds"[\s\S]*class="ctxicon" data-ctxthreads="1"/,
+    'COUNTS-ICONS: the context icon on the left, the threads icon on the right (Seth, 2026-11-01)');
   click({ ctxthreads: '1' }); await sleep(10);
   assert.strictEqual(html('sideBody').includes('data-onlyin="1" aria-pressed="true"'), true, 'THREADS-OPEN: the threads icon opens Threads on Sent now');
   assert.match(html('ctxread'), /data-ctxthreads="1" aria-pressed="true"/, '  and says it is open');
@@ -8062,27 +8062,28 @@ const hemCardOf = (side: string) => {
   assert.doesNotMatch(sereth, /Flat, unhurried\./, '  and no pockets: they are a press away');
   assert.ok(who(side, 'e-shared'), '  every thread in it');
   assert.strictEqual(who(side, 'e-2'), '', '  and not a thread on a word with no pin');
-  assert.match(sereth, /data-howin="e-1" data-how="scene" data-now="always"[^>]*>Always on</,
-    'WHO-PILL: one pill says how it comes in (Always on), and a press moves it to This scene only');
-  assert.strictEqual((sereth.match(/data-howin=/g) ?? []).length, 1, '  one pill, not three chips');
+  // THE EYE, NOT A PILL (Seth, 2026-11-01: "make Anyone new use the eye too"): the Threads list's mark
+  // and switch, on, on a word, off in this scene.
+  const eyeOf = (id: string) => who(html('sideBody'), id).match(/data-flipact="[^"]+" data-whokeep="1" data-look="(\w+)" data-reach="(\w+)"/)?.slice(1);
+  assert.deepStrictEqual(eyeOf('e-1'), ['eye', 'on'], 'WHO-EYE: an always-on thread shows the open eye');
+  assert.doesNotMatch(sereth, /whopill|data-howin=/, '  and no pill');
   assert.doesNotMatch(side, /data-pin=|data-place=/, 'WHO-NO-TICKS: the old tick list is gone');
 
-  // THIS SCENE ONLY, for an always-on thread: on a word from now on, and pinned in for this scene.
   let from = POSTED.length;
-  click({ howin: 'e-1', how: 'scene' }); await settle(); await settle();
-  assert.deepStrictEqual(sent(from), ['entry e-1 triggered', 'pin e-1 force_in'],
-    'WHO-SCENE: This scene only puts it on a word and pins it into the scene');
-  side = html('sideBody');
-  assert.match(who(side, 'e-1'), /data-how="named" data-now="scene"[^>]*>This scene only</, '  and it reads This scene only, the next press When it\'s named');
-  // WHEN IT'S NAMED: the pin comes off; it stays on the list, where the writer chose it.
+  click({ flipact: 'e-1', whokeep: '1' }); await settle(); await settle();
+  assert.deepStrictEqual(sent(from), ['entry e-1 triggered'], 'WHO-EYE-WORD: a tap puts it on a word');
+  assert.deepStrictEqual(eyeOf('e-1'), ['eyeshut', 'word'], '  and it stays listed, asleep');
   from = POSTED.length;
-  click({ howin: 'e-1', how: 'named' }); await settle(); await settle();
-  assert.deepStrictEqual(sent(from), ['pin e-1 null'], "WHO-NAMED: When it's named takes the pin off, and nothing else");
-  assert.match(who(html('sideBody'), 'e-1'), /data-how="always" data-now="named"[^>]*>When it&#39;s named</, '  and it stays listed, on a word');
-  // ALWAYS ON: the thread is always on, and no pin.
+  click({ flipact: 'e-1', whokeep: '1' }); await settle(); await settle();
+  assert.deepStrictEqual(sent(from), ['pin e-1 force_out'], 'WHO-EYE-OFF: a second tap turns it off in this scene');
+  assert.deepStrictEqual(eyeOf('e-1'), ['eyeoff', 'off'], '  and it stays listed, struck through');
   from = POSTED.length;
-  click({ howin: 'e-1', how: 'always' }); await settle(); await settle();
-  assert.deepStrictEqual(sent(from), ['entry e-1 always_on'], 'WHO-ALWAYS: Always on switches the thread always on');
+  click({ howout: 'e-1' }); await settle();
+  assert.deepStrictEqual([sent(from), eyeOf('e-1')], [[], undefined], 'WHO-OUT-OFF: ✕ on a thread off here takes it off the list and writes nothing');
+  from = POSTED.length;
+  click({ flipact: 'e-1', whokeep: '1' }); await settle(); await settle();
+  assert.deepStrictEqual(sent(from), ['pin e-1 null', 'entry e-1 always_on'], 'WHO-EYE-ON: a third tap puts it back on');
+  assert.deepStrictEqual(eyeOf('e-1'), ['eye', 'on'], '  and the eye is open again');
   // ✕ ON AN ALWAYS-ON THREAD leaves it out of this scene.
   from = POSTED.length;
   click({ howout: 'e-1' }); await settle(); await settle();
@@ -8097,7 +8098,7 @@ const hemCardOf = (side: string) => {
   click({ howin: 'e-2', how: 'scene' }); await settle(); await settle();
   assert.deepStrictEqual(sent(from), ['pin e-2 force_in'], '  and bringing it in pins it into the scene');
   typeIn('setupQ', ''); await settle();
-  assert.match(who(html('sideBody'), 'e-2'), /data-now="scene"[^>]*>This scene only</, '  and it is listed, This scene only');
+  assert.deepStrictEqual(eyeOf('e-2'), ['eyeheard', 'woken'], '  and it is listed, sent for this scene');
   // ✕ ON A PINNED THREAD unpins it.
   from = POSTED.length;
   click({ howout: 'e-2' }); await settle(); await settle();
@@ -8109,10 +8110,10 @@ const hemCardOf = (side: string) => {
   click({ decide: 'accept', id: 'hs-4' }); await settle(); await settle();
   side = html('sideBody');
   assert.match(who(side, 'e-bell'), /data-hemthreadname[^>]*>The bellringer</, 'WHO-SEWN: sewn in, the new thread is a line on the list');
-  assert.match(who(side, 'e-bell'), /data-howin="e-bell" data-how="\w+" data-now="\w+"/, '  with how it comes in');
+  assert.ok(eyeOf('e-bell'), '  with its eye');
   from = POSTED.length;
-  click({ howin: 'e-bell', how: 'always' }); await settle(); await settle();
-  assert.deepStrictEqual(sent(from), ['entry e-bell always_on'], '  and the choice goes through');
+  click({ flipact: 'e-bell', whokeep: '1' }); await settle(); await settle();
+  assert.strictEqual(sent(from).length, 1, `  and a tap goes through (${sent(from)})`);
 
   // THE SETTING, behind ⓘ and shut, not a block of text at the foot.
   side = html('sideBody');
@@ -8143,7 +8144,7 @@ const hemCardOf = (side: string) => {
   const controls: Record<string, RegExp> = {
     'the summary': /data-hemsumtext=/, 'Reopen the hem': /data-hemopen=/,
     "the next scene's title": /data-setup="title"/, 'its note': /data-setup="note"/, 'its opening': /data-setup="opens"/,
-    'Have Anansi suggest another': /data-name=/, 'how a thread comes in': /data-howin=/, 'taking a thread out': /data-howout=/,
+    'Have Anansi suggest another': /data-name=/, 'how a thread comes in': /data-whokeep=/, 'taking a thread out': /data-howout=/,
     'finding a thread to bring in': /id="setupQ"/, "the tale's setting": /data-tip="setSetting"/,
   };
   for (const [what, re] of Object.entries(controls)) {

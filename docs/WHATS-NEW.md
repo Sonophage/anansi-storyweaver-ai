@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-01 · The bar shows the threads Anansi is sent
 
+### Anyone new uses the eye too
+Who is in the next scene shows each thread with the same eye as the Threads list, in place of the
+Always on / This scene only / When it's named pill. A tap moves it On, On a word, Off here, and a
+thread you change stays on the list so you can see it. The ✕ takes a thread off the list; on one
+already Off here, it changes nothing else.
 ### A thread's eye shows four states, and a tap moves through three
 On: an open eye, sent on every call. Woken: on a word, and its word is on the page, so it is sent
 now. On a word: a shut eye, waiting for its word (where a new thread starts). Off here: the eye struck
@@ -28,7 +33,7 @@ ones.
 ### A thread that comes in blinks
 When a thread joins what Anansi is sent, its piece of the bar blinks three times, slowly. While
 the numbers are shut, the bar is dimmer, so it stays out of the way. Open, the two lines are
-centred: the threads icon is on the left now, and What is in it on the right.
+centred, with What is in it on the left and the threads icon on the right.
 
 ### The thin bar under the header is the threads sent now
 It used to show the scenes. Now it has one piece for each thread Anansi is sent on the next call,
