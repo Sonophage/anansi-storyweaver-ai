@@ -1478,7 +1478,17 @@ const outsideOf = (story: any): string[] => [story.persona, story.lockoutOn ? st
   .map((x) => String(x ?? '').trim()).filter((x, i, all) => x
     && all.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
 
-async function remember(c: Ctx, storyId: string, chapterId: string, scene?: string, names?: string[]) {
+/** THE THREADS A BRIEF NAMES, by their names and wake words as a scene's narration would wake them:
+ *  ids, the tale's own threads only, none retired. The hem brings them into the next scene and names
+ *  them to the people pass. */
+function briefThreads(storyId: string, brief: string): string[] {
+  if (!brief.trim()) return [];
+  return (db.entriesOf(storyId) as any[]).filter((e) => e.entry_type !== 'tale' && e.retired_at_chapter == null)
+    .map((e) => ({ id: e.id, title: e.title, keys: db.keysOf(e.keys) }))
+    .filter((e) => fires({ ...e, keys: [...e.keys, e.title] } as any, brief).length).map((e) => e.id);
+}
+
+async function remember(c: Ctx, storyId: string, chapterId: string, scene?: string, names?: string[], ahead: string[] = []) {
   // #91. `names` keeps the review to the threads asked for by title: the ones past the cap.
   const only = names?.length ? new Set(names.map((n) => n.trim().toLowerCase())) : null;
   const v = bookOf(storyId);
@@ -1511,7 +1521,12 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
   const outside = outsideOf(v.story);
   const outsideLine = outside.length ? `\n\nOUTSIDE ONLY: ${outside.join(', ')}` : '';
 
-  const r = await shaped(MEMORY, `${text}\n\n---\n\n${thisScene(ch)}\n\n${inForce}${outsideLine}`, MEMORY_SCHEMA,
+  // IN THE NEXT SCENE, BY NAME ONLY (Seth, 2026-11-01): the threads the writer's brief for the next
+  // scene names, among the ones this scene names. Never the brief's text: a plan for the next scene
+  // sent as context was written into where things stand as if it had happened (2026-10-31).
+  const next = named.filter((e: any) => ahead.includes(e.id)).map((e: any) => e.title);
+  const nextLine = next.length ? `\n\nIN THE NEXT SCENE: ${next.join(', ')}` : '';
+  const r = await shaped(MEMORY, `${text}\n\n---\n\n${thisScene(ch)}\n\n${inForce}${outsideLine}${nextLine}`, MEMORY_SCHEMA,
     { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
   if (!r.data?.threads) return { remembered: 0, error: r.error ?? null };
 
@@ -1539,7 +1554,8 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     // chalks is a World person's, below, and that thread exists already in the World.
     const who = named.find((e: any) => norm(e.title) === norm(m.name));
     if (!who) continue;
-    if (taken.size >= cap && !taken.has(who.id)) { over(who); continue; }
+    // The cap of six never pushes out a thread the next scene needs.
+    if (taken.size >= cap && !taken.has(who.id) && !ahead.includes(who.id)) { over(who); continue; }
     const before = remembered;
     // One card per thread from this route; one card per scene from a hem, which hands `scene` in (#89).
     const grp = scene ?? `hem:${ch.id}:${who.id}`, line = quoted(m.line);
@@ -1829,10 +1845,10 @@ async function stringsStand(c: Ctx, storyId: string, chapterId: string, scene?: 
  *  Reads the summaries and the tail of the prose rather than the whole book: what it needs is
  *  where the story has got to, and the chapter it is naming has nothing in it yet by definition. */
 async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?: unknown, avoid?: any, opening?: unknown,
-    after?: string) {
-  // THE WRITER'S OPENING IS USED AS WRITTEN (Seth, 2026-10-30: "What I enter should be what's used").
-  // He says how the scene starts; Anansi names it and says where it heads from there, and gives the
-  // opening back untouched rather than a rewrite of it.
+    after?: string, brief?: string) {
+  // THE WRITER'S OPENING IS USED AS WRITTEN (Seth, 2026-10-30: "What I enter should be what's used"),
+  // from the setup's own ask: Anansi names the scene and says where it heads from there, and gives the
+  // opening back untouched. From a hem, `brief` instead (2026-11-01): Anansi drafts the opening too.
   const mine = String(opening ?? '').trim().slice(0, 2000);
   const v = bookOf(storyId);
   const named = v.chapters.find((x: any) => x.id === chapterId);
@@ -1875,8 +1891,12 @@ async function suggestScene(c: Ctx, storyId: string, chapterId?: string, steer?:
     // measured findings put anything that has to be obeyed. Optional: the button asked for a
     // suggestion with no way to say what it should be about until 2026-08-30.
     String(steer ?? '').trim() ? `THE WRITER WANTS THIS CHAPTER TO: ${String(steer).trim()}` : '',
+    // THE WRITER'S BRIEF (Seth, 2026-11-01): the goal, who is in it, where. The opening and where it is
+    // going are drafted FROM it, and the writer keeps, edits or skips each on the hem's screen.
+    brief?.trim() ? `THE WRITER'S BRIEF FOR CHAPTER ${at} (the goal, who is in it, where; theirs):\n${brief.trim().slice(0, 2000)}` : '',
     mine ? `THE WRITER SAYS HOW CHAPTER ${at} OPENS (theirs, as written; it may be another place or a later day):\n${mine}` : '',
     mine ? `NAME CHAPTER ${at} AND SAY WHERE IT IS GOING FROM THAT OPENING. Give "opens" back as the writer wrote it.`
+      : brief?.trim() ? `NAME CHAPTER ${at}, WRITE HOW IT OPENS (where, when and who is there, in a sentence or two), AND SAY WHERE IT IS GOING, ALL FROM THE WRITER'S BRIEF.`
       : `NAME CHAPTER ${at}, SAY HOW IT OPENS, AND SAY WHERE IT IS GOING.`,
   ].filter(Boolean).join('\n\n');
 
@@ -1935,7 +1955,7 @@ function queueHem(storyId: string, job: () => Promise<void>) {
 }
 
 async function hemPasses(c: Ctx, storyId: string, closing: string, opened: string | undefined, want: HemWant,
-    run: number, names?: string[], opening?: string) {
+    run: number, names?: string[]) {
   /** WHICH OF THE PASSES DID NOT RUN, and why. Issue #32: "Facts are not being written
    *  based on the last chapter anymore."
    *
@@ -1956,6 +1976,9 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // hem runs, which the background hem invites. Trigger: a hem chalking a change just sewn in; then
   // read the threads again after the model answers and check against that.
   const scene = `scene:${closing}`;
+  // THE WRITER'S BRIEF FOR THE NEXT SCENE (`chapters.brief`), read from the scene so a try-again reads
+  // it too: its names for the people pass, its text for the next-scene pass and what it needs.
+  const brief = opened ? String((db.chapters(storyId) as any[]).find((x) => x.id === opened)?.brief ?? '').trim() : '';
   const passes: Record<string, string | null> = {};
   // EACH PASS IS LOGGED WITH ITS TIME, as `hem-pass:<name>` (2026-10-30: "read the times from the
   // hem"), so a slow hem can be read pass by pass rather than guessed at.
@@ -2005,7 +2028,7 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
       const strings = await stringsStand(c, storyId, closing, scene);
       return { error: tale?.error ?? strings?.error ?? null };
     }),
-    pass('memory', want.memory, () => remember(c, storyId, closing, scene, names)),
+    pass('memory', want.memory, () => remember(c, storyId, closing, scene, names, briefThreads(storyId, brief))),
   ]);
   // And read it for facts. The comment above summarise applies to this word for word: the ledger
   // is the only tier that survives compaction — prose falls out of the chapter window, summaries
@@ -2030,7 +2053,7 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // prompt reads the scene's own name, opening and heading, never the hem's suggestion, so a
   // suggestion left only on the hem was never sent ("it's not passed to the scene").
   const before = opened ? db.hemOf(storyId, closing)?.suggestion ?? null : null;
-  const next = await pass('next', want.next, () => suggestScene(c, storyId, opened, undefined, undefined, opening, closing));
+  const next = await pass('next', want.next, () => suggestScene(c, storyId, opened, undefined, undefined, undefined, closing, brief));
   if (opened && next?.title) db.offerScene(storyId, opened, before, { title: next.title, note: next.note, opens: next.opens });
   // A pass that did not run this time leaves its line, the kept flag and the suggestion as stored (#91).
   db.finishHem(storyId, closing, run, { passes, kept: want.summary ? keptSummary : undefined,
@@ -2039,7 +2062,7 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // where it heads, so Anyone new has suggestions waiting (`needsFor`). AFTER the hem is marked done
   // (the speed pass, 2026-10-30: it held the summary and the cards back by half a minute); still in the
   // tale's queue, so a second hem waits for it. Never a failure of the hem.
-  if (opened && next?.title) await needsFor(c, storyId, closing, opened, next).catch(() => {});
+  if (opened && next?.title) await needsFor(c, storyId, closing, opened, { ...next, brief }).catch(() => {});
 }
 
 /** Read a chapter for facts and put them in the queue as PROPOSALS.
@@ -2062,7 +2085,7 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
  *  at most; a thread the tale has is not offered. Logged as `hem-new`. NOT MEASURED. */
 const NEEDS_CAP = 4;
 async function needsFor(c: Ctx, storyId: string, closing: string, opened: string,
-    s: { title: string; note: string; opens: string }) {
+    s: { title: string; note: string; opens: string; brief?: string }) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x: any) => x.id === closing);
   const sum = ch && summaryReaches(ch) ? String(ch.summary ?? '').trim() : '';
@@ -2072,6 +2095,7 @@ async function needsFor(c: Ctx, storyId: string, closing: string, opened: string
     `THE TALE'S THREADS: ${(existing as any[]).map((e) => e.title).join(', ') || '(none)'}`,
     sum ? `THE SCENE JUST WRITTEN, IN SUMMARY:\n${sum}` : '',
     `THE NEXT SCENE: ${s.title}`,
+    s.brief?.trim() ? `THE WRITER'S BRIEF FOR IT:\n${s.brief.trim()}` : '',
     s.opens?.trim() ? `HOW IT OPENS:\n${s.opens.trim()}` : '',
     s.note?.trim() ? `WHERE IT HEADS:\n${s.note.trim()}` : ''].filter(Boolean).join('\n\n'),
     EXTRACT_SCHEMA, { model: using, max_tokens: EXTRACT_TOKENS });
@@ -3913,14 +3937,21 @@ export const routes: Record<string, Handler> = {
     }
     const run = db.reopenHem(storyId, chapterId);
     if (run == null) return { error: 'This scene has not been hemmed yet.' };
-    // HOW IT STARTS, AS THE WRITER WROTE IT (Seth, 2026-10-30: "What I enter should be what's used"):
-    // into the scene now, before the pass, so it is the scene's opening whatever the pass does; the
-    // pass names the scene and says where it heads from it, and leaves the opening alone (`offerScene`
-    // writes only a box that is empty or Anansi's own). Not into a scene already being written.
-    const opening = pass === 'next' && String(c.body.opens ?? '').trim() ? String(c.body.opens).trim().slice(0, 2000) : undefined;
-    if (opening && opened && !db.passagesOfChapter(opened).some((p: any) => !p.is_break && String(p.body ?? '').trim()))
-      db.updateChapter(storyId, opened, { opensWith: opening });
-    queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want, run, names ?? undefined, opening));
+    // THE WRITER'S BRIEF FOR THE NEXT SCENE (Seth, 2026-11-01: "The first prompt I fill should be what
+    // the goal of the next scene is, who's in it where etc"): into the scene now, before the passes,
+    // which read it from there (`hemPasses`). The next-scene pass drafts the opening and where it is
+    // going from it (`offerScene` fills only an empty box), and the threads it names that are on a
+    // word are brought into the scene. Not into a scene already being written.
+    const brief = pass === 'next' && String(c.body.brief ?? '').trim() ? String(c.body.brief).trim().slice(0, 2000) : '';
+    if (brief && opened && !db.passagesOfChapter(opened).some((p: any) => !p.is_break && String(p.body ?? '').trim())) {
+      db.updateChapter(storyId, opened, { brief });
+      const pinned = new Set((db.pinsOf(storyId) as any[]).filter((p: any) => p.chapter_id === opened).map((p: any) => p.entry_id));
+      for (const id of briefThreads(storyId, brief)) {
+        const e = (db.entriesOf(storyId) as any[]).find((x) => x.id === id);
+        if (e && e.activation !== 'always_on' && !pinned.has(id)) db.setPin(storyId, opened, id, 'force_in');
+      }
+    }
+    queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want, run, names ?? undefined));
     return viewOf(c, storyId);
   },
   'POST /api/chapter/end': async (c) => {
@@ -3935,9 +3966,9 @@ export const routes: Record<string, Handler> = {
     // #89. THE PASSES RUN AFTER THE ANSWER: the writer starts the next scene while they work, and
     // the view shows the hem running, then done.
     // THE NEXT SCENE IS ASKED FOR, NOT GUESSED (Seth, 2026-10-30): the hem drawer sends `next: false`
-    // and asks the writer how the next scene starts while the other passes run; their answer comes
-    // through `/api/chapter/hem` with `pass: 'next'` and `opens`, their words as the scene's opening.
-    // `ask` (the hem drawer, 2026-10-30): where things stand waits for how the next scene opens, so the
+    // and asks the writer what the next scene is while the other passes run; their answer comes
+    // through `/api/chapter/hem` with `pass: 'next'` and `brief` (2026-11-01).
+    // `ask` (the hem drawer, 2026-10-30): where things stand waits for that answer, so the
     // tale's and the people's passes are held with the next scene's, and run when the writer answers
     // (`/api/chapter/hem` with `asked`). The summary, new threads and retirements run now.
     // What is held is kept on the hem's row (`held`): the drawer asks while it is, and the scene's card

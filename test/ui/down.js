@@ -51,17 +51,17 @@ await until(`(async () => (await (await fetch('/api/story?story=${sid}')).json()
 await wait(800);
 // #92. The route answers before the passes run. Since 2026-10-30 the hem drawer stays open on the
 // scene that closed, on its steps, and asks how the next scene starts while the passes run behind it.
-ok("the hem drawer stays open on its steps and asks how the next scene starts",
+ok("the hem drawer stays open on its steps and asks what the next scene is (2026-11-01)",
    await page.visible('#sideBody .hemsteps') && await page.visible('#sideBody [data-hemsteer]'));
 // ENTER SENDS IT (Seth, 2026-10-30: "once I press enter"), and who is in the next scene comes next.
 await page.eval("(() => { const t = document.querySelector('#sideBody [data-hemsteer]'); t.focus(); t.value = 'Days later, at the docks.';"
   + " t.dispatchEvent(new Event('input', { bubbles: true }));"
   + " t.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()");
 await until("!!document.querySelector('#sideBody [data-hemwhodone]')", 20);
-ok("Enter sends how it starts, and who is in the next scene is asked next",
+ok("Enter sends the brief, and who is in the next scene is asked next",
    await page.visible('#sideBody [data-hemwhodone]') && !(await page.visible('#sideBody [data-hemsteer]')));
-const opened = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).currentChapter.opensWith)()");
-ok(`  and the opening is the scene's, as written (${JSON.stringify(opened)})`, opened === 'Days later, at the docks.');
+const briefed = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid + "')).json()).currentChapter.brief)()");
+ok(`  and the brief is the next scene's, as written (${JSON.stringify(briefed)})`, briefed === 'Days later, at the docks.');
 await page.click('#sideBody [data-hemwhodone]');
 await until(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).chapters.find((c) => c.id === ${JSON.stringify(before)})?.hem?.state === 'done')()`, 60);
 // The row at the top of the next scene's screen that names the scene just closed. It was a green

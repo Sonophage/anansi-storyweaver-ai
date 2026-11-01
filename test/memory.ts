@@ -1502,58 +1502,59 @@ ok('a hem asks for the next scene rather than guessing it, and the answer goes i
 }
 ok('with the scene after a hem deleted, its next-scene ask still reads the hemmed scene');
 
-// ---- HOW IT STARTS, AS WRITTEN (Seth, 2026-10-30: "What I enter should be what's used"). The hem's
-// question sends the writer's words as `opens`: they are the scene's opening at once, word for word,
-// they reach the next-scene ask, and the pass names the scene and says where it heads without
-// replacing them.
+// ---- THE BRIEF FOR THE NEXT SCENE (Seth, 2026-11-01: "The first prompt I fill should be what the goal
+// of the next scene is, who's in it where etc"). The hem's question sends the writer's brief: it is the
+// scene's at once; the threads it names that are on a word are brought into the scene; the people pass
+// gets their NAMES only; the next-scene pass drafts the opening and where it is going from it; and the
+// ask for what the scene needs reads it.
 {
-  const t = db.createStory(me, { title: 'Opened as said', premise: 'A ferry town.' }) as any;
+  const t = db.createStory(me, { title: 'Briefed', premise: 'A ferry town.' }) as any;
   const ch0 = (db.chapters(t.id)[0] as any);
-  db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'] });
+  const oren = db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'], activation: 'triggered' })!;
   db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The ferry left without Oren.' });
   tidied = { ...NEXT }; asks.length = 0; taleSays = 'Oren is ashore.';
-  // THE HEM DRAWER'S CLOSE (`ask`) HOLDS where things stand until the writer says how the next scene
-  // opens (Seth, 2026-10-30: "otherwise it's confusing and writes things that hasn't happened").
+  // THE HEM DRAWER'S CLOSE (`ask`) HOLDS where things stand until the writer answers.
   const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false, ask: true }));
   await hemSettled(t.id);
   const held = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.deepStrictEqual(Object.keys(held.passes).sort(), ['facts', 'finished', 'summary'],
     `HEM-HOLDS: the close runs the summary, new threads and retirements, and holds the rest (${Object.keys(held.passes)})`);
   assert.ok(!askOf(prompts.MEMORY) && !askOf(TALE_HEAD), '  so nothing about where things stand is asked yet');
-  const mine = 'Two days later, in his bookstore, two strangers walk in.';
+  const brief = 'Two days later Oren takes two strangers across at night; he wants their money and nothing else.';
   // Held at the fake while both ask, so two in flight at once is seen (`mostInflight`).
   mostInflight = 0;
   let release!: () => void;
   gate = new Promise<void>((r) => { release = r; });
-  const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', asked: true, opens: mine }));
+  const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', asked: true, brief }));
   for (let i = 0; i < 100 && inflight < 2; i++) await new Promise((r) => setTimeout(r, 20));
   const paired = inflight;
   release(); gate = null;
   assert.ok(!v.error, v.error);
-  assert.strictEqual((db.chapters(t.id) as any[]).find((c) => c.id === r.opened).opens_with, mine,
-    'HEM-OPENS-NOW: the opening is the scene\'s as soon as it is sent, before the pass runs');
+  assert.strictEqual((db.chapters(t.id) as any[]).find((c) => c.id === r.opened).brief, brief,
+    'BRIEF-NOW: the brief is the next scene\'s as soon as it is sent');
+  assert.ok((db.pinsOf(t.id) as any[]).some((p) => p.chapter_id === r.opened && p.entry_id === oren && p.mode === 'force_in'),
+    'BRIEF-BRINGS-IN: a thread on a word that the brief names is brought into the scene');
   await hemSettled(t.id);
-  assert.match(String(askOf(prompts.CHAPTER)?.user ?? ''), /THE WRITER SAYS HOW CHAPTER 2 OPENS[\s\S]*Two days later, in his bookstore/,
-    'HEM-OPENS-ASKED: the next-scene ask is written from it');
+  const chap = String(askOf(prompts.CHAPTER)?.user ?? '');
+  assert.match(chap, /THE WRITER'S BRIEF FOR CHAPTER 2[\s\S]*takes two strangers across[\s\S]*ALL FROM THE WRITER'S BRIEF/,
+    'BRIEF-ASKED: the next-scene ask drafts from the brief');
   const next = (db.chapters(t.id) as any[]).find((c) => c.id === r.opened);
-  assert.strictEqual(next.opens_with, mine, 'HEM-OPENS-KEPT: and the opening is still the writer\'s words after the pass');
-  assert.strictEqual(next.title, NEXT.title, '  while the pass names the scene');
-  assert.strictEqual(next.authors_note, NEXT.note, '  and says where it heads');
-  assert.strictEqual(sceneOf(await viewNow(t.id), ch0.id).hem.suggestion?.opens, mine, '  and the hem\'s suggestion carries the same opening');
-  // THE ANSWER RUNS WHAT WAS HELD. Neither is sent the opening (Seth, 2026-10-31).
+  assert.deepStrictEqual([next.title, next.authors_note, next.opens_with], [NEXT.title, NEXT.note, NEXT.opens],
+    'BRIEF-DRAFTS: the scene gets the drafted name, where it is going and opening');
+  const mem = String(askOf(prompts.MEMORY)?.user ?? '');
+  assert.match(mem, /IN THE NEXT SCENE: Oren/, 'BRIEF-NAMES: the people pass is told who is in the next scene, by name');
+  assert.doesNotMatch(mem, /strangers|their money/, 'BRIEF-NAMES-ONLY: and nothing else of the brief');
+  assert.doesNotMatch(String(askOf(TALE_HEAD)?.user ?? ''), /strangers|their money/, '  nor is where the tale stands');
+  assert.match(String(askOf(prompts.NEEDS)?.user ?? ''), /THE WRITER'S BRIEF FOR IT:\n.*takes two strangers across/,
+    'BRIEF-NEEDS: what the next scene needs is asked with the brief');
   const done = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.deepStrictEqual(Object.keys(done.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary', 'tale'],
     'HEM-ASKED-RUNS: the answer runs where the tale stands, the people and the next scene');
-  assert.ok(askOf(TALE_HEAD), '  where the tale stands is asked');
-  assert.doesNotMatch(String(askOf(TALE_HEAD)?.user ?? ''), /HOW THE NEXT SCENE OPENS|Two days later, in his bookstore/,
-    'STANDS-NO-OPENING: where the tale stands is not sent how the next scene opens');
-  assert.doesNotMatch(String(askOf(prompts.MEMORY)?.user ?? ''), /HOW THE NEXT SCENE OPENS|Two days later, in his bookstore/,
-    '  nor is where each person stands');
   // THE SPEED PASS (2026-10-30): the tale's and the people's run at the same time.
   assert.ok(paired >= 2, `HEM-PAIR: where the tale stands and the people are asked at once (${paired} in flight)`);
   tidied = {}; taleSays = '';
 }
-ok('the opening the writer sends from the hem is the scene\'s, as written, and the pass names the scene from it');
+ok('the brief the writer sends from the hem is the scene\'s; it brings in who it names, by name to the people pass, and drafts the rest');
 
 // ---- PAUSED UNTIL THE WRITER SAYS HOW THE NEXT SCENE STARTS (Seth, 2026-10-30) ----
 // A close that asks holds where the tale stands, the people and the next scene. What is held is kept

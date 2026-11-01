@@ -279,6 +279,10 @@ outfit pocket and never in stands.
 
 ${LEDGER_REGISTER}
 
+A thread listed under IN THE NEXT SCENE is in the scene after this one, by name only. Review it even
+when this scene does little more than name it, so that where it stands is up to date before it
+appears again. Nothing about the next scene has happened: write only what this scene establishes.
+
 Rules:
 - Change means something the narration establishes: an injury, a death, a move, a fire, a
   relationship that turned, a thing learned or lost. Not a mood in one scene.
@@ -1433,10 +1437,11 @@ Propose nothing rather than pad. Zero proposals is a valid answer.`;
  *  the next scene's plan rather than of prose. NOT MEASURED. */
 export const NEEDS =
 `Below are the threads a tale already has, the scene just written (in summary), and the next scene:
-its name, how it opens and where it heads. The next scene has not been written yet.
+its name, the writer's brief for it, how it opens and where it heads. The next scene has not been
+written yet.
 
 Propose the people, places, lore and items the next scene NEEDS that the tale does not have yet:
-only what its opening or where it heads names or plainly requires, and never one of the tale's
+only what its brief, its opening or where it heads names or plainly requires, and never one of the tale's
 threads under another name. Four at most. None is a good answer when it needs nothing new.
 
 Every entry is a NEW thread, so its field is always "none".

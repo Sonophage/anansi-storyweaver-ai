@@ -48,7 +48,7 @@ ok(`the server refuses the branch you are on (${JSON.stringify(refused.error)})`
 // ---- the bar under the header: the threads sent now, by kind (since 2026-11-01 it is not the scenes)
 await page.goto(B + "/#" + sid);
 for (let i = 0; i < 40 && !(await page.visible('#ctxbar')); i++) await wait(250);
-const segs = await page.eval(`JSON.stringify([...document.querySelectorAll('#ctxbar i')].map((i) => ({ c: i.className, k: i.dataset.kind ?? null })))`).then(JSON.parse);
+const segs = await page.eval(`JSON.stringify([...document.querySelectorAll('#ctxbar i')].map((i) => ({ c: i.className, k: i.dataset.sentkind ?? null })))`).then(JSON.parse);
 console.log("  bar: " + JSON.stringify(segs));
 ok(`the bar is threads by kind, or one quiet line when none is sent (${segs.length})`,
    segs.length > 0 && (segs.every((x) => /^(always|word)$/.test(x.c) && x.k) || (segs.length === 1 && segs[0].c === 'none')));

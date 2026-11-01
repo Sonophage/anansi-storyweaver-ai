@@ -608,7 +608,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
   'tidy', 'restand', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra',
   // #92. A hemmed scene's card: run its passes again, set up the next scene.
-  'hemagain', 'hemopen', 'hemedit', 'fillsetup',
+  'hemagain', 'hemopen', 'hemedit', 'fillsetup', 'hemuse', 'hemskip',
   // #75. The tale's own thread: add to it, and open where it stands now.
   'taleadd', 'talestand',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
@@ -1164,6 +1164,8 @@ function drawMeter() {
   const sent = threadsSent();
   bar.setAttribute('aria-label', sent.length ? `${sent.length} ${sent.length === 1 ? 'thread' : 'threads'} sent now`
     : 'No threads sent now');
+  // `data-sentkind`, NOT `data-kind`: that name is the press that changes a thread's kind, and a
+  // segment carrying it was a click away from changing the open thread's (threadalter.js caught it).
   // A THREAD THAT HAS JUST COME IN BLINKS, three times slowly (Seth, 2026-11-01): one not on the bar's
   // last drawing for this tale. Not on the first drawing of a tale, where every thread would. Its class
   // lasts as long as the blink, so a later redraw does not start it again; the bar is rewritten only
@@ -1179,7 +1181,7 @@ function drawMeter() {
   // SHUT, THE BAR IS DIMMER STILL (Seth, 2026-11-01): the lines step back while the numbers are away.
   bar.classList.toggle('shut', !CTX_OPEN);
   sameOrSet('ctxbar').innerHTML = sent.length ? sent.map(({ e, word }) =>
-    `<i class="${word ? 'word' : 'always'}${(SENT_SEEN.until.get(e.id) ?? 0) > now ? ' new' : ''}" data-kind="${esc(e.entryType)}" style="background:${KIND_COLOR[e.entryType] ?? 'var(--rule)'}"></i>`).join('')
+    `<i class="${word ? 'word' : 'always'}${(SENT_SEEN.until.get(e.id) ?? 0) > now ? ' new' : ''}" data-sentkind="${esc(e.entryType)}" style="background:${KIND_COLOR[e.entryType] ?? 'var(--rule)'}"></i>`).join('')
     : '<i class="none"></i>';
 
   /* A HANDLE IN ITS PLACE UNTIL IT IS PRESSED (a ⌄ until Seth, 2026-10-30: "a small handle instead"). It was always open from 2026-09-02 ("have this always
@@ -2437,6 +2439,22 @@ function pickIdea(i) {
   ta.focus({ preventScroll: true });
   ta.dispatchEvent(new Event('input', { bubbles: true }));
   toast("In the box, unsent. Change it, or press Send to write with it.");
+}
+
+/** THE OPENING IS THE SCENE'S FIRST DIRECT (Seth, 2026-11-01: "The starting prompt can then be injected
+ *  at the scene start as the first direct action"): an empty scene with an opening puts it in an empty
+ *  composer, in Direct, unsent. Once a scene, so a box the writer empties stays empty; never over what
+ *  they typed, and not while they talk to Anansi. */
+function prefillOpening() {
+  const ch = V?.currentChapter, box = $('input');
+  const opens = String(ch?.opensWith ?? '').trim();
+  if (!ch || !box || !opens || S.dockTalk || S.prefilled === ch.id || String(box.value ?? '').trim()) return;
+  if ((V.passages ?? []).some((p) => p.chapterId === ch.id && !p.isBreak)) return;
+  S.prefilled = ch.id;
+  if (S.mode !== 'direct') { S.mode = 'direct'; drawDock(); }
+  const ta = $('input'); if (!ta) return;
+  ta.value = opens;
+  ta.dispatchEvent?.(new Event('input', { bubbles: true }));
 }
 
 function drawDock() {
@@ -4086,19 +4104,19 @@ const isStringRow = (p) => !!p.field && (V.slots?.tale ?? []).some((sl) => sl.na
 /** THE HEM, IN THE WRITER'S ORDER (Seth, 2026-10-30: "while the steps start it should ask me about the
  *  next scene and once I press enter then I can remove or add currently existing threads. That should
  *  be enough time for the hemming to finish its scans before it shows me the summary"). While the
- *  passes run: first how the next scene starts, then who is in it; once both are done and the scans
- *  are over, the summary and what the hem found.
+ *  passes run: first what the next scene is, then who is in it; once both are done and the scans are
+ *  over, the summary, the drafts from the brief and what the hem found.
  *
- *  HOW IT STARTS is the next scene's opening, as written ("What I enter should be what's used"): the
- *  server writes it into the scene and runs the next-scene pass on it, which names the scene and says
- *  where it heads (`suggestScene`). Empty, Anansi chooses the opening too. The close sends
+ *  WHAT THE NEXT SCENE IS, the writer's brief (since 2026-11-01; until then how it starts, used as its
+ *  opening): the server keeps it on the scene, and the next-scene pass names the scene and drafts its
+ *  opening and where it heads from it (`suggestScene`). Empty, Anansi chooses. The close sends
  *  `next: false`, so that pass waits for this.
  *
  *  Asked while the hem holds the next scene for the answer (`hem.held`, on the hem's row, so a reload
- *  does not ask again once answered) and the scene has no opening. Only on the latest hem, while the
+ *  does not ask again once answered) and the scene has no brief and no opening. Only on the latest hem, while the
  *  scene it opened is the one being written (`hemNext`). Otherwise what is held is paused (`hemPaused`). */
 const hemAsking = (ch) => (ch?.hem?.held ?? []).includes('next') && !!hemNext(ch)
-  && !String(hemNext(ch).opensWith ?? '').trim();
+  && !String(hemNext(ch).brief ?? '').trim() && !String(hemNext(ch).opensWith ?? '').trim();
 /** PAUSED (Seth, 2026-10-30): the hem holds passes for an answer the writer has not given, and is not
  *  asking for it here. The scene's card says so, and one press runs them, reading the next scene's
  *  opening if it has one by then. */
@@ -4107,18 +4125,50 @@ function hemPausedHTML(ch) {
   if (!hemPaused(ch)) return '';
   const names = PASSES.filter(([k]) => ch.hem.held.includes(k)).map(([, name]) => name);
   return `<div class="line-8 wraps push-8"><span class="note">Paused: <span class="inked">${esc(names.join(', '))}</span>
-    wait for how the next scene starts.</span>
+    wait for what the next scene is.</span>
     <button class="btn ghost" data-hemresume="${esc(ch.id)}">Run them now</button></div>`;
 }
+/* THE BRIEF FOR THE NEXT SCENE (Seth, 2026-11-01: "The first prompt I fill should be what the goal of
+ * the next scene is, who's in it where etc"). Until then this asked how the next scene starts and used
+ * the words as its opening. Now Anansi drafts the opening and where it is going from the brief
+ * (`hemDrafts`), brings in who it names, and tells the people pass who is in the next scene. */
 function hemAsk(ch) {
   if (!hemAsking(ch)) return '';
   return `<div class="card hemask push-8">
-    <label class="lbl flush" for="hemsteer-${esc(ch.id)}">How should the next scene start?</label>
+    <label class="lbl flush" for="hemsteer-${esc(ch.id)}">What is the next scene?</label>
     <textarea class="field grow" id="hemsteer-${esc(ch.id)}" data-hemsteer="${esc(ch.id)}"
-      placeholder="Where it opens, who is there, and when">${esc(S.hemSteer ?? '')}</textarea>
-    <div class="hint flush">Used as you write it. Anansi names the scene and says where it heads from it
-      while he finishes hemming this one. Enter to send; leave it empty and he chooses.</div>
-    <button class="btn fill push-8" data-hemnext="${esc(ch.id)}">That is how it starts</button>
+      placeholder="Its goal, who is in it, and where">${esc(S.hemSteer ?? '')}</textarea>
+    <div class="hint flush">Anansi brings in who you name, keeps their threads up to date, and drafts the
+      opening and where the scene is going from it while he finishes hemming this one. Enter to send;
+      leave it empty and he chooses.</div>
+    <button class="btn fill push-8" data-hemnext="${esc(ch.id)}">That is the next scene</button>
+  </div>`;
+}
+/** THE OPENING AND WHERE IT IS GOING, DRAFTED FROM THE BRIEF (Seth, 2026-11-01), each to use, edit or
+ *  skip. They are in the next scene already (`offerScene`); Use folds the row, Edit opens The next
+ *  scene step, Skip empties the box. The opening is the first Direct in the composer (`prefillOpening`);
+ *  skipped, the scene starts with a plain Continue. Shown once the next-scene pass is done, until the
+ *  scene has prose. */
+function hemDrafts(ch) {
+  const next = hemNext(ch);
+  if (!next || !ch.hem?.suggestion?.title || ch.hem.state === 'running' && !('next' in (ch.hem.passes ?? {}))) return '';
+  if ((V.passages ?? []).some((p) => p.chapterId === next.id && !p.isBreak)) return '';
+  const used = S.hemUsed ?? new Set();
+  const part = (label, text, field) => !String(text ?? '').trim()
+    ? `<div class="hint flush" data-hemdraft="${field}">${label}: skipped.</div>`
+    : used.has(`${next.id}:${field}`) ? `<div class="hint flush" data-hemdraft="${field}">${label}: using it.</div>`
+    : `<div class="stack" data-hemdraft="${field}"><div class="lbl sub-lbl flush">${label}</div>
+      <div class="note">${esc(text)}</div>
+      <div class="btnrow">
+        <button class="btn ghost fill" data-hemskip="${field}" data-ch="${esc(next.id)}">Skip</button>
+        <button class="btn ghost fill" data-panel="setup" data-setupat="premise">Edit</button>
+        <button class="btn fill" data-hemuse="${field}" data-ch="${esc(next.id)}">Use</button></div></div>`;
+  return `<div class="card hemdrafts push-8">
+    <div class="lbl flush">${esc(sceneName(next))}, drafted from your brief</div>
+    ${part('How it opens', next.opensWith, 'opens')}
+    ${part('Where it is going', next.authorsNote, 'note')}
+    <div class="hint flush">The opening waits in the box as your first Direct. Skip it and the scene starts
+      with a plain Continue.</div>
   </div>`;
 }
 /** WHO IS IN THE NEXT SCENE, once how it starts is said, while the scans finish. Done is this tab's
@@ -4181,8 +4231,8 @@ function hemStepStates(ch, closed) {
     const line = state === 'run' ? `${HEM_DOING[k]} · ${mins < 1 ? 'under a minute' : `${mins} min`}`
       : state === 'fail' ? `Did not run: ${plainWhy(report[k])}`
       : state === 'done' ? found[k]
-      : state === 'you' ? 'Waiting for how you want it to start'
-      : hemPaused(ch) && ch.hem.held.includes(k) ? 'Paused until the next scene\'s opening is said'
+      : state === 'you' ? 'Waiting for what the next scene is'
+      : hemPaused(ch) && ch.hem.held.includes(k) ? 'Paused until you say what the next scene is'
       // A summary written by hand before any hem shows as one, on a step not run yet.
       : k === 'summary' && summary ? found.summary
       : trying ? 'Trying again'
@@ -4265,6 +4315,7 @@ function ritualPanel() {
       placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>
     ${ch.hem.state === 'running' ? `<div class="hint">Anansi is still on the rest. What he found to decide
       shows here when he is done.</div>` : ''}`);
+  if (told) act.push(hemDrafts(ch));
   if (failed.length) act.push(`<div class="card hemfail">${failed.map((x) => `<div class="line-8 wraps">
       <span class="note fill"><span class="inked">${esc(x.name)}</span> did not run &mdash; ${esc(x.line.replace(/^Did not run: /, ''))}</span>
       <button class="btn ghost" data-hemagain="${esc(ch.id)}" data-pass="${x.k}">Try again</button></div>`).join('')}
@@ -10050,7 +10101,7 @@ function paint() {
   // as a different premise in that world." The first build made it a story with an empty Chapter 1
   // and a composer, which is a book with nothing in it, not a world.
   const world = S.place === 'story' && V && !!V.story?.is_world;
-  if (S.place === 'story' && V && !world) { drawDoc(); drawDock(); }
+  if (S.place === 'story' && V && !world) { drawDoc(); drawDock(); prefillOpening(); }
   else if (setupTalking()) drawDock();
   else { $('dock').hidden = true; if (world) drawDoc(); }
   watchHems();
@@ -13999,7 +14050,7 @@ document.addEventListener('click', async (e) => {
     S.ritual = 'Hemming…'; paint();
     const closing = V.currentChapter;
     // THE NEXT SCENE IS ASKED FOR, NOT GUESSED (Seth, 2026-10-30): `next: false` leaves that pass
-    // waiting, and the drawer asks how the next scene starts (`hemAsk`) while the others run.
+    // waiting, and the drawer asks what the next scene is (`hemAsk`) while the others run.
     const r = await api.endChapter(S.storyId, { next: false, ask: true });
     S.ritual = null;
     if (r.error) { paint(); return toast(r.error); }
@@ -14019,13 +14070,28 @@ document.addEventListener('click', async (e) => {
   // hem's next-scene pass names it from them. It waits in the tale's hem queue behind the passes still
   // running, so it reads their summary.
   if (d.hemnext) {
-    const opens = (S.hemSteer ?? '').trim();
-    const r = await api.hemAgain(S.storyId, d.hemnext, { pass: 'next', asked: true, ...(opens ? { opens } : {}) });
+    const brief = (S.hemSteer ?? '').trim();
+    const r = await api.hemAgain(S.storyId, d.hemnext, { pass: 'next', asked: true, ...(brief ? { brief } : {}) });
     if (r.error) return toast(r.error);
     S.hemWho?.delete(d.hemnext);
     S.hemSteer = '';
     V = r; paint();
-    return toast(opens ? 'Kept as you wrote it. Anansi names the scene from it.' : 'Anansi chooses how it starts.');
+    return toast(brief ? 'Anansi drafts the opening and where it is going from it.' : 'Anansi chooses the next scene.');
+  }
+  // THE DRAFTS FROM THE BRIEF (`hemDrafts`): Use folds a row; Skip empties that box in the scene, and
+  // the opening, skipped, leaves the composer to a plain Continue if it still holds the draft.
+  if (d.hemuse) { (S.hemUsed ??= new Set()).add(`${d.ch}:${d.hemuse}`); paint(); return; }
+  if (d.hemskip) {
+    const was = (V.chapters ?? []).find((c) => c.id === d.ch);
+    const r = await api.saveChapter(S.storyId, d.ch, d.hemskip === 'opens' ? { opensWith: '' } : { authorsNote: '' });
+    if (r.error) return toast(r.error);
+    const box = $('input');
+    if (d.hemskip === 'opens' && box && box.value.trim() === String(was?.opensWith ?? '').trim()) {
+      box.value = ''; box.dispatchEvent?.(new Event('input', { bubbles: true }));
+      if (S.mode === 'direct') S.mode = 'continue';
+    }
+    V = r; paint();
+    return toast(d.hemskip === 'opens' ? 'Skipped. The scene starts with a plain Continue.' : 'Skipped.');
   }
   // PAUSED, PICKED UP (Seth, 2026-10-30): the same answer with no opening sent, so the passes read the
   // next scene's opening as it is now, or Anansi chooses it.
@@ -16092,7 +16158,7 @@ document.addEventListener('input', (e) => {
   }
 });
 /** THE MENU'S SEARCH BAR (2026-10-28): Enter opens Prose search on what was typed, and runs it. */
-// ENTER SENDS how the next scene starts (Seth, 2026-10-30: "once I press enter"); Shift+Enter is a new
+// ENTER SENDS what the next scene is (Seth, 2026-10-30: "once I press enter"); Shift+Enter is a new
 // line, and a composing IME keeps its Enter.
 document.addEventListener('keydown', (e) => {
   const id = e.target?.dataset?.hemsteer;

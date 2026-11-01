@@ -1383,7 +1383,7 @@ ok('the header names the book, and carries no reading of its own');
   // THE BAR IS THE THREADS SENT NOW (Seth, 2026-11-01), not the scenes: one segment per thread the
   // manifest holds, coloured by its kind, a word-woken one dimmed. The fixture sends Envoy Sereth
   // always and the lamplighter on a word, and evicted one; the evicted one is not on the bar.
-  const segs = [...html('ctxbar').matchAll(/<i class="([^"]*)" data-kind="([^"]*)" style="background:([^"]*)"><\/i>/g)]
+  const segs = [...html('ctxbar').matchAll(/<i class="([^"]*)" data-sentkind="([^"]*)" style="background:([^"]*)"><\/i>/g)]
     .map((m) => ({ how: m[1], kind: m[2], bg: m[3] }));
   assert.deepStrictEqual(segs.map((x) => x.how), ['always', 'word'],
     `BAR-THREADS: one segment per thread sent, always on first, the evicted one left off (${JSON.stringify(segs)})`);
@@ -1449,7 +1449,7 @@ ok('the header names the book, and carries no reading of its own');
   const wasBlocks = MANIFEST.manifest.blocks;
   MANIFEST.manifest.blocks = [...wasBlocks, { kind: 'CANON-TRIGGERED', id: 'e-2', text: '', tokens: 50, state: 'included', reason: 'keyword', firedBy: ['stair'] }];
   click({ open: 's-1' }); await sleep(40);
-  assert.match(html('ctxbar'), /<i class="word new" data-kind="lore"/, `BLINK-NEW: the thread that came in blinks (${html('ctxbar')})`);
+  assert.match(html('ctxbar'), /<i class="word new" data-sentkind="lore"/, `BLINK-NEW: the thread that came in blinks (${html('ctxbar')})`);
   assert.strictEqual([...html('ctxbar').matchAll(/\bnew\b/g)].length, 1, '  and only it');
   MANIFEST.manifest.blocks = wasBlocks;
   click({ open: 's-1' }); await sleep(40);
@@ -8222,16 +8222,16 @@ const hemCardOf = (side: string) => {
     // the next scene and once I press enter then I can remove or add currently existing threads"):
     // how it starts first, gold, while the passes run.
     let side = html('sideBody');
-    assert.match(side, /data-hemsteer="c-2"/, 'HEM-ASK-BOX: it asks how the next scene should start');
+    assert.match(side, /What is the next scene\?[\s\S]*data-hemsteer="c-2"/, 'HEM-ASK-BOX: it asks what the next scene is (Seth, 2026-11-01)');
     assert.match(side, /class="btn fill[^"]*" data-hemnext="c-2"/, '  with one gold press to send it');
     assert.strictEqual((side.match(/class="btn (?!ghost)[^"]*"/g) ?? []).length, 1, '  and no other gold on the drawer');
-    assert.match(side, /data-hemstep="next"[^>]*>[\s\S]*?Waiting for how you want it to start/, '  and the next-scene step waits on the writer');
+    assert.match(side, /data-hemstep="next"[^>]*>[\s\S]*?Waiting for what the next scene is/, '  and the next-scene step waits on the writer');
     assert.doesNotMatch(side, /data-hemwhodone=/, '  and who is in it waits its turn');
     (listeners.input ?? []).forEach((f: Function) => f({ target: { dataset: { hemsteer: 'c-2' }, value: 'Days later, in his bookstore.' } }));
     click({ hemnext: 'c-2' }); await settle();
     const asked = POSTED.filter((p: any) => p.url === '/api/chapter/hem').at(-1);
-    assert.deepStrictEqual(asked?.body, { storyId: 's-1', chapterId: 'c-2', pass: 'next', asked: true, opens: 'Days later, in his bookstore.' },
-      'HEM-ASKED: the opening is sent as written, as the next-scene pass');
+    assert.deepStrictEqual(asked?.body, { storyId: 's-1', chapterId: 'c-2', pass: 'next', asked: true, brief: 'Days later, in his bookstore.' },
+      'HEM-ASKED: the brief is sent with the next-scene pass');
     // THEN WHO IS IN IT, gold, with the list and Done; the summary waits for Done and for the scans.
     side = html('sideBody');
     assert.doesNotMatch(side, /data-hemsteer=/, 'HEM-WHO-NEXT: the box gives way once sent');
@@ -8364,6 +8364,56 @@ const hemCardOf = (side: string) => {
   }
   click({ open: 's-1' }); await settle();
   ok('the hem asks once, by what its row holds, and a hem never answered is paused with a press to run it');
+}
+
+// ---- DRAFTED FROM THE BRIEF (Seth, 2026-11-01): the opening and where the scene is going show on the
+// hem's screen, each to use, edit or skip; the opening waits in the composer as the first Direct, and
+// skipped, the composer is left to a plain Continue.
+{
+  const canned = (globalThis as any).fetch;
+  // The chapter route answers with the tale, its opening emptied, as the real route's view would be.
+  (globalThis as any).fetch = async (url: string, init?: any) => {
+    if (url !== '/api/chapter') return hemFetch(canned)(url, init);
+    const body = JSON.parse(init.body); POSTED.push({ url, body });
+    const c = { ...HEM_VIEW.currentChapter, ...body.chapter };
+    HEM_VIEW = { ...HEM_VIEW, currentChapter: c, chapters: HEM_VIEW.chapters.map((x: any) => (x.id === c.id ? c : x)) };
+    return { ok: true, status: 200, json: async () => HEM_VIEW, text: async () => JSON.stringify(HEM_VIEW) };
+  };
+  const settle = () => sleep(40);
+  const OPENS = 'At dawn, on the far bank.', NOTE = 'He reaches the far bank and finds the bell waiting.';
+  const c3 = { id: 'c-br3', index: 3, title: 'The Far Bank', summary: null, authorsNote: NOTE, opensWith: OPENS,
+    brief: 'Oren crosses at dawn.', status: 'open', coversThrough: null, summaryStale: false, keepWhole: false, hem: null };
+  HEM_VIEW = { ...STORY, strings: [], proposals: [],
+    chapters: [{ ...STORY.chapters[0], hem: null }, { ...STORY.chapters[1], id: 'c-br2', status: 'closed',
+      hem: { ...HEM_DONE, overflow: [], held: [], suggestion: { title: 'The Far Bank', note: NOTE, opens: OPENS } } }, c3],
+    currentChapter: c3 };
+  try {
+    nodes.get('input').value = '';
+    click({ open: 's-1' }); await settle();
+    assert.strictEqual(nodes.get('input').value, OPENS, 'PREFILL: an empty scene with an opening puts it in the composer');
+    assert.match(html('dockCol'), /<option value="direct" selected/, '  in Direct, unsent');
+    nodes.get('input').value = '';
+    click({ open: 's-1' }); await settle();
+    assert.strictEqual(nodes.get('input').value, '', 'PREFILL-ONCE: a box the writer emptied stays empty');
+    nodes.get('input').value = OPENS;
+    click({ panel: 'ritual' }); await settle();
+    click({ hemwhodone: 'c-br2' }); await settle();
+    let side = html('sideBody');
+    assert.match(side, /class="card hemdrafts[\s\S]*How it opens[\s\S]*At dawn, on the far bank\.[\s\S]*Where it is going[\s\S]*finds the bell waiting/,
+      'DRAFTS: the hem shows the opening and where it is going, drafted from the brief');
+    assert.match(side, /data-hemskip="opens"[\s\S]*data-setupat="premise"[\s\S]*data-hemuse="opens"/, '  each with Skip, Edit and Use');
+    click({ hemuse: 'note', ch: 'c-br3' }); await settle();
+    assert.match(html('sideBody'), /Where it is going: using it\./, 'DRAFTS-USE: Use folds that one');
+    POSTED.length = 0;
+    click({ hemskip: 'opens', ch: 'c-br3' }); await settle();
+    assert.deepStrictEqual(POSTED.find((p: any) => p.url === '/api/chapter')?.body?.chapter, { opensWith: '' },
+      'DRAFTS-SKIP: Skip empties the opening in the scene');
+    assert.strictEqual(nodes.get('input').value, '', '  and takes it out of the composer, for a plain Continue');
+  } finally {
+    (globalThis as any).fetch = canned;
+  }
+  click({ open: 's-1' }); await settle();
+  ok('the opening and where the scene is going, drafted from the brief, can be used, edited or skipped, and the opening is the first Direct');
 }
 
 // ---- ASKED AGAIN WITH A DIRECTION, THE BOXES TAKE THE NEW ANSWER (Seth, 2026-10-30: "the how it

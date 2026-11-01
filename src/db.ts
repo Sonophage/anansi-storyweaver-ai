@@ -462,6 +462,10 @@ function migrate() {
   add('chapters', 'keep_whole', 'INTEGER DEFAULT 0');
   // The other half of the chapter's brief — see the note in the CREATE above.
   add('chapters', 'opens_with', 'TEXT');
+  // THE WRITER'S BRIEF FOR A SCENE, from the hem's first question (Seth, 2026-11-01): its goal, who is
+  // in it, where. Read by the hem (names only for where things stand) and the next-scene pass; never
+  // sent to the writing prompt, which gets the opening and where it is going drafted from it.
+  add('chapters', 'brief', 'TEXT');
   // #43. Who wrote a chapter summary. Every summary before this column was the model's: there was
   // no way to write one by hand. Keyed on the null so a second run changes nothing.
   add('chapters', 'summary_author', 'TEXT');
@@ -806,6 +810,7 @@ CREATE TABLE IF NOT EXISTS chapters (
   -- they reach the model differently: this one only while the chapter is still empty, that one as
   -- a direction. (No backticks in here: this is inside a template literal.)
   opens_with TEXT,
+  brief TEXT,
   summary TEXT, summary_covers_through INTEGER, summary_hash TEXT,
   -- WHO WROTE THE SUMMARY: human | model, the two values passages use. Null with no summary.
   summary_author TEXT,
@@ -3622,9 +3627,9 @@ export function updateChapter(storyId: string, id: string, c: any) {
   const cur = q('SELECT * FROM chapters WHERE id = ? AND story_id = ?').get(id, storyId) as any;
   if (!cur) return;
   const p = (k: string, col: string) => (c[k] !== undefined ? c[k] : cur[col]);
-  q('UPDATE chapters SET title=?, authors_note=?, opens_with=?, keep_whole=? WHERE id=? AND story_id=?')
+  q('UPDATE chapters SET title=?, authors_note=?, opens_with=?, brief=?, keep_whole=? WHERE id=? AND story_id=?')
     .run(p('title', 'title'), p('authorsNote', 'authors_note') ?? null,
-      p('opensWith', 'opens_with') ?? null,
+      p('opensWith', 'opens_with') ?? null, p('brief', 'brief') ?? null,
       p('keepWhole', 'keep_whole') ? 1 : 0, id, storyId);
 }
 export const delStory = (id: string, ownerId?: string) => ownerId

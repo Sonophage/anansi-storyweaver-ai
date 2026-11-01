@@ -16,6 +16,19 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-11-01 · Hemming starts from what the next scene is
+
+### Hemming asks what the next scene is
+After you hem a scene, the first question is what the next scene is: its goal, who is in it, and
+where. Anansi brings in the threads you name, makes sure where they stand is up to date, suggests
+anyone new the scene needs, and drafts how the scene opens and where it is going from what you wrote.
+### Use, edit or skip the drafts
+The opening and where the scene is going show on the hem's screen, each with Use, Edit and Skip.
+Skip leaves that box empty.
+### The opening is your first Direct
+When you start the new scene, the opening is already in the box, in Direct, waiting for you to press
+Send. If you skipped it, the scene starts with a plain Continue.
+
 ## 2026-11-01 · The bar shows the threads Anansi is sent
 
 ### Anyone new uses the eye too

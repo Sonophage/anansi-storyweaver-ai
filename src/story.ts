@@ -50,7 +50,7 @@ const toStory = (r: any) => ({
 });
 const toChapter = (c: any) => ({
   id: c.id, index: c.idx, title: c.title, summary: c.summary,
-  authorsNote: c.authors_note, opensWith: c.opens_with,
+  authorsNote: c.authors_note, opensWith: c.opens_with, brief: c.brief ?? null,
   status: c.status, coversThrough: c.summary_covers_through,
   summaryStale: db.summaryStale(c),
   summaryAuthor: c.summary_author ?? null,
