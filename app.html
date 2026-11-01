@@ -1617,6 +1617,8 @@ textarea.field { resize:vertical; min-height:70px; }
   display:flex; align-items:center; justify-content:center; border-radius:var(--r-pill);
   color:var(--faint); }
 .theye[data-lit="1"] { color:var(--ink-bright); }
+/* Off in this scene steps back further than asleep (Seth, 2026-11-01). */
+.theye[data-reach="off"], .readtags .readreach[data-reach="off"] { opacity:.5; }
 /* SEARCH AND THE TWO FILTERS, ONE ROW. The chips are 38px to the eye in a 50px box; the ::before
    takes each one to 44px for the finger without making the row taller. */
 .thfind { display:flex; align-items:center; gap:5px; padding:5px 5px 5px 12px; border:1px solid var(--chip);

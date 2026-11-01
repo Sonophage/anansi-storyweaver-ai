@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-01 · The bar shows the threads Anansi is sent
 
+### A thread's eye shows four states, and a tap moves through three
+On: an open eye, sent on every call. Woken: on a word, and its word is on the page, so it is sent
+now. On a word: a shut eye, waiting for its word (where a new thread starts). Off here: the eye struck
+through, not sent in this scene even if its word comes up. Tapping the eye goes On, On a word, Off
+here, On. Off lasts for this scene only. Sent now, and what Anansi is sent, is the On and the Woken
+ones.
+
 ### A thread that comes in blinks
 When a thread joins what Anansi is sent, its piece of the bar blinks three times, slowly. While
 the numbers are shut, the bar is dimmer, so it stays out of the way. Open, the two lines are

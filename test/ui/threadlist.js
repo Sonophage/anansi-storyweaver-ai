@@ -127,7 +127,7 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
          && !c.tags.some((t) => /on a word|always on/i.test(t));
      }));
   ok("  and its label names the state and what a tap does",
-     cards.every((c) => /^(Always on|On a word)[^.]*\. Tap to /.test(c.label)));
+     cards.every((c) => /^(On|Off)[^.]*\. Tap to /.test(c.label)));
   const plain = cards.filter((c) => !c.tags.length);
   ok(`  and a card with nothing to tag is short (${plain.map((c) => c.h).join(',')}px)`,
      plain.length > 0 && plain.every((c) => c.h <= 132));
@@ -181,8 +181,8 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   const asleep = await markOf(rule.id);
   const sent1 = await sentNow();
   // The curfew bell has no wake words, so on a word it is asleep: a shut eye, dim, out of Sent now.
-  ok(`  and on a word with nothing waking it is a shut eye, dim, saying a tap sends it every call (${JSON.stringify(asleep)})`,
-     asleep.lit === '0' && asleep.look === 'eyeshut' && /^On a word, asleep.*every call/.test(asleep.label));
+  ok(`  and on a word with nothing waking it is a shut eye, dim, saying a tap turns it off here (${JSON.stringify(asleep)})`,
+     asleep.lit === '0' && asleep.look === 'eyeshut' && /^On a word, asleep.*off in this scene/.test(asleep.label));
   // Brought into this scene, the same thread is an @, lit. A pin rather than a wake word, because
   // whether a word woke it is the manifest's answer and the manifest needs the model's tokenizer,
   // which a test server may not have; it lands in the same `inContext` either way. A thread with
@@ -193,14 +193,19 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   for (let i = 0; i < 40 && !(await page.visible('#thq')); i++) await wait(250);
   const woken = await markOf(rule.id);
   ok(`  and brought into the scene it is a lit eye with a speech mark (${JSON.stringify(woken)})`,
-     woken.lit === '1' && woken.look === 'eyeheard' && /^On a word, sent now/.test(woken.label));
+     woken.lit === '1' && woken.look === 'eyeheard' && /^On a word, and sent now/.test(woken.label));
   const sentW = await sentNow();
+  // FOUR STATES, THREE TO SET (Seth, 2026-11-01): on → on a word → off in this scene → on.
+  steps.push(await tap());
+  const off = await markOf(rule.id), sentOff = await sentNow();
+  ok(`  and a tap on a woken one turns it off in this scene, the eye struck through (${JSON.stringify(off)})`,
+     off.look === 'eyeoff' && off.lit === '0' && /^Off in this scene/.test(off.label));
   steps.push(await tap());
   const sent2 = await sentNow();
-  ok(`tapping the mark goes always on, on a word, always on (${steps.join(' > ')})`,
-     steps.join() === 'always_on,triggered,always_on');
-  ok(`  and Sent now counts the open eyes and the woken ones (${sent0} > ${sent1} > ${sentW} > ${sent2})`,
-     sent1 === sent0 - 1 && sentW === sent0 && sent2 === sent0);
+  ok(`tapping the mark goes on, on a word, off here, on (${steps.join(' > ')})`,
+     steps.join() === 'always_on,triggered,triggered,always_on' && (await markOf(rule.id)).look === 'eye');
+  ok(`  and Sent now counts the open eyes and the woken ones (${sent0} > ${sent1} > ${sentW} > ${sentOff} > ${sent2})`,
+     sent1 === sent0 - 1 && sentW === sent0 && sentOff === sent0 - 1 && sent2 === sent0);
 
   // ---- Outfits are still worn from the list
   const marek = v.entries.find((e) => e.title === 'Marek Vale');

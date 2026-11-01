@@ -1472,6 +1472,34 @@ ok('the header names the book, and carries no reading of its own');
 }
 ok('the bar is the threads sent now by kind, and the numbers open by a handle');
 
+// FOUR STATES ON A THREAD'S MARK (Seth, 2026-11-01): on, woken (its word is on the page), on a word
+// and asleep, and off in this scene. The tap moves through what a writer can set: on, on a word, off.
+{
+  const wasPins = STORY.pins;
+  STORY.pins = [{ chapterId: STORY.currentChapter.id, entryId: 'e-2', mode: 'force_out' }] as any;
+  click({ open: 's-1' }); await sleep(40);
+  click({ panel: 'threads' }); click({ backentry: '1' }); click({ onlyin: '0' }); await sleep(10);
+  const reach = (id: string) => html('sideBody').match(new RegExp(`data-flipact="${id}" data-look="(\\w+)" data-reach="(\\w+)"[^>]*aria-label="([^"]*)"`))?.slice(1);
+  assert.deepStrictEqual(reach('e-1')?.slice(0, 2), ['eye', 'on'], 'REACH-ON: always on is an open eye');
+  assert.deepStrictEqual(reach('e-fired')?.slice(0, 2), ['eyeheard', 'woken'], 'REACH-WOKEN: woken by its word is the eye with a speech mark');
+  assert.deepStrictEqual(reach('e-2')?.slice(0, 2), ['eyeoff', 'off'], 'REACH-OFF: held out of this scene is the eye struck through');
+  assert.match(reach('e-evicted')?.[2] ?? '', /^On, but pushed out of this call for room/, 'REACH-EVICTED: always on but pushed out says so');
+  const word = STORY.entries.find((e: any) => e.activation === 'triggered' && e.id !== 'e-fired' && e.id !== 'e-2'
+    && reach(e.id));
+  assert.deepStrictEqual(reach(word!.id)?.slice(0, 2), ['eyeshut', 'word'], `REACH-WORD: on a word and asleep is a shut eye (${word?.title})`);
+  const writes = () => POSTED.filter((p: any) => ['/api/pin', '/api/entry'].includes(p.url))
+    .map((p: any) => p.url === '/api/pin' ? `pin ${p.body.entryId} ${p.body.mode}` : `entry ${p.body.entry.id} ${p.body.entry.activation}`);
+  POSTED.length = 0; click({ flipact: 'e-1' }); await sleep(40);
+  assert.deepStrictEqual(writes(), ['entry e-1 triggered'], 'TAP-ON: on goes to on a word');
+  POSTED.length = 0; click({ flipact: 'e-fired' }); await sleep(40);
+  assert.deepStrictEqual(writes(), ['pin e-fired force_out'], 'TAP-WORD: on a word goes off in this scene, by a pin');
+  POSTED.length = 0; click({ flipact: 'e-2' }); await sleep(40);
+  assert.deepStrictEqual(writes(), ['pin e-2 null', 'entry e-2 always_on'], 'TAP-OFF: off goes back on: the pin comes off and it is always on');
+  STORY.pins = wasPins;
+  click({ open: 's-1' }); await sleep(40);
+}
+ok('a thread\'s mark shows four states, and a tap moves on, on a word, off in this scene');
+
 /* ---- IN CONTEXT MEANS WHAT THE PROMPT ACTUALLY HOLDS (2026-09-11).
  *
  * Kia's book: 227 threads, every one TRIGGERED, none pinned. The chip read "In context 0" while

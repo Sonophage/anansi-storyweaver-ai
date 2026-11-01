@@ -7954,7 +7954,7 @@ function cardFace(e, slots) {
          heading, so the rest are a scroll away rather than a press. -->
     <div class="readtags">
       <span class="tag">${esc(e.entryType)}</span>
-      <button class="tag readreach" data-flipact="${esc(e.id)}" data-look="${m.look}"
+      <button class="tag readreach" data-flipact="${esc(e.id)}" data-look="${m.look}" data-reach="${m.state}"
         data-lit="${lit ? 1 : 0}" aria-label="${m.label}" title="${m.label}"
         >${mark(m.look, 15)}<span>${m.word}</span></button>
       ${pockets ? `<button class="tag" data-goslot="${esc(shown.find((sl) => sl.name !== 'facts')?.name ?? '')}"
@@ -8737,18 +8737,31 @@ function threadRows() {
  *  A POCKET HERE IS EVERY NAMED PART BUT FACTS. Facts is the thread's own text (the pockets plan
  *  turns it into Always true), and in the live library 473 of about 480 threads have one — so
  *  counting it would put "1 pocket" on nearly every card, which is a tag that says nothing. */
-/** HOW A THREAD REACHES THE MODEL, AS ONE MARK: the list's card and the Read screen's tag row draw
- *  the same three looks from the same two facts, so the two screens cannot disagree. `lit` is
- *  `inContext` — sent now — and the label names the state and what a tap does (the tap is the
- *  `data-flipact` switch on both). */
-function reachMark(e, lit) {
-  const on = (e.activation ?? 'always_on') === 'always_on';
-  const look = on ? 'eye' : lit ? 'eyeheard' : 'eyeshut';
-  const now = on ? (lit ? 'Always on, sent now' : 'Always on, kept out of this call')
-    : (lit ? 'On a word, sent now' : 'On a word, asleep: no wake word in this scene');
-  const label = `${now}. ${on ? 'Tap to send it only on a wake word.' : 'Tap to send it on every call.'}`;
-  return { on, look, label, word: on ? 'Always on' : 'On a word' };
+/** HOW A THREAD REACHES THE MODEL, AS ONE MARK, IN FOUR STATES (Seth, 2026-11-01: "It should be on,
+ *  off (basically not triggered in this scene), actively triggered and triggered by keyword"):
+ *    on      always on: an open eye;
+ *    woken   on a word, and sent now (its word is on the page, or brought into the scene): the eye
+ *            with a speech mark;
+ *    word    on a word and asleep, every thread's default: a shut eye;
+ *    off     held out of this scene (a `force_out` pin), whatever its setting: the eye struck through.
+ *  Sent now is on and woken, which is what the model is sent (`inContext`). The list's card and the
+ *  Read screen's tag draw it from the same facts, and the tap (`data-flipact`) moves through the three
+ *  a writer can set: on, on a word, off in this scene, on (`nextReach`). `lit` is `inContext`. */
+function reachMark(e, lit, pin = pinModes()) {
+  const state = pin.get(e.id) === 'force_out' ? 'off' : (e.activation ?? 'always_on') === 'always_on' ? 'on'
+    : lit ? 'woken' : 'word';
+  const [look, word, now, next] = {
+    on: ['eye', 'On', lit ? 'On, sent every call' : 'On, but pushed out of this call for room', 'send it only on a wake word'],
+    woken: ['eyeheard', 'Woken', 'On a word, and sent now', 'turn it off in this scene'],
+    word: ['eyeshut', 'On a word', 'On a word, asleep: no wake word in this scene', 'turn it off in this scene'],
+    off: ['eyeoff', 'Off here', 'Off in this scene: not sent, even on a word', 'turn it on'],
+  }[state];
+  return { on: state === 'on', state, look, word, label: `${now}. Tap to ${next}.` };
 }
+/** The tap's next state: on → on a word → off in this scene → on. What it writes: the thread's
+ *  activation, the scene's pin, or both. */
+const nextReach = (state) => (state === 'on' ? { activation: 'triggered', pin: undefined }
+  : state === 'off' ? { activation: 'always_on', pin: null } : { activation: undefined, pin: 'force_out' });
 
 /** THE BRACKET COMES OFF WHERE A WRITER READS IT. "[Aldis Fen: 34, ex-Watch sergeant…]" is the
  *  form the model is sent, and its first words repeat the name the screen already shows in large
@@ -8771,7 +8784,7 @@ function threadPlate(e, lit) {
     e.retiredAtChapter != null ? `<span class="tag warned">retired, scene ${
       esc(String(e.retiredAtChapter))}</span>` : '',
   ].join('');
-  const { look, label } = reachMark(e, lit);
+  const { look, label, state } = reachMark(e, lit);
   return `<div class="throw">
     <div style="position:relative">
       <button class="card plate thplate" data-entry="${e.id}">
@@ -8780,7 +8793,7 @@ function threadPlate(e, lit) {
         <span class="platename">${esc(e.title)}</span>
         ${text ? `<span class="clamp2 thtext">${esc(text)}</span>` : ''}
         ${tags ? `<span class="thtags">${tags}</span>` : ''}</button>
-      <button class="theye" data-flipact="${esc(e.id)}" data-look="${look}" data-lit="${lit ? 1 : 0}"
+      <button class="theye" data-flipact="${esc(e.id)}" data-look="${look}" data-reach="${state}" data-lit="${lit ? 1 : 0}"
         aria-label="${label}" title="${label}">${mark(look, 22)}</button>
     </div>
     ${/* WORN OR NOT WAS A BORDER COLOUR AND NOTHING ELSE here — the label is the coat's name either
@@ -12938,10 +12951,16 @@ document.addEventListener('click', async (e) => {
     // back and a triggered entry cannot be made at all. A human pressing "On a keyword" with the
     // chip and the hint in front of them is not the silence 2e is about.
     const patch = { ...e, id: e.id, keys: e.keys ?? [], allowNoKeys: true };
+    // THE MARK MOVES THROUGH FOUR STATES (`reachMark`, `nextReach`): a pin for off in this scene, the
+    // activation for on and on a word. The pin is written first, so an off never lands as on.
+    const step = d.flipact ? nextReach(reachMark(e, inContext(e, pinModes())).state) : null;
+    if (step && step.pin !== undefined) {
+      const rp = await api.setPin(S.storyId, V.currentChapter?.id, e.id, step.pin);
+      if (rp.error) return toast(rp.error);
+    }
     if (d.kind) patch.entryType = d.kind;
-    else patch.activation = d.flipact
-      ? (e.activation === 'always_on' ? 'triggered' : 'always_on') : d.act;
-    const r = await api.saveEntry(S.storyId, patch);
+    else patch.activation = step ? step.activation ?? e.activation : d.act;
+    const r = step && step.activation === undefined ? { } : await api.saveEntry(S.storyId, patch);
     if (r.error) return toast(r.error);
     // ON THE ALTER SCREEN THE CHIP SAVES ITSELF AND NOTHING ELSE. A plain repaint redrew the form
     // from the saved thread and threw away a name or a paragraph typed above it but not yet saved;
