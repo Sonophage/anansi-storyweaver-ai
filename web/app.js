@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -522,7 +522,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // ('help' left this list on 2026-09-03. The webs are drawn by tipMark now, so a help icon
   //  carries `data-tip` like every other folded explanation — one mark, one handler, one
   //  state. A name left here would match nothing and read as a live action.)
-  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'ctxtoggle', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home',
+  'fontpick', 'sizepick', 'scalepick', 'archive', 'readmode', 'ctxtoggle', 'ctxthreads', 'sparkstep', 'spadd', 'spvoice', 'sendbug', 'bugkind', 'home',
   're', 'del', 'ed', 'hi', 'vp', 'vn', 'hwkb', 'bigin', 'diffview',
   'summarize', 'extract', 'decide', 'branch', 'delbranch', 'newthread', 'entry',
   'carryon',
@@ -1149,35 +1149,29 @@ function drawMeter() {
   if (!inStory || !MANI) { bar.hidden = true; read.hidden = true; return; }
 
   const ch = V.currentChapter;
-  const at = V.chapters.findIndex((c) => c.id === ch.id);
   const words = V.passages.filter((p) => p.chapterId === ch.id)
     .reduce((n, p) => n + (String(p.body).match(/\S+/g) || []).length, 0);
   const h = horizon();
 
   bar.hidden = false;
-  /* ONE SEGMENT PER CHAPTER, the one you are in lit. Seth, 2026-09-02: "this will no longer count
-   * context but chapters. one chapter will be one long line. two chapters will be one line broken
-   * into two so on and so forth."
-   *
-   * EQUAL PARTS, not weighted by length: "broken into two" is halves, and a bar weighted by words
-   * would make chapter one enormous for the whole of chapter one. Flex does the dividing, so the
-   * arithmetic is in the stylesheet and not here.
-   *
-   * NOT A BUTTON ANY MORE. Its only press opened the reading below, and the reading is always open
-   * now — a focusable control that does nothing is worse than no control. The context percentage
-   * it used to draw is in that reading, in words, including the no-room case the red bar carried. */
-  bar.setAttribute('aria-label', V.chapters.length === 1
-    ? 'One scene' : `Scene ${at + 1} of ${V.chapters.length}`);
-  // THE SCENES BEHIND YOU ARE DIMMED, NOT GONE. Seth, 2026-10-26: "the older chapters don't show up
-  // only the current one does. Old ones should be dimmed but still there." They were drawn in
-  // --rule, which the dark themes all but hide.
-  bar.innerHTML = V.chapters.map((c, i) =>
-    `<i class="${i === at ? 'at' : i < at ? 'past' : ''}"></i>`).join('');
+  /* THE THREADS SENT NOW, NOT THE SCENES (Seth, 2026-11-01: "make it active threads instead and color
+   * code them by type dimming is affected by how it's brought in whether always active or by trigger
+   * word"). One segment per thread the next call holds, read off the manifest as `inContext` reads it,
+   * in the kinds' order, coloured by kind (KIND_COLOR). How it came in is the block it is in: always
+   * on (CANON-ALWAYS, which a thread pinned into the scene is too) is full, woken by a word
+   * (CANON-TRIGGERED) is dimmed. Which scene you are on is in the header. From 2026-09-02 to this
+   * change the bar was one segment per scene. */
+  const sent = threadsSent();
+  bar.setAttribute('aria-label', sent.length ? `${sent.length} ${sent.length === 1 ? 'thread' : 'threads'} sent now`
+    : 'No threads sent now');
+  bar.innerHTML = sent.length ? sent.map(({ e, word }) =>
+    `<i class="${word ? 'word' : 'always'}" data-kind="${esc(e.entryType)}" style="background:${KIND_COLOR[e.entryType] ?? 'var(--rule)'}"></i>`).join('')
+    : '<i class="none"></i>';
 
   /* A HANDLE IN ITS PLACE UNTIL IT IS PRESSED (a ⌄ until Seth, 2026-10-30: "a small handle instead"). It was always open from 2026-09-02 ("have this always
    * visible") until Seth, 2026-10-26: the stats "should be replaced by a down arrow that when
    * triggered show those stats, hitting again can hide it unless you click what is in it". So the
-   * row is the arrow alone, the arrow opens the stats and shuts them again, and "what is in it"
+   * row is the handle alone, the handle opens the stats and shuts them again, and "what is in it"
    * opens the drawer as it always did and leaves the stats as they are. This device remembers. */
   read.hidden = false;
   read.classList.toggle('shut', !CTX_OPEN);
@@ -1185,15 +1179,41 @@ function drawMeter() {
     aria-label="${CTX_OPEN ? 'Hide' : 'Show'} the scene's numbers" title="${CTX_OPEN ? 'Hide' : 'Show'} the scene's numbers"
     ><span class="grip" aria-hidden="true"></span></button>`;
   if (!CTX_OPEN) { read.innerHTML = toggle; return; }
+  /* OPEN: THE KINDS SENT, THEN THE WORDS (Seth, 2026-11-01). The first line counts the threads sent now
+   * by kind, each with its colour on the bar; the context icon on its left opens What is in it, and
+   * the threads icon on its right opens Threads on Sent now and shuts it again. The second line is the
+   * scene's words and how much of his room is used. */
+  const counts = KINDS.map((k) => [k, sent.filter((x) => x.e.entryType === k).length]).filter(([, n]) => n);
+  const onThreads = S.panel === 'threads' && S.onlyIn && !S.entryId && !S.lore;
   read.innerHTML = `
-    <span>scene ${at + 1} of ${V.chapters.length}</span>
-    <span class="tnum">${words.toLocaleString()} words</span>
-    <span class="tnum" style="color:${(pct == null || pct >= 100) ? 'var(--bad)' : 'var(--gold-dim)'}">${
-      pct == null ? (noRoom ? 'no space' : 'size unknown') : `room ${pct}% used`}</span>
-    ${h ? `<span style="color:var(--gold-dim)">${h.chapters} ${
-      h.chapters === 1 ? 'scene' : 'scenes'} out of reach</span>` : ''}
-    <button class="right" data-panel="context">what is in it &rsaquo;</button>
+    <div class="ctxline">
+      <button class="ctxicon" data-panel="context" aria-label="What is in it: the context" title="What is in it">${mark('context', 16)}</button>
+      <span class="ctxkinds">${counts.length ? counts.map(([k, n]) => `<span class="tnum"><i class="kinddot" style="background:${
+        KIND_COLOR[k]}"></i>${n} ${esc(n === 1 ? pocketTitle(k).toLowerCase() : KIND_PLURAL[k].toLowerCase())}</span>`).join('')
+        : '<span>no threads sent</span>'}</span>
+      <button class="ctxicon" data-ctxthreads="1" aria-pressed="${onThreads}" aria-label="${onThreads ? 'Shut' : 'Open'} the threads sent now"
+        title="Threads sent now">${mark('threads', 16)}</button>
+    </div>
+    <div class="ctxline">
+      <span class="tnum">${words.toLocaleString()} words</span>
+      <span class="tnum" style="color:${(pct == null || pct >= 100) ? 'var(--bad)' : 'var(--gold-dim)'}">${
+        pct == null ? (noRoom ? 'no space' : 'size unknown') : `room ${pct}% used`}</span>
+      ${h ? `<span style="color:var(--gold-dim)">${h.chapters} ${
+        h.chapters === 1 ? 'scene' : 'scenes'} out of reach</span>` : ''}
+    </div>
     ${toggle}`;
+}
+
+/** THE THREADS THE NEXT CALL HOLDS, in the kinds' order and always-on first within a kind, each with
+ *  whether a word woke it. Off the manifest, as `inContext` reads it: a thread pushed out for space is
+ *  not here. The tale's own thread is the premise block, not a thread on this list. */
+function threadsSent() {
+  const mani = manifestNow();
+  if (!mani) return [];
+  const byId = new Map((V?.entries ?? []).map((e) => [e.id, e]));
+  return mani.blocks.filter((b) => b.state === 'included' && (b.kind === 'CANON-ALWAYS' || b.kind === 'CANON-TRIGGERED') && byId.has(b.id))
+    .map((b) => ({ e: byId.get(b.id), word: b.kind === 'CANON-TRIGGERED' }))
+    .sort((a, b) => KINDS.indexOf(a.e.entryType) - KINDS.indexOf(b.e.entryType) || Number(a.word) - Number(b.word));
 }
 
 /** THE HEADERS ARE REWRITTEN ONLY WHEN WHAT THEY SAY CHANGED (2026-10-28). Every paint rebuilt #bar
@@ -12630,6 +12650,12 @@ document.addEventListener('click', async (e) => {
   }
   // The attribute is written here rather than in applyLook: reading mode is not part of the look
   // and does not belong in the bag that gets persisted.
+  // The threads icon on the numbers: Threads on Sent now, or shut it when that is what is open.
+  if (d.ctxthreads) {
+    const on = S.panel === 'threads' && S.onlyIn && !S.entryId && !S.lore;
+    if (on) S.panel = null; else { S.panel = 'threads'; S.entryId = null; S.lore = null; S.onlyIn = true; }
+    syncHash(); paint(); return;
+  }
   if (d.ctxtoggle) {
     CTX_OPEN = !CTX_OPEN;
     try { localStorage.setItem(CTX_KEY, CTX_OPEN ? '1' : '0'); } catch { /* no storage */ }

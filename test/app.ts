@@ -1375,22 +1375,20 @@ ok('the header names the book, and carries no reading of its own');
   assert.notStrictEqual(21401, MANIFEST.manifest.totals.used,
     'the fixture must keep the estimate and the exact count apart, or nothing below can see '
     + 'which one the bar used');
-  // THE BAR COUNTS CHAPTERS, NOT CONTEXT, since 2026-09-02. One segment per chapter, the one you
-  // are in lit. Asserted as a COUNT against the fixture's own chapters and as the position of the
-  // lit one — a bar that drew a fixed number of segments, or lit the first one always, is the shape
-  // that says "chapter 1 of 4" for the whole book.
-  const segs = [...html('ctxbar').matchAll(/<i class="([^"]*)"><\/i>/g)].map((m) => m[1]);
-  assert.strictEqual(segs.length, STORY.chapters.length,
-    `the bar must have one segment per chapter, not ${segs.length} for ${STORY.chapters.length}`);
-  assert.strictEqual(segs.filter((c) => c === 'at').length, 1,
-    'and exactly one of them is the chapter you are in');
-  assert.strictEqual(segs.findIndex((c) => c === 'at'),
-    STORY.chapters.findIndex((c: any) => c.id === STORY.currentChapter.id),
-    'and it is the one the view says you are in');
-  // THE ONES BEHIND YOU ARE DIMMED, NOT HIDDEN (Seth, 2026-10-26).
-  const here = segs.findIndex((c) => c === 'at');
-  assert.ok(here > 0 && segs.slice(0, here).every((c) => c === 'past'),
-    `every scene before the one you are in is drawn, dimmed (${JSON.stringify(segs)})`);
+  const { KIND_COLOR } = await import('../web/model.js');
+  // THE BAR IS THE THREADS SENT NOW (Seth, 2026-11-01), not the scenes: one segment per thread the
+  // manifest holds, coloured by its kind, a word-woken one dimmed. The fixture sends Envoy Sereth
+  // always and the lamplighter on a word, and evicted one; the evicted one is not on the bar.
+  const segs = [...html('ctxbar').matchAll(/<i class="([^"]*)" data-kind="([^"]*)" style="background:([^"]*)"><\/i>/g)]
+    .map((m) => ({ how: m[1], kind: m[2], bg: m[3] }));
+  assert.deepStrictEqual(segs.map((x) => x.how), ['always', 'word'],
+    `BAR-THREADS: one segment per thread sent, always on first, the evicted one left off (${JSON.stringify(segs)})`);
+  assert.ok(segs.every((x) => x.kind === 'character' && x.bg === KIND_COLOR.character), 'BAR-KIND: each in its kind\'s colour');
+  {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+    assert.match(css, /#ctxbar i\.word \{[^}]*opacity:\s*\.4/, 'BAR-DIM: one woken by a word is dimmed');
+  }
   // AND THE PERCENTAGE IS NOT IN IT. The bar was a single `<i>` filled to the context percentage,
   // and this is what goes red if that comes back — the number belongs in the reading, in words.
   assert.ok(!/width:/.test(html('ctxbar')),
@@ -1421,8 +1419,15 @@ ok('the header names the book, and carries no reading of its own');
   click({ ctxtoggle: '1' });
   assert.doesNotMatch(html('ctxread'), /words/, 'and a second shuts it');
   click({ ctxtoggle: '1' });   // left open: the checks below read the stats
-  assert.match(opened, /scene 2 of 2/, 'which says which scene you are on');
-  assert.match(opened, /words/, 'and how many words are in it');
+  assert.match(opened, /<span class="tnum"><i class="kinddot"[^>]*><\/i>2 characters<\/span>/, 'COUNTS-KINDS: it counts the threads sent by kind');
+  assert.match(opened, /words/, 'and how many words are in the scene');
+  assert.match(opened, /class="ctxicon" data-panel="context"[\s\S]*class="ctxkinds"[\s\S]*class="ctxicon" data-ctxthreads="1"/,
+    'COUNTS-ICONS: the context icon on the left, the threads icon on the right');
+  click({ ctxthreads: '1' }); await sleep(10);
+  assert.strictEqual(html('sideBody').includes('data-onlyin="1" aria-pressed="true"'), true, 'THREADS-OPEN: the threads icon opens Threads on Sent now');
+  assert.match(html('ctxread'), /data-ctxthreads="1" aria-pressed="true"/, '  and says it is open');
+  click({ ctxthreads: '1' }); await sleep(10);
+  assert.match(html('ctxread'), /data-ctxthreads="1" aria-pressed="false"/, 'THREADS-SHUT: a second press shuts it');
   assert.match(opened, new RegExp(`room ${pct}% used`), 'and how much of his room is used, in those words');
   assert.match(opened, /data-panel="context"/, 'with the way through to the blocks behind it');
 
@@ -1440,7 +1445,7 @@ ok('the header names the book, and carries no reading of its own');
   click({ open: 's-1' });
   await sleep(40);
 }
-ok('the bar counts chapters, and the reading is always open');
+ok('the bar is the threads sent now by kind, and the numbers open by a handle');
 
 /* ---- IN CONTEXT MEANS WHAT THE PROMPT ACTUALLY HOLDS (2026-09-11).
  *

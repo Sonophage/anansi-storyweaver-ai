@@ -531,12 +531,16 @@ ok("  with exactly one marked as the one you are writing",
 // Pressing a row moves the reading column to that chapter. `data-chapter` focuses a chapter in the
 // VIEW — it does not change which chapter the server has open — so this is asserted on the reading
 // row under the header rather than by re-fetching the story.
+const pressedId = await page.eval("document.querySelector('#sideBody [data-chapter]').dataset.chapter");
 await page.click(`#sideBody [data-chapter]`);
 await wait(900);
-// The stats sit behind a ⌄ since 2026-10-26; open them to read them.
-if (await page.eval("!!document.querySelector('#ctxread.shut')")) { await page.click('#ctxread [data-ctxtoggle]'); await wait(300); }
-ok(`  and pressing one moves the reading column to it (${await page.text('#ctxread')})`,
-   /scene 1 of/.test((await page.text('#ctxread')) || ''));
+// THE HEADER NAMES THE SCENE: the numbers under the bar said "scene 1 of" until 2026-11-01, when the
+// bar became the threads sent now.
+const pressed = (await story()).chapters.find((c) => c.id === pressedId);
+const named = pressed && (String(pressed.title ?? '').trim() && !/^(scene|chapter)\s+\d+$/i.test(pressed.title.trim())
+  ? pressed.title.trim() : `Scene ${pressed.index}`);
+ok(`  and pressing one moves the reading column to it (${await page.text('#bar')})`,
+   !!named && ((await page.text('#bar')) || '').includes(named));
 ok("  and the panel stays open, so you can pick another",
    await page.visible('#sideBody [data-chapter]'));
 // THE FOLD IT REPLACED IS GONE, not merely unused: the tray's button opens this panel now.
@@ -703,8 +707,8 @@ await page.click('#ctxbar');
 await wait(400);
 // The stats sit behind a ⌄ since 2026-10-26; open them to read them.
 if (await page.eval("!!document.querySelector('#ctxread.shut')")) { await page.click('#ctxread [data-ctxtoggle]'); await wait(300); }
-ok("  with which scene of how many behind it",
-   /scene \d+ of \d+/i.test(await page.text('#ctxread') || ''));
+ok("  with the threads sent now and the words behind it (since 2026-11-01)",
+   /words/i.test(await page.text('#ctxread') || '') && /character|place|lore|item|no threads sent/i.test(await page.text('#ctxread') || ''));
 await page.click('#ctxbar');
 await wait(200);
 if (v.chapters.length > 1) {

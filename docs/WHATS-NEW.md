@@ -16,6 +16,19 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-11-01 · The bar shows the threads Anansi is sent
+
+### The thin bar under the header is the threads sent now
+It used to show the scenes. Now it has one piece for each thread Anansi is sent on the next call,
+coloured by kind: characters, places, lore and items each have their own colour. A thread that is
+always on is bright; one that a word on the page woke is dimmed. Which scene you are in is still in
+the header.
+### The numbers under it count those threads
+Open the numbers with the handle. The first line counts the threads sent by kind, with the same
+colours. The icon on its left opens What is in it; the icon on its right opens Threads on Sent now,
+and pressing it again shuts it. The second line has the scene's words and how much of his room is
+used.
+
 ## 2026-10-31 · The hem keeps every person it reads
 
 ### Where things stand no longer reads the next scene's opening

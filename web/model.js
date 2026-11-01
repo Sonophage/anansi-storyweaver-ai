@@ -759,6 +759,10 @@ export const BLURB = {
 // hue-only choice would have put a teal beside a green — the one pair a deuteranope cannot
 // separate — so this is dark enough that lightness alone tells them apart, and the check below
 // asserts that rather than trusting the eye that picked it.
+/** A THREAD'S KIND, AS A COLOUR (Seth, 2026-11-01): the bar of threads sent now and the counts under
+ *  it. Fixed, as BLOCK_COLOR is, so one kind is one colour on every theme. */
+export const KIND_COLOR = { character: '#D98B6A', place: '#7FB083', lore: '#9A86C8', item: '#6FA3C0' };
+
 export const BLOCK_COLOR = {
   SPINE: '#D9B26A', VOICE: '#5C5480', STYLE: '#3F6B6E', 'CANON-ALWAYS': '#7FB083', 'CANON-TRIGGERED': '#9A8B62',
   STRING: '#B07C9E', EARLIER: '#8A7BA8', PROSE: '#6E8AA0', TAIL: '#5E7A8E',
