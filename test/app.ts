@@ -59,7 +59,11 @@ const el = (id: string) => {
     scrollHeight: 0, clientHeight: 0, style: {}, dataset: {},
     // The reading pane toggles `scrolled` on itself so the running head can appear once the
     // chapter's band has gone by.
-    classList: { toggle() {}, add() {}, remove() {}, contains: () => false },
+    // Kept, so a check can read a class a render set (the bar's `shut`, 2026-11-01).
+    classList: (() => { const set = new Set<string>(); return {
+      toggle: (c: string, on?: boolean) => { const v = on ?? !set.has(c); if (v) set.add(c); else set.delete(c); return v; },
+      add: (...c: string[]) => c.forEach((x) => set.add(x)), remove: (...c: string[]) => c.forEach((x) => set.delete(x)),
+      contains: (c: string) => set.has(c) }; })(),
     // Attributes are read back by the checks, so they are stored rather than swallowed: the
     // context meter carries its state on aria-expanded and data-ctxopen, and a stub that dropped
     // them would let a meter that never opens pass.
@@ -1421,13 +1425,34 @@ ok('the header names the book, and carries no reading of its own');
   click({ ctxtoggle: '1' });   // left open: the checks below read the stats
   assert.match(opened, /<span class="tnum"><i class="kinddot"[^>]*><\/i>2 characters<\/span>/, 'COUNTS-KINDS: it counts the threads sent by kind');
   assert.match(opened, /words/, 'and how many words are in the scene');
-  assert.match(opened, /class="ctxicon" data-panel="context"[\s\S]*class="ctxkinds"[\s\S]*class="ctxicon" data-ctxthreads="1"/,
-    'COUNTS-ICONS: the context icon on the left, the threads icon on the right');
+  assert.match(opened, /class="ctxicon" data-ctxthreads="1"[\s\S]*class="ctxkinds"[\s\S]*class="ctxicon" data-panel="context"/,
+    'COUNTS-ICONS: the threads icon on the left, the context icon on the right (flipped 2026-11-01)');
   click({ ctxthreads: '1' }); await sleep(10);
   assert.strictEqual(html('sideBody').includes('data-onlyin="1" aria-pressed="true"'), true, 'THREADS-OPEN: the threads icon opens Threads on Sent now');
   assert.match(html('ctxread'), /data-ctxthreads="1" aria-pressed="true"/, '  and says it is open');
   click({ ctxthreads: '1' }); await sleep(10);
   assert.match(html('ctxread'), /data-ctxthreads="1" aria-pressed="false"/, 'THREADS-SHUT: a second press shuts it');
+  // SHUT, THE BAR IS DIMMER (Seth, 2026-11-01): a class on the bar while the numbers are away.
+  assert.ok(!nodes.get('ctxbar').classList.contains('shut'), 'BAR-OPEN: open, the bar is not dimmed further');
+  click({ ctxtoggle: '1' });
+  assert.ok(nodes.get('ctxbar').classList.contains('shut'), 'BAR-SHUT-DIM: shut, the bar takes the dimmer class');
+  click({ ctxtoggle: '1' });
+  {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+    assert.match(css, /#ctxbar\.shut i\.word \{ opacity:\.2; \}/, '  in which a word-woken one is dimmer than open');
+    assert.match(css, /#ctxbar i\.new \{ animation:sentblink 1\.4s ease-in-out 3; \}/, 'BLINK-CSS: a new one blinks three times, slowly');
+    assert.match(css, /justify-content:center/, 'CENTRED: the lines are centred');
+  }
+  // A THREAD THAT COMES IN BLINKS (Seth, 2026-11-01), and the ones already there do not.
+  assert.doesNotMatch(html('ctxbar'), /class="[^"]*\bnew\b/, 'BLINK-NOT-FIRST: nothing blinks on a drawing the bar has already seen');
+  const wasBlocks = MANIFEST.manifest.blocks;
+  MANIFEST.manifest.blocks = [...wasBlocks, { kind: 'CANON-TRIGGERED', id: 'e-2', text: '', tokens: 50, state: 'included', reason: 'keyword', firedBy: ['stair'] }];
+  click({ open: 's-1' }); await sleep(40);
+  assert.match(html('ctxbar'), /<i class="word new" data-kind="lore"/, `BLINK-NEW: the thread that came in blinks (${html('ctxbar')})`);
+  assert.strictEqual([...html('ctxbar').matchAll(/\bnew\b/g)].length, 1, '  and only it');
+  MANIFEST.manifest.blocks = wasBlocks;
+  click({ open: 's-1' }); await sleep(40);
   assert.match(opened, new RegExp(`room ${pct}% used`), 'and how much of his room is used, in those words');
   assert.match(opened, /data-panel="context"/, 'with the way through to the blocks behind it');
 

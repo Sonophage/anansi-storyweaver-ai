@@ -1092,11 +1092,19 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
   transition:background var(--t-slow) var(--ease); }
 /* A thread woken by a word is dimmed; always on is full. Nothing sent is one quiet line. */
 #ctxbar i.word { opacity:.4; }
+/* Shut, dimmer still (Seth, 2026-11-01). */
+#ctxbar.shut i.always { opacity:.55; }
+#ctxbar.shut i.word { opacity:.2; }
+/* A thread that has just come in blinks three times, slowly (BLINK_MS in app.js is its length). */
+#ctxbar i.new { animation:sentblink 1.4s ease-in-out 3; }
+@keyframes sentblink { 50% { opacity:.08; } }
 #ctxbar i.none { background:var(--rule); }
 /* The open numbers: the kinds sent between the context icon and the threads icon, then the words. */
 #ctxread .ctxline { display:flex; align-items:center; gap:inherit; flex-basis:100%; min-width:0; }
 #ctxread .ctxline + .ctxline { padding-top:4px; }
-#ctxread .ctxkinds { display:flex; flex-wrap:wrap; gap:6px 14px; flex:1 1 auto; min-width:0; }
+#ctxread .ctxkinds { display:flex; flex-wrap:wrap; justify-content:center; gap:6px 14px; flex:1 1 auto; min-width:0; }
+/* Both lines centred (Seth, 2026-11-01): the second has no icons, so it centres on its own. */
+#ctxread .ctxline + .ctxline { justify-content:center; }
 #ctxread .kinddot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; vertical-align:1px; }
 #ctxread .ctxicon { flex:0 0 auto; min-width:32px; min-height:32px; display:flex; align-items:center; justify-content:center;
   color:var(--label); border-radius:var(--r-pill); }

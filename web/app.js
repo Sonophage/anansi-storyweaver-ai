@@ -1164,8 +1164,22 @@ function drawMeter() {
   const sent = threadsSent();
   bar.setAttribute('aria-label', sent.length ? `${sent.length} ${sent.length === 1 ? 'thread' : 'threads'} sent now`
     : 'No threads sent now');
-  bar.innerHTML = sent.length ? sent.map(({ e, word }) =>
-    `<i class="${word ? 'word' : 'always'}" data-kind="${esc(e.entryType)}" style="background:${KIND_COLOR[e.entryType] ?? 'var(--rule)'}"></i>`).join('')
+  // A THREAD THAT HAS JUST COME IN BLINKS, three times slowly (Seth, 2026-11-01): one not on the bar's
+  // last drawing for this tale. Not on the first drawing of a tale, where every thread would. Its class
+  // lasts as long as the blink, so a later redraw does not start it again; the bar is rewritten only
+  // when its markup changes (`sameOrSet`), so a redraw mid-blink does not cut it.
+  const now = Date.now(), ids = sent.map(({ e }) => e.id);
+  // Only off this tale's own manifest: before it arrives the list is empty, and remembering that would
+  // make every thread blink when it does.
+  if (manifestNow()) {
+    if (SENT_SEEN.story !== S.storyId) SENT_SEEN.until.clear();
+    else for (const id of ids) if (!SENT_SEEN.ids.has(id)) SENT_SEEN.until.set(id, now + BLINK_MS);
+    SENT_SEEN.story = S.storyId; SENT_SEEN.ids = new Set(ids);
+  }
+  // SHUT, THE BAR IS DIMMER STILL (Seth, 2026-11-01): the lines step back while the numbers are away.
+  bar.classList.toggle('shut', !CTX_OPEN);
+  sameOrSet('ctxbar').innerHTML = sent.length ? sent.map(({ e, word }) =>
+    `<i class="${word ? 'word' : 'always'}${(SENT_SEEN.until.get(e.id) ?? 0) > now ? ' new' : ''}" data-kind="${esc(e.entryType)}" style="background:${KIND_COLOR[e.entryType] ?? 'var(--rule)'}"></i>`).join('')
     : '<i class="none"></i>';
 
   /* A HANDLE IN ITS PLACE UNTIL IT IS PRESSED (a ⌄ until Seth, 2026-10-30: "a small handle instead"). It was always open from 2026-09-02 ("have this always
@@ -1180,19 +1194,19 @@ function drawMeter() {
     ><span class="grip" aria-hidden="true"></span></button>`;
   if (!CTX_OPEN) { read.innerHTML = toggle; return; }
   /* OPEN: THE KINDS SENT, THEN THE WORDS (Seth, 2026-11-01). The first line counts the threads sent now
-   * by kind, each with its colour on the bar; the context icon on its left opens What is in it, and
-   * the threads icon on its right opens Threads on Sent now and shuts it again. The second line is the
-   * scene's words and how much of his room is used. */
+   * by kind, each with its colour on the bar; the threads icon on its left opens Threads on Sent now and
+   * shuts it again, and the context icon on its right opens What is in it (flipped the same day, Seth).
+   * The second line is the scene's words and how much of his room is used. Both lines centred. */
   const counts = KINDS.map((k) => [k, sent.filter((x) => x.e.entryType === k).length]).filter(([, n]) => n);
   const onThreads = S.panel === 'threads' && S.onlyIn && !S.entryId && !S.lore;
   read.innerHTML = `
     <div class="ctxline">
-      <button class="ctxicon" data-panel="context" aria-label="What is in it: the context" title="What is in it">${mark('context', 16)}</button>
+      <button class="ctxicon" data-ctxthreads="1" aria-pressed="${onThreads}" aria-label="${onThreads ? 'Shut' : 'Open'} the threads sent now"
+        title="Threads sent now">${mark('threads', 16)}</button>
       <span class="ctxkinds">${counts.length ? counts.map(([k, n]) => `<span class="tnum"><i class="kinddot" style="background:${
         KIND_COLOR[k]}"></i>${n} ${esc(n === 1 ? pocketTitle(k).toLowerCase() : KIND_PLURAL[k].toLowerCase())}</span>`).join('')
         : '<span>no threads sent</span>'}</span>
-      <button class="ctxicon" data-ctxthreads="1" aria-pressed="${onThreads}" aria-label="${onThreads ? 'Shut' : 'Open'} the threads sent now"
-        title="Threads sent now">${mark('threads', 16)}</button>
+      <button class="ctxicon" data-panel="context" aria-label="What is in it: the context" title="What is in it">${mark('context', 16)}</button>
     </div>
     <div class="ctxline">
       <span class="tnum">${words.toLocaleString()} words</span>
@@ -1203,6 +1217,11 @@ function drawMeter() {
     </div>
     ${toggle}`;
 }
+
+/** What the bar last drew, for the blink: the tale, the threads on it, and until when each new one
+ *  blinks. Three blinks of 1.4 s, the length `#ctxbar i.new` animates for in app.html. */
+const BLINK_MS = 4200;
+const SENT_SEEN = { story: null, ids: new Set(), until: new Map() };
 
 /** THE THREADS THE NEXT CALL HOLDS, in the kinds' order and always-on first within a kind, each with
  *  whether a word woke it. Off the manifest, as `inContext` reads it: a thread pushed out for space is

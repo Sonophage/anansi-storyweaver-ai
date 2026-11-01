@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-01 · The bar shows the threads Anansi is sent
 
+### A thread that comes in blinks
+When a thread joins what Anansi is sent, its piece of the bar blinks three times, slowly. While
+the numbers are shut, the bar is dimmer, so it stays out of the way. Open, the two lines are
+centred: the threads icon is on the left now, and What is in it on the right.
+
 ### The thin bar under the header is the threads sent now
 It used to show the scenes. Now it has one piece for each thread Anansi is sent on the next call,
 coloured by kind: characters, places, lore and items each have their own colour. A thread that is
