@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-01 · Hemming starts from what the next scene is
 
+### What you say the next scene is, kept
+If the app had been open since before this change, what you wrote for the next scene could be lost,
+and Anansi drafted the scene from nothing. It is kept now. And when you leave it empty, the drafts
+say Anansi chose the scene, not that they came from what you wrote.
+
 ### Hemming, smoother
 Start writing no longer writes the first passage for you when the scene has an opening: the opening
 waits in the box, in Direct, until you press Send. Pressing Done on who is in the next scene is

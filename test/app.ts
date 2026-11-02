@@ -8403,6 +8403,7 @@ const hemCardOf = (side: string) => {
     let side = html('sideBody');
     assert.match(side, /class="card hemdrafts[\s\S]*How it opens[\s\S]*At dawn, on the far bank\.[\s\S]*Where it is going[\s\S]*finds the bell waiting/,
       'DRAFTS: the hem shows the opening and where it is going, drafted from the brief');
+    assert.match(side, /The Far Bank, drafted from your brief/, 'DRAFTS-SAYS-BRIEF: and says so, as the scene has a brief');
     assert.match(side, /data-hemskip="opens"[\s\S]*data-setupat="premise"[\s\S]*data-hemuse="opens"/, '  each with Skip, Edit and Use');
     click({ hemuse: 'note', ch: 'c-br3' }); await settle();
     assert.match(html('sideBody'), /Where it is going: using it\./, 'DRAFTS-USE: Use folds that one');
@@ -8421,6 +8422,15 @@ const hemCardOf = (side: string) => {
     click({ savesetup: '1' }); await settle(); await settle();
     assert.deepStrictEqual([GENERATED.length, nodes.get('input').value], [0, OPENS],
       'START-WAITS: Start writing with an opening puts it in the box and sends nothing');
+    // NO BRIEF, NO CLAIM OF ONE (Seth, 2026-11-01: the scene "has nothing to do with the brief I
+    // wrote"). His words never arrived, and the card still said the drafts were from them.
+    HEM_VIEW = { ...HEM_VIEW, currentChapter: { ...HEM_VIEW.currentChapter, brief: null },
+      chapters: HEM_VIEW.chapters.map((x: any) => (x.id === 'c-br3' ? { ...x, brief: null } : x)) };
+    click({ open: 's-1' }); await settle();
+    click({ panel: 'ritual' }); await settle();
+    side = html('sideBody');
+    assert.ok(/class="card hemdrafts/.test(side) && !/from your brief/.test(side) && /Anansi chose The Far Bank/.test(side),
+      'DRAFTS-NO-BRIEF: with no brief on the scene, the card says Anansi chose it');
   } finally {
     (globalThis as any).fetch = canned;
   }

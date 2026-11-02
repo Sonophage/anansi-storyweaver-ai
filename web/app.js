@@ -4174,7 +4174,8 @@ function hemDrafts(ch) {
         <button class="btn ghost fill" data-panel="setup" data-setupat="premise">Edit</button>
         <button class="btn ghost fill" data-hemuse="${field}" data-ch="${esc(next.id)}">Use</button></div></div>`;
   return `<div class="card hemdrafts push-8">
-    <div class="lbl flush">${esc(sceneName(next))}, drafted from your brief</div>
+    <div class="lbl flush">${String(next.brief ?? '').trim() ? `${esc(sceneName(next))}, drafted from your brief`
+      : `Anansi chose ${esc(sceneName(next))}`}</div>
     ${part('How it opens', next.opensWith, 'opens')}
     ${part('Where it is going', next.authorsNote, 'note')}
     <div class="hint flush">The opening waits in the box as your first Direct. Skip it and the scene starts

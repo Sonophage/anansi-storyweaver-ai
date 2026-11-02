@@ -1556,6 +1556,26 @@ ok('with the scene after a hem deleted, its next-scene ask still reads the hemme
 }
 ok('the brief the writer sends from the hem is the scene\'s; it brings in who it names, by name to the people pass, and drafts the rest');
 
+// ---- A PAGE OPEN SINCE BEFORE THE BRIEF (Seth, 2026-11-01: the scene "has nothing to do with the brief
+// I wrote"). Until 2026-11-01 the hem's question sent the answer as `opens`; a tab not reloaded since
+// still does, and the route dropped it without a word. It is the brief.
+{
+  const t = db.createStory(me, { title: 'Stale page', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The ferry left.' });
+  tidied = { ...NEXT };
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false, ask: true }));
+  await hemSettled(t.id);
+  const opens = 'At dawn the ferryman comes back for his coat.';
+  const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', asked: true, opens }));
+  assert.ok(!v.error, v.error);
+  assert.strictEqual((db.chapters(t.id) as any[]).find((c) => c.id === r.opened).brief, opens,
+    'BRIEF-OLD-PAGE: what an old page sends as `opens` is kept as the brief');
+  await hemSettled(t.id);
+  tidied = {};
+}
+ok('the hem keeps the answer an old page sends as the brief');
+
 // ---- PAUSED UNTIL THE WRITER SAYS HOW THE NEXT SCENE STARTS (Seth, 2026-10-30) ----
 // A close that asks holds where the tale stands, the people and the next scene. What is held is kept
 // on the hem's row, so the screens can say so after a reload: asked while it is held, paused on the

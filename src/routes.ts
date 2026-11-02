@@ -3942,7 +3942,11 @@ export const routes: Record<string, Handler> = {
     // which read it from there (`hemPasses`). The next-scene pass drafts the opening and where it is
     // going from it (`offerScene` fills only an empty box), and the threads it names that are on a
     // word are brought into the scene. Not into a scene already being written.
-    const brief = pass === 'next' && String(c.body.brief ?? '').trim() ? String(c.body.brief).trim().slice(0, 2000) : '';
+    // `opens` IS THE BRIEF FROM A PAGE OPEN SINCE BEFORE IT (Seth, 2026-11-01): until then the question
+    // sent its answer as `opens`, and a tab not reloaded still does. Dropped, the hem drafted the scene
+    // from nothing and the writer's words were lost without a word.
+    const said = String(c.body.brief ?? c.body.opens ?? '').trim();
+    const brief = pass === 'next' && said ? said.slice(0, 2000) : '';
     if (brief && opened && !db.passagesOfChapter(opened).some((p: any) => !p.is_break && String(p.body ?? '').trim())) {
       db.updateChapter(storyId, opened, { brief });
       const pinned = new Set((db.pinsOf(storyId) as any[]).filter((p: any) => p.chapter_id === opened).map((p: any) => p.entry_id));
