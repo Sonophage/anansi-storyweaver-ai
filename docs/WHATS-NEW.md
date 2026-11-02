@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-02 · The library shows who is in your scene
 
+### Passages end near the length slider, and end properly
+When a passage reaches the length slider, Anansi lets it finish the sentence it is in, then asks
+for one or two sentences to close the moment. Passages no longer run far past the slider, and they
+end as an ending rather than being cut off. With the slider at its left end, nothing changes.
+
 ### Put the length slider into your own instructions
 In Account → Writing, your own wording for an action can say {{words}} where the length slider's
 number should go, for example "Write this in about {{words}} words". Anansi then sends your line

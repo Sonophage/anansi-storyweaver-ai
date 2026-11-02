@@ -1,5 +1,5 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
-import { count, chat, structured, structuredRetry, model, models, checkModel, allowList, modelFor, webSearch, searchConfigured,
+import { count, chat, LAND_SLACK, SENTENCE_END, structured, structuredRetry, model, models, checkModel, allowList, modelFor, webSearch, searchConfigured,
          releasable, unload, busyOn, isRemote, remoteReady, keyPathFor, REMOTE_PREFIX, askSwitchWith } from './llama.ts';
 import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound, RESULT_CAP,
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
@@ -1235,6 +1235,32 @@ const wove = (reply: { weaves: boolean; maxTokens: number },
  *  at under 0.9 18%. F64's arms ran at 0.95 in Continue, which is why its control echoed nothing. */
 export const REMOTE_REPETITION_PENALTY: number | null = null;
 
+/** WHERE A PASSAGE LANDS (Seth, 2026-11-02: "is there no other way to do it so that it knows that
+ *  only the response needs to be that long", then "build option 2"). A model cannot count words as it
+ *  writes: F65's limit line still ran 1.18x the slider, Omega-Directive-70B 1.31x live, one passage
+ *  2.98x. So the app counts. At the slider the passage is stopped (`land_words`, src/llama.ts), and
+ *  one short call hands the model what it wrote, as its own turn, and asks it to finish the moment.
+ *  The passage ends near the slider and reads as finished, not cut. NOT MEASURED: how long endings
+ *  run, and how well they close, on each model. */
+const LANDING = 'Stop here: this passage has reached its length. Finish the moment you are in, in one or '
+  + 'two sentences, carrying on from where the text above stops. Do not repeat or rephrase anything '
+  + 'already written. Write only those sentences.';
+/** The ending's own bounds: a cap the router and Featherless both hold (`remoteCap`), and a word stop
+ *  under it, past which the ending is trimmed to its last sentence like any cut answer. */
+const LAND_TOKENS = 120;
+const LAND_WORDS = 60;
+/** An answer that arrived whole, landed as a stream lands (`readSSE`): the slider's words, then on to
+ *  the end of that sentence, LAND_SLACK words at most. Whitespace and paragraphs kept. */
+const landAt = (text: string, n: number) => {
+  const words = text.match(/\S+\s*/g) ?? [];
+  let k = n;
+  while (k < words.length && k < n + LAND_SLACK && !SENTENCE_END.test(words.slice(0, k).join(''))) k++;
+  return words.slice(0, k).join('').trimEnd();
+};
+/** No space before an ending that opens on punctuation that closes something. A STRAIGHT quote opens a
+ *  line of dialogue there, so it takes the space: the first live try glued `strained,"Strangers`. */
+const joins = (ending: string) => /^[,.;:!?…’”)\]]/.test(ending) ? '' : ' ';
+
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
   // ASKING FOR THE NEXT PASSAGE CLAIMS WHAT IS ALREADY THERE — "only claimed after the next
@@ -1313,6 +1339,12 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   const asked = Number(c.body?.seed);
   const seed = Number.isSafeInteger(asked) && asked >= 0 ? asked : Math.floor(Math.random() * 2 ** 31);
   const t0 = Date.now();
+  // A passage lands at the slider (LANDING above). Not Talk, which is not a passage, and not with the
+  // slider off. `tail` is the last thing the page was sent, so the ending's first word is spaced right.
+  const target = Number(c.gen.target_words) || 0;
+  const lands = role === 'prose' && mode !== 'talk' && target > 0;
+  let tail = '';
+  const page = onDelta && ((d: string) => { tail = d; onDelta(d); });
   try {
     // The story's own model, or the process default. `chat` spreads opts over its own defaults,
     // so naming it here is all it takes — every call has always carried a model name.
@@ -1322,25 +1354,57 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
       { ...(isRemote(using) && REMOTE_REPETITION_PENALTY != null
           ? { repetition_penalty: REMOTE_REPETITION_PENALTY } : {}),
         ...c.gen, max_tokens: reply.maxTokens, seed, model: using,
-        chat_template_kwargs: { enable_thinking: reply.weaves } }, onDelta,
+        chat_template_kwargs: { enable_thinking: reply.weaves },
+        ...(lands ? { land_words: target } : {}) }, page,
       // Only the streaming call. `onDelta` is present exactly when there is a writer watching
       // this arrive, which is exactly when there is a Stop button to press.
       onDelta ? c.signal : undefined);
-    const ms = Date.now() - t0;
-    const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role,
-      // A weaving call says so, with the cap it was really sent and the plan's LENGTH — what the
-      // 5,000 is tuned from. The plan itself is never stored: it is never shown, and the row is.
-      params: { ...c.gen, seed, ms: appMs,
-                ...wove(reply, r) },
-      manifest, promptTokens: r.usage?.prompt_tokens,
-      completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
     // THE CEILING, so it still has to be visible when it fires. `capFor` puts it well
     // above anything measured, but a runaway can reach it — and until now that arrived as a
     // paragraph that stopped mid-word with nothing on screen to say why. Trimmed to the last
     // finished sentence so what lands reads as prose, and flagged so the writer is told it was
     // trimmed rather than left to wonder where the rest went.
-    const cut = r.finish === 'length';
-    const prose = cut ? trimToSentence(clean(r.prose)) : clean(r.prose);
+    let cut = r.finish === 'length';
+    let prose = cut ? trimToSentence(clean(r.prose)) : clean(r.prose);
+    // LANDED: stopped at the slider on a stream, or past it in an answer that came whole (a bench's).
+    // The model writes the ending. If that call fails, the passage is what a cut one was: trimmed to
+    // its last sentence and flagged. Stop, during the ending as during the passage, is Stop.
+    let landing: { at: number; ending: number } | null = null;
+    const raw = clean(r.prose);
+    if (lands && (r.finish === 'land' || (raw.match(/\S+/g) ?? []).length > target)) {
+      // A stream already stopped where it lands; cut again, it lost the words the page had shown.
+      const partial = r.finish === 'land' ? raw : landAt(raw, target);
+      let first = true;
+      try {
+        const e = await chat(SYSTEM, prompt.slice(SYSTEM.length), {
+          ...c.gen, seed, model: using, max_tokens: LAND_TOKENS, remoteCap: true, land_words: LAND_WORDS,
+          chat_template_kwargs: { enable_thinking: false },
+          messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: prompt.slice(SYSTEM.length) },
+                     { role: 'assistant', content: partial }, { role: 'user', content: LANDING }] },
+          onDelta && ((d: string) => {
+            if (first) { first = false; if (!/\s$/.test(tail) && !/^\s/.test(d) && joins(d.trimStart())) onDelta(' '); }
+            onDelta(d);
+          }), onDelta ? c.signal : undefined);
+        const ending = (e.finish === 'land' || e.finish === 'length') ? trimToSentence(clean(e.prose)) : clean(e.prose);
+        if (!ending) throw new Error('no ending');
+        prose = partial + joins(ending) + ending;
+        cut = false;
+        landing = { at: target, ending: (ending.match(/\S+/g) ?? []).length };
+      } catch (err: any) {
+        if (c.signal?.aborted || err?.name === 'AbortError') throw err;
+        prose = trimToSentence(partial);
+        cut = true;
+      }
+    }
+    const ms = Date.now() - t0;
+    const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role,
+      // A weaving call says so, with the cap it was really sent and the plan's LENGTH — what the
+      // 5,000 is tuned from. The plan itself is never stored: it is never shown, and the row is.
+      // A landed one says where it stopped and how long the ending ran; the usage is the passage's.
+      params: { ...c.gen, seed, ms: appMs,
+                ...wove(reply, r), ...(landing ? { landed: landing } : {}) },
+      manifest, promptTokens: r.usage?.prompt_tokens,
+      completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
     /* PERSISTED HERE, UNCLAIMED, WHEN SOMEBODY IS WATCHING — bugs.md #9.
      *
      * Seth: "i should be able to send and go elsewhere since the command already sent." Until now

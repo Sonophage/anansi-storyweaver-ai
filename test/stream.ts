@@ -141,6 +141,24 @@ await ok('the runaway guard counts prose words, not the plan', async () => {
   assert.strictEqual(r.reasoning, 'think '.repeat(6), 'with the plan kept');
 });
 
+/* THE SAME COUNT IS WHERE A PASSAGE LANDS (2026-11-02), on any model, local included: the stream
+ * stops at the slider and says `land`, so `generate` asks for the ending rather than trimming. */
+await ok('a stream past the slider finishes its sentence, then says it landed', async () => {
+  // A sentence ends at word 13: past the slider of 10, the stream runs to it and stops there.
+  const url = await serve(Array.from({ length: 30 }, (_, k) => delta(k === 12 ? 'end. ' : 'word ')));
+  const seen: string[] = [];
+  const r = await readSSE(await fetch(url, { method: 'POST' }), (d) => seen.push(d), 10, 'land');
+  assert.strictEqual(seen.length, 13, `LAND-SENTENCE: to the end of the sentence the slider fell in (${seen.length})`);
+  assert.ok(/end\.$/.test(r.prose), '  so the passage ends on its stop');
+  assert.strictEqual(r.finish, 'land', 'LAND-SAYS: and the stream ends as landed, not cut');
+  // No sentence end at all: it stops 40 words past the slider anyway.
+  const url2 = await serve(Array.from({ length: 80 }, () => delta('word ')));
+  const seen2: string[] = [];
+  const r2 = await readSSE(await fetch(url2, { method: 'POST' }), (d) => seen2.push(d), 10, 'land');
+  assert.strictEqual(seen2.length, 50, `LAND-SLACK: with no stop in sight, 40 words past the slider at most (${seen2.length})`);
+  assert.strictEqual(r2.finish, 'land', '  and still landed');
+});
+
 await ok('a frame split across two reads is not dropped', async () => {
   const whole = delta('sideways off the water');
   const cut = Math.floor(whole.length / 2);
