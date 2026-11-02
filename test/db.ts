@@ -4540,6 +4540,19 @@ ok('a new thread starts with one good single-word keyword', () => {
   assert.deepStrictEqual(db.oneKeyword('Tessa', ['Halsey', 'assistant'], ['Halsey']), ['assistant'],
     'ONE-KEY-NOT-OTHERS: never another thread\'s name');
   assert.deepStrictEqual(db.oneKeyword('The Two Fingers', ['the', 'of']), ['Fingers'], '  and never a common word');
+  // THE TITLE, WHEN IT IS THE NAME THE PROSE WRITES (Seth, 2026-11-01: "The title can always be used as
+  // a tag"). A key of several words fires when all of them are on the page in order, so a short name
+  // that is not a person ("Iron Hands") is its own best key; one with an epithet in it is, only when the
+  // prose writes it whole. A person keeps one word: "Magnus the Red" never fires on "Magnus".
+  assert.deepStrictEqual(db.oneKeyword('Iron Hands', [], [], 'lore'), ['Iron Hands'], 'TITLE-KEY-SHORT: a short name is its own key');
+  assert.deepStrictEqual(db.oneKeyword('The Long Stair', ['stair'], [], 'place'), ['Long Stair'], '  without its article');
+  assert.deepStrictEqual(db.oneKeyword('Sisters of Silence', [], [], 'lore'), ['Silence'], 'TITLE-KEY-EPITHET: one with "of" in it is not, unwritten');
+  assert.deepStrictEqual(db.oneKeyword('Sisters of Silence', [], [], 'lore', () => true), ['Sisters of Silence'],
+    'TITLE-KEY-WRITTEN: and is, when the prose writes it whole');
+  assert.deepStrictEqual(db.oneKeyword('Magnus the Red', ['Magnus the Red'], [], 'character', () => true), ['Magnus'],
+    'TITLE-KEY-PERSON: a person keeps one word of their name');
+  assert.deepStrictEqual(db.oneKeyword('Oleander Relationship With Magnus', [], ['Oleander', 'Magnus'], 'lore'),
+    ['Oleander Relationship With Magnus'], 'TITLE-KEY-LAST: with no good word, the title');
   const me = db.owner('onekey-owner');
   const st = db.createStory(me, { title: 'One key' });
   const ch = (db.chapters(st.id)[0] as any).id;

@@ -488,9 +488,9 @@ ok('an invented thread lands in the proposals queue, not in the ledger');
   assert.match(said, /never say it back word for word/,
     'and it has to say the body is material to write from rather than a line to quote');
   // F27 kept keys from repeating the title, which came back as whole titles ("The Synod of the
-  // Hollow"). Since 2026-11-01 (Seth: "when it starts is one good keyword") the ask is ONE single word,
-  // its name as the prose says it, and `oneKeyword` holds the floor: one word, never a whole title.
-  assert.match(said, /ONE single word/,
+  // Hollow"). Since 2026-11-01 (Seth: "when it starts is one good keyword") the ask is ONE keyword, a
+  // person's name in one word or a thing's name as the prose writes it, and `oneKeyword` holds the floor.
+  assert.match(said, /ONE keyword/,
     'the keys instruction that F27 says the model still sometimes ignores must not go missing '
     + 'while the body is being widened');
   ok('an invented entry is asked for as a jumping-off point, in the room one needs');
@@ -717,7 +717,7 @@ ok('a kind that does not exist is refused rather than assembled');
     'CAST-WAKE: a person starts Always on; lore wakes on a word');
   assert.strictEqual(vel.activation, 'always_on', 'CAST-WAKE: made, the person is Always on');
   assert.strictEqual(stair.activation, 'triggered', '  and the lore is on a word');
-  assert.deepStrictEqual(JSON.parse(stair.keys), ['Stair'], 'CAST-ONE-KEY: one word of its name, the head of it (2026-11-01)');
+  assert.deepStrictEqual(JSON.parse(stair.keys), ['Long Stair'], 'CAST-ONE-KEY: one keyword, its short name without the article (2026-11-01)');
 
   // #86 · WHO YOU PLAY IS THE WRITER'S, decided a step before the threads. The fake still names a
   // persona and somebody not in the cast; neither reaches the wizard, because the model was not asked.
