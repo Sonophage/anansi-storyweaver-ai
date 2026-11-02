@@ -3161,3 +3161,55 @@ runaways and a length cost; this found no echo to reduce. The echo Seth saw stay
 
 **Harness.** `bench/repetition.ts` (check mode in test/all.ts). The scratch copy was deleted by the
 bench on exit; no prose from the run was kept.
+
+## F65 — saying the slider's length as a target ("in N words") ran longer than the app's limit on every action: median 1.41x the slider against 1.18x, and 2 of 40 within 20% against 24 of 40 (2026-11-02)
+
+**The question.** The length slider reaches the model as a line the app appends to the action's
+instruction: "Write no more than N words. Stop sooner if the beat is done." Seth asked for a
+shortcode so his own wording can carry the number, and proposed "write it in that many words" in
+place of the stopping lines. Does stating the length as a target land closer to the slider?
+
+**The measure.** Words in the generated prose (`\S+`, dialogue included), divided by the slider.
+Two summaries per arm: the median ratio, and how many takes land within 20% of the slider (240 to
+360 words at 300). The arms are the same prompts but for the length line, read back from
+`POST /api/manifest` before any generation; the run refuses to start if either arm is not the
+intended treatment.
+
+**The run.** `bench/wordsab.ts 8`, 2026-11-02, two scratch servers on two copies of the library,
+one per arm, generating simultaneously against the local router (one slot each). Book *ENCORE*,
+scene 8, pinned on the copies to Qwen3.6-WNTH-35B-A3B-NN; slider 300. Seth's own saved prompts for
+the five actions. Arm A: as saved, plus the app's line. Arm B: `{{words}}` in his wording ("Write
+this beat in {{words}} words." in place of Continue's "Stop when the beat lands, even if that is
+three sentences."; "Write this in {{words}} words." in place of Narrate's stopping line, and added
+at the end of Speak, Act and Direct), so the app's line is not sent. 8 takes per action per arm,
+80 calls, 0 failed; every take deleted after it was counted.
+
+| action | A: "no more than" median | B: "in N words" median | A within ±20% | B within ±20% | over 300 (A / B) |
+|---|---|---|---|---|---|
+| continue | 385 (1.28x) | 437 (1.46x) | 3 of 8 | 0 of 8 | 8 / 8 |
+| direct | 323 (1.08x) | 412 (1.37x) | 6 of 8 | 1 of 8 | 7 / 8 |
+| speak | 355 (1.18x) | 425 (1.42x) | 5 of 8 | 0 of 8 | 8 / 8 |
+| act | 314 (1.05x) | 424 (1.41x) | 8 of 8 | 1 of 8 | 5 / 8 |
+| narrate | 401 (1.34x) | 407 (1.36x) | 2 of 8 | 0 of 8 | 7 / 8 |
+| **all** | **353 (1.18x)** | **424 (1.41x)** | **24 of 40** | **2 of 40** | **35 / 40** |
+
+**What this settles.** On this model and book, a target runs long and a limit runs less long:
+B's median is above A's on every action, and B put every one of its 40 takes over the slider. It
+is F18 and F29 again from the other side: a length named as something to reach is reached and
+passed. The older "Aim for roughly N words" ran 1.44x over 439 live passages, which is where B
+lands. Narrate is the exception in degree, not direction: about level (401 against 407).
+
+**What it does not settle.**
+- Both arms overshoot. A limit is closer, not obeyed: 35 of 40 limit takes still ran over. The
+  live library since 2026-10-29 agrees, 1.10x median over 208 passages with the slider set, on
+  mixed models and counted after the writer's edits. Asking for less than the slider shows, to land
+  on it, is a separate treatment and is not measured.
+- One model, one book, one scene, one slider setting, n = 8 per action per arm.
+
+**What changed.** The app keeps its limit line as the default; Seth's saved prompts were not
+changed. `{{words}}` shipped as the writer's own placeholder (`src/context.ts`): where a wording
+holds it, it is the slider's number and the app's line is not added; with the slider off the line
+holding it is dropped. The shipped prompts still name no length.
+
+**Harness.** `bench/wordsab.ts`, against scratch copies only (it rewrites prompts, the slider and the
+tale's model pin on the servers it talks to). `0` runs sets up and verifies without generating.
