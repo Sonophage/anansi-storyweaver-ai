@@ -93,11 +93,19 @@ await page.eval("(() => { document.getElementById('input').value = ''; return 1;
 
 // ---- 5. Speak and Act happen AS someone, and the cast is offered
 ok("Speak offers who you are speaking as", await page.visible('#asWhom'));
-const opts = await page.eval("[...document.querySelectorAll('#asWhom option')].map(o => o.text).join('|')");
+// A PICKER SINCE 2026-11-02, not a select: the press opens it, search first, then the rows.
+await page.click('#asWhom');
+await wait(300);
+const opts = await page.eval("[...document.querySelectorAll('#playlist [data-play]')].map(o => o.textContent.trim()).join('|')");
 console.log("  as whom: " + opts);
+ok("  the picker opens with its search first", await page.eval(
+  "(() => { const p = document.getElementById('playpick'); return !!p && p.firstElementChild?.id === 'playq'; })()"));
 ok("  defaulting to the point-of-view character", await page.eval(
-  "document.querySelector('#asWhom').selectedOptions[0].value === ''"));
-ok(`  and offering the cast (${opts.split('|').length} options)`, opts.split('|').length > 1);
+  "document.querySelector('#playlist [data-play=\"\"]')?.getAttribute('aria-current') === 'true'"));
+ok(`  and offering the cast (${opts.split('|').length} rows)`, opts.split('|').length > 1);
+await page.click('#asWhom');
+await wait(300);
+ok("  and the same press shuts it", await page.eval("!document.getElementById('playpick')"));
 await page.mode('direct');
 await wait(300);
 ok("Direct has no 'as whom' — an instruction is not spoken by anyone", !(await page.visible('#asWhom')));
@@ -139,11 +147,13 @@ ok(`a retired mode name degrades instead of erroring (${JSON.stringify(stale.sli
 // ---- 7. the speaker reaches the prompt through the UI's own selector, not just the API
 await page.mode('speak');
 await wait(300);
-const cast = await page.eval("[...document.querySelectorAll('#asWhom option')].map(o => o.value).filter(Boolean)[0]");
+await page.click('#asWhom');
+await wait(300);
+const cast = await page.eval("[...document.querySelectorAll('#playlist [data-play]')].map(o => o.dataset.play).filter(Boolean)[0]");
 if (cast) {
-  await page.eval("(() => { const el = document.getElementById('asWhom'); el.value = "
-    + JSON.stringify(cast) + "; el.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()");
+  await page.click(`#playlist [data-play=${JSON.stringify(cast)}]`);
   await wait(900);
+  ok(`  a pick shuts the picker`, await page.eval("!document.getElementById('playpick')"));
   ok(`picking someone else changes the placeholder (${JSON.stringify(cast)})`,
      (await page.eval("document.getElementById('input')?.placeholder") || '').includes(cast));
   ok("  and the line you were writing survives it",

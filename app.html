@@ -1168,7 +1168,7 @@ html[data-ui-hwkb="1"] #dock { --hwkb-air:10px; }
    control away, so the caret is drawn here: an inline SVG in a background, which costs no element
    and keeps the whole pill clickable. A caret in a span beside the select would have been a strip
    of the control that does not open it.
-   The name select is the one exception to the pill: it is the second half of a phrase the dial
+   The name (a button since 2026-11-02) is the one exception to the pill: it is the second half of a phrase the dial
    starts, so it is set as text in the accent rather than as a second button. */
 /* FONT-FAMILY DOES NOT INHERIT INTO A FORM CONTROL. Both of these came out in Arial at 11px
    until it was stated — the one thing a select will not take from the page. */
@@ -1241,7 +1241,7 @@ html[data-ui-mode="narrate"] #modes select[data-modesel] { --dial:var(--m-narrat
 #modes select.dial:focus-visible { outline:1px solid var(--gold); outline-offset:2px; }
 /* THE OPEN LIST, WITHOUT base-select: two properties are all the platform will take, and left alone
    it is white with black text on a dark theme. This is the floor, and every engine gets it. */
-#modes select.dial option, #asWhom option { background:var(--sheet); color:var(--ink);
+#modes select.dial option { background:var(--sheet); color:var(--ink);
   /* `text-transform:none`, and it used to name the font-variant property instead — the label style
      moved between the two on 2026-09-03, and a reset naming the one nothing sets any more undoes
      nothing. These are the names of people and modes in an open list; shouting them is not the same
@@ -1260,34 +1260,46 @@ html[data-ui-mode="narrate"] #modes select[data-modesel] { --dial:var(--m-narrat
    THE CARET STAYS THE BACKGROUND IMAGE, so `::picker-icon` is hidden: base-select adds a triangle
    of its own, and two carets on one control is worse than the default was. */
 @supports (appearance: base-select) {
-  #modes select.dial, #asWhom { appearance:base-select; }
+  #modes select.dial { appearance:base-select; }
   /* THE PLATFORM'S OWN CARET, SHOWN AND TINTED, rather than the baked-gold background above: this
      one is an element, so it takes `color` and follows the mode with the label — which is the whole
      of Seth's ask about the button and its text matching. The background image is dropped here so
      there is one caret, not two. */
-  #modes select.dial, #asWhom { background-image:none; }
+  #modes select.dial { background-image:none; }
   #modes select.dial::picker-icon { color:var(--dial, var(--gold)); opacity:1; }
-  #asWhom::picker-icon { display:none; }
-  #modes select.dial::picker(select), #asWhom::picker(select) {
+  #modes select.dial::picker(select) {
     appearance:base-select; background:var(--sheet); border:1px solid var(--gold-dim);
     border-radius:var(--r); padding:6px; margin-top:6px; min-width:anchor-size(width);
     box-shadow:0 24px 60px rgba(0,0,0,.72); }
-  #modes select.dial option, #asWhom option {
+  #modes select.dial option {
     background:transparent; color:var(--ink); padding:8px 12px; border-radius:var(--r-tight);
     font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
   /* The row under the pointer and the row you are on, in the accent — the same tint the mode
      buttons used to carry when one of four was selected. */
-  #modes select.dial option:hover, #asWhom option:hover,
-  #modes select.dial option:focus, #asWhom option:focus {
+  #modes select.dial option:hover,
+  #modes select.dial option:focus {
     background:rgba(217,178,106,.12); color:var(--gold-lit); }
-  #modes select.dial option:checked, #asWhom option:checked { color:var(--gold-lit); }
-  #modes select.dial option::checkmark, #asWhom option::checkmark { color:var(--gold); }
+  #modes select.dial option:checked { color:var(--gold-lit); }
+  #modes select.dial option::checkmark { color:var(--gold); }
 }
 /* The four modes were `#modes button[aria-pressed]` — an underline under the one you were in. One
    control cannot underline itself to say which of its own options is chosen, so the pill is the
    selected state and the label inside it is what it says. */
 #asWhom { color:var(--gold); font-size:11.5px; letter-spacing:.06em; text-transform:none;
-  background:none; border:0; max-width:min(46vw, 260px); text-overflow:ellipsis; }
+  background:none; border:0; max-width:min(46vw, 260px); text-overflow:ellipsis; overflow:hidden; }
+/* THE YOU PLAY PICKER (playPicker in app.js, 2026-11-02): search, then In this scene, then Everyone
+   else. In the dock's own flow above the mode row, so it opens upward from the press and nothing can
+   clip it; the list scrolls inside it. The sheet and edge the dial's open menu wears. */
+#playpick { display:flex; flex-direction:column; gap:8px; padding:10px; border:1px solid var(--gold-dim);
+  border-radius:var(--r); background:var(--sheet); box-shadow:0 24px 60px rgba(0,0,0,.5); }
+#playpick > .field { margin:0; }
+#playlist { display:flex; flex-direction:column; max-height:min(40vh, 320px); overflow-y:auto; }
+#playlist .playhead { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--label);
+  padding:8px 12px 4px; }
+#playlist .playrow { display:block; width:100%; min-height:44px; padding:8px 12px; text-align:left;
+  font-size:13px; color:var(--ink); border-radius:var(--r-tight); }
+#playlist .playrow:hover, #playlist .playrow:focus-visible { background:rgba(217,178,106,.12); color:var(--gold-lit); }
+#playlist .playrow[aria-current] { color:var(--gold-lit); box-shadow:inset 2px 0 0 var(--gold); }
 /* IT WRAPS RATHER THAN SCROLLING SIDEWAYS. It was overflow-x:auto with scrollbar-width:none — so
    when the row did not fit it scrolled with nothing on screen saying so, and a control past the
    edge was a control you had no reason to believe existed. It fits at 360px in the shipped sizes,

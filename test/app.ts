@@ -1358,6 +1358,45 @@ pickMode('narrate');
 assert.doesNotMatch(html('dockCol'), /asWhom/, 'nor Narrate');
 pickMode('speak');
 assert.match(html('dockCol'), /id="asWhom"/, 'and Speak brings it back');
+
+// THE YOU PLAY PICKER (Seth, 2026-11-02: "only active cards up top, and then the rest below it with a
+// search function"). It was a select of every character. Now a press opens a picker: search first,
+// then you and the characters sent in this scene, then the rest. In the fixture Envoy Sereth is sent
+// always, the lamplighter is woken by a word, and Coyle is not sent.
+{
+  assert.match(html('dockCol'), /<button[^>]*id="asWhom"[^>]*>[^<]*Ilva Marren/, 'who you play is a button naming them');
+  click({ playpick: '1' });
+  await sleep(20);
+  const pick = html('dockCol').match(/<div id="playpick"[\s\S]*$/)?.[0] ?? '';
+  const rows = (h: string) => [...h.matchAll(/data-play="([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(pick.includes('id="playq"') && pick.indexOf('id="playq"') < pick.indexOf('data-play='), 'the search is first');
+  assert.deepStrictEqual(rows(pick), ['', 'Envoy Sereth', 'The lamplighter', 'Coyle'],
+    'you, then the characters sent in this scene, then the rest');
+  assert.ok(pick.indexOf('In this scene') < pick.indexOf('data-play=""')
+    && pick.indexOf('data-play="The lamplighter"') < pick.indexOf('Everyone else')
+    && pick.indexOf('Everyone else') < pick.indexOf('data-play="Coyle"'), 'under two headings');
+  assert.match(pick, /data-play=""[^>]*aria-current="true"/, 'who you play now is marked');
+  typeIn('playq', 'coy');
+  await sleep(10);
+  assert.deepStrictEqual(rows(html('playlist')), ['Coyle'], 'typing narrows both groups');
+  typeIn('playq', 'zzz');
+  await sleep(10);
+  assert.match(html('playlist'), /No one by that name/, 'and says so when nobody matches');
+  const before = POSTED.length;
+  click({ play: 'Envoy Sereth' });
+  await sleep(30);
+  assert.doesNotMatch(html('dockCol'), /id="playpick"/, 'a pick closes the picker');
+  assert.match(html('dockCol'), /<button[^>]*id="asWhom"[^>]*>[^<]*Envoy Sereth/, 'and the button names who you play now');
+  assert.ok(POSTED.slice(before).some((p) => p.url === '/api/manifest' && p.body.speaker === 'Envoy Sereth'),
+    'and the next call is built as them');
+  click({ playpick: '1' });
+  await sleep(20);
+  assert.doesNotMatch(html('dockCol'), /value="zzz"/, 'a picker opened again starts with an empty search');
+  click({ play: '' });
+  await sleep(30);
+  assert.match(html('dockCol'), /<button[^>]*id="asWhom"[^>]*>[^<]*Ilva Marren/, 'and picking you goes back to you');
+}
+ok('You play is a picker: search first, then who is in this scene, then everyone else');
 // The tint follows the mode, and it follows it on the ROOT — which means the attribute has to be
 // rewritten by the thing that draws the row. Written in applyLook it went stale the moment you
 // pressed a different mode, and Act kept its tinted, rounded background after you had left it.

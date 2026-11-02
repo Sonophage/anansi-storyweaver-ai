@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-02 · The library shows who is in your scene
 
+### Picking who you play starts with who is in the scene
+In Speak and Act, pressing the name beside the mode opens a list with a search box at the top.
+Under it are you and the characters in this scene, then everyone else. Type a few letters to find
+someone further down.
+
 ### Where you left off shows the threads in your scene
 The row of bars under the title on the library used to count your scenes. It now shows the threads
 that are sent in the scene you last worked on, the same bar you see under a tale's header: one line

@@ -224,7 +224,7 @@ const S = {
   place: 'workspace', wpage: 'stories', panel: null, modelPick: null, drawn: null,
   // #22 §3 and §4. Which books this page spans, and which room inside a kind. `ledgerBook` is
   // null for the whole shelf; `ledgerSlot` is null for every room of the picked kind.
-  ledgerBook: undefined, ledgerSlot: null, mode: 'speak', speaker: null, bigInput: false, arrived: null, seam: null,
+  ledgerBook: undefined, ledgerSlot: null, mode: 'speak', speaker: null, playPick: false, playQ: '', bigInput: false, arrived: null, seam: null,
   rail: !overlay(), storyId: null, busy: false, appearance: false, query: '',
   // WHICH menu the rail is showing, which is not the same question as where you are. The menu
   // button asks for the workspace one from inside a story; the story's name asks for the story
@@ -635,7 +635,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // Merge two threads: open it, pick the other, pick which stays, Cancel, Merge.
   'mergestart', 'mergewith', 'mergekeep', 'mergex', 'mergego',
   // The hem's ask for the next scene, and who is in it (2026-10-30).
-  'hemnext', 'hemwhodone', 'hemwhoagain', 'hemresume', 'droppocket'].map((k) => `[data-${k}]`).join(',');
+  'hemnext', 'hemwhodone', 'hemwhoagain', 'hemresume', 'droppocket',
+  // You play: open the picker, and pick (2026-11-02).
+  'playpick', 'play'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -1236,6 +1238,31 @@ const SENT_SEEN = { story: null, ids: new Set(), until: new Map() };
  *  whether a word woke it. Off the manifest, as `inContext` reads it: a thread pushed out for space is
  *  not here. The tale's own thread is the premise block, not a thread on this list. */
 const threadsSent = () => sentOf(manifestNow(), V?.entries);
+
+/** WHO YOU PLAY, PICKED (Seth, 2026-11-02: "only active cards up top, and then the rest below it with
+ *  a search function to bring one up that way if needed"). Search first; then you and the characters
+ *  sent in this scene (`threadsSent`, the bar's own list); then every other character. The search
+ *  narrows both groups. `playList` is redrawn alone on a keystroke, so the box keeps its focus. */
+function playList() {
+  const me = V?.story.persona || 'you';
+  const q = S.playQ.trim().toLowerCase();
+  const hit = (t) => !q || t.toLowerCase().includes(q);
+  const here = threadsSent().filter(({ e }) => e.entryType === 'character' && e.title !== me).map(({ e }) => e.title);
+  const rest = (V?.entries ?? []).filter((e) => e.entryType === 'character' && e.title !== me && !here.includes(e.title))
+    .map((e) => e.title);
+  const row = (value, label) => `<button class="playrow" data-play="${esc(value)}"${
+    (value || null) === (S.speaker || null) ? ' aria-current="true"' : ''}>${label}</button>`;
+  const top = [...(hit(me) ? [row('', `${esc(me)} <span class="muted-sm">(you)</span>`)] : []),
+    ...here.filter(hit).map((t) => row(t, esc(t)))];
+  const low = rest.filter(hit).map((t) => row(t, esc(t)));
+  if (!top.length && !low.length) return '<div class="hint flush">No one by that name.</div>';
+  return `${top.length ? `<div class="playhead">In this scene</div>${top.join('')}` : ''}${
+    low.length ? `<div class="playhead">Everyone else</div>${low.join('')}` : ''}`;
+}
+const playPicker = () => `<div id="playpick" role="dialog" aria-label="Who you play">
+  <input type="search" id="playq" class="field" placeholder="Search…" aria-label="Search who you play"
+    autocomplete="off" value="${esc(S.playQ)}">
+  <div id="playlist">${playList()}</div></div>`;
 
 /** The bar's segments, one per thread sent, coloured by kind; a woken one dimmed. The bar under a
  *  tale's header and the library's hero both draw these (2026-11-02). `isNew` marks the blink. */
@@ -2507,12 +2534,11 @@ function drawDock() {
   // Speak and Act happen AS someone. Everyone else in the story is fair game, which is what the
   // `speaker` column on a passage has always been for — there was simply no way to set it.
   const asWhom = S.mode === 'speak' || S.mode === 'act';
-  const cast = (V?.entries ?? []).filter((e) => e.entryType === 'character');
   const me = V?.story.persona || 'you';
   const who = S.speaker || me;
 
   // WHO you are speaking or acting as is drawn INSIDE the rail now, beside the dial that says
-  // which of the two you are in — see the note on the select below. The strip that used to carry
+  // which of the two you are in — see the note on the You play button below. The strip that used to carry
   // it, #asRow, is gone: it spanned the dock above the rail from 2026-08-27, and it existed
   // because the name was cramped at the end of a rail of seven controls. The rail has two.
   //
@@ -2528,6 +2554,7 @@ function drawDock() {
          above the box, small or full screen, drawn by the one renderer the setup's Talk also uses
          (`talkDock`); under it the drafted directive, a refusal's row, and Talk's own row. */
       S.dockTalk ? talkDock(S.talk, false) : ''}
+    ${asWhom && S.playPick ? playPicker() : ''}
     <div id="modes">
       <!-- ONE DIAL, NOT FOUR BUTTONS. Seth, 2026-09-02: "make speak, act, direct and narrate into
            a drop down. the selection should look like a button." Four modes on a rail alongside
@@ -2557,13 +2584,12 @@ function drawDock() {
            END of a rail of seven it read as one more mode and ran out of room on a narrow window —
            Seth then: "right now its awkwardly placed". Beside the dial it is neither: the dial says
            Speak, this says who you play, and nothing else is on that side of the row. The word
-           You play is hidden on a phone, where the row has no room; the select keeps it as its
-           label there. -->
-      ${asWhom ? `<span class="playlbl" aria-hidden="true">You play</span><select id="asWhom" aria-label="You play">
-        <option value=""${S.speaker ? '' : ' selected'}>${esc(me)}</option>
-        ${cast.filter((e) => e.title !== me).map((e) => `<option value="${esc(e.title)}"${
-          e.title === S.speaker ? ' selected' : ''}>${esc(e.title)}</option>`).join('')}
-      </select>` : ''}
+           You play is hidden on a phone, where the row has no room; the button keeps it in its aria-label. -->
+      ${/* A BUTTON THAT OPENS A PICKER, NOT A SELECT (Seth, 2026-11-02: "only active cards up top, and
+           then the rest below it with a search function"). A select cannot search or group, so the
+           press opens playPicker above this row. NO BACKTICKS IN THIS COMMENT. */
+        asWhom ? `<span class="playlbl" aria-hidden="true">You play</span><button id="asWhom" data-playpick="1"
+        aria-haspopup="dialog" aria-expanded="${S.playPick}" aria-label="You play: ${esc(who)}">${esc(who)} &#9662;</button>` : ''}
       <!-- THE THREADS DIAL CAME OFF THIS ROW, #71 round two (Seth, 2026-10-25). The tale's title in
            the header opens this tale's Threads now, and Add, which the dial's second option was, is
            the plus at the top of that list. NO BACKTICKS IN THIS COMMENT. -->
@@ -12223,10 +12249,28 @@ document.addEventListener('click', async (e) => {
   // <html> and <body> can never be an action. They carry the look and the rail state, and a
   // closest() that walked up to them turned every click in the app into a rail toggle.
   if (t === root || t === document.body) return;
-  if (!t) { if (S.appearance && !e.target.closest('#appearance')) { S.appearance = false; drawAppearance(); drawBar(); } return; }
+  if (!t) {
+    if (S.appearance && !e.target.closest('#appearance')) { S.appearance = false; drawAppearance(); drawBar(); }
+    // A tap off the You play picker shuts it, as one off the look card does.
+    if (S.playPick && !e.target.closest('#playpick')) { S.playPick = false; drawDock(); }
+    return;
+  }
   const d = t.dataset;
 
   if (d.expand) { t.setAttribute('aria-expanded', t.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); return; }
+  // YOU PLAY (playPicker): the button opens and shuts it, with an empty search; a row is who you play.
+  if (d.playpick) {
+    S.playPick = !S.playPick; S.playQ = ''; drawDock();
+    if (S.playPick && matchMedia('(hover:hover)').matches) $('playq')?.focus?.();
+    return;
+  }
+  if (d.play !== undefined) {
+    S.speaker = d.play || null; S.playPick = false; S.playQ = ''; drawDock();
+    const [, , ph] = MODES.find((m) => m[0] === S.mode) ?? MODES[0];
+    if ($('input')) $('input').placeholder = ph(S.speaker || V?.story.persona || 'you');
+    refreshManifest();
+    return;
+  }
   /* A FOLDED EXPLANATION, opened where it stands. See tipMark for why this does not paint: the
    * panels these are on are made of typed boxes that save after a pause, and a paint inside the
    * pause puts back the stored text. The state is written too, so
@@ -15830,13 +15874,6 @@ document.addEventListener('change', (e) => {
     S.mode = e.target.value; drawDock(); refreshManifest();
     return;
   }
-  if (e.target.id === 'asWhom') {
-    S.speaker = e.target.value || null;
-    const [, , ph] = MODES.find((m) => m[0] === S.mode) ?? MODES[0];
-    if ($('input')) $('input').placeholder = ph(S.speaker || V?.story.persona || 'you');
-    refreshManifest();
-    return;
-  }
   /* A CARD FROM A FILE. It fills the paste box rather than posting straight away, so the last thing
    * before a write is still a press — and so a file that turns out to be the wrong one can be read,
    * seen and abandoned. Read in the browser: nothing is uploaded anywhere but this app. */
@@ -16221,6 +16258,11 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'seedq') {
     S.seedQ = e.target.value;
     const box = $('seeds'); if (box) box.innerHTML = seedList();
+    return;
+  }
+  if (e.target.id === 'playq') {
+    S.playQ = e.target.value;
+    if ($('playlist')) $('playlist').innerHTML = playList();
     return;
   }
   if (e.target.id === 'lq') {
