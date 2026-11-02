@@ -68,7 +68,7 @@ await until(`(async () => (await (await fetch('/api/story?story=${sid}')).json()
 // dot and "hemmed" beside a red report of what did not run.
 await page.goto(B + "/#" + sid + "/setup");
 await wait(900);
-await page.eval("(() => { const b = [...document.querySelectorAll('#sideBody [data-setupstep]')].find((x) => /The next scene/.test(x.textContent)); if (b) b.click(); return !!b; })()");
+await page.eval("(() => { const b = [...document.querySelectorAll('#sideBody [data-setupstep]')].find((x) => /The brief/.test(x.textContent)); if (b) b.click(); return !!b; })()");
 await wait(700);
 const row = await page.eval("(() => { const r = document.querySelector('#sideBody button[data-panel=\"ritual\"]');"
   + " return r ? { text: r.textContent.replace(/\\s+/g, ' ').trim(), dot: r.querySelector('span').getAttribute('style') } : null; })()");

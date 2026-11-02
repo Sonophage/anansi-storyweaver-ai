@@ -243,7 +243,7 @@ const S = {
   merge: null,
   // The ritual's three steps, and the kind chip on the third. Null means "premise", which is what
   // a cold load at #story/setup opens on: only a chapter close starts at the top.
-  setupStep: null, setupKind: 'character', setupSteer: '', propKind: 'all', models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', threadQ: '', ctxView: 'blocks',
+  setupStep: null, setupKind: 'character', propKind: 'all', models: null, allow: [], stats: null, ledgerKind: 'all', ledgerQ: '', threadQ: '', ctxView: 'blocks',
   fieldHistory: null, confirmDelete: false, confirmDel: null, spark: null, ritual: null, setup: null,
   // Issue #38. The passage whose re-roll instruction is open for editing, and the text in it.
   // Null means no editor is open, which is every press on an undirected passage.
@@ -635,7 +635,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // Merge two threads: open it, pick the other, pick which stays, Cancel, Merge.
   'mergestart', 'mergewith', 'mergekeep', 'mergex', 'mergego',
   // The hem's ask for the next scene, and who is in it (2026-10-30).
-  'hemnext', 'hemwhodone', 'hemresume', 'droppocket'].map((k) => `[data-${k}]`).join(',');
+  'hemnext', 'hemwhodone', 'hemwhoagain', 'hemresume', 'droppocket'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -2104,16 +2104,19 @@ function draftFor(chapterId) {
 async function nameChapter(chapterId, auto = false) {
   if (S.naming) return;
   S.naming = true; S.nameError = null; drawSide();
-  // THE WRITER'S STEER, if there is one. Seth: "title and premise should be together with the
-  // option to influence." Read off S rather than the DOM for the reason the two boxes are: this
-  // runs across a repaint and the field it came from has been rebuilt by the time it returns.
+  // THE SCENE'S BRIEF, what the writer says the next scene is (Seth, 2026-11-01): the box on screen
+  // when it is this scene's, else the draft's; with neither, the route reads the scene's own. It is
+  // saved on the scene by the ask. Until then a steer box beside it asked the same thing, and the
+  // brief was dropped.
   // AND THE WRITER'S OPENING, as typed, so the name and the direction are written from it and it comes
   // back untouched (Seth, 2026-10-30). Only what the writer typed: an opening Anansi wrote last time
   // is asked for again with the rest.
   const typed = S.setupTyped?.chapterId === chapterId && S.setupTyped.keys.has('opens')
     ? (document.querySelector('[data-setup="opens"]')?.value ?? draftFor(chapterId)?.opens ?? '').trim() : '';
+  const brief = (V?.currentChapter?.id === chapterId ? document.querySelector('[data-setup="brief"]')?.value : undefined)
+    ?? draftFor(chapterId)?.brief;
   const r = await withRing(() => api.proposeChapter(S.storyId, chapterId,
-    (S.setupSteer ?? '').trim() || undefined, undefined, typed || undefined));
+    undefined, undefined, typed || undefined, brief));
   S.naming = false;
   // An answer with no title is not an answer. Checking only `r.error` wrote `undefined` into
   // the title box, and the next read of it threw on `.trim()` — the panel stopped rendering at
@@ -2145,7 +2148,7 @@ async function nameChapter(chapterId, auto = false) {
   const mine = S.setupTyped?.chapterId === chapterId ? S.setupTyped.keys : new Set();
   const kept = (k) => mine.has(k) && live[k].trim() && !(k === 'title' && numbered(live.title, ch?.index));
   S.setup = { chapterId, title: kept('title') ? live.title.trim() : r.title, note: kept('note') ? live.note.trim() : r.note,
-              opens: kept('opens') ? live.opens.trim() : (r.opens ?? '') };
+              opens: kept('opens') ? live.opens.trim() : (r.opens ?? ''), brief: brief ?? ch?.brief ?? '' };
   drawSide();
   // Do not claim he filled a box he left empty. The beat is the half that matters — it rides
   // near the generation point on every call of this chapter — so a silent blank is the one thing
@@ -3655,8 +3658,8 @@ function nextSetup(ch) {
 function setupForm(ch) {
   const prev = (V?.chapters ?? []).find((c) => c.index === ch.index - 1);
   const now = nextSetup(prev);
-  return draftFor(ch.id) ?? (now?.next.id === ch.id ? { title: now.title, note: now.note, opens: now.opens }
-    : { title: ch.title ?? '', note: ch.authorsNote ?? '', opens: ch.opensWith ?? '' });
+  return draftFor(ch.id) ?? { ...(now?.next.id === ch.id ? { title: now.title, note: now.note, opens: now.opens }
+    : { title: ch.title ?? '', note: ch.authorsNote ?? '', opens: ch.opensWith ?? '' }), brief: ch.brief ?? '' };
 }
 
 /** A chalked row's one line while its fold is shut: the first 90 characters. */
@@ -7322,7 +7325,7 @@ const wordLine = (text, cap) => {
     plural(n, 'word', 'words')}</span> <span class="warned" data-wordwarn ${n > cap ? '' : 'hidden'}
     >&middot; past ${cap}, so it costs more space on every call. It still saves.</span></div>`;
 };
-const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The next scene'], ['more', 'Anyone new']];
+const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The brief'], ['more', 'Anyone new']];
 
 /** Issue #32. The passes a hem runs, and what a writer calls each one.
  *
@@ -7498,6 +7501,8 @@ function setupPanel() {
   // proposed nothing but new threads used to be sent here and find nothing.
   if (step === 'cards' && !leftN) step = fresh.length ? 'more' : 'premise';
   const scanning = isDebrief && hemScanning();
+  // The scene a hem opened: its hem screen asks who is in it (`hemWho`), so Anyone new does not.
+  const hemmedWho = !!prev?.hem && hemNext(prev)?.id === ch.id;
 
   // THE HEM'S STEPS STAY ON TOP while the next scene is set up (Seth, 2026-10-30: "it should always
   // show the steps"), the same list the hem screen draws.
@@ -7568,7 +7573,7 @@ function setupPanel() {
         `<button data-entry="${esc(e.id)}" class="tag pressable">${esc(e.title)}</button>`).join(' ')}
         &mdash; sent on every call, and not named in this scene, so hemming did not look at them.</div>` : '';
     })()}
-    <button class="btn push-16" data-setupstep="premise">Next &mdash; the next scene</button>
+    <button class="btn push-16" data-setupstep="premise">Next &mdash; the brief</button>
     ${skip}
   </div>`;
 
@@ -7613,14 +7618,20 @@ function setupPanel() {
         ${tipMark('setAddAll', 'Sew in all the new threads')}</div>` : ''}
       <div class="stack-roomy">${/* One block per thread, drawn as What it left draws a thread. */
         hemThreads(fresh).map(hemThreadBlock).join('')}</div>` : ''}
-      <div class="lbl sect">Who is in it${
+      ${/* WHO IS IN IT IS ASKED ONCE (Seth, 2026-11-01: "not having duplicate fields or steps"). A
+            scene a hem opened was asked on the hem screen, so here it is said, with one press back to
+            that list; only a scene no hem opened is asked here. */
+        hemmedWho ? `<div class="lbl sect">Who is in it</div>
+      <div class="note" data-whosaid>${V.entries.filter((e) => e.entryType !== 'tale' && e.retiredAtChapter == null
+        && inContext(e, pinModes(), null)).map((e) => esc(e.title)).join(', ') || 'Nobody is sent for it unless they are named.'}</div>
+      <button class="btn ghost push-8" data-hemwhoagain="${esc(prev.id)}">Change who is in it</button>`
+        : `<div class="lbl sect">Who is in it${
         tipMark('setWho', 'Who is in it')}</div>
-      ${tipCard('setWho', 'Who is in it', `<p>Each thread here is in this scene. The pill says how it
-        comes in, and a press moves it on: Always on sends it for every scene; This scene only sends
-        it for this scene whatever is said; When it's named sends it when one of its wake words is in
-        the prose. Press a name to read the thread. &#10005; takes it out of this scene. Each one
-        costs space on every call, so keep what is actually in the scene.</p>`)}
-      ${whoList(ch)}
+      ${tipCard('setWho', 'Who is in it', `<p>Each thread here is in this scene. Tap its eye to change how
+        it comes in: on sends it on every call; on a word sends it when one of its wake words is in the
+        prose; off keeps it out of this scene. Press a name to read the thread. &#10005; takes it off
+        this list. Each one costs space on every call, so keep what is actually in the scene.</p>`)}
+      ${whoList(ch)}`}
       <div class="end-row push-12"><span class="hint flush fill">The tale's setting</span>${
         tipMark('setSetting', "The tale's setting")}</div>
       ${tipCard('setSetting', "The tale's setting", `<p>Anansi reads the tale's setting every time
@@ -7638,7 +7649,14 @@ function setupPanel() {
     ${tipCard('setNext', 'Setting up the next scene', `<p>Nothing here is required. Leave it and
       write.</p>`)}
 
-    <!-- HOW IT STARTS COMES FIRST, AND IT IS YOURS (Seth, 2026-10-30: "What I enter should be what's
+    <!-- WHAT THE NEXT SCENE IS COMES FIRST, the scene's brief, the hem's own first question (Seth,
+         2026-11-01): its goal, who is in it, where. Anansi drafts from it. It replaced a steer box
+         that asked the same thing, which the brief was dropped beside. -->
+    <label class="lbl" for="f-setup-brief">What is the next scene?</label>
+    <textarea class="field grow" id="f-setup-brief" data-setup="brief" style="min-height:62px; max-height:30vh"
+      placeholder="Its goal, who is in it, and where">${esc(form.brief ?? '')}</textarea>
+
+    <!-- HOW IT STARTS IS YOURS (Seth, 2026-10-30: "What I enter should be what's
          used", and the question asked once the hem is done, not during it). What is typed here is
          the scene's opening as written: Anansi is asked to name the scene and say where it heads FROM
          it, and never rewrites it. Since 2026-11-01 it waits in the composer as the scene's first
@@ -7652,15 +7670,13 @@ function setupPanel() {
       : '<strong>Not set.</strong> Anansi opens the scene with a plain Continue, from where the prose left off.'}</div>
 
     <!-- THE OPTION TO INFLUENCE. Seth: "title and premise should be together with the option to
-         influence." A steer is the difference between accepting a suggestion and asking for one. -->
-    <input class="field push-8" data-setup="steer" aria-label="Steer what Anansi suggests"
-      value="${esc(S.setupSteer ?? '')}"
-      placeholder="Steer it — a turn you want, someone who has to be in it">
+         influence." The brief above is the influence: the ask sends it. -->
     <button class="btn ghost push-7" data-name="${ch.id}" ${S.naming ? 'disabled' : ''}>${
       S.naming ? 'Asking&hellip;' : (!placeholder || form.note.trim())
         ? 'Have Anansi suggest another' : 'Have Anansi name it'}</button>
     <div class="hint">${(form.opens ?? '').trim() ? 'He names it and says where it heads from how you said it starts.'
-      : 'He names it, says how it opens and where it heads.'}</div>
+      : 'He names it, says how it opens and where it heads.'}${
+      (form.brief ?? '').trim() ? ' All from what you said the scene is.' : ''}</div>
     ${S.nameError?.chapterId === ch.id && !S.naming ? `<div class="hint trail-6">Anansi could
       not suggest a name: ${esc(S.nameError.why)}</div>` : ''}
 
@@ -14007,11 +14023,12 @@ document.addEventListener('click', async (e) => {
     const title = draft?.title ?? box('title') ?? (form.title || ch.title) ?? '';
     const note = draft?.note ?? box('note') ?? form.note ?? '';
     const opens = draft?.opens ?? box('opens') ?? form.opens ?? '';
+    const brief = draft?.brief ?? box('brief') ?? form.brief ?? '';
     // BOTH HALVES, BEFORE openingPassage() BELOW. That call writes the chapter's first passage and
     // it is the only one the opening is sent for, so a save that dropped it would mean the box on
     // this screen could never reach the passage it was written for.
     const r = await api.saveChapter(S.storyId, ch.id,
-      { title, authorsNote: note, opensWith: opens });
+      { title, authorsNote: note, opensWith: opens, brief });
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId);
     // Only this chapter's draft is spent. Another chapter's is still waiting for its own Save.
@@ -14126,6 +14143,8 @@ document.addEventListener('click', async (e) => {
     V = r; paint();
     return toast('That pocket is left out. Sew it in takes the rest.');
   }
+  // BACK TO WHO IS IN THE NEXT SCENE on the hem screen, from Anyone new (`hemmedWho`): its one list.
+  if (d.hemwhoagain) { S.hemWho?.delete(d.hemwhoagain); saveHemWho(); S.ritualOf = d.hemwhoagain; S.panel = 'ritual'; syncHash(); paint(); return; }
   if (d.hemwhodone) { (S.hemWho ??= new Set()).add(d.hemwhodone); saveHemWho(); S.setupQ = ''; paint(); return; }
   if (d.hemextra) {
     const r = await api.hemAgain(S.storyId, d.hemextra, { extra: true });
@@ -16120,20 +16139,17 @@ document.addEventListener('input', (e) => {
   if (e.target.dataset?.hemsteer !== undefined) { S.hemSteer = e.target.value; return; }
   if (e.target.dataset?.setup) {
     // WHICH BOXES THE WRITER TYPED IN, so asking Anansi again replaces his words and not theirs.
-    // The direction is not one of them: it is an instruction, never a box of the scene.
+    // The brief is not one of them: Anansi never writes it.
     const k = e.target.dataset.setup;
-    if (k !== 'steer') {
+    if (k !== 'brief') {
       if (S.setupTyped?.chapterId !== V.currentChapter.id) S.setupTyped = { chapterId: V.currentChapter.id, keys: new Set() };
       S.setupTyped.keys.add(k);
     }
     S.setup = { chapterId: V.currentChapter.id,
                 title: document.querySelector('[data-setup="title"]')?.value ?? '',
                 note: document.querySelector('[data-setup="note"]')?.value ?? '',
-                opens: document.querySelector('[data-setup="opens"]')?.value ?? '' };
-    // Kept apart from the two that get SAVED. The steer is an instruction to Anansi about what to
-    // suggest, never a field on the chapter, and folding it into S.setup would send it to
-    // saveChapter as a third column that does not exist.
-    S.setupSteer = document.querySelector('[data-setup="steer"]')?.value ?? '';
+                opens: document.querySelector('[data-setup="opens"]')?.value ?? '',
+                brief: document.querySelector('[data-setup="brief"]')?.value ?? '' };
     return;
   }
   // #20 §4. Its own list only, for the same reason the ledger's box has: the form around it reads

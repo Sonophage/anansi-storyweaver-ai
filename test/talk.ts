@@ -2595,6 +2595,25 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(o.opens, mine, 'PROPOSE-OPENS-KEPT: and comes back as the opening, untouched');
   ok('a scene named from the writer\'s opening keeps that opening as written');
 
+  // THE SCENE'S BRIEF RIDES EVERY ASK (Seth, 2026-11-01: the scene "has nothing to do with the brief I
+  // wrote"). Asking again from the setup or the scene panel read only the steer, so the brief the hem
+  // stored was dropped. The stored brief is read when none is sent; one sent is saved first.
+  const BRIEF = 'Aldis goes to the moneylender to buy the boat back; only the two of them.';
+  db.updateChapter(book.id, c3, { brief: BRIEF });
+  calls = [];
+  const s: any = await routes['POST /api/chapter/propose'](req({ chapterId: c3 }));
+  assert.ok(!s.error, s.error);
+  assert.match(wire(), /THE WRITER'S BRIEF FOR CHAPTER 3[\s\S]*buy the boat back/,
+    'PROPOSE-BRIEF-STORED: the scene\'s own brief reaches the ask');
+  const NEW = 'Aldis steals the boat back at night.';
+  calls = [];
+  await routes['POST /api/chapter/propose'](req({ chapterId: c3, brief: NEW }));
+  assert.ok(wire().includes(NEW) && !wire().includes('buy the boat back'),
+    'PROPOSE-BRIEF-SENT: a brief sent with the ask is the one asked with');
+  assert.strictEqual((db.chapters(book.id) as any[]).find((c) => c.id === c3).brief, NEW,
+    '  and it is saved on the scene');
+  ok('asking for the scene again reads its brief, and a brief sent with the ask is saved');
+
   // A CHAPTER THE WRITER NAMES. Held back, and SAID to be held back: the writer pointed at it, so
   // a silent gap would read to the model as "nothing happened in chapter two".
   const named = (id: string) => routes['POST /api/talk'](req({

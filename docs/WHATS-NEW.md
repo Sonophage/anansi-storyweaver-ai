@@ -18,6 +18,14 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-01 · Hemming starts from what the next scene is
 
+### Each question asked once
+Setting up the next scene asks "What is the next scene?" first, holding what you told the hem, and
+"Have Anansi suggest another" works from it. It replaces the "Steer it" box, which asked the same
+thing and left your brief out. Who is in the next scene is chosen on the hem screen; Anyone new now
+just says who, with a button back to that list. The setup's second step is called The brief, so it is
+no longer mistaken for the hem's own "The next scene" step, and the help on who is in a scene
+describes the eye.
+
 ### What you say the next scene is, kept
 If the app had been open since before this change, what you wrote for the next scene could be lost,
 and Anansi drafted the scene from nothing. It is kept now. And when you leave it empty, the drafts

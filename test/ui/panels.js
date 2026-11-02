@@ -789,7 +789,7 @@ if (await page.visible('[data-setup="title"]')) {
     title: !!document.querySelector('[data-setup="title"]'),
     note: !!document.querySelector('[data-setup="note"]'),
     opens: !!document.querySelector('[data-setup="opens"]'),
-    steer: !!document.querySelector('[data-setup="steer"]'),
+    brief: !!document.querySelector('[data-setup="brief"]'),
     ledger: !!document.getElementById('setupQ'),
     steps: document.querySelectorAll('[data-setupstep]').length }))()`);
   console.log("  setup cold: " + JSON.stringify(cold));
@@ -798,8 +798,8 @@ if (await page.visible('[data-setup="title"]')) {
   // AND HOW THE CHAPTER STARTS, since 2026-09-02. This screen is where that box has to be: Save
   // and write fires the chapter's first passage, and that is the only passage it is sent for.
   ok('  and how the chapter starts, which is the passage that press writes', cold.opens === true);
-  // "title and premise should be together with the option to influence."
-  ok('  and a box to steer what Anansi suggests', cold.steer === true);
+  // "title and premise should be together with the option to influence." The brief is that option (2026-11-01).
+  ok('  and the brief, what the next scene is, which steers what Anansi suggests', cold.brief === true);
   ok('  with the ledger NOT on that step', cold.ledger === false);
   await page.click('[data-setupstep="more"]');
   await wait(600);

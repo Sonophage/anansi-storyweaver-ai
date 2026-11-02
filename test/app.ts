@@ -8011,10 +8011,12 @@ const hemCardOf = (side: string) => {
 // existing pin and thread routes. ✕ takes one out: an always-on thread is left out of the scene, a
 // pinned one is unpinned. A thread is brought in by search, and a new thread sewn in gets the same
 // choice. A stateful fake, so each press changes what the next read hands back.
+// A SCENE NO HEM OPENED (2026-11-01): one a hem opened is asked who is in it on the hem screen, and
+// Anyone new only says it (WHO-ONCE, below).
 {
   const canned = (globalThis as any).fetch;
   const settle = () => sleep(40);
-  HEM_VIEW = { ...hemView(HEM_DONE, HEM_ROWS), pins: [] };
+  HEM_VIEW = { ...hemView(null, HEM_ROWS), pins: [] };
   (globalThis as any).fetch = async (url: string, init?: any) => {
     const body = init?.body ? JSON.parse(init.body) : null;
     const reply = (o: any) => ({ ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) });
@@ -8068,6 +8070,8 @@ const hemCardOf = (side: string) => {
   assert.deepStrictEqual(eyeOf('e-1'), ['eye', 'on'], 'WHO-EYE: an always-on thread shows the open eye');
   assert.doesNotMatch(sereth, /whopill|data-howin=/, '  and no pill');
   assert.doesNotMatch(side, /data-pin=|data-place=/, 'WHO-NO-TICKS: the old tick list is gone');
+  const whoTip = side.match(/id="tip-setWho"[^>]*>([\s\S]*?)<\/p>/)?.[1] ?? '';
+  assert.ok(/eye/.test(whoTip) && !/pill|This scene only/.test(whoTip), `WHO-TIP-EYE: its help says the eye, not the pill (${whoTip.slice(-160)})`);
 
   let from = POSTED.length;
   click({ flipact: 'e-1', whokeep: '1' }); await settle(); await settle();
@@ -8141,7 +8145,14 @@ const hemCardOf = (side: string) => {
   const screens: Record<string, string> = { workbench: hemCardOf(html('sideBody')) };
   click({ panel: 'setup' }); await settle();
   for (const step of ['cards', 'premise', 'more']) { click({ setupstep: step }); await settle(); screens[step] = html('sideBody'); }
+  // WHO IS IN IT, ASKED ONCE (Seth, 2026-11-01: "not having duplicate fields or steps"): a scene a hem
+  // opened is asked on the hem screen; Anyone new says who, and one press goes back to that list.
+  assert.match(screens.more, /data-whosaid>[^<]*Envoy Sereth/, 'WHO-ONCE: Anyone new says who is in a scene a hem opened');
+  click({ hemwhoagain: 'c-1' }); await settle();
+  screens.hem = html('sideBody');
+  assert.match(screens.hem, /class="card hemwho/, '  and Change who is in it opens that list on the hem screen');
   const controls: Record<string, RegExp> = {
+    'what the next scene is': /data-setup="brief"|data-hemsteer=/,
     'the summary': /data-hemsumtext=/, 'Reopen the hem': /data-hemopen=/,
     "the next scene's title": /data-setup="title"/, 'its note': /data-setup="note"/, 'its opening': /data-setup="opens"/,
     'Have Anansi suggest another': /data-name=/, 'how a thread comes in': /data-whokeep=/, 'taking a thread out': /data-howout=/,
@@ -8151,6 +8162,12 @@ const hemCardOf = (side: string) => {
     const on = Object.keys(screens).filter((k) => re.test(screens[k]));
     assert.strictEqual(on.length, 1, `ONCE: ${what} is on one screen, not ${JSON.stringify(on)}`);
   }
+  // ONE NAME, ONE STEP: the setup draws the hem's steps above its own, so none of its names may be one
+  // of the hem's ("The next scene" was both Anansi's draft and the setup's boxes).
+  const hemNames = [...screens.more.matchAll(/<span class="hemname">([^<]+)</g)].map((m) => m[1].trim());
+  const setupNames = [...screens.more.matchAll(/data-setupstep="\w+"[^>]*>\d &middot; ([^<]+?)(?: <|<)/g)].map((m) => m[1].trim());
+  assert.ok(hemNames.length && setupNames.length === 3, `  (read ${hemNames.length} hem steps, ${setupNames.length} setup steps)`);
+  assert.deepStrictEqual(setupNames.filter((n) => hemNames.includes(n)), [], 'ONCE-NAMES: no setup step has a hem step\'s name');
   const threads = (s: string) => [...s.matchAll(/data-hemthread="([^"]+)"/g)].map((m) => m[1]);
   const twice = threads(screens.cards).filter((k) => threads(screens.more).includes(k) || threads(screens.premise).includes(k));
   assert.deepStrictEqual(twice, [], 'ONCE-THREADS: no thread is on two steps of the setup');
@@ -8449,17 +8466,24 @@ const hemCardOf = (side: string) => {
     title: { dataset: { setup: 'title' }, value: 'The Old Name' },
     note: { dataset: { setup: 'note' }, value: 'Where Anansi said it went before, long enough to count.' },
     opens: { dataset: { setup: 'opens' }, value: 'How Anansi said it opened before.' },
-    steer: { dataset: { setup: 'steer' }, value: '' } };
+    brief: { dataset: { setup: 'brief' }, value: '' } };
   const typeIn = (k: string, v: string) => { boxes[k].value = v;
     (listeners.input ?? []).forEach((f: Function) => f({ target: boxes[k] })); };
   try {
     click({ open: 's-1' }); await sleep(40);
     click({ panel: 'setup' }); click({ setupstep: 'premise' }); await sleep(30);
     doc.querySelector = (sel: string) => boxes[sel.match(/data-setup="(\w+)"/)?.[1] ?? ''] ?? wasQS(sel);
-    typeIn('steer', 'Make it rain.');
+    typeIn('brief', 'Make it rain.');
     click({ name: 'c-2' }); await sleep(60);
     doc.querySelector = wasQS;
+    // THE BOX IS THE SCENE'S BRIEF (Seth, 2026-11-01): one field for what the next scene is, where a
+    // steer box asked the same thing beside it and the brief was dropped on asking again.
+    const asked = POSTED.filter((p: any) => p.url === '/api/chapter/propose').at(-1)?.body;
+    assert.deepStrictEqual([asked?.brief, asked?.steer], ['Make it rain.', undefined],
+      'SETUP-BRIEF: what the next scene is goes with the ask as its brief, and there is no steer beside it');
     let side = html('sideBody');
+    assert.match(side, /data-setup="brief"[^>]*>Make it rain\.<\/textarea>/, '  and the box still holds it');
+    assert.doesNotMatch(side, /data-setup="steer"/, '  and no second box asks the same thing');
     assert.match(side, /data-setup="title" value="The Rust Year"/, 'SETUP-AGAIN: a new direction replaces the name Anansi gave before');
     assert.match(side, /By the end the debt has to be called in/, '  and where it heads');
     assert.doesNotMatch(side, /How Anansi said it opened before/, '  and how it opens');

@@ -3891,9 +3891,16 @@ export const routes: Record<string, Handler> = {
   },
 
   /** What the scene about to be written should be called, and what it has to do. The body is
-   *  `suggestScene`, which a hem also runs (#89); this route stays for the client's own button. */
-  'POST /api/chapter/propose': (c: Ctx) => suggestScene(c, c.body.storyId, c.body.chapterId, c.body.steer,
-    c.body.avoid && typeof c.body.avoid === 'object' ? c.body.avoid : undefined, c.body.opens),
+   *  `suggestScene`, which a hem also runs (#89); this route stays for the client's own button.
+   *  THE SCENE'S BRIEF RIDES IT (Seth, 2026-11-01): one sent is saved on the scene first; with none
+   *  sent, the scene's own is read. Asking again read only the steer, and dropped the brief. */
+  'POST /api/chapter/propose': (c: Ctx) => {
+    const storyId = String(c.body.storyId), chapterId = c.body.chapterId ? String(c.body.chapterId) : undefined;
+    if (chapterId && typeof c.body.brief === 'string') db.updateChapter(storyId, chapterId, { brief: c.body.brief.trim().slice(0, 2000) });
+    const brief = chapterId ? String((db.chapters(storyId) as any[]).find((x) => x.id === chapterId)?.brief ?? '') : '';
+    return suggestScene(c, storyId, chapterId, c.body.steer,
+      c.body.avoid && typeof c.body.avoid === 'object' ? c.body.avoid : undefined, c.body.opens, undefined, brief);
+  },
   /** #91 · RUN A HEM'S PASSES AGAIN, from the scene's Workbench card. `pass` names one pass of the
    *  report (try again): only that pass runs, and only its line changes. With no `pass` it is HEM
    *  AGAIN: a new record on the prose as it is now (so the scene is in date), and every pass again.
