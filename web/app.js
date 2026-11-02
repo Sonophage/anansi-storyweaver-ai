@@ -637,7 +637,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The hem's ask for the next scene, and who is in it (2026-10-30).
   'hemnext', 'hemwhodone', 'hemwhoagain', 'hemresume', 'droppocket',
   // You play: open the picker, and pick (2026-11-02).
-  'playpick', 'play'].map((k) => `[data-${k}]`).join(',');
+  'playpick', 'play',
+  // The search icon on the desk's collapsed menu (2026-11-02).
+  'railfind'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -913,7 +915,7 @@ function drawRail() {
    * something; `more` is its other attributes. */
   const tile = ({ nav, demo, more = '' }, glyph, label, { icon = 'var(--faint)', word = 'var(--mute)',
     ground = 'transparent', edge = 'transparent', rule = edge, badge = '' } = {}) => `<button class="railtile" ${
-      nav ? `data-nav="${nav}"` : `data-demo="${demo}"`}${more}
+      nav ? `data-nav="${nav}"` : `data-demo="${demo}"`}${more} title="${esc(label)}"
       style="background:${ground}; border:1px solid ${edge}; border-left:2px solid ${rule}">
       <span class="tileicon" style="color:${icon}">${mark(glyph)}${badge}</span>
       <span class="txt" style="color:${word}">${esc(label)}</span></button>`;
@@ -1082,7 +1084,11 @@ function drawRail() {
               ${/* THE SEARCH BAR, the foot of the two tile columns (Seth, 2026-10-28: "Put the search
                     below all the icons in the footer"). Enter opens Prose search on what was typed. */ ''}
               <input type="search" class="field railsearch" data-railsearch="1" enterkeyhint="search"
-                aria-label="Search this tale" placeholder="Search this tale" value="${esc(S.query ?? '')}"></div></div>`
+                aria-label="Search this tale" placeholder="Search this tale" value="${esc(S.query ?? '')}">
+              ${/* ITS STAND-IN ON THE DESK'S COLLAPSED MENU (2026-11-02), where the box has no room: it
+                    opens the menu with the cursor in the box. Hidden everywhere else (app.html). */ ''}
+              <button class="railfind" data-railfind="1" aria-label="Search this tale" title="Search this tale"
+                >${mark('search')}</button></div></div>`
           : storyMenu ? `<div class="navgrid">${rows.map(item).join('')}</div>${tail}`
           // THE MAIN MENU IN THE SAME SHAPE (Seth, 2026-10-28: "a similar setup for the main menu but
           // instead of scenes it's stories"): the model on top, the tales down the left (most recent
@@ -12327,6 +12333,7 @@ document.addEventListener('click', async (e) => {
       : r.note ?? 'already chalked');
   }
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
+  if (d.railfind) { S.rail = true; paint(); document.querySelector('#rail .railsearch')?.focus(); return; }
   // Two doors, one rail. `data-railview` says WHICH menu you asked for: the menu button asks for
   // the workspace, the story's own name asks for the story. Asking for the menu already open and
   // showing shuts it; asking for the other one swaps the rail over instead of closing it, which

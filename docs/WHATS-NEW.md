@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-02 · The library shows who is in your scene
 
+### The folded menu on a computer is a clean row of icons
+When the menu is folded on a wide screen, it now shows one column of whole icons, with the one you
+are on marked. Hold the pointer over an icon to see its name. The model's light and the arrow that
+opens the menu are at the top, and in a tale the search icon at the bottom opens the menu with the
+cursor in the search box.
+
 ### Picking who you play starts with who is in the scene
 In Speak and Act, pressing the name beside the mode opens a list with a search box at the top.
 Under it are you and the characters in this scene, then everyone else. Type a few letters to find

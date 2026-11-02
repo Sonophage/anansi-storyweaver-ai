@@ -1739,6 +1739,31 @@ html[data-ui-rail="closed"] .railswap { display:none; }
 .navcount { position:absolute; left:calc(100% + 4px); top:50%; transform:translateY(-50%);
   font-size:11px; line-height:1; color:var(--warn); }
 .navgrid { display:flex; flex-direction:column; }
+/* THE DESK'S COLLAPSED MENU (Seth, 2026-11-02: "the menu on desktop when its collapsed needs some
+   work"). It drew the open menu's columns squeezed into 76px: the scene list as slivers of cover art,
+   the tiles' icons cut in half, the search box an empty pill, the model gone. Collapsed it is one
+   column of whole icons, each named in its title; the model as its dot, the toggle under it; on a
+   tale, a search icon (`data-railfind`) where the box was. Desk only: under 1100px a collapsed menu is
+   off the screen. test/ui/railshut.js measures it. */
+.railfind { display:none; }
+@media (min-width:1100px) {
+  html[data-ui-rail="closed"] #rail .tale3 { display:flex; flex-direction:column; gap:0; }
+  html[data-ui-rail="closed"] #rail .tale3scenes, html[data-ui-rail="closed"] #rail .railsearch { display:none; }
+  html[data-ui-rail="closed"] #rail .taleside { flex:1 1 auto; }
+  html[data-ui-rail="closed"] #rail .taletiles { grid-template-columns:1fr; }
+  html[data-ui-rail="closed"] #rail .taletiles > .railtile { padding:12px 0; }
+  html[data-ui-rail="closed"] #rail .railtile > .txt { display:none; }
+  /* The Workbench's count on its icon's corner: beside it, it would be cut off by the tile. */
+  html[data-ui-rail="closed"] #rail .navcount { left:auto; right:-9px; top:-7px; transform:none; }
+  html[data-ui-rail="closed"] #rail .railfind { display:flex; align-items:center; justify-content:center;
+    min-height:44px; margin:auto 0 8px; color:var(--faint); }
+  html[data-ui-rail="closed"] .talemodel { display:flex; flex-direction:column; align-items:center;
+    border-bottom:1px solid var(--line); }
+  html[data-ui-rail="closed"] .talemodel > button[data-modelmenu] { width:auto; border-bottom:0;
+    padding:18px 0 4px !important; justify-content:center; }
+  html[data-ui-rail="closed"] .talemodel > button[data-modelmenu] > .txt { display:none; }
+  html[data-ui-rail="closed"] .talemodel > .railclose { position:static; }
+}
 /* NOTHING IN THE RAIL'S LIST MAY SHRINK (2026-10-27, Seth: the Scenes heading under the tale menu was
    "a littttttle cut off"). The list is a flex column that scrolls, so when the grid and a long run
    of scenes overflow it the browser squeezes its children to fit before it scrolls, and the heading
