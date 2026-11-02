@@ -1580,6 +1580,11 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
            .replace(new RegExp(WORDS.source, 'g'), String(target))
            .replace(/\{\{\s*directive\s*\}\}/g, input.directive ?? '')
            .replace(/\{\{\s*speaker\s*\}\}/g, input.speaker || 'the point-of-view character')
+           // {{last}} IS THE NEWEST PASSAGE OF THE SCENE, quoted (Seth, 2026-11-02: "the directive
+           // for all of them should be at the end"), so a wording can give the instruction first and
+           // what it works on last, rather than pointing "above". Last, and by a function, so the
+           // passage goes in as written: a `$&` or a `{{directive}}` in the prose is not filled.
+           .replace(/\{\{\s*last\s*\}\}/g, () => scene.at(-1)?.body ?? '')
       : (MODE[key] ?? MODE.continue)(input.directive, input.speaker);
     /* WHAT DID NOT WORK, after the instruction, in the When you reweave wording: the writer's from
      * Account → Writing, or the shipped one (docs/adr/0012). THE TAKE BEING REPLACED IS NOT SENT,

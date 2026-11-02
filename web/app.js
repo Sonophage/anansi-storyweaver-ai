@@ -9401,6 +9401,8 @@ function writingDefaults() {
                 written with again, so this is what it says on the way back round too. ${
                 k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
                   k === 'speak' || k === 'act' ? '<code>{{speaker}}</code> is whoever you play. ' : ''}
+                <code>{{last}}</code> is the newest passage of the scene, quoted, so your instruction can
+                come first and what it works on last.
                 <code>{{words}}</code> is the length slider's number: write it into your own line, such
                 as &ldquo;Write this in about {{words}} words&rdquo;, and Anansi adds no length line of its
                 own. With the slider off, the line it is on is left out.

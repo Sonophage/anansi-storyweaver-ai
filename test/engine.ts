@@ -439,6 +439,18 @@ ok("the writer's own wording replaces a mode outright, and empties back to the s
   assert.match(w('One beat.', 300), /\nWrite no more than 300 words\. Stop sooner if the beat is done\.$/,
     'WORDS-ABSENT: a wording without it keeps the app line, as before');
 
+  // {{last}} IS THE NEWEST PASSAGE OF THE SCENE, quoted (Seth, 2026-11-02: "the directive for all of
+  // them should be at the end"). The instruction first, then what it works on, rather than "above".
+  const lastOf = (passages: any[]) => withOwn({ speak: 'Answer it.\nWhat {{speaker}} just said: {{last}}' }, 'speak',
+    { passages }).text;
+  const p1 = { id: 'p1', ordinal: 1, body: 'The rain had not stopped.' };
+  const p2 = { id: 'p2', ordinal: 2, body: '"Tell me what the text meant," he says.', author: 'human' };
+  assert.strictEqual(lastOf([p1, p2]), 'Answer it.\nWhat Marek Vale just said: "Tell me what the text meant," he says.',
+    'LAST: {{last}} is the newest passage, quoted at the end');
+  assert.strictEqual(lastOf([]), 'Answer it.\nWhat Marek Vale just said: ', 'LAST-NONE: with no passage it is empty');
+  const fn = withOwn({ speak: 'Say: {{last}}' }, 'speak', { passages: [{ id: 'p3', ordinal: 1, body: 'It cost $& and {{directive}}.' }] }).text;
+  assert.strictEqual(fn, 'Say: It cost $& and {{directive}}.', 'LAST-AS-WRITTEN: the passage goes in as written, placeholders and all');
+
   // An override for one mode must not reach another.
   assert.match(withOwn({ speak: 'MINE' }, 'act').text, /what it costs, or what it gets/,
     'act still has its own wording');

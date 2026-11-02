@@ -33,6 +33,10 @@ Places, Lore or Items.
 The pocket screen has Cancel and Save at the top, the same tabs and the same name box as when you
 alter a thread. It still fills the screen.
 
+### Quote the newest passage in your own instructions
+In Account → Writing, your own wording for an action can say {{last}} where the newest passage of
+the scene should go, so the instruction can come first and what it works on last.
+
 ### Passages stay inside the length slider, and end properly
 When a passage gets close to the length slider, Anansi lets it finish the sentence it is in, then
 asks for a short ending in the words that are left. A passage no longer runs past the slider, and
