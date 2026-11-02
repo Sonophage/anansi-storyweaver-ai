@@ -665,10 +665,11 @@ const mark = () => ({ fl: fl.length, local: local.length });
 // long", and then "build option 2". A model cannot count words as it writes (F65: both wordings ran
 // over), so the app counts: at the slider the stream is stopped, and one short call asks the model to
 // finish the moment in a sentence or two. The passage ends near the slider and reads as finished,
-// not cut. Past the slider the model finishes the sentence it is in (at most 40 words more), so the
-// ending starts on a new one. The slider is 100 words here; the fake ends a sentence every seventh
-// word, so the passage runs to word 105 ("end.") and lands. With the slider off, the runaway guard
-// (4,000 words) stands.
+// not cut. INSIDE THE SLIDER, NOT PAST IT (Seth, 2026-11-02: "i hate that the ai is still going over"):
+// at 80% of it the passage finishes the sentence it is in, leaving at least 15 words, and the ending
+// gets the words that are left. The slider is 100 here: landing starts at 80 and must stop by 85; the
+// fake ends a sentence every seventh word, so the passage lands at word 84 ("end.") and the ending may
+// use 16. With the slider off, the runaway guard (4,000 words) stands.
 const guarded = (body: any, words = 100) => { const c: any = ctx(me, body); c.gen = { ...c.gen, target_words: words }; return c; };
 const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path === '/v1/chat/completions');
 {
@@ -685,28 +686,43 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
   assert.ok(long.closedEarly, 'LAND-ABORT: the passage request was closed before Featherless finished');
   const ask = calls[1].body;
   assert.strictEqual(ask.messages.at(-2)?.role, 'assistant', 'LAND-ASK: the passage so far is the model\'s own turn');
-  assert.strictEqual(ask.messages.at(-2).content.split(/\s+/).length, 105, '  and it is the slider\'s 100 words and the rest of that sentence');
+  assert.strictEqual(ask.messages.at(-2).content.split(/\s+/).length, 84, '  and it stopped inside the slider, at the sentence after 80');
   assert.ok(/end\.$/.test(ask.messages.at(-2).content), '  ending on the sentence\'s own stop');
-  assert.match(ask.messages.at(-1)?.content ?? '', /Finish the moment you are in, in one or two sentences/, '  then the ask');
+  assert.match(ask.messages.at(-1)?.content ?? '', /Finish the moment you are in, in no more than 16 words/, '  then the ask, with the words that are left');
   assert.match(ask.messages.at(-1)?.content ?? '', /Do not repeat or rephrase anything already written/, '  which forbids an echo');
   assert.ok(ask.max_tokens > 0 && ask.max_tokens <= 160, `LAND-CAP: the ending carries a small cap (${ask.max_tokens})`);
   assert.strictEqual(ask.chat_template_kwargs?.enable_thinking, false, '  and no plan');
+  assert.ok(!('land_words' in ask) && !('cap_words' in ask) && !('land_slack' in calls[0].body), 'LAND-PRIVATE: the app\'s own counts are never sent');
   assert.ok(/end\. The remote streamed this\.$/.test(last.prose), `LAND-JOIN: the ending follows the passage (${last.prose.slice(-40)})`);
-  assert.strictEqual(last.prose.split(/\s+/).length, 109, 'LAND-LENGTH: to the end of the sentence, and the ending');
+  assert.strictEqual(last.prose.split(/\s+/).length, 88, 'LAND-LENGTH: 84 and the ending\'s 4');
+  assert.ok(last.prose.split(/\s+/).length <= 100, 'LAND-INSIDE: the whole passage is inside the slider');
   assert.strictEqual(out.map((o) => o.d).filter(Boolean).join('').trim(), last.prose,
     'LAND-STREAM: the page saw every word of it arrive, the ending too');
   assert.strictEqual(last.cut, false, 'LAND-NOTCUT: a landed passage is not flagged as cut');
   assert.ok(last.passageId, 'and it lands in the book');
 
-  // Under the slider: whole, untouched, one call.
+  // Well under the slider (300 words at 400; landing would start at 320): whole, untouched, one call.
   m = mark();
   script.push('atcap');
   const at: any[] = [];
-  const h2 = await routes['POST /api/generate'](guarded({ storyId: story.id, mode: 'continue', stream: true }, 300));
+  const h2 = await routes['POST /api/generate'](guarded({ storyId: story.id, mode: 'continue', stream: true }, 400));
   const l2 = await h2.__stream((o: unknown) => at.push(o));
   assert.strictEqual(at.map((o) => o.d).filter(Boolean).length, 300, 'UNDER: every word of a passage on the slider arrived');
   assert.strictEqual(chatsSince(m).length, 1, 'UNDER: and no ending was asked for');
   assert.strictEqual(l2.cut, false, 'UNDER: and it is not recorded as cut');
+
+  // THE ENDING RUNS AWAY TOO: held to the words that were left (16), trimmed to its last sentence, so
+  // the whole passage still ends inside the slider.
+  script.push('overcap', 'overcap');
+  const wild: any[] = [];
+  const hw = await routes['POST /api/generate'](guarded({ storyId: story.id, mode: 'continue', stream: true }));
+  const lw = await hw.__stream((o: unknown) => wild.push(o));
+  const ww = lw.prose.split(/\s+/).length;
+  assert.ok(ww <= 100, `LAND-ENDING-HELD: a runaway ending is held to the words left (${ww} of 100)`);
+  assert.ok(/end\.$/.test(lw.prose), '  and ends on a sentence');
+  assert.strictEqual(lw.cut, false, '  and the passage is not flagged as cut');
+  assert.strictEqual(wild.map((o) => o.d).filter(Boolean).join('').trim(), lw.prose,
+    'LAND-ENDING-PAGE: the page never showed ending words the passage then lost');
 
   // THE ENDING FAILS: the passage is kept, trimmed to its last sentence and flagged, as a cut one was.
   script.push('overcap', 'refuse');
@@ -726,7 +742,7 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
 
   const plain = await streamed({ storyId: story.id, mode: 'continue' });
   assert.strictEqual(plain.last.prose, 'The remote streamed this.', 'a short take is whole');
-  ok('a passage lands at the slider: stopped there, its ending written by the model; under it, or with it off, untouched');
+  ok('a passage lands inside the slider: stopped near it, its ending written by the model in the words left; under it, or with it off, untouched');
 }
 
 // ---- 5c. the same landing on a passage that arrives whole, and JSON is never capped ----
@@ -737,19 +753,19 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
   assert.ok(!r.error, r.error);
   assert.ok(!('max_tokens' in chatsSince(m)[0].body), 'UNCAPPED: no token cap is sent');
   assert.strictEqual(chatsSince(m).length, 2, 'WAITED-LAND: one more call asked for the ending');
-  assert.ok(/end\. The remote wrote this\.$/.test(r.prose), `WAITED-JOIN: the ending follows the sentence the slider fell in (${r.prose.slice(-40)})`);
-  assert.strictEqual(r.prose.split(/\s+/).length, 109, 'WAITED-LENGTH: to the end of that sentence, and the ending');
+  assert.ok(/end\. The remote wrote this\.$/.test(r.prose), `WAITED-JOIN: the ending follows the sentence after 80 (${r.prose.slice(-40)})`);
+  assert.strictEqual(r.prose.split(/\s+/).length, 88, 'WAITED-LENGTH: 84 and the ending');
   assert.strictEqual(r.cut, false, 'WAITED-NOTCUT: not flagged as cut');
 
   // THE PLAN DOES NOT COUNT: the slider is on the prose a writer reads.
   script.push('overcapplan');
   const pl = await routes['POST /api/generate'](guarded({ storyId: story.id, mode: 'continue' }));
-  assert.strictEqual(pl.prose.split(/\s+/).length, 109, `WAITED-PLAN: the slider counts prose only (${pl.prose.split(/\s+/).length})`);
+  assert.strictEqual(pl.prose.split(/\s+/).length, 88, `WAITED-PLAN: the slider counts prose only (${pl.prose.split(/\s+/).length})`);
 
   m = mark();
   script.push('atcap');
   const at = await routes['POST /api/generate'](guarded({ storyId: story.id, mode: 'continue' }, 300));
-  assert.strictEqual(at.prose.split(/\s+/).length, 300, 'WAITED-UNDER: an answer on the slider is whole');
+  assert.strictEqual(at.prose.split(/\s+/).length, 300, 'WAITED-UNDER: an answer that came whole and fits the slider is whole');
   assert.strictEqual(at.cut, false, 'WAITED-UNDER: and not cut');
   assert.strictEqual(chatsSince(m).length, 1, 'WAITED-UNDER: and no ending was asked for');
 

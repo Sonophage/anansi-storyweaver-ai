@@ -157,6 +157,11 @@ await ok('a stream past the slider finishes its sentence, then says it landed', 
   const r2 = await readSSE(await fetch(url2, { method: 'POST' }), (d) => seen2.push(d), 10, 'land');
   assert.strictEqual(seen2.length, 50, `LAND-SLACK: with no stop in sight, 40 words past the slider at most (${seen2.length})`);
   assert.strictEqual(r2.finish, 'land', '  and still landed');
+  // A slack of its own: the passage that lands inside the slider gets only what leaves room for the ending.
+  const url3 = await serve(Array.from({ length: 80 }, () => delta('word ')));
+  const seen3: string[] = [];
+  await readSSE(await fetch(url3, { method: 'POST' }), (d) => seen3.push(d), 10, 'land', 2);
+  assert.strictEqual(seen3.length, 12, `LAND-OWN-SLACK: 2 words past the start at most (${seen3.length})`);
 });
 
 await ok('a frame split across two reads is not dropped', async () => {

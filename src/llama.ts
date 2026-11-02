@@ -393,7 +393,7 @@ export const LAND_SLACK = 40;
 export const SENTENCE_END = /[.!?…]["'”’)\]]*\s*$/;
 
 export async function readSSE(res: Response, onDelta: (d: string) => void, wordCap = Infinity,
-                              capped: 'length' | 'land' = 'length') {
+                              capped: 'length' | 'land' = 'length', slack = LAND_SLACK) {
   const out = { prose: '', reasoning: '', usage: {} as any, timings: {} as any, finish: '' };
   const reader = res.body!.getReader();
   let spaces = 0;   // the words written so far, counted by the gaps between them as they arrive
@@ -425,9 +425,9 @@ export async function readSSE(res: Response, onDelta: (d: string) => void, wordC
       // remote call carries no cap now, and the plan is the model's own business. Past the guard
       // the stream ends as a capped one did: `length`, trimmed to the last sentence and flagged.
       // Or `land` (2026-11-02): the slider's own count, where `generate` asks for the ending.
-      // `land` goes on past the slider to the end of the sentence, LAND_SLACK words at most.
+      // `land` goes on past its start to the end of the sentence, `slack` words at most.
       if (d.content && (spaces += (d.content.match(/\s+/g) ?? []).length) > wordCap) {
-        if (capped === 'land' && spaces <= wordCap + LAND_SLACK) landing = true;
+        if (capped === 'land' && spaces <= wordCap + slack) landing = true;
         else {
           out.finish = capped;
           await reader.cancel().catch(() => {});
@@ -469,11 +469,15 @@ export async function chat(system: string, body: string, opts: Record<string, un
       // what puts the token counts on the final chunk; without it logGeneration records nulls.
       stream: true, stream_options: { include_usage: true },
     };
-    // WHERE A PASSAGE LANDS (2026-11-02): `land_words` is the slider, never sent (app-only, like
-    // `target_words`). The stream stops there on any model, local or remote, and `generate` asks the
-    // model for the ending. Without it a remote call keeps the runaway guard; a local one its cap.
+    // WHERE A PASSAGE LANDS (2026-11-02), three app-only counts, never sent (like `target_words`):
+    // `land_words` where landing starts and `land_slack` how far past it the sentence may run, so the
+    // stream stops on any model, local or remote, and `generate` asks for the ending; `cap_words` a
+    // hard word stop, for that ending. Without them a remote call keeps the runaway guard; a local
+    // one its cap.
     const land = Number(payload.land_words) || 0;
-    delete payload.land_words;
+    const slack = payload.land_slack === undefined ? LAND_SLACK : Number(payload.land_slack) || 0;
+    const capW = Number(payload.cap_words) || 0;
+    delete payload.land_words; delete payload.land_slack; delete payload.cap_words;
     // The timeout is the ceiling; `stop` is the writer pressing Stop. Either one ends the call,
     // and `any` is what lets the second exist WITHOUT giving up the first. Writing this as
     // `stop ?? timeout` also stops on Stop, passes an obvious test, and quietly removes the
@@ -503,8 +507,8 @@ export async function chat(system: string, body: string, opts: Record<string, un
       // router keeps its own `max_tokens`, so a local stream is read to its end, unless it lands.
       try {
         return await readSSE(res, (d) => { wrote = true; onDelta(d); },
-          land > 0 ? land : remote ? runawayWords(Number(payload.target_words) || 0) : Infinity,
-          land > 0 ? 'land' : 'length');
+          land > 0 ? land : capW > 0 ? capW : remote ? runawayWords(Number(payload.target_words) || 0) : Infinity,
+          land > 0 ? 'land' : 'length', slack);
       } catch (e: any) {
         if (!remote || e?.name === 'AbortError' || stop?.aborted) throw e;
         if (!wrote && atCapacity(e)) {
@@ -517,8 +521,8 @@ export async function chat(system: string, body: string, opts: Record<string, un
       } finally { leave(on); }
     }
   }
-  // `land_words` is never sent: on this path `generate` lands a long answer after it arrives whole.
-  const { land_words: _land, ...rest } = opts as Record<string, unknown>;
+  // The landing counts are never sent: on this path `generate` lands a long answer after it arrives whole.
+  const { land_words: _land, land_slack: _slack, cap_words: _cap, ...rest } = opts as Record<string, unknown>;
   const r = await post('/v1/chat/completions', {
     model: MODEL, temperature: 0.85, top_p: 0.95, max_tokens: 900,
     // Chain-of-thought off. MEASURED: with thinking on, this model spent the entire

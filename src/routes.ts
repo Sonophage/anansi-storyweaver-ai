@@ -1,5 +1,5 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
-import { count, chat, LAND_SLACK, SENTENCE_END, structured, structuredRetry, model, models, checkModel, allowList, modelFor, webSearch, searchConfigured,
+import { count, chat, SENTENCE_END, structured, structuredRetry, model, models, checkModel, allowList, modelFor, webSearch, searchConfigured,
          releasable, unload, busyOn, isRemote, remoteReady, keyPathFor, REMOTE_PREFIX, askSwitchWith } from './llama.ts';
 import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound, RESULT_CAP,
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
@@ -1238,23 +1238,30 @@ export const REMOTE_REPETITION_PENALTY: number | null = null;
 /** WHERE A PASSAGE LANDS (Seth, 2026-11-02: "is there no other way to do it so that it knows that
  *  only the response needs to be that long", then "build option 2"). A model cannot count words as it
  *  writes: F65's limit line still ran 1.18x the slider, Omega-Directive-70B 1.31x live, one passage
- *  2.98x. So the app counts. At the slider the passage is stopped (`land_words`, src/llama.ts), and
+ *  2.98x. So the app counts. Near the slider the passage is stopped (`land_words`, src/llama.ts), and
  *  one short call hands the model what it wrote, as its own turn, and asks it to finish the moment.
  *  The passage ends near the slider and reads as finished, not cut. NOT MEASURED: how long endings
  *  run, and how well they close, on each model. */
-const LANDING = 'Stop here: this passage has reached its length. Finish the moment you are in, in one or '
-  + 'two sentences, carrying on from where the text above stops. Do not repeat or rephrase anything '
-  + 'already written. Write only those sentences.';
-/** The ending's own bounds: a cap the router and Featherless both hold (`remoteCap`), and a word stop
- *  under it, past which the ending is trimmed to its last sentence like any cut answer. */
-const LAND_TOKENS = 120;
-const LAND_WORDS = 60;
-/** An answer that arrived whole, landed as a stream lands (`readSSE`): the slider's words, then on to
- *  the end of that sentence, LAND_SLACK words at most. Whitespace and paragraphs kept. */
-const landAt = (text: string, n: number) => {
+const LANDING = (words: number) => `Stop here: this passage has nearly reached its length. Finish the `
+  + `moment you are in, in no more than ${words} words, carrying on from where the text above stops. `
+  + 'Do not repeat or rephrase anything already written. Write only those words.';
+/** INSIDE THE SLIDER, NOT PAST IT (Seth, 2026-11-02: "i hate that the ai is still going over"). The
+ *  first build landed AT the slider and the ending went on top: Kimi-K2.5 ran 336 to 354 at 300 live.
+ *  Now landing starts at LAND_FROM of the slider, the sentence may run on while it leaves LAND_MIN words,
+ *  and the ending gets what is left, held to it by a hard word stop and trimmed to its last sentence.
+ *  So a landed passage never ends past the slider. ponytail: 80% is a guess; Kimi's endings ran 22 to
+ *  43 words, so at a short slider the ending's share may need to be a count, not a fraction. */
+const LAND_FROM = 0.8;
+const LAND_MIN = 15;
+/** The ending's token cap, which the router and Featherless both hold (`remoteCap`): room for its
+ *  words with a margin, since a word is more than one token. */
+const landTokens = (words: number) => Math.max(40, Math.round(words * 2));
+/** An answer that arrived whole, landed as a stream lands (`readSSE`): `n` words, then on to the end of
+ *  that sentence, `slack` words at most. Whitespace and paragraphs kept. */
+const landAt = (text: string, n: number, slack: number) => {
   const words = text.match(/\S+\s*/g) ?? [];
   let k = n;
-  while (k < words.length && k < n + LAND_SLACK && !SENTENCE_END.test(words.slice(0, k).join(''))) k++;
+  while (k < words.length && k < n + slack && !SENTENCE_END.test(words.slice(0, k).join(''))) k++;
   return words.slice(0, k).join('').trimEnd();
 };
 /** No space before an ending that opens on punctuation that closes something. A STRAIGHT quote opens a
@@ -1339,10 +1346,11 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   const asked = Number(c.body?.seed);
   const seed = Number.isSafeInteger(asked) && asked >= 0 ? asked : Math.floor(Math.random() * 2 ** 31);
   const t0 = Date.now();
-  // A passage lands at the slider (LANDING above). Not Talk, which is not a passage, and not with the
+  // A passage lands inside the slider (LANDING above). Not Talk, which is not a passage, and not with the
   // slider off. `tail` is the last thing the page was sent, so the ending's first word is spaced right.
   const target = Number(c.gen.target_words) || 0;
   const lands = role === 'prose' && mode !== 'talk' && target > 0;
+  const from = Math.round(target * LAND_FROM), slack = Math.max(0, target - from - LAND_MIN);
   let tail = '';
   const page = onDelta && ((d: string) => { tail = d; onDelta(d); });
   try {
@@ -1355,7 +1363,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
           ? { repetition_penalty: REMOTE_REPETITION_PENALTY } : {}),
         ...c.gen, max_tokens: reply.maxTokens, seed, model: using,
         chat_template_kwargs: { enable_thinking: reply.weaves },
-        ...(lands ? { land_words: target } : {}) }, page,
+        ...(lands ? { land_words: from, land_slack: slack } : {}) }, page,
       // Only the streaming call. `onDelta` is present exactly when there is a writer watching
       // this arrive, which is exactly when there is a Stop button to press.
       onDelta ? c.signal : undefined);
@@ -1371,21 +1379,33 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     // its last sentence and flagged. Stop, during the ending as during the passage, is Stop.
     let landing: { at: number; ending: number } | null = null;
     const raw = clean(r.prose);
+    // A whole answer that fits the slider is left as it is: landing is for what would run over.
     if (lands && (r.finish === 'land' || (raw.match(/\S+/g) ?? []).length > target)) {
       // A stream already stopped where it lands; cut again, it lost the words the page had shown.
-      const partial = r.finish === 'land' ? raw : landAt(raw, target);
-      let first = true;
+      const partial = r.finish === 'land' ? raw : landAt(raw, from, slack);
+      const left = Math.max(LAND_MIN, target - (partial.match(/\S+/g) ?? []).length);
+      // THE ENDING REACHES THE PAGE A SENTENCE AT A TIME. Held to its word stop it is trimmed to its
+      // last sentence, and words the page had already shown then vanished when the passage was saved
+      // (seen live, 2026-11-02). Whole sentences only, and the rest once the model ends on its own.
+      let first = true, held = '';
+      const emit = (t: string) => {
+        if (!onDelta || !t) return;
+        if (first) { first = false; if (!/\s$/.test(tail) && !/^\s/.test(t) && joins(t.trimStart())) onDelta(' '); }
+        onDelta(t);
+      };
       try {
         const e = await chat(SYSTEM, prompt.slice(SYSTEM.length), {
-          ...c.gen, seed, model: using, max_tokens: LAND_TOKENS, remoteCap: true, land_words: LAND_WORDS,
+          ...c.gen, seed, model: using, max_tokens: landTokens(left), remoteCap: true, cap_words: left,
           chat_template_kwargs: { enable_thinking: false },
           messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: prompt.slice(SYSTEM.length) },
-                     { role: 'assistant', content: partial }, { role: 'user', content: LANDING }] },
+                     { role: 'assistant', content: partial }, { role: 'user', content: LANDING(left) }] },
           onDelta && ((d: string) => {
-            if (first) { first = false; if (!/\s$/.test(tail) && !/^\s/.test(d) && joins(d.trimStart())) onDelta(' '); }
-            onDelta(d);
+            held += d;
+            const whole = held.match(/^[\s\S]*[.!?…—][)\]"'”’]*\s*/)?.[0] ?? '';
+            if (whole) { emit(whole); held = held.slice(whole.length); }
           }), onDelta ? c.signal : undefined);
-        const ending = (e.finish === 'land' || e.finish === 'length') ? trimToSentence(clean(e.prose)) : clean(e.prose);
+        const ending = e.finish === 'length' ? trimToSentence(clean(e.prose)) : clean(e.prose);
+        if (e.finish !== 'length') emit(held);
         if (!ending) throw new Error('no ending');
         prose = partial + joins(ending) + ending;
         cut = false;
