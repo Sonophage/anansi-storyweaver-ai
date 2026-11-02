@@ -2817,7 +2817,7 @@ function drawSide() {
   root.dataset.sidefull = !side.hidden && (alwaysFull || (PANEL_FULL.has(S.panel) && !phone())) ? '1' : '0';
   if (side.hidden) return;
   const full = PANEL_FULL.has(S.panel);
-  const fullBtn = alwaysFull ? '' : `<button class="headadd headfull" data-panelfull="1" aria-pressed="${full}"
+  const fullBtn = alwaysFull ? '' : `<button class="headfull" data-panelfull="1" aria-pressed="${full}"
       aria-label="${full ? 'Back beside the page' : 'Full screen'}" title="${full ? 'Back beside the page' : 'Full screen'}"
       ><span>${mark('expand', 16)}</span></button>`;
   // THE THREADS LIST CARRIES ITS COUNT AND ITS + UP HERE (v2 redesign, 2026-10-25). The + was a
