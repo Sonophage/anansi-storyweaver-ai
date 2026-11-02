@@ -1397,6 +1397,34 @@ assert.match(html('dockCol'), /id="asWhom"/, 'and Speak brings it back');
   assert.match(html('dockCol'), /<button[^>]*id="asWhom"[^>]*>[^<]*Ilva Marren/, 'and picking you goes back to you');
 }
 ok('You play is a picker: search first, then who is in this scene, then everyone else');
+
+// ANY PANEL, FULL SCREEN (Seth, 2026-11-02: "all the panels can be full screen especially threads").
+// A button in the panel's head spreads it over the page, the layout the hem has had since 2026-10-30,
+// and the same press puts it back. Per panel, and this device remembers it.
+{
+  const rootEl = (globalThis as any).document.documentElement;
+  const store = (globalThis as any).localStorage;
+  click({ panel: 'threads' }); await sleep(20);
+  assert.strictEqual(rootEl.dataset.sidefull, '0', 'a panel opens beside the page');
+  assert.match(html('sideHead'), /data-panelfull="1"[^>]*aria-pressed="false"/, 'its head carries the full-screen press');
+  click({ panelfull: '1' }); await sleep(20);
+  assert.strictEqual(rootEl.dataset.sidefull, '1', 'the press spreads it over the page');
+  assert.match(html('sideHead'), /data-panelfull="1"[^>]*aria-pressed="true"/, 'and says so');
+  assert.ok(JSON.parse(store.getItem('anansi.panelfull') ?? '[]').includes('threads'), 'and this device remembers it');
+  click({ panel: 'strings' }); await sleep(20);
+  assert.strictEqual(rootEl.dataset.sidefull, '0', 'per panel: another opens beside the page');
+  click({ panel: 'threads' }); await sleep(20);
+  assert.strictEqual(rootEl.dataset.sidefull, '1', 'and Threads comes back full');
+  click({ entry: 'e-1' }); await sleep(20);
+  assert.strictEqual(rootEl.dataset.sidefull, '1', 'a thread read from it stays full');
+  assert.match(html('sideHead'), /data-panelfull="1"/, 'with the press in its head too');
+  click({ backentry: '1' }); await sleep(20);
+  click({ panelfull: '1' }); await sleep(20);
+  assert.strictEqual(rootEl.dataset.sidefull, '0', 'the same press puts it back beside the page');
+  assert.ok(!JSON.parse(store.getItem('anansi.panelfull') ?? '[]').includes('threads'), 'and the device forgets it');
+  click({ panel: '' }); await sleep(20);
+}
+ok('any panel can be full screen, per panel, remembered on this device');
 // The tint follows the mode, and it follows it on the ROOT — which means the attribute has to be
 // rewritten by the thing that draws the row. Written in applyLook it went stale the moment you
 // pressed a different mode, and Act kept its tinted, rounded background after you had left it.

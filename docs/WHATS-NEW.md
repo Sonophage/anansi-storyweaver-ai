@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-02 · The library shows who is in your scene
 
+### Any panel can fill the screen
+On a computer, the button beside Close in a panel's header spreads it over the page, and the same
+button puts it back at the side. Threads, Scenes, Strings and the rest each remember their own
+choice on this computer.
+
 ### The folded menu on a computer is a clean row of icons
 When the menu is folded on a wide screen, it now shows one column of whole icons, with the one you
 are on marked. Hold the pointer over an icon to see its name. The model's light and the arrow that

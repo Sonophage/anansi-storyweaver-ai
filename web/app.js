@@ -106,6 +106,13 @@ const CTX_KEY = 'anansi.ctxread';
 let CTX_OPEN = false;
 try { CTX_OPEN = localStorage.getItem(CTX_KEY) === '1'; } catch { /* no storage */ }
 
+/** WHICH PANELS ARE FULL SCREEN, on this device (Seth, 2026-11-02: "all the panels can be full screen
+ *  especially threads"). Per panel: a press in its head adds or removes it (`data-panelfull`). */
+const PANELFULL_KEY = 'anansi.panelfull';
+const PANEL_FULL = (() => { try { return new Set(JSON.parse(localStorage.getItem(PANELFULL_KEY) || '[]')); }
+  catch { return new Set(); } })();
+const savePanelFull = () => { try { localStorage.setItem(PANELFULL_KEY, JSON.stringify([...PANEL_FULL])); } catch { /* no storage */ } };
+
 /** WHO IS IN THE NEXT SCENE, ANSWERED: the hems whose Done was pressed, kept on this device, so a
  *  reload or coming back later does not ask again and hold the rest of the hem behind it (the hem
  *  walk, 2026-11-01; it lived in the tab before). The last 50. */
@@ -639,7 +646,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // You play: open the picker, and pick (2026-11-02).
   'playpick', 'play',
   // The search icon on the desk's collapsed menu (2026-11-02).
-  'railfind'].map((k) => `[data-${k}]`).join(',');
+  'railfind',
+  // Any panel full screen, and back (2026-11-02).
+  'panelfull'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -2802,8 +2811,15 @@ function drawSide() {
   // THE HEM AND THE NEXT SCENE'S SETUP ARE FULL SCREEN, as the editor's box is (Seth, 2026-10-30: "It
   // should use the editor full screen ui"). The same drawer and the same markup; the stylesheet
   // spreads it over the page (`html[data-sidefull]`).
-  root.dataset.sidefull = !side.hidden && (S.panel === 'ritual' || S.panel === 'setup') ? '1' : '0';
+  // AND ANY OTHER PANEL THE WRITER HAS MADE FULL (Seth, 2026-11-02), from the press beside Close.
+  const alwaysFull = S.panel === 'ritual' || S.panel === 'setup';
+  // Not on a phone, where the press is hidden (app.html) and the panel is already a sheet.
+  root.dataset.sidefull = !side.hidden && (alwaysFull || (PANEL_FULL.has(S.panel) && !phone())) ? '1' : '0';
   if (side.hidden) return;
+  const full = PANEL_FULL.has(S.panel);
+  const fullBtn = alwaysFull ? '' : `<button class="headadd headfull" data-panelfull="1" aria-pressed="${full}"
+      aria-label="${full ? 'Back beside the page' : 'Full screen'}" title="${full ? 'Back beside the page' : 'Full screen'}"
+      ><span>${mark('expand', 16)}</span></button>`;
   // THE THREADS LIST CARRIES ITS COUNT AND ITS + UP HERE (v2 redesign, 2026-10-25). The + was a
   // full-width "+ Thread, or read the scene" button above the list, and on the Titan's 360x360 it
   // and the filters took the whole screen before the first thread. The + opens the same tray with
@@ -2823,9 +2839,9 @@ function drawSide() {
     <button data-newlore="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
       class="serif">Threads</span></button>
     <span class="fill"></span>
-    <button class="caps-btn" data-panel="">Close</button>`;
+    ${fullBtn}<button class="caps-btn" data-panel="">Close</button>`;
   else if (thRead) sameOrSet('sideHead').innerHTML = `${threadBar('read')}
-    <button class="caps-btn" data-panel="">Close</button>`;
+    ${fullBtn}<button class="caps-btn" data-panel="">Close</button>`;
   else sameOrSet('sideHead').innerHTML = `
     <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis">${esc(TITLES[S.panel] ?? '')}</span>
@@ -2842,7 +2858,7 @@ function drawSide() {
           place of the add form that sat under the list. */
       S.panel === 'strings' && V ? `<button data-stringnew="1" class="headadd" aria-label="Add a string"
       title="Add a string"><span>${mark('create', 16)}</span></button>` : ''}
-    <button class="caps-btn" data-panel="">Close</button>`;
+    ${fullBtn}<button class="caps-btn" data-panel="">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
   $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead && !isAltering() && !(S.panel === 'threads' && S.lore && !S.entryId)
     ? helpBody(PANEL_HELP[S.panel]) : '')
@@ -12333,6 +12349,10 @@ document.addEventListener('click', async (e) => {
       : r.note ?? 'already chalked');
   }
   if (d.rail !== undefined) { S.rail = !S.rail; paint(); return; }
+  if (d.panelfull) {
+    if (PANEL_FULL.has(S.panel)) PANEL_FULL.delete(S.panel); else PANEL_FULL.add(S.panel);
+    savePanelFull(); paint(); return;
+  }
   if (d.railfind) { S.rail = true; paint(); document.querySelector('#rail .railsearch')?.focus(); return; }
   // Two doors, one rail. `data-railview` says WHICH menu you asked for: the menu button asks for
   // the workspace, the story's own name asks for the story. Asking for the menu already open and

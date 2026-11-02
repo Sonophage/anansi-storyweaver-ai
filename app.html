@@ -1830,6 +1830,12 @@ html:not([data-ui-rail="closed"]) .navgrid > button:first-child .txt { font-size
   justify-content:center; color:var(--gold); flex:0 0 auto; }
 .headadd > span { width:34px; height:34px; border:1px solid var(--chip); border-radius:var(--r-pill);
   display:flex; align-items:center; justify-content:center; }
+/* A PANEL FULL SCREEN, and back (data-panelfull, 2026-11-02). Ink, not the +'s gold: it is not the
+   panel's one main press (ADR 0004). Not on a phone, where the panel is already a sheet over most of
+   the screen and the head had no room for it: the title came down to "Thre…". */
+.headfull { color:var(--mute); }
+.headfull[aria-pressed="true"] { color:var(--ink-bright); }
+@media (max-width:719px) { .headfull { display:none; } }
 /* THE HANDOFF'S PICKED STATE IS NOT HERE, and that is deliberate rather than an omission. Nothing
    sets `aria-pressed` on a plate: the only place a thread is picked is the cross-book seed picker,
    and that is `data-seedpick`, a different renderer with its own chosen treatment. A rule written
