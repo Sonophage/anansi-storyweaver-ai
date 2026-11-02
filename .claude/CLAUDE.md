@@ -62,8 +62,8 @@ when something is genuinely wrong.
 **Docs drift from the code. The code wins.** When they disagree, read the code and fix the doc.
 Run it; do not cite it.
 
-1. **`docs/findings/P0-FINDINGS.md`** — measured numbers, 63 findings
-   (`grep -c '^## F[0-9]' docs/findings/P0-FINDINGS.md`). The most valuable thing in the repo:
+1. **`docs/findings/P0-FINDINGS.md`** — measured numbers, one finding per `## F` heading; count
+   them with `grep -c '^## F[0-9]' docs/findings/P0-FINDINGS.md` rather than trusting a number here. The most valuable thing in the repo:
    these cost GPU time and cannot be re-derived by reading source. Most F-numbers are cited from
    code comments explaining why something is the way it is
    (`grep -arohE '\bF[0-9]{1,2}\b' src web bench test | sort -u | wc -l` counts them).
