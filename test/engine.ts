@@ -451,6 +451,19 @@ ok("the writer's own wording replaces a mode outright, and empties back to the s
   const fn = withOwn({ speak: 'Say: {{last}}' }, 'speak', { passages: [{ id: 'p3', ordinal: 1, body: 'It cost $& and {{directive}}.' }] }).text;
   assert.strictEqual(fn, 'Say: It cost $& and {{directive}}.', 'LAST-AS-WRITTEN: the passage goes in as written, placeholders and all');
 
+  // AND SENT ONCE (Seth, 2026-11-02: "remove the duplicate"). Quoted at the end, the newest passage
+  // leaves the story's prose, and the manifest says where it went. Without {{last}}, nothing moves.
+  const twice = (prompts: any, mode = 'speak', extra: any = {}) => {
+    const m = buildContext({ ...base(), mode, speaker: 'Marek Vale', modePrompts: prompts, passages: [p1, p2], ...extra } as any, count);
+    const sent = m.blocks.filter((b) => b.state === 'included' && b.text.includes('Tell me what the text meant')).map((b) => b.kind);
+    return { sent, moved: m.blocks.find((b) => b.id === 'p2' && b.state === 'omitted') };
+  };
+  const q = twice({ speak: 'Answer it.\nWhat {{speaker}} just said: {{last}}' });
+  assert.deepStrictEqual(q.sent, ['MODE'], 'LAST-ONCE: quoted at the end, the passage is sent once, there');
+  assert.match(q.moved?.reason ?? '', /quoted at the end/, '  and the manifest says where it went');
+  assert.deepStrictEqual(twice({ speak: 'Answer it.' }).sent, ['TAIL'], 'LAST-ONCE-OFF: without {{last}} it stays in the story');
+  assert.deepStrictEqual(twice(undefined).sent, ['TAIL'], '  and the shipped wording is untouched');
+
   // An override for one mode must not reach another.
   assert.match(withOwn({ speak: 'MINE' }, 'act').text, /what it costs, or what it gets/,
     'act still has its own wording');

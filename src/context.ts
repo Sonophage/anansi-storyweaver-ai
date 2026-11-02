@@ -1526,7 +1526,21 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     { text: `[${story.spiceNote?.trim() || SPICE[story.spice]}]`, keep: true },
   ], CAPS.DIRECTIVE!);
 
-  for (const p of tail) add('TAIL', p.id, mark(p), 'tail prose');
+  // SENT ONCE (Seth, 2026-11-02: "remove the duplicate"). When the writer's own wording for this mode
+  // quotes the newest passage at its end ({{last}}, filled in MODE below), that passage leaves the
+  // story's prose and is said to have moved. Not when an empty scene opens on Continue: the opening's
+  // own words replace the writer's there, and {{last}} is not sent. NOT MEASURED.
+  const ownHere = MODE[input.mode] ? input.modePrompts?.[input.mode]?.trim() : undefined;
+  const quoted = !!ownHere && /\{\{\s*last\s*\}\}/.test(ownHere)
+    && !(input.mode === 'continue' && !started && !!currentChapter.opensWith?.trim())
+    ? scene.at(-1)?.id : undefined;
+  for (const p of tail) {
+    if (p.id === quoted) {
+      blocks.push({ kind: 'TAIL', id: p.id, text: '', tokens: 0, state: 'omitted', reason: 'quoted at the end of the instruction' });
+      continue;
+    }
+    add('TAIL', p.id, mark(p), 'tail prose');
+  }
 
   // MODE. Omitted only for Narrate on an unfinished line — scoping this to one mode is
   // deliberate: Direct's directive and speak/act's "whose line is it" live ONLY in MODE, and
