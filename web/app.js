@@ -616,7 +616,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
   'tidy', 'restand', 'deckall', 'deckmove', 'deckundo', 'anansiedit', 'hemextra',
   // #92. A hemmed scene's card: run its passes again, set up the next scene.
-  'hemagain', 'hemopen', 'hemedit', 'fillsetup', 'hemuse', 'hemskip',
+  'hemagain', 'hemopen', 'hemedit', 'fillsetup', 'hemuse', 'hemskip', 'hemsumedit', 'hemsumdone', 'hemsumskip', 'hemsumuse',
   // #75. The tale's own thread: add to it, and open where it stands now.
   'taleadd', 'talestand',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
@@ -4185,6 +4185,30 @@ function hemDrafts(ch) {
       with a plain Continue.</div>
   </div>`;
 }
+/** THE SUMMARY ON THE HEM SCREEN, TO READ, WITH SKIP, EDIT AND USE (Seth, 2026-11-01: "The summary in
+ *  step three of the hem can be bigger with the same skip edit and use buttons"), as the drafts have.
+ *  The whole text in reading size; Edit opens it in a big box that saves when the writer leaves it
+ *  (the `change` handler, as it is yours then) and Done closes; Use folds it; Skip removes it, on a
+ *  second press, since a scene without a summary is sent whole until it gets one. With none, the box. */
+function hemSummary(ch) {
+  const id = esc(ch.id), sum = String(ch.summary ?? '').trim();
+  const label = ch.summaryAuthor === 'human' ? 'Your summary' : 'The summary';
+  if (!sum || S.hemSumEdit === ch.id) return `<div class="card hemsum push-8">
+    <label class="lbl flush" for="hemsum-${id}">${label}</label>
+    <textarea class="field hemsumbox" id="hemsum-${id}" data-hemsumtext="${id}" aria-label="The summary of ${esc(sceneName(ch))}"
+      placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>
+    ${sum ? `<button class="btn ghost push-8" data-hemsumdone="${id}">Done</button>` : ''}</div>`;
+  // Used is THIS text: a summary written again (Hem it again, Try again) is asked about again.
+  if (S.hemSumUsed?.get(ch.id) === sum) return `<div class="hint flush" data-hemsumused>${label}: using it.</div>`;
+  return `<div class="card hemsum push-8">
+    <div class="lbl flush">${label}</div>
+    <div class="hemsumread" data-hemsumread="${id}">${esc(sum)}</div>
+    <div class="btnrow">
+      <button class="btn ghost fill" data-hemsumskip="${id}"><span class="lbl-txt">Skip</span></button>
+      <button class="btn ghost fill" data-hemsumedit="${id}">Edit</button>
+      <button class="btn ghost fill" data-hemsumuse="${id}">Use</button></div></div>`;
+}
+
 /** WHO IS IN THE NEXT SCENE, once how it starts is said, while the scans finish. Done is this tab's
  *  (`S.hemWho`, kept on this device: `saveHemWho`).
  *  ponytail: kept per device, not on the hem's row. Ceiling: another device asks again. Trigger: Seth
@@ -4322,10 +4346,7 @@ function ritualPanel() {
   const summed = told && (ch.hem.state !== 'running' || 'summary' in (ch.hem.passes ?? {}));
   if (told && !summed) act.push(`<div class="hint">Anansi is still reading the scene.
     What he wrote about it shows here when he has it.</div>`);
-  else if (told) act.push(`<label class="lbl sub-lbl" for="hemsum-${esc(ch.id)}">${
-      ch.summaryAuthor === 'human' ? 'Your summary' : 'The summary'}</label>
-    <textarea class="field" id="hemsum-${esc(ch.id)}" data-hemsumtext="${esc(ch.id)}" aria-label="The summary of ${esc(sceneName(ch))}"
-      placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>
+  else if (told) act.push(`${hemSummary(ch)}
     ${ch.hem.state === 'running' ? `<div class="hint">Anansi is still on the rest. What he found to decide
       shows here when he is done.</div>` : ''}`);
   if (told) act.push(hemDrafts(ch));
@@ -14126,6 +14147,21 @@ document.addEventListener('click', async (e) => {
   // THE DRAFTS FROM THE BRIEF (`hemDrafts`): Use folds a row; Skip empties that box in the scene, and
   // the opening, skipped, leaves the composer to a plain Continue if it still holds the draft.
   if (d.hemuse) { (S.hemUsed ??= new Set()).add(`${d.ch}:${d.hemuse}`); paint(); return; }
+  // THE HEM'S SUMMARY (`hemSummary`): Edit opens the big box, Done closes it, Skip removes it on a
+  // second press (an empty summary removes it, `POST /api/summary`).
+  if (d.hemsumedit) { S.hemSumEdit = d.hemsumedit; paint(); $(`hemsum-${d.hemsumedit}`)?.focus(); return; }
+  if (d.hemsumdone) { S.hemSumEdit = null; paint(); return; }
+  if (d.hemsumuse) {
+    (S.hemSumUsed ??= new Map()).set(d.hemsumuse, String(V.chapters.find((c) => c.id === d.hemsumuse)?.summary ?? '').trim());
+    paint(); return;
+  }
+  if (d.hemsumskip) {
+    if (!armed(t, `hemsumskip:${d.hemsumskip}`, 'Skip removes this summary, and the scene is sent whole until it has one. Press Skip again to remove it.')) return;
+    const r = await api.saveSummary(S.storyId, d.hemsumskip, '');
+    if (r.error) return toast(r.error);
+    V = r; paint(); refreshManifest();
+    return toast('Skipped. The scene has no summary now.');
+  }
   if (d.hemskip) {
     const was = (V.chapters ?? []).find((c) => c.id === d.ch);
     const r = await api.saveChapter(S.storyId, d.ch, d.hemskip === 'opens' ? { opensWith: '' } : { authorsNote: '' });

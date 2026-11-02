@@ -6773,7 +6773,19 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     assert.doesNotMatch(below(side), /data-hemsumtext|data-deckkind=/, '  and no summary or cards yet');
     click({ hemwhodone: 'c-2' }); await sleep(30);
     side = html('sideBody');
-    assert.match(below(side), /data-hemsumtext="c-2"[^>]*>The envoy waits\./, 'HEM-SUMMARY-AFTER: after Done, with the scans over, the summary shows');
+    assert.match(below(side), /data-hemsumread="c-2"[^>]*>The envoy waits\./, 'HEM-SUMMARY-AFTER: after Done, with the scans over, the summary shows');
+    // READ, WITH SKIP, EDIT AND USE (Seth, 2026-11-01: "The summary in step three of the hem can be
+    // bigger with the same skip edit and use buttons"): the whole text to read, no box until Edit.
+    assert.match(below(side), /data-hemsumskip="c-2"[\s\S]*data-hemsumedit="c-2"[\s\S]*data-hemsumuse="c-2"/,
+      'HEM-SUM-BUTTONS: Skip, Edit and Use, as the drafts have');
+    assert.doesNotMatch(below(side), /data-hemsumtext=/, '  and no box to type in until Edit');
+    click({ hemsumedit: 'c-2' }); await sleep(30);
+    assert.match(below(html('sideBody')), /<textarea class="field hemsumbox"[^>]*data-hemsumtext="c-2"[^>]*>The envoy waits\./, 'HEM-SUM-EDIT: Edit opens it in a big box');
+    click({ hemsumdone: 'c-2' }); await sleep(30);
+    assert.match(below(html('sideBody')), /data-hemsumread="c-2"/, '  and Done closes the box');
+    click({ hemsumuse: 'c-2' }); await sleep(30);
+    assert.match(below(html('sideBody')), /The summary: using it\./, 'HEM-SUM-USE: Use folds it');
+    side = html('sideBody');
     // THE WRITER'S TURN IS GOLD: what it chalked waits on the writer, decided here on the hem's own card.
     assert.match(step('decide'), /data-state="you"/, 'HEM-YOU: deciding what it found is the gold step while things wait');
     assert.strictEqual((side.match(/data-state="you"/g) ?? []).length, 1, 'HEM-ONE-GOLD: one gold step, the next');
@@ -8219,6 +8231,7 @@ const hemCardOf = (side: string) => {
   (globalThis as any).fetch = async (url: string, init?: any) => {
     const reply = (o: any) => ({ ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) });
     if (url.startsWith('/api/story?')) { reads++; return reply(VIEW); }
+    if (url === '/api/summary') { POSTED.push({ url, body: JSON.parse(init.body) }); return reply(VIEW); }
     if (url === '/api/chapter/end') {
       POSTED.push({ url, body: JSON.parse(init.body) });
       VIEW = after(holding, []);
@@ -8284,7 +8297,16 @@ const hemCardOf = (side: string) => {
     // drawn again shows what it would put there.
     click({ panel: 'ritual' }); await settle();
     side = html('sideBody');
-    assert.match(side, /data-hemsumtext="c-2"[^>]*>The envoy is seen home\./, 'SUMMARY-EARLY: the summary shows as soon as it is written');
+    assert.match(side, /data-hemsumread="c-2"[^>]*>The envoy is seen home\./, 'SUMMARY-EARLY: the summary shows as soon as it is written');
+    // SKIP REMOVES IT, ON A SECOND PRESS: a scene with no summary is sent whole until it has one.
+    let sent = POSTED.length;
+    click({ hemsumskip: 'c-2' }); await settle();
+    assert.ok(!POSTED.slice(sent).some((p: any) => p.url === '/api/summary'), 'HEM-SUM-SKIP-ASKS: one press of Skip removes nothing');
+    click({ hemsumskip: 'c-2' }); await settle();
+    assert.strictEqual(POSTED.slice(sent).find((p: any) => p.url === '/api/summary')?.body?.summary, '',
+      'HEM-SUM-SKIP: the second removes the summary');
+    click({ panel: 'ritual' }); await settle();
+    side = html('sideBody');
     assert.match(side, /still on the rest/, '  with a line saying the rest is still running');
     assert.doesNotMatch(side, /data-deckkind=/, '  and no cards until the hem is done');
     VIEW = after(running, []);

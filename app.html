@@ -2363,9 +2363,9 @@ html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
 .whoeye[data-lit="1"] { color:var(--ink-bright); }
 .whoeye[data-reach="off"] { opacity:.5; }
 /* #122 · THE ONE DIFF (diffHTML in web/model.js), a Was / Now switch since 2026-10-29: the text as
-   it reads now or as it read, one at a time, the changed words marked in place. The switch wears the
-   chips' pressed look (ink, not gold: gold means press here, ADR 0004). The changed words are the
-   bright ink over the accent's line in Now, and the faded ink over a fainter line in Was.
+   it reads now or as it read, one at a time. The switch wears the
+   chips' pressed look (ink, not gold: gold means press here, ADR 0004). The changed words are not
+   marked (Seth, 2026-11-01): the switch is how the change is seen, and each view reads as plain text.
    pre-wrap keeps the writer's line breaks; anywhere lets a long word wrap on a 390px phone. */
 .diff { position:relative; font-size:13px; line-height:1.6; color:var(--narr); white-space:pre-wrap; overflow-wrap:anywhere; }
 .diff p { margin:0; }
@@ -2376,8 +2376,10 @@ html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
 .diffswitch button { min-width:44px; min-height:30px; padding:0 10px; border:1px solid transparent; border-radius:999px;
   font-size:11.5px; color:var(--mute); background:transparent; }
 .diffswitch button[aria-pressed="true"] { border-color:var(--ink-bright); color:var(--ink-bright); }
-.diff ins { color:var(--ink-bright); text-decoration:none; box-shadow:inset 0 -2px 0 var(--gold); }
-.diff del { color:var(--mute); text-decoration:none; box-shadow:inset 0 -2px 0 var(--dim); }
+.diff ins, .diff del { color:inherit; text-decoration:none; }
+/* THE HEM'S SUMMARY TO READ (2026-11-01): the whole text at reading size, and a big box to edit it. */
+.hemsumread { font-size:15px; line-height:1.65; color:var(--narr); white-space:pre-wrap; overflow-wrap:anywhere; margin:6px 0 10px; }
+.hemsumbox { min-height:40vh; font-size:15px; line-height:1.6; }
 .diff .dnone { color:var(--faint); font-style:italic; }
 .deckredo { display:flex; gap:7px; align-items:center; margin-top:8px; }
 /* THE HEM AS ITS STEPS, COLOUR CODED (Seth, 2026-10-30): grey waiting, the accent pulsing while

@@ -507,9 +507,9 @@ export function wordDiff(a, b) {
 }
 
 /** THE ONE RENDERING of a diff, as a Was / Now switch (Seth, 2026-10-29: option D of the design
- *  canvas). It opens on Now, the text as it will read, with the added words marked in `<ins>`; Was is
- *  the text as it read, with the removed words marked in `<del>`. The words that change stay in the
- *  same place, so the eye catches them as it flips. Both views are drawn and the wrapper's
+ *  canvas). It opens on Now, the text as it will read, with the added words in `<ins>`; Was is the
+ *  text as it read, with the removed words in `<del>`. Unmarked on screen since 2026-11-01 (Seth: the
+ *  Was and Now buttons are how the change is seen); the tags stay for a screen reader. Both views are drawn and the wrapper's
  *  `data-view` picks one in the stylesheet, so a press (`data-diffview`, app.js) repaints nothing.
  *  Identical text is plain text with no switch. All escaped; it wraps anywhere, so a long word cannot
  *  push a 390px phone sideways. */

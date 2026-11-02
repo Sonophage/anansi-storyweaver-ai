@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-01 · Hemming starts from what the next scene is
 
+### The summary, to read
+On the hem, the summary now shows in full at reading size, with Skip, Edit and Use like the drafts
+under it. Edit opens it in a big box. Skip removes it, after a second press. And Was and Now show
+plain text: the changed words are no longer underlined, since the two buttons already show the
+change.
+
 ### A new thread starts with one good keyword
 Every thread Anansi makes now starts with one wake word: a person's name in one word as the prose
 says it ("Marek"), and anything else its name as the prose writes it ("Iron Hands", "Long Stair").

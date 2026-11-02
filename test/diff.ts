@@ -8,7 +8,7 @@
 // written for: punctuation, a repeated word, a moved sentence, an empty side, identical text.
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
-const { wordDiff, diffHTML, historyPairs, THEMES, themeVars } = await import('../web/model.js');
+const { wordDiff, diffHTML, historyPairs } = await import('../web/model.js');
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -142,29 +142,15 @@ ok('DIFF-HTML: a Was / Now switch over the text, the changed words marked in eac
   assert.match(diffHTML('a', ''), /<p class="dnow"><span class="dnone">Nothing<\/span><\/p>/, '  and an empty Now');
 });
 
-// IN EVERY THEME: the changed words are the bright ink over the accent's line (Now) or the faded ink
-// over a fainter line (Was), and the line must read on the paper and the card sheet: 3:1, the floor
-// for a mark that is not text. No red and green any more: the switch, not a colour, says which is which.
-ok('DIFF-THEMES: the marks read against the paper and the sheet of every theme', () => {
-  const rgb = (c: string) => c.startsWith('#') ? [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16))
-    : (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
-  const lum = (c: string) => rgb(c).map((v) => v / 255)
-    .map((v) => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
-    .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
-  const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+// NO MARKS SINCE 2026-11-01 (Seth: "the underlined diffed view no longer needs to be there since we
+// have the was and now buttons"). Until then the changed words sat on the accent's line, and this
+// checked that line against every theme's paper. Now each view is plain text, in the text's own ink.
+ok('DIFF-PLAIN: the changed words carry no line, no accent and no colour of their own', () => {
   const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
-  assert.match(css, /\.diff ins \{[^}]*var\(--gold\)/, 'added words sit on the accent\'s line');
-  assert.match(css, /\.diff del \{[^}]*var\(--dim\)/, 'removed words on a fainter one');
+  const marks = css.match(/\.diff (?:ins|del)[^{]*\{[^}]*\}/g) ?? [];
+  assert.ok(marks.length, 'the rule for the marks is there');
+  for (const m of marks) assert.doesNotMatch(m, /box-shadow|underline|var\(--(?:gold|dim)\)/, `no line: ${m}`);
   assert.doesNotMatch(css.match(/\.diff[^{]*\{[^}]*\}/g)!.join(''), /#[0-9a-f]{3,8}\b|rgba?\(/i, 'and no literal colour');
-  const low: string[] = [];
-  for (const [k, t] of Object.entries(THEMES) as [string, any][]) {
-    const v = themeVars(k);
-    for (const [mark, c] of [['the Now line', v['--gold']], ['the Was line', v['--dim']]]) for (const bg of [t.paper, t.sheet]) {
-      const r = ratio(String(c), bg);
-      if (r < 3) low.push(`${k} ${mark} ${c} on ${bg}: ${r.toFixed(2)}`);
-    }
-  }
-  assert.deepStrictEqual(low, [], 'every theme clears 3:1');
 });
 
 // ALTERATIONS: each earlier version against the one that replaced it. The rows come newest first,
