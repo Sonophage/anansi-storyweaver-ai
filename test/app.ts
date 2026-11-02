@@ -353,9 +353,13 @@ const MANIFEST = { manifest: { blocks: [
 // the tokenizer's `exact` since the route was written and app.js drew the bar from the estimate.
 // A fixture whose two candidate answers are identical is the tag-splitting fixture with no comma
 // in it, arriving again.
-], totals: { budget: 46146, used: 27401, unallocated: 0 }, byKind: {}, overflowed: false }, prompt: '', exact: 21401 };
+], totals: { budget: 46146, used: 27401, unallocated: 0 }, byKind: {}, overflowed: false }, prompt: '', exact: 21401,
+  // Each sent thread's kind, as the route sends it for the library's hero (2026-11-02).
+  kinds: { 'e-1': 'character', 'e-fired': 'character' } };
 
 const POSTED: any[] = [];
+// Every GET the app made, so a test can see which scene a press asked for.
+const GOT: string[] = [];
 // Which generations the stub actually served, so a test can assert that none ran.
 const GENERATED: string[] = [];
 // WHAT WAS ASKED FOR, AND HOW MANY AT ONCE. The second half is the point: the first version of the
@@ -397,6 +401,7 @@ let stubHistory: any = null;
 // #103. How many World lookups fail before one answers, as a dropped connection would.
 let worldDown = 0;
 (globalThis as any).fetch = async (url: string, init?: any) => {
+  if (!init?.method || init.method === 'GET') GOT.push(url);
   if (init?.body) { try { POSTED.push({ url, body: JSON.parse(init.body), method: init.method }); } catch { /* not JSON */ } }
   /* A GENERATION, AS THE NDJSON STREAM THE REAL ROUTE SENDS. Until 2026-09-01 this stub answered
    * /api/generate with {}, so `res.body` was undefined and `jStream` threw on `getReader()` — which
@@ -447,6 +452,9 @@ let worldDown = 0;
   // single story there is no grid to come after the New story button, so an assertion about where
   // that button sits is true wherever the button is put.
   const body = url.startsWith('/api/stories') ? (shelfOverride ?? { stories: [{ id: 's-1', title: 'The Ashfall Concordat', status: 'in_progress', updatedAt: Date.now(), words: 9140, last: 'She left.',
+        // LEFT OFF IN SCENE 3 OF 4 (2026-11-02), as after a hem opens the next scene empty: the hero
+        // draws scene 3's threads and opens scene 3.
+        last_chapter_id: 'c-3', last_chapter_idx: 3, last_chapter_title: 'The Inn', chapter_count: 4,
         // OWED SOMETHING, on purpose. What is waiting is drawn on the band now, which means it is
         // drawn for the hero book and nowhere else — so a hero owed nothing makes the chips
         // untestable, and the assertion would pass against a band that could never draw one.
@@ -843,6 +851,28 @@ assert.match(html('page'), /The Ashfall Concordat/);
 }
 ok('one New story button, on the bar, and the shelf does not repeat it');
 
+// THE HERO'S THREADS (Seth, 2026-11-02: the banner's scene lines become "the cards that are currently
+// active for that tale in the active scene", the bar under a tale's header). It asks the manifest for
+// the last-worked scene, with no count, and draws the bar's segments: one per thread sent, coloured by
+// kind, dimmed when a word woke it. And it is still one press.
+{
+  const { KIND_COLOR } = await import('../web/model.js');
+  for (let i = 0; i < 40 && !POSTED.some((p) => p.url === '/api/manifest' && p.body.count === false); i++) await sleep(25);
+  const ask = POSTED.find((p) => p.url === '/api/manifest' && p.body.count === false);
+  assert.ok(ask, 'the hero asks for its threads without a count');
+  assert.deepStrictEqual([ask.body.storyId, ask.body.chapterId], ['s-1', 'c-3'], 'for the last-worked scene');
+  await sleep(40);
+  const hero = html('page').match(/<section class="resumeband[\s\S]*?<\/section>/)?.[0] ?? '';
+  assert.doesNotMatch(hero, /bandmeter/, 'no scene bars any more');
+  const segs = [...(hero.match(/<span class="herosent"[^>]*>([\s\S]*?)<\/span>/)?.[1] ?? '').matchAll(/<i [^>]*>/g)].map((m) => m[0]);
+  assert.strictEqual(segs.length, 2, 'one segment per thread sent, and not the one pushed out for room');
+  assert.ok(/class="always"/.test(segs[0]) && /class="word"/.test(segs[1]), 'always on first and full, then the woken one dimmed');
+  assert.ok(segs.every((x) => x.includes(KIND_COLOR.character)), 'coloured by kind, as the bar is');
+  assert.strictEqual((hero.match(/<button/g) ?? []).length, 1, 'the hero is still one press');
+  assert.match(hero, /<button class="art" data-open="s-1" data-chapter="c-3"/, 'and it opens the last-worked scene');
+}
+ok('the hero draws the threads sent in its last-worked scene, and opens that scene');
+
 // ---- now open the story, which is where the field names bit ----
 // The fake carries what `whileWorking` touches as well as the dataset, because a handler behind the
 // in-flight guard reads its own button: `querySelector('.lbl-txt')`, `disabled`, `textContent`. It
@@ -896,6 +926,16 @@ const typeIn = (id: string, value: string) =>
     target: { id, value, rows: 1, scrollHeight: 0, style: {},
               getBoundingClientRect: () => ({ top: 0, bottom: 0, height: 0 }) },
   }));
+// THE HERO'S PRESS (2026-11-02): the tale opens at the last-worked scene, in one fetch, not two.
+{
+  const before = GOT.length;
+  click({ open: 's-1', chapter: 'c-3' });
+  for (let i = 0; i < 40 && !GOT.slice(before).some((u) => u.startsWith('/api/story?')); i++) await sleep(25);
+  await sleep(40);
+  assert.deepStrictEqual(GOT.slice(before).filter((u) => u.startsWith('/api/story?')),
+    ['/api/story?story=s-1&chapter=c-3'], 'the hero opens the tale at that scene, in one fetch');
+}
+ok('the hero opens its tale at the last-worked scene');
 click({ open: 's-1' });
 await sleep(40);
 

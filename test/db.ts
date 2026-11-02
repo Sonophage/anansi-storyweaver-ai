@@ -1688,6 +1688,18 @@ ok('a story\'s persona and locked character follow a rename, and clear on a dele
   assert.strictEqual(read().locked_character, 'Kade Ferrin', 'and leaves the other reference standing');
 });
 
+// THE HERO OPENS THE LAST-WORKED SCENE (Seth, 2026-11-02). The shelf names it by id: the scene of the
+// last passage, not the open one. After a hem the open scene is new and empty, so the two differ.
+ok('the shelf names the scene last worked on, not the empty one opened after it', () => {
+  const me = db.owner('last-scene-test');
+  const st = db.createStory(me, { title: 'Two Scenes' });
+  db.addPassage({ ...st, storyId: st.id, body: 'She lit the lamp.' });
+  const next = db.endChapter(st.id, st.branchId);
+  const row = (db.listStories(me) as any[]).find((r) => r.id === st.id);
+  assert.strictEqual(row.last_chapter_id, st.chapterId, 'the scene with the prose in it');
+  assert.notStrictEqual(row.last_chapter_id, next.opened, 'not the empty scene after it');
+});
+
 ok('auto-open is on by default, survives a partial save, and can be turned off', () => {
   const me = db.owner('autoopen-test');
   const st = db.createStory(me, { title: 'The Opening' });

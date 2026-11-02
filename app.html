@@ -2084,11 +2084,11 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
   box-shadow:0 26px 60px -20px rgba(0,0,0,.85); animation:rise var(--t-slow) var(--ease) both; }
 @media (min-width:720px) { .resumeband { height:max(380px, calc(100svh - 156px)); padding:28px 32px 24px; } }
 /* A SHORT SCREEN (the Titan's 360x360) has no room for "most of the screen": the hero takes the
-   height its words need, the scene bars and the count come off, and the title comes down a size,
+   height its words need, the threads' bar and the count come off, and the title comes down a size,
    so nothing is cut off its top. */
 @media (max-height:520px) { .resumeband { height:auto; margin-top:0; padding:16px 14px 14px; }
   .resumeband > .herobody { gap:8px; } .resumeband .bandtitle { font-size:32px; }
-  .resumeband .bandmeter, .resumeband .herocount { display:none; }
+  .resumeband .herosent, .resumeband .herocount { display:none; }
   .resumeband > .glass { margin-top:10px; padding:10px 12px; } .resumeband .quote { -webkit-line-clamp:2; }
 }
 .resumeband > .art { position:absolute; inset:0; cursor:pointer; width:100%; height:100%; margin:0; padding:0;
@@ -2119,10 +2119,12 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 .resumeband .herorule { width:40px; height:1px; background:rgba(255,255,255,.6); }
 .resumeband .herowhere { font-size:15px; letter-spacing:.04em; }
 .resumeband .herocount { font-size:12px; color:rgba(255,255,255,.75); }
-/* One bar per scene, lit up to the one you are in. */
-.bandmeter { display:flex; gap:4px; width:150px; height:4px; }
-.bandmeter > i { flex:1; border-radius:2px; background:rgba(255,255,255,.22); }
-.bandmeter > i.done { background:#fff; }
+/* The threads sent in the scene last worked on: #ctxbar's segments (sentSegs in app.js), coloured by
+   kind, a woken one dimmed. Its height held while they load, so the hero does not jump. */
+.herosent { display:flex; gap:3px; width:min(200px, 100%); height:4px; }
+.herosent > i { flex:1 1 0; min-width:0; border-radius:2px; }
+.herosent > i.word { opacity:.45; }
+.herosent > i.none { background:rgba(255,255,255,.22); }
 /* Not a control, so a press on it falls through to the picture, which carries on writing: the
    whole hero is one door. */
 .resumeband > .glass { pointer-events:none; position:relative; display:flex; flex-direction:column; gap:6px; margin-top:14px;

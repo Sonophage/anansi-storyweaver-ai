@@ -16,6 +16,14 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-11-02 · The library shows who is in your scene
+
+### Where you left off shows the threads in your scene
+The row of bars under the title on the library used to count your scenes. It now shows the threads
+that are sent in the scene you last worked on, the same bar you see under a tale's header: one line
+for each thread, in its kind's colour, dimmed when a word brought it in. Pressing anywhere on it
+opens the tale at that scene.
+
 ## 2026-11-01 · Hemming starts from what the next scene is
 
 ### A scene starts with its own cast

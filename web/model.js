@@ -763,6 +763,18 @@ export const BLURB = {
  *  it. Fixed, as BLOCK_COLOR is, so one kind is one colour on every theme. */
 export const KIND_COLOR = { character: '#D98B6A', place: '#7FB083', lore: '#9A86C8', item: '#6FA3C0' };
 
+/** THE THREADS A CALL HOLDS, off its manifest: in the kinds' order and always-on first within a kind,
+ *  each with whether a word woke it. A thread pushed out for room is not here, and neither is one the
+ *  list has no row for. ONE PREDICATE for the bar under a tale's header and the library's hero
+ *  (2026-11-02), which reads its kinds off the manifest route rather than a tale's thread list. */
+export const sentOf = (mani, entries) => {
+  if (!mani) return [];
+  const byId = new Map((entries ?? []).map((e) => [e.id, e]));
+  return mani.blocks.filter((b) => b.state === 'included' && (b.kind === 'CANON-ALWAYS' || b.kind === 'CANON-TRIGGERED') && byId.has(b.id))
+    .map((b) => ({ e: byId.get(b.id), word: b.kind === 'CANON-TRIGGERED' }))
+    .sort((a, b) => KINDS.indexOf(a.e.entryType) - KINDS.indexOf(b.e.entryType) || Number(a.word) - Number(b.word));
+};
+
 export const BLOCK_COLOR = {
   SPINE: '#D9B26A', VOICE: '#5C5480', STYLE: '#3F6B6E', 'CANON-ALWAYS': '#7FB083', 'CANON-TRIGGERED': '#9A8B62',
   STRING: '#B07C9E', EARLIER: '#8A7BA8', PROSE: '#6E8AA0', TAIL: '#5E7A8E',

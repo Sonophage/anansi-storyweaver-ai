@@ -459,6 +459,29 @@ const since = (mark: { fl: number; local: number }) => ({
 });
 const mark = () => ({ fl: fl.length, local: local.length });
 
+// ---- 3b. the library's hero asks for a scene's threads without a count (2026-11-02) ----
+// The hero draws the threads sent in the last-worked scene, as the bar under a tale's header does.
+// It asks on every library load, so it must not spend a Featherless call on a count it never shows:
+// Featherless refuses a second call at once. The control call proves this check can see the count.
+{
+  const book = db.createStory(me, { title: 'Lamp Book' });
+  const keeper = db.upsertEntry(book.id, me, { title: 'Lampkeeper', body: 'Keeps the lamp.', entryType: 'character' });
+  db.addPassage({ ...book, storyId: book.id, body: 'The Lampkeeper climbed the stair.' });
+  const chapterId = (db.chapters(book.id)[0] as any).id;
+  const tokenized = (from: number) => fl.slice(from).filter((x) => x.path === '/v1/tokenize').length;
+  let from = fl.length;
+  await routes['POST /api/manifest'](ctx(me, { storyId: book.id, chapterId }));
+  assert.strictEqual(tokenized(from), 1, 'CONTROL: a plain manifest asks Featherless to count');
+  from = fl.length;
+  const r: any = await routes['POST /api/manifest'](ctx(me, { storyId: book.id, chapterId, count: false }));
+  assert.strictEqual(tokenized(from), 0, 'count:false asks nobody to count');
+  assert.strictEqual(r.exact, null, 'and says it has no count');
+  assert.ok(r.manifest.blocks.some((b: any) => b.id === keeper && b.state === 'included'
+    && (b.kind === 'CANON-ALWAYS' || b.kind === 'CANON-TRIGGERED')), 'the named thread is sent in that scene');
+  assert.strictEqual(r.kinds?.[keeper], 'character', 'and its kind rides with the manifest');
+  ok('the hero can ask for a scene\'s threads and their kinds without a Featherless count');
+}
+
 // ---- 4. a 429 is retried, then reported; it never falls back to another model ----
 {
   // The detector first: a leak check that cannot see the key reports a clean run forever.

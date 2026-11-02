@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -1188,9 +1188,7 @@ function drawMeter() {
   }
   // SHUT, THE BAR IS DIMMER STILL (Seth, 2026-11-01): the lines step back while the numbers are away.
   bar.classList.toggle('shut', !CTX_OPEN);
-  sameOrSet('ctxbar').innerHTML = sent.length ? sent.map(({ e, word }) =>
-    `<i class="${word ? 'word' : 'always'}${(SENT_SEEN.until.get(e.id) ?? 0) > now ? ' new' : ''}" data-sentkind="${esc(e.entryType)}" style="background:${KIND_COLOR[e.entryType] ?? 'var(--rule)'}"></i>`).join('')
-    : '<i class="none"></i>';
+  sameOrSet('ctxbar').innerHTML = sentSegs(sent, (id) => (SENT_SEEN.until.get(id) ?? 0) > now);
 
   /* A HANDLE IN ITS PLACE UNTIL IT IS PRESSED (a ⌄ until Seth, 2026-10-30: "a small handle instead"). It was always open from 2026-09-02 ("have this always
    * visible") until Seth, 2026-10-26: the stats "should be replaced by a down arrow that when
@@ -1237,14 +1235,13 @@ const SENT_SEEN = { story: null, ids: new Set(), until: new Map() };
 /** THE THREADS THE NEXT CALL HOLDS, in the kinds' order and always-on first within a kind, each with
  *  whether a word woke it. Off the manifest, as `inContext` reads it: a thread pushed out for space is
  *  not here. The tale's own thread is the premise block, not a thread on this list. */
-function threadsSent() {
-  const mani = manifestNow();
-  if (!mani) return [];
-  const byId = new Map((V?.entries ?? []).map((e) => [e.id, e]));
-  return mani.blocks.filter((b) => b.state === 'included' && (b.kind === 'CANON-ALWAYS' || b.kind === 'CANON-TRIGGERED') && byId.has(b.id))
-    .map((b) => ({ e: byId.get(b.id), word: b.kind === 'CANON-TRIGGERED' }))
-    .sort((a, b) => KINDS.indexOf(a.e.entryType) - KINDS.indexOf(b.e.entryType) || Number(a.word) - Number(b.word));
-}
+const threadsSent = () => sentOf(manifestNow(), V?.entries);
+
+/** The bar's segments, one per thread sent, coloured by kind; a woken one dimmed. The bar under a
+ *  tale's header and the library's hero both draw these (2026-11-02). `isNew` marks the blink. */
+const sentSegs = (sent, isNew = () => false) => sent.length ? sent.map(({ e, word }) =>
+  `<i class="${word ? 'word' : 'always'}${isNew(e.id) ? ' new' : ''}" data-sentkind="${esc(e.entryType)}" style="background:${KIND_COLOR[e.entryType] ?? 'var(--rule)'}"></i>`).join('')
+  : '<i class="none"></i>';
 
 /** THE HEADERS ARE REWRITTEN ONLY WHEN WHAT THEY SAY CHANGED (2026-10-28). Every paint rebuilt #bar
  *  and #sideHead, and their children carry an entrance `fade` (app.html), so each repaint blinked the
@@ -9160,8 +9157,12 @@ const ART = [
  *  THE HERO (v3 design, Seth, 2026-10-25). It was a band of about 280px, the cover beside the text,
  *  held short so the first row of books cleared a 900px window. Now it is most of the screen, as
  *  the design draws it, and the first row of books only PEEKS in under it. In it, top to bottom:
- *  where you left off and how long ago, the title, where you are, a bar per scene, and the last line in
+ *  where you left off and how long ago, the title, where you are, the threads sent there, and the last line in
  *  a glass card with the genre and the words. The whole hero is Carry on writing (2026-10-29).
+ *
+ *  THE THREADS, NOT THE SCENES (Seth, 2026-11-02: "the cards that are currently active for that tale in
+ *  the active scene", the bar under a tale's header). A bar per scene became that bar's segments for
+ *  the scene last worked on (`HERO_SENT`), and the whole hero opens that scene (`data-chapter`).
  *
  *  The ground is the tale's picture; with none, the theme's accent ("colours come from the theme"),
  *  mixed into a fixed dark so the light type over it reads on every theme, parchment included.
@@ -9172,6 +9173,21 @@ const ART = [
  *  not-tied-off chips. In their place a gold dot in the hero's corner says the tale owes something,
  *  and the hero's label says what; the tale's own panels hold the detail.
  */
+/** THE HERO'S THREADS: the ones sent in its tale's last-worked scene, asked of the manifest route
+ *  once per tale, scene and change. `count: false`, so a remote tale spends no Featherless call on a
+ *  count the hero never shows. Null until it answers, and on a failure: no bar rather than a wrong one. */
+const HERO_SENT = { key: null, sent: null };
+const heroKey = (s) => `${s.id}:${s.last_chapter_id}:${s.updated_at}`;
+async function loadHeroSent(s) {
+  const key = heroKey(s);
+  if (!s.last_chapter_id || HERO_SENT.key === key) return;
+  HERO_SENT.key = key; HERO_SENT.sent = null;
+  const r = await api.manifest({ storyId: s.id, chapterId: s.last_chapter_id, count: false });
+  if (HERO_SENT.key !== key) return;
+  HERO_SENT.sent = r.manifest ? sentOf(r.manifest, Object.entries(r.kinds ?? {}).map(([id, entryType]) => ({ id, entryType }))) : null;
+  if (S.place !== 'story') paint();
+}
+
 function resumeBand(s) {
   const at = Number(s.last_chapter_idx) || 0;
   const chapters = Math.max(Number(s.chapter_count) || 0, at);
@@ -9179,6 +9195,7 @@ function resumeBand(s) {
   const named = s.last_chapter_title && !numbered(s.last_chapter_title, at) ? s.last_chapter_title.trim() : '';
   const where = at ? `Scene ${at}${named ? ` · ${named}` : ''}` : (named || '');
   const line = leftOffLine(s.last_body, 1);
+  const sent = HERO_SENT.key === heroKey(s) ? HERO_SENT.sent : null;
   // The first genre only, as plain words: the library's cards still carry every one as a pill.
   const genre = String(s.genre ?? '').split(',').map((t) => t.trim()).filter(Boolean)[0] ?? '';
   const words = Number(s.words) || 0;
@@ -9192,7 +9209,7 @@ function resumeBand(s) {
          the square to enter"). The picture is a real button under everything else on the band, so a
          press anywhere on it opens the tale, as a cover does, and a keyboard reaches it. What is
          owed rides in its label and as the dot in the corner. -->
-    <button class="art" data-open="${esc(s.id)}" aria-label="Open ${esc(s.title)}${owed.length
+    <button class="art" data-open="${esc(s.id)}"${s.last_chapter_id ? ` data-chapter="${esc(s.last_chapter_id)}"` : ''} aria-label="Open ${esc(s.title)}${owed.length
       ? `. Waiting: ${esc(owed.join(', '))}` : ''}"${s.cover
       ? ` style="background:url('${api.coverUrl(s.id, s.cover)}') center/cover no-repeat, ${ART[0]}"` : ''}></button>
     ${owed.length ? '<span class="owedot" aria-hidden="true"></span>' : ''}
@@ -9203,9 +9220,8 @@ function resumeBand(s) {
       <span class="serif bandtitle">${esc(s.title)}</span>
       <span class="herorule" aria-hidden="true"></span>
       ${where ? `<span class="herowhere">${esc(where)}</span>` : ''}
-      ${at && chapters ? `<span class="bandmeter" aria-hidden="true">${Array.from({ length: chapters }, (_, i) =>
-        `<i class="${i + 1 <= at ? 'done' : ''}"></i>`).join('')}</span>
-      <span class="herocount">Scene ${at || 1} of ${chapters}</span>` : ''}
+      ${s.last_chapter_id ? `<span class="herosent" aria-hidden="true">${sent ? sentSegs(sent) : ''}</span>` : ''}
+      ${at && chapters ? `<span class="herocount">Scene ${at || 1} of ${chapters}</span>` : ''}
     </span>
     <span class="glass">
       ${line ? `<span class="serif quote">${esc(line)}</span>`
@@ -9503,6 +9519,7 @@ const WPAGES = {
     // all rather than promoting one — putting a book away is the act that means stop showing me
     // this, and the hero slot is the loudest place on the screen.
     const [hero, ...rest] = live;
+    if (hero) loadHeroSent(hero);
     // THE PAGE-LEVEL "WAITING FOR YOU" STRIP IS GONE. It listed a book title and a count of KINDS
     // — never of items, because it counted rows and `waiting()` returns at most one row per kind —
     // so a book with nine proposals said "· 1". What is owed now sits on the band beside the book
@@ -10354,9 +10371,9 @@ async function loadLibrary() {
  *  changes — used to let the slower answer land last and win. */
 let OPENING = null;
 
-async function openStory(id) {
+async function openStory(id, chapter) {
   OPENING = id;
-  const r = await api.story(id);
+  const r = await api.story(id, chapter);
   if (OPENING !== id) return;                   // superseded before the story even arrived
   if (r.error) return toast(r.error);
   V = r; S.storyId = id; S.place = 'story'; S.lastTale = id;
@@ -12810,7 +12827,8 @@ document.addEventListener('click', async (e) => {
   }
 
   if (d.open === 'new') { S.place = 'workspace'; S.wpage = 'create'; paint(); return; }
-  if (d.open) { await openStory(d.open); return; }
+  // The hero names the scene last worked on (`resumeBand`), and the tale opens there.
+  if (d.open) { await openStory(d.open, d.chapter); return; }
   /* WHERE A CHAPTER JUMP LANDS YOU, and it depends on which chapter. Seth, 2026-09-01: "pressing
    * chapter a previous chapter should take me to the top of the chapter. a current one would take me
    * to its bottom."

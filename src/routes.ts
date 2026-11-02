@@ -5107,9 +5107,16 @@ export const routes: Record<string, Handler> = {
     const { manifest, prompt, refusal } = weaveAssemble(c, v, 'prose', proseCap(c), (cap) =>
       assemble(v, slotFor(c, v, writerModel(c, v)), m0.mode, m0.directive, upTo, cap,
         m0.speaker || undefined, db.promptsOf(c.owner), Number(c.gen.target_words) || 0, m0.whatFailed));
+    // `count: false` is the library's hero (2026-11-02): it draws only which threads are sent, so it
+    // spends no /tokenize, which on a remote book is a Featherless call and Featherless refuses a
+    // second one at once. `kinds` is each sent thread's kind, which the hero's bar is coloured by and
+    // has no thread list to read it from.
     let exact: number | null = null;
-    try { exact = await count(prompt, writerModel(c, v)); } catch { /* model asleep */ }
-    return { manifest, prompt, exact, weaveFit: refusal };
+    if (c.body.count !== false) try { exact = await count(prompt, writerModel(c, v)); } catch { /* model asleep */ }
+    const canon = new Set(manifest.blocks.filter((b: any) => b.kind === 'CANON-ALWAYS' || b.kind === 'CANON-TRIGGERED')
+      .map((b: any) => b.id));
+    const kinds = Object.fromEntries(v.entries.filter((e: any) => canon.has(e.id)).map((e: any) => [e.id, e.entryType]));
+    return { manifest, prompt, exact, weaveFit: refusal, kinds };
   },
   // Streaming is opt-in per call, not a second route: the gate, the budget check, the /tokenize
   // and the generation log are the same code either way. p50 was 5.7s of blank page before the

@@ -1303,7 +1303,7 @@ export const listStories = (o: string) => q(`
          (SELECT COUNT(*) FROM addons st JOIN entries te ON te.id = st.entry_id WHERE st.story_id = s.id
             AND te.entry_type = 'tale' AND st.slot IN (${STRING_IN}) AND st.status IS NULL) AS unpaid,
          (SELECT sc.set_at FROM story_covers sc WHERE sc.story_id = s.id) AS cover,
-         tip.body AS last_body, ch.idx AS last_chapter_idx, ch.title AS last_chapter_title,
+         tip.body AS last_body, ch.id AS last_chapter_id, ch.idx AS last_chapter_idx, ch.title AS last_chapter_title,
          (SELECT COUNT(*) FROM chapters c
            WHERE c.story_id = s.id AND c.branch_id = cur.bid) AS chapter_count,
          (SELECT SUM(LENGTH(p.body) - LENGTH(REPLACE(p.body, ' ', '')) + 1) FROM passages p
