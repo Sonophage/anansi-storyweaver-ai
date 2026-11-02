@@ -18,6 +18,20 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-01 · Hemming starts from what the next scene is
 
+### The brief says who starts the scene
+Whoever you name in what the next scene is starts it. Anyone else who is always on becomes mention
+only for that scene: Anansi is sent them only when they are named on the page. Their eye shows on a
+word, and one tap still takes them out or puts them back. A thread is counted as named by its own
+name only, so a brief naming Halsey no longer brings in everyone whose wake words mention her. And
+Anansi now looks for what the scene needs beyond new people and places: an outfit, what someone is
+thinking, how a place feels, for the people in it at the start. They wait on Anyone new as cards to
+sew in.
+
+### Fewer "Featherless is busy"
+Hemming asks the model one thing at a time. It had been asking two at once, and on a plan that runs
+one big model at a time the second was refused, so a step showed "Featherless is busy". A hem takes
+a little longer, and its steps finish.
+
 ### Each question asked once
 Setting up the next scene asks "What is the next scene?" first, holding what you told the hem, and
 "Have Anansi suggest another" works from it. It replaces the "Steer it" box, which asked the same

@@ -1335,6 +1335,26 @@ ok('force_out beats an always-on entry, and beats force_in', () => {
   assert.strictEqual(m.blocks.find((b) => b.id === 'e-ghost')!.state, 'included');
 });
 
+// MENTION ONLY, FOR ONE SCENE (Seth, 2026-11-01: "who comes in it has to be who needs to be in the
+// scene at the start. Everything else can be mention only"). An always-on thread with a `mention`
+// pin is sent as a thread on a word is, for this scene only: when its name or a wake word is on the
+// page. Its own name wakes it, since an always-on thread often has no wake words.
+ok('a mention pin sends an always-on thread only when it is named, by its name or a wake word', () => {
+  const i = base();
+  i.passages = [{ id: 'p1', ordinal: 1, body: 'The rain had not stopped for three days.' }];
+  (i.pins as any) = { 'e-aldis': 'mention' };
+  const quiet = buildContext(i, count).blocks.find((b) => b.id === 'e-aldis');
+  assert.notStrictEqual(quiet?.state, 'included', 'MENTION-QUIET: not named, not sent');
+  i.passages = [{ id: 'p1', ordinal: 1, body: 'Someone said e-aldis had gone to the archive.' }];
+  const named = buildContext(i, count).blocks.find((b) => b.id === 'e-aldis')!;
+  assert.strictEqual(named.state, 'included', 'MENTION-NAMED: named, it is sent');
+  assert.strictEqual(named.kind, 'CANON-TRIGGERED', '  as a thread on a word');
+  const j = base();
+  j.passages = [{ id: 'p1', ordinal: 1, body: 'The rain had not stopped for three days.' }];
+  assert.strictEqual(buildContext(j, count).blocks.find((b) => b.id === 'e-aldis')!.state, 'included',
+    '  and with no pin it is always on, as before');
+});
+
 ok('a pinned-out entry never reaches the rendered prompt', () => {
   const i = base();
   i.pins = { 'e-key': 'force_out' };

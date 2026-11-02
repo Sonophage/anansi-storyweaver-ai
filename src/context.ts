@@ -114,7 +114,7 @@ export interface Input {
   // page when those two generate, so the model's job is to answer it — and it cannot do that
   // without being told whose line it is.
   speaker?: string;
-  pins?: Record<string, 'force_in' | 'force_out'>;   // per-chapter overrides, SPEC §7.4 step 7
+  pins?: Record<string, 'force_in' | 'force_out' | 'mention'>;   // per-chapter overrides, SPEC §7.4 step 7
   /** F53. Mark the writer's OWN passages in the prose the model is continuing, so the lockout has
    *  something concrete to point at rather than a rule contradicted by recent examples.
    *
@@ -1183,12 +1183,17 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
       continue;
     }
     const body = bodyOf(e);
-    if (e.activation === 'always_on' && reach != null && pins[e.id] !== 'force_in' && !isPov(e)
+    // MENTION ONLY, IN THIS SCENE (Seth, 2026-11-01): an always-on thread the scene's brief did not
+    // name is sent as a thread on a word is, for this scene. Its name wakes it as well as its keys,
+    // since an always-on thread often has none. Never the point of view.
+    const mention = pins[e.id] === 'mention' && e.activation === 'always_on' && !isPov(e);
+    const woken = mention ? { ...e, keys: [...(e.keys ?? []), e.title] } : e;
+    if (e.activation === 'always_on' && !mention && reach != null && pins[e.id] !== 'force_in' && !isPov(e)
       && !fires(e, reach).length) {
       blocks.push({ kind: 'CANON-ALWAYS', id: e.id, text: '', tokens: 0, state: 'omitted',
         reason: 'not named in what was asked' });
       unasked.push(e.title);
-    } else if (e.activation === 'always_on') {
+    } else if (e.activation === 'always_on' && !mention) {
       add('CANON-ALWAYS', e.id, body, 'always_on', ['always_on']);
     } else if (pins[e.id] === 'force_in') {
       // The fact matters in this scene even though nobody says its keyword.
@@ -1196,7 +1201,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     } else if (isPov(e)) {
       add('CANON-TRIGGERED', e.id, body, 'point of view', ['pov']);
     } else {
-      const hit = fires(e, recent);
+      const hit = fires(woken, recent);
       if (hit.length) { add('CANON-TRIGGERED', e.id, body, 'keyword', hit); continue; }
       // Sticky is, in practice, "extend the scan window for this entry": the keyword has to
       // fall OUT of the 8-passage window before it does anything, and then it buys stickyFor
@@ -1204,7 +1209,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
       // context and stops going quietly wrong the moment they are off the page.
       const sticky = e.stickyFor ?? (e.entryType === 'character' ? 3 : 0);
       for (let back = 1; back <= sticky; back++) {
-        const then = fires(e, windowFor(back));
+        const then = fires(woken, windowFor(back));
         if (then.length) { add('CANON-TRIGGERED', e.id, body, `sticky ${back} back`, ['sticky', ...then]); break; }
       }
     }

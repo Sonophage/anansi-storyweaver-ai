@@ -8119,6 +8119,15 @@ const hemCardOf = (side: string) => {
   click({ flipact: 'e-bell', whokeep: '1' }); await settle(); await settle();
   assert.strictEqual(sent(from).length, 1, `  and a tap goes through (${sent(from)})`);
 
+  // MENTION ONLY IN THIS SCENE (2026-11-01): an always-on thread the brief did not name has a
+  // `mention` pin, is not in the scene at its start, and its eye says on a word; a tap holds it out.
+  HEM_VIEW = { ...HEM_VIEW, pins: [...HEM_VIEW.pins, { chapterId: 'c-2', entryId: 'e-shared', mode: 'mention' }] };
+  click({ open: 's-1' }); await settle(); click({ panel: 'setup' }); await settle();
+  side = await more();
+  assert.strictEqual(who(side, 'e-shared'), '', 'WHO-MENTION: a mention-only thread is not listed as in the scene');
+  from = POSTED.length;
+  click({ flipact: 'e-shared', whokeep: '1' }); await settle(); await settle();
+  assert.deepStrictEqual(sent(from), ['pin e-shared force_out'], '  and its eye is on a word: a tap holds it out of this scene');
   // THE SETTING, behind ⓘ and shut, not a block of text at the foot.
   side = html('sideBody');
   assert.match(side, /data-tip="setSetting"[^>]*aria-expanded="false"/, 'WHO-TIP: the setting is behind ⓘ');
@@ -8139,7 +8148,11 @@ const hemCardOf = (side: string) => {
   const canned = (globalThis as any).fetch;
   (globalThis as any).fetch = hemFetch(canned);
   const settle = () => sleep(40);
-  HEM_VIEW = hemView(HEM_DONE, HEM_ROWS);
+  // WHAT THE NEXT SCENE NEEDS FOR WHO IS IN IT (2026-11-01): a pocket chalked against the scene being
+  // set up, for a thread the tale has, is on Anyone new, beside its new threads, and on no other step.
+  const NEED = { id: 'pn-1', chapterId: 'c-2', entryId: 'e-took', title: 'Vantic law', body: 'The writ is burned.',
+    entryType: 'lore', kind: 'changed', field: 'atmosphere', status: 'open', delta: '' };
+  HEM_VIEW = hemView(HEM_DONE, [...HEM_ROWS, NEED]);
   click({ open: 's-1' }); await settle();
   click({ panel: 'waiting' }); await settle();
   const screens: Record<string, string> = { workbench: hemCardOf(html('sideBody')) };
@@ -8171,6 +8184,8 @@ const hemCardOf = (side: string) => {
   const threads = (s: string) => [...s.matchAll(/data-hemthread="([^"]+)"/g)].map((m) => m[1]);
   const twice = threads(screens.cards).filter((k) => threads(screens.more).includes(k) || threads(screens.premise).includes(k));
   assert.deepStrictEqual(twice, [], 'ONCE-THREADS: no thread is on two steps of the setup');
+  assert.match(screens.more, /data-hemthread="e-took"[\s\S]*The writ is burned\./,
+    'NEEDS-HERE: a pocket the next scene needs for a thread it has is on Anyone new');
   (globalThis as any).fetch = canned;
   click({ skipsetup: '1' }); await settle();
   click({ open: 's-1' }); await settle();

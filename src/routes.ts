@@ -1478,14 +1478,36 @@ const outsideOf = (story: any): string[] => [story.persona, story.lockoutOn ? st
   .map((x) => String(x ?? '').trim()).filter((x, i, all) => x
     && all.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
 
-/** THE THREADS A BRIEF NAMES, by their names and wake words as a scene's narration would wake them:
- *  ids, the tale's own threads only, none retired. The hem brings them into the next scene and names
- *  them to the people pass. */
+/** THE THREADS A BRIEF NAMES, BY THEIR OWN NAMES: ids, the tale's own threads only, none retired.
+ *  The hem brings them into the next scene and names them to the people pass.
+ *  NOT BY WAKE WORD (Seth, 2026-11-01): a wake word is often another thread's name or a common word.
+ *  Lisa's held "Halsey" and "tour", the hotel suite's "Halsey" and "Seth", and a brief naming Halsey
+ *  and the tour brought both into a scene that was "just Halsey and Seth". */
 function briefThreads(storyId: string, brief: string): string[] {
   if (!brief.trim()) return [];
   return (db.entriesOf(storyId) as any[]).filter((e) => e.entry_type !== 'tale' && e.retired_at_chapter == null)
-    .map((e) => ({ id: e.id, title: e.title, keys: db.keysOf(e.keys) }))
-    .filter((e) => fires({ ...e, keys: [...e.keys, e.title] } as any, brief).length).map((e) => e.id);
+    .filter((e) => fires({ title: e.title, keys: [e.title], entryType: e.entry_type } as any, brief).length).map((e) => e.id);
+}
+
+/** WHO STARTS THE SCENE, FROM ITS BRIEF (Seth, 2026-11-01: "who comes in it has to be who needs to
+ *  be in the scene at the start. Everything else can be mention only"). A thread the brief names is
+ *  in: one on a word is pinned in. An always-on thread it does not name is mention only in this scene
+ *  (a `mention` pin; context.ts sends it when it is named). The persona and the hands-off character
+ *  are left as they are, and so is any thread the writer already set for this scene.
+ *  ponytail: the first brief casts, a changed one does not recast, so the writer's taps are never
+ *  undone. Ceiling: a brief rewritten to a different cast keeps the old one. Trigger: Seth rewriting a
+ *  brief and finding the old cast; then recast the pins this function wrote, and only those. */
+function castScene(storyId: string, chapterId: string, brief: string) {
+  const named = new Set(briefThreads(storyId, brief));
+  if (!named.size) return;
+  const outside = new Set(outsideOf(bookOf(storyId).story).map((x) => x.toLowerCase()));
+  const pinned = new Set((db.pinsOf(storyId) as any[]).filter((p: any) => p.chapter_id === chapterId).map((p: any) => p.entry_id));
+  for (const e of db.entriesOf(storyId) as any[]) {
+    if (e.entry_type === 'tale' || e.retired_at_chapter != null || pinned.has(e.id)) continue;
+    if (named.has(e.id)) { if (e.activation !== 'always_on') db.setPin(storyId, chapterId, e.id, 'force_in'); }
+    else if (e.activation === 'always_on' && !outside.has(String(e.title).trim().toLowerCase()))
+      db.setPin(storyId, chapterId, e.id, 'mention');
+  }
 }
 
 async function remember(c: Ctx, storyId: string, chapterId: string, scene?: string, names?: string[], ahead: string[] = []) {
@@ -2016,20 +2038,15 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // #125 · Where the tale stands, after the summary and before the threads: one entry on the tale's
   // own thread, chalked on this scene's card. #127 · And where each string in play stands, beside it.
   // The character memory, on the same terms: a chapter must be able to close with the model down.
-  // AT THE SAME TIME AS THE TALE'S (Seth, 2026-10-30, the speed pass): neither reads what the other
-  // writes, and both wait on the writer's answer, so they were the two serial calls on the writer's
-  // own wait. Two calls in flight on this tale for their length.
-  // ponytail: two at once on one plan. Ceiling: Featherless bills by concurrency, and a writer
-  // generating prose during the hem makes it three. Trigger: a 429 or a refused call on either pass;
-  // then put them back in a row.
-  await Promise.all([
-    pass('tale', want.tale, async () => {
-      const tale = await taleStands(c, storyId, closing, scene);
-      const strings = await stringsStand(c, storyId, closing, scene);
-      return { error: tale?.error ?? strings?.error ?? null };
-    }),
-    pass('memory', want.memory, () => remember(c, storyId, closing, scene, names, briefThreads(storyId, brief))),
-  ]);
+  // IN A ROW, NOT AT ONCE (Seth, 2026-11-01). The speed pass (2026-10-30) ran these two together;
+  // Featherless refused the second on one writer's plan ("Featherless is busy") on his own hem and in
+  // every walk that day, which was this line's own trigger. About 25 seconds slower, and they land.
+  await pass('tale', want.tale, async () => {
+    const tale = await taleStands(c, storyId, closing, scene);
+    const strings = await stringsStand(c, storyId, closing, scene);
+    return { error: tale?.error ?? strings?.error ?? null };
+  });
+  await pass('memory', want.memory, () => remember(c, storyId, closing, scene, names, briefThreads(storyId, brief)));
   // And read it for facts. The comment above summarise applies to this word for word: the ledger
   // is the only tier that survives compaction — prose falls out of the chapter window, summaries
   // roll into arcs, and entries are re-sent on every call forever — so leaving the tier that
@@ -2081,32 +2098,73 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
 /** ANYONE NEW, ASKED BEFORE THE WRITER GETS THERE (Seth, 2026-10-30: "should look at what's filled
  *  between the summary, the prompt and where the next scene is heading and should already have
  *  suggestions by the time I land"). The people, places and things the next scene needs that the
- *  tale does not have, chalked as new threads against that scene, where Anyone new shows them. Four
- *  at most; a thread the tale has is not offered. Logged as `hem-new`. NOT MEASURED. */
-const NEEDS_CAP = 4;
+ *  tale does not have, chalked as new threads against that scene, where Anyone new shows them; and
+ *  since 2026-11-01 the pockets it needs for the threads in it at its start (`NEEDS_POCKETS`), chalked
+ *  as changes to them. Four new threads and six pockets at most. Logged as `hem-new`. NOT MEASURED. */
+const NEEDS_CAP = 4, NEEDS_POCKET_CAP = 6;
+/** The pockets a scene's start can change: what they wear, think, look like, how two stand, what a
+ *  place is like and who is in it. Not Always true and not a voice: those are who they are. */
+const NEEDS_POCKETS = ['outfit', 'interiority', 'appearance', 'relationships', 'atmosphere', 'who_is_here'];
 async function needsFor(c: Ctx, storyId: string, closing: string, opened: string,
     s: { title: string; note: string; opens: string; brief?: string }) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x: any) => x.id === closing);
   const sum = ch && summaryReaches(ch) ? String(ch.summary ?? '').trim() : '';
   const existing = db.entriesOf(v.id);
+  // WHO IS IN IT AT ITS START (Seth, 2026-11-01: "new outfits interiority etc", "I meant pockets but
+  // yes chalk em"): the threads sent for the scene before a word of it is written, as its pins and
+  // settings say (`castScene`), each with what its changing pockets hold now. A pocket is chalked for
+  // one of these and nobody else.
+  const pin = new Map((db.pinsOf(v.id) as any[]).filter((p: any) => p.chapter_id === opened).map((p: any) => [p.entry_id, p.mode]));
+  const atStart = (v.entries as any[]).filter((e) => e.entryType !== 'tale' && e.retiredAtChapter == null
+    && pin.get(e.id) !== 'force_out' && (pin.get(e.id) === 'force_in' || (e.activation === 'always_on' && pin.get(e.id) !== 'mention')));
+  const now = (e: any) => (e.addons ?? []).filter((a: any) => a.active && NEEDS_POCKETS.includes(a.slot) && String(a.body ?? '').trim())
+    .map((a: any) => `  ${a.slot}: ${String(a.body).trim().slice(0, 300)}`).join('\n');
   const t0 = Date.now(), using = backgroundModel(c, v);
   const r = await shaped(NEEDS, [
     `THE TALE'S THREADS: ${(existing as any[]).map((e) => e.title).join(', ') || '(none)'}`,
+    atStart.length ? `IN THE SCENE AT ITS START: ${atStart.map((e) => e.title).join(', ')}\n${
+      atStart.map((e) => { const p = now(e); return p ? `${e.title}, as they are now:\n${p}` : ''; }).filter(Boolean).join('\n')}`.trim() : '',
     sum ? `THE SCENE JUST WRITTEN, IN SUMMARY:\n${sum}` : '',
     `THE NEXT SCENE: ${s.title}`,
     s.brief?.trim() ? `THE WRITER'S BRIEF FOR IT:\n${s.brief.trim()}` : '',
     s.opens?.trim() ? `HOW IT OPENS:\n${s.opens.trim()}` : '',
     s.note?.trim() ? `WHERE IT HEADS:\n${s.note.trim()}` : ''].filter(Boolean).join('\n\n'),
     EXTRACT_SCHEMA, { model: using, max_tokens: EXTRACT_TOKENS });
+  // ITS RAW ANSWER IS KEPT, in the manifest (the newest 200 keep theirs): a walk on the real model
+  // chalked nothing, and nothing could say what the model had answered.
   db.logGeneration({ storyId, chapterId: opened, model: using, role: 'hem-new', params: { max_tokens: EXTRACT_TOKENS },
-    latencyMs: Date.now() - t0, error: r.error ?? null });
-  let added = 0;
+    manifest: { raw: String((r as any).raw ?? '').slice(0, 12000) }, latencyMs: Date.now() - t0, error: r.error ?? null });
+  let added = 0, pockets = 0;
+  const inIt = new Set(atStart.map((e) => e.id));
   for (const e of (r.data?.entries ?? []) as any[]) {
-    if (added >= NEEDS_CAP) break;
-    if (!e?.title?.trim() || !e?.body?.trim()) continue;
-    const cls = classify(existing, e);
-    if (!cls || cls.entry_id) continue;
+    if (!e?.title?.trim()) continue;
+    // A pocket's answer may carry no body at all (Kimi-K2.5, 2026-11-01): the thread is found by its
+    // title, and `classify` reads an empty body as nothing to say, so it is handed the pocket's words.
+    const words = (Array.isArray(e.pockets) ? e.pockets : []).map((pk: any) => String(pk?.body ?? '').trim()).find(Boolean) ?? '';
+    const cls = classify(existing, { ...e, body: String(e.body ?? '').trim() || words });
+    if (!cls) continue;
+    // A POCKET FOR SOMEONE IN IT AT THE START, chalked as a change to that thread's pocket, as the
+    // hem's own pass chalks one. Never Always true: that is who they are, not this scene.
+    // THE REAL MODEL ANSWERS IN A NEW THREAD'S SHAPE (Kimi-K2.5 on ENCORE, 2026-11-01): the thread's
+    // Always true as the body and the pockets under it. Each pocket is one chalk; a field and a body
+    // with no pockets is one.
+    if (cls.entry_id) {
+      if (!inIt.has(cls.entry_id)) continue;
+      const asks = Array.isArray(e.pockets) && e.pockets.length
+        ? e.pockets.map((pk: any) => ({ field: String(pk?.slot ?? ''), body: String(pk?.body ?? '').trim() }))
+        : [{ field: String(e.field ?? ''), body: String(e.body ?? '').trim() }];
+      for (const a of asks) {
+        if (pockets >= NEEDS_POCKET_CAP) break;
+        if (!a.body || !NEEDS_POCKETS.includes(a.field)) continue;
+        const { field, target, said } = roomAsked(v.entries as any[], cls, { ...e, field: a.field, body: a.body });
+        if (said || !field) continue;
+        if (db.addProposal(v.id, { ...cls, chapterId: opened, title: e.title.trim(), body: a.body,
+          entryType: e.type, keys: e.keys ?? [], activation: e.activation, field, target })) pockets++;
+      }
+      continue;
+    }
+    if (added >= NEEDS_CAP || !String(e.body ?? '').trim()) continue;
     const kinds = slotsFor(e.type).map((sl) => sl.name);
     const rooms: Record<string, any> = {};
     for (const pk of (Array.isArray(e.pockets) ? e.pockets : []) as any[]) {
@@ -2118,7 +2176,7 @@ async function needsFor(c: Ctx, storyId: string, closing: string, opened: string
       entryType: e.type, keys: e.keys ?? [], activation: e.activation, field: 'facts',
       rooms: Object.keys(rooms).length ? rooms : undefined })) added++;
   }
-  return { added };
+  return { added, pockets };
 }
 
 async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string) {
@@ -3956,11 +4014,7 @@ export const routes: Record<string, Handler> = {
     const brief = pass === 'next' && said ? said.slice(0, 2000) : '';
     if (brief && opened && !db.passagesOfChapter(opened).some((p: any) => !p.is_break && String(p.body ?? '').trim())) {
       db.updateChapter(storyId, opened, { brief });
-      const pinned = new Set((db.pinsOf(storyId) as any[]).filter((p: any) => p.chapter_id === opened).map((p: any) => p.entry_id));
-      for (const id of briefThreads(storyId, brief)) {
-        const e = (db.entriesOf(storyId) as any[]).find((x) => x.id === id);
-        if (e && e.activation !== 'always_on' && !pinned.has(id)) db.setPin(storyId, opened, id, 'force_in');
-      }
+      castScene(storyId, opened, brief);
     }
     queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want, run, names ?? undefined));
     return viewOf(c, storyId);

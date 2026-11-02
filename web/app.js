@@ -4236,10 +4236,8 @@ function hemStepStates(ch, closed) {
   const passes = PASSES.map(([k, name]) => {
     const done = closed && (h ? report[k] === null : true);
     const bad = closed && !!h && typeof report[k] === 'string' && !!report[k];
-    // Where the tale stands and the people run at the same time (`hemPasses`), so either one running
-    // shows both running until each has its line.
-    const pair = (x) => x === 'tale' || x === 'memory';
-    const now = running && (h?.current?.pass === k || (pair(k) && pair(h?.current?.pass) && !(k in report)));
+    // One pass at a time since 2026-11-01 (`hemPasses`), so the one running is the one the hem names.
+    const now = running && h?.current?.pass === k;
     const trying = running && S.hemTrying === `${ch.id}:${k}`;
     const state = !closed ? 'wait' : now ? 'run' : bad && !trying ? 'fail' : done ? 'done'
       : k === 'next' && hemAsking(ch) ? 'you' : 'wait';
@@ -7438,6 +7436,11 @@ function setupPanel() {
   const askedHere = justClosed ? (V.proposals ?? []).filter((p) => p.chapterId === ch.id && isNewThread(p)
     && !queue.includes(p) && !sceneNew.includes(p)) : [];
   const fresh = [...queue.filter((p) => p.kind === 'new'), ...sceneNew, ...askedHere];
+  // AND THE POCKETS IT NEEDS for the threads in it at its start (Seth, 2026-11-01: "new outfits
+  // interiority etc"), chalked by the hem against this scene (`needsFor`). With no scene just closed,
+  // `queue` is everything and What it left holds them already.
+  const needsHere = justClosed ? (V.proposals ?? []).filter((p) => p.chapterId === ch.id && p.entryId && p.field
+    && p.entryType !== 'string' && p.status !== 'rejected' && !queue.includes(p)) : [];
   const left = queue.filter((p) => p.kind !== 'new');
   // What step one counts: the changes, and the scene's card as its rows (one while it is running).
   const sceneLeft = sceneCard ? sceneRows(justClosed).length - sceneNew.length : 0;
@@ -7618,6 +7621,8 @@ function setupPanel() {
         ${tipMark('setAddAll', 'Sew in all the new threads')}</div>` : ''}
       <div class="stack-roomy">${/* One block per thread, drawn as What it left draws a thread. */
         hemThreads(fresh).map(hemThreadBlock).join('')}</div>` : ''}
+      ${needsHere.length ? `<div class="lbl sect">For who is in it</div>
+      <div class="stack-roomy">${hemThreads(needsHere).map(hemThreadBlock).join('')}</div>` : ''}
       ${/* WHO IS IN IT IS ASKED ONCE (Seth, 2026-11-01: "not having duplicate fields or steps"). A
             scene a hem opened was asked on the hem screen, so here it is said, with one press back to
             that list; only a scene no hem opened is asked here. */
@@ -8813,13 +8818,17 @@ function threadRows() {
  *    on      always on: an open eye;
  *    woken   on a word, and sent now (its word is on the page, or brought into the scene): the eye
  *            with a speech mark;
- *    word    on a word and asleep, every thread's default: a shut eye;
+ *    word    on a word and asleep, every thread's default: a shut eye. An always-on thread with a
+ *            `mention` pin (the scene's brief did not name it, 2026-11-01) is on a word in this scene;
  *    off     held out of this scene (a `force_out` pin), whatever its setting: the eye struck through.
  *  Sent now is on and woken, which is what the model is sent (`inContext`). The list's card and the
  *  Read screen's tag draw it from the same facts, and the tap (`data-flipact`) moves through the three
  *  a writer can set: on, on a word, off in this scene, on (`nextReach`). `lit` is `inContext`. */
 function reachMark(e, lit, pin = pinModes()) {
-  const state = pin.get(e.id) === 'force_out' ? 'off' : (e.activation ?? 'always_on') === 'always_on' ? 'on'
+  // A `mention` pin (the brief did not name it, 2026-11-01) makes an always-on thread one on a word,
+  // in this scene only.
+  const state = pin.get(e.id) === 'force_out' ? 'off'
+    : (e.activation ?? 'always_on') === 'always_on' && pin.get(e.id) !== 'mention' ? 'on'
     : lit ? 'woken' : 'word';
   const [look, word, now, next] = {
     on: ['eye', 'On', lit ? 'On, sent every call' : 'On, but pushed out of this call for room', 'send it only on a wake word'],
@@ -8898,7 +8907,7 @@ function inContext(e, pin, mani = manifestNow()) {
   if (mani) return mani.blocks.some((b) => b.id === e.id && b.state === 'included'
     && (b.kind === 'CANON-ALWAYS' || b.kind === 'CANON-TRIGGERED'));
   return pin.get(e.id) === 'force_out' ? false
-    : e.activation === 'always_on' ? true : pin.get(e.id) === 'force_in';
+    : e.activation === 'always_on' && pin.get(e.id) !== 'mention' ? true : pin.get(e.id) === 'force_in';
 }
 
 /** What a thread's card shows of it: the first few lines of what it says.

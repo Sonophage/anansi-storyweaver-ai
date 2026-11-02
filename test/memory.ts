@@ -1521,7 +1521,7 @@ ok('with the scene after a hem deleted, its next-scene ask still reads the hemme
     `HEM-HOLDS: the close runs the summary, new threads and retirements, and holds the rest (${Object.keys(held.passes)})`);
   assert.ok(!askOf(prompts.MEMORY) && !askOf(TALE_HEAD), '  so nothing about where things stand is asked yet');
   const brief = 'Two days later Oren takes two strangers across at night; he wants their money and nothing else.';
-  // Held at the fake while both ask, so two in flight at once is seen (`mostInflight`).
+  // Held at the fake, so two in flight at once would be seen (`mostInflight`).
   mostInflight = 0;
   let release!: () => void;
   gate = new Promise<void>((r) => { release = r; });
@@ -1550,8 +1550,9 @@ ok('with the scene after a hem deleted, its next-scene ask still reads the hemme
   const done = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.deepStrictEqual(Object.keys(done.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary', 'tale'],
     'HEM-ASKED-RUNS: the answer runs where the tale stands, the people and the next scene');
-  // THE SPEED PASS (2026-10-30): the tale's and the people's run at the same time.
-  assert.ok(paired >= 2, `HEM-PAIR: where the tale stands and the people are asked at once (${paired} in flight)`);
+  // ONE AT A TIME (Seth, 2026-11-01): the speed pass (2026-10-30) ran the tale's and the people's
+  // together, and Featherless refused the second on one writer's plan in every walk that day.
+  assert.strictEqual(Math.max(paired, mostInflight), 1, `HEM-ONE-AT-A-TIME: the hem asks one thing at a time (${mostInflight} in flight at most)`);
   tidied = {}; taleSays = '';
 }
 ok('the brief the writer sends from the hem is the scene\'s; it brings in who it names, by name to the people pass, and drafts the rest');
@@ -1575,6 +1576,93 @@ ok('the brief the writer sends from the hem is the scene\'s; it brings in who it
   tidied = {};
 }
 ok('the hem keeps the answer an old page sends as the brief');
+
+// ---- WHO IS IN THE SCENE AT THE START (Seth, 2026-11-01: "who comes in it has to be who needs to be
+// in the scene at the start. Everything else can be mention only"). The brief NAMES who starts the
+// scene, by the thread's own name: a thread on a word is brought in; an always-on thread it does not
+// name is mention only for this scene; the persona and the hands-off character are left as they are.
+// A wake word that is another thread's name does not count: Lisa's keys held "Halsey" and "tour", and
+// a brief naming Halsey and the tour brought Lisa and the hotel suite into the scene.
+{
+  const t = db.createStory(me, { title: 'Cast', premise: 'A tour ends.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.updateStory(t.id, { persona: 'Ashley', lockedCharacter: 'Seth', lockoutOn: true });
+  const up = (title: string, activation: string, keys: string[] = [title]) =>
+    db.upsertEntry(t.id, me, { title, body: `[${title}]`, entryType: 'character', keys, activation })!;
+  const halsey = up('Halsey', 'always_on'), tessa = up('Tessa', 'always_on'), seth = up('Seth', 'always_on');
+  const ashley = up('Ashley', 'always_on'), marcus = up('Marcus', 'triggered');
+  const lisa = up('Lisa', 'triggered', ['Lisa', 'Halsey', 'tour']);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The last song ended.' });
+  tidied = { ...NEXT };
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false, ask: true }));
+  await hemSettled(t.id);
+  const brief = 'Later on the rooftop, Halsey and Marcus. She asks him to leave the tour.';
+  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', asked: true, brief }));
+  const pins = Object.fromEntries((db.pinsOf(t.id) as any[]).filter((p) => p.chapter_id === r.opened).map((p) => [p.entry_id, p.mode]));
+  assert.deepStrictEqual([pins[halsey], pins[marcus]], [undefined, 'force_in'],
+    'CAST-IN: who the brief names starts the scene (an always-on thread as it is, one on a word brought in)');
+  assert.strictEqual(pins[tessa], 'mention', 'CAST-MENTION: an always-on thread the brief does not name is mention only');
+  assert.deepStrictEqual([pins[seth], pins[ashley]], [undefined, undefined], '  but never the hands-off character or the persona');
+  assert.strictEqual(pins[lisa], undefined, 'CAST-OWN-NAME: a wake word naming someone else does not bring a thread in');
+  await hemSettled(t.id);
+  tidied = {}; needsFound = [];
+}
+ok('the brief names who starts the scene; every other always-on thread is mention only there');
+
+// ---- WHAT THE NEXT SCENE NEEDS, POCKETS TOO (Seth, 2026-11-01: "we're looking for new threads like a
+// new location or new outfits interiority etc"; "I meant pockets but yes chalk em"). The needs ask
+// gets who is in the scene at its start, and may chalk a pocket for one of them (an outfit, what they
+// are thinking) beside the new threads. Never for a thread that is not in it at the start, and never
+// its Always true.
+{
+  const t = db.createStory(me, { title: 'Needs', premise: 'A tour ends.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const up = (title: string, activation: string) =>
+    db.upsertEntry(t.id, me, { title, body: `[${title}: a person]`, entryType: 'character', keys: [title], activation })!;
+  const halsey = up('Halsey', 'always_on'), tessa = up('Tessa', 'always_on');
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The last song ended.' });
+  tidied = { ...NEXT };
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false, ask: true }));
+  await hemSettled(t.id);
+  const pocket = (title: string, field: string, body: string) =>
+    ({ title, type: 'character', body, keys: [], activation: 'triggered', field, pockets: [], stands: '' });
+  // THE SHAPE THE REAL MODEL ANSWERS IN (Kimi-K2.5 on ENCORE, 2026-11-01): the thread as if new, its
+  // Always true as the body, and the pockets under it. The pockets are what is chalked.
+  // Seen both ways: once with the body empty, once with it filled, one entry per pocket or many.
+  needsFound = [{ title: 'Halsey', type: 'character', body: '', keys: [],
+    activation: 'triggered', field: 'outfit', stands: '', pockets: [
+      { slot: 'outfit', name: 'After the show', body: 'the black dress from the show; barefoot' },
+      { slot: 'facts', name: 'Who', body: 'twenty-six' }] },
+    { title: 'Halsey', type: 'character', body: '26; a musician; from New Jersey', keys: [],
+    activation: 'triggered', field: 'interiority', stands: '', pockets: [
+      { slot: 'interiority', name: 'The ask', body: 'wants him on the bus and will not say it' }] },
+    pocket('Tessa', 'outfit', 'a headset and heels'),
+    { title: 'The Rooftop', type: 'place', body: 'the hotel roof; wind and HVAC units', keys: ['rooftop'],
+      activation: 'triggered', field: 'none', pockets: [], stands: '' }];
+  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', asked: true,
+    brief: 'Later on the rooftop, just Halsey. She waits for him.' }));
+  await hemSettled(t.id);
+  const user = String(askOf(prompts.NEEDS)?.user ?? '');
+  assert.match(user, /IN THE SCENE AT ITS START: Halsey\b/, 'NEEDS-WHO: the needs ask is told who is in the scene at its start');
+  assert.doesNotMatch(user.match(/IN THE SCENE AT ITS START:[^\n]*/)?.[0] ?? '', /Tessa/, '  and not who is mention only');
+  const here = (db.proposalsOf(t.id) as any[]).filter((p) => p.chapter_id === r.opened);
+  const of = (id: string, field: string) => here.find((p) => p.entry_id === id && p.field === field);
+  assert.ok(of(halsey, 'outfit') && of(halsey, 'interiority'),
+    `NEEDS-POCKETS: a pocket for someone in the scene at its start is chalked (${here.map((p) => `${p.title}/${p.field}`)})`);
+  assert.ok(!of(halsey, 'facts'), 'NEEDS-NO-FACTS: never their Always true');
+  assert.deepStrictEqual([of(halsey, 'outfit')?.body, of(halsey, 'interiority')?.body],
+    ['the black dress from the show; barefoot', 'wants him on the bus and will not say it'],
+    'NEEDS-POCKET-BODY: each pocket is chalked with its own words, not the thread\'s Always true');
+  assert.ok(!of(tessa, 'outfit'), 'NEEDS-ONLY-IN: never a pocket for someone not in it at the start');
+  assert.ok(here.some((p) => p.title === 'The Rooftop' && p.kind === 'new'), '  and a new place still is');
+  // ITS RAW ANSWER IS KEPT (2026-11-01): a walk on the real model chalked nothing, and nothing said
+  // what the model had answered.
+  const logged = (new (await import('node:sqlite')).DatabaseSync(DB, { readOnly: true }) as any)
+    .prepare("SELECT manifest FROM generations WHERE story_id = ? AND role = 'hem-new' ORDER BY created_at DESC LIMIT 1").get(t.id);
+  assert.match(JSON.parse(logged?.manifest ?? '{}').raw ?? '', /black dress from the show/, 'NEEDS-RAW: the needs ask logs what the model answered');
+  tidied = {}; needsFound = [];
+}
+ok('what the next scene needs: new threads, and pockets for who is in it at the start');
 
 // ---- PAUSED UNTIL THE WRITER SAYS HOW THE NEXT SCENE STARTS (Seth, 2026-10-30) ----
 // A close that asks holds where the tale stands, the people and the next scene. What is held is kept

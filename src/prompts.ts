@@ -1440,11 +1440,27 @@ export const NEEDS =
 its name, the writer's brief for it, how it opens and where it heads. The next scene has not been
 written yet.
 
-Propose the people, places, lore and items the next scene NEEDS that the tale does not have yet:
-only what its brief, its opening or where it heads names or plainly requires, and never one of the tale's
-threads under another name. Four at most. None is a good answer when it needs nothing new.
+Propose what the next scene NEEDS that the tale does not have yet, only what its brief, its opening
+or where it heads names or plainly requires. None is a good answer when it needs nothing.
 
-Every entry is a NEW thread, so its field is always "none".
+NEW THREADS, four at most: the people, places, lore and items it needs that the tale does not have,
+never one of the tale's threads under another name. Its field is "none", and its body is who or
+what it is, never empty.
+
+POCKETS for the threads IN THE SCENE AT ITS START, and only those, six at most: what one of them is wearing as it
+opens (outfit), what they are thinking or feeling (interiority), how they look now (appearance), how
+two of them stand (relationships), what a place is like now (atmosphere) or who is there
+(who_is_here). Only what differs from what the pocket says now; never facts, and never voice. One
+entry per thread: its title is the thread's own name, its body is empty, and EACH POCKET IS WRITTEN
+OUT on its own pockets line, the slot, a short title, and what goes in it, never left empty. For
+example:
+
+    title: Halsey
+    type: character
+    body:
+    field: outfit
+    pockets: outfit | After the show | the black dress from the show, barefoot, her makeup still on
+    pockets: interiority | The ask | she wants him on the bus and will not say so
 
 ` + EXTRACT.slice(EXTRACT.indexOf('For each:'));
 
