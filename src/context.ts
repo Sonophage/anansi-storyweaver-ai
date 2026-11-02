@@ -1117,9 +1117,23 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // because prior prose never said the word, and the model then invented the key as
   // warm iron against canon that says cold brass. The instruction is the strongest
   // signal of what is about to be on the page; scanning only backwards misses it.
-  const recent = [...passages.slice(-8).map((p) => p.body), input.directive ?? ''].join('\n');
-  const windowFor = (n: number) => [...passages.slice(-(8 + n), passages.length - n)
+  //
+  // THIS SCENE'S PROSE ONLY (Seth, 2026-11-01: "the active cards should only be what's been mentioned
+  // and what's pinned ... it still had cards from before"). The window used to run back across the
+  // scene break, so a new scene opened with the last scene's cast awake. COUNCIL-03 kept it across
+  // on purpose, against a flicker at the boundary; the writer's word is that a scene starts with who
+  // its brief names and wakes the rest by naming them. A passage with no scene on it counts as this one.
+  const scene = passages.filter((p) => !p.chapterId || p.chapterId === currentChapter.id);
+  const recent = [...scene.slice(-8).map((p) => p.body), input.directive ?? ''].join('\n');
+  const windowFor = (n: number) => [...scene.slice(-(8 + n), scene.length - n)
     .map((p) => p.body), n === 0 ? (input.directive ?? '') : ''].join('\n');
+  // A WAKE WORD THAT IS ANOTHER THREAD'S NAME wakes that thread, not this one: Lisa's held "Halsey",
+  // and every line about Halsey sent Lisa too.
+  const titled = new Set(entries.map((e) => e.title.trim().toLowerCase()));
+  const ownKeys = (e: Entry) => (e.keys ?? []).filter((k) => {
+    const n = k.trim().toLowerCase();
+    return n === e.title.trim().toLowerCase() || !titled.has(n);
+  });
 
   // Novelcrafter includes the point-of-view character unconditionally, and it is one line.
   const persona = (story as any).persona?.trim().toLowerCase();
@@ -1187,7 +1201,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // name is sent as a thread on a word is, for this scene. Its name wakes it as well as its keys,
     // since an always-on thread often has none. Never the point of view.
     const mention = pins[e.id] === 'mention' && e.activation === 'always_on' && !isPov(e);
-    const woken = mention ? { ...e, keys: [...(e.keys ?? []), e.title] } : e;
+    const woken = { ...e, keys: mention ? [...ownKeys(e), e.title] : ownKeys(e) };
     if (e.activation === 'always_on' && !mention && reach != null && pins[e.id] !== 'force_in' && !isPov(e)
       && !fires(e, reach).length) {
       blocks.push({ kind: 'CANON-ALWAYS', id: e.id, text: '', tokens: 0, state: 'omitted',

@@ -1355,6 +1355,27 @@ ok('a mention pin sends an always-on thread only when it is named, by its name o
     '  and with no pin it is always on, as before');
 });
 
+// WHAT IS ACTIVE IN A SCENE IS WHAT STARTS IT AND WHAT IT NAMES (Seth, 2026-11-01: "the active cards
+// should only be what's been mentioned and what's pinned ... it still had cards from before"). A
+// word is read off this scene's own prose and the directive, never the scene before's tail; and a
+// wake word that is another thread's name wakes that thread, not this one.
+ok('a thread on a word wakes on this scene\'s prose only, and never on another thread\'s name', () => {
+  const i = base();
+  i.passages = [{ id: 'p1', ordinal: 1, chapterId: 'c2', body: 'Marek wanted the Silver Key.' }];
+  assert.notStrictEqual(buildContext(i, count).blocks.find((b) => b.id === 'e-key')?.state, 'included',
+    'SCENE-WINDOW: the scene before naming it does not wake it in this one');
+  i.passages.push({ id: 'p2', ordinal: 2, chapterId: 'c3', body: 'She turned the Silver Key over.' });
+  assert.strictEqual(buildContext(i, count).blocks.find((b) => b.id === 'e-key')!.state, 'included',
+    '  and this scene naming it does');
+  const j = base();
+  j.entries = [...j.entries, entry('e-lisa', '[Lisa: her manager]', { activation: 'triggered', keys: ['Lisa', 'e-aldis'] })];
+  j.passages = [{ id: 'p1', ordinal: 1, chapterId: 'c3', body: 'e-aldis sang to the room.' }];
+  assert.notStrictEqual(buildContext(j, count).blocks.find((b) => b.id === 'e-lisa')?.state, 'included',
+    'KEY-NOT-OTHERS: a wake word that is another thread\'s name does not wake this one');
+  j.passages.push({ id: 'p2', ordinal: 2, chapterId: 'c3', body: 'Lisa watched.' });
+  assert.strictEqual(buildContext(j, count).blocks.find((b) => b.id === 'e-lisa')!.state, 'included', '  its own does');
+});
+
 ok('a pinned-out entry never reaches the rendered prompt', () => {
   const i = base();
   i.pins = { 'e-key': 'force_out' };

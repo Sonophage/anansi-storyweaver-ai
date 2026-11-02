@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-01 · Hemming starts from what the next scene is
 
+### A scene starts with its own cast
+What Anansi is sent in a scene is who is in it from the start and whoever the scene itself names.
+Names from the end of the scene before no longer carry over into the next one. And a thread no
+longer wakes because one of its wake words is somebody else's name: Lisa is not sent every time
+Halsey is mentioned.
+
 ### The summary, to read
 On the hem, the summary now shows in full at reading size, with Skip, Edit and Use like the drafts
 under it. Edit opens it in a big box. Skip removes it, after a second press. And Was and Now show
