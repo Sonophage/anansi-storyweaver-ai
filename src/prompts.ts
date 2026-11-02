@@ -1085,8 +1085,8 @@ every call from now on.
            brackets and not the name in front. Sixty to a hundred and
            forty words. Facts somebody could contradict: who did what, what changed, what is owed,
            what is broken, where a thing ended up.
-    keys   single words that would really appear in the prose when this matters — a name, a place,
-           an object. Not the title again.
+    keys   ONE single word that would really appear in the prose when this matters — its name as the
+           prose says it, or its own word for it. Never another thread's name.
 
 WRITE IT AS FACTS, NOT AS PROSE. Take no sentence from the passage whole. If the passage says "the
 wrist gave under the weight and she did not cry out", the thread says: left wrist broken, strapped,
@@ -1333,14 +1333,14 @@ Propose only facts that are now permanently true. Skip anything that reads as te
 or as one scene's mood. A character lying or being wrong is not a fact.
 
 For each: title, type (character | place | lore | item), a body as a plain description
-(attribute, attribute, relation; no brackets and not the name in front), and up to 4 keywords.
+(attribute, attribute, relation; no brackets and not the name in front), and one keyword.
 
 ${LEDGER_REGISTER}
 
-A keyword is a word that ACTUALLY APPEARS IN THE PROSE when this thing is present. It is what
-makes the entry reach the model later, so a keyword nobody writes never fires. Repeating the
-title back buys nothing on its own: give what else is said instead — an epithet, the place they
-are always in, the object they carry, what other characters call them.
+The keyword is ONE WORD that ACTUALLY APPEARS IN THE PROSE when this thing is present: a person's
+name as the prose says it, a thing's own word for it ("stair", not "the long stair"). Never another
+thread's name and never an everyday word. It is what makes the entry reach the model later, so a
+keyword nobody writes never fires.
 
 And an activation. "triggered" is the normal answer: the entry reaches the model when one of its
 keywords appears in recent prose, and stays out of the way otherwise. "always_on" means it is sent
@@ -1618,8 +1618,8 @@ ${rooms.map((r) => `             ${r}`).join('\n')}
            below, from what the results say.
 
 ${POCKET_FORM}
-` : ''}    keys   Single words that would really appear in prose about them — a name, a place, a work, an
-           object. Not the title again.
+` : ''}    keys   ONE single word that would really appear in prose about them — their name as the prose
+           says it, or its own word for it. Never another thread's name.
 
 ${memory ? 'If you do not know it well enough to make a card' : 'If the results are about something else, or say too little to make a card'}, answer with an empty
 title. That is a real answer and it is better than a plausible one.
@@ -1729,9 +1729,9 @@ ${POCKET_FORM}`
 `
     + `           and not the name in front, enough that a scene could be written from it alone.
 `
-    + `    keys   single words that would really appear in the prose — a name, a place, an object.
+    + `    keys   ONE single word that would really appear in the prose — its name as the prose says it,
 `
-    + `           Not the title again, not two words joined by a slash, not the word "attribute".
+    + `           or its own word for it. Never another thread's name, never the word "attribute".
 
 `
     + `A hundred and twenty to two hundred words. Long enough that a scene could be `
@@ -1960,7 +1960,8 @@ done the moment you answer, so a thing they did not ask for is never a change; o
 
 - thread.set: the thread by its name, the room (none for its Always true), and the whole new text
   of that room as it should read.
-- thread.new: its title, its type, its Always true as text, and its keys.
+- thread.new: its title, its type, its Always true as text, and one keyword: a single word, its name
+  as the prose says it.
 - thread.overtime: the thread, the scene it holds from, the whole of where the thread stands from
   that scene on as text, and a label of a few words for what changed.
 - thread.wake: the thread, always_on or triggered (On a word), and the wake words as keys.

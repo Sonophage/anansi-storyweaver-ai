@@ -125,6 +125,11 @@ ok('CHANGE-NEW: a new thread, with its kind, Always true and wake words', () => 
   const place = done(ch.checkAsked({ op: 'thread.new', title: 'The Quay', type: 'place', text: 'Wet.',
     keys: ['quay'], activation: 'triggered' }, tale));
   assert.strictEqual(place.activation, 'triggered', 'a place may wait for its word');
+  // ONE GOOD KEYWORD WHEN IT STARTS (Seth, 2026-11-01): one single word, its own name first, never
+  // another thread's name.
+  const one = done(ch.checkAsked({ op: 'thread.new', title: 'Old Tom', type: 'character', text: 'A boatman.',
+    keys: ['Talia Venn', 'Talia', 'the ferryman', 'coin'] }, tale));
+  assert.deepStrictEqual(one.keys, ['ferryman'], 'CHANGE-NEW-ONE-KEY: a new thread starts with one good single-word keyword');
 });
 
 ok('CHANGE-NEW-REFUSED: no name, a kind nobody defined, or a name the tale already has', () => {

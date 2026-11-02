@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-01 · Hemming starts from what the next scene is
 
+### A new thread starts with one good keyword
+Every thread Anansi makes now starts with one wake word: a single word, the name the prose uses for
+it ("Marek", "stair"), never someone else's name or an everyday word. You can still add more. Threads
+that had no wake word at all were given one, picked from the words your pages use most.
+
 ### The brief says who starts the scene
 Whoever you name in what the next scene is starts it. Anyone else who is always on becomes mention
 only for that scene: Anansi is sent them only when they are named on the page. Their eye shows on a

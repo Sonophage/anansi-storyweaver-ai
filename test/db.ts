@@ -4527,4 +4527,33 @@ ok('a talk session keeps every turn up to its cap, and goes with its tale', () =
   raw.close();
 });
 
+// ONE GOOD KEYWORD WHEN A THREAD STARTS (Seth, 2026-11-01: "The same rule has to be applied for all
+// threads when it starts is one good keyword"). A new thread Anansi chalks keeps one keyword, a single
+// word: the first good word of its keywords, else of its title. Never a common word, never another
+// thread's name. A change to a thread the tale has keeps its keywords as they were.
+ok('a new thread starts with one good single-word keyword', () => {
+  assert.deepStrictEqual(db.oneKeyword('Marek Vale', ['the ferryman', 'Marek', 'river']), ['Marek'],
+    'ONE-KEY-NAME: its own name, when it is one of its keywords');
+  assert.deepStrictEqual(db.oneKeyword('Old Tom', ['the ferryman', 'river']), ['ferryman'],
+    'ONE-KEY-FIRST: else the first good word of its keywords, one word of a phrase');
+  assert.deepStrictEqual(db.oneKeyword('Sir Gideon Ofnir', []), ['Gideon'], 'ONE-KEY-TITLE: else its title, past an honorific');
+  assert.deepStrictEqual(db.oneKeyword('Tessa', ['Halsey', 'assistant'], ['Halsey']), ['assistant'],
+    'ONE-KEY-NOT-OTHERS: never another thread\'s name');
+  assert.deepStrictEqual(db.oneKeyword('The Two Fingers', ['the', 'of']), ['Fingers'], '  and never a common word');
+  const me = db.owner('onekey-owner');
+  const st = db.createStory(me, { title: 'One key' });
+  const ch = (db.chapters(st.id)[0] as any).id;
+  const halsey = db.upsertEntry(st.id, me, { title: 'Halsey', body: '', entryType: 'character', keys: ['Halsey', 'pop star'], activation: 'always_on' })!;
+  db.addProposal(st.id, { chapterId: ch, kind: 'new', entryType: 'character', title: 'Lisa Ortiz',
+    body: 'her manager', keys: ['Halsey', 'manager', 'tour', 'Lisa'] });
+  db.addProposal(st.id, { chapterId: ch, kind: 'changed', entry_id: halsey, entryType: 'character', title: 'Halsey',
+    body: 'a red coat', field: 'outfit', keys: ['coat', 'red'] });
+  const rows: any[] = db.proposalsOf(st.id);
+  assert.deepStrictEqual(JSON.parse(rows.find((x) => x.title === 'Lisa Ortiz').keys), ['Lisa'],
+    'ONE-KEY-CHALK: a new thread is chalked with one keyword');
+  assert.deepStrictEqual(JSON.parse(rows.find((x) => x.title === 'Halsey').keys), ['coat', 'red'],
+    '  and a change to one the tale has keeps its own');
+  db.delStory(st.id);
+});
+
 console.log(`\n${n} checks passed`);

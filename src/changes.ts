@@ -34,7 +34,7 @@
  * is not capped, because it puts back what the writer had, which can be longer than anything Talk
  * may write.
  */
-import { ALL_SLOTS, KINDS, STRING_SLOTS, slotsFor, plain, tidyGenre, wrapperNames } from './slots.ts';
+import { ALL_SLOTS, KINDS, STRING_SLOTS, keysTakenBy, oneKeyword, slotsFor, plain, tidyGenre, wrapperNames } from './slots.ts';
 import { retiredAt } from './context.ts';
 
 /** What the model may ask for. #97 cut the path with the first two; #98 adds the rest; #128 adds a
@@ -251,7 +251,8 @@ export function checkAsked(raw: any, tale: Tale): Checked {
     const n = newThread(raw, tale);
     if ('why' in n) return { ok: false, said, why: n.why };
     const { title, type } = n;
-    const keys = keysOf(raw.keys);
+    // ONE GOOD KEYWORD WHEN IT STARTS (Seth, 2026-11-01), by the rule a chalked new thread follows.
+    const keys = oneKeyword(title, keysOf(raw.keys), keysTakenBy(tale.entries), type);
     // A CHARACTER NEVER LANDS ON A WORD FROM A MODEL'S ANSWER, the rule accepting a chalked thread
     // follows: a character who stops reaching the model does not fade, he vanishes. Anything else
     // waits for its word only when it has one; `upsertEntry` holds the same floor.

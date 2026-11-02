@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 // The slot names live in one module because `entries.field_editors` keys provenance by them and
 // the partial unique index below names them as a literal. Three copies of one list is the drift
 // `src/blocks.ts` exists to stop for the block order; this is the same rule for slots.
-import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, STRING_SLOTS, TO_OVER_TIME, foldLine, plain, slotsFor, tidyGenre, wrapperNames } from './slots.ts';
+import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, STRING_SLOTS, TO_OVER_TIME, foldLine, keysTakenBy, oneKeyword, plain, slotsFor, tidyGenre, wrapperNames } from './slots.ts';
 import { factsLost } from './context.ts';
 import { isRemote } from './llama.ts';
 
@@ -2697,6 +2697,12 @@ export const keysOf = (k: unknown, cap = Infinity): string[] => {
     .slice(0, cap);
 };
 
+/** What a new thread's keyword may not be, in this tale: every thread's whole title, and each word of
+ *  a person's name. See `oneKeyword`. */
+export const keyTaken = (storyId: string): string[] => keysTakenBy((q("SELECT title, entry_type AS entryType FROM entries WHERE story_id = ? AND entry_type != 'tale'")
+  .all(storyId) as any[]));
+export { oneKeyword };
+
 /** The two ways a thread reaches the model. `entries.activation` is TEXT with no CHECK, so this
  *  list is the only thing that says so — see the floor at the top of `upsertEntry`. */
 const ACTIVATIONS = ['always_on', 'triggered'] as const;
@@ -4501,6 +4507,9 @@ export const proposalTarget = (p: any): string =>
   : 'body';
 
 export function addProposal(storyId: string, p: any) {
+  // A NEW THREAD STARTS WITH ONE GOOD KEYWORD (`oneKeyword`), whoever chalked it.
+  if (p.kind === 'new' && ['character', 'place', 'lore', 'item'].includes(String(p.entryType ?? p.entry_type ?? 'lore')))
+    p = { ...p, keys: oneKeyword(p.title, p.keys, keyTaken(storyId), String(p.entryType ?? p.entry_type ?? 'lore')) };
   // Hash the SUBJECT, not the wording. The model rewords the same fact on every run, so
   // hashing the body meant re-running always duplicated.
   const subject = String(p.title).toLowerCase()

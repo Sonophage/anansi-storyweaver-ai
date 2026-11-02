@@ -181,3 +181,38 @@ export const EXCLUSIVE_SLOTS = [...new Set(Object.values(SLOTS)
   .flatMap((s) => s.filter((x) => x.exclusive).map((x) => x.name)))].sort();
 
 export const slotsFor = (kind: string) => SLOTS[kind as EntryKind] ?? [];
+
+/** ONE GOOD KEYWORD WHEN A THREAD STARTS (Seth, 2026-11-01: "The same rule has to be applied for
+ *  all threads when it starts is one good keyword"). A single word: the first good word of the
+ *  keywords Anansi gave (its own name first, when it is one of them), else of the title. Good is three letters or more, not a common word or an
+ *  honorific, and not `others`: another thread's whole title, or a word of another person's name.
+ *  Lisa's keywords held "Halsey", and a brief naming Halsey brought Lisa in.
+ *  ponytail: "common" is a fixed list, not the prose. Ceiling: an ordinary word the list lacks
+ *  ("silver") can win over a better one. Trigger: a new thread waking on an everyday word; then score
+ *  the words against the tale's narration, as the one-off for Kia's threads did. */
+const KEY_COMMON = new Set(('the and of a an in on at to for with from by his her their its our your my this that ' +
+  'these those relationship relationships history order rules rule lore notes note general overview background world ' +
+  'setting about between into over under before after during against without within him she he they them who what ' +
+  'when where why how first second third last new old one two three part chapter scene story tale book sir lady lord ' +
+  'master mistress king queen prince princess saint father mother brother sister captain dame mister miss mrs').split(' '));
+export function oneKeyword(title: string, keys: unknown, others: string[] = [], kind = 'character'): string[] {
+  // A PERSON BY THEIR FIRST NAME, ANYTHING ELSE BY ITS LAST WORD ("The Long Stair" is the stair, "Marek
+  // Vale" is Marek): the head of a name is where a person's is first and a thing's is last.
+  const words = (t: string) => {
+    const w = (String(t).match(/[\p{L}\p{N}']+/gu) ?? []).map((x) => x.replace(/^'+|'+$/g, '')).filter((x) => x.length >= 3);
+    return kind === 'character' ? w : w.reverse();
+  };
+  const taken = new Set(others.map((o) => String(o).trim().toLowerCase()));
+  const ok = (w: string) => !KEY_COMMON.has(w.toLowerCase()) && !taken.has(w.toLowerCase());
+  // Its own name first, when Anansi gave it as a keyword: a name is what the page says when the thread
+  // is there. Then its other keywords, then its title.
+  const own = new Set(words(title).map((w) => w.toLowerCase()));
+  const given = (Array.isArray(keys) ? keys : String(keys ?? '').split(',')).map((x) => String(x ?? '').trim()).flatMap(words);
+  const order = [...given.filter((w) => own.has(w.toLowerCase())), ...given, ...words(title)];
+  const pick = order.find(ok) ?? order[0];
+  return pick ? [pick] : [];
+}
+/** What a new thread's keyword may not be, in a tale: every thread's whole title, and each word of a
+ *  person's name. See `oneKeyword`. */
+export const keysTakenBy = (threads: { title: string; entryType?: string }[]): string[] =>
+  threads.flatMap((e) => [e.title, ...(e.entryType === 'character' ? (String(e.title).match(/[\p{L}\p{N}']+/gu) ?? []) : [])]);

@@ -8,7 +8,7 @@ import { FORGE } from './forge.ts';
 // The hem's structured asks: plain lines on a remote model, read back into the schema's object.
 import { shaped } from './shaped.ts';
 import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, RESTAND, NEEDS, SCENE_NAME, TALE_STANDS, STRINGS_STAND, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
-import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, plain, wrapperNames } from './slots.ts';
+import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, keysTakenBy, oneKeyword, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
 import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultModePrompts, trimToSentence,
@@ -2613,7 +2613,8 @@ function sparkThread(rawName: string, kind: string, rawBody: string, pockets: un
   const name = String(rawName).trim();
   const stands = db.plainStands(rawStands, [name]);
   return { title: name, entryType: kind, activation: kind === 'character' ? 'always_on' : 'triggered',
-           body: plain(rawBody, wrapperNames('facts', name)), keys: [name],
+           // ONE GOOD KEYWORD WHEN IT STARTS (Seth, 2026-11-01): one word of its name (`oneKeyword`).
+           body: plain(rawBody, wrapperNames('facts', name)), keys: oneKeyword(name, [name], [], kind),
            ...(stands ? { stands } : {}), ...(Object.keys(rooms).length ? { rooms } : {}) };
 }
 
@@ -2756,7 +2757,8 @@ async function storyInNewWorld(c: Ctx) {
     if (threads.some((e) => e.title.toLowerCase() === p.title.toLowerCase())) continue;
     threads.push({ title: p.title, entryType: t.kind, body: p.body,
       // ON A WORD, like a World's threads: they reach a tale when it names them. Its name always wakes it.
-      activation: 'triggered', keys: [...new Set([p.title, ...p.keys])],
+      // ONE GOOD KEYWORD WHEN IT STARTS (Seth, 2026-11-01), its own name's first.
+      activation: 'triggered', keys: oneKeyword(p.title, [p.title, ...p.keys], keysTakenBy(threads), t.kind),
       notes: p.sources.map(noteLine).join('\n'),
       rooms: Object.fromEntries(Object.entries(p.rooms).map(([slot, body]) => [slot, { body, on: true }])) });
   }
