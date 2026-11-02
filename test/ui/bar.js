@@ -191,8 +191,8 @@ await page.click('#quill');
 await page.mode('talk');
 ok("TALK-DIAL: Talk to Anansi on the dial turns the box to Talk", await talking());
 // TALK, FULL SCREEN (2026-10-29): the composer's own Full screen, with the conversation above the box.
+// Talk OPENS full screen (2026-10-30), so there is nothing to press; a press here would shut it.
 // (The reload above emptied it, so the thread holds its openings; test/app.ts checks the turns.)
-await press('[data-bigin]');
 await wait(300);
 {
   const m = JSON.parse(await page.eval("(() => { const t = document.getElementById('talkthread'), i = document.getElementById('input');"
@@ -232,8 +232,8 @@ ok("  and the ideas are no longer on the bar", !(await page.eval("!!document.que
 await press('#col .carry [data-idea]');
 ok("IDEA-MODES: the bulb shows Anansi's four ideas, one per mode",
    await until("document.querySelectorAll('#col #ideas .idea').length === 4", 60));
-ok("  each named by its mode, with the words that came back", (await page.eval("document.querySelectorAll('#ideas .idea')[1]?.textContent ?? ''"))
-   .replace(/\s+/g, ' ').trim().startsWith('Act The second fake idea'));
+ok("  each named by its mode, with the words that came back", (await page.eval("document.querySelectorAll('#ideas .idea')[1]?.innerText ?? ''"))
+   .replace(/\s+/g, ' ').trim().toLowerCase().startsWith('act the second fake idea'));   // innerText: the label on its own line, in its CSS case
 await press('#ideas .idea:nth-child(2)');
 await wait(250);
 ok("IDEA-PICK: picking one puts it in the box, the box open",
@@ -263,10 +263,10 @@ const sizes = () => page.eval(`[...document.querySelectorAll('#nextrow button, #
     n: b.getAttribute('aria-label') || b.textContent.trim().slice(0, 12) }; })`);
 await open();
 await press('#col .carry [data-idea]');
-await until("document.querySelectorAll('#ideas .idea').length === 3", 60);
+await until("document.querySelectorAll('#ideas .idea').length === 4", 60);
 let small = (await sizes()).filter((x) => x.w < 44 || x.h < 44);
 ok(`TARGETS-390: every button on the bar, the bulb and the ideas are 44px both ways at 390 wide (${JSON.stringify(small)})`,
-   small.length === 0 && (await sizes()).length === 7);
+   small.length === 0 && (await sizes()).length === 8);   // three on the bar, the bulb, four ideas (one per mode)
 await page.viewport(360, 360);
 await open();
 small = (await sizes()).filter((x) => x.w < 44 || x.h < 44);

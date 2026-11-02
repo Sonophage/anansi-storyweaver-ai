@@ -220,7 +220,11 @@ ok("  which also offers the card prompts and a paste of its own",
    (await page.eval("!!document.querySelector('[data-forgecopy=\"character\"]')")) === true
    && (await page.eval("!!document.querySelector('[data-castpaste]')")) === true);
 
-// A card pasted into the CAST step joins the list rather than being written.
+// A card pasted into the CAST step joins the list rather than being written. The paste box sits in the
+// step's "Bring threads in" fold, shut by default (2026-10-30), so it is opened first, as a writer would.
+await page.eval("(() => { const d = document.querySelector('[data-castpaste]')?.closest('details'); d?.querySelector('summary')?.click(); return 1; })()");
+await wait(300);
+ok("  the paste box is in the Bring threads in fold, and opens", await page.eval("!!document.querySelector('[data-castpaste]')?.closest('details')?.open"));
 await page.eval(`(() => { document.querySelector('[data-castpaste]').value = ${JSON.stringify(
   JSON.stringify({ kind: 'item', title: 'the Tide Book', body: '[the Tide Book: every return, in one hand]',
                    rooms: { what_it_does: '[lists what the sea gave back, and when]' } }))}; return 1; })()`);
