@@ -14,7 +14,7 @@ interface EntryState {
 export interface Entry {
   id: string; title: string; body: string;
   entryType: 'character' | 'place' | 'lore' | 'item';
-  activation: 'always_on' | 'triggered';
+  activation: 'always_on' | 'triggered' | 'off';
   keys: string[];
   lastEditor: 'human' | 'model';   // decides arbitration (COUNCIL-03 S1)
   states?: EntryState[];           // canon over time — see resolveBody
@@ -1174,6 +1174,12 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     ? [...passages.slice(-8).map((p) => p.body), input.reach].join('\n') : null;
   const unasked: string[] = [];
   for (const e of entries) {
+    // OFF IS ARCHIVED, FOR THE WHOLE TALE (Seth, 2026-11-02), and it comes before every pin: a thread
+    // set off is not sent on its word, not always, and not when a scene's brief pins it in.
+    if (e.activation === 'off') {
+      blocks.push({ kind: 'CANON-TRIGGERED', id: e.id, text: '', tokens: 0, state: 'omitted', reason: 'set off' });
+      continue;
+    }
     // force_out is a hard filter and is applied first here so nothing downstream can
     // resurrect it — SPEC §7.4 has it last in the sequence, which is the same outcome and
     // means it also beats force_in if a chapter somehow carries both.

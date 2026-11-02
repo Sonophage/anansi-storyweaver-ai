@@ -2703,9 +2703,10 @@ export const keyTaken = (storyId: string): string[] => keysTakenBy((q("SELECT ti
   .all(storyId) as any[]));
 export { oneKeyword };
 
-/** The two ways a thread reaches the model. `entries.activation` is TEXT with no CHECK, so this
- *  list is the only thing that says so — see the floor at the top of `upsertEntry`. */
-const ACTIVATIONS = ['always_on', 'triggered'] as const;
+/** How a thread reaches the model: always, on a word, or not at all (`off`, archived for the whole
+ *  tale, Seth 2026-11-02). `entries.activation` is TEXT with no CHECK, so this list is the only thing
+ *  that says so — see the floor at the top of `upsertEntry`. */
+const ACTIVATIONS = ['always_on', 'triggered', 'off'] as const;
 
 /** #114 · WHERE IT STANDS AS IT IS STORED: the thread's own text and each Over time entry, a plain
  *  description with the old `[Seth: …]` wrapper and the thread's name in front taken off, by
@@ -2734,7 +2735,6 @@ export function upsertEntry(storyId: string, o: string, e: any) {
     title: e.title ?? 'Untitled',
     body: e.body ?? '',
     entryType: e.entryType ?? 'character',
-    activation: e.activation ?? 'always_on',
     keys: keysOf(e.keys),
     lastEditor: e.lastEditor ?? 'human',
   };
@@ -2742,6 +2742,10 @@ export function upsertEntry(storyId: string, o: string, e: any) {
   // known id previously took the UPDATE path against a row that was never inserted and
   // silently wrote nothing.
   const cur = e.id ? q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(e.id, storyId) as any : null;
+  // NEW THREADS START ON A WORD (Seth, 2026-11-02), and a save that does not name the setting keeps
+  // the one the thread has. This defaulted to always on for updates as well as new rows, so a partial
+  // save turned a thread on. A new one with no wake word still lands always on, by the floor below.
+  e = { ...e, activation: e.activation ?? cur?.activation ?? 'triggered' };
   // #114 · WHERE IT STANDS IS A PLAIN DESCRIPTION (ADR 0008), by the rule a pocket's floor uses.
   e = { ...e, body: plainStands(e.body, [e.title, cur?.title]) };
 

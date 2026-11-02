@@ -2201,7 +2201,7 @@ async function needsFor(c: Ctx, storyId: string, closing: string, opened: string
   // one of these and nobody else.
   const pin = new Map((db.pinsOf(v.id) as any[]).filter((p: any) => p.chapter_id === opened).map((p: any) => [p.entry_id, p.mode]));
   const atStart = (v.entries as any[]).filter((e) => e.entryType !== 'tale' && e.retiredAtChapter == null
-    && pin.get(e.id) !== 'force_out' && (pin.get(e.id) === 'force_in' || (e.activation === 'always_on' && pin.get(e.id) !== 'mention')));
+    && e.activation !== 'off' && pin.get(e.id) !== 'force_out' && (pin.get(e.id) === 'force_in' || (e.activation === 'always_on' && pin.get(e.id) !== 'mention')));
   const now = (e: any) => (e.addons ?? []).filter((a: any) => a.active && NEEDS_POCKETS.includes(a.slot) && String(a.body ?? '').trim())
     .map((a: any) => `  ${a.slot}: ${String(a.body).trim().slice(0, 300)}`).join('\n');
   const t0 = Date.now(), using = backgroundModel(c, v);

@@ -1580,32 +1580,49 @@ ok('the header names the book, and carries no reading of its own');
 ok('the bar is the threads sent now by kind, and the numbers open by a handle');
 
 // FOUR STATES ON A THREAD'S MARK (Seth, 2026-11-01): on, woken (its word is on the page), on a word
-// and asleep, and off in this scene. The tap moves through what a writer can set: on, on a word, off.
+// and asleep, and off. OFF IS ARCHIVED FOR THE WHOLE TALE (2026-11-02), a setting of its own, and the
+// tap goes off → on a word → on → off, clearing any pin this scene holds on the thread first. The mark
+// moves at once and the writes queue, so two quick taps are two steps. A tip names the state.
 {
   const wasPins = STORY.pins;
+  const took = STORY.entries.find((e: any) => e.id === 'e-took') as any;
+  const tookWas = took.activation;
+  took.activation = 'off';
   STORY.pins = [{ chapterId: STORY.currentChapter.id, entryId: 'e-2', mode: 'force_out' }] as any;
   click({ open: 's-1' }); await sleep(40);
   click({ panel: 'threads' }); click({ backentry: '1' }); click({ onlyin: '0' }); await sleep(10);
   const reach = (id: string) => html('sideBody').match(new RegExp(`data-flipact="${id}" data-look="(\\w+)" data-reach="(\\w+)"[^>]*aria-label="([^"]*)"`))?.slice(1);
   assert.deepStrictEqual(reach('e-1')?.slice(0, 2), ['eye', 'on'], 'REACH-ON: always on is an open eye');
   assert.deepStrictEqual(reach('e-fired')?.slice(0, 2), ['eyeheard', 'woken'], 'REACH-WOKEN: woken by its word is the eye with a speech mark');
-  assert.deepStrictEqual(reach('e-2')?.slice(0, 2), ['eyeoff', 'off'], 'REACH-OFF: held out of this scene is the eye struck through');
+  assert.deepStrictEqual(reach('e-took')?.slice(0, 2), ['eyeoff', 'off'], 'REACH-OFF: set off is the eye struck through');
+  assert.deepStrictEqual(reach('e-2')?.slice(0, 2), ['eyeoff', 'off'], 'REACH-OFF-PIN: a thread an older tap held out of this scene still shows off');
   assert.match(reach('e-evicted')?.[2] ?? '', /^On, but pushed out of this call for room/, 'REACH-EVICTED: always on but pushed out says so');
-  const word = STORY.entries.find((e: any) => e.activation === 'triggered' && e.id !== 'e-fired' && e.id !== 'e-2'
-    && reach(e.id));
+  const word = STORY.entries.find((e: any) => e.activation === 'triggered' && !['e-fired', 'e-2'].includes(e.id) && reach(e.id));
   assert.deepStrictEqual(reach(word!.id)?.slice(0, 2), ['eyeshut', 'word'], `REACH-WORD: on a word and asleep is a shut eye (${word?.title})`);
   const writes = () => POSTED.filter((p: any) => ['/api/pin', '/api/entry'].includes(p.url))
     .map((p: any) => p.url === '/api/pin' ? `pin ${p.body.entryId} ${p.body.mode}` : `entry ${p.body.entry.id} ${p.body.entry.activation}`);
-  POSTED.length = 0; click({ flipact: 'e-1' }); await sleep(40);
-  assert.deepStrictEqual(writes(), ['entry e-1 triggered'], 'TAP-ON: on goes to on a word');
+
+  POSTED.length = 0; click({ flipact: 'e-took' });
+  assert.deepStrictEqual(reach('e-took')?.slice(0, 2), ['eyeshut', 'word'], 'TAP-NOW: the mark moves the moment it is tapped');
+  assert.match(html('sideBody'), /class="eyetip"[^>]*>On a word</, 'TAP-TIP: and a tip names the state');
+  await sleep(40);
+  assert.deepStrictEqual(writes(), ['entry e-took triggered'], 'TAP-OFF: off goes to on a word');
   POSTED.length = 0; click({ flipact: 'e-fired' }); await sleep(40);
-  assert.deepStrictEqual(writes(), ['pin e-fired force_out'], 'TAP-WORD: on a word goes off in this scene, by a pin');
+  assert.deepStrictEqual(writes(), ['entry e-fired always_on'], 'TAP-WOKEN: on a word (woken) goes to on');
+  POSTED.length = 0; click({ flipact: 'e-1' }); await sleep(40);
+  assert.deepStrictEqual(writes(), ['entry e-1 off'], 'TAP-ON: on goes off, for the whole tale, with no pin');
   POSTED.length = 0; click({ flipact: 'e-2' }); await sleep(40);
-  assert.deepStrictEqual(writes(), ['pin e-2 null', 'entry e-2 always_on'], 'TAP-OFF: off goes back on: the pin comes off and it is always on');
-  STORY.pins = wasPins;
+  assert.deepStrictEqual(writes(), ['pin e-2 null', 'entry e-2 triggered'], 'TAP-PIN: the scene\'s pin comes off first, then on a word');
+
+  // TWO QUICK TAPS ARE TWO STEPS: the second reads the state the first showed, and both are written, in order.
+  POSTED.length = 0; click({ flipact: word!.id }); click({ flipact: word!.id });
+  assert.deepStrictEqual(reach(word!.id)?.slice(0, 2), ['eyeoff', 'off'], 'TAP-TWICE: word → on → off, on screen at once');
+  await sleep(80);
+  assert.deepStrictEqual(writes(), [`entry ${word!.id} always_on`, `entry ${word!.id} off`], '  and both written, in order');
+  took.activation = tookWas; STORY.pins = wasPins;
   click({ open: 's-1' }); await sleep(40);
 }
-ok('a thread\'s mark shows four states, and a tap moves on, on a word, off in this scene');
+ok('a thread\'s mark shows four states; a tap goes off, on a word, on, at once and in order, with a tip');
 
 /* ---- IN CONTEXT MEANS WHAT THE PROMPT ACTUALLY HOLDS (2026-09-11).
  *
@@ -8192,20 +8209,21 @@ const hemCardOf = (side: string) => {
   const whoTip = side.match(/id="tip-setWho"[^>]*>([\s\S]*?)<\/p>/)?.[1] ?? '';
   assert.ok(/eye/.test(whoTip) && !/pill|This scene only/.test(whoTip), `WHO-TIP-EYE: its help says the eye, not the pill (${whoTip.slice(-160)})`);
 
+  // THE SAME ORDER AS THE LIST (2026-11-02): on → off (for the whole tale) → on a word → on.
   let from = POSTED.length;
   click({ flipact: 'e-1', whokeep: '1' }); await settle(); await settle();
-  assert.deepStrictEqual(sent(from), ['entry e-1 triggered'], 'WHO-EYE-WORD: a tap puts it on a word');
-  assert.deepStrictEqual(eyeOf('e-1'), ['eyeshut', 'word'], '  and it stays listed, asleep');
-  from = POSTED.length;
-  click({ flipact: 'e-1', whokeep: '1' }); await settle(); await settle();
-  assert.deepStrictEqual(sent(from), ['pin e-1 force_out'], 'WHO-EYE-OFF: a second tap turns it off in this scene');
+  assert.deepStrictEqual(sent(from), ['entry e-1 off'], 'WHO-EYE-OFF: a tap turns it off, for the whole tale');
   assert.deepStrictEqual(eyeOf('e-1'), ['eyeoff', 'off'], '  and it stays listed, struck through');
   from = POSTED.length;
   click({ howout: 'e-1' }); await settle();
-  assert.deepStrictEqual([sent(from), eyeOf('e-1')], [[], undefined], 'WHO-OUT-OFF: ✕ on a thread off here takes it off the list and writes nothing');
+  assert.deepStrictEqual([sent(from), eyeOf('e-1')], [[], undefined], 'WHO-OUT-OFF: ✕ on a thread that is off takes it off the list and writes nothing');
   from = POSTED.length;
   click({ flipact: 'e-1', whokeep: '1' }); await settle(); await settle();
-  assert.deepStrictEqual(sent(from), ['pin e-1 null', 'entry e-1 always_on'], 'WHO-EYE-ON: a third tap puts it back on');
+  assert.deepStrictEqual(sent(from), ['entry e-1 triggered'], 'WHO-EYE-WORD: a second tap puts it on a word');
+  assert.deepStrictEqual(eyeOf('e-1'), ['eyeshut', 'word'], '  and it is listed again, asleep');
+  from = POSTED.length;
+  click({ flipact: 'e-1', whokeep: '1' }); await settle(); await settle();
+  assert.deepStrictEqual(sent(from), ['entry e-1 always_on'], 'WHO-EYE-ON: a third tap puts it back on');
   assert.deepStrictEqual(eyeOf('e-1'), ['eye', 'on'], '  and the eye is open again');
   // ✕ ON AN ALWAYS-ON THREAD leaves it out of this scene.
   from = POSTED.length;
@@ -8246,7 +8264,8 @@ const hemCardOf = (side: string) => {
   assert.strictEqual(who(side, 'e-shared'), '', 'WHO-MENTION: a mention-only thread is not listed as in the scene');
   from = POSTED.length;
   click({ flipact: 'e-shared', whokeep: '1' }); await settle(); await settle();
-  assert.deepStrictEqual(sent(from), ['pin e-shared force_out'], '  and its eye is on a word: a tap holds it out of this scene');
+  assert.deepStrictEqual(sent(from), ['pin e-shared null', 'entry e-shared always_on'],
+    '  and its eye is on a word: a tap takes the mention pin off and puts it on');
   // THE SETTING, behind ⓘ and shut, not a block of text at the foot.
   side = html('sideBody');
   assert.match(side, /data-tip="setSetting"[^>]*aria-expanded="false"/, 'WHO-TIP: the setting is behind ⓘ');

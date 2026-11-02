@@ -1351,6 +1351,22 @@ ok('force_out beats an always-on entry, and beats force_in', () => {
   assert.strictEqual(m.blocks.find((b) => b.id === 'e-ghost')!.state, 'included');
 });
 
+// OFF IS ARCHIVED, FOR THE WHOLE TALE (Seth, 2026-11-02: "off here should basically function as
+// archived. not just for the scene"). A thread set off is never sent: not on its wake word, not
+// always on, not when a scene's brief pins it in. It is said in the manifest, as a pin out is.
+ok('a thread set off is never sent: not on its word, not always on, not pinned in', () => {
+  const i = base();
+  assert.ok(buildContext(i, count).blocks.some((b) => b.id === 'e-key' && b.state === 'included'), 'CONTROL: it fires on its word');
+  (i.entries.find((e) => e.id === 'e-key') as any).activation = 'off';
+  const b = buildContext(i, count).blocks.find((x) => x.id === 'e-key')!;
+  assert.strictEqual(b.state, 'omitted', 'OFF: not sent on its word');
+  assert.match(b.reason, /set off/, '  and the manifest says why');
+  const j = base();
+  (j.entries.find((e) => e.id === 'e-aldis') as any).activation = 'off';
+  j.pins = { 'e-aldis': 'force_in' };
+  assert.strictEqual(buildContext(j, count).blocks.find((x) => x.id === 'e-aldis')!.state, 'omitted', 'OFF-PIN: not even pinned in');
+});
+
 // MENTION ONLY, FOR ONE SCENE (Seth, 2026-11-01: "who comes in it has to be who needs to be in the
 // scene at the start. Everything else can be mention only"). An always-on thread with a `mention`
 // pin is sent as a thread on a word is, for this scene only: when its name or a wake word is on the

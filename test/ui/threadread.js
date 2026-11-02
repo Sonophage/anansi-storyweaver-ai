@@ -119,14 +119,15 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
     ok("  and On turns it off again",
        !(await story(sid)).entries.find((e) => e.id === marek.id).addons.find((a) => a.id === rel.id)?.active);
     // ---- The reach tag is the same switch as the list's mark
+    // THE SAME ORDER AS THE LIST (Seth, 2026-11-02): on → off (for the whole tale) → on a word → on.
     await page.click('#sideBody .readtags [data-flipact]');
     await wait(800);
-    ok("the reach tag moves on to on a word, as the list's mark does",
-       (await story(sid)).entries.find((e) => e.id === marek.id).activation === 'triggered');
-    // FOUR STATES, THREE TO SET (2026-11-01): on a word, then off in this scene, then on again.
+    ok("the reach tag turns an always-on thread off, as the list's mark does",
+       (await story(sid)).entries.find((e) => e.id === marek.id).activation === 'off'
+       && await page.eval("document.querySelector('#sideBody .readtags [data-flipact]')?.dataset.reach") === 'off');
     await page.click('#sideBody .readtags [data-flipact]');
     await wait(800);
-    ok("  then off in this scene", await page.eval("document.querySelector('#sideBody .readtags [data-flipact]')?.dataset.reach") === 'off');
+    ok("  then on a word", (await story(sid)).entries.find((e) => e.id === marek.id).activation === 'triggered');
     await page.click('#sideBody .readtags [data-flipact]');
     await wait(800);
     const back = await story(sid);

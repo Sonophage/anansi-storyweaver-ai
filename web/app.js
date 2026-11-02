@@ -3832,7 +3832,7 @@ const threadBlock = (attr, name, kind, inner) => `<div class="card hemthread" ${
 /** ONE THREAD IN THE SCENE, on Anyone new: ONE LINE (Seth, 2026-10-29, option A of the design
  *  canvas). Its name, which opens the thread and its pockets; its kind under it; THE EYE, the Threads
  *  list's own mark and switch (Seth, 2026-11-01: "make Anyone new use the eye too"), which shows the
- *  four states and moves on, on a word, off in this scene (`reachMark`, `nextReach`); and ✕ to take it
+ *  four states and moves off, on a word, on (`reachMark`, `nextReach`); and ✕ to take it
  *  off this list (`data-howout`). Until then a pill moved Always on → This scene only → When it's
  *  named. Lit by the rules, not the manifest: the scene being set up has no prose to wake a word.
  *  `data-whokeep` keeps a thread the eye put to sleep or off on the list (`S.setupHere`). */
@@ -3842,7 +3842,7 @@ function whoBlock(e, pin, scene) {
     <button class="whoname" data-entry="${id}"><span class="name-145" data-hemthreadname>${esc(e.title)}</span>
       <span class="whokind">${esc(pocketTitle(e.entryType))}</span></button>
     <button class="whoeye" data-flipact="${id}" data-whokeep="1" data-look="${m.look}" data-reach="${m.state}" data-lit="${lit ? 1 : 0}"
-      aria-label="${esc(e.title)}: ${m.label}" title="${m.label}">${mark(m.look, 22)}</button>
+      aria-label="${esc(e.title)}: ${m.label}" title="${m.label}">${mark(m.look, 22)}${eyeTip(id)}</button>
     <button class="del-x" data-howout="${id}" aria-label="Take ${esc(e.title)} off the list for ${esc(scene)}">&#10005;</button>
   </div>`;
 }
@@ -4265,7 +4265,7 @@ function hemWho(ch) {
   return `<div class="card hemwho push-8">
     <div class="lbl flush">Who is in ${esc(sceneName(next))}</div>
     <div class="hint flush">Take out who is not in it, bring in who is. Tap an eye to change how a thread
-      comes in: on, on a word, or off in this scene.</div>
+      comes in: off, on a word, or on. Off is off in every scene.</div>
     ${whoList(next)}
     <button class="btn fill push-8" data-hemwhodone="${esc(ch.id)}">Done</button>
   </div>`;
@@ -8314,7 +8314,7 @@ function cardJSON(e, slots) {
     kind: e.entryType,
     title: e.title ?? '',
     body: e.body ?? '',
-    activation: e.activation === 'triggered' ? 'triggered' : 'always_on',
+    activation: e.activation === 'triggered' || e.activation === 'off' ? e.activation : 'always_on',
     keys: e.keys ?? [],
     rooms,
   }, null, 2);
@@ -8861,20 +8861,18 @@ function threadRows() {
  *  text, one mark, and a tag only for what a writer needs at a glance — how many pockets it has,
  *  where it came from, that it is retired.
  *
- *  THE MARK HAS THREE LOOKS FOR TWO SETTINGS (Seth, 2026-10-25). An open eye is always on. On a
- *  word is an eye with a speech mark for its pupil when it is sent now — a wake word woke it, or
- *  it is brought into this scene — and a shut eye when it is asleep. Each look is one named mark
- *  in web/model.js, so swapping a picture is one SVG and touches nothing here. Lit or dim is read
- *  off the same `inContext` the Sent now filter uses, so the mark and the filter cannot disagree:
- *  Sent now is the open eyes and the woken ones. So no "On a word" tag either: the mark says it.
- *  AND THE MARK IS THE SWITCH, always on and on a word, one tap each way. Seth, 2026-09-01, asked
- *  for "a fast way to switch from always on to triggered", and the list had it as a chip under
- *  every card; the redesign keeps one mark per card, so the tap moved onto it. Its label names the
- *  state and what a tap does, because a picture cannot say what happens next.
+ *  THE MARK: one eye, four looks (see `reachMark` below). Each look is one named mark in
+ *  web/model.js, so swapping a picture is one SVG and touches nothing here. Lit or dim is read off
+ *  the same `inContext` the Sent now filter uses, so the mark and the filter cannot disagree: Sent
+ *  now is the open eyes and the woken ones. So no "On a word" tag either: the mark says it.
+ *  AND THE MARK IS THE SWITCH (Seth, 2026-09-01: "a fast way to switch from always on to
+ *  triggered"). Its label names the state and what a tap does, because a picture cannot say what
+ *  happens next, and a tap shows the state's name for a moment (`eyeTip`).
  *
  *  THE MARK CANNOT GO INSIDE THE CARD: the card is itself a button carrying data-entry, and a
  *  button inside a button is not valid HTML — the outer one swallows it. So it sits beside the card
- *  in a wrapper and is laid over the card's right edge, which the card leaves free with its padding.
+ *  in a wrapper and is laid over the card's right edge, the whole strip the card leaves free with its
+ *  padding (Seth, 2026-11-02: "the whole right side of the card should allow me to trigger its state").
  *
  *  A POCKET HERE IS EVERY NAMED PART BUT FACTS. Facts is the thread's own text (the pockets plan
  *  turns it into Always true), and in the live library 473 of about 480 threads have one — so
@@ -8884,30 +8882,45 @@ function threadRows() {
  *    on      always on: an open eye;
  *    woken   on a word, and sent now (its word is on the page, or brought into the scene): the eye
  *            with a speech mark;
- *    word    on a word and asleep, every thread's default: a shut eye. An always-on thread with a
- *            `mention` pin (the scene's brief did not name it, 2026-11-01) is on a word in this scene;
- *    off     held out of this scene (a `force_out` pin), whatever its setting: the eye struck through.
+ *    word    on a word and asleep, a new thread's default (2026-11-02): a shut eye. An always-on
+ *            thread with a `mention` pin (the scene's brief did not name it, 2026-11-01) is on a word
+ *            in this scene;
+ *    off     the thread's own setting, archived for the whole tale (Seth, 2026-11-02: "off here should
+ *            basically function as archived. not just for the scene"): the eye struck through. A
+ *            `force_out` pin an older tap left on a scene shows the same.
  *  Sent now is on and woken, which is what the model is sent (`inContext`). The list's card and the
  *  Read screen's tag draw it from the same facts, and the tap (`data-flipact`) moves through the three
- *  a writer can set: on, on a word, off in this scene, on (`nextReach`). `lit` is `inContext`. */
+ *  a writer can set: off, on a word, on, off (`nextReach`). `lit` is `inContext`. */
 function reachMark(e, lit, pin = pinModes()) {
   // A `mention` pin (the brief did not name it, 2026-11-01) makes an always-on thread one on a word,
-  // in this scene only.
-  const state = pin.get(e.id) === 'force_out' ? 'off'
+  // in this scene only. OFF IS THE THREAD'S OWN SETTING since 2026-11-02 (archived for the whole tale);
+  // a `force_out` pin an older tap left still shows as off. A tap not yet saved shows what it set.
+  const set = S.reachNow?.[e.id];
+  const state = set ? set
+    : e.activation === 'off' || pin.get(e.id) === 'force_out' ? 'off'
     : (e.activation ?? 'always_on') === 'always_on' && pin.get(e.id) !== 'mention' ? 'on'
     : lit ? 'woken' : 'word';
   const [look, word, now, next] = {
-    on: ['eye', 'On', lit ? 'On, sent every call' : 'On, but pushed out of this call for room', 'send it only on a wake word'],
-    woken: ['eyeheard', 'Woken', 'On a word, and sent now', 'turn it off in this scene'],
-    word: ['eyeshut', 'On a word', 'On a word, asleep: no wake word in this scene', 'turn it off in this scene'],
-    off: ['eyeoff', 'Off here', 'Off in this scene: not sent, even on a word', 'turn it on'],
+    on: ['eye', 'On', lit ? 'On, sent every call' : 'On, but pushed out of this call for room', 'turn it off'],
+    woken: ['eyeheard', 'Woken', 'On a word, and sent now', 'send it every call'],
+    word: ['eyeshut', 'On a word', 'On a word, asleep: no wake word in this scene', 'send it every call'],
+    off: ['eyeoff', 'Off', 'Off: not sent in any scene, even on a word', 'send it on a word'],
   }[state];
   return { on: state === 'on', state, look, word, label: `${now}. Tap to ${next}.` };
 }
-/** The tap's next state: on → on a word → off in this scene → on. What it writes: the thread's
- *  activation, the scene's pin, or both. */
-const nextReach = (state) => (state === 'on' ? { activation: 'triggered', pin: undefined }
-  : state === 'off' ? { activation: 'always_on', pin: null } : { activation: undefined, pin: 'force_out' });
+/** The tap's next state (Seth, 2026-11-02): off → on a word → on → off. Woken is on a word. */
+const nextReach = (state) => (state === 'off' ? 'word' : state === 'on' ? 'off' : 'on');
+/** What each state is called, for the tip a tap shows. */
+const REACH_WORD = { on: 'On', woken: 'Woken', word: 'On a word', off: 'Off' };
+/** THE TIP A TAP SHOWS (Seth, 2026-11-02: "a tool tip on tap would be nice for the state name"): the
+ *  state's name under the eye, for a moment. A title is a hover, which a phone does not have. */
+const eyeTip = (id) => S.eyeTip?.id === id ? `<span class="eyetip" role="status">${esc(S.eyeTip.word)}</span>` : '';
+/** THE TAP'S WRITES, IN ORDER (2026-11-02). The mark moves the moment it is tapped (`S.reachNow`) and
+ *  the saves queue behind one another, so two quick taps are two steps and both land in the order
+ *  they were made. One tap used to wait on three round trips and a manifest, and a second tap read
+ *  the state from before the first had landed. */
+let REACH_QUEUE = Promise.resolve();
+const REACH_PENDING = new Map();
 
 /** THE BRACKET COMES OFF WHERE A WRITER READS IT. "[Aldis Fen: 34, ex-Watch sergeant…]" is the
  *  form the model is sent, and its first words repeat the name the screen already shows in large
@@ -8940,7 +8953,7 @@ function threadPlate(e, lit) {
         ${text ? `<span class="clamp2 thtext">${esc(text)}</span>` : ''}
         ${tags ? `<span class="thtags">${tags}</span>` : ''}</button>
       <button class="theye" data-flipact="${esc(e.id)}" data-look="${look}" data-reach="${state}" data-lit="${lit ? 1 : 0}"
-        aria-label="${label}" title="${label}">${mark(look, 22)}</button>
+        aria-label="${label}" title="${label}">${mark(look, 22)}${eyeTip(e.id)}</button>
     </div>
     ${/* WORN OR NOT WAS A BORDER COLOUR AND NOTHING ELSE here — the label is the coat's name either
           way, so there was no non-visual way to tell which one is on. The full control in the
@@ -8972,7 +8985,7 @@ function inContext(e, pin, mani = manifestNow()) {
   // and a card the model never saw is not in context however it got listed.
   if (mani) return mani.blocks.some((b) => b.id === e.id && b.state === 'included'
     && (b.kind === 'CANON-ALWAYS' || b.kind === 'CANON-TRIGGERED'));
-  return pin.get(e.id) === 'force_out' ? false
+  return e.activation === 'off' || pin.get(e.id) === 'force_out' ? false
     : e.activation === 'always_on' && pin.get(e.id) !== 'mention' ? true : pin.get(e.id) === 'force_in';
 }
 
@@ -13137,12 +13150,49 @@ document.addEventListener('click', async (e) => {
     paint(); return;
   }
   if (d.onlyin !== undefined) { S.onlyIn = d.onlyin === '1'; paint(); return; }
-  if (d.kind || d.act || d.flipact) {
+  /* THE MARK'S TAP (Seth, 2026-11-02): off → on a word → on → off, the thread's own setting, for the
+   * whole tale. Any pin this scene holds on the thread comes off first, so what the tap sets is what
+   * the thread does. The mark moves now; the writes queue (REACH_QUEUE), so a second quick tap goes on
+   * from what the first showed; the tale is read again once a thread's taps have all landed. */
+  if (d.flipact) {
+    const e = V.entries.find((x) => x.id === d.flipact); if (!e) return;
+    const pin = pinModes();
+    const next = nextReach(reachMark(e, inContext(e, pin, d.whokeep ? null : undefined), pin).state);
+    // Anyone new keeps a thread the eye moved on the list, asleep or off (`whoBlock`).
+    if (d.whokeep) (S.setupHere = S.setupHere ?? new Set()).add(`${V.currentChapter.id}:${e.id}`);
+    (S.reachNow = S.reachNow ?? {})[e.id] = next;
+    const tip = S.eyeTip = { id: e.id, word: REACH_WORD[next] };
+    setTimeout(() => { if (S.eyeTip === tip) { S.eyeTip = null; paint(); } }, 1500);
+    paint();
+    const scenePin = pin.has(e.id) && !REACH_PENDING.has(e.id);
+    REACH_PENDING.set(e.id, (REACH_PENDING.get(e.id) ?? 0) + 1);
+    REACH_QUEUE = REACH_QUEUE.then(async () => {
+      if (scenePin) {
+        const rp = await api.setPin(S.storyId, V.currentChapter?.id, e.id, null);
+        if (rp.error) return toast(rp.error);
+      }
+      // `allowNoKeys`: on a word with no wake words is the writer's to choose here; the toast below says it.
+      const activation = next === 'on' ? 'always_on' : next === 'off' ? 'off' : 'triggered';
+      const r = await api.saveEntry(S.storyId, { ...e, id: e.id, keys: e.keys ?? [], allowNoKeys: true, activation });
+      if (r.error) return toast(r.error);
+      if (activation === 'triggered' && !(e.keys ?? []).length)
+        toast(`${e.title} is on a word with no wake words — it cannot reach the model. Open it to add some.`);
+    }).catch(() => {}).finally(async () => {
+      const left = (REACH_PENDING.get(e.id) ?? 1) - 1;
+      if (left > 0) { REACH_PENDING.set(e.id, left); return; }
+      REACH_PENDING.delete(e.id);
+      V = await api.story(S.storyId);
+      delete S.reachNow[e.id];
+      if (isAltering()) repaintKeepingText(); else paint();
+      refreshManifest();
+    });
+    return;
+  }
+  if (d.kind || d.act) {
     // Type and activation are chips, so they save immediately rather than waiting for Save —
     // the trigger-words field enables and disables on activation and must repaint to show it.
-    // `flipact` is the same write from the Threads list, where there is no open card: the id comes
-    // off the chip instead of S.entryId, and the chip is a toggle so it works out its own target.
-    const e = V.entries.find((x) => x.id === (d.flipact ?? S.entryId)); if (!e) return;
+    // The mark's tap (`flipact`) has its own handler above.
+    const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
     // `allowNoKeys`: the guard in db.upsertEntry turns a keyless `triggered` entry always-on so
     // nothing lands dark by accident, and this chip is the one place where the two-step is the
     // ONLY route — the trigger-words field above is disabled while an entry is always-on, so a
@@ -13150,18 +13200,9 @@ document.addEventListener('click', async (e) => {
     // back and a triggered entry cannot be made at all. A human pressing "On a keyword" with the
     // chip and the hint in front of them is not the silence 2e is about.
     const patch = { ...e, id: e.id, keys: e.keys ?? [], allowNoKeys: true };
-    // THE MARK MOVES THROUGH FOUR STATES (`reachMark`, `nextReach`): a pin for off in this scene, the
-    // activation for on and on a word. The pin is written first, so an off never lands as on.
-    const step = d.flipact ? nextReach(reachMark(e, inContext(e, pinModes(), d.whokeep ? null : undefined)).state) : null;
-    // Anyone new keeps a thread the eye moved on the list, asleep or off (`whoBlock`).
-    if (d.whokeep) (S.setupHere = S.setupHere ?? new Set()).add(`${V.currentChapter.id}:${e.id}`);
-    if (step && step.pin !== undefined) {
-      const rp = await api.setPin(S.storyId, V.currentChapter?.id, e.id, step.pin);
-      if (rp.error) return toast(rp.error);
-    }
     if (d.kind) patch.entryType = d.kind;
-    else patch.activation = step ? step.activation ?? e.activation : d.act;
-    const r = step && step.activation === undefined ? { } : await api.saveEntry(S.storyId, patch);
+    else patch.activation = d.act;
+    const r = await api.saveEntry(S.storyId, patch);
     if (r.error) return toast(r.error);
     // ON THE ALTER SCREEN THE CHIP SAVES ITSELF AND NOTHING ELSE. A plain repaint redrew the form
     // from the saved thread and threw away a name or a paragraph typed above it but not yet saved;
@@ -14105,8 +14146,9 @@ document.addEventListener('click', async (e) => {
     const id = d.howin ?? d.howout, chId = V.currentChapter.id;
     const e = V.entries.find((x) => x.id === id); if (!e) return;
     const mode = (V.pins ?? []).find((p) => p.chapterId === chId && p.entryId === id)?.mode ?? null;
-    // ✕ ON A THREAD ALREADY OFF IN THIS SCENE takes it off the list and writes nothing: it is out.
-    if (d.howout && mode === 'force_out') {
+    // ✕ ON A THREAD ALREADY OFF (set off, or held out of this scene by an older pin) takes it off the
+    // list and writes nothing: it is out.
+    if (d.howout && (mode === 'force_out' || e.activation === 'off')) {
       S.setupHere?.delete(`${chId}:${id}`); paint(); return;
     }
     const how = d.howout ? null : d.how;

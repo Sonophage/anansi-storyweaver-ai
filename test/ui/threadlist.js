@@ -161,7 +161,7 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   ok("  and says so when nothing matches", /No thread here matches/.test(await page.text('#thlist') || ''));
   await typeQ('');
 
-  // ---- The mark is the switch: always on and on a word, one tap each way
+  // ---- The mark is the switch: off, on a word, on
   // #75: Vantic law is a rule, so it is on the tale's own thread now and not in this list. An
   // always-on thread with no wake words is written for the same job.
   await page.eval(`(async () => { await fetch('/api/entry', { method: 'POST', headers: { 'content-type': 'application/json' },
@@ -176,14 +176,26 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   const sentNow = () => page.eval("Number(document.querySelector('#sideBody [data-onlyin=\"1\"]').textContent.match(/\\d+/)[0])");
   const markOf = (id) => page.eval(`JSON.stringify((() => { const b = document.querySelector('#thlist [data-flipact="${id}"]');
     return { lit: b.dataset.lit, look: b.dataset.look, label: b.getAttribute('aria-label') }; })())`).then(JSON.parse);
+  const tipNow = () => page.eval(`document.querySelector('#thlist [data-flipact="${rule.id}"] .eyetip')?.textContent ?? ''`);
+  // THE WHOLE RIGHT SIDE IS THE SWITCH (Seth, 2026-11-02): the strip runs the card's full height.
+  const strip = await page.eval(`JSON.stringify((() => { const b = document.querySelector('#thlist [data-flipact="${rule.id}"]');
+    const c = b.parentElement.querySelector('.card'); const r = b.getBoundingClientRect(), q = c.getBoundingClientRect();
+    return { h: Math.round(r.height), card: Math.round(q.height), right: Math.round(q.right - r.right) }; })())`).then(JSON.parse);
+  ok(`the mark's press is the card's whole right side (${JSON.stringify(strip)})`, strip.h >= strip.card - 2 && strip.right <= 1);
+  // THE ORDER (Seth, 2026-11-02): off → on a word → on → off; off is off for the whole tale.
   const sent0 = await sentNow();
   const steps = [await actNow(), await tap()];
+  const off = await markOf(rule.id), tipOff = await tipNow(), sentOff = await sentNow();
+  ok(`  a tap on one that is on turns it off, the eye struck through (${JSON.stringify(off)})`,
+     off.look === 'eyeoff' && off.lit === '0' && /^Off: not sent in any scene/.test(off.label));
+  ok(`  and a tip names the state (${JSON.stringify(tipOff)})`, tipOff === 'Off');
+  steps.push(await tap());
   const asleep = await markOf(rule.id);
   const sent1 = await sentNow();
   // The curfew bell has no wake words, so on a word it is asleep: a shut eye, dim, out of Sent now.
-  ok(`  and on a word with nothing waking it is a shut eye, dim, saying a tap turns it off here (${JSON.stringify(asleep)})`,
-     asleep.lit === '0' && asleep.look === 'eyeshut' && /^On a word, asleep.*off in this scene/.test(asleep.label));
-  // Brought into this scene, the same thread is an @, lit. A pin rather than a wake word, because
+  ok(`  a second tap puts it on a word, and with nothing to wake it it is a shut eye, dim (${JSON.stringify(asleep)})`,
+     asleep.lit === '0' && asleep.look === 'eyeshut' && /^On a word, asleep.*send it every call/.test(asleep.label));
+  // Brought into this scene, the same thread is woken, lit. A pin rather than a wake word, because
   // whether a word woke it is the manifest's answer and the manifest needs the model's tokenizer,
   // which a test server may not have; it lands in the same `inContext` either way. A thread with
   // no wake words cannot be woken by the real router either, so nothing else can light it first.
@@ -195,17 +207,14 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   ok(`  and brought into the scene it is a lit eye with a speech mark (${JSON.stringify(woken)})`,
      woken.lit === '1' && woken.look === 'eyeheard' && /^On a word, and sent now/.test(woken.label));
   const sentW = await sentNow();
-  // FOUR STATES, THREE TO SET (Seth, 2026-11-01): on → on a word → off in this scene → on.
-  steps.push(await tap());
-  const off = await markOf(rule.id), sentOff = await sentNow();
-  ok(`  and a tap on a woken one turns it off in this scene, the eye struck through (${JSON.stringify(off)})`,
-     off.look === 'eyeoff' && off.lit === '0' && /^Off in this scene/.test(off.label));
   steps.push(await tap());
   const sent2 = await sentNow();
-  ok(`tapping the mark goes on, on a word, off here, on (${steps.join(' > ')})`,
-     steps.join() === 'always_on,triggered,triggered,always_on' && (await markOf(rule.id)).look === 'eye');
-  ok(`  and Sent now counts the open eyes and the woken ones (${sent0} > ${sent1} > ${sentW} > ${sentOff} > ${sent2})`,
-     sent1 === sent0 - 1 && sentW === sent0 && sentOff === sent0 - 1 && sent2 === sent0);
+  const pins = (await story(sid)).pins?.filter((p) => p.entryId === rule.id) ?? [];
+  ok(`tapping the mark goes off, on a word, on (${steps.join(' > ')})`,
+     steps.join() === 'always_on,off,triggered,always_on' && (await markOf(rule.id)).look === 'eye');
+  ok(`  and the tap to on took the scene's pin off (${pins.length})`, pins.length === 0);
+  ok(`  and Sent now counts the open eyes and the woken ones (${sent0} > ${sentOff} > ${sent1} > ${sentW} > ${sent2})`,
+     sentOff === sent0 - 1 && sent1 === sent0 - 1 && sentW === sent0 && sent2 === sent0);
 
   // ---- Outfits are still worn from the list
   const marek = v.entries.find((e) => e.title === 'Marek Vale');

@@ -200,19 +200,20 @@ ok('the wake-word chips and keysOf agree on every edge case', () => {
 // and the engine read that as on a word, the screen as neither. The floor is `upsertEntry`, the
 // one function every write of a thread crosses, so the copy and the importers are asserted
 // THROUGH it here rather than given guards of their own.
-ok('an activation that is not always_on or triggered is refused, by every path that writes one', () => {
+ok('an activation that is not always_on, triggered or off is refused, by every path that writes one', () => {
   const s3 = db.createStory(o, { title: 'Activations', premise: 'p' }) as any;
   const s4 = db.createStory(o, { title: 'Elsewhere', premise: 'p' }) as any;
   const count = (sid: string) => db.entriesOf(sid).length;
   assert.strictEqual(db.upsertEntry(s3.id, o, { title: 'Keyed', body: '[Keyed]', activation: 'keyed', keys: ['k'] }), null,
     'a word that is not one of the two is refused');
   assert.strictEqual(count(s3.id), 0, 'and nothing is written');
-  for (const ok2 of ['always_on', 'triggered', undefined, null])
+  for (const ok2 of ['always_on', 'triggered', 'off', undefined, null])
     assert.ok(db.upsertEntry(s3.id, o, { title: `T ${ok2}`, body: '[T]', activation: ok2, keys: ['t'] }),
       `${ok2} is written (left out means the default)`);
   // An update that names a bad word leaves the row as it was.
   const id = db.upsertEntry(s3.id, o, { title: 'Kept', body: '[Kept]', activation: 'triggered', keys: ['kept'] })!;
-  assert.strictEqual(db.upsertEntry(s3.id, o, { id, title: 'Kept', body: '[Kept]', activation: 'off' }), null);
+  // `off` was the bad word here until 2026-11-02, when it became the third setting.
+  assert.strictEqual(db.upsertEntry(s3.id, o, { id, title: 'Kept', body: '[Kept]', activation: 'asleep' }), null);
   assert.strictEqual((db.entriesOf(s3.id) as any[]).find((e) => e.id === id).activation, 'triggered',
     'and a refused update changes nothing');
   // The copy crosses the same floor: a row that holds a bad word (written past the floor, as old
@@ -1698,6 +1699,25 @@ ok('the shelf names the scene last worked on, not the empty one opened after it'
   const row = (db.listStories(me) as any[]).find((r) => r.id === st.id);
   assert.strictEqual(row.last_chapter_id, st.chapterId, 'the scene with the prose in it');
   assert.notStrictEqual(row.last_chapter_id, next.opened, 'not the empty scene after it');
+});
+
+// A THREAD'S SETTING (Seth, 2026-11-02): off is a setting of its own, archived for the whole tale; a
+// new thread starts on a word; and a save that does not name the setting keeps the one it had. That
+// last one was not so: the default applied to updates too, so a partial save turned a thread always on.
+ok('a thread can be off; a new one starts on a word; a save that does not say keeps the setting', () => {
+  const me = db.owner('states-test');
+  const st = db.createStory(me, { title: 'States' });
+  const id = db.upsertEntry(st.id, me, { title: 'Quill', body: 'A pen.', entryType: 'item', keys: ['quill'] });
+  const read = () => (db.entriesFor(st.id) as any[]).find((e) => e.id === id);
+  assert.strictEqual(read().activation, 'triggered', 'NEW-WORD: a new thread with a wake word starts on a word');
+  db.upsertEntry(st.id, me, { id, title: 'Quill', body: 'A pen.', entryType: 'item', keys: ['quill'], activation: 'off' });
+  assert.strictEqual(read().activation, 'off', 'OFF: off is a setting the floor takes');
+  db.upsertEntry(st.id, me, { id, title: 'Quill', body: 'A silver pen.', entryType: 'item', keys: ['quill'] });
+  assert.strictEqual(read().activation, 'off', 'KEEP: a save that does not name the setting keeps it');
+  const bare = db.upsertEntry(st.id, me, { title: 'Nobody', body: 'No words to wake on.', entryType: 'character' });
+  assert.strictEqual((db.entriesFor(st.id) as any[]).find((e) => e.id === bare).activation, 'always_on',
+    'NEW-BARE: with no wake word it still starts always on, so it cannot go dark unseen');
+  assert.strictEqual(db.upsertEntry(st.id, me, { id, title: 'Quill', activation: 'keyed' }), null, 'and anything else is refused');
 });
 
 ok('auto-open is on by default, survives a partial save, and can be turned off', () => {
