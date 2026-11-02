@@ -1962,10 +1962,16 @@ html[data-rerollsheet="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; 
 #pocketPanel[hidden], #mergePanel[hidden] { display:none; }
 .pocketbox { flex:1; min-height:0; width:100%; max-width:var(--col); margin:0 auto; display:flex; flex-direction:column; gap:12px; }
 .pocketbox .pkhead { display:flex; flex-direction:column; gap:10px; }
-.pocketbox .pktabs { display:flex; gap:6px; }
-.pocketbox .pktabs button, .pocketbox .pkkind { flex:1; text-align:center; font-size:12px; padding:10px 4px;
+/* Alter's header bar, at the top of the full-screen pocket box (pocketPanel, 2026-11-02). */
+.pocketbox .pkbar { display:flex; align-items:center; gap:10px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+/* ALTER'S TAB CHIPS, one rule for Alter and the pocket box (tabRow in app.js). They were inline. */
+.tabrow { display:flex; gap:6px; margin:12px 0 4px; }
+.tabchip { flex:1; text-align:center; font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+  padding:10px 2px; white-space:nowrap; border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); }
+.tabchip[aria-pressed="true"] { border-color:var(--ink-bright); background:transparent; color:var(--ink-bright); }
+.pocketbox .pkkind { flex:1; text-align:center; font-size:12px; padding:10px 4px;
   border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); }
-.pocketbox .pktabs button[aria-pressed="true"], .pocketbox .pkkind[aria-pressed="true"] {
+.pocketbox .pkkind[aria-pressed="true"] {
   border-color:var(--ink-bright); color:var(--ink-bright); }
 .pocketbox .pkkinds { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; }
 .pocketbox .pkkind { flex:1 1 30%; font-size:11.5px; padding:8px 4px; }

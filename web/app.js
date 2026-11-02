@@ -648,7 +648,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The search icon on the desk's collapsed menu (2026-11-02).
   'railfind',
   // Any panel full screen, and back (2026-11-02).
-  'panelfull'].map((k) => `[data-${k}]`).join(',');
+  'panelfull',
+  // A kind tab under the threads search (2026-11-02).
+  'thkind'].map((k) => `[data-${k}]`).join(',');
 
 /** The number printed beside a slider, for the sliders whose number is not just their value.
  *
@@ -3095,7 +3097,7 @@ function pocketPanel() {
     `<button data-stringstatus="${esc(x.id)}:${k}" class="pkkind" aria-pressed="${now === k}">${l}</button>`).join('')}</div>` : '';
   const write = `
     <label class="lbl" for="pk-name">Name</label>
-    <input class="field" id="pk-name" value="${esc(pk.name)}" placeholder="${esc(namePh)}">
+    <input class="field altname" id="pk-name" value="${esc(pk.name)}" placeholder="${esc(namePh)}">
     <label class="lbl" for="pk-body">The description</label>
     <textarea class="field grow pkbody" id="pk-body" placeholder="${esc(bodyPh)}">${esc(pk.body)}</textarea>
     ${tale && pk.slot !== 'rule' ? pk.slot === 'promise' ? `<label class="lbl" for="pk-owed">Owed by scene</label>
@@ -3126,20 +3128,21 @@ function pocketPanel() {
       ${diffHTML(pk.body, pk.offer.body)}
       <button class="btn push-10" data-pocketuse="1">Use this</button>` : ''}`;
   const what = own ? slotLabel(pk.slot) : tale ? (adding && !pk.kinds ? 'entry' : 'string') : 'pocket';
+  /* ALTER'S LOOK, FULL SCREEN STILL (Seth, 2026-11-02): Cancel and the Save pill in a bar at the top,
+   * as Alter's header has them (`threadBar('alter')`); its tab chips (`tabRow`) and its name field
+   * (`.altname`). The big Cancel and Save at the foot went. */
   return `<div class="pocketbox" role="dialog" aria-label="${adding ? `A new ${what} for ${esc(e.title)}` : esc(pk.name || label)}">
+    <div class="pkbar">
+      <button data-pocketx="1" class="headback" aria-label="Cancel"><span class="serif">Cancel</span></button>
+      <span class="fill"></span>
+      <button data-pocketsave="1" class="headsave">Save</button>
+    </div>
     <div class="pkhead">
       <div class="lbl flush wide">${adding ? `New ${what} &middot; ${esc(e.title)}` : `${esc(pocketTitle(pk.slot))} &middot; ${esc(e.title)}`}</div>
       ${/* Ask Anansi writes strings and pockets; a rule or one of your own is the writer's to write. */
-        own ? '' : `<div class="pktabs">
-        <button data-pockettab="write" aria-pressed="${pk.tab === 'write'}">Write it</button>
-        <button data-pockettab="ask" aria-pressed="${pk.tab === 'ask'}">Ask Anansi</button>
-      </div>`}
+        own ? '' : tabRow('pockettab', [['write', 'Write it'], ['ask', 'Ask Anansi']], pk.tab)}
     </div>
     <div class="pkscroll scroll">${kinds}${pk.tab === 'ask' && !own ? ask : write}</div>
-    <div class="pkfoot">
-      <button class="btn ghost" data-pocketx="1">Cancel</button>
-      <button class="btn" data-pocketsave="1">Save</button>
-    </div>
   </div>`;
 }
 function drawPocket() {
@@ -5111,6 +5114,10 @@ const PANELS = {
             `<button class="chip" data-onlyin="${v}" aria-pressed="${(S.onlyIn ? '1' : '0') === v}"
               >${l} <span class="tnum faint">${c}</span></button>`).join('')}
         </div>
+        <div class="thkinds">${[['all', 'All', V.entries.filter((e) => KINDS.includes(e.entryType)).length],
+            ...KINDS.map((k) => [k, KIND_PLURAL[k], V.entries.filter((e) => e.entryType === k).length])].map(([k, l, c]) =>
+          `<button class="chip" data-thkind="${k}" aria-pressed="${(S.threadKind ?? 'all') === k}"
+            >${esc(l)} <span class="tnum faint">${c}</span></button>`).join('')}</div>
         ${S.onlyIn ? `<div class="end-row">${
             tipMark('thInContext', 'What Sent now can see')}</div>
           ${tipCard('thInContext', 'What Sent now can see', manifestNow()
@@ -8278,13 +8285,16 @@ const CARD_TABS = [['card', 'The thread'], ['time', 'Over time'], ['rooms', 'Poc
  *  states it rather than the jump handler guessing from the slot list. */
 const slotTab = (name) => (name === 'facts' ? 'card' : 'rooms');
 
+/** A ROW OF TAB CHIPS, Alter's (`.tabchip`, app.html): one for each [key, label], the one on pressed.
+ *  The pocket screen draws its Write it / Ask Anansi with it too, so the two cannot drift apart
+ *  (Seth, 2026-11-02: "the edit screen for pockets should match the normal screen for threads"). */
+// The action written out, not built: test/web.ts needs each press's data-* name spelled in full.
+const tabRow = (attr, tabs, on) => `<div class="tabrow">${tabs.map(([k, label]) => attr === 'cardtab'
+  ? `<button class="tabchip" data-cardtab="${k}" aria-pressed="${on === k}">${label}</button>`
+  : `<button class="tabchip" data-pockettab="${k}" aria-pressed="${on === k}">${label}</button>`).join('')}</div>`;
+
 function cardTabs(tab) {
-  return `<div style="display:flex; gap:6px; margin:12px 0 4px">${CARD_TABS.map(([k, label]) =>
-    `<button data-cardtab="${k}" aria-pressed="${tab === k}" style="flex:1; text-align:center;
-      font-size:11px; letter-spacing:.06em; text-transform:uppercase; padding:10px 2px; white-space:nowrap;
-      border-radius:var(--r); ${tab === k
-        ? 'border:1px solid var(--ink-bright); background:transparent; color:var(--ink-bright)'
-        : 'border:1px solid var(--chip); color:var(--mute)'}">${label}</button>`).join('')}</div>`;
+  return tabRow('cardtab', CARD_TABS, tab);
 }
 
 /** THIS CARD AS THE FORGE'S JSON, with every field its kind can hold.
@@ -8831,6 +8841,10 @@ function threadText(e) {
     .filter(Boolean).join(' ').toLowerCase();
 }
 
+/** The newest passage, and whether a thread tapped in Sent now is still kept there (see the tap). */
+const newestPassage = () => V?.passages?.filter((p) => !p.isBreak).at(-1)?.id ?? null;
+const keptHere = (id) => !!S.keepSent?.has(id) && S.keepSent.get(id) === newestPassage();
+
 function threadRows() {
   const q = S.threadQ.trim().toLowerCase();
   const pin = pinModes();
@@ -8839,9 +8853,11 @@ function threadRows() {
   // EACH KIND CARRIES ITS COUNT (v2 redesign, 2026-10-25), and it is the count of what is SHOWN,
   // after Sent now and the search. "Characters · 2" under a search for "aldis" is the answer to the
   // question you just asked; the book's own totals are the All chip and the header.
-  const out = KINDS.map((k) => {
+  // ONE KIND, when a tab under the search says so (Seth, 2026-11-02: "filter tabs beneath the search
+  // for what kind of thread it is"). A thread tapped in Sent now stays until the next passage.
+  const out = KINDS.filter((k) => !S.threadKind || S.threadKind === 'all' || S.threadKind === k).map((k) => {
     const rows = (V.entries ?? []).filter((e) => e.entryType === k
-      && (!S.onlyIn || inContext(e, pin, mani)) && hit(e));
+      && (!S.onlyIn || inContext(e, pin, mani) || keptHere(e.id)) && hit(e));
     if (!rows.length) return '';
     return `
         <div class="lbl wide push-6" data-kindhead="${k}">${
@@ -10450,7 +10466,7 @@ async function openStory(id, chapter) {
   // panel under a box the writer did not type into here, which reads as the book having no threads.
   // (`S.ledgerQ` next door is deliberately not reset: that box searches every book at once, so the
   // query is still about what is on screen.)
-  S.threadQ = '';
+  S.threadQ = ''; S.threadKind = 'all'; S.keepSent?.clear();
   // And puts on the book's own look, if it has one. `V.look` null means follow the writer.
   resolveLook(V.look);
   if (S.models === null) loadModels();   // the Storyteller panel needs the list to offer one
@@ -13150,6 +13166,7 @@ document.addEventListener('click', async (e) => {
     paint(); return;
   }
   if (d.onlyin !== undefined) { S.onlyIn = d.onlyin === '1'; paint(); return; }
+  if (d.thkind) { S.threadKind = d.thkind; paint(); return; }
   /* THE MARK'S TAP (Seth, 2026-11-02): off → on a word → on → off, the thread's own setting, for the
    * whole tale. Any pin this scene holds on the thread comes off first, so what the tap sets is what
    * the thread does. The mark moves now; the writes queue (REACH_QUEUE), so a second quick tap goes on
@@ -13161,6 +13178,10 @@ document.addEventListener('click', async (e) => {
     // Anyone new keeps a thread the eye moved on the list, asleep or off (`whoBlock`).
     if (d.whokeep) (S.setupHere = S.setupHere ?? new Set()).add(`${V.currentChapter.id}:${e.id}`);
     (S.reachNow = S.reachNow ?? {})[e.id] = next;
+    // SENT NOW KEEPS WHAT YOU TAP until the next passage, so a thread can be cycled through off
+    // without leaving the list under your finger (Seth, 2026-11-02). Kept against the newest passage
+    // at the tap (`keptHere`): any passage after it, the model's or the writer's, lets it go.
+    if (S.panel === 'threads' && S.onlyIn) (S.keepSent = S.keepSent ?? new Map()).set(e.id, newestPassage());
     const tip = S.eyeTip = { id: e.id, word: REACH_WORD[next] };
     setTimeout(() => { if (S.eyeTip === tip) { S.eyeTip = null; paint(); } }, 1500);
     paint();

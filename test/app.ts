@@ -1624,6 +1624,47 @@ ok('the bar is the threads sent now by kind, and the numbers open by a handle');
 }
 ok('a thread\'s mark shows four states; a tap goes off, on a word, on, at once and in order, with a tip');
 
+// SENT NOW KEEPS WHAT YOU TAP (Seth, 2026-11-02: "if i turn it off allow it to stay there at least
+// until the next entry comes in in case im cycling through"), and KIND TABS under the search.
+{
+  click({ open: 's-1' }); await sleep(40);
+  click({ panel: 'threads' }); click({ backentry: '1' }); click({ onlyin: '1' }); await sleep(10);
+  const listed = (id: string) => new RegExp(`data-flipact="${id}"`).test(html('sideBody'));
+  assert.ok(listed('e-1'), 'CONTROL: always on is in Sent now');
+  // As the real server answers once it is saved: the thread says off and the manifest leaves it out.
+  // The fake keeps neither on its own, so without this the list could not drop it either way.
+  const e1 = STORY.entries.find((e: any) => e.id === 'e-1') as any, wasAct = e1.activation;
+  const b1 = MANIFEST.manifest.blocks.find((b: any) => b.id === 'e-1') as any, wasState = b1.state;
+  e1.activation = 'off'; b1.state = 'omitted';
+  click({ flipact: 'e-1' }); await sleep(80);
+  assert.ok(listed('e-1'), 'KEEP: turned off from Sent now, it stays listed so it can be cycled');
+  assert.match(html('sideBody'), /data-flipact="e-1" data-look="eyeoff"/, '  showing off');
+  click({ chapter: STORY.currentChapter.id }); await sleep(60);
+  assert.ok(listed('e-1'), 'KEEP-HOLDS: a reload with no new passage keeps it');
+  // THE NEXT PASSAGE, as the real server would answer once one has landed (the fake does not add it).
+  const last = STORY.passages.at(-1) as any;
+  STORY.passages.push({ ...last, id: 'p-kept-next', ordinal: last.ordinal + 1, body: 'Then the next thing happened.' });
+  click({ chapter: STORY.currentChapter.id }); await sleep(60);
+  assert.ok(!listed('e-1'), 'KEEP-UNTIL: once the next passage is in, an off thread leaves Sent now');
+  STORY.passages.pop();
+  e1.activation = wasAct; b1.state = wasState;
+
+  // KIND TABS: All and one per kind, each with its count, under the search; one kind narrows the list.
+  click({ onlyin: '0' }); await sleep(10);
+  const side = html('sideBody');
+  assert.match(side, /id="thq"[\s\S]*?<div class="thkinds"/, 'KINDS: the tabs are under the search');
+  for (const k of ['all', 'character', 'place', 'lore', 'item'])
+    assert.match(side, new RegExp(`data-thkind="${k}"`), `  with a tab for ${k}`);
+  assert.match(side, /data-thkind="all" aria-pressed="true"/, '  All to start with');
+  click({ thkind: 'lore' }); await sleep(10);
+  const lore = html('sideBody');
+  assert.match(lore, /data-kindhead="lore"/, 'KINDS-ONE: Lore shows the lore');
+  assert.doesNotMatch(lore, /data-kindhead="character"/, '  and nothing else');
+  assert.match(lore, /data-thkind="lore" aria-pressed="true"/, '  and says which tab is on');
+  click({ thkind: 'all' }); await sleep(10);
+}
+ok('Sent now keeps a thread you tap until the next passage, and kind tabs narrow the list');
+
 /* ---- IN CONTEXT MEANS WHAT THE PROMPT ACTUALLY HOLDS (2026-09-11).
  *
  * Kia's book: 227 threads, every one TRIGGERED, none pinned. The chip read "In context 0" while
@@ -8793,7 +8834,17 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   assert.match(add, /data-pocketkind="voice"/, 'PANEL-ADD: adding offers the kinds');
   assert.doesNotMatch(add, /data-pocketkind="facts"/, 'PANEL-ADD: and not Always true, which every thread has');
   assert.doesNotMatch(add, /data-pocketdel=/, 'PANEL-ADD: nothing to remove yet');
+  // ALTER'S LOOK (Seth, 2026-11-02: "the edit screen for pockets should match the normal screen for
+  // threads"), full screen still: Cancel and the Save pill at the top, Alter's tab chips and name.
+  assert.match(add, /class="pkbar"[^>]*>\s*<button data-pocketx="1" class="headback"[\s\S]*?<button data-pocketsave="1" class="headsave"/,
+    'POCKET-LOOK: Cancel and Save are the bar at the top, as Alter\'s');
+  assert.doesNotMatch(add, /pkfoot/, '  and not big buttons at the foot');
+  assert.match(add, /<button class="tabchip" data-pockettab="write"/, '  its tabs are Alter\'s chips');
+  assert.match(add, /<input class="field altname" id="pk-name"/, '  and its name is Alter\'s name field');
   click({ pocketx: '1' }); await wait();
+  click({ cardview: 'form' }); await wait();
+  assert.match(html('sideBody'), /<button class="tabchip" data-cardtab=/, '  the same chips Alter draws');
+  click({ cancelalter: '1' }); await wait();
   assert.doesNotMatch(html('pocketPanel'), /role="dialog"/, 'PANEL-ADD: Cancel shuts it');
   ok('＋ in the header opens the pocket panel to add, and Tidy is a broom');
 

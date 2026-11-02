@@ -24,6 +24,15 @@ to On a word to On, and back to Off, and a small label names the state as you ta
 off in every scene, like putting the thread away, until you turn it back on. Taps answer straight
 away, so two quick taps move two steps. New threads start On a word.
 
+### Sent now keeps what you tap, and kind tabs
+A thread you tap while Sent now is showing stays on the list until the next passage, so you can
+cycle through its states without it vanishing. Under the search, tabs show All, Characters,
+Places, Lore or Items.
+
+### Editing a pocket looks like altering a thread
+The pocket screen has Cancel and Save at the top, the same tabs and the same name box as when you
+alter a thread. It still fills the screen.
+
 ### Passages stay inside the length slider, and end properly
 When a passage gets close to the length slider, Anansi lets it finish the sentence it is in, then
 asks for a short ending in the words that are left. A passage no longer runs past the slider, and
