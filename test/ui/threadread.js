@@ -77,7 +77,7 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
       jumps: f.querySelectorAll('.readtags ~ * [data-goslot], .readtags [data-goslot]').length }; })())`).then(JSON.parse);
   ok(`the name, and ONE row of tags: kind, how it reaches Anansi, pockets (${JSON.stringify(face?.tags)})`,
      face?.name === 'Marek Vale' && face.rows === 1 && face.tags.length === 3
-       && /character/i.test(face.tags[0]) && /^(Always on|On a word)$/i.test(face.tags[1])
+       && /character/i.test(face.tags[0]) && /^(On|Woken|On a word|Off here)$/i.test(face.tags[1])
        && /^2 pockets$/i.test(face.tags[2]));
   ok(`  on one line (${face?.lines})`, face?.lines === 1);
   ok(`  and the reach tag draws the list's own mark for this thread (${face?.look} = ${listLook})`,
@@ -121,11 +121,17 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
     // ---- The reach tag is the same switch as the list's mark
     await page.click('#sideBody .readtags [data-flipact]');
     await wait(800);
-    ok("the reach tag switches always on and on a word, as the list's mark does",
+    ok("the reach tag moves on to on a word, as the list's mark does",
        (await story(sid)).entries.find((e) => e.id === marek.id).activation === 'triggered');
+    // FOUR STATES, THREE TO SET (2026-11-01): on a word, then off in this scene, then on again.
     await page.click('#sideBody .readtags [data-flipact]');
     await wait(800);
-    ok("  and back", (await story(sid)).entries.find((e) => e.id === marek.id).activation === 'always_on');
+    ok("  then off in this scene", await page.eval("document.querySelector('#sideBody .readtags [data-flipact]')?.dataset.reach") === 'off');
+    await page.click('#sideBody .readtags [data-flipact]');
+    await wait(800);
+    const back = await story(sid);
+    ok("  and back on", back.entries.find((e) => e.id === marek.id).activation === 'always_on'
+      && !(back.pins ?? []).some((p) => p.entryId === marek.id && p.chapterId === back.currentChapter.id));
   }
 
   // ---- ⋯ holds every action the old screens had, and each one goes somewhere

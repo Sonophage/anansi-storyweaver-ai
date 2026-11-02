@@ -36,7 +36,7 @@ ok("the ritual has a screen of its own, and the close lives on it",
 // choice, or it is a progress bar with extra steps.
 const plan = (await page.text('#sideBody') || '');
 ok(`  and it names its steps before anything has run (${plan.replace(/\s+/g,' ').trim().length} chars)`,
-   /summarise|summaris/i.test(plan) && /finish/i.test(plan));
+   /summary|summaris/i.test(plan) && /done with|finish/i.test(plan));
 
 await page.click('[data-endchapter="1"]');
 // ---- WHERE THE CLOSE LANDS (#92, spec #82 stories 1 and 2). The route answers before the passes
@@ -54,9 +54,10 @@ for (let i = 0; i < 40; i++) {
 await wait(600);
 // The drawer stays open on the hem while the passes run, and asks how the next scene starts; Enter
 // sends it, then who is in it, then Done (Seth, 2026-10-30).
-ok("closing a scene keeps the hem drawer open and asks how the next scene starts",
+ok("closing a scene keeps the hem drawer open and asks what the next scene is",
    await page.visible('#sideBody [data-hemsteer]') && !(await page.visible('[data-savesetup="1"]')));
-await page.eval("(() => { const t = document.querySelector('#sideBody [data-hemsteer]'); t.value = 'She opens the letter at dawn.';"
+// THE BRIEF (2026-11-01): the next scene's goal, who is in it and where.
+await page.eval("(() => { const t = document.querySelector('#sideBody [data-hemsteer]'); t.value = 'At dawn Aldis takes the key to Marek Vale and tries to give it back.';"
   + " t.dispatchEvent(new Event('input', { bubbles: true }));"
   + " t.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()");
 await wait(800);
@@ -71,20 +72,19 @@ for (let i = 0; i < 240; i++) {
   await wait(1000);
 }
 ok(`  and the hem finishes in the background (${hem?.state ?? 'no hem'})`, hem?.state === 'done');
-// THE CARD ARRIVES WITHOUT A RELOAD. The page reads the tale again while a hem runs; give it one
-// read past the finish, then look at the Workbench by its button, not by a reload.
+// THE CARDS ARRIVE WITHOUT A RELOAD, on the hem screen itself, where they are decided (2026-10-30):
+// the page reads the tale again while a hem runs; give it one read past the finish.
 await wait(3500);
-await page.click('[data-panel="waiting"], [data-nav="waiting"]');
-await wait(700);
 const vDone = await story();
 const sceneRows = vDone.proposals.filter((p) => p.grp === `scene:${closing.id}`);
 const missedNow = Object.values(hem?.passes ?? {}).filter(Boolean).length;
 const cardOwed = sceneRows.length > 0 || missedNow > 0 || (hem?.overflow ?? []).length > 0;
 if (cardOwed) {
-  ok(`  and its one card is on the Workbench (${sceneRows.length} chalked, ${missedNow} passes did not run)`,
-     await page.eval("!!document.querySelector('#sideBody [data-deckkind=\"hem\"]')"));
+  // One card per thread the hem changed (2026-10-30), and the scene's own card for a pass that did not run.
+  ok(`  and its cards are on the hem screen (${sceneRows.length} chalked, ${missedNow} passes did not run)`,
+     await page.eval("!!document.querySelector('#sideBody [data-deckall]')"));
 } else {
-  ok("  and a hem that left nothing to decide has no card", !(await page.eval("!!document.querySelector('#sideBody [data-deckkind=\"hem\"]')")));
+  ok("  and a hem that left nothing to decide has no card", !(await page.eval("!!document.querySelector('#sideBody [data-hemthread], #sideBody [data-deckkind=\"hem\"]')")));
 }
 
 // THE REPORT, from the scene's hem, so it is the same after a reload.
@@ -104,7 +104,7 @@ const facts = v.proposals.filter((p) => p.chapterId === closing.id
   && !['state', 'string', 'retire'].includes(p.entryType));
 if (facts.length) {
   ok(`  and what extraction proposed is on screen (${facts.length})`,
-     new RegExp("Read for threads — " + facts.length + " chalked").test(again));
+     new RegExp(facts.length + " threads? chalked").test(again));
 } else {
   ok("  and a chapter that proposed nothing says so, rather than showing a bare heading",
      /No new threads came out of this scene/.test(again));
@@ -119,25 +119,29 @@ if (rets.length) {
   ok("  nothing was proposed as finished, and the screen says so in words",
      /No thread was chalked to be retired/i.test(again));
 }
-// COUNCIL 07, SEAT 4: the count stays here, the deciding is on the Workbench.
-const owed = (await story()).proposals.filter((p) => p.chapterId === closing.id).length;
+// DECIDED ON THE HEM SCREEN, and kept on the Workbench too (Seth, 2026-10-30): the Decide step counts them.
+const owed = (await story()).proposals.filter((p) => p.chapterId === closing.id || p.grp === `scene:${closing.id}`).length;
 if (owed) {
-  ok(`  and the ${owed} proposal(s) are decided on the Workbench rather than a second time here`,
-     (await page.visible('[data-panel="waiting"]')) && new RegExp(`Decide the ${owed} chalked thing`).test(again));
+  ok(`  and the ${owed} proposal(s) are waiting on the Decide step`, /\d+ things? waiting for you/.test(again));
 } else {
-  ok("  and a chapter that proposed nothing offers no queue to decide",
-     !(await page.visible('[data-panel="waiting"]')));
+  ok("  and a scene that proposed nothing has nothing to decide", /Nothing left to decide/.test(again));
 }
 // The way back when the router was asleep at the close: a failed pass has Try again on its own step,
 // and the whole hem can be run again (walkthrough, 2026-10-30: one re-run control, not three).
 ok("  and the whole hem can be run again from the report", await page.visible('#sideBody [data-hemagain]:not([data-pass])'));
 
+// DECIDED: every card rejected, so the ledger is as it was (asserted below), and the setup is next.
+for (let k = 0; k < 20 && await page.eval("!!document.querySelector('#sideBody [data-deckall=\"reject\"]')"); k++) {
+  await page.eval("(() => { document.querySelector('#sideBody [data-deckall=\"reject\"]').click(); return 1; })()"); await wait(900);
+}
+ok("  and once every card is decided, Set up the next scene is the next press",
+   await page.eval("!!document.querySelector('#sideBody [data-setupat=\"more\"]')"));
 await page.goto(B + "/#" + sid + "/setup");
 // A RELOAD LANDS ON WHAT THE SCENE LEFT while any of it is undecided — the panel's own rule, keyed
 // on the rows, not the session. The hem chalks for every thread the scene names since #73, so on
 // this fixture there always is some, and the title box is one step on, on the premise step.
 for (let i = 0; i < 40 && !(await page.visible('[data-setupstep="premise"]')); i++) await wait(250);
-if (!(await page.visible('[data-savesetup="1"]'))) await page.click('[data-setupstep="premise"]');
+if (!(await page.eval("!!document.querySelector('[data-setup=\"title\"]')"))) await page.eval("(() => { document.querySelector('[data-setupstep=\"premise\"]')?.click(); return 1; })()");
 for (let i = 0; i < 40 && !(await page.visible('[data-savesetup="1"]')); i++) await wait(250);
 ok("the setup panel is reachable on its own hash too", await page.visible('[data-savesetup="1"]'));
 const head = (await page.text('#sideHead') || '');
@@ -165,14 +169,10 @@ const body = (await page.text('#sideBody') || '');
   if (hem?.suggestion) {
     // The card may not be the top one on the deck, and only the top one shows, so the press is
     // made on the button itself.
-    await page.goto(B + "/#" + sid + "/waiting");
-    for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('[data-hemopen]')")); i++) await wait(250);
-    await page.eval("(() => { document.querySelector('[data-hemopen]')?.click(); return 1; })()");
-    // Reopen the hem (2026-10-30) opens the hem screen; its Set up the next scene leads on.
-    await wait(600);
-    await page.eval("(() => { document.querySelector('#sideBody [data-panel=\"setup\"]')?.click(); return 1; })()");
-    await wait(600);
-    if (!(await page.visible('[data-setup="title"]'))) await page.click('[data-setupstep="premise"]');
+    // Every card was decided above, so the scene's card has left the Workbench: the setup by its hash.
+    await page.goto(B + "/#" + sid + "/setup");
+    for (let i = 0; i < 40 && !(await page.eval("!!document.querySelector('[data-setupstep]')")); i++) await wait(250);
+    if (!(await page.visible('[data-setup="title"]'))) await page.eval("(() => { document.querySelector('[data-setupstep=\"premise\"]')?.click(); return 1; })()");
     for (let i = 0; i < 20 && !(await page.visible('[data-setup="title"]')); i++) await wait(250);
     filled = await boxes();
     ok(`Set up the next scene shows it named (${JSON.stringify((filled?.title ?? '').slice(0, 30))})`,
@@ -199,6 +199,7 @@ const body = (await page.text('#sideBody') || '');
   // above can spend a minute waiting, so reading `#toast` here tested the clock. The route's
   // answer is the contract, and the invariant holds whatever the model says on the day: it
   // reports `noteMissing` exactly when the beat it returned is too short to steer anything.
+  const before = (await story()).chapters.at(-1);
   const said = await page.eval("(async () => { const r = await (await fetch('/api/chapter/propose',"
     + " { method:'POST', headers:{'Content-Type':'application/json'},"
     + " body: JSON.stringify({ storyId: '" + sid + "' }) })).json();"
@@ -207,10 +208,11 @@ const body = (await page.text('#sideBody') || '');
   console.log("  propose says: " + said);
   ok(`  and it reports a missing beat as missing (${got.n} chars, noteMissing ${got.missing})`,
      got.missing === (got.n < 40));
-  // PROPOSED. Nothing is written until Save, which is what makes it safe to fire unasked.
+  // PROPOSED. Asking again writes nothing until Save, which is what makes it safe to fire unasked.
+  // (The hem's own suggestion IS in the scene already, by design since 2026-10-30: `offerScene`.)
   const chNow = (await story()).chapters.at(-1);
-  ok("  and writes neither until you press Save",
-     (chNow?.title ?? '') !== filled.title.trim() || !chNow?.authorsNote);
+  ok("  and asking again writes neither until you press Save",
+     (chNow?.title ?? '') === (before?.title ?? '') && (chNow?.authorsNote ?? '') === (before?.authorsNote ?? ''));
 }
 
 const after = await story();
@@ -298,7 +300,7 @@ if (castBtn) {
 // ---- saving writes the beat where the engine already reads it
 // The form must survive a repaint. Ticking a character used to rebuild the panel and empty it; and
 // it must survive the step change back to the beat, which is where its box is.
-await page.click('[data-setupstep="premise"]');
+await page.eval("(() => { document.querySelector('[data-setupstep=\"premise\"]')?.click(); return 1; })()");
 for (let i = 0; i < 20 && !(await page.visible('[data-setup="note"]')); i++) await wait(250);
 ok("what was typed survived ticking a character",
    (await page.eval("document.querySelector('[data-setup=\"note\"]')?.value")) === 'It has to end with Aldis handing the key over.');
@@ -311,7 +313,7 @@ ok("  and the beat reaches DIRECTIVE",
    /handing the key over/.test(await page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
      + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid + "',mode:'direct'})})).json();"
      + " return r.prompt; })()")));
-ok("  and it leaves you on the document", !/next scene/i.test(await page.text('#sideHead') || ''));
+ok("  and it leaves you on the document", await page.eval("document.getElementById('side').hidden && !/\\/setup/.test(location.hash)"));
 
 // ---- ANANSI OPENS THE NEW CHAPTER, which she had stopped doing after the first one.
 // `openingPassage` guarded on whether the BOOK held prose rather than whether this CHAPTER did —
@@ -325,6 +327,15 @@ ok("  and it leaves you on the document", !/next scene/i.test(await page.text('#
 // would let it stop running and still report green — which this file has already done twice.
 const opensItself = (await story()).story.autoOpen !== false;
 ok("the fixture opens its own chapters, so the next check means something", opensItself);
+// A SCENE WITH AN OPENING WAITS FOR THE WRITER'S SEND (Seth, 2026-11-01): the opening is in the box,
+// in Direct, and nothing is written for them. With no opening, Anansi opens it with a plain Continue.
+const hasOpening = !!String((await story()).currentChapter.opensWith ?? '').trim();
+if (hasOpening) {
+  const boxNow = JSON.parse(await page.eval("JSON.stringify({ v: document.getElementById('input')?.value, m: document.querySelector('[data-modesel]')?.value })"));
+  ok(`  and with an opening it waits in the box as a Direct (${JSON.stringify(boxNow)})`,
+     boxNow.v === (await story()).currentChapter.opensWith && boxNow.m === 'direct');
+  await page.eval("(() => { document.querySelector('[data-send=\"1\"]').click(); return 1; })()");
+}
 let opened = [];
 for (let i = 0; i < 150; i++) {
   const v2 = await story();

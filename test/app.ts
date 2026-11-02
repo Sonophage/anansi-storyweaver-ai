@@ -8398,6 +8398,8 @@ const hemCardOf = (side: string) => {
     nodes.get('input').value = OPENS;
     click({ panel: 'ritual' }); await settle();
     click({ hemwhodone: 'c-br2' }); await settle();
+    assert.ok(JSON.parse((globalThis as any).localStorage.getItem('anansi.hemwho') ?? '[]').includes('c-br2'),
+      'WHO-KEPT: Done on who is in the next scene is kept on this device, so a reload does not ask again');
     let side = html('sideBody');
     assert.match(side, /class="card hemdrafts[\s\S]*How it opens[\s\S]*At dawn, on the far bank\.[\s\S]*Where it is going[\s\S]*finds the bell waiting/,
       'DRAFTS: the hem shows the opening and where it is going, drafted from the brief');
@@ -8409,6 +8411,16 @@ const hemCardOf = (side: string) => {
     assert.deepStrictEqual(POSTED.find((p: any) => p.url === '/api/chapter')?.body?.chapter, { opensWith: '' },
       'DRAFTS-SKIP: Skip empties the opening in the scene');
     assert.strictEqual(nodes.get('input').value, '', '  and takes it out of the composer, for a plain Continue');
+    // START WRITING WITH AN OPENING WRITES NOTHING FOR THEM (the hem walk, 2026-11-01): it pressed
+    // Continue with the opening still in the box, which went on the page as the writer's own passage.
+    HEM_VIEW = { ...HEM_VIEW, currentChapter: { ...HEM_VIEW.currentChapter, opensWith: OPENS },
+      chapters: HEM_VIEW.chapters.map((x: any) => (x.id === 'c-br3' ? { ...x, opensWith: OPENS } : x)) };
+    click({ open: 's-1' }); await settle();
+    nodes.get('input').value = '';
+    GENERATED.length = 0;
+    click({ savesetup: '1' }); await settle(); await settle();
+    assert.deepStrictEqual([GENERATED.length, nodes.get('input').value], [0, OPENS],
+      'START-WAITS: Start writing with an opening puts it in the box and sends nothing');
   } finally {
     (globalThis as any).fetch = canned;
   }

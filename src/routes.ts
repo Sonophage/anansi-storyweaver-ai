@@ -5440,7 +5440,13 @@ export const routes: Record<string, Handler> = {
         // card that brought an Always true of its own in its rooms: its text is then where it stands.
         const pulledAlways = (() => { try { return !!JSON.parse(p.rooms || '{}')?.facts; } catch { return false; } })();
         const asAlways = !p.entry_id && (p.field === 'facts' || (!p.field && !pulledAlways));
-        const made = db.upsertEntry(p.story_id, c.owner, { id: p.entry_id || undefined, title: p.title,
+        // A THREAD THAT EXISTS KEEPS ITS NAME, KIND, WAKE WORDS AND HOW IT COMES IN: only its text is
+        // the card's. The card's title is the model's name for it, and sewn in it renamed the thread
+        // (the hem walk, 2026-11-01: "Marek Vale" became "Marek", "the Silver Key" "silver key").
+        const was = existed ? (db.entriesOf(p.story_id) as any[]).find((x) => x.id === p.entry_id) : null;
+        const made = db.upsertEntry(p.story_id, c.owner, was ? { id: was.id, title: was.title,
+          body: c.body.body ?? p.body, entryType: was.entry_type, activation: was.activation,
+          keys: db.keysOf(was.keys), lastEditor: 'human' } : { id: p.entry_id || undefined, title: p.title,
           body: asAlways ? '' : (c.body.body ?? p.body), entryType: p.entry_type,
           // PLAN-08 Phase 2. The proposal can carry an activation now, and this honours it for
           // everything except a character. A character never lands `triggered` from a MODEL's

@@ -22,7 +22,8 @@ await until("!!document.querySelector('#ctxread [data-panel=\"context\"]')");
 const strip = await page.eval(`JSON.stringify((() => { const s = document.getElementById('ctxread');
   const b = s.querySelector('[data-panel="context"]'), r = b.getBoundingClientRect();
   return { h: Math.round(r.height), w: Math.round(r.width), over: s.scrollWidth - s.clientWidth }; })())`).then(JSON.parse);
-ok(`STRIP-ONE-LINE: "what is in it" is on one line (${strip.w}x${strip.h}px)`, strip.h > 0 && strip.h < 20);
+// "What is in it" is the context icon since 2026-11-01: a press 44px to the finger, not a line of words.
+ok(`STRIP-ICON: "what is in it" is an icon 44px to the finger (${strip.w}x${strip.h}px)`, strip.h >= 44 && strip.w >= 44);
 ok(`  and the strip does not run off the screen sideways (${strip.over}px over)`, strip.over <= 0);
 
 // ---- ONE GOLD PRESS ON A NEW SCENE (ADR 0004). A blank scene opens with the composer showing, and

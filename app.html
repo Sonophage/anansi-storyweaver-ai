@@ -1106,7 +1106,8 @@ html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 /* Both lines centred (Seth, 2026-11-01): the second has no icons, so it centres on its own. */
 #ctxread .ctxline + .ctxline { justify-content:center; }
 #ctxread .kinddot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; vertical-align:1px; }
-#ctxread .ctxicon { flex:0 0 auto; min-width:32px; min-height:32px; display:flex; align-items:center; justify-content:center;
+/* 44px to the finger, by a negative margin so the line stays thin. */
+#ctxread .ctxicon { flex:0 0 auto; min-width:44px; min-height:44px; margin:-6px 0; display:flex; align-items:center; justify-content:center;
   color:var(--label); border-radius:var(--r-pill); }
 #ctxread .ctxicon[aria-pressed="true"] { color:var(--gold); }
 /* The reading under the bar. Everything that used to sit in the header beside the story title. */

@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-01 · Hemming starts from what the next scene is
 
+### Hemming, smoother
+Start writing no longer writes the first passage for you when the scene has an opening: the opening
+waits in the box, in Direct, until you press Send. Pressing Done on who is in the next scene is
+remembered on this device, so coming back to the hem does not ask again. Sewing in a change to a
+thread you already have keeps its name: it no longer renames "Marek Vale" to "Marek". The hem's
+steps say plainly what is next, and the drafts' Use is no longer a second gold button.
+
 ### Hemming asks what the next scene is
 After you hem a scene, the first question is what the next scene is: its goal, who is in it, and
 where. Anansi brings in the threads you name, makes sure where they stand is up to date, suggests

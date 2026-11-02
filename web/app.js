@@ -106,6 +106,13 @@ const CTX_KEY = 'anansi.ctxread';
 let CTX_OPEN = false;
 try { CTX_OPEN = localStorage.getItem(CTX_KEY) === '1'; } catch { /* no storage */ }
 
+/** WHO IS IN THE NEXT SCENE, ANSWERED: the hems whose Done was pressed, kept on this device, so a
+ *  reload or coming back later does not ask again and hold the rest of the hem behind it (the hem
+ *  walk, 2026-11-01; it lived in the tab before). The last 50. */
+const HEMWHO_KEY = 'anansi.hemwho';
+const loadHemWho = () => { try { return new Set(JSON.parse(localStorage.getItem(HEMWHO_KEY) || '[]')); } catch { return new Set(); } };
+const saveHemWho = () => { try { localStorage.setItem(HEMWHO_KEY, JSON.stringify([...(S.hemWho ?? [])].slice(-50))); } catch { /* no storage */ } };
+
 const HW = 'anansi.hwkb';
 let hwkb = false;
 try { hwkb = localStorage.getItem(HW) === '1'; } catch { /* no storage */ }
@@ -213,6 +220,7 @@ function applyLook() {
 
 // ---------- state ----------
 const S = {
+  hemWho: loadHemWho(),
   place: 'workspace', wpage: 'stories', panel: null, modelPick: null, drawn: null,
   // #22 §3 and §4. Which books this page spans, and which room inside a kind. `ledgerBook` is
   // null for the whole shelf; `ledgerSlot` is null for every room of the picked kind.
@@ -1986,7 +1994,9 @@ function drawDoc() {
           under the new one as it landed, so the new one jumped up by the row's height (82px, measured). */ ''}
     ${list.map((p, i) => passageHTML(p, isLastChapter && i === list.length - 1 && !INLINE, i === 0)).join('')
       || `<div class="narr faded">${
-        V.chapters.length > 1 ? 'Nothing in this scene yet.' : 'Nothing written yet. The composer is below.'}</div>`}
+        V.chapters.length > 1 ? (String(V.currentChapter?.opensWith ?? '').trim()
+          ? 'Nothing in this scene yet. Its opening is in the box below: press Send to write it.' : 'Nothing in this scene yet.')
+          : 'Nothing written yet. The composer is below.'}</div>`}
     </section>`;
 
   /* ISSUE #37 · READING MODE SHOWS THE WHOLE BOOK. Seth, 2026-09-01.
@@ -4162,7 +4172,7 @@ function hemDrafts(ch) {
       <div class="btnrow">
         <button class="btn ghost fill" data-hemskip="${field}" data-ch="${esc(next.id)}">Skip</button>
         <button class="btn ghost fill" data-panel="setup" data-setupat="premise">Edit</button>
-        <button class="btn fill" data-hemuse="${field}" data-ch="${esc(next.id)}">Use</button></div></div>`;
+        <button class="btn ghost fill" data-hemuse="${field}" data-ch="${esc(next.id)}">Use</button></div></div>`;
   return `<div class="card hemdrafts push-8">
     <div class="lbl flush">${esc(sceneName(next))}, drafted from your brief</div>
     ${part('How it opens', next.opensWith, 'opens')}
@@ -4172,16 +4182,17 @@ function hemDrafts(ch) {
   </div>`;
 }
 /** WHO IS IN THE NEXT SCENE, once how it starts is said, while the scans finish. Done is this tab's
- *  (`S.hemWho`).
- *  ponytail: a reload during the hem asks it again. Ceiling: one more press. Trigger: a writer asked
- *  twice minding it; then keep it on the hem's row. */
+ *  (`S.hemWho`, kept on this device: `saveHemWho`).
+ *  ponytail: kept per device, not on the hem's row. Ceiling: another device asks again. Trigger: Seth
+ *  and Kia hemming one tale from two devices; then keep it on the hem's row. */
 const hemWhoOpen = (ch) => !!hemNext(ch) && !hemAsking(ch) && !S.hemWho?.has(ch.id);
 function hemWho(ch) {
   const next = hemNext(ch);
   if (!next || !hemWhoOpen(ch)) return '';
   return `<div class="card hemwho push-8">
     <div class="lbl flush">Who is in ${esc(sceneName(next))}</div>
-    <div class="hint flush">Take out who is not in it, bring in who is.</div>
+    <div class="hint flush">Take out who is not in it, bring in who is. Tap an eye to change how a thread
+      comes in: on, on a word, or off in this scene.</div>
     ${whoList(next)}
     <button class="btn fill push-8" data-hemwhodone="${esc(ch.id)}">Done</button>
   </div>`;
@@ -4236,7 +4247,7 @@ function hemStepStates(ch, closed) {
       // A summary written by hand before any hem shows as one, on a step not run yet.
       : k === 'summary' && summary ? found.summary
       : trying ? 'Trying again'
-      : closed && running ? (k === 'next' ? 'Next, after the passes above' : 'Waiting') : '';
+      : closed && running ? (k === 'next' ? 'Drafted from what you said, once the scene is read' : 'Waiting') : '';
     return { k, name, state, line, done };
   });
   // The writer's two steps wait until Anansi's are over: a hem still running may yet chalk more.
@@ -7629,15 +7640,15 @@ function setupPanel() {
     <!-- HOW IT STARTS COMES FIRST, AND IT IS YOURS (Seth, 2026-10-30: "What I enter should be what's
          used", and the question asked once the hem is done, not during it). What is typed here is
          the scene's opening as written: Anansi is asked to name the scene and say where it heads FROM
-         it, and never rewrites it. Pressing Save and write below fires the scene's FIRST passage,
-         which is the only passage this box is sent for. -->
+         it, and never rewrites it. Since 2026-11-01 it waits in the composer as the scene's first
+         Direct when Start writing is pressed (prefillOpening); with none, Anansi opens the scene. -->
     <label class="lbl" for="f-setup-opens">How should this scene start?</label>
     <textarea class="field grow" id="f-setup-opens" data-setup="opens" style="min-height:62px; max-height:30vh"
       placeholder="${S.naming ? 'and where it opens…' : 'Where it opens, who is there, and when'}"
       >${esc(form.opens ?? '')}</textarea>
     <div class="hint">${(form.opens ?? '').trim()
-      ? 'Used as you wrote it, for the first passage of this scene, and then not again.'
-      : '<strong>Not set.</strong> The first passage will open wherever the prose left off.'}</div>
+      ? 'It waits in the box as your first Direct when you start writing. Send it, change it, or clear it.'
+      : '<strong>Not set.</strong> Anansi opens the scene with a plain Continue, from where the prose left off.'}</div>
 
     <!-- THE OPTION TO INFLUENCE. Seth: "title and premise should be together with the option to
          influence." A steer is the difference between accepting a suggestion and asking for one. -->
@@ -7671,7 +7682,7 @@ function setupPanel() {
          per screen, so Save and write gives it up rather than competing. -->
     <button class="btn push-20" data-setupstep="more">Next &mdash; anyone new${
       fresh.length ? ` &middot; ${fresh.length} chalked` : ''}</button>
-    <button class="btn ghost push-8" data-savesetup="1">Save and write</button>
+    <button class="btn ghost push-8" data-savesetup="1">Start writing</button>
     ${skip}
   </div>`;
 }
@@ -11042,6 +11053,12 @@ async function openingPassage() {
   // the first chapter he silently did not. `ritualPanel` asks the same question correctly forty
   // lines above, filtering on `chapterId`. Found by Council 07, seat 4.
   if ((V.passages ?? []).some((p) => !p.isBreak && p.chapterId === V.currentChapter.id)) return;
+  // A SCENE WITH AN OPENING WAITS FOR THE WRITER'S SEND (Seth, 2026-11-01: "prefill the composer"):
+  // the opening is in the box as the first Direct (`prefillOpening`), and pressing Continue for them
+  // here sent that box as their own passage (the hem walk, 2026-11-01). Only a scene without one
+  // starts with a plain Continue.
+  // Start writing asks for it again, so an earlier prefill this tab does not stop this one.
+  if (String(V.currentChapter.opensWith ?? '').trim()) { S.prefilled = null; prefillOpening(); return; }
   await generate('continue');
 }
 
@@ -14001,7 +14018,8 @@ document.addEventListener('click', async (e) => {
     // ONTO THE PAGE, DRAWER SHUT. It opened What he reads, token counts over the scene the writer
     // had just pressed Start writing for (usability walkthrough, 2026-10-30).
     S.setupStep = null; S.panel = null; syncHash(); paint(); refreshManifest();
-    toast(note.trim() ? 'Set. Write when ready.' : 'Saved. No beat set, which is fine.');
+    toast(opens.trim() ? 'Set. The opening is in the box: press Send to write it.'
+      : note.trim() ? 'Set. Write when ready.' : 'Saved. No beat set, which is fine.');
     // AFTER the beat is set, never before. This used to fire from the close, which meant the first
     // passage of every chapter was the only one written without the line that steers the rest of it.
     OPEN_WANTED = S.storyId; await openingPassage();
@@ -14061,7 +14079,7 @@ document.addEventListener('click', async (e) => {
     // was never asked about). The new scene is open behind it; no setup is stepped through and no
     // opening passage is written: that is `savesetup`'s. Not What he reads (Seth, 2026-10-27).
     // A scene hemmed again in this tab is asked again: what was asked and done was the last hem's.
-    S.ritualOf = closing.id; S.hemSteer = ''; S.hemWho?.delete(closing.id);
+    S.ritualOf = closing.id; S.hemSteer = ''; S.hemWho?.delete(closing.id); saveHemWho();
     S.setup = null; S.setupStep = null; S.panel = 'ritual';
     syncHash(); paint(); refreshManifest();
     return;
@@ -14073,7 +14091,7 @@ document.addEventListener('click', async (e) => {
     const brief = (S.hemSteer ?? '').trim();
     const r = await api.hemAgain(S.storyId, d.hemnext, { pass: 'next', asked: true, ...(brief ? { brief } : {}) });
     if (r.error) return toast(r.error);
-    S.hemWho?.delete(d.hemnext);
+    S.hemWho?.delete(d.hemnext); saveHemWho();
     S.hemSteer = '';
     V = r; paint();
     return toast(brief ? 'Anansi drafts the opening and where it is going from it.' : 'Anansi chooses the next scene.');
@@ -14107,7 +14125,7 @@ document.addEventListener('click', async (e) => {
     V = r; paint();
     return toast('That pocket is left out. Sew it in takes the rest.');
   }
-  if (d.hemwhodone) { (S.hemWho ??= new Set()).add(d.hemwhodone); S.setupQ = ''; paint(); return; }
+  if (d.hemwhodone) { (S.hemWho ??= new Set()).add(d.hemwhodone); saveHemWho(); S.setupQ = ''; paint(); return; }
   if (d.hemextra) {
     const r = await api.hemAgain(S.storyId, d.hemextra, { extra: true });
     if (r.error) return toast(r.error);

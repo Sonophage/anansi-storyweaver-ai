@@ -2348,6 +2348,25 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   ok('Rewrite where it stands chalks one card from the last scene, in shape, for a thread and for the tale');
 }
 
+// A CARD ABOUT A THREAD THAT EXISTS, SEWN IN, CHANGES ITS TEXT AND NOTHING ELSE (the hem walk, 2026-11-01):
+// the card's title is the model's name for the thread, and sewing it in renamed "Marek Vale" to "Marek".
+{
+  const t = db.createStory(me, { title: 'Kept names', premise: 'p' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const marek = db.upsertEntry(t.id, me, { title: 'Marek Vale', body: 'lends at ruin', entryType: 'character',
+    keys: ['Marek', 'Vale'], activation: 'triggered', allowNoKeys: true })!;
+  db.addProposal(t.id, { kind: 'changed', entry_id: marek, chapterId: ch0.id, title: 'Marek', body: 'holds the silver key',
+    entryType: 'item', keys: ['marek'], activation: 'always_on', delta: 'x' });
+  const p = (db.proposalsOf(t.id) as any[]).find((x) => x.entry_id === marek);
+  const r: any = await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
+  assert.ok(!r?.error, r?.error);
+  const e = (db.entriesOf(t.id) as any[]).find((x) => x.id === marek);
+  assert.deepStrictEqual([e.title, e.entry_type, e.activation, db.keysOf(e.keys)], ['Marek Vale', 'character', 'triggered', ['Marek', 'Vale']],
+    'SEW-KEEPS-NAME: a thread that exists keeps its name, kind, wake words and how it comes in');
+  assert.strictEqual(e.body, 'holds the silver key', '  and takes the card\'s text');
+  ok('a card sewn into a thread that exists changes its text, not its name');
+}
+
 srv.close();
 // The chapter end measured on 2026-08-29 produced a character whose whole body was the word "none" — the field's
 // vocabulary answered into the body. It is dropped rather than written into a room.
