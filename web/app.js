@@ -9372,6 +9372,9 @@ function writingDefaults() {
                 written with again, so this is what it says on the way back round too. ${
                 k === 'direct' ? '<code>{{directive}}</code> is what you typed. ' : ''}${
                   k === 'speak' || k === 'act' ? '<code>{{speaker}}</code> is whoever you play. ' : ''}
+                <code>{{words}}</code> is the length slider's number: write it into your own line, such
+                as &ldquo;Write this in about {{words}} words&rdquo;, and Anansi adds no length line of its
+                own. With the slider off, the line it is on is left out.
                 Press Reset, or empty it, to have Anansi's own again. It saves as you type.</p>`)}
               <textarea class="field" data-prompttext aria-label="${rw ? 'The wording around what did not work'
                 : `The whole instruction for ${esc(k)}`}"

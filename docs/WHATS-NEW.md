@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-02 · The library shows who is in your scene
 
+### Put the length slider into your own instructions
+In Account → Writing, your own wording for an action can say {{words}} where the length slider's
+number should go, for example "Write this in about {{words}} words". Anansi then sends your line
+in place of its own "no more than" line. When the slider is at its left end, the line with
+{{words}} in it is left out.
+
 ### Any panel can fill the screen
 On a computer, the button beside Close in a panel's header spreads it over the page, and the same
 button puts it back at the side. Threads, Scenes, Strings and the rest each remember their own

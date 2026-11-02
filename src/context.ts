@@ -1561,9 +1561,18 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // carries the writer's direction) and gets the line. Not for Talk, and only while the scene has
     // no prose and has an opening, the condition DIRECTIVE's own line uses. NOT MEASURED.
     const opening = !started && input.mode !== 'talk' && !!currentChapter.opensWith?.trim();
+    // {{words}} IS THE SLIDER (Seth, 2026-11-02), in the writer's own wording only: the shipped ones
+    // name no length (F18, guarded in test/engine.ts). Where it is written the writer has said the
+    // length in their own words, so the line under THE LENGTH TARGET below is not added. With the
+    // slider off, the line holding it is dropped, so no "about  words" reaches the model.
+    const target = Number(input.targetWords) || 0;
+    const WORDS = /\{\{\s*words\s*\}\}/;
+    const ownWords = !!own && WORDS.test(own);
     const said = opening && key === 'continue' ? OPENING
       : own
-      ? own.replace(/\{\{\s*directive\s*\}\}/g, input.directive ?? '')
+      ? (target > 0 ? own : own.split('\n').filter((l) => !WORDS.test(l)).join('\n'))
+           .replace(new RegExp(WORDS.source, 'g'), String(target))
+           .replace(/\{\{\s*directive\s*\}\}/g, input.directive ?? '')
            .replace(/\{\{\s*speaker\s*\}\}/g, input.speaker || 'the point-of-view character')
       : (MODE[key] ?? MODE.continue)(input.directive, input.speaker);
     /* WHAT DID NOT WORK, after the instruction, in the When you reweave wording: the writer's from
@@ -1599,8 +1608,7 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // A LIMIT, NOT AN AIM, since 2026-10-29. "Aim for roughly N words" read as a starting point: the
     // local model ran a median 1.44 times the slider over 439 passages. NOT MEASURED against it.
     // Off for `talk`: Anansi answering the writer is not a passage and has its own bound.
-    const target = Number(input.targetWords) || 0;
-    add('MODE', 'mode', target > 0 && input.mode !== 'talk'
+    add('MODE', 'mode', target > 0 && input.mode !== 'talk' && !(ownWords && said !== OPENING)
       ? `${text}\nWrite no more than ${target} words. Stop sooner if the beat is done.` : text,
       `mode:${key}${own ? ' · yours' : ''}${failed ? ' · what did not work' : ''}${mine ? ' · your reweave' : ''}`);
   }

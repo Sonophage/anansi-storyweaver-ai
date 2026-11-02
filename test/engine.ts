@@ -423,6 +423,22 @@ ok("the writer's own wording replaces a mode outright, and empties back to the s
                       { directive: 'He drops the key.' });
   assert.strictEqual(dir.text, 'Do this and nothing else: He drops the key.');
 
+  // {{words}} IS THE SLIDER (Seth, 2026-11-02: "a shortcode that can enter the instruction to write
+  // out the action in that many words"). In the writer's own wording only: the shipped ones name no
+  // length (F18). Where it is written, the app's own "Write no more than" line is not added; with the
+  // slider off, the line holding it goes, so no "about  words" reaches the model.
+  const w = (prompt: string, targetWords: number) => withOwn({ continue: prompt }, 'continue', { targetWords }).text;
+  assert.strictEqual(w('One beat.\nWrite it in about {{words}} words.', 300), 'One beat.\nWrite it in about 300 words.',
+    'WORDS: {{words}} is the slider');
+  assert.strictEqual(w('One beat.\nWrite it in about {{ words }} words.', 300), 'One beat.\nWrite it in about 300 words.',
+    'WORDS: spaces inside the braces, as the other placeholders allow');
+  assert.doesNotMatch(w('Write it in about {{words}} words.', 300), /Write no more than/,
+    'WORDS: and the app adds no length line of its own');
+  assert.strictEqual(w('One beat.\nWrite it in about {{words}} words.', 0), 'One beat.',
+    'WORDS-OFF: with the slider off, the line holding it goes');
+  assert.match(w('One beat.', 300), /\nWrite no more than 300 words\. Stop sooner if the beat is done\.$/,
+    'WORDS-ABSENT: a wording without it keeps the app line, as before');
+
   // An override for one mode must not reach another.
   assert.match(withOwn({ speak: 'MINE' }, 'act').text, /what it costs, or what it gets/,
     'act still has its own wording');
