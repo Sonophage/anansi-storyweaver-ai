@@ -129,8 +129,10 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   ok("  and its label names the state and what a tap does",
      cards.every((c) => /^(On|Off)[^.]*\. Tap to /.test(c.label)));
   const plain = cards.filter((c) => !c.tags.length);
-  ok(`  and a card with nothing to tag is short (${plain.map((c) => c.h).join(',')}px)`,
-     plain.length > 0 && plain.every((c) => c.h <= 132));
+  // TWICE AS TALL since 2026-11-02 (Seth: "make the threads bigger. Twice as big"): it was at most
+  // 132px, and the floor is 260 now. A card with nothing to tag sits on the floor, not past it.
+  ok(`  and a card with nothing to tag is twice the old height (${plain.map((c) => c.h).join(',')}px)`,
+     plain.length > 0 && plain.every((c) => c.h >= 256 && c.h <= 266));
 
   // ---- Sent now: the eye and the filter answer the same question
   const lit = cards.filter((c) => c.lit === '1').map((c) => c.id).sort();
