@@ -830,6 +830,17 @@ export const THEMES = {
   romance:   { label: 'Romance',   dark: 1, swatch: '#140E13', ink: '#F0E2E4', paper: '#140E13', rail: '#160F15', sheet: '#1B131A',
                accent: '#D98AA0', warn: '#C4667C', good: '#8FB89C', speak: 'rgba(217,138,160,.4)',
                wash: 'radial-gradient(60% 45% at 28% 0%, rgba(190,110,140,.22), transparent 70%), linear-gradient(180deg,#1D1420,#100B10 55%)' },
+  /* ARCANA (Seth, 2026-11-03): "black grey and gold ... the gold and filigree ... the texture of
+   * things ... tarot, arcane", painted like a watercolour brush, with art deco in the ornament.
+   * Its colours are a row like every other; its wash is the painted canvas, `web/arcana-canvas.svg`,
+   * over the paper. What is not a colour — the filigree, the textures, the type — keys on
+   * data-ui-theme="arcana" in app.html. `faces` is the one thing a row has not had before: the two
+   * display faces the theme sets its titles and labels in, fetched only while it is the look
+   * (`loadFaces` in web/app.js). The prose keeps whatever font the writer chose. */
+  arcana:    { label: 'Arcana',    dark: 1, swatch: '#0B0B0C', ink: '#E6E2DA', paper: '#0B0B0C', rail: '#0C0C0E', sheet: '#111113',
+               accent: '#C8A252', warn: '#C8705A', good: '#8FAE9A', speak: 'rgba(196,192,184,.34)',
+               wash: "url('/web/arcana-canvas.svg') center / cover no-repeat, linear-gradient(180deg,#0E0E10,#08080A 60%)",
+               faces: 'Poiret+One&family=Josefin+Sans:wght@400;600' },
 };
 
 /** THEMES THAT LEFT THE LIST, and the one each look now reads as (2026-11-02: Obsidian, Parchment,
