@@ -17,6 +17,14 @@ Everything below this line was written by that model call, before it was removed
 
 
 ## 2026-11-03 · A thread is edited where you read it
+
+### A renamed thread shows its new name in the list
+Rename a thread and go back to Threads, with Back or Esc, and the list shows the new name. It
+showed the old one until something else redrew the list.
+### This thread as JSON is up to date
+Under More, This thread as JSON shows the thread as you have written it so far, and Copy it and
+Save as a file give you that. It left out what you had typed since the thread was opened.
+
 ## 2026-11-03 · Arcana, a painted theme
 
 ### A new theme: Arcana

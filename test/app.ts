@@ -2251,7 +2251,14 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     assert.deepStrictEqual(writes(), [['/api/addon', 'An envoy of Kesh, and a spy.', true, null],
       ['/api/entry', '[speaks for Kesh, and lies]', true, null]],
       'READ-THREAD-DRAFT: the pause writes Always true and the thread, each as a draft');
-    const facts = POSTED.find((x) => x.url === '/api/addon')?.body.addon;
+    // More's JSON was drawn with Read, before the pause wrote anything. A tab press only shows a
+    // pane, so the JSON (and Copy it, and Save as a file, which read it) left out what was just
+    // written (test/ui/panels.js went red on it, 2026-11-03).
+    click({ cardtab: 'more' }); await sleep(10);
+    const json = String(doc.getElementById('f-card-json').value);
+    click({ cardtab: 'card' }); await sleep(10);
+    assert.ok(/and lies/.test(json) && /and a spy/.test(json), 'READ-THREAD-JSON: More shows the thread as written so far, not as Read opened on it');
+    const facts =POSTED.find((x) => x.url === '/api/addon')?.body.addon;
     assert.deepStrictEqual(facts, { id: 'a-facts', slot: 'facts', name: 'Who she is', body: 'An envoy of Kesh, and a spy.', keys: '' },
       'ALWAYS-TRUE-NAME: with no name box, Always true keeps the name it has');
     type('[data-f="body"]', '[speaks for Kesh, and lies well]'); await sleep(1000);
@@ -2263,6 +2270,11 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
       'READ-THREAD-LEAVE: Back sends one last write of each, naming what Read opened on, after two pauses (one Past edits entry a visit)');
     assert.strictEqual(POSTED.find((x) => x.url === '/api/entry')?.body.entry.title, 'Envoy Sereth Vane', '  with the last of the typing');
     assert.ok(!onRead(), '  and goes back to the list');
+    // The last write is not waited for, so the list is drawn before it lands. Once it lands, the
+    // list's rows name the thread by the name just typed, not the one Read opened on
+    // (test/ui/threadalter.js died on the old name, 2026-11-03).
+    assert.match(html('thlist'), /class="platename">Envoy Sereth Vane</,
+      'READ-THREAD-LEAVE-LIST: once the last write lands, the list names the thread as it was just typed');
 
     // The tale now holds what was written, and the next visit opens on that.
     const T = 'Envoy Sereth Vane', B = '[speaks for Kesh, and lies well]', F = 'An envoy of Kesh, and a spy.';

@@ -8652,6 +8652,12 @@ function showCardTab(tab) {
   S.cardTab = tab;
   for (const box of document.querySelectorAll('.cardpanes')) box.dataset.tab = tab;
   for (const b of document.querySelectorAll('[data-cardtab]')) b.setAttribute('aria-pressed', String(b.dataset.cardtab === tab));
+  // MORE'S JSON IS DRAWN AGAIN when More is shown. It was drawn with Read, and Read saves as you type
+  // (#136), so it left out whatever had been written since, and Copy it and Save as a file read it.
+  // ponytail: from the thread as last written, so typing not yet written by a pause is not in it.
+  // Read the boxes too (alterVals) if a writer copies within a second of typing and misses it.
+  const e = tab === 'more' ? V?.entries?.find((x) => x.id === S.entryId) : null, json = $('f-card-json');
+  if (e && json) json.value = cardJSON(e, V?.slots?.[e.entryType] ?? []);
 }
 
 /** THIS CARD AS THE FORGE'S JSON, with every field its kind can hold.
@@ -8826,7 +8832,15 @@ function leaveAlter(refuse = true) {
   if (factsEmptied(ae, v)) { toast('Always true needs something in it.'); if (refuse) return false; }
   dropSoon('alter'); S.alterEdit = null; S.keyDraft = null;
   if (S.readOpen?.id === ae.id) S.readOpen = null;
-  return writeAlter(ae, true, v);
+  // The list is drawn before this write lands, from the thread as it was; once it lands, its rows are
+  // drawn again, so a name changed and then left by Back or Esc is the name the list shows. The rows
+  // only, as the search box does, so a search being typed keeps its focus.
+  return writeAlter(ae, true, v).then((r) => {
+    if (!r?.error && S.storyId === ae.storyId && S.panel === 'threads' && !S.entryId && !S.lore) {
+      const rows = $('thlist'); if (rows) rows.innerHTML = threadRows();
+    }
+    return r;
+  });
 }
 /** The thread is going (deleted, merged away): what is typed in it goes with it, unwritten. */
 function dropAlter() { dropSoon('alter'); S.alterEdit = null; S.readOpen = null; S.keyDraft = null; }
