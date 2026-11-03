@@ -3584,6 +3584,44 @@ export function mergeThreads(storyId: string, o: string, keepId: string, goneId:
   return keepId;
 }
 
+/** #137 · MERGE: WHY TWO POCKETS CANNOT BE MERGED, or null when they can, in `mergeRefusal`'s shape.
+ *  Both must be pockets of one live thread of this tale, which the writer may write in: a pocket of a
+ *  World thread the tale only follows is the World's row, so it is not found here. Never Always true,
+ *  which is not a pocket. One answer for the route and the write. */
+export function mergePocketRefusal(storyId: string, o: string, keepId: string, goneId: string): string | null {
+  if (!ownsStory(storyId, o)) return 'no such tale';
+  if (!keepId || !goneId || keepId === goneId) return 'pick two different pockets';
+  const row = (id: string) => q(`SELECT a.entry_id, a.slot FROM addons a JOIN entries e ON e.id = a.entry_id
+    WHERE a.id = ? AND a.story_id = ? AND e.story_id = ? AND e.sync IS NOT 'dropped'`).get(id, storyId, storyId) as any;
+  const k = row(keepId), g = row(goneId);
+  if (!k || !g) return 'both pockets must be pockets of a thread of this tale';
+  if (k.entry_id !== g.entry_id) return 'both pockets must be pockets of one thread';
+  if (k.slot === 'facts' || g.slot === 'facts') return 'Always true is not a pocket, and cannot be merged';
+  return null;
+}
+
+/** #137 · MERGE TWO POCKETS OF ONE THREAD (spec #132: "duplicates the hem made can be tidied"). The
+ *  writer opened `keepId`, joined the two texts in its box and edited them (`body`). One transaction.
+ *  The kept pocket takes that text through `upsertAddon`, which keeps its old text in Past edits, and
+ *  keeps its kind, name and activation; the other's wake words wake it too. The other's wardrobe dates
+ *  move onto it. The other is deleted by `delAddon` with its text kept in Past edits, where Put this
+ *  back can make it again. Null when `mergePocketRefusal` refuses, or the text is empty. */
+export function mergePockets(storyId: string, o: string, keepId: string, goneId: string, body: string) {
+  if (mergePocketRefusal(storyId, o, keepId, goneId) || !String(body ?? '').trim()) return null;
+  const keep = q('SELECT * FROM addons WHERE id = ?').get(keepId) as any;
+  const gone = q('SELECT * FROM addons WHERE id = ?').get(goneId) as any;
+  db.exec('BEGIN');
+  try {
+    const id = upsertAddon(storyId, keep.entry_id, { id: keepId, slot: keep.slot, name: keep.name, body: String(body).trim(),
+      keys: [...JSON.parse(keep.keys || '[]'), ...JSON.parse(gone.keys || '[]')] });
+    if (!id) throw new Error('the merged pocket could not be written');
+    q('UPDATE entry_events SET addon_id = ? WHERE addon_id = ? AND entry_id = ?').run(keepId, goneId, keep.entry_id);
+    delAddon(storyId, goneId, true);
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  return keepId;
+}
+
 /** Manual chapter end. Closes the open chapter and opens the next. */
 export function endChapter(storyId: string, branchId: string, nextTitle?: string) {
   const cur = openChapterOf(storyId);

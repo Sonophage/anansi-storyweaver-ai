@@ -28,6 +28,13 @@ it holds something. A thread now has four tabs: The thread, Timeline, Pockets an
 what the settings button held: Stitched together, Copy to another tale, Merge with another thread,
 Read the whole tale for this thread, This thread as JSON, Retire, Delete (still two presses), and
 Past edits with Put this back. Moving between the tabs keeps anything you were typing.
+### Merge two pockets of a thread into one
+Open a pocket and press Merge with another pocket… to pick another pocket of the same thread. The
+box opens with both texts joined, and Ask Anansi can make them read as one. Change it as you like,
+then press Merge. The pocket you opened stays, with that text, its kind and whether it is on, and
+it also wakes on the other pocket's wake words. The other pocket is removed, and its text is kept in
+Past edits, so you can put it back. Cancel goes back to the pocket and changes nothing.
+
 ### Storyteller holds everything about the model
 Storyteller is now one place with four tabs. Model shows the model that writes this tale and your
 usual model, with what each one is for and how fast it writes under the one you press, and the

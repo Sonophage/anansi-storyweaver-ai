@@ -4509,6 +4509,69 @@ ok('a merge that fails part way writes nothing', () => {
   db.delStory(t.id);
 });
 
+// #137 · MERGE TWO POCKETS OF ONE THREAD (spec #132). The open pocket stays, with the text the writer
+// left in the box, its own kind and its own activation; the other's text goes to Past edits and the
+// other is deleted.
+ok('two pockets of one thread merge into the open one, and the other goes to Past edits', () => {
+  const me = db.owner('pocketmerger');
+  const t = db.createStory(me, { title: 'Pockets', premise: 'p' }) as any;
+  const a = db.upsertEntry(t.id, me, { title: 'Lisa', entryType: 'character', body: 'Lisa.' })!;
+  const keep = db.upsertAddon(t.id, a, { slot: 'voice', name: 'Clipped', body: 'Short lines.', keys: ['phone'] })!;
+  db.setAddonActivation(t.id, keep, 'triggered');
+  const gone = db.upsertAddon(t.id, a, { slot: 'interiority', name: 'Sales', body: 'Talks in pitches.', keys: ['pitch'] })!;
+  db.setAddonActivation(t.id, gone, 'always_on');
+  assert.strictEqual(db.mergePockets(t.id, me, keep, gone, 'Short lines that sell.'), keep, 'POCKET-MERGE-OK: the merge answers the kept pocket');
+  const rows = (db.addonsOf(t.id) as any[]).filter((x) => x.entry_id === a);
+  assert.ok(!rows.some((x) => x.id === gone), 'POCKET-MERGE-GONE: the other pocket is deleted');
+  const k = rows.find((x) => x.id === keep);
+  assert.deepStrictEqual([k.body, k.slot, k.name, k.activation], ['Short lines that sell.', 'voice', 'Clipped', 'triggered'],
+    'POCKET-MERGE-KEEP: the kept pocket takes the text, and keeps its kind, name and activation');
+  assert.deepStrictEqual(JSON.parse(k.keys).sort(), ['phone', 'pitch'], "POCKET-MERGE-KEYS: the other's wake words wake the kept one");
+  const hist = db.entryHistory(t.id, a);
+  assert.ok(hist.some((h: any) => h.field === `pocket:${gone}` && h.previous_value === 'Talks in pitches.'),
+    "POCKET-MERGE-PAST: the other's text is in Past edits");
+  assert.ok(hist.some((h: any) => h.field === `pocket:${keep}` && h.previous_value === 'Short lines.'),
+    "  and so is the kept pocket's old text");
+  db.delStory(t.id);
+});
+
+ok('a pocket merge is refused across threads, across tales, on a followed World thread, for Always true and another writer, and writes nothing', () => {
+  const me = db.owner('pocketmerger2'), them = db.owner('pocketstranger');
+  const t = db.createStory(me, { title: 'One', premise: 'p' }) as any;
+  const u = db.createStory(me, { title: 'Two', premise: 'p' }) as any;
+  const a = db.upsertEntry(t.id, me, { title: 'A', body: 'a' })!;
+  const b = db.upsertEntry(t.id, me, { title: 'B', body: 'b' })!;
+  const c = db.upsertEntry(u.id, me, { title: 'C', body: 'c' })!;
+  const p1 = db.upsertAddon(t.id, a, { slot: 'voice', name: 'one', body: 'one' })!;
+  const p2 = db.upsertAddon(t.id, a, { slot: 'voice', name: 'two', body: 'two' })!;
+  const onB = db.upsertAddon(t.id, b, { slot: 'voice', name: 'b', body: 'b' })!;
+  const onC = db.upsertAddon(u.id, c, { slot: 'voice', name: 'c', body: 'c' })!;
+  const facts = db.upsertAddon(t.id, a, { slot: 'facts', name: 'facts', body: 'A is a.' })!;
+  const world = db.createStory(me, { title: 'Ring', premise: 'w' }) as any;
+  const w = db.upsertEntry(world.id, me, { title: 'Warden', body: 'w' })!;
+  const w1 = db.upsertAddon(world.id, w, { slot: 'voice', name: 'w1', body: 'w1' })!;
+  const w2 = db.upsertAddon(world.id, w, { slot: 'voice', name: 'w2', body: 'w2' })!;
+  db.updateStory(t.id, { loreFrom: world.id });
+  const before = () => JSON.stringify([db.addonsOf(t.id), db.addonsOf(u.id), db.addonsOf(world.id),
+    db.entryHistory(t.id, a), db.entryHistory(world.id, w)]);
+  const was = before();
+  for (const [why, keep, gone, who] of [
+    ['POCKET-MERGE-THREADS: pockets of two threads', p1, onB, me],
+    ['POCKET-MERGE-CROSS-TALE: a pocket of another tale', p1, onC, me],
+    ['POCKET-MERGE-WORLD: pockets of a followed World thread', w1, w2, me],
+    ['POCKET-MERGE-FACTS: Always true', p1, facts, me],
+    ['  either way round', facts, p1, me],
+    ['POCKET-MERGE-OWNER: another writer', p1, p2, them],
+    ['POCKET-MERGE-SELF: a pocket with itself', p1, p1, me],
+  ] as const) {
+    assert.ok(db.mergePocketRefusal(t.id, who, keep, gone), `${why} has a refusal`);
+    assert.strictEqual(db.mergePockets(t.id, who, keep, gone, 'MERGED'), null, `${why} is refused`);
+  }
+  assert.strictEqual(before(), was, 'POCKET-MERGE-NOTHING: a refused merge writes nothing');
+  assert.strictEqual(db.mergePocketRefusal(t.id, me, p1, p2), null, '  and two pockets of one thread may be merged');
+  db.delStory(t.id); db.delStory(u.id); db.delStory(world.id);
+});
+
 // #93 · A HEM A RESTART CUT OFF. The queue lives in the server's process, so a restart leaves the
 // row running for good. At boot it is stopped: done, with the pass it was on and every pass after it
 // reported as not run, which is what the card already shows a Try again for.
