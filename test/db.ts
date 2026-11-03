@@ -2461,6 +2461,13 @@ ok('the extraction schema and src/slots.ts name the same slots', () => {
     assert.strictEqual(add({ chapterId: 'ch-two', kind: 'new' }), false, 'and scene two again is one offer');
     assert.strictEqual(add({ chapterId: 'ch-two', kind: 'retire', entryType: 'retire', keys: ['9'] }), false,
       'finished is once for the book, whichever scene says it');
+
+    // A NEW THREAD IS ONCE FOR THE BOOK. With no thread to chalk on, two scenes that both meet the
+    // same new person are one offer, or accepting both makes two threads with one name.
+    const fresh = (chapterId: string) => db.addProposal(s2.id,
+      { title: 'Mara', body: 'x', entryType: 'character', kind: 'new', chapterId });
+    assert.strictEqual(fresh('ch-one'), true, 'scene one finds Mara');
+    assert.strictEqual(fresh('ch-two'), false, 'SCENES-NEW: scene two finding her too is the same offer');
   });
 
   ok('  and the dedupe asks the same question the accept path does', () => {

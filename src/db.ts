@@ -4641,10 +4641,12 @@ export function addProposal(storyId: string, p: any) {
     // an earlier scene's was still open.
     // #93 · AND THE SCENE A CHANGE TO THE BODY OR A POCKET WAS CHALKED FOR: each hem chalks on its own
     // scene's card, so a later scene's change was dropped while an earlier scene's was still open.
-    // Re-running the same scene is still one offer. Not a finish: that is once for the book.
+    // Re-running the same scene is still one offer. Not a finish: that is once for the book. Nor a
+    // new thread (no `entry_id`): two scenes that meet the same new person are one offer, or
+    // accepting both makes two threads with one name.
     .update([subject, p.entry_id ?? '', target, ...(p.target ? [p.target] : []),
       ...(target === 'state' ? [String((p.keys ?? [])[0] ?? '')] : []),
-      ...(target === 'body' || target.startsWith('room:') ? [String(p.chapterId ?? '')] : [])].join('\u0000')).digest('hex').slice(0, 32);
+      ...((target === 'body' && p.entry_id) || target.startsWith('room:') ? [String(p.chapterId ?? '')] : [])].join('\u0000')).digest('hex').slice(0, 32);
   try {
     q(`INSERT INTO proposals (id,story_id,chapter_id,entry_id,title,body,entry_type,keys,kind,delta,
         field,activation,target,content_hash,source,rooms,grp,line,pocket,merges,created_at)
