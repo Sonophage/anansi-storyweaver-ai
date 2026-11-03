@@ -46,8 +46,9 @@ Each pocket shows the same eye a thread does. The open eye is On: it is sent eve
 eye is On a word: it is sent only when one of its wake words comes up, and the eye opens to show
 when one has. The struck eye is Off: it is never sent, even when one of its wake words comes up. A
 tap on the eye goes Off, On a word, On, and back to Off, and shows the new state's name for a
-moment. The tale's rules and your own instructions have the same eye. A string, and one of your
-own, has no wake words, so its eye goes Off and On. An outfit keeps Wear this. A pocket
+moment. The tale's rules and your own instructions have the same eye. A string, one of your
+own, and any pocket or rule with no wake words set, goes Off and On. Clear the last wake word of a
+rule that is On a word and it is On; clear the last of any other pocket's and it is Off. An outfit keeps Wear this. A pocket
 you add starts On; a new outfit is added unworn. Where a thread holds one pocket of a kind at a
 time, such as its appearance or its voice, the one you turn On puts the others Off, so only one is
 ever sent; their wake words are kept. A pocket Anansi adds, in Talk or when a scene is

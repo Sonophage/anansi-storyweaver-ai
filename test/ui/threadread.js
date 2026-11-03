@@ -112,9 +112,11 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   ok("  and the switch is 44px to the finger", pocketCards.every((p) => p.finger));
 
   if (w === 390) {
-    // ---- A pocket's eye works from here: each tap posts the next state, as a thread card's.
+    // ---- A pocket's eye works from here: each tap posts the next state, as a thread card's. The
+    // seed's pocket has no wake words, so it has no On a word: Off and On (the server makes On a word
+    // with no words Off).
     const rel = marek.addons.find((a) => a.slot === 'relationships');
-    const NEXT = { off: 'triggered', word: 'always_on', woken: 'always_on', on: 'off' };
+    const NEXT = { off: 'always_on', on: 'off' };
     for (let i = 0; i < 3; i++) {
       const was = await page.eval(`document.querySelector('#sideBody [data-pocketeye="${rel.id}"]')?.dataset.reach`);
       await page.click(`#sideBody [data-pocketeye="${rel.id}"]`);

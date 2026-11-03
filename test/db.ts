@@ -4929,6 +4929,37 @@ ok('a rule and one of your own are sent by their eye', () => {
   db.delStory(st.id);
 });
 
+/* #134 · ON A WORD WITH NO WORD TO WAKE IT IS NEVER SENT, and its eye would say it might be. A write
+ * that leaves one there gives it what the old switch sent with no words: a rule On (a rule switched on
+ * was sent always without words), any other pocket Off (off with no words was never sent). Whatever
+ * writes it: the words cleared by a save, or the eye set On a word on one that has none. `Ardmore` and
+ * `anvil` are on the page, so only the eye decides. */
+ok('a rule or a pocket left On a word with no words is On or Off, and sent that way', () => {
+  const me = db.owner('wordless-word');
+  const st = db.createStory(me, { title: 'Wordless word' });
+  db.addPassage({ storyId: st.id, branchId: st.branchId, chapterId: st.chapterId, body: 'Wren struck the anvil at Ardmore.' });
+  const e = db.upsertEntry(st.id, me, { title: 'Wren', body: 'a smith', entryType: 'character', activation: 'always_on' })!;
+  const sent = (text: string) => JSON.stringify(story.assemble(story.view(st.id) as any,
+    { global: 8192, slots: 1, perSlot: 8192 }, 'continue').manifest.blocks).includes(text);
+  const row = (id: string) => db.addonsOf(st.id).find((a: any) => a.id === id);
+  const rule = db.upsertAddon(st.id, null, { slot: 'rule', name: 'Debts', body: 'A debt survives the debtor.', keys: ['Ardmore'] })!;
+  db.setAddonActive(st.id, rule, true);
+  const debt = db.upsertAddon(st.id, e, { slot: 'interiority', name: 'her debt', body: 'owes the forge-master', keys: ['anvil'] })!;
+  assert.deepStrictEqual([row(rule).activation, row(debt).activation], ['triggered', 'triggered'], '  both start On a word');
+  db.upsertAddon(st.id, null, { id: rule, slot: 'rule', name: 'Debts', body: 'A debt survives the debtor.', keys: [] });
+  assert.strictEqual(row(rule).activation, 'always_on', 'WORDLESS-RULE-CLEARED: a rule whose words are cleared is On');
+  assert.ok(sent('A debt survives'), '  and is sent');
+  db.upsertAddon(st.id, e, { id: debt, slot: 'interiority', name: 'her debt', body: 'owes the forge-master', keys: [] });
+  assert.strictEqual(row(debt).activation, 'off', 'WORDLESS-POCKET-CLEARED: a pocket whose words are cleared is Off');
+  assert.ok(!sent('owes the forge-master'), '  and is not sent');
+  db.setAddonActivation(st.id, rule, 'off');
+  db.setAddonActivation(st.id, rule, 'triggered');
+  assert.deepStrictEqual([row(rule).activation, row(rule).active], ['always_on', 1], 'WORDLESS-RULE-SET: a rule set On a word with no words is On, its old switch on');
+  db.setAddonActivation(st.id, debt, 'triggered');
+  assert.deepStrictEqual([row(debt).activation, row(debt).active], ['off', 0], 'WORDLESS-POCKET-SET: a pocket set On a word with no words is Off, its old switch off');
+  db.delStory(st.id);
+});
+
 /* A LIBRARY FROM BEFORE THE RULE'S EYE had its rules read as pockets: on was On, whatever its words.
  * One boot puts each rule right, once, by how it was sent; a later boot leaves the eye alone. */
 ok('a library from before the rule\'s eye gets each rule\'s eye from how it was sent, once', () => {

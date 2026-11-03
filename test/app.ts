@@ -9480,6 +9480,16 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon/on')?.body, { storyId: 's-1', id: 'a-off', activation: 'always_on' },
     '  naming the pocket and its activation');
   STORY.entries[0].addons[1] = { ...STORY.entries[0].addons[1], activation: undefined, active: false };
+  // A POCKET WITH NO WAKE WORDS IS NEVER ON A WORD (the server makes such a write Off): its eye says
+  // Off is not sent, and a tap goes straight to On. `a-on` has no words.
+  STORY.entries[0].addons[0] = { ...STORY.entries[0].addons[0], activation: 'off', active: false };
+  click({ readgo: 'rooms' }); await wait();
+  assert.match(html('sideBody'), /data-pocketeye="a-on" data-look="eyeoff" data-reach="off"\s+aria-label="How she sounds: Off: not sent\. Tap to turn it on\."/,
+    'POCKET-EYE-WORDLESS: a pocket with no wake words, Off, says a tap turns it on');
+  POSTED.length = 0;
+  click({ pocketeye: 'a-on' }); await wait();
+  assert.deepStrictEqual(posted(), ['always_on'], '  and the tap posts On, with no On a word between');
+  STORY.entries[0].addons[0] = { ...STORY.entries[0].addons[0], activation: undefined, active: true };
   ok('a pocket\'s eye cycles Off, On a word, On, as a thread card');
 
   // #137 · MERGE TWO POCKETS (spec #132). From a pocket that exists: pick another pocket of the thread

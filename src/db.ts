@@ -744,12 +744,22 @@ function migrate() {
   const before = (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'addons_activation_new'")
     .get() as any)?.sql as string | undefined;
   if (before && !before.includes("'rule'")) reachRules();
+  // ON A WORD WITH NO WORD TO WAKE IT IS NEVER SENT, and its eye would say it might be. Any write that
+  // leaves a row there (its words cleared by a save, the eye set On a word on one with none) gives it
+  // what the old switch sent with no words: a rule On, every other pocket Off. `active` already
+  // agrees with each (a rule On a word is switched on, a pocket On a word off). A trigger, because
+  // every writer of `keys` and `activation` passes through it.
   db.exec(`DROP TRIGGER IF EXISTS addons_activation_new; DROP TRIGGER IF EXISTS addons_activation_step;
+  DROP TRIGGER IF EXISTS addons_activation_wordless;
   CREATE TRIGGER addons_activation_new AFTER INSERT ON addons WHEN NEW.activation IS NULL
     BEGIN UPDATE addons SET activation = ${oldSwitchSQL('NEW.')} WHERE id = NEW.id; END;
   CREATE TRIGGER addons_activation_step AFTER UPDATE OF active ON addons
     WHEN NEW.activation IS NOT NULL AND (NEW.active = 1) <> ${switchOnSQL('NEW.')}
-    BEGIN UPDATE addons SET activation = ${oldSwitchSQL('NEW.')} WHERE id = NEW.id; END;`);
+    BEGIN UPDATE addons SET activation = ${oldSwitchSQL('NEW.')} WHERE id = NEW.id; END;
+  CREATE TRIGGER addons_activation_wordless AFTER UPDATE OF keys, activation ON addons
+    WHEN NEW.activation = 'triggered' AND NOT ${wordsSQL('NEW.')}
+    BEGIN UPDATE addons SET activation = CASE WHEN NEW.slot = 'rule' THEN 'always_on' ELSE 'off' END
+      WHERE id = NEW.id; END;`);
   backfillPocketActivation();
 
   // PLAN-08, the last step of the wardrobe move. The copy above has run on every boot since Phase 2
@@ -2333,10 +2343,14 @@ export function backfillActPrints(): number {
  *  runs every case through both triggers, the backfill and it. Function declarations, not consts:
  *  `migrate()` runs above them. */
 function oldSwitchSQL(p: string): string {
-  const words = `(CASE WHEN json_valid(${p}keys) THEN json_array_length(${p}keys) ELSE 0 END) > 0`;
+  const words = wordsSQL(p);
   return `CASE WHEN ${p}slot = 'rule' THEN CASE WHEN ${p}active = 1 THEN CASE WHEN ${words} THEN 'triggered'
       ELSE 'always_on' END ELSE 'off' END
     WHEN ${p}active = 1 THEN 'always_on' WHEN ${words} THEN 'triggered' ELSE 'off' END`;
+}
+/** Whether a row has a wake word. */
+function wordsSQL(p: string): string {
+  return `((CASE WHEN json_valid(${p}keys) THEN json_array_length(${p}keys) ELSE 0 END) > 0)`;
 }
 /** Whether a row's activation is the switch's on: On for a pocket, anything but Off for a rule. */
 function switchOnSQL(p: string): string {

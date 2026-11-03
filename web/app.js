@@ -9080,9 +9080,11 @@ function eyeLook(state, lit, hasWords = true) {
   return { on: state === 'on', state, look, word, label: `${now}. Tap to ${next}.` };
 }
 /** #134 · A POCKET'S STATE: Off, On a word (asleep, or woken when its word sent it), or On, from its
- *  `activation` (`pocketReach`, model.js). A string, and one of your own, has no wake words: on while
- *  it is sent, else off. A tap not yet saved shows what it set. */
-const pocketWordless = (a) => a.slot === 'promise' || a.slot === 'question' || a.slot === 'instruction';
+ *  `activation` (`pocketReach`, model.js). A string, one of your own, and any pocket with no wake words
+ *  set has none: on while it is sent, else off (the server makes On a word with no words On for a
+ *  rule and Off for the rest). A tap not yet saved shows what it set. */
+const pocketWordless = (a) => a.slot === 'promise' || a.slot === 'question' || a.slot === 'instruction'
+  || !(a.keys ?? []).length;
 function pocketState(e, a) {
   const set = S.reachNow?.[a.id];
   if (set) return set;
