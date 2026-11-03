@@ -5737,10 +5737,6 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   assert.strictEqual(shown(), 'addmodel', 'TELLER-WAS: Find a model opens Storyteller on Add a model');
   click({ modelinfo: 'write-nt-qwen36-h' });
   assert.strictEqual(shown(), 'model', 'TELLER-WAS: a model\'s info opens it on Model');
-  click({ acctgo: 'writing' });
-  await sleep(30);
-  assert.strictEqual(shown(), 'voice', 'TELLER-WAS: Account → Writing opens it on Your voice');
-  assert.strictEqual(side().hidden, false, '  and it is open');
   const go = async (hash: string) => {
     (globalThis as any).location.hash = hash;
     await Promise.all((winListeners.hashchange ?? []).map((f) => f({ oldURL: 'https://x/#s-1' })));
@@ -5766,9 +5762,9 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
     'TELLER-LIB: and no per-tale controls, and no sliders');
   click({ tellertab: 'stats' });
   assert.notStrictEqual(shown(), 'stats', 'TELLER-LIB: Stats cannot be shown with no tale');
-  click({ acctgo: 'writing' });
+  click({ tellertab: 'voice' });
   await sleep(30);
-  assert.strictEqual(shown(), 'voice', 'TELLER-LIB: Account → Writing opens Your voice here too');
+  assert.strictEqual(shown(), 'voice', 'TELLER-LIB: Your voice opens here too');
   click({ tellertab: 'model' }); click({ panel: '' });   // as the checks after this one expect it
 
   // ACCOUNT KEEPS THE KEY AND SAYS WHERE THE MODEL IS CHANGED.
@@ -6350,10 +6346,9 @@ ok('scene summaries and chapters are rows that open in the pocket panel, with th
     ['Delete', /data-delentry="1"/]] as [string, RegExp][])
     assert.match(more, re, `READ-MORE: More holds ${what}`);
   assert.doesNotMatch(body, /data-f="|data-ab="/, 'READ-CLOSED: Read opens with no box open');
-  // THE OLD DOORS open Read on the matching tab: Alter on The thread, a menu row on its own tab.
-  click({ cardview: 'form' }); await sleep(20);
-  assert.doesNotMatch(html('sideHead') + html('sideBody'), /data-alterdone|data-f="/, 'READ-DOOR-FORM: the old Alter door opens Read');
-  assert.match(html('sideBody'), /class="cardpanes" data-tab="card"/, 'READ-DOOR-FORM: on The thread');
+  // THE DOORS open Read on the matching tab: a menu row on its own tab.
+  assert.doesNotMatch(html('sideHead') + html('sideBody'), /data-alterdone|data-f="/, 'READ-DOOR-FORM: Read has no Alter form');
+  assert.match(html('sideBody'), /class="cardpanes" data-tab="card"/, 'READ-DOOR-FORM: and opens on The thread');
   for (const [go, tab] of [['time', 'time'], ['edges', 'more'], ['copy', 'more'], ['json', 'more'], ['rooms', 'rooms']]) {
     click({ readgo: go }); await sleep(20);
     assert.match(html('sideBody'), new RegExp(`class="cardpanes" data-tab="${tab}"`), `READ-DOOR-GO: the ${go} door opens Read on ${tab}`);

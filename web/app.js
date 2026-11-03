@@ -612,7 +612,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // model that always weaves.
   'weaveanyway', 'weaveoff', 'weavemodel',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
-  'cardview', 'goslot', 'editroom', 'fold', 'pkind', 'acceptall', 'pocketeye', 'deladdon',
+  'goslot', 'editroom', 'fold', 'pkind', 'acceptall', 'pocketeye', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
   'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads',
   // The whole book again, prose and all — the press beside `forkthreads`, which takes only the cast.
@@ -637,8 +637,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'hemagain', 'hemopen', 'hemedit', 'fillsetup', 'hemuse', 'hemskip', 'hemsumedit', 'hemsumdone', 'hemsumskip', 'hemsumuse',
   // #75. The tale's own thread: add to it, and open where it stands now.
   'taleadd', 'talestand',
-  // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
-  'accttab', 'delavatar', 'acctgo',
+  // The Account page: its tabs, your name and your picture.
+  'accttab', 'delavatar',
   // #131. Storyteller's four tabs.
   'tellertab',
   // A card out as JSON and back in again: copy, save to a file, read one.
@@ -2813,7 +2813,7 @@ function drawSide() {
   // AND ONE THREAD, READ (v2 redesign, 2026-10-25): "‹ Threads" back to the list on the left, ＋ and
   // Tidy on the right. Close stays, because shutting the drawer from a thread is a press the drawer
   // always had. Read is the editor (#136, ADR 0013), so there is no second header for altering.
-  const thRead = isReading();
+  const thRead = threadOpen();
   // NEW THREAD: "‹ Threads" back to the list (the same data-newlore press that opened it), and Close.
   if (S.panel === 'threads' && S.lore && !S.entryId) sameOrSet('sideHead').innerHTML = `
     <button data-newlore="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
@@ -2848,13 +2848,12 @@ function drawSide() {
 }
 
 /** A THREAD IS OPEN, in the Threads drawer, on its own from a passage, or on the cross-book
- *  page (which draws the same Read screen in the page rather than in a drawer). */
+ *  page (which draws the same Read screen in the page rather than in a drawer). An open thread is
+ *  on its Read screen, which is also where it is edited (#136, ADR 0013). */
 function threadOpen() {
   return !!S.entryId && !!V?.entries?.some((x) => x.id === S.entryId)
     && (S.place !== 'story' || S.panel === 'threads' || S.panel === 'entry');
 }
-/** ONE THREAD OPEN ON ITS READ SCREEN, which is also where it is edited (#136, ADR 0013). */
-function isReading() { return threadOpen(); }
 
 /** THE READ SCREEN'S OWN CONTROLS, drawn once. In the drawer they are its header; on the cross-book
  *  page, which has no drawer header, Read draws them at its own top (`pageBar`): "‹ Threads" back to
@@ -8138,33 +8137,32 @@ function inventTray(kind, label, placeholder, value = '', named = '') {
 /** ONE POCKET IN A LIST, the read face's and the Pockets tab's (Seth, 2026-11-02: "the spacing there
  *  is atrocious"). No box: rows on a hairline, as the hem lists its rows. The name, then its kind
  *  and its text on one line under it; the whole left side opens the pocket panel; the switch on the
- *  right. `at` is the jump anchor, on the first row of each kind. `lines` is how much text shows. */
-const pocketRow = (a, sw, at = '', lines = 1) => `<div class="pocketrow${a.active ? ' lit' : ''}"${at}>
+ *  right. `at` is the jump anchor, on the first row of each kind. Two lines of its text show. */
+const pocketRow = (a, sw, at = '') => `<div class="pocketrow${a.active ? ' lit' : ''}"${at}>
     <button class="pocketopen" data-editroom="${esc(a.id)}" aria-label="Open ${esc(a.name)}">
       <span class="pkname">${esc(a.name)}</span>
       ${/* No kind on the row: the kind's heading is over it (pocketList). */ ''}
-      <span class="pkline${lines > 1 ? ' clamp2' : ''}">${esc(lines > 1 ? String(a.body ?? '') : String(a.body ?? '').split('\n')[0])}</span></button>
+      <span class="pkline clamp2">${esc(String(a.body ?? ''))}</span></button>
     ${sw}</div>`;
 /** The switch a pocket row wears: the thread's eye (#134, `pocketEye`); an outfit's is its wearing,
  *  one at a time (EXCLUSIVE_SLOTS), and it draws no eye. */
 const pocketSwitch = (e, a) => a.slot === 'outfit'
   ? `<button data-wear="${esc(e.id)}:${esc(a.id)}" class="tag pocketsw" aria-pressed="${!!a.active}">${a.active ? 'Worn — take it off' : 'Wear this'}</button>`
   : pocketEye(e, a);
-/** The list itself: on first, then what is not on under a quiet divider, then the add row. BY KIND
+/** The list itself: on first, then what is not on under a quiet divider. BY KIND
  *  INSIDE EACH (Seth, 2026-11-03: "pockets should be categorized by type both on edit and not"; he
  *  kept the two sections): a small heading per kind, its pockets under it, in the slot order `rows`
  *  arrives in. The jump anchor is on the first row of each kind, wherever that falls. */
-const pocketList = (e, rows, sw, lines, add = true) => {
+const pocketList = (e, rows) => {
   const seen = new Set();
-  const row = (a) => { const at = seen.has(a.slot) ? '' : ` data-slotat="${esc(a.slot)}"`; seen.add(a.slot); return pocketRow(a, sw(a), at, lines); };
+  const row = (a) => { const at = seen.has(a.slot) ? '' : ` data-slotat="${esc(a.slot)}"`; seen.add(a.slot); return pocketRow(a, pocketSwitch(e, a), at); };
   const byKind = (list) => [...new Set(list.map((a) => a.slot))].map((slot) =>
     `<div class="lbl pkgroup">${esc(pocketTitle(slot))}</div>${list.filter((a) => a.slot === slot).map(row).join('')}`).join('');
   const on = byKind(rows.filter((a) => a.active)), off = byKind(rows.filter((a) => !a.active));
   return `<div class="pocketlist">${on}${off ? `<div class="lbl pkoff">Not turned on${tipMark('pocketsOff', 'Not turned on')}</div>
     ${tipCard('pocketsOff', 'Not turned on', `<p>Written down, and not reaching the model &mdash;
       either switched off, or until one of its wake words appears.</p>`)}${off}` : ''}
-    ${rows.length ? '' : '<div class="hint pkempty">No pockets yet.</div>'}
-    ${add ? `<button class="pkadd" data-pocketnew="${esc(e.id)}">+ Add a pocket</button>` : ''}</div>`;
+    ${rows.length ? '' : '<div class="hint pkempty">No pockets yet.</div>'}</div>`;
 };
 
 /* THE KIND JOINS THE ROOMS ON ONE ROW. Seth, 2026-09-02: "all of these chips should be on a single
@@ -8378,7 +8376,7 @@ function cardFace(e, slots) {
         ...(e.outfits ?? []).map((o) => ({ ...o, slot: 'outfit' }))].filter((a) => order.includes(a.slot))
         .sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot));
       // No add link here: Read's ＋ is in its header (threadBar; Seth, 2026-11-03).
-      return pocketList(e, mine, (a) => pocketSwitch(e, a), 2, false);
+      return pocketList(e, mine);
     })()}</div>
     <div class="pane" data-pane="more">${morePane(e, slots)}</div>
     </div>
@@ -8753,7 +8751,7 @@ function addKeyWords(text) {
  *  writer reports one. */
 function alterRecord() {
   if (S.alterEdit && (S.alterEdit.id !== S.entryId || S.alterEdit.storyId !== S.storyId)) leaveAlter(false);
-  const e = isReading() ? V?.entries?.find((x) => x.id === S.entryId) : null; if (!e || e.sharedFrom) return null;
+  const e = threadOpen() ? V?.entries?.find((x) => x.id === S.entryId) : null; if (!e || e.sharedFrom) return null;
   if (S.alterEdit) return S.alterEdit;
   const st = standsNow(e), facts = (e.addons ?? []).find((a) => a.slot === 'facts');
   // The thread's own text only when its box is on Read: with a later change in force, it is the
@@ -9631,7 +9629,7 @@ function writingDefaults() {
       })()}`;
 }
 
-// #131. Writing left for Storyteller's Your voice tab; an old door to it lands there (`acctgo`).
+// #131. Writing left for Storyteller's Your voice tab.
 const ACCT_TABS = [['profile', 'You'], ['model', 'Model'], ['look', 'Look'], ['books', 'Your books']];
 const WPAGES = {
   /** THE ACCOUNT, four pages of it (Seth, 2026-10-27: "not all on one page"). Each tab draws what
@@ -12433,7 +12431,7 @@ document.addEventListener('input', () => {
 // is not one: a word in it is half a word until it is Entered, and the chips are saved as they change.
 document.addEventListener('input', (e) => {
   const d = e.target?.dataset;
-  if (!d || !isReading() || d.f === 'keys' || (d.f === undefined && d.ab === undefined)) return;
+  if (!d || !threadOpen() || d.f === 'keys' || (d.f === undefined && d.ab === undefined)) return;
   alterSoon();
 });
 
@@ -12860,8 +12858,6 @@ document.addEventListener('click', async (e) => {
   }
 
   // ---- PLAN-08 and #136: Read's tabs, its fields opened in place, its jump links, and its rooms ----
-  // THE OLD ALTER DOOR (`data-cardview="form"`) opens Read on The thread: Alter is Read now (ADR 0013).
-  if (d.cardview !== undefined) { S.cardTab = 'card'; paint(); if ($('sideBody')) $('sideBody').scrollTop = 0; return; }
   // A FIELD TAPPED ON READ turns into its box, in place, with the caret in it. The kind is a row of
   // chips that the same tap shuts again; every other box stays open until the thread is left.
   if (d.readedit) {
@@ -13111,8 +13107,6 @@ document.addEventListener('click', async (e) => {
   }
   if (d.accttab) { S.acctTab = d.accttab; paint(); return; }
   // #131. Account → Writing is Storyteller's Your voice tab; an old door to it lands there.
-  if (d.acctgo === 'writing') return void openTeller('voice');
-  if (d.acctgo) { S.acctTab = d.acctgo; return void await leaveTo('account'); }
   // #131. Storyteller's tabs. Redrawn, as Account's tabs were: a mode's box keeps its typing in
   // state (`S.promptEdit`) and writes it after the pause whether or not it is on screen.
   if (d.tellertab) { S.tellerTab = d.tellertab; drawSide(); return; }
