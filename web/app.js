@@ -212,9 +212,22 @@ function loadFonts() {
   l.href = `https://fonts.googleapis.com/css2?${Object.values(WEBFONTS).map((f) => `family=${f}`).join('&')}&display=swap`;
   document.head?.appendChild?.(l);   // `?.`: test/app.ts drives this against a DOM stub with no <head>
 }
+/** A THEME'S OWN FACES (Arcana, 2026-11-03): the display type a theme sets its titles and labels
+ *  in, named on its row as `faces`. Fetched the first time that theme is on screen, once per theme,
+ *  and never for a theme that names none, so the other themes cost nothing. */
+const facesAsked = new Set();
+function loadFaces(faces) {
+  if (!faces || facesAsked.has(faces)) return;
+  facesAsked.add(faces);
+  const l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = `https://fonts.googleapis.com/css2?family=${faces}&display=swap`;
+  document.head?.appendChild?.(l);   // `?.`, as in loadFonts: the DOM stub in test/app.ts has no <head>
+}
 function applyLook() {
   root.dataset.uiTheme = look.theme; root.dataset.uiFont = look.font; root.dataset.uiSize = look.size;
   if (WEBFONTS[look.font]) loadFonts();
+  loadFaces(THEMES[look.theme]?.faces);
   root.dataset.uiScale = look.scale ?? '100';
   // Every colour, derived from the theme's one row and written as custom properties. It replaced
   // three hand-written CSS blocks — which is why there were three themes and not nine, and why
@@ -9355,7 +9368,7 @@ function storyCard(s, i, hero) {
   // Archived is dimmed rather than hidden: it is still your book and still one tap away.
   return `<button class="storycard${hero ? ' hero' : ''}" data-open="${s.id}"
     style="${s.status === 'archived' ? 'opacity:.42; filter:saturate(.5)' : ''}">
-    <span class="art" style="display:block; background:${
+    <span class="art${s.cover ? '' : ' bare'}" style="display:block; background:${
       // Single quotes: this whole thing goes inside style="…", and a double quote in the URL ends
       // the attribute at `background:url(` — which is exactly what it did, and the card lost both
       // its cover and its gradient.

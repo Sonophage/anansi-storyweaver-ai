@@ -2358,7 +2358,29 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 // the light one that forgot rendered dark text on cream.
 {
   const { THEMES, themeVars, themeNow } = await import('../web/model.js');
-  assert.deepStrictEqual(Object.keys(THEMES), ['ink', 'grimdark', 'scifi', 'romance']);
+  assert.deepStrictEqual(Object.keys(THEMES), ['ink', 'grimdark', 'scifi', 'romance', 'arcana']);
+
+  // ARCANA DRAWS WITH FILES (2026-11-03): its wash and every texture and ornament in its block of
+  // app.html is a /web/arcana-*.svg. A name with no file paints nothing and says nothing, so each
+  // one named is checked on disk, flat in web/ (the static path serves no sub-folder), and as XML
+  // a browser will draw: `--` inside a comment makes an SVG invalid, and one did on the first try,
+  // a brush that rendered as a broken image.
+  {
+    const { readFileSync, existsSync } = await import('node:fs');
+    const named = [...new Set((readFileSync(new URL('../app.html', import.meta.url), 'utf8')
+      + THEMES.arcana.wash).match(/\/web\/arcana-[\w.-]+\.svg/g) ?? [])];
+    assert.ok(named.length >= 12, `ARCANA-FILES: expected the theme to name its textures and ornaments (${named.length})`);
+    for (const p of named) {
+      const at = new URL('..' + p, import.meta.url);
+      assert.ok(existsSync(at), `ARCANA-FILES: ${p} is named and is not on disk`);
+      const svg = readFileSync(at, 'utf8');
+      assert.match(svg, /^<svg [^>]*xmlns="http:\/\/www\.w3\.org\/2000\/svg"/, `ARCANA-FILES: ${p} is an SVG`);
+      for (const c of svg.match(/<!--([\s\S]*?)-->/g) ?? [])
+        assert.ok(!c.slice(4, -3).includes('--'), `ARCANA-FILES: ${p} has a comment with -- in it, which is invalid XML`);
+    }
+    assert.ok(THEMES.arcana.faces && !Object.entries(THEMES).some(([k, t]: any) => k !== 'arcana' && t.faces),
+      'ARCANA-FACES: Arcana names its display faces, and no other theme fetches any');
+  }
   // THE FIVE THAT LEFT (2026-11-02). A look saved with one of them still paints a theme that exists.
   for (const gone of ['obsidian', 'parchment', 'fantasy', 'novelist', 'no-such-theme'])
     assert.strictEqual(themeNow(gone), 'ink', `THEME-WAS: a look saved as ${gone} reads as Ink`);

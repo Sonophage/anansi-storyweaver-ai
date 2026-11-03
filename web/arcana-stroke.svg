@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="12" viewBox="0 0 300 12" preserveAspectRatio="none">
+  <!-- The rule under the page you are on: a dry stroke in bright ink, full at the start and
+       breaking up as the brush runs dry. Ink, not gold: gold means press here (ADR 0004). -->
+  <defs>
+    <linearGradient id="dry" x1="0" x2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="0.04" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="0.6" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="bristle" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.9" numOctaves="2" seed="6"/>
+      <feColorMatrix values="0 0 0 0 0.92  0 0 0 0 0.9  0 0 0 0 0.87  3 0 0 0 -0.9"/>
+    </filter>
+    <mask id="m"><path d="M2 6 C30 0.5 140 1 298 4.5 C210 11 90 11.5 2 8 Z" fill="url(#dry)"/></mask>
+  </defs>
+  <rect width="300" height="12" filter="url(#bristle)" mask="url(#m)"/>
+</svg>

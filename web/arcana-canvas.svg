@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="1688" viewBox="0 0 780 1688" preserveAspectRatio="xMidYMid slice">
+  <!-- The Arcana theme's ground: charcoal watercolour paper. A soft cloud of dried wash, the faint
+       tide-lines a wash leaves where it dried, the tooth of cold-pressed paper, and the edges sunk.
+       No direction to any of it and no light from anywhere: it is a surface, not a scene.
+       Procedural, so it is a few hundred bytes and never a picture to decode. -->
+  <defs>
+    <filter id="cloud" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.0022" numOctaves="4" seed="17"/>
+      <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1.02  2.2 0 0 0 -0.95"/>
+    </filter>
+    <filter id="tide" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.0045" numOctaves="3" seed="29"/>
+      <feComponentTransfer>
+        <feFuncA type="table" tableValues="0 0 0 0 0 0 0 0 0 0"/>
+        <feFuncR type="table" tableValues="0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0"/>
+      </feComponentTransfer>
+      <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  1 0 0 0 0"/>
+      <feGaussianBlur stdDeviation="0.8"/>
+    </filter>
+    <filter id="tooth" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="2"/>
+      <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 -0.36"/>
+    </filter>
+    <radialGradient id="sink" cx="0.5" cy="0.5" r="0.75">
+      <stop offset="0.6" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.55"/>
+    </radialGradient>
+  </defs>
+  <rect width="780" height="1688" fill="#0B0B0C"/>
+  <rect width="780" height="1688" filter="url(#cloud)" opacity="0.05"/>
+  <rect width="780" height="1688" filter="url(#tide)" opacity="0.07"/>
+  <rect width="780" height="1688" filter="url(#tooth)" opacity="0.045"/>
+  <rect width="780" height="1688" fill="url(#sink)"/>
+</svg>

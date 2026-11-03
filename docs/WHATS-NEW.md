@@ -17,6 +17,30 @@ Everything below this line was written by that model call, before it was removed
 
 
 ## 2026-11-03 · A thread is edited where you read it
+## 2026-11-03 · Arcana, a painted theme
+
+### A new theme: Arcana
+Look has a fifth theme, Arcana: black, graphite and gold, painted. The page, the menu and the side
+panel sit on dark watercolour paper, and gold is line-work: a chevron rule under each scene's title,
+stepped corners on cards, a double gilt frame on the tale you left off in, arched like a tarot card,
+with a sunburst behind its name. The first letter of a scene is set in a gilt box over a wash of
+gold. Titles are thin deco capitals and labels a clean geometric face; your story keeps whatever
+font you chose. The one gold button on a screen has a dry brush through it.
+### A tale or a shelf card with no cover
+Under Arcana, a tale without a picture shows a card back instead of a plain wash: a gold
+watercolour bloom, a sunburst and a crescent moon on the painted canvas.
+### Banners and threads, framed in gilt
+A tale's banner over its threads, and the picture at the head of a scene, are framed in gilt with
+stepped corners; a banner with no cover gets the card back. On the Threads page a card with no
+picture has a painted band where the picture would be, so every card stands the same height.
+### A tale's threads are its Major Arcana
+In a tale's Threads list each card is numbered in Roman numerals, and a thread with no picture
+shows its number in a gilt diamond over a bloom of gold. One with a picture keeps it.
+### No glow along the top
+Under Arcana the glow across the top of the screen is gone. What is waiting is still counted on
+the Workbench in the tale's menu.
+
+## 2026-11-03 · Threads and pockets save as you type
 
 ### A thread is edited where you read it
 There is no separate screen for altering a thread any more. Tap its name, its kind, Always true,

@@ -2689,6 +2689,206 @@ body[data-dev] #devbar {
 .base-10.base-10 { display:flex; align-items:baseline; gap:10px; }
 .bare-btn.bare-btn { display:block; text-align:left; padding:0; max-width:100%; }
 .gilt.gilt { color:var(--gold); }
+
+/* ===== ARCANA ===================================================================================
+   Seth, 2026-11-03: "black grey and gold ... the gold and filigree is what i do want to keep as well
+   as the texture of things ... claire obscure with that watercolor paint brush feeling ... tarot,
+   arcane", and then "a bit more into the arcane and a bit more into the art deco".
+
+   Its colours are its row in THEMES (web/model.js), like every theme's. Everything here is what a
+   row cannot say: the painted grounds, the gilt rules and corners, the tarot arch, the type. All of
+   it keys on data-ui-theme="arcana", so no other theme draws a pixel of it.
+
+   GOLD STAYS WHAT ADR 0004 SAYS IT IS. The one filled press on a screen is gold, now with a dry
+   brush in it. The ornament — rules, corners, the arch, the sunburst — is gilt line-work, which is
+   neither a label nor a state nor a press. Labels, tags, the page you are on and every count stay
+   in ink; the rule under the page you are on is an INK brush stroke, not a gold one.
+
+   THE TEXTURES ARE SVG, web/arcana-*.svg: turbulence filters, not pictures, so each is a few
+   hundred bytes, scales to any screen and is served by the same static path as icon.svg.
+   ================================================================================================ */
+html[data-ui-theme="arcana"] {
+  --r:3px;
+  --arc-deco:'Poiret One','IBM Plex Sans',system-ui,sans-serif;     /* titles: thin geometric capitals */
+  --arc-small:'Josefin Sans','IBM Plex Sans',system-ui,sans-serif;  /* labels and the menu's words */
+}
+
+/* THE GROUNDS. The page's is the row's wash; the menu, the side panel and the sheets get the same
+   painted canvas over their own colour, so nothing in the theme is flat. The side panel's is on
+   #sideInner, NOT #side: on a phone #side is the dimmed veil over the whole page, laid out even
+   while closed, and a ground on it covered the page (it did, on the first try). */
+html[data-ui-theme="arcana"] :is(#rail, #sideInner, #appearance, #pocketPanel, #mergePanel) {
+  background-image:url('/web/arcana-canvas.svg'); background-size:cover; background-position:center; }
+
+/* THE RULES AND CORNERS, one gilt vocabulary everywhere: a chevron rule where a hairline was, and
+   four stepped corners on a card. Background layers, not pseudo-elements, so a card that already
+   uses ::before or ::after keeps them. */
+html[data-ui-theme="arcana"] :is(#sideBody .card, .resumeband > .glass, #appearance .card) {
+  background-image:url('/web/arcana-corner-tl.svg'), url('/web/arcana-corner-tr.svg'),
+    url('/web/arcana-corner-bl.svg'), url('/web/arcana-corner-br.svg');
+  background-position:top left, top right, bottom left, bottom right;
+  background-size:20px 20px; background-repeat:no-repeat; }
+html[data-ui-theme="arcana"] .band-rule { height:18px; background:url('/web/arcana-divider.svg') center / min(320px, 100%) 18px no-repeat; }
+html[data-ui-theme="arcana"] #sideHead { border-bottom-color:transparent;
+  background:url('/web/arcana-divider.svg') center bottom / min(320px, 80%) 14px no-repeat; }
+html[data-ui-theme="arcana"] #bar { border-bottom-color:transparent;
+  background-image:url('/web/arcana-divider.svg'); background-repeat:no-repeat;
+  background-position:center bottom 2px; background-size:min(420px, 82%) 14px; }
+
+/* THE TYPE. Titles in thin deco capitals, labels in a geometric sans; the prose is untouched and
+   keeps whatever font the writer picked in Look. */
+html[data-ui-theme="arcana"] #bar .bare-btn .serif,
+html[data-ui-theme="arcana"] .resumeband .bandtitle,
+html[data-ui-theme="arcana"] .storycard .art .serif {
+  font-family:var(--arc-deco); font-weight:400; text-transform:uppercase; letter-spacing:.16em; }
+html[data-ui-theme="arcana"] :is(#bar .up, .resumeband .herokind, .resumeband .herocount, .band > div:first-child,
+  #col .block .from, .railhead, .tag, .kicker) { font-family:var(--arc-small); letter-spacing:.3em; }
+html[data-ui-theme="arcana"] .tag { border-radius:2px; }
+/* Tighter where the line is short: a book's name in the bar, and the hero's "where you left off". */
+html[data-ui-theme="arcana"] #bar .bare-btn .serif { letter-spacing:.08em; }
+html[data-ui-theme="arcana"] .resumeband .herokind { letter-spacing:.1em; }
+@media (max-width:719px) { html[data-ui-theme="arcana"] #sideInner { border-top-color:var(--gold-dim); } }
+
+/* THE LIBRARY'S HERO IS A TAROT CARD: an arched top, a double gilt frame inside it, a sunburst
+   rising behind the title where the breathing rings were, and a chevron rule under the title. */
+html[data-ui-theme="arcana"] .resumeband {
+  border-radius:min(46vw, 300px) min(46vw, 300px) var(--r) var(--r) / 210px 210px var(--r) var(--r);
+  border-color:var(--gold-dim); }
+html[data-ui-theme="arcana"] .resumeband::before,
+html[data-ui-theme="arcana"] .resumeband::after { content:''; position:absolute; pointer-events:none; z-index:2;
+  border-radius:inherit; }
+html[data-ui-theme="arcana"] .resumeband::before { inset:6px; border:1px solid var(--gold); }
+html[data-ui-theme="arcana"] .resumeband::after { inset:11px; border:1px solid var(--gold-dim); opacity:.55; }
+html[data-ui-theme="arcana"] .resumeband > .rings > i { display:none; }
+html[data-ui-theme="arcana"] .resumeband > .rings::before { content:''; position:absolute; width:460px; height:230px;
+  left:-230px; top:-200px; background:url('/web/arcana-sunburst.svg') center / contain no-repeat; opacity:.8; }
+html[data-ui-theme="arcana"] .resumeband .bandtitle { font-size:clamp(30px, 10vw, 56px); }
+html[data-ui-theme="arcana"] .resumeband .herorule { width:220px; height:17px;
+  background:url('/web/arcana-divider.svg') center / contain no-repeat; }
+html[data-ui-theme="arcana"] .resumeband > .glass { border-radius:var(--r); }
+/* No cover: the card's back. A gold watercolour bloom under a constellation, on the painted
+   canvas, in place of the gold gradient every other theme paints. */
+html[data-ui-theme="arcana"] .resumeband:not(.haspic) {
+  background:url('/web/arcana-stars.svg') 50% 16% / 88% auto no-repeat,
+    url('/web/arcana-wash.svg') 50% 30% / 125% auto no-repeat,
+    url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
+
+/* A SHELF CARD WITH NO COVER gets the same back. `.bare` is written by the card's renderer when
+   there is no cover: the art carries its cover or its gradient inline, so only a class can tell
+   the two apart, and only the bare one is overridden. */
+html[data-ui-theme="arcana"] .storycard { border-color:var(--edge-lit); }
+html[data-ui-theme="arcana"] .storycard .art.bare {
+  background:url('/web/arcana-moon.svg') 50% 34% / 54px 54px no-repeat,
+    url('/web/arcana-sunburst.svg') 50% 26% / 120% auto no-repeat,
+    url('/web/arcana-wash.svg') 50% 34% / 120% auto no-repeat,
+    url('/web/arcana-canvas.svg') center / cover, var(--sheet) !important; }
+
+/* THE SCENE'S FIRST LETTER, illuminated: deco capital in a gilt box over a wash of gold. Still
+   ::first-letter, for the reason above the rule it extends: the passage is contenteditable. */
+html[data-ui-theme="arcana"] #col .block.opening .narr::first-letter {
+  font-family:var(--arc-deco); color:var(--ink-bright); font-size:52px; line-height:1;
+  padding:6px 10px 4px; margin:4px 12px 0 0; border:1px solid var(--gold);
+  background:url('/web/arcana-wash.svg') center / 170% 170% no-repeat; }
+@media (max-width:719px) { html[data-ui-theme="arcana"] #col .block.opening .narr::first-letter { font-size:40px; padding:5px 8px 3px; } }
+
+/* THE PRESSES. The one gold button keeps its gold and gains a dry brush across it; the wide ones
+   are cut to a deco point at each end. */
+html[data-ui-theme="arcana"] :is(.btn:not(.ghost), #nextrow .quillcell > button:not([aria-expanded="true"]), #send.stopping, .rerollbox .rwgo) {
+  background-image:url('/web/arcana-brush.svg'); background-size:100% 100%; background-repeat:no-repeat; }
+html[data-ui-theme="arcana"] .btn:not(.ghost) { border-radius:0;
+  clip-path:polygon(12px 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 12px 100%, 0 50%); }
+
+/* THE MENUS. A gilt rule under the model, the tiles as small square cards, the page you are on in
+   ink with an ink brush under it, every row's picture with a painted edge, and the rune wheel faint
+   at the foot of the rail where the list runs out. */
+html[data-ui-theme="arcana"] .talemodel > button[data-modelmenu] { border-bottom-color:transparent; }
+html[data-ui-theme="arcana"] .talemodel::after { content:''; display:block; height:20px; margin:0 16px 4px;
+  background:url('/web/arcana-divider.svg') center / min(320px, 100%) 20px no-repeat; }
+html[data-ui-theme="arcana"] .talemodel > button[data-modelmenu] .txt > span:first-child {
+  font-family:var(--arc-deco); font-size:17px !important; letter-spacing:.1em; }
+html[data-ui-theme="arcana"] #rail .taletiles > .railtile:not([aria-pressed="true"]) {
+  border:1px solid var(--edge) !important; background-color:rgba(11,11,12,.4) !important; }
+html[data-ui-theme="arcana"] #rail .taletiles > .railtile[aria-current] {
+  border-color:var(--edge-lit) !important;
+  background:url('/web/arcana-stroke.svg') center bottom 6px / 58% 6px no-repeat, var(--chip) !important; }
+html[data-ui-theme="arcana"] .railtile > .txt { font-family:var(--arc-small); letter-spacing:.04em; }
+html[data-ui-theme="arcana"] .arted > .rowart {
+  -webkit-mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat;
+  mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; }
+html[data-ui-theme="arcana"] #rail::after { content:''; position:absolute; left:50%; bottom:24px; z-index:-1;
+  width:240px; height:240px; margin-left:-120px; pointer-events:none; opacity:.14;
+  background:url('/web/arcana-runes.svg') center / contain no-repeat; }
+html[data-ui-theme="arcana"][data-ui-rail="closed"] #rail::after,
+html[data-ui-theme="arcana"][data-ui-rail="closed"] .talemodel::after { display:none; }
+
+/* NO GLOW ALONG THE TOP (Seth, 2026-11-03: "that top glow can go away"). It is the waiting notice
+   (#owed, above); under Arcana what is waiting is said by the Workbench count in the tale's menu,
+   which is already there in every theme. */
+html[data-ui-theme="arcana"] #owed { display:none; }
+
+/* A TALE'S BANNER over its threads: a gilt frame inside its edge and stepped corners, the tale's
+   name in the deco capitals. With no cover it is a card back like the shelf's: a bloom of gold
+   under a constellation and a sunburst. `:has(.art)` is the cover; the banner has no class for it. */
+html[data-ui-theme="arcana"] .lbanner { border-color:var(--gold-dim); min-height:120px; }
+html[data-ui-theme="arcana"] .lbanner::before { content:''; position:absolute; inset:5px; z-index:1;
+  border:1px solid var(--gold); opacity:.6; pointer-events:none; border-radius:var(--r); }
+html[data-ui-theme="arcana"] .lbanner::after { content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
+  background:url('/web/arcana-corner-tl.svg') top left / 22px no-repeat, url('/web/arcana-corner-tr.svg') top right / 22px no-repeat,
+    url('/web/arcana-corner-bl.svg') bottom left / 22px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 22px no-repeat; }
+html[data-ui-theme="arcana"] .lbanner > .txt { z-index:2; }
+html[data-ui-theme="arcana"] .lbanner .serif { font-family:var(--arc-deco); text-transform:uppercase; letter-spacing:.16em; }
+html[data-ui-theme="arcana"] .lbanner:not(:has(.art)) {
+  background:url('/web/arcana-sunburst.svg') 82% 120% / 300px auto no-repeat,
+    url('/web/arcana-stars.svg') 86% 30% / 260px auto no-repeat,
+    url('/web/arcana-wash.svg') 88% 50% / 340px auto no-repeat,
+    url('/web/arcana-canvas.svg') center / cover, var(--sheet) !important; }
+
+/* THE PICTURE AT THE HEAD OF A SCENE, framed the same way. */
+html[data-ui-theme="arcana"] #col .plate { border:1px solid var(--gold-dim); }
+html[data-ui-theme="arcana"] #col .plate::before { content:''; position:absolute; inset:5px; z-index:1;
+  border:1px solid var(--gold); opacity:.6; pointer-events:none; border-radius:var(--r); }
+html[data-ui-theme="arcana"] #col .plate-title { font-family:var(--arc-deco); text-transform:uppercase; letter-spacing:.12em; }
+
+/* THREAD CARDS. The gold bar down the left is a state colour in every other theme; here the card
+   is framed in gilt corners instead, and its name is in the deco capitals. */
+html[data-ui-theme="arcana"] .card.plate { border-left:1px solid var(--edge); }
+html[data-ui-theme="arcana"] .card.plate .platename { font-family:var(--arc-deco); text-transform:uppercase;
+  letter-spacing:.12em; font-size:20px; }
+html[data-ui-theme="arcana"] #page .card.plate {
+  background-image:url('/web/arcana-corner-tl.svg'), url('/web/arcana-corner-tr.svg'),
+    url('/web/arcana-corner-bl.svg'), url('/web/arcana-corner-br.svg');
+  background-position:top left, top right, bottom left, bottom right; background-size:18px 18px; background-repeat:no-repeat; }
+/* Its picture, the band across the top of a card on the cross-tale Threads page, with a painted
+   edge; and the same band painted as a card back when there is no picture, so a card with a face
+   and a card without one stand the same height in the grid. */
+html[data-ui-theme="arcana"] #page .card.plate > img {
+  -webkit-mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; }
+html[data-ui-theme="arcana"] #page .card.plate:not(:has(> img))::before { content:''; display:block; height:104px;
+  margin:0 0 8px; border:1px solid var(--edge); border-radius:var(--r);
+  background:url('/web/arcana-moon.svg') 50% 46% / 34px no-repeat, url('/web/arcana-sunburst.svg') 50% 70% / 92% auto no-repeat,
+    url('/web/arcana-wash.svg') 50% 50% / 110% auto no-repeat, url('/web/arcana-canvas.svg') center / cover, var(--rail); }
+/* THE TALE'S THREADS ARE THE MAJOR ARCANA. Each tall card is counted in Roman numerals, in the
+   order the list draws them, so a card with no picture still has a face: its number in a gilt
+   diamond over a bloom and a sunburst, where the picture would be. A card WITH a picture
+   (`.thart`) keeps it, framed. Counted in CSS, so nothing in the list's markup changes. */
+html[data-ui-theme="arcana"] #thlist { counter-reset:arcana; }
+html[data-ui-theme="arcana"] #thlist .thplate.thtall { counter-increment:arcana; }
+html[data-ui-theme="arcana"] #thlist .thplate.thtall:not(.thart) {
+  background:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat,
+    url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat,
+    linear-gradient(to top, var(--sheet) 0%, var(--sheet) 34%, transparent 60%),
+    url('/web/arcana-stars.svg') 50% 6% / 80% auto no-repeat,
+    url('/web/arcana-sunburst.svg') 50% 22% / 92% auto no-repeat,
+    url('/web/arcana-wash.svg') 50% 4% / 74% auto no-repeat,
+    url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
+html[data-ui-theme="arcana"] #thlist .thplate.thtall:not(.thart)::before { content:counter(arcana, upper-roman);
+  position:absolute; left:50%; top:58px; width:84px; height:84px; margin-left:-42px;
+  display:flex; align-items:center; justify-content:center; pointer-events:none;
+  font-family:var(--arc-deco); font-size:26px; letter-spacing:.04em; color:var(--ink-bright);
+  background:url('/web/arcana-diamond.svg') center / contain no-repeat; }
+html[data-ui-theme="arcana"] #thlist .thplate.thart { border-color:var(--gold-dim); }
+html[data-ui-theme="arcana"] #thlist .thplate.thart > .thpic {
+  -webkit-mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; }
 </style>
 </head>
 <body>
