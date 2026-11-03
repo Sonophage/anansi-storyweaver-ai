@@ -51,6 +51,10 @@ time, and a new pocket while you set up a tale. It does the same as before.
 A thread your tale follows from a world has Send to and the world's name, which was Save to: it
 sends your words to the world, so every tale that follows the thread sees them. It does the same as
 before.
+### Two scenes can change the same pocket
+When two hemmed scenes both change one thread's pocket, or what the thread says, each change is now
+on its own scene's card. Before, the later scene's change was lost while the earlier one waited for
+you to sew it in or reject it.
 
 ## 2026-11-02 · The library shows who is in your scene
 

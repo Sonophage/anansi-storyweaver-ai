@@ -2195,6 +2195,10 @@ const NEEDS_CAP = 4, NEEDS_POCKET_CAP = 6;
 const NEEDS_POCKETS = ['outfit', 'interiority', 'appearance', 'relationships', 'atmosphere', 'who_is_here'];
 async function needsFor(c: Ctx, storyId: string, closing: string, opened: string,
     s: { title: string; note: string; opens: string; brief?: string }) {
+  // #93 · THE SCENE CAN BE DELETED WHILE THE HEM RUNS: the hem named it when it started. Gone before
+  // the ask, the model is not asked; gone while it answers, nothing is chalked against it.
+  const here = () => (db.chapters(storyId) as any[]).some((x) => x.id === opened);
+  if (!here()) return { added: 0, pockets: 0 };
   const v = bookOf(storyId);
   const ch = v.chapters.find((x: any) => x.id === closing);
   const sum = ch && summaryReaches(ch) ? String(ch.summary ?? '').trim() : '';
@@ -2223,6 +2227,7 @@ async function needsFor(c: Ctx, storyId: string, closing: string, opened: string
   // chalked nothing, and nothing could say what the model had answered.
   db.logGeneration({ storyId, chapterId: opened, model: using, role: 'hem-new', params: { max_tokens: EXTRACT_TOKENS },
     manifest: { raw: String((r as any).raw ?? '').slice(0, 12000) }, latencyMs: Date.now() - t0, error: r.error ?? null });
+  if (!here()) return { added: 0, pockets: 0 };
   let added = 0, pockets = 0;
   const inIt = new Set(atStart.map((e) => e.id));
   for (const e of (r.data?.entries ?? []) as any[]) {
