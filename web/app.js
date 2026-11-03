@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -175,7 +175,7 @@ applyHwkb();
 
 const LOOK = 'anansi.look';
 const LOOK_KEYS = ['theme', 'font', 'size', 'scale'];
-const SHIPPED = { theme: 'obsidian', font: 'serif', size: 'm', scale: '100' };
+const SHIPPED = { theme: 'ink', font: 'serif', size: 'm', scale: '100' };
 const MYLOOK = { ...SHIPPED };
 // Wrapped because a private window throws on access rather than returning null.
 try { Object.assign(MYLOOK, JSON.parse(localStorage.getItem(LOOK) || '{}')); } catch { /* no storage */ }
@@ -183,7 +183,8 @@ try { Object.assign(MYLOOK, JSON.parse(localStorage.getItem(LOOK) || '{}')); } c
  *  five easy to read). A look saved on this device or on a tale still names the old key. */
 const FONT_WAS = { book: 'literata', garamond: 'ebgaramond', cormorant: 'ebgaramond', crimson: 'spectral',
   mono: 'sans' };
-const fontNow = (l) => (FONT_WAS[l.font] ? { ...l, font: FONT_WAS[l.font] } : l);
+// And the theme the same way: one that left the list reads as the one `themeNow` names for it.
+const fontNow = (l) => ({ ...l, font: FONT_WAS[l.font] ?? l.font, theme: themeNow(l.theme) });
 Object.assign(MYLOOK, fontNow(MYLOOK));
 let look = { ...MYLOOK };
 /** The cache, and only ever of the default. */
@@ -222,7 +223,7 @@ function applyLook() {
   const vars = themeVars(look.theme);
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', THEMES[look.theme]?.paper ?? '#0A0A0C');
+  if (meta) meta.setAttribute('content', THEMES[look.theme].paper);
 }
 
 // ---------- state ----------
@@ -1493,8 +1494,8 @@ function drawAppearance() {
   const tab = S.lookTab ?? 'theme';
   if (tab === 'font') loadFonts();
 
-  // THE SWATCH IS A DISC, HALF PAPER AND HALF ACCENT. Six of the nine themes are near-black —
-  // #0A0A0C, #0B0B0C, #07090E, #0A0D0B, #0C0C0C, #08090C — so a circle of the paper alone gave six
+  // THE SWATCH IS A DISC, HALF PAPER AND HALF ACCENT. Nearly every theme is near-black —
+  // six of the nine were, when this was written (2026-11-02: four themes, three near-black) — so a circle of the paper alone gave six
   // circles nobody could tell apart.
   //
   // Split down the VERTICAL, not on a diagonal. A 135° cut at 52% put a corner-shaped wedge in the
@@ -6155,7 +6156,7 @@ const BANNER_TOKENS = ['--doc-wash', '--ink-bright', '--mute', '--label', '--gol
 const bannerLook = (b) => {
   let theme = null;
   try { theme = b?.look ? JSON.parse(b.look)?.theme : null; } catch { /* a column we did not write */ }
-  if (!theme || !THEMES[theme]) return '';
+  if (!theme) return '';
   const v = themeVars(theme);
   return BANNER_TOKENS.map((k) => `${k}:${v[k]}`).join('; ');
 };
@@ -8094,8 +8095,7 @@ function cardFace(e, slots) {
     ${S.readMenu ? readMenu(e) : ''}
     <!-- ABOVE THE NAME, at Seth's direction: "if a card has an image move it to the top". A picture
          is the fastest way to recognise a card and it was two screens down, under the rooms. -->
-    ${threadPic(e) ? `<img src="${threadPic(e)}" alt="" style="width:100%; max-height:280px;
-      object-fit:cover; border-radius:var(--r); border:1px solid var(--edge); margin:0 0 11px">` : ''}
+    ${threadPic(e) ? `<img class="readpic" src="${threadPic(e)}" alt="">` : ''}
     <h2 class="readname">${esc(e.title || 'Untitled')}</h2>
     <!-- THE JUMP CHIPS ARE ONE TAG NOW. The head carried one chip per filled slot, the same size and
          weight as the kind, which is the row of look-alike chips the redesign is taking away. The
@@ -8962,9 +8962,10 @@ function threadPlate(e, lit) {
   const { look, label, state } = reachMark(e, lit);
   return `<div class="throw">
     <div style="position:relative">
-      <button class="card plate thplate" data-entry="${e.id}">
-        ${pic ? `<img src="${pic}" alt="" loading="lazy" style="width:100%; height:104px;
-          object-fit:cover; border-radius:var(--r); border:1px solid var(--edge); margin:0 0 4px">` : ''}
+      <button class="card plate thplate thtall${pic ? ' thart' : ''}" data-entry="${e.id}">
+        ${/* THE PICTURE IS THE CARD'S GROUND (Seth, 2026-11-02): the whole card, dark at the foot
+              where the words are and the picture at the top. It was a 104px strip above the name. */
+          pic ? `<img class="thpic" src="${pic}" alt="" loading="lazy">` : ''}
         <span class="platename">${esc(e.title)}</span>
         ${text ? `<span class="clamp2 thtext">${esc(text)}</span>` : ''}
         ${tags ? `<span class="thtags">${tags}</span>` : ''}</button>
@@ -10440,7 +10441,7 @@ async function loadLibrary() {
     demo: !!r.demo, me: r.me ?? null, mates: r.mates ?? [] };
   // The server is the authority on your default; the cache was only there to paint before this
   // answered. A writer on a second device gets their own settings rather than the shipped ones.
-  if (r.look && Object.keys(r.look).length) { Object.assign(MYLOOK, r.look); cacheMine(); }
+  if (r.look && Object.keys(r.look).length) { Object.assign(MYLOOK, fontNow({ ...MYLOOK, ...r.look })); cacheMine(); }
   // Resolve unconditionally, and NOT only when the server sent a default. This is also the line
   // that takes a book's look back off when you leave it — `leaveTo` sets place to workspace and
   // calls this, so a writer with no default of their own still gets the shelf back to shipped

@@ -18,6 +18,16 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-02 · The library shows who is in your scene
 
+### Bigger thread cards, with the picture behind them
+In a tale's Threads, every card is twice as tall. A thread with a picture wears it across the whole
+card: dark at the foot, where the name and its lines are, and the picture above. Open a thread and
+its picture is up to twice as large as before, fading away toward the name.
+
+### Four themes
+Obsidian, Parchment, Cyberpunk, Fantasy and Novelist are gone. Ink, Grimdark, Sci-fi and Romance
+stay. A tale or a default set to Cyberpunk now reads as Sci-fi; one set to any of the others reads
+as Ink. Ink is the theme a new writer starts on.
+
 ### A thread's eye: off, on a word, on
 In a tale's Threads, the whole right side of a thread's card switches it. Each tap goes from Off
 to On a word to On, and back to Off, and a small label names the state as you tap. Off now means

@@ -72,7 +72,7 @@ const checkRows = async (theme) => {
     && r?.words === "remote, on Featherless");
   return a?.edge;
 };
-const darkLocal = await checkRows("obsidian");
+const darkLocal = await checkRows("ink");
 
 // ---- 2. the strip, before and after making the remote model this writer's default
 const strip = () => read(`document.querySelector('[data-modelmenu="1"]')`);
@@ -112,15 +112,16 @@ ok("pinning it to the remote model shows the feather",
 b = await beside();
 ok(`filled, in the remote colour (${JSON.stringify(b)})`, b?.filled && b.glyph === "feather" && b.contrast >= 3);
 
-// ---- 4. a light theme, chosen the way a writer chooses it, inside the book
+// ---- 4. another theme, chosen the way a writer chooses it, inside the book. It was Parchment, the
+// light one, until the light themes left the list on 2026-11-02.
 await page.goto(B + "/#" + sid);
 await until("!!document.querySelector('[data-appearance=\"1\"]')");
 await page.click('[data-appearance="1"]');
-await page.click('[data-theme="parchment"]');
-ok("the theme is Parchment", await until("document.documentElement.dataset.uiTheme === 'parchment'"));
+await page.click('[data-theme="romance"]');
+ok("the theme is Romance", await until("document.documentElement.dataset.uiTheme === 'romance'"));
 await menu("/#" + sid);
-ok("and it is still Parchment after a reload", await page.eval("document.documentElement.dataset.uiTheme === 'parchment'"));
-const lightLocal = await checkRows("parchment");
-ok("and the circles took the light theme's colours", lightLocal && lightLocal !== darkLocal);
+ok("and it is still Romance after a reload", await page.eval("document.documentElement.dataset.uiTheme === 'romance'"));
+const otherLocal = await checkRows("romance");
+ok("and the circles took that theme's colours", otherLocal && otherLocal !== darkLocal);
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

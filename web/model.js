@@ -818,27 +818,12 @@ export const still = () => matchMedia('(prefers-reduced-motion: reduce)').matche
 // restate the greys and the gold by hand or render dark text on light ground.
 // ---------------------------------------------------------------------------
 export const THEMES = {
-  obsidian:  { label: 'Obsidian',  dark: 1, swatch: '#0A0A0C', ink: '#EAE3D6', paper: '#0A0A0C', rail: '#0C0C0E', sheet: '#100F12',
-               accent: '#D9B26A', warn: '#C8705A', good: '#7FB083', speak: 'rgba(180,150,220,.5)',
-               wash: 'radial-gradient(50% 40% at 25% 0%, rgba(150,105,195,.22), transparent 70%), linear-gradient(180deg,#131019,#09090B 45%)' },
   ink:       { label: 'Ink',       dark: 1, swatch: '#0B0B0C', ink: '#E4E0D8', paper: '#0B0B0C', rail: '#0C0C0D', sheet: '#101012',
                accent: '#D9B26A', warn: '#C8705A', good: '#7FB083', speak: 'rgba(190,185,175,.34)',
                wash: 'linear-gradient(180deg,#0E0E10,#08080A 60%)' },
-  parchment: { label: 'Parchment', dark: 0, swatch: '#EFE7D8', ink: '#2E2A24', paper: '#EFE7D8', rail: '#E6DCC8', sheet: '#F3EDE1',
-               accent: '#6B5220', warn: '#8C3F28', good: '#3F6B47', speak: 'rgba(110,80,140,.5)',
-               wash: 'radial-gradient(60% 40% at 25% 0%, rgba(150,105,195,.07), transparent 70%), linear-gradient(180deg,#F3EDE1,#EAE1D0 60%)' },
-  cyberpunk: { label: 'Cyberpunk', dark: 1, swatch: '#07090E', ink: '#DFEBF2', paper: '#07090E', rail: '#080B11', sheet: '#0B1018',
-               accent: '#54D8CF', warn: '#E0568C', good: '#54D8CF', speak: 'rgba(224,86,140,.42)',
-               wash: 'radial-gradient(60% 45% at 80% 0%, rgba(224,86,140,.18), transparent 68%), radial-gradient(50% 40% at 10% 10%, rgba(84,216,207,.14), transparent 70%), linear-gradient(180deg,#0A1018,#06080C 55%)' },
-  fantasy:   { label: 'Fantasy',   dark: 1, swatch: '#0A0D0B', ink: '#E7E2D2', paper: '#0A0D0B', rail: '#0B0F0C', sheet: '#0F1411',
-               accent: '#C8A961', warn: '#B4693F', good: '#7FA86B', speak: 'rgba(140,175,130,.42)',
-               wash: 'radial-gradient(55% 42% at 22% 0%, rgba(110,150,105,.18), transparent 70%), linear-gradient(180deg,#101710,#080B09 50%)' },
   grimdark:  { label: 'Grimdark',  dark: 1, swatch: '#0C0C0C', ink: '#D2CFCA', paper: '#0C0C0C', rail: '#0B0B0B', sheet: '#111111',
                accent: '#A8674F', warn: '#9E4632', good: '#6E8069', speak: 'rgba(160,150,145,.3)',
                wash: 'linear-gradient(180deg,#121211,#090909 65%)' },
-  novelist:  { label: 'Novelist',  dark: 0, swatch: '#F6F3EC', ink: '#22201D', paper: '#F6F3EC', rail: '#EDE9DF', sheet: '#FBF9F3',
-               accent: '#8C2F22', warn: '#8C2F22', good: '#3C6B45', speak: 'rgba(60,58,54,.3)',
-               wash: 'linear-gradient(180deg,#FBF9F3,#F1EDE4 70%)' },
   scifi:     { label: 'Sci-fi',    dark: 1, swatch: '#08090C', ink: '#DCE4EC', paper: '#08090C', rail: '#090B0F', sheet: '#0D1015',
                accent: '#8FB8D9', warn: '#D98A6A', good: '#7FB8A8', speak: 'rgba(143,184,217,.36)',
                wash: 'radial-gradient(60% 40% at 50% 0%, rgba(143,184,217,.13), transparent 72%), linear-gradient(180deg,#0C1016,#07080B 55%)' },
@@ -846,6 +831,12 @@ export const THEMES = {
                accent: '#D98AA0', warn: '#C4667C', good: '#8FB89C', speak: 'rgba(217,138,160,.4)',
                wash: 'radial-gradient(60% 45% at 28% 0%, rgba(190,110,140,.22), transparent 70%), linear-gradient(180deg,#1D1420,#100B10 55%)' },
 };
+
+/** THEMES THAT LEFT THE LIST, and the one each look now reads as (2026-11-02: Obsidian, Parchment,
+ *  Cyberpunk, Fantasy and Novelist removed at Seth's word). A look saved on a device, a tale or a
+ *  writer's default still names the old key; any key not in THEMES reads as Ink. */
+const THEME_WAS = { cyberpunk: 'scifi' };
+export const themeNow = (key) => (THEMES[key] ? key : THEME_WAS[key] ?? 'ink');
 
 /** Blend two hex colours. The design's own mix(), unchanged. */
 const mix = (hex, over, a) => {
@@ -858,8 +849,8 @@ const mix = (hex, over, a) => {
 /** THE SAME COLOUR AT FULL STRENGTH — the theme's hue with its transparency dropped.
  *
  *  `mix` above reads `#rrggbb` and nothing else, which is why the four press accents are used raw:
- *  a theme is free to give one of them an `rgba()`, and obsidian's `speak` is `rgba(224,86,140,.42)`
- *  because it was chosen as a THREE-PIXEL RULE. As a rule it reads. As 11px text it measured 1.82:1
+ *  a theme is free to give one of them an `rgba()`, and every `speak` in the table is one, because
+ *  it was chosen as a THREE-PIXEL RULE. As a rule it reads. As 11px text it measured 1.82:1
  *  against the dock on 2026-09-02, where 4.5 is the floor — so the composer's mode dial, which
  *  wears the accent of the press it is showing, could not use the token as it stands.
  *
@@ -943,7 +934,7 @@ const legible = (c, ink, grounds) => {
  *  words, and the app had the bug it describes.
  */
 export function themeVars(key) {
-  const S = THEMES[key] || THEMES.obsidian;
+  const S = THEMES[themeNow(key)];
   const toward = S.dark ? '#FFFFFF' : '#000000';
   const away = S.paper;
   const woven = apart([opaque(S.speak), opaque(S.good), mix(S.accent, away, .22), opaque(S.warn),

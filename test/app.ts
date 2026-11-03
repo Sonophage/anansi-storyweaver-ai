@@ -490,9 +490,9 @@ let worldDown = 0;
       // asymmetry the banner has to cope with, and one an object here would hide completely.
       { id: 's-5', title: 'The Tessellate', status: 'in_progress', updatedAt: 5, words: 0,
         last: null, proposed: 0, unpaid: 0, is_world: 1, genre: 'fantasy',
-        look: '{"theme":"cyberpunk","font":"sans","size":"m","scale":"100"}' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
+        look: '{"theme":"scifi","font":"sans","size":"m","scale":"100"}' }], model: 'write-nt-qwen36-h', slot: SLOT, gen: STORY.gen,
       // The writer's default look rides the library call, which is the first thing asked for.
-      look: { theme: 'parchment', font: 'garamond', size: 'l', scale: '110' },
+      look: { theme: 'romance', font: 'garamond', size: 'l', scale: '110' },
       // WHO IS ASKING, AND WHO ELSE IS HERE. Shaped exactly as the server sends it: `me` is an
       // account id, and a mate carries the login to send and the name to show — ANANSI_ALLOW maps a
       // tailnet address onto an account and only one of the two belongs on screen.
@@ -975,7 +975,7 @@ ok('the menu and the story name are two doors onto one rail');
   // The cache is of YOUR default, never of what is on screen. Caching the effective look is how
   // opening one green book makes every book green the next time the app starts.
   const cached = JSON.parse(stored.get('anansi.look') ?? '{}');
-  assert.strictEqual(cached.theme, 'parchment',
+  assert.strictEqual(cached.theme, 'romance',
     `the browser cached "${cached.theme}" — that is the book's look, not the writer's default`);
 }
 ok("a book's look sits over the writer's, and never becomes it");
@@ -1138,7 +1138,7 @@ click({ leave: '1' });
 await sleep(40);
 {
   const root = (globalThis as any).document.documentElement;
-  assert.strictEqual(root.dataset.uiTheme, 'parchment', 'the shelf is back to the writer default');
+  assert.strictEqual(root.dataset.uiTheme, 'romance', 'the shelf is back to the writer default');
   assert.strictEqual(root.dataset.uiFont, 'ebgaramond', 'with the rest of it unchanged');
 }
 ok('leaving a book takes its look with it');
@@ -2202,12 +2202,18 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   ok('a thread with no Always true gets one from The thread tab');
 }
 
-// Nine themes, each one row, every token derived from it. Three hand-written CSS blocks is why
+// Every theme one row, every token derived from it. Three hand-written CSS blocks is why
 // there were three: a new theme meant restating the greys, the gold and the chrome by hand, and
 // the light one that forgot rendered dark text on cream.
 {
-  const { THEMES, themeVars } = await import('../web/model.js');
-  assert.strictEqual(Object.keys(THEMES).length, 9);
+  const { THEMES, themeVars, themeNow } = await import('../web/model.js');
+  assert.deepStrictEqual(Object.keys(THEMES), ['ink', 'grimdark', 'scifi', 'romance']);
+  // THE FIVE THAT LEFT (2026-11-02). A look saved with one of them still paints a theme that exists.
+  for (const gone of ['obsidian', 'parchment', 'fantasy', 'novelist', 'no-such-theme'])
+    assert.strictEqual(themeNow(gone), 'ink', `THEME-WAS: a look saved as ${gone} reads as Ink`);
+  assert.strictEqual(themeNow('cyberpunk'), 'scifi', 'THEME-WAS: and Cyberpunk as Sci-fi');
+  assert.strictEqual(themeNow('romance'), 'romance', 'a theme still on the list is left alone');
+  assert.deepStrictEqual(themeVars('obsidian'), themeVars('ink'), 'and its colours are the ones it reads as');
 
   // Named explicitly, not read off one theme and compared to the others: deriving the expected
   // set from obsidian meant a token deleted from ALL nine still matched, which is what happened
@@ -2286,7 +2292,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
       assert.ok(d >= 70, `WOVEN-APART: ${name}'s Woven bar is only ${Math.round(d)} from ${k}`);
     }
   }
-  ok('nine themes, every token derived from one row each, every hint above 4.5:1');
+  ok('every theme one row, every token derived from it, every hint above 4.5:1; a removed theme reads as one that is left');
 
   // #53 · THE TWO SOURCE COLOURS. Each must read on the rail and on the side panel, where the
   // circles sit, at 3:1 (the floor for a mark that is not text), and the two must be far apart in
@@ -6126,7 +6132,7 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
 // FOUR VIEWS, and the fixture gives `e-1` a picture and `e-2` none, so a view that draws one for
 // every card fails as loudly as a view that draws none.
 {
-  const src = (html, id) => new RegExp(`<img src="[^"]*entry=${id}[^"]*"`).test(html);
+  const src = (html, id) => new RegExp(`<img\\b[^>]*\\bsrc="[^"]*entry=${id}[^"]*"`).test(html);
   const before = (html, needle, other) => {
     const a = html.indexOf(needle), b = html.indexOf(other);
     return a > -1 && b > -1 && a < b;
@@ -6609,12 +6615,12 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // is not one column of identical grey.
   //
   // Read off THEMES rather than typed here: a literal would be a second copy of the palette, and
-  // this check is that the BOOK'S theme reached the banner, not what cyberpunk's accent is.
+  // this check is that the BOOK'S theme reached the banner, not what sci-fi's accent is.
   const { THEMES: TH, themeVars: tv } = await import('../web/model.js');
-  const cyber = tv('cyberpunk');
+  const cyber = tv('scifi');
   assert.ok(opened.includes(`--doc-wash:${cyber['--doc-wash']}`),
     "the banner is painted with the book's own theme, parsed out of the raw look column");
-  assert.ok(opened.includes(`--gold:${TH.cyberpunk.accent}`),
+  assert.ok(opened.includes(`--gold:${TH.scifi.accent}`),
     'and the text tokens come with it, or a light theme would be unreadable on a dark app');
 
   // THE ABSENCE, which is the half that would pass for the wrong reason. A book with no look of

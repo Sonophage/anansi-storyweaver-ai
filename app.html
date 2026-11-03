@@ -2,7 +2,7 @@
 <!-- The look lives in data-ui-* so it cannot collide with the data-* names the click
      delegation treats as actions. data-theme on <html> plus [data-theme] in the
      delegation meant every click in the app matched <html> and toggled the rail. -->
-<html lang="en" data-ui-theme="obsidian" data-ui-font="serif" data-ui-size="m">
+<html lang="en" data-ui-theme="ink" data-ui-font="serif" data-ui-size="m">
 <head>
 <meta charset="utf-8">
 <!-- interactive-widget=resizes-content: when the on-screen keyboard opens, SHORTEN the layout
@@ -64,7 +64,7 @@
 
   --prose:20px; --gap:30px; --col:720px;
 }
-/* The nine themes are NOT here. They are one row each in web/model.js and every token is derived
+/* The themes are NOT here. They are one row each in web/model.js and every token is derived
    from that row by themeVars(), which applyLook() writes onto <html> as custom properties. Three
    hand-written blocks lived here and that is exactly why there were three: each new theme meant
    restating the greys, the gold and the chrome by hand, and the light one that forgot rendered
@@ -632,7 +632,7 @@ html[data-sidefull="1"] #sideInner { width:100%; max-width:var(--col); height:10
   /* z-index 41, not 25. It was 25 while this lived inside #doc, where `right:32px` measured from
      the DOC's right edge — which on a desk with the side panel open is 400px clear of #side. Out
      here in #shell the same 32px measures from the WINDOW, so the card landed underneath #side at
-     z-index 30 and its themes could not be pressed. Caught by handlers.js, which clicks Parchment
+     z-index 30 and its themes could not be pressed. Caught by handlers.js, which clicks a theme
      and reads the theme back.
      41 rather than 31: it is the same number the full-screen rule below uses, because it is the
      same decision — a menu goes above the panels, at every width. */
@@ -1001,18 +1001,6 @@ html[data-reading="1"] .carry { display:none !important; }
 .acts button:hover { background:rgba(255,255,255,.05); }
 .scenebreak { display:flex; align-items:center; gap:14px; }
 .scenebreak i { flex:1; height:1px; background:var(--rule); }
-
-/* GRAIN, on paper only. "Parchment takes grain; the two dark themes are screens and do not" —
-   a dark theme with paper texture on it is a screen pretending, and it reads as dirt. Two dot
-   fields at different scales so it does not tile visibly. */
-#read::after {
-  content:''; position:absolute; inset:0; pointer-events:none; opacity:0; z-index:1;
-  background-image:radial-gradient(rgba(120,100,70,.16) .5px, transparent .5px),
-                   radial-gradient(rgba(120,100,70,.1) .5px, transparent .5px);
-  background-size:3px 3px, 7px 7px; background-position:0 0, 2px 3px;
-}
-html[data-ui-theme="parchment"] #read::after,
-html[data-ui-theme="novelist"] #read::after { opacity:.5; }
 
 /* --- the chapter opens ------------------------------------------------------
    A band, a drop cap and a line out of the chapter's own prose. A chapter used to begin with a
@@ -1624,6 +1612,20 @@ textarea.field { resize:vertical; min-height:70px; }
    the right padding is the room the eye is laid into (it is a sibling, see threadPlate). margin:0
    for the same name collision as above: the chapter hero's `.plate` adds 18px under it. */
 .card.plate.thplate { min-height:0; margin:0; padding:14px 60px 14px 18px; gap:6px; text-align:left; width:100%; }
+/* TWICE AS TALL (Seth, 2026-11-02: "make the threads bigger. Twice as big"): a card was 129px with
+   no picture on a phone, so 260, the words at the foot.
+   With a picture, the picture is the whole card behind them: the card's own dark at the foot, where
+   the words are, fading to the picture at the top. `thtall` is the tale's list only; a draft in the
+   setup wears `thplate` too and stays short. */
+.card.plate.thplate.thtall { min-height:260px; justify-content:flex-end; position:relative;
+  overflow:hidden; isolation:isolate; }
+.thplate .thpic { position:absolute; inset:0; z-index:-2; width:100%; height:100%; object-fit:cover;
+  object-position:center 25%; }
+.thplate.thart::after { content:''; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  background:linear-gradient(to top, var(--sheet) 0%, color-mix(in srgb, var(--sheet) 80%, transparent) 38%,
+    color-mix(in srgb, var(--sheet) 20%, transparent) 75%, transparent 100%); }
+/* The eye sits over the picture, so it keeps a shadow to stay seen on a light one. */
+.thart + .theye { color:var(--ink); filter:drop-shadow(0 1px 3px rgba(0,0,0,.85)); }
 .thplate .thtext { font-size:13px; line-height:1.5; color:var(--mute); }
 .thplate .thtags { display:flex; flex-wrap:wrap; gap:5px; margin-top:3px; }
 /* THE WHOLE RIGHT SIDE OF THE CARD IS THE SWITCH (Seth, 2026-11-02): the strip the card's padding
@@ -1665,6 +1667,13 @@ textarea.field { resize:vertical; min-height:70px; }
 .headmore > span { width:34px; height:34px; border:1px solid var(--chip); border-radius:var(--r-pill);
   display:flex; align-items:center; justify-content:center; font-size:15px; letter-spacing:.05em; }
 .headmore[aria-expanded="true"] > span { border-color:var(--edge-lit); color:var(--ink-bright); }
+/* THE PICTURE ON AN OPEN THREAD, TWICE AS LARGE (Seth, 2026-11-02): up to 560px where it was 280,
+   full strength at the top and fading to nothing at the foot. No border: a fade inside a frame
+   reads as a frame with a hole in it. */
+.readpic { display:block; width:100%; max-height:560px; object-fit:cover; object-position:center 25%;
+  border-radius:var(--r) var(--r) 0 0; margin:0 0 4px;
+  -webkit-mask-image:linear-gradient(to bottom, #000 35%, transparent 100%);
+  mask-image:linear-gradient(to bottom, #000 35%, transparent 100%); }
 .readname { margin:2px 0 10px; font-family:'Instrument Serif', var(--serif, serif); font-weight:400;
   font-size:30px; line-height:1.1; color:var(--ink-bright); }
 .readtags { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; }
@@ -2319,7 +2328,6 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
 #inputWrap { position:relative; flex:1; min-width:0; display:flex; --field-pad:13px;
   background:var(--field); border:1px solid var(--chip); border-radius:var(--r);
   padding:0 var(--field-pad); transition:border-color var(--t) var(--ease); }
-html[data-ui-theme="parchment"] #inputWrap { border-color:rgba(58,52,43,.28); }
 /* DIM UNTIL YOU ARE IN IT, and the full accent when you are — Seth, 2026-09-02: "the original one
    dimmed if not selected". The edge is the focus indicator, so it has to be the thing that changes.
    AND THE INNER RING GOES. The global `:focus-visible` rule puts a 2px outline on whatever has

@@ -114,11 +114,11 @@ ok("  and MODE reflects the choice", /direct/i.test(await page.eval("(async () =
 // ---- 6. The appearance choice survives a reload
 await page.goto(B + "/#" + sid);
 await page.click('[data-appearance="1"]');
-await page.click('[data-theme="parchment"]');
+await page.click('[data-theme="romance"]');
 await page.goto(B + "/#" + sid);
-ok("the theme choice survives a reload", (await page.eval("document.documentElement.dataset.uiTheme")) === "parchment");
+ok("the theme choice survives a reload", (await page.eval("document.documentElement.dataset.uiTheme")) === "romance");
 await page.click('[data-appearance="1"]');
-await page.click('[data-theme="obsidian"]');
+await page.click('[data-theme="ink"]');
 
 // ---- 7. /api/import has no caller; prove the route itself works end to end
 const imported = await page.eval("(async () => { const card = { spec:'chara_card_v2', data:{ name:'Probe Card', description:'Made by the hunt.', tags:['nsfw'] } };"

@@ -296,7 +296,7 @@ const lum = (c) => { const m = (c.match(/[\d.]+/g) || [0, 0, 0]).map(Number);
   return .2126 * f(m[0]) + .7152 * f(m[1]) + .0722 * f(m[2]); };
 await page.goto(B + "/#" + sid);
 for (let i = 0; i < 40 && !(await page.visible('#modes')); i++) await wait(250);
-for (const theme of ['obsidian', 'ink', 'parchment']) {
+for (const theme of ['ink', 'grimdark', 'scifi', 'romance']) {
   await page.eval(`(() => { document.documentElement.dataset.uiTheme = '${theme}'; return 1; })()`);
   await wait(350);
   const rows = JSON.parse(await page.eval(`(() => {
@@ -344,7 +344,7 @@ for (const theme of ['obsidian', 'ink', 'parchment']) {
        clear(boxColor) && !clear(mirColor));
   }
 }
-await page.eval("(() => { document.documentElement.dataset.uiTheme = 'obsidian'; return 1; })()");
+await page.eval("(() => { document.documentElement.dataset.uiTheme = 'ink'; return 1; })()");
 
 // The motion system has to actually apply, not merely be declared.
 await page.goto(B + "/#" + sid + "/threads");
