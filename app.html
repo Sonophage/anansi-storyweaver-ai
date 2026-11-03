@@ -2476,6 +2476,12 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
   border-radius:var(--r-pill); color:var(--faint); }
 .whoeye[data-lit="1"] { color:var(--ink-bright); }
 /* .whoeye off: with .theye above. */
+/* #134 · A POCKET'S EYE, the thread's marks on a pocket row: the same 44px target as Anyone new's,
+   holding its own tip. Off steps back as a thread's does. */
+.pkeye { flex:0 0 auto; width:44px; height:44px; display:flex; align-items:center; justify-content:center;
+  position:relative; border-radius:var(--r-pill); color:var(--faint); cursor:pointer; }
+.pkeye[data-reach="on"], .pkeye[data-reach="woken"] { color:var(--ink-bright); }
+.pkeye[data-reach="off"] > svg { opacity:.5; }
 /* #122 · THE ONE DIFF (diffHTML in web/model.js), a Was / Now switch since 2026-10-29: the text as
    it reads now or as it read, one at a time. The switch wears the
    chips' pressed look (ink, not gold: gold means press here, ADR 0004). The changed words are not

@@ -86,38 +86,39 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
      // #114: stored plain now, so it shows as stored; the capital came only from taking the bracket off.
      /^moneylender, courteous/i.test(face?.text ?? ''));
 
-  // ---- Each pocket a row, with its switch on the row (rows on a hairline since 2026-11-02, not cards)
+  // ---- Each pocket a row, with its switch on the row (rows on a hairline since 2026-11-02, not cards).
+  // #134 · The switch is the thread's eye, its state on data-reach; an outfit keeps its Wear.
   const pocketCards = await page.eval(`JSON.stringify([...document.querySelectorAll('#sideBody .readface .pocketrow')]
-    .filter((c) => c.querySelector('[data-addonon]')).map((c) => {
-      const sw = c.querySelector('[data-addonon]');
+    .filter((c) => c.querySelector('[data-pocketeye], [data-wear]')).map((c) => {
+      const sw = c.querySelector('[data-pocketeye], [data-wear]');
       sw.scrollIntoView({ block: 'center', behavior: 'instant' });   // a finger lands only on what is on screen
       const r = sw.getBoundingClientRect(), cr = c.getBoundingClientRect();
       const mid = [r.left + r.width / 2, r.top + r.height / 2];
       // test/ui/targets.js's rule: the middle is the switch, and a finger 21px off it lands on a
       // control — this one, or a neighbour sharing the gap — never on nothing.
       const C = 'button, a[href], select, summary, [role=button], label';
-      const finger = document.elementFromPoint(mid[0], mid[1])?.closest('[data-addonon]') === sw
+      const finger = document.elementFromPoint(mid[0], mid[1])?.closest('[data-pocketeye], [data-wear]') === sw
         && [[0, -21], [0, 21], [-21, 0], [21, 0]].every(([dx, dy]) =>
           !!document.elementFromPoint(mid[0] + dx, mid[1] + dy)?.closest(C));
-      return { name: c.querySelector('.pkname')?.textContent ?? '', sw: sw.textContent.trim(),
+      return { name: c.querySelector('.pkname')?.textContent ?? '', sw: sw.dataset.reach ?? (sw.dataset.wear ? 'wear' : ''),
         inside: r.left >= cr.left && r.right <= cr.right, finger };
     }))`).then(JSON.parse);
   const want = marek.addons.filter((a) => a.slot !== 'facts').length;
-  ok(`every pocket is its own row with its on/off on it (${JSON.stringify(pocketCards)})`,
-     pocketCards.length === want && pocketCards.every((p) => /^(On|Off)$/.test(p.sw) && p.inside));
+  ok(`every pocket is its own row with its eye on it (${JSON.stringify(pocketCards)})`,
+     pocketCards.length === want && pocketCards.every((p) => /^(on|woken|word|off|wear)$/.test(p.sw) && p.inside));
   ok("  and the switch is 44px to the finger", pocketCards.every((p) => p.finger));
 
   if (w === 390) {
-    // ---- A pocket's switch works from here
+    // ---- A pocket's eye works from here: each tap posts the next state, as a thread card's.
     const rel = marek.addons.find((a) => a.slot === 'relationships');
-    await page.click(`#sideBody [data-addonon="${rel.id}:1"]`);
-    await wait(800);
-    ok("pressing a pocket's Off turns it on",
-       !!(await story(sid)).entries.find((e) => e.id === marek.id).addons.find((a) => a.id === rel.id)?.active);
-    await page.click(`#sideBody [data-addonon="${rel.id}:0"]`);
-    await wait(800);
-    ok("  and On turns it off again",
-       !(await story(sid)).entries.find((e) => e.id === marek.id).addons.find((a) => a.id === rel.id)?.active);
+    const NEXT = { off: 'triggered', word: 'always_on', woken: 'always_on', on: 'off' };
+    for (let i = 0; i < 3; i++) {
+      const was = await page.eval(`document.querySelector('#sideBody [data-pocketeye="${rel.id}"]')?.dataset.reach`);
+      await page.click(`#sideBody [data-pocketeye="${rel.id}"]`);
+      await wait(800);
+      const now = (await story(sid)).entries.find((e) => e.id === marek.id).addons.find((a) => a.id === rel.id)?.activation;
+      ok(`a tap on a pocket's eye moves it on from ${was} (${now})`, now === NEXT[was]);
+    }
     // ---- The reach tag is the same switch as the list's mark
     // THE SAME ORDER AS THE LIST (Seth, 2026-11-02): on → off (for the whole tale) → on a word → on.
     await page.click('#sideBody .readtags [data-flipact]');

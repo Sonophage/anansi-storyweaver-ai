@@ -4920,9 +4920,14 @@ export const routes: Record<string, Handler> = {
   // its keys are it arriving on its own. Exclusive slots clear their siblings inside the same
   // transaction — see `setAddonActive`, and the partial unique index behind it.
   // #79. An outfit put on or taken off at a scene (`atChapter`) is dated from it.
-  'POST /api/addon/on': (c) => { db.setAddonActive(c.body.storyId, c.body.id, !!c.body.on,
-    c.body.atChapter == null ? undefined : Number(c.body.atChapter));
-                                 return viewOf(c, c.body.storyId); },
+  // #134 · Or a pocket's eye: `activation`, Off, On a word or On, in place of `on`.
+  'POST /api/addon/on': (c) => {
+    if (c.body.activation != null) {
+      if (!db.setAddonActivation(c.body.storyId, c.body.id, String(c.body.activation)))
+        return { error: 'a pocket is off, on a word, or on' };
+    } else db.setAddonActive(c.body.storyId, c.body.id, !!c.body.on,
+      c.body.atChapter == null ? undefined : Number(c.body.atChapter));
+    return viewOf(c, c.body.storyId); },
   // EVERY THREAD KEEPS ITS ALWAYS TRUE (Seth, 2026-10-28): the page has no remove for it, and this
   // refuses one too. Clearing it is editing it. A tale's own pockets and every other pocket still go.
   'DELETE /api/addon':  (c) => {

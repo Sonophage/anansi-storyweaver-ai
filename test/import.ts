@@ -65,6 +65,27 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   ok('export round-trips, twice, under fresh ids');
 }
 
+// #134 · A THREAD'S POCKETS TRAVEL, each with its eye: Off, On a word, On. An export is the whole file,
+// but the import reads it back by hand, and pockets other than the wardrobe were not read at all.
+{
+  const s = db.createStory(owner, { title: 'Pocket trip' });
+  const e = db.upsertEntry(s.id, owner, { title: 'Wren', body: 'a smith', entryType: 'character', activation: 'always_on' })!;
+  const pk = (name: string, keys: string[], act: string) =>
+    db.setAddonActivation(s.id, db.upsertAddon(s.id, e, { slot: 'interiority', name, body: `${name} text`, keys })!, act);
+  pk('on', [], 'always_on'); pk('word', ['anvil'], 'triggered'); pk('off', ['anvil'], 'off');
+  const { file } = db.exportStory(s.id, owner, '/tmp/anansi-import-out');
+  const back = imp.absorb(owner, imp.fromExport(file));
+  const got = db.addonsOf(back.storyId).filter((a: any) => a.slot === 'interiority')
+    .map((a: any) => [a.name, a.body, JSON.parse(a.keys), a.activation]).sort();
+  assert.deepStrictEqual(got, [['off', 'off text', ['anvil'], 'off'], ['on', 'on text', [], 'always_on'],
+    ['word', 'word text', ['anvil'], 'triggered']], 'POCKET-TRIP: each pocket comes back with its text, wake words and eye');
+  // Into a tale that has the thread already: by name, so a second import does not make two.
+  imp.merge(owner, back.storyId, imp.fromExport(file));
+  assert.strictEqual(db.addonsOf(back.storyId).filter((a: any) => a.slot === 'interiority').length, 3,
+    'POCKET-TRIP-MERGE: a second import into it updates the pockets it has, by name');
+  ok('a thread\'s pockets survive the trip, each with its eye');
+}
+
 // Outfits travel with the character. exportStory carried them already — it deletes other stories
 // and lets the cascade do the rest — but fromExport reads a fixed set of tables, and outfits were
 // missed when the table landed, so a round trip returned everyone naked. The engine half of a

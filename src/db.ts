@@ -720,6 +720,25 @@ function migrate() {
   // that they are paused when never answered. NULL on rows from before it, which read as none held.
   add('hems', 'held', 'TEXT');
   backfillActPrints();
+  /* #134 · A POCKET IS OFF, ON A WORD, OR ON (`ACTIVATIONS`, a thread's three), in its own column. Until
+   * now it had only `active`, and an off pocket with wake words was sent when a word fired, which the
+   * switch did not say. `backfillPocketActivation` gives each row the one it already behaved as.
+   *
+   * ponytail: `active` is kept in step for one release, by the two triggers below, so the code before
+   * this column reads a database written after it correctly if it is put back. On is `active = 1`,
+   * and every older writer of `active` (the exclusive slots' sibling clear, a string's mark, a worn
+   * outfit) moves `activation` with it, by the migration's own rule. Trigger to remove: the release
+   * after 2026-11-03 has shipped with no rollback; then move the readers of `active` that are left
+   * (outfits, strings, the tale's rules, `addons_one_active`) onto `activation` and drop both. */
+  add('addons', 'activation', 'TEXT');
+  db.exec(`CREATE TRIGGER IF NOT EXISTS addons_activation_new AFTER INSERT ON addons WHEN NEW.activation IS NULL
+    BEGIN UPDATE addons SET activation = CASE WHEN NEW.active = 1 THEN 'always_on' ELSE 'triggered' END WHERE id = NEW.id; END;
+  CREATE TRIGGER IF NOT EXISTS addons_activation_step AFTER UPDATE OF active ON addons
+    WHEN NEW.activation IS NOT NULL AND (NEW.active = 1) <> (NEW.activation = 'always_on')
+    BEGIN UPDATE addons SET activation = CASE WHEN NEW.active = 1 THEN 'always_on'
+      WHEN (CASE WHEN json_valid(NEW.keys) THEN json_array_length(NEW.keys) ELSE 0 END) > 0 THEN 'triggered'
+      ELSE 'off' END WHERE id = NEW.id; END;`);
+  backfillPocketActivation();
 
   // PLAN-08, the last step of the wardrobe move. The copy above has run on every boot since Phase 2
   // and is idempotent, so by the time this line is reached every outfit is an addon in the `outfit`
@@ -2288,6 +2307,16 @@ export function backfillActPrints(): number {
   return rows.length;
 }
 
+/** #134 · THE ACTIVATION A POCKET FROM BEFORE THE COLUMN ALREADY BEHAVED AS, and only for rows that
+ *  have none: on is On (`always_on`), off with wake words is On a word (`triggered`, it was sent when
+ *  a word fired), off without is Off. A second run writes nothing. A NEW pocket is On a word, as a
+ *  new thread is (`addons_activation_new`). Function declaration: runs inside `migrate()`. */
+export function backfillPocketActivation(): number {
+  return Number(db.prepare(`UPDATE addons SET activation = CASE WHEN active = 1 THEN 'always_on'
+    WHEN (CASE WHEN json_valid(keys) THEN json_array_length(keys) ELSE 0 END) > 0 THEN 'triggered'
+    ELSE 'off' END WHERE activation IS NULL`).run().changes);
+}
+
 export const passagesOfChapter = (chapterId: string) =>
   q('SELECT * FROM passages WHERE chapter_id = ? AND selected = 1 ORDER BY ordinal').all(chapterId) as any[];
 
@@ -3075,6 +3104,19 @@ export function setAddonActive(storyId: string, addonId: string, on: boolean, at
   return addonId;
 }
 
+/** #134 · A POCKET'S EYE: Off, On a word, or On (`ACTIVATIONS`). On goes through `setAddonActive`,
+ *  so an exclusive slot clears its siblings as it always has; the other two write the column and the
+ *  old switch together (off), so the two never disagree. Null on a value that is not one of the
+ *  three, or a pocket not in this tale. */
+export function setAddonActivation(storyId: string, addonId: string, activation: string) {
+  if (!(ACTIVATIONS as readonly string[]).includes(activation)) return null;
+  if (!q('SELECT 1 FROM addons WHERE id = ? AND story_id = ?').get(addonId, storyId)) return null;
+  if (activation === 'always_on') return setAddonActive(storyId, addonId, true);
+  q('UPDATE addons SET activation = ?, active = 0 WHERE id = ? AND story_id = ?').run(activation, addonId, storyId);
+  touch(storyId);
+  return addonId;
+}
+
 // ---- connections (PLAN-08 Phase 2) ----
 
 export const edgesOf = (storyId: string) =>
@@ -3180,7 +3222,9 @@ export function copyEntry(fromStoryId: string, toStoryId: string, o: string, ent
       owedBy: a.owed_by, status: a.status });
     // `upsertAddon` always inserts unworn, and an exclusive slot refuses a second one worn — so
     // the switch is thrown after, through the function that clears the siblings in a transaction.
+    // #134 · Its eye travels too: an Off pocket arrives Off, not On a word.
     if (id && a.active) setAddonActive(toStoryId, id, true);
+    else if (id && a.activation) setAddonActivation(toStoryId, id, a.activation);
   }
   // THE TIMELINE DOES NOT TRAVEL, and that was already decided with a check behind it —
   // `test/scope.ts`: "a state is anchored to a chapter number, and chapter 7 there is not chapter 7
@@ -4265,14 +4309,14 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
     for (const a of q('SELECT * FROM addons WHERE story_id = ? AND entry_id IS NULL')
       .all(storyId) as any[])
       q(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,from_chapter,
-           retired_at_chapter,created_at) VALUES (?,?,NULL,?,?,?,?,?,?,?,?)`)
+           retired_at_chapter,created_at,activation) VALUES (?,?,NULL,?,?,?,?,?,?,?,?,?)`)
         // STAMPED NOW, not carried. Every other row here keeps the source's `created_at`, and this
         // one does not on purpose: the rooms that DO hang off a card come through `copyEntry` ->
         // `upsertAddon`, which stamps its own. Carrying it here would give one book two conventions
         // for the same column depending on whether the room has a card, which is the shape of
         // difference nobody looks for. `test/db.ts` compares the two halves and found this.
         .run(uid('ad-'), made.id, a.slot, a.name, a.body, a.keys, a.active, a.from_chapter,
-          a.retired_at_chapter, t);
+          a.retired_at_chapter, t, a.activation ?? null);
 
     // The pictures: the book's cover and the threads' own. Blobs, copied as blobs.
     const cover = q('SELECT jpeg, set_at FROM story_covers WHERE story_id = ?').get(storyId) as any;

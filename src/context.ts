@@ -37,7 +37,10 @@ export interface Entry {
 interface Addon {
   id: string; slot: string; name: string; body: string;
   keys: string[];
-  active?: boolean;                // the writer pinned it on
+  active?: boolean;                // the writer pinned it on; kept in step with `activation` (db.ts, #134)
+  /** #134 · Off, On a word, or On, a thread's three. Absent on a row from before the column: then it
+   *  is what that row behaved as, on if `active`, else on its wake words (`pocketReach`). */
+  activation?: 'always_on' | 'triggered' | 'off';
   fromChapter?: number;            // not true until this chapter
   retiredAtChapter?: number;
 }
@@ -414,6 +417,11 @@ export const STRING_FRAMES: Record<'promise' | 'question', string> = {
     + 'never answer it.',
 };
 
+/** #134 · HOW A POCKET REACHES THE MODEL: its `activation`, or, on a row from before the column, what
+ *  that row behaved as (on if switched on, else on its wake words). */
+export const pocketReach = (a: Pick<Addon, 'activation' | 'active'>): 'always_on' | 'triggered' | 'off' =>
+  a.activation ?? (a.active ? 'always_on' : 'triggered');
+
 /** The framed kinds that are exclusive in `SLOTS`: one per thread, so a label tells nothing apart. */
 const SOLO = new Set(EXCLUSIVE_SLOTS);
 
@@ -423,9 +431,15 @@ const rooms = (e: Entry, at: number, window: string, locked = '', tells = false)
     // `alwaysTrue` below, ahead of everything; every other room keeps the order the view gave it.
     .filter((a) => a.slot !== 'facts')
     .filter((a) => live(a, at))
-    // An outfit is worn by the dated wardrobe (#79, `wornAt`), not by a switch that only knows now.
-    .filter((a) => (a.slot === 'outfit' ? wornAt(e, at) === a.id : a.active)
-      || fires({ ...e, keys: a.keys ?? [] }, window).length)
+    // An outfit is worn by the dated wardrobe (#79, `wornAt`), not by a switch that only knows now,
+    // and still arrives on its own words. Every other pocket by its activation (#134): On always, On
+    // a word when a word fires, Off never, not even on its word.
+    .filter((a) => {
+      const hit = () => fires({ ...e, keys: a.keys ?? [] }, window).length > 0;
+      if (a.slot === 'outfit') return wornAt(e, at) === a.id || hit();
+      const reach = pocketReach(a);
+      return reach === 'always_on' || (reach === 'triggered' && hit());
+    })
     .map((a) => {
       const who = (e.title || '').trim();
       // ONE STRIP FOR EVERY WRAPPED ROOM. 43 of the live library's non-facts rooms are stored as

@@ -1514,6 +1514,19 @@ ok('  but arrives on its own words, without being pinned', () => {
   assert.match(b.text, /her fear/);
 });
 
+// #134 · A POCKET IS OFF, ON A WORD, OR ON, by its own `activation`, and Off is a promise: a pocket set
+// off is not sent even when its wake word is on the page. `coins` is in the last passage.
+ok('a pocket is sent by its activation: On always, On a word on its word, Off never', () => {
+  assert.match(withAddons([room({ activation: 'always_on', active: true, keys: ['ghost wolf'] })]).text, /her fear/,
+    'POCKET-ON: an On pocket is sent with no wake word on the page');
+  assert.match(withAddons([room({ activation: 'triggered', keys: ['coins'] })]).text, /her fear/,
+    'POCKET-WORD: an On a word pocket is sent when its word is on the page');
+  assert.doesNotMatch(withAddons([room({ activation: 'triggered', keys: ['ghost wolf'] })]).text, /her fear/,
+    'POCKET-WORD-ASLEEP: and not when it is not');
+  assert.doesNotMatch(withAddons([room({ activation: 'off', keys: ['coins'] })]).text, /her fear/,
+    'POCKET-OFF: an Off pocket is not sent, even on its wake word');
+});
+
 ok('several rooms can be open at once, which is the whole point of the shape', () => {
   const b = withAddons([
     room({ id: 'a1', name: 'her fear', active: true }),

@@ -26,7 +26,7 @@ await page.eval(`(() => { document.querySelector('[data-entry="${aldis.id}"]').c
 await until("!!document.querySelector('#sideBody .readface')");
 const read = await page.eval(`(() => { const f = document.querySelector('#sideBody .readface');
   const t = (f?.innerText ?? '').toLowerCase(); const a = t.indexOf('always true'), s = t.indexOf('cannot swim');
-  return JSON.stringify({ a, s, facts: /\\bfacts?\\b/i.test(t), sw: !!f?.querySelector('[data-addonon^="${id}:"]') }); })()`).then(JSON.parse);
+  return JSON.stringify({ a, s, facts: /\\bfacts?\\b/i.test(t), sw: !!f?.querySelector('[data-addonon^="${id}:"], [data-pocketeye="${id}"]') }); })()`).then(JSON.parse);
 ok(`Read: "Always true" heads its text (${read.a} / ${read.s})`, read.a >= 0 && read.s > read.a);
 ok("  with no on/off switch on it", !read.sw);
 ok("  and the word Facts is nowhere on the screen", !read.facts);
@@ -37,7 +37,7 @@ await until("!!document.querySelector('#sideBody [data-cardtab]')");
 const alter = await page.eval(`(() => { const p = [...document.querySelectorAll('#sideBody .pane')].find((x) => !x.hidden);
   const t = p?.innerText ?? '';
   return JSON.stringify({ heading: /always true/i.test(t), box: !!p?.querySelector('[data-ab="${id}"]'),
-    keys: !!document.querySelector('[data-ak="${id}"]'), sw: !!document.querySelector('[data-addonon^="${id}:"]'),
+    keys: !!document.querySelector('[data-ak="${id}"]'), sw: !!document.querySelector('[data-addonon^="${id}:"], [data-pocketeye="${id}"]'),
     name: !!document.querySelector('[data-an="${id}"]'), facts: /\\bfacts?\\b/i.test(t) }); })()`).then(JSON.parse);
 ok(`Alter: Always true is the first tab's own field (${JSON.stringify(alter)})`, alter.heading && alter.box);
 ok("  with no wake words, no name and no switch", !alter.keys && !alter.name && !alter.sw);

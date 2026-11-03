@@ -240,6 +240,8 @@ export const api = {
   // PLAN-08. entryId null is a story-level addon, which is where a string will live.
   saveAddon:    (storyId, entryId, addon, how = {}) => j('/api/addon', 'POST', { storyId, entryId, addon, ...how }),
   addonOn:      (storyId, id, on, atChapter) => j('/api/addon/on', 'POST', { storyId, id, on, atChapter }),
+  // #134 · A pocket's eye: Off, On a word or On.
+  addonReach:   (storyId, id, activation) => j('/api/addon/on', 'POST', { storyId, id, activation }),
   delAddon:     (storyId, id)    => j('/api/addon', 'DELETE', { storyId, id }),
   // PLAN-08 Phase 4. A thread can be finished, and brought back: atChapter null lifts it. Its own
   // route rather than a field on saveEntry, because upsertEntry writes last_editor and that is

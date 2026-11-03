@@ -33,6 +33,7 @@ const MAX_FIELD = 8_000;      // one entry body; the budget engine works in thou
 // with nothing on the import screen saying so. Still a bound, because this is untrusted input.
 const MAX_ENTRIES = 250;
 const MAX_PASSAGES = 2_000;
+const MAX_POCKETS = 40;     // #134 · per thread; the wardrobe keeps its own 20 (`plant`). A ceiling against a stranger's file, not a policy
 const clip = (s: unknown, n = MAX_FIELD) =>
   typeof s === 'string' ? s.replace(/\r\n/g, '\n').trim().slice(0, n) : '';
 
@@ -129,6 +130,11 @@ export function fromExport(file: string): Incoming {
       rules = src.prepare("SELECT name, body, keys, active FROM addons WHERE story_id = ? AND entry_id IS NULL AND slot = 'rule' ORDER BY created_at")
         .all(story.id) as any[];
     } catch { /* an older file */ }
+    // #134 · A THREAD'S OTHER POCKETS, each with its eye. Not Always true (`facts`, which the entry's
+    // body brings) and not the wardrobe (`outfits`, above). A file from before the column has no
+    // `activation`, and then the pocket's old switch says what it was.
+    const pockets = src.prepare(`SELECT * FROM addons WHERE story_id = ? AND entry_id IS NOT NULL
+      AND slot NOT IN ('facts', 'outfit') ORDER BY created_at, rowid`).all(story.id) as any[];
     const passages = src.prepare(
       'SELECT body, author FROM passages WHERE story_id = ? AND branch_id = ? AND selected = 1 ORDER BY ordinal')
       .all(story.id, branch?.id) as any[];
@@ -156,7 +162,10 @@ export function fromExport(file: string): Incoming {
         notes: clip(e.notes, 2000), entryType: e.entry_type, activation: e.activation,
         keys: keysOf(e.keys && JSON.parse(e.keys)),
         outfits: outfits.filter((o) => o.entry_id === e.id).slice(0, 20)
-          .map((o) => ({ name: clip(o.name, 80), body: clip(o.body, 1000), active: !!o.active })) })),
+          .map((o) => ({ name: clip(o.name, 80), body: clip(o.body, 1000), active: !!o.active })),
+        pockets: pockets.filter((a) => a.entry_id === e.id).slice(0, MAX_POCKETS).map((a) => ({ slot: a.slot,
+          name: clip(a.name, 200), body: clip(a.body), keys: keysOf(a.keys && JSON.parse(a.keys)),
+          activation: a.activation ?? (a.active ? 'always_on' : 'triggered') })) })),
       passages: cap(passages, MAX_PASSAGES, 'passages', notes).map((p) => ({ body: clip(p.body, 20_000), author: p.author })),
       // What the book promised and has not paid. A story that comes back without its unpaid
       // promises comes back as a different book: the ledger says who everybody is and the strings
@@ -441,6 +450,22 @@ function plant(storyId: string, entryId: string | null, outfits?: any[]) {
   if (worn) db.wearOutfit(storyId, entryId, worn);
 }
 
+/** #134 · A thread's pockets from an Anansi export, each with its eye. By kind and name, as `plant`
+ *  goes by name, so importing the same file into a tale twice updates them rather than doubling.
+ *  `upsertAddon` refuses a kind this thread cannot have, and that pocket is left out. */
+function pocketsIn(storyId: string, entryId: string | null, pockets?: any[]) {
+  if (!entryId || !Array.isArray(pockets)) return;
+  const have = new Map((db.addonsOf(storyId) as any[]).filter((a) => a.entry_id === entryId)
+    .map((a) => [`${a.slot}:${String(a.name).toLowerCase()}`, a.id]));
+  for (const p of pockets.slice(0, MAX_POCKETS)) {
+    const name = clip(p?.name, 200), body = clip(p?.body);
+    if (!name || !body) continue;
+    const id = db.upsertAddon(storyId, entryId, { id: have.get(`${p.slot}:${name.toLowerCase()}`) ?? '',
+      slot: p.slot, name, body, keys: keysOf(p.keys) });
+    if (id) db.setAddonActivation(storyId, id, String(p.activation ?? 'triggered'));
+  }
+}
+
 /** Insert an Incoming as a NEW story owned by `owner`. Ids are always fresh, so importing
  *  the same file twice gives two stories rather than a primary-key collision — an import
  *  that can fail on its second run is an import people stop trusting. */
@@ -464,6 +489,7 @@ export function absorb(owner: string, inc: Incoming) {
     // said in the import's own notes rather than counted as written.
     if (!id) { inc.notes.push(`"${e.title}" was not imported: its activation is not always on or on a word.`); continue; }
     plant(story.id, id, e.outfits);
+    pocketsIn(story.id, id, e.pockets);
     entries++;
   }
   for (const x of tiedStrings(inc)) db.upsertString(story.id, x);
@@ -501,6 +527,7 @@ export function merge(owner: string, storyId: string, inc: Incoming) {
     const id = db.upsertEntry(storyId, owner, { ...e, id: hit ?? '', body: clip(e.body), lastEditor: 'human' });
     if (!id) { inc.notes.push(`"${e.title}" was not imported: its activation is not always on or on a word.`); continue; }
     plant(storyId, id, e.outfits);
+    pocketsIn(storyId, id, e.pockets);
     if (hit) updated++; else entries++;
   }
   for (const x of tiedStrings(inc)) db.upsertString(storyId, x);
