@@ -3079,8 +3079,8 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.match(mine, /data-pickmodel="Qwen3\.6-WNTH-35B-A3B-NN"/, 'WRITER-MODEL: with the switch');
   click({ modelinfo: 'write-nt-qwen36-h' });
   // #131. The others are the rows around it on the same tab, so it needs no press of its own.
-  assert.match(html('sideBody'), /<button data-modelinfo="Qwen3\.6-WNTH-35B-A3B-NN"/,
-    'WRITER-MODEL: and the info about the model that writes sits among the others to choose from');
+  assert.match(html('sideBody'), /<button data-tellerlist="usual"/,
+    'WRITER-MODEL: and the info sits on Model, under the row that opens the others to choose from');
 
   libAdmin = true; click({ home: 1 });
   await sleep(40);
@@ -3232,9 +3232,10 @@ ok('picking a model in a tale reads the tale again, so the menu names the new on
   // picker above it — the two render the same badge string for the same model, and a check that
   // cannot tell them apart proves nothing about the one it names.
   click({ modelmenu: '1' });
-  for (let i = 0; i < 20 && !/<button data-modelinfo=/.test(html('sideBody')); i++) await sleep(25);
+  for (let i = 0; i < 20 && !/data-tellerlist="usual"/.test(html('sideBody')); i++) await sleep(25);
+  click({ tellerlist: 'usual' });
   const body = visible(html('sideBody'));
-  const list = body.slice(body.indexOf('>Your model<'), body.indexOf('data-gen='));
+  const list = body.slice(body.indexOf('data-tellerlist="usual"'), body.indexOf('data-gen='));
   assert.ok(list.length > 200, 'the list must actually be open');
   assert.match(list, BADGES, 'every row says what it is for, whether it thinks, and its tier');
   assert.match(list, /Roleplay · trained open/,
@@ -3249,16 +3250,17 @@ ok('picking a model in a tale reads the tale again, so the menu names the new on
   click({ panel: 'teller' });
   await sleep(30);
   const teller = visible(html('sideBody'));
-  assert.match(teller, /<span class="tag(?: [^"]*)?">Write<\/span>/, 'the badges are chips here, where there is room');
-  assert.match(teller, /<span class="tag(?: [^"]*)?">uncensored<\/span>/);
-  assert.match(teller, /<span class="tag(?: [^"]*)?">novel tier<\/span>/);
-  assert.match(teller, /<span class="tag(?: [^"]*)?">35B-A3B<\/span>/, 'and the size fits on this one');
+  assert.match(teller.slice(teller.indexOf('data-tellerlist="tale"')), /^[^]*?<span class="gold-line">Write · uncensored · novel tier · 35B-A3B<\/span>[^]*?What it is/,
+    'the row for the model that writes this tale carries the badges, and the size fits on this one');
   assert.match(teller, /data-modelinfo="Qwen3\.6-WNTH-35B-A3B-NN"/,
     'with a door to the panel that holds the blurb, the speed and the context');
-  // The option text in the select is built from `detail` — the badges with the size put back in,
-  // one decode rather than a second list that drifts away from it.
-  assert.match(teller, /<option[^>]*>Qwen3\.6 — Write · uncensored · 35B-A3B · novel tier/,
-    'and the select carries the same decode, size included');
+  // A row in the tale's list is built from `detail` — the badges with the size put back in,
+  // one decode rather than a second list that drifts away from it. Here the tale follows the
+  // writer's usual model, so that one is the row in force and the others are its list.
+  click({ tellerlist: 'tale' });
+  assert.match(visible(html('sideBody')), /data-talemodel="Wayfarer-2-RPNT-12B"[^>]*><span[^>]*>Wayfarer 2 — Roleplay · trained open · 12B · local/,
+    'and the tale\'s list carries the same decode, size included');
+  click({ tellerlist: 'tale' });
 
   // HOW MUCH HE READS AT ONCE, this tale's own cap (2026-10-29), in words, saved on change.
   assert.match(teller, /<select class="field" id="f-story-maxContext" data-story="maxContext">/,
@@ -3290,7 +3292,7 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   const tip = teller.match(/id="tip-weaving"[\s\S]*?<\/p>/)?.[0] ?? '';
   assert.match(tip, /slower/i, `the tip says it is slower: ${tip}`);
   assert.match(tip, /space/i, 'and that it takes space');
-  // The switch and its tip only: the model picker above decodes preset ids, whose own words are
+  // The switch and its tip only: the model row above decodes preset ids, whose own words are
   // the model's and not this switch's.
   const label = teller.match(/<label[^>]*>\s*<input type="checkbox" data-story="weaving"[\s\S]*?<\/label>/)?.[0] ?? '';
   assert.ok(label, 'the switch has a label');
@@ -3299,16 +3301,16 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   // The switch sits after the book's model and before the sampler: everything about what writes
   // this book in one place.
   const at = (re: RegExp) => teller.search(re);
-  assert.ok(at(/data-storymodel/) < at(/data-story="weaving"/) && at(/data-story="weaving"/) < at(/>How he picks words</),
+  assert.ok(at(/data-tellerlist="tale"/) < at(/data-story="weaving"/) && at(/data-story="weaving"/) < at(/>How he picks words</),
     'between the book\'s model and the sampler');
   // TWO HOMES ON ONE PANEL, SAID AS TWO (Seth's item 9, 2026-10-29). The panel opened on "These are
   // yours, not per tale" above a model picker that is per tale. Now "This tale" heads the model,
-  // Plans first and the reading cap, and "Yours, on every tale" heads the sampler.
+  // Plans first and the reading cap, and "On every tale" heads the sampler.
   assert.doesNotMatch(teller, /not per tale/, 'TELLER-HOMES: no banner that says the whole panel is not per tale');
-  assert.ok(at(/>This tale</) !== -1 && at(/>This tale</) < at(/data-storymodel/),
+  assert.ok(at(/>This tale</) !== -1 && at(/>This tale</) < at(/data-tellerlist="tale"/),
     'TELLER-HOMES: "This tale" heads the model');
-  assert.ok(at(/data-story="maxContext"/) < at(/>Yours, on every tale</) && at(/>Yours, on every tale</) < at(/data-gen=/),
-    'TELLER-HOMES: and "Yours, on every tale" comes after the tale\'s own settings and heads the sampler');
+  assert.ok(at(/data-story="maxContext"/) < at(/>On every tale</) && at(/>On every tale</) < at(/data-gen=/),
+    'TELLER-HOMES: and "On every tale" comes after the tale\'s own settings and heads the sampler');
   assert.doesNotMatch(teller, /foot of the menu/, 'TELLER-HOMES: and it does not send the writer to the foot of a menu that is at the top on a phone');
 
   STORY.story.weaving = true;
@@ -3350,7 +3352,7 @@ ok('the Storyteller has a Weaving switch where the thinking note was, and it sav
       const said = t.match(/<div[^>]*id="weavenote"[^>]*>([\s\S]*?)<\/div>/)?.[1]?.trim() ?? '';
       assert.strictEqual(said, note, 'WEAVE-NOTE: the panel shows the server\'s sentence, and no copy of its own');
       const at = (re: RegExp) => t.search(re);
-      assert.ok(at(/data-storymodel/) < at(/id="weavenote"/) && at(/id="weavenote"/) < at(/>How he picks words</),
+      assert.ok(at(/data-tellerlist="tale"/) < at(/id="weavenote"/) && at(/id="weavenote"/) < at(/>How he picks words</),
         'where the switch would be');
     }
   } finally { (STORY as any).weaveNote = was; }
@@ -3365,13 +3367,13 @@ ok('a book whose model cannot be asked to weave, or always weaves, says so in th
     click({ open: 's-1' });
     await sleep(40);
     (STORY as any).toast = 'Weaving is off for this book now (fixture).';
-    changeIn({ dataset: { storymodel: '1' }, value: 'featherless:someone/No-Switch' });
+    click({ talemodel: 'featherless:someone/No-Switch' });
     await sleep(60);
     const said = String(nodes.get('toast').textContent);
     assert.match(said, /Weaving is off for this book now \(fixture\)\./, `MOVE-TOAST: the writer is told weaving went off: ${said}`);
     assert.match(said, /This tale's model is/, 'MOVE-TOAST: beside the model it picked');
     delete (STORY as any).toast;
-    changeIn({ dataset: { storymodel: '1' }, value: 'Qwen3.6-WNTH-35B-A3B-NN' });
+    click({ talemodel: 'Qwen3.6-WNTH-35B-A3B-NN' });
     await sleep(60);
     assert.doesNotMatch(String(nodes.get('toast').textContent), /Weaving/, 'the control: a move that clears nothing says nothing of weaving');
   } finally { delete (STORY as any).toast; }
@@ -3508,7 +3510,7 @@ ok('a weaving refusal is a row on the composer with Write anyway and Turn weavin
 
 // #58 · A MODEL THAT ALWAYS WEAVES IS REFUSED WITH ANOTHER WAY ON. Turning weaving off cannot change
 // what such a model does, so the row never offers it: Write anyway (when the prompt still fits) and
-// Use another model for this book, which opens the book's model picker in the Storyteller.
+// Use another model for this book, which opens the book's model list in the Storyteller.
 {
   const MSG = 'Plans first sets aside 5,000 tokens for Anansi to plan in, and in this tale that would leave '
     + 'out the 4 oldest passages still in view. Use another model for this tale, or write anyway and leave them out.';
@@ -3529,11 +3531,11 @@ ok('a weaving refusal is a row on the composer with Write anyway and Turn weavin
     assert.match(row(), /data-weaveanyway[^>]*>\s*Write anyway\s*</, 'ALWAYS-ROW: Write anyway');
     assert.match(row(), /data-weavemodel[^>]*>\s*Use another model for this tale\s*</, 'ALWAYS-ROW: and Use another model for this book');
 
-    // Use another model: the Storyteller opens on the book's model picker, nothing is saved or sent.
+    // Use another model: the Storyteller opens on the book's model list, nothing is saved or sent.
     stubRefuse = null; POSTED.length = 0;
     click({ weavemodel: '1' });
     await sleep(80);
-    assert.match(html('sideBody'), /data-storymodel/, 'ALWAYS-MODEL: the Storyteller opens on the book\'s model picker');
+    assert.match(html('sideBody'), /data-tellerlist="tale" aria-expanded="true"[\s\S]*data-talemodel=/, 'ALWAYS-MODEL: the Storyteller opens on the book\'s model list, open');
     assert.ok(!row(), 'ALWAYS-MODEL: and the row is gone');
     assert.ok(!POSTED.some((p: any) => p.url === '/api/story' || String(p.url).startsWith('/api/generate')),
       'ALWAYS-MODEL: and nothing is saved or written until the writer picks');
@@ -3928,13 +3930,15 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
       spider: body.includes(first('spider')), feather: body.includes(first('feather')) };
   };
 
-  // #131. The list is on Storyteller's Model tab, under Your model.
+  // #131. The list is on Storyteller's Model tab, under Your model, open on a press (2026-11-03).
   click({ modelmenu: '1' });
-  for (let i = 0; i < 20 && !/<button data-modelinfo=/.test(html('sideBody')); i++) await sleep(25);
+  for (let i = 0; i < 20 && !/data-tellerlist="usual"/.test(html('sideBody')); i++) await sleep(25);
+  click({ tellerlist: 'usual' });
   const tab = visible(html('sideBody'));
+  click({ tellerlist: 'usual' });
   const rail = tab.slice(tab.indexOf('>Your model<'));
   const row = (id: string) => {
-    const at = rail.indexOf(`<button data-modelinfo="${id}"`);
+    const at = rail.indexOf(`<button data-pickmodel="${id}"`);
     assert.ok(at > 0, `the list lists ${id}`);
     return rail.slice(at, rail.indexOf('</button>', at));
   };
@@ -3962,22 +3966,27 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   assert.strictEqual(mine.where, 'local', 'the strip marks the model writing now as local');
   assert.ok(mine.spider, 'with the spider');
 
-  // THE STORYTELLER'S PICKER is a <select>, and an <option> holds text and nothing else. So each
-  // option says where its model runs in words, and the drawn mark sits beside the select, for the
-  // model this book is written by.
+  // THE STORYTELLER'S LIST for this tale: each row says where its model runs in words, and the
+  // drawn mark sits on the row for the model this book is written by.
   const wasModel = STORY.model;
   STORY.model = 'featherless:Grey/Kestrel-Heretic-24B';
   click({ open: 's-1' });
   await sleep(40);
+  // The list read again, so the writer's usual model is the default and not this tale's model,
+  // and the tale's list (which leaves the usual model out) holds the remote one.
+  click({ dropshort: 'featherless:Other/Unused-12B' });
+  await sleep(40);
   click({ panel: 'teller' });
   await sleep(30);
   const teller = visible(html('sideBody'));
-  const option = (id: string) => teller.match(new RegExp(`<option value="${id}"[^>]*>([^<]*)</option>`))?.[1] ?? '';
+  click({ tellerlist: 'tale' });
+  const list = visible(html('sideBody'));
+  const option = (id: string) => list.match(new RegExp(`data-talemodel="${id}"[^>]*><span[^>]*>([^<]*)</span>`))?.[1] ?? '';
   assert.match(option('Qwen3\\.6-WNTH-35B-A3B-NN'), / · local, awake$/, 'a loaded local option says so');
   assert.match(option('Wayfarer-2-RPNT-12B'), / · local, asleep$/, 'an unloaded one says so');
   assert.match(option('featherless:Grey/Kestrel-Heretic-24B'), / · remote, on Featherless$/,
     'and a remote option says where it runs');
-  const beside = teller.slice(teller.indexOf('</select>'));
+  const beside = teller.slice(teller.indexOf('data-tellerlist="tale"'));
   const using = runs(beside.slice(0, beside.indexOf('What it is')));
   assert.deepStrictEqual([using.where, using.awake, using.feather], ['remote', true, true],
     'beside the select, the mark for the model this book is written by');
@@ -5593,22 +5602,88 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   assert.match(html('sideHead'), /Storyteller/, 'TELLER-DOOR: and it is Storyteller');
   assert.strictEqual(shown(), 'model', 'TELLER-DOOR: on Model');
   assert.doesNotMatch(html('rail'), /data-findmodel=/, 'TELLER-DOOR: the menu no longer drops a list open');
-  assert.deepStrictEqual(tabsOf(html('sideBody')), ['model', 'shortlist', 'voice', 'stats'],
-    'TELLER-TABS: Model, Shortlist, Your voice and Stats in a tale');
-  const model = html('sideBody');
-  assert.match(model, /data-storymodel=/, 'TELLER-MODEL: the model writing this tale');
-  assert.match(model.slice(model.indexOf('>Your model<')), /<button data-modelinfo="Qwen3\.6-WNTH-35B-A3B-NN"/,
-    'TELLER-MODEL: and the writer\'s usual model, to pick from');
-  assert.match(model, /data-story="weaving"[\s\S]*data-story="maxContext"[\s\S]*data-gen="temperature"[\s\S]*data-gen="target_words"/,
-    'TELLER-MODEL: and the sliders, in order: plans first, how much he reads, how he picks words, longest a passage runs');
-  assert.doesNotMatch(model, /This tale's calls/, 'TELLER-MODEL: the calls are not on Model');
-  click({ modelinfo: 'Wayfarer-2-RPNT-12B' });
+  assert.deepStrictEqual(tabsOf(html('sideBody')), ['model', 'shortlist', 'addmodel', 'voice', 'stats'],
+    'TELLER-TABS: Model, Shortlist, Add a model, Your voice and Stats in a tale');
+  const model = html('sideBody').replace(/<!--[\s\S]*?-->/g, '');
+  const at = (re: RegExp) => model.search(re);
+  // Seth, 2026-11-03: "this should be tale dependent". Two headed sections, the tale's first.
+  assert.ok(at(/>This tale</) !== -1 && at(/>This tale</) < at(/data-tellerlist="tale"/)
+    && at(/data-tellerlist="tale"/) < at(/data-story="weaving"/) && at(/data-story="weaving"/) < at(/data-story="maxContext"/),
+    'TELLER-SECTIONS: "This tale" holds the model that writes it, Plans first and how much he reads');
+  assert.ok(at(/data-story="maxContext"/) < at(/>On every tale</) && at(/>On every tale</) < at(/data-tellerlist="usual"/)
+    && at(/data-tellerlist="usual"/) < at(/data-gen="temperature"/) && at(/data-gen="temperature"/) < at(/data-gen="target_words"/),
+    'TELLER-SECTIONS: and "On every tale" holds your usual model, how he picks words and the longest a passage runs');
+  // Seth: "remove the drop down and instead do the panel to open on toggle."
+  assert.doesNotMatch(model, /data-storymodel=/, 'TELLER-NOSELECT: no drop-down to choose the tale\'s model');
+  assert.doesNotMatch(model, /<select[^>]*aria-label="[^"]*model/i, 'TELLER-NOSELECT: and no drop-down for any model');
+  assert.match(model, /<button data-tellerlist="tale" aria-expanded="false"/, 'TELLER-TOGGLE: the tale\'s model is one row, shut');
+  assert.match(model, /<button data-tellerlist="usual" aria-expanded="false"/, 'TELLER-TOGGLE: and so is your usual model');
+  assert.doesNotMatch(model, /data-talemodel=|data-pickmodel=/, 'TELLER-TOGGLE: no list until a row is pressed');
+  // Seth: "a plus to add a new model".
+  assert.match(model.slice(at(/data-tellerlist="usual"/), at(/data-gen="temperature"/)), /data-findmodel="1"[^>]*>＋</,
+    'TELLER-PLUS: a ＋ beside the model row opens Add a model');
+  click({ findmodel: '1' });
+  assert.strictEqual(shown(), 'addmodel', 'TELLER-PLUS: and the ＋ lands on Add a model');
+  click({ tellertab: 'model' });
+
+  // ONE PRESS OPENS THE LIST, A PICK CLOSES IT, and each model is in it once (Seth: "your model is
+  // on there twice"). The writer's usual model here is one the list also holds, which is the case
+  // that showed it twice: once as "Your model" and once by its own name.
+  const wasDefault = (STORY as any).defaultModel;
+  (STORY as any).defaultModel = 'Qwen3.6-WNTH-35B-A3B-NN';
+  click({ open: 's-1' });
+  await sleep(40);
+  click({ modelmenu: '1' });
+  await sleep(30);
+  click({ tellerlist: 'tale' });
+  const taleOpen = html('sideBody');
+  assert.match(taleOpen, /<button data-tellerlist="tale" aria-expanded="true"/, 'TELLER-TOGGLE: a press opens the tale\'s list');
+  const picks = [...taleOpen.matchAll(/data-talemodel="([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(picks.length >= 3, `the detector: the tale's list is drawn (${picks.join(', ')})`);
+  assert.ok(!picks.includes('Qwen3.6-WNTH-35B-A3B-NN'),
+    'TELLER-ONCE: the tale follows your model, so the row names it and the list does not again');
+  assert.strictEqual(new Set(picks).size, picks.length, 'TELLER-ONCE: no model twice');
+  assert.doesNotMatch(taleOpen, /data-pickmodel=/, 'TELLER-TOGGLE: only the pressed row\'s list opens');
+  const before = POSTED.length;
+  click({ talemodel: 'Wayfarer-2-RPNT-12B' });
+  await sleep(40);
+  assert.ok(POSTED.slice(before).some((p: any) => p.url === '/api/story' && p.body.story?.model === 'Wayfarer-2-RPNT-12B'),
+    'TELLER-PICK: a pick saves the tale\'s model');
+  assert.doesNotMatch(html('sideBody'), /data-talemodel=/, 'TELLER-PICK: and closes the list');
+  click({ tellerlist: 'usual' });
+  const usualOpen = html('sideBody');
+  const mine = [...usualOpen.matchAll(/data-pickmodel="([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(mine.length >= 2, `the detector: your list is drawn (${mine.join(', ')})`);
+  assert.ok(!mine.includes('Qwen3.6-WNTH-35B-A3B-NN'), 'TELLER-ONCE: the model in force is the row, not in the list again');
+  assert.strictEqual(new Set(mine).size, mine.length, 'TELLER-ONCE: no model twice in your list');
+  click({ tellerlist: 'usual' });
+  assert.doesNotMatch(html('sideBody'), /data-pickmodel=/, 'TELLER-TOGGLE: a second press shuts it');
+  // A tale with a model of its own: "Your model" is in its list, once, and never by its own name.
+  const wasPin = { model: STORY.model, story: (STORY.story as any).model };
+  STORY.model = 'Wayfarer-2-RPNT-12B'; (STORY.story as any).model = 'Wayfarer-2-RPNT-12B';
+  click({ open: 's-1' });
+  await sleep(40);
+  click({ modelmenu: '1' });
+  await sleep(30);
+  click({ tellerlist: 'tale' });
+  const pinned = [...html('sideBody').matchAll(/data-talemodel="([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(pinned.includes(''), `TELLER-ONCE: a tale with its own model offers "Your model" (${pinned.join(', ')})`);
+  assert.ok(!pinned.includes('Qwen3.6-WNTH-35B-A3B-NN'), 'TELLER-ONCE: and not your model again by its own name');
+  assert.ok(!pinned.includes('Wayfarer-2-RPNT-12B'), 'TELLER-ONCE: nor the tale\'s own, which is the row');
+  click({ tellerlist: 'tale' });
+  STORY.model = wasPin.model; (STORY.story as any).model = wasPin.story;
+  (STORY as any).defaultModel = wasDefault;
+  click({ open: 's-1' });
+  await sleep(40);
+  click({ modelmenu: '1' });
+  await sleep(30);
+
+  // WHAT IT IS, under the row it is about.
+  click({ modelinfo: 'write-nt-qwen36-h' });
   const info = html('sideBody');
-  const row = info.indexOf('<button data-modelinfo="Wayfarer-2-RPNT-12B"');
-  assert.ok(row > 0 && info.indexOf('data-pickmodel="Wayfarer-2-RPNT-12B"') > row,
-    'TELLER-INFO: the model info is drawn under the model picked');
-  assert.ok(info.indexOf('data-pickmodel="Wayfarer-2-RPNT-12B"') < info.indexOf('<button data-modelinfo="', row + 10),
-    'TELLER-INFO: right under it, before the next model in the list');
+  const row = info.indexOf('data-tellerlist="usual"');
+  assert.ok(row > 0 && info.indexOf('How fast he writes', row) > row && info.indexOf('How fast he writes', row) < info.indexOf('data-gen="temperature"'),
+    'TELLER-INFO: the model info is drawn under the model row it is about');
 
   click({ tellertab: 'stats' });
   assert.strictEqual(shown(), 'stats', 'TELLER-STATS: the Stats tab');
@@ -5622,15 +5697,18 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   assert.doesNotMatch(html('sideBody'), /data-acctgo=/, 'TELLER-VOICE: and no door to Account any more');
   click({ tellertab: 'shortlist' });
   assert.match(html('sideBody'), /id="findmine"/, 'TELLER-SHORTLIST: the shortlist');
-  assert.match(html('sideBody'), /needs a Featherless key/, 'TELLER-NOKEY: with no key, the search says it needs one');
+  assert.doesNotMatch(html('sideBody'), /id="findq"|needs a Featherless key/, 'TELLER-SHORTLIST: and no search on it');
+  click({ tellertab: 'addmodel' });
+  assert.match(html('sideBody'), /needs a Featherless key/, 'TELLER-NOKEY: with no key, Add a model says it needs one');
   assert.doesNotMatch(html('sideBody'), /id="findq"/, 'TELLER-NOKEY: and offers no box that cannot search');
+  assert.doesNotMatch(html('sideBody'), /id="findmine"/, 'TELLER-ADD: the shortlist is its own tab');
   modelsRemote = true;
   click({ dropshort: 'featherless:Other/Unused-12B' });   // the list read again, so the key is known
   await sleep(40);
-  click({ tellertab: 'shortlist' });
+  click({ tellertab: 'addmodel' });
   await sleep(30);
-  assert.match(html('sideBody'), /id="findmine"[\s\S]*id="findq"[\s\S]*id="findhits"/,
-    'TELLER-SHORTLIST: with a key, the shortlist and the Featherless search under it');
+  assert.match(html('sideBody'), /id="findq"[\s\S]*id="findhits"/,
+    'TELLER-ADD: with a key, Add a model is the Featherless search');
   modelsRemote = false;
   click({ dropshort: 'featherless:Other/Unused-12B' });
   await sleep(40);
@@ -5639,7 +5717,7 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   click({ tellertab: 'model' });
   click({ findmodel: '1' });
   await sleep(30);
-  assert.strictEqual(shown(), 'shortlist', 'TELLER-WAS: Find a model opens Storyteller on Shortlist');
+  assert.strictEqual(shown(), 'addmodel', 'TELLER-WAS: Find a model opens Storyteller on Add a model');
   click({ modelinfo: 'write-nt-qwen36-h' });
   assert.strictEqual(shown(), 'model', 'TELLER-WAS: a model\'s info opens it on Model');
   click({ acctgo: 'writing' });
@@ -5652,7 +5730,7 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
     await sleep(40);
   };
   await go('#s-1/findmodel');
-  assert.strictEqual(shown(), 'shortlist', 'TELLER-WAS: a findmodel address lands on Shortlist');
+  assert.strictEqual(shown(), 'addmodel', 'TELLER-WAS: a findmodel address lands on Add a model');
   await go('#s-1/model');
   assert.strictEqual(shown(), 'model', 'TELLER-WAS: a model address lands on Model');
   (globalThis as any).location.hash = '';
@@ -5663,11 +5741,12 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   click({ modelmenu: '1' });
   await sleep(30);
   assert.strictEqual(side().hidden, false, 'TELLER-LIB: Storyteller opens in the library');
-  assert.deepStrictEqual(tabsOf(html('sideBody')), ['model', 'shortlist', 'voice'],
-    'TELLER-LIB: Model, Shortlist and Your voice, and no Stats');
-  assert.match(html('sideBody'), />Your model<[\s\S]*<button data-modelinfo="Qwen3\.6-WNTH-35B-A3B-NN"/, 'TELLER-LIB: the usual model');
-  assert.doesNotMatch(html('sideBody'), /data-storymodel=|data-story="|data-gen=/,
-    'TELLER-LIB: and no per-tale controls');
+  assert.deepStrictEqual(tabsOf(html('sideBody')), ['model', 'shortlist', 'addmodel', 'voice'],
+    'TELLER-LIB: Model, Shortlist, Add a model and Your voice, and no Stats');
+  assert.match(html('sideBody'), />On every tale<[\s\S]*<button data-tellerlist="usual"/, 'TELLER-LIB: the usual model, on every tale');
+  assert.doesNotMatch(html('sideBody'), />This tale</, 'TELLER-LIB: no "This tale" with no tale');
+  assert.doesNotMatch(html('sideBody'), /data-storymodel=|data-tellerlist="tale"|data-story="|data-gen=/,
+    'TELLER-LIB: and no per-tale controls, and no sliders');
   click({ tellertab: 'stats' });
   assert.notStrictEqual(shown(), 'stats', 'TELLER-LIB: Stats cannot be shown with no tale');
   click({ acctgo: 'writing' });

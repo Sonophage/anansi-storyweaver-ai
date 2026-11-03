@@ -26,13 +26,16 @@ it also wakes on the other pocket's wake words. The other pocket is removed, and
 Past edits, so you can put it back. Cancel goes back to the pocket and changes nothing.
 
 ### Storyteller holds everything about the model
-Storyteller is now one place with four tabs. Model shows the model that writes this tale and your
-usual model, with what each one is for and how fast it writes under the one you press, and the
-sliders beside them. Shortlist is your shortlist and the Featherless search. Your voice is your
-voice for every tale, how Anansi talks and the five modes, which were in Account → Writing. Stats is
-this tale's last calls. Press the model name at the top of the menu to open it. Storyteller is no
-longer a tile in the tale's menu, and Account no longer has a Writing page. In the library,
-Storyteller shows your usual model, your shortlist and your voice.
+Storyteller is now one place with five tabs: Model, Shortlist, Add a model, Your voice and Stats.
+Press the model name at the top of the menu to open it. Model has two parts. This tale holds the
+model that writes it, Plans first, and how much he reads. On every tale holds your usual model, how
+he picks words, and the longest a passage runs. Each model shows as one row: press it to open the
+list of your other models, and press one to choose it. Each model is in a list once. What it is,
+beside the row, says what the model is for and how fast it writes. The ＋ beside it opens Add a
+model, the Featherless search; Shortlist is your shortlist, where you remove a model. Your voice is
+your voice for every tale, how Anansi talks and the five modes, which were in Account → Writing.
+Stats is this tale's last calls. Storyteller is no longer a tile in the tale's menu, and Account no
+longer has a Writing page. In the library, Model shows only On every tale, with your usual model.
 
 ### A pocket has the thread's eye: Off, On a word, or On
 Each pocket now shows the same eye a thread does, where it said On or Off. The open eye is On: it

@@ -39,6 +39,9 @@ ok(`All threads says how many once it has read them (${JSON.stringify(sub)})`, /
 // ---- Find a model, by its link
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find((s) => s.title === 'The Silver Key').id)()");
 await page.goto(B + "/#" + sid + "/findmodel");
+// It lands on Add a model (2026-11-03), which reads the shortlist; the Shortlist tab shows it.
+await until("!!document.querySelector('[data-tellertab=\"shortlist\"]')");
+await page.click('[data-tellertab="shortlist"]');
 const read = await until("!!document.getElementById('findmine') && !/Reading your shortlist/.test(document.getElementById('findmine').textContent)");
 ok(`a link to Find a model reads the shortlist (${JSON.stringify(await page.eval("document.getElementById('findmine')?.textContent.trim().slice(0, 60) ?? null"))})`, read);
 

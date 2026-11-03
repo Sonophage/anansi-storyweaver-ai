@@ -1417,19 +1417,21 @@ ok("  and the prompt stops mentioning it", !/wears:/.test(bare));
 const sid4 = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find(s=>s.title==='The Silver Key').id)()");
 const view4 = () => page.eval("(async () => await (await fetch('/api/story?story=" + sid4 + "')).json())()");
 await page.goto(B + "/#" + sid4 + "/teller");
-for (let i = 0; i < 60 && !(await page.visible('[data-storymodel]')); i++) await wait(250);
-ok("Storyteller offers a model for this story", await page.visible('[data-storymodel]'));
-const opts4 = await page.eval("[...document.querySelectorAll('[data-storymodel] option')].map(o => o.value)");
-console.log("  offered: " + opts4.filter(Boolean).length + " models plus the default");
-ok("  with a default option meaning 'follow Preferences'", opts4[0] === '');
-ok(`  and the router's models (${opts4.filter(Boolean).length})`, opts4.filter(Boolean).length > 0);
-ok("  defaulting to none, since this story has never named one",
-   await page.eval("document.querySelector('[data-storymodel]').value === ''"));
+// The tale's model is one row that opens its list on a press (2026-11-03); a pick shuts it.
+for (let i = 0; i < 60 && !(await page.visible('[data-tellerlist="tale"]')); i++) await wait(250);
+ok("Storyteller offers a model for this story", await page.visible('[data-tellerlist="tale"]'));
+ok("  following your model, since this story has never named one",
+   /your model/.test(await page.text('[data-tellerlist="tale"]') ?? ''));
+await page.click('[data-tellerlist="tale"]');
+for (let i = 0; i < 20 && !(await page.visible('#talemodels')); i++) await wait(250);
+const opts4 = await page.eval("[...document.querySelectorAll('[data-talemodel]')].map(o => o.dataset.talemodel)");
+console.log("  offered: " + opts4.length + " models");
+ok("  with no 'your model' row, which is the row in force", !opts4.includes(''));
+ok(`  and the router's other models (${opts4.length})`, opts4.length > 0);
 
-const pick = opts4.filter(Boolean)[0];
+const pick = opts4[0];
 if (pick) {
-  await page.eval(`(() => { const el = document.querySelector('[data-storymodel]');
-    el.value = ${JSON.stringify(pick)}; el.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+  await page.click(`[data-talemodel="${pick}"]`);
   for (let i = 0; i < 40 && (await view4()).story.model !== pick; i++) await wait(300);
   const v4 = await view4();
   ok(`choosing one sticks to the story (${JSON.stringify(v4.story.model)})`, v4.story.model === pick);

@@ -280,7 +280,8 @@ const S = {
   chapTab: 'this',
   memoing: null,        // the passage being turned into a thread, while Anansi is thinking
   newsBusy: false, newsError: null,   // What changed, while Anansi is writing it
-  tellerTab: 'model',   // #131. Which of Storyteller's tabs is showing: model, shortlist, voice, stats
+  tellerTab: 'model',   // #131. Which of Storyteller's tabs is showing: model, shortlist, addmodel, voice, stats
+  tellerList: null,     // Which model row on Model has its list open: 'tale', 'usual', or none (2026-11-03)
   // #51. Find a model: the search over the Featherless catalogue, and this writer's shortlist.
   // `hits` is null until the first answer lands; `seq` drops an answer a later search overtook.
   find: { q: '', size: '', weaving: '', cost: '', tag: '', uncensored: true, hits: null, total: 0, sizes: [], costs: [], weavings: [],
@@ -453,11 +454,11 @@ const rowArt = (url, i) => url ? `<i class="rowart" aria-hidden="true"
   style="background-image:url('${url}'); opacity:${Math.max(0.1, 0.62 - i * 0.07).toFixed(2)}"></i>` : '';
 // Deep links and bookmarks still carry the old names, and so does a browser tab left open across
 // the change. Cheaper to map them than to serve a blank panel.
-// #131. The model panel and Find a model are Storyteller's Model and Shortlist tabs now; TELLER_WAS
+// #131. The model panel and Find a model are Storyteller's Model and Add a model tabs now; TELLER_WAS
 // says which tab each old name lands on.
 const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queue: 'chapter', branches: 'chapter',
   model: 'teller', findmodel: 'teller' };
-const TELLER_WAS = { model: 'model', findmodel: 'shortlist' };
+const TELLER_WAS = { model: 'model', findmodel: 'addmodel' };
 const WNAV = [
   ['stories', 'stories', 'Library'], ['create', 'create', 'New tale'],
   ['canon', 'threads', 'Threads'],
@@ -490,7 +491,7 @@ TITLES.setup = 'The next scene';
 TITLES.ritual = 'Hemming the scene';
 TITLES.anansi = 'Anansi';
 // #25 and #51. The model panel and Find a model had titles here until #131 made them Storyteller's
-// Model and Shortlist tabs; their old addresses reach it through PANEL_WAS.
+// Model and Add a model tabs; their old addresses reach it through PANEL_WAS.
 // #76. Opened from Tale → Keep. What an update to Anansi moved in this tale.
 TITLES.updates = 'What the update moved';
 const WTITLES = {
@@ -561,7 +562,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #71. The quill that opens the box, the ⌄ that folds it, the bulb, an idea picked, and the way
   // out of Talk.
   'dockopen', 'dockfold', 'idea', 'ideapick', 'dockwrite', 'newlore', 'lorekind', 'loreread',
-  'dropblank', 'makeblank', 'wear', 'storymodel', 'lbook',
+  'dropblank', 'makeblank', 'wear', 'talemodel', 'tellerlist', 'lbook',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'talkundo', 'talkadd', 'copyentry', 'delcover', 'drawcover', 'usecover',
   // The talks kept (2026-10-30): the list, one opened, one deleted; and an answer's prompt copied.
   'talkpast', 'talkopen', 'talkdel', 'copyprompt',
@@ -4532,7 +4533,7 @@ async function loadCard(id) {
   const r = await api.catalogueCard(id);
   S.hub.reading.delete(id);
   S.hub.cards[id] = r.error ? { error: r.error } : r;
-  if (tellerOn('shortlist')) findRedraw();
+  if (tellerFinding()) findRedraw();
   else if (tellerOn('model')) drawSide();
 }
 
@@ -4544,10 +4545,10 @@ async function loadTags(ids) {
   want.forEach((id) => S.hub.reading.add(`tags:${id}`));
   const r = await api.catalogueTags(want);
   want.forEach((id) => { S.hub.reading.delete(`tags:${id}`); S.hub.tags[id] = r.tags?.[id] ?? []; });
-  if (tellerOn('shortlist')) findRedraw();
+  if (tellerFinding()) findRedraw();
 }
 
-/** One model on Storyteller's Shortlist tab (Find a model, before #131): the name the menu decodes, then what it costs the shared
+/** One model on Storyteller's Shortlist or Add a model tab (Find a model, before #131): the name the menu decodes, then what it costs the shared
  *  plan, what it holds, and whether it weaves, then its tags. The name side is a button: pressing
  *  it expands the row into its card. `act` is the button at the end of the row. */
 function foundRow(m, act) {
@@ -4568,14 +4569,15 @@ function foundRow(m, act) {
     ${open ? remoteAbout(S.hub.cards[m.id]) : ''}</div>`;
 }
 
-/** Both lists on the Shortlist tab, in place, for an answer that changes only their rows. */
+/** The shortlist or the search results, whichever is drawn, in place, for an answer that changes
+ *  only their rows. */
 function findRedraw() {
   if ($('findhits')) $('findhits').innerHTML = findHits();
   if ($('findmine')) $('findmine').innerHTML = findMine();
 }
 
-/** The writer's shortlist, read fresh. Called by the press that opens Find a model, and by the
- *  Shortlist tab itself when it is drawn with nothing read yet: a link to `#<tale>/findmodel` or a
+/** The writer's shortlist, read fresh. Called by the press that opens Add a model, and by the
+ *  Shortlist and Add a model tabs when drawn with nothing read yet: a link to `#<tale>/findmodel` or a
  *  press on the tab opens it without that press, and it said "Reading your shortlist…" for ever
  *  (usability check, 2026-10-24). */
 let SHORTLISTING = false;
@@ -4584,7 +4586,7 @@ function loadShortlist() {
   api.shortlist().then((r) => {
     SHORTLISTING = false;
     S.shortlist = r.error ? [] : (r.models ?? []);
-    if (tellerOn('shortlist')) drawSide();
+    if (tellerFinding()) drawSide();
     loadTags(S.shortlist.map((m) => m.id));
   });
 }
@@ -4616,11 +4618,11 @@ function whyWords(b) {
   return WHY[r] ?? r;
 }
 
-/** The shortlist half of the Shortlist tab. */
+/** The rows of the Shortlist tab. */
 function findMine() {
   const mine = S.shortlist ?? [];
   return S.shortlist === null ? '<div class="hint flush">Reading your shortlist&hellip;</div>'
-    : mine.length === 0 ? `<div class="hint flush">Nothing yet. A model you add below
+    : mine.length === 0 ? `<div class="hint flush">Nothing yet. A model you add on Add a model
         appears here and in your list on Model, and on no one else's.</div>`
     : mine.map((m) => foundRow(m, `<button class="btn ghost btn-side-sm" data-dropshort="${esc(m.id)}"
        >Remove</button>`)).join('');
@@ -4660,14 +4662,14 @@ async function findSearch(whole = false) {
   f.tagIndex = r.tagIndex ?? null;
   // Still reading tags: ask again in a moment, unless something newer has been asked meanwhile.
   clearTimeout(f.again);
-  if (f.tagIndex && f.tagIndex.read < f.tagIndex.of && tellerOn('shortlist'))
-    f.again = setTimeout(() => { if (seq === f.seq && tellerOn('shortlist')) findSearch(); }, 2000);
+  if (f.tagIndex && f.tagIndex.read < f.tagIndex.of && tellerOn('addmodel'))
+    f.again = setTimeout(() => { if (seq === f.seq && tellerOn('addmodel')) findSearch(); }, 2000);
   f.error = r.error ?? null;
   f.hits = r.error ? [] : (r.models ?? []); f.total = r.total ?? 0;
   if (r.sizes) f.sizes = r.sizes;
   if (r.costs) f.costs = r.costs;
   if (r.weavings) f.weavings = r.weavings;
-  if (!tellerOn('shortlist')) return;
+  if (!tellerOn('addmodel')) return;
   if (whole || !$('findhits')) drawSide(); else findRedraw();
   // The search answers without tags, so typing never waits on Hugging Face; they follow.
   loadTags(f.hits.map((m) => m.id));
@@ -4809,30 +4811,38 @@ function modelInfo(id) {
     </div></div>`;
 }
 
-/** #51 · FIND A MODEL. The writer's shortlist on top, because what you already have is the first
- *  thing to see before adding more; the search below it. Remove lives here and nowhere else, so
- *  the Model tab stays a place to pick from.
+/** #51 · THE SHORTLIST, Storyteller's Shortlist tab: the writer's own list, and Remove. Remove lives
+ *  here and nowhere else, so the Model tab stays a place to pick from.
+ *
+ *  Seth, 2026-11-03: "split the add a new model and shortlist into two separate tabs". The search
+ *  that sat under this list is Add a model now (`addModel`). */
+function shortlistTab() {
+  // Opened by a link rather than the press: start what the press would have started.
+  if (S.shortlist === null && !SHORTLISTING) loadShortlist();
+  return `<div class="stack-6">
+      <span class="kind">Your shortlist</span>
+      <div class="stack-2" id="findmine">${findMine()}</div>
+    </div>`;
+}
+
+/** #51 · ADD A MODEL, Storyteller's Add a model tab: the Featherless search.
  *
  *  The search is the SERVER's: the browser never talks to Featherless, and the filters and the
- *  context floor are decided there. This
- *  draws what comes back. Typing redraws only the results, so the box keeps its caret.
+ *  context floor are decided there. This draws what comes back. Typing redraws only the results, so
+ *  the box keeps its caret. With no Featherless key there is nothing to search, so the tab says so
+ *  in place of a box that would answer with an error.
  *
- *  #131 · IT WAS A PANEL OF ITS OWN, `findmodel`. It is Storyteller's Shortlist tab now. With no
- *  Featherless key there is nothing to search, so the tab says so in place of a box that would
- *  answer with an error. */
-function findModel() {
+ *  #131 · IT WAS A PANEL OF ITS OWN, `findmodel`; an address or a press that names it lands here. */
+function addModel() {
   const f = S.find;
-  // Opened by a link rather than the press: start what the press would have started.
+  // The shortlist is read too, so a model already on it says so in place of Add.
   if (S.shortlist === null && !SHORTLISTING) loadShortlist();
   if (S.remote && f.hits === null && !f.seq) findSearch(true);
   const opt =(v, l, on) => `<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(l)}</option>`;
+  if (!S.remote) return `<div class="hint flush">The search needs a Featherless key, and there is none
+      yet. Account &rarr; Model says where it goes.</div>`;
   return `<div style="display:flex; flex-direction:column; gap:14px">
-    <div class="stack-6">
-      <span class="kind">Your shortlist</span>
-      <div class="stack-2" id="findmine">${findMine()}</div>
-    </div>
-    ${!S.remote ? `<div class="hint flush" style="padding-top:12px; border-top:1px solid var(--line)">The search
-      needs a Featherless key, and there is none yet. Account &rarr; Model says where it goes.</div>` : `<div style="display:flex; flex-direction:column; gap:8px; padding-top:12px; border-top:1px solid var(--line)">
+    <div style="display:flex; flex-direction:column; gap:8px">
       <span class="kind">Search Featherless</span>
       <input class="field full" id="findq" type="search" aria-label="Search by name" value="${esc(f.q)}" placeholder="Part of a name" autocomplete="off"
        >
@@ -4852,18 +4862,22 @@ function findModel() {
         <input type="checkbox" data-finduncensored="1"${f.uncensored ? ' checked' : ''}>
         Uncensored only</label>
     </div>
-    <div class="stack-2" id="findhits">${findHits()}</div>`}
+    <div class="stack-2" id="findhits">${findHits()}</div>
   </div>`;
 }
 
-/** #131 · STORYTELLER'S TABS. Stats is this tale's calls, so it is not offered with no tale open. */
-const TELLER_TABS = [['model', 'Model'], ['shortlist', 'Shortlist'], ['voice', 'Your voice'], ['stats', 'Stats']];
+/** #131 · STORYTELLER'S TABS. Stats is this tale's calls, so it is not offered with no tale open.
+ *  Shortlist and Add a model are two tabs since Seth's review of 2026-11-03. */
+const TELLER_TABS = [['model', 'Model'], ['shortlist', 'Shortlist'], ['addmodel', 'Add a model'],
+  ['voice', 'Your voice'], ['stats', 'Stats']];
 const tellerInTale = () => S.place === 'story' && !!V;
 const tellerTabs = () => (tellerInTale() ? TELLER_TABS : TELLER_TABS.filter(([k]) => k !== 'stats'));
 /** The tab drawn: the one asked for, or Model when that one is not offered here. */
 const tellerTab = () => (tellerTabs().some(([k]) => k === S.tellerTab) ? S.tellerTab : 'model');
 /** Storyteller is open on this tab. What redraws a tab's body after an answer asks this. */
 const tellerOn = (tab) => S.panel === 'teller' && tellerTab() === tab;
+/** Either tab that draws shortlist rows: an answer about the shortlist or a card redraws them. */
+const tellerFinding = () => tellerOn('shortlist') || tellerOn('addmodel');
 /** Open Storyteller on a tab, from any of its doors: the model named in either menu, a model's
  *  info, Find a model, Account → Writing's old door, and the weaving refusal's Use another model.
  *  It shuts the rail behind it on an overlay, the same line every `data-nav` row runs, or the panel
@@ -4876,51 +4890,90 @@ function openTeller(tab) {
   syncHash(); paint();
 }
 
-/** One row of the writer's usual model list, with the model's info under it when it is the one
- *  picked. It was the list that dropped open under the menu's model name until #131. A REMOTE MODEL
- *  WITH NO KEY ON THE SERVER is still listed, so the shortlist does not look wiped, but as a dimmed
- *  row and not a button: nothing to open, nothing to pick. */
-function usualRow(m) {
-  if (m.source === 'remote' && m.ready === false) return `<div data-unready="${esc(m.id)}" aria-disabled="true" title="Featherless isn't set up"
-      style="display:flex; align-items:center; gap:9px; padding:8px 10px; opacity:.55">
-      ${runsMark(m.id, m.status)}
-      <span class="txt text-stack">
-        <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis; color:var(--dim)"
-          >${esc(modelName(m.id).name)}</span>
-        <span class="quiet">Featherless isn't set up</span></span></div>`;
-  const usual = m.id === SRV.model;
-  return `<button data-modelinfo="${esc(m.id)}" aria-expanded="${S.modelPick === m.id}"
-      style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r);
-      width:100%; text-align:left; background:${usual ? 'rgba(217,178,106,.10)' : 'transparent'}">
-      ${runsMark(m.id, m.status)}
-      <span class="txt text-stack">
-        <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis;
-          color:${usual ? 'var(--ink-bright)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
-        ${modelName(m.id).bits.length ? `<span class="gold-line">${esc(modelName(m.id).bits.join(' · '))}</span>` : ''}
-        ${modelFacts(m, !SRV.admin) ? `<span class="quiet">${esc(modelFacts(m, !SRV.admin))}</span>` : ''}</span>
-    </button>${S.modelPick === m.id ? tellerInfo(m.id) : ''}`;
+/** The writer's usual model: in a tale, the default the server read with it; elsewhere the list's. */
+const usualNow = () => (tellerInTale() ? V.defaultModel : null) ?? SRV.model;
+
+const PICK_ROW = 'display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r); width:100%; text-align:left';
+/** ONE MODEL IN AN OPEN LIST, and a press on it picks it (Seth, 2026-11-03: "remove the drop down
+ *  and instead do the panel to open on toggle"). `attr` names what the pick sets: `pickmodel` for
+ *  your usual model, `talemodel` for this tale's. The text is one span, the decode the old <option>
+ *  carried (name, detail, where it runs), and the drawn mark beside it. A REMOTE MODEL WITH NO KEY ON
+ *  THE SERVER is listed, so the shortlist does not look wiped, but dimmed and not a button. */
+function pickRow(attr, value, m) {
+  const id = m?.id ?? value;
+  const d = modelName(id);
+  const where = m?.ready === false ? "Featherless isn't set up" : whereRuns(id, m?.status).words;
+  const text = [d.name, d.detail].filter(Boolean).join(' — ');
+  if (m?.ready === false) return `<div data-unready="${esc(id)}" aria-disabled="true" title="Featherless isn't set up"
+      style="display:flex; align-items:center; gap:9px; padding:8px 10px; opacity:.55"
+      ><span class="txt" style="font-size:12.5px; color:var(--dim)">${esc(text)} · ${esc(where)}</span>${runsMark(id, m.status)}</div>`;
+  const body = `<span class="txt" style="font-size:12.5px; color:var(--mute)">${esc(text)} · ${esc(where)}</span>${runsMark(id, m?.status)}`;
+  // Two literal attributes, not `data-${attr}`: test/web.ts reads each button's action from source.
+  return attr === 'talemodel'
+    ? `<button data-talemodel="${esc(value)}" style="${PICK_ROW}">${body}</button>`
+    : `<button data-pickmodel="${esc(value)}" style="${PICK_ROW}">${body}</button>`;
 }
+
+/** THE MODEL IN FORCE, AS ONE ROW. A press on it opens the list under it (`S.tellerList`), and a
+ *  pick shuts it. Beside it, What it is opens the model's info under the row, and the ＋ opens Add a
+ *  model (Seth: "a plus to add a new model"). `which` is 'tale' or 'usual'. */
+function inForceRow(which, id, sub, status) {
+  const d = modelName(id);
+  const open = S.tellerList === which;
+  return `<div style="display:flex; align-items:center; gap:6px">
+      <button data-tellerlist="${which}" aria-expanded="${open}" style="flex:1; min-width:0; display:flex;
+        align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r); text-align:left;
+        background:rgba(217,178,106,.10)">
+        ${runsMark(id, status)}
+        <span class="txt text-stack">
+          <span style="font-size:13px; color:var(--ink-bright); overflow:hidden; text-overflow:ellipsis">${esc(d.name)}</span>
+          ${d.bits.length ? `<span class="gold-line">${esc(d.bits.join(' · '))}${d.size ? ` · ${esc(d.size)}` : ''}</span>` : ''}
+          ${sub ? `<span class="quiet">${sub}</span>` : ''}</span>
+        <span aria-hidden="true" style="color:var(--dim)">${open ? '&#9652;' : '&#9662;'}</span></button>
+      <button data-modelinfo="${esc(id)}" style="color:var(--gold); font-size:11px; letter-spacing:.12em;
+        text-transform:uppercase">What it is</button>
+      <button class="btn ghost btn-side-sm" data-findmodel="1" aria-label="Add a model" title="Add a model">＋</button>
+    </div>`;
+}
+
 /** The model info, set in under the model it is about. */
 const tellerInfo = (id) => `<div style="padding:4px 0 14px 12px; margin-left:10px; border-left:2px solid var(--line)">${
   modelInfo(id)}</div>`;
 
-/** #131 · STORYTELLER → MODEL. In a tale, under "This tale": its model, Plans first and how much he
- *  reads. Under "Yours, on every tale": your usual model, as a list with the info under the one
- *  pressed, and how he picks words. Outside a tale, the usual model only: the sliders save through
- *  a route that names a tale, and there is none to name. */
+/** #131 · STORYTELLER → MODEL, in two headed sections (Seth, 2026-11-03: "this should be tale
+ *  dependent so maybe we need to split per tale and global settings in this panel").
+ *  "This tale": the model that writes it, Plans first and how much he reads.
+ *  "On every tale": your usual model, how he picks words and the longest a passage runs.
+ *  Outside a tale, "On every tale" with your usual model only: the sliders save through a route
+ *  that names a tale, and there is none to name.
+ *
+ *  EACH MODEL ONCE (Seth: "your model is on there twice"). A section shows its model in force as one
+ *  row, and its list leaves that model out. The tale's list offers your usual model as "Your model"
+ *  and never again by its own name, because picking it by name pinned the tale to it, which is a
+ *  different thing that looked the same. */
 function tellerModel() {
   const inTale = tellerInTale();
-  const usual = S.models === null ? '<div class="hint flush">Asking the router&hellip;</div>'
+  const usual = usualNow();
+  // Info for a model that is not in force in either section (an old door, a tag) goes under the
+  // usual row, with the others.
+  const infoAt = (id) => (S.modelPick === id ? tellerInfo(id) : '');
+  const usualList = S.tellerList !== 'usual' ? ''
+    : S.models === null ? '<div class="hint flush">Asking the router&hellip;</div>'
     : S.models.length === 0 ? emptyModels()
-    : S.models.map(usualRow).join('');
-  // The info for a model that is not on the list (a guest reading the owner's pin) goes under the
-  // tale's model, which is where its "What it is" was pressed.
-  const offList = S.modelPick && !(S.models ?? []).some((m) => m.id === S.modelPick) ? tellerInfo(S.modelPick) : '';
-  const yours = `<div class="lbl">Your model</div>
-      <div class="hint flush below-6">${inTale ? 'Writes every tale that does not name its own.' : 'Writes every tale that does not name its own. A tale names its own in Storyteller, inside that tale.'}
-        Press one to see what it is for and how fast it writes here, and to write with it.</div>
-      <div class="stack-2" id="usualmodels">${usual}</div>`;
-  if (!inTale) return `${yours}${offList}`;
+    : `<div class="stack-2" id="usualmodels">${S.models.filter((m) => m.id !== usual)
+        .map((m) => pickRow('pickmodel', m.id, m)).join('') || '<div class="hint flush">Your list holds no other model.</div>'}</div>`;
+  const taleId = inTale ? (V.story.model ?? V.model) : null;
+  const otherInfo = S.modelPick && S.modelPick !== usual && S.modelPick !== taleId ? tellerInfo(S.modelPick) : '';
+  const every = `<div class="lbl sect"${inTale ? '' : ' style="margin-top:0"'}>On every tale${inTale ? tipMark('genShared', 'On every tale') : ''}</div>
+    ${inTale ? tipCard('genShared', 'On every tale', `<p>Your model and how he picks words belong to you,
+      not to the server: changing them here changes them for every tale you write, and leaves the
+      other writer alone. Per-tale sampling was never built.</p>`) : ''}
+    <div class="lbl">Your model</div>
+    <div class="hint flush below-6">Writes every tale that does not name its own.${inTale ? '' : ' A tale names its own in Storyteller, inside that tale.'}
+      Press it to choose another.</div>
+    ${inForceRow('usual', usual, '', (S.models ?? []).find((m) => m.id === usual)?.status)}
+    ${usualList}${infoAt(usual)}${otherInfo}`;
+  if (!inTale) return every;
   const g = V.gen ?? SRV.gen ?? {};
   // The writer's models plus this book's own remote pin, which a guest's list does not hold.
   const listed = withPin(S.models, V.pin);
@@ -4938,61 +4991,40 @@ function tellerModel() {
         min="0" max="${max}" step="${max > 2 ? 10 : 0.01}"
         value="${value}" style="width:100%; accent-color:var(--gold)">
     </div>`;
-  // TWO HOMES ON ONE PANEL, SAID AS TWO (Seth's item 9 of the 2026-10-29 review). It opened on
-  // "These are yours, not per tale" above a model picker that IS per tale. ADR 0003: what is this
-  // tale's comes first under its own heading, what is the writer's on every tale under another.
+  // THE TALE'S LIST: "Your model" unless the tale already follows it, then each listed model but
+  // your usual one and the tale's own pin. A pin the router no longer offers is the row in force,
+  // and says so; it is not offered again.
+  const pin = V.story.model ?? null;
+  const gone = pin && !(listed ?? []).some((m) => m.id === pin);
+  const taleList = S.tellerList !== 'tale' ? ''
+    : listed === null ? '<div class="hint flush">Asking the router&hellip;</div>'
+    : listed.length === 0 ? emptyModels()
+    : `<div class="stack-2" id="talemodels">${pin ? `<button data-talemodel="" style="${PICK_ROW}"><span class="txt"
+          style="font-size:12.5px; color:var(--mute)">Your model &mdash; ${esc(modelName(usual).name)}</span></button>` : ''}${
+        listed.filter((m) => m.id !== usual && m.id !== pin).map((m) => pickRow('talemodel', m.id, m)).join('')}</div>`;
+  // The row names the tale's own model when it has one, which is the setting it edits, and says
+  // when that one cannot write. `V.model` is what the server ALREADY resolved for this story
+  // (modelFor in routes.ts), and it is what the hint under the row names. NOT `SRV.model`: that one
+  // tracks the ACCOUNT default and `loadModels` rewrites it on every refresh.
+  const taleSub = gone ? "this tale's own, and the router no longer offers it"
+    : pin && V.model !== pin ? "this tale's own, which cannot write now"
+    : pin ? "this tale's own" : 'your model';
+  // TWO HOMES ON ONE PANEL, SAID AS TWO (Seth's item 9 of the 2026-10-29 review). ADR 0003: what is
+  // this tale's comes first under its own heading, what is the writer's on every tale under another.
   return `<div class="lbl sect" style="margin-top:0">This tale</div>
-    <div class="hint flush below-14">Its model, whether he plans first, and how much he reads. Only this tale.</div>
-    <div class="lbl">Model</div>
-    ${listed === null ? '<div class="hint flush">Asking the router&hellip;</div>'
-      : listed.length === 0 ? emptyModels()
-      : `<select class="field" data-storymodel="1" aria-label="This tale's model">
-          ${modelOptions(listed, V.story.model).map((o) => `<option value="${esc(o.value)}"${
-            o.selected ? ' selected' : ''}${o.ready === false ? ' disabled' : ''}>${
-            !o.value ? `Your model &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}`
-            : o.gone ? `${esc(modelName(o.value).name)} &mdash; the router no longer offers this`
-            : `${esc([modelName(o.value).name, modelName(o.value).detail].filter(Boolean).join(' — '))} · ${
-                o.ready === false ? "Featherless isn't set up" : whereRuns(o.value, o.status).words}`}</option>`).join('')}
-        </select>
-        <!-- #53. An option holds text and nothing else, so each one says in words where its model
-             runs, and the drawn mark sits in the row below, beside the badges of the model this
-             book is written by. -->
-        <!-- THE THIRD SURFACE. Same decode as the menu's label and the list below, and the
-             door to the same model info — the one place that says what this model is good at, how
-             fast it has written here, and how much context one writer gets. The option text
-             above carries the detail string, which is these badges with the size put back in; and
-             since a select
-             cannot hold a chip, so the badges are repeated under it for whichever model this
-             story is actually going to use. -->
-        ${(() => {
-          // `V.model` is what the server ALREADY resolved for this story — modelFor(story,
-          // defaultModel) at routes.ts:1044, always set. Re-deriving it here from the pin and the
-          // default would be a second copy of that rule, and the two would eventually disagree
-          // about which model a book is actually written by. NOT `SRV.model`: that one tracks the
-          // ACCOUNT default and `loadModels` rewrites it from `r.active` on every refresh, so a
-          // book with a pin would start naming the wrong model the moment the list reloaded.
-          // No `?? SRV.model` fallback either — this panel only renders inside a story, so the
-          // fallback was a branch nothing could reach and no check could falsify.
-          const using = V.model;
-          const d = modelName(using);
-          return `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:8px">
-            ${runsMark(using, listed.find((m) => m.id === using)?.status)}
-            ${d.bits.map((b) => `<span class="tag">${esc(b)}</span>`).join('')}
-            ${d.size ? `<span class="tag">${esc(d.size)}</span>` : ''}
-            <button data-modelinfo="${esc(using)}" style="margin-left:auto; color:var(--gold);
-              font-size:11px; letter-spacing:.12em; text-transform:uppercase"
-              >What it is</button></div>`;
-        })()}
-        <div class="hint">${V.story.model && whereRuns(V.story.model).remote && V.model !== V.story.model
-          // The server resolved the pin to the local default (no key, or the model is off the
-          // owner's shortlist), so the hint must not claim the pinned model writes this book.
-          ? `This tale's model is <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
-             which cannot write now, so <code>${esc(modelName(V.model).name)}</code> writes it.`
-          : V.story.model
-          ? `This tale's model is <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
-             whatever any other tale uses.`
-          : 'This tale uses your model, the one named in the menu. Name one here and it becomes this tale&rsquo;s model, whatever your model becomes.'}</div>`}
-    ${offList}
+    <div class="hint flush below-14">The model that writes it, whether he plans first, and how much he reads. Only this tale.</div>
+    <div class="lbl">The model that writes it</div>
+    ${inForceRow('tale', pin ?? V.model, taleSub, (listed ?? []).find((m) => m.id === (pin ?? V.model))?.status)}
+    ${taleList}${taleId !== usual ? infoAt(taleId) : ''}
+    <div class="hint">${pin && whereRuns(pin).remote && V.model !== pin
+      // The server resolved the pin to the local default (no key, or the model is off the
+      // owner's shortlist), so the hint must not claim the pinned model writes this book.
+      ? `This tale's model is <code title="${esc(pin)}">${esc(modelName(pin).name)}</code>,
+         which cannot write now, so <code>${esc(modelName(V.model).name)}</code> writes it.`
+      : pin
+      ? `This tale's model is <code title="${esc(pin)}">${esc(modelName(pin).name)}</code>,
+         whatever any other tale uses.`
+      : 'This tale uses your model. Press it to name one of its own, whatever your model becomes.'}</div>
     <!-- #55. WEAVING, this book's own switch, beside the model that writes it. It replaced a note
          that said thinking was off and not a setting, which is no longer true once a book can
          weave. A [data-story] checkbox, so it saves itself and the Context panel asks again: the
@@ -5020,11 +5052,7 @@ function tellerModel() {
       .map(([v, label]) => `<option value="${v}"${String(V.story.maxContext ?? '') === v ? ' selected' : ''}>${label}</option>`).join('')}</select>
     <div class="hint">Less is faster and keeps him on the recent pages; more lets him see further back.</div>
 
-    <div class="lbl sect">Yours, on every tale${tipMark('genShared', 'Yours, on every tale')}</div>
-    ${tipCard('genShared', 'Yours, on every tale', `<p>How he picks words belongs to you, not to the
-      server: changing it here changes it for every tale you write, and leaves the other writer
-      alone. Per-tale sampling was never built.</p>`)}
-    ${/* An empty or unread list is already said once, under This tale. */ S.models?.length ? yours : ''}
+    ${every}
     <div class="lbl push-14">How he picks words</div>
     ${/* NAMED FOR WHAT THE WRITER FEELS (Seth, 2026-10-31: "the sliders need to be named more user
           friendly"). Surprise, Focus and Passage length until then; the keys are the sampler's. */ ''}
@@ -5035,6 +5063,19 @@ function tellerModel() {
     ${slider('Longest a passage runs', 'target_words', g.target_words ?? 0, 2000,
       'The most words a passage should run. Anansi stops sooner when the moment is done, and he is '
       + 'not cut off at it. All the way left leaves the length to him.')}`;
+}
+
+/** NAME THIS TALE'S MODEL, or null for your model, and read the tale back so the row and the menu
+ *  name what writes it now. It was the change handler of the drop-down this list replaced. */
+function saveTaleModel(model) {
+  api.saveStory(S.storyId, { model }).then(async (r) => {
+    if (r.error) return toast(r.error);
+    V = await api.story(S.storyId);
+    paint(); refreshManifest();
+    // #61. `r.toast` is the server saying the move turned this book's weaving off.
+    const moved = model ? `This tale's model is ${modelName(model).name} now.` : 'Back to your model.';
+    toast(r.toast ? `${moved} ${r.toast}` : moved);
+  });
 }
 
 /** #131 · STORYTELLER → STATS. This tale's last calls and the worst prefill: the numbers are there
@@ -6271,7 +6312,8 @@ const PANELS = {
     const tab = tellerTab();
     const row = `<div class="lead-14 row-6">${tellerTabs().map(([k, label]) =>
       `<button class="chip fill center-press" data-tellertab="${k}" aria-pressed="${tab === k}">${label}</button>`).join('')}</div>`;
-    const body = tab === 'shortlist' ? findModel()
+    const body = tab === 'shortlist' ? shortlistTab()
+      : tab === 'addmodel' ? addModel()
       : tab === 'voice' ? (S.prompts === null ? (loadPrompts(), '') : '') + writingDefaults()
       : tab === 'stats' ? tellerStats()
       : tellerModel();
@@ -12504,7 +12546,7 @@ document.addEventListener('input', (e) => {
   alterSoon();
 });
 
-// #51. The search box on the Shortlist tab. Searches a moment after the typing stops, and redraws only the results.
+// #51. The search box on the Add a model tab. Searches a moment after the typing stops, and redraws only the results.
 let findTimer = null;
 document.addEventListener('input', (e) => {
   if (e.target?.id === 'findtag') {
@@ -12978,8 +13020,8 @@ document.addEventListener('click', async (e) => {
   // The Workbench's way to where chapters are gathered: This scene, on its Summaries tab.
   if (d.findtag !== undefined) {
     S.find.tag = d.findtag;
-    // A tag on the model info leads to the Shortlist tab, which is where the others are listed.
-    if (!tellerOn('shortlist')) return void openTeller('shortlist');
+    // A tag on the model info leads to Add a model, which is where the others are searched.
+    if (!tellerOn('addmodel')) return void openTeller('addmodel');
     if ($('findtag')) $('findtag').value = d.findtag;
     findSearch(); return;
   }
@@ -13926,13 +13968,17 @@ document.addEventListener('click', async (e) => {
     V = r; paint();
     return toast(r.undone || 'Undone.');
   }
-  if (d.storymodel !== undefined) { return; }   // handled on change, below
   // #25. The row names a model; the panel is where it is read and where it is switched.
-  // #131. Its info is drawn under it on Storyteller's Model tab.
-  if (d.modelinfo) { S.modelPick = d.modelinfo; return void openTeller('model'); }
-  // #51. Find a model, which is Storyteller's Shortlist tab since #131. Read fresh on every press.
+  // #131. Its info is drawn under it on Storyteller's Model tab, with both lists shut.
+  if (d.modelinfo) { S.modelPick = d.modelinfo; S.tellerList = null; return void openTeller('model'); }
+  // Seth, 2026-11-03: a model row on the Model tab opens its list on a press, and shuts it on another.
+  if (d.tellerlist) { S.tellerList = S.tellerList === d.tellerlist ? null : d.tellerlist; S.modelPick = null; drawSide(); return; }
+  // A pick in the tale's list names this tale's model, or '' for your model, and shuts the list.
+  if (d.talemodel !== undefined) { S.tellerList = null; saveTaleModel(d.talemodel || null); return; }
+  // #51. Find a model, which is Storyteller's Add a model tab since 2026-11-03. Read fresh on every
+  // press: the ＋ beside a model row on Model, and the empty list's way on.
   if (d.findmodel) {
-    openTeller('shortlist');
+    openTeller('addmodel');
     loadShortlist();
     if (S.remote) findSearch(true);
     return;
@@ -13967,7 +14013,8 @@ document.addEventListener('click', async (e) => {
     return toast(`${modelName(d.dropshort).name} is off your shortlist.${r.toast ? ` ${r.toast}` : ''}`);
   }
   if (d.pickmodel) {
-    if (d.pickmodel === SRV.model) return;
+    S.tellerList = null;
+    if (d.pickmodel === SRV.model) return void drawSide();
     const r = await api.setModel(d.pickmodel, S.storyId ?? LIB[0]?.id);
     if (r.error) return toast(r.error);
     SRV.model = r.active; loadModels();
@@ -15412,15 +15459,16 @@ document.addEventListener('click', async (e) => {
   // #56. The weaving refusal's ways on. Write anyway and Turn weaving off each send the refused
   // press again: Write anyway with the override, Turn weaving off once the book's switch is saved
   // and the book read back, so the server is the one that says it no longer weaves. #58. Use
-  // another model sends nothing: it opens the Storyteller on the book's model picker, and the
+  // another model sends nothing: it opens the Storyteller with the book's model list open, and the
   // writer presses again once they have picked.
   if (d.weaveanyway !== undefined || d.weaveoff !== undefined || d.weavemodel !== undefined) {
     const fit = S.weaveFit;
     if (!fit || fit.storyId !== S.storyId) return;
     S.weaveFit = null;
     if (d.weavemodel !== undefined) {
+      // The tale's list, open, so the next press is the pick.
+      S.tellerList = 'tale'; S.modelPick = null;
       openTeller('model');
-      document.querySelector('[data-storymodel]')?.focus?.();
       return;
     }
     if (d.weaveoff !== undefined) {
@@ -16242,18 +16290,6 @@ document.addEventListener('change', (e) => {
     // Never redraws the panel: the question you are part-way through typing lives in the DOM.
     S.talk.search = e.target.checked;
     setWebSearch(S.talk.search);
-    return;
-  }
-  if (e.target.dataset?.storymodel) {
-    const model = e.target.value || null;
-    api.saveStory(S.storyId, { model }).then(async (r) => {
-      if (r.error) return toast(r.error);
-      V = await api.story(S.storyId);
-      paint(); refreshManifest();
-      // #61. `r.toast` is the server saying the move turned this book's weaving off.
-      const moved = model ? `This tale's model is ${model} now.` : 'Back to your model.';
-      toast(r.toast ? `${moved} ${r.toast}` : moved);
-    });
     return;
   }
   /* THE MODE DIAL, and the only place a mode is switched. This was `data-mode` on four buttons and

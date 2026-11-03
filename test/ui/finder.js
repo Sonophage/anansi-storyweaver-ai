@@ -23,16 +23,17 @@ const search = async (q) => {
   await wait(700);
 };
 
-// ---- 1. the door: the model named in the menu opens Storyteller, and Shortlist is a tab of it
+// ---- 1. the door: the model named in the menu opens Storyteller, and the ＋ beside the model row
+// opens its Add a model tab (Seth, 2026-11-03: Shortlist and Add a model are two tabs).
 await page.goto(B + "/");
 await page.click('[data-modelmenu="1"]');
-ok("the model name opens Storyteller, with a Shortlist tab", await until("!!document.querySelector('#sideBody [data-tellertab=\"shortlist\"]')"));
+ok("the model name opens Storyteller, with an Add a model tab", await until("!!document.querySelector('#sideBody [data-tellertab=\"addmodel\"]')"));
+await page.click('#sideBody [data-findmodel="1"]');
 
-// ---- 2. the sheet: the shortlist on top, uncensored results below
-await page.click('[data-tellertab="shortlist"]');
+// ---- 2. the sheet: uncensored results, and the shortlist on a tab of its own
+ok("the ＋ opens Add a model", await page.eval("document.querySelector('[data-tellertab=\"addmodel\"]')?.getAttribute('aria-pressed') === 'true'"));
 ok("the sheet opens with results", await until("document.querySelectorAll('[data-addshort]').length > 0"));
-ok("the shortlist sits above the search", await page.eval(`!!(document.getElementById('findmine')
-  .compareDocumentPosition(document.getElementById('findq')) & Node.DOCUMENT_POSITION_FOLLOWING)`));
+ok("the shortlist is not on this tab", await page.eval("!document.getElementById('findmine')"));
 let ids = await hits();
 ok("uncensored only, by default", ids.length === 3 && !ids.some((i) => i.includes("Gemma-4-26B-it")));
 ok("a model under the context floor is never shown", !ids.some((i) => i.includes("Tiny-Ctx")));
@@ -120,27 +121,31 @@ ok("pressing it again folds it", await until("!document.querySelector('#findhits
 
 // ---- 4. add: one press, onto the shortlist and the menu
 await page.click(`[data-addshort="${QWEN}"]`);
-ok("adding puts it on the shortlist at the top of the sheet",
+ok("adding puts it on the shortlist", await until(`!document.querySelector('[data-addshort="${QWEN}"]')`));
+await page.click('[data-tellertab="shortlist"]');
+ok("and the Shortlist tab lists it",
   await until(`!!document.querySelector('#findmine [data-dropshort="${QWEN}"]')`));
 const got = (await mine()).find((m) => m.id === QWEN);
 ok(`the shortlist keeps its weaving and its cost (${got?.weaving}, ${got?.cost})`,
   got?.weaving === "can switch" && got?.cost === 2);
-ok("the result row says it is on your shortlist", await page.eval(`!document.querySelector('[data-addshort="${QWEN}"]')`));
 await page.click('[data-tellertab="model"]');
-ok("it appears in the writer's model list on Model", await until(`!!document.querySelector('#usualmodels [data-modelinfo="${QWEN}"]')`));
+await until("!!document.querySelector('[data-tellerlist=\"usual\"]')");
+await page.click('[data-tellerlist="usual"]');
+ok("it appears in the writer's model list on Model", await until(`!!document.querySelector('#usualmodels [data-pickmodel="${QWEN}"]')`));
 ok("and the list has no remove — remove lives on Shortlist", await page.eval("!document.querySelector('#usualmodels [data-dropshort]')"));
+await page.click('[data-tellerlist="usual"]');
 
-// ---- 4b. the model info panel describes a remote model with the same block
-await page.click(`#usualmodels [data-modelinfo="${QWEN}"]`);
-ok("the model info panel for a remote model shows its card",
-  await until(`/abliterated finetune/.test(document.querySelector('#sideBody .remoteabout')?.innerText ?? '')`));
-text = await about('#sideBody');
+// ---- 4b. the Shortlist row describes a remote model with the same block
+await page.click('[data-tellertab="shortlist"]');
+await until(`!!document.querySelector('#findmine [data-findmore="${QWEN}"]')`);
+await page.click(`#findmine [data-findmore="${QWEN}"]`);
+ok("the shortlist row for a remote model opens its card",
+  await until(`/abliterated finetune/.test(document.querySelector('#findmine .remoteabout')?.innerText ?? '')`));
+text = await about('#findmine');
 ok("with the base model and the tags, as plain text",
   /Qwen\/Qwen3\.6-35B-A3B/.test(text) && /roleplay/.test(text) && !/[<>{}]/.test(text));
-ok("drawn by the same renderer as the expanded row: the same block, to the character",
-  sheetBlock !== '' && await page.eval("document.querySelector('#sideBody .remoteabout')?.innerHTML ?? ''") === sheetBlock);
-ok("and not the hint for a local model with nothing written down",
-  !/Nothing is written down about this one/.test(await page.eval("document.getElementById('sideBody').innerText")));
+ok("drawn by the same renderer as the search's expanded row: the same block, to the character",
+  sheetBlock !== '' && await page.eval("document.querySelector('#findmine .remoteabout')?.innerHTML ?? ''") === sheetBlock);
 
 // ---- 5. remove, from the Shortlist tab
 await page.click('[data-tellertab="shortlist"]');

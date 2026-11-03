@@ -339,5 +339,5 @@ _In code_: `stories.model`, `default_model`
 
 **Shortlist**:
 One writer's own list of remote models, added from the Featherless catalogue on Storyteller's
-Shortlist tab. It appears in that writer's model list beside the local models, and on no one else's.
+Add a model tab, and listed (and removed) on its Shortlist tab. It appears in that writer's model list beside the local models, and on no one else's.
 _Avoid_: favourites, my models, library

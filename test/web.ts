@@ -626,7 +626,7 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
                     // draws its row: its door is the model named at the top of either menu. In
                     // the BUTTON form for the reason spelled out above, and its handler names the
                     // panel. The model panel (#25) and Find a model (#51) are its Model and
-                    // Shortlist tabs now, so they are not panels to be reached.
+                    // Add a model tabs now, so they are not panels to be reached.
                     teller: /<button data-modelmenu="1"[\s\S]*S\.panel = 'teller'/,
                     // #76. A button in Tale → Keep.
                     updates: /<button[^>]* data-panel="updates"/,
