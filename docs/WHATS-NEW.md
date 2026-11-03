@@ -155,7 +155,8 @@ picture has a painted band where the picture would be, so every card stands the 
 Every thread card carries a tarot numeral in a gilt diamond, and the numeral says what the thread
 is, not where it sits in the list: every character is I, The Magician; lore is II, The High
 Priestess; an item is X, The Wheel of Fortune; a place is XXI, The World. Behind the numeral are its
-kind's own stars, drawn as its card: a character is the Magician's figure with one hand raised, lore
+kind's own stars, drawn as its card: a character is Orion the Hunter as he stands in the night sky,
+with his belt, his sword and his bow, lore
 two pillars under an arch with a veil between them, an item the Wheel, a place the World's globe. A
 thread with a picture keeps it, with the sunburst, the stars and its numeral laid faintly over it;
 one without a picture has them over a bloom. A tale's cover, on the shelf, at the top of the Library

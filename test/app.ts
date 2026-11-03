@@ -2462,6 +2462,24 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     assert.deepStrictEqual(skies.map(([k]) => k).sort(), want, 'ARCANA-SKY: every thread kind and pocket kind names one constellation');
     assert.strictEqual(new Set(skies.map(([, f]) => f)).size, skies.length, 'ARCANA-SKY: no two kinds share a constellation');
     for (const [k, f] of skies) assert.ok(named.includes(f) && existsSync(new URL('..' + f, import.meta.url)), `ARCANA-SKY: ${k}'s ${f} is on disk`);
+    // A CHARACTER'S SKY IS ORION (Seth, 2026-11-03): the real one, as it stands seen from the ground,
+    // east on the left. Each named star is a circle that says which it is, and they sit where the sky
+    // has them relative to one another, read off a star chart, not off the file's own maths.
+    {
+      const orion = readFileSync(new URL('../web/arcana-sky-character.svg', import.meta.url), 'utf8');
+      const at: Record<string, { x: number; y: number; r: number }> = {};
+      for (const m of orion.matchAll(/<circle data-star="(\w+)" cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)"/g)) at[m[1]] = { x: +m[2], y: +m[3], r: +m[4] };
+      const STARS = ['Betelgeuse', 'Bellatrix', 'Alnitak', 'Alnilam', 'Mintaka', 'Saiph', 'Rigel', 'Meissa'];
+      for (const s of STARS) assert.ok(at[s], `ORION: ${s} is in the character's sky`);
+      const { Betelgeuse: B, Bellatrix: L, Alnitak: T, Alnilam: N, Mintaka: M, Saiph: S, Rigel: R, Meissa: H } = at;
+      assert.ok(B.x < L.x && S.x < R.x, 'ORION: east is on the left, Betelgeuse and Saiph left of Bellatrix and Rigel');
+      assert.ok(T.x < N.x && N.x < M.x && M.y < T.y, 'ORION: the belt runs Alnitak, Alnilam, Mintaka, rising to the right');
+      assert.ok(H.y < B.y && B.y < L.y && H.x > B.x && H.x < L.x, 'ORION: Meissa is the head, over and between the shoulders; Betelgeuse a little higher than Bellatrix');
+      assert.ok(Math.max(B.y, L.y) < M.y && Math.max(T.y, M.y) < R.y && R.y < S.y, 'ORION: shoulders, then the belt, then the feet, Rigel a little higher than Saiph');
+      assert.ok(R.r >= B.r && B.r > L.r && L.r > H.r, 'ORION: Rigel and Betelgeuse the brightest, Meissa the faintest of them');
+      assert.match(orion, /data-star="sword-\w+"/, 'ORION: and a hint of the sword');
+      assert.match(orion, /data-star="bow-\w+"/, 'ORION: and of the bow arm');
+    }
   }
   // A POCKET'S RANK IN ITS SUIT (Seth, 2026-11-03): Ace, II to X, the four court cards, then numerals.
   {
