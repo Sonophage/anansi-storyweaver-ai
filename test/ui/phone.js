@@ -414,21 +414,19 @@ await wait(1200);
 // than the body field it used to reach for.
 ok("  tapping one puts the card where the list was",
    (await page.eval("document.querySelectorAll('#page [data-entry]').length")) === 0
-   && (await page.eval("!!document.querySelector('#page [data-cardview]')")) === true);
-const top = await page.eval("(() => { const el = document.querySelector('#page [data-cardview]');"
+   && (await page.eval("!!document.querySelector('#page .readface')")) === true);
+const top = await page.eval("(() => { const el = document.querySelector('#page .readface');"
   + " return el ? Math.round(el.getBoundingClientRect().top) : 9999; })()");
 ok(`  and it is on the screen, not below it (${top}px from the top)`, top < 700);
-// And the form is one press away, on the same screen, still above the fold.
-await page.click('#page [data-cardview="form"]');
+// And where it stands is one tap away, opened in place (#136, 2026-11-03: Read is the editor), still
+// above the fold.
+await page.click('#page [data-readedit="stands"]');
 await wait(700);
-const ftop = await page.eval("(() => { const el = document.querySelector('#page [data-f=\"body\"]');"
+const ftop = await page.eval("(() => { const el = document.querySelector('#page [data-f=\"body\"], #page [data-f=\"now\"]');"
   + " return el ? Math.round(el.getBoundingClientRect().top) : 9999; })()");
-ok(`  and Edit reaches the body field without a scroll (${ftop}px from the top)`, ftop < 700);
-// Out of the form by its Done (nothing was changed, so nothing is written), then back to the list
-// by "‹ Threads": the v2 Read and Alter screens draw their own bar on this page, which has no
-// drawer header to carry them.
-await page.click('#page [data-alterdone]');
-await wait(600);
+ok(`  and a tap opens the body box in place without a scroll (${ftop}px from the top)`, ftop < 700);
+// Back to the list by "‹ Threads" (nothing was changed, so nothing is written): Read draws its own
+// bar on this page, which has no drawer header to carry it.
 await page.click('#page [data-backentry]');
 await wait(900);
 ok("  and Back returns to the list rather than to nothing",

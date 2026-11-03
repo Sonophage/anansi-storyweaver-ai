@@ -31,15 +31,15 @@ ok(`Read: "Always true" heads its text (${read.a} / ${read.s})`, read.a >= 0 && 
 ok("  with no on/off switch on it", !read.sw);
 ok("  and the word Facts is nowhere on the screen", !read.facts);
 
-// ---- Alter
-await page.eval("(() => { document.querySelector('#sideBody [data-cardview=\"form\"]').click(); return 1; })()");
-await until("!!document.querySelector('#sideBody [data-cardtab]')");
-const alter = await page.eval(`(() => { const p = [...document.querySelectorAll('#sideBody .pane')].find((x) => !x.hidden);
+// ---- Altered in place (#136, 2026-11-03: Read is the editor). A tap on its text opens its box.
+await page.eval("(() => { document.querySelector('#sideBody [data-readedit=\"facts\"]').click(); return 1; })()");
+await until("!!document.querySelector('#sideBody [data-ab]')");
+const alter = await page.eval(`(() => { const p = document.querySelector('#sideBody .pane[data-pane="card"]');
   const t = p?.innerText ?? '';
   return JSON.stringify({ heading: /always true/i.test(t), box: !!p?.querySelector('[data-ab="${id}"]'),
     keys: !!document.querySelector('[data-ak="${id}"]'), sw: !!document.querySelector('[data-addonon^="${id}:"], [data-pocketeye="${id}"]'),
     name: !!document.querySelector('[data-an="${id}"]'), facts: /\\bfacts?\\b/i.test(t) }); })()`).then(JSON.parse);
-ok(`Alter: Always true is the first tab's own field (${JSON.stringify(alter)})`, alter.heading && alter.box);
+ok(`Read: Always true opens as the first tab's own field (${JSON.stringify(alter)})`, alter.heading && alter.box);
 ok("  with no wake words, no name and no switch", !alter.keys && !alter.name && !alter.sw);
 ok("  and no Facts", !alter.facts);
 

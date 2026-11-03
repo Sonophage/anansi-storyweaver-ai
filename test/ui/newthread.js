@@ -4,7 +4,8 @@
 //
 // The shape, from the design: "‹ Threads" in the header, the heading, one box for a name or a
 // pasted thread, "Write it as" with the four kinds, and "Or let Anansi" as cards. And Seth's call on
-// how it works: the kind is a choice with Character lit, Write it makes the thread and opens Alter,
+// how it works: the kind is a choice with Character lit, Write it makes the thread and opens it (on Read
+// since #136, 2026-11-03, with where it stands open to be written),
 // and the three cards (Write one for me, Look it up online, Read the scene) write the lit kind from
 // what is in the box. Back and Esc go back to the list.
 const B = "http://127.0.0.1:5179";
@@ -21,7 +22,8 @@ const list = async (sid) => {
 };
 const open = async () => { await page.click('#sideHead .headadd'); await wait(600); };
 const where = () => page.eval(`JSON.stringify({ add: !!document.getElementById('newname'),
-  list: !!document.getElementById('thq'), alter: !!document.querySelector('#sideHead [data-alterdone]'),
+  list: !!document.getElementById('thq'), alter: !!document.querySelector('#sideBody .readface [data-f="body"]'),
+  name: document.querySelector('#sideBody .readname')?.textContent.trim() ?? null,
   read: !!document.querySelector('#sideBody .readface'), drawer: !document.getElementById('side').hidden })`).then(JSON.parse);
 const setBox = (text) => page.eval(`(() => { const el = document.getElementById('newname');
   el.value = ${JSON.stringify(text)}; el.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
@@ -127,7 +129,7 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   ok(`Look it up online looks up the name in the box, as Lore (${JSON.stringify(web && [web.kind, web.subject])})`,
      web?.kind === 'lore' && web?.subject === 'Ilse Varga');
 
-  // ---- Write it makes the thread, named, and opens Alter on it
+  // ---- Write it makes the thread, named, and opens Read on it with where it stands open
   const before = (await story(sid)).entries.length;
   await setBox('Ilse Varga');
   await page.click('[data-newthread]'); await wait(1200);
@@ -135,10 +137,8 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   const at = await where();
   ok(`Write it makes a Lore thread with that name (${JSON.stringify(made && [made.title, made.entryType])})`,
      !!made && made.entryType === 'lore' && (await story(sid)).entries.length === before + 1);
-  ok(`  and opens it on Alter, the name in the name box (${JSON.stringify(at)})`,
-     at.alter && (await page.eval("document.getElementById('f-card-title')?.value")) === 'Ilse Varga');
-  await page.click('#sideHead [data-alterdone]'); await wait(600);
-  ok("  and Done goes to its Read screen", (await where()).read);
+  ok(`  and opens it on Read, named, with where it stands open to write (${JSON.stringify(at)})`,
+     at.read && at.alter && at.name === 'Ilse Varga');
 
   // ---- A pasted thread is read in as it is, and opens on Read
   await list(sid); await open();
@@ -157,7 +157,7 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   await list(sid); await open();
   await page.click('[data-newthread]'); await wait(1200);
   ok("Write it with the box empty makes an Untitled thread to write", (await where()).alter
-     && (await page.eval("document.getElementById('f-card-title')?.value")) === 'Untitled');
+     && (await where()).name === 'Untitled');
 }
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

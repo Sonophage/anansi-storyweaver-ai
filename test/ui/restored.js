@@ -13,10 +13,8 @@ await page.goto(B + "/#" + sid + "/threads");
 const eid = await page.eval("document.querySelector('[data-entry]')?.dataset.entry");
 await page.click('[data-entry="' + eid + '"]');
 await wait(600);
-// A card opens on its FACE now (PLAN-08) and the progression form lives in the form, where the
-// typing is. This section is about the form, so it presses Edit; the assertions are unchanged.
-await page.eval("(() => { document.querySelector('[data-cardview=\"form\"]')?.click(); return 1; })()");
-await wait(600);
+// A card opens on Read, which is also where it is edited (#136, 2026-11-03), so there is no Edit to
+// press; the Timeline is one of Read's tabs. The assertions are unchanged.
 // THE CARD'S TAIL SECTIONS ARE FOLDS NOW, SHUT BY DEFAULT (2026-08-30). Seth: "the over time and
 // the brings in with it and another book should be toggle and defaulted as off." Their fields are
 // still in the document, so an eval can read and fill them — but a driver CLICK needs the section

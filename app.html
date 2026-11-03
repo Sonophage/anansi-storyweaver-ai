@@ -1693,17 +1693,15 @@ textarea.field { resize:vertical; min-height:70px; }
 .readtags .readreach[data-lit="1"] { border-color:var(--edge-lit); color:var(--ink-bright); }
 .readbody { display:block; width:100%; padding:0; margin:0 0 6px; text-align:left; cursor:pointer;
   font-family:var(--serif, serif); font-size:17px; line-height:1.65; color:var(--ink); }
-.readmenu { display:flex; flex-direction:column; margin:0 0 16px; border:1px solid var(--edge);
-  border-radius:var(--r); background:var(--sheet); overflow:hidden; }
-.readrow { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
-  min-height:48px; padding:0 16px; text-align:left; font-size:14px; color:var(--ink);
-  border-bottom:1px solid var(--line); }
-.readrow:last-child { border-bottom:0; }
-.readrow[disabled] { opacity:.5; }
-.readnote { font-size:12px; color:var(--faint); }
+/* #136 · READ IS THE EDITOR. A field is its text until tapped (a button that reads as the text), and
+   the four tabs are shown by the panes' box (`showCardTab`), never by a repaint, so a box half typed
+   on one tab is still there on coming back. */
+.readname > button { font:inherit; color:inherit; text-align:left; padding:0; cursor:text; }
+.readbody.faint { color:var(--faint); }
+.cardpanes > .pane { display:none; }
+.cardpanes[data-tab="card"] > .pane[data-pane="card"], .cardpanes[data-tab="time"] > .pane[data-pane="time"],
+.cardpanes[data-tab="rooms"] > .pane[data-pane="rooms"], .cardpanes[data-tab="more"] > .pane[data-pane="more"] { display:block; }
 .headmore[disabled] { opacity:.5; }
-/* The editor's ＋, before Save: the gap Save's pill needs. */
-.headmore.headplus { margin-right:4px; }
 /* THE TALE'S MENU, TWO COLUMNS (2026-10-27). Rows were drawn with inline styles by drawRail, so the
    tile shape had to say !important; the `.navgrid` rules below still do. Since 2026-10-30 the two
    menus' tiles and rows are `.railtile` and `.railrow`, with their sizes in the class. Only while the rail is open: the desk's closed rail is 76px of
@@ -1830,19 +1828,12 @@ html:not([data-ui-rail="closed"]) .navgrid > button:first-child .txt { font-size
   text-transform:uppercase; flex:0 0 auto; }
 .field.altname { font-family:'Instrument Serif', var(--serif, serif); font-size:24px; line-height:1.2;
   color:var(--ink-bright); padding:8px 13px; }
-/* THE NAME AS THE WORKBENCH'S CARD HAS IT (2026-11-02): the serif on a rule, not in a box, under the
-   kind in small capitals. One rule for Alter and the pocket box. */
-.althead { display:flex; flex-direction:column; gap:4px; margin:4px 0 2px; }
+/* THE NAME AS THE WORKBENCH'S CARD HAS IT (2026-11-02): the serif on a rule, not in a box. One rule
+   for a thread's name opened on Read and the pocket box's. */
 .field.altname { background:transparent; border:0; border-bottom:1px solid var(--line); border-radius:0;
   padding:4px 0 10px; font-size:26px; }
 .field.altname:focus { border-bottom-color:var(--edge-lit); outline:none; }
 .altpane > .lbl:first-child { margin-top:16px; }
-/* Always on / On a word, small, on the Wake words label's row. */
-.altreach { display:flex; align-items:center; gap:10px; margin:14px 0 6px; }
-.altseg { display:flex; flex:0 0 auto; border:1px solid var(--chip); border-radius:var(--r-pill); overflow:hidden; }
-.altseg button { position:relative; padding:0 12px; height:30px; font-size:11.5px; color:var(--mute); }
-.altseg button::before { content:''; position:absolute; inset:-7px 0; }   /* 44px to the finger */
-.altseg button[aria-pressed="true"] { background:var(--chip); color:var(--ink-bright); }
 .askrow { margin-top:18px; padding-top:4px; border-top:1px solid var(--line); }
 .askweb { font-size:12px; color:var(--mute); padding:8px 2px; min-height:44px; text-decoration:underline;
   text-decoration-color:var(--line); text-underline-offset:3px; }
@@ -2001,9 +1992,9 @@ html[data-rerollsheet="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; 
 #pocketPanel[hidden], #mergePanel[hidden] { display:none; }
 .pocketbox { flex:1; min-height:0; width:100%; max-width:var(--col); margin:0 auto; display:flex; flex-direction:column; gap:12px; }
 .pocketbox .pkhead { display:flex; flex-direction:column; gap:10px; }
-/* Alter's header bar, at the top of the full-screen pocket box (pocketPanel, 2026-11-02). */
+/* The header bar at the top of the full-screen pocket box (pocketPanel, 2026-11-02). */
 .pocketbox .pkbar { display:flex; align-items:center; gap:10px; padding-bottom:12px; border-bottom:1px solid var(--line); }
-/* ALTER'S TAB CHIPS, one rule for Alter and the pocket box (tabRow in app.js). They were inline. */
+/* READ'S TAB CHIPS (cardTabs in app.js). They were inline. */
 .tabrow { display:flex; gap:6px; margin:12px 0 4px; }
 .tabchip { flex:1; text-align:center; font-size:11px; letter-spacing:.06em; text-transform:uppercase;
   padding:10px 2px; white-space:nowrap; border-radius:var(--r); border:1px solid var(--chip); color:var(--mute); }

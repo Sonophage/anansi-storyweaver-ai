@@ -39,28 +39,29 @@ ok("  as the entry in force at scene 3, from scene 2", read.includes('owed eleve
 ok("  and not the scene 4 entry, which has not opened", !read.includes('for the first time'));
 ok("  and no Info anywhere", !/\binfo\b/.test(read));
 
-// ---- Alter: editing where he stands now edits the scene 2 entry and leaves the base alone
-await page.eval("(() => { document.querySelector('#sideBody [data-cardview=\"form\"]')?.click(); return 1; })()");
-await until("!!document.querySelector('#sideBody [data-cardtab]')");
+// ---- Altered in place (#136, 2026-11-03: Read is the editor): a tap on where he stands now opens
+// the scene 2 entry's box, and leaving the thread writes it and leaves the base alone
+await page.eval("(() => { document.querySelector('#sideBody [data-readedit=\"stands\"]')?.click(); return 1; })()");
+await until("!!document.querySelector('#sideBody [data-f=\"now\"]')");
 const now = await page.eval(`(() => { const b = document.querySelector('[data-f="now"]');
   return JSON.stringify({ box: !!b, value: b?.value ?? null, label: (b?.closest('.pane')?.innerText ?? '').toLowerCase() }); })()`).then(JSON.parse);
-ok(`Alter: the first tab's box holds where he stands now (${JSON.stringify(now.value)})`, now.box && /owed eleven crowns/.test(now.value ?? ''));
+ok(`Read: the first tab's box holds where he stands now (${JSON.stringify(now.value)})`, now.box && /owed eleven crowns/.test(now.value ?? ''));
 ok("  under that name, with no Info", now.label.includes('where it stands now') && !/\binfo\b/.test(now.label));
 await page.eval(`(() => { const b = document.querySelector('[data-f="now"]'); if (!b) return 0; b.value = b.value.replace('eleven', 'twelve');
   b.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
-await page.eval("(() => { document.querySelector('#sideHead [data-alterdone]')?.click(); return 1; })()");
+await page.eval("(() => { document.querySelector('#sideHead [data-backentry]')?.click(); return 1; })()");
 await wait(1200);
 v = await view(sid);
 const m2 = v.entries.find((e) => e.id === marek.id);
-ok("  and Done writes it to the scene 2 entry", /owed twelve crowns/.test(m2.states.find((s) => s.fromChapter === 2)?.body ?? ''));
+ok("  and leaving the thread writes it to the scene 2 entry", /owed twelve crowns/.test(m2.states.find((s) => s.fromChapter === 2)?.body ?? ''));
 ok("  and leaves where he stood from scene 1 as it was", m2.body === base);
 
 // ---- Over time: every entry, from scene 1, with its label and what it changed
-await page.eval("(() => { document.querySelector('#sideBody [data-cardview=\"form\"]')?.click(); return 1; })()");
+await page.eval(`(() => { document.querySelector('[data-entry="${marek.id}"]').click(); return 1; })()`);
 await until("!!document.querySelector('#sideBody [data-cardtab=\"time\"]')");
 await page.eval("(() => { document.querySelector('#sideBody [data-cardtab=\"time\"]')?.click(); return 1; })()");
 await wait(400);
-const time = await page.eval(`(() => { const p = [...document.querySelectorAll('#sideBody .pane')].find((x) => !x.hidden);
+const time = await page.eval(`(() => { const p = document.querySelector('#sideBody .pane[data-pane="time"]');
   const rows = [...(p?.querySelectorAll('[data-otrow]') ?? [])];
   return JSON.stringify({ rows: rows.map((r) => r.dataset.otrow), first: (rows[0]?.innerText ?? '').toLowerCase(),
     two: (rows.find((r) => r.dataset.otrow === '2')?.innerText ?? '').toLowerCase(),
@@ -109,8 +110,6 @@ ok(`putting the coat on writes a dated event from the open scene (${JSON.stringi
    worn.events.some((x) => x.kind === 'wear' && x.addonId === coatId && x.fromChapter === v.currentChapter.index));
 ok("  and the chip says it is worn", worn.outfits.find((o) => o.id === coatId)?.active === true);
 await page.eval(`(() => { document.querySelector('[data-entry="${marek.id}"]')?.click(); return 1; })()`);
-await until("!!document.querySelector('#sideBody .readface')");
-await page.eval("(() => { document.querySelector('#sideBody [data-cardview=\"form\"]')?.click(); return 1; })()");
 await until("!!document.querySelector('#sideBody [data-cardtab=\"time\"]')");
 await page.eval("(() => { document.querySelector('#sideBody [data-cardtab=\"time\"]')?.click(); return 1; })()");
 await wait(400);

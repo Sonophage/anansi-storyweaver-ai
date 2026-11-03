@@ -64,9 +64,9 @@ ok(`  no forged action button got into the DOM (${forged} found, 1 expected from
 const eid = await page.eval("document.querySelector('[data-entry]')?.dataset.entry");
 await page.click('[data-entry="' + eid + '"]');
 await clean("entry editor");
-// A card opens on its FACE now (PLAN-08). This section is about the form, so it presses Edit —
-// the assertions below are unchanged and still measure what they always did.
-await page.eval("(() => { document.querySelector('[data-cardview=\"form\"]')?.click(); return 1; })()");
+// A card opens on Read, with no box open (#136). This section is about the name's box, so it taps
+// the name to open it; the assertions below are unchanged and still measure what they always did.
+await page.eval("(() => { document.querySelector('[data-readedit=\"title\"]')?.click(); return 1; })()");
 await wait(500);
 const val = await page.eval("document.querySelector('[data-f=\"title\"]')?.value ?? ''");
 ok(`  an attribute value survives intact (${JSON.stringify(val.slice(0, 42))})`, val.length > 10);
