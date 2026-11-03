@@ -70,6 +70,10 @@ When two hemmed scenes both change one thread's pocket, or what the thread says,
 its own scene's card. Before, the later scene's change was lost while the earlier one waited for
 you to sew it in or reject it.
 
+### A new person found in two scenes is offered once
+When two hemmed scenes both find the same new person, you are offered one new thread for them, not
+two. Before, accepting both made two threads with the same name.
+
 ### Storyteller holds everything about the model
 Press the model name at the top of the menu to open Storyteller. In a tale it has five tabs: Model,
 Shortlist, Add a model, Your voice and Stats. Everything on Model is this tale's own: the model that
