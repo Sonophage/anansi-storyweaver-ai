@@ -1203,10 +1203,11 @@ ok('the delegation refuses html and body outright');
     + 'the engine does not know, or hide one it does');
   // THE THREADS LIST'S FOUR LOOKS ARE MARKS THAT EXIST (four since 2026-11-01). `mark()` draws a plain
   // ring for a name it does not know, so a look renamed on one side only would show a circle on every
-  // card and pass every check that reads the look's name. Read off reachMark's table of states.
+  // card and pass every check that reads the look's name. Read off the table of states in `eyeLook`,
+  // which draws a thread's eye and a pocket's (#134).
   const table = read('web/app.js').match(/const \[look, word, now, next\] = \{([\s\S]*?)\}\[state\];/)?.[1] ?? '';
   const looks = [...table.matchAll(/^\s*[a-z]+: \['([a-z]+)'/gm)].map((m) => m[1]);
-  assert.strictEqual(looks.length, 4, `parsed ${looks.length} looks out of reachMark; it has 4`);
+  assert.strictEqual(looks.length, 4, `parsed ${looks.length} looks out of eyeLook; it has 4`);
   assert.deepStrictEqual(looks.filter((k) => !((model as any).MARK ?? {})[k]), [],
     'a look in threadPlate names a mark web/model.js does not have, and would draw as a plain ring');
   assert.deepStrictEqual([...schemaKinds].sort(), [...engineKinds].sort(),

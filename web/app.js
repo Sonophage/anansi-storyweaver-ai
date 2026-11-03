@@ -601,7 +601,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // model that always weaves.
   'weaveanyway', 'weaveoff', 'weavemodel',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
-  'cardview', 'goslot', 'editroom', 'fold', 'pkind', 'acceptall', 'addonon', 'deladdon',
+  'cardview', 'goslot', 'editroom', 'fold', 'pkind', 'acceptall', 'addonon', 'pocketeye', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
   'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads',
   // The whole book again, prose and all — the press beside `forkthreads`, which takes only the cast.
@@ -3449,10 +3449,7 @@ function stringRow(x) {
       <span class="pkname">${esc(x.title)} <span class="faded">&middot; ${esc(slotLabel(x.kind ?? 'promise'))}</span></span>
       <span class="pkline">${esc(String(x.body ?? '').split('\n')[0])}</span>
       ${when ? `<span class="pkline" style="color:${late ? 'var(--bad)' : 'var(--faint)'}">${esc(when)}</span>` : ''}</button>
-    <button data-addonon="${esc(x.id)}:${x.summoned ? '0' : '1'}" class="tag pocketsw" aria-pressed="${!!x.summoned}"
-      aria-label="${esc(x.title)} is ${x.summoned ? 'on. Tap to set it aside' : x.status === 'open'
-        ? 'off. Tap to put it in play' : `${x.status === 'paid' ? 'tied off' : 'let go'}. Tap to reopen it`}"
-      >${x.summoned ? 'On' : 'Off'}</button></div>`;
+    ${pocketEye(V.taleThread ?? {}, { id: x.id, slot: x.kind ?? 'promise', name: x.title, active: !!x.summoned })}</div>`;
 }
 /** #129 · A LIST OF STRINGS, in the one order: in play, then set aside, then the ones tied off or let
  *  go, whose switch is how one reopens. `none` is what an empty list says. */
@@ -8007,12 +8004,11 @@ const pocketRow = (a, sw, at = '', lines = 1) => `<div class="pocketrow${a.activ
       ${/* No kind on the row: the kind's heading is over it (pocketList). */ ''}
       <span class="pkline${lines > 1 ? ' clamp2' : ''}">${esc(lines > 1 ? String(a.body ?? '') : String(a.body ?? '').split('\n')[0])}</span></button>
     ${sw}</div>`;
-/** The on/off switch a pocket row wears; an outfit's is its wearing, one at a time (EXCLUSIVE_SLOTS). */
-const pocketSwitch = (e, a, wear = false) => wear && a.slot === 'outfit'
+/** The switch a pocket row wears: the thread's eye (#134, `pocketEye`); an outfit's is its wearing,
+ *  one at a time (EXCLUSIVE_SLOTS), and it draws no eye. */
+const pocketSwitch = (e, a) => a.slot === 'outfit'
   ? `<button data-wear="${esc(e.id)}:${esc(a.id)}" class="tag pocketsw" aria-pressed="${!!a.active}">${a.active ? 'Worn — take it off' : 'Wear this'}</button>`
-  : `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag pocketsw" aria-pressed="${!!a.active}"
-      aria-label="${esc(a.name)} is ${a.active ? 'on. Tap to turn it off' : 'off. Tap to turn it on'}"
-      >${a.active ? 'On' : 'Off'}</button>`;
+  : pocketEye(e, a);
 /** The list itself: on first, then what is not on under a quiet divider, then the add row. BY KIND
  *  INSIDE EACH (Seth, 2026-11-03: "pockets should be categorized by type both on edit and not"; he
  *  kept the two sections): a small heading per kind, its pockets under it, in the slot order `rows`
@@ -8668,7 +8664,7 @@ function entryEditor() {
         ...(e.outfits ?? []).map((o) => ({ ...o, slot: 'outfit' }))].filter((a) => order.includes(a.slot))
         .sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot));
       // No add link here: the editor's ＋ is in its header (threadBar).
-      return pocketList(e, mine, (a) => pocketSwitch(e, a, true), 1, false);
+      return pocketList(e, mine, (a) => pocketSwitch(e, a), 1, false);
     })()}
 
     <!-- ANANSI FILLS THIS ONE TOO. Seth, 2026-08-28: "the characters are filled by ai but the
@@ -9068,13 +9064,46 @@ function reachMark(e, lit, pin = pinModes()) {
     : e.activation === 'off' || pin.get(e.id) === 'force_out' ? 'off'
     : (e.activation ?? 'always_on') === 'always_on' && pin.get(e.id) !== 'mention' ? 'on'
     : lit ? 'woken' : 'word';
+  return eyeLook(state, lit);
+}
+/** ONE EYE, FOUR LOOKS, for a thread and a pocket alike (#134): the mark, the state's name, and the
+ *  label that says what a tap does. `hasWords` is false on a pocket with no wake words to have (a string),
+ *  whose tap from Off goes straight to On. */
+function eyeLook(state, lit, hasWords = true) {
   const [look, word, now, next] = {
     on: ['eye', 'On', lit ? 'On, sent every call' : 'On, but pushed out of this call for room', 'turn it off'],
     woken: ['eyeheard', 'Woken', 'On a word, and sent now', 'send it every call'],
     word: ['eyeshut', 'On a word', 'On a word, asleep: no wake word in this scene', 'send it every call'],
-    off: ['eyeoff', 'Off', 'Off: not sent in any scene, even on a word', 'send it on a word'],
+    off: ['eyeoff', 'Off', hasWords ? 'Off: not sent in any scene, even on a word' : 'Off: not sent', hasWords ? 'send it on a word' : 'turn it on'],
   }[state];
   return { on: state === 'on', state, look, word, label: `${now}. Tap to ${next}.` };
+}
+/** #134 · A POCKET'S STATE: Off, On a word (asleep, or woken when its word sent it), or On, from its
+ *  `activation`; a row from before the column is what it behaved as, on if switched on, else on its
+ *  words. A string has no wake words: on while in play, else off. A tap not yet saved shows what it set. */
+const pocketWordless = (a) => a.slot === 'promise' || a.slot === 'question';
+function pocketState(e, a) {
+  const set = S.reachNow?.[a.id];
+  if (set) return set;
+  if (pocketWordless(a)) return a.active ? 'on' : 'off';
+  const act = a.activation ?? (a.active ? 'always_on' : 'triggered');
+  return act === 'always_on' ? 'on' : act === 'off' ? 'off' : pocketHeard(e, a) ? 'woken' : 'word';
+}
+/** WOKEN: the thread went to the model with this pocket's text in it. Display only.
+ *  ponytail: matched on the pocket's first line in the thread's sent text, since a manifest block
+ *  does not list the pockets it carried; give `Block` their ids if two pockets ever share a line. */
+function pocketHeard(e, a, mani = manifestNow()) {
+  const line = String(a.body ?? '').split('\n').map((l) => l.trim()).find(Boolean);
+  return !!line && !!mani?.blocks.some((b) => b.id === e.id && b.state === 'included' && String(b.text ?? '').includes(line));
+}
+/** The pocket's next state: a thread card's cycle, Off → On a word → On → Off; Off ↔ On on a string. */
+const nextPocket = (a, state) => pocketWordless(a) ? (state === 'on' ? 'off' : 'on') : nextReach(state);
+/** #134 · THE POCKET'S EYE, wherever a pocket's switch is drawn: the read face, the Pockets tab, the
+ *  tale's own thread and Strings. The thread's marks, label and tip (`eyeLook`, `eyeTip`). */
+function pocketEye(e, a) {
+  const m = eyeLook(pocketState(e, a), true, !pocketWordless(a));
+  return `<button class="pkeye" data-pocketeye="${esc(a.id)}" data-look="${m.look}" data-reach="${m.state}"
+      aria-label="${esc(a.name)}: ${m.label}" title="${m.label}">${mark(m.look, 22)}${eyeTip(a.id)}</button>`;
 }
 /** The tap's next state (Seth, 2026-11-02): off → on a word → on → off. Woken is on a word. */
 const nextReach = (state) => (state === 'off' ? 'word' : state === 'on' ? 'off' : 'on');
@@ -12885,6 +12914,32 @@ document.addEventListener('click', async (e) => {
     if (r.error) return toast(r.error);
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest(); return;
+  }
+  /* #134 · A POCKET'S EYE (`pocketEye`), as a thread card's: the mark moves now, with the state's name
+   * for a moment, and the write queues behind the taps before it (REACH_QUEUE). */
+  if (d.pocketeye) {
+    const id = d.pocketeye;
+    const owner = [...V.entries, ...(V.taleThread ? [V.taleThread] : [])].find((x) => (x.addons ?? []).some((a) => a.id === id));
+    const a = owner?.addons.find((x) => x.id === id); if (!a) return;
+    const next = nextPocket(a, pocketState(owner, a));
+    (S.reachNow = S.reachNow ?? {})[id] = next;
+    const tip = S.eyeTip = { id, word: REACH_WORD[next] };
+    setTimeout(() => { if (S.eyeTip === tip) { S.eyeTip = null; paint(); } }, 1500);
+    paint();
+    REACH_PENDING.set(id, (REACH_PENDING.get(id) ?? 0) + 1);
+    REACH_QUEUE = REACH_QUEUE.then(async () => {
+      const r = await api.addonReach(S.storyId, id, next === 'on' ? 'always_on' : next === 'off' ? 'off' : 'triggered');
+      if (r.error) toast(r.error);
+    }).catch(() => {}).finally(async () => {
+      const left = (REACH_PENDING.get(id) ?? 1) - 1;
+      if (left > 0) { REACH_PENDING.set(id, left); return; }
+      REACH_PENDING.delete(id);
+      V = await api.story(S.storyId);
+      delete S.reachNow[id];
+      if (isAltering()) repaintKeepingText(); else paint();
+      refreshManifest();
+    });
+    return;
   }
   if (d.deladdon) {
     if (!armed(t, 'addon:' + d.deladdon, 'Press again to remove this pocket.')) return;

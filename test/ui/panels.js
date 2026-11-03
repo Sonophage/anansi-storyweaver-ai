@@ -1035,7 +1035,8 @@ if (anyEntry) {
     bodyEdits: [...document.querySelectorAll('[data-editroom]')].map(x => x.dataset.editroom),
     shows: /her fear/.test(document.querySelector('#sideBody')?.textContent || ''),
     hasForm: !!document.querySelector('[data-f="title"]'),
-    on: document.querySelector('[data-addonon]')?.textContent.trim() }))()`);
+    // #134 · A pocket's switch is the thread's eye; its state rides on data-reach.
+    on: document.querySelector('[data-pocketeye]')?.dataset.reach }))()`);
   console.log("  face: " + JSON.stringify(face));
   ok(`the face prints only the room that is filled (${face && face.slots.join(',')})`,
      !!face && face.slots.length === 1 && face.slots[0] === 'interiority');
@@ -1100,11 +1101,12 @@ if (anyEntry) {
   await page.click('#sideHead [data-alterdone]');
   await wait(500);
   // The switch is the writer's half of how a room reaches the model; its keys are the other half.
-  ok(`  and the room starts off (${face && face.on})`, !!face && face.on === 'Off');
-  await page.click('[data-addonon]');
+  // #134 · A new pocket is On a word, as a new thread is: the shut eye. A tap makes it On.
+  ok(`  and the room starts on a word (${face && face.on})`, !!face && face.on === 'word');
+  await page.click('[data-pocketeye]');
   await wait(800);
-  const flipped = await page.eval("document.querySelector('[data-addonon]')?.textContent.trim()");
-  ok(`  turning it on sticks (${flipped})`, flipped === 'On');
+  const flipped = await page.eval("document.querySelector('[data-pocketeye]')?.dataset.reach");
+  ok(`  turning it on sticks (${flipped})`, flipped === 'on');
   // THE OTHER HALF OF THE ORDERING, and the reason the pair is worth two lines: a check that only
   // ever saw the room below the divider would pass against a form that puts EVERYTHING below it.
   await page.click('[data-cardview="form"]');
@@ -1604,7 +1606,7 @@ const promptOf = () => page.eval("(async () => { const r = await (await fetch('/
   + " return r.prompt; })()");
 ok("  and the model is not told about it", !/has not opened/.test(await promptOf()));
 
-await page.click(`[data-addonon="${one[0].id}:1"]`);
+await page.click(`[data-pocketeye="${one[0].id}"]`);
 await wait(900);
 const summoned = await promptOf();
 ok("putting it in play is what sends it", /has not opened/.test(summoned));
@@ -1612,10 +1614,10 @@ ok("  told what is owed, not told to pay it", /do not resolve one unless the wri
 
 // Putting it away again is the other half of the toggle, and nothing tested it until a
 // falsification that made summon one-way passed.
-await page.click(`[data-addonon="${one[0].id}:0"]`);
+await page.click(`[data-pocketeye="${one[0].id}"]`);
 await wait(900);
 ok("putting it away stops sending it", !/has not opened/.test(await promptOf()));
-await page.click(`[data-addonon="${one[0].id}:1"]`);
+await page.click(`[data-pocketeye="${one[0].id}"]`);
 await wait(900);
 
 // Paying it off takes it out of play: a paid promise still in the prompt is an instruction to

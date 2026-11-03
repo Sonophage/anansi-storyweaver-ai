@@ -8976,12 +8976,22 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   assert.doesNotMatch(html('pocketPanel'), /role="dialog"/, 'PANEL-ADD: Cancel shuts it');
   ok('＋ in the header opens the pocket panel to add, and Tidy is a broom');
 
+  // #134 · THE READ FACE draws the same eye on each pocket, and Wear on an outfit.
+  const face = html('sideBody');
+  assert.match(face, /data-pocketeye="a-off" data-look="eyeshut" data-reach="word"/, 'POCKET-EYE-READ: the read face draws the pocket eye');
+  assert.doesNotMatch(face, /data-addonon=/, '  and no On / Off words');
   // THE POCKETS TAB IS A LIST: a row is the name, a line of the text and the switch; no editors.
   click({ cardview: 'form' }); click({ cardtab: 'rooms' }); await wait();
   const form = html('sideBody');
   const pane = form.split(/<div class="pane"/).find((p) => /data-editroom=/.test(p)) ?? '';
   assert.match(pane, /data-editroom="a-on"[\s\S]*How she sounds[\s\S]*Flat, unhurried\./, 'PANEL-LIST: a row has its name and its line');
-  assert.match(pane, /data-addonon="a-off:1"/, 'PANEL-LIST: and its switch');
+  // #134 · A POCKET'S SWITCH IS THE THREAD'S EYE: an On pocket the open eye, an On a word one asleep
+  // the shut eye (`a-off` has a wake word, so it is On a word; the fixture's rows have no activation,
+  // as a row from before the column does not), and an outfit keeps its Wear.
+  assert.match(pane, /data-pocketeye="a-off" data-look="eyeshut" data-reach="word"/, 'POCKET-EYE-LIST: and its eye, asleep on a word');
+  assert.match(pane, /data-pocketeye="a-on" data-look="eye" data-reach="on"/, 'POCKET-EYE-ON: an On pocket has the open eye');
+  assert.doesNotMatch(pane, /data-addonon=/, 'POCKET-EYE-NO-WORDS: no On / Off words left');
+  assert.doesNotMatch(pane, /data-pocketeye="o-/, 'POCKET-EYE-OUTFIT: and no eye on an outfit');
   assert.match(pane, /data-wear="e-1:o-hung"/, 'PANEL-LIST: an outfit keeps its wearing in the list');
   assert.doesNotMatch(pane, /data-an=|data-ab=|data-ak=|data-ofn=|data-ofb=/, 'PANEL-LIST: no inline editors');
   assert.doesNotMatch(form, /Add to this thread|data-newroom=/, 'PANEL-LIST: no add tray');
@@ -9077,12 +9087,23 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   click({ pocketundo: '1' }); click({ pocketundo: '1' }); await wait();
   ok("Ask Anansi's rewrite of a pocket is a diff, and Use this fills the box");
 
-  // ON AND OFF FROM THE LIST.
+  // #134 · THE EYE'S TAP, as a thread card's: On a word → On → Off → On a word, each posted, with the
+  // state's name for a moment. The fake answers each write with STORY, so the pocket is moved here
+  // between taps to the state the last tap posted.
+  const posted = () => POSTED.filter((x) => x.url === '/api/addon/on').map((x) => x.body.activation);
   POSTED.length = 0;
-  click({ addonon: 'a-off:1' }); await wait();
-  assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon/on')?.body,
-    { storyId: 's-1', id: 'a-off', on: true, atChapter: STORY.currentChapter.index }, 'PANEL-SWITCH: the list switches a pocket on');
-  ok('a pocket is switched on and off from the list');
+  click({ pocketeye: 'a-off' }); await wait();
+  assert.match(html('sideBody'), /data-pocketeye="a-off"[^>]*>[\s\S]*?<span class="eyetip" role="status">On</,
+    'POCKET-EYE-TAP: a tap names the new state for a moment, as a thread card\'s');
+  STORY.entries[0].addons[1] = { ...STORY.entries[0].addons[1], activation: 'always_on', active: true };
+  click({ pocketeye: 'a-off' }); await wait();
+  STORY.entries[0].addons[1] = { ...STORY.entries[0].addons[1], activation: 'off', active: false };
+  click({ pocketeye: 'a-off' }); await wait();
+  assert.deepStrictEqual(posted(), ['always_on', 'off', 'triggered'], 'POCKET-EYE-CYCLE: a tap posts the next state, as a thread card');
+  assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon/on')?.body, { storyId: 's-1', id: 'a-off', activation: 'always_on' },
+    '  naming the pocket and its activation');
+  STORY.entries[0].addons[1] = { ...STORY.entries[0].addons[1], activation: undefined, active: false };
+  ok('a pocket\'s eye cycles Off, On a word, On, as a thread card');
   click({ cardview: null }); click({ backentry: '1' });
 }
 
@@ -9108,9 +9129,13 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     const list = html('sideBody');
     assert.match(list, /data-editroom="st-1"[^>]*>[\s\S]*?The letter he has not opened[\s\S]*?Sent by his brother/,
       "STRINGS-LIST: a row is the string's name and a line of it, and opens it");
-    assert.match(list, /data-addonon="st-1:0"[^>]*>On</, "STRINGS-LIST: with the pocket's own switch, on");
-    assert.match(list, /data-editroom="st-2"[\s\S]*?tied off[\s\S]*?data-addonon="st-2:1"/,
-      'STRINGS-MARK: one tied off says so, and switching it on is how it reopens');
+    assert.match(list, /data-pocketeye="st-1" data-look="eye" data-reach="on"/, "STRINGS-LIST: with the pocket's own eye, open");
+    assert.match(list, /data-editroom="st-2"[\s\S]*?tied off[\s\S]*?data-pocketeye="st-2" data-look="eyeoff" data-reach="off"/,
+      'STRINGS-MARK: one tied off says so, and its eye is off: opening it is how it reopens');
+    // A string has no wake words, so its eye goes Off and On only.
+    POSTED.length = 0; click({ pocketeye: 'st-2' }); await wait();
+    assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon/on')?.body, { storyId: 's-1', id: 'st-2', activation: 'always_on' },
+      'STRINGS-EYE: an off string\'s eye opens it, with no On a word between');
     assert.doesNotMatch(list, /data-summon=|data-delstring=|data-stringstatus=/, '  no Summon, no inline remove, no status buttons');
     assert.doesNotMatch(list, /Chalked by Anansi|data-pbody="pr-2"/, 'STRINGS-CHALK: a chalked string is on the Workbench, not here');
     ok("the Strings screen lists the tale's string pockets, each with its switch, its mark, and a way into it");
