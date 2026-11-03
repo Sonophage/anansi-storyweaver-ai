@@ -139,14 +139,14 @@ banners.
 Every slider, such as the model's settings in Storyteller and how much of a tale's cover shows, is
 a thin rounded line with a small round handle, in your theme's colour.
 ### Eight themes, each a card of the tarot
-Look has eight themes, each named for the tarot card whose colours it wears: The Magician's Gold
+Look has eight themes, each named for the tarot card whose colours it wears: The Fool
 (black and gold, the look a new writer starts with), The Tower (ash and copper), The Star (steel
 blue), The Lovers (rose), and four new ones: The Moon (graphite and silver, no colour), The High
 Priestess (violet), The Emperor (red) and The Empress (emerald green). A theme changes only the
 colours. The frames, the stars, the numerals and the suits are the same in all eight, drawn in that
 theme's colour, over the same watercolour paper. In every theme the story reads clearly on its page,
 and the words on the main button read clearly on it. Ink is gone: it was the same black and gold, so
-a tale or a default set to Ink opens as The Magician's Gold, and so does a look saved with any theme
+a tale or a default set to Ink opens as The Fool, and so does a look saved with any theme
 that is no longer on the list.
 ### A tale or a shelf card with no cover
 A tale without a picture shows a card back instead of a plain wash: a watercolour bloom, a sunburst

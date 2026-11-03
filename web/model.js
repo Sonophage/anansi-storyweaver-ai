@@ -841,7 +841,8 @@ export const still = () => matchMedia('(prefers-reduced-motion: reduce)').matche
 /* EVERY THEME WEARS AN ARCANE NAME (Seth, 2026-11-03: "rename every theme's label to an arcane
  * name"). The label is what Look shows; the key is what a saved look holds, so a key never changes.
  * Each is the tarot card whose colour and temper the theme has:
- *   arcana    The Magician's Gold   I, will made into gold-work; the shipped theme, black and gilt.
+ *   arcana    The Fool              0, the beginning: the card before every other, as this is the
+ *                                   theme a new writer starts on; black and gilt (Seth, 2026-11-03).
  *   grimdark  The Tower             XVI, ruin and ash, lit by copper fire.
  *   scifi     The Star              XVII, cold blue light over still water.
  *   romance   The Lovers            VI, the rose of two people choosing each other.
@@ -856,7 +857,7 @@ export const THEMES = {
    * things ... tarot, arcane", painted like a watercolour brush, with art deco in the ornament. The
    * shipped theme. Since the same day its frames, ornament and faces are the app's under every theme
    * (app.html, the ARCANA block), so this row, like every other, is colours only. */
-  arcana:    { label: "The Magician's Gold", dark: 1, swatch: '#0B0B0C', ink: '#E6E2DA', paper: '#0B0B0C', rail: '#0C0C0E', sheet: '#111113',
+  arcana:    { label: 'The Fool', dark: 1, swatch: '#0B0B0C', ink: '#E6E2DA', paper: '#0B0B0C', rail: '#0C0C0E', sheet: '#111113',
                accent: '#C8A252', warn: '#C8705A', good: '#8FAE9A', speak: 'rgba(196,192,184,.34)',
                wash: 'linear-gradient(180deg,#0E0E10,#08080A 60%)' },
   grimdark:  { label: 'The Tower',   dark: 1, swatch: '#0C0C0C', ink: '#D2CFCA', paper: '#0C0C0C', rail: '#0B0B0B', sheet: '#111111',

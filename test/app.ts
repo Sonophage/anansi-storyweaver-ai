@@ -2466,7 +2466,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   // saved look holds, so they never change.
   assert.deepStrictEqual(Object.keys(THEMES), ['arcana', 'grimdark', 'scifi', 'romance', 'silver', 'amethyst', 'crimson', 'emerald']);
   assert.deepStrictEqual(Object.fromEntries(Object.entries(THEMES).map(([k, t]: any) => [k, t.label])), {
-    arcana: "The Magician's Gold", grimdark: 'The Tower', scifi: 'The Star', romance: 'The Lovers',
+    arcana: 'The Fool', grimdark: 'The Tower', scifi: 'The Star', romance: 'The Lovers',
     silver: 'The Moon', amethyst: 'The High Priestess', crimson: 'The Emperor', emerald: 'The Empress' },
     'THEME-NAMES: every theme wears its arcane name');
 
