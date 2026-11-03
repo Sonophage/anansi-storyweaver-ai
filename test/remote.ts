@@ -1861,5 +1861,25 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
   ok("the hem's structured ask goes to a remote model as plain lines, once, and reads back as its object");
 }
 
+// THE MODEL PICKED ON A TALE IS THE WRITER'S MODEL FROM THEN ON (Seth, 2026-11-03: "the default should
+// be the last model chosen on the last tale opened"). A new tale, or one with no model of its own,
+// starts with it. Another writer's model does not move.
+{
+  const LOCAL0 = 'Qwen3.6-WNTH-35B-A3B-NN', LOCAL1 = 'Gemma-4-WNTH-31B-NN';
+  const w = db.owner('last-pick'), them = db.owner('last-pick-other');
+  await routes['POST /api/model'](ctx(w, { model: LOCAL0 }));
+  await routes['POST /api/model'](ctx(them, { model: LOCAL0 }));
+  const a = db.createStory(w, { title: 'First tale' });
+  await routes['POST /api/story'](ctx(w, { id: a.id, story: { model: LOCAL1 } }));
+  assert.strictEqual(db.getStory(a.id).model, LOCAL1, 'the tale is pinned to the model picked');
+  assert.strictEqual(db.defaultModelOf(w), LOCAL1, 'LAST-PICK-USUAL: and the pick is the writer\'s model now');
+  const b: any = await routes['POST /api/stories'](ctx(w, { title: 'Second tale' }));
+  const bid = b.id ?? b.story?.id ?? b.storyId;
+  const v = await routes['GET /api/story'](ctx(w, {}, `story=${bid}`));
+  assert.strictEqual(v.model, LOCAL1, 'LAST-PICK-NEW: a new tale starts with the model last picked');
+  assert.strictEqual(db.defaultModelOf(them), LOCAL0, "LAST-PICK-OTHER: another writer's model does not move");
+  ok('the model picked on a tale is the writer\'s model, so a new tale starts with it');
+}
+
 console.log(`\n${n} checks green`);
 flSrv.close(); localSrv.close(); hubSrv.close();

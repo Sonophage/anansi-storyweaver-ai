@@ -3011,6 +3011,55 @@ function prewarm(c: Ctx, v: any) {
   })();
 }
 
+/** THE WRITER'S MODEL SWITCHED, by `POST /api/model` and by a model picked on a tale (Seth,
+ *  2026-11-03: "the default should be the last model chosen on the last tale opened"). One door, so
+ *  both are checked against the shortlist and the load count, and both release the model left. */
+async function switchUsual(c: Ctx, want: string): Promise<{ active: string; released: string | null; kept: string | null } | { error: string }> {
+  try {
+    const was = c.defaultModel;
+    // A remote id is checked against THIS writer's shortlist, not the router: the router has
+    // never heard of it, and the shortlist is the only thing that makes it this writer's to pick.
+    const id = isRemote(want) ? shortlistedOrRefuse(c.owner, want) : await checkModel(want);
+    // A REFUSAL IS A MESSAGE; A 500 MID-GENERATION IS LOST WORK. Oversubscribing the shared cache
+    // does not queue — both requests die (`.claude/CLAUDE.md`), and the writer who loses is
+    // whoever was already writing. So the count is checked BEFORE the switch is recorded, and a
+    // third distinct model is refused by name rather than discovered by somebody's prose ending
+    // mid-sentence. Switching to a model already in play is always allowed: it loads nothing.
+    const others = c.otherDefaults?.() ?? [];
+    if (tooManyModels(others, id)) {
+      return { error: `${new Set([...others, id]).size} models would be loaded at once and this `
+        + `box is measured for ${MAX_LOADED}. Somebody else is on `
+        + `${[...new Set(others.filter(Boolean))].join(', ')} — switching to one of those, or `
+        + `waiting until they are done, is the way through.` };
+    }
+    c.setDefaultModel(id);
+    // ONE MODEL PER WRITER. Without this, a writer trying three models leaves three loaded until
+    // the router sleeps them at 900 seconds — Seth's ask, and the router holds only three.
+    //
+    // The guard is the whole of it, because this box is SHARED: releasing the model another
+    // writer is on, or one a book is pinned to, or one with a call in flight, costs somebody
+    // else a cold load in the middle of their prose. `releasable` names every clause; this
+    // gathers the four facts it cannot see for itself.
+    let released: string | null = null, kept: string | null = null;
+    // A remote model was never in the router, so there is nothing to release.
+    if (was && !isRemote(was)) {
+      const verdict = releasable(was, {
+        active: id, bootDefault: model(),
+        otherDefaults: c.otherDefaults?.() ?? [],
+        storiesOnIt: db.storiesOnModel(was), busy: busyOn(was),
+      });
+      if (verdict.ok) {
+        const r = await unload(was);
+        // A failed release is a model that sleeps in 900 seconds instead, which is what happened
+        // before this existed. Reported, never fatal to the switch the writer asked for.
+        released = r.ok ? was : null;
+        kept = r.ok ? null : `${was} — ${r.error ?? 'the router refused'}`;
+      } else kept = `${was} — ${verdict.why}`;
+    }
+    return { active: id, released, kept };
+  } catch (e: any) { return { error: e?.message ?? 'could not switch model' }; }
+}
+
 export const routes: Record<string, Handler> = {
   // ---- library ----
   'GET /api/stories':    (c) => (warmModel(c), {
@@ -3234,52 +3283,7 @@ export const routes: Record<string, Handler> = {
   // and the router's three. Upgrade path is to measure a pair on this box and raise it; the
   // measurement is deliberately not run here, because the way to run it is to oversubscribe the
   // cache while somebody is mid-generation, and the failure it produces is their lost prose.
-  'POST /api/model': async (c: Ctx) => {
-    try {
-      const was = c.defaultModel;
-      const want = String(c.body.model ?? '');
-      // A remote id is checked against THIS writer's shortlist, not the router: the router has
-      // never heard of it, and the shortlist is the only thing that makes it this writer's to pick.
-      const id = isRemote(want) ? shortlistedOrRefuse(c.owner, want) : await checkModel(want);
-      // A REFUSAL IS A MESSAGE; A 500 MID-GENERATION IS LOST WORK. Oversubscribing the shared cache
-      // does not queue — both requests die (`.claude/CLAUDE.md`), and the writer who loses is
-      // whoever was already writing. So the count is checked BEFORE the switch is recorded, and a
-      // third distinct model is refused by name rather than discovered by somebody's prose ending
-      // mid-sentence. Switching to a model already in play is always allowed: it loads nothing.
-      const others = c.otherDefaults?.() ?? [];
-      if (tooManyModels(others, id)) {
-        return { error: `${new Set([...others, id]).size} models would be loaded at once and this `
-          + `box is measured for ${MAX_LOADED}. Somebody else is on `
-          + `${[...new Set(others.filter(Boolean))].join(', ')} — switching to one of those, or `
-          + `waiting until they are done, is the way through.` };
-      }
-      c.setDefaultModel(id);
-      // ONE MODEL PER WRITER. Without this, a writer trying three models leaves three loaded until
-      // the router sleeps them at 900 seconds — Seth's ask, and the router holds only three.
-      //
-      // The guard is the whole of it, because this box is SHARED: releasing the model another
-      // writer is on, or one a book is pinned to, or one with a call in flight, costs somebody
-      // else a cold load in the middle of their prose. `releasable` names every clause; this
-      // gathers the four facts it cannot see for itself.
-      let released: string | null = null, kept: string | null = null;
-      // A remote model was never in the router, so there is nothing to release.
-      if (was && !isRemote(was)) {
-        const verdict = releasable(was, {
-          active: id, bootDefault: model(),
-          otherDefaults: c.otherDefaults?.() ?? [],
-          storiesOnIt: db.storiesOnModel(was), busy: busyOn(was),
-        });
-        if (verdict.ok) {
-          const r = await unload(was);
-          // A failed release is a model that sleeps in 900 seconds instead, which is what happened
-          // before this existed. Reported, never fatal to the switch the writer asked for.
-          released = r.ok ? was : null;
-          kept = r.ok ? null : `${was} — ${r.error ?? 'the router refused'}`;
-        } else kept = `${was} — ${verdict.why}`;
-      }
-      return { active: id, released, kept };
-    } catch (e: any) { return { error: e?.message ?? 'could not switch model' }; }
-  },
+  'POST /api/model': (c: Ctx) => switchUsual(c, String(c.body.model ?? '')),
   'POST /api/stories':   (c) => {
     // #104 · A NEW WORLD FOR THE IP, made with the tale. Its own path, because it waits on the model.
     if (c.body.newWorld) return storyInNewWorld(c);
@@ -3877,8 +3881,16 @@ export const routes: Record<string, Handler> = {
     const cleared = cannot && 'model' in c.body.story && !!v.story.weaving && c.body.story.weaving === undefined
       && !alwaysWeaves(c, after);
     db.updateStory(c.body.id, cleared ? { ...c.body.story, weaving: false } : c.body.story);
-    return { ...viewOf(c, c.body.id),
-      ...(cleared ? { toast: "Plans first is off for this tale now: its new model can't be asked to plan first." } : {}) };
+    // THE MODEL PICKED ON A TALE IS THE WRITER'S MODEL FROM THEN ON (Seth, 2026-11-03: "the default
+    // should be the last model chosen on the last tale opened"), so a new tale starts with it. Only
+    // the tale's owner: a guest's pick is checked against the owner's shortlist, not their own.
+    // A switch refused (the load count) leaves the pin in place and says why.
+    const moved = want && db.getStory(c.body.id)?.owner_id === c.owner && want !== c.defaultModel
+      ? await switchUsual(c, String(want)) : null;
+    const notUsual = moved && 'error' in moved ? `Your model for new tales did not change: ${moved.error}` : '';
+    const toast = [cleared ? "Plans first is off for this tale now: its new model can't be asked to plan first." : '', notUsual]
+      .filter(Boolean).join(' ');
+    return { ...viewOf(c, c.body.id), ...(toast ? { toast } : {}) };
   },
   'POST /api/chapter':   (c) => { db.updateChapter(c.body.storyId, c.body.chapterId, c.body.chapter); return viewOf(c, c.body.storyId); },
 
@@ -5870,8 +5882,8 @@ export const routes: Record<string, Handler> = {
     return { look: db.lookOf(c.owner) };
   },
 
-  // Gated deliberately: naming a story at least proves you are a tenant. The sampler is per writer
-  // (the `gens` map in serve.ts), and since #55 it holds no weaving key — a `thinking: true` here
+  // Gated deliberately: naming a story at least proves you are a tenant. The sampler is the tale's
+  // (`stories.gen`, laid over the writer's `gens` map in serve.ts, 2026-11-03), and since #55 it holds no weaving key — a `thinking: true` here
   // once meant every call that writer made planned against a prose ceiling and returned no prose
   // at all (F5). Weaving is the book's switch now, and a stale tab that posts the old key is
   // ignored like any other unknown one.
