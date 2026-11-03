@@ -1629,6 +1629,28 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
     assert.strictEqual(herNow(), herMerge, 'MERGE-SCOPE: her threads are as they were');
     db.delEntry(aStory.id, aOther);
 
+    // #137 · MERGE TWO POCKETS, by the same rule: the gate refuses alice's book, and his own book naming
+    // her pockets is past the gate and refused by the route. A pair of his own across two of his tales
+    // is refused too. Nothing of either writer's changes.
+    const her1 = db.upsertAddon(aStory.id, aEntry, { slot: 'voice', name: 'one', body: 'her one' })!;
+    const her2 = db.upsertAddon(aStory.id, aEntry, { slot: 'voice', name: 'two', body: 'her two' })!;
+    const herPockets = herNow();
+    const pmForeign = await post('/api/addon/merge', { storyId: aStory.id, keepId: her1, goneId: her2, body: 'BOB' });
+    assert.strictEqual(pmForeign.status, 404, "POCKET-MERGE-GATE: the pocket merge must refuse another writer's story id");
+    const pmOwn = await post('/api/addon/merge', { storyId: bStory.id, keepId: her1, goneId: her2, body: 'BOB' });
+    assert.strictEqual(pmOwn.status, 200, `POCKET-MERGE-GATE: on his own book it passes the gate (${pmOwn.status})`);
+    assert.match(String((await pmOwn.json()).error), /pockets of a thread of this tale/, 'POCKET-MERGE-SCOPE: and the route refuses her pockets');
+    assert.strictEqual(herNow(), herPockets, 'POCKET-MERGE-SCOPE: her pockets are as they were');
+    const bOther = db.createStory(bob, { title: "Bob's other book" });
+    const bThread = db.upsertEntry(bStory.id, bob, { title: 'Here', body: 'here' })!;
+    const oThread = db.upsertEntry(bOther.id, bob, { title: 'There', body: 'there' })!;
+    const bHere = db.upsertAddon(bStory.id, bThread, { slot: 'voice', name: 'here', body: 'here' })!;
+    const bThere = db.upsertAddon(bOther.id, oThread, { slot: 'voice', name: 'there', body: 'there' })!;
+    const across = await (await post('/api/addon/merge', { storyId: bStory.id, keepId: bHere, goneId: bThere, body: 'BOTH' })).json();
+    assert.ok(across.error, 'POCKET-MERGE-CROSS-TALE: a pair across two of his tales is refused');
+    assert.deepStrictEqual((db.addonsOf(bOther.id) as any[]).map((x) => x.id), [bThere], '  and the other tale keeps its pocket');
+    db.delStory(bOther.id); db.delEntry(bStory.id, bThread); db.delAddon(aStory.id, her1); db.delAddon(aStory.id, her2);
+
     // A gated route naming no story at all: the gate cannot resolve an owner, so it fails closed.
     const nameless = await post('/api/write', { body: 'no story named' });
     assert.strictEqual(nameless.status, 400, 'a gated route naming no story must be refused');

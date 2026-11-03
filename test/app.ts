@@ -9362,6 +9362,76 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     '  naming the pocket and its activation');
   STORY.entries[0].addons[1] = { ...STORY.entries[0].addons[1], activation: undefined, active: false };
   ok('a pocket\'s eye cycles Off, On a word, On, as a thread card');
+
+  // #137 · MERGE TWO POCKETS (spec #132). From a pocket that exists: pick another pocket of the thread
+  // (not Always true), the box opens with both texts joined and the ask row, and Merge, the one gold
+  // press, sends the box. The answer has the other pocket gone; the panel opens on the one that stays.
+  const e1 = STORY.entries[0] as any, hadPockets = e1.addons;
+  e1.addons = [...hadPockets, { id: 'a-facts', slot: 'facts', name: 'facts', body: 'An envoy.', keys: [], active: true }];
+  const AFTER = { ...STORY, entries: [{ ...e1, addons: [{ ...hadPockets[1], body: 'To go home; flat about it.', keys: ['home'],
+    activation: 'always_on', active: true }, e1.addons[2]] }, ...STORY.entries.slice(1)] };
+  const canned = (globalThis as any).fetch;
+  (globalThis as any).fetch = async (url: string, init?: any) => {
+    if (url !== '/api/addon/merge') return canned(url, init);
+    POSTED.push({ url, body: JSON.parse(init.body) });
+    const o = { kept: 'a-off', ...AFTER };
+    return { ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) } as any;
+  };
+  const pmerged = () => POSTED.filter((x) => x.url === '/api/addon/merge');
+  try {
+    click({ pocketnew: 'e-1' }); await wait();
+    assert.doesNotMatch(html('pocketPanel'), /data-pocketmerge=/, 'POCKET-MERGE-NEW: a pocket being added has no merge');
+    click({ pocketx: '1' }); await wait();
+    click({ editroom: 'a-off' }); await wait();
+    assert.match(html('pocketPanel'), /data-pocketmerge="1"[^>]*>Merge with another pocket&hellip;/, 'POCKET-MERGE-OFFER: a pocket that exists offers Merge with another pocket');
+    typeIn('pk-body', 'To go home, quietly.');
+    POSTED.length = 0;
+    click({ pocketmerge: '1' }); await wait();
+    assert.deepStrictEqual(POSTED.filter((x) => x.url === '/api/addon').map((x) => [x.body.addon.body, x.body.opened?.body ?? null]),
+      [['To go home, quietly.', 'To go home.']], 'POCKET-MERGE-FLUSH: what was typed in the pocket is written first, as its last write');
+    const pick = html('pocketPanel');
+    for (const id of ['a-on', 'o-worn', 'o-hung']) assert.match(pick, new RegExp(`data-pocketmergewith="${id}"`), `POCKET-MERGE-PICK: ${id} can be picked`);
+    assert.doesNotMatch(pick, /data-pocketmergewith="a-off"/, 'POCKET-MERGE-PICK: not the pocket itself');
+    assert.doesNotMatch(pick, /data-pocketmergewith="a-facts"/, 'POCKET-MERGE-PICK: nor Always true');
+    assert.doesNotMatch(pick, /data-pocketmergego=/, '  and no Merge until one is picked');
+    click({ pocketmergewith: 'a-on' }); await wait();
+    const box = html('pocketPanel');
+    assert.match(box, /id="pm-body"[^>]*>To go home, quietly\.\n\nFlat, unhurried\.<\/textarea>/, 'POCKET-MERGE-JOINED: the box holds both texts joined');
+    assert.match(box, /id="pk-steer"[\s\S]*data-pocketask="write"/, 'POCKET-MERGE-ASK: with the Ask Anansi row');
+    assert.match(box, /<button data-pocketmergego="1" class="headsave">Merge</, 'POCKET-MERGE-GOLD: Merge is the one gold press');
+    assert.doesNotMatch(box, /data-pocketdone=|data-pocketsave=/, '  and the only one');
+    // ANANSI ON THE JOINED TEXT: his version against the box, and Use this puts it in the box.
+    stubInvent = { addon: { slot: 'interiority', name: 'What she wants', body: 'To go home, flatly.', keys: [] } };
+    POSTED.length = 0;
+    try { click({ pocketask: 'write' }); await wait(); } finally { stubInvent = null; }
+    assert.match(String(POSTED.find((x) => x.url === '/api/invent')?.body.direction), /To go home, quietly\.\n\nFlat, unhurried\./,
+      'POCKET-MERGE-ASK: Anansi is asked about the joined text');
+    click({ pocketuse: '1' }); await wait();
+    assert.match(html('pocketPanel'), /id="pm-body"[^>]*>To go home, flatly\.<\/textarea>/, 'POCKET-MERGE-USE: Use this fills the merge box');
+    typeIn('pm-body', 'To go home; flat about it.');
+    click({ cardtab: 'rooms' }); await wait();   // any press that repaints
+    assert.match(html('pocketPanel'), /id="pm-body"[^>]*>To go home; flat about it\.<\/textarea>/, 'POCKET-MERGE-REPAINT: what is typed survives a repaint');
+    // CANCEL goes back to the pocket and writes nothing.
+    click({ pocketmergex: '1' }); click({ pocketmergex: '1' }); await wait();
+    assert.match(html('pocketPanel'), /id="pk-body"[^>]*>To go home, quietly\.<\/textarea>[\s\S]*data-pocketmerge="1"/, 'POCKET-MERGE-CANCEL: Cancel goes back to the pocket');
+    assert.strictEqual(pmerged().length, 0, '  and writes nothing');
+    // THE WHOLE WAY, with an edit, to Merge.
+    click({ pocketmerge: '1' }); await wait(); click({ pocketmergewith: 'a-on' }); await wait();
+    typeIn('pm-body', '  ');
+    click({ pocketmergego: '1' }); await wait();
+    assert.strictEqual(pmerged().length, 0, 'POCKET-MERGE-EMPTY: an empty box is not sent');
+    typeIn('pm-body', 'To go home; flat about it.');
+    click({ pocketmergego: '1' }); await wait();
+    assert.deepStrictEqual(pmerged().at(-1)?.body, { storyId: 's-1', keepId: 'a-off', goneId: 'a-on', body: 'To go home; flat about it.' },
+      'POCKET-MERGE-GO: Merge sends the open pocket, the other and the box');
+    assert.match(html('pocketPanel'), /id="pk-body"[^>]*>To go home; flat about it\.<\/textarea>/, 'POCKET-MERGE-KEPT: the panel opens on the pocket that stays, with its text');
+    assert.doesNotMatch(html('pocketPanel'), /id="pm-body"/, '  out of the merge');
+    assert.doesNotMatch(html('sideBody'), /data-pocketeye="a-on"/, 'POCKET-MERGE-GONE: the other pocket is gone from the thread');
+    // The answer has it On, where the tale drew it On a word: the face draws what the server kept.
+    assert.match(html('sideBody'), /data-pocketeye="a-off" data-look="eye" data-reach="on"/, 'POCKET-MERGE-ACTIVATION: the kept one shows the activation the server kept');
+    click({ pocketdone: '1' }); await wait();
+  } finally { (globalThis as any).fetch = canned; e1.addons = hadPockets; }
+  ok('two pockets of a thread merge: pick the other, edit the joined text with Ask Anansi, Merge or Cancel');
   click({ cardview: null }); click({ backentry: '1' });
 }
 

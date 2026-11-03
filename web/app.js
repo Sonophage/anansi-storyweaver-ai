@@ -646,6 +646,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #126. The pocket panel: open it to add, its tabs, a kind, Cancel, Save, Remove, the two asks
   // and Use this.
   'pocketnew', 'pocketkind', 'pocketx', 'pocketdone', 'pocketundo', 'pocketsave', 'pocketdel', 'pocketask', 'pocketuse',
+  // #137 · Merge two pockets: open it, pick the other, Cancel, Merge.
+  'pocketmerge', 'pocketmergewith', 'pocketmergex', 'pocketmergego',
   // Merge two threads: open it, pick the other, pick which stays, Cancel, Merge.
   'mergestart', 'mergewith', 'mergekeep', 'mergex', 'mergego',
   // The hem's ask for the next scene, and who is in it (2026-10-30).
@@ -1810,6 +1812,8 @@ document.addEventListener('input', (e) => {
   const pk = { 'pk-name': 'name', 'pk-body': 'body', 'pk-keys': 'keys', 'pk-steer': 'steer', 'pk-owed': 'owed',
     'pk-from': 'from', 'pk-mode': 'mode', 'pk-label': 'label' }[e.target?.id];
   if (S.pocket && pk) S.pocket[pk] = e.target.value;
+  // #137 · The merge box of two pockets, kept on the panel's merge (`pocketMergeBody`).
+  if (S.pocket?.merge?.with && e.target?.id === 'pm-body') S.pocket.merge.body = e.target.value;
   // Merge two threads: the search redraws only its list, so the box keeps the caret; the review's
   // boxes, by id, as the pocket panel's.
   const mg = S.merge, id = String(e.target?.id ?? '');
@@ -3094,8 +3098,14 @@ function pocketPanel() {
         <button data-addonon="${esc(a.id)}:1" class="pkkind" aria-pressed="${!!a.active}">On</button>
         <button data-addonon="${esc(a.id)}:0" class="pkkind" aria-pressed="${!a.active}">Off</button></div>` : ''; })() : ''}
     `;
+  // #137 · MERGE WITH ANOTHER POCKET of this thread, from one that exists. Not on the tale's own thread,
+  // whose pockets are its strings and its rules, nor on a World thread the tale only follows.
+  const merge = pocketAuto(pk) === POCKET_AUTO.pocket && !tale && !e.sharedFrom && pocketMergeable(pk, e).length
+    ? `<button class="btn ghost push-20" data-pocketmerge="1">Merge with another pocket&hellip;</button>` : '';
   const remove = adding ? '' : `<button class="btn ghost danger push-20" data-pocketdel="${esc(pk.id)}">Remove this ${esc(label)}</button>`;
   const searchable = V?.searchable !== false;
+  // What Ask Anansi reads and offers against: the pocket's box, or the merge box while merging.
+  const src = pk.merge?.with ? pk.merge : pk;
   /* ASK ANANSI, ONE ROW UNDER THE FIELDS (Seth, 2026-11-02: the hem's and the Workbench's row), not
    * a second tab. His version lands under it as the change against what is in the box, with Use this. */
   const ask = `<div class="askrow">
@@ -3108,10 +3118,11 @@ function pocketPanel() {
     </div>
     ${tale ? '' : `<div class="end-row"><button class="askweb" data-pocketask="web" ${searchable ? '' : 'disabled'}
       title="${searchable ? 'Look it up online, then write it' : 'Searching the web is not switched on here'}">Look it up online first</button></div>`}
-    ${pk.offer ? `<div class="lbl push-14">His version</div>
-      ${diffHTML(pk.body, pk.offer.body)}
+    ${src.offer ? `<div class="lbl push-14">His version</div>
+      ${diffHTML(src.body, src.offer.body)}
       <button class="btn push-10" data-pocketuse="1">Use this</button>` : ''}</div>`;
   const what = own ? slotLabel(pk.slot) : tale ? (adding && !pk.kinds ? 'entry' : 'string') : 'pocket';
+  if (pk.merge) return pocketMergePanel(pk, e, ask);
   /* ALTER'S LOOK, FULL SCREEN STILL (Seth, 2026-11-02): the two presses in a bar at the top, as
    * Alter's header has them (`threadBar('alter')`). One that exists saves as you type (POCKET_AUTO),
    * so its bar is Undo my changes and Done; a new one is made by its press, Cancel and Add (Seth,
@@ -3130,8 +3141,44 @@ function pocketPanel() {
     </div>
     ${/* ONE SCREEN, the kinds, the fields and the ask row (2026-11-02). It was Write it and Ask Anansi as
           two tabs. Ask Anansi writes strings and pockets; a rule or one of your own is the writer's. */ ''}
-    <div class="pkscroll scroll">${kinds}${write}${own ? '' : ask}${remove}</div>
+    <div class="pkscroll scroll">${kinds}${write}${own ? '' : ask}${merge}${remove}</div>
   </div>`;
+}
+/** #137 · MERGE TWO POCKETS OF ONE THREAD (spec #132). The other pockets of the open one's thread, not
+ *  Always true: what "Merge with another pocket…" lists. */
+const pocketMergeable = (pk, e) => {
+  const all = [...(e.addons ?? []), ...(e.outfits ?? []).map((o) => ({ ...o, slot: 'outfit' }))];
+  return all.filter((a, i) => a.slot !== 'facts' && a.id !== pk.id && all.findIndex((b) => b.id === a.id) === i);
+};
+/** The panel while merging: first the list to pick the other from, then the box with both texts joined
+ *  and the Ask Anansi row (`ask`). Cancel goes back to the pocket; Merge, the one gold press, keeps the
+ *  open pocket with what is in the box (`POST /api/addon/merge`), and the other goes to Past edits. */
+function pocketMergePanel(pk, e, ask) {
+  const m = pk.merge, other = m.with ? pocketMergeable(pk, e).find((a) => a.id === m.with) : null;
+  const body = other ? `
+    <div class="hint flush">${esc(pk.name)} stays, with this text, its kind and whether it is on. ${esc(other.name)} goes, and its text is kept in Past edits.</div>
+    <label class="lbl" for="pm-body">The merged description</label>
+    <textarea class="field grow pkbody" id="pm-body">${esc(m.body)}</textarea>
+    ${ask}`
+    : `<div class="lbl">Merge with which pocket?</div>
+    ${pocketMergeable(pk, e).map((a) => `<button data-pocketmergewith="${esc(a.id)}" class="readrow">${esc(a.name || pocketTitle(a.slot))}<span
+      class="readnote">${esc(pocketTitle(a.slot))}</span></button>`).join('')}`;
+  return `<div class="pocketbox" role="dialog" aria-label="Merge ${esc(pk.name)} with another pocket">
+    <div class="pkbar">
+      <button data-pocketmergex="1" class="headback" aria-label="Cancel"><span class="serif">Cancel</span></button>
+      <span class="fill"></span>
+      ${other ? '<button data-pocketmergego="1" class="headsave">Merge</button>' : ''}
+    </div>
+    <div class="pkhead"><div class="lbl flush wide">Merge &middot; ${esc(pk.name)} &middot; ${esc(e.title)}</div></div>
+    <div class="pkscroll scroll">${body}</div>
+  </div>`;
+}
+/** Cancel, Esc and Back while merging: back to the pocket. With the joined text edited, two presses. */
+function leavePocketMerge(t = null) {
+  const m = S.pocket?.merge; if (!m) return true;
+  if (m.with && m.body !== m.joined && !armed(t, 'pocketmergex', 'Press Cancel again to throw the merged text away.')) return false;
+  S.pocket.merge = null; drawPocket();
+  return true;
 }
 function drawPocket() {
   const box = $('pocketPanel'); if (!box) return;
@@ -3282,8 +3329,11 @@ async function pocketAsk(web, anyway = false, t = null) {
   const steer = pk.steer.trim();
   if (web && !steer) return toast('Say what to look up first.');
   if (S.weaveFit?.where === 'pocket') S.weaveFit = null;
+  // #137 · While merging, he reads and offers against the merge box, the two texts joined.
+  const src = pk.merge?.with ? pk.merge : pk;
   const direction = pk.id
-    ? `${steer ? `${steer}\n\n` : ''}Rewrite this ${slotLabel(pk.slot)}, "${pk.name}". It reads now: ${pk.body}`
+    ? `${steer ? `${steer}\n\n` : ''}${pk.merge?.with ? `Make this one ${slotLabel(pk.slot)}, "${pk.name}", from two.`
+      : `Rewrite this ${slotLabel(pk.slot)}, "${pk.name}".`} It reads now: ${src.body}`
     : steer;
   const r = await whileWorking(t, web ? 'Looking it up…' : 'Writing…', () => api.invent(S.storyId,
     { kind: pk.slot, entryId: pocketEntry(pk) ?? undefined, direction: direction || undefined, search: web,
@@ -3292,7 +3342,7 @@ async function pocketAsk(web, anyway = false, t = null) {
   if (r.weaveFit) { weaveRefused(r, (a) => pocketAsk(web, a), 'pocket'); drawPocket(); return; }
   if (r.error) return toast(r.error);
   const got = r.addon; if (!got?.body) return toast('Anansi came back with nothing usable.');
-  if (pk.id) { pk.offer = { body: got.body }; drawPocket(); return; }
+  if (pk.id) { src.offer = { body: got.body }; drawPocket(); return; }
   pk.name = got.name || pk.name; pk.body = got.body;
   if (got.keys?.length) pk.keys = got.keys.join(', ');
   drawPocket();
@@ -10455,7 +10505,11 @@ function closeLayersBack() {
   }
   // #126. The pocket panel, by the same rule.
   // One that saves as you type: Back is Done, and a refusal or an ask puts the step back.
-  if (S.pocket && l !== 'pocket' && pocketAuto(S.pocket)) {
+  // #137 · Back while merging two pockets goes back to the pocket, which stays open.
+  if (S.pocket?.merge && l !== 'pocket') {
+    leavePocketMerge();
+    history.pushState({ ...history.state, layer: 'pocket' }, '', location.href);
+  } else if (S.pocket && l !== 'pocket' && pocketAuto(S.pocket)) {
     void finishPocket().then((shut) => {
       if (!shut) history.pushState({ ...history.state, layer: 'pocket' }, '', location.href);
     });
@@ -13047,9 +13101,36 @@ document.addEventListener('click', async (e) => {
     paint(); refreshManifest(); return toast('Removed.');
   }
   if (d.pocketask) return pocketAsk(d.pocketask === 'web', false, t);
+  // #137 · MERGE TWO POCKETS. Opening it writes what is typed in the pocket first, as its last write, so
+  // the merge starts from the pocket as the writer left it.
+  if (d.pocketmerge) {
+    const pk = S.pocket; if (!pk?.id || pocketAuto(pk) !== POCKET_AUTO.pocket) return;
+    dropSoon('pocket');
+    const r = await writePocket(pk, S.storyId, null, true);
+    if (r?.error || S.pocket !== pk) return;
+    pk.merge = { with: null }; drawPocket(); return;
+  }
+  if (d.pocketmergewith) {
+    const pk = S.pocket, e = pocketThread();
+    const o = pk?.merge && e ? pocketMergeable(pk, e).find((a) => a.id === d.pocketmergewith) : null; if (!o) return;
+    const joined = [pk.body.trim(), String(o.body ?? '').trim()].filter(Boolean).join('\n\n');
+    pk.merge = { with: o.id, body: joined, joined, offer: null }; drawPocket(); return;
+  }
+  if (d.pocketmergex) return void leavePocketMerge(t);
+  if (d.pocketmergego) {
+    const pk = S.pocket, m = pk?.merge; if (!m?.with) return;
+    const body = m.body.trim();
+    if (!body) return toast('The merged pocket needs something in it.');
+    const r = await api.mergePockets(S.storyId, pk.id, m.with, body);
+    if (r.error) return toast(r.error);
+    V = r.entries ? r : await api.story(S.storyId);
+    openPocket(pk.entryId, pk.id);
+    paint(); refreshManifest(); return toast('Merged. The other pocket is in Past edits.');
+  }
   if (d.pocketuse) {
-    const pk = S.pocket; if (!pk?.offer) return;
-    pk.body = pk.offer.body; pk.offer = null;
+    const pk = S.pocket, into = pk?.merge?.with ? pk.merge : pk; if (!into?.offer) return;
+    into.body = into.offer.body; into.offer = null;
+    if (into !== pk) { drawPocket(); return toast('In the box. Merge keeps it.'); }
     // Only a pocket that exists is offered a version, and it saves as you type (POCKET_AUTO).
     drawPocket(); return toast('In the box. Done keeps it, and Undo my changes puts back what was there.');
   }
@@ -15621,6 +15702,7 @@ $('scrim').addEventListener('click', () => {
 $('side').addEventListener('click', (e) => { if (phone() && e.target === $('side')) { S.panel = null; paint(); } });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && S.passEdit) { void finishPassEdit(); return; }
+  if (e.key === 'Escape' && S.pocket?.merge) { leavePocketMerge(); return; }
   if (e.key === 'Escape' && S.pocket) { if (pocketAuto(S.pocket)) void finishPocket(); else closePocket(); return; }
   // #74 · THE DECK BY KEYS: right arrow is the top card's yes and left its no, as the buttons are,
   // when the Workbench is open and nothing is being typed.

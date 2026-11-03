@@ -243,6 +243,7 @@ export const api = {
   // #134 · A pocket's eye: Off, On a word or On.
   addonReach:   (storyId, id, activation) => j('/api/addon/on', 'POST', { storyId, id, activation }),
   delAddon:     (storyId, id)    => j('/api/addon', 'DELETE', { storyId, id }),
+  mergePockets: (storyId, keepId, goneId, body) => j('/api/addon/merge', 'POST', { storyId, keepId, goneId, body }),
   // PLAN-08 Phase 4. A thread can be finished, and brought back: atChapter null lifts it. Its own
   // route rather than a field on saveEntry, because upsertEntry writes last_editor and that is
   // what arbitration keys on — bringing a character back is not editing their card.

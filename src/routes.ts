@@ -5491,6 +5491,17 @@ export const routes: Record<string, Handler> = {
     if (!made) return { error: 'those two threads cannot be merged' };
     return { kept: made, ...viewOf(c, v.id) };
   },
+  /** #137 · MERGE TWO POCKETS OF ONE THREAD: the open one stays with the text the writer left in its
+   *  box (`body`), by `db.mergePockets`. What may be merged is `db.mergePocketRefusal`'s. */
+  'POST /api/addon/merge': (c: Ctx) => {
+    const storyId = String(c.body.storyId ?? ''), keepId = String(c.body.keepId ?? ''), goneId = String(c.body.goneId ?? '');
+    const no = db.mergePocketRefusal(storyId, c.owner, keepId, goneId);
+    if (no) return { error: no };
+    if (!String(c.body.body ?? '').trim()) return { error: 'the merged pocket needs something in it' };
+    const kept = db.mergePockets(storyId, c.owner, keepId, goneId, String(c.body.body));
+    if (!kept) return { error: 'those two pockets cannot be merged' };
+    return { kept, ...viewOf(c, storyId) };
+  },
   'POST /api/remember': async (c: Ctx) => {
     const out = await remember(c, c.body.storyId, c.body.chapterId);
     return { ...out, proposals: db.proposalsOf(c.body.storyId) };

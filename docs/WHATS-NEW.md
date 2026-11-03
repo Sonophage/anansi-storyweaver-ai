@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · Threads and pockets save as you type
 
+### Merge two pockets of a thread into one
+Open a pocket and press Merge with another pocket… to pick another pocket of the same thread. The
+box opens with both texts joined, and Ask Anansi can make them read as one. Change it as you like,
+then press Merge. The pocket you opened stays, with that text, its kind and whether it is on, and
+it also wakes on the other pocket's wake words. The other pocket is removed, and its text is kept in
+Past edits, so you can put it back. Cancel goes back to the pocket and changes nothing.
+
 ### Storyteller holds everything about the model
 Storyteller is now one place with four tabs. Model shows the model that writes this tale and your
 usual model, with what each one is for and how fast it writes under the one you press, and the
