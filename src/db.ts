@@ -3171,7 +3171,7 @@ export function setAddonActivation(storyId: string, addonId: string, activation:
   if (!row) return null;
   if (activation === 'always_on') {
     if (!setAddonActive(storyId, addonId, true)) return null;
-    q("UPDATE addons SET activation = 'always_on' WHERE id = ?").run(addonId);
+    q("UPDATE addons SET activation = 'always_on' WHERE id = ? AND story_id = ?").run(addonId, storyId);
     return addonId;
   }
   q('UPDATE addons SET activation = ?, active = ? WHERE id = ? AND story_id = ?')
