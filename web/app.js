@@ -268,8 +268,9 @@ const S = {
   // The Threads list, filtered to what actually reaches the model in this chapter. Session-only:
   // a filter that survives a reload is a list that looks empty for a reason nobody can see.
   onlyIn: false,
-  readMenu: false,          // the Read screen's menu is open
-  // Which tab of the thread editor is showing. Session-only and reset when a different card opens:
+  // Which of Read's fields are open as boxes, and for which thread (`readOpen`, #136). Null: none.
+  readOpen: null,
+  // Which tab of a thread's Read is showing. Session-only and reset when a different card opens:
   // landing in Rooms because that is where you were on the last thread is the app deciding what you
   // came here for.
   cardTab: 'card',
@@ -546,8 +547,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   're', 'del', 'ed', 'hi', 'vp', 'vn', 'hwkb', 'bigin', 'diffview',
   'summarize', 'extract', 'decide', 'branch', 'delbranch', 'newthread', 'entry',
   'carryon',
-  'spark', 'blank', 'backup', 'putback', 'hit', 'expand', 'alterdone', 'delentry', 'backentry',
-  'kind', 'act', 'pickmodel', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
+  'spark', 'blank', 'backup', 'putback', 'hit', 'expand', 'delentry', 'backentry',
+  'kind', 'pickmodel', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
   // #36. A followed card, per card. `unlink` was taken by the entry-LINKS feature years of commits
   // ago, so these say what they do to a followed thread instead of reusing that word.
   'takeover', 'dropfollow', 'handback', 'sendup', 'bringback', 'savefollowed',
@@ -619,10 +620,9 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // The Threads list: filter to what is in context, and flip one card between always-on and
   // triggered without opening it.
   'onlyin', 'flipact', 'cardtab', 'storytab', 'chaptab', 'tip',
-  // One thread, read: its menu, and the rows under it that open the form at a section.
-  'readmenu', 'readgo',
-  // Alter: put it back as it was when it opened (asking first if anything changed), and take a wake word off.
-  'alterundo', 'keyx',
+  // One thread, read (#136): a field tapped open in place, the old menu's doors to a tab, and a
+  // wake word's x.
+  'readedit', 'readgo', 'keyx',
   // #79. Over time: take a dated wardrobe or retirement event out. #80: make a Lore thread a place.
   'delevent', 'makeplace',
   // #73. Tidy this thread, the icon beside its menu (2026-10-27). #74: the deck's yes and no, arrows, undo, Anansi edits.
@@ -2798,20 +2798,17 @@ function drawSide() {
   // the same data-newlore press. Only on the LIST: an open thread and the tray each have their own
   // Back, and a + over the tray would be a second door to the screen you are already on.
   const thList = S.panel === 'threads' && !S.entryId && !S.lore && !!V?.entries;
-  // AND ONE THREAD, READ (v2 redesign, 2026-10-25): "‹ Threads" back to the list on the left, the
-  // rarer actions under ⋯ on the right. Close stays, because shutting the drawer from a thread is a
-  // press the drawer always had. The form keeps its own bar until Alter is redesigned.
+  // AND ONE THREAD, READ (v2 redesign, 2026-10-25): "‹ Threads" back to the list on the left, ＋ and
+  // Tidy on the right. Close stays, because shutting the drawer from a thread is a press the drawer
+  // always had. Read is the editor (#136, ADR 0013), so there is no second header for altering.
   const thRead = isReading();
-  // AND ONE THREAD BEING ALTERED: Undo my changes on the left, Done on the right, and nothing else.
-  // It saves as you type (ADR 0004, pass three), and Done is the way back to Read (`finishAlter`).
-  if (isAltering()) sameOrSet('sideHead').innerHTML = threadBar('alter');
   // NEW THREAD: "‹ Threads" back to the list (the same data-newlore press that opened it), and Close.
-  else if (S.panel === 'threads' && S.lore && !S.entryId) sameOrSet('sideHead').innerHTML = `
+  if (S.panel === 'threads' && S.lore && !S.entryId) sameOrSet('sideHead').innerHTML = `
     <button data-newlore="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
       class="serif">Threads</span></button>
     <span class="fill"></span>
     ${fullBtn}<button class="caps-btn" data-panel="">Close</button>`;
-  else if (thRead) sameOrSet('sideHead').innerHTML = `${threadBar('read')}
+  else if (thRead) sameOrSet('sideHead').innerHTML = `${threadBar()}
     ${fullBtn}<button class="caps-btn" data-panel="">Close</button>`;
   else sameOrSet('sideHead').innerHTML = `
     <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
@@ -2831,7 +2828,7 @@ function drawSide() {
       title="Add a string"><span>${mark('create', 16)}</span></button>` : ''}
     ${fullBtn}<button class="caps-btn" data-panel="">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
-  $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead && !isAltering() && !(S.panel === 'threads' && S.lore && !S.entryId)
+  $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead && !(S.panel === 'threads' && S.lore && !S.entryId)
     ? helpBody(PANEL_HELP[S.panel]) : '')
     + (PANELS[S.panel] ?? (() => ''))();
   // After the markup, because a textarea has no scrollHeight until it is in the document.
@@ -2839,49 +2836,34 @@ function drawSide() {
 }
 
 /** A THREAD IS OPEN, in the Threads drawer, on its own from a passage, or on the cross-book
- *  page (which draws the same Read and Alter screens in the page rather than in a drawer). */
+ *  page (which draws the same Read screen in the page rather than in a drawer). */
 function threadOpen() {
   return !!S.entryId && !!V?.entries?.some((x) => x.id === S.entryId)
     && (S.place !== 'story' || S.panel === 'threads' || S.panel === 'entry');
 }
-/** ONE THREAD OPEN ON ITS READ SCREEN. */
-function isReading() { return threadOpen() && S.cardView !== 'form'; }
+/** ONE THREAD OPEN ON ITS READ SCREEN, which is also where it is edited (#136, ADR 0013). */
+function isReading() { return threadOpen(); }
 
-/** THE READ AND ALTER SCREENS' OWN CONTROLS, drawn once. In the drawer they are its header; on the
- *  cross-book page, which has no drawer header, the editor draws them at its own top (`pageBar`).
- *  Read: "‹ Threads" back to the list, ＋ for a new pocket (#126), Tidy, and the menu mark for the rarer actions (none on a followed thread,
- *  whose rare actions are on its face). Alter: Undo my changes and Done and nothing else (ADR 0004,
- *  pass three: it saves as you type). Done writes the last of it and goes back to Read; Undo my
- *  changes puts the thread back as it was when Alter opened, asking first (`undoAlter`). */
-function threadBar(mode) {
+/** THE READ SCREEN'S OWN CONTROLS, drawn once. In the drawer they are its header; on the cross-book
+ *  page, which has no drawer header, Read draws them at its own top (`pageBar`): "‹ Threads" back to
+ *  the list, ＋ for a new pocket (#126) and Tidy (none on a followed thread, whose rare actions are on
+ *  its face). The rarer actions are Read's More tab (#136): there is no menu mark and no Alter header. */
+function threadBar() {
   const e = V?.entries.find((x) => x.id === S.entryId);
-  // ＋ FOR A NEW POCKET, BESIDE DONE (Seth, 2026-11-03: "put the add a pocket as an icon up top in the
-  // edit screen"), as Read's header has it. It was a link at the foot of the Pockets tab.
-  if (mode === 'alter') return `
-    <button data-alterundo="1" class="headback" aria-label="Undo my changes: put the thread back as it was when Alter opened"><span
-      class="serif">Undo my changes</span></button>
-    <span class="fill"></span>
-    ${e && !e.sharedFrom ? `<button data-pocketnew="${esc(e.id)}" class="headmore headplus"
-      aria-label="Add a pocket to ${esc(e.title || 'this thread')}" title="Add a pocket"><span>${mark('create', 17)}</span></button>` : ''}
-    <button data-alterdone="1" class="headsave">Done</button>`;
   return `
     <button data-backentry="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
       class="serif">Threads</span></button>
     <span class="fill"></span>
-    ${/* TIDY IS ITS OWN ICON, beside the menu and out of it (Seth, 2026-10-27: "Tidy this thread
-          shouldn't be in that menu, but as an icon next to the ... icon and that ... should be
-          changed as well"). The menu's mark is the sliders now, not three dots. */
+    ${/* TIDY IS ITS OWN ICON (Seth, 2026-10-27: "Tidy this thread shouldn't be in that menu"). */
       e && !e.sharedFrom ? `<button data-pocketnew="${esc(e.id)}" class="headmore"
       aria-label="Add a pocket to ${esc(e.title || 'this thread')}" title="Add a pocket"><span>${mark('create', 17)}</span></button>
     <button data-tidy="${esc(e.id)}" class="headmore" ${S.tidying ? 'disabled aria-busy="true"' : ''}
       aria-label="${S.tidying === e.id ? 'Tidying this thread' : 'Tidy this thread: sort it into its three parts'}"
-      title="${S.tidying === e.id ? 'Tidying&hellip;' : 'Tidy this thread'}"><span>${mark('tidy', 17)}</span></button>
-    <button data-readmenu="1" class="headmore" aria-expanded="${!!S.readMenu}"
-      aria-label="More for this thread" title="More for this thread"><span>${mark('prefs', 17)}</span></button>` : ''}`;
+      title="${S.tidying === e.id ? 'Tidying&hellip;' : 'Tidy this thread'}"><span>${mark('tidy', 17)}</span></button>` : ''}`;
 }
-/** The same controls at the top of the editor when it is not in the drawer. */
-const pageBar = (mode) => (S.place === 'story' ? ''
-  : `<div class="savebar pagebar line-12">${threadBar(mode)}</div>`);
+/** The same controls at the top of Read when it is not in the drawer. */
+const pageBar = () => (S.place === 'story' ? ''
+  : `<div class="savebar pagebar line-12">${threadBar()}</div>`);
 
 /** #126 · THE POCKET PANEL: one full-screen box that adds a pocket and edits one, in place of the
  *  Pockets tab's add tray and its open editors (Seth, 2026-10-28). Write it holds the fields; Ask
@@ -8222,36 +8204,40 @@ function cardFace(e, slots) {
   // did. So the room draws through the ordinary path and the second block is gone.
   const rooms = e.addons ?? [];
   const shown = slots.filter((sl) => rooms.some((a) => a.slot === sl.name));
-  // THE READ SCREEN (v2 redesign, 2026-10-25). The Read / Alter / Back bar is gone from here: Back
-  // is the header's "‹ Threads", and Alter is the first row under the header's ⋯ — and the thread's
-  // own text, which opens the form when pressed, as a pocket's text already did. ONE ROW OF TAGS:
-  // the kind, how it reaches Anansi (the list's own mark, and the same switch), and how many pockets.
+  // THE READ SCREEN IS THE EDITOR (#136, ADR 0013; Seth, 2026-11-03). A tap on the name, the kind,
+  // Always true, where it stands, the wake words or the notes turns it into a box in place, and it
+  // saves as you type (`writeAlter`); the eye in the tags is the activation, cycled by a tap. The
+  // four tabs are switched by the stylesheet (`.cardpanes`), not a repaint, so a half-typed box
+  // survives a tab press. ONE ROW OF TAGS: the kind, how it reaches Anansi, how many pockets.
   const lit = inContext(e, pinModes());
   const m = reachMark(e, lit);
   const pockets = rooms.filter((a) => a.slot !== 'facts').length;
-  return `<div class="readface stack">
-    ${pageBar('read')}
-    ${S.readMenu ? readMenu(e) : ''}
+  const open = (f) => readOpen(e, f);
+  const tab = S.cardTab ?? 'card';
+  return `<div class="readface stack" data-readof="${esc(e.id)}">
+    ${pageBar()}
     <!-- ABOVE THE NAME, at Seth's direction: "if a card has an image move it to the top". A picture
          is the fastest way to recognise a card and it was two screens down, under the rooms. -->
     ${threadPic(e) ? `<img class="readpic" src="${threadPic(e)}" alt="">` : ''}
-    <h2 class="readname">${esc(e.title || 'Untitled')}</h2>
-    <!-- THE JUMP CHIPS ARE ONE TAG NOW. The head carried one chip per filled slot, the same size and
-         weight as the kind, which is the row of look-alike chips the redesign is taking away. The
-         pockets tag jumps to the first of them; every pocket is on this one page under its own
-         heading, so the rest are a scroll away rather than a press. -->
+    ${open('title') ? `<input class="field altname" id="f-card-title" data-f="title" aria-label="Name" value="${esc(e.title ?? '')}">`
+      : `<h2 class="readname"><button data-readedit="title" aria-label="Rename ${esc(e.title || 'this thread')}"
+      >${esc(e.title || 'Untitled')}</button></h2>`}
+    <!-- THE JUMP CHIPS ARE ONE TAG NOW. The pockets tag opens the Pockets tab at the first of them. -->
     <div class="readtags">
-      <span class="tag">${esc(e.entryType)}</span>
+      <button class="tag" data-readedit="kind" aria-expanded="${open('kind')}" aria-label="Kind: ${esc(e.entryType)}. Change it"
+        >${esc(e.entryType)}</button>
       <button class="tag readreach" data-flipact="${esc(e.id)}" data-look="${m.look}" data-reach="${m.state}"
         data-lit="${lit ? 1 : 0}" aria-label="${m.label}" title="${m.label}"
         >${mark(m.look, 15)}<span>${m.word}</span></button>
       ${pockets ? `<button class="tag" data-goslot="${esc(shown.find((sl) => sl.name !== 'facts')?.name ?? '')}"
         >${pockets} ${pockets === 1 ? 'pocket' : 'pockets'}</button>` : ''}
     </div>
-    <!-- #22 §8. A MARKER HERE, THE CONTROLS IN THE FORM. Seth: "once you click on a card the
-         marked as finished should only show in the edit version." Reading a card should say what
-         is true of it; changing what is true of it is what the form is for. The way back is not
-         lost — it moved next to the way out, which is where it belongs. -->
+    ${/* THE KIND, OPENED: one chip per kind, which saves at once (`data-kind`) and shuts the row. */
+      open('kind') ? `<div class="row-6 wraps below-8" role="group" aria-label="Kind">${KINDS.map((k) => `<button data-kind="${k}"
+      class="tag" aria-pressed="${k === e.entryType}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>` : ''}
+    <!-- #22 §8. A MARKER HERE, THE CONTROLS UNDER MORE. Seth: "once you click on a card the
+         marked as finished should only show in the edit version." Retire and Bring it back are
+         rows of the More tab, next to Delete. -->
     ${e.retiredAtChapter != null ? `<div style="font-size:12px; color:var(--warn); margin:0 0 10px">
       Retired at scene ${esc(String(e.retiredAtChapter))}.</div>` : ''}
     <!-- #36. A CARD THIS BOOK TOOK OVER. It is an ordinary card now — every control below works on
@@ -8283,516 +8269,100 @@ function cardFace(e, slots) {
         the shared thread. Pockets written here stay here &mdash; send the whole thread across
         instead if they matter.</p>`)}
     </div>` : ''}
-    ${/* ALWAYS TRUE FIRST (#77): who or what it is, above where it stands. */
-      rooms.some((a) => a.slot === 'facts') ? `<div class="lbl" style="letter-spacing:.1em; margin:4px 0 4px">Always true</div>
-    <button class="readbody" data-cardview="form" aria-label="Alter what is always true of ${esc(e.title)}">${
-      esc(rooms.filter((a) => a.slot === 'facts').map((a) => unbracket(a.body, e.title)).join('\n'))}</button>` : ''}
-    ${(() => {
-      // WHERE IT STANDS NOW (#78): the Over time entry in force at this scene, or the thread's own
-      // text when none has opened. Info was the base text alone, which a later entry replaces.
-      const st = standsNow(e);
-      return `<div class="lbl" style="letter-spacing:.1em; margin:8px 0 4px">${esc(nowWords())}${
-        st ? ` <span class="faded">&middot; from scene ${esc(String(st.fromChapter))}</span>` : ''}</div>
-    <button class="readbody" data-cardview="form" aria-label="Alter where ${esc(e.title)} stands now">${
-      esc(unbracket(st ? st.body : e.body, e.title) || 'Nothing written down yet.')}</button>
-    ${e.sharedFrom ? '' : restandButton(e)}`;
-    })()}
-    <!-- #22 §6. WHAT IS ON, THEN WHAT IS NOT. Seth: "after the name comes the body, after the body
-         comes what ever is turned on. all turned off option or non activated option live under a
-         second section under all the activated ones." The card used to interleave them under one
-         heading per room, so reading down it told you what a card HAS rather than what the model
-         will actually be told — and those are different cards once half the rooms are off.
-         data-slotat rides on the ON heading when there is one, because that is where a jump link
-         should land; a slot with nothing on carries it on its heading in the second section, so
-         every jump still resolves. -->
-    ${(() => {
-      // ONE LIST (2026-11-02): the kind is on each row now, not a heading over each kind's box.
-      const order = shown.map((sl) => sl.name).filter((n) => n !== 'facts');
-      const rows = rooms.filter((a) => order.includes(a.slot)).sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot));
-      return `<div class="lbl sect-rule">Pockets</div>${pocketList(e, rows, (a) => pocketSwitch(e, a), 2)}`;
-    })()}
-  </div>`;
-}
-
-/** THE RARER ACTIONS, UNDER THE HEADER'S MENU MARK (v2 redesign, 2026-10-25; three dots until 2026-10-27). Seth: the threads screen "is
- *  a lot of information and needs to be simpler ... without losing functionality". Each row is a
- *  door the thread already had: most of them lived at the foot of the form's More tab, a scroll and
- *  two presses away, and nothing on the Read screen said they existed. The rows that ACT do it here
- *  (read the tale, retire, delete — delete still asks twice); the rows that need typing open the
- *  form on the tab that holds them, with that section unfolded (`data-readgo`).
- *  It is not hidden markup: it is drawn only while open, so a press on "Alter" in a test or by a
- *  screen reader cannot land on a menu nobody can see. */
-function readMenu(e) {
-  // EACH ROW'S ACTION IS WRITTEN OUT, not passed in: test/web.ts reads this file for buttons with no
-  // action, and cannot see one through an interpolated attribute string.
-  const say = (label, note = '') => `${label}${note ? `<span class="readnote">${note}</span>` : ''}`;
-  const edges = (V.edges ?? []).filter((x) => x.parentId === e.id).length;
-  const states = (e.states ?? []).length;
-  // ONE LIST, NO FOLDS INSIDE IT. Folds under the menu were toggles within a toggle (Seth,
-  // 2026-10-27); the menu itself is what is shut until pressed. Tidy is the header icon beside it.
-  return `<div class="readmenu" role="menu" aria-label="More for ${esc(e.title)}">
-    <button data-cardview="form" class="readrow">${say('Alter this thread')}</button>
-    <button data-readgo="time" class="readrow">${say('Timeline', states ? `${states}` : '')}</button>
-    <button data-readgo="edges" class="readrow">${say('Stitched together', edges ? `${edges}` : '')}</button>
-    <button data-readgo="copy" class="readrow">${say('Copy to another tale')}</button>
-    ${e.entryType !== 'tale' && !e.sharedFrom
-      ? `<button data-mergestart="${esc(e.id)}" class="readrow">${say('Merge with another thread&hellip;')}</button>` : ''}
-    <button data-readgo="history" class="readrow">${say('Past edits')}</button>
-    <button data-readgo="json" class="readrow">${say('This thread as JSON')}</button>
-    <button data-scanstory="${esc(e.id)}" class="readrow" ${S.scanning ? 'disabled' : ''}>${
-      say(S.scanning === e.id ? 'Reading the tale&hellip;' : 'Read the whole tale for this thread')}</button>
-    ${e.retiredAtChapter == null
-      ? `<button data-retire="${esc(e.id)}" class="readrow">${say('Retire this thread')}</button>`
-      : `<button data-unretire="${esc(e.id)}" class="readrow">${
-        say('Bring it back', `retired at scene ${esc(String(e.retiredAtChapter))}`)}</button>`}
-    <button data-delentry="1" class="readrow danger">${say('Delete this thread')}</button>
-  </div>`;
-}
-
-/** A SECTION BEHIND ITS OWN NAME, SHUT. Seth, 2026-08-30: "the over time and the brings in with
- *  it and another book should be toggle and defaulted as off." Over time has been a tab of its own
- *  since, and since #78 it is that tab's whole content, so it is no fold: the two left are these.
- *
- *  Both answer a question you are not usually asking. Connections are what this card drags in
- *  behind it, and Another book is a copy into a different story — neither is why you opened a card.
- *  A <details>, the one folding idiom on this screen.
- *
- *  IT REMEMBERS, and that is not a nicety. A section with a help mark in it repaints on a press of
- *  help — so a fold with no memory would shut the section the moment you asked it what it was
- *  for. The native toggle and the repaint agree rather than fight: the click opens the element AND
- *  flips S.folds, and the paint that follows renders the same state back.
- *  The help mark sits in the BODY and not in the summary for the same reason from the other side:
- *  a press on it inside the summary toggles the fold natively too, and the repaint would then
- *  disagree with what the DOM just did. */
-const foldSection = (name, label, body) => `<details class="fold push-16"
-  ${S.folds?.[name] ? 'open' : ''}>
-  <summary class="wide" data-fold="${esc(name)}">${label}</summary>${body}</details>`;
-
-/** ALWAYS TRUE'S BOX, on The thread tab. Always true is not a pocket (#77). One box, no card and no
- *  Save of its own (Seth, 2026-11-02, "cleaner, like the hem and the Workbench"): it saves as you type
- *  with the rest of Alter (`writeAlter`, ADR 0004). A thread with none gets an empty box
- *  (`data-ab="facts"`) that the typing makes it from. The body GROWS (growFields). */
-function roomSection(e, sl, anchor = true) {
-  if (sl?.name !== 'facts') return '';
-  const had = (e.addons ?? []).filter((a) => a.slot === 'facts');
-  const mine = had.length ? had : [{ id: 'facts', body: '' }];
-  // ALWAYS TRUE IS NOT A POCKET (#77): no switch, no wake words and no name, because it is sent
-  // whenever the thread is. Only its text, which is the writer's and which Anansi never changes.
-  return `
-    <label ${anchor ? 'data-slotat="facts"' : ''} class="lbl" for="f-card-facts">Always true${
-      tipMark('cardFacts', 'Always true')}</label>
-    ${tipCard('cardFacts', 'Always true', '<p>Who or what it is, for the whole tale. Anansi never changes it.</p>')}
-    ${mine.slice(0, 1).map((a) => `<textarea class="field grow box-52" id="f-card-facts" data-ab="${esc(a.id)}"
-      aria-label="What is always true of ${esc(e.title)}">${esc(a.body)}</textarea>`).join('')}`;
-  // NO REMOVE (Seth, 2026-10-28): every thread has one Always true; clearing it is editing it.
-}
-
-/** THE FORM IS TABBED, 2026-09-02 handoff. Every field, every write and every rule it had is still
- *  here — Always true above where it stands, the data-slotat jump targets, the wardrobe's one-at-a-time wearing, the
- *  red warning on a triggered card with no trigger words. What changed is how much is on screen at
- *  once: a character with eight rooms, a wardrobe, states and a field history is a form you scroll
- *  for a while to find out what is in it.
- *
- *  The head stays ABOVE the tabs — name, kind, how it fires, the room jump chips — so the thing you
- *  are editing never leaves the screen. */
-// Over time beside The thread, Seth 2026-10-25: "for threads, move over time next to the thread".
-const CARD_TABS = [['card', 'The thread'], ['time', 'Timeline'], ['rooms', 'Pockets'], ['more', 'More']];
-
-/** Which tab a room's heading lives in. `facts` (Always true) is pinned above where it stands now
- *  because of what it IS, and `outfit` is the wardrobe — both are in their tabs for reasons older
- *  than the tabs, so this map
- *  states it rather than the jump handler guessing from the slot list. */
-const slotTab = (name) => (name === 'facts' ? 'card' : 'rooms');
-
-/** ALTER'S TAB CHIPS (`.tabchip`, app.html), the one on pressed. The pocket screen drew its Write it /
- *  Ask Anansi with them until 2026-11-02, when those became one screen. */
-function cardTabs(tab) {
-  return `<div class="tabrow">${CARD_TABS.map(([k, label]) =>
-    `<button class="tabchip" data-cardtab="${k}" aria-pressed="${tab === k}">${label}</button>`).join('')}</div>`;
-}
-
-/** THIS CARD AS THE FORGE'S JSON, with every field its kind can hold.
- *
- *  Seth, 2026-09-02: "all fields including empty ones". A room the card does not have is an empty
- *  string rather than an absent key, so the export doubles as a blank form — which is the half that
- *  makes it useful to hand to a model or to fill in by hand.
- *
- *  THE SHAPE IS `POST /api/thread/paste`'s and not a new one: kind, title, body, activation, keys,
- *  rooms. Anything this app can read, it can now also write.
- *
- *  ROOMS ARE ONE PER SLOT, by name, because that is what `writeRooms` reads. A slot that holds
- *  several — the wardrobe — exports the one that is ON, or the first, and says so in the file
- *  through the value it carries rather than through a comment JSON cannot have.
- *
- *  `notes` is NOT in here. It is the writer's own margin and never reaches the model; the paste
- *  route has no key for it, so exporting it would promise a round trip that does not happen. */
-function cardJSON(e, slots) {
-  const rooms = {};
-  for (const sl of slots) {
-    const mine = (e.addons ?? []).filter((a) => a.slot === sl.name);
-    const pick = mine.find((a) => a.active) ?? mine[0];
-    rooms[sl.name] = pick ? pick.body : '';
-  }
-  return JSON.stringify({
-    id: e.id,
-    kind: e.entryType,
-    title: e.title ?? '',
-    body: e.body ?? '',
-    activation: e.activation === 'triggered' || e.activation === 'off' ? e.activation : 'always_on',
-    keys: e.keys ?? [],
-    rooms,
-  }, null, 2);
-}
-
-/** THE WAKE WORDS BEING ALTERED. Null until a chip is added or removed, so the form shows the
- *  saved ones; a list once the writer has touched them. Cleared by Done, Undo my changes and opening
- *  another thread — it is the one part of the form that is not a box the browser keeps for us. */
-const keyDraftFor = (e) => S.keyDraft ?? (e?.keys ?? []);
-const keyChips = (keys) => keys.map((k, i) => `<span class="keychip">${esc(k)}<button
-  data-keyx="${i}" aria-label="Remove ${esc(k)}" title="Remove ${esc(k)}">&times;</button></span>`).join('');
-/** The chips again, and only the chips: the box after them keeps its caret and whatever is in it.
- *  Every change to them comes through here, so here is where they are saved as you type (`alterSoon`). */
-function redrawKeyChips() {
-  alterSoon();
-  const box = $('keychips'); if (!box) return;
-  box.querySelectorAll('.keychip').forEach((c) => c.remove());
-  box.insertAdjacentHTML('afterbegin', keyChips(keyDraftFor(V?.entries.find((x) => x.id === S.entryId))));
-}
-/** Words typed into the add box, added as chips by the same rules the save uses. Ten at most, as
- *  the box always allowed (SPEC §7.1); past that it says so rather than dropping one quietly. */
-function addKeyWords(text) {
-  const e = V?.entries.find((x) => x.id === S.entryId); if (!e) return;
-  const had = keyDraftFor(e);
-  const all = keysFrom([...had, ...String(text ?? '').split(',')]);
-  if (all.length > 10) toast('Ten wake words at most. The rest were not added.');
-  S.keyDraft = all.slice(0, 10);
-  redrawKeyChips();
-}
-
-/** ONE THREAD OPEN ON ITS ALTER SCREEN (the form). */
-function isAltering() { return threadOpen() && S.cardView === 'form'; }
-
-/** A THREAD'S ALTER SAVES AS YOU TYPE (ADR 0004, pass three): its name, where it stands, your notes,
- *  its wake words and its Always true. `S.alterEdit` is the open one: the tale it is in, what it opened
- *  on (`was`), what was last written (`saved`), what the last write was worked out against (`base`),
- *  and which parts have drafts not yet followed by a last write (`drafted`). Made at the first change,
- *  from the thread as the tale holds it, so what is typed is never mistaken for what was there.
- *
- *  A WRITE OF A THREAD OR A POCKET KEEPS A REVISION AND CAN MARK SCENE SUMMARIES OUT OF DATE
- *  (`upsertEntry`, `upsertAddon`), so a pause writes a DRAFT, which does neither, and Done, Undo my
- *  changes, Back, Esc and a hidden tab send one last write naming what Alter opened on: the revision
- *  and the staling are worked out once, against that (`db.WriteHow`). Where it stands now, when a later
- *  change is in force, is a change over time, which keeps no history and stales nothing: written as
- *  typed.
- *  ponytail: a draft with no last write after it (the page shut, or the server gone, before Done or
- *  the hidden tab sent it; or Alter left by a door that does not finish it) keeps no revision and
- *  stales nothing, so a summary can stay in the prompt that the thread no longer agrees with. Stale
- *  on the server from drafts if a writer reports one. And an Always true made in this Alter stays when
- *  Undo my changes is pressed: it cannot be emptied or removed. */
-function alterRecord() {
-  if (S.alterEdit && (S.alterEdit.id !== S.entryId || S.alterEdit.storyId !== S.storyId)) leaveAlter();
-  const e = isAltering() ? V?.entries?.find((x) => x.id === S.entryId) : null; if (!e) return null;
-  if (S.alterEdit) return S.alterEdit;
-  const st = standsNow(e), facts = (e.addons ?? []).find((a) => a.slot === 'facts');
-  // The thread's own text only when its box is on the form: with a later change in force, it is
-  // Over time's scene 1 instead, which saves it itself.
-  const was = { title: e.title ?? '', ...(st ? { now: st.body ?? '' } : { body: e.body ?? '' }), notes: e.notes ?? '',
-    keys: keysFrom(e.keys ?? []).join(', '), facts: facts?.body ?? '' };
-  return (S.alterEdit = { id: e.id, storyId: S.storyId, entry: e, nowId: st?.id ?? null, factsId: facts?.id ?? null,
-    factsName: facts?.name ?? 'facts', was, drafted: {} });
-}
-/** What the form holds now. A box not on the page keeps what was last written. The wake words are the
- *  chips, and at the last write anything still in the add box too: a word typed and not yet Entered
- *  is a word the writer meant, but half a word is not one to save on a pause. */
-function alterVals(ae, final = false) {
-  const e = V?.entries?.find((x) => x.id === ae.id), last = ae.saved ?? ae.was;
-  const box = (sel) => document.querySelector(sel)?.value;
-  const v = {};
-  for (const f of ['title', 'body', 'now', 'notes']) if (f in ae.was) v[f] = box(`[data-f="${f}"]`) ?? last[f];
-  v.keys = keysFrom([...keyDraftFor(e), ...(final ? String(box('[data-f="keys"]') ?? '').split(',') : [])]).slice(0, 10).join(', ');
-  v.facts = box(`[data-ab="${ae.factsId ?? 'facts'}"]`) ?? box('[data-ab="facts"]') ?? last.facts;
-  return v;
-}
-/** ONE WRITE OF ALTER, a draft or the `final` one. In turn, never two at once, so a slow write cannot
- *  land after a later one. Only what changed is sent, and a last write after any draft of that part
- *  even when the words are the same. An emptied Always true is never written. The open tale's thread
- *  takes what was written, so a press that writes it whole (Kind, When it reaches the model) sends
- *  the typing and not what the tale was last drawn with. A refusal is said; resolves to it. */
-function writeAlter(ae, final = false, vals = null) {
-  const v = vals ?? alterVals(ae, final);
-  ae.chain = (ae.chain ?? Promise.resolve()).then(async () => {
-    // The thread as the open tale holds it now, so a chip pressed since is not undone; or, when another
-    // tale has been opened since (a last write sent on the way out), as it was when Alter opened.
-    const e = (S.storyId === ae.storyId ? V?.entries?.find((x) => x.id === ae.id) : null) ?? ae.entry;
-    const last = ae.saved ?? ae.was, base = ae.base ?? ae.was, saved = { ...last };
-    const how = (opened) => (final ? { opened } : { draft: true });
-    const fail = (r) => {
-      const why = r?.error ?? 'The server did not answer.';
-      toast(/not saved/i.test(why) ? why : `Not saved. ${why}`); ae.saved = saved; return r ?? { error: why };
-    };
-    // WHERE IT STANDS NOW (#78), when a later change is the one in force. Its scene, hint and label
-    // keep what they have: those are changed in its own panel from Over time.
-    const st = 'now' in v && v.now !== last.now ? (e.states ?? []).find((x) => x.id === ae.nowId) : null;
-    if (st) {
-      const r = await api.saveState(ae.storyId, e.id, { id: st.id, fromChapter: st.fromChapter, body: v.now,
-        beforeMode: st.beforeMode, label: st.label || null });
-      if (!r || r.error) return fail(r);
-      st.body = v.now; saved.now = v.now; ae.wrote = true;
-    }
-    // ALWAYS TRUE (#77): no name box, so it keeps the name it has. One made in this Alter opened on
-    // nothing, so its last write names its own text: nothing was lost, so nothing is kept or staled.
-    if (v.facts.trim() && (v.facts !== last.facts || (final && ae.drafted.facts))) {
-      const r = await api.saveAddon(ae.storyId, e.id, { ...(ae.factsId ? { id: ae.factsId } : {}), slot: 'facts',
-        name: ae.factsName, body: v.facts.trim(), keys: '' },
-      how({ name: ae.factsName, body: base.facts.trim() || v.facts.trim() }));
-      if (!r || r.error) return fail(r);
-      ae.factsId = ae.factsId ?? r.addonId ?? null; ae.drafted.facts = !final; saved.facts = v.facts; ae.wrote = true;
-      // The open thread takes it too, made here if this write made it, so a repaint draws it.
-      const fa = (e.addons ?? []).find((x) => x.id === ae.factsId);
-      if (fa) fa.body = v.facts.trim();
-      else if (ae.factsId) e.addons = [...(e.addons ?? []), { id: ae.factsId, slot: 'facts', name: ae.factsName,
-        body: v.facts.trim(), keys: [], active: true }];
-    }
-    // THE THREAD ITSELF.
-    const parts = ['title', 'body', 'notes', 'keys'].filter((f) => f in v);
-    if (parts.some((f) => v[f] !== last[f]) || (final && ae.drafted.entry)) {
-      const keys = keysFrom(v.keys.split(','));
-      const r = await api.saveEntry(ae.storyId, { ...e, id: e.id, title: v.title, ...('body' in v ? { body: v.body } : {}),
-        notes: v.notes, keys, allowNoKeys: true },
-      how({ title: base.title, ...('body' in base ? { body: base.body } : {}), keys: keysFrom(base.keys.split(',')) }));
-      if (!r || r.error) return fail(r);
-      Object.assign(e, { title: v.title, notes: v.notes, keys, ...('body' in v ? { body: v.body } : {}) });
-      ae.drafted.entry = !final; ae.wrote = true;
-      for (const f of parts) saved[f] = v[f];
-    }
-    ae.saved = saved;
-    if (final) ae.base = { ...saved };
-    return {};
-  });
-  return ae.chain;
-}
-/** A change on the form: written once the typing pauses (the pause the Tale's boxes use). */
-function alterSoon() { const ae = alterRecord(); if (ae) saveSoon('alter', () => writeAlter(ae)); }
-/** Back to Read, and the tale drawn again from the server when anything was written. */
-async function shutAlter(ae) {
-  if (S.alterEdit === ae) S.alterEdit = null;
-  if (S.entryId === ae.id) { S.cardView = null; S.keyDraft = null; }
-  if (ae.wrote && S.storyId === ae.storyId && V) { V = await api.story(S.storyId, V.currentChapter?.id); refreshManifest(); }
-  paint();
-  return true;
-}
-/** DONE, and Back and Esc: the last write, and back to Read. An emptied Always true is said, and a
- *  refused write keeps Alter open with the words in it. Returns whether it shut. */
-async function finishAlter() {
-  const ae = alterRecord(); if (!ae) return true;
-  dropSoon('alter');
-  const v = alterVals(ae, true);
-  if (v.facts !== (ae.saved ?? ae.was).facts && !v.facts.trim()) { toast('Always true needs something in it.'); return false; }
-  const r = await writeAlter(ae, true, v);
-  if (r?.error) return false;
-  return shutAlter(ae);
-}
-/** UNDO MY CHANGES (ADR 0004: Alter's Cancel). The thread as it was when Alter opened, as the last
- *  write, so nothing is kept or staled, and back to Read. With a change typed, two presses. */
-async function undoAlter(t = null) {
-  const ae = alterRecord(); if (!ae) return;
-  if (!sameVals(alterVals(ae), ae.was) && !armed(t, `alterundo:${ae.id}`,
-    'Press Undo my changes again to put the thread back as it was when you opened it.')) return;
-  dropSoon('alter');
-  S.keyDraft = null;
-  const r = await writeAlter(ae, true, { ...ae.was });
-  if (r?.error) return;
-  await shutAlter(ae);
-}
-/** Alter left by a door that does not wait for it (another thread opened, Read pressed): its last
- *  write is sent now, from the boxes as they are, and it is not waited for. */
-function leaveAlter() {
-  const ae = S.alterEdit; if (!ae) return;
-  dropSoon('alter'); S.alterEdit = null;
-  void writeAlter(ae, true);
-}
-
-function entryEditor() {
-  const e = V?.entries.find((x) => x.id === S.entryId);
-  if (!e) return `<div class="hint">That thread is gone.</div>`;
-  // The server hands the slot list over in the view — see `src/story.ts`. Not copied into this
-  // file: the database enforces exclusivity off the same list, and two copies would let a screen
-  // offer a second appearance the write would refuse.
-  const slots = V?.slots?.[e.entryType] ?? [];
-  // THE FACE IS THE DEFAULT, because reading your own canon is the common act and editing it is the
-  // deliberate one. The form is one press away and every check that drives it presses that button.
-  if (S.cardView !== 'form') return cardFace(e, slots);
-  const chip = (on) => `border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
-    background:transparent; color:${on ? 'var(--ink-bright)' : 'var(--mute)'}`;
-  const tab = S.cardTab ?? 'card';
-  // THE ALTER SCREEN (v2 redesign, 2026-10-25). Undo my changes and Done are the drawer's header now
-  // (drawSide; ADR 0004), so the Read / Alter / Save / Back bar and the head above the tabs are gone; the
-  // name is the first field. The four tabs stay as they were — Seth, twice: Over time does not move
-  // into More. Picture and Kind did move into More (Seth: "move em under more"): both are set once
-  // and rarely again, and they were the first two things above the name.
-  return `<div class="stack">
-    ${pageBar('alter')}
-    ${/* THE HEAD, AS THE WORKBENCH'S CARD HAS IT (Seth, 2026-11-02): the kind in small capitals, the
-          name under it in the serif with a rule, then the tabs. The pocket jump chips that sat above
-          the tabs are gone: the Pockets tab is one press, and two rows of chips read as one row too
-          many. The kind is still changed under More. */ ''}
-    <div class="althead">
-      <div class="lbl flush">${esc(e.entryType ?? 'thread')}</div>
-      <input class="field altname" id="f-card-title" data-f="title" aria-label="Name" value="${esc(e.title ?? '')}">
-    </div>
+    <div class="cardpanes" data-tab="${esc(tab)}">
     ${cardTabs(tab)}
-    <div class="pane altpane"${tab === 'card' ? '' : ' hidden'}>
-    <!-- FACTS ABOVE INFO. Seth, 2026-08-30: "facts and info need to change positions." He is
-         right and it is not a matter of taste. The chapter-end pass REWRITES the body; it has
-         never been able to touch a room, which is the whole reason src/slots.ts grew a facts slot
-         on 2026-08-29 - "theres no place to keep the characters main facts that doesnt get
-         overwritten". So the field that survives the chapter was sitting UNDER the field that does
-         not, and the order taught the wrong habit every time this screen opened.
-         AND THEN IT WAS DRAWN NOWHERE AT ALL. Seth, 2026-09-02: "facts are missing from info cards
-         btw i cant edit the facts it should be under the card tab". The comment above described the
-         intent and no code carried it out: the rooms loop below EXCLUDES facts on the grounds that
-         it is "drawn above", and above it nothing drew it. So the one room whose whole purpose is
-         to survive the chapter-end rewrite was the one room that could not be edited once written.
-         roomSection draws it: a plain box, saved as you type with the rest of Alter (#126, ADR 0004). -->
-    ${roomSection(e, slots.find((sl) => sl.name === 'facts'))}
+    <div class="pane altpane" data-pane="card">${threadPane(e, slots)}</div>
+    <div class="pane" data-pane="time">${timelinePane(e)}</div>
+    <div class="pane" data-pane="rooms">${(() => {
+      // #126 · THE POCKETS, AS A LIST (Seth, 2026-10-28): a row's name and text open the pocket panel
+      // on it, where it is altered, asked about and removed. On first, then what is not on, the order
+      // the model is told them in. Always true is not here: it is not a pocket (#77).
+      const order = slots.map((sl) => sl.name).filter((n) => n !== 'facts');
+      // Outfits off `e.outfits`, the wardrobe's own view of the same rows, as the wear chips read them.
+      const mine = [...rooms.filter((a) => a.slot !== 'outfit'),
+        ...(e.outfits ?? []).map((o) => ({ ...o, slot: 'outfit' }))].filter((a) => order.includes(a.slot))
+        .sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot));
+      // No add link here: Read's ＋ is in its header (threadBar; Seth, 2026-11-03).
+      return pocketList(e, mine, (a) => pocketSwitch(e, a), 2, false);
+    })()}</div>
+    <div class="pane" data-pane="more">${morePane(e, slots)}</div>
+    </div>
+  </div>`;
+}
+
+/** WHICH OF READ'S BOXES ARE OPEN (#136). A tap on a field opens its box, and it stays open until the
+ *  thread is left: another thread's Read starts with none open. */
+const readOpen = (e, f) => S.readOpen?.id === e?.id && S.readOpen.fields.has(f);
+function openRead(...fields) {
+  if (S.readOpen?.id !== S.entryId) S.readOpen = { id: S.entryId, fields: new Set() };
+  for (const f of fields) S.readOpen.fields.add(f);
+}
+
+/** THE THREAD TAB: Always true, where it stands, the wake words and your notes, each read as text
+ *  until tapped, then a box in place (#136). ALWAYS TRUE FIRST (#77): who or what it is, above where
+ *  it stands. */
+function threadPane(e, slots) {
+  const open = (f) => readOpen(e, f);
+  const facts = (e.addons ?? []).filter((a) => a.slot === 'facts');
+  const st = standsNow(e);
+  const keys = keyDraftFor(e);
+  const shut = (f, label, text, empty) => `<button class="readbody${text ? '' : ' faint'}" data-readedit="${f}"
+    aria-label="${label}">${esc(text || empty)}</button>`;
+  return `
+    ${open('facts') ? roomSection(e, slots.find((sl) => sl.name === 'facts') ?? { name: 'facts' })
+      : `<div class="lbl" data-slotat="facts" style="letter-spacing:.1em; margin:4px 0 4px">Always true</div>
+    ${shut('facts', `Alter what is always true of ${esc(e.title)}`, facts.map((a) => unbracket(a.body, e.title)).join('\n'), 'Nothing written down yet.')}`}
     ${(() => {
-      // WHERE IT STANDS NOW (#78). With no later entry open it is the thread's own text, from
-      // scene 1; with one open it is that entry, edited here and saved with the rest, and the text
-      // from scene 1 is edited as the first row of Over time. One box for each, never two.
-      const st = standsNow(e);
-      const mark = tipMark('cardBody', 'Where it stands now');
-      return `${st ? `<label class="lbl" for="f-card-now">${esc(nowWords())} <span class="faded">&middot; from scene ${
-        esc(String(st.fromChapter))}</span>${mark}</label>` : `<label class="lbl" for="f-card-body">${esc(nowWords())}${mark}</label>`}
+      // WHERE IT STANDS NOW (#78): the Timeline entry in force at this scene, or the thread's own text
+      // when none has opened. With one open, that entry is the box here, and the text from scene 1
+      // is edited as the first row of the Timeline. One box for each, never two.
+      const label = `${esc(nowWords())}${st ? ` <span class="faded">&middot; from scene ${esc(String(st.fromChapter))}</span>` : ''}`;
+      if (!open('stands')) return `<div class="lbl" style="letter-spacing:.1em; margin:8px 0 4px">${label}</div>
+    ${shut('stands', `Alter where ${esc(e.title)} stands now`, unbracket(st ? st.body : e.body, e.title), 'Nothing written down yet.')}`;
+      const mk = tipMark('cardBody', 'Where it stands now');
+      return `${st ? `<label class="lbl" for="f-card-now">${label}${mk}</label>` : `<label class="lbl" for="f-card-body">${label}${mk}</label>`}
     ${tipCard('cardBody', 'Where it stands now', `<p>What the model is sent about where this thread
       is now, after Always true. Hemming a scene offers a new one when the scene changes it, dated
       by the scene, and the Timeline keeps every one. Bracket form keeps it short:
       <em>[Name: trait, trait]</em>.</p>`)}
+    ${/* GROWS: a fixed box read as cut off (656 characters in 94px, 2026-08-27). */ ''}
     ${st ? `<textarea class="field grow box-tall" id="f-card-now" data-f="now" data-nowstate="${esc(st.id)}"
-     >${esc(st.body ?? '')}</textarea>` : ''}`;
+     >${esc(st.body ?? '')}</textarea>` : `<textarea class="field grow box-tall" id="f-card-body" data-f="body"
+      >${esc(e.body ?? '')}</textarea>`}`;
     })()}
-    <!-- GROWS, the box for where the thread stands from scene 1 when no later entry is in force
-         (when one is, this box is the first row of the Timeline). It was a fixed 96px box, and an
-         invented thread's body went from 60-120 words to
-         120-200 on 2026-08-27 — so two thirds of a body sat below the fold in a field that gave no
-         sign there was more. Measured: 656 characters, 94px of box, 283px of content. Nothing was
-         lost, it scrolled, and it read as cut off, which is what Seth reported. Capped so a very
-         long one still leaves the buttons under it reachable. -->
-    ${standsNow(e) ? '' : `<textarea class="field grow box-tall" id="f-card-body" data-f="body"
-      >${esc(e.body ?? '')}</textarea>`}
-    <!-- NOT DISABLED ANY MORE (2026-08-28, PLAN-08 Phase 1). It was greyed out while an entry was
-         always-on, on the reasoning that an always-on entry does not need keys. True, and it made
-         the words the extractor proposed invisible AND uneditable — so the one screen that could
-         show you F27's defect (every proposed key is the entry's own title repeated) was the one
-         screen that hid it, and there was no reason to ever flip the chip on an entry whose keys
-         you could not read. Keys are what an entry WOULD fire on, so authoring them before the
-         switch is the only safe order. -->
-    <!-- HOW IT REACHES THE MODEL, BESIDE ITS WAKE WORDS (2026-11-02): one section, not two. -->
-    <div class="altreach"><label class="lbl flush fill" for="f-card-keys">Wake words${
-      tipMark('cardKeys', 'Wake words')}</label>
-      <div class="altseg" role="group" aria-label="When it reaches the model">${[['always_on', 'Always on'], ['triggered', 'On a word']]
-      .map(([k, l]) => `<button data-act="${k}" aria-pressed="${k === e.activation}">${l}</button>`).join('')}</div></div>
+    ${restandButton(e)}
+    <!-- WAKE WORDS. Keys are what a thread WOULD fire on, so they are shown and written whatever its
+         activation (2026-08-28: a disabled box hid F27's defect). One chip per word, each with its
+         own x; the box after them adds one, on Enter or a comma, and a pasted list splits. keysFrom
+         is keysOf's own rules, so a chip is exactly what the save will store (test/db.ts). -->
+    <label class="lbl" for="f-card-keys">Wake words${tipMark('cardKeys', 'Wake words')}</label>
     ${tipCard('cardKeys', 'Wake words', `<p>${e.activation === 'always_on'
-      ? 'The words that bring an on-a-word thread to the model. Not used while this is always-on — '
+      ? 'The words that bring an on-a-word thread to the model. Not used while this is always on: '
         + 'Anansi reads it every time either way. Write them anyway: they are what would wake it the '
-        + 'moment you switch it to On a word, and this is the only place you can see what was '
-        + 'chalked for it.'
+        + 'moment you switch it to On a word.'
       : (e.keys ?? []).length
         ? 'The words that bring this thread to the model. Comma separated, up to ten. A whole word '
           + 'in recent prose or in your directive wakes it.'
         : '<strong>This thread cannot reach the model yet.</strong> On a word with no wake words '
-          + 'never wakes, and nothing else on this screen would tell you. Comma separated, up to '
-          + 'ten — a whole word in recent prose or in your directive wakes it.'}</p>`)}
-    <!-- ONE CHIP PER WORD (v2 redesign). The box was a comma list to edit in place, which on a
-         phone is a long line of words to move a caret through. Each word is a chip with its own x;
-         the box after them adds one, on Enter or a comma, and a pasted list splits. keysFrom is
-         keysOf's own rules, so a chip is exactly what the save will store (test/db.ts). -->
-    <div class="keychips" id="keychips">${keyChips(keyDraftFor(e))}<input class="keyadd" id="f-card-keys"
+          + 'never wakes. Comma separated, up to ten: a whole word in recent prose or in your '
+          + 'directive wakes it.'}</p>`)}
+    ${open('keys') ? `<div class="keychips" id="keychips">${keyChips(keys)}<input class="keyadd" id="f-card-keys"
       data-f="keys" data-keyadd="1" aria-label="Add a wake word" placeholder="+ word" enterkeyhint="done"
-      autocomplete="off" autocapitalize="off"></div>
-    ${/* ASK ANANSI, ONE ROW AT THE FOOT (Seth, 2026-11-02: the hem's and the Workbench's row). It fills
-          the fields above, unsaved; Save keeps them. It was a tray under More. */
-      askRow(e.entryType, 'Anansi edits', 'What to change (optional)')}
-    </div>
-    <div class="pane"${tab === 'rooms' ? '' : ' hidden'}>
-    <!-- #126 · THE POCKETS, AS A LIST (Seth, 2026-10-28). A row is the pocket's name, one line of
-         its text and its switch; the name and the line open the pocket panel on it, which is where
-         it is altered, asked about and removed. Every pocket open for editing at once was a long
-         scroll of boxes on a character with eight. On first, then what is not on, the order the
-         model is told them in. An outfit's switch is its wearing, one at a time (EXCLUSIVE_SLOTS).
-         Always true is not here: it is not a pocket, and it sits on The thread tab (#77). -->
-    ${(() => {
-      const order = slots.map((sl) => sl.name).filter((n) => n !== 'facts');
-      // Outfits off `e.outfits`, the wardrobe's own view of the same rows, as the wear chips read them.
-      const mine = [...(e.addons ?? []).filter((a) => a.slot !== 'outfit'),
-        ...(e.outfits ?? []).map((o) => ({ ...o, slot: 'outfit' }))].filter((a) => order.includes(a.slot))
-        .sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot));
-      // No add link here: the editor's ＋ is in its header (threadBar).
-      return pocketList(e, mine, (a) => pocketSwitch(e, a), 1, false);
-    })()}
-
-    <!-- ANANSI FILLS THIS ONE TOO. Seth, 2026-08-28: "the characters are filled by ai but the
-         threads card when i go to it doesnt have that option for me there and id like to add it."
-         It rewrites the card that is open rather than proposing a new one — proposing would offer
-         a duplicate of the thing you are looking at, and the dedupe would refuse it. -->
-    </div>
-    <div class="pane"${tab === 'more' ? '' : ' hidden'}>
-    <!-- AN OPTIONAL PICTURE. Seth, 2026-09-01: "lets add an optional image field". OPTIONAL is the
-         whole shape of it: no picture is the normal state and shows one quiet line rather than an
-         empty frame. The picture never reaches the model — it is not a room, it is not in the body,
-         and the engine's Entry type has no such field. It is for the eye. It was first on The
-         thread tab; under More since the v2 redesign, with Kind. -->
-    ${entryPicture(e)}
-    <label class="lbl">Kind</label>
-    <div class="row-6 wraps">${KINDS.map((k) => `<button data-kind="${k}"
-      aria-pressed="${k === e.entryType}"
-      style="flex:1; text-align:center; font-size:12px; padding:10px 0; border-radius:var(--r);
-      ${chip(k === e.entryType)}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+      autocomplete="off" autocapitalize="off"></div>`
+      : shut('keys', `Alter the wake words of ${esc(e.title)}`, keys.join(', '), 'No wake words yet.')}
     <label class="lbl" for="f-card-notes">Your notes${tipMark('cardNotes', 'Your notes')}</label>
     ${tipCard('cardNotes', 'Your notes', `<p>Never sent to the model. They are for you alone.</p>`)}
-    <textarea class="field grow" id="f-card-notes" data-f="notes"
-      style="min-height:64px; max-height:40vh">${esc(e.notes ?? '')}</textarea>
+    ${open('notes') ? `<textarea class="field grow" id="f-card-notes" data-f="notes"
+      style="min-height:64px; max-height:40vh">${esc(e.notes ?? '')}</textarea>`
+      : shut('notes', `Alter your notes on ${esc(e.title)}`, e.notes ?? '', 'None.')}
+    ${/* ASK ANANSI, ONE ROW AT THE FOOT (Seth, 2026-11-02: the hem's and the Workbench's row). It
+          writes into the boxes, opening them, and they save as typing does (\`invented\`). */
+      askRow(e.entryType, 'Anansi edits', 'What to change (optional)')}`;
+}
 
-    <!-- THIS CARD AS JSON, BOTH WAYS — Seth, 2026-09-02: "under more i should be able to export the
-         json of that card and all fields including empty ones and be able to reupload".
-         THE SHAPE IS THE FORGE'S, exactly: the thread-paste route has read it since #29, so what
-         comes out of here goes back in through the door that already exists rather than through a
-         second format nobody else speaks. It also means a card exported here can be edited in any
-         text editor, or handed to another model, and pasted into any book.
-         ALL FIELDS, EMPTY ONES INCLUDED, which is the ask and also the point: a room this card does
-         not have is written as an empty string, so the JSON is a form to fill in rather than a
-         record of what happened to be there. cardJSON builds it from the slot list the server sent,
-         so a card of a kind with eight rooms exports eight.
-         NO BACKTICKS IN HERE: this comment is inside a template literal and one ends the string.
-         THE ID RIDES ALONG, so putting it back UPDATES this card instead of making a second one.
-         Strip the id and the same paste creates a new card, which is what the forge does. -->
-    <div class="lbl sect">This thread as JSON</div>
-    <textarea class="field" id="f-card-json" readonly aria-label="This thread as JSON"
-      style="min-height:120px; max-height:40vh; font-size:11.5px;
-      font-family:ui-monospace, monospace">${esc(cardJSON(e, slots))}</textarea>
-    <div class="btnrow">
-      <button class="btn ghost fill" data-cardcopy="1">Copy it</button>
-      <button class="btn ghost fill" data-cardsave="${esc(e.id)}">Save as a file</button>
-      ${tipMark('cardJson', 'This thread as JSON')}
-    </div>
-    ${tipCard('cardJson', 'This thread as JSON', `<p>Every field this kind of thread can have, empty
-      ones included. Keep the <code>id</code> and putting it back changes THIS thread; delete the id
-      and it makes a new one.</p>`)}
-
-    <div class="lbl sect">Put one back${
-      tipMark('cardPutBack', 'Put one back')}</div>
-    ${tipCard('cardPutBack', 'Put one back', `<p>The same reader Export uses, so anything that
-      works there works here. A file is read in the browser and never uploaded anywhere but this
-      app.</p>`)}
-    <label class="btn ghost" style="display:flex; align-items:center; justify-content:center;
-      cursor:pointer">Choose a .json file
-      <input type="file" accept=".json,application/json" data-cardfile="1" hidden></label>
-    <textarea class="field" data-cardpaste aria-label="Paste a thread as JSON"
-      placeholder="or paste it here" style="min-height:74px; font-size:11.5px;
-      font-family:ui-monospace, monospace"></textarea>
-    <button class="btn ghost push-7" data-cardread="1">Read it and apply</button>
-    </div>
-    <div class="pane"${tab === 'time' ? '' : ' hidden'}>
-    ${(() => {
+/** THE TIMELINE TAB. */
+function timelinePane(e) {
+  return `${(() => {
       /* #78 · OVER TIME, EVERY ENTRY IN SCENE ORDER, FROM SCENE 1. The first row is the thread's own
        * text (shown as Info until now): where it stands from scene 1. Each later one is where it
        * stands from its scene on, under the label hemming gave it, with the parts that are new since
@@ -8841,9 +8411,53 @@ function entryEditor() {
           ><span>${mark('create', 16)}</span></button></div>
         ${tipCard('states', HELP.states.title, helpText('states'))}
         ${first}${listed}`;
-    })()}
+    })()}`;
+}
+
+/** THE MORE TAB (#136): every row the menu held, each where it acts. Stitched together, Copy to
+ *  another tale, Merge with another thread, Read the whole tale for this thread, This thread as JSON,
+ *  Past edits with Put this back, the picture, Retire or Bring it back, and Delete (asking twice). */
+function morePane(e, slots) {
+  return `
+    ${connections(e)}
+    <!-- THIS CARD AS JSON, BOTH WAYS — Seth, 2026-09-02: "under more i should be able to export the
+         json of that card and all fields including empty ones and be able to reupload".
+         THE SHAPE IS THE FORGE'S, exactly: the thread-paste route has read it since #29, so what
+         comes out of here goes back in through the door that already exists rather than through a
+         second format nobody else speaks. It also means a card exported here can be edited in any
+         text editor, or handed to another model, and pasted into any book.
+         ALL FIELDS, EMPTY ONES INCLUDED, which is the ask and also the point: a room this card does
+         not have is written as an empty string, so the JSON is a form to fill in rather than a
+         record of what happened to be there. cardJSON builds it from the slot list the server sent,
+         so a card of a kind with eight rooms exports eight.
+         NO BACKTICKS IN HERE: this comment is inside a template literal and one ends the string.
+         THE ID RIDES ALONG, so putting it back UPDATES this card instead of making a second one.
+         Strip the id and the same paste creates a new card, which is what the forge does. -->
+    <div class="lbl sect">This thread as JSON</div>
+    <textarea class="field" id="f-card-json" readonly aria-label="This thread as JSON"
+      style="min-height:120px; max-height:40vh; font-size:11.5px;
+      font-family:ui-monospace, monospace">${esc(cardJSON(e, slots))}</textarea>
+    <div class="btnrow">
+      <button class="btn ghost fill" data-cardcopy="1">Copy it</button>
+      <button class="btn ghost fill" data-cardsave="${esc(e.id)}">Save as a file</button>
+      ${tipMark('cardJson', 'This thread as JSON')}
     </div>
-    <div class="pane"${tab === 'more' ? '' : ' hidden'}>
+    ${tipCard('cardJson', 'This thread as JSON', `<p>Every field this kind of thread can have, empty
+      ones included. Keep the <code>id</code> and putting it back changes THIS thread; delete the id
+      and it makes a new one.</p>`)}
+
+    <div class="lbl sect">Put one back${
+      tipMark('cardPutBack', 'Put one back')}</div>
+    ${tipCard('cardPutBack', 'Put one back', `<p>The same reader Export uses, so anything that
+      works there works here. A file is read in the browser and never uploaded anywhere but this
+      app.</p>`)}
+    <label class="btn ghost" style="display:flex; align-items:center; justify-content:center;
+      cursor:pointer">Choose a .json file
+      <input type="file" accept=".json,application/json" data-cardfile="1" hidden></label>
+    <textarea class="field" data-cardpaste aria-label="Paste a thread as JSON"
+      placeholder="or paste it here" style="min-height:74px; font-size:11.5px;
+      font-family:ui-monospace, monospace"></textarea>
+    <button class="btn ghost push-7" data-cardread="1">Read it and apply</button>
     ${S.fieldHistory ? `<div class="lbl sect">Past edits</div>
       ${/* #122 · EACH VERSION AGAINST THE ONE THAT REPLACED IT, word by word: what this change took out
            is struck through, what it put in is underlined. A pocket since deleted has nothing after
@@ -8856,7 +8470,12 @@ function entryEditor() {
         ${h.now == null ? `<div class="clamp note-tight">${esc(h.was)}</div>` : diffHTML(h.was, h.now)}
         <button class="btn ghost push-6" data-revertfield="${h.id}">Put this back</button></div>`).join('')
         : '<div class="hint">No past edits of any field.</div>'}` : ''}
-    ${connections(e)}
+    <!-- AN OPTIONAL PICTURE. Seth, 2026-09-01: "lets add an optional image field". OPTIONAL is the
+         whole shape of it: no picture is the normal state and shows one quiet line rather than an
+         empty frame. The picture never reaches the model — it is not a room, it is not in the body,
+         and the engine's Entry type has no such field. It is for the eye. It was first on The
+         thread tab; under More since the v2 redesign, with Kind. -->
+    ${entryPicture(e)}
     <!-- #22 §8. BOTH STATES LIVE HERE NOW. It was asymmetric: the form offered "Mark this
          finished" only while a card was live, and the face showed the state only once it was
          finished — so you could not finish a card from Read, and Edit gave no sign that a card
@@ -8890,14 +8509,263 @@ function entryEditor() {
           ? 'Reading the tale&hellip;' : 'Read the whole tale for this thread'}</button>
       ${tipMark('cardScan', 'Reading the whole tale for this thread')}</div>
     ${copyElsewhere(e)}
-    <!-- SAVE IS NOT DOWN HERE ANY MORE. It is in the sticky bar at the top of the form, which is
-         reachable from this end of the card too. Two of them would be two things to keep in step
-         for no gain. -->
+    ${/* MERGE, which was a row of the menu (#136). Not on the tale's thread or a followed one. */
+      e.entryType !== 'tale' ? `<button class="btn ghost push-16" data-mergestart="${esc(e.id)}">Merge with another thread&hellip;</button>` : ''}
     <button class="btn ghost push-16" data-fieldhistory="1">${
       S.fieldHistory ? 'Hide past edits' : 'Past edits'}</button>
-    <button class="btn ghost danger push-10" data-delentry="1">Delete this thread</button>
-    </div>
-  </div>`;
+    <button class="btn ghost danger push-10" data-delentry="1">Delete this thread</button>`;
+}
+
+/** A SECTION BEHIND ITS OWN NAME, SHUT. Seth, 2026-08-30: "the over time and the brings in with
+ *  it and another book should be toggle and defaulted as off." Over time has been a tab of its own
+ *  since, and since #78 it is that tab's whole content, so it is no fold: the two left are these.
+ *
+ *  Both answer a question you are not usually asking. Connections are what this card drags in
+ *  behind it, and Another book is a copy into a different story — neither is why you opened a card.
+ *  A <details>, the one folding idiom on this screen.
+ *
+ *  IT REMEMBERS, and that is not a nicety. A section with a help mark in it repaints on a press of
+ *  help — so a fold with no memory would shut the section the moment you asked it what it was
+ *  for. The native toggle and the repaint agree rather than fight: the click opens the element AND
+ *  flips S.folds, and the paint that follows renders the same state back.
+ *  The help mark sits in the BODY and not in the summary for the same reason from the other side:
+ *  a press on it inside the summary toggles the fold natively too, and the repaint would then
+ *  disagree with what the DOM just did. */
+const foldSection = (name, label, body) => `<details class="fold push-16"
+  ${S.folds?.[name] ? 'open' : ''}>
+  <summary class="wide" data-fold="${esc(name)}">${label}</summary>${body}</details>`;
+
+/** ALWAYS TRUE'S BOX, on The thread tab once tapped. Always true is not a pocket (#77). One box, no
+ *  card and no Save of its own (Seth, 2026-11-02, "cleaner, like the hem and the Workbench"): it saves
+ *  as you type with the rest of Read (`writeAlter`, ADR 0004). A thread with none gets an empty box
+ *  (`data-ab="facts"`) that the typing makes it from. The body GROWS (growFields). */
+function roomSection(e, sl, anchor = true) {
+  if (sl?.name !== 'facts') return '';
+  const had = (e.addons ?? []).filter((a) => a.slot === 'facts');
+  const mine = had.length ? had : [{ id: 'facts', body: '' }];
+  // ALWAYS TRUE IS NOT A POCKET (#77): no switch, no wake words and no name, because it is sent
+  // whenever the thread is. Only its text, which is the writer's and which Anansi never changes.
+  return `
+    <label ${anchor ? 'data-slotat="facts"' : ''} class="lbl" for="f-card-facts">Always true${
+      tipMark('cardFacts', 'Always true')}</label>
+    ${tipCard('cardFacts', 'Always true', '<p>Who or what it is, for the whole tale. Anansi never changes it.</p>')}
+    ${mine.slice(0, 1).map((a) => `<textarea class="field grow box-52" id="f-card-facts" data-ab="${esc(a.id)}"
+      aria-label="What is always true of ${esc(e.title)}">${esc(a.body)}</textarea>`).join('')}`;
+  // NO REMOVE (Seth, 2026-10-28): every thread has one Always true; clearing it is editing it.
+}
+
+/** READ IS TABBED (the form's tabs since the 2026-09-02 handoff; Read's since #136). A character with
+ *  eight pockets, a wardrobe, a Timeline and Past edits is a page you scroll for a while to find out
+ *  what is in it. The head stays ABOVE the tabs — name, kind, how it fires, the pockets tag — so the
+ *  thing you are reading never leaves the screen. */
+// Over time beside The thread, Seth 2026-10-25: "for threads, move over time next to the thread".
+const CARD_TABS = [['card', 'The thread'], ['time', 'Timeline'], ['rooms', 'Pockets'], ['more', 'More']];
+
+/** Which tab a room's heading lives in. `facts` (Always true) is pinned above where it stands now
+ *  because of what it IS, and `outfit` is the wardrobe — both are in their tabs for reasons older
+ *  than the tabs, so this map
+ *  states it rather than the jump handler guessing from the slot list. */
+const slotTab = (name) => (name === 'facts' ? 'card' : 'rooms');
+
+/** READ'S TAB CHIPS (`.tabchip`, app.html), the one on pressed. A press flips them where they are
+ *  (`showCardTab`), never by a repaint. The pocket screen drew its Write it /
+ *  Ask Anansi with them until 2026-11-02, when those became one screen. */
+function cardTabs(tab) {
+  return `<div class="tabrow">${CARD_TABS.map(([k, label]) =>
+    `<button class="tabchip" data-cardtab="${k}" aria-pressed="${tab === k}">${label}</button>`).join('')}</div>`;
+}
+/** A TAB OF READ SHOWN BY THE STYLESHEET: the panes' box takes the tab's name and the chips their
+ *  pressed state, and nothing is drawn again, so no half-typed box is lost (#136). */
+function showCardTab(tab) {
+  S.cardTab = tab;
+  for (const box of document.querySelectorAll('.cardpanes')) box.dataset.tab = tab;
+  for (const b of document.querySelectorAll('[data-cardtab]')) b.setAttribute('aria-pressed', String(b.dataset.cardtab === tab));
+}
+
+/** THIS CARD AS THE FORGE'S JSON, with every field its kind can hold.
+ *
+ *  Seth, 2026-09-02: "all fields including empty ones". A room the card does not have is an empty
+ *  string rather than an absent key, so the export doubles as a blank form — which is the half that
+ *  makes it useful to hand to a model or to fill in by hand.
+ *
+ *  THE SHAPE IS `POST /api/thread/paste`'s and not a new one: kind, title, body, activation, keys,
+ *  rooms. Anything this app can read, it can now also write.
+ *
+ *  ROOMS ARE ONE PER SLOT, by name, because that is what `writeRooms` reads. A slot that holds
+ *  several — the wardrobe — exports the one that is ON, or the first, and says so in the file
+ *  through the value it carries rather than through a comment JSON cannot have.
+ *
+ *  `notes` is NOT in here. It is the writer's own margin and never reaches the model; the paste
+ *  route has no key for it, so exporting it would promise a round trip that does not happen. */
+function cardJSON(e, slots) {
+  const rooms = {};
+  for (const sl of slots) {
+    const mine = (e.addons ?? []).filter((a) => a.slot === sl.name);
+    const pick = mine.find((a) => a.active) ?? mine[0];
+    rooms[sl.name] = pick ? pick.body : '';
+  }
+  return JSON.stringify({
+    id: e.id,
+    kind: e.entryType,
+    title: e.title ?? '',
+    body: e.body ?? '',
+    activation: e.activation === 'triggered' || e.activation === 'off' ? e.activation : 'always_on',
+    keys: e.keys ?? [],
+    rooms,
+  }, null, 2);
+}
+
+/** THE WAKE WORDS BEING ALTERED. Null until a chip is added or removed, so Read shows the saved
+ *  ones; a list once the writer has touched them. Cleared by leaving the thread — it is the one part
+ *  of Read's boxes that is not a box the browser keeps for us. */
+const keyDraftFor = (e) => S.keyDraft ?? (e?.keys ?? []);
+const keyChips = (keys) => keys.map((k, i) => `<span class="keychip">${esc(k)}<button
+  data-keyx="${i}" aria-label="Remove ${esc(k)}" title="Remove ${esc(k)}">&times;</button></span>`).join('');
+/** The chips again, and only the chips: the box after them keeps its caret and whatever is in it.
+ *  Every change to them comes through here, so here is where they are saved as you type (`alterSoon`). */
+function redrawKeyChips() {
+  alterSoon();
+  const box = $('keychips'); if (!box) return;
+  box.querySelectorAll('.keychip').forEach((c) => c.remove());
+  box.insertAdjacentHTML('afterbegin', keyChips(keyDraftFor(V?.entries.find((x) => x.id === S.entryId))));
+}
+/** Words typed into the add box, added as chips by the same rules the save uses. Ten at most, as
+ *  the box always allowed (SPEC §7.1); past that it says so rather than dropping one quietly. */
+function addKeyWords(text) {
+  const e = V?.entries.find((x) => x.id === S.entryId); if (!e) return;
+  const had = keyDraftFor(e);
+  const all = keysFrom([...had, ...String(text ?? '').split(',')]);
+  if (all.length > 10) toast('Ten wake words at most. The rest were not added.');
+  S.keyDraft = all.slice(0, 10);
+  redrawKeyChips();
+}
+
+/** A THREAD'S READ SAVES AS YOU TYPE (ADR 0004, pass three; ADR 0013): its name, where it stands, your
+ *  notes, its wake words and its Always true. `S.alterEdit` is the open one: the tale it is in, what it
+ *  opened on (`was`), what was last written (`saved`), what the last write was worked out against
+ *  (`base`), and which parts have drafts not yet followed by a last write (`drafted`). Made at the
+ *  first change, from the thread as the tale holds it, so what is typed is never mistaken for what
+ *  was there; nothing before the first change writes these fields, so that is what Read opened on.
+ *
+ *  A WRITE OF A THREAD OR A POCKET KEEPS A REVISION AND CAN MARK SCENE SUMMARIES OUT OF DATE
+ *  (`upsertEntry`, `upsertAddon`), so a pause writes a DRAFT, which does neither, and leaving the
+ *  thread (Back, another thread, Esc, a hidden tab, another tale) sends one last write naming what
+ *  Read opened on: the revision and the staling are worked out once a visit, against that
+ *  (`db.WriteHow`). Where it stands now, when a later change is in force, is a change on the
+ *  Timeline, which keeps no history and stales nothing: written as typed.
+ *  ponytail: a draft with no last write after it (the page shut, or the server gone, before the
+ *  thread was left or the hidden tab sent it) keeps no revision and stales nothing, so a summary can
+ *  stay in the prompt that the thread no longer agrees with. Stale on the server from drafts if a
+ *  writer reports one. */
+function alterRecord() {
+  if (S.alterEdit && (S.alterEdit.id !== S.entryId || S.alterEdit.storyId !== S.storyId)) leaveAlter(false);
+  const e = isReading() ? V?.entries?.find((x) => x.id === S.entryId) : null; if (!e || e.sharedFrom) return null;
+  if (S.alterEdit) return S.alterEdit;
+  const st = standsNow(e), facts = (e.addons ?? []).find((a) => a.slot === 'facts');
+  // The thread's own text only when its box is on Read: with a later change in force, it is the
+  // Timeline's scene 1 instead, which saves it itself.
+  const was = { title: e.title ?? '', ...(st ? { now: st.body ?? '' } : { body: e.body ?? '' }), notes: e.notes ?? '',
+    keys: keysFrom(e.keys ?? []).join(', '), facts: facts?.body ?? '' };
+  return (S.alterEdit = { id: e.id, storyId: S.storyId, entry: e, nowId: st?.id ?? null, factsId: facts?.id ?? null,
+    factsName: facts?.name ?? 'facts', was, drafted: {} });
+}
+/** What Read's boxes hold now. A box not open keeps what was last written. The wake words are the
+ *  chips, and at the last write anything still in the add box too: a word typed and not yet Entered
+ *  is a word the writer meant, but half a word is not one to save on a pause. */
+function alterVals(ae, final = false) {
+  // The thread as the record holds it when the open tale is another one now (left by opening it).
+  const e = V?.entries?.find((x) => x.id === ae.id) ?? ae.entry, last = ae.saved ?? ae.was;
+  const box = (sel) => document.querySelector(sel)?.value;
+  const v = {};
+  for (const f of ['title', 'body', 'now', 'notes']) if (f in ae.was) v[f] = box(`[data-f="${f}"]`) ?? last[f];
+  v.keys = keysFrom([...keyDraftFor(e), ...(final ? String(box('[data-f="keys"]') ?? '').split(',') : [])]).slice(0, 10).join(', ');
+  v.facts = box(`[data-ab="${ae.factsId ?? 'facts'}"]`) ?? box('[data-ab="facts"]') ?? last.facts;
+  return v;
+}
+/** ONE WRITE OF READ'S BOXES, a draft or the `final` one. In turn, never two at once, so a slow write cannot
+ *  land after a later one. Only what changed is sent, and a last write after any draft of that part
+ *  even when the words are the same. An emptied Always true is never written. The open tale's thread
+ *  takes what was written, so a press that writes it whole (Kind, When it reaches the model) sends
+ *  the typing and not what the tale was last drawn with. A refusal is said; resolves to it. */
+function writeAlter(ae, final = false, vals = null) {
+  const v = vals ?? alterVals(ae, final);
+  ae.chain = (ae.chain ?? Promise.resolve()).then(async () => {
+    // The thread as the open tale holds it now, so a chip pressed since is not undone; or, when another
+    // tale has been opened since (a last write sent on the way out), as it was when Read opened.
+    const e = (S.storyId === ae.storyId ? V?.entries?.find((x) => x.id === ae.id) : null) ?? ae.entry;
+    const last = ae.saved ?? ae.was, base = ae.base ?? ae.was, saved = { ...last };
+    const how = (opened) => (final ? { opened } : { draft: true });
+    const fail = (r) => {
+      const why = r?.error ?? 'The server did not answer.';
+      toast(/not saved/i.test(why) ? why : `Not saved. ${why}`); ae.saved = saved; return r ?? { error: why };
+    };
+    // WHERE IT STANDS NOW (#78), when a later change is the one in force. Its scene, hint and label
+    // keep what they have: those are changed in its own panel from the Timeline.
+    const st = 'now' in v && v.now !== last.now ? (e.states ?? []).find((x) => x.id === ae.nowId) : null;
+    if (st) {
+      const r = await api.saveState(ae.storyId, e.id, { id: st.id, fromChapter: st.fromChapter, body: v.now,
+        beforeMode: st.beforeMode, label: st.label || null });
+      if (!r || r.error) return fail(r);
+      st.body = v.now; saved.now = v.now; ae.wrote = true;
+    }
+    // ALWAYS TRUE (#77): no name box, so it keeps the name it has. One made on this visit opened on
+    // nothing, so its last write names its own text: nothing was lost, so nothing is kept or staled.
+    if (v.facts.trim() && (v.facts !== last.facts || (final && ae.drafted.facts))) {
+      const r = await api.saveAddon(ae.storyId, e.id, { ...(ae.factsId ? { id: ae.factsId } : {}), slot: 'facts',
+        name: ae.factsName, body: v.facts.trim(), keys: '' },
+      how({ name: ae.factsName, body: base.facts.trim() || v.facts.trim() }));
+      if (!r || r.error) return fail(r);
+      ae.factsId = ae.factsId ?? r.addonId ?? null; ae.drafted.facts = !final; saved.facts = v.facts; ae.wrote = true;
+      // The open thread takes it too, made here if this write made it, so a repaint draws it.
+      const fa = (e.addons ?? []).find((x) => x.id === ae.factsId);
+      if (fa) fa.body = v.facts.trim();
+      else if (ae.factsId) e.addons = [...(e.addons ?? []), { id: ae.factsId, slot: 'facts', name: ae.factsName,
+        body: v.facts.trim(), keys: [], active: true }];
+    }
+    // THE THREAD ITSELF.
+    const parts = ['title', 'body', 'notes', 'keys'].filter((f) => f in v);
+    if (parts.some((f) => v[f] !== last[f]) || (final && ae.drafted.entry)) {
+      const keys = keysFrom(v.keys.split(','));
+      const r = await api.saveEntry(ae.storyId, { ...e, id: e.id, title: v.title, ...('body' in v ? { body: v.body } : {}),
+        notes: v.notes, keys, allowNoKeys: true },
+      how({ title: base.title, ...('body' in base ? { body: base.body } : {}), keys: keysFrom(base.keys.split(',')) }));
+      if (!r || r.error) return fail(r);
+      Object.assign(e, { title: v.title, notes: v.notes, keys, ...('body' in v ? { body: v.body } : {}) });
+      ae.drafted.entry = !final; ae.wrote = true;
+      for (const f of parts) saved[f] = v[f];
+    }
+    ae.saved = saved;
+    if (final) ae.base = { ...saved };
+    return {};
+  });
+  return ae.chain;
+}
+/** A change in one of Read's boxes: written once the typing pauses (the pause the Tale's boxes use). */
+function alterSoon() { const ae = alterRecord(); if (ae) saveSoon('alter', () => writeAlter(ae)); }
+/** AN EMPTIED ALWAYS TRUE is never written (a slip would wipe who someone is), and the writer is told. */
+const factsEmptied = (ae, v) => v.facts !== (ae.saved ?? ae.was).facts && !v.facts.trim();
+/** THE THREAD LEFT (Back, another thread, Esc, another tale): the last write, from the boxes as they
+ *  are, not waited for. With Always true emptied it is said, and, when `refuse`, the thread stays open
+ *  with the words in it and this answers false. Otherwise it answers the write, so a caller that must
+ *  wait for it (Put this back) can. Nothing open, nothing to write: true. */
+function leaveAlter(refuse = true) {
+  const ae = S.alterEdit; if (!ae) return true;
+  const v = alterVals(ae, true);
+  if (factsEmptied(ae, v)) { toast('Always true needs something in it.'); if (refuse) return false; }
+  dropSoon('alter'); S.alterEdit = null; S.keyDraft = null;
+  if (S.readOpen?.id === ae.id) S.readOpen = null;
+  return writeAlter(ae, true, v);
+}
+/** The thread is going (deleted, merged away): what is typed in it goes with it, unwritten. */
+function dropAlter() { dropSoon('alter'); S.alterEdit = null; S.readOpen = null; S.keyDraft = null; }
+
+function entryEditor() {
+  const e = V?.entries.find((x) => x.id === S.entryId);
+  if (!e) return `<div class="hint">That thread is gone.</div>`;
+  // The server hands the slot list over in the view — see `src/story.ts`. Not copied into this
+  // file: the database enforces exclusivity off the same list, and two copies would let a screen
+  // offer a second appearance the write would refuse.
+  return cardFace(e, V?.slots?.[e.entryType] ?? []);
 }
 
 /** Send this card to another of your books, or pull it out of one — the same operation, and which
@@ -10382,19 +10250,19 @@ window.addEventListener('popstate', () => {
   closeLayersBack(); closeThreadBack();
 });
 
-/** A THREAD OPEN IN THE THREADS DRAWER IS A STEP OF ITS OWN, AND ITS ⋯ IS ANOTHER (v2 redesign,
- *  2026-10-25). Back from a thread went past the list and shut the drawer, because opening one
- *  changed nothing in the address. So each step pushes an entry at the same address, numbered in
- *  `history.state.thread` (1 for the thread, 2 for its ⋯ open), copying the drawer's own state so
- *  `under` still says what the drawer sits over. Back closes the top one; a press that closes them
- *  steps back over what it closed, so no dead Back press is left behind.
+/** A THREAD OPEN IN THE THREADS DRAWER IS A STEP OF ITS OWN (v2 redesign, 2026-10-25). Back from a
+ *  thread went past the list and shut the drawer, because opening one changed nothing in the address.
+ *  So the step pushes an entry at the same address, numbered in `history.state.thread`, copying the
+ *  drawer's own state so `under` still says what the drawer sits over. Back closes it; a press that
+ *  closes it steps back over what it closed, so no dead Back press is left behind.
  *
  *  A THREAD OPENED ON ITS OWN, from a passage, is the whole drawer (`entry`), so its Read screen is
- *  the drawer's own entry and only the ⋯ or Alter above it is a step: one level lower than in the
- *  Threads drawer. Without it, Back from Alter there shut the drawer and threw the typing away. */
-const threadTop = () => (S.panel === 'threads' ? 2 : 1);
+ *  the drawer's own entry and no step of its own. Read is the editor (#136), so there is no ⋯ or
+ *  Alter step above it any more; what is typed there is written when it is left (`leaveAlter`, and
+ *  paint's floor for a drawer shut by Back). */
+const threadTop = () => (S.panel === 'threads' ? 1 : 0);
 const threadDepth = () => (S.place === 'story' && (S.panel === 'threads' || S.panel === 'entry') && S.entryId
-  ? ((S.readMenu && isReading()) || isAltering() ? threadTop() : threadTop() - 1)
+  ? threadTop()
   // New thread is a step above the list too, so Back goes back to the list.
   : S.place === 'story' && S.panel === 'threads' && S.lore ? 1 : 0);
 function syncThread() {
@@ -10405,20 +10273,14 @@ function syncThread() {
 }
 function closeThreadBack() {
   if (S.panel !== 'threads' && S.panel !== 'entry') return;
-  const at = history.state?.thread ?? 0, top = threadTop();
+  const at = history.state?.thread ?? 0;
   if (at >= threadDepth()) return;
-  // BACK FROM ALTER IS DONE (ADR 0004, pass three: it saves as you type, so leaving loses nothing).
-  // The browser has already stepped back by the time this runs, so a refused write puts the step
-  // back, with Alter open and the words in it.
-  // Further back than Read (the thread shut as well) does not wait for it.
-  if (at === top - 1 && isAltering()) {
-    void finishAlter().then((shut) => { if (!shut) history.pushState({ ...history.state, thread: top }, '', location.href); });
-    return;
-  }
-  if (at < top - 1) leaveAlter();
+  // BACK FROM READ SENDS THE LAST WRITE (ADR 0004, pass three; ADR 0013). The browser has already
+  // stepped back by the time this runs, so a refused one (Always true emptied) puts the step back,
+  // with Read open and the words in it.
+  if (S.entryId && !leaveAlter()) { history.pushState({ ...history.state, thread: threadDepth() }, '', location.href); return; }
   S.backArmed = 0;
-  if (at < top) { S.readMenu = false; if (S.cardView === 'form') { S.cardView = null; S.keyDraft = null; } }
-  if (at < top - 1) { S.entryId = null; S.cardView = null; S.lore = null; }
+  if (at < threadTop()) { S.entryId = null; S.lore = null; }
   // drawSide and not paint: a Back that leaves the drawer altogether lands here before the
   // hashchange that shuts it, and paint's syncHash would push the drawer straight back.
   drawSide();
@@ -10506,7 +10368,13 @@ function paint() {
   // reaching anything you could see (usability check, Titan keyboard). inert takes it out of the
   // tab order and away from the pointer until it is open.
   const rail = $('rail'); if (rail) rail.inert = overlay() && !S.rail;
+  // A THREAD'S READ LEFT BY ANY DOOR (#136): the drawer shut, another place, another tale. The doors
+  // that can be refused (Back, another thread, Esc) call `leaveAlter` themselves first; this is the
+  // floor under the rest, so no door leaves a visit without its last write.
+  if (S.alterEdit && !(threadOpen() && S.entryId === S.alterEdit.id && S.storyId === S.alterEdit.storyId)) void leaveAlter(false);
+  const typed = readTyped();
   drawRail(); drawBar(); drawMeter(); drawAppearance(); drawPage(); drawSide(); drawPocket(); drawMerge();
+  putReadTyped(typed);
   // A WORLD BOOK HAS NO WRITING SURFACE. It is a collection of lore and nothing else — Seth,
   // 2026-08-31: "the world book should be a collection of lore. no entries no chapters just lore.
   // so that its an easy starting off point if i want to write something else or as someone else or
@@ -11626,7 +11494,7 @@ async function pasteThreads(t, text) {
   const made = r.made ?? [];
   const rooms = made.reduce((n, m) => n + m.rooms, 0);
   S.lore = null;
-  if (made.length === 1) { S.entryId = made[0].id; S.cardView = null; }
+  if (made.length === 1) S.entryId = made[0].id;
   paint(); refreshManifest();
   toast(`${plural(made.length, 'thread', 'threads')} sewn in${
     rooms ? `, with ${plural(rooms, 'pocket', 'pockets')}` : ''}.${
@@ -11640,15 +11508,17 @@ async function invented(r, kind, dir, search) {
   if (r.weaveFit) return weaveRefused(r, (a) => inventAgain(kind, dir, search, a), `invent:${kind}`);
   if (r.error) return toast(r.error);
   if (r.card) {
-    // The open card, rewritten into its boxes, and saved as typing is (`alterSoon`): Undo my changes
-    // puts back what was there. The keys come with it because a card whose trigger words are not
+    // The open card, rewritten into its boxes, and saved as typing is (`alterSoon`): Past edits puts
+    // back what was there. The keys come with it because a card whose trigger words are not
     // rewritten alongside its body is a card that still fires on the old one; they wait in the add
-    // box, so Done adds them.
+    // box, so the last write on leaving adds them.
+    // Read's boxes for them are opened first (#136), keeping what is typed in any already open.
+    openRead('title', 'stands', ...(r.card.keys?.length ? ['keys'] : [])); paint();
     const set = (f, v) => { const el = document.querySelector(`[data-f="${f}"]`); if (el) el.value = v; };
     set('title', r.card.title); set('body', r.card.body);
     if (r.card.keys?.length) set('keys', r.card.keys.join(', '));
     alterSoon();
-    return toast('Written into the boxes. Done keeps it, and Undo my changes puts back what was there.');
+    return toast('Written into the boxes. It saves as you type; Past edits under More puts back what was there.');
   }
   // A POCKET IS ASKED FOR FROM THE POCKET PANEL now (#126, `pocketAsk`), which reads its own answer.
   V = await api.story(S.storyId, V.currentChapter.id); paint();
@@ -12217,6 +12087,23 @@ const typedBoxes = () => [...document.querySelectorAll('#sideBody textarea, #sid
  *  attributes that name it — `data-pbody="pp-…"` is a proposal's own box and has no id. */
 const boxKey = (el) => el.id || el.getAttributeNames().filter((n) => n.startsWith('data-'))
   .map((n) => `${n}=${el.getAttribute(n)}`).join('|');
+/** READ'S OPEN BOXES SURVIVE A REPAINT (#136). Read is drawn from the tale, which takes what was typed
+ *  only once a pause writes it, so a repaint inside the pause (a tab hidden, the eye's word fading, a
+ *  hem's poll) would put the stored text back under the writer. Kept by thread, so another thread's
+ *  boxes never take this one's words. */
+function readTyped() {
+  const at = document.querySelector('[data-readof]');
+  return at ? { id: at.dataset.readof, boxes: [...at.querySelectorAll('[data-f], [data-ab]')].map((el) => [boxKey(el), el.value]) } : null;
+}
+function putReadTyped(typed) {
+  const at = typed && document.querySelector('[data-readof]');
+  if (!at || at.dataset.readof !== typed.id) return;
+  const was = new Map(typed.boxes);
+  for (const el of at.querySelectorAll('[data-f], [data-ab]')) {
+    const v = was.get(boxKey(el));
+    if (v !== undefined && v !== el.value) el.value = v;
+  }
+}
 function repaintKeepingText() {
   const typed = new Map(typedBoxes().map((el) => [boxKey(el), el.value]));
   paint();
@@ -12446,7 +12333,7 @@ document.addEventListener('input', () => {
 // is not one: a word in it is half a word until it is Entered, and the chips are saved as they change.
 document.addEventListener('input', (e) => {
   const d = e.target?.dataset;
-  if (!d || !isAltering() || d.f === 'keys' || (d.f === undefined && d.ab === undefined)) return;
+  if (!d || !isReading() || d.f === 'keys' || (d.f === undefined && d.ab === undefined)) return;
   alterSoon();
 });
 
@@ -12828,8 +12715,10 @@ document.addEventListener('click', async (e) => {
 
   // ---- MERGE TWO THREADS: open it, pick the other, pick which stays (Anansi drafts), Cancel, Merge.
   if (d.mergestart) {
+    // What is typed on Read is written first, so the merge reads it and no later write undoes it.
+    if (!leaveAlter()) return;
     S.merge = { from: d.mergestart, q: '', other: null, keep: null, draft: null, parts: null, busy: false };
-    S.readMenu = false; paint(); syncLayers(); $('mg-q')?.focus?.(); return;
+    paint(); syncLayers(); $('mg-q')?.focus?.(); return;
   }
   if (d.mergex) { closeMerge(t); return; }
   if (d.mergewith) { if (!S.merge || S.merge.draft) return; S.merge.other = d.mergewith; drawMerge(); return; }
@@ -12853,13 +12742,13 @@ document.addEventListener('click', async (e) => {
     if (S.merge !== m) return;
     m.busy = false;
     if (r.error) { drawMerge(); return toast(r.error); }
-    S.merge = null; V = r; S.entryId = r.kept; S.readMenu = false; S.cardView = null;
+    S.merge = null; V = r; S.entryId = r.kept;
     paint(); syncLayers();
     return toast(`Merged. ${m.draft.gone.title} is part of ${m.draft.keep.title} now.`);
   }
 
   // ---- #126 · THE POCKET PANEL: open it to add or on one pocket, its tabs and kinds, and Cancel.
-  if (d.pocketnew) { openPocket(d.pocketnew); S.readMenu = false; paint(); $('pk-name')?.focus?.(); return; }
+  if (d.pocketnew) { openPocket(d.pocketnew); paint(); $('pk-name')?.focus?.(); return; }
   if (d.pocketx) { closePocket(t); return; }
   if (d.pocketdone) return void finishPocket(t);
   if (d.pocketundo) return void undoPocket(t);
@@ -12869,25 +12758,30 @@ document.addEventListener('click', async (e) => {
     S.pocket.slot = d.pocketkind; drawPocket(); return;
   }
 
-  // ---- PLAN-08: the card's two views, its jump links, and its rooms ----
-  if (d.cardview) { leaveAlter(); S.cardView = d.cardview === 'form' ? 'form' : null; S.readMenu = false; S.keyDraft = null;
-    paint(); if ($('sideBody')) $('sideBody').scrollTop = 0; return; }
-  // ALTER'S DONE AND UNDO MY CHANGES (ADR 0004, pass three: it saves as you type).
-  if (d.alterdone) return void finishAlter();
-  if (d.alterundo) return void undoAlter(t);
+  // ---- PLAN-08 and #136: Read's tabs, its fields opened in place, its jump links, and its rooms ----
+  // THE OLD ALTER DOOR (`data-cardview="form"`) opens Read on The thread: Alter is Read now (ADR 0013).
+  if (d.cardview !== undefined) { S.cardTab = 'card'; paint(); if ($('sideBody')) $('sideBody').scrollTop = 0; return; }
+  // A FIELD TAPPED ON READ turns into its box, in place, with the caret in it. The kind is a row of
+  // chips that the same tap shuts again; every other box stays open until the thread is left.
+  if (d.readedit) {
+    const e = V?.entries?.find((x) => x.id === S.entryId); if (!e || e.sharedFrom) return;
+    if (d.readedit === 'kind' && readOpen(e, 'kind')) S.readOpen.fields.delete('kind');
+    else openRead(d.readedit);
+    paint(); growFields($('sideBody'));
+    const box = { title: '#f-card-title', facts: '#f-card-facts', stands: '#f-card-now, #f-card-body', keys: '#f-card-keys',
+      notes: '#f-card-notes' }[d.readedit];
+    if (box) document.querySelector(box)?.focus?.({ preventScroll: true });
+    return;
+  }
   // A wake word's x. The chips redraw and nothing else does, so what is typed elsewhere stays.
   if (d.keyx !== undefined) {
     const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
     S.keyDraft = keyDraftFor(e).filter((_, i) => i !== Number(d.keyx));
     redrawKeyChips(); $('f-card-keys')?.focus({ preventScroll: true }); return;
   }
-  // THE READ SCREEN'S ⋯ (v2 redesign). Open and shut by the same press, by Back and by Esc.
-  if (d.readmenu) { S.readMenu = !S.readMenu; paint(); return; }
-  // A ROW UNDER ⋯ THAT NEEDS TYPING opens the form on the tab that holds it, with its section
-  // unfolded and on screen. Earlier versions are fetched on the way, which is what the form's own
-  // button does; everything else is already in the view.
+  // THE OLD MENU'S DOORS (`data-readgo`) open Read on the tab that holds them, with the section
+  // unfolded and on screen. Past edits are fetched on the way, which is what their own press does.
   if (d.readgo) {
-    // Over time is its tab's whole content since #78, so it has no fold to open: the tab is enough.
     const to = { time: ['time', null, null], edges: ['more', 'edges', '[data-fold="edges"]'],
       copy: ['more', 'copy', '[data-fold="copy"]'], history: ['more', null, '[data-fieldhistory]'],
       json: ['more', null, '#f-card-json'], rooms: ['rooms', null, null] }[d.readgo];
@@ -12897,13 +12791,15 @@ document.addEventListener('click', async (e) => {
       if (r.error) return toast(r.error);
       S.fieldHistory = r.entry ?? [];
     }
-    S.readMenu = false; S.cardView = 'form'; S.cardTab = to[0]; S.keyDraft = null;
+    S.cardTab = to[0];
     if (to[1]) S.folds = { ...S.folds, [to[1]]: true };
     paint();
     if (to[2]) document.querySelector(to[2])?.scrollIntoView({ block: 'start' });
     return;
   }
-  if (d.cardtab) { S.cardTab = d.cardtab; paint(); return; }
+  // READ'S TABS DO NOT REPAINT (#136), as the story panel's do not: a box half typed on The thread
+  // is still there when the writer comes back to it.
+  if (d.cardtab) { showCardTab(d.cardtab); return; }
   /* WHICH GROUP OF THE STORY PANEL IS SHOWING, and it does NOT repaint. Every box in that panel is
    * typed text that saves after a pause, so a redraw here would throw away a premise typed inside it — the same
    * bug seven other handlers in this file carry a note about. The attribute and the pressed states
@@ -12940,15 +12836,9 @@ document.addEventListener('click', async (e) => {
   }
   if (d.goslot) {
     // A JUMP CHIP MUST OPEN THE TAB IT LANDS IN. The handoff names this as the one dead control in
-    // its prototype: with the form tabbed, `data-slotat` scrolls to a heading the tabs have taken
-    // off screen, so the press does nothing and looks broken. Select first, paint, then scroll.
-    //
-    // Only on the form — the Read face draws every filled room in one column and has no tabs, so
-    // switching one there would change what the writer sees for no reason.
-    if (S.cardView === 'form') {
-      const want = slotTab(d.goslot);
-      if (S.cardTab !== want) { S.cardTab = want; paint(); }
-    }
+    // its prototype: with Read tabbed, `data-slotat` scrolls to a heading the tabs have taken off
+    // screen, so the press does nothing and looks broken. Select first, then scroll.
+    showCardTab(slotTab(d.goslot));
     // Queried from the DOM at press time, never from a map filled during render: the form draws
     // every slot and the face only the filled ones, so the same link has to find whichever is on
     // screen — and after a repaint the nodes are new ones.
@@ -12963,9 +12853,9 @@ document.addEventListener('click', async (e) => {
     const owner = pocketOwners().find((x) => (x.addons ?? []).some((a) => a.id === d.editroom)
       || (x.outfits ?? []).some((o) => o.id === d.editroom));
     if (owner?.addons?.find((a) => a.id === d.editroom)?.slot === 'facts') {
-      S.cardTab = 'card'; S.cardView = 'form'; paint(); return;
+      openRead('facts'); S.cardTab = 'card'; paint(); $('f-card-facts')?.focus?.({ preventScroll: true }); return;
     }
-    if (owner) { openPocket(owner.id, d.editroom); S.readMenu = false; paint(); }
+    if (owner) { openPocket(owner.id, d.editroom); paint(); }
     return;
   }
   if (d.addonon) {
@@ -12999,7 +12889,7 @@ document.addEventListener('click', async (e) => {
       REACH_PENDING.delete(id);
       V = await api.story(S.storyId);
       delete S.reachNow[id];
-      if (isAltering()) repaintKeepingText(); else paint();
+      paint();
       refreshManifest();
     });
     return;
@@ -13374,10 +13264,10 @@ document.addEventListener('click', async (e) => {
 
   // Every card opens on its face. Carrying the last card's view over means pressing a thread to
   // READ it and landing in a form of empty boxes, which is the thing the face exists to avoid.
-  if (d.entry) { if (S.entryId !== d.entry) S.cardTab = 'card';
-    leaveAlter();
-    S.entryId = d.entry; S.fieldHistory = null; S.cardView = null; S.readMenu = false;
-    S.keyDraft = null;
+  if (d.entry) {
+    // Another thread is a way out of this one's Read: its last write, refused when Always true is emptied.
+    if (S.entryId !== d.entry) { if (!leaveAlter()) return; S.cardTab = 'card'; S.keyDraft = null; S.fieldHistory = null; }
+    S.entryId = d.entry;
     if (S.place === 'story' && S.panel !== 'threads') S.panel = 'entry';
     // The cross-book page lists threads from every story and the editor beside it reads from the
     // OPEN one, so pressing a thread in a book you had not opened set S.entryId and then rendered
@@ -13407,7 +13297,7 @@ document.addEventListener('click', async (e) => {
     return toast(`Copied into ${LIB.find((s2) => s2.id === into)?.title ?? 'the other tale'}. `
       + 'Nothing here changed, and the two are not shared.');
   }
-  if (d.backentry) { leaveAlter(); S.entryId = null; S.historyOf = null; S.readMenu = false;
+  if (d.backentry) { if (!leaveAlter()) return; S.entryId = null; S.historyOf = null;
     if (S.panel === 'entry' || S.panel === 'history') S.panel = 'threads';
     paint(); return; }
   // NEW THREAD'S Write it. A box with a brace, a bracket or a second line in it is a paste — a
@@ -13425,8 +13315,8 @@ document.addEventListener('click', async (e) => {
     // saveEntry does not report the new id, so take the newest row of that name.
     S.entryId = V.entries.filter((x) => x.title === name).at(-1)?.id ?? null;
     S.lore = null;
-    // A new thread has nothing on its face yet, so it opens where it can be written.
-    S.cardView = 'form'; S.cardTab = 'card';
+    // A new thread has nothing on its face yet, so it opens with where it stands open to be written.
+    S.cardTab = 'card'; openRead('stands');
     paint(); return;
   }
   if (d.onlyin !== undefined) { S.onlyIn = d.onlyin === '1'; paint(); return; }
@@ -13468,37 +13358,21 @@ document.addEventListener('click', async (e) => {
       REACH_PENDING.delete(e.id);
       V = await api.story(S.storyId);
       delete S.reachNow[e.id];
-      if (isAltering()) repaintKeepingText(); else paint();
+      paint();
       refreshManifest();
     });
     return;
   }
-  if (d.kind || d.act) {
-    // Type and activation are chips, so they save immediately rather than waiting for Save —
-    // the trigger-words field enables and disables on activation and must repaint to show it.
-    // The mark's tap (`flipact`) has its own handler above.
+  if (d.kind) {
+    // THE KIND, opened on Read by a tap on its tag (#136): a chip saves at once and shuts the row.
+    // How it reaches the model is the eye's tap (`flipact`, above). `allowNoKeys`, so a keyless
+    // thread on a word is not turned always-on behind the writer's back by a change of kind.
     const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
-    // `allowNoKeys`: the guard in db.upsertEntry turns a keyless `triggered` entry always-on so
-    // nothing lands dark by accident, and this chip is the one place where the two-step is the
-    // ONLY route — the trigger-words field above is disabled while an entry is always-on, so a
-    // writer has to switch first and type second. Without the flag the switch bounces straight
-    // back and a triggered entry cannot be made at all. A human pressing "On a keyword" with the
-    // chip and the hint in front of them is not the silence 2e is about.
-    const patch = { ...e, id: e.id, keys: e.keys ?? [], allowNoKeys: true };
-    if (d.kind) patch.entryType = d.kind;
-    else patch.activation = d.act;
-    const r = await api.saveEntry(S.storyId, patch);
+    const r = await api.saveEntry(S.storyId, { ...e, id: e.id, keys: e.keys ?? [], allowNoKeys: true, entryType: d.kind });
     if (r.error) return toast(r.error);
-    // ON THE ALTER SCREEN THE CHIP SAVES ITSELF AND NOTHING ELSE. A plain repaint redrew the form
-    // from the saved thread and threw away a name or a paragraph typed above it but not yet saved;
-    // the chips the writer added are kept in S.keyDraft and survive either way.
-    V = await api.story(S.storyId); if (isAltering()) repaintKeepingText(); else paint(); refreshManifest();
-    // `allowNoKeys` is what lets the two-step above work, and from the list there is no
-    // trigger-words field in front of you to notice you have nothing to fire on. The card screen
-    // says it in bold; out here it has to be said out loud or the thread goes dark silently.
-    if (patch.activation === 'triggered' && !(e.keys ?? []).length) {
-      toast(`${e.title} is on a word with no wake words — it cannot reach the model. Open it to add some.`);
-    }
+    // The repaint keeps what is typed in Read's open boxes (`readTyped`).
+    if (S.readOpen?.id === e.id) S.readOpen.fields.delete('kind');
+    V = await api.story(S.storyId); paint(); refreshManifest();
     return;
   }
   /* ISSUE #36 · A FOLLOWED CARD, PER CARD. Four presses over one mechanism — a local row that
@@ -13592,6 +13466,7 @@ document.addEventListener('click', async (e) => {
     if (!armed(t, 'entry:' + S.entryId, 'Press again to delete this thread for good.')) return;
     const r = await api.delEntry(S.storyId, S.entryId);
     if (r.error) return toast(r.error);
+    dropAlter();
     S.entryId = null; if (S.panel === 'entry') S.panel = 'threads';
     V = await api.story(S.storyId); paint(); refreshManifest(); return;
   }
@@ -13694,7 +13569,7 @@ document.addEventListener('click', async (e) => {
     // it cannot fire until somebody types some — landing on a face that shows what is filled in
     // would show nothing at all, next to a toast asking for words there is no box for. The face is
     // for reading a card that has something to read.
-    S.entryId = made?.id ?? null; S.cardView = 'form'; S.panel = 'threads'; syncHash(); paint();
+    S.entryId = made?.id ?? null; S.cardTab = 'card'; openRead('keys'); S.panel = 'threads'; syncHash(); paint();
     toast('Sewn in. Give it wake words so it wakes.');
     return;
   }
@@ -14020,6 +13895,10 @@ document.addEventListener('click', async (e) => {
     S.fieldHistory = r.entry ?? []; paint(); return;
   }
   if (d.revertfield) {
+    // PUT THIS BACK ends the visit first: what is typed is written, then put back over, and the boxes
+    // shut so they show what was put back (#136).
+    const w = leaveAlter(); if (!w) return;
+    await w; S.readOpen = null;
     const r = await api.revertField({ storyId: S.storyId, entryId: S.entryId, revisionId: d.revertfield });
     if (r.error) return toast(r.error);
     S.fieldHistory = null; V = await api.story(S.storyId);
@@ -14325,7 +14204,7 @@ document.addEventListener('click', async (e) => {
     // #73. Tidy this thread: Anansi's sort of it is chalked as one card, and nothing changes until
     // it is sewn in on the Workbench.
     if (S.tidying) return;
-    S.tidying = d.tidy; S.readMenu = false; drawSide();
+    S.tidying = d.tidy; drawSide();
     const r = await withRing(() => api.tidy(S.storyId, d.tidy));
     S.tidying = null;
     if (r.error) { drawSide(); return toast(r.error); }
@@ -15639,13 +15518,10 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && setupTalking() && !AT) { S.panel = null; paint(); return; }
   if (e.key === 'Escape' && S.bigInput) { S.bigInput = false; drawDock(); $('input')?.focus(); return; }
   // A THREAD'S ⋯, THEN THE THREAD, THEN THE DRAWER: one layer per Esc, the same order as Back.
-  if (e.key === 'Escape' && S.readMenu && isReading()) { S.readMenu = false; paint(); return; }
-  // Alter: Esc is Done (ADR 0004, pass three: it saves as you type).
-  // The cross-book page draws Alter in the page at any width, so it is not gated on the overlay.
-  if (e.key === 'Escape' && isAltering() && (overlay() || S.place !== 'story')) { void finishAlter(); return; }
   if (e.key === 'Escape' && S.panel === 'threads' && S.lore && !S.entryId && overlay()) { S.lore = null; paint(); return; }
+  // Leaving Read sends its last write (ADR 0013), refused with Always true emptied.
   if (e.key === 'Escape' && S.panel === 'threads' && S.entryId && overlay()) {
-    S.entryId = null; S.cardView = null; S.readMenu = false; paint(); return; }
+    if (leaveAlter()) { S.entryId = null; paint(); } return; }
   // Last, Esc folds the box back to the three buttons (#71), once nothing above it is open: one Esc
   // shuts one thing. Not while Talk or an @ list has it; their own listener takes that Esc.
   if (e.key === 'Escape') { if (S.appearance) { S.appearance = false; drawAppearance(); drawBar(); } else if (S.panel && overlay()) { S.panel = null; paint(); }

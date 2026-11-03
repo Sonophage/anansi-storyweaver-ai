@@ -2192,11 +2192,13 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   ok('a proposal shows what it will write, and an edit is what gets sent');
 }
 
-// A THREAD'S ALTER, AND ITS ALWAYS TRUE, SAVE AS YOU TYPE (ADR 0004, pass three). Every write of a
-// thread or a pocket keeps a revision and can mark scene summaries out of date, so a pause writes a
-// DRAFT, which does neither, and Done sends one last write naming what Alter opened on: the revision
-// and the staling are worked out once, against that. Always true has no name box and keeps the name it
-// has (Seth, 2026-10-28: "it's saying a pocket needs a name"); an emptied one is never written.
+// #136 · A THREAD IS EDITED WHERE IT IS READ, AND IT SAVES AS YOU TYPE (ADR 0004, pass three; ADR
+// 0013). A tap on a field opens its box in place. Every write of a thread or a pocket keeps a revision
+// and can mark scene summaries out of date, so a pause writes a DRAFT, which does neither, and leaving
+// the thread (Back, another thread, a hidden tab, another tale) sends one last write naming what Read
+// opened on: the revision and the staling are worked out once a visit, against that, so Past edits
+// holds one entry per visit. Always true has no name box and keeps the name it has (Seth, 2026-10-28);
+// an emptied one is never written, and the writer is told.
 {
   const e1 = STORY.entries.find((x: any) => x.id === 'e-1') as any;
   const wasEntries = STORY.entries;
@@ -2218,78 +2220,99 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   };
   const writes = () => POSTED.filter((x) => x.url === '/api/entry' || x.url === '/api/addon')
     .map((x) => [x.url, x.url === '/api/entry' ? x.body.entry.body : x.body.addon.body, x.body.draft ?? null, x.body.opened ?? null]);
-  doc.querySelector = (sel: string) => boxes[sel] ?? null;
+  const onRead = () => /data-readof="e-1"/.test(html('sideBody'));
   try {
     click({ open: 's-1' }); await sleep(40);
-    click({ panel: 'threads' }); click({ entry: 'e-1' }); click({ cardview: 'form' }); click({ cardtab: 'card' });
+    click({ panel: 'threads' }); click({ entry: 'e-1' });
     await sleep(30);
-    fill('Envoy Sereth', '[speaks for Kesh]', 'An envoy of Kesh.');
-    const head = html('sideHead');
-    assert.doesNotMatch(head, /data-saveentry|data-cancelalter|>Save</, 'ALTER-THREAD-NO-SAVE: Alter has no Save and no Cancel');
-    assert.match(head, /data-alterundo="1"[\s\S]*Undo my changes[\s\S]*data-alterdone="1"[\s\S]*Done/,
-      'ALTER-THREAD-HEAD: Undo my changes on the left, Done on the right');
+    // EACH FIELD OPENS ITS BOX IN PLACE, on a tap, and Read has no Save, no Done and no Undo.
+    const opens: [string, RegExp][] = [['title', /data-f="title"/], ['facts', /data-ab="a-facts"/], ['stands', /data-f="body"/],
+      ['keys', /data-f="keys"/], ['notes', /data-f="notes"/], ['kind', /data-kind="lore"/]];
+    for (const [f, re] of opens) {
+      assert.doesNotMatch(html('sideBody'), re, `READ-OPEN-${f}: shut until tapped`);
+      click({ readedit: f }); await sleep(10);
+      assert.match(html('sideBody'), re, `READ-OPEN-${f}: a tap opens its box in place`);
+    }
+    click({ readedit: 'kind' }); await sleep(10);
+    assert.doesNotMatch(html('sideBody'), /data-kind="lore"/, 'READ-OPEN-kind: a second tap shuts the kinds');
+    assert.doesNotMatch(html('sideHead') + html('sideBody'), /data-saveentry|data-cancelalter|data-alterdone|data-alterundo|>Save</,
+      'READ-THREAD-NO-SAVE: Read has no Save, no Done and no Undo my changes');
     assert.doesNotMatch(html('sideBody'), /data-saveaddon/, 'ALWAYS-TRUE-NO-SAVE: Always true has no Save of its own');
+    fill('Envoy Sereth', '[speaks for Kesh]', 'An envoy of Kesh.');
+    doc.querySelector = (sel: string) => boxes[sel] ?? null;
     POSTED.length = 0;
     type('[data-f="body"]', '[speaks for Kesh, and lies]');
     type('[data-ab="a-facts"]', 'An envoy of Kesh, and a spy.');
     await sleep(400);
-    assert.deepStrictEqual(writes(), [], 'ALTER-THREAD-PAUSE: nothing is written while the typing goes on');
+    assert.deepStrictEqual(writes(), [], 'READ-THREAD-PAUSE: nothing is written while the typing goes on');
     await sleep(700);
     assert.deepStrictEqual(writes(), [['/api/addon', 'An envoy of Kesh, and a spy.', true, null],
       ['/api/entry', '[speaks for Kesh, and lies]', true, null]],
-      'ALTER-THREAD-DRAFT: the pause writes Always true and the thread, each as a draft');
+      'READ-THREAD-DRAFT: the pause writes Always true and the thread, each as a draft');
     const facts = POSTED.find((x) => x.url === '/api/addon')?.body.addon;
     assert.deepStrictEqual(facts, { id: 'a-facts', slot: 'facts', name: 'Who she is', body: 'An envoy of Kesh, and a spy.', keys: '' },
       'ALWAYS-TRUE-NAME: with no name box, Always true keeps the name it has');
+    type('[data-f="body"]', '[speaks for Kesh, and lies well]'); await sleep(1000);
     POSTED.length = 0;
     type('[data-f="title"]', 'Envoy Sereth Vane');
-    click({ alterdone: '1' }); await sleep(60);
+    click({ backentry: '1' }); await sleep(60);
     assert.deepStrictEqual(writes(), [['/api/addon', 'An envoy of Kesh, and a spy.', null, { name: 'Who she is', body: 'An envoy of Kesh.' }],
-      ['/api/entry', '[speaks for Kesh, and lies]', null, { title: 'Envoy Sereth', body: '[speaks for Kesh]', keys: [] }]],
-      'ALTER-THREAD-DONE: Done sends the last write of each, naming what Alter opened on');
+      ['/api/entry', '[speaks for Kesh, and lies well]', null, { title: 'Envoy Sereth', body: '[speaks for Kesh]', keys: [] }]],
+      'READ-THREAD-LEAVE: Back sends one last write of each, naming what Read opened on, after two pauses (one Past edits entry a visit)');
     assert.strictEqual(POSTED.find((x) => x.url === '/api/entry')?.body.entry.title, 'Envoy Sereth Vane', '  with the last of the typing');
-    assert.doesNotMatch(html('sideHead'), /data-alterdone/, '  and goes back to Read');
+    assert.ok(!onRead(), '  and goes back to the list');
 
-    // The tale now holds what Done wrote, and Alter opens on that.
-    const T = 'Envoy Sereth Vane', B = '[speaks for Kesh, and lies]', F = 'An envoy of Kesh, and a spy.';
+    // The tale now holds what was written, and the next visit opens on that.
+    const T = 'Envoy Sereth Vane', B = '[speaks for Kesh, and lies well]', F = 'An envoy of Kesh, and a spy.';
     const opened = { title: T, body: B, keys: [] };
-    // UNDO MY CHANGES after a pause: the text Alter opened on, as the last write, so nothing is kept.
-    click({ cardview: 'form' }); await sleep(30);
+    // ANOTHER THREAD is a way out too.
+    click({ entry: 'e-1' }); await sleep(30);
     fill(T, B, F);
     POSTED.length = 0;
     type('[data-f="body"]', '[speaks for nobody]'); await sleep(1000);
-    click({ alterundo: '1' }); await sleep(20);
-    assert.match(html('sideHead'), /data-alterdone/, 'ALTER-THREAD-UNDO-ASKS: Undo my changes with a change typed asks first');
-    click({ alterundo: '1' }); await sleep(60);
-    assert.deepStrictEqual(writes(), [['/api/entry', '[speaks for nobody]', true, null], ['/api/entry', B, null, opened]],
-      'ALTER-THREAD-UNDO: the second press writes back what it opened on, as the last write');
-    assert.doesNotMatch(html('sideHead'), /data-alterdone/, '  and goes back to Read');
+    click({ entry: 'e-2' }); await sleep(60);
+    assert.deepStrictEqual(writes(), [['/api/entry', '[speaks for nobody]', true, null], ['/api/entry', '[speaks for nobody]', null, opened]],
+      'READ-THREAD-OTHER: another thread sends the last write, naming what Read opened on');
 
-    // A HIDDEN TAB sends the last write, after the pause it cut short.
-    click({ cardview: 'form' }); await sleep(30);
-    fill(T, B, F);
+    // A HIDDEN TAB sends the last write, after the pause it cut short; leaving after it sends nothing more.
+    const O2 = { title: T, body: '[speaks for nobody]', keys: [] };
+    click({ entry: 'e-1' }); await sleep(30);
+    fill(T, '[speaks for nobody]', F);
     POSTED.length = 0;
     type('[data-f="body"]', '[speaks for Kesh, softly]');
     doc.visibilityState = 'hidden';
     try { (listeners.visibilitychange ?? []).forEach((f: Function) => f({})); await sleep(40); } finally { doc.visibilityState = 'visible'; }
     assert.deepStrictEqual(writes(), [['/api/entry', '[speaks for Kesh, softly]', true, null],
-      ['/api/entry', '[speaks for Kesh, softly]', null, opened]],
-      'ALTER-THREAD-HIDDEN: a hidden tab writes the pause, then the last write');
+      ['/api/entry', '[speaks for Kesh, softly]', null, O2]],
+      'READ-THREAD-HIDDEN: a hidden tab writes the pause, then the last write');
     POSTED.length = 0;
-    click({ alterdone: '1' }); await sleep(60);
-    assert.deepStrictEqual(writes(), [], 'ALTER-THREAD-HIDDEN-ONCE: and Done after it sends nothing more');
+    click({ backentry: '1' }); await sleep(60);
+    assert.deepStrictEqual(writes(), [], 'READ-THREAD-HIDDEN-ONCE: and Back after it sends nothing more');
 
-    // AN EMPTIED ALWAYS TRUE is never written: Done says so and stays.
-    click({ cardview: 'form' }); await sleep(30);
+    // AN EMPTIED ALWAYS TRUE is never written: Back says so and stays, with the words in the boxes.
+    click({ entry: 'e-1' }); await sleep(30);
     fill(T, '[speaks for Kesh, softly]', F);
     POSTED.length = 0;
     type('[data-ab="a-facts"]', '  '); await sleep(1000);
-    click({ alterdone: '1' }); await sleep(60);
+    click({ backentry: '1' }); await sleep(60);
     assert.deepStrictEqual(writes(), [], 'ALWAYS-TRUE-EMPTY: an empty Always true is not written');
-    assert.match(html('sideHead'), /data-alterdone/, '  and Done stays on Alter');
-    click({ alterundo: '1' }); click({ alterundo: '1' }); await sleep(60);
+    assert.match(String(nodes.get('toast').textContent), /Always true needs something in it/, 'ALWAYS-TRUE-EMPTY-SAID: and the writer is told');
+    assert.ok(onRead(), '  and Back stays on Read');
+    boxes['[data-ab="a-facts"]'].value = F;
+    click({ backentry: '1' }); await sleep(60);
+    assert.ok(!onRead(), '  until it holds something');
+
+    // ANOTHER TALE, the floor under every other door: the last write goes to the tale it was typed in.
+    click({ entry: 'e-1' }); await sleep(30);
+    fill(T, '[speaks for Kesh, softly]', F);
+    POSTED.length = 0;
+    type('[data-f="title"]', 'Envoy Vane');
+    click({ open: 's-2' }); await sleep(60);
+    const last = POSTED.filter((x) => x.url === '/api/entry').at(-1)?.body;
+    assert.deepStrictEqual([last?.storyId, last?.entry.title, last?.draft ?? null, last?.opened?.title], ['s-1', 'Envoy Vane', null, T],
+      'READ-THREAD-TALE: opening another tale sends the last write, to the tale it was typed in');
   } finally { doc.querySelector = wasQS; STORY.entries = wasEntries; }
-  ok("a thread's Alter and its Always true save as you type, as drafts, and Done sends the last write");
+  ok("a thread is edited where it is read: each field opens in place, a pause drafts, and leaving sends the last write");
 }
 
 // #126 · A THREAD WITH NO ALWAYS TRUE GETS ONE FROM THE THREAD TAB. The add tray offered it while a
@@ -2298,9 +2321,10 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 {
   click({ open: 's-1' }); await sleep(40);
   click({ panel: 'threads' }); click({ entry: 'e-2' });
-  click({ cardview: 'form' }); click({ cardtab: 'card' });
   await sleep(30);
-  assert.match(html('sideBody'), /data-ab="facts"/, 'ALWAYS-TRUE-NEW: an empty box');
+  assert.match(html('sideBody'), /data-readedit="facts"[^>]*>Nothing written down yet\.</, 'ALWAYS-TRUE-NEW: Read says there is none');
+  click({ readedit: 'facts' }); await sleep(10);
+  assert.match(html('sideBody'), /data-ab="facts"/, 'ALWAYS-TRUE-NEW: and a tap opens an empty box');
   const doc = (globalThis as any).document;
   const wasQS = doc.querySelector;
   const box = { value: '' };
@@ -2319,12 +2343,11 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body,
       { storyId: 's-1', entryId: 'e-2', addon: { slot: 'facts', name: 'facts', body: 'Unlit, below the counting floor.', keys: '' }, draft: true },
       'ALWAYS-TRUE-NEW: what is typed makes the Always true, with no id');
-    click({ cardtab: 'card' }); await sleep(20);
+    click({ readedit: 'facts' }); await sleep(20);
     assert.match(html('sideBody'), /data-ab="a-made"[^>]*>Unlit, below the counting floor\.</,
       'ALWAYS-TRUE-NEW-KEPT: a repaint after the pause draws the Always true it made, with its text');
-    click({ alterdone: '1' }); await sleep(60);
+    click({ backentry: '1' }); await sleep(60);
   } finally { doc.querySelector = wasQS; (globalThis as any).fetch = canned; e2.addons = hadAddons; }
-  click({ backentry: '1' });
   ok('a thread with no Always true gets one from The thread tab');
 }
 
@@ -5277,34 +5300,25 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   };
   assert.ok(kindBefore(face, 'Voice', 'How she sounds'), 'POCKET-KINDS: an on pocket sits under its kind');
   assert.ok(kindBefore(face.slice(dividerAt), 'Interiority', 'What she wants'), 'POCKET-KINDS: and an off one under its kind, below Not turned on');
-  click({ cardview: 'form' }); click({ cardtab: 'rooms' }); await sleep(30);
-  assert.ok(kindBefore(html('sideBody'), 'Voice', 'How she sounds'), 'POCKET-KINDS: the Pockets tab groups them the same way');
-  click({ alterdone: '1' }); await sleep(30);
 
-  // §8 · READ SAYS WHAT IS TRUE; EDIT IS WHERE YOU CHANGE IT.
+  // §8 · READ SAYS WHAT IS TRUE ABOVE THE TABS; THE CONTROL IS UNDER MORE (#136).
   click({ entry: 'e-done' });
   await sleep(30);
-  const done = html('sideBody');
-  assert.match(done, /Retired at scene 2/, 'the face marks a retired thread');
-  assert.doesNotMatch(done, /data-unretire=/, 'and offers no control — that is what the form is for');
-  assert.doesNotMatch(done, /data-retire=/, 'in either direction');
-
-  click({ cardview: 'form' });
-  const form = html('sideBody');
-  // A RETIRED CARD MUST BE BRINGABLE BACK FROM SOMEWHERE. Moving the way back off the face means
-  // the form is now one of the two places that has it — the waiting panel is the other, and
-  // test/web.ts asserts that one for the same reason: a wrong press is otherwise invisible AND
-  // permanent.
-  assert.match(form, /data-unretire="e-done"/, 'the form brings it back');
-  assert.match(form, /Retired at scene 2/, 'and says what it is bringing back from');
+  const done = html('sideBody'), above = done.slice(0, done.indexOf('class="cardpanes"'));
+  assert.match(above, /Retired at scene 2/, 'the face marks a retired thread');
+  assert.doesNotMatch(above, /data-unretire=|data-retire=/, 'and offers no control above the tabs');
+  // A RETIRED CARD MUST BE BRINGABLE BACK FROM SOMEWHERE. More is one of the two places that has it
+  // — the waiting panel is the other, and test/web.ts asserts that one for the same reason: a wrong
+  // press is otherwise invisible AND permanent.
+  const more = done.slice(done.indexOf('data-pane="more"'));
+  assert.match(more, /data-unretire="e-done"/, 'More brings it back');
+  assert.match(more, /Retired at scene 2/, 'and says what it is bringing back from');
 
   click({ entry: 'e-1' });
-  click({ cardview: 'form' });
-  assert.match(html('sideBody'), /data-retire="e-1"/,
+  assert.match(html('sideBody').slice(html('sideBody').indexOf('data-pane="more"')), /data-retire="e-1"/,
     'and a live card is finished from the same place, which is the asymmetry this fixed');
-  click({ cardview: null });
 }
-ok('a card face reads body, then what is on, then what is not — and finishing lives in the form');
+ok('a card face reads body, then what is on, then what is not — and finishing lives under More');
 
 // ---- A SCENE IS DELETED FROM ITS OWN DRAWER, NOT FROM THE LIST (UX review, 2026-10-29). The ✕ on
 // every card in Scenes sat right beside the card (36px) and was easy to hit by mistake. This scene
@@ -5939,7 +5953,7 @@ ok("the tale's own thread is on the Tale panel's Thread tab, one ＋ adds to it 
   at([LATER], null);
   const openTime = async () => {
     click({ open: 's-1' }); await sleep(40);
-    click({ panel: 'threads' }); click({ entry: 'e-1' }); click({ cardview: 'form' }); click({ cardtab: 'time' });
+    click({ panel: 'threads' }); click({ entry: 'e-1' }); click({ readgo: 'time' });
     await sleep(20);
     return html('sideBody').match(/<div class="pane"(?![^>]*hidden)[^>]*>[\s\S]*?Timeline[\s\S]*/)?.[0] ?? '';
   };
@@ -6043,7 +6057,7 @@ ok("the tale's own thread is on the Tale panel's Thread tab, one ＋ adds to it 
   pane = await openTime();
   assert.doesNotMatch(pane, /data-stateopen="first"/, 'OT-FIRST-NOW: scene 1 does not open while it is where it stands now');
   STORY.entries = was;
-  click({ cardview: null }); click({ backentry: '1' });
+  click({ backentry: '1' });
 }
 ok('Over time: one ＋ adds a change, a tap opens one in the pocket panel, and one that exists saves as you type');
 
@@ -6195,21 +6209,36 @@ ok('Over time: one ＋ adds a change, a tap opens one in the pocket panel, and o
 }
 ok('scene summaries and chapters are rows that open in the pocket panel, with their presses and Save there');
 
-// ---- THE THREAD'S MENU, ONE FLAT LIST, AND TIDY AS AN ICON BESIDE IT (Seth, 2026-10-27).
+// ---- #136 · READ IS THE THREAD'S EDITOR. Four tabs on Read, the rare actions under More, and no ⋯
+// and no Alter screen (Seth, 2026-11-03). Tidy stays an icon in the header (Seth, 2026-10-27).
 {
-  click({ entry: 'e-1' });
-  const head = html('sideHead');
+  click({ entry: 'e-1' }); await sleep(30);
+  const head = html('sideHead'), body = html('sideBody');
   assert.match(head, /<button data-tidy="e-1" class="headmore"/, 'Tidy is an icon in the header');
-  assert.doesNotMatch(head, /&middot;&middot;&middot;/, 'and the menu is no longer three dots');
-  click({ readmenu: '1' });
-  const menu = html('sideBody');
-  assert.doesNotMatch(menu, /class="readrow"[^>]*data-tidy|data-tidy="e-1" class="readrow"/, 'Tidy is not in the menu');
-  assert.match(menu, /data-cardview="form" class="readrow"/, 'Alter stays in sight');
-  assert.doesNotMatch(menu, /<details/, 'and no folds inside it: the menu is the one toggle (Seth, 2026-10-27)');
-  assert.match(menu, /data-delentry="1" class="readrow danger"/, 'every row in one list, Delete last');
-  click({ readmenu: '1' });
+  assert.doesNotMatch(head + body, /data-readmenu|data-alterdone|data-alterundo|class="readmenu"/,
+    'READ-NO-MENU: no ⋯ menu and no Alter header');
+  const tabs = [...body.matchAll(/data-cardtab="(\w+)"[^>]*>([^<]+)</g)].map((m) => `${m[1]}:${m[2]}`);
+  assert.deepStrictEqual(tabs, ['card:The thread', 'time:Timeline', 'rooms:Pockets', 'more:More'],
+    'READ-TABS: Read draws the four tabs');
+  const more = body.slice(body.indexOf('data-pane="more"'));
+  assert.ok(body.includes('data-pane="more"'), 'READ-MORE: Read has a More pane');
+  for (const [what, re] of [['Stitched together', /data-fold="edges"/], ['Copy to another tale', /data-fold="copy"/],
+    ['Merge with another thread', /data-mergestart="e-1"/], ['Read the whole tale', /data-scanstory="e-1"/],
+    ['This thread as JSON', /id="f-card-json"/], ['Retire', /data-retire="e-1"/], ['Past edits', /data-fieldhistory="1"/],
+    ['Delete', /data-delentry="1"/]] as [string, RegExp][])
+    assert.match(more, re, `READ-MORE: More holds ${what}`);
+  assert.doesNotMatch(body, /data-f="|data-ab="/, 'READ-CLOSED: Read opens with no box open');
+  // THE OLD DOORS open Read on the matching tab: Alter on The thread, a menu row on its own tab.
+  click({ cardview: 'form' }); await sleep(20);
+  assert.doesNotMatch(html('sideHead') + html('sideBody'), /data-alterdone|data-f="/, 'READ-DOOR-FORM: the old Alter door opens Read');
+  assert.match(html('sideBody'), /class="cardpanes" data-tab="card"/, 'READ-DOOR-FORM: on The thread');
+  for (const [go, tab] of [['time', 'time'], ['edges', 'more'], ['copy', 'more'], ['json', 'more'], ['rooms', 'rooms']]) {
+    click({ readgo: go }); await sleep(20);
+    assert.match(html('sideBody'), new RegExp(`class="cardpanes" data-tab="${tab}"`), `READ-DOOR-GO: the ${go} door opens Read on ${tab}`);
+  }
+  click({ cardtab: 'card' }); click({ backentry: '1' });
 }
-ok("the thread's menu is one flat list, and Tidy is an icon beside it");
+ok("Read is the thread's editor: four tabs, More for the rare actions, no ⋯ and no Alter");
 
 // ---- POLISH PASS, 2026-09-01 · WHAT IS ON AND WHERE YOU ARE, SAID AND NOT ONLY COLOURED.
 //
@@ -6260,13 +6289,11 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   // button groups — the Threads list keeps a tray open across this file's earlier blocks and the
   // panel could not be reached from here without unwinding it.
   click({ entry: 'e-1' });
-  click({ cardview: 'form' });
   await sleep(30);
   const worn = html('sideBody');
   assert.match(worn, /data-wear="e-1:o-worn"[^>]*>\s*Worn — take it off/,
     'the coat that is on says so in its label');
   assert.match(worn, /data-wear="e-1:o-hung"[^>]*>\s*Wear this/, 'and the one that is not');
-  click({ cardview: null });
   click({ backentry: '1' });
   ok('the rail and the chapter list say which one is on, and the aria matches the colour');
 
@@ -6510,18 +6537,11 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   assert.ok(src(face, 'e-1'), 'the read face shows it');
   assert.ok(before(face, 'entry=e-1', 'Envoy Sereth'), 'above the name');
 
-  // 3 · THE FORM. It was moved above the fields on 2026-09-01; since the v2 Alter screen it is
-  // under More, at the top with the kind (Seth, 2026-10-25: "move em under more"). Both halves:
-  // past the thread tab's fields, and first under More.
-  click({ cardview: 'form' });
-  await sleep(30);
-  const form = html('sideBody');
-  assert.ok(src(form, 'e-1'), 'the form shows it');
-  assert.ok(before(form, 'f-card-body', 'entry=e-1'),
-    'and the picture is not on The thread tab any more, it is past Info');
-  assert.ok(before(form, 'entry=e-1', 'data-kind="character"'),
-    'and it heads More, above the kind');
-  click({ cardview: null });
+  // 3 · WHERE IT IS CHANGED: under More (Seth, 2026-10-25: "move em under more"), which is a tab of
+  // Read since #136, past The thread tab's fields.
+  const more = face.slice(face.indexOf('data-pane="more"'));
+  assert.ok(face.includes('data-pane="more"') && src(more, 'e-1'), 'More shows it, where it is changed');
+  assert.ok(before(face, 'data-readedit="stands"', 'data-pane="more"'), 'past The thread tab\'s fields');
   click({ backentry: '1' });
 
   // 4 · A FOLLOWED THREAD'S FACE. Its picture lives in the book the thread lives in, and this face
@@ -6547,7 +6567,6 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   await sleep(30);
   click({ entry: 'e-1' });
   await sleep(30);
-  click({ cardview: 'form' });
   click({ cardtab: 'more' });
   click({ fieldhistory: '1' });
   await sleep(30);
@@ -6558,9 +6577,8 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   assert.match(more, /<span class="kind">title<\/span>/, '  a field of the thread\'s own keeps its name');
   stubHistory = null;
   click({ fieldhistory: '1' });
-  click({ cardview: null });
   click({ backentry: '1' });
-  ok('Alterations names a pocket\'s earlier version as the writer knows it');
+  ok('Past edits names a pocket\'s earlier version as the writer knows it');
 }
 
 // #135 · TIMELINE AND PAST EDITS. "Over time" and "Earlier versions" read as the same list; the
@@ -6575,11 +6593,9 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   const drawn: string[] = [];
   click({ panel: 'threads' }); await sleep(30);
   click({ entry: 'e-1' }); await sleep(30);
-  click({ readmenu: '1' });
-  const menu = seen(); drawn.push(menu);
-  assert.match(menu, /data-readgo="time" class="readrow">Timeline/, 'TIMELINE-MENU: the menu row is Timeline');
-  assert.match(menu, /data-readgo="history" class="readrow">Past edits/, 'PASTEDITS-MENU: the menu row is Past edits');
-  click({ readmenu: '1' });
+  const read = seen(); drawn.push(read);
+  assert.match(read, /data-cardtab="time"[^>]*>Timeline</, 'TIMELINE-MENU: Read\'s tab is Timeline');
+  assert.match(read, /data-fieldhistory="1">Past edits</, 'PASTEDITS-MENU: More\'s row is Past edits');
   click({ readgo: 'time' }); await sleep(30);
   const time = seen(); drawn.push(time);
   assert.match(time, /data-cardtab="time" aria-pressed="true">Timeline</, 'TIMELINE-TAB: the old door opens the tab, named Timeline');
@@ -6595,7 +6611,6 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   assert.strictEqual(HELP.states.title, 'Timeline', 'TIMELINE-HELP: the help card is Timeline');
   stubHistory = null;
   click({ fieldhistory: '1' });
-  click({ cardview: null });
   click({ backentry: '1' });
   ok('Over time is Timeline and Earlier versions is Past edits, wherever a writer sees them, and the old doors still open them');
 }
@@ -9201,11 +9216,8 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   click({ panel: 'threads' }); click({ entry: 'e-1' }); await wait();
   const head = html('sideHead');
   assert.match(head, /data-pocketnew="e-1"/, 'PANEL-PLUS: the header has a ＋ for a new pocket');
-  // AND THE EDITOR'S HEADER (Seth, 2026-11-03): ＋ beside Done, and no add link left in the Pockets tab.
-  click({ cardview: 'form' }); click({ cardtab: 'rooms' }); await wait();
-  assert.match(html('sideHead'), /data-pocketnew="e-1"[\s\S]*data-alterdone/, 'ALTER-PLUS: the editor has ＋ before Done');
-  assert.doesNotMatch(html('sideBody'), /data-pocketnew=/, 'ALTER-PLUS: and the Pockets tab has no add link of its own');
-  click({ alterdone: '1' }); await wait();
+  // AND ONLY THERE (Seth, 2026-11-03): no add link left in the Pockets tab, which is Read's since #136.
+  assert.doesNotMatch(html('sideBody'), /data-pocketnew=/, 'ALTER-PLUS: the Pockets tab has no add link of its own');
   const { MARK } = await import('../web/model.js');
   assert.doesNotMatch(MARK.tidy, /C6 5 8 8 10\.5 6\.5/, 'PANEL-BROOM: the wavy Tidy mark is gone');
   assert.match(MARK.tidy, /M15\.4 3\.2/, 'PANEL-BROOM: Tidy is the broom');
@@ -9221,16 +9233,14 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   assert.doesNotMatch(add, />Save</, '  and there is no Save');
   assert.doesNotMatch(add, /data-pocketkind="facts"/, 'PANEL-ADD: and not Always true, which every thread has');
   assert.doesNotMatch(add, /data-pocketdel=/, 'PANEL-ADD: nothing to remove yet');
-  // ALTER'S LOOK (Seth, 2026-11-02: "the edit screen for pockets should match the normal screen for
-  // threads"), full screen still: Cancel and the Save pill at the top, Alter's tab chips and name.
+  // THE THREAD'S LOOK (Seth, 2026-11-02: "the edit screen for pockets should match the normal screen
+  // for threads"), full screen still: Cancel and the Add pill at the top, the thread's name field and chips.
   assert.match(add, /class="pkbar"[^>]*>\s*<button data-pocketx="1" class="headback"[\s\S]*?<button data-pocketsave="1" class="headsave"/,
-    'POCKET-LOOK: Cancel and Save are the bar at the top, as Alter\'s');
+    'POCKET-LOOK: Cancel and Add are the bar at the top');
   assert.doesNotMatch(add, /pkfoot/, '  and not big buttons at the foot');
-  assert.match(add, /<input class="field altname" id="pk-name"/, '  and its name is Alter\'s name field');
+  assert.match(add, /<input class="field altname" id="pk-name"/, '  and its name is the name field a thread\'s Read opens');
   click({ pocketx: '1' }); await wait();
-  click({ cardview: 'form' }); await wait();
-  assert.match(html('sideBody'), /<button class="tabchip" data-cardtab=/, '  the same chips Alter draws');
-  click({ alterdone: '1' }); await wait();
+  assert.match(html('sideBody'), /<button class="tabchip" data-cardtab=/, '  the same chips Read draws');
   assert.doesNotMatch(html('pocketPanel'), /role="dialog"/, 'PANEL-ADD: Cancel shuts it');
   ok('＋ in the header opens the pocket panel to add, and Tidy is a broom');
 
@@ -9239,7 +9249,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   assert.match(face, /data-pocketeye="a-off" data-look="eyeshut" data-reach="word"/, 'POCKET-EYE-READ: the read face draws the pocket eye');
   assert.doesNotMatch(face, /data-addonon=/, '  and no On / Off words');
   // THE POCKETS TAB IS A LIST: a row is the name, a line of the text and the switch; no editors.
-  click({ cardview: 'form' }); click({ cardtab: 'rooms' }); await wait();
+  click({ readgo: 'rooms' }); await wait();
   const form = html('sideBody');
   const pane = form.split(/<div class="pane"/).find((p) => /data-editroom=/.test(p)) ?? '';
   assert.match(pane, /data-editroom="a-on"[\s\S]*How she sounds[\s\S]*Flat, unhurried\./, 'PANEL-LIST: a row has its name and its line');
@@ -9272,7 +9282,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   const addons = () => POSTED.filter((x) => x.url === '/api/addon').map((x) => x.body);
   POSTED.length = 0;
   typeIn('pk-body', 'To go home, and not say so.'); typeIn('pk-keys', 'home, harbour');
-  click({ cardtab: 'rooms' }); await wait();   // any press that repaints
+  click({ readgo: 'rooms' }); await wait();   // any press that repaints
   assert.match(html('pocketPanel'), />To go home, and not say so\.<\/textarea>/, 'PANEL-REPAINT: the typed text is drawn back');
   assert.deepStrictEqual(addons(), [], 'POCKET-PAUSE: nothing is written while the typing goes on');
   await sleep(1000);
@@ -9362,7 +9372,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     '  naming the pocket and its activation');
   STORY.entries[0].addons[1] = { ...STORY.entries[0].addons[1], activation: undefined, active: false };
   ok('a pocket\'s eye cycles Off, On a word, On, as a thread card');
-  click({ cardview: null }); click({ backentry: '1' });
+  click({ backentry: '1' });
 }
 
 // ---- #127 · ADR 0011. THE STRINGS SCREEN IS A LIST OF THE TALE'S STRING POCKETS, a row opens the pocket
@@ -9749,8 +9759,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   try {
     click({ open: 's-1' }); await wait();
     click({ panel: 'threads' }); click({ entry: 'e-1' }); await wait();
-    click({ readmenu: '1' }); await wait();
-    assert.match(html('sideBody'), /data-mergestart="e-1"[^>]*>Merge with another thread/, 'MERGE-MENU: the More menu has Merge with another thread');
+    assert.match(html('sideBody'), /data-mergestart="e-1"[^>]*>Merge with another thread/, 'MERGE-MENU: the More tab has Merge with another thread');
     click({ mergestart: 'e-1' }); await wait();
     assert.match(panel(), /role="dialog"/, 'MERGE-PICK: it opens full screen');
     assert.match(panel(), /id="mg-q"/, 'MERGE-PICK: with a search');
@@ -9780,9 +9789,9 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     assert.doesNotMatch(panel(), /role="dialog"/, 'MERGE-CANCEL: Cancel shuts it');
     assert.strictEqual(merged().length, 0, 'MERGE-CANCEL: and writes nothing');
     // THE WHOLE WAY, with an edit, to Merge.
-    click({ readmenu: '1' }); click({ mergestart: 'e-1' }); click({ mergewith: 'e-2' }); click({ mergekeep: 'e-2' }); await wait();
+    click({ mergestart: 'e-1' }); click({ mergewith: 'e-2' }); click({ mergekeep: 'e-2' }); await wait();
     typeIn('mg-always', 'A stair with no landing, and no rail.'); typeIn('mg-pk-0', 'Every step echoes twice.');
-    click({ readmenu: '1' }); await wait();   // any press that repaints
+    click({ readgo: 'edges' }); await wait();   // any press that repaints
     assert.match(panel(), /id="mg-always"[^>]*>A stair with no landing, and no rail\.<\/textarea>/, 'MERGE-REPAINT: what is typed survives a repaint');
     click({ mergego: '1' }); await wait();
     assert.deepStrictEqual(merged().at(-1)?.body, { storyId: 's-1', keepId: 'e-2', goneId: 'e-1',
