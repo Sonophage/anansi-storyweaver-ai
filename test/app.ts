@@ -5611,6 +5611,14 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   assert.match(kesh, /^<div class="pocketrow[^"]*\bpkart\b/, 'POCKET-PIC: a pocket card of a thread with a picture is marked as one');
   assert.match(kesh, /<img class="pkpic" src="\/api\/entry\/image\?story=s-1&entry=e-1&v=1788300000000"/,
     'POCKET-PIC: and carries the thread\'s own picture');
+  // FROM LEFT TO RIGHT (Seth, 2026-11-03, after it went live): the picture on the left of the card,
+  // fading to its dark on the right, where the eye is; not from the top down.
+  {
+    const { readFileSync } = await import('node:fs');
+    const rule = readFileSync(new URL('../app.html', import.meta.url), 'utf8').match(/\.pocketrow\.pkart > \.pkpic \{[^}]*\}/)?.[0] ?? '';
+    assert.match(rule, /mask-image:linear-gradient\(to right,/, 'POCKET-PIC: the picture fades from left to right');
+    assert.doesNotMatch(rule, /to bottom/, 'POCKET-PIC: and not from the top down');
+  }
   {
     const had = STORY.entryImages['e-1'];
     delete (STORY.entryImages as any)['e-1'];

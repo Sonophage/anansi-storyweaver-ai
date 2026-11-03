@@ -174,7 +174,7 @@ small gilt diamond and its rank among the pockets of its kind on that thread, ov
 Cups, II of Cups, up to X, then Page, Knight, Queen and King. Its rank stays when you turn it off.
 Each pocket is framed like a card, with its kind's own stars faint behind its eye, and the eye is
 still what turns it on and off. On a thread with a picture, each pocket card carries that picture
-at its head, fading to the dark of the card toward its foot, as the thread's own card does. A kind's
+on its left, fading to the dark of the card toward the right, where the eye is. A kind's
 heading, and the tale's Promises and Open questions, show their suit's mark. Strings are cards
 too, on the Strings screen and on the tale's own Thread tab: a promise is a card of Wands and an open
 question a card of Swords, ranked among its kind, with whether it is a promise or a question and how
