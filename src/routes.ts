@@ -4912,8 +4912,19 @@ export const routes: Record<string, Handler> = {
     // tale needs it (`db.taleThread`), as the Strings screen's ＋ adds one before the thread exists.
     const entry = c.body.entryId ?? (STRING_SLOTS.includes(String(c.body.addon?.slot ?? ''))
       ? db.taleThread(c.body.storyId) : null);
-    const id = db.upsertAddon(c.body.storyId, entry, c.body.addon ?? {}, writeHow(c.body));
+    const addon = c.body.addon ?? {};
+    const id = db.upsertAddon(c.body.storyId, entry, addon, writeHow(c.body));
     if (!id) return { error: 'that is not a pocket this kind of thread has, or not a thread in this tale' };
+    // A NEW POCKET STARTS ON (Seth, 2026-11-03: "a new pocket should automatically be on"). New is a
+    // save that names no pocket: not an edit, and not one put back from Past edits, which comes back
+    // as it was kept. An outfit is still made unworn (Wear this puts it on), Always true is on
+    // already, and a string made tied off or let go keeps its mark. Through `setAddonActive`, so a
+    // new one of an exclusive kind takes the place of the one that was on.
+    // ponytail: only this route, the writer's own ＋. Talk, the lookups, a hem and an import make
+    // pockets through `upsertAddon` with their own rule for the switch; move this into it if a writer
+    // asks for those to start On as well.
+    if (!addon.id && !addon.restoreId && !['outfit', 'facts'].includes(String(addon.slot)) && !addon.status)
+      db.setAddonActive(c.body.storyId, id, true);
     return { addonId: id, ...viewOf(c, c.body.storyId) };
   },
   // Two ways a room reaches the model and this is the writer's half: `active` is pinning it on,

@@ -1862,6 +1862,29 @@ ok('emptying the box gives her back the voice she shipped with');
   ok("Save makes the tale's thread for its first string, and a string anywhere else is refused");
 }
 
+// ---- A NEW POCKET STARTS ON (Seth, 2026-11-03: "a new pocket should automatically be on and turned
+// off means it doesn't get awoken"). Made from the panel it is On; an outfit is still made unworn; a
+// save of one that exists keeps its eye.
+{
+  const tale = db.createStory(me, { title: 'The Kiln', premise: 'A kiln that never cools.', chapterTitle: 'Firing' }) as any;
+  const ctxOf = (body: any) => ({ body: { storyId: tale.id, ...body }, query: new URLSearchParams(),
+    owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+  const potter = db.upsertEntry(tale.id, me, { title: 'Ansel', body: 'a potter', entryType: 'character' })!;
+  const add = (addon: any) => routes['POST /api/addon'](ctxOf({ entryId: potter, addon })) as any;
+  const eye = (id: string) => (db.addonsOf(tale.id) as any[]).find((a) => a.id === id)?.activation;
+  const made = add({ slot: 'interiority', name: 'his fear', body: 'the kiln cracking', keys: ['kiln'] });
+  assert.ok(!made.error, made.error);
+  assert.strictEqual(eye(made.addonId), 'always_on', 'POCKET-NEW-ON: a pocket made in the panel starts On');
+  const coat = add({ slot: 'outfit', name: 'apron', body: 'a clay-stiff apron' });
+  assert.notStrictEqual(eye(coat.addonId), 'always_on', 'POCKET-NEW-OUTFIT: an outfit is still made unworn');
+  db.setAddonActivation(tale.id, made.addonId, 'off');
+  add({ id: made.addonId, slot: 'interiority', name: 'his fear', body: 'the kiln cracking open', keys: ['kiln'] });
+  assert.strictEqual(eye(made.addonId), 'off', 'POCKET-SAVE-KEEPS: a save of a pocket that exists keeps its eye');
+  db.delStory(tale.id);
+  ok('a new pocket starts On, an outfit is made unworn, and a save keeps the eye it has');
+}
+
 // ---- 6f2 · AN UNDO NEVER WRITES OVER A LATER EDIT ----
 //
 // Each Undo carries what Talk wrote. When the thing no longer holds it, because the writer changed it

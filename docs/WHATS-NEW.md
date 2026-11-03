@@ -44,8 +44,9 @@ up, and the eye opens to show when one has. The struck eye is Off: it is never s
 wake word comes up. A tap on the eye goes Off, On a word, On, and back to Off, as on a thread's
 card, and shows the new state's name for a moment. A string has no wake words, so its eye goes
 Off and On. Your pockets keep doing what they did: one that was on is On, and one that was off but
-had wake words is On a word. An outfit keeps Wear this. A new pocket starts On a word, as a new
-thread does, and a pocket now comes with its thread when you import a tale you exported.
+had wake words is On a word. An outfit keeps Wear this. A pocket you add starts On, and Off means
+its wake words never wake it. A new outfit is still added unworn. A pocket now comes with its thread
+when you import a tale you exported.
 ### The Tale panel opens on Tale
 The Tale panel has four tabs now, Tale, Thread, Setting and Keep, and opens on Tale. Tale is one
 scroll: the cover first, as large as a thread's picture, then the title, the genre and how the tale

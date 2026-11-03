@@ -13126,13 +13126,11 @@ document.addEventListener('click', async (e) => {
       ...(isString && pk.slot === 'promise' ? { owedBy: Number(pk.owed) || null } : {}),
       ...(isString && !pk.id ? { fromChapter: V.currentChapter?.index ?? null } : {}) });
     if (r.error) return toast(r.error);
-    // A rule or one of your own is added switched on, as the old add forms on the Thread tab did.
-    if (own && !pk.id && r.addonId) await api.addonOn(S.storyId, r.addonId, true);
+    // A NEW POCKET STARTS ON, every kind but an outfit, and the server switches it (Seth, 2026-11-03).
     S.pocket = null;
-    V = r.entries && !(own && !pk.id) ? r : await api.story(S.storyId);
+    V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest();
-    return toast(pk.id ? 'Saved.' : pk.slot === 'outfit' ? 'Added, unworn.' : own ? 'Added, and on.'
-      : isString ? 'Added, set aside. Switch it on to put it in play.' : 'Added. Switch it on from the list.');
+    return toast(pk.id ? 'Saved.' : pk.slot === 'outfit' ? 'Added, unworn.' : 'Added, and on.');
   }
   if (d.pocketdel) {
     if (!armed(t, 'pocketdel:' + d.pocketdel, 'Press again to remove this pocket.')) return;

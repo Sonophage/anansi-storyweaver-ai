@@ -9394,6 +9394,9 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   click({ pocketsave: '1' }); await wait();
   assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body.addon,
     { slot: 'voice', name: 'At court', body: 'Formal, and slower.', keys: [] }, 'PANEL-SAVE: a new one carries its kind and no id');
+  // Seth, 2026-11-03: "a new pocket should automatically be on". The server switches it on; the
+  // panel says so, and asks for nothing more.
+  assert.match(String(nodes.get('toast').textContent), /^Added, and on\.$/, 'PANEL-NEW-ON: a new pocket is said to be on');
   ok('the pocket panel keeps what is typed through a repaint; one that exists saves as you type, and a new one is sent by its press');
 
   // REMOVE ASKS TWICE.
