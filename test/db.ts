@@ -3461,7 +3461,7 @@ ok('update day: every facts text becomes Always true, switched on, with the fold
   assert.ok(has(/^Halsey: .*was switched off/i), `REPORT-ON: the switched-off one is named (${lines.join(' | ')})`);
   assert.ok(has(/^Halsey: .*agree/i), 'REPORT-BOTH: a thread with Always true and Info both written is asked to check they agree');
   assert.ok(has(/^Marek: Role moved into Always true/), 'REPORT-FOLD: the folded pockets are named on their thread');
-  assert.ok(has(/^Marek: History \(The war\) moved into Over time/), 'REPORT-HISTORY: and history says where it went, by its kind as well as its name');
+  assert.ok(has(/^Marek: History \(The war\) moved into the Timeline/), 'REPORT-HISTORY: and history says where it went, by its kind as well as its name');
   assert.ok(db.updatesOf(t.id).every((l: any) => l.backup), 'REPORT-BACKUP-FIRST: every line names the backup taken before it');
   assert.ok(has(/^null: One thread has no Always true yet: Bare\./), `REPORT-NONE: threads with no Always true are named, in one line for the tale (${lines.join(' | ')})`);
   assert.ok(has(/^Marek: .*agree/i), '  and Marek, whose Info is his history now, is asked too');

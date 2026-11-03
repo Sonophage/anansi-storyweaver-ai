@@ -2991,8 +2991,8 @@ function statePanel(pk, e) {
     <label class="lbl" for="pk-label">What changed</label>
     <input class="field" id="pk-label" value="${esc(pk.label)}" placeholder="What changed, in a few words">
     ${adding ? '' : `<button class="btn ghost danger push-14" data-delstate="${esc(pk.id)}">Remove this change</button>`}`;
-  const head = adding ? 'New change over time' : first ? 'From scene 1' : `Scene ${esc(String(pk.from))}`;
-  return `<div class="pocketbox" role="dialog" aria-label="${adding ? `A new change over time for ${esc(e.title)}` : `${head} · ${esc(e.title)}`}">
+  const head = adding ? 'New on the Timeline' : first ? 'From scene 1' : `Scene ${esc(String(pk.from))}`;
+  return `<div class="pocketbox" role="dialog" aria-label="${adding ? `Something new on the Timeline for ${esc(e.title)}` : `${head} · ${esc(e.title)}`}">
     <div class="pkhead"><div class="lbl flush wide">${head} &middot; ${esc(e.title)}</div></div>
     <div class="pkscroll scroll">${fields}</div>
     <div class="pkfoot">
@@ -3368,8 +3368,8 @@ function mergePanel() {
         <input class="field" id="mg-pn-${i}" value="${esc(m.parts.pockets[i].name)}">
         ${diffHTML(p.was ?? '', m.parts.pockets[i].body)}
         <textarea class="field grow pkbody" id="mg-pk-${i}" aria-label="${esc(pocketTitle(p.slot))}: the description">${esc(m.parts.pockets[i].body)}</textarea>`).join('')}
-      <p class="note push-14">Everything else of ${gone} moves to ${keep}: its other pockets, Over time, wake words,
-        scene pins, chalked changes and earlier versions.</p>`;
+      <p class="note push-14">Everything else of ${gone} moves to ${keep}: its other pockets, Timeline, wake words,
+        scene pins, chalked changes and past edits.</p>`;
   } else if (other) {
     body = `<p class="note">${esc(from.title)} and ${esc(other.title)} become one thread. Which one stays? The other is
         deleted once its parts are in this one.</p>
@@ -4474,7 +4474,7 @@ function ritualPanel() {
         <button class="btn ghost half" data-refinished="1">Threads it is done with</button></div>`}
       ${tipCard('ritDelete', 'Delete this scene', `<p>Its prose, its alterations, its summary and
         anything it chalked. There is no undo.</p>
-        <p>The scenes after it keep the numbers they have &mdash; a change over time is anchored to
+        <p>The scenes after it keep the numbers they have &mdash; a Timeline entry is anchored to
         a scene number, so closing the gap would move it to a different scene.</p>`)}
       <div class="line-2 push-8"><button class="btn ghost danger" data-delchapter="${esc(ch.id)}"
         >Delete ${esc(sceneName(ch))}</button>${tipMark('ritDelete', 'Delete this scene')}</div>
@@ -5550,7 +5550,7 @@ const PANELS = {
         return `<div class="lbl sect-far">Write it with someone${
           tipMark('sShare', 'Writing it with someone')}</div>
         ${tipCard('sShare', 'Writing it with someone', `<p>They get the tale and everything in it
-          &mdash; its threads, their pockets and what changed about them over time. They cannot
+          &mdash; its threads, their pockets and their Timelines. They cannot
           delete it.</p>
           <p>With two of you in a tale, <strong>Co-op</strong> appears on the composer's dial: your
           part goes on the page and the move passes to them, without asking Anansi. A light along
@@ -5602,8 +5602,8 @@ const PANELS = {
         <div class="end-row">${
           tipMark('sMoveOut', 'What travels with a thread')}</div>
         ${tipCard('sMoveOut', 'What travels with a thread', `<p>Each thread arrives with its
-          pockets, its wardrobe and the stitches between the ones that travel. Its changes over time
-          do not: scene nine there is not scene nine here. Strings and prose stay with the tale.</p>
+          pockets, its wardrobe and the stitches between the ones that travel. Its Timeline
+          does not: scene nine there is not scene nine here. Strings and prose stay with the tale.</p>
           ${V.follows ? `<p>Threads taken over from ${esc(V.follows.title)} go back onto the thread
             they came from, so nothing is doubled &mdash; anything written here is new to it.</p>`
             : ''}`)}</div>` : ''}      </div>
@@ -5798,7 +5798,7 @@ const PANELS = {
         tipMark('chDelete', 'Delete this scene')}</div>
       ${tipCard('chDelete', 'Delete this scene', `<p>Its prose, its alterations, its summary and
         anything it chalked. There is no undo.</p>
-        <p>The scenes after it keep the numbers they have &mdash; a change over time is anchored
+        <p>The scenes after it keep the numbers they have &mdash; a Timeline entry is anchored
         to a scene number, so closing the gap would move it to a different scene.</p>`)}
       <button class="btn ghost danger push-4" data-delchapter="${esc(ch.id)}"
        >Delete ${esc(sceneName(ch))}</button>
@@ -8136,7 +8136,7 @@ function cardFace(e, slots) {
       style="min-height:110px; font-size:12.5px; line-height:1.55">${esc(e.body ?? '')}</textarea>
     ${tipCard('faceShared', 'Sending a followed thread', `<p>One thread, not two: sending writes it in
       <strong>${esc(e.sharedFrom)}</strong>, so every tale following it sees the change. Its
-      pockets, its timeline and its wake words are altered there.</p>`)}
+      pockets, its Timeline and its wake words are altered there.</p>`)}
     <div style="display:flex; align-items:center; gap:2px; margin-bottom:12px">
       ${/* Send to, not Save to (Seth, 2026-10-30): it sends the words to the book the thread lives in. */''}
       <button class="btn ghost flush fill" data-savefollowed="${e.id}">Send to ${
@@ -8273,12 +8273,12 @@ function readMenu(e) {
   // 2026-10-27); the menu itself is what is shut until pressed. Tidy is the header icon beside it.
   return `<div class="readmenu" role="menu" aria-label="More for ${esc(e.title)}">
     <button data-cardview="form" class="readrow">${say('Alter this thread')}</button>
-    <button data-readgo="time" class="readrow">${say('Over time', states ? `${states}` : '')}</button>
+    <button data-readgo="time" class="readrow">${say('Timeline', states ? `${states}` : '')}</button>
     <button data-readgo="edges" class="readrow">${say('Stitched together', edges ? `${edges}` : '')}</button>
     <button data-readgo="copy" class="readrow">${say('Copy to another tale')}</button>
     ${e.entryType !== 'tale' && !e.sharedFrom
       ? `<button data-mergestart="${esc(e.id)}" class="readrow">${say('Merge with another thread&hellip;')}</button>` : ''}
-    <button data-readgo="history" class="readrow">${say('Earlier versions')}</button>
+    <button data-readgo="history" class="readrow">${say('Past edits')}</button>
     <button data-readgo="json" class="readrow">${say('This thread as JSON')}</button>
     <button data-scanstory="${esc(e.id)}" class="readrow" ${S.scanning ? 'disabled' : ''}>${
       say(S.scanning === e.id ? 'Reading the tale&hellip;' : 'Read the whole tale for this thread')}</button>
@@ -8337,7 +8337,7 @@ function roomSection(e, sl, anchor = true) {
  *  The head stays ABOVE the tabs — name, kind, how it fires, the room jump chips — so the thing you
  *  are editing never leaves the screen. */
 // Over time beside The thread, Seth 2026-10-25: "for threads, move over time next to the thread".
-const CARD_TABS = [['card', 'The thread'], ['time', 'Over time'], ['rooms', 'Pockets'], ['more', 'More']];
+const CARD_TABS = [['card', 'The thread'], ['time', 'Timeline'], ['rooms', 'Pockets'], ['more', 'More']];
 
 /** Which tab a room's heading lives in. `facts` (Always true) is pinned above where it stands now
  *  because of what it IS, and `outfit` is the wardrobe — both are in their tabs for reasons older
@@ -8606,13 +8606,13 @@ function entryEditor() {
         esc(String(st.fromChapter))}</span>${mark}</label>` : `<label class="lbl" for="f-card-body">${esc(nowWords())}${mark}</label>`}
     ${tipCard('cardBody', 'Where it stands now', `<p>What the model is sent about where this thread
       is now, after Always true. Hemming a scene offers a new one when the scene changes it, dated
-      by the scene, and Over time keeps every one. Bracket form keeps it short:
+      by the scene, and the Timeline keeps every one. Bracket form keeps it short:
       <em>[Name: trait, trait]</em>.</p>`)}
     ${st ? `<textarea class="field grow box-tall" id="f-card-now" data-f="now" data-nowstate="${esc(st.id)}"
      >${esc(st.body ?? '')}</textarea>` : ''}`;
     })()}
     <!-- GROWS, the box for where the thread stands from scene 1 when no later entry is in force
-         (when one is, this box is the first row of Over time). It was a fixed 96px box, and an
+         (when one is, this box is the first row of the Timeline). It was a fixed 96px box, and an
          invented thread's body went from 60-120 words to
          120-200 on 2026-08-27 — so two thirds of a body sat below the fold in a field that gave no
          sign there was more. Measured: 656 characters, 94px of box, 283px of content. Nothing was
@@ -8777,15 +8777,15 @@ function entryEditor() {
         <button class="del-right" data-delevent="${esc(x.id)}" aria-label="Remove">✕</button></div>` }));
       const listed = [...later, ...events].map((r, i) => ({ ...r, i })).sort((a, b) => a.from - b.from || a.i - b.i)
         .map((r) => r.html).join('');
-      return `<div class="end-row push-16"><span class="lbl wide flush fill">Over time${helpMark('states')}</span>
-        <button data-addstate="1" class="headadd" aria-label="Add a change over time" title="Add a change over time"
+      return `<div class="end-row push-16"><span class="lbl wide flush fill">Timeline${helpMark('states')}</span>
+        <button data-addstate="1" class="headadd" aria-label="Add to the Timeline" title="Add to the Timeline"
           ><span>${mark('create', 16)}</span></button></div>
         ${tipCard('states', HELP.states.title, helpText('states'))}
         ${first}${listed}`;
     })()}
     </div>
     <div class="pane"${tab === 'more' ? '' : ' hidden'}>
-    ${S.fieldHistory ? `<div class="lbl sect">Earlier versions</div>
+    ${S.fieldHistory ? `<div class="lbl sect">Past edits</div>
       ${/* #122 · EACH VERSION AGAINST THE ONE THAT REPLACED IT, word by word: what this change took out
            is struck through, what it put in is underlined. A pocket since deleted has nothing after
            it, so its old text stands alone. */''}
@@ -8796,7 +8796,7 @@ function entryEditor() {
             h.replaced_by ? ` &middot; ${esc(h.replaced_by)}` : ''}</span></div>
         ${h.now == null ? `<div class="clamp note-tight">${esc(h.was)}</div>` : diffHTML(h.was, h.now)}
         <button class="btn ghost push-6" data-revertfield="${h.id}">Put this back</button></div>`).join('')
-        : '<div class="hint">No earlier versions of any field.</div>'}` : ''}
+        : '<div class="hint">No past edits of any field.</div>'}` : ''}
     ${connections(e)}
     <!-- #22 §8. BOTH STATES LIVE HERE NOW. It was asymmetric: the form offered "Mark this
          finished" only while a card was live, and the face showed the state only once it was
@@ -8835,7 +8835,7 @@ function entryEditor() {
          reachable from this end of the card too. Two of them would be two things to keep in step
          for no gain. -->
     <button class="btn ghost push-16" data-fieldhistory="1">${
-      S.fieldHistory ? 'Hide earlier versions' : 'Earlier versions'}</button>
+      S.fieldHistory ? 'Hide past edits' : 'Past edits'}</button>
     <button class="btn ghost danger push-10" data-delentry="1">Delete this thread</button>
     </div>
   </div>`;
@@ -8856,7 +8856,7 @@ function copyElsewhere(e) {
   return foldSection('copy', 'Another tale', `${others.length ? `<div class="end-row">${
       tipMark('copyBook', 'Copying it into another tale')}</div>
     ${tipCard('copyBook', 'Copying it into another tale', `<p>Copies ${esc(e.title)} into another of
-      your tales, with its wake words. What it does NOT carry is the timeline: a change over time
+      your tales, with its wake words. What it does NOT carry is the Timeline: an entry on it
       is anchored to a scene number, and scene seven there is not scene seven here.</p>`)}
     <div class="card snug">
       <select class="field" data-cf="into" aria-label="The tale to copy it into">${others.map((s2) =>
@@ -9242,7 +9242,7 @@ function seedList() {
   const show = q ? rows.slice(0, 40) : rows.filter((e) => chosen.includes(e.id));
   return `${chosen.length ? `<div class="hint lead-8">${chosen.length} chosen &mdash;
     ${esc(chosen.length === 1 ? 'it is copied' : 'they are copied')} into the new tale when you
-    start it, with wake words. What they do NOT carry is the timeline: a change over time is
+    start it, with wake words. What they do NOT carry is the Timeline: an entry on it is
     anchored to a scene number, and scene seven there is not scene seven here.</div>` : ''}
     ${show.length ? `<div class="stack-6">${show.map((e) => {
       const on = chosen.includes(e.id);
@@ -13887,14 +13887,14 @@ document.addEventListener('click', async (e) => {
   }
   if (d.delevent) {
     // #79. A dated wardrobe or retirement event, out of Over time. Asked twice, like a change.
-    if (!armed(t, 'event:' + d.delevent, 'Press again to remove this from Over time.')) return;
+    if (!armed(t, 'event:' + d.delevent, 'Press again to remove this from the Timeline.')) return;
     const r = await api.delEvent(S.storyId, d.delevent);
     if (r.error) return toast(r.error);
     V = r; paint(); refreshManifest(); return;
   }
   if (d.delstate !== undefined) {
     if (!d.delstate) return toast('That change has no id to remove.');
-    if (!armed(t, 'state:' + d.delstate, 'Press again to remove this change over time.')) return;
+    if (!armed(t, 'state:' + d.delstate, 'Press again to remove this from the Timeline.')) return;
     const r = await api.delState(S.storyId, d.delstate);
     if (r.error) return toast(r.error);
     // Remove is inside the panel now, so it shuts the panel too.

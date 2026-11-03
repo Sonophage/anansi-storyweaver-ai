@@ -340,7 +340,7 @@ function overtimeOn(tale: Tale, t: Thread, raw: any, said: string, undo: boolean
   const label = String(raw?.label ?? '').trim() || null;
   if (undo) {
     const st = (t.states ?? []).find((s) => s.id === String(raw.state ?? ''));
-    if (!st) return { ok: false, said, why: 'that Over time entry is no longer in this tale' };
+    if (!st) return { ok: false, said, why: 'that Timeline entry is no longer in this tale' };
     const w = raw.wrote;
     if (!w || !stillWrote(w.body, st.body) || (w.label ?? null) !== (st.label ?? null)) return { ok: false, said, why: SINCE };
     // The entry goes back at its own scene. The scene in the body is not read: a real Undo names
@@ -353,12 +353,12 @@ function overtimeOn(tale: Tale, t: Thread, raw: any, said: string, undo: boolean
   }
   const sc = sceneAt(tale, raw?.scene, tale.at);
   if (!sc) return { ok: false, said, why: noScene(tale, raw?.scene) };
-  if (sc.index === 1) return { ok: false, said, why: `Over time starts at scene 2. What holds from scene 1 is `
+  if (sc.index === 1) return { ok: false, said, why: `The Timeline starts at scene 2. What holds from scene 1 is `
     + `${t.title}'s own text` };
   if (!text) return { ok: false, said, why: 'it came with no text' };
   const at = (t.states ?? []).find((s) => s.fromChapter === sc.index) ?? null;
   if (at && at.body.trim() === text) return { ok: false, said,
-    why: `${t.title}'s Over time from scene ${sc.index} already says that` };
+    why: `${t.title}'s Timeline from scene ${sc.index} already says that` };
   const beforeMode = at?.beforeMode === 'hint' ? 'hint' : 'hide';
   return { ok: true, change: { op: 'thread.overtime', thread: t.id, title: t.title, from: sc.index, text,
     label: label ?? at?.label ?? null, beforeMode, state: at?.id ?? null,
@@ -688,9 +688,9 @@ export function checkUndo(raw: any, tale: Tale): Checked {
   }
   if (op === 'state.unmake') {
     const st = (t.states ?? []).find((s) => s.id === String(raw.state ?? ''));
-    if (!st) return { ok: false, said, why: 'that Over time entry is no longer in this tale' };
+    if (!st) return { ok: false, said, why: 'that Timeline entry is no longer in this tale' };
     if (st.body.trim() !== text.trim()) return { ...changed,
-      why: `${t.title}'s Over time from scene ${st.fromChapter} has changed since Talk made it` };
+      why: `${t.title}'s Timeline from scene ${st.fromChapter} has changed since Talk made it` };
     return { ok: true, change: { op, thread: t.id, title: t.title, state: st.id, from: st.fromChapter } };
   }
   const a = (t.addons ?? []).find((x) => x.id === String(raw.addon ?? ''));
@@ -711,12 +711,12 @@ export function wordsFor(c: Change): string {
   if (c.op === 'thread.new') return `Made a new thread: ${c.title}, ${an(c.type)}.`;
   if (c.op === 'thread.unmake') return `Took away ${c.title}.`;
   if (c.op === 'room.unmake') return `Took away ${c.title}'s ${roomLabel(c.room)}.`;
-  if (c.op === 'state.unmake') return `Took away ${c.title}'s Over time from scene ${c.from}.`;
+  if (c.op === 'state.unmake') return `Took away ${c.title}'s Timeline from scene ${c.from}.`;
   if (c.op === 'thread.retire') return `Retired ${c.title} from scene ${c.from}. It is kept, and can be brought back.`;
   if (c.op === 'retire.unmake') return `Brought back ${c.title}.`;
   if (c.op === 'takeover.unmake') return `Gave ${c.title} back to its World: this tale reads the World's version again.`;
-  if (c.op === 'thread.overtime') return c.undo ? `Put back ${c.title}'s Over time from scene ${c.from}.`
-    : `${c.state ? 'Changed' : 'Added to'} ${c.title}'s Over time from scene ${c.from}: “${clip(c.text)}”`;
+  if (c.op === 'thread.overtime') return c.undo ? `Put back ${c.title}'s Timeline from scene ${c.from}.`
+    : `${c.state ? 'Changed' : 'Added to'} ${c.title}'s Timeline from scene ${c.from}: “${clip(c.text)}”`;
   if (c.op === 'tale.set') return c.undo ? `Put back the tale's ${c.field.replace(/_/g, ' ')}.`
     : `Changed the tale's ${c.field.replace(/_/g, ' ')}: “${clip(c.text)}”`;
   if (c.op === 'thread.wake') return c.undo ? `Put back how ${c.title} wakes: ${wakeWords(c.activation, c.keys)}.`
@@ -786,7 +786,7 @@ function saidOf(raw: any): string {
     return `Switch the ${raw.op === 'rule.switch' ? 'rule' : 'instruction'} ${name || 'with no name'} ${raw?.on ? 'on' : 'off'}`;
   if (raw?.op === 'thread.wake') return `Change how ${name || 'a thread'} wakes`;
   if (raw?.op === 'thread.retire') return `Retire ${name || 'a thread'}`;
-  if (raw?.op === 'thread.overtime') return `Add to ${name || 'a thread'}'s Over time${raw?.scene ? ` from scene ${raw.scene}` : ''}`;
+  if (raw?.op === 'thread.overtime') return `Add to ${name || 'a thread'}'s Timeline${raw?.scene ? ` from scene ${raw.scene}` : ''}`;
   if (raw?.op === 'tale.set') return `Change the tale's ${String(raw?.field ?? '').trim().replace(/_/g, ' ') || 'own fields'}`;
   if (raw?.op === 'thread.set') return `Change ${name || 'a thread'}${raw?.room && roomOf(raw.room) !== 'facts'
     ? `'s ${roomLabel(roomOf(raw.room))}` : ''}`;
@@ -831,7 +831,7 @@ export function aimOf(raw: any, tale: Tale, world: World | null): Aim {
   if (!to) return { ask: hit.title };
   if (to === 'world') {
     if (op === 'thread.overtime' || op === 'thread.retire') return { refused: { said: saidOf(raw),
-      why: `a World has no scenes, so ${hit.title}'s Over time and retiring are this tale's. Say it is your version` } };
+      why: `a World has no scenes, so ${hit.title}'s Timeline and retiring are this tale's. Say it is your version` } };
     return { to, raw: { ...raw, thread: canon.title } };
   }
   return hit.sharedFrom ? { to: 'takeover', raw: { ...raw, thread: hit.title }, origin: hit.id } : { to, raw };

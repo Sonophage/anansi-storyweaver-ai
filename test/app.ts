@@ -5718,7 +5718,7 @@ ok("the tale's own thread is on the Tale panel's Thread tab, one ＋ adds to it 
     click({ open: 's-1' }); await sleep(40);
     click({ panel: 'threads' }); click({ entry: 'e-1' }); click({ cardview: 'form' }); click({ cardtab: 'time' });
     await sleep(20);
-    return html('sideBody').match(/<div class="pane"(?![^>]*hidden)[^>]*>[\s\S]*?Over time[\s\S]*/)?.[0] ?? '';
+    return html('sideBody').match(/<div class="pane"(?![^>]*hidden)[^>]*>[\s\S]*?Timeline[\s\S]*/)?.[0] ?? '';
   };
   let pane = await openTime();
   assert.match(pane, /data-addstate="1" class="headadd"/, 'OT-PLUS: Over time has one ＋ to add a change');
@@ -6338,6 +6338,43 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   click({ cardview: null });
   click({ backentry: '1' });
   ok('Alterations names a pocket\'s earlier version as the writer knows it');
+}
+
+// #135 · TIMELINE AND PAST EDITS. "Over time" and "Earlier versions" read as the same list; the
+// writer's words are Timeline (story time, sent to the model by scene) and Past edits (edit history,
+// never sent). Only the words moved: `data-cardtab="time"` and `data-readgo="history"` still go there.
+{
+  stubHistory = { entry: [
+    { id: 'er-1', field: 'title', label: null, previous_value: 'Sereth', replaced_at: 1, replaced_by: 'human' }] };
+  const OLD = /over time|earlier version/i;
+  // What a writer sees: the drawn HTML without its comments, which are the code's and never shown.
+  const seen = () => (html('sideHead') + html('sideBody')).replace(/<!--[\s\S]*?-->/g, '');
+  const drawn: string[] = [];
+  click({ panel: 'threads' }); await sleep(30);
+  click({ entry: 'e-1' }); await sleep(30);
+  click({ readmenu: '1' });
+  const menu = seen(); drawn.push(menu);
+  assert.match(menu, /data-readgo="time" class="readrow">Timeline/, 'TIMELINE-MENU: the menu row is Timeline');
+  assert.match(menu, /data-readgo="history" class="readrow">Past edits/, 'PASTEDITS-MENU: the menu row is Past edits');
+  click({ readmenu: '1' });
+  click({ readgo: 'time' }); await sleep(30);
+  const time = seen(); drawn.push(time);
+  assert.match(time, /data-cardtab="time" aria-pressed="true">Timeline</, 'TIMELINE-TAB: the old door opens the tab, named Timeline');
+  click({ addstate: '1' }); await sleep(20); drawn.push(seen());
+  click({ cardtab: 'more' }); drawn.push(seen());
+  click({ readgo: 'history' }); await sleep(30);
+  const more = seen(); drawn.push(more);
+  assert.match(more, /data-fieldhistory="1">Hide past edits</, 'PASTEDITS-MORE: the old door opens Past edits');
+  assert.match(more, /<div class="lbl sect">Past edits<\/div>/, '  under its name');
+  for (const h of drawn) assert.doesNotMatch(h, OLD, 'NO-OLD-WORDS: no "Over time" or "Earlier versions" on screen');
+  const { HELP } = await import('../web/help.js');
+  assert.doesNotMatch(JSON.stringify(HELP), OLD, 'NO-OLD-WORDS: nor in the help cards');
+  assert.strictEqual(HELP.states.title, 'Timeline', 'TIMELINE-HELP: the help card is Timeline');
+  stubHistory = null;
+  click({ fieldhistory: '1' });
+  click({ cardview: null });
+  click({ backentry: '1' });
+  ok('Over time is Timeline and Earlier versions is Past edits, wherever a writer sees them, and the old doors still open them');
 }
 
 // ---- AND ON THE PAGE THAT SPANS THE SHELF, from that page's own data.

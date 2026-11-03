@@ -38,16 +38,18 @@ export const HELP = {
       kept, and switching it on again reopens it.</p>`,
   },
   states: {
-    title: 'Over time',
+    title: 'Timeline',
     body: `<p>People change, and a thread that cannot change is the wrong shape for a novel.</p>
-      <p>Over time is where a thread stands, scene by scene. The first entry is where it stands
+      <p>The Timeline is where a thread stands, scene by scene. The first entry is where it stands
       from scene 1. Each later one is where it stands from its own scene on, and the model reads
       only the one in force at the scene being written &mdash; so an entry describes the whole of
       it as it now is, not only what changed. One that says <em>her arm is broken</em> and nothing
       else has quietly deleted her debts. Who or what it is belongs in Always true, which never
       changes.</p>
       <p>Before it opens, an entry is hidden. <strong>Hint</strong> tells the model something exists
-      without saying what, so foreshadowing has somewhere to come from.</p>`,
+      without saying what, so foreshadowing has somewhere to come from.</p>
+      <p>Past edits, under More, is a different list: what the thread said before you changed it.
+      It is never sent to the model.</p>`,
   },
   persona: {
     title: 'You play',
@@ -95,7 +97,7 @@ export const HELP = {
       threads, the scene summaries and the recent passages, and he names what he drew on.</p>
       <p>In a tale you talk to him in the composer: hold the quill, pick Talk on the dial, or press
       Alt+T. The conversation sits above the box, and Full screen gives it the whole screen.</p>
-      <p>What you ask him to change, he does at once: a thread, a new thread, a thread's Over time
+      <p>What you ask him to change, he does at once: a thread, a new thread, a thread's Timeline
       or wake words; the tale's title, genre, premise, setting, voice or style note; its rules and
       your own instructions; where a string stands; a scene's name or where it heads. Each change
       shows in the conversation with Undo, which puts back what was there. Asked to get rid of a

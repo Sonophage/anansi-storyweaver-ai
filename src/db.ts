@@ -184,7 +184,7 @@ export function foldAlwaysTrue() {
         P('UPDATE entries SET body = ?, updated_at = ? WHERE id = ?').run([body, ...lines].filter(Boolean).join('\n'), Date.now(), entryId);
         const names = later.map((a, i) => { const l = lines[i].slice(1, lines[i].indexOf(':'));
           return l.toLowerCase() === a.slot ? l : `${a.slot[0].toUpperCase() + a.slot.slice(1)} (${l})`; });
-        noteUpdate(rows[0].story_id, `${names.join(', ')} moved into Over time, where the thread stands from scene 1, and ${names.length === 1 ? 'is' : 'are'} no longer a pocket. It is sent every time.`, entryId);
+        noteUpdate(rows[0].story_id, `${names.join(', ')} moved into the Timeline, where the thread stands from scene 1, and ${names.length === 1 ? 'is' : 'are'} no longer a pocket. It is sent every time.`, entryId);
       }
       for (const a of rows) P('DELETE FROM addons WHERE id = ?').run(a.id);
     }
@@ -264,7 +264,7 @@ export function plainStandsAll() {
     }
     for (const r of later) {
       P('UPDATE entry_states SET body = ? WHERE id = ?').run(r.now, r.id);
-      noteUpdate(r.story_id, `Its Over time entry from scene ${r.from_chapter} had square brackets or its name in front. `
+      noteUpdate(r.story_id, `Its Timeline entry from scene ${r.from_chapter} had square brackets or its name in front. `
         + 'They were taken off, so the box shows only the description. Anansi still tells the model whose it is.', r.entry_id);
     }
     db.exec('COMMIT');

@@ -41,6 +41,11 @@ time, and a new pocket while you set up a tale. It does the same as before.
 A thread your tale follows from a world has Send to and the world's name, which was Save to: it
 sends your words to the world, so every tale that follows the thread sees them. It does the same as
 before.
+### Over time is now Timeline, and Earlier versions is Past edits
+They looked like the same list, and they are not. The Timeline is where a thread stands, scene by
+scene: the model is sent the entry for the scene it is writing. Past edits, under More, is what the
+thread said before you changed it, with Put this back. The model never sees it. Only the names
+changed; both work as before.
 
 ## 2026-11-02 · The library shows who is in your scene
 

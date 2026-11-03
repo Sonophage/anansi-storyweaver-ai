@@ -315,13 +315,13 @@ ok('THREAD-OVERTIME: a dated entry from a scene; a new one is taken away by Undo
   assert.strictEqual(c.thread, 'e-vel');
   assert.strictEqual(c.from, 3);
   assert.strictEqual(c.state, null, 'nothing is dated from scene 3 yet');
-  assert.match(ch.wordsFor(c), /Added to Vel's Over time from scene 3.*blind in one eye/);
+  assert.match(ch.wordsFor(c), /Added to Vel's Timeline from scene 3.*blind in one eye/);
   assert.deepStrictEqual(ch.undoFor(c, { state: 'st-new' }),
     { op: 'state.unmake', thread: 'e-vel', state: 'st-new', text: 'Vel is blind in one eye.' });
   // Scene 2 already has an entry: it is written over, and its Undo puts back all of it.
   const o = done(ch.checkAsked({ op: 'thread.overtime', thread: 'Vel', scene: 2, text: 'Vel is soaked and cold.' }, dated));
   assert.strictEqual(o.state, 'st-2');
-  assert.match(ch.wordsFor(o), /Changed Vel's Over time from scene 2/);
+  assert.match(ch.wordsFor(o), /Changed Vel's Timeline from scene 2/);
   assert.deepStrictEqual(ch.undoFor(o, { state: 'st-2' }), { op: 'thread.overtime', thread: 'e-vel', state: 'st-2',
     scene: 2, text: 'Vel is soaked.', label: 'Fell in', beforeMode: 'hint',
     wrote: { body: 'Vel is soaked and cold.', label: 'Fell in' } });
@@ -331,9 +331,9 @@ ok('THREAD-OVERTIME: a dated entry from a scene; a new one is taken away by Undo
     label: 'Fell in', beforeMode: 'hint', wrote: { body: 'Vel is soaked.', label: 'Fell in' } }, dated));
   refused(ch.checkUndo({ op: 'thread.overtime', thread: 'e-vel', state: 'st-2', scene: 2, text: 'x',
     wrote: { body: 'Vel is soaked and cold.', label: 'Fell in' } }, dated), /changed since/i);
-  assert.match(ch.wordsFor(u), /Put back Vel's Over time from scene 2/);
+  assert.match(ch.wordsFor(u), /Put back Vel's Timeline from scene 2/);
   assert.match(ch.wordsFor(done(ch.checkUndo({ op: 'state.unmake', thread: 'e-vel', state: 'st-2', text: 'Vel is soaked.' }, dated))),
-    /Took away Vel's Over time from scene 2/);
+    /Took away Vel's Timeline from scene 2/);
 });
 
 ok('THREAD-OVERTIME-REFUSED: a scene the tale does not have, scene 1, no text, the same text, a followed thread', () => {
