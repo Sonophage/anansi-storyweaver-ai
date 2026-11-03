@@ -2729,6 +2729,21 @@ body[data-dev] #devbar {
 .bare-btn.bare-btn { display:block; text-align:left; padding:0; max-width:100%; }
 .gilt.gilt { color:var(--gold); }
 
+/* EVERY SLIDER, THIN AND ROUNDED (Seth, 2026-11-03: "all sliders should be thin and also rounded"):
+   a 4px track with round ends and a small round thumb, in the theme's accent, drawn the same in
+   Chromium and Firefox. The input itself stays 24px tall, so the finger has the room the thin track
+   does not. Firefox also fills the track up to the thumb; Chromium has no part for that. */
+input[type="range"] { -webkit-appearance:none; appearance:none; height:24px; background:transparent; cursor:pointer; accent-color:var(--gold); }
+input[type="range"]::-webkit-slider-runnable-track { height:4px; border-radius:var(--r-pill);
+  background:color-mix(in srgb, var(--gold) 35%, var(--chip)); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:14px; height:14px;
+  margin-top:-5px; border:0; border-radius:var(--r-pill); background:var(--gold); }
+input[type="range"]::-moz-range-track { height:4px; border:0; border-radius:var(--r-pill);
+  background:color-mix(in srgb, var(--gold) 35%, var(--chip)); }
+input[type="range"]::-moz-range-progress { height:4px; border-radius:var(--r-pill); background:var(--gold); }
+input[type="range"]::-moz-range-thumb { width:14px; height:14px; border:0; border-radius:var(--r-pill); background:var(--gold); }
+input[type="range"]:focus-visible { outline:2px solid var(--gold-lit); outline-offset:2px; border-radius:var(--r-pill); }
+
 /* ===== ARCANA ===================================================================================
    Seth, 2026-11-03: "black grey and gold ... the gold and filigree is what i do want to keep as well
    as the texture of things ... claire obscure with that watercolor paint brush feeling ... tarot,
@@ -2752,8 +2767,11 @@ body[data-dev] #devbar {
    THE TEXTURES ARE SVG, web/arcana-*.svg: turbulence filters, not pictures, so each is a few
    hundred bytes, scales to any screen and is served by the same static path as icon.svg.
    ================================================================================================ */
+/* THE CORNERS: a card is cut nearly square, 3px (`--r-tight`), for the stepped gilt to sit in; a
+   control keeps the app's own rounding (`--r`, the pill), which the ornament does not touch (Seth,
+   2026-11-03: "round the corners of buttons and inputs like I had on the original"). */
+html:root :is(.card, .lbanner, #col .plate, .storycard, .resumeband > .glass, .pocketlist .pocketrow) { border-radius:var(--r-tight); }
 html:root {
-  --r:3px;
   --arc-deco:'Poiret One','IBM Plex Sans',system-ui,sans-serif;     /* titles: thin geometric capitals */
   --arc-small:'Josefin Sans','IBM Plex Sans',system-ui,sans-serif;  /* labels and the menu's words */
 }
@@ -2805,7 +2823,7 @@ html:root :is(#bar .up, .resumeband .herokind, .resumeband .herocount, .band > d
   #col .block .from, .railhead, .kicker) { font-family:var(--arc-small); letter-spacing:.3em; }
 /* A tag is a short word in a row of them: at .3em each chip read twice its width (Seth, 2026-11-03).
    Out of the list above, whose `#col` made it outrank any rule for a tag on its own. */
-html:root .tag { font-family:var(--arc-small); border-radius:2px; letter-spacing:.14em; }
+html:root .tag { font-family:var(--arc-small); letter-spacing:.14em; }
 /* Tighter where the line is short: a book's name in the bar, and the hero's "where you left off". */
 html:root #bar .bare-btn .serif { letter-spacing:.08em; }
 html:root .resumeband .herokind { letter-spacing:.1em; }
@@ -2814,7 +2832,7 @@ html:root .resumeband .herokind { letter-spacing:.1em; }
 /* THE LIBRARY'S HERO IS A TAROT CARD: an arched top, a double gilt frame inside it, a sunburst
    rising behind the title where the breathing rings were, and a chevron rule under the title. */
 html:root .resumeband {
-  border-radius:min(46vw, 300px) min(46vw, 300px) var(--r) var(--r) / 210px 210px var(--r) var(--r);
+  border-radius:min(46vw, 300px) min(46vw, 300px) var(--r-tight) var(--r-tight) / 210px 210px var(--r-tight) var(--r-tight);
   border-color:var(--gold-dim); }
 html:root .resumeband::before,
 html:root .resumeband::after { content:''; position:absolute; pointer-events:none; z-index:2;
@@ -2830,7 +2848,7 @@ html:root .resumeband .bandtitle { font-size:clamp(30px, 10vw, 56px); }
 html:root .resumeband .herorule { width:220px; height:17px;
   background:var(--gold); -webkit-mask:url('/web/arcana-divider.svg') center / contain no-repeat;
   mask:url('/web/arcana-divider.svg') center / contain no-repeat; }
-html:root .resumeband > .glass { border-radius:var(--r); }
+
 /* No cover: the card's back. A watercolour bloom in the accent under a constellation, on the painted
    canvas, in place of a plain gradient: the bloom on the shade's ::before, the stars on its ::after
    (which a cover's hero uses for the same stars, below). */
@@ -2865,12 +2883,10 @@ html:root #col .block.opening .narr::first-letter {
   background:radial-gradient(closest-side, color-mix(in srgb, var(--gold) 38%, transparent), transparent); }
 @media (max-width:719px) { html:root #col .block.opening .narr::first-letter { font-size:40px; padding:5px 8px 3px; } }
 
-/* THE PRESSES. The one gold button keeps its gold and gains a dry brush across it; the wide ones
-   are cut to a deco point at each end. */
+/* THE PRESSES. The one gold button keeps its gold and its pill, and gains a dry brush across it. */
 html:root :is(.btn:not(.ghost), #nextrow .quillcell > button:not([aria-expanded="true"]), #send.stopping, .rerollbox .rwgo) {
   background-image:url('/web/arcana-brush.svg'); background-size:100% 100%; background-repeat:no-repeat; }
-html:root .btn:not(.ghost) { border-radius:0;
-  clip-path:polygon(12px 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 12px 100%, 0 50%); }
+
 
 /* THE MENUS. A gilt rule under the model, the tiles as small square cards, the page you are on in
    ink with an ink brush under it, every row's picture with a painted edge, and the rune wheel faint
@@ -2924,7 +2940,7 @@ html:root .lbanner:not(:has(.art))::before { content:''; position:absolute; inse
 /* THE PICTURE AT THE HEAD OF A SCENE, framed the same way. */
 html:root #col .plate { border:1px solid var(--gold-dim); }
 html:root #col .plate::before { content:''; position:absolute; inset:5px; z-index:1;
-  border:1px solid var(--gold); opacity:.6; pointer-events:none; border-radius:var(--r); }
+  border:1px solid var(--gold); opacity:.6; pointer-events:none; border-radius:var(--r-tight); }
 html:root #col .plate-title { font-family:var(--arc-deco); text-transform:uppercase; letter-spacing:.12em; }
 
 /* THREAD CARDS. The gold bar down the left (`.card.plate`, above) read as a state colour; the card
@@ -2939,7 +2955,7 @@ html:root .card.plate .platename { font-family:var(--arc-deco); text-transform:u
 html:root #page .card.plate > img {
   -webkit-mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; }
 html:root #page .card.plate:not(:has(> img))::before { content:''; display:block; height:104px;
-  margin:0 0 8px; border:1px solid var(--edge); border-radius:var(--r);
+  margin:0 0 8px; border:1px solid var(--edge); border-radius:var(--r-tight);
   background:url('/web/arcana-moon.svg') 50% 46% / 34px no-repeat,
     radial-gradient(closest-side, color-mix(in srgb, var(--gold) 34%, transparent), transparent) 50% 50% / 70% 120% no-repeat,
     url('/web/arcana-canvas.svg') center / cover, var(--rail); }
@@ -3052,7 +3068,7 @@ html:root :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana]::after { content:'';
    eye stays the control on the right. The gilt is masks filled with the accent: the corners on the
    card's ::after, the sky on its ::before, the diamond and the mark on the suit's two. */
 html:root .pocketlist .pocketrow { position:relative; isolation:isolate; gap:12px;
-  margin:8px 0 0; padding:12px 6px 12px 12px; border:1px solid var(--edge); border-radius:var(--r);
+  margin:8px 0 0; padding:12px 6px 12px 12px; border:1px solid var(--edge);
   background:url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
 html:root .pocketlist .pocketrow.lit { border-color:var(--gold-dim); }
 html:root .pocketlist .pocketrow::before { content:''; position:absolute; inset:0; z-index:-1;

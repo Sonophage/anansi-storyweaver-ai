@@ -2413,6 +2413,16 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
       assert.match(decl, /^\s*(-webkit-)?mask(-image)?:|^\s*--(sky|suit):|^\s*(-webkit-)?mask(-image)?:[^;]*$/,
         `ORNAMENT-MASK: ${m[1]} is drawn as a mask in the theme's accent, not an image (${decl.trim().slice(0, 60)})`);
     }
+    // CONTROLS KEEP THEIR ROUNDED CORNERS (Seth, 2026-11-03: "round the corners of buttons and inputs
+    // like I had on the original"). The stepped gilt is for cards, frames, banners and the hero: the
+    // ornament does not set the app's radius, square the tags or cut the press to a point.
+    const arc = html0.slice(html0.indexOf('/* ===== ARCANA'));
+    assert.doesNotMatch(arc, /^\s*--r\s*:/m, 'ROUND-CONTROLS: the ornament does not reset the app\'s radius');
+    assert.doesNotMatch(arc, /\.btn[^{]*\{[^}]*(clip-path|border-radius:0)/, 'ROUND-CONTROLS: the gold press keeps its pill');
+    assert.doesNotMatch(arc, /\.tag[^{]*\{[^}]*border-radius/, 'ROUND-CONTROLS: a tag keeps its pill');
+    // EVERY SLIDER THIN AND ROUNDED, in the accent, the same in Chromium and Firefox (Seth, 2026-11-03).
+    for (const part of ['::-webkit-slider-runnable-track', '::-webkit-slider-thumb', '::-moz-range-track', '::-moz-range-thumb'])
+      assert.match(html0, new RegExp(`input\\[type="range"\\]${part}\\s*\\{[^}]*border-radius`), `SLIDERS: ${part} is drawn, rounded`);
     // THE PAPER'S GRAIN ON EVERY THEME, over that theme's own colours: the canvas carries no paper
     // colour of its own, and every theme's page wash lays it first.
     const canvas = readFileSync(new URL('../web/arcana-canvas.svg', import.meta.url), 'utf8');

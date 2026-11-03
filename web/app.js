@@ -4950,7 +4950,7 @@ function tellerModel() {
       ${hint ? tipCard(`gen-${key}`, label, `<p>${hint}</p>`) : ''}
       <input type="range" data-gen="${key}" aria-label="${esc(label)}"
         min="0" max="${max}" step="${max > 2 ? 10 : 0.01}"
-        value="${value}" style="width:100%; accent-color:var(--gold)">
+        value="${value}" style="width:100%">
     </div>`;
   // THE TALE'S LIST: "Your model" unless the tale already follows it, then each listed model but
   // your usual one and the tale's own pin. A pin the router no longer offers is the row in force,

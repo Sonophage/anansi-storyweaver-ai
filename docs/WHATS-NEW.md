@@ -132,7 +132,12 @@ side panel sit on watercolour paper, and the gilt is line-work: a chevron rule u
 title, stepped corners on cards, a double gilt frame on the tale you left off in, arched like a tarot
 card, with a sunburst behind its name. The first letter of a scene is set in a gilt box over a wash.
 Titles are thin deco capitals and labels a clean geometric face; your story keeps whatever font you
-chose. The one gold button on a screen has a dry brush through it.
+chose. The one gold button on a screen has a dry brush through it. Buttons, chips, tabs and the
+boxes you type in keep their rounded corners; the stepped gilt corners are for cards, frames and
+banners.
+### Thin, rounded sliders
+Every slider, such as the model's settings in Storyteller and how much of a tale's cover shows, is
+a thin rounded line with a small round handle, in your theme's colour.
 ### Every theme is Arcana in its own colours
 Look still has five themes, Arcana, Ink, Grimdark, Sci-fi and Romance, and each one now changes only
 the colours. The frames, the stars, the numerals and the suits are the same in all five, drawn in
