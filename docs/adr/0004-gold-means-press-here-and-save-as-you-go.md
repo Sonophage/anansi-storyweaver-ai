@@ -28,3 +28,7 @@ changes", which puts the thread back as it was when Alter opened.
   class in the stylesheet. A style used in one place stays inline where it is used, and so does
   one that works out a value as it draws (Seth, the same day). `bench/samestyle.ts` is how "no
   visible change" was checked.
+- Pass three, threads and pockets (2026-11-03): on 2026-11-02 Alter was given one header Save for a
+  night (4319d3c). Seth chose save as you type again the next morning. Alter's header is Undo my
+  changes, ＋ and Done; an open pocket's bar is Undo my changes and Done; a new thing keeps Cancel
+  and a press that says Add. The app has four themes since 2026-11-02, not nine.

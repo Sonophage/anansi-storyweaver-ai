@@ -16,11 +16,37 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-11-03 · Threads and pockets save as you type
+
+### Altering a thread saves as you type
+Editing a thread has no Save any more. Its name, where it stands, your notes, its wake words and
+its Always true are kept a moment after you stop typing. Done, at the top, keeps the last of it and
+goes back to reading the thread, and so do Back and Esc. Cancel is now Undo my changes: it puts the
+thread back as it was when you opened it. What the thread said before goes into Alterations once,
+when you press Done, and a scene summary is marked out of date only then, if something it said is
+gone. An empty Always true is never kept: Done says so and stays open.
+### A pocket you open saves as you type
+A pocket you open on a thread, a string, a rule or one of your own keeps what you type a moment
+after you stop. Done, at the top, closes it, and Undo my changes puts it back as it was when you
+opened it. What a pocket said before goes into Alterations once, when you press Done. When Anansi
+edits it, Use this puts his version in the box, and Done keeps it.
+### Scene 1 in Over time saves as you type
+When a later change is where a thread stands now, you open where it stood from scene 1 in Over
+time. That now keeps what you type, as the change rows already did. Done closes it, and Undo my
+changes puts it back as it was when you opened it.
+### Adding something says Add
+Where a press makes something new, it now says Add and not Save: a new pocket, a new change over
+time, and a new pocket while you set up a tale. It does the same as before.
+### Send to, on a thread from a world
+A thread your tale follows from a world has Send to and the world's name, which was Save to: it
+sends your words to the world, so every tale that follows the thread sees them. It does the same as
+before.
+
 ## 2026-11-02 · The library shows who is in your scene
 
 ### A quieter thread editor and pocket box
 Editing a thread now opens on its kind and its name, set large on a line, with the tabs under
-them. Always true is one box saved by Save at the top, not a box with a Save of its own. Always on
+them. Always true is one box, not a box with a Save of its own. Always on
 and On a word sit beside Wake words. Asking Anansi is one row at the foot: say what to change, then
 Anansi edits. The pocket shortcuts above the tabs are gone; Pockets is one tap away. The short
 explanations under each heading now open from the small mark beside it.
@@ -32,7 +58,7 @@ A thread's pockets are one tidy list, on its page and on the Pockets tab: no box
 Each row is the pocket's name with its text under it and its switch on the right, grouped under its
 kind: Outfit, Relationships and so on. What is off sits under Not turned on, a little dimmer, grouped
 the same way.
-While you edit a thread, ＋ beside Save at the top adds a pocket, from any tab.
+While you edit a thread, ＋ beside Done at the top adds a pocket, from any tab.
 
 ### Bigger thread cards, with the picture behind them
 In a tale's Threads, every card is twice as tall. A thread with a picture wears it across the whole
@@ -56,7 +82,7 @@ cycle through its states without it vanishing. Under the search, tabs show All, 
 Places, Lore or Items.
 
 ### Editing a pocket looks like altering a thread
-The pocket screen has Cancel and Save at the top, the same tabs and the same name box as when you
+The pocket screen has its two presses at the top, the same tabs and the same name box as when you
 alter a thread. It still fills the screen.
 
 ### Quote the newest passage in your own instructions
@@ -258,32 +284,6 @@ new change is still added with its own press.
 While you set up a new tale, a pocket you open on one of its threads keeps what you type. Done
 closes it, and Undo my changes puts back what it said when you opened it. A new pocket is still
 added with its own press.
-### A pocket you open saves as you type
-A pocket you open on a thread, a string, a rule or one of your own keeps what you type a moment
-after you stop. Done closes it, and Undo my changes puts it back as it was when you opened it. A
-thread's Alterations keep what a pocket said before once, when you press Done, and not once per
-pause. A scene summary is marked out of date only then, and only if the pocket lost something it
-said. A new pocket is still added with its own press.
-### Scene 1 in Over time saves as you type
-When a later change is where a thread stands now, you open where it stood from scene 1 in Over
-time. That now keeps what you type, as the change rows already did. Done closes it, and Undo my
-changes puts it back as it was when you opened it. Its old wording goes into Alterations once, when
-you press Done, and a scene summary is marked out of date only then, if something it said is gone.
-### Altering a thread saves as you type
-A thread's Alter screen has no Save any more. Its name, where it stands, your notes, its wake words
-and its Always true are kept a moment after you stop typing. Done keeps the last of it and goes back
-to reading the thread, and so do Back and Esc. Cancel is now Undo my changes: it puts the thread
-back as it was when you opened Alter. What the thread said before goes into Alterations once, when
-you press Done, and a scene summary is marked out of date only then, if something it said is gone.
-An empty Always true is never kept: Done says so and stays open.
-### Adding something says Add
-Where a press makes something new, it now says Add and not Save: a new pocket, a new change over
-time, and a new pocket while you set up a tale. It does the same as before.
-### Start writing, and Send to
-Setting up the next scene ends with Start writing, which was Save and write. A thread your tale
-follows from a world has Send to and the world's name, which was Save to: it sends your words to the
-world, so every tale that follows the thread sees them. Both do the same as before.
-
 ## 2026-10-30 · The next scene starts the way you say
 
 ### A hem you never answered waits for you
