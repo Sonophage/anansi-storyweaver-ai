@@ -2448,6 +2448,19 @@ ok('the extraction schema and src/slots.ts name the same slots', () => {
       'a later scene\'s change to where she stands, while the earlier scene\'s is still open');
     assert.strictEqual(add({ kind: 'memory', entryType: 'state', keys: ['3'] }), false,
       'and the same scene\'s change again is still one offer');
+
+    // #93 · AND A POCKET OR THE BODY, CHANGED BY TWO SCENES. Each hem chalks on its own scene's card,
+    // so a later scene's change is its own offer while the earlier scene's is open, and re-running
+    // the same scene is still one.
+    assert.strictEqual(add({ chapterId: 'ch-one', field: 'outfit' }), true, 'scene one changes her outfit');
+    assert.strictEqual(add({ chapterId: 'ch-two', field: 'outfit' }), true,
+      'SCENES-POCKET: scene two changes the same pocket, while scene one\'s is still open');
+    assert.strictEqual(add({ chapterId: 'ch-two', field: 'outfit' }), false, 'and scene two again is one offer');
+    assert.strictEqual(add({ chapterId: 'ch-one' }), true, 'scene one changes her body');
+    assert.strictEqual(add({ chapterId: 'ch-two' }), true, 'SCENES-BODY: scene two changes it too');
+    assert.strictEqual(add({ chapterId: 'ch-two', kind: 'new' }), false, 'and scene two again is one offer');
+    assert.strictEqual(add({ chapterId: 'ch-two', kind: 'retire', entryType: 'retire', keys: ['9'] }), false,
+      'finished is once for the book, whichever scene says it');
   });
 
   ok('  and the dedupe asks the same question the accept path does', () => {
@@ -3461,7 +3474,7 @@ ok('update day: every facts text becomes Always true, switched on, with the fold
   assert.ok(has(/^Halsey: .*was switched off/i), `REPORT-ON: the switched-off one is named (${lines.join(' | ')})`);
   assert.ok(has(/^Halsey: .*agree/i), 'REPORT-BOTH: a thread with Always true and Info both written is asked to check they agree');
   assert.ok(has(/^Marek: Role moved into Always true/), 'REPORT-FOLD: the folded pockets are named on their thread');
-  assert.ok(has(/^Marek: History \(The war\) moved into Over time/), 'REPORT-HISTORY: and history says where it went, by its kind as well as its name');
+  assert.ok(has(/^Marek: History \(The war\) moved into the Timeline/), 'REPORT-HISTORY: and history says where it went, by its kind as well as its name');
   assert.ok(db.updatesOf(t.id).every((l: any) => l.backup), 'REPORT-BACKUP-FIRST: every line names the backup taken before it');
   assert.ok(has(/^null: One thread has no Always true yet: Bare\./), `REPORT-NONE: threads with no Always true are named, in one line for the tale (${lines.join(' | ')})`);
   assert.ok(has(/^Marek: .*agree/i), '  and Marek, whose Info is his history now, is asked too');

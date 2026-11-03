@@ -1502,6 +1502,37 @@ ok('a hem asks for the next scene rather than guessing it, and the answer goes i
 }
 ok('with the scene after a hem deleted, its next-scene ask still reads the hemmed scene');
 
+// ---- #93 · THE SCENE AFTER A HEMMED ONE IS DELETED WHILE THE HEM RUNS. The hem names that scene when
+// it starts. Deleted during the next-scene ask, the needs ask still went to the model and chalked
+// against a scene that is gone; deleted during the needs ask, its answer was still chalked there.
+for (const during of ['next', 'needs'] as const) {
+  const t = db.createStory(me, { title: `Gone during ${during}`, premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The bell sank off the end of the jetty.' });
+  tidied = { ...NEXT };
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false }));
+  await hemSettled(t.id);
+  needsFound = [{ title: 'The Jetty', type: 'place', body: 'Old planks over deep water.', keys: ['jetty'],
+    activation: 'triggered', field: 'none', pockets: [], stands: '' }];
+  asks.length = 0;
+  const ask = during === 'next' ? prompts.CHAPTER : prompts.NEEDS;
+  failIf = (system) => {
+    if (system.startsWith(ask.slice(0, 80)) && (db.chapters(t.id) as any[]).some((c) => c.id === r.opened))
+      assert.ok(!db.delChapter(t.id, r.opened).error, 'the scene after it is deleted');
+    return false;
+  };
+  const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next' }));
+  assert.ok(!v.error, v.error);
+  await hemSettled(t.id);
+  failIf = null; tidied = {}; needsFound = [];
+  assert.ok(!(db.chapters(t.id) as any[]).some((c) => c.id === r.opened), `(${during}) the deletion happened`);
+  if (during === 'next') assert.ok(!askOf(prompts.NEEDS), 'HEM-GONE-NO-NEEDS: no needs ask for a scene deleted mid-hem');
+  const orphans = (db.proposalsOf(t.id) as any[]).filter((p) => p.chapter_id === r.opened);
+  assert.deepStrictEqual(orphans.map((p) => p.title), [],
+    `HEM-GONE-NO-CHALK-${during.toUpperCase()}: nothing is chalked against the deleted scene`);
+}
+ok('a scene deleted while the hem before it runs gets no needs ask and nothing chalked');
+
 // ---- THE BRIEF FOR THE NEXT SCENE (Seth, 2026-11-01: "The first prompt I fill should be what the goal
 // of the next scene is, who's in it where etc"). The hem's question sends the writer's brief: it is the
 // scene's at once; the threads it names that are on a word are brought into the scene; the people pass
@@ -1658,7 +1689,7 @@ ok('the brief names who starts the scene; every other always-on thread is mentio
   // ITS RAW ANSWER IS KEPT (2026-11-01): a walk on the real model chalked nothing, and nothing said
   // what the model had answered.
   const logged = (new (await import('node:sqlite')).DatabaseSync(DB, { readOnly: true }) as any)
-    .prepare("SELECT manifest FROM generations WHERE story_id = ? AND role = 'hem-new' ORDER BY created_at DESC LIMIT 1").get(t.id);
+    .prepare("SELECT manifest FROM generations WHERE story_id = ? AND role = 'hem-new' ORDER BY created_at DESC, rowid DESC LIMIT 1").get(t.id);
   assert.match(JSON.parse(logged?.manifest ?? '{}').raw ?? '', /black dress from the show/, 'NEEDS-RAW: the needs ask logs what the model answered');
   tidied = {}; needsFound = [];
 }

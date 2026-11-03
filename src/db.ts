@@ -184,7 +184,7 @@ export function foldAlwaysTrue() {
         P('UPDATE entries SET body = ?, updated_at = ? WHERE id = ?').run([body, ...lines].filter(Boolean).join('\n'), Date.now(), entryId);
         const names = later.map((a, i) => { const l = lines[i].slice(1, lines[i].indexOf(':'));
           return l.toLowerCase() === a.slot ? l : `${a.slot[0].toUpperCase() + a.slot.slice(1)} (${l})`; });
-        noteUpdate(rows[0].story_id, `${names.join(', ')} moved into Over time, where the thread stands from scene 1, and ${names.length === 1 ? 'is' : 'are'} no longer a pocket. It is sent every time.`, entryId);
+        noteUpdate(rows[0].story_id, `${names.join(', ')} moved into the Timeline, where the thread stands from scene 1, and ${names.length === 1 ? 'is' : 'are'} no longer a pocket. It is sent every time.`, entryId);
       }
       for (const a of rows) P('DELETE FROM addons WHERE id = ?').run(a.id);
     }
@@ -264,7 +264,7 @@ export function plainStandsAll() {
     }
     for (const r of later) {
       P('UPDATE entry_states SET body = ? WHERE id = ?').run(r.now, r.id);
-      noteUpdate(r.story_id, `Its Over time entry from scene ${r.from_chapter} had square brackets or its name in front. `
+      noteUpdate(r.story_id, `Its Timeline entry from scene ${r.from_chapter} had square brackets or its name in front. `
         + 'They were taken off, so the box shows only the description. Anansi still tells the model whose it is.', r.entry_id);
     }
     db.exec('COMMIT');
@@ -4557,8 +4557,12 @@ export function addProposal(storyId: string, p: any) {
     // #93 · AND THE SCENE AN OVER TIME ENTRY COMES INTO FORCE IN (its `keys`, as the accept path reads
     // it): `upsertState` writes one per thread per scene, so a later hem's change was dropped while
     // an earlier scene's was still open.
+    // #93 · AND THE SCENE A CHANGE TO THE BODY OR A POCKET WAS CHALKED FOR: each hem chalks on its own
+    // scene's card, so a later scene's change was dropped while an earlier scene's was still open.
+    // Re-running the same scene is still one offer. Not a finish: that is once for the book.
     .update([subject, p.entry_id ?? '', target, ...(p.target ? [p.target] : []),
-      ...(target === 'state' ? [String((p.keys ?? [])[0] ?? '')] : [])].join('\u0000')).digest('hex').slice(0, 32);
+      ...(target === 'state' ? [String((p.keys ?? [])[0] ?? '')] : []),
+      ...(target === 'body' || target.startsWith('room:') ? [String(p.chapterId ?? '')] : [])].join('\u0000')).digest('hex').slice(0, 32);
   try {
     q(`INSERT INTO proposals (id,story_id,chapter_id,entry_id,title,body,entry_type,keys,kind,delta,
         field,activation,target,content_hash,source,rooms,grp,line,pocket,merges,created_at)
@@ -4753,9 +4757,12 @@ export function logGeneration(g: any) {
   // manifest is only useful while debugging a recent call, so keep the newest 200 and null
   // the rest. Each manifest is ~3 KB, so unbounded is a slow leak, not a fast one.
   // (The id is returned below so the take this produced can be tied to it.)
+  // `rowid` BREAKS A TIE in `created_at`: two calls logged in the same millisecond (every call under
+  // the tests' virtual clock) sorted in no fixed order, so the row just written could be the one
+  // nulled. test/memory.ts NEEDS-RAW failed about half its runs on it (2026-11-03).
   q(`UPDATE generations SET manifest = NULL WHERE id IN (
        SELECT id FROM generations WHERE manifest IS NOT NULL
-       ORDER BY created_at DESC LIMIT -1 OFFSET 200)`).run();
+       ORDER BY created_at DESC, rowid DESC LIMIT -1 OFFSET 200)`).run();
   return gid;
 }
 

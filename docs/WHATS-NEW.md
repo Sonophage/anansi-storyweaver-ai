@@ -27,6 +27,23 @@ this tale's last calls. Press the model name at the top of the menu to open it. 
 longer a tile in the tale's menu, and Account no longer has a Writing page. In the library,
 Storyteller shows your usual model, your shortlist and your voice.
 
+### The Tale panel opens on Tale
+The Tale panel has four tabs now, Tale, Thread, Setting and Keep, and opens on Tale. Tale is one
+scroll: the cover first, as large as a thread's picture, then the title, the genre and how the tale
+began, then the voice and Spice, which were their own Voice tab. Replacing, removing, drawing or
+finding a cover, and how it shows at the head of each scene, are in one fold under the cover, shut
+until you open it. A tale with no cover shows the ways to add one straight away. Where the tale
+stands now is shown once, on the Thread tab.
+### The demo library moved to Account
+The Demo library switch is no longer in the main menu. It is under Account, in Your books, beside
+Import and Export. While you are in the demo library, the library page shows "Leave the demo
+library" at the top, so the way back to your own tales is always in sight.
+### Threads in three columns on a wide panel
+On a desk, when you make a tale's Threads full screen, the threads sit in three columns. Beside the
+page, and on a phone, they stay in one. The cards keep their size.
+### One button opens and closes the menu on a desk
+The arrow at the top of the menu is gone on a desk: the menu button in the header opens it and
+closes it. On a phone, where the menu covers the screen, its ✕ stays.
 ### Altering a thread saves as you type
 Editing a thread has no Save any more. Its name, where it stands, your notes, its wake words and
 its Always true are kept a moment after you stop typing. Done, at the top, keeps the last of it and
@@ -50,6 +67,15 @@ time, and a new pocket while you set up a tale. It does the same as before.
 A thread your tale follows from a world has Send to and the world's name, which was Save to: it
 sends your words to the world, so every tale that follows the thread sees them. It does the same as
 before.
+### Two scenes can change the same pocket
+When two hemmed scenes both change one thread's pocket, or what the thread says, each change is now
+on its own scene's card. Before, the later scene's change was lost while the earlier one waited for
+you to sew it in or reject it.
+### Over time is now Timeline, and Earlier versions is Past edits
+They looked like the same list, and they are not. The Timeline is where a thread stands, scene by
+scene: the model is sent the entry for the scene it is writing. Past edits, under More, is what the
+thread said before you changed it, with Put this back. The model never sees it. Only the names
+changed; both work as before.
 
 ## 2026-11-02 · The library shows who is in your scene
 
