@@ -47,7 +47,9 @@ eye is On a word: it is sent only when one of its wake words comes up, and the e
 when one has. The struck eye is Off: it is never sent, even when one of its wake words comes up. A
 tap on the eye goes Off, On a word, On, and back to Off, and shows the new state's name for a
 moment. A string has no wake words, so its eye goes Off and On. An outfit keeps Wear this. A pocket
-you add starts On; a new outfit is added unworn. A pocket Anansi adds, in Talk or when a scene is
+you add starts On; a new outfit is added unworn. Where a thread holds one pocket of a kind at a
+time, such as its appearance or its voice, the one you turn On puts the others Off, so only one is
+ever sent; their wake words are kept. A pocket Anansi adds, in Talk or when a scene is
 hemmed, is On a word when it has wake words and Off when it has none. Your pockets from before keep
 doing what they did: one that was on is On, one that was off but had wake words is On a word, and
 one that was off with no wake words is Off. A pocket comes with

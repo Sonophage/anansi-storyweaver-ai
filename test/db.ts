@@ -2264,6 +2264,18 @@ ok('the extraction schema and src/slots.ts name the same slots', () => {
     // makes it usable, clearing the sibling instead of handing the writer a constraint error.
   });
 
+  ok('  and the one that was on goes Off, not On a word, so only one can ever be sent', () => {
+    // #134 · An old appearance with wake words was left On a word, and both were sent when its word
+    // came up. A one-at-a-time kind takes the other's place whole.
+    const a = mk('appearance', 'in the rain', { keys: ['rain'] })!;
+    const b = mk('appearance', 'in the sun', { keys: ['sun'] })!;
+    db.setAddonActive(sa.id, a, true);
+    db.setAddonActive(sa.id, b, true);
+    const act = (id: string) => db.addonsOf(sa.id).find((r: any) => r.id === id).activation;
+    assert.deepStrictEqual([act(a), act(b)], ['off', 'always_on'],
+      'EXCLUSIVE-OFF: the appearance put aside is Off, with its wake words kept');
+  });
+
   ok('  but a plural slot holds several at once, which is the whole point of the shape', () => {
     // Seth: "several can be triggered on at a time for specific ones." A card does not have one
     // relationship. If this passed by holding one, addons would be fields with extra steps.

@@ -3098,9 +3098,11 @@ export function setAddonActive(storyId: string, addonId: string, on: boolean, at
       firstDated(storyId, row.entry_id, ['wear', 'unwear']);
       addEvent(storyId, row.entry_id, on ? 'wear' : 'unwear', addonId, atChapter!);
     }
+    // #134 · AND THE ONE IT REPLACES GOES OFF, not On a word: a one-at-a-time kind left On a word was
+    // sent beside the new one whenever its word came up. Its wake words stay, for when it is put back.
     if (on && EXCLUSIVE_SLOTS.includes(row.slot) && row.entry_id)
-      q('UPDATE addons SET active = 0 WHERE entry_id = ? AND slot = ? AND story_id = ?')
-        .run(row.entry_id, row.slot, storyId);
+      q("UPDATE addons SET active = 0, activation = 'off' WHERE entry_id = ? AND slot = ? AND story_id = ? AND id <> ?")
+        .run(row.entry_id, row.slot, storyId, addonId);
     q('UPDATE addons SET active = ? WHERE id = ? AND story_id = ?').run(on ? 1 : 0, addonId, storyId);
     // #127 · A STRING SWITCHED ON AGAIN IS OPEN AGAIN (ADR 0011): tied off or let go is a mark on an
     // off pocket, and on means in play. Here, so every switch (the list, the Workbench) reopens it.
