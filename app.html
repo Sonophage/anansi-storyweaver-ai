@@ -1026,7 +1026,6 @@ html[data-reading="1"] .carry { display:none !important; }
 .band-epi { display:flex; align-items:flex-start; gap:14px; max-width:520px; }
 .band-epi i { width:1px; align-self:stretch; background:var(--gold-dim); opacity:.5; flex:0 0 auto; }
 .band-epi span { font-style:italic; font-size:17px; line-height:1.5; color:var(--label); text-wrap:pretty; }
-.band-rule { height:1px; background:var(--rule); margin-top:18px; }
 /* THE BREAK BETWEEN CHAPTERS, in a continuous read. Reading mode draws the whole book (#37) and
    `.band` has 8px of padding and no margin — fine as the top of a column, nothing at all between
    two chapters, which is what Seth reported: "there no seperation anymore". A rule on each side of
@@ -1044,7 +1043,7 @@ html[data-reading="1"] .carry { display:none !important; }
   background:var(--gold-dim); opacity:.65; }
 @media (max-width:719px) { .chapbreak { margin:52px 0 42px; gap:12px; } }
 @media (max-width:719px) { .band-title { font-size:30px; } .band-epi span { font-size:15px; }
-  .band { gap:10px; padding:2px 0 6px; } .band-rule { margin-top:10px; } }
+  .band { gap:10px; padding:2px 0 6px; } }
 
 /* The drop cap is ::first-letter, NOT a span. The passage body is contenteditable and the editor
    saves its textContent, so a real element in there would be editable, deletable, and would go
@@ -2267,7 +2266,6 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
   color:rgba(255,255,255,.78); }
 .resumeband .bandtitle { font-size:clamp(34px, 11vw, 58px); line-height:1; font-weight:300;
   color:#fff; text-shadow:0 2px 16px rgba(0,0,0,.35); text-wrap:balance; overflow-wrap:anywhere; }
-.resumeband .herorule { width:40px; height:1px; background:rgba(255,255,255,.6); }
 .resumeband .herowhere { font-size:15px; letter-spacing:.04em; }
 .resumeband .herocount { font-size:12px; color:rgba(255,255,255,.75); }
 /* The threads sent in the scene last worked on: #ctxbar's segments (sentSegs in app.js), coloured by
@@ -2758,7 +2756,7 @@ input[type="range"]:focus-visible { outline:2px solid var(--gold-lit); outline-o
    arcane", and then "a bit more into the arcane and a bit more into the art deco".
 
    ARCANA IS THE APP'S STYLING UNDER EVERY THEME (Seth, 2026-11-03: "Arcana everywhere, then
-   default"). Everything here is what a THEMES row cannot say: the painted grounds, the gilt rules and
+   default"). Everything here is what a THEMES row cannot say: the painted grounds, the gilt
    corners, the tarot arch, the numerals and suits, the type. None of it keys on a theme any more:
    every theme in THEMES (web/model.js) is a colour set, and Arcana is the shipped one. Every
    rule is `html:root ...`, which is the specificity the theme attribute selector it replaced
@@ -2803,8 +2801,7 @@ html:root #rail .railrow.arted[aria-current] { box-shadow:inset 2px 0 0 var(--in
 html:root :is(#rail, #sideInner, #appearance, #pocketPanel, #mergePanel) {
   background-image:url('/web/arcana-canvas.svg'); background-size:cover; background-position:center; }
 
-/* THE RULES AND CORNERS, one gilt vocabulary everywhere: a chevron rule where a hairline was, and
-   four stepped corners on a card. EVERY GILT FILE IS A MASK filled with the theme's accent
+/* THE CORNERS, one gilt vocabulary everywhere: four stepped corners on a card. EVERY GILT FILE IS A MASK filled with the theme's accent
    (`background:var(--gold)`), so the line-work is gold under Arcana, rose under Romance, steel under
    Sci-fi; a file with the gold baked in would be gold under all of them. The corners are on a card's
    ::after, laid over it and taking no taps; the cards that use their own ::after are left out (a
@@ -2816,22 +2813,12 @@ html:root :is(#sideBody .card, #appearance .card, #page .card.plate, .resumeband
     url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat;
   mask:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat,
     url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat; }
-html:root .band-rule { height:18px; background:var(--gold);
-  -webkit-mask:url('/web/arcana-divider.svg') center / min(320px, 100%) 18px no-repeat;
-  mask:url('/web/arcana-divider.svg') center / min(320px, 100%) 18px no-repeat; }
-/* The panel's header rule runs the header's whole width, with the chevron at its middle: alone and
-   320px wide it sat centred under nothing (Seth, 2026-11-03). */
-html:root #sideHead { border-bottom-color:transparent; }
-html:root #sideHead::after { content:''; position:absolute; left:22px; right:22px; bottom:-7px; height:14px;
-  pointer-events:none; background:var(--gold);
-  -webkit-mask:url('/web/arcana-divider.svg') center / 220px 14px no-repeat,
-    linear-gradient(90deg, transparent, rgba(0,0,0,.45) 12%, rgba(0,0,0,.45) 88%, transparent) center / 100% 1px no-repeat;
-  mask:url('/web/arcana-divider.svg') center / 220px 14px no-repeat,
-    linear-gradient(90deg, transparent, rgba(0,0,0,.45) 12%, rgba(0,0,0,.45) 88%, transparent) center / 100% 1px no-repeat; }
-html:root #bar { border-bottom-color:transparent; }
-html:root #bar::after { content:''; position:absolute; left:0; right:0; bottom:2px; height:14px; pointer-events:none;
-  background:var(--gold); -webkit-mask:url('/web/arcana-divider.svg') center / min(420px, 82%) 14px no-repeat;
-  mask:url('/web/arcana-divider.svg') center / min(420px, 82%) 14px no-repeat; }
+/* NO RULE UNDER A HEADER (Seth, 2026-11-03: "we can remove the triangle divider in the header where
+   the title is, from everywhere", then "gilt lines and chevron will be removed"). The top bar and a
+   side panel's head had a chevron divider under the title, and the hairline it replaced; neither
+   is drawn. The same holds for the menu's model, the Library's title and a scene's head, below.
+   test/app.ts NO-DIVIDER. */
+html:root :is(#sideHead, #bar) { border-bottom-color:transparent; }
 
 /* THE TYPE. Titles in thin deco capitals, labels in a geometric sans; the prose is untouched and
    keeps whatever font the writer picked in Look. */
@@ -2850,7 +2837,7 @@ html:root .resumeband .herokind { letter-spacing:.1em; }
 @media (max-width:719px) { html:root #sideInner { border-top-color:var(--gold-dim); } }
 
 /* THE LIBRARY'S HERO IS A TAROT CARD: an arched top, a double gilt frame inside it, a sunburst
-   rising behind the title where the breathing rings were, and a chevron rule under the title. */
+   rising behind the title where the breathing rings were. */
 html:root .resumeband {
   border-radius:min(46vw, 300px) min(46vw, 300px) var(--r-tight) var(--r-tight) / 210px 210px var(--r-tight) var(--r-tight);
   border-color:var(--gold-dim); }
@@ -2865,9 +2852,6 @@ html:root .resumeband > .rings::before { content:''; position:absolute; width:46
   -webkit-mask:url('/web/arcana-sunburst.svg') center / contain no-repeat;
   mask:url('/web/arcana-sunburst.svg') center / contain no-repeat; }
 html:root .resumeband .bandtitle { font-size:clamp(30px, 10vw, 56px); }
-html:root .resumeband .herorule { width:220px; height:17px;
-  background:var(--gold); -webkit-mask:url('/web/arcana-divider.svg') center / contain no-repeat;
-  mask:url('/web/arcana-divider.svg') center / contain no-repeat; }
 
 /* No cover: the card's back. A watercolour bloom in the accent under a constellation, on the painted
    canvas, in place of a plain gradient: the bloom on the shade's ::before, the stars on its ::after
@@ -2898,8 +2882,8 @@ html:root .storycard .art.bare > .fade::after { content:''; position:absolute; i
 /* THE HEAD OF A SCENE IS A TAROT TITLE (Seth, 2026-11-03, his reference "SCENE IX / The Drake's
    Key"): centred, under a half sunburst rising from a small arc; "SCENE IX" in spaced capitals with
    the number in Roman numerals; the title large in a high-contrast serif; the scene's line in its
-   italic, with no bar beside it; the gilt chevron rule centred under all of it. The sunburst is the
-   gilt file as a mask in the accent, like every ornament here. */
+   italic, with no bar beside it and no rule under it (the dividers left on 2026-11-03, NO-DIVIDER).
+   The sunburst is the gilt file as a mask in the accent, like every ornament here. */
 html:root .band { align-items:center; text-align:center; gap:12px; padding:4px 0 8px; }
 html:root .band-sun { display:block; width:min(400px, 78%); aspect-ratio:3 / 1; margin:0 0 -4px;
   background:var(--gold); opacity:.6;
@@ -2911,13 +2895,9 @@ html:root .band-title { font-family:var(--arc-serif); font-weight:500; font-size
 html:root .band-epi { justify-content:center; max-width:560px; }
 html:root .band-epi i { display:none; }
 html:root .band-epi span { font-family:var(--arc-serif); font-style:italic; font-size:24px; line-height:1.35; color:var(--mute); }
-html:root .band-rule { align-self:stretch; height:22px; margin-top:10px;
-  -webkit-mask:url('/web/arcana-divider.svg') center / min(700px, 100%) 22px no-repeat;
-  mask:url('/web/arcana-divider.svg') center / min(700px, 100%) 22px no-repeat; }
 @media (max-width:719px) { html:root .band-sun { width:min(240px, 70%); }
   html:root .band-num { font-size:12px; } html:root .band-title { font-size:36px; }
-  html:root .band-epi span { font-size:19px; }
-  html:root .band-rule { height:18px; -webkit-mask-size:100% 18px; mask-size:100% 18px; } }
+  html:root .band-epi span { font-size:19px; }}
 
 /* A GLYPH PER ACTION (Seth, 2026-11-03, his reference "≈ WOVEN"): the chip over a passage carries a
    small line glyph before its spaced capitals, one per label, in place of the dot. This is the one
@@ -2989,7 +2969,6 @@ html[data-sidefull="1"] #sideHead > .pbanner { display:none; }
    with its count and its ＋, in a 400px drawer) the presses take a second line, at the right. */
 html[data-sidefull="0"] #sideHead { --band:124px; padding-top:calc(var(--band) + 50px); padding-bottom:10px;
   flex-wrap:wrap; row-gap:10px; }
-html[data-sidefull="0"] #sideHead::after { display:none; }
 html[data-sidefull="0"] #sideHead > .pbanner { display:block; position:absolute; left:0; right:0; top:0;
   height:var(--band); pointer-events:none; animation:none;
   background:url('/web/arcana-canvas.svg') center / cover, var(--rail); }
@@ -3041,14 +3020,11 @@ html:root :is(.btn:not(.ghost), #nextrow .quillcell > button:not([aria-expanded=
   background-image:url('/web/arcana-brush.svg'); background-size:100% 100%; background-repeat:no-repeat; }
 
 
-/* THE MENUS. A gilt rule under the model, the tiles as small square cards, the page you are on in
+/* THE MENUS. Nothing under the model, the tiles as small square cards, the page you are on in
    the bright ink with the ink rule beside it (ADR 0004) and nothing under it (Seth, 2026-11-03:
    "remove that underline overall"), every row's picture with a painted edge, and the rune wheel
    faint at the foot of the rail where the list runs out. */
 html:root .talemodel > button[data-modelmenu] { border-bottom-color:transparent; }
-html:root .talemodel::after { content:''; display:block; height:20px; margin:0 16px 4px;
-  background:var(--gold); -webkit-mask:url('/web/arcana-divider.svg') center / min(320px, 100%) 20px no-repeat;
-  mask:url('/web/arcana-divider.svg') center / min(320px, 100%) 20px no-repeat; }
 html:root .talemodel > button[data-modelmenu] .txt > span:first-child {
   font-family:var(--arc-deco); font-size:17px !important; letter-spacing:.1em; }
 html:root #rail .taletiles > .railtile:not([aria-pressed="true"]) {
@@ -3094,8 +3070,7 @@ html:root #rail .taletiles > .railtile[aria-current]:is(:hover, :focus-visible) 
   border-color:var(--gold-dim) !important; color:var(--gold) !important; text-decoration:none; }
 html:root #rail :is(.railtile, .railrow):is(:hover, :focus-visible) :is(.txt, .tileicon, .rownum) {
   color:var(--gold) !important; text-decoration:none; }
-html:root[data-ui-rail="closed"] #rail::after,
-html:root[data-ui-rail="closed"] .talemodel::after { display:none; }
+html:root[data-ui-rail="closed"] #rail::after { display:none; }
 
 /* NO GLOW ALONG THE TOP (Seth, 2026-11-03: "that top glow can go away"). It is the waiting notice
    (#owed, above); what is waiting is said by the Workbench count in the tale's menu instead. Under

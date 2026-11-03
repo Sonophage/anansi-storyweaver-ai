@@ -128,9 +128,8 @@ pocket while you set up a tale. A thread your tale follows from a world has Send
 name: it sends your words to the world, so every tale that follows the thread sees them.
 ### Arcana, the new look
 Anansi now looks like Arcana: painted, with tarot and art deco in it. The page, the menu and the
-side panel sit on watercolour paper, and the gilt is line-work: a chevron rule under each scene's
-title, stepped corners on cards, a double gilt frame on the tale you left off in, arched like a tarot
-card, with a sunburst behind its name. The first letter of a scene is set in a gilt box over a wash.
+side panel sit on watercolour paper, and the gilt is line-work: stepped corners on cards, a double
+gilt frame on the tale you left off in, arched like a tarot card, with a sunburst behind its name. The first letter of a scene is set in a gilt box over a wash.
 Titles are thin deco capitals and labels a clean geometric face; your story keeps whatever font you
 chose. The one gold button on a screen has a dry brush through it. Buttons, chips, tabs and the
 boxes you type in keep their rounded corners; the stepped gilt corners are for cards, frames and
@@ -188,8 +187,7 @@ beside it.
 ### A scene opens like a tarot card's title
 The head of each scene is centred under a half sunburst in your theme's colour. Over the title is
 the scene's number as a numeral in spaced capitals, SCENE IX for the ninth. The title is large in
-a fine, high-contrast serif, the scene's line is in its italic under it, and the gilt rule with
-its chevrons and diamond sits centred under both.
+a fine, high-contrast serif, and the scene's line is in its italic under it.
 ### Each passage's label has its own mark
 The small label over a passage, the one that says how it was written, starts with its own line mark
 in your theme's colour: two waves for Woven, a speech bubble for Speak, a bolt for Act, a star for
@@ -211,6 +209,10 @@ eye, Storyteller the Star, Alterations an hourglass, and What the update moved a
 Under the banner the panel's name is large in thin capitals with CLOSE at the right, and its tabs
 are spaced capitals with no boxes, the one you are on bright. A panel you have made full screen
 keeps the header it had.
+### No dividers under titles
+The chevron-and-diamond divider and the gilt lines under titles are gone everywhere: under the top
+bar, a side panel's name, the model in the menu, the tale you left off in, and a scene's head. Cards
+keep their gilt frames and corners.
 ### No glow along the top
 The glow across the top of the screen is gone. What is waiting is still counted on the Workbench in
 the tale's menu.
@@ -220,8 +222,7 @@ its page. A link that names a drawer still opens that drawer.
 ### The side panel, spaced evenly
 An open thread reads with even room: its name, its tags, its four tabs, then each part under its
 own heading with the same space between every part. Rewrite where it stands is a small press under
-the text it rewrites. The header's presses sit on one line, and the rule under it runs its whole
-width. On the Threads list the kinds sit in one row, starting with All kinds, and on a phone the row
+the text it rewrites. The header's presses sit on one line. On the Threads list the kinds sit in one row, starting with All kinds, and on a phone the row
 slides sideways rather than wrap. A character's outfits sit just under its card, in line with its
 words. Tags are set closer, so a row of them is no wider than it needs to be.
 

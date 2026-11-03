@@ -1164,9 +1164,10 @@ assert.match(html('col'), /Envoy Sereth/, 'a speaker label must render');
 assert.match(html('col'), /You · Ilva Marren/, 'a human passage must be attributed to the persona');
 // THE SCENE'S HEAD IS A TAROT TITLE (Seth, 2026-11-03, his reference "SCENE IX / The Drake's Key"): a
 // half sunburst over it, the scene's number in Roman numerals in spaced capitals, the title, its line
-// in italic, the gilt rule. The open scene here is c-2, so it is Scene II.
+// in italic, and no rule under it (Seth, 2026-11-03, after it went live: the chevron dividers and
+// the decorative gilt lines go everywhere). The open scene here is c-2, so it is Scene II.
 {
-  const head = html('col').match(/<div class="band">[\s\S]*?<div class="band-rule"><\/div>/)?.[0] ?? '';
+  const head = html('col').match(/<div class="band">[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? '';
   assert.match(head, /<i class="band-sun" aria-hidden="true"><\/i>/, 'SCENE-HEAD: a half sunburst over the scene\'s head');
   assert.match(head, /<div class="band-num">Scene II<\/div>/, 'SCENE-HEAD: the scene\'s number in Roman numerals');
   assert.ok(head.indexOf('band-sun') < head.indexOf('band-num'), 'SCENE-HEAD: the sunburst is over the number');
@@ -1179,6 +1180,23 @@ assert.match(html('col'), /You · Ilva Marren/, 'a human passage must be attribu
   assert.match(FACES, /Cormorant\+Garamond:ital/, 'SCENE-HEAD: the serif is one of the app\'s faces, with its italic');
 }
 ok('a scene opens under a sunburst, its number in Roman numerals');
+// NO CHEVRON DIVIDERS AND NO DECORATIVE GILT LINES (Seth, 2026-11-03: "we can remove the triangle
+// divider in the header where the title is, from everywhere", then "gilt lines and chevron will be
+// removed"). Not under a header's title (the top bar, a side panel's head, the menu's model, the
+// Library's hero), not under a scene's head: the divider's file is gone and nothing draws a rule in
+// its place. Cards keep their frames and stepped corners, and a panel's banner keeps its diamond.
+{
+  const { readFileSync, existsSync } = await import('node:fs');
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+  assert.ok(!existsSync(new URL('../web/arcana-divider.svg', import.meta.url)), 'NO-DIVIDER: the chevron divider\'s file is gone');
+  assert.doesNotMatch(page + src, /arcana-divider/, 'NO-DIVIDER: and nothing names it');
+  assert.doesNotMatch(page + src, /band-rule|herorule/, 'NO-DIVIDER: no rule under a scene\'s head or the Library\'s title');
+  for (const head of ['#sideHead', '#bar', '.talemodel'])
+    assert.doesNotMatch(page, new RegExp(`${head.replace('.', '\\.')}::after \\{[^}]*background:var\\(--gold\\)`), `NO-DIVIDER: no gilt line under ${head}`);
+  assert.match(page, /html:root \.pbanner > \.pbmark::after \{[^}]*arcana-diamond\.svg/, 'NO-DIVIDER: the panel banner keeps its diamond');
+}
+ok('no chevron divider or decorative gilt line under any header');
 // A GLYPH PER ACTION (Seth, 2026-11-03, his reference "≈ WOVEN"): every label a passage's chip can
 // show carries its own small line glyph before it. The labels are named here, from the four ways
 // the chip is reached (the model wrote it; a composer mode; Continue; the fallbacks for a passage

@@ -2019,7 +2019,6 @@ function drawDoc() {
       <div class="band-num">Scene ${roman(c.index) || c.index}</div>
       ${plateFor ? '' : `<div class="serif band-title">${esc(sceneName(c))}</div>`}
       ${(() => { const e = epigraphOf(list); return e ? `<div class="band-epi"><i></i><span class="serif">${esc(e)}</span></div>` : ''; })()}
-      <div class="band-rule"></div>
     </div>
     ${/* NO NEWEST WHILE ONE IS WRITTEN INLINE (2026-10-28): the passage being written is the end of the
           book. The row under the newest passage stood between it and the one being written, and moved
@@ -9531,7 +9530,6 @@ function resumeBand(s) {
     <span class="herobody">
       <span class="herokind">Where you left off${s.updated_at ? ` &middot; ${touchedAgo(s.updated_at)}` : ''}</span>
       <span class="serif bandtitle">${esc(s.title)}</span>
-      <span class="herorule" aria-hidden="true"></span>
       ${where ? `<span class="herowhere">${esc(where)}</span>` : ''}
       ${s.last_chapter_id ? `<span class="herosent" aria-hidden="true">${sent ? sentSegs(sent) : ''}</span>` : ''}
       ${at && chapters ? `<span class="herocount">Scene ${at || 1} of ${chapters}</span>` : ''}
