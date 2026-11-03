@@ -3094,8 +3094,8 @@ function pocketPanel() {
       ${diffHTML(pk.body, pk.offer.body)}
       <button class="btn push-10" data-pocketuse="1">Use this</button>` : ''}</div>`;
   const what = own ? slotLabel(pk.slot) : tale ? (adding && !pk.kinds ? 'entry' : 'string') : 'pocket';
-  /* ALTER'S LOOK, FULL SCREEN STILL (Seth, 2026-11-02): the two presses in a bar at the top, as
-   * Alter's header has them (`threadBar('alter')`). One that exists saves as you type (POCKET_AUTO),
+  /* THE THREAD EDITOR'S LOOK, FULL SCREEN STILL (Seth, 2026-11-02): the two presses in a bar at the
+   * top, as Alter's header had them until Read became the editor (#136). One that exists saves as you type (POCKET_AUTO),
    * so its bar is Undo my changes and Done; a new one is made by its press, Cancel and Add (Seth,
    * 2026-10-30: a press that makes a thing says Add). */
   return `<div class="pocketbox" role="dialog" aria-label="${adding ? `A new ${what} for ${esc(e.title)}` : esc(pk.name || label)}">
@@ -5201,7 +5201,7 @@ const PANELS = {
   threads() {
     if (S.entryId) return entryEditor();
     // NEW THREAD (v2 redesign, 2026-10-25). One box takes a name or a pasted thread; "Write it as"
-    // picks the kind; Write it makes the thread and opens Alter on it. Under "Or let Anansi", three
+    // picks the kind; Write it makes the thread and opens its Read with where it stands open. Under "Or let Anansi", three
     // cards use the same box and the same kind: write one from what you typed, look the name up
     // online, or read the scene for facts. Seth chose the kind as a choice and not a press that
     // makes the thread, so the three cards have a kind to write.
@@ -8018,11 +8018,8 @@ function inventTray(kind, label, placeholder, value = '', named = '') {
  *  data-goslot and not an href. The app routes on the hash — `#storyid/panel` — so a `#appearance`
  *  link would be read as navigation and throw the panel away on the way to the anchor. */
 /*  THE CARD'S OWN BAR IS GONE (v2 redesign, 2026-10-25). It was Read / Alter / Save / Back in one
- *  sticky row above the card; the drawer's header carries each now — "‹ Threads" and ⋯ on Read,
- *  Undo my changes and Done on Alter (drawSide). What the bar settled still holds there: there is
- *  exactly ONE Done on the form, where Save was (Seth, 2026-08-30: "the save button need to be up
- *  top"), it is reachable from anywhere in the form because the header does not scroll, and leaving
- *  says where it goes. */
+ *  sticky row above the card; the drawer's header carries "‹ Threads" now (drawSide). Since #136 Read
+ *  is the editor and saves as you type, so there is no Save or Done at all: leaving is the last write. */
 /** A ROOM, IN THE SHAPE A STORY CARD ALREADY HAS. Seth: "these should be formatted almost as the
  *  story cards." Same `.card`, same title-plus-pill head, same `.kind` line under it and the same
  *  body type — `entryCard` is three lines above this and the two are read in the same list, so a
@@ -8033,7 +8030,7 @@ function inventTray(kind, label, placeholder, value = '', named = '') {
  *  `data-` name is a literal at the call site. `test/web.ts` scans this file for buttons with no
  *  action and cannot see through `${action}` — a guard that cannot read the thing it guards is one
  *  that reports perfection, which is the failure this project keeps writing checks against. */
-/*  THE BODY OPENS THAT ROOM IN THE FORM. Seth, 2026-08-30: "if i open a full card i want to be
+/*  THE BODY OPENS THAT ROOM (in the pocket panel since #126). Seth, 2026-08-30: "if i open a full card i want to be
  *  able to hit the text of a room and edit that room." It was data-goslot, which scrolled to the
  *  slot heading on the face you were already reading — a jump that landed you where you already
  *  were and gave you nothing to type into. data-editroom carries the ADDON id rather than the
@@ -8092,10 +8089,9 @@ function cardHead(e, slots) {
  *  turn on or off things. instead of filling in. i.e. what we have now is the form the other would
  *  be a face."
  *
- *  So: nothing empty is drawn. A card with one room is one room long, not five headings and four
- *  blanks — which is what the form has to be and is exactly why it is the wrong thing to read.
- *  The switch here is `active`, the writer's half of how a room reaches the model; the other half
- *  is its trigger words, and those live in the form because they are typing, not looking. */
+ *  So: no empty pocket is drawn. A card with one room is one room long, not five headings and four
+ *  blanks. Since #136 the face is also where a thread is edited: a field is its text until tapped,
+ *  then a box in place (ADR 0013), so reading stays the default and typing is one tap away. */
 /** CONNECTED THREADS. PLAN-08 Phase 3's writer, arriving after its reader.
  *
  *  DIRECTED, and the screen has to say which way. Her coat arrives when she does; she does not
@@ -8476,10 +8472,9 @@ function morePane(e, slots) {
          and the engine's Entry type has no such field. It is for the eye. It was first on The
          thread tab; under More since the v2 redesign, with Kind. -->
     ${entryPicture(e)}
-    <!-- #22 §8. BOTH STATES LIVE HERE NOW. It was asymmetric: the form offered "Mark this
+    <!-- #22 §8. BOTH STATES LIVE HERE NOW. It was asymmetric: the old form offered "Mark this
          finished" only while a card was live, and the face showed the state only once it was
-         finished — so you could not finish a card from Read, and Edit gave no sign that a card
-         already was. Read carries a quiet marker and no control; this is where both directions are.
+         finished. Read's head carries a quiet marker and no control; this is where both directions are.
          A RETIRED CARD MUST BE BRINGABLE BACK FROM SOMEWHERE, and test/web.ts asserts exactly that
          on the waiting panel for the same reason: a wrong press is otherwise invisible AND
          permanent. Moving the way back off the face means this is now one of the two places. -->
@@ -12329,7 +12324,7 @@ document.addEventListener('input', () => {
   if (!auto || sameVals(pocketVals(pk, auto), pk.saved ?? pk.was)) return;
   saveSoon('pocket', () => writePocket(pk, storyId));
 });
-// A THREAD'S ALTER, the same way (`writeAlter`): its boxes and its Always true. The wake word add box
+// A THREAD'S READ, the same way (`writeAlter`): its open boxes and its Always true. The wake word add box
 // is not one: a word in it is half a word until it is Entered, and the chips are saved as they change.
 document.addEventListener('input', (e) => {
   const d = e.target?.dataset;
@@ -12839,9 +12834,8 @@ document.addEventListener('click', async (e) => {
     // its prototype: with Read tabbed, `data-slotat` scrolls to a heading the tabs have taken off
     // screen, so the press does nothing and looks broken. Select first, then scroll.
     showCardTab(slotTab(d.goslot));
-    // Queried from the DOM at press time, never from a map filled during render: the form draws
-    // every slot and the face only the filled ones, so the same link has to find whichever is on
-    // screen — and after a repaint the nodes are new ones.
+    // Queried from the DOM at press time, never from a map filled during render: after a repaint the
+    // nodes are new ones.
     document.querySelector(`[data-slotat="${d.goslot}"]`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
@@ -13303,7 +13297,7 @@ document.addEventListener('click', async (e) => {
   // NEW THREAD'S Write it. A box with a brace, a bracket or a second line in it is a paste — a
   // thread from Export, or a model's answer with its "Certainly! Here is…" still on top — and goes
   // to the forge's own reader, which reads it in as it is, pockets and all, or says plainly why not.
-  // Anything else is a name: the thread is made with it and opens on Alter, where it is written.
+  // Anything else is a name: the thread is made with it and opens on Read, with where it stands open.
   if (d.newthread) {
     const text = $('newname')?.value ?? '';
     if (/[[{\n]/.test(text.trim())) return pasteThreads(t, text);
@@ -13397,7 +13391,7 @@ document.addEventListener('click', async (e) => {
   if (d.takeover) {
     const r = await api.takeover({ storyId: S.storyId, entryId: d.takeover });
     if (r.error) return toast(r.error);
-    // The copy is a NEW row with a new id, so the open card has to follow it or the form is
+    // The copy is a NEW row with a new id, so the open card has to follow it or Read is
     // pointing at a card this book no longer draws.
     S.entryId = r.entryId ?? S.entryId;
     V = r; paint(); refreshManifest();
@@ -13565,10 +13559,9 @@ document.addEventListener('click', async (e) => {
     if (res.error) return toast(res.error);
     V = res.entries ? res : await api.story(S.storyId);
     const made = [...(V.entries ?? [])].reverse().find((e) => e.title === title);
-    // THE FORM, not the face. A card is born empty and this one is born WITHOUT trigger words, so
-    // it cannot fire until somebody types some — landing on a face that shows what is filled in
-    // would show nothing at all, next to a toast asking for words there is no box for. The face is
-    // for reading a card that has something to read.
+    // ITS WAKE WORDS OPEN. A card is born empty and this one is born WITHOUT trigger words, so it
+    // cannot fire until somebody types some — landing on Read with nothing open would show nothing at
+    // all, next to a toast asking for words there is no box for.
     S.entryId = made?.id ?? null; S.cardTab = 'card'; openRead('keys'); S.panel = 'threads'; syncHash(); paint();
     toast('Sewn in. Give it wake words so it wakes.');
     return;
@@ -16292,9 +16285,9 @@ document.addEventListener('mousedown', (e) => {
   atAccept(Number(b.dataset.atpick));
 });
 
-/** THE FIELD BEING TYPED IN STAYS ON SCREEN WHEN THE KEYBOARD OPENS (v2 Alter, 2026-10-25). The
+/** THE FIELD BEING TYPED IN STAYS ON SCREEN WHEN THE KEYBOARD OPENS (v2 redesign, 2026-10-25). The
  *  viewport is `interactive-widget=resizes-content`, so an on-screen keyboard shortens the page and
- *  the drawer with it; a field low on the form — the wake words, a pocket's text — was left under
+ *  the drawer with it; a field low on Read — the wake words, a pocket's text — was left under
  *  the keyboard, typed into blind. On every resize, a text field focused in the drawer is scrolled
  *  just into view within it. `nearest`, so a field already on screen does not move. */
 const keepFieldInView = () => {
