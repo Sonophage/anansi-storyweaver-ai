@@ -200,10 +200,10 @@ ok("  and stays gone when the call ends", !(await glowOn('inputWrap')) && !(awai
 // ---- 9. the five modes, in the writer's own words
 // Global to the writer, a full replace, and empty is the reset. The thing that matters is that it
 // reaches the PROMPT — an editor that saves a box nobody reads is worse than no editor.
-// They moved to Account → Writing on 2026-10-27; the Storyteller keeps the door to them.
+// They were in Account → Writing from 2026-10-27; they are Storyteller's Your voice tab since #131.
 await page.goto(B + "/#" + sid + "/teller");
 await wait(900);
-await page.eval("(() => { document.querySelector('[data-acctgo=\"writing\"]')?.click(); return 1; })()");
+await page.eval("(() => { document.querySelector('[data-tellertab=\"voice\"]')?.click(); return 1; })()");
 await wait(900);
 const promptRows = await page.eval("[...document.querySelectorAll('[data-editprompt]')].map(b => b.dataset.editprompt).join(',')");
 // FIVE ROWS, and the count has now been wrong in both directions. It drew five while the route

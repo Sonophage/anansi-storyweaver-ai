@@ -60,3 +60,7 @@ It replaces the setup drawer, its three steps, and the closing report.
   list contain); those come next and may refine this.
 
 2026-10-28: the canon check (knots) was deleted (#94); what this record says about it no longer applies.
+
+2026-11-03: the writer's voice, how Anansi talks and the five modes moved from Account → Writing to
+Storyteller → Your voice (#131). They still have one home. Storyteller is now one panel with four
+tabs (Model, Shortlist, Your voice, Stats), and the model is chosen there only.

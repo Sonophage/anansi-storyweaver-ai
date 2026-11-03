@@ -280,7 +280,7 @@ const S = {
   chapTab: 'this',
   memoing: null,        // the passage being turned into a thread, while Anansi is thinking
   newsBusy: false, newsError: null,   // What changed, while Anansi is writing it
-  modelMenu: false,     // the model list, open under the rail's footer
+  tellerTab: 'model',   // #131. Which of Storyteller's tabs is showing: model, shortlist, voice, stats
   // #51. Find a model: the search over the Featherless catalogue, and this writer's shortlist.
   // `hits` is null until the first answer lands; `seq` drops an answer a later search overtook.
   find: { q: '', size: '', weaving: '', cost: '', tag: '', uncensored: true, hits: null, total: 0, sizes: [], costs: [], weavings: [],
@@ -436,12 +436,15 @@ const SNAV = [
   // became his web in the header; the web opens this menu now, so the Talk drawer's door is here.
   ['anansi', 'anansi', 'Talk to Anansi'],
   ['context', 'context', 'What he reads'],
+  // #131. Still a tale's panel, for its title and its address, but no menu row: the model named at
+  // the top of either menu is its one door (Seth, 2026-11-03).
   ['teller', 'teller', 'Storyteller'],
 ];
 /** What the tale's menu shows, in its order: two columns of tiles beside the scenes (2026-10-28).
  *  SNAV stays the list of a tale's panels, for their titles and their links. */
 // STRINGS IS BACK, beside Threads (UX review, 2026-10-29: Strings had no door in the tale's menu).
-const TALE_MENU = ['story', 'teller', 'chapter', 'chapters', 'threads', 'strings', 'waiting'];
+// #131 · STORYTELLER LEFT IT (Seth, 2026-11-03): the model named above the tiles is its door.
+const TALE_MENU = ['story', 'chapter', 'chapters', 'threads', 'strings', 'waiting'];
 /** A ROW'S PICTURE, under a dark wash, fainter down the list (Seth, 2026-10-28: "for any story that
  *  uses images use it in the background ... with a dark overlay ... and let the opacity of the image
  *  get less and less"). The tale's cover on each of its scenes, each tale's own on the main menu.
@@ -450,7 +453,11 @@ const rowArt = (url, i) => url ? `<i class="rowart" aria-hidden="true"
   style="background-image:url('${url}'); opacity:${Math.max(0.1, 0.62 - i * 0.07).toFixed(2)}"></i>` : '';
 // Deep links and bookmarks still carry the old names, and so does a browser tab left open across
 // the change. Cheaper to map them than to serve a blank panel.
-const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queue: 'chapter', branches: 'chapter' };
+// #131. The model panel and Find a model are Storyteller's Model and Shortlist tabs now; TELLER_WAS
+// says which tab each old name lands on.
+const PANEL_WAS = { inspector: 'context', cast: 'threads', traj: 'chapter', queue: 'chapter', branches: 'chapter',
+  model: 'teller', findmodel: 'teller' };
+const TELLER_WAS = { model: 'model', findmodel: 'shortlist' };
 const WNAV = [
   ['stories', 'stories', 'Library'], ['create', 'create', 'New tale'],
   ['canon', 'threads', 'Threads'],
@@ -482,11 +489,8 @@ TITLES.history = 'Alterations';
 TITLES.setup = 'The next scene';
 TITLES.ritual = 'Hemming the scene';
 TITLES.anansi = 'Anansi';
-// #25. Opened from a row in the rail's model list, and in TITLES so the link to a model can be
-// pasted like any other panel's. With no model named it reads the one that is writing.
-TITLES.model = 'The model';
-// #51. Opened from the last row of the rail's model list. About the account, like the model panel.
-TITLES.findmodel = 'Find a model';
+// #25 and #51. The model panel and Find a model had titles here until #131 made them Storyteller's
+// Model and Shortlist tabs; their old addresses reach it through PANEL_WAS.
 // #76. Opened from Tale → Keep. What an update to Anansi moved in this tale.
 TITLES.updates = 'What the update moved';
 const WTITLES = {
@@ -573,7 +577,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'pullback', 'remember', 'name', 'chbrief', 'memo', 'veilgo',
   // #43. A chapter summary edited or written by hand.
   'editsum',
-  'dismiss', 'modelmenu', 'choosemodel', 'editdone', 'editundo', 'sumtab', 'findtag', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
+  'dismiss', 'modelmenu', 'editdone', 'editundo', 'sumtab', 'findtag', 'modelinfo', 'findmodel', 'findmore', 'addshort', 'dropshort', 'scanstory', 'lslot', 'lookall', 'restyle',
   'spkind', 'spwritecast', 'spreroll', 'splock', 'spreview', 'spapply', 'spaddone',
   // #28. One card re-rolled rather than the whole cast, and the house style written from the
   // genre before the book exists.
@@ -629,6 +633,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'taleadd', 'talestand',
   // The Account page: its tabs, your name, your picture, and the Storyteller's door to Writing.
   'accttab', 'delavatar', 'acctgo',
+  // #131. Storyteller's four tabs.
+  'tellertab',
   // A card out as JSON and back in again: copy, save to a file, read one.
   'cardcopy', 'cardsave', 'cardread',
   // A thread pulled off the web, in the subject's own canon.
@@ -879,7 +885,8 @@ const runsMark = (id, status) => {
 /** WHAT WRITES NOW, and the list a model is looked up in. In a book: `V.model`, the model the server
  *  resolved for it, and the writer's list with the book's own pin row (a guest's list never holds
  *  the owner's remote pin). Elsewhere: the writer default and the writer's list. The strip and the
- *  model panel both read these, so they cannot name two different models as writing. */
+ *  model info on Storyteller's Model tab both read these, so they cannot name two different models
+ *  as writing. */
 const inBookNow = () => S.place === 'story' && !!V?.model;
 const writingNow = () => inBookNow() ? V.model : SRV.model;
 const modelsHere = () => withPin(S.models, inBookNow() ? V.pin : null);
@@ -915,7 +922,8 @@ function drawRail() {
   // Library page it can be showing the last tale's.
   const storyMenu = taleMenuShown();
   const T = menuTale();
-  const rows = storyMenu ? SNAV : wnav();
+  // #131. Storyteller has no row: the model named at the top is its door, on a world book's menu too.
+  const rows = storyMenu ? SNAV.filter(([k]) => k !== 'teller') : wnav();
   // THE DEMO LIBRARY, as a switch rather than a second login. Seth, 2026-08-31: "can we do the demo
   // account as a switch in my menu both accounts should be able to reach it." Only on the workspace
   // menu: it swaps which library you are looking at, which is a thing you do from outside a book.
@@ -995,8 +1003,11 @@ function drawRail() {
     <!-- The model, and the place to change it. It was a label: the one thing on this rail that
          named something you can act on and could not be acted on. The router's stop and restart
          left the screen with Preferences (#23) — this is the switch, where you are already looking
-         when you wonder what is writing. -->
-    <button data-modelmenu="1" aria-expanded="${!!S.modelMenu}"
+         when you wonder what is writing.
+         #131 · IT OPENS STORYTELLER ON MODEL (Seth, 2026-11-03). It dropped a list of models open
+         under itself, whose rows opened a third panel; the list and the model info are that tab's
+         now. The attribute keeps its old name, modelmenu: it is still the menu's model. -->
+    <button data-modelmenu="1"
       style="margin-top:auto; padding:14px 20px; border-top:1px solid var(--line); display:flex;
       align-items:center; gap:12px; white-space:nowrap; overflow:hidden; width:100%; text-align:left">
       <!-- #53. The model's own row once the list has been read. Before that, a local model is
@@ -1011,45 +1022,13 @@ function drawRail() {
              uncensored writing roleplay and the nn label on all three panels." The family alone
              ("Qwen3.6") says nothing about whether it writes or roleplays, whether it refuses, or
              whether it is one of the three that scored write 8/10 in the bakeoff — and all four of
-             those are already in the id. One decode, three surfaces: here, the list below, and the
-             Storyteller. The size is left out of the badges on purpose; this strip is nowrap. -->
+             those are already in the id. One decode, every surface: here, and the list and the picker
+             on Storyteller's Model tab. The size is left out of the badges on purpose; this strip is nowrap. -->
         ${modelName(writing).bits.length ? `<span class="gold-line">${esc(modelName(writing).bits.join(' \u00b7 '))}</span>` : ''}
         <span class="quiet">${whereRuns(writing).remote ? 'on Featherless'
           : S.modelsDown ? 'on this machine, not answering'
           : localStatus === 'loaded' ? 'on this machine' : 'on this machine, asleep'}</span>
-      </span></button>
-    ${S.modelMenu ? `<div class="scroll" style="max-height:46vh; border-top:1px solid var(--line);
-      padding:8px 12px 12px; display:flex; flex-direction:column; gap:2px">
-      ${S.models === null ? '<div class="hint flush">Asking the router&hellip;</div>'
-        : S.models.length === 0 ? emptyModels()
-        // A REMOTE MODEL WITH NO KEY ON THE SERVER is still listed, so the shortlist does not look
-        // wiped, but as a dimmed row and not a button: nothing to open, nothing to pick.
-        : S.models.map((m) => m.source === 'remote' && m.ready === false
-          ? `<div data-unready="${esc(m.id)}" aria-disabled="true" title="Featherless isn't set up"
-              style="display:flex; align-items:center; gap:9px; padding:8px 10px; opacity:.55">
-              ${runsMark(m.id, m.status)}
-              <span class="txt text-stack">
-                <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis; color:var(--dim)"
-                  >${esc(modelName(m.id).name)}</span>
-                <span class="quiet">Featherless isn't set up</span></span></div>`
-          : `<button data-modelinfo="${esc(m.id)}"
-            style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r);
-            width:100%; text-align:left; background:${m.id === writingNow() ? 'rgba(217,178,106,.10)' : 'transparent'}">
-            ${runsMark(m.id, m.status)}
-            <span class="txt text-stack">
-              <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis;
-                color:${m.id === writingNow() ? 'var(--ink-bright)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
-              ${modelName(m.id).bits.length ? `<span class="gold-line">${esc(modelName(m.id).bits.join(' \u00b7 '))}</span>` : ''}
-              ${modelFacts(m, !SRV.admin) ? `<span class="quiet">${esc(modelFacts(m, !SRV.admin))}</span>` : ''}</span>
-          </button>`).join('')}
-      ${S.models?.length ? `<div class="hint trail-6">Press a model to see what it is for
-        and how fast it writes here, and to write with it. This is your usual model; a tale with its
-        own model still uses that one.</div>` : ''}
-      ${/* Only when the server has a Featherless key. Without one there is nothing to add from. */
-        S.remote ? `<button data-findmodel="1" style="display:flex; align-items:center; gap:9px; padding:8px 10px;
-        margin-top:6px; border-radius:var(--r); border:1px solid var(--line); width:100%;
-        text-align:left; font-size:12.5px; color:var(--gold-lit)">Find a model&hellip;</button>` : ''}
-    </div>` : ''}`;
+      </span></button>`;
   /* THE TALE'S MENU, MODEL FIRST AND THREE COLUMNS (Seth, 2026-10-28: "Let's do the model up top then
    * were going to do three columns under that the first column will be scenes and that should be
    * scrollable, invert the order so the latest scene is up top and then for the other two we do the
@@ -2801,14 +2780,14 @@ function growFields(root) {
 function drawSide() {
   // Reachable by hash, so it can be the first thing on screen — and it is the only panel whose
   // contents come from the router rather than from the story that has already been fetched.
-  if (S.panel === 'model' && S.models === null) loadModels();
+  if (tellerOn('model') && S.models === null) loadModels();
   const side = $('side');
-  // The model panel is the exception: it is about the box rather than about a book, and the rail
-  // footer that opens it is on screen outside a story too. Every other panel reads V. Find a model
-  // is the same kind of panel, opened from the same footer.
+  // Storyteller is the exception (#131): its Model, Shortlist and Your voice tabs are the writer's,
+  // and the model named at the top of the main menu opens it outside a tale too. Every other panel
+  // reads V. It took the place of the model panel and Find a model, which were the exception before.
   // Talk while a tale is set up (#100) is not a drawer any more: it is the full-screen composer
   // (`drawDock`), as in a tale.
-  side.hidden = !S.panel || (S.place !== 'story' && S.panel !== 'model' && S.panel !== 'findmodel');
+  side.hidden = !S.panel || (S.place !== 'story' && S.panel !== 'teller');
   // A shut drawer stays in the page at width 0; inert keeps Tab out of it, as for the menu.
   side.inert = side.hidden;
   // THE HEM AND THE NEXT SCENE'S SETUP ARE FULL SCREEN, as the editor's box is (Seth, 2026-10-30: "It
@@ -4513,8 +4492,8 @@ async function loadCard(id) {
   const r = await api.catalogueCard(id);
   S.hub.reading.delete(id);
   S.hub.cards[id] = r.error ? { error: r.error } : r;
-  if (S.panel === 'findmodel') findRedraw();
-  else if (S.panel === 'model') drawSide();
+  if (tellerOn('shortlist')) findRedraw();
+  else if (tellerOn('model')) drawSide();
 }
 
 /** Tags for the rows on screen, in one call; the rows fill in as it answers. A model the answer
@@ -4525,10 +4504,10 @@ async function loadTags(ids) {
   want.forEach((id) => S.hub.reading.add(`tags:${id}`));
   const r = await api.catalogueTags(want);
   want.forEach((id) => { S.hub.reading.delete(`tags:${id}`); S.hub.tags[id] = r.tags?.[id] ?? []; });
-  if (S.panel === 'findmodel') findRedraw();
+  if (tellerOn('shortlist')) findRedraw();
 }
 
-/** One model on the Find a model panel: the name the menu decodes, then what it costs the shared
+/** One model on Storyteller's Shortlist tab (Find a model, before #131): the name the menu decodes, then what it costs the shared
  *  plan, what it holds, and whether it weaves, then its tags. The name side is a button: pressing
  *  it expands the row into its card. `act` is the button at the end of the row. */
 function foundRow(m, act) {
@@ -4549,23 +4528,23 @@ function foundRow(m, act) {
     ${open ? remoteAbout(S.hub.cards[m.id]) : ''}</div>`;
 }
 
-/** Both lists on the Find a model panel, in place, for an answer that changes only their rows. */
+/** Both lists on the Shortlist tab, in place, for an answer that changes only their rows. */
 function findRedraw() {
   if ($('findhits')) $('findhits').innerHTML = findHits();
   if ($('findmine')) $('findmine').innerHTML = findMine();
 }
 
 /** The writer's shortlist, read fresh. Called by the press that opens Find a model, and by the
- *  panel itself when it is drawn with nothing read yet: a link to `#<tale>/findmodel` opens the
- *  panel without that press, and it said "Reading your shortlist…" for ever (usability check,
- *  2026-10-24). */
+ *  Shortlist tab itself when it is drawn with nothing read yet: a link to `#<tale>/findmodel` or a
+ *  press on the tab opens it without that press, and it said "Reading your shortlist…" for ever
+ *  (usability check, 2026-10-24). */
 let SHORTLISTING = false;
 function loadShortlist() {
   SHORTLISTING = true;
   api.shortlist().then((r) => {
     SHORTLISTING = false;
     S.shortlist = r.error ? [] : (r.models ?? []);
-    if (S.panel === 'findmodel') drawSide();
+    if (tellerOn('shortlist')) drawSide();
     loadTags(S.shortlist.map((m) => m.id));
   });
 }
@@ -4597,12 +4576,12 @@ function whyWords(b) {
   return WHY[r] ?? r;
 }
 
-/** The shortlist half of the Find a model panel. */
+/** The shortlist half of the Shortlist tab. */
 function findMine() {
   const mine = S.shortlist ?? [];
   return S.shortlist === null ? '<div class="hint flush">Reading your shortlist&hellip;</div>'
     : mine.length === 0 ? `<div class="hint flush">Nothing yet. A model you add below
-        appears here and on your model menu, and on no one else's.</div>`
+        appears here and in your list on Model, and on no one else's.</div>`
     : mine.map((m) => foundRow(m, `<button class="btn ghost btn-side-sm" data-dropshort="${esc(m.id)}"
        >Remove</button>`)).join('');
 }
@@ -4641,14 +4620,14 @@ async function findSearch(whole = false) {
   f.tagIndex = r.tagIndex ?? null;
   // Still reading tags: ask again in a moment, unless something newer has been asked meanwhile.
   clearTimeout(f.again);
-  if (f.tagIndex && f.tagIndex.read < f.tagIndex.of && S.panel === 'findmodel')
-    f.again = setTimeout(() => { if (seq === f.seq && S.panel === 'findmodel') findSearch(); }, 2000);
+  if (f.tagIndex && f.tagIndex.read < f.tagIndex.of && tellerOn('shortlist'))
+    f.again = setTimeout(() => { if (seq === f.seq && tellerOn('shortlist')) findSearch(); }, 2000);
   f.error = r.error ?? null;
   f.hits = r.error ? [] : (r.models ?? []); f.total = r.total ?? 0;
   if (r.sizes) f.sizes = r.sizes;
   if (r.costs) f.costs = r.costs;
   if (r.weavings) f.weavings = r.weavings;
-  if (S.panel !== 'findmodel') return;
+  if (!tellerOn('shortlist')) return;
   if (whole || !$('findhits')) drawSide(); else findRedraw();
   // The search answers without tags, so typing never waits on Hugging Face; they follow.
   loadTags(f.hits.map((m) => m.id));
@@ -4659,6 +4638,380 @@ async function findSearch(whole = false) {
  *  with none. test/app.ts reads both sides (HEM-DOOR): the door says "See how it was hemmed" exactly
  *  when the drawer has no Hem button. */
 const hemShownIsDone = () => ritualScene(null).closed;
+
+/** #25 · WHAT IS WRITING THIS, AND WHAT ELSE COULD.
+ *
+ *  checks.md asked for it in one sentence: "a sub heading when you click it that opens a panel
+ *  with the model information, what its good at, what the speed of writing is, context window
+ *  divided by half we already have that information we just need to use it. then a switch button
+ *  done there." Only the last clause was true when it was written — the app had `{id, status}`
+ *  and everything else on screen was string surgery on the id.
+ *
+ *  Four sources, and each one is named on the panel, because a number whose provenance is not on
+ *  screen is a number nobody can check: the ROUTER says whether it is loaded, PRESETS.INI says
+ *  the context and how many ways it is cut, THIS DATABASE says how fast it has actually written
+ *  here, and the ID ITSELF says purpose, thinking and decensoring once it is decoded. The blurb
+ *  is the only hand-written part, and it is quoted from the stanza comments in presets.ini.
+ *  A REMOTE model has no router and no preset file: its context and its cost are the Featherless
+ *  catalogue's, recorded on the shortlist, and its description is its Hugging Face card.
+ *
+ *  ABOUT THE BOX, NOT ABOUT A BOOK — hence the note when the open story pins its own model: this
+ *  switch is real but a pinned story outranks it, and a panel that offered a switch without saying
+ *  so would be lying by omission. Its "writing now" is the strip's reading (`writingNow`): in a
+ *  book, the model that writes that book.
+ *
+ *  #131 · IT WAS A PANEL OF ITS OWN, `model`. It is drawn on Storyteller's Model tab now, under the
+ *  model it is about (`tellerModel`), so it is read before the switch it carries is pressed.
+ */
+function modelInfo(id) {
+  if (!id) return '<div class="hint flush">No model is named yet.</div>';
+  const d = modelName(id);
+  // Looked up the way the strip looks it up, so a guest opening the owner's remote pin reads its
+  // row, limit and cost included, rather than finding nothing and saying Featherless was silent.
+  const m = (modelsHere() ?? []).find((x) => x.id === id) ?? {};
+  const writing = id === writingNow();
+  // The server takes a remote default only from this writer's OWN shortlist.
+  const mine = (S.models ?? []).some((x) => x.id === id);
+  const pinned = V?.story?.model;
+  // TWO NUMBERS FOR ONE THING, forty-eight apart. `presets.ini` says ctx-size 100000 over two
+  // slots; llama-server rounds its own allocation up and reports 50,048, which is the number the
+  // rail footer under this panel already shows. For the model actually loaded the running server
+  // is the truth and the file is the plan, so the loaded one wins and the caption says which was
+  // read. Adjacent surfaces disagreeing about the same budget is this repo's own recurring
+  // failure, and it does not need a third rendering of it to happen again.
+  const live = writing && SRV.slot?.perSlot ? SRV.slot : null;
+  const perSlot = live?.perSlot ?? m.perSlot;
+  // #52. A REMOTE MODEL HAS NO BLURB: nobody wrote one here, and its own card says more. The
+  // description block is the expanded Find a model row's, from the same renderer. The panel can
+  // be drawn without a press (a reload on it, the model now writing), so the read is asked for
+  // from here; loadCard reads each model once.
+  const remote = whereRuns(id).remote;
+  if (remote) queueMicrotask(() => loadCard(id));
+
+  // A fact and WHERE IT CAME FROM. The absent case says which source is silent rather than
+  // showing a dash, because "the router's file does not mention this one" and "nobody has
+  // written with it" are different things to know and only one of them is worth fixing.
+  const fact = (label, value, note) => `<div style="display:flex; flex-direction:column; gap:2px;
+    padding:10px 0; border-bottom:1px solid var(--line)">
+    <span class="kind">${esc(label)}</span>
+    <span style="font-size:14px; color:${value ? 'var(--ink-bright)' : 'var(--faint)'}">${
+      esc(value || 'not known')}</span>
+    ${note ? `<span class="quiet">${esc(note)}</span>` : ''}</div>`;
+
+  return `<div class="stack">
+    <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+      <span class="serif" style="font-size:19px; color:var(--ink-bright)">${esc(d.name)}</span>
+      ${writing ? '<span class="tag tag-lit">writing now</span>'
+        : remote ? '<span class="tag">on Featherless</span>'
+        : m.status === 'unloaded' ? '<span class="tag">asleep</span>'
+        : m.status === 'loaded' ? '<span class="tag goodink">loaded</span>' : ''}</div>
+    <!-- The id is what the router answers to and what ANANSI_MODEL takes, so it is on the panel
+         in full rather than one hover away: this is the screen you are on when you need it. -->
+    ${SRV.admin ? `<div style="font-size:11px; color:var(--dim); margin:3px 0 12px; word-break:break-all">
+      <code>${esc(id)}</code></div>` : '<div style="height:12px"></div>'}
+
+    ${d.bits?.length ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px">${
+      [...d.bits, d.size].filter(Boolean).map((b) => `<span class="tag">${esc(b)}</span>`).join('')}</div>` : ''}
+
+    ${remote
+      ? `<div class="below-6">${remoteAbout(S.hub.cards[id])}</div>`
+      // THE NOTES ARE THE ADMIN'S. They are test notes from the machine's own side-by-side runs
+      // (quants, ablations, constraint counts), and a writer read them as noise: the model page
+      // scored 1 of 5 in the usability check of 2026-10-24. The tags above say what it is for.
+      : !SRV.admin ? ''
+      : BLURB[d.name]
+      ? `<div style="font-size:13px; line-height:1.55; color:var(--mute); margin-bottom:6px">${
+          esc(BLURB[d.name])}</div>`
+      : `<div class="hint lead-6">Nothing is written down about this one. What is
+          above is decoded from its name; what is below is measured.</div>`}
+
+    ${/* CONTEXT AND SPEED IN WORDS, tokens beside them for the admin (Seth, 2026-10-29: "it needs to be
+         clearer of context and speed"). A Featherless model is not shared any more: each writer
+         has their own key and plan (#70), so its room is its own whole context. */ ''}
+    ${/* THE DOT IS THE CHARACTER, not `&middot;`: `fact` escapes its value, so an entity in it was
+         printed as text (UX review, 2026-10-29). */ ''}
+    ${(() => {
+      const room = remote ? m.perSlot : perSlot;
+      const words = (n) => `about ${(Math.round(n * 0.75 / 1000) * 1000).toLocaleString()} words`;
+      return fact('How much he reads at once (context)',
+        room ? `${words(room)}${SRV.admin ? ` \u00b7 ${room.toLocaleString()} tokens` : ''}` : '',
+        remote ? "this model's whole limit on Featherless, and all of it is yours"
+        : !SRV.admin ? 'half of what this machine holds, because both writers share it'
+        : live ? `half of what this machine holds (${live.global.toLocaleString()} tokens), because both writers share it`
+        : m.perSlot && m.ctxSize && m.parallel ? `${m.ctxSize.toLocaleString()} shared ${m.parallel} ${m.parallel === 1 ? 'way' : 'ways'} in the router's preset file`
+        : "the router's preset file does not mention this one");
+    })()}
+    ${remote ? fact('Cost', m.cost ? `${m.cost} ${m.cost === 1 ? 'unit' : 'units'} of your Featherless plan` : '',
+      m.cost ? 'your own plan, counted while he writes' : 'Featherless did not say what this model costs') : ''}
+    ${fact('How fast he writes',
+      m.tps ? `about ${Math.max(1, Math.round(m.tps * 0.75))} words a second${SRV.admin ? ` \u00b7 ${m.tps} tokens a second` : ''}` : '',
+      m.tps ? `the middle of ${m.runs} ${m.runs === 1 ? 'passage' : 'passages'} written with it here${m.runs < 5 ? ', too few to be sure of' : ''}`
+        : 'nothing has been written with it here yet')}
+
+    ${pinned && pinned !== id
+      ? `<div class="hint" style="margin:12px 0 0; color:var(--warn)">This tale has its own model
+          &mdash; <code>${esc(modelName(pinned).name)}</code> &mdash; and this tale's model comes
+          before this switch. Change it under This tale, above.</div>` : ''}
+
+    <div class="push-16">
+      ${writing
+        // The others are the rows around this one on the same tab (#131), so there is no press here
+        // to go and find them; it had one while this was a panel of its own.
+        ? `<div class="hint flush">This is the one writing.${remote ? '' : ` Switching to another
+            releases it.`}</div>`
+        // A remote model with no key on the server cannot be picked, so nothing offers it.
+        : remote && !S.remote
+        ? `<div class="hint flush">Featherless isn't set up on this server.</div>`
+        : remote && !mine
+        ? `<div class="hint flush">This tale's owner chose it, and it is
+            not on your shortlist, so it cannot be your model. Shortlist can add it.</div>`
+        : `<button class="btn" data-pickmodel="${esc(id)}">Write with this one</button>`}
+    </div></div>`;
+}
+
+/** #51 · FIND A MODEL. The writer's shortlist on top, because what you already have is the first
+ *  thing to see before adding more; the search below it. Remove lives here and nowhere else, so
+ *  the Model tab stays a place to pick from.
+ *
+ *  The search is the SERVER's: the browser never talks to Featherless, and the filters and the
+ *  context floor are decided there. This
+ *  draws what comes back. Typing redraws only the results, so the box keeps its caret.
+ *
+ *  #131 · IT WAS A PANEL OF ITS OWN, `findmodel`. It is Storyteller's Shortlist tab now. With no
+ *  Featherless key there is nothing to search, so the tab says so in place of a box that would
+ *  answer with an error. */
+function findModel() {
+  const f = S.find;
+  // Opened by a link rather than the press: start what the press would have started.
+  if (S.shortlist === null && !SHORTLISTING) loadShortlist();
+  if (S.remote && f.hits === null && !f.seq) findSearch(true);
+  const opt =(v, l, on) => `<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(l)}</option>`;
+  return `<div style="display:flex; flex-direction:column; gap:14px">
+    <div class="stack-6">
+      <span class="kind">Your shortlist</span>
+      <div class="stack-2" id="findmine">${findMine()}</div>
+    </div>
+    ${!S.remote ? `<div class="hint flush" style="padding-top:12px; border-top:1px solid var(--line)">The search
+      needs a Featherless key, and there is none yet. Account &rarr; Model says where it goes.</div>` : `<div style="display:flex; flex-direction:column; gap:8px; padding-top:12px; border-top:1px solid var(--line)">
+      <span class="kind">Search Featherless</span>
+      <input class="field full" id="findq" type="search" aria-label="Search by name" value="${esc(f.q)}" placeholder="Part of a name" autocomplete="off"
+       >
+      <div class="row-6 wraps">
+        <select class="field fill autow" data-findsize="1" aria-label="Size">${opt('', 'Any size', !f.size)}${
+          f.sizes.map((z) => opt(z, z.toUpperCase(), z === f.size)).join('')}</select>
+        <select class="field fill autow" data-findweave="1" aria-label="Plans first">${opt('', 'Plans first: any', !f.weaving)}${
+          f.weavings.map((w) => opt(w, spinWord(w), w === f.weaving)).join('')}</select>
+        <!-- Seth, 2026-10-25: "a filter for how many units it takes". -->
+        <select class="field fill autow" data-findcost="1" aria-label="Units of the plan">${opt('', 'Any units', !f.cost)}${
+          f.costs.map((c) => opt(String(c), `${c} ${c === 1 ? 'unit' : 'units'}`, String(c) === f.cost)).join('')}</select>
+      </div>
+      <!-- And by tag: typed here, or a press on any tag in the list below. -->
+      <input class="field full" id="findtag" type="search" aria-label="Tag" value="${esc(f.tag)}"
+        placeholder="A tag, such as roleplay" autocomplete="off">
+      <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--mute)">
+        <input type="checkbox" data-finduncensored="1"${f.uncensored ? ' checked' : ''}>
+        Uncensored only</label>
+    </div>
+    <div class="stack-2" id="findhits">${findHits()}</div>`}
+  </div>`;
+}
+
+/** #131 · STORYTELLER'S TABS. Stats is this tale's calls, so it is not offered with no tale open. */
+const TELLER_TABS = [['model', 'Model'], ['shortlist', 'Shortlist'], ['voice', 'Your voice'], ['stats', 'Stats']];
+const tellerInTale = () => S.place === 'story' && !!V;
+const tellerTabs = () => (tellerInTale() ? TELLER_TABS : TELLER_TABS.filter(([k]) => k !== 'stats'));
+/** The tab drawn: the one asked for, or Model when that one is not offered here. */
+const tellerTab = () => (tellerTabs().some(([k]) => k === S.tellerTab) ? S.tellerTab : 'model');
+/** Storyteller is open on this tab. What redraws a tab's body after an answer asks this. */
+const tellerOn = (tab) => S.panel === 'teller' && tellerTab() === tab;
+/** Open Storyteller on a tab, from any of its doors: the model named in either menu, a model's
+ *  info, Find a model, Account → Writing's old door, and the weaving refusal's Use another model.
+ *  It shuts the rail behind it on an overlay, the same line every `data-nav` row runs, or the panel
+ *  is drawn under the menu it was opened from (Seth, 2026-08-31: "when selecting a model the option
+ *  to select it and its information is hidden behind the menu to view the models"). */
+function openTeller(tab) {
+  S.panel = 'teller'; S.tellerTab = tab;
+  if (overlay()) S.rail = false;
+  if (S.models === null) loadModels();
+  syncHash(); paint();
+}
+
+/** One row of the writer's usual model list, with the model's info under it when it is the one
+ *  picked. It was the list that dropped open under the menu's model name until #131. A REMOTE MODEL
+ *  WITH NO KEY ON THE SERVER is still listed, so the shortlist does not look wiped, but as a dimmed
+ *  row and not a button: nothing to open, nothing to pick. */
+function usualRow(m) {
+  if (m.source === 'remote' && m.ready === false) return `<div data-unready="${esc(m.id)}" aria-disabled="true" title="Featherless isn't set up"
+      style="display:flex; align-items:center; gap:9px; padding:8px 10px; opacity:.55">
+      ${runsMark(m.id, m.status)}
+      <span class="txt text-stack">
+        <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis; color:var(--dim)"
+          >${esc(modelName(m.id).name)}</span>
+        <span class="quiet">Featherless isn't set up</span></span></div>`;
+  const usual = m.id === SRV.model;
+  return `<button data-modelinfo="${esc(m.id)}" aria-expanded="${S.modelPick === m.id}"
+      style="display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r);
+      width:100%; text-align:left; background:${usual ? 'rgba(217,178,106,.10)' : 'transparent'}">
+      ${runsMark(m.id, m.status)}
+      <span class="txt text-stack">
+        <span style="font-size:12.5px; overflow:hidden; text-overflow:ellipsis;
+          color:${usual ? 'var(--ink-bright)' : 'var(--mute)'}">${esc(modelName(m.id).name)}</span>
+        ${modelName(m.id).bits.length ? `<span class="gold-line">${esc(modelName(m.id).bits.join(' · '))}</span>` : ''}
+        ${modelFacts(m, !SRV.admin) ? `<span class="quiet">${esc(modelFacts(m, !SRV.admin))}</span>` : ''}</span>
+    </button>${S.modelPick === m.id ? tellerInfo(m.id) : ''}`;
+}
+/** The model info, set in under the model it is about. */
+const tellerInfo = (id) => `<div style="padding:4px 0 14px 12px; margin-left:10px; border-left:2px solid var(--line)">${
+  modelInfo(id)}</div>`;
+
+/** #131 · STORYTELLER → MODEL. In a tale, under "This tale": its model, Plans first and how much he
+ *  reads. Under "Yours, on every tale": your usual model, as a list with the info under the one
+ *  pressed, and how he picks words. Outside a tale, the usual model only: the sliders save through
+ *  a route that names a tale, and there is none to name. */
+function tellerModel() {
+  const inTale = tellerInTale();
+  const usual = S.models === null ? '<div class="hint flush">Asking the router&hellip;</div>'
+    : S.models.length === 0 ? emptyModels()
+    : S.models.map(usualRow).join('');
+  // The info for a model that is not on the list (a guest reading the owner's pin) goes under the
+  // tale's model, which is where its "What it is" was pressed.
+  const offList = S.modelPick && !(S.models ?? []).some((m) => m.id === S.modelPick) ? tellerInfo(S.modelPick) : '';
+  const yours = `<div class="lbl">Your model</div>
+      <div class="hint flush below-6">${inTale ? 'Writes every tale that does not name its own.' : 'Writes every tale that does not name its own. A tale names its own in Storyteller, inside that tale.'}
+        Press one to see what it is for and how fast it writes here, and to write with it.</div>
+      <div class="stack-2" id="usualmodels">${usual}</div>`;
+  if (!inTale) return `${yours}${offList}`;
+  const g = V.gen ?? SRV.gen ?? {};
+  // The writer's models plus this book's own remote pin, which a guest's list does not hold.
+  const listed = withPin(S.models, V.pin);
+  // ONE RENDERER, EVERY SLIDER. The mark goes on the row that carries the name and the reading,
+  // and the card above the track — the same order as the panels swept before this. A slider is
+  // the shape where an explanation underneath is worst: you have already dragged it.
+  const slider = (label, key, value, max, hint, fmt = READOUT[key]) => `
+    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px">
+      <div style="display:flex; justify-content:space-between; font-size:11px; letter-spacing:.1em;
+        text-transform:uppercase; color:var(--dim)">
+        <span>${label}${hint ? tipMark(`gen-${key}`, label) : ''}</span>
+        <span class="tnum" style="color:var(--label)">${fmt ? fmt(value) : value}</span></div>
+      ${hint ? tipCard(`gen-${key}`, label, `<p>${hint}</p>`) : ''}
+      <input type="range" data-gen="${key}" aria-label="${esc(label)}"
+        min="0" max="${max}" step="${max > 2 ? 10 : 0.01}"
+        value="${value}" style="width:100%; accent-color:var(--gold)">
+    </div>`;
+  // TWO HOMES ON ONE PANEL, SAID AS TWO (Seth's item 9 of the 2026-10-29 review). It opened on
+  // "These are yours, not per tale" above a model picker that IS per tale. ADR 0003: what is this
+  // tale's comes first under its own heading, what is the writer's on every tale under another.
+  return `<div class="lbl sect" style="margin-top:0">This tale</div>
+    <div class="hint flush below-14">Its model, whether he plans first, and how much he reads. Only this tale.</div>
+    <div class="lbl">Model</div>
+    ${listed === null ? '<div class="hint flush">Asking the router&hellip;</div>'
+      : listed.length === 0 ? emptyModels()
+      : `<select class="field" data-storymodel="1" aria-label="This tale's model">
+          ${modelOptions(listed, V.story.model).map((o) => `<option value="${esc(o.value)}"${
+            o.selected ? ' selected' : ''}${o.ready === false ? ' disabled' : ''}>${
+            !o.value ? `Your model &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}`
+            : o.gone ? `${esc(modelName(o.value).name)} &mdash; the router no longer offers this`
+            : `${esc([modelName(o.value).name, modelName(o.value).detail].filter(Boolean).join(' — '))} · ${
+                o.ready === false ? "Featherless isn't set up" : whereRuns(o.value, o.status).words}`}</option>`).join('')}
+        </select>
+        <!-- #53. An option holds text and nothing else, so each one says in words where its model
+             runs, and the drawn mark sits in the row below, beside the badges of the model this
+             book is written by. -->
+        <!-- THE THIRD SURFACE. Same decode as the menu's label and the list below, and the
+             door to the same model info — the one place that says what this model is good at, how
+             fast it has written here, and how much context one writer gets. The option text
+             above carries the detail string, which is these badges with the size put back in; and
+             since a select
+             cannot hold a chip, so the badges are repeated under it for whichever model this
+             story is actually going to use. -->
+        ${(() => {
+          // `V.model` is what the server ALREADY resolved for this story — modelFor(story,
+          // defaultModel) at routes.ts:1044, always set. Re-deriving it here from the pin and the
+          // default would be a second copy of that rule, and the two would eventually disagree
+          // about which model a book is actually written by. NOT `SRV.model`: that one tracks the
+          // ACCOUNT default and `loadModels` rewrites it from `r.active` on every refresh, so a
+          // book with a pin would start naming the wrong model the moment the list reloaded.
+          // No `?? SRV.model` fallback either — this panel only renders inside a story, so the
+          // fallback was a branch nothing could reach and no check could falsify.
+          const using = V.model;
+          const d = modelName(using);
+          return `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:8px">
+            ${runsMark(using, listed.find((m) => m.id === using)?.status)}
+            ${d.bits.map((b) => `<span class="tag">${esc(b)}</span>`).join('')}
+            ${d.size ? `<span class="tag">${esc(d.size)}</span>` : ''}
+            <button data-modelinfo="${esc(using)}" style="margin-left:auto; color:var(--gold);
+              font-size:11px; letter-spacing:.12em; text-transform:uppercase"
+              >What it is</button></div>`;
+        })()}
+        <div class="hint">${V.story.model && whereRuns(V.story.model).remote && V.model !== V.story.model
+          // The server resolved the pin to the local default (no key, or the model is off the
+          // owner's shortlist), so the hint must not claim the pinned model writes this book.
+          ? `This tale's model is <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
+             which cannot write now, so <code>${esc(modelName(V.model).name)}</code> writes it.`
+          : V.story.model
+          ? `This tale's model is <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
+             whatever any other tale uses.`
+          : 'This tale uses your model, the one named in the menu. Name one here and it becomes this tale&rsquo;s model, whatever your model becomes.'}</div>`}
+    ${offList}
+    <!-- #55. WEAVING, this book's own switch, beside the model that writes it. It replaced a note
+         that said thinking was off and not a setting, which is no longer true once a book can
+         weave. A [data-story] checkbox, so it saves itself and the Context panel asks again: the
+         budget it shows is smaller by the room the plan is given. The writer's word is Plans first;
+         the server decides from it which calls weave.
+         #61, #58. A model whose template refuses the switch is never sent it, and a model that
+         always weaves cannot be switched off, so for either the server sends weaveNote, the
+         sentence to show here instead of the switch. Its words are the server's alone. -->
+    ${V.weaveNote ? `<div id="weavenote" class="hint" style="margin:16px 0 2px">${esc(V.weaveNote)}</div>`
+    : `${tipCard('weaving', 'Plans first', `<p>Anansi plans each passage, unseen, before he writes
+      it. The plan is never shown. It is slower, and it sets aside space that
+      would otherwise hold more of your tale.</p>`)}
+    <label style="display:flex; align-items:center; gap:10px; margin:16px 0 2px; font-size:13px;
+      color:var(--ink)">
+      <input type="checkbox" data-story="weaving" ${V.story.weaving ? 'checked' : ''}>
+      Plans first${tipMark('weaving', 'Plans first')}</label>`}
+
+    ${/* HOW MUCH HE READS AT ONCE, this tale's own cap (2026-10-29). `max_context` was read by the
+          budget and set by nothing. A [data-story] select, so it saves on change. In words, as the
+          model page says context; 0.75 words a token, the same rate. The model's own room is still
+          the ceiling: a cap above it changes nothing. */ ''}
+    <label class="lbl" for="f-story-maxContext">How much he reads at once</label>
+    <select class="field" id="f-story-maxContext" data-story="maxContext">${[['', 'All the model holds'],
+      ...[8000, 16000, 32000, 64000].map((n) => [String(n), `About ${(n * 0.75).toLocaleString()} words`])]
+      .map(([v, label]) => `<option value="${v}"${String(V.story.maxContext ?? '') === v ? ' selected' : ''}>${label}</option>`).join('')}</select>
+    <div class="hint">Less is faster and keeps him on the recent pages; more lets him see further back.</div>
+
+    <div class="lbl sect">Yours, on every tale${tipMark('genShared', 'Yours, on every tale')}</div>
+    ${tipCard('genShared', 'Yours, on every tale', `<p>How he picks words belongs to you, not to the
+      server: changing it here changes it for every tale you write, and leaves the other writer
+      alone. Per-tale sampling was never built.</p>`)}
+    ${/* An empty or unread list is already said once, under This tale. */ S.models?.length ? yours : ''}
+    <div class="lbl push-14">How he picks words</div>
+    ${/* NAMED FOR WHAT THE WRITER FEELS (Seth, 2026-10-31: "the sliders need to be named more user
+          friendly"). Surprise, Focus and Passage length until then; the keys are the sampler's. */ ''}
+    ${slider('How bold his words are', 'temperature', g.temperature ?? 0.85, 2,
+      'Left, he picks the safe, expected word. Right, he reaches for a less obvious one. Only for prose: his notes and suggestions always stay steady.')}
+    ${slider('How many words he weighs', 'top_p', g.top_p ?? 0.95, 1,
+      'How many words he thinks about before he picks one. Fewer is tighter and more predictable.')}
+    ${slider('Longest a passage runs', 'target_words', g.target_words ?? 0, 2000,
+      'The most words a passage should run. Anansi stops sooner when the moment is done, and he is '
+      + 'not cut off at it. All the way left leaves the length to him.')}`;
+}
+
+/** #131 · STORYTELLER → STATS. This tale's last calls and the worst prefill: the numbers are there
+ *  when they are wanted and off the Model tab when they are not. In a tale only. */
+function tellerStats() {
+  return `<div class="lbl sect" style="margin-top:0">This tale's calls</div>
+    ${(ACT?.runs ?? []).slice(0, 3).map((r) => `<div class="row">
+      <span class="inked">${esc(r.role ?? 'prose')}${r.error ? ' · failed' : ''}</span>
+      <span class="tnum count">${
+        r.promptTokens ? r.promptTokens.toLocaleString() + ' tok' : '—'}${
+        r.prefillSeconds ? ` · ${r.prefillSeconds}s prefill` : ''}${
+        r.seconds ? ` · ${r.seconds}s` : ''}</span></div>`).join('')
+      || '<div class="hint">No calls logged for this tale yet.</div>'}
+    ${ACT?.worstPrefillSeconds ? `<div class="row"><span class="inked">Worst prefill</span>
+      <span class="tnum count">${ACT.worstPrefillSeconds}s</span></div>` : ''}
+`;
+}
 
 const PANELS = {
   entry: entryEditor,
@@ -4697,177 +5050,6 @@ const PANELS = {
    *  the next chapter is what End was pressed for — so this is the screen that sits behind the
    *  one row at the top of setup, and behind the door on the Chapter panel. */
   ritual() { return ritualPanel(); },
-
-  /** #25 · WHAT IS WRITING THIS, AND WHAT ELSE COULD.
-   *
-   *  checks.md asked for it in one sentence: "a sub heading when you click it that opens a panel
-   *  with the model information, what its good at, what the speed of writing is, context window
-   *  divided by half we already have that information we just need to use it. then a switch button
-   *  done there." Only the last clause was true when it was written — the app had `{id, status}`
-   *  and everything else on screen was string surgery on the id.
-   *
-   *  Four sources, and each one is named on the panel, because a number whose provenance is not on
-   *  screen is a number nobody can check: the ROUTER says whether it is loaded, PRESETS.INI says
-   *  the context and how many ways it is cut, THIS DATABASE says how fast it has actually written
-   *  here, and the ID ITSELF says purpose, thinking and decensoring once it is decoded. The blurb
-   *  is the only hand-written part, and it is quoted from the stanza comments in presets.ini.
-   *  A REMOTE model has no router and no preset file: its context and its cost are the Featherless
-   *  catalogue's, recorded on the shortlist, and its description is its Hugging Face card.
-   *
-   *  ABOUT THE BOX, NOT ABOUT A BOOK — hence the one exception in drawSide, and hence the note
-   *  when the open story pins its own model: this switch is real but a pinned story outranks it,
-   *  and a panel that offered a switch without saying so would be lying by omission. Its "writing
-   *  now" is the strip's reading (`writingNow`): in a book, the model that writes that book.
-   */
-  model() {
-    const id = S.modelPick ?? SRV.model;
-    if (!id) return '<div class="hint flush">No model is named yet.</div>';
-    const d = modelName(id);
-    // Looked up the way the strip looks it up, so a guest opening the owner's remote pin reads its
-    // row, limit and cost included, rather than finding nothing and saying Featherless was silent.
-    const m = (modelsHere() ?? []).find((x) => x.id === id) ?? {};
-    const writing = id === writingNow();
-    // The server takes a remote default only from this writer's OWN shortlist.
-    const mine = (S.models ?? []).some((x) => x.id === id);
-    const pinned = V?.story?.model;
-    // TWO NUMBERS FOR ONE THING, forty-eight apart. `presets.ini` says ctx-size 100000 over two
-    // slots; llama-server rounds its own allocation up and reports 50,048, which is the number the
-    // rail footer under this panel already shows. For the model actually loaded the running server
-    // is the truth and the file is the plan, so the loaded one wins and the caption says which was
-    // read. Adjacent surfaces disagreeing about the same budget is this repo's own recurring
-    // failure, and it does not need a third rendering of it to happen again.
-    const live = writing && SRV.slot?.perSlot ? SRV.slot : null;
-    const perSlot = live?.perSlot ?? m.perSlot;
-    // #52. A REMOTE MODEL HAS NO BLURB: nobody wrote one here, and its own card says more. The
-    // description block is the expanded Find a model row's, from the same renderer. The panel can
-    // be drawn without a press (a reload on it, the model now writing), so the read is asked for
-    // from here; loadCard reads each model once.
-    const remote = whereRuns(id).remote;
-    if (remote) queueMicrotask(() => loadCard(id));
-
-    // A fact and WHERE IT CAME FROM. The absent case says which source is silent rather than
-    // showing a dash, because "the router's file does not mention this one" and "nobody has
-    // written with it" are different things to know and only one of them is worth fixing.
-    const fact = (label, value, note) => `<div style="display:flex; flex-direction:column; gap:2px;
-      padding:10px 0; border-bottom:1px solid var(--line)">
-      <span class="kind">${esc(label)}</span>
-      <span style="font-size:14px; color:${value ? 'var(--ink-bright)' : 'var(--faint)'}">${
-        esc(value || 'not known')}</span>
-      ${note ? `<span class="quiet">${esc(note)}</span>` : ''}</div>`;
-
-    return `<div class="stack">
-      <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
-        <span class="serif" style="font-size:19px; color:var(--ink-bright)">${esc(d.name)}</span>
-        ${writing ? '<span class="tag tag-lit">writing now</span>'
-          : remote ? '<span class="tag">on Featherless</span>'
-          : m.status === 'unloaded' ? '<span class="tag">asleep</span>'
-          : m.status === 'loaded' ? '<span class="tag goodink">loaded</span>' : ''}</div>
-      <!-- The id is what the router answers to and what ANANSI_MODEL takes, so it is on the panel
-           in full rather than one hover away: this is the screen you are on when you need it. -->
-      ${SRV.admin ? `<div style="font-size:11px; color:var(--dim); margin:3px 0 12px; word-break:break-all">
-        <code>${esc(id)}</code></div>` : '<div style="height:12px"></div>'}
-
-      ${d.bits?.length ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px">${
-        [...d.bits, d.size].filter(Boolean).map((b) => `<span class="tag">${esc(b)}</span>`).join('')}</div>` : ''}
-
-      ${remote
-        ? `<div class="below-6">${remoteAbout(S.hub.cards[id])}</div>`
-        // THE NOTES ARE THE ADMIN'S. They are test notes from the machine's own side-by-side runs
-        // (quants, ablations, constraint counts), and a writer read them as noise: the model page
-        // scored 1 of 5 in the usability check of 2026-10-24. The tags above say what it is for.
-        : !SRV.admin ? ''
-        : BLURB[d.name]
-        ? `<div style="font-size:13px; line-height:1.55; color:var(--mute); margin-bottom:6px">${
-            esc(BLURB[d.name])}</div>`
-        : `<div class="hint lead-6">Nothing is written down about this one. What is
-            above is decoded from its name; what is below is measured.</div>`}
-
-      ${/* CONTEXT AND SPEED IN WORDS, tokens beside them for the admin (Seth, 2026-10-29: "it needs to be
-           clearer of context and speed"). A Featherless model is not shared any more: each writer
-           has their own key and plan (#70), so its room is its own whole context. */ ''}
-      ${/* THE DOT IS THE CHARACTER, not `&middot;`: `fact` escapes its value, so an entity in it was
-           printed as text (UX review, 2026-10-29). */ ''}
-      ${(() => {
-        const room = remote ? m.perSlot : perSlot;
-        const words = (n) => `about ${(Math.round(n * 0.75 / 1000) * 1000).toLocaleString()} words`;
-        return fact('How much he reads at once (context)',
-          room ? `${words(room)}${SRV.admin ? ` \u00b7 ${room.toLocaleString()} tokens` : ''}` : '',
-          remote ? "this model's whole limit on Featherless, and all of it is yours"
-          : !SRV.admin ? 'half of what this machine holds, because both writers share it'
-          : live ? `half of what this machine holds (${live.global.toLocaleString()} tokens), because both writers share it`
-          : m.perSlot && m.ctxSize && m.parallel ? `${m.ctxSize.toLocaleString()} shared ${m.parallel} ${m.parallel === 1 ? 'way' : 'ways'} in the router's preset file`
-          : "the router's preset file does not mention this one");
-      })()}
-      ${remote ? fact('Cost', m.cost ? `${m.cost} ${m.cost === 1 ? 'unit' : 'units'} of your Featherless plan` : '',
-        m.cost ? 'your own plan, counted while he writes' : 'Featherless did not say what this model costs') : ''}
-      ${fact('How fast he writes',
-        m.tps ? `about ${Math.max(1, Math.round(m.tps * 0.75))} words a second${SRV.admin ? ` \u00b7 ${m.tps} tokens a second` : ''}` : '',
-        m.tps ? `the middle of ${m.runs} ${m.runs === 1 ? 'passage' : 'passages'} written with it here${m.runs < 5 ? ', too few to be sure of' : ''}`
-          : 'nothing has been written with it here yet')}
-
-      ${pinned && pinned !== id
-        ? `<div class="hint" style="margin:12px 0 0; color:var(--warn)">This tale has its own model
-            &mdash; <code>${esc(modelName(pinned).name)}</code> &mdash; and this tale's model comes
-            before this switch. Change it in Tale.</div>` : ''}
-
-      <div class="push-16">
-        ${writing
-          // AND THE WAY TO ANOTHER ONE. The page about the model that is writing had no way to change
-          // it — the usability check of 2026-10-24 found the switch only in the menu's list.
-          ? `<div class="hint lead-10">This is the one writing.${remote ? '' : ` Switching to another
-              releases it.`}</div>
-             <button class="btn ghost" data-choosemodel="1">Choose another model</button>`
-          // A remote model with no key on the server cannot be picked, so nothing offers it.
-          : remote && !S.remote
-          ? `<div class="hint flush">Featherless isn't set up on this server.</div>`
-          : remote && !mine
-          ? `<div class="hint flush">This tale's owner chose it, and it is
-              not on your shortlist, so it cannot be your model. Find a model can add it.</div>`
-          : `<button class="btn" data-pickmodel="${esc(id)}">Write with this one</button>`}
-      </div></div>`;
-  },
-
-  /** #51 · FIND A MODEL. The writer's shortlist on top, because what you already have is the first
-   *  thing to see before adding more; the search below it. Remove lives here and nowhere else, so
-   *  the menu stays a place to pick from.
-   *
-   *  The search is the SERVER's: the browser never talks to Featherless, and the filters and the
-   *  context floor are decided there. This
-   *  draws what comes back. Typing redraws only the results, so the box keeps its caret. */
-  findmodel() {
-    const f = S.find;
-    // Opened by a link rather than the press: start what the press would have started.
-    if (S.shortlist === null && !SHORTLISTING) loadShortlist();
-    if (f.hits === null && !f.seq) findSearch(true);
-    const opt =(v, l, on) => `<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(l)}</option>`;
-    return `<div style="display:flex; flex-direction:column; gap:14px">
-      <div class="stack-6">
-        <span class="kind">Your shortlist</span>
-        <div class="stack-2" id="findmine">${findMine()}</div>
-      </div>
-      <div style="display:flex; flex-direction:column; gap:8px; padding-top:12px; border-top:1px solid var(--line)">
-        <span class="kind">Search Featherless</span>
-        <input class="field full" id="findq" type="search" aria-label="Search by name" value="${esc(f.q)}" placeholder="Part of a name" autocomplete="off"
-         >
-        <div class="row-6 wraps">
-          <select class="field fill autow" data-findsize="1" aria-label="Size">${opt('', 'Any size', !f.size)}${
-            f.sizes.map((z) => opt(z, z.toUpperCase(), z === f.size)).join('')}</select>
-          <select class="field fill autow" data-findweave="1" aria-label="Plans first">${opt('', 'Plans first: any', !f.weaving)}${
-            f.weavings.map((w) => opt(w, spinWord(w), w === f.weaving)).join('')}</select>
-          <!-- Seth, 2026-10-25: "a filter for how many units it takes". -->
-          <select class="field fill autow" data-findcost="1" aria-label="Units of the plan">${opt('', 'Any units', !f.cost)}${
-            f.costs.map((c) => opt(String(c), `${c} ${c === 1 ? 'unit' : 'units'}`, String(c) === f.cost)).join('')}</select>
-        </div>
-        <!-- And by tag: typed here, or a press on any tag in the list below. -->
-        <input class="field full" id="findtag" type="search" aria-label="Tag" value="${esc(f.tag)}"
-          placeholder="A tag, such as roleplay" autocomplete="off">
-        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--mute)">
-          <input type="checkbox" data-finduncensored="1"${f.uncensored ? ' checked' : ''}>
-          Uncensored only</label>
-      </div>
-      <div class="stack-2" id="findhits">${findHits()}</div>
-    </div>`;
-  },
 
   /** Everything this book is waiting on, in one place.
    *
@@ -6034,138 +6216,24 @@ const PANELS = {
       <div id="hits">${searchHits()}</div></div>`;
   },
 
+  /** #131 · STORYTELLER, ONE PANEL IN FOUR TABS (Seth, 2026-11-03). What runs the model was in four
+   *  places: this panel (this tale's model and the sliders), Account → Writing (your voice and the
+   *  five modes), the menu's model list with a panel for each model, and Find a model. Now Model,
+   *  Shortlist, Your voice and Stats. Outside a tale there is no tale to have a model, calls or
+   *  sliders of its own, so it is Model (your usual model only), Shortlist and Your voice.
+   *
+   *  ONLY THE SHOWN TAB IS DRAWN, and a tab press redraws, as Account's tabs did: Shortlist runs a
+   *  search and Your voice reads the prompts, and neither should happen for a writer who opened
+   *  Storyteller to move a slider. */
   teller() {
-    const g = V.gen ?? SRV.gen ?? {};
-    // The writer's models plus this book's own remote pin, which a guest's list does not hold.
-    const listed = withPin(S.models, V.pin);
-    // ONE RENDERER, EVERY SLIDER. The mark goes on the row that carries the name and the reading,
-    // and the card above the track — the same order as the panels swept before this. A slider is
-    // the shape where an explanation underneath is worst: you have already dragged it.
-    const slider = (label, key, value, max, hint, fmt = READOUT[key]) => `
-      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px">
-        <div style="display:flex; justify-content:space-between; font-size:11px; letter-spacing:.1em;
-          text-transform:uppercase; color:var(--dim)">
-          <span>${label}${hint ? tipMark(`gen-${key}`, label) : ''}</span>
-          <span class="tnum" style="color:var(--label)">${fmt ? fmt(value) : value}</span></div>
-        ${hint ? tipCard(`gen-${key}`, label, `<p>${hint}</p>`) : ''}
-        <input type="range" data-gen="${key}" aria-label="${esc(label)}"
-          min="0" max="${max}" step="${max > 2 ? 10 : 0.01}"
-          value="${value}" style="width:100%; accent-color:var(--gold)">
-      </div>`;
-    // TWO HOMES ON ONE PANEL, SAID AS TWO (Seth's item 9 of the 2026-10-29 review). It opened on
-    // "These are yours, not per tale" above a model picker that IS per tale. ADR 0003: what is this
-    // tale's comes first under its own heading, what is the writer's on every tale under another.
-    return `<div class="stack">
-      <div class="lbl sect" style="margin-top:0">This tale</div>
-      <div class="hint flush below-14">Its model, whether he plans first, and how much he reads. Only this tale.</div>
-      <div class="lbl">Model</div>
-      ${listed === null ? '<div class="hint flush">Asking the router&hellip;</div>'
-        : listed.length === 0 ? emptyModels()
-        : `<select class="field" data-storymodel="1" aria-label="This tale's model">
-            ${modelOptions(listed, V.story.model).map((o) => `<option value="${esc(o.value)}"${
-              o.selected ? ' selected' : ''}${o.ready === false ? ' disabled' : ''}>${
-              !o.value ? `Your model &mdash; ${esc(modelName(V.defaultModel ?? SRV.model).name)}`
-              : o.gone ? `${esc(modelName(o.value).name)} &mdash; the router no longer offers this`
-              : `${esc([modelName(o.value).name, modelName(o.value).detail].filter(Boolean).join(' — '))} · ${
-                  o.ready === false ? "Featherless isn't set up" : whereRuns(o.value, o.status).words}`}</option>`).join('')}
-          </select>
-          <!-- #53. An option holds text and nothing else, so each one says in words where its model
-               runs, and the drawn mark sits in the row below, beside the badges of the model this
-               book is written by. -->
-          <!-- THE THIRD SURFACE. Same decode as the rail's label and the rail's list, and the
-               door to the same panel — the one place that says what this model is good at, how
-               fast it has written here, and how much context one writer gets. The option text
-               above carries the detail string, which is these badges with the size put back in; and
-               since a select
-               cannot hold a chip, so the badges are repeated under it for whichever model this
-               story is actually going to use. -->
-          ${(() => {
-            // `V.model` is what the server ALREADY resolved for this story — modelFor(story,
-            // defaultModel) at routes.ts:1044, always set. Re-deriving it here from the pin and the
-            // default would be a second copy of that rule, and the two would eventually disagree
-            // about which model a book is actually written by. NOT `SRV.model`: that one tracks the
-            // ACCOUNT default and `loadModels` rewrites it from `r.active` on every refresh, so a
-            // book with a pin would start naming the wrong model the moment the list reloaded.
-            // No `?? SRV.model` fallback either — this panel only renders inside a story, so the
-            // fallback was a branch nothing could reach and no check could falsify.
-            const using = V.model;
-            const d = modelName(using);
-            return `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:8px">
-              ${runsMark(using, listed.find((m) => m.id === using)?.status)}
-              ${d.bits.map((b) => `<span class="tag">${esc(b)}</span>`).join('')}
-              ${d.size ? `<span class="tag">${esc(d.size)}</span>` : ''}
-              <button data-modelinfo="${esc(using)}" style="margin-left:auto; color:var(--gold);
-                font-size:11px; letter-spacing:.12em; text-transform:uppercase"
-                >What it is</button></div>`;
-          })()}
-          <div class="hint">${V.story.model && whereRuns(V.story.model).remote && V.model !== V.story.model
-            // The server resolved the pin to the local default (no key, or the model is off the
-            // owner's shortlist), so the hint must not claim the pinned model writes this book.
-            ? `This tale's model is <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
-               which cannot write now, so <code>${esc(modelName(V.model).name)}</code> writes it.`
-            : V.story.model
-            ? `This tale's model is <code title="${esc(V.story.model)}">${esc(modelName(V.story.model).name)}</code>,
-               whatever any other tale uses.`
-            : 'This tale uses your model, the one named in the menu. Name one here and it becomes this tale&rsquo;s model, whatever your model becomes.'}</div>`}
-      <!-- #55. WEAVING, this book's own switch, beside the model that writes it. It replaced a note
-           that said thinking was off and not a setting, which is no longer true once a book can
-           weave. A [data-story] checkbox, so it saves itself and the Context panel asks again: the
-           budget it shows is smaller by the room the plan is given. The writer's word is Plans first;
-           the server decides from it which calls weave.
-           #61, #58. A model whose template refuses the switch is never sent it, and a model that
-           always weaves cannot be switched off, so for either the server sends weaveNote, the
-           sentence to show here instead of the switch. Its words are the server's alone. -->
-      ${V.weaveNote ? `<div id="weavenote" class="hint" style="margin:16px 0 2px">${esc(V.weaveNote)}</div>`
-      : `${tipCard('weaving', 'Plans first', `<p>Anansi plans each passage, unseen, before he writes
-        it. The plan is never shown. It is slower, and it sets aside space that
-        would otherwise hold more of your tale.</p>`)}
-      <label style="display:flex; align-items:center; gap:10px; margin:16px 0 2px; font-size:13px;
-        color:var(--ink)">
-        <input type="checkbox" data-story="weaving" ${V.story.weaving ? 'checked' : ''}>
-        Plans first${tipMark('weaving', 'Plans first')}</label>`}
-
-      ${/* HOW MUCH HE READS AT ONCE, this tale's own cap (2026-10-29). `max_context` was read by the
-            budget and set by nothing. A [data-story] select, so it saves on change. In words, as the
-            model page says context; 0.75 words a token, the same rate. The model's own room is still
-            the ceiling: a cap above it changes nothing. */ ''}
-      <label class="lbl" for="f-story-maxContext">How much he reads at once</label>
-      <select class="field" id="f-story-maxContext" data-story="maxContext">${[['', 'All the model holds'],
-        ...[8000, 16000, 32000, 64000].map((n) => [String(n), `About ${(n * 0.75).toLocaleString()} words`])]
-        .map(([v, label]) => `<option value="${v}"${String(V.story.maxContext ?? '') === v ? ' selected' : ''}>${label}</option>`).join('')}</select>
-      <div class="hint">Less is faster and keeps him on the recent pages; more lets him see further back.</div>
-
-      <div class="lbl sect">Yours, on every tale${tipMark('genShared', 'Yours, on every tale')}</div>
-      ${tipCard('genShared', 'Yours, on every tale', `<p>How he picks words belongs to you, not to the
-        server: changing it here changes it for every tale you write, and leaves the other writer
-        alone. Per-tale sampling was never built.</p>`)}
-      <div class="lbl">How he picks words</div>
-      ${/* NAMED FOR WHAT THE WRITER FEELS (Seth, 2026-10-31: "the sliders need to be named more user
-            friendly"). Surprise, Focus and Passage length until then; the keys are the sampler's. */ ''}
-      ${slider('How bold his words are', 'temperature', g.temperature ?? 0.85, 2,
-        'Left, he picks the safe, expected word. Right, he reaches for a less obvious one. Only for prose: his notes and suggestions always stay steady.')}
-      ${slider('How many words he weighs', 'top_p', g.top_p ?? 0.95, 1,
-        'How many words he thinks about before he picks one. Fewer is tighter and more predictable.')}
-      ${slider('Longest a passage runs', 'target_words', g.target_words ?? 0, 2000,
-        'The most words a passage should run. Anansi stops sooner when the moment is done, and he is '
-        + 'not cut off at it. All the way left leaves the length to him.')}
-      <!-- YOUR VOICE, HOW ANANSI TALKS AND THE FIVE MODES moved to Account → Writing on 2026-10-27:
-           they are yours on every tale, and Account is where what is yours lives (ADR 0003, one
-           home per setting). -->
-      <div class="lbl sect">Your voice and the five modes</div>
-      <div class="hint flush">Yours on every tale, so they live in Account &rarr; Writing.</div>
-      <button class="btn ghost push-8" data-acctgo="writing">Open Account &rarr; Writing</button>
-
-      <div class="lbl sect">This tale's calls</div>
-      ${(ACT?.runs ?? []).slice(0, 3).map((r) => `<div class="row">
-        <span class="inked">${esc(r.role ?? 'prose')}${r.error ? ' · failed' : ''}</span>
-        <span class="tnum count">${
-          r.promptTokens ? r.promptTokens.toLocaleString() + ' tok' : '—'}${
-          r.prefillSeconds ? ` · ${r.prefillSeconds}s prefill` : ''}${
-          r.seconds ? ` · ${r.seconds}s` : ''}</span></div>`).join('')
-        || '<div class="hint">No calls logged for this tale yet.</div>'}
-      ${ACT?.worstPrefillSeconds ? `<div class="row"><span class="inked">Worst prefill</span>
-        <span class="tnum count">${ACT.worstPrefillSeconds}s</span></div>` : ''}
-      </div>`;
+    const tab = tellerTab();
+    const row = `<div class="lead-14 row-6">${tellerTabs().map(([k, label]) =>
+      `<button class="chip fill center-press" data-tellertab="${k}" aria-pressed="${tab === k}">${label}</button>`).join('')}</div>`;
+    const body = tab === 'shortlist' ? findModel()
+      : tab === 'voice' ? (S.prompts === null ? (loadPrompts(), '') : '') + writingDefaults()
+      : tab === 'stats' ? tellerStats()
+      : tellerModel();
+    return `<div class="stack">${row}${body}</div>`;
   },
 };
 
@@ -9464,8 +9532,9 @@ function resumeBand(s) {
 }
 
 /** YOUR VOICE, HOW ANANSI TALKS, AND THE FIVE MODES: the writer's own, on every tale. Drawn on
- *  Account → Writing; it was the middle of the Storyteller panel until 2026-10-27. Reads S.prompts
- *  only, never the open tale. */
+ *  Storyteller's Your voice tab since #131 (2026-11-03); it was the middle of the Storyteller panel
+ *  until 2026-10-27 and Account → Writing between. Still one home (ADR 0003). Reads S.prompts only,
+ *  never the open tale. */
 function writingDefaults() {
   return `
       <!-- #18 §3. THE WRITER'S DEFAULT VOICE, which had no surface at all before this. Only the
@@ -9574,23 +9643,22 @@ function writingDefaults() {
       })()}`;
 }
 
-const ACCT_TABS = [['profile', 'You'], ['model', 'Model'], ['look', 'Look'], ['writing', 'Writing'],
-  ['books', 'Your books']];
+// #131. Writing left for Storyteller's Your voice tab; an old door to it lands there (`acctgo`).
+const ACCT_TABS = [['profile', 'You'], ['model', 'Model'], ['look', 'Look'], ['books', 'Your books']];
 const WPAGES = {
-  /** THE ACCOUNT, five pages of it (Seth, 2026-10-27: "not all on one page"). Each tab draws what
-   *  already exists where it can: Look opens the same sheet the header's Aa does, Writing is the
-   *  same writingDefaults() block the Storyteller used to carry, and Your books is the doors to
-   *  Import, Export and What you have written. */
+  /** THE ACCOUNT, four pages of it (Seth, 2026-10-27: "not all on one page"). Each tab draws what
+   *  already exists where it can: Look opens the same sheet the header's Aa does, and Your books is
+   *  the doors to Import, Export and What you have written. Writing was a fifth until #131 moved it
+   *  to Storyteller's Your voice tab. */
   account() {
     if (S.me === undefined) { S.me = null; api.me().then((r) => { S.me = r.error ? { error: r.error } : r; paint(); }); }
-    const tab = S.acctTab ?? 'profile';
+    const tab = ACCT_TABS.some(([k]) => k === S.acctTab) ? S.acctTab : 'profile';
     const tabs = `<div class="row-6 wraps below-14">${ACCT_TABS.map(([k, l]) =>
       `<button class="chip" data-accttab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>`;
     const me = S.me;
-    const body = tab === 'writing' ? (S.prompts === null ? (loadPrompts(), '') : '') + writingDefaults()
-      // WRITTEN OUT, not mapped: test/web.ts reads this file for each page's door, and cannot see
-      // one through an interpolated attribute.
-      : tab === 'books' ? `<div class="stack-7">
+    // WRITTEN OUT, not mapped: test/web.ts reads this file for each page's door, and cannot see
+    // one through an interpolated attribute.
+    const body = tab === 'books' ? `<div class="stack-7">
         <button class="card plate full-left" data-nav="import"><span class="platename">Import</span>
           <span class="hint flush">A character card, an Anansi export, AI Dungeon</span></button>
         <button class="card plate full-left" data-nav="forge"><span class="platename">Export</span>
@@ -9608,8 +9676,7 @@ const WPAGES = {
           : `<div class="hint flush">No key yet, so you write on the local model. Your key goes in a file
               on the server, never in this page: <code>${esc(me.featherless?.file ?? '')}</code></div>`}
         <div class="lbl wide push-18">Your model</div>
-        <div class="hint flush"><code>${esc(modelName(SRV.model ?? '').name || 'the local default')}</code>
-          writes every tale that does not name its own. To change it, press the model named in the menu and pick from its list.</div>`
+        <div class="hint flush">Your model is changed in Storyteller: press the model named at the top of the menu.</div>`
       : `
         <div class="acctface">${me.avatar
           ? `<img class="acctpic" src="${api.avatarUrl(me.avatar)}" alt="Your picture">`
@@ -10535,8 +10602,8 @@ async function loadModels() {
   // #18 §5. The shelf reads this list too now — a book pinned to a model the router no longer
   // serves is marked on its own card, and the mark cannot be drawn before the answer lands.
   if (S.wpage === 'prefs' || S.wpage === 'stories') drawPage();
-  // The model panel is not gated on a story: it is about the box, and it opens on the shelf too.
-  if (S.panel === 'model' || (S.place === 'story' && S.panel === 'teller')) drawSide();
+  // Storyteller's Model tab is not gated on a story: it opens on the shelf too (#131).
+  if (tellerOn('model')) drawSide();
   // The rail's model dot reads this list; it was left showing its before-the-answer guess.
   drawRail();
   loadStats();
@@ -12261,7 +12328,7 @@ document.addEventListener('visibilitychange', () => {
   if (S.alterEdit) void writeAlter(S.alterEdit, true);
 });
 
-/** A MODE'S INSTRUCTION, IN YOUR WORDS (Account → Writing), SAVES AS YOU TYPE (ADR 0004, pass
+/** A MODE'S INSTRUCTION, IN YOUR WORDS (Storyteller → Your voice), SAVES AS YOU TYPE (ADR 0004, pass
  *  three). `S.promptEdit` is the open box: what it opened on (`shown`, and `was`, yours or null for
  *  Anansi's own), what is typed, and what was last written. The writer's, on every tale, so no book is
  *  named. The page is not redrawn by a write, so the caret stays; the box is drawn from `text` when it
@@ -12348,7 +12415,7 @@ document.addEventListener('input', (e) => {
   alterSoon();
 });
 
-// #51. The Find a model box. Searches a moment after the typing stops, and redraws only the results.
+// #51. The search box on the Shortlist tab. Searches a moment after the typing stops, and redraws only the results.
 let findTimer = null;
 document.addEventListener('input', (e) => {
   if (e.target?.id === 'findtag') {
@@ -12513,18 +12580,8 @@ document.addEventListener('click', async (e) => {
   }
   // The chapter list inside a passage's tray. Toggled per passage rather than globally, so opening
   // it on one passage and then another does not leave two open.
-  if (d.choosemodel) {
-    S.panel = null; S.rail = true; S.modelMenu = true;
-    if (S.models === null) loadModels();
-    paint(); return;
-  }
-  if (d.modelmenu) {
-    S.modelMenu = !S.modelMenu;
-    // The list is fetched lazily everywhere else too — opening the menu is the first moment
-    // anybody needs it in the rail.
-    if (S.modelMenu && S.models === null) loadModels();
-    paint(); return;
-  }
+  // #131. The model named in either menu opens Storyteller on Model, where the list is.
+  if (d.modelmenu) return void openTeller('model');
   if (d.dismiss) {
     const r = await api.dismiss(S.storyId, d.dismiss, d.ref ?? '');
     if (r.error) return toast(r.error);
@@ -12832,8 +12889,8 @@ document.addEventListener('click', async (e) => {
   // The Workbench's way to where chapters are gathered: This scene, on its Summaries tab.
   if (d.findtag !== undefined) {
     S.find.tag = d.findtag;
-    // A tag on the model page leads to Find a model, which is where the others are listed.
-    if (S.panel !== 'findmodel') { S.panel = 'findmodel'; if (overlay()) S.rail = false; paint(); return; }
+    // A tag on the model info leads to the Shortlist tab, which is where the others are listed.
+    if (!tellerOn('shortlist')) return void openTeller('shortlist');
     if ($('findtag')) $('findtag').value = d.findtag;
     findSearch(); return;
   }
@@ -12985,7 +13042,12 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (d.accttab) { S.acctTab = d.accttab; paint(); return; }
+  // #131. Account → Writing is Storyteller's Your voice tab; an old door to it lands there.
+  if (d.acctgo === 'writing') return void openTeller('voice');
   if (d.acctgo) { S.acctTab = d.acctgo; return void await leaveTo('account'); }
+  // #131. Storyteller's tabs. Redrawn, as Account's tabs were: a mode's box keeps its typing in
+  // state (`S.promptEdit`) and writes it after the pause whether or not it is on screen.
+  if (d.tellertab) { S.tellerTab = d.tellertab; drawSide(); return; }
   if (d.delavatar) {
     const r = await api.delAvatar();
     if (r.error) return toast(r.error);
@@ -13724,24 +13786,13 @@ document.addEventListener('click', async (e) => {
   }
   if (d.storymodel !== undefined) { return; }   // handled on change, below
   // #25. The row names a model; the panel is where it is read and where it is switched.
-  if (d.modelinfo) {
-    S.modelPick = d.modelinfo; S.modelMenu = false; S.panel = 'model';
-    // AND SHUT THE RAIL BEHIND YOU, the same line every `data-nav` row has run for as long as the
-    // rail has been an overlay. This press comes FROM the rail's own model list, so without it the
-    // panel it opens is drawn underneath the menu you opened it from. Seth, 2026-08-31: "when
-    // selecting a model the option to select it and its information is hidden behind the menu to
-    // view the models. it should be on top."
-    if (overlay()) S.rail = false;
-    syncHash(); paint(); return;
-  }
-  // #51. Find a model. Opened from the foot of the rail's model list, so it shuts the rail behind
-  // it the way the model panel does.
+  // #131. Its info is drawn under it on Storyteller's Model tab.
+  if (d.modelinfo) { S.modelPick = d.modelinfo; return void openTeller('model'); }
+  // #51. Find a model, which is Storyteller's Shortlist tab since #131. Read fresh on every press.
   if (d.findmodel) {
-    S.panel = 'findmodel'; S.modelMenu = false;
-    if (overlay()) S.rail = false;
-    syncHash(); paint();
+    openTeller('shortlist');
     loadShortlist();
-    findSearch(true);
+    if (S.remote) findSearch(true);
     return;
   }
   // #52. Expand a row into its card, or fold it. One row open at a time, so the list stays a list.
@@ -13777,7 +13828,7 @@ document.addEventListener('click', async (e) => {
     if (d.pickmodel === SRV.model) return;
     const r = await api.setModel(d.pickmodel, S.storyId ?? LIB[0]?.id);
     if (r.error) return toast(r.error);
-    SRV.model = r.active; S.modelMenu = false; loadModels();
+    SRV.model = r.active; loadModels();
     // IN A TALE THE MENU NAMES `V.model`, the model the server resolved for this tale, and only a
     // fresh read of the tale moves it: without one the menu went on naming the old model (Seth,
     // 2026-10-29). A tale pinned to a model of its own still names its pin, which is what writes it.
@@ -15220,7 +15271,7 @@ document.addEventListener('click', async (e) => {
     if (!fit || fit.storyId !== S.storyId) return;
     S.weaveFit = null;
     if (d.weavemodel !== undefined) {
-      S.panel = 'teller'; syncHash(); paint();
+      openTeller('model');
       document.querySelector('[data-storymodel]')?.focus?.();
       return;
     }
@@ -16525,12 +16576,14 @@ function readHash() {
   // TITLES, so a retired name was dropped to null here and then quietly replaced by the default
   // panel — which made the alias downstream dead code for the one case it exists for.
   const to = panel && (PANEL_WAS[panel] ?? panel);
-  return { id, panel: to && TITLES[to] ? to : null };
+  return { id, panel: to && TITLES[to] ? to : null, tab: TELLER_WAS[panel] ?? null };
 }
 
 async function route() {
-  const { id, panel } = readHash();
+  const { id, panel, tab } = readHash();
   ROUTED = true;
+  // #131. An old model or Find a model address opens Storyteller on the tab that holds it now.
+  if (tab) S.tellerTab = tab;
   // A tale this page has not heard of may be one made since it loaded — on another device, or by
   // a test through the API. Ask once before treating the address as wrong: the workspace branch
   // below now WRITES the address, and would wipe a good link.

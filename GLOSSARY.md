@@ -224,7 +224,7 @@ _In code_: the `waiting` panel
 Ask for a new version of a passage. It sends the passage's own mode instruction again (the edited
 one, if the writer changed it). The version being replaced is not sent. If the writer filled in
 **What didn't work** in the Reweave box, that note follows, inside the **When you reweave** frame
-from Account → Writing; it ships with Anansi's wording, and the writer may change it. With the note
+from Storyteller → Your voice; it ships with Anansi's wording, and the writer may change it. With the note
 empty, a reweave sends the prompt that wrote the passage. A tap reweaves at once; a hold (Alt+click at a desk) opens the
 **Reweave box** first, with the passage's own direction (empty if it had none) and What didn't
 work. ADR 0012.
@@ -329,6 +329,6 @@ _Avoid_: pin, pinned, default model
 _In code_: `stories.model`, `default_model`
 
 **Shortlist**:
-One writer's own list of remote models, added from the Featherless catalogue. It appears on that
-writer's model menu beside the local models, and on no one else's.
+One writer's own list of remote models, added from the Featherless catalogue on Storyteller's
+Shortlist tab. It appears in that writer's model list beside the local models, and on no one else's.
 _Avoid_: favourites, my models, library

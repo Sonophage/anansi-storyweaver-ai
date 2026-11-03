@@ -3038,8 +3038,9 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
     'WRITER-MODEL: and none of the machine talk');
   assert.match(mine, /data-pickmodel="Qwen3\.6-WNTH-35B-A3B-NN"/, 'WRITER-MODEL: with the switch');
   click({ modelinfo: 'write-nt-qwen36-h' });
-  assert.match(html('sideBody'), /data-choosemodel=/,
-    'WRITER-MODEL: and the page about the model that writes has a way to choose another');
+  // #131. The others are the rows around it on the same tab, so it needs no press of its own.
+  assert.match(html('sideBody'), /<button data-modelinfo="Qwen3\.6-WNTH-35B-A3B-NN"/,
+    'WRITER-MODEL: and the info about the model that writes sits among the others to choose from');
 
   libAdmin = true; click({ home: 1 });
   await sleep(40);
@@ -3186,13 +3187,14 @@ ok('picking a model in a tale reads the tale again, so the menu names the new on
   assert.doesNotMatch(label, /data-modelinfo=/, 'the list is shut, so this is the label alone');
   assert.match(label, BADGES, 'the label says what it is, not only what it is called');
 
-  // 2 · THE RAIL'S LIST. Sliced from the first row, so an assertion here cannot be satisfied by
-  // the label above it — the two render the same badge string for the same model, and a check
-  // that cannot tell them apart proves nothing about the one it names.
+  // 2 · THE LIST, on Storyteller's Model tab since #131 (it dropped open under the label before).
+  // Sliced from the first row to the sampler, so an assertion here cannot be satisfied by the tale's
+  // picker above it — the two render the same badge string for the same model, and a check that
+  // cannot tell them apart proves nothing about the one it names.
   click({ modelmenu: '1' });
-  for (let i = 0; i < 20 && !/data-modelinfo=/.test(html('rail')); i++) await sleep(25);
-  const rail = visible(html('rail'));
-  const list = rail.slice(rail.indexOf('data-modelinfo='));
+  for (let i = 0; i < 20 && !/<button data-modelinfo=/.test(html('sideBody')); i++) await sleep(25);
+  const body = visible(html('sideBody'));
+  const list = body.slice(body.indexOf('>Your model<'), body.indexOf('data-gen='));
   assert.ok(list.length > 200, 'the list must actually be open');
   assert.match(list, BADGES, 'every row says what it is for, whether it thinks, and its tier');
   assert.match(list, /Roleplay · trained open/,
@@ -3202,7 +3204,6 @@ ok('picking a model in a tale reads the tale again, so the menu names the new on
   // the badge line — the raw id is in each row's own attribute and carries the size with it, so a
   // bare /35B-A3B/ could never fail.
   assert.doesNotMatch(list, /uncensored · 35B-A3B/, 'the size must not be in the badge line here');
-  click({ modelmenu: '1' });
 
   // 3 · THE STORYTELLER, which is where a book pins its own.
   click({ panel: 'teller' });
@@ -3887,12 +3888,14 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
       spider: body.includes(first('spider')), feather: body.includes(first('feather')) };
   };
 
+  // #131. The list is on Storyteller's Model tab, under Your model.
   click({ modelmenu: '1' });
-  for (let i = 0; i < 20 && !/data-modelinfo=/.test(html('rail')); i++) await sleep(25);
-  const rail = visible(html('rail'));
+  for (let i = 0; i < 20 && !/<button data-modelinfo=/.test(html('sideBody')); i++) await sleep(25);
+  const tab = visible(html('sideBody'));
+  const rail = tab.slice(tab.indexOf('>Your model<'));
   const row = (id: string) => {
     const at = rail.indexOf(`<button data-modelinfo="${id}"`);
-    assert.ok(at > 0, `the menu lists ${id}`);
+    assert.ok(at > 0, `the list lists ${id}`);
     return rail.slice(at, rail.indexOf('</button>', at));
   };
 
@@ -3911,9 +3914,8 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   assert.match(row('featherless:Grey/Kestrel-Heretic-24B'), /Kestrel Heretic 24B/,
     'and the row still names it by its decoded name');
 
-  // THE STRIP at the foot of the rail. Read with the menu shut, so the only mark in the rail's
-  // button is the strip's own.
-  click({ modelmenu: '1' });
+  // THE STRIP at the top of the menu. The rail's button is the strip's own (#131: nothing drops
+  // open under it any more).
   const strip = visible(html('rail'));
   const at = strip.indexOf('<button data-modelmenu=');
   const mine = runs(strip.slice(at, strip.indexOf('</button>', at)));
@@ -3945,7 +3947,6 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   // fresh list is what put the writer default back on the strip while the book wrote remotely.
   click({ dropshort: 'featherless:Other/Unused-12B' });
   await sleep(40);
-  click({ modelmenu: '1' }); click({ modelmenu: '1' });
   const bookStrip = visible(html('rail'));
   const sAt = bookStrip.indexOf('<button data-modelmenu=');
   const stripBtn = bookStrip.slice(sAt, bookStrip.indexOf('</button>', sAt));
@@ -5341,8 +5342,8 @@ ok('an empty Strings says what a string is and where to add one');
     'TALE3-MODEL: the model sits above the columns');
   const tiles = rail.match(/<div class="taletiles">([\s\S]*)/)?.[1] ?? '';
   assert.deepStrictEqual([...tiles.matchAll(/data-nav="([a-z]+)"/g)].map((m) => m[1]),
-    ['story', 'teller', 'chapter', 'chapters', 'threads', 'strings', 'waiting'],
-    'TALE3-TILES: Tale and Storyteller first, then This scene and Scenes, then the rest (Strings back, UX review 2026-10-29)');
+    ['story', 'chapter', 'chapters', 'threads', 'strings', 'waiting'],
+    'TALE3-TILES: Tale first, then This scene and Scenes, then the rest (Strings back, UX review 2026-10-29; Storyteller off, #131)');
   assert.match(tiles, /class="field railsearch" data-railsearch="1"/, 'TALE3-SEARCH: search is a bar across both columns, not a tile');
   assert.ok(tiles.indexOf('data-railsearch') > tiles.indexOf('data-nav="waiting"'), '  at the foot, below every tile');
   // EACH SCENE ROW WEARS THE TALE'S PICTURE, fainter down the list (2026-10-28), when the tale has one.
@@ -5503,13 +5504,14 @@ ok('a scene pressed in the tale menu opens it and shuts the menu where the menu 
 }
 ok('every menu row has its own picture, and the phone menu has a cross to close it');
 
-// ---- THE ACCOUNT, FIVE PAGES (Seth, 2026-10-27): you, your key and model, the look, your writing,
-// your books; Import, Export and What you have written left the menu for it.
+// ---- THE ACCOUNT, FOUR PAGES (Seth, 2026-10-27): you, your key and model, the look, your books;
+// Import, Export and What you have written left the menu for it. Your writing was a fifth until #131
+// moved it to Storyteller → Your voice.
 {
   click({ railview: 'workspace' }); click({ nav: 'account' });
   for (let i = 0; i < 40 && !/f-me-name/.test(html('page')); i++) await sleep(25);
   const tabsOf = (h: string) => [...h.matchAll(/data-accttab="([a-z]+)"/g)].map((m) => m[1]);
-  assert.deepStrictEqual(tabsOf(html('page')), ['profile', 'model', 'look', 'writing', 'books'], 'five pages, not one');
+  assert.deepStrictEqual(tabsOf(html('page')), ['profile', 'model', 'look', 'books'], 'four pages, not one');
   assert.match(html('page'), /id="f-me-name" value="Seth"/, 'You: your name');
   assert.match(html('page'), /data-avatar="1"/, 'and a picture to choose');
   // YOUR NAME SAVES WHEN YOU LEAVE THE BOX (ADR 0004, pass three): no Save beside it.
@@ -5528,18 +5530,134 @@ ok('every menu row has its own picture, and the phone menu has a cross to close 
     assert.match(html('page'), new RegExp(`data-nav="${k}"`), `Your books opens ${k}`);
   click({ accttab: 'profile' });
 }
-ok('Account is five pages, and Your books holds Import, Export and What you have written');
+ok('Account is four pages, and Your books holds Import, Export and What you have written');
+
+// ---- #131 · STORYTELLER IS ONE PANEL WITH FOUR TABS (Seth, 2026-11-03): Model, Shortlist, Your
+// voice and Stats. The model name in either menu is its door; the tale's menu has no Storyteller row;
+// Account loses Writing; the old model, find-a-model and Account → Writing doors land on the tab
+// that holds what they opened.
+{
+  const side = () => (globalThis as any).document.getElementById('side');
+  const tabsOf = (h: string) => [...h.matchAll(/data-tellertab="([a-z]+)"/g)].map((m) => m[1]);
+  const shown = () => html('sideBody').match(/data-tellertab="([a-z]+)" aria-pressed="true"/)?.[1] ?? null;
+  click({ open: 's-1' });
+  await sleep(40);
+  click({ railview: 'story' });
+  const tiles = html('rail').match(/<div class="taletiles">([\s\S]*)/)?.[1] ?? '';
+  assert.ok(tiles.includes('data-nav="story"'), 'the detector: the tale menu tiles are drawn');
+  assert.doesNotMatch(tiles, /data-nav="teller"/, 'TELLER-OFF-MENU: the tale menu has no Storyteller row');
+
+  click({ modelmenu: '1' });
+  await sleep(30);
+  assert.strictEqual(side().hidden, false, 'TELLER-DOOR: the model name opens a panel');
+  assert.match(html('sideHead'), /Storyteller/, 'TELLER-DOOR: and it is Storyteller');
+  assert.strictEqual(shown(), 'model', 'TELLER-DOOR: on Model');
+  assert.doesNotMatch(html('rail'), /data-findmodel=/, 'TELLER-DOOR: the menu no longer drops a list open');
+  assert.deepStrictEqual(tabsOf(html('sideBody')), ['model', 'shortlist', 'voice', 'stats'],
+    'TELLER-TABS: Model, Shortlist, Your voice and Stats in a tale');
+  const model = html('sideBody');
+  assert.match(model, /data-storymodel=/, 'TELLER-MODEL: the model writing this tale');
+  assert.match(model.slice(model.indexOf('>Your model<')), /<button data-modelinfo="Qwen3\.6-WNTH-35B-A3B-NN"/,
+    'TELLER-MODEL: and the writer\'s usual model, to pick from');
+  assert.match(model, /data-story="weaving"[\s\S]*data-story="maxContext"[\s\S]*data-gen="temperature"[\s\S]*data-gen="target_words"/,
+    'TELLER-MODEL: and the sliders, in order: plans first, how much he reads, how he picks words, longest a passage runs');
+  assert.doesNotMatch(model, /This tale's calls/, 'TELLER-MODEL: the calls are not on Model');
+  click({ modelinfo: 'Wayfarer-2-RPNT-12B' });
+  const info = html('sideBody');
+  const row = info.indexOf('<button data-modelinfo="Wayfarer-2-RPNT-12B"');
+  assert.ok(row > 0 && info.indexOf('data-pickmodel="Wayfarer-2-RPNT-12B"') > row,
+    'TELLER-INFO: the model info is drawn under the model picked');
+  assert.ok(info.indexOf('data-pickmodel="Wayfarer-2-RPNT-12B"') < info.indexOf('<button data-modelinfo="', row + 10),
+    'TELLER-INFO: right under it, before the next model in the list');
+
+  click({ tellertab: 'stats' });
+  assert.strictEqual(shown(), 'stats', 'TELLER-STATS: the Stats tab');
+  assert.match(html('sideBody'), /This tale's calls/, 'TELLER-STATS: holds this tale\'s calls');
+  assert.doesNotMatch(html('sideBody'), /data-gen=/, 'TELLER-STATS: and not the sliders');
+  click({ tellertab: 'voice' });
+  for (let i = 0; i < 40 && !/data-mydefaultvoice/.test(html('sideBody')); i++) await sleep(25);
+  assert.match(html('sideBody'), /data-mydefaultvoice/, 'TELLER-VOICE: Your voice holds the writer\'s voice');
+  assert.match(html('sideBody'), /data-anansivoice/, 'TELLER-VOICE: how Anansi talks');
+  assert.match(html('sideBody'), /data-editprompt="continue"/, 'TELLER-VOICE: and the five modes');
+  assert.doesNotMatch(html('sideBody'), /data-acctgo=/, 'TELLER-VOICE: and no door to Account any more');
+  click({ tellertab: 'shortlist' });
+  assert.match(html('sideBody'), /id="findmine"/, 'TELLER-SHORTLIST: the shortlist');
+  assert.match(html('sideBody'), /needs a Featherless key/, 'TELLER-NOKEY: with no key, the search says it needs one');
+  assert.doesNotMatch(html('sideBody'), /id="findq"/, 'TELLER-NOKEY: and offers no box that cannot search');
+  modelsRemote = true;
+  click({ dropshort: 'featherless:Other/Unused-12B' });   // the list read again, so the key is known
+  await sleep(40);
+  click({ tellertab: 'shortlist' });
+  await sleep(30);
+  assert.match(html('sideBody'), /id="findmine"[\s\S]*id="findq"[\s\S]*id="findhits"/,
+    'TELLER-SHORTLIST: with a key, the shortlist and the Featherless search under it');
+  modelsRemote = false;
+  click({ dropshort: 'featherless:Other/Unused-12B' });
+  await sleep(40);
+
+  // THE OLD DOORS. Presses first, then the addresses a bookmark carries.
+  click({ tellertab: 'model' });
+  click({ findmodel: '1' });
+  await sleep(30);
+  assert.strictEqual(shown(), 'shortlist', 'TELLER-WAS: Find a model opens Storyteller on Shortlist');
+  click({ modelinfo: 'write-nt-qwen36-h' });
+  assert.strictEqual(shown(), 'model', 'TELLER-WAS: a model\'s info opens it on Model');
+  click({ acctgo: 'writing' });
+  await sleep(30);
+  assert.strictEqual(shown(), 'voice', 'TELLER-WAS: Account → Writing opens it on Your voice');
+  assert.strictEqual(side().hidden, false, '  and it is open');
+  const go = async (hash: string) => {
+    (globalThis as any).location.hash = hash;
+    await Promise.all((winListeners.hashchange ?? []).map((f) => f({ oldURL: 'https://x/#s-1' })));
+    await sleep(40);
+  };
+  await go('#s-1/findmodel');
+  assert.strictEqual(shown(), 'shortlist', 'TELLER-WAS: a findmodel address lands on Shortlist');
+  await go('#s-1/model');
+  assert.strictEqual(shown(), 'model', 'TELLER-WAS: a model address lands on Model');
+  (globalThis as any).location.hash = '';
+
+  // OUTSIDE A TALE: Model with the usual model only, Shortlist and Your voice.
+  click({ home: 1 });
+  await sleep(40);
+  click({ modelmenu: '1' });
+  await sleep(30);
+  assert.strictEqual(side().hidden, false, 'TELLER-LIB: Storyteller opens in the library');
+  assert.deepStrictEqual(tabsOf(html('sideBody')), ['model', 'shortlist', 'voice'],
+    'TELLER-LIB: Model, Shortlist and Your voice, and no Stats');
+  assert.match(html('sideBody'), />Your model<[\s\S]*<button data-modelinfo="Qwen3\.6-WNTH-35B-A3B-NN"/, 'TELLER-LIB: the usual model');
+  assert.doesNotMatch(html('sideBody'), /data-storymodel=|data-story="|data-gen=/,
+    'TELLER-LIB: and no per-tale controls');
+  click({ tellertab: 'stats' });
+  assert.notStrictEqual(shown(), 'stats', 'TELLER-LIB: Stats cannot be shown with no tale');
+  click({ acctgo: 'writing' });
+  await sleep(30);
+  assert.strictEqual(shown(), 'voice', 'TELLER-LIB: Account → Writing opens Your voice here too');
+  click({ tellertab: 'model' }); click({ panel: '' });   // as the checks after this one expect it
+
+  // ACCOUNT KEEPS THE KEY AND SAYS WHERE THE MODEL IS CHANGED.
+  click({ railview: 'workspace' }); click({ nav: 'account' });
+  for (let i = 0; i < 40 && !/data-accttab/.test(html('page')); i++) await sleep(25);
+  assert.deepStrictEqual([...html('page').matchAll(/data-accttab="([a-z]+)"/g)].map((m) => m[1]),
+    ['profile', 'model', 'look', 'books'], 'ACCT-NOWRITING: Account has no Writing tab');
+  click({ accttab: 'model' });
+  assert.match(html('page'), /No key yet/, 'ACCT-MODEL: the Model tab keeps the Featherless key');
+  assert.match(html('page'), /Storyteller/, 'ACCT-MODEL: and names Storyteller as where the model is changed');
+  assert.doesNotMatch(html('page'), /pick from its list/, 'ACCT-MODEL: not a list that is gone');
+  click({ accttab: 'profile' });
+}
+ok('Storyteller is one panel with Model, Shortlist, Your voice and Stats, and the old doors land on its tabs');
 
 // ---- WHEN YOU REWEAVE (Seth, 2026-10-29: "under your account and writing I can't see reweave").
-// Account → Writing draws a sixth box after the five modes, and it saves and resets through the
+// Storyteller → Your voice (Account → Writing until #131) draws a sixth box after the five modes, and it saves and resets through the
 // same prompt route under the key `reweave`. Since the last 2026-10-29 change (docs/adr/0012) the box
 // frames the What didn't work note and nothing else: the take is no longer sent, so the box has one
 // placeholder, {{whatfailed}}, and the tip names only that one.
 {
   const doc = (globalThis as any).document;
-  click({ railview: 'workspace' }); click({ nav: 'account' }); click({ accttab: 'writing' });
-  for (let i = 0; i < 40 && !/data-editprompt=/.test(html('page')); i++) await sleep(25);
-  const page = html('page');
+  click({ modelmenu: '1' }); click({ tellertab: 'voice' });
+  for (let i = 0; i < 40 && !/data-editprompt=/.test(html('sideBody')); i++) await sleep(25);
+  const page = html('sideBody');
   assert.doesNotMatch(page, /The five modes and Reweave/, 'the heading no longer names a Reweave box it did not have');
   assert.match(page, /The five modes, in your words/, 'it names the five modes');
   assert.deepStrictEqual([...page.matchAll(/data-editprompt="([a-z]+)"/g)].map((m) => m[1]),
@@ -5549,7 +5667,7 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
   assert.match(page, /data-anansivoice/, 'ANANSI-VOICE: How Anansi talks is drawn once the prompts load');
 
   click({ editprompt: 'reweave' });
-  const open = html('page');
+  const open = html('sideBody');
   // SAVED AS YOU TYPE (ADR 0004, pass three): no Save, and Undo my changes in its place.
   assert.doesNotMatch(open, /data-saveprompt|>Save</, 'PROMPT-NO-SAVE: opened, there is no Save');
   assert.match(open, /data-undoprompt="reweave"[^>]*>Undo my changes</, 'PROMPT-UNDO-SHOWN: Undo my changes in its place');
@@ -5581,7 +5699,7 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
     assert.deepStrictEqual(prompts(), [{ key: 'reweave', text: 'Take the other road. {{whatfailed}}' }],
       'PROMPT-AUTOSAVE: the pause writes what is in the box, as reweave');
     // Saving a box must not blank the rest of the page: the voice editor above it stays drawn.
-    assert.match(html('page'), /data-mydefaultvoice/, 'and the voice box above it is still there after it saves');
+    assert.match(html('sideBody'), /data-mydefaultvoice/, 'and the voice box above it is still there after it saves');
     // SHUT INSIDE THE PAUSE, the last of the typing is written as it shuts.
     typePrompt('Take the other road at once. {{whatfailed}}');
     click({ editprompt: 'reweave' }); await sleep(30);
@@ -5606,9 +5724,9 @@ ok('Account is five pages, and Your books holds Import, Export and What you have
       [{ key: 'reweave', text: '' }], 'Reset sends it empty, which the route takes as the reset');
   } finally { doc.querySelector = wasQS; }
   click({ editprompt: 'reweave' });   // close it, for the checks after this one
-  click({ accttab: 'profile' });
+  click({ tellertab: 'model' }); click({ panel: '' });
 }
-ok('Account → Writing shows When you reweave after the five modes, filled with the shipped note frame, and it saves and resets');
+ok('Storyteller → Your voice shows When you reweave after the five modes, filled with the shipped note frame, and it saves and resets');
 
 // ---- THE TALE'S OWN THREAD LIVES ON THE TALE PANEL'S THREAD TAB, AND ONLY THERE (Seth, 2026-10-29:
 // "the tale thread under threads can be removed since it lives under tale now").
@@ -6530,14 +6648,12 @@ ok('the house style can be re-rolled, into the box and not into the story');
   const doc = (globalThis as any).document;
   click({ open: 's-1' });
   await sleep(40);
-  // In Account → Writing since 2026-10-27; the Storyteller keeps a door to it.
-  click({ panel: 'teller' });
-  assert.match(html('sideBody'), /data-acctgo="writing"/, 'the Storyteller points at Account → Writing');
-  click({ acctgo: 'writing' });
-  for (let i = 0; i < 40 && !/data-mydefaultvoice/.test(html('page')); i++) {
+  // On Storyteller's Your voice tab since #131 (Account → Writing from 2026-10-27 until then).
+  click({ panel: 'teller' }); click({ tellertab: 'voice' });
+  for (let i = 0; i < 40 && !/data-mydefaultvoice/.test(html('sideBody')); i++) {
     await sleep(25);
   }
-  const teller = html('page');
+  const teller = html('sideBody');
   // THE DEFAULT VOICE HAD NO SURFACE AT ALL. Only the two spark buttons read it, while the server
   // quietly backfilled it into any book created with the voice box left blank — a page of text
   // nobody had seen, reaching the model, with nowhere to go and look at it.
@@ -6548,8 +6664,7 @@ ok('the house style can be re-rolled, into the box and not into the story');
   // not a mode is invisible to it — and the editor must not draw it either.
   assert.doesNotMatch(teller, /data-editprompt="voice:Noir"/, 'and it is not listed as a mode');
 
-  click({ open: 's-1' });   // back into the tale, which Account took us out of
-  await sleep(40);
+  click({ tellertab: 'model' });
   click({ panel: 'story' });
   await sleep(30);
   const story = html('sideBody');

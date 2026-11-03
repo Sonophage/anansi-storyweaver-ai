@@ -622,15 +622,12 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   const byClick = { entry: /S\.panel = 'entry'/, history: /S\.panel = 'history'/,
                     setup: /<button class="btn(?: [^"]*)?" data-panel="setup"/,
                     ritual: /S\.panel = 'ritual'/,
-                    // #25. Its door is a row in the rail's model list, which is why the opener is
-                    // `data-modelinfo` and not `data-panel`: the row has to say WHICH model, and a
-                    // panel that opened on whatever was already selected would be the wrong one
-                    // every time you pressed a row that was not the current model. In the BUTTON
-                    // form for the reason spelled out above — app.js explains this panel in a
-                    // comment, and a check that matches its own documentation is decorative.
-                    model: /<button data-modelinfo=/,
-                    // #51. Its door is the last row of the same list, and its handler names it.
-                    findmodel: /<button data-findmodel="1"[\s\S]*S\.panel = 'findmodel'/,
+                    // #131. Storyteller is in SNAV for its title and its address, but no menu
+                    // draws its row: its door is the model named at the top of either menu. In
+                    // the BUTTON form for the reason spelled out above, and its handler names the
+                    // panel. The model panel (#25) and Find a model (#51) are its Model and
+                    // Shortlist tabs now, so they are not panels to be reached.
+                    teller: /<button data-modelmenu="1"[\s\S]*S\.panel = 'teller'/,
                     // #76. A button in Tale → Keep.
                     updates: /<button[^>]* data-panel="updates"/,
                     // Account → Your books (2026-10-27): Import, Export and What you have written

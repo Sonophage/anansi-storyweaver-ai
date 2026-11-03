@@ -18,6 +18,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · Threads and pockets save as you type
 
+### Storyteller holds everything about the model
+Storyteller is now one place with four tabs. Model shows the model that writes this tale and your
+usual model, with what each one is for and how fast it writes under the one you press, and the
+sliders beside them. Shortlist is your shortlist and the Featherless search. Your voice is your
+voice for every tale, how Anansi talks and the five modes, which were in Account → Writing. Stats is
+this tale's last calls. Press the model name at the top of the menu to open it. Storyteller is no
+longer a tile in the tale's menu, and Account no longer has a Writing page. In the library,
+Storyteller shows your usual model, your shortlist and your voice.
+
 ### Altering a thread saves as you type
 Editing a thread has no Save any more. Its name, where it stands, your notes, its wake words and
 its Always true are kept a moment after you stop typing. Done, at the top, keeps the last of it and

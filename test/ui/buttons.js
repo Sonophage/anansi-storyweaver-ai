@@ -127,8 +127,8 @@ await wait(1200);
 // a page that failed to render at all, which is the failure this change could plausibly have caused.
 const models = await page.eval("document.querySelectorAll('#page [data-pickmodel]').length");
 ok("the writing record lists no models (" + models + ")", models === 0);
-// The rail's list is behind its own press — `data-modelmenu` opens it — so the door is what to
-// assert, not a list that is not on screen until you ask for it.
+// The list is on Storyteller's Model tab, behind the menu's model name (`data-modelmenu`, #131), so
+// the door is what to assert, not a list that is not on screen until you ask for it.
 const railDoor = await page.eval("!!document.querySelector('#rail [data-modelmenu]')");
 ok("  and the rail footer still has the door to one", railDoor);
 ok("  and the page rendered — it is the record, not an empty panel",

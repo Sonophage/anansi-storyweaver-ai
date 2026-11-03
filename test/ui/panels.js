@@ -37,8 +37,9 @@ console.log("  rail: " + nav);
 // Strings, Talk to Anansi and What he reads left the menu the same day for other doors (Workbench
 // cards, the quill held down, the strip's "what is in it"); their panels and links stay, which the
 // walk below checks by address. Strings came back beside Threads on 2026-10-29 (UX review: it had no door).
+// Storyteller left on 2026-11-03 (#131): the model named at the top of the menu is its door.
 ok(`the rail lists the panels in the order asked for (${nav})`,
-   nav === 'story,teller,chapter,chapters,threads,strings,waiting');
+   nav === 'story,chapter,chapters,threads,strings,waiting');
 ok("  and Trajectory, What the chapter added and Branches are no longer rows of their own",
    !/traj|queue|branches/.test(nav));
 ok("  and Prose search is a bar in the menu", await page.eval("!!document.querySelector('#rail [data-railsearch]')"));
@@ -51,11 +52,16 @@ const opened = async (label) => {
   ok(`  titled ${JSON.stringify(label)}`, (await head()).trim() === label);
 };
 for (const [k, label] of [['story', 'Tale'], ['chapter', 'This scene'], ['threads', 'Threads'],
-                          ['chapters', 'Scenes'], ['teller', 'Storyteller']]) {
+                          ['chapters', 'Scenes']]) {
   await page.click(`[data-nav="${k}"]`);
   await wait(500);
   await opened(label);
 }
+// Storyteller's door is the model named at the top of the menu (#131).
+await page.click('#rail [data-modelmenu="1"]');
+await wait(500);
+await opened('Storyteller');
+ok("  on its Model tab", await page.eval("document.querySelector('[data-tellertab=\"model\"]')?.getAttribute('aria-pressed') === 'true'"));
 // Enter in the menu's search bar opens Prose search.
 await page.eval(`(() => { const i = document.querySelector('#rail [data-railsearch]');
   i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()`);

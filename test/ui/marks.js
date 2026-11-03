@@ -41,21 +41,22 @@ const read = (scope) => page.eval(`(async () => {
     glyph: d === first('spider') ? 'spider' : d === first('feather') ? 'feather' : d,
     contrast: (Math.max(a, b) + .05) / (Math.min(a, b) + .05), words: m.getAttribute('aria-label') };
 })()`);
-const row = (id) => read(`document.querySelector('#rail [data-modelinfo="${id}"]')`);
+const row = (id) => read(`document.querySelector('#usualmodels [data-modelinfo="${id}"]')`);
 
 // ---- 0. a remote model on this writer's shortlist
 const added = await page.eval(`(async () => (await (await fetch('/api/shortlist', { method: 'POST',
   headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: ${JSON.stringify(REMOTE)} }) })).json()))()`);
 ok(`the remote model is on the shortlist (${added.error ?? 'added'})`, !added.error);
 
-// ---- 1. the menu rows, in the dark default theme
+// ---- 1. the model rows, in the dark default theme. On Storyteller's Model tab since #131: the
+// model named in the menu opens it, and the list that dropped open under it is gone.
 const menu = async (at = "/") => {
   await page.goto(B + at);
   await page.click('[data-modelmenu="1"]');
-  return until(`!!document.querySelector('#rail [data-modelinfo="${REMOTE}"] [data-runs]')
-    && !!document.querySelector('#rail [data-modelinfo="${ASLEEP}"] [data-runs]')`);
+  return until(`!!document.querySelector('#usualmodels [data-modelinfo="${REMOTE}"] [data-runs]')
+    && !!document.querySelector('#usualmodels [data-modelinfo="${ASLEEP}"] [data-runs]')`);
 };
-ok("the menu lists both local models and the remote one, each with a mark", await menu());
+ok("Storyteller lists both local models and the remote one, each with a mark", await menu());
 const checkRows = async (theme) => {
   const a = await row(AWAKE), s = await row(ASLEEP), r = await row(REMOTE);
   ok(`${theme}: an awake local model has a filled circle and the spider (${JSON.stringify(a)})`,
@@ -66,7 +67,7 @@ const checkRows = async (theme) => {
     r?.runs === "remote" && r.awake && r.filled && r.glyph === "feather");
   ok(`${theme}: local and remote circles are different colours (${a?.edge} / ${r?.edge})`,
     a?.edge && a.edge === s?.edge && a.edge !== r?.edge);
-  ok(`${theme}: both circles read on the rail at 3:1 (${a?.contrast.toFixed(2)}, ${r?.contrast.toFixed(2)})`,
+  ok(`${theme}: both circles read on the panel at 3:1 (${a?.contrast.toFixed(2)}, ${r?.contrast.toFixed(2)})`,
     a?.contrast >= 3 && r?.contrast >= 3);
   ok(`${theme}: the marks say it in words too`, a?.words === "local, awake" && s?.words === "local, asleep"
     && r?.words === "remote, on Featherless");
@@ -79,7 +80,7 @@ const strip = () => read(`document.querySelector('[data-modelmenu="1"]')`);
 let st = await strip();
 ok(`the strip marks the default local model, awake (${JSON.stringify(st)})`,
   st?.runs === "local" && st.awake && st.glyph === "spider");
-await page.click(`#rail [data-modelinfo="${REMOTE}"]`);
+await page.click(`#usualmodels [data-modelinfo="${REMOTE}"]`);
 await until(`!!document.querySelector('[data-pickmodel="${REMOTE}"]')`);
 await page.click(`[data-pickmodel="${REMOTE}"]`);
 ok("pressing Write with this one moves the strip to the remote model",
@@ -88,9 +89,9 @@ st = await strip();
 ok("the strip shows the feather, filled", st?.glyph === "feather" && st.filled);
 ok("and says it runs on Featherless", /on Featherless/.test(await page.text('[data-modelmenu="1"]') ?? ""));
 await page.click('[data-modelmenu="1"]');
-await until(`!!document.querySelector('#rail [data-modelinfo="${REMOTE}"]')`);
-ok("the model writing now is the highlighted row", await page.eval(`(() => {
-  const bg = (id) => getComputedStyle(document.querySelector('#rail [data-modelinfo="' + id + '"]')).backgroundColor;
+await until(`!!document.querySelector('#usualmodels [data-modelinfo="${REMOTE}"]')`);
+ok("your usual model is the highlighted row", await page.eval(`(() => {
+  const bg = (id) => getComputedStyle(document.querySelector('#usualmodels [data-modelinfo="' + id + '"]')).backgroundColor;
   return bg(${JSON.stringify(REMOTE)}) !== bg(${JSON.stringify(AWAKE)}) && /rgba\\(0, 0, 0, 0\\)/.test(bg(${JSON.stringify(AWAKE)})); })()`));
 
 // ---- 3. the book's picker in the Storyteller panel

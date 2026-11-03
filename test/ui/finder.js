@@ -1,5 +1,6 @@
 // needs: fake-featherless
-// Find a model: open it from the rail's model menu, search the catalogue, see each row's tags,
+// Find a model, which is Storyteller's Shortlist tab since #131: open it from the model named in
+// the menu, search the catalogue, see each row's tags,
 // expand a row for its base model and card, add a model to the shortlist, read the same card on
 // the model info panel, and remove it again. Runs against the fake Featherless that test/ui/run.sh starts for
 // a scenario whose first line asks for one, so it is fast and spends nothing.
@@ -22,16 +23,13 @@ const search = async (q) => {
   await wait(700);
 };
 
-// ---- 1. the door: the last row of the rail's model menu
+// ---- 1. the door: the model named in the menu opens Storyteller, and Shortlist is a tab of it
 await page.goto(B + "/");
 await page.click('[data-modelmenu="1"]');
-ok("the model menu has a Find a model row", await until("!!document.querySelector('[data-findmodel]')"));
-ok("and it is the last thing in the list, after every model", await page.eval(`(() => {
-  const f = document.querySelector('[data-findmodel]'), rows = [...document.querySelectorAll('[data-modelinfo]')];
-  return rows.every((r) => r.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING); })()`));
+ok("the model name opens Storyteller, with a Shortlist tab", await until("!!document.querySelector('#sideBody [data-tellertab=\"shortlist\"]')"));
 
 // ---- 2. the sheet: the shortlist on top, uncensored results below
-await page.click('[data-findmodel]');
+await page.click('[data-tellertab="shortlist"]');
 ok("the sheet opens with results", await until("document.querySelectorAll('[data-addshort]').length > 0"));
 ok("the shortlist sits above the search", await page.eval(`!!(document.getElementById('findmine')
   .compareDocumentPosition(document.getElementById('findq')) & Node.DOCUMENT_POSITION_FOLLOWING)`));
@@ -128,12 +126,12 @@ const got = (await mine()).find((m) => m.id === QWEN);
 ok(`the shortlist keeps its weaving and its cost (${got?.weaving}, ${got?.cost})`,
   got?.weaving === "can switch" && got?.cost === 2);
 ok("the result row says it is on your shortlist", await page.eval(`!document.querySelector('[data-addshort="${QWEN}"]')`));
-await page.click('[data-modelmenu="1"]');
-ok("it appears on the writer's model menu", await until(`!!document.querySelector('#rail [data-modelinfo="${QWEN}"]')`));
-ok("and the menu has no remove — remove lives in the sheet", await page.eval("!document.querySelector('#rail [data-dropshort]')"));
+await page.click('[data-tellertab="model"]');
+ok("it appears in the writer's model list on Model", await until(`!!document.querySelector('#usualmodels [data-modelinfo="${QWEN}"]')`));
+ok("and the list has no remove — remove lives on Shortlist", await page.eval("!document.querySelector('#usualmodels [data-dropshort]')"));
 
 // ---- 4b. the model info panel describes a remote model with the same block
-await page.click(`#rail [data-modelinfo="${QWEN}"]`);
+await page.click(`#usualmodels [data-modelinfo="${QWEN}"]`);
 ok("the model info panel for a remote model shows its card",
   await until(`/abliterated finetune/.test(document.querySelector('#sideBody .remoteabout')?.innerText ?? '')`));
 text = await about('#sideBody');
@@ -144,10 +142,8 @@ ok("drawn by the same renderer as the expanded row: the same block, to the chara
 ok("and not the hint for a local model with nothing written down",
   !/Nothing is written down about this one/.test(await page.eval("document.getElementById('sideBody').innerText")));
 
-// ---- 5. remove, from the sheet, reached again through the menu the info panel closed
-await page.click('[data-modelmenu="1"]');
-await until("!!document.querySelector('[data-findmodel]')");
-await page.click('[data-findmodel]');
+// ---- 5. remove, from the Shortlist tab
+await page.click('[data-tellertab="shortlist"]');
 await until(`!!document.querySelector('#findmine [data-dropshort="${QWEN}"]')`);
 await page.click(`[data-dropshort="${QWEN}"]`);
 ok("remove takes it off the sheet", await until(`!document.querySelector('[data-dropshort="${QWEN}"]')`));
