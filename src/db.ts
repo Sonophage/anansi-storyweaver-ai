@@ -731,11 +731,14 @@ function migrate() {
    * after 2026-11-03 has shipped with no rollback; then move the readers of `active` that are left
    * (outfits, strings, the tale's rules, `addons_one_active`) onto `activation` and drop both. */
   add('addons', 'activation', 'TEXT');
-  db.exec(`CREATE TRIGGER IF NOT EXISTS addons_activation_new AFTER INSERT ON addons WHEN NEW.activation IS NULL
+  // Dropped and made again on every boot, so an edit to either reaches a library that has the old
+  // one: `IF NOT EXISTS` would keep the first body a library got, and nothing would say so.
+  db.exec(`DROP TRIGGER IF EXISTS addons_activation_new; DROP TRIGGER IF EXISTS addons_activation_step;
+  CREATE TRIGGER addons_activation_new AFTER INSERT ON addons WHEN NEW.activation IS NULL
     BEGIN UPDATE addons SET activation = CASE WHEN NEW.active = 1 THEN 'always_on'
       WHEN (CASE WHEN json_valid(NEW.keys) THEN json_array_length(NEW.keys) ELSE 0 END) > 0 THEN 'triggered'
       ELSE 'off' END WHERE id = NEW.id; END;
-  CREATE TRIGGER IF NOT EXISTS addons_activation_step AFTER UPDATE OF active ON addons
+  CREATE TRIGGER addons_activation_step AFTER UPDATE OF active ON addons
     WHEN NEW.activation IS NOT NULL AND (NEW.active = 1) <> (NEW.activation = 'always_on')
     BEGIN UPDATE addons SET activation = CASE WHEN NEW.active = 1 THEN 'always_on'
       WHEN (CASE WHEN json_valid(NEW.keys) THEN json_array_length(NEW.keys) ELSE 0 END) > 0 THEN 'triggered'

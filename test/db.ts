@@ -4842,4 +4842,35 @@ ok('every copy of the old switch\'s rule gives a pocket the same eye', () => {
   db.delStory(st.id);
 });
 
+/* #134 · AN EDITED TRIGGER REACHES A LIBRARY THAT HAS THE OLD ONE. `CREATE TRIGGER IF NOT EXISTS`
+ * kept whatever body a library first got, so a later fix to the rule never reached it and nothing
+ * said so. `migrate()` drops and re-creates both on every boot. */
+ok('a library with an old pocket trigger gets the current one on boot', () => {
+  const dir = mkdtempSync('/tmp/anansi-trigger-');
+  const file = join(dir, 'library.db');
+  try {
+    const boot = () => {
+      const r = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
+        `await import(${JSON.stringify(new URL('../src/db.ts', import.meta.url).href)});`],
+        { env: { ...process.env, ANANSI_DB: file }, encoding: 'utf8' });
+      assert.strictEqual(r.status, 0, `the boot failed: ${r.stderr}`);
+    };
+    const sqlOf = (c: any, name: string) => (c.prepare(
+      "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ?").get(name) as any)?.sql;
+    boot();
+    const old = new RawDb(file);
+    old.exec(`DROP TRIGGER addons_activation_new; DROP TRIGGER addons_activation_step;
+      CREATE TRIGGER addons_activation_new AFTER INSERT ON addons WHEN NEW.activation IS NULL
+        BEGIN UPDATE addons SET activation = 'triggered' WHERE id = NEW.id; END;
+      CREATE TRIGGER addons_activation_step AFTER UPDATE OF active ON addons
+        BEGIN UPDATE addons SET activation = 'triggered' WHERE id = NEW.id; END;`);
+    old.close();
+    boot();
+    const now = new RawDb(file, { readOnly: true });
+    for (const name of ['addons_activation_new', 'addons_activation_step'])
+      assert.strictEqual(sqlOf(now, name), sqlOf(db.db, name), `POCKET-TRIGGER-FRESH: ${name} is the current one`);
+    now.close();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 console.log(`\n${n} checks passed`);
