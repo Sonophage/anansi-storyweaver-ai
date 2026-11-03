@@ -201,6 +201,15 @@ it as Stop. At a desk the buttons keep the word.
 ### Cards and boxes lift off the page
 Cards, the side panel, the menu's rows and tiles, the boxes you type in and the writing box carry a
 soft shadow, so each sits over the painted paper instead of flat in it.
+### A panel beside the page opens on a banner
+Each panel that opens beside the page starts with a banner: the tale's picture, dimmed, or the
+painted paper, with a sunburst rising to a gilt diamond that holds the panel's own mark. Tale has
+the moon, Threads the web, an open thread a needle and thread, This scene a candle, Scenes an open
+book, Prose search a lantern, Workbench an anvil, Strings a lyre, Talk the spider, What he reads an
+eye, Storyteller the Star, Alterations an hourglass, and What the update moved a turning wheel.
+Under the banner the panel's name is large in thin capitals with CLOSE at the right, and its tabs
+are spaced capitals with no boxes, the one you are on bright. A panel you have made full screen
+keeps the header it had.
 ### No glow along the top
 The glow across the top of the screen is gone. What is waiting is still counted on the Workbench in
 the tale's menu.

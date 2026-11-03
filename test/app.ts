@@ -1479,6 +1479,41 @@ ok('You play is a picker: search first, then who is in this scene, then everyone
   click({ panel: '' }); await sleep(20);
 }
 ok('any panel can be full screen, per panel, remembered on this device');
+
+// A PANEL BESIDE THE PAGE HAS A BANNER (Seth, 2026-11-03, his reference "TALE ... CLOSE"): a band at
+// its head with the tale's picture dimmed (or the painted paper), a sunburst rising from a gilt line,
+// and a gilt diamond on the line holding the panel's own mark: the moon for Tale. Full screen keeps
+// the header it has (the stylesheet hides the band under `data-sidefull="1"`). Each panel's mark is
+// one row of one table in app.html; every panel that opens beside the page has exactly one, a thread's
+// Read face included, and no two share a file.
+{
+  click({ panel: 'story' }); await sleep(20);
+  const head = html('sideHead');
+  assert.match(head, /^\s*<div class="pbanner" data-mark="story" aria-hidden="true">/, 'PANEL-BANNER: the Tale panel opens on its banner, marked as Tale');
+  assert.match(head, /<i class="pbpic" style="background-image:url\('\/api\/cover\?story=s-1[^']*'\)"><\/i>/, 'PANEL-BANNER: with the tale\'s picture in it');
+  assert.match(head, /<b class="pbmark"><\/b>/, 'PANEL-BANNER: and the diamond for its mark');
+  assert.match(head, /<span class="serif panelname">Tale<\/span>/, 'PANEL-BANNER: the name in its own class, for the deco capitals');
+  click({ panel: 'threads' }); await sleep(20);
+  assert.match(html('sideHead'), /<div class="pbanner" data-mark="threads"/, 'PANEL-BANNER: Threads has its own');
+  click({ entry: 'e-1' }); await sleep(20);
+  assert.match(html('sideHead'), /<div class="pbanner" data-mark="read"/, 'PANEL-BANNER: and a thread\'s Read face its own');
+  click({ backentry: '1' }); await sleep(20);
+  click({ panel: '' }); await sleep(20);
+  const { readFileSync, existsSync } = await import('node:fs');
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  const rows = [...page.matchAll(/\.pbanner\[data-mark="(\w+)"\]\s*\{\s*--mark:\s*url\('\/web\/(arcana-mark-[\w-]+\.svg)'\)/g)].map((m) => [m[1], m[2]]);
+  const PANELS = ['story', 'threads', 'read', 'chapter', 'chapters', 'search', 'waiting', 'strings', 'anansi', 'context', 'teller', 'history', 'updates'];
+  assert.deepStrictEqual(rows.map(([k]) => k).sort(), [...PANELS].sort(), 'PANEL-MARK: every panel beside the page has exactly one mark');
+  assert.strictEqual(new Set(rows.map(([, f]) => f)).size, rows.length, 'PANEL-MARK: no two panels share a mark');
+  assert.strictEqual(rows.find(([k]) => k === 'story')?.[1], 'arcana-mark-moon.svg', 'PANEL-MARK: Tale is the moon');
+  for (const [k, f] of rows) {
+    const at = new URL('../web/' + f, import.meta.url);
+    assert.ok(existsSync(at), `PANEL-MARK: ${k}'s ${f} is on disk`);
+    assert.match(readFileSync(at, 'utf8'), /^<svg [^>]*xmlns="http:\/\/www\.w3\.org\/2000\/svg"[\s\S]*<\/svg>\s*$/, `PANEL-MARK: ${f} is an SVG`);
+  }
+  assert.match(page, /html\[data-sidefull="1"\] #sideHead > \.pbanner \{ display:none; \}/, 'PANEL-BANNER: full screen keeps today\'s header');
+}
+ok('a panel beside the page opens on a banner with its own mark in the diamond');
 // The tint follows the mode, and it follows it on the ROOT — which means the attribute has to be
 // rewritten by the thing that draws the row. Written in applyLook it went stale the moment you
 // pressed a different mode, and Act kept its tinted, rounded background after you had left it.
@@ -2461,11 +2496,11 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     assert.ok(FACES && !Object.values(THEMES).some((t: any) => t.faces), 'ARCANA-FACES: the display faces are the app\'s, not a theme\'s');
     const html0 = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
     assert.doesNotMatch(html0, /data-ui-theme="arcana"\]/, 'ARCANA-EVERYWHERE: no rule keys on the Arcana theme');
-    const GILT = /arcana-(corner-..|divider|stars|sky-\w+|suit-\w+|glyph-\w+|sunburst|diamond|runes|wash)\.svg/;
+    const GILT = /arcana-(corner-..|divider|stars|sky-\w+|suit-\w+|glyph-\w+|mark-\w+|sunburst|diamond|runes|wash)\.svg/;
     for (const m of html0.matchAll(/url\('\/web\/(arcana-[\w-]+\.svg)'\)/g)) {
       if (!GILT.test(m[1])) continue;
       const decl = html0.slice(Math.max(html0.lastIndexOf(';', m.index!), html0.lastIndexOf('{', m.index!)) + 1, m.index!);
-      assert.match(decl, /^\s*(-webkit-)?mask(-image)?:|^\s*--(sky|suit|glyph):|^\s*(-webkit-)?mask(-image)?:[^;]*$/,
+      assert.match(decl, /^\s*(-webkit-)?mask(-image)?:|^\s*--(sky|suit|glyph|mark):|^\s*(-webkit-)?mask(-image)?:[^;]*$/,
         `ORNAMENT-MASK: ${m[1]} is drawn as a mask in the theme's accent, not an image (${decl.trim().slice(0, 60)})`);
     }
     // CONTROLS KEEP THEIR ROUNDED CORNERS (Seth, 2026-11-03: "round the corners of buttons and inputs

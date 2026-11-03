@@ -1554,6 +1554,9 @@ html[data-work="ai"]       { --work:var(--gold); }
 
 /* --- side panel -------------------------------------------------------- */
 #sideHead { display:flex; align-items:center; gap:12px; padding:20px 22px 14px; border-bottom:1px solid var(--line); flex:0 0 auto; color:var(--ink); }
+/* The panel's name, beside its presses: one line, cut short rather than pushing Close off. */
+#sideHead > .panelname { font-size:20px; color:var(--ink-bright); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pbanner { display:none; }
 #sideBody { padding:18px 22px 30px; flex:1; min-height:0; display:flex; flex-direction:column; color:var(--ink); }
 @media (max-width:719px) { #sideHead { padding:18px 20px 12px; } #sideBody { padding:10px 20px 26px; } }
 /* REAL CAPITALS — Seth, 2026-09-03: "the labels are all weird lets make it all caps locked
@@ -2944,6 +2947,86 @@ html:root .from[data-press="anansi"]   { --glyph:url('/web/arcana-glyph-anansi.s
 html:root .from { gap:12px; }
 html:root .from > i { width:18px; height:18px; border-radius:0; background:var(--gold);
   -webkit-mask:var(--glyph) center / contain no-repeat; mask:var(--glyph) center / contain no-repeat; }
+
+/* A PANEL BESIDE THE PAGE OPENS ON A BANNER (Seth, 2026-11-03, his reference "TALE ... CLOSE"). A band
+   across the panel's head: the tale's picture dimmed and greyed (or the painted paper), a sunburst
+   rising from its foot, and a gilt diamond on its foot holding the panel's own mark. Under it the
+   panel's name large in the thin deco capitals at the left and CLOSE in spaced capitals at the right;
+   the tabs under that are spaced capitals with no boxes, the one you are on bright. Only beside the
+   page: full screen keeps the header it had (`data-sidefull`, set by drawSide). The band is laid
+   over the head's top padding, so the row of presses keeps its own flex line.
+   THE PANEL'S MARK, one row each, is this one table, keyed on the band's `data-mark` (the panel's
+   key; `read` for an open thread). test/app.ts PANEL-MARK holds it to every panel that opens beside
+   the page, one each, no file twice.
+     story      Tale            the moon, as in Seth's reference.
+     threads    Threads         the web the threads are spun into.
+     read       a thread, Read  a needle and its thread.
+     chapter    This scene      a candle: the one scene, lit.
+     chapters   Scenes          an open book.
+     search     Prose search    the Hermit's lantern, that seeks.
+     waiting    Workbench       the anvil, where the work is done.
+     strings    Strings         the lyre.
+     anansi     Talk            the spider, who is Anansi.
+     context    What he reads   an open eye.
+     teller     Storyteller     the Star, eight-pointed.
+     history    Alterations     the hourglass: what was before.
+     updates    What the update moved   a wheel turning. */
+html:root .pbanner[data-mark="story"]    { --mark:url('/web/arcana-mark-moon.svg'); }
+html:root .pbanner[data-mark="threads"]  { --mark:url('/web/arcana-mark-web.svg'); }
+html:root .pbanner[data-mark="read"]     { --mark:url('/web/arcana-mark-needle.svg'); }
+html:root .pbanner[data-mark="chapter"]  { --mark:url('/web/arcana-mark-candle.svg'); }
+html:root .pbanner[data-mark="chapters"] { --mark:url('/web/arcana-mark-book.svg'); }
+html:root .pbanner[data-mark="search"]   { --mark:url('/web/arcana-mark-lantern.svg'); }
+html:root .pbanner[data-mark="waiting"]  { --mark:url('/web/arcana-mark-anvil.svg'); }
+html:root .pbanner[data-mark="strings"]  { --mark:url('/web/arcana-mark-lyre.svg'); }
+html:root .pbanner[data-mark="anansi"]   { --mark:url('/web/arcana-mark-spider.svg'); }
+html:root .pbanner[data-mark="context"]  { --mark:url('/web/arcana-mark-eye.svg'); }
+html:root .pbanner[data-mark="teller"]   { --mark:url('/web/arcana-mark-star.svg'); }
+html:root .pbanner[data-mark="history"]  { --mark:url('/web/arcana-mark-hourglass.svg'); }
+html:root .pbanner[data-mark="updates"]  { --mark:url('/web/arcana-mark-wheel.svg'); }
+html[data-sidefull="1"] #sideHead > .pbanner { display:none; }
+/* It wraps: the name keeps its whole width, and when it and the presses do not fit on one line (Threads,
+   with its count and its ＋, in a 400px drawer) the presses take a second line, at the right. */
+html[data-sidefull="0"] #sideHead { --band:124px; padding-top:calc(var(--band) + 50px); padding-bottom:10px;
+  flex-wrap:wrap; row-gap:10px; }
+html[data-sidefull="0"] #sideHead::after { display:none; }
+html[data-sidefull="0"] #sideHead > .pbanner { display:block; position:absolute; left:0; right:0; top:0;
+  height:var(--band); pointer-events:none; animation:none;
+  background:url('/web/arcana-canvas.svg') center / cover, var(--rail); }
+html:root .pbanner > .pbpic { position:absolute; inset:0; z-index:0; background-size:cover; background-position:center 30%;
+  opacity:.26; filter:grayscale(.7) blur(1.5px);
+  -webkit-mask-image:linear-gradient(to bottom, #000 30%, rgba(0,0,0,.4)); mask-image:linear-gradient(to bottom, #000 30%, rgba(0,0,0,.4)); }
+/* The sunburst rises from the band's foot behind the diamond. */
+html:root .pbanner::before { content:''; position:absolute; z-index:1; left:50%; bottom:0; width:min(560px, 100%); height:100%;
+  transform:translateX(-50%); background:var(--gold); opacity:.8;
+  -webkit-mask:url('/web/arcana-sunburst.svg') center bottom / 100% 100% no-repeat;
+  mask:url('/web/arcana-sunburst.svg') center bottom / 100% 100% no-repeat; }
+/* The diamond on the foot: the dark it holds, then its gilt (a mask in the accent); the mark over it in
+   the bright ink, as the moon in the reference is pale. */
+html:root .pbanner > .pbmark { position:absolute; z-index:2; left:50%; bottom:-30px; width:60px; height:60px; margin-left:-30px; }
+html:root .pbanner > .pbmark::before { content:''; position:absolute; inset:0;
+  background:color-mix(in srgb, var(--doc-bg) 92%, transparent); clip-path:polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+html:root .pbanner > .pbmark::after { content:''; position:absolute; inset:0; background:var(--gold);
+  -webkit-mask:url('/web/arcana-diamond.svg') center / contain no-repeat; mask:url('/web/arcana-diamond.svg') center / contain no-repeat; }
+html:root .pbanner::after { content:''; position:absolute; z-index:3; left:50%; bottom:-14px; width:28px; height:28px; margin-left:-14px;
+  background:var(--ink-bright); -webkit-mask:var(--mark) center / contain no-repeat; mask:var(--mark) center / contain no-repeat; }
+/* The name, large and thin, and CLOSE in spaced capitals. */
+html[data-sidefull="0"] #sideHead > .panelname { font-family:var(--arc-deco); font-weight:400; text-transform:uppercase;
+  font-size:34px; line-height:1.1; letter-spacing:.18em; flex:0 0 auto; max-width:100%; }
+html[data-sidefull="0"] #sideHead > .caps-btn { font-family:var(--arc-small); font-size:13px; letter-spacing:.3em; margin-right:-.3em; margin-left:auto; }
+/* THE TABS, spaced capitals with no boxes, the one you are on bright. One row that scrolls sideways
+   when the names are wider than the panel. */
+html[data-sidefull="0"] #sideBody :is(.row-6:has(> [data-storytab], > [data-chaptab], > [data-tellertab]), .tabrow) {
+  gap:22px; overflow-x:auto; scrollbar-width:none; padding-bottom:4px; }
+html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip) {
+  flex:0 0 auto; padding:8px 0; border:0; border-radius:0; background:none; box-shadow:none;
+  font-family:var(--arc-small); font-size:13px; letter-spacing:.24em; text-transform:uppercase; color:var(--dim); }
+html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip)[aria-pressed="true"] { color:var(--ink-bright); }
+html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip):hover { color:var(--gold); }
+@media (max-width:719px) {
+  html[data-sidefull="0"] #sideHead { --band:96px; padding-top:calc(var(--band) + 44px); }
+  html[data-sidefull="0"] #sideHead > .panelname { font-size:26px; letter-spacing:.14em; }
+  html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip) { font-size:12px; letter-spacing:.18em; } }
 
 /* THE SCENE'S FIRST LETTER, illuminated: deco capital in a gilt box over a wash of gold. Still
    ::first-letter, for the reason above the rule it extends: the passage is contenteditable. */

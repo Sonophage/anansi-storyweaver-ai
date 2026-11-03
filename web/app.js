@@ -2823,17 +2823,24 @@ function drawSide() {
   // Tidy on the right. Close stays, because shutting the drawer from a thread is a press the drawer
   // always had. Read is the editor (#136, ADR 0013), so there is no second header for altering.
   const thRead = threadOpen();
+  /* A PANEL BESIDE THE PAGE OPENS ON A BANNER (Seth, 2026-11-03, his reference "TALE ... CLOSE"): the
+   * tale's picture dimmed, or the painted paper, with a sunburst rising from a gilt line and a gilt
+   * diamond on the line holding the panel's own mark. Which mark is the one table in app.html
+   * (`--mark`, keyed on `data-mark`): the panel's key, and `read` for an open thread. Drawn always and
+   * hidden by the stylesheet in full screen, which keeps the header it had; the hem and the next
+   * scene are always full and never have one. No `.serif` inside: decode() writes the first one. */
+  const banner = alwaysFull ? '' : `<div class="pbanner" data-mark="${thRead || S.panel === 'entry' ? 'read' : esc(S.panel)}" aria-hidden="true">${
+    V?.cover ? `<i class="pbpic" style="background-image:url('${api.coverUrl(S.storyId, V.cover)}')"></i>` : ''}<b class="pbmark"></b></div>`;
   // NEW THREAD: "‹ Threads" back to the list (the same data-newlore press that opened it), and Close.
-  if (S.panel === 'threads' && S.lore && !S.entryId) sameOrSet('sideHead').innerHTML = `
+  if (S.panel === 'threads' && S.lore && !S.entryId) sameOrSet('sideHead').innerHTML = `${banner}
     <button data-newlore="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
       class="serif">Threads</span></button>
     <span class="fill"></span>
     ${fullBtn}<button class="caps-btn" data-panel="">Close</button>`;
-  else if (thRead) sameOrSet('sideHead').innerHTML = `${threadBar()}
+  else if (thRead) sameOrSet('sideHead').innerHTML = `${banner}${threadBar()}
     ${fullBtn}<button class="caps-btn" data-panel="">Close</button>`;
-  else sameOrSet('sideHead').innerHTML = `
-    <span class="serif" style="font-size:20px; color:var(--ink-bright); white-space:nowrap;
-      overflow:hidden; text-overflow:ellipsis">${esc(TITLES[S.panel] ?? '')}</span>
+  else sameOrSet('sideHead').innerHTML = `${banner}
+    <span class="serif panelname">${esc(TITLES[S.panel] ?? '')}</span>
     ${/* Outside the heading span, for the reason given for the mark below. */
       thList ? `<span data-thcount class="tnum" style="font-size:14px; color:var(--faint)">${V.entries.length}</span>` : ''}
     ${/* OUTSIDE the heading span, and deliberately: decode() writes textContent on that span, so a
