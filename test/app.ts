@@ -2152,54 +2152,49 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   ok('a proposal shows what it will write, and an edit is what gets sent');
 }
 
-// ALWAYS TRUE SAVES WITHOUT A NAME BOX (Seth, 2026-10-28: "it's saying a pocket needs a name").
-// The Always true card draws no name field (#77), and the save read one and refused. A row with no
-// name box keeps the name it has; one with an empty body is still refused.
-{
-  click({ open: 's-1' });
-  await sleep(40);
-  click({ panel: 'threads' });
-  click({ entry: 'e-1' });
-  await sleep(30);
-  const doc = (globalThis as any).document;
-  const wasQS = doc.querySelector;
-  doc.querySelector = (sel: string) => sel === '[data-ab="a-on"]' ? { value: 'Flat, slower now.' } : null;
-  try {
-    POSTED.length = 0;
-    click({ saveaddon: 'a-on' });
-    await sleep(60);
-    const sent = POSTED.find((x) => String(x.url).startsWith('/api/addon'));
-    assert.ok(sent, 'ALWAYS-TRUE-SAVE: a row with no name box saves');
-    assert.strictEqual(sent.body.addon?.name ?? sent.body.name, 'How she sounds', 'ALWAYS-TRUE-SAVE: and keeps the name it had');
-    doc.querySelector = (sel: string) => sel === '[data-ab="a-on"]' ? { value: '  ' } : null;
-    POSTED.length = 0;
-    click({ saveaddon: 'a-on' });
-    await sleep(60);
-    assert.ok(!POSTED.some((x) => String(x.url).startsWith('/api/addon')), 'ALWAYS-TRUE-EMPTY: an empty one is not saved');
-  } finally { doc.querySelector = wasQS; }
-  ok('Always true saves with no name box, keeping its name');
-}
-
-// #126 · A THREAD WITH NO ALWAYS TRUE GETS ONE FROM THE THREAD TAB. The add tray offered it while a
-// thread had none; the pocket panel does not (it is not a pocket), so the box is drawn empty here.
+// ALWAYS TRUE IS SAVED BY THE HEADER'S SAVE (2026-11-02). It had a card and a Save of its own, and
+// before that a Save that read a name box Always true does not have (Seth, 2026-10-28: "it's saying a
+// pocket needs a name"). Now there is one Save. A thread with none gets an empty box and Save makes it
+// with no id; an unchanged box sends nothing; one emptied is refused and nothing else is saved.
 {
   click({ panel: 'threads' }); click({ entry: 'e-2' });
   click({ cardview: 'form' }); click({ cardtab: 'card' });
   await sleep(30);
-  assert.match(html('sideBody'), /data-ab="facts"[\s\S]*data-saveaddon="facts"/, 'ALWAYS-TRUE-NEW: an empty box with Save');
+  const form = html('sideBody');
+  assert.match(form, /data-facts="facts"/, 'ALWAYS-TRUE-NEW: an empty box');
+  assert.doesNotMatch(form, /data-saveaddon/, 'ONE-SAVE: and no Save of its own');
   const doc = (globalThis as any).document;
   const wasQS = doc.querySelector;
-  doc.querySelector = (sel: string) => sel === '[data-ab="facts"]' ? { value: 'Unlit, below the counting floor.' } : null;
+  const box = (value: string, defaultValue = '') => (sel: string) =>
+    sel === '[data-facts]' ? { value, defaultValue, dataset: { facts: 'facts' } } : null;
   try {
     POSTED.length = 0;
-    click({ saveaddon: 'facts' });
+    doc.querySelector = box('Unlit, below the counting floor.');
+    click({ saveentry: '1' });
     await sleep(60);
     assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon')?.body,
       { storyId: 's-1', entryId: 'e-2', addon: { slot: 'facts', name: 'facts', body: 'Unlit, below the counting floor.', keys: '' } },
       'ALWAYS-TRUE-NEW: Save makes the Always true, with no id');
+    assert.ok(POSTED.some((x) => x.url === '/api/entry'), 'ONE-SAVE: and saves the thread after it');
+
+    click({ panel: 'threads' }); click({ entry: 'e-2' }); click({ cardview: 'form' }); await sleep(30);
+    POSTED.length = 0;
+    doc.querySelector = box('', '');
+    click({ saveentry: '1' });
+    await sleep(60);
+    assert.ok(!POSTED.some((x) => x.url === '/api/addon'), 'ONE-SAVE: an unchanged box sends no Always true');
+    assert.ok(POSTED.some((x) => x.url === '/api/entry'), '  and the thread still saves');
+
+    click({ panel: 'threads' }); click({ entry: 'e-2' }); click({ cardview: 'form' }); await sleep(30);
+    POSTED.length = 0;
+    doc.querySelector = box('  ', 'Was here.');
+    click({ saveentry: '1' });
+    await sleep(60);
+    assert.ok(!POSTED.some((x) => x.url === '/api/addon' || x.url === '/api/entry'),
+      'ALWAYS-TRUE-EMPTY: an emptied one is refused, and nothing else is saved');
   } finally { doc.querySelector = wasQS; }
   click({ cardview: null }); click({ backentry: '1' });
-  ok('a thread with no Always true gets one from The thread tab');
+  ok("Always true is saved by the header's Save: made, left alone, or refused when emptied");
 }
 
 // Every theme one row, every token derived from it. Three hand-written CSS blocks is why
@@ -8835,8 +8830,10 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   click({ pocketnew: 'e-1' }); await wait();
   const add = html('pocketPanel');
   assert.match(add, /role="dialog"/, 'PANEL-ADD: ＋ opens the panel');
-  assert.match(add, /data-pockettab="write"[^>]*aria-pressed="true"/, 'PANEL-ADD: on Write it');
-  assert.match(add, /data-pockettab="ask"/, 'PANEL-ADD: with Ask Anansi beside it');
+  // ONE SCREEN (2026-11-02): the fields, then Ask Anansi as one row under them, not a second tab.
+  assert.doesNotMatch(add, /data-pockettab=/, 'PANEL-ADD: no Write it / Ask Anansi tabs');
+  assert.match(add, /id="pk-body"[\s\S]*id="pk-steer"[\s\S]*data-pocketask="write"/,
+    'PANEL-ADD: the fields, then the ask row under them');
   assert.match(add, /data-pocketkind="voice"/, 'PANEL-ADD: adding offers the kinds');
   assert.doesNotMatch(add, /data-pocketkind="facts"/, 'PANEL-ADD: and not Always true, which every thread has');
   assert.doesNotMatch(add, /data-pocketdel=/, 'PANEL-ADD: nothing to remove yet');
@@ -8845,7 +8842,6 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   assert.match(add, /class="pkbar"[^>]*>\s*<button data-pocketx="1" class="headback"[\s\S]*?<button data-pocketsave="1" class="headsave"/,
     'POCKET-LOOK: Cancel and Save are the bar at the top, as Alter\'s');
   assert.doesNotMatch(add, /pkfoot/, '  and not big buttons at the foot');
-  assert.match(add, /<button class="tabchip" data-pockettab="write"/, '  its tabs are Alter\'s chips');
   assert.match(add, /<input class="field altname" id="pk-name"/, '  and its name is Alter\'s name field');
   click({ pocketx: '1' }); await wait();
   click({ cardview: 'form' }); await wait();
@@ -8904,7 +8900,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   ok('Remove in the pocket panel asks twice');
 
   // ASK ANANSI ON A POCKET THAT EXISTS: his rewrite is a diff, and Use this puts it in the box.
-  click({ editroom: 'a-on' }); click({ pockettab: 'ask' }); await wait();
+  click({ editroom: 'a-on' }); await wait();
   typeIn('pk-steer', 'colder');
   stubInvent = { addon: { slot: 'voice', name: 'How she sounds', body: 'Flat, and colder.', keys: [] } };
   POSTED.length = 0;
@@ -8917,7 +8913,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   assert.match(offer, /data-pocketuse="1"/, 'PANEL-ASK: with Use this');
   click({ pocketuse: '1' }); await wait();
   assert.match(html('pocketPanel'), /id="pk-body"[^>]*>Flat, and colder\.<\/textarea>/, 'PANEL-USE: Use this fills the box');
-  assert.match(html('pocketPanel'), /data-pockettab="write"[^>]*aria-pressed="true"/, 'PANEL-USE: on Write it');
+  assert.match(html('pocketPanel'), /id="pk-steer"/, 'PANEL-USE: with the ask row still under it');
   click({ pocketx: '1' }); click({ pocketx: '1' }); await wait();
   ok("Ask Anansi's rewrite of a pocket is a diff, and Use this fills the box");
 
@@ -9020,10 +9016,8 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
 
     // #128 · ASK ANANSI FOR A STRING: his rewrite of one the tale has is a diff, with Use this.
     click({ editroom: 'st-1' }); await wait();
-    assert.match(html('pocketPanel'), /data-pockettab="ask"/, 'STRINGS-ASK: a string has Ask Anansi');
-    click({ pockettab: 'ask' }); await wait();
     const askTab = html('pocketPanel');
-    assert.match(askTab, /data-pocketask="write"[^>]*>Write it again/, '  with a rewrite');
+    assert.match(askTab, /data-pocketask="write"[^>]*>Anansi edits/, 'STRINGS-ASK: a string has Ask Anansi, as a rewrite');
     assert.doesNotMatch(askTab, /data-pocketask="web"/, '  and no Look it up online: a string is the tale\'s own');
     typeIn('pk-steer', 'sealed');
     stubInvent = { addon: { slot: 'promise', name: LETTER.name, body: 'Sent by his brother, sealed in black wax.', keys: [] } };
@@ -9094,8 +9088,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     assert.doesNotMatch(html('pocketPanel'), /id="pk-owed"/, 'STRINGS-OWED: an open question is owed by no scene');
 
     // ASK ANANSI TO WRITE ONE: his answer fills Write it.
-    click({ pockettab: 'ask' }); await wait();
-    assert.match(html('pocketPanel'), /data-pocketask="write"[^>]*>Write one for me/, 'STRINGS-ASK-NEW: Write one for me');
+    assert.match(html('pocketPanel'), /data-pocketask="write"[^>]*>Anansi writes/, 'STRINGS-ASK-NEW: Anansi writes');
     stubInvent = { addon: { slot: 'question', name: 'Who opened the sluice', body: 'Nobody will say.', keys: [] } };
     POSTED.length = 0;
     try { click({ pocketask: 'write' }); await wait(); } finally { stubInvent = null; }

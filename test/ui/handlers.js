@@ -333,8 +333,9 @@ const opened = (await page.eval("document.querySelector('#page .aside')?.textCon
 // check that the first box held the thread's own body was red on main and was taken out at Seth's
 // word (2026-10-30): the first textarea on the v2 Alter screen is not the body any more.
 ok("  and Edit opens the form, with no need to find its book on the shelf first",
-   // "Kind" since the v2 Alter screen, under More (it was "Type", on the first tab).
-   opened.includes('When it reaches the model') && opened.includes('Kind'));
+   // "Kind" since the v2 Alter screen, under More (it was "Type", on the first tab). "Wake words" is
+   // the label the reach switch sits beside since 2026-11-02; its old heading is its aria-label now.
+   opened.includes('Wake words') && opened.includes('Kind'));
 
 // ---- The door out of a single book's threads. The panel is one story's by construction, so the
 // list that spans every book needs a way in from inside one.

@@ -601,7 +601,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // model that always weaves.
   'weaveanyway', 'weaveoff', 'weavemodel',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
-  'cardview', 'goslot', 'editroom', 'fold', 'pkind', 'acceptall', 'addonon', 'saveaddon', 'deladdon',
+  'cardview', 'goslot', 'editroom', 'fold', 'pkind', 'acceptall', 'addonon', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
   'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads',
   // The whole book again, prose and all — the press beside `forkthreads`, which takes only the cast.
@@ -639,7 +639,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'iplook', 'ipadd', 'ipwithout', 'ipagain',
   // #126. The pocket panel: open it to add, its tabs, a kind, Cancel, Save, Remove, the two asks
   // and Use this.
-  'pocketnew', 'pockettab', 'pocketkind', 'pocketx', 'pocketdone', 'pocketundo', 'pocketsave', 'pocketdel', 'pocketask', 'pocketuse',
+  'pocketnew', 'pocketkind', 'pocketx', 'pocketdone', 'pocketundo', 'pocketsave', 'pocketdel', 'pocketask', 'pocketuse',
   // Merge two threads: open it, pick the other, pick which stays, Cancel, Merge.
   'mergestart', 'mergewith', 'mergekeep', 'mergex', 'mergego',
   // The hem's ask for the next scene, and who is in it (2026-10-30).
@@ -2941,7 +2941,7 @@ function openPocket(entryId, id = null) {
   // #128 · A promise's "owed by" scene is on the string's own row (`V.strings`), not the pocket's.
   const owed = id ? (V.strings ?? []).find((x) => x.id === id)?.owedBy : null;
   const was = { name: a?.name ?? '', body: a?.body ?? '', keys: (a?.keys ?? []).join(', '), owed: owed == null ? '' : String(owed) };
-  S.pocket = { entryId, id, tab: 'write', slot: a?.slot ?? null, wasSlot: a?.slot ?? null, ...was, steer: '', offer: null, was };
+  S.pocket = { entryId, id, slot: a?.slot ?? null, wasSlot: a?.slot ?? null, ...was, steer: '', offer: null, was };
 }
 /** Whether leaving would throw something away: a box changed, or an answer of Anansi's not yet used.
  *  A kind picked while adding and nothing typed is one press to make again, so it is not asked about;
@@ -2963,7 +2963,7 @@ function openState(entryId, id = null) {
   const was = id === 'first' ? { body: e.body ?? '' }
     : { from: String(st?.fromChapter ?? V.currentChapter?.index ?? 1), mode: st?.beforeMode ?? 'hide',
       body: (st && now?.id === st.id ? typed('[data-f="now"]') : null) ?? st?.body ?? '', label: st?.label ?? '' };
-  S.pocket = { entryId, id, ot: true, tab: 'write', slot: null, wasSlot: null, ...was, was };
+  S.pocket = { entryId, id, ot: true, slot: null, wasSlot: null, ...was, was };
 }
 function statePanel(pk, e) {
   const first = pk.id === 'first', adding = !pk.id;
@@ -3097,8 +3097,7 @@ function pocketPanel() {
   const stand = x ? `<label class="lbl">Where it stands</label><div class="pkkinds">${STANDS.map(([k, l]) =>
     `<button data-stringstatus="${esc(x.id)}:${k}" class="pkkind" aria-pressed="${now === k}">${l}</button>`).join('')}</div>` : '';
   const write = `
-    <label class="lbl" for="pk-name">Name</label>
-    <input class="field altname" id="pk-name" value="${esc(pk.name)}" placeholder="${esc(namePh)}">
+    <input class="field altname" id="pk-name" value="${esc(pk.name)}" aria-label="Name" placeholder="${esc(namePh)}">
     <label class="lbl" for="pk-body">The description</label>
     <textarea class="field grow pkbody" id="pk-body" placeholder="${esc(bodyPh)}">${esc(pk.body)}</textarea>
     ${tale && pk.slot !== 'rule' ? pk.slot === 'promise' ? `<label class="lbl" for="pk-owed">Owed by scene</label>
@@ -3111,23 +3110,24 @@ function pocketPanel() {
       return a ? `<label class="lbl">Sent</label><div class="pkkinds">
         <button data-addonon="${esc(a.id)}:1" class="pkkind" aria-pressed="${!!a.active}">On</button>
         <button data-addonon="${esc(a.id)}:0" class="pkkind" aria-pressed="${!a.active}">Off</button></div>` : ''; })() : ''}
-    ${adding ? '' : `<button class="btn ghost danger push-14" data-pocketdel="${esc(pk.id)}">Remove this ${esc(label)}</button>`}`;
+    `;
+  const remove = adding ? '' : `<button class="btn ghost danger push-20" data-pocketdel="${esc(pk.id)}">Remove this ${esc(label)}</button>`;
   const searchable = V?.searchable !== false;
-  const ask = `
+  /* ASK ANANSI, ONE ROW UNDER THE FIELDS (Seth, 2026-11-02: the hem's and the Workbench's row), not
+   * a second tab. His version lands under it as the change against what is in the box, with Use this. */
+  const ask = `<div class="askrow">
     ${weaveFitRow('pocket')}
-    <label class="lbl" for="pk-steer">${adding ? 'What to write' : 'What to change'}</label>
-    <textarea class="field grow" id="pk-steer" placeholder="${adding && tale
-      ? 'the debt from scene two, or whatever you already had in mind'
-      : adding ? 'mourning, or travelling light, or whatever you already had in mind'
-      : 'shorter, or angrier, or nothing and let him read the tale'}">${esc(pk.steer)}</textarea>
-    <div class="btnrow push-10">
-      <button class="btn ghost" data-pocketask="write">${adding ? 'Write one for me' : 'Write it again'}</button>
-      ${tale ? '' : `<button class="btn ghost" data-pocketask="web" ${searchable ? '' : 'disabled'}
-        title="${searchable ? 'Look it up online, then write it' : 'Searching the web is not switched on here'}">Look it up online</button>`}
+    <div class="deckredo">
+      <input class="field" id="pk-steer" style="margin:0; flex:1" value="${esc(pk.steer)}"
+        aria-label="${adding ? 'What to write, for Anansi' : 'What to change, for Anansi'}" placeholder="${adding
+        ? 'What to write (optional)' : 'What to change (optional)'}">
+      <button class="btn ghost" data-pocketask="write" style="flex:0 0 auto; width:auto; padding:0 14px">${adding ? 'Anansi writes' : 'Anansi edits'}</button>
     </div>
+    ${tale ? '' : `<div class="end-row"><button class="askweb" data-pocketask="web" ${searchable ? '' : 'disabled'}
+      title="${searchable ? 'Look it up online, then write it' : 'Searching the web is not switched on here'}">Look it up online first</button></div>`}
     ${pk.offer ? `<div class="lbl push-14">His version</div>
       ${diffHTML(pk.body, pk.offer.body)}
-      <button class="btn push-10" data-pocketuse="1">Use this</button>` : ''}`;
+      <button class="btn push-10" data-pocketuse="1">Use this</button>` : ''}</div>`;
   const what = own ? slotLabel(pk.slot) : tale ? (adding && !pk.kinds ? 'entry' : 'string') : 'pocket';
   /* ALTER'S LOOK, FULL SCREEN STILL (Seth, 2026-11-02): Cancel and the Save pill in a bar at the top,
    * as Alter's header has them (`threadBar('alter')`); its tab chips (`tabRow`) and its name field
@@ -3140,10 +3140,10 @@ function pocketPanel() {
     </div>
     <div class="pkhead">
       <div class="lbl flush wide">${adding ? `New ${what} &middot; ${esc(e.title)}` : `${esc(pocketTitle(pk.slot))} &middot; ${esc(e.title)}`}</div>
-      ${/* Ask Anansi writes strings and pockets; a rule or one of your own is the writer's to write. */
-        own ? '' : tabRow('pockettab', [['write', 'Write it'], ['ask', 'Ask Anansi']], pk.tab)}
     </div>
-    <div class="pkscroll scroll">${kinds}${pk.tab === 'ask' && !own ? ask : write}</div>
+    ${/* ONE SCREEN, the kinds, the fields and the ask row (2026-11-02). It was Write it and Ask Anansi as
+          two tabs. Ask Anansi writes strings and pockets; a rule or one of your own is the writer's. */ ''}
+    <div class="pkscroll scroll">${kinds}${write}${own ? '' : ask}${remove}</div>
   </div>`;
 }
 function drawPocket() {
@@ -3276,7 +3276,7 @@ async function pocketAsk(web, anyway = false, t = null) {
   if (pk.id) { pk.offer = { body: got.body }; drawPocket(); return; }
   pk.name = got.name || pk.name; pk.body = got.body;
   if (got.keys?.length) pk.keys = got.keys.join(', ');
-  pk.tab = 'write'; drawPocket();
+  drawPocket();
   toast('Written, not saved. Read it, then press Save.');
 }
 
@@ -7876,6 +7876,16 @@ const slotLabel = (slot) => (slot === 'facts' ? 'always true' : slot === 'questi
 /** A pocket's name as a heading or a chip: capitalised, not the raw key (usability check). */
 const pocketTitle = (slot) => { const l = slotLabel(slot); return l.charAt(0).toUpperCase() + l.slice(1); };
 
+/** ASK ANANSI AS ONE ROW (2026-11-02): the hem's `.deckredo`, a box and a button, for the screens
+ *  that edit something already written. No search box: the remembered preference is used as it
+ *  stands (`d.invent` reads it when the tray has no box). */
+const askRow = (kind, label, placeholder) => `<div data-invtray class="askrow">
+    ${weaveFitRow(`invent:${kind}`)}
+    <div class="deckredo">
+      <input class="field" data-invdir id="f-invdir" placeholder="${esc(placeholder)}"
+        aria-label="What should change, for Anansi to write it again" style="margin:0; flex:1">
+      <button class="btn ghost" data-invent="${esc(kind)}" style="flex:0 0 auto; width:auto; padding:0 14px">${label}</button>
+    </div></div>`;
 function inventTray(kind, label, placeholder, value = '', named = '') {
   const searchable = V?.searchable !== false;
   // `named` IS A VISIBLE LABEL AND ITS HINT, for a box that arrives already filled. With only an
@@ -8181,9 +8191,9 @@ function cardFace(e, slots) {
             >${a.active ? 'On' : 'Off'}</button>`, sl.name, a.id)).join('')}`;
       }).join('');
       const on = group(true), off = group(false);
-      return `${on}${off ? `<div class="lbl sect-rule">Not turned on</div>
-        <div class="hint lead-4">Written down, and not reaching the model &mdash;
-          either switched off, or until one of its wake words appears.</div>${off}` : ''}`;
+      return `${on}${off ? `<div class="lbl sect-rule">Not turned on${tipMark('pocketsOff', 'Not turned on')}</div>
+        ${tipCard('pocketsOff', 'Not turned on', `<p>Written down, and not reaching the model &mdash;
+          either switched off, or until one of its wake words appears.</p>`)}${off}` : ''}`;
     })()}
     ${pockets ? '' : '<div class="hint push-18">No pockets filled in yet. Add one, or have Anansi fill some in.</div>'}
     <!-- ADDING ONE OPENS THE POCKET PANEL (#126), as the header's ＋ does. -->
@@ -8245,10 +8255,10 @@ const foldSection = (name, label, body) => `<details class="fold push-16"
   ${S.folds?.[name] ? 'open' : ''}>
   <summary class="wide" data-fold="${esc(name)}">${label}</summary>${body}</details>`;
 
-/** ALWAYS TRUE'S BOX, on The thread tab. It was every room's editor until #126 moved pockets to the
- *  pocket panel; Always true is not a pocket (#77) and stays a plain box with Save here. A thread
- *  with none gets an empty box whose Save makes it (`data-saveaddon="facts"`): the add tray offered
- *  it while a thread had none, and the pocket panel does not. The body GROWS (growFields). */
+/** ALWAYS TRUE'S BOX, on The thread tab. Always true is not a pocket (#77). ONE SAVE (Seth,
+ *  2026-11-02, "cleaner, like the hem and the Workbench"): it had a card and a Save of its own under
+ *  a screen that already has Save at the top; the header's Save saves it now (`data-facts`, read by
+ *  `saveentry`). A thread with none gets an empty box, and Save makes it. The body GROWS (growFields). */
 function roomSection(e, sl, anchor = true) {
   if (sl?.name !== 'facts') return '';
   const had = (e.addons ?? []).filter((a) => a.slot === 'facts');
@@ -8256,16 +8266,12 @@ function roomSection(e, sl, anchor = true) {
   // ALWAYS TRUE IS NOT A POCKET (#77): no switch, no wake words and no name, because it is sent
   // whenever the thread is. Only its text, which is the writer's and which Anansi never changes.
   return `
-    <div ${anchor ? 'data-slotat="facts"' : ''} class="lbl wide push-20">Always true</div>
-    <div class="hint lead-6">Who or what it is, for the whole tale. Anansi never changes it.</div>
-    ${mine.map((a) => `<div class="card" style="gap:7px; margin-bottom:8px">
-      <textarea class="field grow flush box-52" data-ab="${esc(a.id)}" aria-label="What is always true of ${esc(e.title)}"
-       >${esc(a.body)}</textarea>
-      <!-- NO REMOVE (Seth, 2026-10-28): every thread has one Always true; clearing it is editing it. -->
-      <div class="end-row snug">
-        <button class="btn ghost btn-side" data-saveaddon="${esc(a.id)}"
-         >Save</button></div>
-    </div>`).join('')}`;
+    <label ${anchor ? 'data-slotat="facts"' : ''} class="lbl" for="f-card-facts">Always true${
+      tipMark('cardFacts', 'Always true')}</label>
+    ${tipCard('cardFacts', 'Always true', '<p>Who or what it is, for the whole tale. Anansi never changes it.</p>')}
+    ${mine.slice(0, 1).map((a) => `<textarea class="field grow box-52" id="f-card-facts" data-facts="${esc(a.id)}"
+      aria-label="What is always true of ${esc(e.title)}">${esc(a.body)}</textarea>`).join('')}`;
+  // NO REMOVE (Seth, 2026-10-28): every thread has one Always true; clearing it is editing it.
 }
 
 /** THE FORM IS TABBED, 2026-09-02 handoff. Every field, every write and every rule it had is still
@@ -8285,16 +8291,11 @@ const CARD_TABS = [['card', 'The thread'], ['time', 'Over time'], ['rooms', 'Poc
  *  states it rather than the jump handler guessing from the slot list. */
 const slotTab = (name) => (name === 'facts' ? 'card' : 'rooms');
 
-/** A ROW OF TAB CHIPS, Alter's (`.tabchip`, app.html): one for each [key, label], the one on pressed.
- *  The pocket screen draws its Write it / Ask Anansi with it too, so the two cannot drift apart
- *  (Seth, 2026-11-02: "the edit screen for pockets should match the normal screen for threads"). */
-// The action written out, not built: test/web.ts needs each press's data-* name spelled in full.
-const tabRow = (attr, tabs, on) => `<div class="tabrow">${tabs.map(([k, label]) => attr === 'cardtab'
-  ? `<button class="tabchip" data-cardtab="${k}" aria-pressed="${on === k}">${label}</button>`
-  : `<button class="tabchip" data-pockettab="${k}" aria-pressed="${on === k}">${label}</button>`).join('')}</div>`;
-
+/** ALTER'S TAB CHIPS (`.tabchip`, app.html), the one on pressed. The pocket screen drew its Write it /
+ *  Ask Anansi with them until 2026-11-02, when those became one screen. */
 function cardTabs(tab) {
-  return tabRow('cardtab', CARD_TABS, tab);
+  return `<div class="tabrow">${CARD_TABS.map(([k, label]) =>
+    `<button class="tabchip" data-cardtab="${k}" aria-pressed="${tab === k}">${label}</button>`).join('')}</div>`;
 }
 
 /** THIS CARD AS THE FORGE'S JSON, with every field its kind can hold.
@@ -8383,10 +8384,6 @@ function entryEditor() {
   // THE FACE IS THE DEFAULT, because reading your own canon is the common act and editing it is the
   // deliberate one. The form is one press away and every check that drives it presses that button.
   if (S.cardView !== 'form') return cardFace(e, slots);
-  // The same filter the face uses. The form draws only the rooms this card HAS now that the tray
-  // at the top is how an empty one gets filled, so the jump chips have to agree or half of them
-  // would point at headings that are no longer drawn.
-  const shown = slots.filter((sl) => (e.addons ?? []).some((a) => a.slot === sl.name));
   const chip = (on) => `border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
     background:transparent; color:${on ? 'var(--ink-bright)' : 'var(--mute)'}`;
   const tab = S.cardTab ?? 'card';
@@ -8397,20 +8394,16 @@ function entryEditor() {
   // and rarely again, and they were the first two things above the name.
   return `<div class="stack">
     ${pageBar('alter')}
-    ${/* THE JUMP CHIPS STAY ABOVE THE TABS, so a press from any tab opens the one its pocket is on
-          (data-goslot). The head they shared with the name and the kind is gone: the name is the
-          first field now and the kind is under More. */
-      shown.length ? `<div class="lead-4 row-6 wraps">${shown.map((sl) =>
-        `<button data-goslot="${esc(sl.name)}" class="tag pressable">${
-          esc(sl.name.replace(/_/g, ' '))}</button>`).join('')}</div>` : ''}
+    ${/* THE HEAD, AS THE WORKBENCH'S CARD HAS IT (Seth, 2026-11-02): the kind in small capitals, the
+          name under it in the serif with a rule, then the tabs. The pocket jump chips that sat above
+          the tabs are gone: the Pockets tab is one press, and two rows of chips read as one row too
+          many. The kind is still changed under More. */ ''}
+    <div class="althead">
+      <div class="lbl flush">${esc(e.entryType ?? 'thread')}</div>
+      <input class="field altname" id="f-card-title" data-f="title" aria-label="Name" value="${esc(e.title ?? '')}">
+    </div>
     ${cardTabs(tab)}
-    <div class="pane"${tab === 'card' ? '' : ' hidden'}>
-    <label class="lbl" for="f-card-title">Name</label>
-    <input class="field altname" id="f-card-title" data-f="title" value="${esc(e.title ?? '')}">
-    <label class="lbl">When it reaches the model</label>
-    <div class="row-6">${[['always_on', 'Always on'], ['triggered', 'On a word']]
-      .map(([k, l]) => `<button data-act="${k}" aria-pressed="${k === e.activation}" style="flex:1; text-align:center; font-size:12px;
-      padding:10px 0; border-radius:var(--r-pill); ${chip(k === e.activation)}">${l}</button>`).join('')}</div>
+    <div class="pane altpane"${tab === 'card' ? '' : ' hidden'}>
     <!-- FACTS ABOVE INFO. Seth, 2026-08-30: "facts and info need to change positions." He is
          right and it is not a matter of taste. The chapter-end pass REWRITES the body; it has
          never been able to touch a room, which is the whole reason src/slots.ts grew a facts slot
@@ -8455,8 +8448,11 @@ function entryEditor() {
          screen that hid it, and there was no reason to ever flip the chip on an entry whose keys
          you could not read. Keys are what an entry WOULD fire on, so authoring them before the
          switch is the only safe order. -->
-    <label class="lbl" for="f-card-keys">Wake words${
+    <!-- HOW IT REACHES THE MODEL, BESIDE ITS WAKE WORDS (2026-11-02): one section, not two. -->
+    <div class="altreach"><label class="lbl flush fill" for="f-card-keys">Wake words${
       tipMark('cardKeys', 'Wake words')}</label>
+      <div class="altseg" role="group" aria-label="When it reaches the model">${[['always_on', 'Always on'], ['triggered', 'On a word']]
+      .map(([k, l]) => `<button data-act="${k}" aria-pressed="${k === e.activation}">${l}</button>`).join('')}</div></div>
     ${tipCard('cardKeys', 'Wake words', `<p>${e.activation === 'always_on'
       ? 'The words that bring an on-a-word thread to the model. Not used while this is always-on — '
         + 'Anansi reads it every time either way. Write them anyway: they are what would wake it the '
@@ -8475,6 +8471,9 @@ function entryEditor() {
     <div class="keychips" id="keychips">${keyChips(keyDraftFor(e))}<input class="keyadd" id="f-card-keys"
       data-f="keys" data-keyadd="1" aria-label="Add a wake word" placeholder="+ word" enterkeyhint="done"
       autocomplete="off" autocapitalize="off"></div>
+    ${/* ASK ANANSI, ONE ROW AT THE FOOT (Seth, 2026-11-02: the hem's and the Workbench's row). It fills
+          the fields above, unsaved; Save keeps them. It was a tray under More. */
+      askRow(e.entryType, 'Anansi edits', 'What to change (optional)')}
     </div>
     <div class="pane"${tab === 'rooms' ? '' : ' hidden'}>
     <!-- #126 · THE POCKETS, AS A LIST (Seth, 2026-10-28). A row is the pocket's name, one line of
@@ -8530,12 +8529,6 @@ function entryEditor() {
       aria-pressed="${k === e.entryType}"
       style="flex:1; text-align:center; font-size:12px; padding:10px 0; border-radius:var(--r);
       ${chip(k === e.entryType)}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
-    <div class="end-row push-14">${
-      tipMark('cardInvent', 'Having Anansi write this thread')}</div>
-    ${tipCard('cardInvent', 'Having Anansi write this thread', `<p>It fills the fields above, unsaved.
-      Nothing changes until you press Save.</p>`)}
-    ${inventTray(e.entryType, 'Have Anansi write this thread',
-                 'what has changed about them, or nothing at all and let her read the tale')}
     <label class="lbl" for="f-card-notes">Your notes${tipMark('cardNotes', 'Your notes')}</label>
     ${tipCard('cardNotes', 'Your notes', `<p>Never sent to the model. They are for you alone.</p>`)}
     <textarea class="field grow" id="f-card-notes" data-f="notes"
@@ -12529,7 +12522,7 @@ document.addEventListener('click', async (e) => {
   if (d.editarc) {
     const a = (V.arcs ?? []).find((x) => x.id === d.editarc); if (!a) return;
     const was = { title: a.title ?? '', text: a.summary ?? '' };
-    S.pocket = { arc: a.id, tab: 'write', slot: null, wasSlot: null, ...was, was };
+    S.pocket = { arc: a.id, slot: null, wasSlot: null, ...was, was };
     drawPocket(); syncLayers(); $('pk-arctext')?.focus?.(); return;
   }
 
@@ -12561,10 +12554,12 @@ document.addEventListener('click', async (e) => {
   if (d.invent) {
     const tray = t.closest('[data-invtray]') ?? document;
     const dir = tray.querySelector('[data-invdir]')?.value.trim() ?? '';
-    const search = !!tray.querySelector('[data-invsearch]')?.checked;
+    const box = tray.querySelector('[data-invsearch]');
     // The same preference the ask box keeps. Read at press time from the DOM because this tray is
-    // built fresh each time it opens; written here so the two controls agree from now on.
-    if (searchOn() !== search) setWebSearch(search);
+    // built fresh each time it opens; written here so the two controls agree from now on. A row with
+    // no box (`askRow`) uses the preference as it stands and writes nothing.
+    const search = box ? !!box.checked : searchOn();
+    if (box && searchOn() !== search) setWebSearch(search);
     return inventAgain(d.invent, dir, search, false, t);
   }
 
@@ -12605,7 +12600,6 @@ document.addEventListener('click', async (e) => {
   if (d.pocketx) { closePocket(t); return; }
   if (d.pocketdone) return void finishPocket(t);
   if (d.pocketundo) return void undoPocket(t);
-  if (d.pockettab) { if (!S.pocket) return; S.pocket.tab = d.pockettab === 'ask' ? 'ask' : 'write'; drawPocket(); return; }
   // While adding, any kind the thread has; open, only a string, between promise and open question.
   if (d.pocketkind) {
     if (!S.pocket || (S.pocket.id && (pocketThread()?.entryType !== 'tale' || TALE_OWN_SLOTS.includes(S.pocket.slot)))) return;
@@ -12725,32 +12719,6 @@ document.addEventListener('click', async (e) => {
     V = r.entries ? r : await api.story(S.storyId);
     paint(); refreshManifest(); return;
   }
-  if (d.saveaddon) {
-    // The slot comes off the row that is already there rather than out of the form: it is not
-    // editable and a card cannot move a room to another slot, so sending it would be sending a
-    // value the writer never chose.
-    const found = (V.entries.find((x) => x.id === S.entryId)?.addons ?? [])
-      .find((a) => a.id === d.saveaddon);
-    // #126. The empty Always true box of a thread that has none: Save makes it, so it has no id.
-    const newFacts = !found && d.saveaddon === 'facts';
-    const had = found ?? (newFacts ? { slot: 'facts', name: 'facts' } : undefined);
-    // ALWAYS TRUE HAS NO NAME BOX (#77: not a pocket, no name, no switch, no wake words), so its
-    // name is the one it already has. Requiring the box made every Always true save refuse with
-    // "A pocket needs a name" (Seth, 2026-10-28).
-    const nameBox = document.querySelector(`[data-an="${d.saveaddon}"]`);
-    const name = nameBox ? nameBox.value.trim() : String(had?.name ?? had?.slot ?? '').trim();
-    const body = document.querySelector(`[data-ab="${d.saveaddon}"]`)?.value.trim();
-    const keys = document.querySelector(`[data-ak="${d.saveaddon}"]`)?.value ?? '';
-    if (!body) return toast(had?.slot === 'facts' ? 'Always true needs something in it.' : 'A pocket needs something in it.');
-    if (!name) return toast('A pocket needs a name.');
-    // #75. Or one of the tale's own pockets, which hangs off no thread.
-    const tale = !had && (V.talePockets ?? []).some((a) => a.id === d.saveaddon);
-    const r = await api.saveAddon(S.storyId, tale ? null : S.entryId,
-      { ...(newFacts ? {} : { id: d.saveaddon }), slot: tale ? 'instruction' : had?.slot, name, body, keys });
-    if (r.error) return toast(r.error);
-    V = r.entries ? r : await api.story(S.storyId);
-    paint(); refreshManifest(); toast('Saved.'); return;
-  }
   if (d.deladdon) {
     if (!armed(t, 'addon:' + d.deladdon, 'Press again to remove this pocket.')) return;
     const r = await api.delAddon(S.storyId, d.deladdon);
@@ -12795,7 +12763,7 @@ document.addEventListener('click', async (e) => {
   if (d.pocketask) return pocketAsk(d.pocketask === 'web', false, t);
   if (d.pocketuse) {
     const pk = S.pocket; if (!pk?.offer) return;
-    pk.body = pk.offer.body; pk.offer = null; pk.tab = 'write';
+    pk.body = pk.offer.body; pk.offer = null;
     drawPocket(); return toast('In the box, not saved. Read it, then press Save.');
   }
   if (d.wear !== undefined) {
@@ -13305,6 +13273,17 @@ document.addEventListener('click', async (e) => {
     // thread's box, saved FIRST, so a refusal leaves nothing half-saved. Then the thread itself. Its
     // scene, hint and label keep what they have: those are changed in its own panel from Over time,
     // which saves them there (2026-10-30).
+    // ALWAYS TRUE, saved by this Save since it lost its own (2026-11-02), and first, so a refusal
+    // leaves the rest unsaved and on screen. Only when it changed. An empty box on a thread that had
+    // none is no change; emptying one it had is refused, as its own Save refused it.
+    const factsBox = document.querySelector('[data-facts]');
+    if (factsBox && factsBox.value.trim() !== factsBox.defaultValue.trim()) {
+      const fid = factsBox.dataset.facts, had = (e.addons ?? []).find((a) => a.id === fid && a.slot === 'facts');
+      if (!factsBox.value.trim()) return toast('Always true needs something in it.');
+      const r1 = await api.saveAddon(S.storyId, e.id,
+        { ...(had ? { id: fid } : {}), slot: 'facts', name: had?.name ?? 'facts', body: factsBox.value.trim(), keys: '' });
+      if (r1.error) return toast(`Not saved. ${r1.error}`);
+    }
     const nowBox = document.querySelector('[data-f="now"]');
     const st = nowBox && (e.states ?? []).find((x) => x.id === nowBox.dataset.nowstate);
     if (st && nowBox.value !== nowBox.defaultValue) {
@@ -14390,7 +14369,7 @@ document.addEventListener('click', async (e) => {
   if (d.editsum) {
     const c = V.chapters.find((x) => x.id === d.editsum); if (!c) return;
     const was = { text: c.summary ?? '' };
-    S.pocket = { sum: c.id, tab: 'write', slot: null, wasSlot: null, ...was, was };
+    S.pocket = { sum: c.id, slot: null, wasSlot: null, ...was, was };
     drawPocket(); syncLayers(); $('pk-sum')?.focus?.();
     return;
   }
@@ -14711,7 +14690,7 @@ document.addEventListener('click', async (e) => {
     const p = slot ? e?.rooms?.[slot] : null;
     if (!e || (slot && !p)) return;
     const was = { name: p?.name ?? '', body: p?.body ?? '' };
-    S.pocket = { draft: e, id: slot || null, tab: 'write', slot: slot || null, wasSlot: slot || null,
+    S.pocket = { draft: e, id: slot || null, slot: slot || null, wasSlot: slot || null,
       ...was, keys: '', owed: '', steer: '', offer: null, was };
     paint();
     $('pk-name')?.focus?.();

@@ -1818,6 +1818,24 @@ html:not([data-ui-rail="closed"]) .navgrid > button:first-child .txt { font-size
   text-transform:uppercase; flex:0 0 auto; }
 .field.altname { font-family:'Instrument Serif', var(--serif, serif); font-size:24px; line-height:1.2;
   color:var(--ink-bright); padding:8px 13px; }
+/* THE NAME AS THE WORKBENCH'S CARD HAS IT (2026-11-02): the serif on a rule, not in a box, under the
+   kind in small capitals. One rule for Alter and the pocket box. */
+.althead { display:flex; flex-direction:column; gap:4px; margin:4px 0 2px; }
+.field.altname { background:transparent; border:0; border-bottom:1px solid var(--line); border-radius:0;
+  padding:4px 0 10px; font-size:26px; }
+.field.altname:focus { border-bottom-color:var(--edge-lit); outline:none; }
+.altpane > .lbl:first-child { margin-top:16px; }
+/* Always on / On a word, small, on the Wake words label's row. */
+.altreach { display:flex; align-items:center; gap:10px; margin:14px 0 6px; }
+.altseg { display:flex; flex:0 0 auto; border:1px solid var(--chip); border-radius:var(--r-pill); overflow:hidden; }
+.altseg button { position:relative; padding:0 12px; height:30px; font-size:11.5px; color:var(--mute); }
+.altseg button::before { content:''; position:absolute; inset:-7px 0; }   /* 44px to the finger */
+.altseg button[aria-pressed="true"] { background:var(--chip); color:var(--ink-bright); }
+.askrow { margin-top:18px; padding-top:4px; border-top:1px solid var(--line); }
+.askweb { font-size:12px; color:var(--mute); padding:8px 2px; min-height:44px; text-decoration:underline;
+  text-decoration-color:var(--line); text-underline-offset:3px; }
+.askweb[disabled] { opacity:.5; }
+.pocketbox .pkkinds + .field.altname { margin-top:10px; }
 .keychips { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:6px; min-height:48px;
   border:1px solid var(--chip); border-radius:var(--r); background:var(--field); }
 .keychips:focus-within { border-color:var(--edge-lit); }

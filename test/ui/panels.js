@@ -596,18 +596,21 @@ const mineId = (await story()).entries.length > cardsBefore
   ? (await story()).entries.at(-1).id : null;
 
 // An Always true on it, through the empty box The thread tab draws for a thread that has none (#126:
-// the add tray that used to be its door is gone, and the pocket panel does not offer it).
+// the add tray that used to be its door is gone, and the pocket panel does not offer it). Saved by
+// the header's Save since 2026-11-02, which goes back to reading it, so the form is opened again.
 await page.click('[data-cardtab="card"]');
 await wait(500);
-await page.eval(`(() => { document.querySelector('[data-ab="facts"]').value = '[she is 41 and left-handed]';
-  document.querySelector('[data-saveaddon="facts"]')?.click(); return 1; })()`);
+await page.eval(`(() => { document.querySelector('[data-facts="facts"]').value = '[she is 41 and left-handed]';
+  document.querySelector('[data-saveentry]')?.click(); return 1; })()`);
 await wait(1400);
+await page.click('[data-cardview="form"]');
+await wait(600);
 await page.click('[data-cardtab="card"]');
 await wait(700);
 const facts = await page.eval(`(() => {
   const pane = document.querySelector('.pane:not([hidden])');
   const at = pane?.querySelector('[data-slotat="facts"]');
-  const body = pane?.querySelector('[data-ab]');
+  const body = pane?.querySelector('[data-facts]');
   const info = pane?.querySelector('#f-card-body');
   return JSON.stringify({ heading: !!at, editable: !!body, value: body?.value ?? '',
     aboveInfo: !!(at && info) && at.compareDocumentPosition(info) === 4 }); })()`).then(JSON.parse);
@@ -926,11 +929,10 @@ ok("  and New thread closes again", !(await page.eval("!!document.getElementById
       pill: !!c.querySelector('.alwayson'),
       chip: !!document.querySelector('#sideBody [data-flipact]') }); })()`);
   const p = plate ? JSON.parse(plate) : null;
-  // NO 150px FLOOR on the tale's list since the v2 redesign (2026-10-25): its cards are short, and
-  // the floor stays on the cross-book grid, where pictures set the rhythm. test/ui/threadlist.js
-  // holds the rest of the short card's shape.
+  // A 260px FLOOR on the tale's list since 2026-11-02 (Seth: "twice as big"; it had none since the
+  // v2 redesign). test/ui/threadlist.js holds the rest of the card's shape.
   ok(`  threads are drawn as plates (${plate})`,
-     p != null && p.spine === '3px' && p.minH === '0px' && p.name === '22px');
+     p != null && p.spine === '3px' && p.minH === '260px' && p.name === '22px');
   // The pill is the one difference between the two surfaces and it is deliberate: here the eye
   // beside the card is the PRESSABLE switch, so a second unpressable copy inside it would be the
   // same fact twice, one of which does nothing. On the cross-book page there is no switch and the
@@ -977,8 +979,9 @@ if (anyEntry) {
        (await vis('#f-card-title')) && (await vis('#f-card-keys'))
        && !(await vis('[data-pocketnew]')) && !(await vis('[data-addstate]')) && !(await vis('[data-delentry]')));
     await page.click('[data-cardtab="rooms"]'); await wait(400);
+    // The name is above the tabs since 2026-11-02, on every tab, so the card field that hides is the keys.
     ok('    Pockets shows + Add a pocket and hides the card fields',
-       (await vis('[data-pocketnew]')) && !(await vis('#f-card-title')));
+       (await vis('[data-pocketnew]')) && !(await vis('#f-card-keys')));
     await page.click('[data-cardtab="time"]'); await wait(400);
     ok('    Over time shows the states editor', await vis('[data-addstate]'));
     await page.click('[data-cardtab="more"]'); await wait(400);
@@ -1073,15 +1076,10 @@ if (anyEntry) {
     return { row: !!row && row.offsetParent !== null, divider: !!div,
       under: !!(row && div) && !!(div.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING) }; })()`);
   ok(`  and the Pockets tab lists it as a row (${JSON.stringify(listed)})`, listed.row === true);
-  // THE JUMP CHIP, on the card that has a room to jump to. Pressed from More, so a chip that
-  // selected nothing could not pass.
+  // NO JUMP CHIPS IN THE FORM (2026-11-02): the Pockets tab is one press, and the chips were a second
+  // row of tabs above the tabs. The read face keeps its pockets tag, checked above.
   await page.click('[data-cardtab="more"]'); await wait(300);
-  const jslot = await page.eval("document.querySelector('[data-goslot]')?.dataset.goslot ?? ''");
-  ok(`  a jump chip is drawn for it (${jslot})`, jslot !== '');
-  await page.click(`[data-goslot="${jslot}"]`); await wait(600);
-  ok('  and pressing it opens the tab its heading is in, and shows the heading',
-     await page.eval(`(() => { const h = document.querySelector('[data-slotat="${jslot}"]');
-       return !!h && h.offsetParent !== null; })()`));
+  ok('  the form draws no jump chips above its tabs', await page.eval("!document.querySelector('#sideBody [data-goslot]')"));
   // ---- ON, THEN OFF, IN THE FORM TOO. Seth, 2026-08-30: "would having the order of whats turned
   // on, off and empty be possible in the edit screen too." Falsify by dropping the grouping: the
   // divider goes and this reds.
@@ -1246,14 +1244,12 @@ ok(`  with every coat drawn through the ordinary room path (${dressed.coats} of 
 await page.click('[data-cardview="form"]');
 await wait(500);
 // #126 · A POCKET IS ADDED IN THE POCKET PANEL, opened from the Pockets tab's + Add a pocket (or
-// the header's ＋). The kind is picked in the panel, and Ask Anansi is its second tab.
+// the header's ＋). The kind is picked in the panel, and Ask Anansi is the row under its fields.
 await page.click('[data-cardtab="rooms"]');
 await wait(400);
 await page.click('.pane:not([hidden]) [data-pocketnew]');
 await wait(400);
 await page.click('[data-pocketkind="outfit"]');
-await wait(300);
-await page.click('[data-pockettab="ask"]');
 await wait(300);
 ok("  the pocket panel offers to have Anansi write one",
    (await page.eval("!!document.querySelector('#pocketPanel [data-pocketask=\"write\"]')")) === true);
@@ -1291,11 +1287,13 @@ await page.click('[data-pocketx]'); await wait(400);
     pills: document.querySelectorAll('#pocketPanel [data-pocketkind]').length,
     chosen: document.querySelectorAll('#pocketPanel [data-pocketkind][aria-pressed="true"]').length,
     facts: !!document.querySelector('#pocketPanel [data-pocketkind="facts"]'),
-    write: document.querySelector('#pocketPanel [data-pockettab="write"]')?.getAttribute('aria-pressed') }))()`);
+    tabs: document.querySelectorAll('#pocketPanel [data-pockettab]').length,
+    ask: !!document.querySelector('#pocketPanel [data-pocketask="write"]') }))()`);
   console.log("  pocket panel: " + JSON.stringify(panel));
   ok(`the panel offers a kind per pocket, and not Always true (${panel.pills})`,
      panel.pills === expectPills && !panel.facts);
-  ok(`  opens on Write it with nothing chosen (${JSON.stringify(panel)})`, panel.write === 'true' && panel.chosen === 0);
+  ok(`  opens as one screen, the ask row under the fields, with nothing chosen (${JSON.stringify(panel)})`,
+     panel.tabs === 0 && panel.ask && panel.chosen === 0);
   await page.click(`[data-pocketkind="${empty}"]`);
   await wait(300);
   ok('  and pressing a kind chooses it',

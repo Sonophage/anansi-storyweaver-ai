@@ -18,6 +18,16 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-02 · The library shows who is in your scene
 
+### A quieter thread editor and pocket box
+Editing a thread now opens on its kind and its name, set large on a line, with the tabs under
+them. Always true is one box saved by Save at the top, not a box with a Save of its own. Always on
+and On a word sit beside Wake words. Asking Anansi is one row at the foot: say what to change, then
+Anansi edits. The pocket shortcuts above the tabs are gone; Pockets is one tap away. The short
+explanations under each heading now open from the small mark beside it.
+
+A pocket's box is one screen: its kind, its name, its description and wake words, then the same
+one-row ask, with Look it up online first under it. Write it and Ask Anansi are no longer two tabs.
+
 ### Bigger thread cards, with the picture behind them
 In a tale's Threads, every card is twice as tall. A thread with a picture wears it across the whole
 card: dark at the foot, where the name and its lines are, and the picture above. Open a thread and
