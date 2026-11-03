@@ -2929,7 +2929,10 @@ html[data-ui-theme="arcana"] #thlist .thplate.thtall .platename::before { conten
   display:flex; align-items:center; justify-content:center; pointer-events:none;
   font-family:var(--arc-deco); font-size:24px; letter-spacing:.02em; color:var(--ink-bright);
   background:url('/web/arcana-diamond.svg') center / contain no-repeat; }
-html[data-ui-theme="arcana"] #thlist .thplate.thart .platename::before { filter:drop-shadow(0 2px 6px rgba(0,0,0,.7)); }
+/* Over a picture the diamond is smaller and higher, at the head of the card where a tarot card has
+   its number, and less than solid: centred where the bare card has it, it sat on every face. */
+html[data-ui-theme="arcana"] #thlist .thplate.thart .platename::before { top:14px; width:60px; height:60px;
+  margin-left:-30px; font-size:17px; opacity:.85; filter:drop-shadow(0 2px 6px rgba(0,0,0,.7)); }
 
 /* A POCKET KIND'S NUMERAL, beside its heading in a thread's Pockets list (and the tale's Promises and
    Open questions): the same numeral in ink, in a small gilt diamond, at the right of the heading's
@@ -2946,9 +2949,13 @@ html[data-ui-theme="arcana"] :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana]::
 html[data-ui-theme="arcana"] .resumeband.haspic > .wash::after,
 html[data-ui-theme="arcana"] .storycard .art:not(.bare) > .fade::after,
 html[data-ui-theme="arcana"] .lbanner > .fade::after { content:''; position:absolute; inset:0; pointer-events:none; opacity:.5; }
-html[data-ui-theme="arcana"] .resumeband.haspic > .wash::after {
-  background:url('/web/arcana-stars.svg') 50% 16% / 88% auto no-repeat,
-    url('/web/arcana-sunburst.svg') 50% 30% / 120% auto no-repeat; }
+/* The hero's sunburst is already there, behind the title (`.rings::before`, above), but under the
+   picture's shade it all but vanished; over a picture it is lifted above the shade, faint, with the
+   words above it. The constellation is added, sized like the bare hero's. */
+html[data-ui-theme="arcana"] .resumeband.haspic > .rings { z-index:1; opacity:.75; }
+html[data-ui-theme="arcana"] .resumeband.haspic > :is(.herobody, .glass) { z-index:2; }
+html[data-ui-theme="arcana"] .resumeband.haspic > .wash::after { opacity:.75;
+  background:url('/web/arcana-stars.svg') 50% 18% / min(88%, 560px) auto no-repeat; }
 html[data-ui-theme="arcana"] .storycard .art:not(.bare) > .fade::after {
   background:url('/web/arcana-stars.svg') 50% 12% / 90% auto no-repeat,
     url('/web/arcana-sunburst.svg') 50% 26% / 120% auto no-repeat; }
