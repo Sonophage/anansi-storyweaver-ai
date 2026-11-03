@@ -3015,10 +3015,32 @@ html:root #col .block.opening .narr::first-letter {
   background:radial-gradient(closest-side, color-mix(in srgb, var(--gold) 38%, transparent), transparent); }
 @media (max-width:719px) { html:root #col .block.opening .narr::first-letter { font-size:40px; padding:5px 8px 3px; } }
 
-/* THE PRESSES. The one gold button keeps its gold and its pill, and gains a dry brush across it. */
-html:root :is(.btn:not(.ghost), #nextrow .quillcell > button:not([aria-expanded="true"]), #send.stopping, .rerollbox .rwgo) {
+/* THE PRESSES. The one gold button keeps its gold and its pill, and gains a dry brush across it. The
+   composer's quill is the exception: it is a gilt seal (THE QUILL IS A GILT SEAL, below). */
+html:root :is(.btn:not(.ghost), #send.stopping, .rerollbox .rwgo) {
   background-image:url('/web/arcana-brush.svg'); background-size:100% 100%; background-repeat:no-repeat; }
 
+
+/* THE QUILL IS A GILT SEAL (Seth, 2026-11-03: no brush on it, "more arcane"). Still the screen's one
+   gold press (ADR 0004) and still the 60px circle: a gold fill a shade deeper at its rim, a fine ring
+   of the dark inside its edge, a faint sixteen-rayed sigil under the quill (web/arcana-sigil.svg, a
+   mask in the dark on the gold), and a gilt ring just outside it. The quill stays in the dark ink on
+   top. Its states stay apart: OPEN (the box is up) is the outer ring and the sigil in gold with no
+   fill; HELD is pressed in and lit; WRITING keeps its glow (thinkglow, above), which is a shadow and
+   so does not touch the rings. */
+html:root #quill { position:relative; isolation:isolate;
+  background:radial-gradient(circle at 50% 38%, var(--gold-lit), var(--gold) 58%, color-mix(in srgb, var(--gold) 72%, #000) 100%);
+  transition:transform var(--t) var(--ease), filter var(--t) var(--ease); }
+html:root #quill > svg { position:relative; z-index:1; }
+html:root #quill::before { content:''; position:absolute; inset:3px; border-radius:50%; pointer-events:none;
+  background:var(--on-gold); opacity:.42;
+  -webkit-mask:url('/web/arcana-sigil.svg') center / 100% 100% no-repeat; mask:url('/web/arcana-sigil.svg') center / 100% 100% no-repeat; }
+html:root #quill::after { content:''; position:absolute; inset:-6px; border-radius:50%; pointer-events:none;
+  border:1px solid var(--gold-dim); }
+html:root #quill:active:not(:disabled) { transform:scale(.93); filter:brightness(1.12); }
+html:root #quill[aria-expanded="true"] { background:none; border:1px solid var(--gold); color:var(--gold); }
+html:root #quill[aria-expanded="true"]::before { background:var(--gold); opacity:.5; }
+html:root #quill[aria-expanded="true"]::after { border-color:color-mix(in srgb, var(--gold) 45%, transparent); }
 
 /* THE MENUS. Nothing under the model, the tiles as small square cards, the page you are on in
    the bright ink with the ink rule beside it (ADR 0004) and nothing under it (Seth, 2026-11-03:

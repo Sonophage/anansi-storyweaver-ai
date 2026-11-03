@@ -1197,6 +1197,24 @@ ok('a scene opens under a sunburst, its number in Roman numerals');
   assert.match(page, /html:root \.pbanner > \.pbmark::after \{[^}]*arcana-diamond\.svg/, 'NO-DIVIDER: the panel banner keeps its diamond');
 }
 ok('no chevron divider or decorative gilt line under any header');
+// THE QUILL IS A SEAL, NOT A BRUSHED DISC (Seth, 2026-11-03: no brush texture, "more arcane"). The
+// composer's centre press is still the screen's one gold press (ADR 0004) and still a 60px round
+// target: a gold fill with a fine ring inside it and a faint eight-rayed sigil under the quill, both
+// line-work, and a gilt ring outside it. Its states stay apart: open (the box is up) is the ring
+// with no fill, held is pressed in and brighter, and writing keeps the glow it had.
+{
+  const { readFileSync, existsSync } = await import('node:fs');
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  const brush = page.match(/html:root :is\([^{]*\)\s*\{\s*background-image:url\('\/web\/arcana-brush\.svg'\)/)?.[0] ?? '';
+  assert.ok(brush && !/quill/.test(brush), 'QUILL-SEAL: the quill has no brush texture');
+  assert.match(page, /#nextrow \.quillcell > button \{[^}]*width:60px; height:60px; border-radius:50%/, 'QUILL-SEAL: still a round 60px press');
+  assert.match(page, /html:root #quill::before \{[^}]*mask:url\('\/web\/arcana-sigil\.svg'\)/, 'QUILL-SEAL: a sigil inside it, as a mask');
+  assert.match(page, /html:root #quill::after \{[^}]*border:1px solid var\(--gold/, 'QUILL-SEAL: and a gilt ring outside it');
+  assert.match(page, /html:root #quill:active:not\(:disabled\) \{/, 'QUILL-SEAL: held, it shows it');
+  assert.match(page, /html:root #quill\[aria-expanded="true"\] \{[^}]*background:none/, 'QUILL-SEAL: open, it is the ring with no fill');
+  assert.ok(existsSync(new URL('../web/arcana-sigil.svg', import.meta.url)), 'QUILL-SEAL: the sigil is on disk');
+}
+ok('the quill is a gilt seal with a sigil, no brush');
 // A GLYPH PER ACTION (Seth, 2026-11-03, his reference "≈ WOVEN"): every label a passage's chip can
 // show carries its own small line glyph before it. The labels are named here, from the four ways
 // the chip is reached (the model wrote it; a composer mode; Continue; the fallbacks for a passage
@@ -2532,7 +2550,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     assert.ok(FACES && !Object.values(THEMES).some((t: any) => t.faces), 'ARCANA-FACES: the display faces are the app\'s, not a theme\'s');
     const html0 = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
     assert.doesNotMatch(html0, /data-ui-theme="arcana"\]/, 'ARCANA-EVERYWHERE: no rule keys on the Arcana theme');
-    const GILT = /arcana-(corner-..|divider|stars|sky-\w+|suit-\w+|glyph-\w+|mark-\w+|sunburst|diamond|runes|wash)\.svg/;
+    const GILT = /arcana-(corner-..|divider|stars|sky-\w+|suit-\w+|glyph-\w+|mark-\w+|sigil|sunburst|diamond|runes|wash)\.svg/;
     for (const m of html0.matchAll(/url\('\/web\/(arcana-[\w-]+\.svg)'\)/g)) {
       if (!GILT.test(m[1])) continue;
       const decl = html0.slice(Math.max(html0.lastIndexOf(';', m.index!), html0.lastIndexOf('{', m.index!)) + 1, m.index!);

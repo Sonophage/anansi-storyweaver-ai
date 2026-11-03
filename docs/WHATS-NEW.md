@@ -129,11 +129,12 @@ name: it sends your words to the world, so every tale that follows the thread se
 ### Arcana, the new look
 Anansi now looks like Arcana: painted, with tarot and art deco in it. The page, the menu and the
 side panel sit on watercolour paper, and the gilt is line-work: stepped corners on cards, a double
-gilt frame on the tale you left off in, arched like a tarot card, with a sunburst behind its name. The first letter of a scene is set in a gilt box over a wash.
-Titles are thin deco capitals and labels a clean geometric face; your story keeps whatever font you
-chose. The one gold button on a screen has a dry brush through it. Buttons, chips, tabs and the
-boxes you type in keep their rounded corners; the stepped gilt corners are for cards, frames and
-banners.
+gilt frame on the tale you left off in, arched like a tarot card, with a sunburst behind its name.
+The first letter of a scene is set in a gilt box over a wash. Titles are thin deco capitals and
+labels a clean geometric face; your story keeps whatever font you chose. The one gold button on a
+screen has a dry brush through it, except the round button under the page, which is a seal.
+Buttons, chips, tabs and the boxes you type in keep their rounded corners; the stepped gilt corners
+are for cards, frames and banners.
 ### Thin, rounded sliders
 Every slider, such as the model's settings in Storyteller and how much of a tale's cover shows, is
 a thin rounded line with a small round handle, in your theme's colour.
@@ -213,6 +214,10 @@ keeps the header it had.
 The chevron-and-diamond divider and the gilt lines under titles are gone everywhere: under the top
 bar, a side panel's name, the model in the menu, the tale you left off in, and a scene's head. Cards
 keep their gilt frames and corners.
+### The round button under the page is a gilt seal
+The round gold button in the middle under the page, the one you press to write and hold to talk,
+is a seal: gold with a fine ring and a faint sunburst of rays under the quill, and a thin gilt ring
+around it. Held down, it presses in and brightens; while Anansi thinks it glows, as before.
 ### No glow along the top
 The glow across the top of the screen is gone. What is waiting is still counted on the Workbench in
 the tale's menu.
