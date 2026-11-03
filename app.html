@@ -1702,6 +1702,44 @@ textarea.field { resize:vertical; min-height:70px; }
 .cardpanes[data-tab="card"] > .pane[data-pane="card"], .cardpanes[data-tab="time"] > .pane[data-pane="time"],
 .cardpanes[data-tab="rooms"] > .pane[data-pane="rooms"], .cardpanes[data-tab="more"] > .pane[data-pane="more"] { display:block; }
 .headmore[disabled] { opacity:.5; }
+/* THE SIDE PANEL'S SPACING, ON ONE SCALE: 4, 8, 12, 16, 24 (Seth, 2026-11-03, three screens flagged:
+   a thread's Read face, its header, and the Threads list). The labels on Read carried their own
+   inline margins, 4px in one place and 8px in the next, and "Always true" hugged the tab row.
+   THE HEADER: one row, one rhythm. Every press in it is a 44px target with a 34px face, 8px apart,
+   and Close is the same height as the round ones, so the words and the circles share a line. The
+   back link has room between its chevron and its word. No negative margins: they pulled the round
+   presses into one another and left Close on its own. */
+#sideHead { gap:8px; padding:18px 22px 16px; position:relative; }
+#sideHead > :is(.headmore, .headadd, .headfull) { margin:-5px 0; }
+#sideHead > .caps-btn { height:44px; margin:-5px 0 -5px 4px; padding:0 2px; display:flex; align-items:center; flex:0 0 auto; }
+#sideHead > .headback { gap:4px; padding-right:8px; margin:-5px 0; }
+/* READ: the name, 12 to the tags, 24 to the tabs, 24 to the first label; a label 8 over its text,
+   24 between sections. Rewrite where it stands is a quiet press under its text, not a pill the
+   panel's width. */
+.readname { margin:0 0 12px; }
+.readtags { gap:8px; margin:0 0 24px; }
+.cardpanes > .tabrow { margin:0 0 24px; }
+.cardpanes .altpane > .lbl { display:block; margin:24px 0 8px; }
+.cardpanes .altpane > .lbl:first-child { margin-top:0; }
+.readbody { margin:0; }
+.btn.ghost.restand { display:flex; align-items:center; width:fit-content; margin-top:12px; padding:8px 16px;
+  font-size:11.5px; border-radius:var(--r); }
+.cardpanes .askrow { margin-top:32px; padding-top:16px; }
+.cardpanes .askrow .deckredo { margin-top:0; }
+/* Its press the field's height and corners, so the two read as one row and not a box and a pill. */
+.cardpanes .askrow .deckredo > .field { height:44px; }
+.cardpanes .askrow .deckredo > .btn { border-radius:var(--r); }
+/* THE THREADS LIST: the search row, 8, the kinds in one row that scrolls sideways rather than wrap,
+   16 to the first kind. */
+.thkinds { display:flex; gap:8px; margin:8px 0 0; overflow-x:auto; scrollbar-width:none; }
+.thkinds::-webkit-scrollbar { display:none; }
+.thkinds > .chip { flex:0 0 auto; padding:8px 11px; font-size:12.5px; white-space:nowrap; }
+#thlist > [data-kindhead] { margin-top:16px; }
+/* A CHARACTER'S OUTFITS, under its card: 8 below it and in from its edge by the card's own text
+   indent, so they read as the card's and not as loose chips on its border. */
+.thwear { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 4px; padding:0 18px; }
+.thwear > .tag { cursor:pointer; }
+.thwear > .tag[aria-pressed="true"] { border-color:var(--edge-lit); color:var(--ink-bright); }
 /* THE TALE'S MENU, TWO COLUMNS (2026-10-27). Rows were drawn with inline styles by drawRail, so the
    tile shape had to say !important; the `.navgrid` rules below still do. Since 2026-10-30 the two
    menus' tiles and rows are `.railtile` and `.railrow`, with their sizes in the class. Only while the rail is open: the desk's closed rail is 76px of
@@ -2729,8 +2767,15 @@ html[data-ui-theme="arcana"] :is(#sideBody .card, .resumeband > .glass, #appeara
   background-position:top left, top right, bottom left, bottom right;
   background-size:20px 20px; background-repeat:no-repeat; }
 html[data-ui-theme="arcana"] .band-rule { height:18px; background:url('/web/arcana-divider.svg') center / min(320px, 100%) 18px no-repeat; }
-html[data-ui-theme="arcana"] #sideHead { border-bottom-color:transparent;
-  background:url('/web/arcana-divider.svg') center bottom / min(320px, 80%) 14px no-repeat; }
+/* The panel's header rule runs the header's whole width, with the chevron at its middle: alone and
+   320px wide it sat centred under nothing (Seth, 2026-11-03). */
+html[data-ui-theme="arcana"] #sideHead { border-bottom-color:transparent; }
+html[data-ui-theme="arcana"] #sideHead::after { content:''; position:absolute; left:22px; right:22px; bottom:-7px; height:14px;
+  pointer-events:none; background:var(--gold);
+  -webkit-mask:url('/web/arcana-divider.svg') center / 220px 14px no-repeat,
+    linear-gradient(90deg, transparent, rgba(0,0,0,.45) 12%, rgba(0,0,0,.45) 88%, transparent) center / 100% 1px no-repeat;
+  mask:url('/web/arcana-divider.svg') center / 220px 14px no-repeat,
+    linear-gradient(90deg, transparent, rgba(0,0,0,.45) 12%, rgba(0,0,0,.45) 88%, transparent) center / 100% 1px no-repeat; }
 html[data-ui-theme="arcana"] #bar { border-bottom-color:transparent;
   background-image:url('/web/arcana-divider.svg'); background-repeat:no-repeat;
   background-position:center bottom 2px; background-size:min(420px, 82%) 14px; }
@@ -2742,8 +2787,10 @@ html[data-ui-theme="arcana"] .resumeband .bandtitle,
 html[data-ui-theme="arcana"] .storycard .art .serif {
   font-family:var(--arc-deco); font-weight:400; text-transform:uppercase; letter-spacing:.16em; }
 html[data-ui-theme="arcana"] :is(#bar .up, .resumeband .herokind, .resumeband .herocount, .band > div:first-child,
-  #col .block .from, .railhead, .tag, .kicker) { font-family:var(--arc-small); letter-spacing:.3em; }
-html[data-ui-theme="arcana"] .tag { border-radius:2px; }
+  #col .block .from, .railhead, .kicker) { font-family:var(--arc-small); letter-spacing:.3em; }
+/* A tag is a short word in a row of them: at .3em each chip read twice its width (Seth, 2026-11-03).
+   Out of the list above, whose `#col` made it outrank any rule for a tag on its own. */
+html[data-ui-theme="arcana"] .tag { font-family:var(--arc-small); border-radius:2px; letter-spacing:.14em; }
 /* Tighter where the line is short: a book's name in the bar, and the hero's "where you left off". */
 html[data-ui-theme="arcana"] #bar .bare-btn .serif { letter-spacing:.08em; }
 html[data-ui-theme="arcana"] .resumeband .herokind { letter-spacing:.1em; }

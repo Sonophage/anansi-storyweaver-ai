@@ -151,6 +151,13 @@ on the shelf, at the top of the Library and over its threads, gets the same fain
 ### No glow along the top
 Under Arcana the glow across the top of the screen is gone. What is waiting is still counted on
 the Workbench in the tale's menu.
+### The side panel, spaced evenly
+An open thread reads with even room: its name, its tags, its four tabs, then each part under its
+own heading with the same space between every part. Rewrite where it stands is a small press under
+the text it rewrites. The header's presses sit on one line, and the rule under it runs its whole
+width. On the Threads list the kinds sit in one row, starting with All kinds, and on a phone the row
+slides sideways rather than wrap. A character's outfits sit just under its card, in line with its
+words. Tags are set closer, so a row of them is no wider than it needs to be.
 
 ## 2026-11-02 · The library shows who is in your scene
 

@@ -3441,7 +3441,7 @@ function closeMerge(t = null) {
 /** REWRITE WHERE IT STANDS (Seth, 2026-10-31: "make it a button on each thread and the tale"). Anansi
  *  rewrites it from the last scene that names it, and it comes to the Workbench as a card: nothing
  *  changes until it is sewn in. One button for a thread and the tale's own thread alike. */
-const restandButton = (e) => `<button class="btn ghost push-8" data-restand="${esc(e.id)}" ${S.restanding ? 'disabled aria-busy="true"' : ''}
+const restandButton = (e) => `<button class="btn ghost restand" data-restand="${esc(e.id)}" ${S.restanding ? 'disabled aria-busy="true"' : ''}
       aria-label="Have Anansi rewrite where ${esc(e.title)} stands">${S.restanding === e.id ? 'Rewriting&hellip;' : 'Rewrite where it stands'}</button>`;
 /** #125 · WHERE THE TALE STANDS NOW: the tale's thread's Over time entry in force at this scene, or
  *  nothing while none is sewn in (the premise is then what is sent). A hem writes it, and a tap opens
@@ -5396,10 +5396,13 @@ const PANELS = {
             `<button class="chip" data-onlyin="${v}" aria-pressed="${(S.onlyIn ? '1' : '0') === v}"
               >${l} <span class="tnum faint">${c}</span></button>`).join('')}
         </div>
-        <div class="thkinds">${[['all', 'All', V.entries.filter((e) => KINDS.includes(e.entryType)).length],
+        <div class="thkinds">${/* "ALL KINDS", WITH NO COUNT (Seth, 2026-11-03): it said "All 21" one row
+            under the scope's own "All 21", the same words and number twice. The row never wraps:
+            on a phone it scrolls sideways, where it had put "Items 5" alone on a second line. */
+            [['all', 'All kinds', null],
             ...KINDS.map((k) => [k, KIND_PLURAL[k], V.entries.filter((e) => e.entryType === k).length])].map(([k, l, c]) =>
           `<button class="chip" data-thkind="${k}" aria-pressed="${(S.threadKind ?? 'all') === k}"
-            >${esc(l)} <span class="tnum faint">${c}</span></button>`).join('')}</div>
+            >${esc(l)}${c == null ? '' : ` <span class="tnum faint">${c}</span>`}</button>`).join('')}</div>
         ${S.onlyIn ? `<div class="end-row">${
             tipMark('thInContext', 'What Sent now can see')}</div>
           ${tipCard('thInContext', 'What Sent now can see', manifestNow()
@@ -8383,14 +8386,14 @@ function threadPane(e, slots) {
     aria-label="${label}">${esc(text || empty)}</button>`;
   return `
     ${open('facts') ? roomSection(e, slots.find((sl) => sl.name === 'facts') ?? { name: 'facts' })
-      : `<div class="lbl" data-slotat="facts" style="letter-spacing:.1em; margin:4px 0 4px">Always true</div>
+      : `<div class="lbl" data-slotat="facts">Always true</div>
     ${shut('facts', `Alter what is always true of ${esc(e.title)}`, facts.map((a) => unbracket(a.body, e.title)).join('\n'), 'Nothing written down yet.')}`}
     ${(() => {
       // WHERE IT STANDS NOW (#78): the Timeline entry in force at this scene, or the thread's own text
       // when none has opened. With one open, that entry is the box here, and the text from scene 1
       // is edited as the first row of the Timeline. One box for each, never two.
       const label = `${esc(nowWords())}${st ? ` <span class="faded">&middot; from scene ${esc(String(st.fromChapter))}</span>` : ''}`;
-      if (!open('stands')) return `<div class="lbl" style="letter-spacing:.1em; margin:8px 0 4px">${label}</div>
+      if (!open('stands')) return `<div class="lbl">${label}</div>
     ${shut('stands', `Alter where ${esc(e.title)} stands now`, unbracket(st ? st.body : e.body, e.title), 'Nothing written down yet.')}`;
       const mk = tipMark('cardBody', 'Where it stands now');
       return `${st ? `<label class="lbl" for="f-card-now">${label}${mk}</label>` : `<label class="lbl" for="f-card-body">${label}${mk}</label>`}
@@ -9183,7 +9186,7 @@ function threadPlate(e, lit) {
           aria. Read off the SAME o.active the style reads, deliberately: the lore chips once had
           aria-pressed keyed to a different field from their colour and sat permanently false under
           a lit button. Outside the card for the same reason as the eye. */
-      (e.outfits ?? []).length ? `<div style="display:flex; flex-wrap:wrap; gap:5px; margin:6px 0 2px 2px">
+      (e.outfits ?? []).length ? `<div class="thwear">
       ${e.outfits.map((o) => `<button data-wear="${e.id}:${o.id}" class="tag"
         aria-pressed="${!!o.active}"
         style="cursor:pointer; ${o.active

@@ -1662,6 +1662,8 @@ ok('a thread\'s mark shows four states; a tap goes off, on a word, on, at once a
   for (const k of ['all', 'character', 'place', 'lore', 'item'])
     assert.match(side, new RegExp(`data-thkind="${k}"`), `  with a tab for ${k}`);
   assert.match(side, /data-thkind="all" aria-pressed="true"/, '  All to start with');
+  assert.match(side, /data-thkind="all" aria-pressed="true"\s*>All kinds<\/button>/,
+    'KINDS-ALL-ONCE: the kinds\' All is "All kinds" with no count, not a second "All 21" under the scope\'s');
   click({ thkind: 'lore' }); await sleep(10);
   const lore = html('sideBody');
   assert.match(lore, /data-kindhead="lore"/, 'KINDS-ONE: Lore shows the lore');
@@ -2229,6 +2231,10 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     click({ open: 's-1' }); await sleep(40);
     click({ panel: 'threads' }); click({ entry: 'e-1' });
     await sleep(30);
+    // ONE SPACING SCALE (Seth, 2026-11-03): Read's labels take their margins from the stylesheet, not
+    // inline, where they were 4px in one place and 8px in the next.
+    assert.doesNotMatch(html('sideBody'), /class="lbl"[^>]*style="[^"]*margin/, 'READ-SPACING: no label on Read carries an inline margin');
+    assert.match(html('sideBody'), /class="btn ghost restand" data-restand/, 'READ-SPACING: Rewrite where it stands is the quiet press, not a full-width pill');
     // EACH FIELD OPENS ITS BOX IN PLACE, on a tap, and Read has no Save, no Done and no Undo.
     const opens: [string, RegExp][] = [['title', /data-f="title"/], ['facts', /data-ab="a-facts"/], ['stands', /data-f="body"/],
       ['keys', /data-f="keys"/], ['notes', /data-f="notes"/], ['kind', /data-kind="lore"/]];
