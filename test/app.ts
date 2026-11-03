@@ -2475,6 +2475,12 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     assert.doesNotMatch(arc, /^\s*--r\s*:/m, 'ROUND-CONTROLS: the ornament does not reset the app\'s radius');
     assert.doesNotMatch(arc, /\.btn[^{]*\{[^}]*(clip-path|border-radius:0)/, 'ROUND-CONTROLS: the gold press keeps its pill');
     assert.doesNotMatch(arc, /\.tag[^{]*\{[^}]*border-radius/, 'ROUND-CONTROLS: a tag keeps its pill');
+    // BOXES LIFT OFF THE PAGE (Seth, 2026-11-03): cards, panels, the boxes you type in and the
+    // composer carry one soft shadow, `--lift`, so each sits over the paper rather than in it.
+    assert.match(arc, /--lift:\s*[^;]*rgba\(0,\s*0,\s*0/, 'SHADOWS: one soft shadow, named once');
+    const lifted = arc.match(/html:root :is\(([^{]*)\)\s*\{\s*box-shadow:var\(--lift\)/)?.[1] ?? '';
+    for (const box of ['.card', '.lbanner', '.pocketrow', '.railrow', '#sideInner', '#inputWrap', 'textarea', 'input', 'select'])
+      assert.ok(lifted.includes(box), `SHADOWS: ${box} lifts off the page (${lifted.slice(0, 80)})`);
     // EVERY SLIDER THIN AND ROUNDED, in the accent, the same in Chromium and Firefox (Seth, 2026-11-03).
     for (const part of ['::-webkit-slider-runnable-track', '::-webkit-slider-thumb', '::-moz-range-track', '::-moz-range-thumb'])
       assert.match(html0, new RegExp(`input\\[type="range"\\]${part}\\s*\\{[^}]*border-radius`), `SLIDERS: ${part} is drawn, rounded`);

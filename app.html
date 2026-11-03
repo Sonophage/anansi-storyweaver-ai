@@ -2780,7 +2780,18 @@ html:root {
   --arc-deco:'Poiret One','IBM Plex Sans',system-ui,sans-serif;     /* titles: thin geometric capitals */
   --arc-small:'Josefin Sans','IBM Plex Sans',system-ui,sans-serif;  /* labels and the menu's words */
   --arc-serif:'Cormorant Garamond','EB Garamond',Georgia,serif;     /* a scene's title and its line */
+  --lift:0 1px 2px rgba(0,0,0,.32), 0 8px 22px -6px rgba(0,0,0,.55); /* a box over the paper */
 }
+/* BOXES LIFT OFF THE PAGE (Seth, 2026-11-03): every card, the side panel, the boxes you type in and the
+   composer carry one soft shadow, so each sits over the painted paper and not in it. The composer's
+   box is `#inputWrap`, so the textarea inside it is left out, and the mode dial keeps its inset ring
+   (`#modes select`, above). The shadow is outside the box, so a card's gilt corners, drawn inside it,
+   are untouched. A menu row on the page you are on keeps its ink line (`.arted[aria-current]`). A
+   shelf card and the Library's hero are not here: each already has its own deeper shadow. */
+html:root :is(.card, .lbanner, :is(.pocketlist, .stringlist) .pocketrow, #rail .railrow, #rail .railtile,
+  #sideInner, #inputWrap, textarea:not(#input), select:not(#modes select),
+  input:is(:not([type]), [type="text"], [type="search"], [type="number"], [type="url"], [type="email"], [type="password"])) { box-shadow:var(--lift); }
+html:root #rail .railrow.arted[aria-current] { box-shadow:inset 2px 0 0 var(--ink-bright), var(--lift); }
 
 /* THE GROUNDS. The page's is the row's wash; the menu, the side panel and the sheets get the same
    painted canvas over their own colour, so nothing is flat. The side panel's is on

@@ -198,6 +198,9 @@ Yours, a voice for Spoken, and a spider for Anansi.
 On a phone, the Stop button while Anansi writes is the stop square, not the word, wherever it
 shows: under the page, in the box, and over the passage being written. A screen reader still reads
 it as Stop. At a desk the buttons keep the word.
+### Cards and boxes lift off the page
+Cards, the side panel, the menu's rows and tiles, the boxes you type in and the writing box carry a
+soft shadow, so each sits over the painted paper instead of flat in it.
 ### No glow along the top
 The glow across the top of the screen is gone. What is waiting is still counted on the Workbench in
 the tale's menu.
