@@ -41,10 +41,11 @@ const read = (scope) => page.eval(`(async () => {
     glyph: d === first('spider') ? 'spider' : d === first('feather') ? 'feather' : d,
     contrast: (Math.max(a, b) + .05) / (Math.min(a, b) + .05), words: m.getAttribute('aria-label') };
 })()`);
-// A model in the writer's open list, or the row in force above it when it is the usual one
-// (2026-11-03: the list opens on a press of that row, and leaves the row's model out).
-const rowOf = (id) => `(document.querySelector('#usualmodels [data-pickmodel="${id}"]')
-  ?? [...document.querySelectorAll('[data-tellerlist="usual"]')].find((b) => b.parentElement.querySelector('[data-modelinfo="${id}"]')))`;
+// A model in the tale's open list, or the row in force above it when it is that model (2026-11-03:
+// the list opens on a press of that row and leaves the row's model out; Model is a tale's tab, and
+// What it is under the list names the model in force).
+const rowOf = (id) => `(document.querySelector('#talemodels [data-talemodel="${id}"]')
+  ?? (document.querySelector('[data-modelinfo="${id}"]') ? document.querySelector('[data-tellerlist="tale"]') : null))`;
 const row = (id) => read(rowOf(id));
 
 // ---- 0. a remote model on this writer's shortlist
@@ -54,12 +55,12 @@ ok(`the remote model is on the shortlist (${added.error ?? 'added'})`, !added.er
 
 // ---- 1. the model rows, in the dark default theme. On Storyteller's Model tab since #131: the
 // model named in the menu opens it, and the list that dropped open under it is gone.
-const menu = async (at = "/") => {
+const menu = async (at = "/#" + sid) => {
   await page.goto(B + at);
   await page.click('[data-modelmenu="1"]');
-  await until("!!document.querySelector('[data-tellerlist=\"usual\"]')");
-  if (await page.eval("document.querySelector('[data-tellerlist=\"usual\"]').getAttribute('aria-expanded') !== 'true'"))
-    await page.click('[data-tellerlist="usual"]');
+  await until("!!document.querySelector('[data-tellerlist=\"tale\"]')");
+  if (await page.eval("document.querySelector('[data-tellerlist=\"tale\"]').getAttribute('aria-expanded') !== 'true'"))
+    await page.click('[data-tellerlist="tale"]');
   return until(`!!${rowOf(REMOTE)}?.querySelector('[data-runs]') && !!${rowOf(ASLEEP)}?.querySelector('[data-runs]')`);
 };
 ok("Storyteller lists both local models and the remote one, each with a mark", await menu());
@@ -81,24 +82,25 @@ const checkRows = async (theme) => {
 };
 const darkLocal = await checkRows("ink");
 
-// ---- 2. the strip, before and after making the remote model this writer's default
+// ---- 2. the strip, before and after picking the remote model for this tale (which makes it the
+// writer's model too, 2026-11-03)
 const strip = () => read(`document.querySelector('[data-modelmenu="1"]')`);
 let st = await strip();
 ok(`the strip marks the default local model, awake (${JSON.stringify(st)})`,
   st?.runs === "local" && st.awake && st.glyph === "spider");
-await page.click(`#usualmodels [data-pickmodel="${REMOTE}"]`);
+await page.click(`#talemodels [data-talemodel="${REMOTE}"]`);
 ok("picking it from the list moves the strip to the remote model",
   await until(`document.querySelector('[data-modelmenu="1"] [data-runs]')?.dataset.runs === 'remote'`));
 st = await strip();
 ok("the strip shows the feather, filled", st?.glyph === "feather" && st.filled);
 ok("and says it runs on Featherless", /on Featherless/.test(await page.text('[data-modelmenu="1"]') ?? ""));
-ok("the pick shuts the list", await until("!document.querySelector('#usualmodels')"));
+ok("the pick shuts the list", await until("!document.querySelector('#talemodels')"));
 await page.click('[data-modelmenu="1"]');
-ok("your usual model is the row in force", await until(`!!${rowOf(REMOTE)} && !document.querySelector('#usualmodels')`));
+ok("the tale's model is the row in force", await until(`!!${rowOf(REMOTE)} && !document.querySelector('#talemodels')`));
 
 // ---- 3. the book's picker in the Storyteller panel
-// The tale's model is one row that opens a list on a press (2026-11-03). Your usual model is the
-// remote one now, so the list offers it as "Your model" and the two local ones by name.
+// The tale's model is one row that opens a list on a press (2026-11-03). The tale and your usual
+// model are the remote one now, so the list offers the two local ones by name.
 await page.goto(B + "/#" + sid + "/teller");
 ok("the Storyteller offers the tale's model row", await until("!!document.querySelector('[data-tellerlist=\"tale\"]')"));
 await page.click('[data-tellerlist="tale"]');
@@ -112,10 +114,11 @@ ok("pinning the book to an asleep local model shows a hollow spider on its row",
   await until(`document.querySelector('[data-tellerlist="tale"] [data-runs]')?.dataset.awake === '0'`));
 let b = await beside();
 ok(`(${JSON.stringify(b)})`, b?.runs === "local" && b.hollow && b.glyph === "spider");
+// The pick made the asleep one your model too, so the remote one is in the list by name again.
 await page.click('[data-tellerlist="tale"]');
-await until(`!!document.querySelector('[data-talemodel=""]')`);
-await page.click('[data-talemodel=""]');
-ok("going back to your model, the remote one, shows the feather",
+await until(`!!document.querySelector('[data-talemodel="${REMOTE}"]')`);
+await page.click(`[data-talemodel="${REMOTE}"]`);
+ok("picking the remote one again shows the feather",
   await until(`document.querySelector('[data-tellerlist="tale"] [data-runs]')?.dataset.runs === 'remote'`));
 b = await beside();
 ok(`filled, in the remote colour (${JSON.stringify(b)})`, b?.filled && b.glyph === "feather" && b.contrast >= 3);

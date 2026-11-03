@@ -66,40 +66,45 @@ ok("none on the take Featherless wrote", !seen.reseeds.some((r) => r.endsWith(":
 // ---- 2. with the key: Storyteller's Add a model tab has the search (the detector for the check
 // below). It was a Find a model row under the menu's model list until #131.
 await call("/api/story", { id: sid, story: { model: REMOTE } });
-await call("/api/model", { model: REMOTE, storyId: sid });
-const menu = async (at) => {
-  await page.goto(B + at);
+// A SECOND TALE ON THE LOCAL MODEL (2026-11-03): Storyteller's Model tab is a tale's alone, and its
+// list leaves out the tale's model and the writer's, so the remote one is a row of this tale's list.
+// Its pick makes the local model the writer's too, as a pick on a tale does.
+const made = await call("/api/stories", { title: "Fallback second" });
+const sid2 = made.id ?? made.story?.id ?? made.storyId;
+await call("/api/story", { id: sid2, story: { model: LOCAL } });
+const menu = async () => {
+  await page.goto(B + "/#" + sid2);
   await until("!!document.querySelector('[data-modelmenu=\"1\"]')");
   await page.click('[data-modelmenu="1"]');
-  await until("!!document.querySelector('[data-tellerlist=\"usual\"]')");
-  // The writer's list opens on a press of the row (2026-11-03).
-  await page.click('[data-tellerlist="usual"]');
-  return until(`!!document.querySelector('#usualmodels [data-pickmodel="${LOCAL}"]')`);
+  await until("!!document.querySelector('[data-tellerlist=\"tale\"]')");
+  // The tale's list opens on a press of the row (2026-11-03).
+  if (await page.eval("document.querySelector('[data-tellerlist=\"tale\"]').getAttribute('aria-expanded') !== 'true'"))
+    await page.click('[data-tellerlist="tale"]');
+  return until("!!document.querySelector('#talemodels')");
 };
 const searchBox = async () => {
   await page.click('[data-tellertab="addmodel"]');
   await until("!!document.querySelector('#findq') || /needs a Featherless key/.test(document.querySelector('#sideBody')?.textContent ?? '')");
   return page.eval("({ box: !!document.querySelector('#findq'), says: /needs a Featherless key/.test(document.querySelector('#sideBody')?.textContent ?? '') })");
 };
-await menu("/");
+await menu();
 const withKey = await searchBox();
 ok("with a key, the Add a model tab has the Featherless search", withKey.box && !withKey.says);
-await menu("/");
-ok("and the remote model is a row that picks", await page.eval(`!!document.querySelector('#usualmodels [data-pickmodel="${REMOTE}"]')`));
+await menu();
+ok("and the remote model is a row that picks", await page.eval(`!!document.querySelector('#talemodels [data-talemodel="${REMOTE}"]')`));
 
 // ---- 3. the key goes away
 const keyFile = process.env.ANANSI_UI_FL_KEY;
 ok(`run.sh handed over the key file (${keyFile})`, !!keyFile && process.getBuiltinModule("node:fs").existsSync(keyFile));
 process.getBuiltinModule("node:fs").unlinkSync(keyFile);
-const noKey = (await menu("/"), await searchBox());
+const noKey = (await menu(), await searchBox());
 ok("NO KEY: the Add a model tab has no search box, and says the search needs a key", !noKey.box && noKey.says);
-await page.click('[data-tellertab="model"]');
-await until("!!document.querySelector('[data-tellerlist=\"usual\"]')");
-await until(`!!document.querySelector('#usualmodels [data-unready="${REMOTE}"]')`);
+await menu();
+await until(`!!document.querySelector('#talemodels [data-unready="${REMOTE}"]')`);
 const dim = await page.eval(`(() => {
-  const r = document.querySelector('#usualmodels [data-unready="${REMOTE}"]');
+  const r = document.querySelector('#talemodels [data-unready="${REMOTE}"]');
   return r && { tag: r.tagName, text: r.textContent.replace(/\\s+/g, ' '), opacity: +getComputedStyle(r).opacity,
-    opens: !!document.querySelector('#usualmodels [data-pickmodel="${REMOTE}"]') };
+    opens: !!document.querySelector('#talemodels [data-talemodel="${REMOTE}"]') };
 })()`);
 ok(`NO KEY: the shortlisted model is still listed, greyed (${JSON.stringify(dim)})`, dim && dim.opacity < 1);
 ok("NO KEY: and says Featherless isn't set up", /Featherless isn't set up/.test(dim?.text ?? ""));

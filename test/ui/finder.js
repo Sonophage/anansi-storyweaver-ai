@@ -23,12 +23,13 @@ const search = async (q) => {
   await wait(700);
 };
 
-// ---- 1. the door: the model named in the menu opens Storyteller, and the ＋ beside the model row
-// opens its Add a model tab (Seth, 2026-11-03: Shortlist and Add a model are two tabs).
+// ---- 1. the door: the model named in the menu opens Storyteller, and the ＋ in its header opens
+// its Add a model tab (Seth, 2026-11-03: Shortlist and Add a model are two tabs, and "The add button
+// can go up top by the close and expand button").
 await page.goto(B + "/");
 await page.click('[data-modelmenu="1"]');
 ok("the model name opens Storyteller, with an Add a model tab", await until("!!document.querySelector('#sideBody [data-tellertab=\"addmodel\"]')"));
-await page.click('#sideBody [data-findmodel="1"]');
+await page.click('#sideHead [data-findmodel="1"]');
 
 // ---- 2. the sheet: uncensored results, and the shortlist on a tab of its own
 ok("the ＋ opens Add a model", await page.eval("document.querySelector('[data-tellertab=\"addmodel\"]')?.getAttribute('aria-pressed') === 'true'"));
@@ -128,12 +129,17 @@ ok("and the Shortlist tab lists it",
 const got = (await mine()).find((m) => m.id === QWEN);
 ok(`the shortlist keeps its weaving and its cost (${got?.weaving}, ${got?.cost})`,
   got?.weaving === "can switch" && got?.cost === 2);
+// Model is a tale's tab (2026-11-03), so the list is read in a tale.
+const tale = (await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories)()"))[0].id;
+await page.goto(B + "/#" + tale + "/teller");
+await until("!!document.querySelector('[data-tellertab=\"model\"]')");
 await page.click('[data-tellertab="model"]');
-await until("!!document.querySelector('[data-tellerlist=\"usual\"]')");
-await page.click('[data-tellerlist="usual"]');
-ok("it appears in the writer's model list on Model", await until(`!!document.querySelector('#usualmodels [data-pickmodel="${QWEN}"]')`));
-ok("and the list has no remove — remove lives on Shortlist", await page.eval("!document.querySelector('#usualmodels [data-dropshort]')"));
-await page.click('[data-tellerlist="usual"]');
+await until("!!document.querySelector('[data-tellerlist=\"tale\"]')");
+if (await page.eval("document.querySelector('[data-tellerlist=\"tale\"]').getAttribute('aria-expanded') !== 'true'"))
+  await page.click('[data-tellerlist="tale"]');
+ok("it appears in the tale's model list on Model", await until(`!!document.querySelector('#talemodels [data-talemodel="${QWEN}"]')`));
+ok("and the list has no remove — remove lives on Shortlist", await page.eval("!document.querySelector('#talemodels [data-dropshort]')"));
+await page.click('[data-tellerlist="tale"]');
 
 // ---- 4b. the Shortlist row describes a remote model with the same block
 await page.click('[data-tellertab="shortlist"]');
