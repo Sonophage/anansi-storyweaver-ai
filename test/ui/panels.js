@@ -38,8 +38,9 @@ console.log("  rail: " + nav);
 // cards, the quill held down, the strip's "what is in it"); their panels and links stay, which the
 // walk below checks by address. Strings came back beside Threads on 2026-10-29 (UX review: it had no door).
 // Storyteller left on 2026-11-03 (#131): the model named at the top of the menu is its door.
+// And the same day the tiles took a new order: Tale, Threads, This scene, Scenes, Strings, Workbench.
 ok(`the rail lists the panels in the order asked for (${nav})`,
-   nav === 'story,chapter,chapters,threads,strings,waiting');
+   nav === 'story,threads,chapter,chapters,strings,waiting');
 ok("  and Trajectory, What the chapter added and Branches are no longer rows of their own",
    !/traj|queue|branches/.test(nav));
 ok("  and Prose search is a bar in the menu", await page.eval("!!document.querySelector('#rail [data-railsearch]')"));
@@ -1067,6 +1068,8 @@ if (anyEntry) {
   // #126 · PRESSING IT OPENS THE POCKET PANEL ON THAT POCKET, with its own text in the boxes. It
   // opened the form on the room's box until then. Falsify by pointing data-editroom at the slot:
   // no pocket has that id, so no panel opens and this goes red.
+  // The rows are on the Pockets tab since #136; The thread tab carries only the "1 pocket" tag.
+  await page.click('[data-cardtab="rooms"]'); await wait(400);
   await page.click(`[data-editroom="${made}"]`);
   await wait(600);
   const landed = await page.eval(`(() => ({
@@ -1079,8 +1082,9 @@ if (anyEntry) {
      landed.panel === true && landed.name === 'her fear' && landed.body === 'will not cross at night' && landed.remove);
   // One that exists saves as you type: Done, not Cancel, shuts it (ADR 0004, pass three).
   await page.click('[data-pocketdone]'); await wait(400);
-  // THE POCKETS TAB, ON THEN OFF. This one is off at this point in the run, so its row belongs
-  // BELOW the divider, and the check further down watches it move above it once it is on.
+  // THE POCKETS TAB, ON THEN OFF. A pocket the writer adds starts On (Seth, 2026-11-03: "a new
+  // pocket should automatically be on"), so its row belongs ABOVE any divider, and the check further
+  // down watches it move below "Not turned on" once it is off.
   await page.click('[data-cardtab="rooms"]'); await wait(400);
   const listed = await page.eval(`(() => {
     const row = document.querySelector('.pane[data-pane="rooms"] [data-editroom="${made}"]');
@@ -1094,10 +1098,10 @@ if (anyEntry) {
   ok('  Read draws one pockets tag and no row of jump chips above its tabs',
      await page.eval("document.querySelectorAll('#sideBody [data-goslot]').length <= 1"));
   // ---- ON, THEN OFF, IN THE FORM TOO. Seth, 2026-08-30: "would having the order of whats turned
-  // on, off and empty be possible in the edit screen too." Falsify by dropping the grouping: the
-  // divider goes and this reds.
-  ok(`  an off pocket sits under "Not turned on" in the list as well as on the face (${
-       listed.divider}/${listed.under})`, listed.divider === true && listed.under === true);
+  // on, off and empty be possible in the edit screen too." Falsify by putting every row under the
+  // divider: an on pocket under it reds here.
+  ok(`  an on pocket sits above "Not turned on" in the list (${listed.divider}/${listed.under})`,
+     listed.under === false);
   // The three tail sections are folds, and shut. Their contents stay in the document — this is
   // about what is in front of you, which is the whole of the complaint.
   const tails = await page.eval(`(() => Object.fromEntries(['states','edges','copy'].map(n => {
@@ -1111,19 +1115,22 @@ if (anyEntry) {
   await page.click('[data-cardtab="rooms"]');
   await wait(400);
   // The switch is the writer's half of how a room reaches the model; its keys are the other half.
-  // #134 · A new pocket is On a word, as a new thread is: the shut eye. A tap makes it On.
-  ok(`  and the room starts on a word (${face && face.on})`, !!face && face.on === 'word');
-  await page.click('[data-pocketeye]');
+  // #134 · The pocket's eye. A pocket the writer adds starts On (2026-11-03); with a wake word, a tap
+  // goes On → Off → On a word.
+  ok(`  and the room starts on (${face && face.on})`, !!face && face.on === 'on');
+  await page.click(`[data-pocketeye="${made}"]`);
   await wait(800);
-  const flipped = await page.eval("document.querySelector('[data-pocketeye]')?.dataset.reach");
-  ok(`  turning it on sticks (${flipped})`, flipped === 'on');
+  const flipped = await page.eval(`document.querySelector('[data-pocketeye="${made}"]')?.dataset.reach`);
+  ok(`  turning it off sticks (${flipped})`, flipped === 'off');
   // THE OTHER HALF OF THE ORDERING, and the reason the pair is worth two lines: a check that only
-  // ever saw the room below the divider would pass against a list that puts EVERYTHING below it.
-  const regrouped = await page.eval(`(() => ({
-    box: !!document.querySelector('[data-editroom="${made}"]'),
-    divider: [...document.querySelectorAll('.lbl')].some(x => /Not turned on/.test(x.textContent)) }))()`);
-  ok(`  and the list moves it up out of "Not turned on" when it goes on (${
-       JSON.stringify(regrouped)})`, regrouped.box === true && regrouped.divider === false);
+  // ever saw the room above the divider would pass against a list that has no divider at all.
+  const regrouped = await page.eval(`(() => {
+    const row = document.querySelector('.pane[data-pane="rooms"] [data-editroom="${made}"]');
+    const div = [...document.querySelectorAll('.pane[data-pane="rooms"] .lbl')].find(x => /Not turned on/.test(x.textContent));
+    return { box: !!row, divider: !!div,
+      under: !!(row && div) && !!(div.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING) }; })()`);
+  ok(`  and the list moves it under "Not turned on" when it goes off (${
+       JSON.stringify(regrouped)})`, regrouped.box === true && regrouped.divider === true && regrouped.under === true);
 
   // The wake words are a box only once tapped (#136).
   await page.click('[data-cardtab="card"]');
@@ -1595,26 +1602,24 @@ await page.click('[data-pocketsave="1"]');
 await wait(900);
 const one = await page.eval("(async () => (await (await fetch('/api/story?story=" + sid3 + "')).json()).strings)()");
 ok(`tying one stores it (${one.length})`, one.length === 1 && one[0].title === 'The letter he has not opened');
-ok("  and it starts OUT of play", one[0].summoned === false);
+// A pocket the writer adds starts On (2026-11-03), and a string is a pocket of the tale's thread.
+ok("  and it starts IN play", one[0].summoned === true);
 
 const promptOf = () => page.eval("(async () => { const r = await (await fetch('/api/manifest',{method:'POST',"
   + "headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:'" + sid3 + "',mode:'continue'})})).json();"
   + " return r.prompt; })()");
-ok("  and the model is not told about it", !/has not opened/.test(await promptOf()));
-
-await page.click(`[data-pocketeye="${one[0].id}"]`);
-await wait(900);
 const summoned = await promptOf();
-ok("putting it in play is what sends it", /has not opened/.test(summoned));
+ok("  so the model is told about it", /has not opened/.test(summoned));
 ok("  told what is owed, not told to pay it", /do not resolve one unless the writer asks/.test(summoned));
 
-// Putting it away again is the other half of the toggle, and nothing tested it until a
-// falsification that made summon one-way passed.
 await page.click(`[data-pocketeye="${one[0].id}"]`);
 await wait(900);
 ok("putting it away stops sending it", !/has not opened/.test(await promptOf()));
+// Putting it back in play is the other half of the toggle, and nothing tested it until a
+// falsification that made summon one-way passed.
 await page.click(`[data-pocketeye="${one[0].id}"]`);
 await wait(900);
+ok("putting it in play is what sends it", /has not opened/.test(await promptOf()));
 
 // Paying it off takes it out of play: a paid promise still in the prompt is an instruction to
 // pay it twice. #127: Tied off is on the Workbench card (test/ui/deck.js drives that), so here it is
@@ -1949,9 +1954,10 @@ ok("  and it is still there a moment later, not eaten by a repaint",
      said.includes(closed) && !said.includes(opened));
   // And it says so: a closed chapter's screen does not offer to close it again.
   ok('  and a closed chapter is not offered for closing again', !(await page.visible('[data-endchapter="1"]')));
+  // Shut, as a writer leaves it. The hem is full screen since 2026-10-30, and an address into another
+  // tale keeps the drawer that is open, so a hem left open covers the menu the next section presses.
+  await page.click('#sideHead [data-panel=""]'); await wait(400);
 }
-
-console.log(red ? `\n  ${red} RED` : "\n  all green");
 
 // ---- AUTOSAVE ON TOGGLES AND PICKERS, AND ONLY THERE (2026-08-31). Seth: "theres alot of things
 // that can be auto saved ... a great example is the check marks for the story banner or choosing
@@ -2051,3 +2057,8 @@ console.log(red ? `\n  ${red} RED` : "\n  all green");
     ok('  SHELF ASSERTIONS DID NOT RUN — the Threads page never opened', false);
   }
 }
+
+// THE VERDICT IS THE LAST LINE. It sat above the two sections before this from 2026-08-31 to
+// 2026-11-03, so their reds were printed after it and never counted, and a death in them came after
+// a verdict test/ui/run.sh had already read as reached.
+console.log(red ? `\n  ${red} RED` : "\n  all green");
