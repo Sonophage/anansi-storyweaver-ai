@@ -24,37 +24,6 @@ showed the old one until something else redrew the list.
 ### This thread as JSON is up to date
 Under More, This thread as JSON shows the thread as you have written it so far, and Copy it and
 Save as a file give you that. It left out what you had typed since the thread was opened.
-
-## 2026-11-03 · Arcana, a painted theme
-
-### A new theme: Arcana
-Look has a fifth theme, Arcana: black, graphite and gold, painted. The page, the menu and the side
-panel sit on dark watercolour paper, and gold is line-work: a chevron rule under each scene's title,
-stepped corners on cards, a double gilt frame on the tale you left off in, arched like a tarot card,
-with a sunburst behind its name. The first letter of a scene is set in a gilt box over a wash of
-gold. Titles are thin deco capitals and labels a clean geometric face; your story keeps whatever
-font you chose. The one gold button on a screen has a dry brush through it.
-### A tale or a shelf card with no cover
-Under Arcana, a tale without a picture shows a card back instead of a plain wash: a gold
-watercolour bloom, a sunburst and a crescent moon on the painted canvas.
-### Banners and threads, framed in gilt
-A tale's banner over its threads, and the picture at the head of a scene, are framed in gilt with
-stepped corners; a banner with no cover gets the card back. On the Threads page a card with no
-picture has a painted band where the picture would be, so every card stands the same height.
-### A tale's threads are its Major Arcana
-Under Arcana every thread card carries a tarot numeral in a gilt diamond, and the numeral says what
-the thread is, not where it sits in the list: every character is I, The Magician; lore is II, The
-High Priestess; an item is X, The Wheel of Fortune; a place is XXI, The World. Each kind of pocket
-has its own numeral too, beside its heading in a thread's pockets: a voice is V, an outfit VII, a
-relationship VI, and so on. A thread with a picture keeps it, with the sunburst, the stars and its
-numeral laid faintly over it; one without a picture has them over a bloom of gold. A tale's cover,
-on the shelf, at the top of the Library and over its threads, gets the same faint sunburst and stars.
-### No glow along the top
-Under Arcana the glow across the top of the screen is gone. What is waiting is still counted on
-the Workbench in the tale's menu.
-
-## 2026-11-03 · Threads and pockets save as you type
-
 ### A thread is edited where you read it
 There is no separate screen for altering a thread any more. Tap its name, its kind, Always true,
 where it stands, its wake words or your notes, and it turns into a box right there. What you type
@@ -157,6 +126,31 @@ library" at the top, so the way back to your own tales is always in sight.
 Where a press makes something new, it says Add: a new pocket, a new Timeline entry, and a new
 pocket while you set up a tale. A thread your tale follows from a world has Send to and the world's
 name: it sends your words to the world, so every tale that follows the thread sees them.
+### A new theme: Arcana
+Look has a fifth theme, Arcana: black, graphite and gold, painted. The page, the menu and the side
+panel sit on dark watercolour paper, and gold is line-work: a chevron rule under each scene's title,
+stepped corners on cards, a double gilt frame on the tale you left off in, arched like a tarot card,
+with a sunburst behind its name. The first letter of a scene is set in a gilt box over a wash of
+gold. Titles are thin deco capitals and labels a clean geometric face; your story keeps whatever
+font you chose. The one gold button on a screen has a dry brush through it.
+### A tale or a shelf card with no cover
+Under Arcana, a tale without a picture shows a card back instead of a plain wash: a gold
+watercolour bloom, a sunburst and a crescent moon on the painted canvas.
+### Banners and threads, framed in gilt
+A tale's banner over its threads, and the picture at the head of a scene, are framed in gilt with
+stepped corners; a banner with no cover gets the card back. On the Threads page a card with no
+picture has a painted band where the picture would be, so every card stands the same height.
+### A tale's threads are its Major Arcana
+Under Arcana every thread card carries a tarot numeral in a gilt diamond, and the numeral says what
+the thread is, not where it sits in the list: every character is I, The Magician; lore is II, The
+High Priestess; an item is X, The Wheel of Fortune; a place is XXI, The World. Each kind of pocket
+has its own numeral too, beside its heading in a thread's pockets: a voice is V, an outfit VII, a
+relationship VI, and so on. A thread with a picture keeps it, with the sunburst, the stars and its
+numeral laid faintly over it; one without a picture has them over a bloom of gold. A tale's cover,
+on the shelf, at the top of the Library and over its threads, gets the same faint sunburst and stars.
+### No glow along the top
+Under Arcana the glow across the top of the screen is gone. What is waiting is still counted on
+the Workbench in the tale's menu.
 
 ## 2026-11-02 · The library shows who is in your scene
 
