@@ -171,7 +171,10 @@ Cups, II of Cups, up to X, then Page, Knight, Queen and King. Its rank stays whe
 Each pocket is framed like a card, with its kind's own stars faint behind its eye, and the eye is
 still what turns it on and off. On a thread with a picture, each pocket card carries that picture
 at its head, fading to the dark of the card toward its foot, as the thread's own card does. A kind's
-heading, and the tale's Promises and Open questions, show their suit's mark.
+heading, and the tale's Promises and Open questions, show their suit's mark. Strings are cards
+too, on the Strings screen and on the tale's own Thread tab: a promise is a card of Wands and an open
+question a card of Swords, ranked among its kind, with whether it is a promise or a question and how
+long it has waited at its foot.
 ### No glow along the top
 The glow across the top of the screen is gone. What is waiting is still counted on the Workbench in
 the tale's menu.

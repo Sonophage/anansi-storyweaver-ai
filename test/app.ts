@@ -9789,6 +9789,14 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     const list = html('sideBody');
     assert.match(list, /data-editroom="st-1"[^>]*>[\s\S]*?The letter he has not opened[\s\S]*?Sent by his brother/,
       "STRINGS-LIST: a row is the string's name and a line of it, and opens it");
+    // A STRING IS A MINOR ARCANA CARD TOO (Seth, 2026-11-03: "strings rows as cards"): its row names its
+    // kind, for its suit, and its rank among its kind, and carries the suit's diamond, in the list the
+    // card styling is keyed on. The tied-off question is the Ace of its own kind.
+    assert.match(list, /<div class="stringlist">[\s\S]*<div class="pocketrow[^"]*" data-arcana="promise" data-rank="Ace">\s*<span class="pksuit" aria-hidden="true"><\/span>\s*<button class="pocketopen" data-editroom="st-1"[^>]*>\s*<span class="pkrank">Ace<\/span>/,
+      'STRING-CARD: a string row is a card: its kind, its rank and its suit');
+    assert.match(list, /data-arcana="question" data-rank="Ace">[\s\S]*?data-editroom="st-2"/, 'STRING-CARD: each kind ranks its own');
+    assert.match((await import('node:fs')).readFileSync(new URL('../app.html', import.meta.url), 'utf8'), /html:root :is\(\.pocketlist, \.stringlist\) \.pocketrow \{/,
+      'STRING-CARD: and the card styling a pocket row has is the strings list\'s too');
     assert.match(list, /data-pocketeye="st-1" data-look="eye" data-reach="on"/, "STRINGS-LIST: with the pocket's own eye, open");
     assert.match(list, /data-editroom="st-2"[\s\S]*?tied off[\s\S]*?data-pocketeye="st-2" data-look="eyeoff" data-reach="off"/,
       'STRINGS-MARK: one tied off says so, and its eye is off: opening it is how it reopens');
@@ -9998,7 +10006,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   pockets.addons = STORY.strings.map((x: any) => ({ id: x.id, slot: x.kind, name: x.title, body: x.body, keys: [] }));
   // The one row of a string, as a page draws it: from its pocketrow div to the end of its switch.
   const rowOf = (page: string, id: string) => page.match(new RegExp(
-    `<div class="pocketrow[^"]*">\\s*<button class="pocketopen" data-editroom="${id}"[\\s\\S]*?</button></div>`))?.[0];
+    `<div class="pocketrow[^"]*"[^>]*>\\s*(?:<span class="pksuit"[^>]*></span>\\s*)?<button class="pocketopen" data-editroom="${id}"[\\s\\S]*?</button></div>`))?.[0];
   try {
     click({ open: 's-1' }); await wait();
     click({ storytab: 'thread' }); click({ panel: 'story' }); await wait();

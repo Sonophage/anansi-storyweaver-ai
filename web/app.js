@@ -3456,18 +3456,23 @@ function taleNowBox() {
 /** #129 · ONE STRING'S ROW, for the Strings screen and the tale's own thread page alike: its name and
  *  kind, a line of its text, how long it has waited (or that it is tied off or let go), and the
  *  pocket's own switch. The name opens the pocket panel on it. */
-function stringRow(x) {
+/*  A MINOR ARCANA CARD, as a pocket's row is (Seth, 2026-11-03: "strings rows as cards"): its kind is
+ *  `data-arcana`, for its suit in the one table in app.html, and `rank` its place among its kind in
+ *  the list (`stringList`). */
+function stringRow(x, rank = '') {
   const here = V.currentChapter.index;
   const since = x.fromChapter ? here - x.fromChapter : null;
   const late = x.status === 'open' && x.owedBy != null && here > x.owedBy;
   const when = x.status !== 'open' ? (x.status === 'paid' ? 'tied off' : x.status === 'dropped' ? 'let go' : x.status)
     : late ? `owed by ${x.owedBy}, and it is scene ${here}`
     : since != null ? (since === 0 ? 'set up this scene' : `${since} ${since === 1 ? 'scene' : 'scenes'} ago`) : '';
-  return `<div class="pocketrow${x.summoned ? ' lit' : ''}">
+  return `<div class="pocketrow${x.summoned ? ' lit' : ''}" data-arcana="${esc(x.kind ?? 'promise')}" data-rank="${esc(rank)}">
+    <span class="pksuit" aria-hidden="true"></span>
     <button class="pocketopen" data-editroom="${esc(x.id)}" aria-label="Open ${esc(x.title)}">
-      <span class="pkname">${esc(x.title)} <span class="faded">&middot; ${esc(slotLabel(x.kind ?? 'promise'))}</span></span>
+      ${rank ? `<span class="pkrank">${esc(rank)}</span>` : ''}<span class="pkname">${esc(x.title)}</span>
       <span class="pkline">${esc(String(x.body ?? '').split('\n')[0])}</span>
-      ${when ? `<span class="pkline" style="color:${late ? 'var(--bad)' : 'var(--faint)'}">${esc(when)}</span>` : ''}</button>
+      ${/* Its kind on the foot line, not after the name: in the card's capitals the name had no room for it. */ ''}
+      <span class="pkline" style="color:${late ? 'var(--bad)' : 'var(--faint)'}">${esc([pocketTitle(x.kind ?? 'promise'), when].filter(Boolean).join(' · '))}</span></button>
     ${pocketEye(V.taleThread ?? {}, { id: x.id, slot: x.kind ?? 'promise', name: x.title, active: !!x.summoned })}</div>`;
 }
 /** #129 · A LIST OF STRINGS, in the one order: in play, then set aside, then the ones tied off or let
@@ -3477,9 +3482,13 @@ function stringList(all, none) {
   const on = all.filter((x) => x.status === 'open' && x.summoned);
   const off = all.filter((x) => x.status === 'open' && !x.summoned);
   const done = all.filter((x) => x.status !== 'open');
-  return `${on.length ? on.map(stringRow).join('') : '<div class="hint flush">Nothing in play.</div>'}
-    ${off.length ? `<div class="lbl sect-rule">Set aside</div>${off.map(stringRow).join('')}` : ''}
-    ${done.length ? `<div class="lbl sect-rule">Tied off or let go</div>${done.map(stringRow).join('')}` : ''}`;
+  // ITS RANK IS ITS PLACE AMONG ITS KIND, counted over the whole list before it is split, as a pocket's
+  // is (`pocketList`), so setting a string aside does not deal it a new card.
+  const count = {}, rank = new Map(all.map((x) => [x, minorRank(count[x.kind ?? 'promise'] = (count[x.kind ?? 'promise'] ?? 0) + 1)]));
+  const row = (x) => stringRow(x, rank.get(x));
+  return `<div class="stringlist">${on.length ? on.map(row).join('') : '<div class="hint flush">Nothing in play.</div>'}
+    ${off.length ? `<div class="lbl sect-rule">Set aside</div>${off.map(row).join('')}` : ''}
+    ${done.length ? `<div class="lbl sect-rule">Tied off or let go</div>${done.map(row).join('')}` : ''}</div>`;
 }
 /** TALK WITH NOTHING SAID YET: four openings, each a thing Talk is built to do. One function for
  *  the composer's Talk in a tale and over a tale being set up. */

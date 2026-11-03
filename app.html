@@ -2770,7 +2770,7 @@ input[type="range"]:focus-visible { outline:2px solid var(--gold-lit); outline-o
 /* THE CORNERS: a card is cut nearly square, 3px (`--r-tight`), for the stepped gilt to sit in; a
    control keeps the app's own rounding (`--r`, the pill), which the ornament does not touch (Seth,
    2026-11-03: "round the corners of buttons and inputs like I had on the original"). */
-html:root :is(.card, .lbanner, #col .plate, .storycard, .resumeband > .glass, .pocketlist .pocketrow) { border-radius:var(--r-tight); }
+html:root :is(.card, .lbanner, #col .plate, .storycard, .resumeband > .glass, :is(.pocketlist, .stringlist) .pocketrow) { border-radius:var(--r-tight); }
 html:root {
   --arc-deco:'Poiret One','IBM Plex Sans',system-ui,sans-serif;     /* titles: thin geometric capitals */
   --arc-small:'Josefin Sans','IBM Plex Sans',system-ui,sans-serif;  /* labels and the menu's words */
@@ -3069,34 +3069,34 @@ html:root :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana]::after { content:'';
    its rank and suit over its name ("Ace of Cups", "Knight of Swords"), the name in the deco face. The
    eye stays the control on the right. The gilt is masks filled with the accent: the corners on the
    card's ::after, the sky on its ::before, the diamond and the mark on the suit's two. */
-html:root .pocketlist .pocketrow { position:relative; isolation:isolate; gap:12px;
+html:root :is(.pocketlist, .stringlist) .pocketrow { position:relative; isolation:isolate; gap:12px;
   margin:8px 0 0; padding:12px 6px 12px 12px; border:1px solid var(--edge);
   background:url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
-html:root .pocketlist .pocketrow.lit { border-color:var(--gold-dim); }
-html:root .pocketlist .pocketrow::before { content:''; position:absolute; inset:0; z-index:-1;
+html:root :is(.pocketlist, .stringlist) .pocketrow.lit { border-color:var(--gold-dim); }
+html:root :is(.pocketlist, .stringlist) .pocketrow::before { content:''; position:absolute; inset:0; z-index:-1;
   pointer-events:none; opacity:.3; background:var(--gold);
   -webkit-mask:var(--sky) right -24px center / auto 150% no-repeat; mask:var(--sky) right -24px center / auto 150% no-repeat; }
-html:root .pocketlist .pocketrow::after { content:''; position:absolute; inset:2px; pointer-events:none;
+html:root :is(.pocketlist, .stringlist) .pocketrow::after { content:''; position:absolute; inset:2px; pointer-events:none;
   background:var(--gold); opacity:.8;
   -webkit-mask:url('/web/arcana-corner-tl.svg') top left / 14px no-repeat, url('/web/arcana-corner-tr.svg') top right / 14px no-repeat,
     url('/web/arcana-corner-bl.svg') bottom left / 14px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 14px no-repeat;
   mask:url('/web/arcana-corner-tl.svg') top left / 14px no-repeat, url('/web/arcana-corner-tr.svg') top right / 14px no-repeat,
     url('/web/arcana-corner-bl.svg') bottom left / 14px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 14px no-repeat; }
 .pksuit, .pkrank { display:none; }
-html:root .pocketlist .pksuit { display:block; position:relative; flex:0 0 auto; width:38px; height:38px; }
-html:root .pocketlist .pksuit::before { content:''; position:absolute; inset:0;
+html:root :is(.pocketlist, .stringlist) .pksuit { display:block; position:relative; flex:0 0 auto; width:38px; height:38px; }
+html:root :is(.pocketlist, .stringlist) .pksuit::before { content:''; position:absolute; inset:0;
   background:color-mix(in srgb, var(--doc-bg) 85%, transparent); clip-path:polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
-html:root .pocketlist .pksuit::after { content:''; position:absolute; inset:0; background:var(--gold);
+html:root :is(.pocketlist, .stringlist) .pksuit::after { content:''; position:absolute; inset:0; background:var(--gold);
   -webkit-mask:var(--suit) center / 17px 17px no-repeat, url('/web/arcana-diamond.svg') center / contain no-repeat;
   mask:var(--suit) center / 17px 17px no-repeat, url('/web/arcana-diamond.svg') center / contain no-repeat; }
-html:root .pocketlist .pkrank { display:block; font-family:var(--arc-small); font-size:11px;
+html:root :is(.pocketlist, .stringlist) .pkrank { display:block; font-family:var(--arc-small); font-size:11px;
   letter-spacing:.18em; text-transform:uppercase; color:var(--dim); }
-html:root .pocketlist .pkrank::after { content:" of " var(--suit-name, ""); }
-html:root .pocketlist .pkrank { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+html:root :is(.pocketlist, .stringlist) .pkrank::after { content:" of " var(--suit-name, ""); }
+html:root :is(.pocketlist, .stringlist) .pkrank { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 /* An outfit's switch is words, not the eye: kept short so the card's name still has the room. */
-html:root .pocketlist .pocketsw { letter-spacing:.06em; padding:6px 8px; white-space:normal; max-width:96px;
+html:root :is(.pocketlist, .stringlist) .pocketsw { letter-spacing:.06em; padding:6px 8px; white-space:normal; max-width:96px;
   text-align:center; line-height:1.3; }
-html:root .pocketlist .pkname { font-family:var(--arc-deco); text-transform:uppercase;
+html:root :is(.pocketlist, .stringlist) .pkname { font-family:var(--arc-deco); text-transform:uppercase;
   letter-spacing:.1em; font-size:15px; }
 /* ITS HEAD IS THE THREAD'S PICTURE (Seth, 2026-11-03: "pocket cards fade from the banner to dark").
    A thread with a picture deals its pocket cards with it at their head, fading to the card's dark
