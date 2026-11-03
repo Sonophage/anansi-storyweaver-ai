@@ -3104,6 +3104,19 @@ export function setAddonActive(storyId: string, addonId: string, on: boolean, at
   return addonId;
 }
 
+/** #134 · A POCKET'S EYE: Off, On a word, or On (`ACTIVATIONS`). On goes through `setAddonActive`,
+ *  so an exclusive slot clears its siblings as it always has; the other two write the column and the
+ *  old switch together (off), so the two never disagree. Null on a value that is not one of the
+ *  three, or a pocket not in this tale. */
+export function setAddonActivation(storyId: string, addonId: string, activation: string) {
+  if (!(ACTIVATIONS as readonly string[]).includes(activation)) return null;
+  if (!q('SELECT 1 FROM addons WHERE id = ? AND story_id = ?').get(addonId, storyId)) return null;
+  if (activation === 'always_on') return setAddonActive(storyId, addonId, true);
+  q('UPDATE addons SET activation = ?, active = 0 WHERE id = ? AND story_id = ?').run(activation, addonId, storyId);
+  touch(storyId);
+  return addonId;
+}
+
 // ---- connections (PLAN-08 Phase 2) ----
 
 export const edgesOf = (storyId: string) =>
@@ -3209,7 +3222,9 @@ export function copyEntry(fromStoryId: string, toStoryId: string, o: string, ent
       owedBy: a.owed_by, status: a.status });
     // `upsertAddon` always inserts unworn, and an exclusive slot refuses a second one worn — so
     // the switch is thrown after, through the function that clears the siblings in a transaction.
+    // #134 · Its eye travels too: an Off pocket arrives Off, not On a word.
     if (id && a.active) setAddonActive(toStoryId, id, true);
+    else if (id && a.activation) setAddonActivation(toStoryId, id, a.activation);
   }
   // THE TIMELINE DOES NOT TRAVEL, and that was already decided with a check behind it —
   // `test/scope.ts`: "a state is anchored to a chapter number, and chapter 7 there is not chapter 7
@@ -4294,14 +4309,14 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
     for (const a of q('SELECT * FROM addons WHERE story_id = ? AND entry_id IS NULL')
       .all(storyId) as any[])
       q(`INSERT INTO addons (id,story_id,entry_id,slot,name,body,keys,active,from_chapter,
-           retired_at_chapter,created_at) VALUES (?,?,NULL,?,?,?,?,?,?,?,?)`)
+           retired_at_chapter,created_at,activation) VALUES (?,?,NULL,?,?,?,?,?,?,?,?,?)`)
         // STAMPED NOW, not carried. Every other row here keeps the source's `created_at`, and this
         // one does not on purpose: the rooms that DO hang off a card come through `copyEntry` ->
         // `upsertAddon`, which stamps its own. Carrying it here would give one book two conventions
         // for the same column depending on whether the room has a card, which is the shape of
         // difference nobody looks for. `test/db.ts` compares the two halves and found this.
         .run(uid('ad-'), made.id, a.slot, a.name, a.body, a.keys, a.active, a.from_chapter,
-          a.retired_at_chapter, t);
+          a.retired_at_chapter, t, a.activation ?? null);
 
     // The pictures: the book's cover and the threads' own. Blobs, copied as blobs.
     const cover = q('SELECT jpeg, set_at FROM story_covers WHERE story_id = ?').get(storyId) as any;

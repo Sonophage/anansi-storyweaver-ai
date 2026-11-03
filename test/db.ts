@@ -4690,4 +4690,36 @@ ok('a pocket from before the eye takes the activation it already behaved as, onc
   db.delStory(st.id);
 });
 
+/* #134 · THE EYE'S WRITE, end to end: the stored activation, the old switch kept in step with it, and
+ * what the prompt is sent, through the view the server builds. `anvil` is on the page. */
+ok('a pocket set Off, On a word or On is sent that way, and its old switch moves with it', () => {
+  const me = db.owner('pocket-eye-set');
+  const st = db.createStory(me, { title: 'Pocket eye set' });
+  db.addPassage({ storyId: st.id, branchId: st.branchId, chapterId: st.chapterId, body: 'Wren struck the anvil twice.' });
+  const e = db.upsertEntry(st.id, me, { title: 'Wren', body: 'a smith', entryType: 'character', activation: 'always_on' })!;
+  const id = db.upsertAddon(st.id, e, { slot: 'interiority', name: 'her debt', body: 'owes the forge-master', keys: ['anvil'] })!;
+  const sent = () => JSON.stringify(story.assemble(story.view(st.id) as any,
+    { global: 8192, slots: 1, perSlot: 8192 }, 'continue').manifest.blocks).includes('owes the forge-master');
+  const row = () => db.addonsOf(st.id).find((a: any) => a.id === id);
+  assert.strictEqual(row().activation, 'triggered', 'POCKET-NEW: a new pocket is On a word, as a new thread is');
+  assert.ok(sent(), '  and is sent on its word');
+  db.setAddonActivation(st.id, id, 'off');
+  assert.deepStrictEqual([row().activation, row().active], ['off', 0], 'POCKET-SET-OFF: Off is stored, the old switch off');
+  assert.ok(!sent(), 'POCKET-OFF-SENT: an Off pocket is not sent, with its word on the page');
+  db.setAddonActivation(st.id, id, 'always_on');
+  assert.deepStrictEqual([row().activation, row().active], ['always_on', 1], 'POCKET-SET-ON: On is stored, the old switch on');
+  assert.strictEqual(db.setAddonActivation(st.id, id, 'sometimes' as any), null, 'POCKET-SET-REFUSED: a fourth value is refused');
+  // AN OLDER WRITER OF THE SWITCH moves the activation by the migration's rule: off with wake words is On a word.
+  db.setAddonActive(st.id, id, false);
+  assert.strictEqual(row().activation, 'triggered', 'POCKET-STEP: the old switch turned off leaves it On a word, its words still wake it');
+  // A thread copied to another tale keeps each pocket's eye.
+  db.setAddonActivation(st.id, id, 'off');
+  const to = db.createStory(me, { title: 'Pocket eye copy' });
+  const made = db.copyEntry(st.id, to.id, me, e)!;
+  assert.strictEqual(db.addonsOf(to.id).find((a: any) => a.entry_id === made && a.slot === 'interiority')?.activation, 'off',
+    'POCKET-COPY: a copied Off pocket arrives Off');
+  db.delStory(to.id);
+  db.delStory(st.id);
+});
+
 console.log(`\n${n} checks passed`);

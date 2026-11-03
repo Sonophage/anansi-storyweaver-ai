@@ -234,7 +234,7 @@ export function view(storyId: string, focusChapterId?: string) {
       addons: (e.shared_from ? db.addonsOf(e.shared_from_id) : addons)
         .filter((a: any) => a.entry_id === e.id).map((a: any) => ({
         id: a.id, slot: a.slot, name: a.name, body: a.body,
-        keys: JSON.parse(a.keys || '[]'), active: !!a.active,
+        keys: JSON.parse(a.keys || '[]'), active: !!a.active, activation: a.activation ?? undefined,
         fromChapter: a.from_chapter ?? undefined,
         retiredAtChapter: a.retired_at_chapter ?? undefined,
       })),
@@ -255,7 +255,8 @@ export function view(storyId: string, focusChapterId?: string) {
       const at = (chapters.find((c) => c.id === focusChapterId) ?? chapters.at(-1))?.index ?? 1;
       const e = toEntry(t, states.get(t.id) ?? []);
       return { ...e, nowStateId: stateInForce(e, at)?.id ?? null, addons: addons.filter((a: any) => a.entry_id === t.id)
-        .map((a: any) => ({ id: a.id, slot: a.slot, name: a.name, body: a.body, keys: JSON.parse(a.keys || '[]'), active: !!a.active })) }; })(),
+        .map((a: any) => ({ id: a.id, slot: a.slot, name: a.name, body: a.body, keys: JSON.parse(a.keys || '[]'), active: !!a.active,
+          activation: a.activation ?? undefined })) }; })(),
     // #75. The tale's own pockets: instructions for the whole tale, on its thread at the top of Threads.
     talePockets: addons.filter((a: any) => !a.entry_id && a.slot === 'instruction').map((a: any) => ({
       id: a.id, name: a.name, body: a.body, active: !!a.active })),
