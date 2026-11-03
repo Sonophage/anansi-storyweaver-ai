@@ -409,10 +409,6 @@ const SNAV = [
   // (scenes, then searching them), what the tale remembers (threads, the Workbench, strings),
   // Anansi, and the model last. Search was first, at Seth's direction, until then.
   ['story', 'story', 'Tale'],
-  // #75 · THE TALE'S OWN THREAD, beside Tale (Seth, 2026-11-03: "move thread up beside tale"). It was
-  // the Tale panel's Thread tab. Not "Thread": an open thread's panel is titled that, and it sat
-  // beside Threads in the tiles.
-  ['talethread', 'book', "The tale's thread"],
   /* TWO ROWS, TWO WORDS THAT ARE NOT EACH OTHER'S PLURAL — Seth, 2026-09-02: "We need a way to
    * differentiate chapter and chapters." Chapter and Chapters sat next to each other and the only
    * thing telling them apart was a final s, on a rail read at 11px in small caps.
@@ -449,9 +445,9 @@ const SNAV = [
 /** What the tale's menu shows, in its order: two columns of tiles beside the scenes (2026-10-28).
  *  SNAV stays the list of a tale's panels, for their titles and their links. */
 // STRINGS IS BACK, beside Threads (UX review, 2026-10-29: Strings had no door in the tale's menu).
-// #131 · STORYTELLER LEFT IT (Seth, 2026-11-03): the model named above the tiles is its door, and
-// the tale's own thread took its place beside Tale the same day.
-const TALE_MENU = ['story', 'talethread', 'chapter', 'chapters', 'threads', 'strings', 'waiting'];
+// #131 · STORYTELLER LEFT IT (Seth, 2026-11-03): the model named above the tiles is its door.
+// THE ORDER IS SETH'S (2026-11-03): "Tale, Threads, This scene, Scenes, Strings, Workbench".
+const TALE_MENU = ['story', 'threads', 'chapter', 'chapters', 'strings', 'waiting'];
 /** A ROW'S PICTURE, under a dark wash, fainter down the list (Seth, 2026-10-28: "for any story that
  *  uses images use it in the background ... with a dark overlay ... and let the opacity of the image
  *  get less and less"). The tale's cover on each of its scenes, each tale's own on the main menu.
@@ -2897,7 +2893,7 @@ const pocketOwners = () => [...(V?.entries ?? []), ...(V ? [(V.taleThread
 const pocketThread = () => (S.pocket ? pocketOwners().find((x) => x.id === S.pocket.entryId) ?? null : null);
 /** The thread a pocket is saved and asked for on: none for the stand-in. */
 const pocketEntry = (pk) => (pk.entryId === TALE_NEW || TALE_OWN_SLOTS.includes(pk.slot) ? null : pk.entryId);
-/** What the ＋ on The tale's thread can add: its two kinds of string, a rule and one of your own. */
+/** What the ＋ on the tale's Thread tab can add: its two kinds of string, a rule and one of your own. */
 const TALE_KINDS = ['promise', 'question', 'rule', 'instruction'];
 function openPocket(entryId, id = null) {
   const e = pocketOwners().find((x) => x.id === entryId); if (!e) return;
@@ -3592,23 +3588,22 @@ function talkPast(t) {
   </div>`;
 }
 
-/** #75 · THE TALE'S OWN THREAD, a panel of its own, the menu row beside Tale (Seth, 2026-11-03: "move
- *  thread up beside tale"). It was the Tale panel's Thread tab from 2026-10-29 until then, and before
- *  that its own page opened from the first card in Threads. What the writer gives the model about the
- *  whole tale. Its Always true is the setting and its Voice is the voice of the weave, and both are
- *  edited on the Tale panel: a second box for the same field here would be a second thing for Save
- *  to read. This panel holds the rest: where the tale stands (its Timeline, #125, ADR 0010), the
+/** #75 · THE TALE'S OWN THREAD, the Thread tab of the Tale panel (Seth, 2026-10-29: "Put the tale
+ *  thread and its pockets under tale as a new tab"; it was its own page, opened from the first card in
+ *  Threads, and that card now opens this tab). What the writer gives the model about the whole tale.
+ *  Its Always true is the setting and its Voice is the voice of the weave, and both are edited on
+ *  their own tabs of this panel: a second box for the same field here would be a second thing for
+ *  Save to read. This tab holds the rest: where the tale stands (its Over time, #125, ADR 0010), the
  *  tale's Rules, its strings (ADR 0011) and any instruction of the writer's own. Stored where each
  *  always was, so what the model is sent, and where in the prompt, does not move. */
 /** WHICH TALE PANEL TAB TO SHOW (#130). Tale opens first. A tab's KEY never moves, so Tale keeps
- *  `book`, and `voice` (the old first tab, folded into Tale) lands on it from a stored or linked press.
- *  `thread` left the panel for a menu row (2026-11-03); a press naming it opens that panel instead. */
-function storyTabOf(k) { return !k || k === 'voice' || k === 'thread' ? 'book' : k; }
+ *  `book`, and `voice` (the old first tab, folded into Tale) lands on it from a stored or linked press. */
+function storyTabOf(k) { return !k || k === 'voice' ? 'book' : k; }
 function taleThread() {
   const rules = V.taleRules ?? [];
   const own = V.talePockets ?? [];
   return `<div class="hint lead-10">The tale's own thread: what Anansi is told about the whole tale, every
-      time. Its Always true, the setting, and its voice are on the Tale panel.</div>
+      time. Its Always true is the setting, on the Setting tab, and its voice is on the Tale tab.</div>
     <div class="lbl wide">Where the tale stands</div>
     ${taleNowBox() || '<div class="hint flush">Nothing yet. Each hem writes where the tale stands, and you sew it in from its card.</div>'}
     <div class="end-row push-14"><span class="hint flush fill">Rules, promises, open questions and your own.
@@ -5328,7 +5323,7 @@ const PANELS = {
         <div class="hint trail-6">A thread pasted from Export is read in as it is.</div>
         <div class="lbl sect">Write it as</div>
         <div style="display:flex; flex-wrap:wrap; gap:8px">
-          ${/* A rule is not a kind of thread: it is added on The tale's thread (ADR 0005). */
+          ${/* A rule is not a kind of thread: it is added on the Tale panel's Thread tab (ADR 0005). */
             KINDS.map((k) => `<button data-lorekind="${k}" aria-pressed="${kind === k}" style="flex:1 1 40%;
             text-align:center; font-size:13px; min-height:46px; border-radius:var(--r-pill); ${chip(kind === k)}">${
               esc(pocketTitle(k))}</button>`).join('')}
@@ -5429,7 +5424,7 @@ const PANELS = {
             : `<p>Always-on threads, plus anything brought into this scene &mdash; nothing has been
               measured yet, so an on-a-word thread cannot be counted until it has.</p>`)}` : ''}`;
       })()}
-      ${/* #75. THE TALE'S OWN THREAD is not on this list: it lives on The tale's thread, its own menu row, and
+      ${/* #75. THE TALE'S OWN THREAD is not on this list: it lives on the Tale panel's Thread tab, and
             the banner that headed this list and opened that tab went (Seth, 2026-10-29). */ ''}
       <div class="stack-roomy" id="thlist">${threadRows()}</div>
       ${shown.length ? '' : '<div class="hint flush">Nothing written down yet. A thread is a fact the model is told and never allowed to contradict.</div>'}
@@ -5489,7 +5484,7 @@ const PANELS = {
     const body = `${f.k === 'writingStyle' ? helpText('voice') : ''}${
       f.hint ? `<p>${esc(f.hint)}</p>` : ''}`;
     // #125 · ADR 0010. THE PREMISE IS HOW THE TALE BEGAN, and once a hem's paragraph is sewn in it is
-    // no longer sent: where the tale stands now is. That is shown once, on The tale's thread (#130).
+    // no longer sent: where the tale stands now is. That is shown once, on the Thread tab (#130).
     const label = f.k === 'premise' ? 'How the tale began' : f.label;
     return `<label class="lbl" for="f-story-${f.k}">${label}${body ? tipMark(k, label) : ''}</label>
         ${body ? tipCard(k, label, body) : ''}
@@ -5536,13 +5531,13 @@ const PANELS = {
            2026-11-03: "The tale should be called Tale and should be the first thing a tale opens
            to"): the cover, what the tale is, then how it is written and its Spice, in one scroll.
            The pickers and the world link are Setting; the exports, the archive and the delete are
-           Keep. The tale's own thread was a Thread tab here until 2026-11-03; it is a menu row now.
+           Keep; Thread is the tale's own thread (2026-10-29).
            THEY SWITCH IN CSS, NOT BY REDRAWING. Every box in here is typed text that saves after a
            pause, and a repaint on a tab press throws away whatever was half-typed — the bug this
            file records seven separate times. Every group is drawn and the attribute on the
            container picks the one you see, so switching cannot lose a word. -->
       <div class="lead-14 row-6">
-        ${[['book', 'Tale'], ['world', 'Setting'], ['keep', 'Keep']]
+        ${[['book', 'Tale'], ['thread', 'Thread'], ['world', 'Setting'], ['keep', 'Keep']]
           .map(([k, label]) => `<button class="chip fill center-press" data-storytab="${k}"
             aria-pressed="${tab === k}"
             >${label}</button>`).join('')}
@@ -5857,12 +5852,10 @@ const PANELS = {
           does not: scene nine there is not scene nine here. Strings and prose stay with the tale.</p>
           ${V.follows ? `<p>Threads taken over from ${esc(V.follows.title)} go back onto the thread
             they came from, so nothing is doubled &mdash; anything written here is new to it.</p>`
-            : ''}`)}</div>` : ''}      </div></div>`;
-  },
-  /** #75 · THE TALE'S OWN THREAD, a menu row of its own beside Tale (Seth, 2026-11-03: "I meant the
-   *  thread tab inside the tale panel, so in the tale's menu"). It was the Tale panel's Thread tab. */
-  talethread() {
-    return taleThread();
+            : ''}`)}</div>` : ''}      </div>
+      <!-- #75 · THE TALE'S OWN THREAD, its own tab (2026-10-29). Last in the markup so each group
+           above still ends where the next begins; the chips put it after The tale. -->
+      <div class="sgroup" data-group="thread">${taleThread()}</div></div>`;
   },
 
   // The chapter you are writing, whole: its name, how it has to end, where the story is going,
@@ -12719,7 +12712,7 @@ document.addEventListener('click', async (e) => {
   if (d.talestand) { if (!V?.taleThread) return; openState(V.taleThread.id, d.talestand); paint(); $('pk-body')?.focus?.(); return; }
   if (d.stringnew) {
     openPocket(V?.taleThread?.id ?? TALE_NEW);
-    // From Strings, a string: the two kinds of string, not the rules and your own The tale's thread adds.
+    // From Strings, a string: the two kinds of string, not the rules and your own the Thread tab adds.
     if (S.pocket) S.pocket.kinds = ['promise', 'question'];
     if (S.pocket && (V.slots?.tale ?? []).some((sl) => sl.name === d.stringnew)) S.pocket.slot = d.stringnew;
     paint(); $('pk-name')?.focus?.();
@@ -12904,8 +12897,6 @@ document.addEventListener('click', async (e) => {
    * typed text that saves after a pause, so a redraw here would throw away a premise typed inside it — the same
    * bug seven other handlers in this file carry a note about. The attribute and the pressed states
    * are flipped where they are; the stylesheet does the rest. */
-  // THE OLD THREAD TAB is the tale's thread's own panel now (2026-11-03): a press that names it opens that.
-  if (d.storytab === 'thread') { S.storyTab = 'book'; S.panel = 'talethread'; syncHash(); paint(); return; }
   if (d.storytab) {
     S.storyTab = storyTabOf(d.storytab);
     const box = t.closest?.('[data-tab]');
@@ -13982,7 +13973,7 @@ document.addEventListener('click', async (e) => {
     if (r.error) { t.disabled = false; t.textContent = 'Anansi edits'; return toast(r.error); }
     V = r; paint(); return toast('Written again. Still chalked: nothing changes until you sew it in.');
   }
-  // #75 · THE TALE'S OWN THREAD, on its own panel: add a rule or an instruction of your own.
+  // #75 · THE TALE'S OWN THREAD, on the Tale panel's Thread tab: add a rule or an instruction of your own.
   if (d.makeplace) {
     // #80. One Lore thread made a Place, from the update report. A place has every pocket Lore had.
     const e = V.entries.find((x) => x.id === d.makeplace); if (!e) return;

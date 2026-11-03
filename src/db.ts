@@ -2678,7 +2678,7 @@ export function rulesToPockets() {
     }
     for (const [story, names] of moved)
       noteUpdate(story, `${names.length === 1 ? 'Its rule' : `Its ${names.length} rules`}, ${names.join(', ')}, `
-        + `moved onto the tale's own thread: The tale's thread in the tale's menu, under Rules. Each says everything the `
+        + `moved onto the tale's own thread: the Tale panel's Thread tab, under Rules. Each says everything the `
         + 'old thread said, and one on a word keeps its words.');
     db.exec('COMMIT');
   } catch (err) { db.exec('ROLLBACK'); throw err; }

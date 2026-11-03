@@ -730,7 +730,7 @@ function applyChange(storyId: string, owner: string, ch: Change):
     return db.upsertString(storyId, { id: x.id, title: x.title, body: x.body, kind: x.kind, fromChapter: x.from_chapter,
       owedBy: x.owed_by, status: mark, summoned: ch.stand === 'in_play' }) ? {} : null;
   }
-  // A RULE OR ONE OF THE WRITER'S OWN INSTRUCTIONS, a pocket of no thread, through The tale's thread's
+  // A RULE OR ONE OF THE WRITER'S OWN INSTRUCTIONS, a pocket of no thread, through the Thread tab's
   // own save. A new one is switched on, as that tab's Add does.
   if (ch.op === 'rule.set' || ch.op === 'instruction.set') {
     const id = db.upsertAddon(storyId, null, { id: ch.addon ?? undefined, slot: ch.op === 'rule.set' ? 'rule' : 'instruction',
@@ -5107,12 +5107,12 @@ export const routes: Record<string, Handler> = {
       if (!raw || typeof raw !== 'object') { notes.push(`Skipped something that is not a thread${where}.`); continue; }
       const kind = String(raw.kind ?? raw.entryType ?? 'character').trim();
       // A RULE IS A POCKET OF THE TALE (ADR 0005, 2026-10-29), not a thread: a pasted one becomes a rule
-      // on The tale's thread, through the floor every write of a thread crosses (`db.upsertEntry`).
+      // on the Thread tab, through the floor every write of a thread crosses (`db.upsertEntry`).
       if (kind === 'rule' && String(raw.title ?? raw.name ?? '').trim()) {
         const title = String(raw.title ?? raw.name).trim();
         db.upsertEntry(v.id, c.owner, { title, body: plain(raw.body, [title]), entryType: 'rule',
           activation: raw.activation, keys: raw.keys });
-        notes.push(`"${title}"${where} is a rule: it is on the tale's own thread now, The tale's thread in the tale's menu.`);
+        notes.push(`"${title}"${where} is a rule: it is on the tale's own thread now, the Tale panel's Thread tab.`);
         ruled++;
         continue;
       }

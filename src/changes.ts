@@ -518,7 +518,7 @@ function ownNamed(tale: Tale, slot: 'rule' | 'instruction', name: string): { hit
 }
 
 /** A RULE OR AN INSTRUCTION, ADDED OR CHANGED, by its name. A new name adds one, switched on, as the
- *  The tale's thread's Add does; it needs text. A name the tale has rewrites its text, or for a rule its wake
+ *  Thread tab's Add does; it needs text. A name the tale has rewrites its text, or for a rule its wake
  *  words, or both: words given replace its own, Always on takes them away, and On a word with no words
  *  given or kept is refused, as a thread's is (`wakeOn`). Text is stored plain (`db.upsertAddon` takes
  *  a wrapper off by the same rule, with no thread's name), so it is checked and remembered plain. An
@@ -559,7 +559,7 @@ function ownSet(tale: Tale, op: 'rule.set' | 'instruction.set', raw: any, said: 
     before: cur ? { text: cur.body, keys: had } : null } };
 }
 
-/** A RULE OR AN INSTRUCTION SWITCHED ON OR OFF, by its name, as its switch on The tale's thread does. An
+/** A RULE OR AN INSTRUCTION SWITCHED ON OR OFF, by its name, as its switch on the Thread tab does. An
  *  Undo names it by id and switches it back while it is still as Talk left it. */
 function ownSwitch(tale: Tale, op: 'rule.switch' | 'instruction.switch', raw: any, said: string, undo: boolean): Checked {
   const slot = ownSlot(op) as 'rule' | 'instruction';

@@ -82,16 +82,17 @@ tale's last calls. Storyteller is no longer a tile in the tale's menu, and Accou
 Writing page. In the library, Model shows only On every tale, with your usual model.
 
 ### The Tale panel opens on Tale
-The Tale panel has three tabs, Tale, Setting and Keep, and opens on Tale. Tale is one scroll: the
+The Tale panel has four tabs, Tale, Thread, Setting and Keep, and opens on Tale. Tale is one scroll: the
 cover first, as large as a thread's picture, then the title, the genre and how the tale began,
 then the voice and Spice, which were their own Voice tab. Replacing, removing, drawing or finding a
 cover, and how it shows at the head of each scene, are in one fold under the cover, shut until you
-open it. A tale with no cover shows the ways to add one straight away.
+open it. A tale with no cover shows the ways to add one straight away. Thread is the tale's own
+thread: where the tale stands, its rules, its promises and open questions, and your own
+instructions.
 
-### The tale's thread is beside Tale in the menu
-The tale's own thread, which was the Thread tab of the Tale panel, is its own place in the tale's
-menu, beside Tale at the top. It holds where the tale stands, its rules, its promises and open
-questions, and your own instructions.
+### The tale's menu in a new order
+The tiles in the tale's menu are Tale, Threads, This scene, Scenes, Strings and Workbench, in that
+order.
 
 ### One button opens and closes the menu on a desk
 On a desk the menu button in the header opens the menu and closes it, in one press, whichever menu

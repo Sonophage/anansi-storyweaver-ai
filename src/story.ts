@@ -260,7 +260,7 @@ export function view(storyId: string, focusChapterId?: string) {
     // #75. The tale's own pockets: instructions for the whole tale, on its thread at the top of Threads.
     talePockets: addons.filter((a: any) => !a.entry_id && a.slot === 'instruction').map((a: any) => ({
       id: a.id, name: a.name, body: a.body, active: !!a.active, activation: a.activation ?? undefined })),
-    // ADR 0005 · The tale's rules, pockets of its own thread since 2026-10-29, on The tale's thread.
+    // ADR 0005 · The tale's rules, pockets of its own thread since 2026-10-29, on the Thread tab.
     taleRules: addons.filter((a: any) => !a.entry_id && a.slot === 'rule').map((a: any) => ({
       id: a.id, name: a.name, body: a.body, keys: JSON.parse(a.keys || '[]'), active: !!a.active,
       activation: a.activation ?? undefined })),
