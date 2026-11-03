@@ -464,27 +464,28 @@ ok("  and the four buttons that used to say so are gone",
 await page.click('#sideHead [data-newlore]');
 await wait(400);
 
-// ---- 6b. THE STORY PANEL IS FOUR GROUPS, AND SWITCHING CANNOT LOSE WHAT YOU TYPED (2026-09-02).
+// ---- 6b. THE TALE PANEL IS FOUR GROUPS, AND SWITCHING CANNOT LOSE WHAT YOU TYPED (2026-09-02).
 // Seth: "this is so much information that its overwhelming. give it filter buttons to reach the
-// information." Every box in that panel is free text that Save commits, so the groups are shown and
-// hidden in CSS rather than by redrawing — and that is the half worth driving: a repaint on a tab
-// press would throw away a half-written premise, which is the bug this app has recorded seven times.
+// information." Every box in that panel saves after a pause, so the groups are shown and hidden in
+// CSS rather than by redrawing — and that is the half worth driving: a repaint on a tab press
+// would throw away a half-written premise, which is the bug this app has recorded seven times.
+// It opens on Tale since #130 (2026-11-03), which holds the voice that was its own tab.
 // TYPED, SWITCHED, AND READ BACK, because the assertion has to be the thing a writer would lose.
 await page.goto(B + "/#" + sid + "/story");
 await wait(900);
-ok("the story panel opens on the voice group", await page.eval(
-  "document.querySelector('[data-tab]')?.dataset.tab === 'voice'"));
-ok("  with a chip for each of the five", (await page.eval(
-  "document.querySelectorAll('[data-storytab]').length")) === 5);
+ok("the story panel opens on the Tale group", await page.eval(
+  "document.querySelector('[data-tab]')?.dataset.tab === 'book'"));
+ok("  with a chip for each of the four", (await page.eval(
+  "document.querySelectorAll('[data-storytab]').length")) === 4);
 const oneShown = () => page.eval(
   "[...document.querySelectorAll('.sgroup')].filter(g => getComputedStyle(g).display !== 'none').map(g => g.dataset.group).join(',')");
-ok(`  and exactly one group on screen (${await oneShown()})`, (await oneShown()) === 'voice');
+ok(`  and exactly one group on screen (${await oneShown()})`, (await oneShown()) === 'book');
 await page.eval("(() => { const t = document.querySelector('#f-story-premise'); t.value = 'HALF TYPED'; return 1; })()");
-await page.click('[data-storytab="book"]');
+await page.click('[data-storytab="world"]');
 await wait(400);
-ok(`  pressing The book shows that group and only it (${await oneShown()})`, (await oneShown()) === 'book');
+ok(`  pressing Setting shows that group and only it (${await oneShown()})`, (await oneShown()) === 'world');
 ok("  and there is no Save to look for: the panel saves as you type", !(await page.eval("!!document.querySelector('[data-savestory]')")));
-await page.click('[data-storytab="voice"]');
+await page.click('[data-storytab="book"]');
 await wait(400);
 ok("  and the half-typed premise survived both presses", (await page.eval(
   "document.querySelector('#f-story-premise')?.value")) === 'HALF TYPED');

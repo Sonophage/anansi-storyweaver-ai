@@ -381,6 +381,9 @@ let modelsRemote = false;
 // Whether the library answer says this writer is the admin. Off: the fixture's writer is not. The
 // model panel checks flip it to see the admin's view beside the writer's.
 let libAdmin = false;
+// Whether this writer is looking at the demo library. `POST /api/demo` sets it and the library answer
+// carries it, the way the server does: the app reads `demo` back from the library on every reload.
+let libDemo = false;
 // #46. What `GET /api/after` names for delete-after's first press, and the passage it was asked about.
 let afterYours: any[] = [];
 let afterAsked: string | null = null;
@@ -652,10 +655,11 @@ let worldDown = 0;
     : url.startsWith('/api/talk/undo') ? (stubUndo ?? { undone: "Put back Marek's Always true.", ...STORY })
     : url.startsWith('/api/talk') ? (stubTalk ?? { reply: 'It is about a debt.', seconds: 1, tokens: 10 })
     : url.startsWith('/api/invent') ? (stubInvent ?? { title: 'The Rust Choir', duplicate: false })
+    : url === '/api/demo' ? (libDemo = !!JSON.parse(init?.body ?? '{}').on, { demo: libDemo })
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
     : {};
-  return { ok: true, json: async () => (libAdmin && url.startsWith('/api/stories') && body
-    ? { ...body, admin: true } : body) };
+  return { ok: true, json: async () => ((libAdmin || libDemo) && url.startsWith('/api/stories') && body
+    ? { ...body, ...(libAdmin ? { admin: true } : {}), ...(libDemo ? { demo: true } : {}) } : body) };
 };
 
 // THE VEIL, SWITCHED ON. Writing went inline on 2026-10-25 and the full-screen veil was kept behind
@@ -960,7 +964,7 @@ assert.ok(!/list chapters|Chapters/.test(html('rail')),
   'and the chapter list goes with it — it named a book you are no longer looking at');
 click({ railview: 'story' });
 assert.match(html('rail'), /Storyteller/, "the story's name must bring its own menu back");
-assert.match(html('rail'), /class="railclose"/, 'with its close beside the model (the wordmark left the tale menu on 2026-10-28)');
+assert.doesNotMatch(html('rail'), /class="railclose"/, 'with no close of its own at a desk: the header icon opens and shuts it (#133)');
 ok('the menu and the story name are two doors onto one rail');
 
 // Three layers of look, and the one that must never happen is a book's theme becoming yours.
@@ -1748,28 +1752,64 @@ ok('Sent now keeps a thread you tap until the next passage, and kind tabs narrow
   ok('the thread search reads the rooms, not just the title a card may not keep its text in');
 }
 
-// ---- THE STORY PANEL IS FOUR GROUPS BEHIND FOUR CHIPS (2026-09-02).
-// Seth: "this is so much information that its overwhelming. give it filter buttons to reach the
-// information." Eleven fields, a cover, a world link, three exports, an archive and a delete were
-// one scroll.
+// ---- THE TALE PANEL IS FOUR GROUPS BEHIND FOUR CHIPS, AND OPENS ON TALE (#130, 2026-11-03).
+// Seth (bugs.md): "The tale should be called Tale and should be the first thing a tale opens to."
+// Voice went into Tale: the cover first, then what the tale is, then how it is written, then Spice.
 {
   click({ panel: 'story' });
   await sleep(40);
-  const panel = html('sideBody');
-  for (const g of ['voice', 'book', 'thread', 'world', 'keep'])
+  let panel = html('sideBody');
+  assert.deepStrictEqual([...panel.matchAll(/data-storytab="(\w+)"[^>]*>([^<]+)</g)].map((m) => [m[1], m[2].trim()]),
+    [['book', 'Tale'], ['thread', 'Thread'], ['world', 'Setting'], ['keep', 'Keep']],
+    'TALE-TABS: the tab row is Tale, Thread, Setting, Keep, in that order');
+  for (const g of ['book', 'thread', 'world', 'keep'])
     assert.match(panel, new RegExp(`data-group="${g}"`), `the panel must draw the ${g} group`);
+  assert.doesNotMatch(panel, /data-group="voice"/, 'TALE-NO-VOICE: there is no Voice group');
   // ALL FOUR ARE DRAWN AND ONE IS SHOWN. The container says which, and the stylesheet does the
   // hiding — asserted here as the attribute, because that is the contract the CSS reads.
-  assert.match(panel, /data-tab="voice"/, 'and it opens on the voice, which is the group he named first');
-  assert.match(panel, /data-storytab="book"/, 'with a chip for each of them');
-  // HIS TWO GROUPS, in his order: the voice first, title/genre/premise second.
-  const voice = panel.match(/data-group="voice"[\s\S]*?data-group="book"/)?.[0] ?? '';
-  assert.match(voice, /f-story-writingStyle/, 'the voice group holds the voice of the weave');
-  assert.match(voice, /f-story-styleNote/, 'and how this book is written');
-  assert.ok(!/f-story-title/.test(voice), 'and not the title, which is the second group');
-  const book = panel.match(/data-group="book"[\s\S]*?data-group="world"/)?.[0] ?? '';
-  for (const k of ['title', 'genre', 'premise'])
-    assert.match(book, new RegExp(`f-story-${k}`), `the book group holds the ${k}`);
+  assert.match(panel, /data-tab="book"/, 'TALE-OPENS: the panel opens on Tale');
+  const tale = panel.match(/data-group="book"[\s\S]*?data-group="world"/)?.[0] ?? '';
+  const at = (re: RegExp) => tale.search(re);
+  // THE ORDER: cover, its fold, title, genre, how it began, the voice fields, then Spice.
+  const order = [/class="readpic"/, /data-fold="talecover"/, /id="f-story-title"/, /id="f-story-genre"/,
+    /id="f-story-premise"/, /id="f-story-writingStyle"/, /id="f-story-styleNote"/, /id="f-story-spice"/,
+    /id="f-story-spiceNote"/].map(at);
+  assert.ok(order.every((n) => n > -1), `TALE-HOLDS: Tale holds the cover, its fold, the tale, the voice and Spice (${order})`);
+  assert.deepStrictEqual([...order].sort((a, b) => a - b), order, 'TALE-ORDER: in that order');
+  assert.match(tale, /<img class="readpic" src="[^"]*api\/cover\?story=s-1/, 'TALE-COVER: the cover is drawn as a thread\'s picture is');
+  // THE FOLD: closed, and every cover control and heading setting inside it.
+  const fold = tale.match(/<details class="fold[^>]*>[\s\S]*?<\/details>/)?.[0] ?? '';
+  assert.ok(fold && !/<details[^>]*\bopen\b/.test(fold.slice(0, fold.indexOf('>') + 1)), 'TALE-FOLD-SHUT: the cover fold is closed by default');
+  for (const [what, re] of [['Replace', /data-cover="1"/], ['Remove', /data-delcover="1"/], ['Have one drawn', /data-drawcover="open"/],
+    ['Find one online', /data-findcover="open"/], ['the head of every scene', /data-story="chapterHero"/]] as const)
+    assert.match(fold, re, `TALE-FOLD-HOLDS: ${what} is inside the fold`);
+  assert.doesNotMatch(tale.replace(fold, ''), /data-cover=|data-delcover|data-drawcover|data-findcover|data-story="chapter|data-story="cover/,
+    '  and none of them outside it');
+  // A PRESS ON THE FOLD DOES NOT REPAINT, the same sentinel as the explanations use: every box on
+  // this panel saves after a pause, and a repaint inside it puts the stored text back on screen.
+  nodes.get('sideBody').innerHTML = 'STALE';
+  click({ fold: 'talecover' }); await sleep(30);
+  assert.strictEqual(html('sideBody'), 'STALE', 'TALE-FOLD-QUIET: opening the cover fold does not repaint the panel');
+  click({ panel: 'story' }); await sleep(40);
+  assert.match(html('sideBody'), /<details class="fold[^>]*\bopen\b[^>]*>\s*<summary[^>]*data-fold="talecover"/,
+    '  and it stays open through the next repaint that does happen');
+  click({ fold: 'talecover' }); click({ panel: 'story' }); await sleep(40);
+  // NO COVER: the add controls are out, as there is nothing to hide them behind.
+  const hadCover = (STORY as any).cover;
+  (STORY as any).cover = null;
+  click({ open: 's-1' }); await sleep(40);
+  click({ panel: 'story' }); await sleep(40);
+  panel = html('sideBody');
+  const bare = panel.match(/data-group="book"[\s\S]*?data-group="world"/)?.[0] ?? '';
+  assert.doesNotMatch(bare, /class="readpic"|<details/, 'TALE-NO-COVER: with no cover there is no picture and no fold');
+  for (const re of [/data-cover="1"/, /Choose an image/, /data-drawcover="open"/, /data-findcover="open"/])
+    assert.match(bare, re, `TALE-ADD: with no cover the add controls are out (${re})`);
+  (STORY as any).cover = hadCover;
+  click({ open: 's-1' }); await sleep(40);
+  // AN OLD `voice` TAB LANDS ON TALE.
+  click({ storytab: 'voice' }); click({ panel: 'story' }); await sleep(40);
+  assert.match(html('sideBody'), /data-tab="book"/, 'TALE-OLD-VOICE: a stored voice tab opens Tale');
+  assert.match(html('sideBody'), /data-storytab="book"[^>]*aria-pressed="true"/, '  with the Tale chip pressed');
   // AND PRESSING A CHIP DOES NOT REDRAW, which is asserted ON THE SOURCE rather than through this
   // harness. Every box in the panel saves after a pause in the typing, so a repaint on a tab press
   // throws away a half-written premise — the bug this file records seven times in other handlers.
@@ -1790,7 +1830,7 @@ ok('Sent now keeps a thread you tap until the next passage, and kind tabs narrow
   click({ panel: 'context' });
   await sleep(40);
 }
-ok('the story panel is four groups behind four chips, and switching cannot lose what you typed');
+ok('the Tale panel is Tale, Thread, Setting and Keep, opens on Tale, and keeps the cover controls in one fold');
 
 // In words on screen since 2026-10-25 ("46% of his room"); the counts are kept in its tooltip.
 assert.match(html('sideBody'), />46% of his room</);
@@ -5349,7 +5389,7 @@ ok('an empty Strings says what a string is and where to add one');
   const fades = [...rail.matchAll(/class="rowart"[^>]*opacity:([\d.]+)/g)].map((m) => Number(m[1]));
   assert.ok(fades.length >= 2 && fades.every((o, k) => k === 0 || o <= fades[k - 1]), `TALE3-ART: the scenes wear the cover, fading down (${fades})`);
   assert.doesNotMatch(rail, /<span class="serif txt"[^>]*>Anansi<\/span>/, 'TALE3-NOLOGO: no Anansi wordmark in the tale menu');
-  assert.match(rail, /<div class="talemodel">[\s\S]*data-modelmenu[\s\S]*class="railclose"/, 'TALE3-CLOSE: the close sits with the model');
+  assert.match(rail, /<div class="talemodel">[\s\S]*data-modelmenu/, 'TALE3-MODEL: the model heads the menu (its close is the ✕ where the menu covers the screen, #133)');
   assert.doesNotMatch(rail, /data-nav="(anansi|context)"/, '  and Talk to Anansi and What he reads are off the menu');
   const scenes = [...(rail.match(/<div class="tale3scenes scroll">([\s\S]*?)<div class="taletiles">/)?.[1] ?? '')
     .matchAll(/data-chapter="([^"]+)"/g)].map((m) => m[1]);
@@ -5435,7 +5475,7 @@ ok("each menu has an ink icon that swaps to the other in place, and from the Lib
   const main = html('rail');
   const tTiles = classesIn(tale, tilesIn), mTiles = classesIn(main, tilesIn);
   assert.ok(tTiles.length >= 6 && mTiles.length >= 6, `SAME-TILES: both menus' tiles are read (${tTiles.length}, ${mTiles.length})`);
-  assert.deepStrictEqual([...new Set([...tTiles, ...mTiles])], ['railtile'], 'SAME-TILES: every tile in both menus, the demo switch too, is a railtile');
+  assert.deepStrictEqual([...new Set([...tTiles, ...mTiles])], ['railtile'], 'SAME-TILES: every tile in both menus is a railtile');
   const tRows = classesIn(tale, rowsIn), mRows = classesIn(main, rowsIn);
   assert.ok(tRows.length >= 2 && mRows.length >= 1, `SAME-ROWS: both menus' rows are read (${tRows.length}, ${mRows.length})`);
   assert.deepStrictEqual([...new Set([...tRows, ...mRows].map((c) => c.replace(/\s*arted\s*/, '')))], ['railrow'],
@@ -5529,6 +5569,71 @@ ok('every menu row has its own picture, and the phone menu has a cross to close 
   click({ accttab: 'profile' });
 }
 ok('Account is five pages, and Your books holds Import, Export and What you have written');
+
+// ---- THE DEMO LIBRARY LEAVES THE MENU FOR ACCOUNT → YOUR BOOKS (#133, Seth, 2026-11-03). It is a
+// rare thing to do, so it is a plate beside Import and Export; while it is on, the library page says
+// how to leave, since the menu no longer does.
+{
+  click({ home: 1 }); await sleep(40);
+  click({ railview: 'workspace' });
+  assert.doesNotMatch(html('rail'), /data-demo=/, 'DEMO-OFFMENU: the main menu has no demo library tile');
+  click({ nav: 'account' }); click({ accttab: 'books' });
+  const books = html('page');
+  assert.match(books, /<button class="card plate full-left" data-demo="1"[^>]*>[\s\S]*?Demo library/,
+    'DEMO-ACCOUNT: Your books has the demo library, a plate like Import and Export');
+  assert.doesNotMatch(html('page'), /data-demo="0"/, '  and with it off, nothing offers to leave it');
+  click({ demo: '1' });
+  for (let i = 0; i < 40 && !libDemo; i++) await sleep(25);
+  await sleep(60);
+  assert.strictEqual(libDemo, true, 'DEMO-ON: the plate switches the demo library on');
+  assert.match(html('page'), /data-demo="0"[^>]*>[\s\S]*?Leave the demo library/,
+    'DEMO-LEAVE: in the demo library, the library page says how to leave it');
+  assert.doesNotMatch(html('rail'), /data-demo=/, '  and the menu still has no tile for it');
+  click({ demo: '0' });
+  for (let i = 0; i < 40 && libDemo; i++) await sleep(25);
+  await sleep(60);
+  assert.strictEqual(libDemo, false, 'DEMO-OFF: the leave line switches it off');
+  assert.doesNotMatch(html('page'), /Leave the demo library/, '  and once out, the line is gone');
+}
+ok('the demo library is a plate in Account → Your books, and the library says how to leave it');
+
+// ---- ONE CONTROL OPENS AND SHUTS THE MENU ON A DESK (#133): the header's menu icon. The menu's own
+// chevron did the same, so it went. Where the menu covers the screen its ✕ stays, the only way out.
+{
+  const root = (globalThis as any).document.documentElement;
+  for (const view of ['workspace', 'story']) {
+    if (view === 'story') { click({ open: 's-1' }); await sleep(40); }
+    click({ railview: view });
+    if (root.dataset.uiRail !== 'open') click({ railview: view });
+    assert.doesNotMatch(html('rail'), /class="railclose"/, `DESK-NOCLOSE: at a desk the ${view} menu has no close of its own`);
+  }
+  const wide = (globalThis as any).matchMedia;
+  (globalThis as any).matchMedia = () => ({ matches: true, addEventListener() {} });   // phone width
+  try {
+    for (const view of ['workspace', 'story']) {
+      click({ railview: view });
+      if (root.dataset.uiRail !== 'open') click({ railview: view });
+      const close = html('rail').match(/<button data-rail="1" class="railclose"[\s\S]*?<\/button>/)?.[0] ?? '';
+      assert.match(close, /\u2715/, `PHONE-CLOSE: where the ${view} menu covers the screen, it has its ✕`);
+    }
+  } finally { (globalThis as any).matchMedia = wide; }
+}
+ok('at a desk the header icon is the one menu control; a full-screen menu keeps its ✕');
+
+// ---- THREE COLUMNS OF THREADS WHERE THE PANEL IS WIDE (#133). Measured on the PANEL's width, not the
+// window's, so a 400px panel on a wide desk stays one column; the cards keep their 260px. The browser
+// measures it (test/ui/threadlist.js); this pins the rules it measures.
+{
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  assert.match(css, /#thlist \{[^}]*container-type:\s*inline-size/, 'THREE-COLS: the tale\'s Threads list is a container');
+  const q = css.match(/@container \(min-width:\s*(\d+)px\) \{([\s\S]*?)\n\}/);
+  assert.ok(q, 'THREE-COLS: a container query on it');
+  assert.match(q![2], /#thlist \[data-kindrows\] \{[^}]*grid-template-columns:\s*repeat\(3,/, '  that lays each kind out in three columns');
+  assert.ok(Number(q![1]) > 400 - 44 && Number(q![1]) <= 620 - 44,
+    `  wider than the panel beside the page, narrower than the smallest full-screen panel (${q![1]})`);
+}
+ok("the tale's threads go to three columns when their panel is wide");
 
 // ---- WHEN YOU REWEAVE (Seth, 2026-10-29: "under your account and writing I can't see reweave").
 // Account → Writing draws a sixth box after the five modes, and it saves and resets through the
@@ -5718,7 +5823,7 @@ ok("the tale's own thread is on the Tale panel's Thread tab, one ＋ adds to it 
     click({ open: 's-1' }); await sleep(40);
     click({ panel: 'threads' }); click({ entry: 'e-1' }); click({ cardview: 'form' }); click({ cardtab: 'time' });
     await sleep(20);
-    return html('sideBody').match(/<div class="pane"(?![^>]*hidden)[^>]*>[\s\S]*?Over time[\s\S]*/)?.[0] ?? '';
+    return html('sideBody').match(/<div class="pane"(?![^>]*hidden)[^>]*>[\s\S]*?Timeline[\s\S]*/)?.[0] ?? '';
   };
   let pane = await openTime();
   assert.match(pane, /data-addstate="1" class="headadd"/, 'OT-PLUS: Over time has one ＋ to add a change');
@@ -6338,6 +6443,43 @@ ok("the thread's menu is one flat list, and Tidy is an icon beside it");
   click({ cardview: null });
   click({ backentry: '1' });
   ok('Alterations names a pocket\'s earlier version as the writer knows it');
+}
+
+// #135 · TIMELINE AND PAST EDITS. "Over time" and "Earlier versions" read as the same list; the
+// writer's words are Timeline (story time, sent to the model by scene) and Past edits (edit history,
+// never sent). Only the words moved: `data-cardtab="time"` and `data-readgo="history"` still go there.
+{
+  stubHistory = { entry: [
+    { id: 'er-1', field: 'title', label: null, previous_value: 'Sereth', replaced_at: 1, replaced_by: 'human' }] };
+  const OLD = /over time|earlier version/i;
+  // What a writer sees: the drawn HTML without its comments, which are the code's and never shown.
+  const seen = () => (html('sideHead') + html('sideBody')).replace(/<!--[\s\S]*?-->/g, '');
+  const drawn: string[] = [];
+  click({ panel: 'threads' }); await sleep(30);
+  click({ entry: 'e-1' }); await sleep(30);
+  click({ readmenu: '1' });
+  const menu = seen(); drawn.push(menu);
+  assert.match(menu, /data-readgo="time" class="readrow">Timeline/, 'TIMELINE-MENU: the menu row is Timeline');
+  assert.match(menu, /data-readgo="history" class="readrow">Past edits/, 'PASTEDITS-MENU: the menu row is Past edits');
+  click({ readmenu: '1' });
+  click({ readgo: 'time' }); await sleep(30);
+  const time = seen(); drawn.push(time);
+  assert.match(time, /data-cardtab="time" aria-pressed="true">Timeline</, 'TIMELINE-TAB: the old door opens the tab, named Timeline');
+  click({ addstate: '1' }); await sleep(20); drawn.push(seen());
+  click({ cardtab: 'more' }); drawn.push(seen());
+  click({ readgo: 'history' }); await sleep(30);
+  const more = seen(); drawn.push(more);
+  assert.match(more, /data-fieldhistory="1">Hide past edits</, 'PASTEDITS-MORE: the old door opens Past edits');
+  assert.match(more, /<div class="lbl sect">Past edits<\/div>/, '  under its name');
+  for (const h of drawn) assert.doesNotMatch(h, OLD, 'NO-OLD-WORDS: no "Over time" or "Earlier versions" on screen');
+  const { HELP } = await import('../web/help.js');
+  assert.doesNotMatch(JSON.stringify(HELP), OLD, 'NO-OLD-WORDS: nor in the help cards');
+  assert.strictEqual(HELP.states.title, 'Timeline', 'TIMELINE-HELP: the help card is Timeline');
+  stubHistory = null;
+  click({ fieldhistory: '1' });
+  click({ cardview: null });
+  click({ backentry: '1' });
+  ok('Over time is Timeline and Earlier versions is Past edits, wherever a writer sees them, and the old doors still open them');
 }
 
 // ---- AND ON THE PAGE THAT SPANS THE SHELF, from that page's own data.
@@ -8092,13 +8234,14 @@ const hemCardOf = (side: string) => {
   HEM_VIEW = { ...HEM_VIEW, taleThread: { ...TALE, nowStateId: 'ts-1', states: [{ id: 'ts-1', fromChapter: 2, body: NOW }] } };
   click({ open: 's-1' }); await settle();
   click({ panel: 'story' }); await settle();
-  assert.match(book(), new RegExp(`Where it stands now[\\s\\S]*?${NOW}`), 'TALE-NOW: and where it stands now, once sewn in');
+  // #130. Shown once, on the Thread tab: not under how the tale began as well.
+  assert.doesNotMatch(book(), /Where it stands now|data-talenow/, 'TALE-NOW-ONCE: where it stands now is not on the Tale tab');
   click({ panel: '' }); click({ storytab: 'thread' }); click({ panel: 'story' }); await settle();
   assert.match(html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '', /Where the tale stands[\s\S]*?Where it stands now[\s\S]*?the sixth has burned/,
     "TALE-OWN: the tale's own thread shows where it stands too");
   (globalThis as any).fetch = canned;
   click({ open: 's-1' }); await settle();
-  ok("where the tale stands is a diff on the hem's card, and the tale's settings show how it began and where it stands now");
+  ok("where the tale stands is a diff on the hem's card, the Tale tab shows how it began, and the Thread tab where it stands now");
 }
 
 // ---- #92 · THE CARD'S STATES, and the presses each one offers: running, a pass that did not run

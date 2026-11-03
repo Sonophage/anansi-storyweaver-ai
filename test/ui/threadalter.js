@@ -71,9 +71,9 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   const tabs = await page.eval(`JSON.stringify([...document.querySelectorAll('[data-cardtab]')].map((t) => ({ k: t.dataset.cardtab,
     label: t.textContent.trim(), top: Math.round(t.getBoundingClientRect().top),
     fits: t.scrollWidth <= t.clientWidth + 1 })))`).then(JSON.parse);
-  ok(`the tabs are The thread · Over time · Pockets · More (${tabs.map((t) => t.label).join(' · ')})`,
+  ok(`the tabs are The thread · Timeline · Pockets · More (${tabs.map((t) => t.label).join(' · ')})`,
      tabs.map((t) => t.k).join() === 'card,time,rooms,more'
-       && tabs.map((t) => t.label).join() === 'The thread,Over time,Pockets,More');
+       && tabs.map((t) => t.label).join() === 'The thread,Timeline,Pockets,More');
   ok("  in one row, each label inside its tab", new Set(tabs.map((t) => t.top)).size === 1 && tabs.every((t) => t.fits));
 
   // ---- The thread tab: name, how it reaches, info, wake words as chips. No picture, no kind.
@@ -97,9 +97,9 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   ok("More holds the picture and the kind now",
      // One per KINDS entry: four since rules left the kinds for the tale's own thread (ADR 0005, 2026-10-29).
      (await vis('[data-picfind]')) && (await page.eval("[...document.querySelectorAll('[data-kind]')].filter(b => b.offsetParent).length")) === 4);
-  ok("  and not Over time", !(await vis('[data-addstate]')) && !(await vis('[data-fold="states"]')));
+  ok("  and not the Timeline", !(await vis('[data-addstate]')) && !(await vis('[data-fold="states"]')));
   await page.click('[data-cardtab="time"]'); await wait(400);
-  ok("Over time is still its own tab", (await page.eval(
+  ok("Timeline is still its own tab", (await page.eval(
     "(() => { const f = document.querySelector('[data-otrow=\"1\"]'); return !!f && f.offsetParent !== null; })()")));
   await page.click('[data-cardtab="card"]'); await wait(300);
 
@@ -260,7 +260,7 @@ for (const [w, h, size] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) 
   await page.click('[data-cardtab="time"]'); await wait(300);
   // #78. Over time is the tab's whole content now, not a fold inside it.
   await wait(400);
-  ok("  and Over time still opens to its editor", await vis('[data-addstate]'));
+  ok("  and the Timeline still opens to its editor", await vis('[data-addstate]'));
   await leaveAlter();
 
   // ---- A thread followed from a world book

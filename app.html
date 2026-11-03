@@ -1628,6 +1628,16 @@ textarea.field { resize:vertical; min-height:70px; }
 .thart + .theye { color:var(--ink); filter:drop-shadow(0 1px 3px rgba(0,0,0,.85)); }
 .thplate .thtext { font-size:13px; line-height:1.5; color:var(--mute); }
 .thplate .thtags { display:flex; flex-wrap:wrap; gap:5px; margin-top:3px; }
+/* THREE COLUMNS WHERE THE PANEL IS WIDE (#133, Seth, 2026-11-03: "on desktops Threads can be columns
+   of three vs a list"). Measured on the list's own width, not the window's: beside the page the panel
+   is 400px on any screen and stays one column; made full screen on a desk it is the column's width,
+   620px at the smallest size, and goes to three. 560 is three cards of 180px, the least that keeps a
+   name and two lines clear of the eye's strip, plus two 9px gaps. The cards keep their 260px.
+   The first container query in this sheet. */
+#thlist { container-type:inline-size; }
+@container (min-width:560px) {
+  #thlist [data-kindrows] { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:9px; align-items:start; }
+}
 /* THE WHOLE RIGHT SIDE OF THE CARD IS THE SWITCH (Seth, 2026-11-02): the strip the card's padding
    leaves, top to bottom, with the eye in its middle. It was a 44px circle, easy to miss. */
 .theye { position:absolute; right:0; top:0; bottom:0; width:60px;
@@ -1763,9 +1773,10 @@ html[data-ui-rail="closed"] .railswap { display:none; }
 /* THE DESK'S COLLAPSED MENU (Seth, 2026-11-02: "the menu on desktop when its collapsed needs some
    work"). It drew the open menu's columns squeezed into 76px: the scene list as slivers of cover art,
    the tiles' icons cut in half, the search box an empty pill, the model gone. Collapsed it is one
-   column of whole icons, each named in its title; the model as its dot, the toggle under it; on a
-   tale, a search icon (`data-railfind`) where the box was. Desk only: under 1100px a collapsed menu is
-   off the screen. test/ui/railshut.js measures it. */
+   column of whole icons, each named in its title; the model as its dot; on a tale, a search icon
+   (`data-railfind`) where the box was. The header's menu icon opens and shuts it: the rail has no
+   toggle of its own on a desk (#133). Desk only: under 1100px a collapsed menu is off the screen.
+   test/ui/railshut.js measures it. */
 .railfind { display:none; }
 @media (min-width:1100px) {
   html[data-ui-rail="closed"] #rail .tale3 { display:flex; flex-direction:column; gap:0; }
@@ -1783,7 +1794,6 @@ html[data-ui-rail="closed"] .railswap { display:none; }
   html[data-ui-rail="closed"] .talemodel > button[data-modelmenu] { width:auto; border-bottom:0;
     padding:18px 0 4px !important; justify-content:center; }
   html[data-ui-rail="closed"] .talemodel > button[data-modelmenu] > .txt { display:none; }
-  html[data-ui-rail="closed"] .talemodel > .railclose { position:static; }
 }
 /* NOTHING IN THE RAIL'S LIST MAY SHRINK (2026-10-27, Seth: the Scenes heading under the tale menu was
    "a littttttle cut off"). The list is a flex column that scrolls, so when the grid and a long run
@@ -2252,11 +2262,10 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
    the document region stays on screen behind the workspace pages. */
 #read[hidden], #dock[hidden], #page[hidden] { display:none !important; }
 
-/* THE STORY PANEL'S FIVE GROUPS. Only one is on screen and the container's attribute says which —
+/* THE TALE PANEL'S FOUR GROUPS. Only one is on screen and the container's attribute says which —
    see the note in `story()` for why this is CSS and not a redraw: every field in there is free text
    that Save commits, and a repaint on a tab press loses whatever was half-typed. */
 .sgroup { display:none; flex-direction:column; }
-[data-tab="voice"] > .sgroup[data-group="voice"],
 [data-tab="book"]  > .sgroup[data-group="book"],
 [data-tab="world"] > .sgroup[data-group="world"],
 [data-tab="keep"]  > .sgroup[data-group="keep"],
