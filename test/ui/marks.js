@@ -80,7 +80,7 @@ const checkRows = async (theme) => {
     && r?.words === "remote, on Featherless");
   return a?.edge;
 };
-const darkLocal = await checkRows("ink");
+const darkLocal = await checkRows("arcana");
 
 // ---- 2. the strip, before and after picking the remote model for this tale (which makes it the
 // writer's model too, 2026-11-03)

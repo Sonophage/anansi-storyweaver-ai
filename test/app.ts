@@ -170,7 +170,7 @@ const STORY = {
   gen: { temperature: 0.85, top_p: 0.95, max_tokens: 900 },
   // This book has a look of its own, and only a THEME. The rest has to come from the writer's
   // default — a book that pinned all four would pass a check that a book that pins one would not.
-  look: { theme: 'ink' },
+  look: { theme: 'emerald' },
   story: { title: 'The Ashfall Concordat', genre: 'political fantasy', premise: 'Six houses.',
            setting: 'Ashfall Hall', pov: 'third limited, past tense', persona: 'Ilva Marren',
            writingStyle: 'Cold, spare.', direction: 'She signs, or she burns the hall.',
@@ -972,7 +972,7 @@ ok('the menu and the story name are two doors onto one rail');
 // Three layers of look, and the one that must never happen is a book's theme becoming yours.
 {
   const root = (globalThis as any).document.documentElement;
-  assert.strictEqual(root.dataset.uiTheme, 'ink', "the open book's own theme must be applied");
+  assert.strictEqual(root.dataset.uiTheme, 'emerald', "the open book's own theme must be applied");
   // The book names ONLY a theme, so everything else has to come from the writer's default. A
   // book that pinned all four would pass this whatever the layering did.
   assert.strictEqual(root.dataset.uiFont, 'ebgaramond', "and the writer's font underneath it (saved as garamond, which FONT_WAS maps)");
@@ -2378,7 +2378,14 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
 // the light one that forgot rendered dark text on cream.
 {
   const { THEMES, themeVars, themeNow } = await import('../web/model.js');
-  assert.deepStrictEqual(Object.keys(THEMES), ['ink', 'grimdark', 'scifi', 'romance', 'arcana']);
+  // INK LEFT AND FOUR CAME (Seth, 2026-11-03): Arcana covers Ink, and Silver, Amethyst, Crimson and
+  // Emerald joined. Arcana first, the shipped one. Every label is an arcane name; the keys are what a
+  // saved look holds, so they never change.
+  assert.deepStrictEqual(Object.keys(THEMES), ['arcana', 'grimdark', 'scifi', 'romance', 'silver', 'amethyst', 'crimson', 'emerald']);
+  assert.deepStrictEqual(Object.fromEntries(Object.entries(THEMES).map(([k, t]: any) => [k, t.label])), {
+    arcana: "The Magician's Gold", grimdark: 'The Tower', scifi: 'The Star', romance: 'The Lovers',
+    silver: 'The Moon', amethyst: 'The High Priestess', crimson: 'The Emperor', emerald: 'The Empress' },
+    'THEME-NAMES: every theme wears its arcane name');
 
   // ARCANA DRAWS WITH FILES (2026-11-03): its wash and every texture and ornament in its block of
   // app.html is a /web/arcana-*.svg. A name with no file paints nothing and says nothing, so each
@@ -2493,7 +2500,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     assert.strictEqual(themeNow(gone), 'arcana', `THEME-WAS: a look saved as ${gone} reads as Arcana`);
   assert.strictEqual(themeNow('cyberpunk'), 'scifi', 'THEME-WAS: and Cyberpunk as Sci-fi');
   assert.strictEqual(themeNow('romance'), 'romance', 'a theme still on the list is left alone');
-  assert.strictEqual(themeNow('ink'), 'ink', 'and Ink is still on the list');
+  assert.strictEqual(themeNow('ink'), 'arcana', 'THEME-WAS: and a look saved as Ink reads as Arcana, which covers it');
   assert.deepStrictEqual(themeVars('obsidian'), themeVars('arcana'), 'and its colours are the ones it reads as');
   {
     const { readFileSync } = await import('node:fs');
@@ -2543,6 +2550,11 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   };
   for (const [name, spec] of Object.entries(THEMES)) {
     const v: any = themeVars(name);
+    // THE TWO THAT MUST READ (Seth, 2026-11-03, with the four new themes): the prose on its paper, and
+    // the words on the one gold press, on the press's own colour.
+    const prose = ratio((spec as any).ink, (spec as any).paper), press = ratio(v['--on-gold'], v['--gold']);
+    assert.ok(prose >= 4.5, `THEME-CONTRAST: ${name}'s ink is ${prose.toFixed(2)}:1 on its paper`);
+    assert.ok(press >= 4.5, `THEME-CONTRAST: ${name}'s words on its accent press are ${press.toFixed(2)}:1`);
     const r = ratio(v['--label'], (spec as any).paper);
     assert.ok(r >= 4.5, `${name}: a hint sentence is ${r.toFixed(2)}:1 against its own paper, `
       + 'and the derivation exists to make that 4.5 without anyone checking by eye');

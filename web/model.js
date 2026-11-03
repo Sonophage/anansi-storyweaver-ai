@@ -828,26 +828,56 @@ export const still = () => matchMedia('(prefers-reduced-motion: reduce)').matche
 // app had exactly that shape before this: three hand-written blocks, and the light one had to
 // restate the greys and the gold by hand or render dark text on light ground.
 // ---------------------------------------------------------------------------
+/* EVERY THEME WEARS AN ARCANE NAME (Seth, 2026-11-03: "rename every theme's label to an arcane
+ * name"). The label is what Look shows; the key is what a saved look holds, so a key never changes.
+ * Each is the tarot card whose colour and temper the theme has:
+ *   arcana    The Magician's Gold   I, will made into gold-work; the shipped theme, black and gilt.
+ *   grimdark  The Tower             XVI, ruin and ash, lit by copper fire.
+ *   scifi     The Star              XVII, cold blue light over still water.
+ *   romance   The Lovers            VI, the rose of two people choosing each other.
+ *   silver    The Moon              XVIII, moonlight: silver and graphite, no colour at all.
+ *   amethyst  The High Priestess    II, the violet of the veil and what is kept behind it.
+ *   crimson   The Emperor           IV, Aries and Mars: red, the colour of rule and of war.
+ *   emerald   The Empress           III, Venus: green, the growing world.
+ * INK LEFT ON 2026-11-03: Arcana is the same black with the same gold, so a look saved as Ink reads as
+ * Arcana (THEME_WAS, below). Arcana's styling is under every theme, so a row is colours only. */
 export const THEMES = {
-  ink:       { label: 'Ink',       dark: 1, swatch: '#0B0B0C', ink: '#E4E0D8', paper: '#0B0B0C', rail: '#0C0C0D', sheet: '#101012',
-               accent: '#D9B26A', warn: '#C8705A', good: '#7FB083', speak: 'rgba(190,185,175,.34)',
-               wash: 'linear-gradient(180deg,#0E0E10,#08080A 60%)' },
-  grimdark:  { label: 'Grimdark',  dark: 1, swatch: '#0C0C0C', ink: '#D2CFCA', paper: '#0C0C0C', rail: '#0B0B0B', sheet: '#111111',
-               accent: '#A8674F', warn: '#9E4632', good: '#6E8069', speak: 'rgba(160,150,145,.3)',
-               wash: 'linear-gradient(180deg,#121211,#090909 65%)' },
-  scifi:     { label: 'Sci-fi',    dark: 1, swatch: '#08090C', ink: '#DCE4EC', paper: '#08090C', rail: '#090B0F', sheet: '#0D1015',
-               accent: '#8FB8D9', warn: '#D98A6A', good: '#7FB8A8', speak: 'rgba(143,184,217,.36)',
-               wash: 'radial-gradient(60% 40% at 50% 0%, rgba(143,184,217,.13), transparent 72%), linear-gradient(180deg,#0C1016,#07080B 55%)' },
-  romance:   { label: 'Romance',   dark: 1, swatch: '#140E13', ink: '#F0E2E4', paper: '#140E13', rail: '#160F15', sheet: '#1B131A',
-               accent: '#D98AA0', warn: '#C4667C', good: '#8FB89C', speak: 'rgba(217,138,160,.4)',
-               wash: 'radial-gradient(60% 45% at 28% 0%, rgba(190,110,140,.22), transparent 70%), linear-gradient(180deg,#1D1420,#100B10 55%)' },
   /* ARCANA (Seth, 2026-11-03): "black grey and gold ... the gold and filigree ... the texture of
    * things ... tarot, arcane", painted like a watercolour brush, with art deco in the ornament. The
    * shipped theme. Since the same day its frames, ornament and faces are the app's under every theme
    * (app.html, the ARCANA block), so this row, like every other, is colours only. */
-  arcana:    { label: 'Arcana',    dark: 1, swatch: '#0B0B0C', ink: '#E6E2DA', paper: '#0B0B0C', rail: '#0C0C0E', sheet: '#111113',
+  arcana:    { label: "The Magician's Gold", dark: 1, swatch: '#0B0B0C', ink: '#E6E2DA', paper: '#0B0B0C', rail: '#0C0C0E', sheet: '#111113',
                accent: '#C8A252', warn: '#C8705A', good: '#8FAE9A', speak: 'rgba(196,192,184,.34)',
                wash: 'linear-gradient(180deg,#0E0E10,#08080A 60%)' },
+  grimdark:  { label: 'The Tower',   dark: 1, swatch: '#0C0C0C', ink: '#D2CFCA', paper: '#0C0C0C', rail: '#0B0B0B', sheet: '#111111',
+               /* #AA6A53, a shade up from #A8674F (2026-11-03): the words on its press measured 4.36:1. */
+               accent: '#AA6A53', warn: '#9E4632', good: '#6E8069', speak: 'rgba(160,150,145,.3)',
+               wash: 'linear-gradient(180deg,#121211,#090909 65%)' },
+  scifi:     { label: 'The Star',    dark: 1, swatch: '#08090C', ink: '#DCE4EC', paper: '#08090C', rail: '#090B0F', sheet: '#0D1015',
+               accent: '#8FB8D9', warn: '#D98A6A', good: '#7FB8A8', speak: 'rgba(143,184,217,.36)',
+               wash: 'radial-gradient(60% 40% at 50% 0%, rgba(143,184,217,.13), transparent 72%), linear-gradient(180deg,#0C1016,#07080B 55%)' },
+  romance:   { label: 'The Lovers',  dark: 1, swatch: '#140E13', ink: '#F0E2E4', paper: '#140E13', rail: '#160F15', sheet: '#1B131A',
+               accent: '#D98AA0', warn: '#C4667C', good: '#8FB89C', speak: 'rgba(217,138,160,.4)',
+               wash: 'radial-gradient(60% 45% at 28% 0%, rgba(190,110,140,.22), transparent 70%), linear-gradient(180deg,#1D1420,#100B10 55%)' },
+  /* SILVER: graphite and silver, no colour. The accent is silver; only `good` and `warn` keep a trace
+   * of hue, because a state has to be told apart and the two model circles need a hue to turn. */
+  silver:    { label: 'The Moon',    dark: 1, swatch: '#0C0C0D', ink: '#E2E3E6', paper: '#0C0C0D', rail: '#0D0D0F', sheet: '#131315',
+               accent: '#C3C7CF', warn: '#B98479', good: '#8EA79B', speak: 'rgba(205,207,212,.34)',
+               wash: 'radial-gradient(60% 40% at 50% 0%, rgba(200,204,212,.10), transparent 72%), linear-gradient(180deg,#111113,#09090A 60%)' },
+  /* AMETHYST: violet on a near-black with violet in it. */
+  amethyst:  { label: 'The High Priestess', dark: 1, swatch: '#0F0B13', ink: '#ECE4F2', paper: '#0F0B13', rail: '#110C16', sheet: '#16111C',
+               accent: '#B99BE8', warn: '#D7748E', good: '#8DBBA2', speak: 'rgba(185,155,232,.38)',
+               wash: 'radial-gradient(60% 45% at 50% 0%, rgba(150,110,210,.18), transparent 70%), linear-gradient(180deg,#17111D,#0B080E 55%)' },
+  /* CRIMSON: red on a near-black with red in it. `warn`, the colour that says something is wrong,
+   * is amber here, because a red one would be the accent. */
+  crimson:   { label: 'The Emperor', dark: 1, swatch: '#110A0A', ink: '#F0E3E0', paper: '#110A0A', rail: '#130B0B', sheet: '#191010',
+               accent: '#E2645C', warn: '#E09A58', good: '#8FB89C', speak: 'rgba(226,100,92,.36)',
+               wash: 'radial-gradient(60% 45% at 50% 0%, rgba(190,50,45,.20), transparent 70%), linear-gradient(180deg,#1A0F0F,#0C0707 55%)' },
+  /* EMERALD: green on a near-black with green in it. `good`, the awake and done colour, leans to
+   * teal so it is not the accent. */
+  emerald:   { label: 'The Empress', dark: 1, swatch: '#08100D', ink: '#E2EEE8', paper: '#08100D', rail: '#09120F', sheet: '#0E1814',
+               accent: '#52C793', warn: '#DA7A5C', good: '#8CC2C6', speak: 'rgba(82,199,147,.36)',
+               wash: 'radial-gradient(60% 45% at 50% 0%, rgba(50,160,110,.18), transparent 70%), linear-gradient(180deg,#0E1915,#060B09 55%)' },
 };
 
 /** THE APP'S DISPLAY FACES: thin deco capitals for titles, a geometric sans for labels (Arcana, Seth,
@@ -871,8 +901,8 @@ export const minorRank = (n) => (n === 1 ? 'Ace' : n >= 11 && n <= 14 ? ['Page',
 /** THEMES THAT LEFT THE LIST, and the one each look now reads as (2026-11-02: Obsidian, Parchment,
  *  Cyberpunk, Fantasy and Novelist removed at Seth's word). A look saved on a device, a tale or a
  *  writer's default still names the old key; any key not in THEMES reads as Arcana, the shipped one
- *  (2026-11-03; it was Ink). */
-const THEME_WAS = { cyberpunk: 'scifi' };
+ *  (2026-11-03; it was Ink). Ink itself left on 2026-11-03: Arcana is its black and its gold. */
+const THEME_WAS = { cyberpunk: 'scifi', ink: 'arcana' };
 export const themeNow = (key) => (THEMES[key] ? key : THEME_WAS[key] ?? 'arcana');
 
 /** Blend two hex colours. The design's own mix(), unchanged. */
