@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES, pressOf, pressKey } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -1713,9 +1713,8 @@ function passageHTML(p, newest, opening) {
    *
    * IT IS HIDDEN WHILE READING, in the CSS with the rest of the apparatus. A chip over every
    * paragraph is a writing tool, and reading is the mode that takes the tools away. */
-  const press = woven ? 'Woven' : MODES.find(([k]) => k === p.mode)?.[1]
-    ?? (p.mode === 'continue' ? 'Continue' : mine ? 'Yours' : spoken ? 'Spoken' : 'Anansi');
-  const from = `<div class="from"><i></i>${esc(press)}${
+  const press = pressOf(p, spoken);
+  const from = `<div class="from" data-press="${pressKey(press)}"><i></i>${esc(press)}${
     p.speaker ? ` &middot; ${esc(p.speaker)}` : ''}</div>`;
   // `directed` stays on a passage written to order: it says so (the reweave box reads it), and the
   // Woven bar is the later rule, so it is the colour that shows.
@@ -10873,7 +10872,7 @@ function ghost(replaces = null) {
     // (`spoken`, passageHTML). It was always written as narration and changed font the moment it
     // landed (Seth, 2026-10-26). The voice is
     // the speaker the press sent (GHOST_VOICE); an opening quote is seen at the first word (liveDelta).
-    g.innerHTML = `<div class="from"><i></i>${esc(press)}${GHOST_VOICE ? ` &middot; ${esc(GHOST_VOICE)}` : ''}</div>
+    g.innerHTML = `<div class="from" data-press="${pressKey(press)}"><i></i>${esc(press)}${GHOST_VOICE ? ` &middot; ${esc(GHOST_VOICE)}` : ''}</div>
       <div class="veilweave" aria-live="polite">${weavingAt('dock') ? weaveWords('dock') : ''}</div>
       ${GHOST_VOICE ? `<div class="who">${esc(GHOST_VOICE)}</div>` : ''}
       <div class="${GHOST_VOICE ? 'said' : 'narr'}"><div class="veiltext" aria-live="polite"></div></div>`;

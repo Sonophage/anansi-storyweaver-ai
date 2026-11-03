@@ -2902,6 +2902,35 @@ html:root .band-rule { align-self:stretch; height:22px; margin-top:10px;
   html:root .band-epi span { font-size:19px; }
   html:root .band-rule { height:18px; -webkit-mask-size:100% 18px; mask-size:100% 18px; } }
 
+/* A GLYPH PER ACTION (Seth, 2026-11-03, his reference "≈ WOVEN"): the chip over a passage carries a
+   small line glyph before its spaced capitals, one per label, in place of the dot. This is the one
+   table. `data-press` is the label the chip shows (`pressOf`, web/model.js), and test/app.ts
+   PRESS-GLYPH holds the table to every label `pressOf` can return, one each, no file twice. The glyph
+   is a mask in the accent, like every ornament; the words keep the colour of the rule beside them.
+     woven      two threads in a wave: the model wove it.
+     speak      a speech bubble: words said aloud.
+     act        a bolt: a deed done.
+     direct     a four-pointed star: the bearing Anansi was given.
+     narrate    a quill: the writer told it.
+     coop       two rings joined: two writers taking turns.
+     continue   three chevrons: the tale running on.
+     yours      a seal: the writer's own hand, from before modes were kept.
+     spoken     a voice in bars: a line someone spoke.
+     anansi     the spider: Anansi wrote it, from before modes were kept. */
+html:root .from[data-press="woven"]    { --glyph:url('/web/arcana-glyph-woven.svg'); }
+html:root .from[data-press="speak"]    { --glyph:url('/web/arcana-glyph-speak.svg'); }
+html:root .from[data-press="act"]      { --glyph:url('/web/arcana-glyph-act.svg'); }
+html:root .from[data-press="direct"]   { --glyph:url('/web/arcana-glyph-direct.svg'); }
+html:root .from[data-press="narrate"]  { --glyph:url('/web/arcana-glyph-narrate.svg'); }
+html:root .from[data-press="coop"]     { --glyph:url('/web/arcana-glyph-coop.svg'); }
+html:root .from[data-press="continue"] { --glyph:url('/web/arcana-glyph-continue.svg'); }
+html:root .from[data-press="yours"]    { --glyph:url('/web/arcana-glyph-yours.svg'); }
+html:root .from[data-press="spoken"]   { --glyph:url('/web/arcana-glyph-spoken.svg'); }
+html:root .from[data-press="anansi"]   { --glyph:url('/web/arcana-glyph-anansi.svg'); }
+html:root .from { gap:12px; }
+html:root .from > i { width:18px; height:18px; border-radius:0; background:var(--gold);
+  -webkit-mask:var(--glyph) center / contain no-repeat; mask:var(--glyph) center / contain no-repeat; }
+
 /* THE SCENE'S FIRST LETTER, illuminated: deco capital in a gilt box over a wash of gold. Still
    ::first-letter, for the reason above the rule it extends: the passage is contenteditable. */
 html:root #col .block.opening .narr::first-letter {

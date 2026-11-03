@@ -37,6 +37,16 @@ export const MODES = [
                              : 'Your part of the scene, then it is their move…'],
 ];
 
+/** WHAT A PASSAGE'S CHIP SAYS: the press that made it, wherever the press is known (passageHTML has
+ *  the long note). What the model wrote is Woven; then the composer mode; then Continue; and a passage
+ *  with no mode says what can be said: yours, a spoken line, or Anansi's. Here, and not inline, so the
+ *  one glyph table in app.html (`--glyph`, keyed on the chip's `data-press`) can be held to every label
+ *  it can return (test/app.ts PRESS-GLYPH). */
+export const pressOf = (p, spoken) => p.author === 'model' ? 'Woven' : MODES.find(([k]) => k === p.mode)?.[1]
+  ?? (p.mode === 'continue' ? 'Continue' : p.author === 'human' ? 'Yours' : spoken ? 'Spoken' : 'Anansi');
+/** The chip's `data-press`: its label in lower case, letters only ("Co-op" is `coop`). */
+export const pressKey = (label) => String(label).toLowerCase().replace(/[^a-z]/g, '');
+
 // #80. A copy of `slots.KINDS` (the browser cannot import the .ts); test/db.ts holds them equal.
 export const KINDS = ['character', 'place', 'lore', 'item'];
 

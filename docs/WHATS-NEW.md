@@ -189,6 +189,11 @@ The head of each scene is centred under a half sunburst in your theme's colour. 
 the scene's number as a numeral in spaced capitals, SCENE IX for the ninth. The title is large in
 a fine, high-contrast serif, the scene's line is in its italic under it, and the gilt rule with
 its chevrons and diamond sits centred under both.
+### Each passage's label has its own mark
+The small label over a passage, the one that says how it was written, starts with its own line mark
+in your theme's colour: two waves for Woven, a speech bubble for Speak, a bolt for Act, a star for
+Direct, a quill for Narrate, two joined rings for Co-op, three chevrons for Continue, a seal for
+Yours, a voice for Spoken, and a spider for Anansi.
 ### No glow along the top
 The glow across the top of the screen is gone. What is waiting is still counted on the Workbench in
 the tale's menu.

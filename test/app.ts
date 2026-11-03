@@ -1179,6 +1179,37 @@ assert.match(html('col'), /You · Ilva Marren/, 'a human passage must be attribu
   assert.match(FACES, /Cormorant\+Garamond:ital/, 'SCENE-HEAD: the serif is one of the app\'s faces, with its italic');
 }
 ok('a scene opens under a sunburst, its number in Roman numerals');
+// A GLYPH PER ACTION (Seth, 2026-11-03, his reference "≈ WOVEN"): every label a passage's chip can
+// show carries its own small line glyph before it. The labels are named here, from the four ways
+// the chip is reached (the model wrote it; a composer mode; Continue; the fallbacks for a passage
+// with no mode), and `pressOf` is run over every author, mode and speech case to prove it can show
+// these and only these. Each has exactly one row in the one glyph table in app.html, and each row's
+// file is on disk and valid SVG (ARCANA-FILES reads every arcana-*.svg app.html names).
+{
+  const { pressOf } = await import('../web/model.js');
+  const LABELS = ['Woven', 'Speak', 'Act', 'Direct', 'Narrate', 'Co-op', 'Continue', 'Yours', 'Spoken', 'Anansi'];
+  const seen = new Set<string>();
+  for (const author of ['model', 'human', null]) for (const mode of ['speak', 'act', 'direct', 'narrate', 'coop', 'continue', null, 'retired'])
+    for (const spoken of [true, false]) seen.add(pressOf({ author, mode }, spoken));
+  assert.deepStrictEqual([...seen].sort(), [...LABELS].sort(), 'PRESS-GLYPH: the chip shows these labels and no others');
+  const { readFileSync, existsSync } = await import('node:fs');
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  const rows = [...page.matchAll(/\.from\[data-press="([\w-]+)"\]\s*\{\s*--glyph:\s*url\('\/web\/(arcana-glyph-[\w-]+\.svg)'\)/g)].map((m) => [m[1], m[2]]);
+  const keys = LABELS.map((l) => l.toLowerCase().replace(/[^a-z]/g, '')).sort();
+  assert.deepStrictEqual(rows.map(([k]) => k).sort(), keys, 'PRESS-GLYPH: every label has exactly one glyph, and nothing else has one');
+  assert.strictEqual(new Set(rows.map(([, f]) => f)).size, rows.length, 'PRESS-GLYPH: no two labels share a glyph');
+  for (const [k, f] of rows) {
+    const at = new URL('../web/' + f, import.meta.url);
+    assert.ok(existsSync(at), `PRESS-GLYPH: ${k}'s ${f} is on disk`);
+    assert.match(readFileSync(at, 'utf8'), /^<svg [^>]*xmlns="http:\/\/www\.w3\.org\/2000\/svg"[\s\S]*<\/svg>\s*$/, `PRESS-GLYPH: ${f} is an SVG`);
+  }
+  assert.match(page, /html:root \.from > i \{[^}]*background:var\(--gold\)[^}]*mask:var\(--glyph\)/, 'PRESS-GLYPH: the glyph is a mask in the theme\'s accent');
+  // And the chip on the page names its label: p-1 the model wrote, p-3 the writer spoke.
+  const col = html('col');
+  assert.match(col, /<div class="from" data-press="woven"><i><\/i>Woven/, 'PRESS-GLYPH: a woven passage\'s chip names its glyph');
+  assert.match(col, /<div class="from" data-press="speak"><i><\/i>Speak/, 'PRESS-GLYPH: and a spoken one\'s');
+}
+ok('every label a passage can show has one glyph');
 // THE CLASS TOKEN, not the whole attribute. This read `class="block speak"` exactly, so it went red
 // the moment that passage also carried a mode accent — a true statement about the markup breaking on
 // an unrelated addition. `\b` on both sides, or `speak` would also match `m-speak`.
@@ -1252,7 +1283,7 @@ assert.match(html('col'), /class="block you(?: [^"]*)?"/, 'the writer\'s own lin
  * Narrate, because both write a bare human row. The fixture has one of each shape. */
 {
   const col = html('col');
-  const chips = [...col.matchAll(/<div class="from(?: [^"]*)?"><i><\/i>([^<]*)</g)].map((m) => m[1].trim());
+  const chips = [...col.matchAll(/<div class="from(?: [^"]*)?"(?: data-press="\w+")?><i><\/i>([^<]*)</g)].map((m) => m[1].trim());
   assert.strictEqual(chips.length, (col.match(/class="block/g) ?? []).length,
     'every passage says where it came from, not just the ones with a mode');
   // AT THE TOP OF ITS BLOCK, which is what was asked for — before the prose, not under it.
@@ -1273,7 +1304,7 @@ assert.match(html('col'), /class="block you(?: [^"]*)?"/, 'the writer\'s own lin
   // THE WRITER'S OWN PASSAGES keep their press: p-3 is a line the writer spoke.
   assert.ok(chips.some((c) => /^Speak/.test(c)), `a passage the writer wrote names its press — got ${JSON.stringify(chips)}`);
   // AND A SPOKEN LINE CARRIES WHO SAID IT, which is the one thing the colour cannot say.
-  assert.match(col, /<div class="from(?: [^"]*)?"><i><\/i>Woven &middot; Envoy Sereth</,
+  assert.match(col, /<div class="from(?: [^"]*)?" data-press="woven"><i><\/i>Woven &middot; Envoy Sereth</,
     'a line the model voiced for someone names them on the chip');
   // THE SPEAK ACTION IS IN THE SPEECH HIGHLIGHT (Seth, 2026-10-29): the writer's spoken line reads in
   // the colour quoted speech has in the prose.
@@ -2430,11 +2461,11 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     assert.ok(FACES && !Object.values(THEMES).some((t: any) => t.faces), 'ARCANA-FACES: the display faces are the app\'s, not a theme\'s');
     const html0 = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
     assert.doesNotMatch(html0, /data-ui-theme="arcana"\]/, 'ARCANA-EVERYWHERE: no rule keys on the Arcana theme');
-    const GILT = /arcana-(corner-..|divider|stars|sky-\w+|suit-\w+|sunburst|diamond|runes|wash)\.svg/;
+    const GILT = /arcana-(corner-..|divider|stars|sky-\w+|suit-\w+|glyph-\w+|sunburst|diamond|runes|wash)\.svg/;
     for (const m of html0.matchAll(/url\('\/web\/(arcana-[\w-]+\.svg)'\)/g)) {
       if (!GILT.test(m[1])) continue;
       const decl = html0.slice(Math.max(html0.lastIndexOf(';', m.index!), html0.lastIndexOf('{', m.index!)) + 1, m.index!);
-      assert.match(decl, /^\s*(-webkit-)?mask(-image)?:|^\s*--(sky|suit):|^\s*(-webkit-)?mask(-image)?:[^;]*$/,
+      assert.match(decl, /^\s*(-webkit-)?mask(-image)?:|^\s*--(sky|suit|glyph):|^\s*(-webkit-)?mask(-image)?:[^;]*$/,
         `ORNAMENT-MASK: ${m[1]} is drawn as a mask in the theme's accent, not an image (${decl.trim().slice(0, 60)})`);
     }
     // CONTROLS KEEP THEIR ROUNDED CORNERS (Seth, 2026-11-03: "round the corners of buttons and inputs
