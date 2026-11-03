@@ -600,9 +600,10 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
   // being where it is make it it's own panel." Chapter is the one you are IN and Chapters is all of
   // them, so they sit together and in that order.
   assert.deepStrictEqual(snav,
-    ['story', 'chapter', 'chapters', 'search', 'threads', 'waiting', 'strings', 'anansi', 'context', 'teller'],
+    ['story', 'talethread', 'chapter', 'chapters', 'search', 'threads', 'waiting', 'strings', 'anansi', 'context', 'teller'],
     'the panels in the order Seth asked for. Since 2026-10-27 Tale is first and the rest go by theme: '
-    + 'the writing, what the tale remembers, Anansi, the model. Search was first from 2026-08-27.');
+    + 'the writing, what the tale remembers, Anansi, the model. Search was first from 2026-08-27. '
+    + 'The tale\'s own thread sits beside Tale since 2026-11-03.');
 
   // Opened by clicking a thing rather than by a nav row. Each is asserted to have a real opener,
   // so this list cannot become a dumping ground for panels nothing reaches.

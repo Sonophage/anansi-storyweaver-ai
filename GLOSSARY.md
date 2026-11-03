@@ -103,7 +103,7 @@ _Avoid_: story card, tale instructions, author's note
 
 **Rule**:
 A pocket of the tale's thread: a law the tale obeys, sent always or on its wake words. Added and
-edited on the Tale panel's Thread tab.
+edited on The tale's thread, the row beside Tale in the tale's menu.
 _In code_: an `addons` row of slot `rule` with no entry, as the writer's own instructions are
 _Avoid_: rule thread, constraint
 

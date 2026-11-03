@@ -481,8 +481,8 @@ await page.goto(B + "/#" + sid + "/story");
 await wait(900);
 ok("the story panel opens on the Tale group", await page.eval(
   "document.querySelector('[data-tab]')?.dataset.tab === 'book'"));
-ok("  with a chip for each of the four", (await page.eval(
-  "document.querySelectorAll('[data-storytab]').length")) === 4);
+ok("  with a chip for each of the three", (await page.eval(
+  "document.querySelectorAll('[data-storytab]').length")) === 3);
 const oneShown = () => page.eval(
   "[...document.querySelectorAll('.sgroup')].filter(g => getComputedStyle(g).display !== 'none').map(g => g.dataset.group).join(',')");
 ok(`  and exactly one group on screen (${await oneShown()})`, (await oneShown()) === 'book');

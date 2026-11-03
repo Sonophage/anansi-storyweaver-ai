@@ -48,12 +48,16 @@ had wake words is On a word. An outfit keeps Wear this. A pocket you add starts 
 its wake words never wake it. A new outfit is still added unworn. A pocket now comes with its thread
 when you import a tale you exported.
 ### The Tale panel opens on Tale
-The Tale panel has four tabs now, Tale, Thread, Setting and Keep, and opens on Tale. Tale is one
+The Tale panel has three tabs now, Tale, Setting and Keep, and opens on Tale. Tale is one
 scroll: the cover first, as large as a thread's picture, then the title, the genre and how the tale
 began, then the voice and Spice, which were their own Voice tab. Replacing, removing, drawing or
 finding a cover, and how it shows at the head of each scene, are in one fold under the cover, shut
 until you open it. A tale with no cover shows the ways to add one straight away. Where the tale
-stands now is shown once, on the Thread tab.
+stands now is shown once, on The tale's thread.
+### The tale's thread is beside Tale in the menu
+The tale's own thread, which was the Thread tab of the Tale panel, is now its own place in the
+tale's menu, beside Tale at the top, where Storyteller was. It holds where the tale stands, its
+rules, its promises and open questions, and your own instructions, as before.
 ### The demo library moved to Account
 The Demo library switch is no longer in the main menu. It is under Account, in Your books, beside
 Import and Export. While you are in the demo library, the library page shows "Leave the demo

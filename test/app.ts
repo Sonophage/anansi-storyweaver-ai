@@ -1760,9 +1760,10 @@ ok('Sent now keeps a thread you tap until the next passage, and kind tabs narrow
   await sleep(40);
   let panel = html('sideBody');
   assert.deepStrictEqual([...panel.matchAll(/data-storytab="(\w+)"[^>]*>([^<]+)</g)].map((m) => [m[1], m[2].trim()]),
-    [['book', 'Tale'], ['thread', 'Thread'], ['world', 'Setting'], ['keep', 'Keep']],
-    'TALE-TABS: the tab row is Tale, Thread, Setting, Keep, in that order');
-  for (const g of ['book', 'thread', 'world', 'keep'])
+    [['book', 'Tale'], ['world', 'Setting'], ['keep', 'Keep']],
+    'TALE-TABS: the tab row is Tale, Setting, Keep, in that order (the tale\'s thread is its own menu row, 2026-11-03)');
+  assert.doesNotMatch(panel, /data-group="thread"/, 'TALE-NO-THREAD: the Tale panel has no Thread group');
+  for (const g of ['book', 'world', 'keep'])
     assert.match(panel, new RegExp(`data-group="${g}"`), `the panel must draw the ${g} group`);
   assert.doesNotMatch(panel, /data-group="voice"/, 'TALE-NO-VOICE: there is no Voice group');
   // ALL FOUR ARE DRAWN AND ONE IS SHOWN. The container says which, and the stylesheet does the
@@ -5391,8 +5392,10 @@ ok('an empty Strings says what a string is and where to add one');
     'TALE3-MODEL: the model sits above the columns');
   const tiles = rail.match(/<div class="taletiles">([\s\S]*)/)?.[1] ?? '';
   assert.deepStrictEqual([...tiles.matchAll(/data-nav="([a-z]+)"/g)].map((m) => m[1]),
-    ['story', 'chapter', 'chapters', 'threads', 'strings', 'waiting'],
-    'TALE3-TILES: Tale first, then This scene and Scenes, then the rest (Strings back, UX review 2026-10-29; Storyteller off, #131)');
+    ['story', 'talethread', 'chapter', 'chapters', 'threads', 'strings', 'waiting'],
+    'TALE3-TILES: Tale and the tale\'s thread first, then This scene and Scenes, then the rest (Seth, 2026-11-03: "move thread up beside tale")');
+  assert.match(tiles, /data-nav="talethread"[^>]*>[\s\S]*?<span class="txt"[^>]*>The tale&#39;s thread<|data-nav="talethread"[^>]*>[\s\S]*?<span class="txt"[^>]*>The tale's thread</,
+    'TALE3-THREAD: its tile says The tale\'s thread, so it is not read as Threads');
   assert.match(tiles, /class="field railsearch" data-railsearch="1"/, 'TALE3-SEARCH: search is a bar across both columns, not a tile');
   assert.ok(tiles.indexOf('data-railsearch') > tiles.indexOf('data-nav="waiting"'), '  at the foot, below every tile');
   // EACH SCENE ROW WEARS THE TALE'S PICTURE, fainter down the list (2026-10-28), when the tale has one.
@@ -5947,21 +5950,25 @@ ok('Storyteller → Your voice shows When you reweave after the five modes, fill
   const wasRules = (STORY as any).taleRules;
   (STORY as any).taleRules = [{ id: 'r-1', name: 'Debts', body: 'A debt survives the debtor.', keys: ['debt', 'loan'], active: true }];
   click({ open: 's-1' }); await sleep(40);
-  click({ storytab: 'thread' }); click({ panel: 'story' });
-  assert.match(html('sideBody'), /data-tab="thread"/, 'TALE-TAB: the Tale panel opens on its Thread tab');
-  assert.match(html('sideBody'), /data-storytab="thread"[^>]*aria-pressed="true"/, '  with the Thread chip pressed');
+  click({ nav: 'talethread' }); await sleep(20);
+  assert.match(html('sideHead'), /The tale(&#39;|')s thread/, 'TALE-THREAD-PANEL: the tale\'s thread is a panel of its own');
+  assert.match(html('sideBody'), /Where the tale stands/, '  holding where the tale stands');
+  // AN OLD DOOR to the Tale panel's old Thread tab opens it.
+  click({ panel: 'story' }); await sleep(20);
+  click({ storytab: 'thread' }); await sleep(20);
+  assert.match(html('sideHead'), /The tale(&#39;|')s thread/, 'TALE-THREAD-WAS: an old press on the Thread tab opens the tale\'s thread');
   const wasOwn = (STORY as any).talePockets, wasTale = (STORY as any).taleThread;
   // A tale with its own thread, so a rule saved with no thread is told apart from one saved on it.
   (STORY as any).taleThread = { id: 'e-tale', title: 'The tale', entryType: 'tale', addons: [], states: [] };
   (STORY as any).talePockets = [{ id: 'i-1', name: 'Slow burn', body: 'Nobody touches before scene ten.', active: true }];
   click({ open: 's-1' }); await sleep(40);
-  click({ storytab: 'thread' }); click({ panel: 'story' });
-  const tab = html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '';
+  click({ panel: 'talethread' });
+  const tab = html('sideBody');
   // ONE ＋, AND A ROW PER THING, OPENED BY A TAP (Seth, 2026-10-30: "Tale thread has alot of add
   // buttons we should throughout the app make any add a plus button with the entry and tabs kind of
   // like threads ... and edit is opened by tapping the field"). Rules, Your own and the strings are
   // rows that open the pocket panel; the one ＋ opens it to add any of the four.
-  assert.match(tab, /data-taleadd="1"/, 'TALE-PLUS: the Thread tab has one ＋ to add to it');
+  assert.match(tab, /data-taleadd="1"/, 'TALE-PLUS: the tale\'s thread has one ＋ to add to it');
   assert.doesNotMatch(tab, /data-addtalerule|data-addtalepocket|data-stringnew|data-rulenew|data-talenew|data-saverule/,
     'TALE-PLUS: and no add forms, Save buttons or second add presses');
   assert.match(tab, /class="pocketopen" data-editroom="r-1"[\s\S]*?Debts[\s\S]*?Rule/, 'TALE-ROWS: a rule is a row that opens');
@@ -5985,7 +5992,7 @@ ok('Storyteller → Your voice shows When you reweave after the five modes, fill
     { slot: 'rule', name: 'Oaths', keys: ['oath', 'vow'] }, '  with its name and wake words');
   // A tap on the row opens it.
   click({ open: 's-1' }); await sleep(40);
-  click({ storytab: 'thread' }); click({ panel: 'story' });
+  click({ panel: 'talethread' });
   click({ editroom: 'r-1' }); await sleep(20);
   box = html('pocketPanel');
   assert.match(box, /id="pk-name" value="Debts"/, 'TALE-OPEN: tapping a rule opens it in the panel');
@@ -5998,7 +6005,7 @@ ok('Storyteller → Your voice shows When you reweave after the five modes, fill
   (STORY as any).taleThread = { ...(STORY as any).taleThread, nowStateId: 'ts-2',
     states: [{ id: 'ts-2', fromChapter: 2, body: 'The heir is in hiding.', beforeMode: 'hide', label: null }] };
   click({ open: 's-1' }); await sleep(40);
-  click({ storytab: 'thread' }); click({ panel: 'story' });
+  click({ panel: 'talethread' });
   assert.match(html('sideBody'), /<button[^>]*data-talestand="ts-2"[^>]*>The heir is in hiding\.</, 'TALE-NOW-TAP: where the tale stands is a press');
   click({ talestand: 'ts-2' }); await sleep(20);
   box = html('pocketPanel');
@@ -6012,7 +6019,7 @@ ok('Storyteller → Your voice shows When you reweave after the five modes, fill
   click({ pocketdone: '1' }); await sleep(40);
   // REWRITE WHERE IT STANDS (Seth, 2026-10-31): a button under it, which asks for a card and writes nothing.
   click({ open: 's-1' }); await sleep(40);
-  click({ storytab: 'thread' }); click({ panel: 'story' });
+  click({ panel: 'talethread' });
   assert.match(html('sideBody'), /<button[^>]*data-restand="e-tale"[^>]*>Rewrite where it stands</, 'RESTAND-BUTTON: the tale has the button');
   POSTED.length = 0;
   const realFetch = (globalThis as any).fetch;
@@ -6026,7 +6033,7 @@ ok('Storyteller → Your voice shows When you reweave after the five modes, fill
   (STORY as any).taleRules = wasRules; (STORY as any).talePockets = wasOwn; (STORY as any).taleThread = wasTale;
   click({ panel: 'threads' });
 }
-ok("the tale's own thread is on the Tale panel's Thread tab, one ＋ adds to it and a tap opens a row");
+ok("the tale's own thread is its own menu row, one ＋ adds to it and a tap opens a row");
 
 // ---- OVER TIME: ONE ＋, AND A TAP OPENS A CHANGE (Seth, 2026-10-30: "throughout the app make any add
 // a plus button with the entry and tabs kind of like threads to keep the ui simple and edit is opened
@@ -8452,14 +8459,14 @@ const hemCardOf = (side: string) => {
   HEM_VIEW = { ...HEM_VIEW, taleThread: { ...TALE, nowStateId: 'ts-1', states: [{ id: 'ts-1', fromChapter: 2, body: NOW }] } };
   click({ open: 's-1' }); await settle();
   click({ panel: 'story' }); await settle();
-  // #130. Shown once, on the Thread tab: not under how the tale began as well.
+  // #130. Shown once, on the tale's thread: not under how the tale began as well.
   assert.doesNotMatch(book(), /Where it stands now|data-talenow/, 'TALE-NOW-ONCE: where it stands now is not on the Tale tab');
-  click({ panel: '' }); click({ storytab: 'thread' }); click({ panel: 'story' }); await settle();
-  assert.match(html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '', /Where the tale stands[\s\S]*?Where it stands now[\s\S]*?the sixth has burned/,
+  click({ panel: '' }); click({ panel: 'talethread' }); await settle();
+  assert.match(html('sideBody'), /Where the tale stands[\s\S]*?Where it stands now[\s\S]*?the sixth has burned/,
     "TALE-OWN: the tale's own thread shows where it stands too");
   (globalThis as any).fetch = canned;
   click({ open: 's-1' }); await settle();
-  ok("where the tale stands is a diff on the hem's card, the Tale tab shows how it began, and the Thread tab where it stands now");
+  ok("where the tale stands is a diff on the hem's card, the Tale tab shows how it began, and the tale's thread where it stands now");
 }
 
 // ---- #92 · THE CARD'S STATES, and the presses each one offers: running, a pass that did not run
@@ -9775,8 +9782,8 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     `<div class="pocketrow[^"]*">\\s*<button class="pocketopen" data-editroom="${id}"[\\s\\S]*?</button></div>`))?.[0];
   try {
     click({ open: 's-1' }); await wait();
-    click({ storytab: 'thread' }); click({ panel: 'story' }); await wait();
-    const page = html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '';
+    click({ panel: 'talethread' }); await wait();
+    const page = html('sideBody');
     const rules = page.indexOf('>Rules'), prom = page.indexOf('>Promises'), ques = page.indexOf('>Open questions');
     assert.ok(rules > 0 && prom > rules && ques > prom, `TALE-STRINGS: Promises, then Open questions, under Rules (${rules}, ${prom}, ${ques})`);
     const promises = page.slice(prom, ques), questions = page.slice(ques);
