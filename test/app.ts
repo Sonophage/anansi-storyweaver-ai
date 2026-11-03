@@ -2469,6 +2469,24 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     arcana: 'The Fool', grimdark: 'The Tower', scifi: 'The Star', romance: 'The Lovers',
     silver: 'The Moon', amethyst: 'The High Priestess', crimson: 'The Emperor', emerald: 'The Empress' },
     'THEME-NAMES: every theme wears its arcane name');
+  // A TOUCH MORE OF ITS OWN COLOUR (Seth, 2026-11-03, after it went live): The Emperor more red, The
+  // Star more blue, The Empress more green. Read as the accent's hue and saturation, against what they
+  // were on 78dd394 (crimson #E2645C at 3.5 degrees and 70%, scifi #8FB8D9 at 207 and 49%, emerald
+  // #52C793 at 153 and 51%): each nearer its colour's pure hue, and stronger.
+  {
+    const hsl = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+      const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+      let h = d === 0 ? 0 : mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h = (h * 60 + 360) % 360;
+      return { h, sat };
+    };
+    const red = hsl(THEMES.crimson.accent), blue = hsl(THEMES.scifi.accent), green = hsl(THEMES.emerald.accent);
+    assert.ok((red.h < 3 || red.h > 357) && red.sat > 0.75, `THEME-HUE: The Emperor is more red (${red.h.toFixed(1)}, ${red.sat.toFixed(2)})`);
+    assert.ok(blue.h > 209 && blue.h < 225 && blue.sat > 0.6, `THEME-HUE: The Star is more blue (${blue.h.toFixed(1)}, ${blue.sat.toFixed(2)})`);
+    assert.ok(green.h < 149 && green.h > 120 && green.sat > 0.55, `THEME-HUE: The Empress is more green (${green.h.toFixed(1)}, ${green.sat.toFixed(2)})`);
+  }
 
   // ARCANA DRAWS WITH FILES (2026-11-03): its wash and every texture and ornament in its block of
   // app.html is a /web/arcana-*.svg. A name with no file paints nothing and says nothing, so each

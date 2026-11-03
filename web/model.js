@@ -865,8 +865,8 @@ export const THEMES = {
                accent: '#AA6A53', warn: '#9E4632', good: '#6E8069', speak: 'rgba(160,150,145,.3)',
                wash: 'linear-gradient(180deg,#121211,#090909 65%)' },
   scifi:     { label: 'The Star',    dark: 1, swatch: '#08090C', ink: '#DCE4EC', paper: '#08090C', rail: '#090B0F', sheet: '#0D1015',
-               accent: '#8FB8D9', warn: '#D98A6A', good: '#7FB8A8', speak: 'rgba(143,184,217,.36)',
-               wash: 'radial-gradient(60% 40% at 50% 0%, rgba(143,184,217,.13), transparent 72%), linear-gradient(180deg,#0C1016,#07080B 55%)' },
+               accent: '#7FAEE6', warn: '#D98A6A', good: '#7FB8A8', speak: 'rgba(127,174,230,.36)',
+               wash: 'radial-gradient(60% 40% at 50% 0%, rgba(110,160,230,.16), transparent 72%), linear-gradient(180deg,#0B1018,#07080C 55%)' },
   romance:   { label: 'The Lovers',  dark: 1, swatch: '#140E13', ink: '#F0E2E4', paper: '#140E13', rail: '#160F15', sheet: '#1B131A',
                accent: '#D98AA0', warn: '#C4667C', good: '#8FB89C', speak: 'rgba(217,138,160,.4)',
                wash: 'radial-gradient(60% 45% at 28% 0%, rgba(190,110,140,.22), transparent 70%), linear-gradient(180deg,#1D1420,#100B10 55%)' },
@@ -882,13 +882,13 @@ export const THEMES = {
   /* CRIMSON: red on a near-black with red in it. `warn`, the colour that says something is wrong,
    * is amber here, because a red one would be the accent. */
   crimson:   { label: 'The Emperor', dark: 1, swatch: '#110A0A', ink: '#F0E3E0', paper: '#110A0A', rail: '#130B0B', sheet: '#191010',
-               accent: '#E2645C', warn: '#E09A58', good: '#8FB89C', speak: 'rgba(226,100,92,.36)',
-               wash: 'radial-gradient(60% 45% at 50% 0%, rgba(190,50,45,.20), transparent 70%), linear-gradient(180deg,#1A0F0F,#0C0707 55%)' },
+               accent: '#E8463F', warn: '#E09A58', good: '#8FB89C', speak: 'rgba(232,70,63,.36)',
+               wash: 'radial-gradient(60% 45% at 50% 0%, rgba(200,34,34,.22), transparent 70%), linear-gradient(180deg,#1B0E0E,#0C0606 55%)' },
   /* EMERALD: green on a near-black with green in it. `good`, the awake and done colour, leans to
    * teal so it is not the accent. */
   emerald:   { label: 'The Empress', dark: 1, swatch: '#08100D', ink: '#E2EEE8', paper: '#08100D', rail: '#09120F', sheet: '#0E1814',
-               accent: '#52C793', warn: '#DA7A5C', good: '#8CC2C6', speak: 'rgba(82,199,147,.36)',
-               wash: 'radial-gradient(60% 45% at 50% 0%, rgba(50,160,110,.18), transparent 70%), linear-gradient(180deg,#0E1915,#060B09 55%)' },
+               accent: '#3FCF7E', warn: '#DA7A5C', good: '#8CC2C6', speak: 'rgba(63,207,126,.36)',
+               wash: 'radial-gradient(60% 45% at 50% 0%, rgba(40,175,95,.20), transparent 70%), linear-gradient(180deg,#0D1A13,#060B08 55%)' },
 };
 
 /** THE APP'S DISPLAY FACES: thin deco capitals for titles, a geometric sans for labels (Arcana, Seth,
