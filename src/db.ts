@@ -1223,14 +1223,13 @@ export const defaultModelOf = (ownerId: string): string | null =>
 export const setDefaultModel = (ownerId: string, id: string | null) =>
   q('UPDATE users SET default_model = ? WHERE id = ?').run(id, ownerId);
 
-/** The writer's saved sampler settings, or null. Read once per owner by serve.ts, written on every
- *  change; only the keys `POST /api/settings` cleaned ever reach it. */
+/** The writer's saved sampler settings, or null. Read once per owner by serve.ts, as the base every
+ *  tale's own is laid over. Written by `POST /api/settings` until 2026-11-03, when the sampler became
+ *  each tale's (`setTaleGen`); nothing writes it now. */
 export const genOf = (ownerId: string): Record<string, any> | null => {
   const raw = (q('SELECT gen FROM users WHERE id = ?').get(ownerId) as any)?.gen;
   try { return raw ? JSON.parse(raw) : null; } catch { return null; }
 };
-export const setGenOf = (ownerId: string, gen: Record<string, any>) =>
-  q('UPDATE users SET gen = ? WHERE id = ?').run(JSON.stringify(gen), ownerId);
 /** A tale's own sampler, the keys a slider moved in it, or null when none has (`stories.gen`). */
 export const taleGenOf = (storyId: string): Record<string, any> | null => {
   const raw = (q('SELECT gen FROM stories WHERE id = ?').get(storyId) as any)?.gen;

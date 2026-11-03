@@ -4396,11 +4396,12 @@ ok('the tale has one thread of its own, made from its premise and setting, and n
 });
 
 // ---- THE WRITER'S SAMPLER SURVIVES A RESTART (2026-10-28), the same fault the model had above: the
-// length slider lived in a Map in serve.ts, so every restart put it back to "let him decide".
+// length slider lived in a Map in serve.ts, so every restart put it back to "let him decide". Since
+// 2026-11-03 a slider moves its tale's own, and what a writer saved before is the base each tale reads.
 ok("the writer's sampler (passage length and the rest) is kept on their row", () => {
   const a = db.owner('lengthkeeper');
   assert.strictEqual(db.genOf(a), null, 'GEN-KEPT: a writer who never moved a slider has nothing saved');
-  db.setGenOf(a, { target_words: 600, max_tokens: 1400, temperature: 0.7 });
+  db.db.prepare('UPDATE users SET gen = ? WHERE id = ?').run(JSON.stringify({ target_words: 600, max_tokens: 1400, temperature: 0.7 }), a);
   assert.deepStrictEqual(db.genOf(a), { target_words: 600, max_tokens: 1400, temperature: 0.7 }, 'GEN-KEPT: and a setting is kept');
   assert.strictEqual(db.genOf(db.owner('otherlength')), null, 'GEN-KEPT: per writer, not shared');
 });

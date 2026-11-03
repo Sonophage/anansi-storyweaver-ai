@@ -378,12 +378,15 @@ const handler = async (req: any, res: any) => {
       // NOT a value captured at boot. `slotNow` returns what is known and asks the router again in
       // the background while it is still the fallback, so a server that started with the model
       // asleep corrects itself on the next request instead of running the whole process on 8,192.
-      // Kept across restarts (users.gen): the saved one, over the defaults, read once per owner.
+      // The writer's (users.gen), over the defaults, read once per owner: what they saved before the
+      // sampler was each tale's, and the base every tale's own is laid over. Nothing writes it now.
       query: url.searchParams, owner: OWNER, slot: slotNow(), gen: genFor(OWNER),
-      // A REQUEST THAT NAMES A TALE moves that tale's sampler (2026-11-03): see `taleGen` below.
+      // A slider moves the sampler of the tale the request names (2026-11-03), and only that: see
+      // `taleGen` below. `POST /api/settings` is not an open route, so the gate has named one.
       setGen: (g) => {
-        if (tale) { db.setTaleGen(tale, { ...(db.taleGenOf(tale) ?? {}), ...g }); ctx.gen = { ...genFor(OWNER), ...db.taleGenOf(tale) }; return; }
-        const next = { ...genFor(OWNER), ...g }; gens.set(OWNER, next); db.setGenOf(OWNER, next); ctx.gen = next; },
+        if (!tale) throw new Error('a sampler is a tale\'s: this request named none');
+        const own = { ...(db.taleGenOf(tale) ?? {}), ...g };
+        db.setTaleGen(tale, own); ctx.gen = { ...genFor(OWNER), ...own }; },
       defaultModel: db.defaultModelOf(OWNER),
       setDefaultModel: (id) => { db.setDefaultModel(OWNER, id); ctx.defaultModel = id; },
       // What the OTHER writers are currently set to. The map lives here, so the release policy in
