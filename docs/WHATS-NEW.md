@@ -148,6 +148,10 @@ has its own numeral too, beside its heading in a thread's pockets: a voice is V,
 relationship VI, and so on. A thread with a picture keeps it, with the sunburst, the stars and its
 numeral laid faintly over it; one without a picture has them over a bloom of gold. A tale's cover,
 on the shelf, at the top of the Library and over its threads, gets the same faint sunburst and stars.
+### A constellation for each kind
+Each kind of thread has its own stars behind its numeral, drawn as its card: a character is the
+Magician's figure with one hand raised, lore two pillars under an arch with a veil between them, an
+item the Wheel, a place the World's globe. Each kind of pocket has its own too.
 ### No glow along the top
 Under Arcana the glow across the top of the screen is gone. What is waiting is still counted on
 the Workbench in the tale's menu.

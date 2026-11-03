@@ -2415,6 +2415,15 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     const nums = rows.map(([, n]) => n);
     assert.strictEqual(new Set(nums).size, nums.length, `ARCANA-NUMERALS: no two kinds share a numeral (${nums.join(' ')})`);
     assert.doesNotMatch(css, /counter\(arcana/, 'ARCANA-NUMERALS: the list-position counter is gone');
+
+    // A CONSTELLATION PER KIND (Seth, 2026-11-03: "can the constellations be different per thread
+    // type and pocket type"). In the same table, as `--sky`: every kind a writer sees names its own
+    // file, the file is one ARCANA-FILES checked above (named in app.html, on disk, valid SVG), and no
+    // two kinds share one.
+    const skies = [...css.matchAll(/\[data-arcana="(\w+)"\]\s*\{[^}]*--sky:\s*url\('([^']+)'\)/g)].map((m) => [m[1], m[2]]);
+    assert.deepStrictEqual(skies.map(([k]) => k).sort(), want, 'ARCANA-SKY: every thread kind and pocket kind names one constellation');
+    assert.strictEqual(new Set(skies.map(([, f]) => f)).size, skies.length, 'ARCANA-SKY: no two kinds share a constellation');
+    for (const [k, f] of skies) assert.ok(named.includes(f) && existsSync(new URL('..' + f, import.meta.url)), `ARCANA-SKY: ${k}'s ${f} is on disk`);
   }
   // THE FIVE THAT LEFT (2026-11-02). A look saved with one of them still paints a theme that exists.
   for (const gone of ['obsidian', 'parchment', 'fantasy', 'novelist', 'no-such-theme'])

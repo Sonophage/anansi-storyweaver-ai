@@ -2935,21 +2935,29 @@ html[data-ui-theme="arcana"] #page .card.plate:not(:has(> img))::before { conten
        promise        XVII   The Star: hope held out, a thing owed to the reader.
        atmosphere     XVIII  The Moon: mood, mist, the light a place is seen by.
        appearance     XIX    The Sun: seen plain, in full daylight.
-       who_is_here    XX     Judgement: the gathered crowd, those who answer the call there. */
-html[data-ui-theme="arcana"] [data-arcana="character"]     { --arcana:"I"; }
-html[data-ui-theme="arcana"] [data-arcana="lore"]          { --arcana:"II"; }
-html[data-ui-theme="arcana"] [data-arcana="item"]          { --arcana:"X"; }
-html[data-ui-theme="arcana"] [data-arcana="place"]         { --arcana:"XXI"; }
-html[data-ui-theme="arcana"] [data-arcana="voice"]         { --arcana:"V"; }
-html[data-ui-theme="arcana"] [data-arcana="relationships"] { --arcana:"VI"; }
-html[data-ui-theme="arcana"] [data-arcana="outfit"]        { --arcana:"VII"; }
-html[data-ui-theme="arcana"] [data-arcana="what_it_does"]  { --arcana:"VIII"; }
-html[data-ui-theme="arcana"] [data-arcana="interiority"]   { --arcana:"IX"; }
-html[data-ui-theme="arcana"] [data-arcana="question"]      { --arcana:"XII"; }
-html[data-ui-theme="arcana"] [data-arcana="promise"]       { --arcana:"XVII"; }
-html[data-ui-theme="arcana"] [data-arcana="atmosphere"]    { --arcana:"XVIII"; }
-html[data-ui-theme="arcana"] [data-arcana="appearance"]    { --arcana:"XIX"; }
-html[data-ui-theme="arcana"] [data-arcana="who_is_here"]   { --arcana:"XX"; }
+       who_is_here    XX     Judgement: the gathered crowd, those who answer the call there.
+   AND ONE CONSTELLATION PER KIND, `--sky` (Seth, 2026-11-03: "can the constellations be different per
+   thread type and pocket type"): web/arcana-sky-<kind>.svg, each drawn as its card. Character, the
+   Magician's figure, one hand raised; lore, two pillars, the arch and a veil; item, the Wheel; place,
+   the World's globe. A pocket's echoes its kind: a blade sounding for a voice, a hook for a question,
+   two rings meeting for a bond, a cup with a lamp for what is kept inside, an open eye for how it
+   looks, a coat for what it wears, the pentacle's star for what it can do, the Star on its staff for
+   a promise, a moon over mist for the air of a place, a crowd under a call for who is here. A cover
+   or a card with no kind keeps web/arcana-stars.svg. */
+html[data-ui-theme="arcana"] [data-arcana="character"]     { --arcana:"I"; --sky:url('/web/arcana-sky-character.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="lore"]          { --arcana:"II"; --sky:url('/web/arcana-sky-lore.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="item"]          { --arcana:"X"; --sky:url('/web/arcana-sky-item.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="place"]         { --arcana:"XXI"; --sky:url('/web/arcana-sky-place.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="voice"]         { --arcana:"V"; --sky:url('/web/arcana-sky-voice.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="relationships"] { --arcana:"VI"; --sky:url('/web/arcana-sky-relationships.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="outfit"]        { --arcana:"VII"; --sky:url('/web/arcana-sky-outfit.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="what_it_does"]  { --arcana:"VIII"; --sky:url('/web/arcana-sky-what_it_does.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="interiority"]   { --arcana:"IX"; --sky:url('/web/arcana-sky-interiority.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="question"]      { --arcana:"XII"; --sky:url('/web/arcana-sky-question.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="promise"]       { --arcana:"XVII"; --sky:url('/web/arcana-sky-promise.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="atmosphere"]    { --arcana:"XVIII"; --sky:url('/web/arcana-sky-atmosphere.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="appearance"]    { --arcana:"XIX"; --sky:url('/web/arcana-sky-appearance.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="who_is_here"]   { --arcana:"XX"; --sky:url('/web/arcana-sky-who_is_here.svg'); }
 
 /* THE TALE'S THREADS ARE THE MAJOR ARCANA. Every tall card has a face: its kind's numeral in a gilt
    diamond, with the sunburst and the constellation behind it. A card with no picture has them over
@@ -2963,13 +2971,13 @@ html[data-ui-theme="arcana"] #thlist .thplate.thtall:not(.thart) {
   background:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat,
     url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat,
     linear-gradient(to top, var(--sheet) 0%, var(--sheet) 34%, transparent 60%),
-    url('/web/arcana-stars.svg') 50% 6% / 80% auto no-repeat,
+    var(--sky, url('/web/arcana-stars.svg')) 50% 6% / 80% auto no-repeat,
     url('/web/arcana-sunburst.svg') 50% 22% / 92% auto no-repeat,
     url('/web/arcana-wash.svg') 50% 4% / 74% auto no-repeat,
     url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
 html[data-ui-theme="arcana"] #thlist .thplate.thart::before { content:''; position:absolute; inset:0; z-index:-1;
   pointer-events:none; opacity:.55;
-  background:url('/web/arcana-stars.svg') 50% 6% / 80% auto no-repeat,
+  background:var(--sky, url('/web/arcana-stars.svg')) 50% 6% / 80% auto no-repeat,
     url('/web/arcana-sunburst.svg') 50% 22% / 92% auto no-repeat; }
 html[data-ui-theme="arcana"] #thlist .thplate.thtall .platename::before { content:var(--arcana, "");
   position:absolute; left:50%; top:58px; width:84px; height:84px; margin-left:-42px;
