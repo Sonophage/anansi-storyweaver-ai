@@ -9114,7 +9114,10 @@ function pocketState(e, a) {
 }
 /** WOKEN: the thread went to the model with this pocket's text in it. Display only.
  *  ponytail: matched on the pocket's first line in the thread's sent text, since a manifest block
- *  does not list the pockets it carried; give `Block` their ids if two pockets ever share a line. */
+ *  does not list the pockets it carried. Trigger: the library holds two pockets of one thread with
+ *  the same first line, which this query finds: SELECT entry_id FROM addons WHERE entry_id IS NOT
+ *  NULL GROUP BY entry_id, trim(substr(body, 1, instr(body || char(10), char(10)))) HAVING COUNT(*) > 1.
+ *  Then give `Block` the ids of the pockets it carried. */
 function pocketHeard(e, a, mani = manifestNow()) {
   const line = String(a.body ?? '').split('\n').map((l) => l.trim()).find(Boolean);
   // A rule of the tale is its own block, by its own id; every other pocket rides in its thread's.

@@ -4924,8 +4924,9 @@ export const routes: Record<string, Handler> = {
     // already, and a string made tied off or let go keeps its mark. Through `setAddonActive`, so a
     // new one of an exclusive kind takes the place of the one that was on.
     // ponytail: only this route, the writer's own ＋. Talk, the lookups, a hem and an import make
-    // pockets through `upsertAddon` with their own rule for the switch; move this into it if a writer
-    // asks for those to start On as well.
+    // pockets through `upsertAddon` with their own rule for the switch. Trigger: a second caller turns
+    // a new pocket On straight after `upsertAddon` (grep `setAddonActive` beside `upsertAddon` in
+    // src/); then move this rule into `upsertAddon` so both share it.
     if (!addon.id && !addon.restoreId && !['outfit', 'facts'].includes(String(addon.slot)) && !addon.status)
       db.setAddonActive(c.body.storyId, id, true);
     return { addonId: id, ...viewOf(c, c.body.storyId) };
