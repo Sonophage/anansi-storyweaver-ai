@@ -5826,6 +5826,21 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   assert.strictEqual(shown(), 'model', 'TELLER-WAS: a model address lands on Model');
   (globalThis as any).location.hash = '';
 
+  // A DRAWER STAYS WITH ITS TALE (Seth, 2026-11-03: "close drawers when switching tales"). An address
+  // into another tale shuts whatever was open, the full-screen hem too, unless it names a drawer of
+  // its own; one inside the same tale keeps today's rule (the address is the whole truth).
+  {
+    const rootEl = (globalThis as any).document.documentElement;
+    click({ panel: 'ritual' }); await sleep(30);
+    assert.ok(!side().hidden && rootEl.dataset.sidefull === '1', 'TALE-SWITCH: the hem is open, full screen, on the first tale');
+    await go('#s-2'); await sleep(40);
+    assert.ok(side().hidden, 'TALE-SWITCH: an address to another tale shuts the drawer');
+    assert.strictEqual(rootEl.dataset.sidefull, '0', 'TALE-SWITCH: and the full screen goes with it');
+    await go('#s-1/threads'); await sleep(40);
+    assert.ok(!side().hidden && /data-thkind=/.test(html('sideBody')), 'TALE-SWITCH: an address to another tale naming a drawer opens that drawer');
+    click({ panel: '' }); (globalThis as any).location.hash = '';
+  }
+
   // OUTSIDE A TALE: no Model tab, since every setting on it is the tale's.
   click({ home: 1 });
   await sleep(40);

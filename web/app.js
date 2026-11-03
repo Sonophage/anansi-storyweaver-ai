@@ -16628,7 +16628,11 @@ async function route() {
       S.panel = panel ?? (V?.story?.is_world ? 'threads' : null);
       paint();
     } else {
-      if (panel) S.panel = panel;   // readHash has already mapped any retired name
+      // A DRAWER BELONGS TO ITS TALE (Seth, 2026-11-03: "close drawers when switching tales"). Going
+      // to another tale shuts whatever was open, the full-screen hem with it (its full screen is
+      // drawn from the panel, `drawSide`), unless the address names one. readHash has already mapped
+      // any retired name. A world book still opens on its threads (`openStory`).
+      S.panel = panel ?? null;
       // The address is AHEAD of the screen until the tale arrives. A paint in between — the boot
       // paints, the live channel paints — would write the old screen back over the new address.
       ROUTING++;

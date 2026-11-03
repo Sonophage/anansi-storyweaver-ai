@@ -151,6 +151,9 @@ on the shelf, at the top of the Library and over its threads, gets the same fain
 ### No glow along the top
 Under Arcana the glow across the top of the screen is gone. What is waiting is still counted on
 the Workbench in the tale's menu.
+### A drawer stays with its tale
+Going to another tale closes the drawer you had open, the hem included, so the next tale opens on
+its page. A link that names a drawer still opens that drawer.
 ### The side panel, spaced evenly
 An open thread reads with even room: its name, its tags, its four tabs, then each part under its
 own heading with the same space between every part. Rewrite where it stands is a small press under
