@@ -612,7 +612,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // model that always weaves.
   'weaveanyway', 'weaveoff', 'weavemodel',
   // PLAN-08: the card's two views, the jump links, and the rooms themselves.
-  'cardview', 'goslot', 'editroom', 'fold', 'pkind', 'acceptall', 'addonon', 'pocketeye', 'deladdon',
+  'cardview', 'goslot', 'editroom', 'fold', 'pkind', 'acceptall', 'pocketeye', 'deladdon',
   // PLAN-08 Phase 4: a thread can be finished, and brought back, and the chapter's own screen.
   'retire', 'unretire', 'endchapter', 'refinished', 'link', 'unlink', 'forkthreads',
   // The whole book again, prose and all — the press beside `forkthreads`, which takes only the cast.
@@ -3081,12 +3081,10 @@ function pocketPanel() {
     <input class="field" id="pk-owed" inputmode="numeric" value="${esc(pk.owed)}" placeholder="The scene it should be tied off by">` : ''
     : `<label class="lbl" for="pk-keys">Wake words</label>
     <input class="field" id="pk-keys" value="${esc(pk.keys)}" placeholder="${pk.slot === 'rule'
-      ? 'None, to send it always' : 'Comma separated'}">`}
+      ? 'Comma separated, for On a word' : 'Comma separated'}">`}
     ${stand}
     ${own && !adding ? (() => { const a = taleOwn().find((x) => x.id === pk.id);
-      return a ? `<label class="lbl">Sent</label><div class="pkkinds">
-        <button data-addonon="${esc(a.id)}:1" class="pkkind" aria-pressed="${!!a.active}">On</button>
-        <button data-addonon="${esc(a.id)}:0" class="pkkind" aria-pressed="${!a.active}">Off</button></div>` : ''; })() : ''}
+      return a ? `<label class="lbl">Sent</label><div class="pkkinds">${pocketEye(V.taleThread ?? {}, a)}</div>` : ''; })() : ''}
     `;
   // #137 · MERGE WITH ANOTHER POCKET of this thread, from one that exists. Not on the tale's own thread,
   // whose pockets are its strings and its rules, nor on a World thread the tale only follows.
@@ -3619,8 +3617,8 @@ function taleThread() {
       <button data-taleadd="1" class="headadd" aria-label="Add to the tale's thread" title="Add to the tale's thread"
         ><span>${mark('create', 16)}</span></button></div>
     <div class="lbl sect">Rules &middot; <span class="tnum">${rules.length}</span></div>
-    <div class="hint lead-6">The laws this tale obeys. With no wake words a rule is sent always; with
-      them, when one comes up. Sent while it is on.</div>
+    <div class="hint lead-6">The laws this tale obeys. Each has the eye a pocket has: On is sent always,
+      On a word when one of its wake words comes up, and Off is never sent.</div>
     ${/* ONE ROW EACH, opened by a tap (Seth, 2026-10-30). ADR 0005 · a rule is a pocket of the tale. */
       rules.length ? rules.map((a) => ownRow({ ...a, slot: 'rule' })).join('') : '<div class="hint flush">No rules yet.</div>'}
     ${/* #129 · THE TALE'S STRINGS, which are pockets of this thread (ADR 0011): one list per kind, each
@@ -3635,19 +3633,18 @@ function taleThread() {
         }).join('')}
     <div class="lbl sect">Your own &middot; <span class="tnum">${own.length}</span></div>
     <div class="hint lead-6">Anything else for the whole tale, as an instruction: "keep it a slow burn",
-      "the narrator never names him". Sent while it is on.</div>
+      "the narrator never names him". Sent while its eye is open.</div>
     ${own.length ? own.map((a) => ownRow({ ...a, slot: 'instruction' })).join('') : '<div class="hint flush">Nothing of your own yet.</div>'}`;
 }
-/** ONE OF THE TALE'S RULES OR YOUR OWN, as a row: its name and kind, a line of it, and its switch. The
+/** ONE OF THE TALE'S RULES OR YOUR OWN, as a row: its name and kind, a line of it, and its eye (`pocketEye`). The
  *  name opens the pocket panel on it, as a string's row does (`stringRow`). */
 function ownRow(a) {
-  return `<div class="pocketrow${a.active ? ' lit' : ''}">
+  return `<div class="pocketrow${pocketReach(a) !== 'off' ? ' lit' : ''}">
     <button class="pocketopen" data-editroom="${esc(a.id)}" aria-label="Open ${esc(a.name)}">
       <span class="pkname">${esc(a.name)} <span class="faded">&middot; ${esc(pocketTitle(a.slot))}</span></span>
       <span class="pkline">${esc(String(a.body ?? '').split('\n')[0])}</span>
       ${a.slot === 'rule' && (a.keys ?? []).length ? `<span class="pkline faint">On ${esc(a.keys.join(', '))}</span>` : ''}</button>
-    <button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag pocketsw" aria-pressed="${!!a.active}"
-      aria-label="${esc(a.name)} is ${a.active ? 'on. Tap to take it off' : 'off. Tap to turn it on'}">${a.active ? 'On' : 'Off'}</button></div>`;
+    ${pocketEye(V.taleThread ?? {}, a)}</div>`;
 }
 
 
@@ -9107,12 +9104,13 @@ function eyeLook(state, lit, hasWords = true) {
   return { on: state === 'on', state, look, word, label: `${now}. Tap to ${next}.` };
 }
 /** #134 · A POCKET'S STATE: Off, On a word (asleep, or woken when its word sent it), or On, from its
- *  `activation` (`pocketReach`, model.js). A string has no wake words: on while in play, else off. A tap not yet saved shows what it set. */
-const pocketWordless = (a) => a.slot === 'promise' || a.slot === 'question';
+ *  `activation` (`pocketReach`, model.js). A string, and one of your own, has no wake words: on while
+ *  it is sent, else off. A tap not yet saved shows what it set. */
+const pocketWordless = (a) => a.slot === 'promise' || a.slot === 'question' || a.slot === 'instruction';
 function pocketState(e, a) {
   const set = S.reachNow?.[a.id];
   if (set) return set;
-  if (pocketWordless(a)) return a.active ? 'on' : 'off';
+  if (pocketWordless(a)) return pocketReach(a) === 'always_on' ? 'on' : 'off';
   const act = pocketReach(a);
   return act === 'always_on' ? 'on' : act === 'off' ? 'off' : pocketHeard(e, a) ? 'woken' : 'word';
 }
@@ -9121,7 +9119,9 @@ function pocketState(e, a) {
  *  does not list the pockets it carried; give `Block` their ids if two pockets ever share a line. */
 function pocketHeard(e, a, mani = manifestNow()) {
   const line = String(a.body ?? '').split('\n').map((l) => l.trim()).find(Boolean);
-  return !!line && !!mani?.blocks.some((b) => b.id === e.id && b.state === 'included' && String(b.text ?? '').includes(line));
+  // A rule of the tale is its own block, by its own id; every other pocket rides in its thread's.
+  const id = TALE_OWN_SLOTS.includes(a.slot) ? a.id : e.id;
+  return !!line && !!mani?.blocks.some((b) => b.id === id && b.state === 'included' && String(b.text ?? '').includes(line));
 }
 /** The pocket's next state: a thread card's cycle, Off → On a word → On → Off; Off ↔ On on a string. */
 const nextPocket = (a, state) => pocketWordless(a) ? (state === 'on' ? 'off' : 'on') : nextReach(state);
@@ -12960,21 +12960,11 @@ document.addEventListener('click', async (e) => {
     if (owner) { openPocket(owner.id, d.editroom); paint(); }
     return;
   }
-  if (d.addonon) {
-    // The id and the state it is going TO, not a toggle: two presses racing on one row would
-    // otherwise both read "off" and both write "on", and on an exclusive slot the second write is
-    // the one the unique index refuses.
-    const [id, on] = d.addonon.split(':');
-    const r = await api.addonOn(S.storyId, id, on === '1', V.currentChapter?.index);
-    if (r.error) return toast(r.error);
-    V = r.entries ? r : await api.story(S.storyId);
-    paint(); refreshManifest(); return;
-  }
   /* #134 · A POCKET'S EYE (`pocketEye`), as a thread card's: the mark moves now, with the state's name
    * for a moment, and the write queues behind the taps before it (REACH_QUEUE). */
   if (d.pocketeye) {
     const id = d.pocketeye;
-    const owner = [...V.entries, ...(V.taleThread ? [V.taleThread] : [])].find((x) => (x.addons ?? []).some((a) => a.id === id));
+    const owner = pocketOwners().find((x) => (x.addons ?? []).some((a) => a.id === id));
     const a = owner?.addons.find((x) => x.id === id); if (!a) return;
     const next = nextPocket(a, pocketState(owner, a));
     (S.reachNow = S.reachNow ?? {})[id] = next;

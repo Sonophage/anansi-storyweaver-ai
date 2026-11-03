@@ -1,6 +1,6 @@
 // Story service. Maps database rows to the engine's plain-object Input and back.
 // The engine never sees a row; the routes never see SQL.
-import { buildContext, stateInForce, wornAt, retiredAt, resolveBody, REWEAVE } from './context.ts';
+import { buildContext, stateInForce, wornAt, retiredAt, resolveBody, REWEAVE, pocketReach } from './context.ts';
 import type { Input, Entry } from './context.ts';
 import { render, entryText, SYSTEM } from './render.ts';
 import { SLOTS } from './slots.ts';
@@ -259,10 +259,11 @@ export function view(storyId: string, focusChapterId?: string) {
           activation: a.activation ?? undefined })) }; })(),
     // #75. The tale's own pockets: instructions for the whole tale, on its thread at the top of Threads.
     talePockets: addons.filter((a: any) => !a.entry_id && a.slot === 'instruction').map((a: any) => ({
-      id: a.id, name: a.name, body: a.body, active: !!a.active })),
+      id: a.id, name: a.name, body: a.body, active: !!a.active, activation: a.activation ?? undefined })),
     // ADR 0005 · The tale's rules, pockets of its own thread since 2026-10-29, on The tale's thread.
     taleRules: addons.filter((a: any) => !a.entry_id && a.slot === 'rule').map((a: any) => ({
-      id: a.id, name: a.name, body: a.body, keys: JSON.parse(a.keys || '[]'), active: !!a.active })),
+      id: a.id, name: a.name, body: a.body, keys: JSON.parse(a.keys || '[]'), active: !!a.active,
+      activation: a.activation ?? undefined })),
     pins: pins.map((p: any) => ({ chapterId: p.chapter_id, entryId: p.entry_id, mode: p.mode })),
     // PLAN-08 Phase 3. Directed connections, parent to child. They travel with the view because
     // the engine reads them and the Threads screen draws them, and both have to agree about which
@@ -435,11 +436,13 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
   // stays pure: it receives a story whose voice is already resolved.
   const withVoice = { ...v.story,
     writingStyle: (v.story as any).writingStyle?.trim() || voiceOf((v as any).owner),
-    // #75. The tale's own pockets that are switched on.
-    pockets: ((v as any).talePockets ?? []).filter((a: any) => a.active).map((a: any) => a.body),
-    // ADR 0005 · Its rules that are on. A tale following a World does not read the World's rules.
+    // #75. The tale's own pockets that are On (#134, by their eye: they have no wake words).
+    pockets: ((v as any).talePockets ?? []).filter((a: any) => pocketReach(a) === 'always_on').map((a: any) => a.body),
+    // ADR 0005 · Its rules that are not Off (#134, by their eye). A tale following a World does not
+    // read the World's rules.
     // ponytail: no World holds a rule today; read them through `followPair` if one ever does.
-    rules: ((v as any).taleRules ?? []).filter((a: any) => a.active),
+    rules: ((v as any).taleRules ?? []).filter((a: any) => pocketReach({ ...a, slot: 'rule' }) !== 'off')
+      .map((a: any) => ({ ...a, activation: pocketReach({ ...a, slot: 'rule' }) })),
     // #125 · WHERE THE TALE STANDS at the scene being written: the tale's thread's Over time entry in
     // force there, by the rule every thread's is read by. Its scene-1 text is the premise, so a tale
     // with nothing sewn in, or no thread yet, sends the premise as before.

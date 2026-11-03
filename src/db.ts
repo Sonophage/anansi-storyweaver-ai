@@ -733,16 +733,19 @@ function migrate() {
   add('addons', 'activation', 'TEXT');
   // Dropped and made again on every boot, so an edit to either reaches a library that has the old
   // one: `IF NOT EXISTS` would keep the first body a library got, and nothing would say so.
+  // #134 · A RULE OF THE TALE gets the eye too (2026-11-03). A library whose trigger was written
+  // before that has its rules' activation by the pockets' reading of the switch, which is not how a
+  // rule was sent; `reachRules` puts each right, once, because the old trigger is the only mark that
+  // it has not been done (a later eye press on a rule must not be undone by the next boot).
+  const before = (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'addons_activation_new'")
+    .get() as any)?.sql as string | undefined;
+  if (before && !before.includes("'rule'")) reachRules();
   db.exec(`DROP TRIGGER IF EXISTS addons_activation_new; DROP TRIGGER IF EXISTS addons_activation_step;
   CREATE TRIGGER addons_activation_new AFTER INSERT ON addons WHEN NEW.activation IS NULL
-    BEGIN UPDATE addons SET activation = CASE WHEN NEW.active = 1 THEN 'always_on'
-      WHEN (CASE WHEN json_valid(NEW.keys) THEN json_array_length(NEW.keys) ELSE 0 END) > 0 THEN 'triggered'
-      ELSE 'off' END WHERE id = NEW.id; END;
+    BEGIN UPDATE addons SET activation = ${oldSwitchSQL('NEW.')} WHERE id = NEW.id; END;
   CREATE TRIGGER addons_activation_step AFTER UPDATE OF active ON addons
-    WHEN NEW.activation IS NOT NULL AND (NEW.active = 1) <> (NEW.activation = 'always_on')
-    BEGIN UPDATE addons SET activation = CASE WHEN NEW.active = 1 THEN 'always_on'
-      WHEN (CASE WHEN json_valid(NEW.keys) THEN json_array_length(NEW.keys) ELSE 0 END) > 0 THEN 'triggered'
-      ELSE 'off' END WHERE id = NEW.id; END;`);
+    WHEN NEW.activation IS NOT NULL AND (NEW.active = 1) <> ${switchOnSQL('NEW.')}
+    BEGIN UPDATE addons SET activation = ${oldSwitchSQL('NEW.')} WHERE id = NEW.id; END;`);
   backfillPocketActivation();
 
   // PLAN-08, the last step of the wardrobe move. The copy above has run on every boot since Phase 2
@@ -2312,6 +2315,28 @@ export function backfillActPrints(): number {
   return rows.length;
 }
 
+/** #134 · WHAT THE OLD SWITCH MEANT, as SQL over a row (`p` is `NEW.` in a trigger, '' in an UPDATE).
+ *  A pocket: on is On, off with wake words is On a word (it was sent when a word fired), off without
+ *  is Off. A rule of the tale: on is On a word with wake words and On without, and off is Off (an
+ *  off rule was never sent). `pocketReach` in `src/context.ts` is the TypeScript copy; test/db.ts
+ *  runs every case through both triggers, the backfill and it. Function declarations, not consts:
+ *  `migrate()` runs above them. */
+function oldSwitchSQL(p: string): string {
+  const words = `(CASE WHEN json_valid(${p}keys) THEN json_array_length(${p}keys) ELSE 0 END) > 0`;
+  return `CASE WHEN ${p}slot = 'rule' THEN CASE WHEN ${p}active = 1 THEN CASE WHEN ${words} THEN 'triggered'
+      ELSE 'always_on' END ELSE 'off' END
+    WHEN ${p}active = 1 THEN 'always_on' WHEN ${words} THEN 'triggered' ELSE 'off' END`;
+}
+/** Whether a row's activation is the switch's on: On for a pocket, anything but Off for a rule. */
+function switchOnSQL(p: string): string {
+  return `(CASE WHEN ${p}slot = 'rule' THEN ${p}activation <> 'off' ELSE ${p}activation = 'always_on' END)`;
+}
+/** Each rule of every tale given the activation its switch and words already sent it by. Once: see
+ *  the call in `migrate()`. */
+function reachRules(): number {
+  return Number(db.prepare(`UPDATE addons SET activation = ${oldSwitchSQL('')} WHERE slot = 'rule'`).run().changes);
+}
+
 /** #134 · THE ACTIVATION A POCKET FROM BEFORE THE COLUMN ALREADY BEHAVED AS, and only for rows that
  *  have none: on is On (`always_on`), off with wake words is On a word (`triggered`, it was sent when
  *  a word fired), off without is Off. A second run writes nothing. A NEW pocket with no activation
@@ -2319,9 +2344,7 @@ export function backfillActPrints(): number {
  *  (`addons_activation_step`); `pocketReach` in `src/context.ts` is the TypeScript copy, and
  *  test/db.ts runs every case through all four. Function declaration: runs inside `migrate()`. */
 export function backfillPocketActivation(): number {
-  return Number(db.prepare(`UPDATE addons SET activation = CASE WHEN active = 1 THEN 'always_on'
-    WHEN (CASE WHEN json_valid(keys) THEN json_array_length(keys) ELSE 0 END) > 0 THEN 'triggered'
-    ELSE 'off' END WHERE activation IS NULL`).run().changes);
+  return Number(db.prepare(`UPDATE addons SET activation = ${oldSwitchSQL('')} WHERE activation IS NULL`).run().changes);
 }
 
 export const passagesOfChapter = (chapterId: string) =>
@@ -3114,14 +3137,21 @@ export function setAddonActive(storyId: string, addonId: string, on: boolean, at
 }
 
 /** #134 · A POCKET'S EYE: Off, On a word, or On (`ACTIVATIONS`). On goes through `setAddonActive`,
- *  so an exclusive slot clears its siblings as it always has; the other two write the column and the
- *  old switch together (off), so the two never disagree. Null on a value that is not one of the
- *  three, or a pocket not in this tale. */
+ *  so an exclusive slot clears its siblings as it always has, and is then written as asked: the old
+ *  switch reads a rule with wake words as On a word. The other two write the column and the old
+ *  switch together, so the two never disagree: off, except a rule On a word, whose switch was on
+ *  (`switchOnSQL`). Null on a value that is not one of the three, or a pocket not in this tale. */
 export function setAddonActivation(storyId: string, addonId: string, activation: string) {
   if (!(ACTIVATIONS as readonly string[]).includes(activation)) return null;
-  if (!q('SELECT 1 FROM addons WHERE id = ? AND story_id = ?').get(addonId, storyId)) return null;
-  if (activation === 'always_on') return setAddonActive(storyId, addonId, true);
-  q('UPDATE addons SET activation = ?, active = 0 WHERE id = ? AND story_id = ?').run(activation, addonId, storyId);
+  const row = q('SELECT slot FROM addons WHERE id = ? AND story_id = ?').get(addonId, storyId) as any;
+  if (!row) return null;
+  if (activation === 'always_on') {
+    if (!setAddonActive(storyId, addonId, true)) return null;
+    q("UPDATE addons SET activation = 'always_on' WHERE id = ?").run(addonId);
+    return addonId;
+  }
+  q('UPDATE addons SET activation = ?, active = ? WHERE id = ? AND story_id = ?')
+    .run(activation, row.slot === 'rule' && activation === 'triggered' ? 1 : 0, addonId, storyId);
   touch(storyId);
   return addonId;
 }

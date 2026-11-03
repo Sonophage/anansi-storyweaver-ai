@@ -158,6 +158,7 @@ const srv = createServer((req, res) => {
         changes: [{ op: 'rule.set', title: 'The tide', text: 'The river runs backward at night.', keys: ['night'] },
                   { op: 'rule.set', title: 'the toll', text: 'Every crossing costs two coins.' },
                   { op: 'rule.switch', title: 'Dawn law', on: true }] },
+      RULEALWAYS: { reply: 'Dawn law holds always now.', changes: [{ op: 'rule.set', title: 'Dawn law', activation: 'always_on' }] },
       OWNINSTR: { reply: 'Weather carries it now, the tense is present, and no oaths is on.',
         changes: [{ op: 'instruction.set', title: 'Weather', text: 'Let the weather carry the feeling.' },
                   { op: 'instruction.set', title: 'Tense', text: 'Keep to the present tense.' },
@@ -2824,6 +2825,19 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   assert.deepStrictEqual(undoAll(rules), ['Put back the rule Dawn law: off.', 'Put back the rule The toll.', 'Took away the rule The tide.']);
   assert.deepStrictEqual(own('rule'), rulesBefore, 'TALK-RULE-UNDO: Undo puts every rule back as it was');
   ok('asked for a rule, Talk adds, changes or switches it at once, and Undo puts each back');
+
+  // #134 · A RULE'S EYE MOVES WITH TALK'S CHANGE: Always on is On, and its Undo puts it back On a word.
+  const eye = (name: string) => (db.addonsOf(tale.id) as any[]).find((a) => !a.entry_id && a.name === name)?.activation;
+  routes['POST /api/addon/on'](ctxOf({ id: (db.addonsOf(tale.id) as any[]).find((a) => a.name === 'Dawn law').id, activation: 'triggered' }));
+  const always = await say('CHANGE-RULEALWAYS: dawn law holds always');
+  assert.ok(!always.error && always.changes.length === 1, always.error ?? always.reply);
+  assert.deepStrictEqual([named('rule', 'Dawn law')?.keys, eye('Dawn law')], [[], 'always_on'],
+    'TALK-RULE-EYE: Always on takes its words away and sets it On');
+  undoAll(always);
+  assert.deepStrictEqual([named('rule', 'Dawn law')?.keys, eye('Dawn law')], [['dawn'], 'triggered'],
+    'TALK-RULE-EYE-UNDO: Undo puts its words back, On a word');
+  routes['POST /api/addon/on'](ctxOf({ id: (db.addonsOf(tale.id) as any[]).find((a) => a.name === 'Dawn law').id, on: false }));
+  ok("a rule's eye moves with Talk's change, and back with its Undo");
 
   // THE WRITER'S OWN INSTRUCTIONS
   const instr = await say('CHANGE-OWNINSTR: add a weather instruction, make it present tense, and switch no oaths on');

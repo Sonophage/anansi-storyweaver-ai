@@ -737,6 +737,9 @@ function applyChange(storyId: string, owner: string, ch: Change):
       name: ch.name, body: ch.text, keys: ch.keys });
     if (!id) return null;
     if (!ch.addon) db.setAddonActive(storyId, id, true);
+    // #134 · A rule's eye as Talk's change moved it, unless the rule is Off.
+    if (ch.activation && (db.addonsOf(storyId) as any[]).find((a) => a.id === id)?.activation !== 'off')
+      db.setAddonActivation(storyId, id, ch.activation);
     return { addon: id };
   }
   if (ch.op === 'rule.switch' || ch.op === 'instruction.switch') return db.setAddonActive(storyId, ch.addon, ch.on) ? {} : null;

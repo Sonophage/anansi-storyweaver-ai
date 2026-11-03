@@ -5974,7 +5974,8 @@ ok('Storyteller → Your voice shows When you reweave after the five modes, fill
   const wasOwn = (STORY as any).talePockets, wasTale = (STORY as any).taleThread;
   // A tale with its own thread, so a rule saved with no thread is told apart from one saved on it.
   (STORY as any).taleThread = { id: 'e-tale', title: 'The tale', entryType: 'tale', addons: [], states: [] };
-  (STORY as any).talePockets = [{ id: 'i-1', name: 'Slow burn', body: 'Nobody touches before scene ten.', active: true }];
+  (STORY as any).talePockets = [{ id: 'i-1', name: 'Slow burn', body: 'Nobody touches before scene ten.', active: true },
+    { id: 'i-2', name: 'Quiet', body: 'Nobody shouts.', active: false }];
   click({ open: 's-1' }); await sleep(40);
   click({ panel: 'talethread' });
   const tab = html('sideBody');
@@ -5987,7 +5988,18 @@ ok('Storyteller → Your voice shows When you reweave after the five modes, fill
     'TALE-PLUS: and no add forms, Save buttons or second add presses');
   assert.match(tab, /class="pocketopen" data-editroom="r-1"[\s\S]*?Debts[\s\S]*?Rule/, 'TALE-ROWS: a rule is a row that opens');
   assert.match(tab, /class="pocketopen" data-editroom="i-1"[\s\S]*?Slow burn[\s\S]*?Your own/, '  and so is an instruction of your own');
-  assert.match(tab, /data-addonon="r-1:0"/, '  each with its switch');
+  // #134 · EVERY POCKET HAS THE EYE (Seth, 2026-11-03: "so that everything is uniform"): a rule switched
+  // on with wake words is On a word, asleep; one of your own, which has no wake words, is On.
+  assert.match(tab, /data-pocketeye="r-1" data-look="eyeshut" data-reach="word"/, 'OWN-EYE-RULE: a rule has the pocket eye');
+  assert.match(tab, /data-pocketeye="i-1" data-look="eye" data-reach="on"/, 'OWN-EYE-OWN: and so does one of your own');
+  assert.doesNotMatch(tab, /data-addonon=/, '  and no On / Off words');
+  POSTED.length = 0; click({ pocketeye: 'r-1' }); await sleep(40);
+  assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon/on')?.body, { storyId: 's-1', id: 'r-1', activation: 'always_on' },
+    'OWN-EYE-TAP: a tap on a rule On a word sets it On');
+  POSTED.length = 0; click({ pocketeye: 'i-2' }); await sleep(40);
+  assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon/on')?.body, { storyId: 's-1', id: 'i-2', activation: 'always_on' },
+    'OWN-EYE-WORDLESS: one of your own goes Off to On, with no On a word between');
+  click({ panel: 'talethread' });
   // The ＋: the pocket panel on the tale's thread, offering all four kinds.
   click({ taleadd: '1' }); await sleep(20);
   let box = html('pocketPanel');

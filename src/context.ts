@@ -81,9 +81,10 @@ export interface Story {
   stands?: string;
   /** #75. The tale's own pockets, switched on: instructions for the whole tale ("keep it a slow burn"). */
   pockets?: string[];
-  /** ADR 0005 · The tale's rules that are switched on: laws the tale obeys, pockets of its own thread
-   *  since 2026-10-29. With no wake words a rule is sent always; with them, when one comes up. */
-  rules?: { id: string; name: string; body: string; keys?: string[] }[];
+  /** ADR 0005 · The tale's rules that are not Off: laws the tale obeys, pockets of its own thread
+   *  since 2026-10-29. #134 · By its eye: On is sent always, On a word when one of its words comes
+   *  up. With no eye given, a rule is On with no wake words and On a word with them (`pocketReach`). */
+  rules?: { id: string; name: string; body: string; keys?: string[]; activation?: 'always_on' | 'triggered' | 'off' }[];
   pov: string; writingStyle: string; spice: 1 | 2 | 3 | 4 | 5;
   /** The world or intellectual property the book belongs to, and what is true in it. Both ride in
    *  SPINE: the name is identity and is kept, the note is furniture and is trimmable. */
@@ -419,11 +420,16 @@ export const STRING_FRAMES: Record<'promise' | 'question', string> = {
 
 /** #134 · HOW A POCKET REACHES THE MODEL: its `activation`, or, on a row with none, by the one rule
  *  for the old switch: on is On, off with wake words is On a word, off without is Off (an off pocket
- *  with no word to wake it was never sent). The same rule is written in SQL in `src/db.ts` (the two
- *  `addons_activation_*` triggers and `backfillPocketActivation`) and in `web/model.js`; test/db.ts
- *  runs every case through each copy. */
-export const pocketReach = (a: Pick<Addon, 'activation' | 'active'> & { keys?: string[] }): 'always_on' | 'triggered' | 'off' =>
-  a.activation ?? (a.active ? 'always_on' : (a.keys ?? []).length ? 'triggered' : 'off');
+ *  with no word to wake it was never sent). A rule of the tale was sent another way: on is On a word
+ *  with wake words and On without, and off is Off. The same rule is written in SQL in `src/db.ts`
+ *  (`oldSwitchSQL`) and in `web/model.js`; test/db.ts runs every case through each copy. */
+export const pocketReach = (a: { activation?: Addon['activation']; active?: boolean; keys?: string[]; slot?: string }):
+  'always_on' | 'triggered' | 'off' => {
+  if (a.activation) return a.activation;
+  const words = (a.keys ?? []).length > 0;
+  if (a.slot === 'rule') return a.active ? (words ? 'triggered' : 'always_on') : 'off';
+  return a.active ? 'always_on' : words ? 'triggered' : 'off';
+};
 
 /** The framed kinds that are exclusive in `SLOTS`: one per thread, so a label tells nothing apart. */
 const SOLO = new Set(EXCLUSIVE_SLOTS);
@@ -1253,14 +1259,16 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   }
 
   // THE TALE'S RULES (ADR 0005), in canon where rule threads were until 2026-10-29, so a rule is
-  // budgeted and evicted as it was: always when it has no wake words, else when one fires in the
-  // same window a thread's do. Framed with its name, as a thread's Always true is.
+  // budgeted and evicted as it was: always when it is On, and On a word when one of its words fires
+  // in the same window a thread's do (#134, its eye). Framed with its name, as a thread's Always true is.
   for (const r of story.rules ?? []) {
     const name = String(r.name ?? '').trim();
     const said = unwrapped(String(r.body ?? ''), [name]).trim();
     if (!said) continue;
     const text = `[A rule of this tale${name ? `, ${name}` : ''}: ${said}]`;
-    if (!(r.keys ?? []).length) { add('CANON-ALWAYS', r.id, text, 'rule', ['rule']); continue; }
+    const reach = pocketReach({ ...r, slot: 'rule', active: true });
+    if (reach === 'off') continue;
+    if (reach === 'always_on') { add('CANON-ALWAYS', r.id, text, 'rule', ['rule']); continue; }
     const hit = fires({ id: r.id, title: name, body: '', entryType: 'lore', activation: 'triggered',
       keys: r.keys!, lastEditor: 'human' } as Entry, recent);
     if (hit.length) add('CANON-TRIGGERED', r.id, text, 'keyword', hit);

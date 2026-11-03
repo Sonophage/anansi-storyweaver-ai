@@ -4688,6 +4688,7 @@ ok('a rule is a pocket of the tale, never a thread, and old rule threads move ac
     assert.ok(moved.body.includes(part), `RULE-MOVE-TEXT: nothing the model was sent is lost: ${part}`);
   assert.deepStrictEqual(JSON.parse(moved.keys), ['game'], 'RULE-MOVE-KEYS: a rule on a word keeps its words');
   assert.strictEqual(moved.active, 1, '  and it is on');
+  assert.strictEqual(moved.activation, 'triggered', 'RULE-MOVE-EYE: and On a word, as it was sent');
   assert.strictEqual(db.rulesToPockets(), 0, 'RULE-MOVE-ONCE: a second load moves nothing');
   db.delStory(st.id);
 });
@@ -4822,34 +4823,41 @@ ok('a pocket set Off, On a word or On is sent that way, and its old switch moves
  * it On a word, and none make it Off. SQL cannot call TypeScript, so the rule is written in the insert
  * trigger, the step trigger and the migration's backfill as well as in `pocketReach` and the screen's
  * copy of it. Every case runs through every copy here, against literals, so a copy that drifts fails
- * by name. (The writer's own ＋ then switches its pocket on; that is a choice, not this rule.) */
+ * by name. (The writer's own ＋ then switches its pocket on; that is a choice, not this rule.)
+ * A RULE OF THE TALE read its switch another way before it had the eye: on was sent, always with no
+ * wake words and on a word with them, and off was never sent, words or none. So on is On or On a word
+ * by its words, and off is Off. */
 ok('every copy of the old switch\'s rule gives a pocket the same eye', () => {
   const ctx: any = context;
   const me = db.owner('pocket-reach-agree');
   const st = db.createStory(me, { title: 'Pocket reach' });
   const e = db.upsertEntry(st.id, me, { title: 'Wren', body: 'a smith', entryType: 'character' })!;
-  const cases: [number, string[], string][] = [
-    [1, [], 'always_on'], [1, ['anvil'], 'always_on'], [0, ['anvil'], 'triggered'], [0, [], 'off']];
+  const cases: [string, number, string[], string][] = [
+    ['interiority', 1, [], 'always_on'], ['interiority', 1, ['anvil'], 'always_on'],
+    ['interiority', 0, ['anvil'], 'triggered'], ['interiority', 0, [], 'off'],
+    ['rule', 1, [], 'always_on'], ['rule', 1, ['anvil'], 'triggered'],
+    ['rule', 0, ['anvil'], 'off'], ['rule', 0, [], 'off']];
   const raw = db.db;
-  const put = (active: number, keys: string[], activation: string | null) => {
+  const put = (slot: string, active: number, keys: string[], activation: string | null) => {
     const id = `ad-agree-${Math.random().toString(36).slice(2)}`;
     raw.prepare(`INSERT INTO addons (id, story_id, entry_id, slot, name, body, keys, active, activation, created_at)
-      VALUES (?, ?, ?, 'interiority', ?, 'x', ?, ?, ?, 0)`).run(id, st.id, e, id, JSON.stringify(keys), active, activation);
+      VALUES (?, ?, ?, ?, ?, 'x', ?, ?, ?, 0)`)
+      .run(id, st.id, slot === 'rule' ? null : e, slot, id, JSON.stringify(keys), active, activation);
     return id;
   };
   const act = (id: string) => (raw.prepare('SELECT activation FROM addons WHERE id = ?').get(id) as any).activation;
-  for (const [active, keys, want] of cases) {
-    const said = `active ${active}, ${keys.length ? 'wake words' : 'no wake words'}`;
-    assert.strictEqual(act(put(active, keys, null)), want, `POCKET-AGREE-INSERT: the insert trigger, ${said}`);
-    const stepped = put(1 - active, keys, active ? 'off' : 'always_on');
+  for (const [slot, active, keys, want] of cases) {
+    const said = `${slot}, active ${active}, ${keys.length ? 'wake words' : 'no wake words'}`;
+    assert.strictEqual(act(put(slot, active, keys, null)), want, `POCKET-AGREE-INSERT: the insert trigger, ${said}`);
+    const stepped = put(slot, 1 - active, keys, active ? 'off' : 'always_on');
     raw.prepare('UPDATE addons SET active = ? WHERE id = ?').run(active, stepped);
     assert.strictEqual(act(stepped), want, `POCKET-AGREE-STEP: the step trigger, ${said}`);
-    const old = put(active, keys, null);
+    const old = put(slot, active, keys, null);
     raw.prepare('UPDATE addons SET activation = NULL WHERE id = ?').run(old);
     db.backfillPocketActivation();
     assert.strictEqual(act(old), want, `POCKET-AGREE-BACKFILL: the migration, ${said}`);
-    assert.strictEqual(ctx.pocketReach({ active: !!active, keys }), want, `POCKET-AGREE-REACH: pocketReach, ${said}`);
-    assert.strictEqual(webModel.pocketReach({ active: !!active, keys }), want, `POCKET-AGREE-WEB: the screen, ${said}`);
+    assert.strictEqual(ctx.pocketReach({ slot, active: !!active, keys }), want, `POCKET-AGREE-REACH: pocketReach, ${said}`);
+    assert.strictEqual(webModel.pocketReach({ slot, active: !!active, keys }), want, `POCKET-AGREE-WEB: the screen, ${said}`);
   }
   db.delStory(st.id);
 });
@@ -4882,6 +4890,85 @@ ok('a library with an old pocket trigger gets the current one on boot', () => {
     for (const name of ['addons_activation_new', 'addons_activation_step'])
       assert.strictEqual(sqlOf(now, name), sqlOf(db.db, name), `POCKET-TRIGGER-FRESH: ${name} is the current one`);
     now.close();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+/* #134 · A RULE OF THE TALE AND ONE OF YOUR OWN HAVE THE EYE, as every pocket has (Seth, 2026-11-03:
+ * "so that everything is uniform"). What is sent is read from the eye, through the view the server
+ * builds. `debt` is on the page; `oath` is not. */
+ok('a rule and one of your own are sent by their eye', () => {
+  const me = db.owner('rule-eye');
+  const st = db.createStory(me, { title: 'Rule eye' });
+  db.addPassage({ storyId: st.id, branchId: st.branchId, chapterId: st.chapterId, body: 'She paid the debt at last.' });
+  const rule = (name: string, body: string, keys: string[]) => {
+    const id = db.upsertAddon(st.id, null, { slot: 'rule', name, body, keys })!;
+    db.setAddonActive(st.id, id, true);
+    return id;
+  };
+  const debt = rule('Debts', 'A debt survives the debtor.', ['debt']);
+  const oath = rule('Oaths', 'An oath binds the heir.', ['oath']);
+  const own = db.upsertAddon(st.id, null, { slot: 'instruction', name: 'Pace', body: 'Keep it a slow burn.' })!;
+  db.setAddonActive(st.id, own, true);
+  const sent = (text: string) => JSON.stringify(story.assemble(story.view(st.id) as any,
+    { global: 8192, slots: 1, perSlot: 8192 }, 'continue').manifest.blocks).includes(text);
+  const act = (id: string) => db.addonsOf(st.id).find((a: any) => a.id === id).activation;
+  assert.deepStrictEqual([act(debt), act(oath), act(own)], ['triggered', 'triggered', 'always_on'],
+    'RULE-EYE-NEW: a rule switched on with wake words is On a word, and your own switched on is On');
+  assert.ok(sent('A debt survives') && !sent('An oath binds'), '  and a rule On a word is sent on its word only');
+  db.setAddonActivation(st.id, oath, 'always_on');
+  assert.ok(sent('An oath binds'), 'RULE-EYE-ON: a rule set On is sent with no word of it on the page');
+  assert.strictEqual(act(oath), 'always_on', '  and stays On, its wake words kept');
+  db.setAddonActivation(st.id, debt, 'off');
+  assert.ok(!sent('A debt survives'), 'RULE-EYE-OFF: a rule set Off is not sent, with its word on the page');
+  db.setAddonActivation(st.id, debt, 'triggered');
+  assert.ok(sent('A debt survives'), 'RULE-EYE-WORD: set On a word again, it is sent on its word');
+  db.setAddonActivation(st.id, own, 'off');
+  assert.ok(!sent('slow burn'), 'OWN-EYE-OFF: your own set Off is not sent');
+  db.setAddonActivation(st.id, own, 'always_on');
+  assert.ok(sent('slow burn'), 'OWN-EYE-ON: and set On it is');
+  db.delStory(st.id);
+});
+
+/* A LIBRARY FROM BEFORE THE RULE'S EYE had its rules read as pockets: on was On, whatever its words.
+ * One boot puts each rule right, once, by how it was sent; a later boot leaves the eye alone. */
+ok('a library from before the rule\'s eye gets each rule\'s eye from how it was sent, once', () => {
+  const dir = mkdtempSync('/tmp/anansi-rule-eye-');
+  const file = join(dir, 'library.db');
+  try {
+    const boot = () => {
+      const r = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
+        `await import(${JSON.stringify(new URL('../src/db.ts', import.meta.url).href)});`],
+        { env: { ...process.env, ANANSI_DB: file }, encoding: 'utf8' });
+      assert.strictEqual(r.status, 0, `the boot failed: ${r.stderr}`);
+    };
+    boot();
+    const old = new RawDb(file);
+    // The trigger as it was, and two rules as it left them.
+    old.exec(`DROP TRIGGER addons_activation_new;
+      CREATE TRIGGER addons_activation_new AFTER INSERT ON addons WHEN NEW.activation IS NULL
+        BEGIN UPDATE addons SET activation = CASE WHEN NEW.active = 1 THEN 'always_on' ELSE 'triggered' END WHERE id = NEW.id; END;
+      INSERT INTO users (id, login, created_at) VALUES ('o-old', 'o-old', 0);`);
+    const sid = 's-old';
+    old.prepare(`INSERT INTO stories (id, owner_id, title, created_at, updated_at) VALUES (?, 'o-old', 'Old', 0, 0)`).run(sid);
+    const put = (id: string, keys: string, active: number, activation: string) => old.prepare(`INSERT INTO addons
+      (id, story_id, entry_id, slot, name, body, keys, active, activation, created_at) VALUES (?, ?, NULL, 'rule', ?, 'x', ?, ?, ?, 0)`)
+      .run(id, sid, id, keys, active, activation);
+    put('r-word', '["debt"]', 1, 'always_on');
+    put('r-off', '["oath"]', 0, 'triggered');
+    put('r-always', '[]', 1, 'always_on');
+    old.close();
+    boot();
+    const read = () => { const c = new RawDb(file, { readOnly: true });
+      const m = Object.fromEntries((c.prepare("SELECT id, activation FROM addons WHERE slot = 'rule'").all() as any[])
+        .map((r) => [r.id, r.activation]));
+      c.close(); return m; };
+    assert.deepStrictEqual(read(), { 'r-word': 'triggered', 'r-off': 'off', 'r-always': 'always_on' },
+      'RULE-EYE-MIG: on with wake words is On a word, off is Off, on without is On');
+    const later = new RawDb(file);
+    later.prepare("UPDATE addons SET activation = 'always_on' WHERE id = 'r-word'").run();
+    later.close();
+    boot();
+    assert.strictEqual(read()['r-word'], 'always_on', 'RULE-EYE-MIG-ONCE: a later boot leaves a rule set On alone');
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

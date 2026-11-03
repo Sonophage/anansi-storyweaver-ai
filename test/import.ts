@@ -86,6 +86,21 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   ok('a thread\'s pockets survive the trip, each with its eye');
 }
 
+// #134 · AND THE TALE'S RULES, each with its eye: a rule On with wake words is not On a word.
+{
+  const s = db.createStory(owner, { title: 'Rule trip' });
+  const rule = (name: string, keys: string[], act: string) =>
+    db.setAddonActivation(s.id, db.upsertAddon(s.id, null, { slot: 'rule', name, body: `${name} text`, keys })!, act);
+  rule('always', ['toll'], 'always_on'); rule('word', ['dawn'], 'triggered'); rule('off', [], 'off');
+  const { file } = db.exportStory(s.id, owner, '/tmp/anansi-import-out');
+  const back = imp.absorb(owner, imp.fromExport(file));
+  const got = db.addonsOf(back.storyId).filter((a: any) => a.slot === 'rule')
+    .map((a: any) => [a.name, JSON.parse(a.keys), a.activation]).sort();
+  assert.deepStrictEqual(got, [['always', ['toll'], 'always_on'], ['off', [], 'off'], ['word', ['dawn'], 'triggered']],
+    'RULE-TRIP: each rule comes back with its wake words and eye');
+  ok('the tale\'s rules survive the trip, each with its eye');
+}
+
 // Outfits travel with the character. exportStory carried them already — it deletes other stories
 // and lets the cascade do the rest — but fromExport reads a fixed set of tables, and outfits were
 // missed when the table landed, so a round trip returned everyone naked. The engine half of a

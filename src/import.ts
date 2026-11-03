@@ -56,7 +56,7 @@ export interface Incoming {
   entries: Record<string, any>[];
   passages: { body: string; author?: string }[];
   strings?: Record<string, any>[];   // unpaid promises; only an Anansi export carries them
-  rules?: { name: string; body: string; keys: string[]; active: boolean }[];   // ADR 0005; only an Anansi export
+  rules?: { name: string; body: string; keys: string[]; active: boolean; activation?: string }[];   // ADR 0005; only an Anansi export
   notes: string[];            // things deliberately not imported, shown to the writer
 }
 
@@ -128,7 +128,8 @@ export function fromExport(file: string): Incoming {
     // (`db.upsertEntry`'s floor).
     let rules: any[] = [];
     try {
-      rules = src.prepare("SELECT name, body, keys, active FROM addons WHERE story_id = ? AND entry_id IS NULL AND slot = 'rule' ORDER BY created_at")
+      // `*`: a file from before #134 has no `activation` column, and naming it would lose every rule.
+      rules = src.prepare("SELECT * FROM addons WHERE story_id = ? AND entry_id IS NULL AND slot = 'rule' ORDER BY created_at")
         .all(story.id) as any[];
     } catch { /* an older file */ }
     // #134 · A THREAD'S OTHER POCKETS, each with its eye. Not Always true (`facts`, which the entry's
@@ -178,7 +179,8 @@ export function fromExport(file: string): Incoming {
         // which is about the session rather than the book.
       })),
       rules: cap(rules, MAX_ENTRIES, 'rules', notes).map((r: any) => ({ name: clip(r.name, 200), body: clip(r.body),
-        keys: keysOf(r.keys && JSON.parse(r.keys)), active: !!r.active })),
+        keys: keysOf(r.keys && JSON.parse(r.keys)), active: !!r.active,
+        activation: pocketReach({ activation: r.activation, active: !!r.active, keys: keysOf(r.keys && JSON.parse(r.keys)), slot: 'rule' }) })),
       notes,
     };
   } finally { src.close(); }
@@ -474,7 +476,8 @@ function pocketsIn(storyId: string, entryId: string | null, pockets?: any[]) {
 function takeRules(storyId: string, inc: Incoming) {
   for (const r of (inc.rules ?? []).slice(0, MAX_ENTRIES)) {
     const id = clip(r.body) ? db.upsertAddon(storyId, null, { slot: 'rule', name: r.name, body: clip(r.body), keys: r.keys }) : null;
-    if (id && r.active) db.setAddonActive(storyId, id, true);
+    // #134 · Its eye, or from a file without one, what its switch and words sent it by (`pocketReach`).
+    if (id) db.setAddonActivation(storyId, id, pocketReach({ activation: r.activation as any, active: !!r.active, keys: keysOf(r.keys), slot: 'rule' }));
   }
 }
 

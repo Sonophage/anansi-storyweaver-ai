@@ -35,7 +35,7 @@
  * may write.
  */
 import { ALL_SLOTS, KINDS, STRING_SLOTS, keysTakenBy, oneKeyword, slotsFor, plain, tidyGenre, wrapperNames } from './slots.ts';
-import { retiredAt } from './context.ts';
+import { retiredAt, pocketReach } from './context.ts';
 
 /** What the model may ask for. #97 cut the path with the first two; #98 adds the rest; #128 adds a
  *  string, a pocket of the tale's own thread (ADR 0011), which no other operation reaches. Then the
@@ -122,7 +122,7 @@ type Thread = { id: string; title: string; entryType: string; addons?: Room[]; s
 type State = { id: string; fromChapter: number; body: string; label?: string | null; beforeMode?: string | null };
 type Scene = { id: string; index: number; title?: string | null; authorsNote?: string | null };
 /** A pocket of no thread: one of the tale's rules or the writer's own instructions, as the view has them. */
-type Own = { id: string; name: string; body: string; keys?: string[]; active: boolean };
+type Own = { id: string; name: string; body: string; keys?: string[]; active: boolean; activation?: 'always_on' | 'triggered' | 'off' };
 /** A string as the view has it: its switch (`summoned`) and its mark (`status`, open, paid or dropped). */
 type Str = { id: string; title: string; kind?: string; status?: string | null; summoned?: boolean };
 /** The tale as the route read it through the gate: its threads, and since #98 its own fields, its
@@ -173,6 +173,8 @@ export type Change =
   /** A rule or an instruction: `addon` is the one it writes over, null for a new one, which is made
    *  on; `before` is its text and wake words, null when there was none. An instruction has no words. */
   | { op: 'rule.set' | 'instruction.set'; addon: string | null; name: string; text: string; keys: string[];
+      /** #134 · A rule's eye when Talk's change moves it: Always on, On a word, or new wake words. */
+      activation?: 'always_on' | 'triggered';
       before: { text: string; keys: string[] } | null; undo?: true }
   | { op: 'rule.switch' | 'instruction.switch'; addon: string; name: string; on: boolean; undo?: true }
   /** A rule or an instruction Talk added, taken away by an Undo. */
@@ -531,7 +533,8 @@ function ownSet(tale: Tale, op: 'rule.set' | 'instruction.set', raw: any, said: 
     if (!w || !stillWrote(w.text, cur.body) || (rule && !sameKeys(keysOf(w.keys), cur.keys ?? [])))
       return { ok: false, said, why: SINCE };
     const text = String(raw.text ?? ''), keys = rule ? keysOf(raw.keys) : [];
-    return { ok: true, change: { op, addon: cur.id, name: cur.name, text, keys, before: { text, keys }, undo: true } };
+    return { ok: true, change: { op, addon: cur.id, name: cur.name, text, keys, before: { text, keys }, undo: true,
+      ...(rule && !sameKeys(keys, cur.keys ?? []) ? { activation: keys.length ? 'triggered' as const : 'always_on' as const } : {}) } };
   }
   const title = String(raw?.title ?? raw?.thread ?? '').trim();
   if (!title) return { ok: false, said, why: `the ${slot} had no name` };
@@ -546,7 +549,13 @@ function ownSet(tale: Tale, op: 'rule.set' | 'instruction.set', raw: any, said: 
   if (rule && raw?.activation === 'triggered' && !keys.length) return { ok: false, said,
     why: `On a word needs wake words, and ${name} has none. Say which words` };
   if (cur && cur.body.trim() === text && sameKeys(keys, had)) return { ok: false, said, why: `${name} already says that` };
-  return { ok: true, change: { op, addon: cur?.id ?? null, name, text, keys,
+  // #134 · A RULE'S EYE moves with what Talk was asked: Always on is On, On a word is On a word, and
+  // new wake words alone make it On a word (none, On), as they did before the eye. A rule that is Off
+  // stays Off (`applyChange`).
+  const activation = !rule ? undefined
+    : raw?.activation === 'always_on' || raw?.activation === 'triggered' ? raw.activation as 'always_on' | 'triggered'
+    : !cur || !sameKeys(keys, had) ? (keys.length ? 'triggered' : 'always_on') : undefined;
+  return { ok: true, change: { op, addon: cur?.id ?? null, name, text, keys, ...(activation ? { activation } : {}),
     before: cur ? { text: cur.body, keys: had } : null } };
 }
 
@@ -581,8 +590,11 @@ export function talesOwn(tale: Tale): string {
   const line = (name: string, state: string, body?: string) =>
     `- ${name} (${state})${body?.trim() ? `: ${clip(body.trim().replace(/\s+/g, ' '), 140)}` : ''}`;
   const parts = [
-    tale.taleRules?.length && `Rules:\n${cut(tale.taleRules).map((r) => line(r.name, `${r.active ? 'on' : 'off'}, ${
-      (r.keys ?? []).length ? `on a word: ${r.keys!.join(', ')}` : 'always'}`, r.body)).join('\n')}`,
+    // #134 · By the rule's eye. An Off rule says how it is sent once switched on: on its words if it has any.
+    tale.taleRules?.length && `Rules:\n${cut(tale.taleRules).map((r) => { const reach = pocketReach({ ...r, slot: 'rule' });
+      const words = r.keys ?? [];
+      return line(r.name, `${reach === 'off' ? 'off' : 'on'}, ${reach === 'always_on' || (reach === 'off' && !words.length)
+        ? 'always' : `on a word: ${words.join(', ')}`}`, r.body); }).join('\n')}`,
     tale.talePockets?.length && `The writer's own instructions:\n${cut(tale.talePockets).map((p) =>
       line(p.name, p.active ? 'on' : 'off', p.body)).join('\n')}`,
     tale.strings?.length && `Strings:\n${cut(tale.strings).map((x) =>
