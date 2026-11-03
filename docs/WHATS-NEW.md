@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · Threads and pockets save as you type
 
+### The Tale panel opens on Tale
+The Tale panel has four tabs now, Tale, Thread, Setting and Keep, and opens on Tale. Tale is one
+scroll: the cover first, as large as a thread's picture, then the title, the genre and how the tale
+began, then the voice and Spice, which were their own Voice tab. Replacing, removing, drawing or
+finding a cover, and how it shows at the head of each scene, are in one fold under the cover, shut
+until you open it. A tale with no cover shows the ways to add one straight away. Where the tale
+stands now is shown once, on the Thread tab.
 ### The demo library moved to Account
 The Demo library switch is no longer in the main menu. It is under Account, in Your books, beside
 Import and Export. While you are in the demo library, the library page shows "Leave the demo
