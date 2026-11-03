@@ -977,11 +977,12 @@ if (anyEntry) {
     ok(`  the form opens on The card (${await onTab()})`, (await onTab()) === 'card');
     ok('    with Name and Trigger words on it, and not the Pockets list, the states or Delete',
        (await vis('#f-card-title')) && (await vis('#f-card-keys'))
-       && !(await vis('[data-pocketnew]')) && !(await vis('[data-addstate]')) && !(await vis('[data-delentry]')));
+       && !(await vis('.pane:not([hidden]) [data-pocketnew]')) && !(await vis('[data-addstate]')) && !(await vis('[data-delentry]')));
     await page.click('[data-cardtab="rooms"]'); await wait(400);
     // The name is above the tabs since 2026-11-02, on every tab, so the card field that hides is the keys.
     ok('    Pockets shows + Add a pocket and hides the card fields',
-       (await vis('[data-pocketnew]')) && !(await vis('#f-card-keys')));
+       // The ＋ is the header's since 2026-11-03, on every tab; the tab holds the list.
+       (await vis('#sideHead [data-pocketnew]')) && (await vis('.pane:not([hidden]) .pocketlist')) && !(await vis('#f-card-keys')));
     await page.click('[data-cardtab="time"]'); await wait(400);
     ok('    Over time shows the states editor', await vis('[data-addstate]'));
     await page.click('[data-cardtab="more"]'); await wait(400);
@@ -1247,7 +1248,7 @@ await wait(500);
 // the header's ＋). The kind is picked in the panel, and Ask Anansi is the row under its fields.
 await page.click('[data-cardtab="rooms"]');
 await wait(400);
-await page.click('.pane:not([hidden]) [data-pocketnew]');
+await page.click('#sideHead [data-pocketnew]');
 await wait(400);
 await page.click('[data-pocketkind="outfit"]');
 await wait(300);
@@ -1280,8 +1281,8 @@ await page.click('[data-pocketx]'); await wait(400);
   // An empty pocket draws NOTHING in the list: a heading for it is the eight-empty-headings problem.
   ok('an empty pocket draws no row in the list at all',
      (await page.eval(`!document.querySelector('.pane:not([hidden]) [data-slotat="${empty}"]')`)) === true);
-  for (let i = 0; i < 40 && !(await page.visible('.pane:not([hidden]) [data-pocketnew]')); i++) await wait(250);
-  await page.click('.pane:not([hidden]) [data-pocketnew]');
+  for (let i = 0; i < 40 && !(await page.visible('#sideHead [data-pocketnew]')); i++) await wait(250);
+  await page.click('#sideHead [data-pocketnew]');
   await wait(400);
   const panel = await page.eval(`(() => ({
     pills: document.querySelectorAll('#pocketPanel [data-pocketkind]').length,

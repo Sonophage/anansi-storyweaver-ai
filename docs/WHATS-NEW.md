@@ -32,6 +32,7 @@ A thread's pockets are one tidy list, on its page and on the Pockets tab: no box
 Each row is the pocket's name with its text under it and its switch on the right, grouped under its
 kind: Outfit, Relationships and so on. What is off sits under Not turned on, a little dimmer, grouped
 the same way.
+While you edit a thread, ＋ beside Save at the top adds a pocket, from any tab.
 
 ### Bigger thread cards, with the picture behind them
 In a tale's Threads, every card is twice as tall. A thread with a picture wears it across the whole

@@ -2885,12 +2885,16 @@ function isReading() { return threadOpen() && S.cardView !== 'form'; }
  *  whose rare actions are on its face). Alter: Cancel and Save and nothing else — no Close, because
  *  leaving from here would throw away what was typed without asking; Cancel asks (alterDirty). */
 function threadBar(mode) {
+  const e = V?.entries.find((x) => x.id === S.entryId);
+  // ＋ FOR A NEW POCKET, BESIDE SAVE (Seth, 2026-11-03: "put the add a pocket as an icon up top in the
+  // edit screen"), as Read's header has it. It was a link at the foot of the Pockets tab.
   if (mode === 'alter') return `
     <button data-cancelalter="1" class="headback" aria-label="Cancel and go back to reading it"><span
       class="serif">Cancel</span></button>
     <span class="fill"></span>
+    ${e && !e.sharedFrom ? `<button data-pocketnew="${esc(e.id)}" class="headmore headplus"
+      aria-label="Add a pocket to ${esc(e.title || 'this thread')}" title="Add a pocket"><span>${mark('create', 17)}</span></button>` : ''}
     <button data-saveentry="1" class="headsave">Save</button>`;
-  const e = V?.entries.find((x) => x.id === S.entryId);
   return `
     <button data-backentry="1" class="headback" aria-label="Back to the threads">&lsaquo;&nbsp;<span
       class="serif">Threads</span></button>
@@ -7966,7 +7970,7 @@ const pocketSwitch = (e, a, wear = false) => wear && a.slot === 'outfit'
  *  INSIDE EACH (Seth, 2026-11-03: "pockets should be categorized by type both on edit and not"; he
  *  kept the two sections): a small heading per kind, its pockets under it, in the slot order `rows`
  *  arrives in. The jump anchor is on the first row of each kind, wherever that falls. */
-const pocketList = (e, rows, sw, lines) => {
+const pocketList = (e, rows, sw, lines, add = true) => {
   const seen = new Set();
   const row = (a) => { const at = seen.has(a.slot) ? '' : ` data-slotat="${esc(a.slot)}"`; seen.add(a.slot); return pocketRow(a, sw(a), at, lines); };
   const byKind = (list) => [...new Set(list.map((a) => a.slot))].map((slot) =>
@@ -7976,7 +7980,7 @@ const pocketList = (e, rows, sw, lines) => {
     ${tipCard('pocketsOff', 'Not turned on', `<p>Written down, and not reaching the model &mdash;
       either switched off, or until one of its wake words appears.</p>`)}${off}` : ''}
     ${rows.length ? '' : '<div class="hint pkempty">No pockets yet.</div>'}
-    <button class="pkadd" data-pocketnew="${esc(e.id)}">+ Add a pocket</button></div>`;
+    ${add ? `<button class="pkadd" data-pocketnew="${esc(e.id)}">+ Add a pocket</button>` : ''}</div>`;
 };
 
 /* THE KIND JOINS THE ROOMS ON ONE ROW. Seth, 2026-09-02: "all of these chips should be on a single
@@ -8490,7 +8494,8 @@ function entryEditor() {
       const mine = [...(e.addons ?? []).filter((a) => a.slot !== 'outfit'),
         ...(e.outfits ?? []).map((o) => ({ ...o, slot: 'outfit' }))].filter((a) => order.includes(a.slot))
         .sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot));
-      return pocketList(e, mine, (a) => pocketSwitch(e, a, true), 1);
+      // No add link here: the editor's ＋ is in its header (threadBar).
+      return pocketList(e, mine, (a) => pocketSwitch(e, a, true), 1, false);
     })()}
 
     <!-- ANANSI FILLS THIS ONE TOO. Seth, 2026-08-28: "the characters are filled by ai but the

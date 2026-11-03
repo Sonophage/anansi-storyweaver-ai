@@ -8835,6 +8835,11 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   click({ panel: 'threads' }); click({ entry: 'e-1' }); await wait();
   const head = html('sideHead');
   assert.match(head, /data-pocketnew="e-1"/, 'PANEL-PLUS: the header has a ＋ for a new pocket');
+  // AND THE EDITOR'S HEADER (Seth, 2026-11-03): ＋ beside Save, and no add link left in the Pockets tab.
+  click({ cardview: 'form' }); click({ cardtab: 'rooms' }); await wait();
+  assert.match(html('sideHead'), /data-pocketnew="e-1"[\s\S]*data-saveentry/, 'ALTER-PLUS: the editor has ＋ before Save');
+  assert.doesNotMatch(html('sideBody'), /data-pocketnew=/, 'ALTER-PLUS: and the Pockets tab has no add link of its own');
+  click({ cancelalter: '1' }); await wait();
   const { MARK } = await import('../web/model.js');
   assert.doesNotMatch(MARK.tidy, /C6 5 8 8 10\.5 6\.5/, 'PANEL-BROOM: the wavy Tidy mark is gone');
   assert.match(MARK.tidy, /M15\.4 3\.2/, 'PANEL-BROOM: Tidy is the broom');
