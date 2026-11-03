@@ -367,6 +367,8 @@ const handler = async (req: any, res: any) => {
     // registry that held every request would have `/api/stop` cancelling a story fetch.
     const generating = key === 'POST /api/generate';
     if (generating) { live.set(OWNER, gone); generatingRef.on = true; generatingRef.owner = OWNER; }
+    // The tale this request names, once the gate below has seen it is this writer's (`taleGen`).
+    let tale: string | null = null;
     const ctx: Ctx = {
       signal: gone.signal,
       // Abort THIS writer's generation. Theirs and no one else's — the map is keyed by owner, so a
@@ -378,7 +380,10 @@ const handler = async (req: any, res: any) => {
       // asleep corrects itself on the next request instead of running the whole process on 8,192.
       // Kept across restarts (users.gen): the saved one, over the defaults, read once per owner.
       query: url.searchParams, owner: OWNER, slot: slotNow(), gen: genFor(OWNER),
-      setGen: (g) => { const next = { ...genFor(OWNER), ...g }; gens.set(OWNER, next); db.setGenOf(OWNER, next); ctx.gen = next; },
+      // A REQUEST THAT NAMES A TALE moves that tale's sampler (2026-11-03): see `taleGen` below.
+      setGen: (g) => {
+        if (tale) { db.setTaleGen(tale, { ...(db.taleGenOf(tale) ?? {}), ...g }); ctx.gen = { ...genFor(OWNER), ...db.taleGenOf(tale) }; return; }
+        const next = { ...genFor(OWNER), ...g }; gens.set(OWNER, next); db.setGenOf(OWNER, next); ctx.gen = next; },
       defaultModel: db.defaultModelOf(OWNER),
       setDefaultModel: (id) => { db.setDefaultModel(OWNER, id); ctx.defaultModel = id; },
       // What the OTHER writers are currently set to. The map lives here, so the release policy in
@@ -417,6 +422,16 @@ const handler = async (req: any, res: any) => {
       const sid = storyIdOf(ctx.body, ctx.query);
       if (!sid) return send(res, 400, { error: 'this request must name a story' });
       if (!db.ownsStory(sid, OWNER)) return send(res, 404, { error: 'no such story' });
+    }
+    /* HOW HE PICKS WORDS IS THE TALE'S (Seth, 2026-11-03: "remove the global On every tale, we'll just
+     * leave it as a per tale option"). A request that names a tale of this writer's reads that tale's
+     * sampler, laid over the writer's, so every route that reads `c.gen` (the generation, the budget,
+     * the view) reads the tale's; a tale whose sliders never moved reads the writer's as it stood. */
+    const named = storyIdOf(ctx.body, ctx.query);
+    if (named && db.ownsStory(named, OWNER)) {
+      tale = named;
+      const own = db.taleGenOf(named);
+      if (own) ctx.gen = { ...ctx.gen, ...own };
     }
     /* WHOSE PRESS THIS IS, for the live channel. Set here rather than threaded through every write:
      * `touch()` in db.ts is what announces a change and it has twenty-five callers, none of which

@@ -678,6 +678,10 @@ function migrate() {
   // because a weaving passage measured 60 s against 7 s (F60) and no book should get that slower
   // without its writer asking.
   add('stories', 'weaving', 'INTEGER DEFAULT 0');
+  // HOW HE PICKS WORDS, THE TALE'S OWN (Seth, 2026-11-03: "remove the global On every tale, we'll just
+  // leave it as a per tale option"). JSON, the keys `POST /api/settings` takes, laid over the writer's
+  // sampler (`users.gen`). NULL until a slider moves in that tale, which reads as the writer's.
+  add('stories', 'gen', 'TEXT');
   // #24. A TABLE rather than a column, so it does not go through `drop` above. Its five batches
   // were written into docs/WHATS-NEW.md before this shipped; the file is the record now and the
   // model call that filled this is gone. Guarded on existence so the line is quiet on a database
@@ -1217,6 +1221,13 @@ export const genOf = (ownerId: string): Record<string, any> | null => {
 };
 export const setGenOf = (ownerId: string, gen: Record<string, any>) =>
   q('UPDATE users SET gen = ? WHERE id = ?').run(JSON.stringify(gen), ownerId);
+/** A tale's own sampler, the keys a slider moved in it, or null when none has (`stories.gen`). */
+export const taleGenOf = (storyId: string): Record<string, any> | null => {
+  const raw = (q('SELECT gen FROM stories WHERE id = ?').get(storyId) as any)?.gen;
+  try { return raw ? JSON.parse(raw) : null; } catch { return null; }
+};
+export const setTaleGen = (storyId: string, gen: Record<string, any>) =>
+  q('UPDATE stories SET gen = ? WHERE id = ?').run(JSON.stringify(gen), storyId);
 
 /** THE SHORTLIST, always by owner. Every read and write names the owner, so one writer's list is
  *  unreachable from another's account by construction — the same shape as `promptsOf`. The one

@@ -1670,6 +1670,21 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
 
     ok('the dispatcher itself fails closed — a real server, as the other writer');
 
+    // HOW HE PICKS WORDS IS THE TALE'S (Seth, 2026-11-03: "remove the global On every tale, we'll just
+    // leave it as a per tale option"). A slider moved in one tale moves nothing in another, and a tale
+    // that has never moved one reads the writer's sampler as it stood, so nothing changes for it.
+    const other = db.createStory(bob, { title: "Bob's other book" });
+    const genOf = async (id: string) => (await (await fetch(`${url}/api/story?story=${id}`)).json()).gen;
+    const writerT = (await genOf(other.id)).temperature;
+    const moved = await (await post('/api/settings', { storyId: bStory.id, temperature: 1.3, target_words: 400 })).json();
+    assert.deepStrictEqual([moved.gen.temperature, moved.gen.target_words], [1.3, 400], 'TALE-GEN: the tale has the sliders as moved');
+    assert.deepStrictEqual([(await genOf(bStory.id)).temperature, (await genOf(bStory.id)).target_words], [1.3, 400],
+      '  and reads them back');
+    assert.strictEqual((await genOf(other.id)).temperature, writerT, "TALE-GEN-OTHER: another tale's sampler did not move");
+    assert.strictEqual((await genOf(other.id)).target_words, 0, '  nor its longest passage');
+    db.delStory(other.id);
+    ok("how he picks words, and the longest a passage runs, are each tale's own");
+
     /* THESE SERVERS NEVER REACH THE REAL MODEL. `src/llama.ts` defaults to the live router on
      * :8080, and a suite that leaves ANANSI_LLAMA unset talks to it — during a GPU measurement
      * that is a second caller on the slots being measured. `/api/models` asks the router for its
