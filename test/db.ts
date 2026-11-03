@@ -15,6 +15,7 @@ const { DatabaseSync: RawDb } = await import('node:sqlite');
 const webModel: any = await import('../web/model.js');
 const slots = await import('../src/slots.ts');
 const prompts = await import('../src/prompts.ts');
+const context = await import('../src/context.ts');
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -4802,6 +4803,42 @@ ok('a pocket set Off, On a word or On is sent that way, and its old switch moves
   assert.strictEqual(db.addonsOf(to.id).find((a: any) => a.entry_id === made && a.slot === 'interiority')?.activation, 'off',
     'POCKET-COPY: a copied Off pocket arrives Off');
   db.delStory(to.id);
+  db.delStory(st.id);
+});
+
+/* #134 · ONE RULE FOR A POCKET THAT HAS NO EYE OF ITS OWN YET: switched on is On, else wake words make
+ * it On a word, and none make it Off. SQL cannot call TypeScript, so the rule is written in the insert
+ * trigger, the step trigger and the migration's backfill as well as in `pocketReach` and the screen's
+ * copy of it. Every case runs through every copy here, against literals, so a copy that drifts fails
+ * by name. (The writer's own ＋ then switches its pocket on; that is a choice, not this rule.) */
+ok('every copy of the old switch\'s rule gives a pocket the same eye', () => {
+  const ctx: any = context;
+  const me = db.owner('pocket-reach-agree');
+  const st = db.createStory(me, { title: 'Pocket reach' });
+  const e = db.upsertEntry(st.id, me, { title: 'Wren', body: 'a smith', entryType: 'character' })!;
+  const cases: [number, string[], string][] = [
+    [1, [], 'always_on'], [1, ['anvil'], 'always_on'], [0, ['anvil'], 'triggered'], [0, [], 'off']];
+  const raw = db.db;
+  const put = (active: number, keys: string[], activation: string | null) => {
+    const id = `ad-agree-${Math.random().toString(36).slice(2)}`;
+    raw.prepare(`INSERT INTO addons (id, story_id, entry_id, slot, name, body, keys, active, activation, created_at)
+      VALUES (?, ?, ?, 'interiority', ?, 'x', ?, ?, ?, 0)`).run(id, st.id, e, id, JSON.stringify(keys), active, activation);
+    return id;
+  };
+  const act = (id: string) => (raw.prepare('SELECT activation FROM addons WHERE id = ?').get(id) as any).activation;
+  for (const [active, keys, want] of cases) {
+    const said = `active ${active}, ${keys.length ? 'wake words' : 'no wake words'}`;
+    assert.strictEqual(act(put(active, keys, null)), want, `POCKET-AGREE-INSERT: the insert trigger, ${said}`);
+    const stepped = put(1 - active, keys, active ? 'off' : 'always_on');
+    raw.prepare('UPDATE addons SET active = ? WHERE id = ?').run(active, stepped);
+    assert.strictEqual(act(stepped), want, `POCKET-AGREE-STEP: the step trigger, ${said}`);
+    const old = put(active, keys, null);
+    raw.prepare('UPDATE addons SET activation = NULL WHERE id = ?').run(old);
+    db.backfillPocketActivation();
+    assert.strictEqual(act(old), want, `POCKET-AGREE-BACKFILL: the migration, ${said}`);
+    assert.strictEqual(ctx.pocketReach({ active: !!active, keys }), want, `POCKET-AGREE-REACH: pocketReach, ${said}`);
+    assert.strictEqual(webModel.pocketReach({ active: !!active, keys }), want, `POCKET-AGREE-WEB: the screen, ${said}`);
+  }
   db.delStory(st.id);
 });
 

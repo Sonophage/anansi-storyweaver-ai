@@ -56,6 +56,12 @@ export const keysFrom = (k, cap = Infinity) => {
     .slice(0, cap);
 };
 
+/** #134 · A copy of `pocketReach` in `src/context.ts` (the browser cannot import the .ts): a pocket's
+ *  `activation`, or, on a row with none, on is On, off with wake words is On a word, off without is
+ *  Off. test/db.ts runs every case through both and through the SQL copies. */
+export const pocketReach = (a) =>
+  a.activation ?? (a.active ? 'always_on' : (a.keys ?? []).length ? 'triggered' : 'off');
+
 /** The four kinds as GROUPS, which is how every row that offers them reads: you are filtering or
  *  asking for characters, not for character. #22 named them on the cross-shelf page and #21 needs
  *  the same words in the wizard — one map, because two would drift on the first rename. */

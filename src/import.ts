@@ -15,6 +15,7 @@ import { mkdirSync } from 'node:fs';
 import { join, dirname, basename, sep } from 'node:path';
 import * as db from './db.ts';
 import { view } from './story.ts';
+import { pocketReach } from './context.ts';
 
 /** Imports are read from one folder and nowhere else. The filename is reduced to its basename
  *  first, so `../../etc/passwd` becomes `passwd` and lands inside the folder rather than
@@ -165,7 +166,7 @@ export function fromExport(file: string): Incoming {
           .map((o) => ({ name: clip(o.name, 80), body: clip(o.body, 1000), active: !!o.active })),
         pockets: pockets.filter((a) => a.entry_id === e.id).slice(0, MAX_POCKETS).map((a) => ({ slot: a.slot,
           name: clip(a.name, 200), body: clip(a.body), keys: keysOf(a.keys && JSON.parse(a.keys)),
-          activation: a.activation ?? (a.active ? 'always_on' : 'triggered') })) })),
+          activation: pocketReach({ activation: a.activation, active: !!a.active, keys: keysOf(a.keys && JSON.parse(a.keys)) }) })) })),
       passages: cap(passages, MAX_PASSAGES, 'passages', notes).map((p) => ({ body: clip(p.body, 20_000), author: p.author })),
       // What the book promised and has not paid. A story that comes back without its unpaid
       // promises comes back as a different book: the ledger says who everybody is and the strings
@@ -462,7 +463,7 @@ function pocketsIn(storyId: string, entryId: string | null, pockets?: any[]) {
     if (!name || !body) continue;
     const id = db.upsertAddon(storyId, entryId, { id: have.get(`${p.slot}:${name.toLowerCase()}`) ?? '',
       slot: p.slot, name, body, keys: keysOf(p.keys) });
-    if (id) db.setAddonActivation(storyId, id, String(p.activation ?? 'triggered'));
+    if (id) db.setAddonActivation(storyId, id, pocketReach({ activation: p.activation, keys: keysOf(p.keys) }));
   }
 }
 

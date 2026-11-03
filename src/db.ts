@@ -732,7 +732,9 @@ function migrate() {
    * (outfits, strings, the tale's rules, `addons_one_active`) onto `activation` and drop both. */
   add('addons', 'activation', 'TEXT');
   db.exec(`CREATE TRIGGER IF NOT EXISTS addons_activation_new AFTER INSERT ON addons WHEN NEW.activation IS NULL
-    BEGIN UPDATE addons SET activation = CASE WHEN NEW.active = 1 THEN 'always_on' ELSE 'triggered' END WHERE id = NEW.id; END;
+    BEGIN UPDATE addons SET activation = CASE WHEN NEW.active = 1 THEN 'always_on'
+      WHEN (CASE WHEN json_valid(NEW.keys) THEN json_array_length(NEW.keys) ELSE 0 END) > 0 THEN 'triggered'
+      ELSE 'off' END WHERE id = NEW.id; END;
   CREATE TRIGGER IF NOT EXISTS addons_activation_step AFTER UPDATE OF active ON addons
     WHEN NEW.activation IS NOT NULL AND (NEW.active = 1) <> (NEW.activation = 'always_on')
     BEGIN UPDATE addons SET activation = CASE WHEN NEW.active = 1 THEN 'always_on'
@@ -2309,8 +2311,10 @@ export function backfillActPrints(): number {
 
 /** #134 · THE ACTIVATION A POCKET FROM BEFORE THE COLUMN ALREADY BEHAVED AS, and only for rows that
  *  have none: on is On (`always_on`), off with wake words is On a word (`triggered`, it was sent when
- *  a word fired), off without is Off. A second run writes nothing. A NEW pocket is On a word, as a
- *  new thread is (`addons_activation_new`). Function declaration: runs inside `migrate()`. */
+ *  a word fired), off without is Off. A second run writes nothing. A NEW pocket with no activation
+ *  takes the same rule (`addons_activation_new`), and so does one whose old switch moves
+ *  (`addons_activation_step`); `pocketReach` in `src/context.ts` is the TypeScript copy, and
+ *  test/db.ts runs every case through all four. Function declaration: runs inside `migrate()`. */
 export function backfillPocketActivation(): number {
   return Number(db.prepare(`UPDATE addons SET activation = CASE WHEN active = 1 THEN 'always_on'
     WHEN (CASE WHEN json_valid(keys) THEN json_array_length(keys) ELSE 0 END) > 0 THEN 'triggered'

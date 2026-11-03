@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -9107,14 +9107,13 @@ function eyeLook(state, lit, hasWords = true) {
   return { on: state === 'on', state, look, word, label: `${now}. Tap to ${next}.` };
 }
 /** #134 · A POCKET'S STATE: Off, On a word (asleep, or woken when its word sent it), or On, from its
- *  `activation`; a row from before the column is what it behaved as, on if switched on, else on its
- *  words. A string has no wake words: on while in play, else off. A tap not yet saved shows what it set. */
+ *  `activation` (`pocketReach`, model.js). A string has no wake words: on while in play, else off. A tap not yet saved shows what it set. */
 const pocketWordless = (a) => a.slot === 'promise' || a.slot === 'question';
 function pocketState(e, a) {
   const set = S.reachNow?.[a.id];
   if (set) return set;
   if (pocketWordless(a)) return a.active ? 'on' : 'off';
-  const act = a.activation ?? (a.active ? 'always_on' : 'triggered');
+  const act = pocketReach(a);
   return act === 'always_on' ? 'on' : act === 'off' ? 'off' : pocketHeard(e, a) ? 'woken' : 'word';
 }
 /** WOKEN: the thread went to the model with this pocket's text in it. Display only.

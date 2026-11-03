@@ -39,7 +39,7 @@ interface Addon {
   keys: string[];
   active?: boolean;                // the writer pinned it on; kept in step with `activation` (db.ts, #134)
   /** #134 · Off, On a word, or On, a thread's three. Absent on a row from before the column: then it
-   *  is what that row behaved as, on if `active`, else on its wake words (`pocketReach`). */
+   *  is what that row behaved as: on if `active`, else On a word with wake words, Off without (`pocketReach`). */
   activation?: 'always_on' | 'triggered' | 'off';
   fromChapter?: number;            // not true until this chapter
   retiredAtChapter?: number;
@@ -417,10 +417,13 @@ export const STRING_FRAMES: Record<'promise' | 'question', string> = {
     + 'never answer it.',
 };
 
-/** #134 · HOW A POCKET REACHES THE MODEL: its `activation`, or, on a row from before the column, what
- *  that row behaved as (on if switched on, else on its wake words). */
-export const pocketReach = (a: Pick<Addon, 'activation' | 'active'>): 'always_on' | 'triggered' | 'off' =>
-  a.activation ?? (a.active ? 'always_on' : 'triggered');
+/** #134 · HOW A POCKET REACHES THE MODEL: its `activation`, or, on a row with none, by the one rule
+ *  for the old switch: on is On, off with wake words is On a word, off without is Off (an off pocket
+ *  with no word to wake it was never sent). The same rule is written in SQL in `src/db.ts` (the two
+ *  `addons_activation_*` triggers and `backfillPocketActivation`) and in `web/model.js`; test/db.ts
+ *  runs every case through each copy. */
+export const pocketReach = (a: Pick<Addon, 'activation' | 'active'> & { keys?: string[] }): 'always_on' | 'triggered' | 'off' =>
+  a.activation ?? (a.active ? 'always_on' : (a.keys ?? []).length ? 'triggered' : 'off');
 
 /** The framed kinds that are exclusive in `SLOTS`: one per thread, so a label tells nothing apart. */
 const SOLO = new Set(EXCLUSIVE_SLOTS);
