@@ -5851,7 +5851,7 @@ ok("each menu has an ink icon that swaps to the other in place, and from the Lib
 ok("both menus' tiles share one class and their rows another, with the sizes in the classes");
 
 // ---- THE MENUS IN ARCANA (Seth, 2026-11-03). (a) A row or tile under the pointer turns the theme's
-// accent and wears no underline, not even the brush stroke under the page you are on. (b) The tale's
+// accent and wears no underline. (b) The tale's
 // Scenes and the main menu's Tales are cards, not plain rows: a gilt frame with stepped corners, the
 // deco face, and a scene's numeral over its name, as a card has its number.
 {
@@ -5859,7 +5859,17 @@ ok("both menus' tiles share one class and their rows another, with the sizes in 
   const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
   const hover = css.match(/html:root #rail :is\(\.railtile, \.railrow\):is\(:hover, :focus-visible\)[^{]*\{[^}]*\}/g)?.join(' ') ?? '';
   assert.match(hover, /color:var\(--gold\) !important/, 'MENU-HOVER: a menu row under the pointer turns the accent');
-  assert.match(hover, /background-image:none !important/, 'MENU-HOVER: and the brush stroke under the page you are on goes');
+  // NO UNDERLINE ANYWHERE (Seth, 2026-11-03, after it went live: "remove that underline overall"). The
+  // ink brush stroke under the menu row or tile you are on is gone, and the file with it; the page you
+  // are on is told by its bright ink and the ink rule beside it (ADR 0004).
+  {
+    const { existsSync } = await import('node:fs');
+    assert.doesNotMatch(css, /arcana-stroke/, 'NO-UNDERLINE: no control draws the brush stroke under it');
+    assert.ok(!existsSync(new URL('../web/arcana-stroke.svg', import.meta.url)), 'NO-UNDERLINE: and the stroke\'s file is gone');
+    const cur = css.match(/html:root #rail \.taletiles > \.railtile\[aria-current\] \{[^}]*\}/)?.[0] ?? '';
+    assert.match(cur, /color:var\(--ink-bright\)/, 'NO-UNDERLINE: the tile you are on is in the bright ink');
+    assert.match(cur, /box-shadow:inset 2px 0 0 var\(--ink-bright\)/, 'NO-UNDERLINE: with the ink rule beside it');
+  }
   assert.match(hover, /text-decoration:none/, 'MENU-HOVER: with no underline');
   assert.match(css, /html:root #rail \.railrow::before \{[^}]*mask:url\('\/web\/arcana-corner-tl\.svg'\)/, 'MENU-CARDS: a menu row has the stepped gilt corners');
   assert.match(css, /html:root #rail \.railrow > \.txt \{[^}]*font-family:var\(--arc-deco\)/, 'MENU-CARDS: and its name in the deco face');

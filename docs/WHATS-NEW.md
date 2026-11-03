@@ -182,8 +182,9 @@ long it has waited at its foot.
 ### The menus, as cards
 In the tale's menu each scene is a small card: a fine frame with gilt corners, its name in the
 same thin face as the titles, and its number as a numeral over it, X for the tenth scene. The main
-menu's tales are cards the same way. A row or tile under the pointer turns your theme's colour, and
-nothing is underlined while it is: not even the brush stroke under the page you are on.
+menu's tales are cards the same way. A row or tile under the pointer turns your theme's colour.
+Nothing in the menus is underlined: the page you are on is in bright ink, with a fine line of ink
+beside it.
 ### A scene opens like a tarot card's title
 The head of each scene is centred under a half sunburst in your theme's colour. Over the title is
 the scene's number as a numeral in spaced capitals, SCENE IX for the ninth. The title is large in

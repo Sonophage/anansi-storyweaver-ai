@@ -2765,12 +2765,12 @@ input[type="range"]:focus-visible { outline:2px solid var(--gold-lit); outline-o
    had, so nothing here wins or loses a fight it did not before.
    EVERY GILT FILE IS A MASK filled with `--gold`, the theme's accent, so the line-work takes each
    theme's colour (test/app.ts ORNAMENT-MASK). What is neutral stays an image: the paper's grain
-   (laid under every theme's page by themeVars), the moon, the dry brush and the ink stroke.
+   (laid under every theme's page by themeVars), the moon and the dry brush.
 
    GOLD STAYS WHAT ADR 0004 SAYS IT IS. The one filled press on a screen is gold, now with a dry
    brush in it. The ornament — rules, corners, the arch, the sunburst — is gilt line-work, which is
    neither a label nor a state nor a press. Labels, tags, the page you are on and every count stay
-   in ink; the rule under the page you are on is an INK brush stroke, not a gold one.
+   in ink; the page you are on has the ink rule beside it, and nothing under it.
 
    THE TEXTURES ARE SVG, web/arcana-*.svg: turbulence filters, not pictures, so each is a few
    hundred bytes, scales to any screen and is served by the same static path as icon.svg.
@@ -3042,8 +3042,9 @@ html:root :is(.btn:not(.ghost), #nextrow .quillcell > button:not([aria-expanded=
 
 
 /* THE MENUS. A gilt rule under the model, the tiles as small square cards, the page you are on in
-   ink with an ink brush under it, every row's picture with a painted edge, and the rune wheel faint
-   at the foot of the rail where the list runs out. */
+   the bright ink with the ink rule beside it (ADR 0004) and nothing under it (Seth, 2026-11-03:
+   "remove that underline overall"), every row's picture with a painted edge, and the rune wheel
+   faint at the foot of the rail where the list runs out. */
 html:root .talemodel > button[data-modelmenu] { border-bottom-color:transparent; }
 html:root .talemodel::after { content:''; display:block; height:20px; margin:0 16px 4px;
   background:var(--gold); -webkit-mask:url('/web/arcana-divider.svg') center / min(320px, 100%) 20px no-repeat;
@@ -3053,8 +3054,8 @@ html:root .talemodel > button[data-modelmenu] .txt > span:first-child {
 html:root #rail .taletiles > .railtile:not([aria-pressed="true"]) {
   border:1px solid var(--edge) !important; background-color:rgba(11,11,12,.4) !important; }
 html:root #rail .taletiles > .railtile[aria-current] {
-  border-color:var(--edge-lit) !important;
-  background:url('/web/arcana-stroke.svg') center bottom 6px / 58% 6px no-repeat, var(--chip) !important; }
+  border-color:var(--edge-lit) !important; color:var(--ink-bright) !important;
+  box-shadow:inset 2px 0 0 var(--ink-bright), var(--lift); }
 html:root .railtile > .txt { font-family:var(--arc-small); letter-spacing:.04em; }
 html:root .arted > .rowart {
   -webkit-mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat;
@@ -3085,13 +3086,12 @@ html:root #rail .railrow > .rownum { display:block; font-family:var(--arc-small)
   letter-spacing:.24em; color:var(--dim); }
 html:root #rail .railrow.arted > .rownum { color:var(--ink); text-shadow:0 1px 3px rgba(0,0,0,.6); }
 html:root #rail .railrow[aria-current] > .rownum { color:var(--mute); }
-/* A ROW OR TILE UNDER THE POINTER TURNS THE ACCENT, with no underline (Seth, 2026-11-03): the brush
-   stroke that marks the page you are on is not shown while it is hovered, so nothing reads as an
-   underline. !important because each tile writes its colours on itself (drawRail's `tile`), and the
-   second selector because the page you are on sets its stroke at a higher weight than the first. */
+/* A ROW OR TILE UNDER THE POINTER TURNS THE ACCENT, with no underline (Seth, 2026-11-03). !important
+   because each tile writes its colours on itself (drawRail's `tile`), and the second selector because
+   the page you are on sets its ink at a higher weight than the first. */
 html:root #rail :is(.railtile, .railrow):is(:hover, :focus-visible),
 html:root #rail .taletiles > .railtile[aria-current]:is(:hover, :focus-visible) {
-  background-image:none !important; border-color:var(--gold-dim) !important; color:var(--gold) !important; text-decoration:none; }
+  border-color:var(--gold-dim) !important; color:var(--gold) !important; text-decoration:none; }
 html:root #rail :is(.railtile, .railrow):is(:hover, :focus-visible) :is(.txt, .tileicon, .rownum) {
   color:var(--gold) !important; text-decoration:none; }
 html:root[data-ui-rail="closed"] #rail::after,
