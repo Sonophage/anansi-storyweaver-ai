@@ -381,6 +381,9 @@ let modelsRemote = false;
 // Whether the library answer says this writer is the admin. Off: the fixture's writer is not. The
 // model panel checks flip it to see the admin's view beside the writer's.
 let libAdmin = false;
+// Whether this writer is looking at the demo library. `POST /api/demo` sets it and the library answer
+// carries it, the way the server does: the app reads `demo` back from the library on every reload.
+let libDemo = false;
 // #46. What `GET /api/after` names for delete-after's first press, and the passage it was asked about.
 let afterYours: any[] = [];
 let afterAsked: string | null = null;
@@ -652,10 +655,11 @@ let worldDown = 0;
     : url.startsWith('/api/talk/undo') ? (stubUndo ?? { undone: "Put back Marek's Always true.", ...STORY })
     : url.startsWith('/api/talk') ? (stubTalk ?? { reply: 'It is about a debt.', seconds: 1, tokens: 10 })
     : url.startsWith('/api/invent') ? (stubInvent ?? { title: 'The Rust Choir', duplicate: false })
+    : url === '/api/demo' ? (libDemo = !!JSON.parse(init?.body ?? '{}').on, { demo: libDemo })
     : url.startsWith('/api/activity') ? { runs: [{ id: 'g-1', role: 'prose', at: 1, error: null, promptTokens: 18904, completionTokens: 420, seconds: 5.9, prefillSeconds: 1.4, prefillRate: 38 }], worstPrefillSeconds: 2.8, failures: 0 }
     : {};
-  return { ok: true, json: async () => (libAdmin && url.startsWith('/api/stories') && body
-    ? { ...body, admin: true } : body) };
+  return { ok: true, json: async () => ((libAdmin || libDemo) && url.startsWith('/api/stories') && body
+    ? { ...body, ...(libAdmin ? { admin: true } : {}), ...(libDemo ? { demo: true } : {}) } : body) };
 };
 
 // THE VEIL, SWITCHED ON. Writing went inline on 2026-10-25 and the full-screen veil was kept behind
@@ -960,7 +964,7 @@ assert.ok(!/list chapters|Chapters/.test(html('rail')),
   'and the chapter list goes with it — it named a book you are no longer looking at');
 click({ railview: 'story' });
 assert.match(html('rail'), /Storyteller/, "the story's name must bring its own menu back");
-assert.match(html('rail'), /class="railclose"/, 'with its close beside the model (the wordmark left the tale menu on 2026-10-28)');
+assert.doesNotMatch(html('rail'), /class="railclose"/, 'with no close of its own at a desk: the header icon opens and shuts it (#133)');
 ok('the menu and the story name are two doors onto one rail');
 
 // Three layers of look, and the one that must never happen is a book's theme becoming yours.
@@ -5385,7 +5389,7 @@ ok('an empty Strings says what a string is and where to add one');
   const fades = [...rail.matchAll(/class="rowart"[^>]*opacity:([\d.]+)/g)].map((m) => Number(m[1]));
   assert.ok(fades.length >= 2 && fades.every((o, k) => k === 0 || o <= fades[k - 1]), `TALE3-ART: the scenes wear the cover, fading down (${fades})`);
   assert.doesNotMatch(rail, /<span class="serif txt"[^>]*>Anansi<\/span>/, 'TALE3-NOLOGO: no Anansi wordmark in the tale menu');
-  assert.match(rail, /<div class="talemodel">[\s\S]*data-modelmenu[\s\S]*class="railclose"/, 'TALE3-CLOSE: the close sits with the model');
+  assert.match(rail, /<div class="talemodel">[\s\S]*data-modelmenu/, 'TALE3-MODEL: the model heads the menu (its close is the ✕ where the menu covers the screen, #133)');
   assert.doesNotMatch(rail, /data-nav="(anansi|context)"/, '  and Talk to Anansi and What he reads are off the menu');
   const scenes = [...(rail.match(/<div class="tale3scenes scroll">([\s\S]*?)<div class="taletiles">/)?.[1] ?? '')
     .matchAll(/data-chapter="([^"]+)"/g)].map((m) => m[1]);
@@ -5471,7 +5475,7 @@ ok("each menu has an ink icon that swaps to the other in place, and from the Lib
   const main = html('rail');
   const tTiles = classesIn(tale, tilesIn), mTiles = classesIn(main, tilesIn);
   assert.ok(tTiles.length >= 6 && mTiles.length >= 6, `SAME-TILES: both menus' tiles are read (${tTiles.length}, ${mTiles.length})`);
-  assert.deepStrictEqual([...new Set([...tTiles, ...mTiles])], ['railtile'], 'SAME-TILES: every tile in both menus, the demo switch too, is a railtile');
+  assert.deepStrictEqual([...new Set([...tTiles, ...mTiles])], ['railtile'], 'SAME-TILES: every tile in both menus is a railtile');
   const tRows = classesIn(tale, rowsIn), mRows = classesIn(main, rowsIn);
   assert.ok(tRows.length >= 2 && mRows.length >= 1, `SAME-ROWS: both menus' rows are read (${tRows.length}, ${mRows.length})`);
   assert.deepStrictEqual([...new Set([...tRows, ...mRows].map((c) => c.replace(/\s*arted\s*/, '')))], ['railrow'],
@@ -5565,6 +5569,71 @@ ok('every menu row has its own picture, and the phone menu has a cross to close 
   click({ accttab: 'profile' });
 }
 ok('Account is five pages, and Your books holds Import, Export and What you have written');
+
+// ---- THE DEMO LIBRARY LEAVES THE MENU FOR ACCOUNT → YOUR BOOKS (#133, Seth, 2026-11-03). It is a
+// rare thing to do, so it is a plate beside Import and Export; while it is on, the library page says
+// how to leave, since the menu no longer does.
+{
+  click({ home: 1 }); await sleep(40);
+  click({ railview: 'workspace' });
+  assert.doesNotMatch(html('rail'), /data-demo=/, 'DEMO-OFFMENU: the main menu has no demo library tile');
+  click({ nav: 'account' }); click({ accttab: 'books' });
+  const books = html('page');
+  assert.match(books, /<button class="card plate full-left" data-demo="1"[^>]*>[\s\S]*?Demo library/,
+    'DEMO-ACCOUNT: Your books has the demo library, a plate like Import and Export');
+  assert.doesNotMatch(html('page'), /data-demo="0"/, '  and with it off, nothing offers to leave it');
+  click({ demo: '1' });
+  for (let i = 0; i < 40 && !libDemo; i++) await sleep(25);
+  await sleep(60);
+  assert.strictEqual(libDemo, true, 'DEMO-ON: the plate switches the demo library on');
+  assert.match(html('page'), /data-demo="0"[^>]*>[\s\S]*?Leave the demo library/,
+    'DEMO-LEAVE: in the demo library, the library page says how to leave it');
+  assert.doesNotMatch(html('rail'), /data-demo=/, '  and the menu still has no tile for it');
+  click({ demo: '0' });
+  for (let i = 0; i < 40 && libDemo; i++) await sleep(25);
+  await sleep(60);
+  assert.strictEqual(libDemo, false, 'DEMO-OFF: the leave line switches it off');
+  assert.doesNotMatch(html('page'), /Leave the demo library/, '  and once out, the line is gone');
+}
+ok('the demo library is a plate in Account → Your books, and the library says how to leave it');
+
+// ---- ONE CONTROL OPENS AND SHUTS THE MENU ON A DESK (#133): the header's menu icon. The menu's own
+// chevron did the same, so it went. Where the menu covers the screen its ✕ stays, the only way out.
+{
+  const root = (globalThis as any).document.documentElement;
+  for (const view of ['workspace', 'story']) {
+    if (view === 'story') { click({ open: 's-1' }); await sleep(40); }
+    click({ railview: view });
+    if (root.dataset.uiRail !== 'open') click({ railview: view });
+    assert.doesNotMatch(html('rail'), /class="railclose"/, `DESK-NOCLOSE: at a desk the ${view} menu has no close of its own`);
+  }
+  const wide = (globalThis as any).matchMedia;
+  (globalThis as any).matchMedia = () => ({ matches: true, addEventListener() {} });   // phone width
+  try {
+    for (const view of ['workspace', 'story']) {
+      click({ railview: view });
+      if (root.dataset.uiRail !== 'open') click({ railview: view });
+      const close = html('rail').match(/<button data-rail="1" class="railclose"[\s\S]*?<\/button>/)?.[0] ?? '';
+      assert.match(close, /\u2715/, `PHONE-CLOSE: where the ${view} menu covers the screen, it has its ✕`);
+    }
+  } finally { (globalThis as any).matchMedia = wide; }
+}
+ok('at a desk the header icon is the one menu control; a full-screen menu keeps its ✕');
+
+// ---- THREE COLUMNS OF THREADS WHERE THE PANEL IS WIDE (#133). Measured on the PANEL's width, not the
+// window's, so a 400px panel on a wide desk stays one column; the cards keep their 260px. The browser
+// measures it (test/ui/threadlist.js); this pins the rules it measures.
+{
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  assert.match(css, /#thlist \{[^}]*container-type:\s*inline-size/, 'THREE-COLS: the tale\'s Threads list is a container');
+  const q = css.match(/@container \(min-width:\s*(\d+)px\) \{([\s\S]*?)\n\}/);
+  assert.ok(q, 'THREE-COLS: a container query on it');
+  assert.match(q![2], /#thlist \[data-kindrows\] \{[^}]*grid-template-columns:\s*repeat\(3,/, '  that lays each kind out in three columns');
+  assert.ok(Number(q![1]) > 400 - 44 && Number(q![1]) <= 620 - 44,
+    `  wider than the panel beside the page, narrower than the smallest full-screen panel (${q![1]})`);
+}
+ok("the tale's threads go to three columns when their panel is wide");
 
 // ---- WHEN YOU REWEAVE (Seth, 2026-10-29: "under your account and writing I can't see reweave").
 // Account → Writing draws a sixth box after the five modes, and it saves and resets through the

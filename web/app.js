@@ -916,25 +916,17 @@ function drawRail() {
   const storyMenu = taleMenuShown();
   const T = menuTale();
   const rows = storyMenu ? SNAV : wnav();
-  // THE DEMO LIBRARY, as a switch rather than a second login. Seth, 2026-08-31: "can we do the demo
-  // account as a switch in my menu both accounts should be able to reach it." Only on the workspace
-  // menu: it swaps which library you are looking at, which is a thing you do from outside a book.
+  // THE DEMO LIBRARY left this menu for Account → Your books (#133, Seth, 2026-11-03): a rare thing
+  // to do, and the menu holds places you go often.
   /* ONE TILE, FOR BOTH MENUS (Seth, 2026-10-30: "make sure that the sizes of all its items match").
    * Its shape and size are `.railtile` in app.html; only the colours, which are worked out per tile,
-   * are written on it. The demo switch was a row of its own with its own padding and font, squeezed
-   * into a tile by !important rules, and came out a pixel shorter than the tiles beside it.
-   * The action is spelled out, `data-nav` or `data-demo`, so test/web.ts can see the button does
+   * are written on it. The action is spelled out, `data-nav`, so test/web.ts can see the button does
    * something; `more` is its other attributes. */
-  const tile = ({ nav, demo, more = '' }, glyph, label, { icon = 'var(--faint)', word = 'var(--mute)',
-    ground = 'transparent', edge = 'transparent', rule = edge, badge = '' } = {}) => `<button class="railtile" ${
-      nav ? `data-nav="${nav}"` : `data-demo="${demo}"`}${more} title="${esc(label)}"
+  const tile = ({ nav, more = '' }, glyph, label, { icon = 'var(--faint)', word = 'var(--mute)',
+    ground = 'transparent', edge = 'transparent', rule = edge, badge = '' } = {}) => `<button class="railtile" data-nav="${nav}"${more} title="${esc(label)}"
       style="background:${ground}; border:1px solid ${edge}; border-left:2px solid ${rule}">
       <span class="tileicon" style="color:${icon}">${mark(glyph)}${badge}</span>
       <span class="txt" style="color:${word}">${esc(label)}</span></button>`;
-  const demoRow = storyMenu ? '' : tile({ demo: SRV.demo ? '0' : '1', more: ` aria-pressed="${SRV.demo}"` }, 'shelf',
-    SRV.demo ? 'Leave the demo library' : 'Demo library', SRV.demo
-      ? { icon: 'var(--gold)', word: 'var(--gold-lit)', ground: 'rgba(217,178,106,.10)', edge: 'rgba(217,178,106,.28)' }
-      : { edge: 'var(--line)' });
   const active = storyMenu ? S.panel : S.wpage;
   const item = ([k, g, l]) => {
     const on = k === active;
@@ -986,10 +978,10 @@ function drawRail() {
          c.id === T.currentChapter.id ? ' aria-current="true"' : ''}
          style="color:${c.id === T.currentChapter.id ? 'var(--ink-bright)' : 'var(--faint)'}"><span class="txt">${
          esc(sceneName(c))}</span>${rowArt(T.cover ? api.coverUrl(T.id, T.cover) : '', i)}</button>`).join('')}`
-    // NO "Open" LIST HERE, only the demo switch. It reprinted the first four books in a rail whose first row is already
+    // NO "Open" LIST HERE. It reprinted the first four books in a rail whose first row is already
     // My stories (Library, now), which is the same door with a complete list behind it. Seth, 2026-08-31: "the
     // open option in the main menu that should be removed."
-    : demoRow;
+    : '';
 
   const modelBlock = `
     <!-- The model, and the place to change it. It was a label: the one thing on this rail that
@@ -1062,13 +1054,11 @@ function drawRail() {
   // 2026-10-28: "Remove the anansi text logo and do the menu exit on the right side of the model
   // selector so we can reclaim that space"). The workspace menu keeps both.
   // A CROSS WHERE THE MENU COVERS THE SCREEN (UX review, 2026-10-29): there it only ever closes, and
-  // the chevron beside the model read as the model's own drop-down, so the full-screen menu had no
-  // way out you could see. The same ✕ the Look sheet closes with. A desk keeps the chevron.
-  const closeBtn = `<button data-rail="1" class="railclose"
-        aria-label="${S.rail ? 'Close the menu' : 'Open the menu'}"
-        >${overlay() && S.rail ? '<span aria-hidden="true" style="font-size:15px; line-height:1">\u2715</span>'
-        : `<span style="display:flex; transform:rotate(${phone() ? 90 : (S.rail ? 180 : 0)}deg);
-          transition:transform var(--t-slow) var(--ease-out)">${mark('chevron', 16)}</span>`}</button>`;
+  // is the only way out you can see. The same ✕ the Look sheet closes with.
+  // NOTHING AT A DESK (#133, Seth, 2026-11-03): the chevron here opened and shut the menu, and so does
+  // the menu icon in the header beside the title. Two controls for one thing; the header's stays.
+  const closeBtn = overlay() ? `<button data-rail="1" class="railclose" aria-label="Close the menu"
+        ><span aria-hidden="true" style="font-size:15px; line-height:1">\u2715</span></button>` : '';
   // THE OTHER MENU, one press away (see MENUV above). Ink, not gold: it is not the screen's one main
   // action (ADR 0004). Each wears the mark of the header button that opens that menu: the web for the
   // tale's, the three lines for the main one. Absent on the main menu until a tale has been opened.
@@ -9601,7 +9591,12 @@ const WPAGES = {
         <button class="card plate full-left" data-nav="forge"><span class="platename">Export</span>
           <span class="hint flush">Prompts to hand another model, so what it writes lands whole</span></button>
         <button class="card plate full-left" data-nav="prefs"><span class="platename">What you have written</span>
-          <span class="hint flush">Words, passages, versions not chosen</span></button></div>`
+          <span class="hint flush">Words, passages, versions not chosen</span></button>
+        <!-- THE DEMO LIBRARY, moved here from the main menu (#133). A switch, not a second login:
+             both accounts reach it. -->
+        <button class="card plate full-left" data-demo="${SRV.demo ? '0' : '1'}" aria-pressed="${SRV.demo}"
+          ><span class="platename">${SRV.demo ? 'Leave the demo library' : 'Demo library'}</span>
+          <span class="hint flush">${SRV.demo ? 'Back to your own tales' : 'Sample tales to look around in. Your own are untouched'}</span></button></div>`
       : tab === 'look' ? `<div class="hint flush">Theme, font and size are kept on this device.</div>
         <button class="btn push-10" data-appearance="1">Theme, font and size</button>`
       : !me ? '<div class="hint flush">Reading&hellip;</div>'
@@ -9703,6 +9698,12 @@ const WPAGES = {
     // sets `S.models` to an array either way, so a router that never answers is asked once and not
     // on every repaint.
     if (S.models === null) loadModels();
+    // THE WAY OUT OF THE DEMO LIBRARY, on the page it shows (#133). The switch lives in Account → Your
+    // books now, so while it is on the library says how to leave, and the writer is never stuck in
+    // someone else's books. The same action as the switch.
+    const leave = SRV.demo ? `<div class="row-6" style="align-items:baseline">
+        <span class="hint flush">These are the demo library's tales.</span>
+        <button class="btn ghost" data-demo="0" style="width:auto">Leave the demo library</button></div>` : '';
     // FIRST RUN. The idea box IS the screen — no empty grid, no dashed cells, no tour. A shelf
     // page with nothing on it used to be a heading, a sentence and a button that took you somewhere
     // else to find the box; this is the box.
@@ -9713,7 +9714,7 @@ const WPAGES = {
     // Conditional, because a first run with a loaded model must not claim it is asleep.
     if (!LIB.length) {
       const asleep = !SRV.slot;
-      return `<div class="firstrun">
+      return `<div class="firstrun">${leave}
         <div class="stack-10">
           <span class="serif" style="font-size:44px; line-height:1.06; color:var(--ink-bright)"
             >Nothing in the library yet.</span>
@@ -9770,7 +9771,7 @@ const WPAGES = {
     // always lived.
     // 16, not 22. The gap between the band and the shelf is height like any other, and the first
     // row of books clearing the fold is the whole point of this screen.
-    return `<div class="stack-16">
+    return `<div class="stack-16">${leave}
       ${hero ? resumeBand(hero) : ''}
       ${rest.length ? `<div style="display:flex; align-items:baseline; gap:14px">
         <span class="kicker">The library${tipMark('rack', 'The library')}</span>

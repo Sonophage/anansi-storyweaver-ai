@@ -249,4 +249,38 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   ok("every tale's threads is still a door from the list", await page.visible('#sideBody [data-leave="canon"]'));
 }
 
+// ---- THREE COLUMNS WHERE THE PANEL IS WIDE (#133). Counted as the distinct left edges of the first
+// kind's cards: on the panel's width, not the window's, and the cards keep their 260px.
+const columns = () => page.eval(`(() => {
+  const rows = document.querySelector('#thlist [data-kindrows]');
+  const cards = rows ? [...rows.querySelectorAll('.card.plate[data-entry]')] : [];
+  return JSON.stringify({ cards: cards.length,
+    cols: new Set(cards.map((c) => Math.round(c.getBoundingClientRect().left))).size,
+    tall: cards.every((c) => c.getBoundingClientRect().height >= 256) });
+})()`).then(JSON.parse);
+const toThreads = async (sid) => {
+  await page.goto(B + "/#" + sid + "/threads");
+  for (let i = 0; i < 40 && !(await page.visible('#thq')); i++) await wait(250);
+  await wait(400);
+};
+{
+  const sid = await open(390, 844);
+  const phoneCols = await columns();
+  ok(`on a phone the threads are one column (${JSON.stringify(phoneCols)})`, phoneCols.cards > 0 && phoneCols.cols === 1);
+  await page.viewport(1440, 900);
+  await toThreads(sid);
+  // The panel remembers full screen on this device; start beside the page.
+  if (await page.eval("document.documentElement.dataset.sidefull === '1'")) { await page.click('#sideHead [data-panelfull]'); await wait(500); }
+  const beside = await columns();
+  ok(`on a wide window the panel beside the page stays one column (${JSON.stringify(beside)})`, beside.cards > 0 && beside.cols === 1);
+  await page.click('#sideHead [data-panelfull]');
+  await wait(600);
+  const full = await columns();
+  const want = Math.min(3, full.cards);
+  ok(`made full screen on a desk, the threads go to three columns (${JSON.stringify(full)})`, full.cards > 0 && full.cols === want);
+  ok("  and every card keeps its 260px", full.tall);
+  await page.click('#sideHead [data-panelfull]');
+  await wait(400);
+}
+
 console.log(red ? `\n  ${red} RED` : "\n  all green");
