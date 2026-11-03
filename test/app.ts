@@ -1850,6 +1850,28 @@ ok('Sent now keeps a thread you tap until the next passage, and kind tabs narrow
     'a thread is found by a word that appears only in its title');
   assert.match(html('thlist'), /class="card plate thplate thtall[^"]*" data-arcana="character"/,
     'ARCANA-NUMERALS: a thread card names its kind, for the numeral Arcana draws');
+  // OUTFIT-CARDS (Seth, 2026-11-03: "make the outfits look like a small popped-out card coming from
+  // the other card it belongs to"). A thread's outfits are small cards in a tray joined to the foot
+  // of ITS card: in the same row, straight after the card's face, and none of them a loose tag. The
+  // worn one says so in aria, read off the same field its look reads.
+  {
+    const list = html('thlist');
+    const at = list.lastIndexOf('<div class="throw', list.indexOf('data-entry="e-1"'));
+    const next = list.indexOf('<div class="throw', at + 1);
+    const row = at < 0 ? '' : list.slice(at, next < 0 ? undefined : next);
+    assert.match(row, /^<div class="throw">\s*<div class="thface">\s*<button class="card plate thplate thtall[^"]*"[^>]*data-entry="e-1"/,
+      'OUTFIT-CARDS: the row opens on the thread card');
+    assert.match(row, /<\/button>\s*<\/div>\s*<div class="thwear" role="group" aria-label="Envoy Sereth's outfits">/,
+      '  and the outfits are a tray joined to the foot of the card, inside its row');
+    assert.match(row, /<button class="outfitcard" data-wear="e-1:o-worn" aria-pressed="true"[^>]*>[\s\S]*?Mourning grey/,
+      '  the worn one is a small card, marked worn');
+    assert.match(row, /<button class="outfitcard" data-wear="e-1:o-hung" aria-pressed="false"[^>]*>[\s\S]*?Travelling coat/,
+      '  and the one not worn is a small card, marked not worn');
+    assert.match(row, /<button class="outfitcard bare" data-wear="e-1:"[^>]*>[\s\S]*?nothing/,
+      '  and nothing is the last card, while one is worn');
+    assert.ok(!/<[^>]*class="tag"[^>]*data-wear/.test(row), '  and none of them is a loose tag');
+  }
+  ok("a thread card's outfits are small cards joined to the foot of it");
 
   typeIn('thq', 'gaslamps');
   assert.match(html('thlist'), /The lamplighter/,

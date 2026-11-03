@@ -923,9 +923,10 @@ for (const [js, html] of [['web/app.js', 'app.html']]) {
     ['setupkind', 'kind'],
     ['lorekind', 'kind'],
     ['spkind', 'on'],
-    // The outfit chips under a character on the Threads list. Worn is a BORDER COLOUR and the label
-    // is the coat's name either way, so aria is the only place the state can live.
-    ['wear', 'o.active', '<button data-wear="${e.id}:${o.id}" class="tag"'],
+    // The outfit cards under a character on the Threads list. Worn is a lit frame and the label is
+    // the coat's name either way, so aria is the only place the state can live; since 2026-11-03 the
+    // stylesheet lights the card off this same attribute.
+    ['wear', 'o.active', '<button class="outfitcard" data-wear="${e.id}:${o.id}"'],
     // The cross-book thread picker: chosen is a border and a background, and nothing in the label.
     ['seedpick', 'on', '<button data-seedpick="${esc(e.id)}"'],
   ];

@@ -18,6 +18,10 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · A thread is edited where you read it
 
+### A character's outfits are small cards under their card
+In a tale's Threads, a character's outfits are small cards that slide out from under the foot of
+their card, in its frame. The one worn is lit; the others are dim. They line up evenly on a phone,
+and there is more room before the next thread. Press one to wear it, as before.
 ### A renamed thread shows its new name in the list
 Rename a thread and go back to Threads, with Back or Esc, and the list shows the new name. It
 showed the old one until something else redrew the list.

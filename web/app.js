@@ -9195,7 +9195,7 @@ function threadPlate(e, lit) {
   ].join('');
   const { look, label, state } = reachMark(e, lit);
   return `<div class="throw">
-    <div style="position:relative">
+    <div class="thface">
       <button class="card plate thplate thtall${pic ? ' thart' : ''}" data-arcana="${esc(e.entryType)}" data-entry="${e.id}">
         ${/* THE PICTURE IS THE CARD'S GROUND (Seth, 2026-11-02): the whole card, dark at the foot
               where the words are and the picture at the top. It was a 104px strip above the name. */
@@ -9206,19 +9206,21 @@ function threadPlate(e, lit) {
       <button class="theye" data-flipact="${esc(e.id)}" data-look="${look}" data-reach="${state}" data-lit="${lit ? 1 : 0}"
         aria-label="${label}" title="${label}">${mark(look, 22)}${eyeTip(e.id)}</button>
     </div>
-    ${/* WORN OR NOT WAS A BORDER COLOUR AND NOTHING ELSE here — the label is the coat's name either
-          way, so there was no non-visual way to tell which one is on. The full control in the
-          thread's form says it in words ("Worn — take it off"); this chip cannot, so it says it in
-          aria. Read off the SAME o.active the style reads, deliberately: the lore chips once had
-          aria-pressed keyed to a different field from their colour and sat permanently false under
-          a lit button. Outside the card for the same reason as the eye. */
-      (e.outfits ?? []).length ? `<div class="thwear">
-      ${e.outfits.map((o) => `<button data-wear="${e.id}:${o.id}" class="tag"
-        aria-pressed="${!!o.active}"
-        style="cursor:pointer; ${o.active
-          ? 'border-color:var(--edge-lit); color:var(--ink-bright)' : ''}">${esc(o.name)}</button>`).join('')}
+    ${/* THE OUTFITS ARE SMALL CARDS IN A TRAY JOINED TO THE FOOT OF THEIR THREAD'S CARD (Seth,
+          2026-11-03: "make the outfits look like a small popped-out card coming from the other card
+          it belongs to, and fix the spacing"). They were loose tags in a row under it. The tray is
+          a sibling of the card's face, tucked under it in the stylesheet, so a press on an outfit is
+          never a press on the card. The press is unchanged: `data-wear`, with an empty outfit id
+          for nothing.
+          WORN OR NOT WAS A BORDER COLOUR AND NOTHING ELSE once: the label is the coat's name either
+          way, so aria-pressed says it, read off the SAME o.active the look reads (the lore chips
+          once had aria-pressed keyed to a different field from their colour and sat permanently
+          false under a lit button). test/app.ts OUTFIT-CARDS. */
+      (e.outfits ?? []).length ? `<div class="thwear" role="group" aria-label="${esc(e.title)}'s outfits">
+      ${e.outfits.map((o) => `<button class="outfitcard" data-wear="${e.id}:${o.id}" aria-pressed="${!!o.active}"
+        ><span class="ocname">${esc(o.name)}</span></button>`).join('')}
       ${e.outfits.some((o) => o.active)
-        ? `<button data-wear="${e.id}:" class="tag" style="cursor:pointer; color:var(--dim)">nothing</button>` : ''}
+        ? `<button class="outfitcard bare" data-wear="${e.id}:"><span class="ocname">nothing</span></button>` : ''}
     </div>` : ''}
   </div>`;
 }
