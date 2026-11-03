@@ -194,6 +194,10 @@ The small label over a passage, the one that says how it was written, starts wit
 in your theme's colour: two waves for Woven, a speech bubble for Speak, a bolt for Act, a star for
 Direct, a quill for Narrate, two joined rings for Co-op, three chevrons for Continue, a seal for
 Yours, a voice for Spoken, and a spider for Anansi.
+### Stop is a square on a phone
+On a phone, the Stop button while Anansi writes is the stop square, not the word, wherever it
+shows: under the page, in the box, and over the passage being written. A screen reader still reads
+it as Stop. At a desk the buttons keep the word.
 ### No glow along the top
 The glow across the top of the screen is gone. What is waiting is still counted on the Workbench in
 the tale's menu.

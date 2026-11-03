@@ -1403,6 +1403,9 @@ html[data-work="ai"]       { --work:var(--gold); }
    on the bar. Same outline, same fade; it still takes a press. */
 #nextrow #cont.stopping { opacity:.45;
   font-size:11px; letter-spacing:.12em; text-transform:uppercase; }
+/* THE STOP ICON ON A PHONE, THE WORD AT A DESK (Seth, 2026-11-03). The phone hides `.btnword` (below)
+   and keeps the square; at a desk the round button is too small for both, so it keeps the word. */
+@media (min-width:720px) { #nextrow #cont.stopping > svg { display:none; } }
 /* THE QUILL, in its circle, in the middle, with the hold hint under it. */
 #nextrow .quillcell { display:flex; flex-direction:column; align-items:center; gap:4px; }
 /* NO SELECTION AND NO CALLOUT ON A LONG PRESS: holding the quill is a gesture here, and on an

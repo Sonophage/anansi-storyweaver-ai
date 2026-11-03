@@ -3649,6 +3649,40 @@ ok('a book moved to a model that cannot take the switch says its weaving went of
 }
 ok('a weaving book keeps its planning count off the bar above the middle circle');
 
+// STOP IS THE STOP ICON ON A PHONE (Seth, 2026-11-03): the word goes at phone width and the square
+// stays, with the word kept for a screen reader in the aria-label. Every Stop the app draws, rendered
+// here for the composer's, and read from the source for the veil's (the stub veil has no inside).
+{
+  const { mark } = await import('../web/model.js');
+  const icon = mark('stop', 18);
+  const { MARK } = await import('../web/model.js');
+  assert.ok(MARK.stop && icon !== mark('story', 18), 'STOP-ICON: the stop mark is its own, not the fallback');
+  click({ open: 's-1' });
+  await sleep(40);
+  let open!: () => void;
+  try {
+    streamGate = new Promise<void>((r) => { open = r; });
+    void click({ continue: '1' });
+    await sleep(30);
+    const stops = [...html('dockCol').matchAll(/<button[^>]*data-stop="1"[^>]*>([\s\S]*?)<\/button>/g)];
+    assert.ok(stops.length >= 1, 'STOP-ICON: while Anansi writes, the composer has a Stop');
+    for (const [b, inner] of stops) {
+      assert.ok(inner.includes(icon), `STOP-ICON: the Stop is the stop icon (${b.slice(0, 80)})`);
+      assert.match(inner, /<span class="btnword">Stop<\/span>/, 'STOP-ICON: and its word is the one a phone hides');
+      assert.strictEqual(inner.replace(/<svg[\s\S]*?<\/svg>|<span class="btnword">Stop<\/span>/g, '').trim(), '', 'STOP-ICON: and nothing else says Stop');
+      assert.match(b, /aria-label="Stop[^"]*"/, 'STOP-ICON: the word stays as its aria-label');
+    }
+    open(); await sleep(60);
+  } finally { streamGate = null; }
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+  const veil = src.match(/<button data-stop="1" class="veilstop"[^>]*>[^\n]*<\/button>/)?.[0] ?? '';
+  assert.match(veil, /aria-label="Stop writing">\$\{mark\('stop', 18\)\}<span class="btnword">Stop<\/span><\/button>/, 'STOP-ICON: the veil\'s Stop is the icon and the word too');
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  assert.match(page, /@media \(max-width:719px\) \{ \.btnword, \.playlbl \{ display:none; \} \}/, 'STOP-ICON: a phone hides the word');
+}
+ok('Stop is the stop icon at phone width, with its word as the aria-label');
+
 // #56. WHEN WEAVING DOES NOT FIT. The server refuses a weaving passage that would leave part of the
 // book out, and offers two ways on. The app had no toast that carries actions, so the refusal is a
 // row on the composer: the sentence and two buttons, where the writer's hand already is. Each button

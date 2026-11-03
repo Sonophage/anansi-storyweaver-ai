@@ -1154,6 +1154,9 @@ export const MARK = {
   // for preferences, because that is what a setting looks like when it is not a scavenged gear.
   expand:   'M10 10 3.6 6.2M10 10 16.4 6.2M10 10 10 17.4',
   send:     'M4.4 13.6A7 7 0 1 1 15.6 13.6M10 10V17.6',
+  // STOP, a square (Seth, 2026-11-03: Stop is the stop icon on a phone, not the word). The one mark
+  // that is not of the web: a stop is read as a square everywhere, and a fragment of a ring is not.
+  stop:     'M6.2 6.2H13.8V13.8H6.2Z',
   threads:  'M7 6.5A3.5 3.5 0 1 1 7 13.5A3.5 3.5 0 1 1 7 6.5M13 6.5A3.5 3.5 0 1 1 13 13.5A3.5 3.5 0 1 1 13 6.5',
   strings:  'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 10 16.4 6.2',
   context:  'M10 3A7 7 0 1 1 10 17A7 7 0 1 1 10 3M10 6.8A3.2 3.2 0 1 1 10 13.2A3.2 3.2 0 1 1 10 6.8',

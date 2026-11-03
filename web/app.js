@@ -2386,7 +2386,7 @@ function nextBar(last) {
           title="${open ? 'Fold the box away' : 'Write it yourself'}. Hold to talk to Anansi">${mark('quill', 24)}</button>
       </div>
       ${busy && !open
-        ? `<button id="cont" data-stop="1" class="stopping" aria-label="Stop writing" title="Stop">Stop</button>`
+        ? `<button id="cont" data-stop="1" class="stopping" aria-label="Stop writing" title="Stop">${mark('stop', 18)}<span class="btnword">Stop</span></button>`
         : `<button id="cont" data-continue="1" ${busy ? 'disabled' : ''} aria-label="Continue: Anansi writes the next passage"
             title="Continue: Anansi writes the next passage"><span class="serif">✦</span></button>`}
     </div></div>`;
@@ -2649,15 +2649,15 @@ function drawDock() {
            hide once the words start — and between those two, a writer who left the veil early had
            NO way to stop a generation at all. The veil's Stop was the only one in the app.
            So: while he is writing and there is no veil in front of you, this is Stop.
-           It wears the stopping look since #71 round two made it the one Stop with the box up: on a
-           phone the word is hidden, and without it the button showed Send's mark unchanged. -->
+           It wears the stopping look since #71 round two made it the one Stop with the box up, and
+           the stop mark since 2026-11-03: on a phone the word is hidden and the square says Stop. -->
       <!-- #55. WHILE A WEAVING BOOK'S PASSAGE IS BEING WOVEN, the count, here and on the veil. Only
            drawn while it runs; weaveStop empties it, and the next draw leaves it out. -->
       ${weavingAt('dock') && !folded
         ? `<span id="weaving" class="weaving tnum" aria-live="polite">${weaveWords('dock')}</span>` : ''}
       ${S.busy && !veilUp()
         ? `<button id="send" data-stop="1" class="stopping" aria-label="Stop writing"
-             title="Stop">${mark('send', 18)}<span class="btnword">Stop</span></button>`
+             title="Stop">${mark('stop', 18)}<span class="btnword">Stop</span></button>`
         : S.dockTalk ? `<button id="send" data-send="1" aria-label="Send to Anansi" ${S.talk.busy ? 'disabled' : ''}
              title="Send to Anansi">${mark('send', 18)}<span class="btnword">Send</span></button>`
         : `<button id="send" data-send="1" aria-label="Send" ${S.busy ? 'disabled' : ''}
@@ -10913,7 +10913,7 @@ function ghost(replaces = null) {
         <div class="veilmeter" aria-hidden="true"><i></i></div>
         <div class="veiltext" aria-live="polite"></div>
       </div>
-      <button data-stop="1" class="veilstop" aria-label="Stop writing">\u25a0 Stop</button>
+      <button data-stop="1" class="veilstop" aria-label="Stop writing">${mark('stop', 18)}<span class="btnword">Stop</span></button>
       <!-- The two presses that belong to a finished passage, on the surface you are reading it on.
            Empty until the passage is done; the stylesheet keeps the row out of the way until then,
            and veilReadable fills it because only then is there a passage to point at. -->
