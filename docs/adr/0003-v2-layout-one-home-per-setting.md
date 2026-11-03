@@ -64,3 +64,6 @@ It replaces the setup drawer, its three steps, and the closing report.
 2026-11-03: the writer's voice, how Anansi talks and the five modes moved from Account → Writing to
 Storyteller → Your voice (#131). They still have one home. Storyteller is now one panel with four
 tabs (Model, Shortlist, Your voice, Stats), and the model is chosen there only.
+
+2026-11-03: for threads, the Read / Alter split is superseded by ADR 0013, Read is the editor (#136).
+A thread is edited in place on Read, which has four tabs; the Alter screen and the ⋯ menu are gone.

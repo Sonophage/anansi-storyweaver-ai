@@ -18,6 +18,16 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · Threads and pockets save as you type
 
+### A thread is edited where you read it
+There is no separate screen for altering a thread any more. Tap its name, its kind, Always true,
+where it stands, its wake words or your notes, and it turns into a box right there. What you type
+is kept a moment after you stop, and the last of it when you leave the thread, by Back, by opening
+another thread or another tale, or by Esc. What the thread said before goes into Past edits once
+for each visit. An emptied Always true is never kept: you are told, and the thread stays open until
+it holds something. A thread now has four tabs: The thread, Timeline, Pockets and More. More holds
+what the settings button held: Stitched together, Copy to another tale, Merge with another thread,
+Read the whole tale for this thread, This thread as JSON, Retire, Delete (still two presses), and
+Past edits with Put this back. Moving between the tabs keeps anything you were typing.
 ### Storyteller holds everything about the model
 Storyteller is now one place with four tabs. Model shows the model that writes this tale and your
 usual model, with what each one is for and how fast it writes under the one you press, and the

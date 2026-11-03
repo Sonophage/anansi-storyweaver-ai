@@ -32,3 +32,6 @@ changes", which puts the thread back as it was when Alter opened.
   night (4319d3c). Seth chose save as you type again the next morning. Alter's header is Undo my
   changes, ＋ and Done; an open pocket's bar is Undo my changes and Done; a new thing keeps Cancel
   and a press that says Add. The app has four themes since 2026-11-02, not nine.
+
+2026-11-03: Alter's header (Undo my changes, ＋ and Done) is gone with Alter. A thread saves as you
+type on Read, and leaving it sends the last write: see ADR 0013, Read is the editor (#136).
