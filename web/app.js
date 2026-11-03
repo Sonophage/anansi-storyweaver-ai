@@ -7946,20 +7946,33 @@ function inventTray(kind, label, placeholder, value = '', named = '') {
  *  were and gave you nothing to type into. data-editroom carries the ADDON id rather than the
  *  slot, because a plural slot holds three rooms and scrolling to the heading of the one that has
  *  three is still asking you to find which. */
-function roomCard(name, body, keys, on, sw, kind, id) {
-  return `<div class="card" style="gap:6px; margin-bottom:8px; text-align:left;
-      border-color:${on ? 'rgba(217,178,106,.34)' : 'var(--chip)'}">
-    <div class="line-8 wraps">
-      <span style="flex:1; font-size:14.5px; color:var(--ink-bright)">${esc(name)}</span>
-      ${sw}</div>
-    ${/* NO SLOT NAME UNDER THE POCKET'S OWN (v2 redesign): the heading over it already says it, and
-          the same word twice in capitals was the clutter the Read screen is shedding. */ ''}
-    <button data-editroom="${esc(id)}" style="text-align:left; width:100%; font-size:12.5px;
-      line-height:1.45; color:var(--mute); cursor:pointer">${esc(body)}</button>
-    ${keys.length ? `<div style="display:flex; flex-wrap:wrap; gap:4px">${
-      keys.map((k) => `<span class="tag faded">${esc(k)}</span>`).join('')}</div>` : ''}
-  </div>`;
-}
+/** ONE POCKET IN A LIST, the read face's and the Pockets tab's (Seth, 2026-11-02: "the spacing there
+ *  is atrocious"). No box: rows on a hairline, as the hem lists its rows. The name, then its kind
+ *  and its text on one line under it; the whole left side opens the pocket panel; the switch on the
+ *  right. `at` is the jump anchor, on the first row of each kind. `lines` is how much text shows. */
+const pocketRow = (a, sw, at = '', lines = 1) => `<div class="pocketrow${a.active ? ' lit' : ''}"${at}>
+    <button class="pocketopen" data-editroom="${esc(a.id)}" aria-label="Open ${esc(a.name)}">
+      <span class="pkname">${esc(a.name)}</span>
+      <span class="pkline${lines > 1 ? ' clamp2' : ''}"><span class="pkkind">${esc(slotLabel(a.slot))}</span>${
+        String(a.body ?? '').trim() ? ` &middot; ${esc(lines > 1 ? String(a.body) : String(a.body).split('\n')[0])}` : ''}</span></button>
+    ${sw}</div>`;
+/** The on/off switch a pocket row wears; an outfit's is its wearing, one at a time (EXCLUSIVE_SLOTS). */
+const pocketSwitch = (e, a, wear = false) => wear && a.slot === 'outfit'
+  ? `<button data-wear="${esc(e.id)}:${esc(a.id)}" class="tag pocketsw" aria-pressed="${!!a.active}">${a.active ? 'Worn — take it off' : 'Wear this'}</button>`
+  : `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag pocketsw" aria-pressed="${!!a.active}"
+      aria-label="${esc(a.name)} is ${a.active ? 'on. Tap to turn it off' : 'off. Tap to turn it on'}"
+      >${a.active ? 'On' : 'Off'}</button>`;
+/** The list itself: on first, then what is not on under a quiet divider, then the add row. */
+const pocketList = (e, rows, sw, lines) => {
+  const seen = new Set();
+  const row = (a) => { const at = seen.has(a.slot) ? '' : ` data-slotat="${esc(a.slot)}"`; seen.add(a.slot); return pocketRow(a, sw(a), at, lines); };
+  const on = rows.filter((a) => a.active).map(row).join(''), off = rows.filter((a) => !a.active).map(row).join('');
+  return `<div class="pocketlist">${on}${off ? `<div class="lbl pkoff">Not turned on${tipMark('pocketsOff', 'Not turned on')}</div>
+    ${tipCard('pocketsOff', 'Not turned on', `<p>Written down, and not reaching the model &mdash;
+      either switched off, or until one of its wake words appears.</p>`)}${off}` : ''}
+    ${rows.length ? '' : '<div class="hint pkempty">No pockets yet.</div>'}
+    <button class="pkadd" data-pocketnew="${esc(e.id)}">+ Add a pocket</button></div>`;
+};
 
 /* THE KIND JOINS THE ROOMS ON ONE ROW. Seth, 2026-09-02: "all of these chips should be on a single
  * line right now character is not in line." The kind sat on the TITLE's row and the rooms on their
@@ -8177,27 +8190,11 @@ function cardFace(e, slots) {
          should land; a slot with nothing on carries it on its heading in the second section, so
          every jump still resolves. -->
     ${(() => {
-      const group = (live) => shown.filter((sl) => sl.name !== 'facts').map((sl) => {
-        const mine = rooms.filter((a) => a.slot === sl.name && !!a.active === live);
-        if (!mine.length) return '';
-        const anchorHere = live || !rooms.some((a) => a.slot === sl.name && a.active);
-        return `<div ${anchorHere ? `data-slotat="${esc(sl.name)}"` : ''} class="lbl"
-          style="letter-spacing:.1em; margin-top:18px">${esc(sl.name.replace(/_/g, ' '))}${
-          sl.exclusive ? '' : ' <span class="dimmed">(several)</span>'}</div>
-        ${mine.map((a) => roomCard(a.name, a.body, a.keys ?? [], a.active,
-          `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag pocketsw" style="cursor:pointer; ${
-            a.active ? 'border-color:var(--edge-lit); color:var(--ink-bright)' : 'color:var(--dim)'}"
-            aria-label="${esc(a.name)} is ${a.active ? 'on. Tap to turn it off' : 'off. Tap to turn it on'}"
-            >${a.active ? 'On' : 'Off'}</button>`, sl.name, a.id)).join('')}`;
-      }).join('');
-      const on = group(true), off = group(false);
-      return `${on}${off ? `<div class="lbl sect-rule">Not turned on${tipMark('pocketsOff', 'Not turned on')}</div>
-        ${tipCard('pocketsOff', 'Not turned on', `<p>Written down, and not reaching the model &mdash;
-          either switched off, or until one of its wake words appears.</p>`)}${off}` : ''}`;
+      // ONE LIST (2026-11-02): the kind is on each row now, not a heading over each kind's box.
+      const order = shown.map((sl) => sl.name).filter((n) => n !== 'facts');
+      const rows = rooms.filter((a) => order.includes(a.slot)).sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot));
+      return `<div class="lbl sect-rule">Pockets</div>${pocketList(e, rows, (a) => pocketSwitch(e, a), 2)}`;
     })()}
-    ${pockets ? '' : '<div class="hint push-18">No pockets filled in yet. Add one, or have Anansi fill some in.</div>'}
-    <!-- ADDING ONE OPENS THE POCKET PANEL (#126), as the header's ＋ does. -->
-    <button class="btn ghost push-18" data-pocketnew="${esc(e.id)}">+ Add a pocket</button>
   </div>`;
 }
 
@@ -8488,28 +8485,7 @@ function entryEditor() {
       const mine = [...(e.addons ?? []).filter((a) => a.slot !== 'outfit'),
         ...(e.outfits ?? []).map((o) => ({ ...o, slot: 'outfit' }))].filter((a) => order.includes(a.slot))
         .sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot));
-      const seen = new Set();
-      const row = (a) => {
-        // The jump chips land on the first row of each kind.
-        const at = seen.has(a.slot) ? '' : ` data-slotat="${esc(a.slot)}"`; seen.add(a.slot);
-        const sw = a.slot === 'outfit'
-          ? `<button data-wear="${esc(e.id)}:${esc(a.id)}" class="tag pocketsw" aria-pressed="${!!a.active}">${a.active ? 'Worn — take it off' : 'Wear this'}</button>`
-          : `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag pocketsw" aria-pressed="${!!a.active}"
-              aria-label="${esc(a.name)} is ${a.active ? 'on. Tap to turn it off' : 'off. Tap to turn it on'}"
-              >${a.active ? 'On' : 'Off'}</button>`;
-        return `<div class="pocketrow${a.active ? ' lit' : ''}"${at}>
-          <button class="pocketopen" data-editroom="${esc(a.id)}" aria-label="Open ${esc(a.name)}">
-            <span class="pkname">${esc(a.name)} <span class="faded">&middot; ${esc(slotLabel(a.slot))}</span></span>
-            <span class="pkline">${esc(String(a.body ?? '').split('\n')[0])}</span></button>
-          ${sw}</div>`;
-      };
-      const on = mine.filter((a) => a.active).map(row).join('');
-      const off = mine.filter((a) => !a.active).map(row).join('');
-      return `${on}${off ? `<div class="lbl sect-rule">Not turned on</div>
-        <div class="hint lead-4">Written down, and not reaching the model &mdash;
-          either switched off, or until one of its wake words appears.</div>${off}` : ''}
-        ${mine.length ? '' : '<div class="hint push-10">No pockets yet.</div>'}
-        <button class="btn ghost push-14" data-pocketnew="${esc(e.id)}">+ Add a pocket</button>`;
+      return pocketList(e, mine, (a) => pocketSwitch(e, a, true), 1);
     })()}
 
     <!-- ANANSI FILLS THIS ONE TOO. Seth, 2026-08-28: "the characters are filled by ai but the

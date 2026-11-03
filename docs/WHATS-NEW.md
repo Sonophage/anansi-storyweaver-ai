@@ -28,6 +28,10 @@ explanations under each heading now open from the small mark beside it.
 A pocket's box is one screen: its kind, its name, its description and wake words, then the same
 one-row ask, with Look it up online first under it. Write it and Ask Anansi are no longer two tabs.
 
+A thread's pockets are one tidy list, on its page and on the Pockets tab: no box around each one.
+Each row is the pocket's name, then its kind and its text under it, with its switch on the right.
+What is off sits under Not turned on, a little dimmer.
+
 ### Bigger thread cards, with the picture behind them
 In a tale's Threads, every card is twice as tall. A thread with a picture wears it across the whole
 card: dark at the foot, where the name and its lines are, and the picture above. Open a thread and

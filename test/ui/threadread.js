@@ -86,8 +86,8 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
      // #114: stored plain now, so it shows as stored; the capital came only from taking the bracket off.
      /^moneylender, courteous/i.test(face?.text ?? ''));
 
-  // ---- Each pocket a card, with its switch on the card
-  const pocketCards = await page.eval(`JSON.stringify([...document.querySelectorAll('#sideBody .readface .card')]
+  // ---- Each pocket a row, with its switch on the row (rows on a hairline since 2026-11-02, not cards)
+  const pocketCards = await page.eval(`JSON.stringify([...document.querySelectorAll('#sideBody .readface .pocketrow')]
     .filter((c) => c.querySelector('[data-addonon]')).map((c) => {
       const sw = c.querySelector('[data-addonon]');
       sw.scrollIntoView({ block: 'center', behavior: 'instant' });   // a finger lands only on what is on screen
@@ -99,11 +99,11 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
       const finger = document.elementFromPoint(mid[0], mid[1])?.closest('[data-addonon]') === sw
         && [[0, -21], [0, 21], [-21, 0], [21, 0]].every(([dx, dy]) =>
           !!document.elementFromPoint(mid[0] + dx, mid[1] + dy)?.closest(C));
-      return { name: c.querySelector('span')?.textContent ?? '', sw: sw.textContent.trim(),
+      return { name: c.querySelector('.pkname')?.textContent ?? '', sw: sw.textContent.trim(),
         inside: r.left >= cr.left && r.right <= cr.right, finger };
     }))`).then(JSON.parse);
   const want = marek.addons.filter((a) => a.slot !== 'facts').length;
-  ok(`every pocket is its own card with its on/off on it (${JSON.stringify(pocketCards)})`,
+  ok(`every pocket is its own row with its on/off on it (${JSON.stringify(pocketCards)})`,
      pocketCards.length === want && pocketCards.every((p) => /^(On|Off)$/.test(p.sw) && p.inside));
   ok("  and the switch is 44px to the finger", pocketCards.every((p) => p.finger));
 
