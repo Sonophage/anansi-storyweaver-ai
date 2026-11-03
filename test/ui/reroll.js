@@ -33,7 +33,6 @@ ok(`run.sh handed over the scratch folder (${SCRIPT})`, fs.existsSync(path.dirna
  *  a directed re-roll opens its instruction first). */
 const fresh = async (model) => {
   await call("/api/story", { id: sid, story: { model } });
-  await call("/api/model", { model, storyId: sid });
   const g = await call("/api/generate", { storyId: sid, mode: "continue" });
   await call("/api/accept", { storyId: sid, body: g.prose, mode: "continue", genId: g.genId });
   return g;

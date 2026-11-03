@@ -1864,8 +1864,10 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
   assert.deepStrictEqual(await ids(alice), [HERS], "bob's add cannot write alice's list");
   const models: any = await routes['GET /api/models'](ctx(bob));
   assert.ok(!models.models.some((m: any) => m.id === HERS), "her model is not on bob's menu");
-  const set: any = await routes['POST /api/model'](ctx(bob, { model: HERS }));
-  assert.ok(set.error, "bob cannot make alice's shortlisted model his default");
+  // A model is chosen on a tale's Model tab, which makes it his default too: the one way in.
+  await assert.rejects(routes['POST /api/story'](ctx(bob, { id: bStory.id, story: { model: HERS } })),
+    "bob cannot make alice's shortlisted model his default");
+  assert.strictEqual((db.getStory(bStory.id) as any).model ?? null, null, 'and his tale is not pinned to it');
 
   // And alice's own remove works, so the refusals above are about the owner and not a dead route.
   await routes['POST /api/shortlist/remove'](ctx(alice, { model: HERS }));

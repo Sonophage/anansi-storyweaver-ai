@@ -347,6 +347,16 @@ const ctx = (owner: string, body: any = {}, query = '') => {
   return c;
 };
 
+/** A WRITER PICKS A MODEL the one way the app has: on a tale's Model tab, which pins the tale and
+ *  makes the pick the writer's model for new tales (`POST /api/story`). One scratch tale per writer,
+ *  re-pinned on each pick, so no book under test has its pin moved and no stale pin holds a model
+ *  in the router. A refused pick throws, as the route does; a refused switch is the route's toast. */
+const scratch = new Map<string, string>();
+const pick = (owner: string, model: string) => {
+  if (!scratch.has(owner)) scratch.set(owner, db.createStory(owner, { title: 'Model tab' }).id);
+  return routes['POST /api/story'](ctx(owner, { id: scratch.get(owner), story: { model } }));
+};
+
 let n = 0;
 // Message only — assertions run inline above, as in test/memory.ts.
 const ok = (m: string, fn?: unknown) => {
@@ -363,8 +373,8 @@ const chats = () => fl.filter((r) => r.path === '/v1/chat/completions');
   const listed = await routes['GET /api/shortlist'](ctx(me));
   assert.deepStrictEqual(listed.models.map((m: any) => m.id), [id], 'the model is on the shortlist');
 
-  const set = await routes['POST /api/model'](ctx(me, { model: id }));
-  assert.ok(!set.error, set.error);
+  const set = await pick(me, id);
+  assert.ok(!set.toast, set.toast);
   assert.strictEqual(db.defaultModelOf(me), id, 'the writer default stores the prefixed id unchanged');
 
   fl.length = 0;
@@ -812,8 +822,8 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
   let m = mark();
   // Remote -> local -> remote. Each switch away from a model asks whether to release it.
   for (const to of [LOCAL, ID]) {
-    const r = await routes['POST /api/model'](ctx(me, { model: to }));
-    assert.ok(!r.error, r.error);
+    const r = await pick(me, to);
+    assert.ok(!r.toast, r.toast);
   }
   const unloads = local.slice(m.local).filter((x) => x.path === '/models/unload');
   assert.ok(unloads.every((x) => x.body.model === LOCAL),
@@ -851,8 +861,7 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
 {
   const other = db.owner('pin-other');
   const theirs = db.createStory(other, { title: 'Not Mine' });
-  const set = await routes['POST /api/model'](ctx(other, { model: ID }));
-  assert.match(String(set.error), /not on the shortlist/, 'a default off your shortlist is refused');
+  await assert.rejects(pick(other, ID), /not on the shortlist/, 'a default off your shortlist is refused');
   assert.notStrictEqual(db.defaultModelOf(other), ID, 'and not stored');
   await assert.rejects(routes['POST /api/story'](ctx(other, { id: theirs.id, story: { model: ID } })),
     /not on the shortlist/, 'a pin off the owner\'s shortlist is refused');
@@ -1308,14 +1317,14 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
     return v.passages.at(-1).id;
   };
   const far = await write();
-  await routes['POST /api/model'](ctx(me, { model: 'Qwen3.6-WNTH-35B-A3B-NN' }));
+  await pick(me, 'Qwen3.6-WNTH-35B-A3B-NN');
   const near = await write();
   const [ft] = await takeOf(far), [nt] = await takeOf(near);
   // The seed is there on both, so the flag — not a missing seed — is what hides the button.
   assert.ok(ft.seed != null && nt.seed != null, 'both takes carry the seed that made them');
   assert.strictEqual(ft.remote, true, 'RESEED: a take Featherless wrote is marked remote');
   assert.strictEqual(nt.remote, false, 'RESEED: a take the local router wrote is not');
-  await routes['POST /api/model'](ctx(me, { model: ID }));
+  await pick(me, ID);
   ok('a take says whether a remote model wrote it, beside the seed');
 }
 
@@ -1355,7 +1364,7 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
     const a = await routes['POST /api/shortlist'](ctx(w, { model: ID }));
     assert.ok(!a.error, a.error);
   }
-  await routes['POST /api/model'](ctx(writer, { model: ID }));
+  await pick(writer, ID);
   const pin = async (w: string, title: string) => {
     const s = db.createStory(w, { title });
     await routes['POST /api/story'](ctx(w, { id: s.id, story: { model: ID } }));
@@ -1398,7 +1407,7 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
 {
   const writer = db.owner('local-remover');
   const LOCAL0 = 'Qwen3.6-WNTH-35B-A3B-NN';
-  await routes['POST /api/model'](ctx(writer, { model: LOCAL0 }));
+  await pick(writer, LOCAL0);
   assert.strictEqual(db.defaultModelOf(writer), LOCAL0, 'the detector: the default is the local model');
   const s = db.createStory(writer, { title: 'Local Light' });
   await routes['POST /api/story'](ctx(writer, { id: s.id, story: { model: LOCAL0 } }));
@@ -1418,7 +1427,7 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
   const LOCAL0 = 'Qwen3.6-WNTH-35B-A3B-NN';
   const a = await routes['POST /api/shortlist'](ctx(writer, { model: ID }));
   assert.ok(!a.error, a.error);
-  await routes['POST /api/model'](ctx(writer, { model: ID }));
+  await pick(writer, ID);
   const book = db.createStory(writer, { title: 'Keyless' });
   db.addPassage({ ...book, storyId: book.id, body: 'The keeper lost the key.' });
   await routes['POST /api/story'](ctx(writer, { id: book.id, story: { model: ID } }));
@@ -1454,8 +1463,7 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
     assert.ok(since(m).local.every((x) => x.body.model === LOCAL0) && since(m).local.length >= 1,
       'the passage is written locally, by the local default');
 
-    const pick = await routes['POST /api/model'](ctx(writer, { model: ID }));
-    assert.match(String(pick.error), /isn't set up/, 'NO KEY: the shortlisted model cannot be picked');
+    await assert.rejects(pick(writer, ID), /isn't set up/, 'NO KEY: the shortlisted model cannot be picked');
     const sl = await routes['GET /api/shortlist'](ctx(writer));
     assert.deepStrictEqual([sl.ready, sl.models.length], [false, 1], 'and the shortlist route agrees');
   } finally { writeFileSync(KEY_FILE, KEY + '\n'); }
@@ -1867,8 +1875,8 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
 {
   const LOCAL0 = 'Qwen3.6-WNTH-35B-A3B-NN', LOCAL1 = 'Gemma-4-WNTH-31B-NN';
   const w = db.owner('last-pick'), them = db.owner('last-pick-other');
-  await routes['POST /api/model'](ctx(w, { model: LOCAL0 }));
-  await routes['POST /api/model'](ctx(them, { model: LOCAL0 }));
+  await pick(w, LOCAL0);
+  await pick(them, LOCAL0);
   const a = db.createStory(w, { title: 'First tale' });
   await routes['POST /api/story'](ctx(w, { id: a.id, story: { model: LOCAL1 } }));
   assert.strictEqual(db.getStory(a.id).model, LOCAL1, 'the tale is pinned to the model picked');

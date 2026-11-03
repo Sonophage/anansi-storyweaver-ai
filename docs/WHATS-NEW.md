@@ -81,7 +81,7 @@ writes it, Plans first, how much he reads, how bold his words are, how many word
 longest a passage runs. A tale whose sliders you have not moved keeps the settings you had. The
 model shows as one row: press it to open the list of your other models, and press one to choose it.
 Each model is in the list once. What it is, under the list, says what the model is for and how fast
-it writes. The model you choose for a tale is also your model from then on: a new tale starts with
+it writes; it no longer has a "Write with this one" button, because the list is where you choose. The model you choose for a tale is also your model from then on: a new tale starts with
 it, and so does any tale that has no model of its own. The ＋ at the top,
 beside full screen and Close, opens Add a model, the Featherless search. Shortlist is your
 shortlist, where you remove a model. Your voice is your voice for every tale, how Anansi talks and

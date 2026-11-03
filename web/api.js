@@ -276,7 +276,6 @@ export const api = {
   // ✦ (#71). Three ideas for the next beat, for the writer to pick from. Writes nothing.
   idea:         (storyId)        => j('/api/idea', 'POST', { storyId }),
   bug:          (o)              => j('/api/bug', 'POST', o),
-  setModel:     (model, storyId) => j('/api/model', 'POST', { model, storyId }),
   // The writer's own remote models. `model` is the prefixed id, as stored everywhere else.
   shortlist:    ()               => j('/api/shortlist'),
   addShortlist: (model)          => j('/api/shortlist', 'POST', { model }),

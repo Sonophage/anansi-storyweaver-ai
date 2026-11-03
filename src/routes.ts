@@ -619,7 +619,18 @@ const EXTRACT_TOKENS = 3000;
 // reason every other role here does: running out of room truncates the OBJECT and costs a retry.
 const RETIRE_TOKENS = 400;
 
-/** How many DISTINCT models may be loaded at once across every writer. See `POST /api/model`. */
+// A writer's model is per WRITER, not per process. A story that names its own model still wins over
+// it — see modelFor — so the order is story, then writer, then the boot default. Two writers on two
+// different models is the point: the router holds three at once (`--models-max 3`).
+//
+// ponytail: MAX_LOADED is 2 and it is a bound, not a measurement. Two writers on two models is
+// what Seth wants and the router holds three (`--models-max 3`), but the F-numbers for two
+// concurrent writers were taken on ONE model with two slots — two models at FULL BUDGET is a
+// different sum and nobody has run it. Ceiling: two is a guess sitting between one measured pair
+// and the router's three. Upgrade path is to measure a pair on this box and raise it; the
+// measurement is deliberately not run here, because the way to run it is to oversubscribe the
+// cache while somebody is mid-generation, and the failure it produces is their lost prose.
+/** How many DISTINCT models may be loaded at once across every writer. See `switchUsual`. */
 const MAX_LOADED = 2;
 
 /** Would switching this writer to `id` put more than `max` distinct models in the router at once?
@@ -3011,9 +3022,10 @@ function prewarm(c: Ctx, v: any) {
   })();
 }
 
-/** THE WRITER'S MODEL SWITCHED, by `POST /api/model` and by a model picked on a tale (Seth,
- *  2026-11-03: "the default should be the last model chosen on the last tale opened"). One door, so
- *  both are checked against the shortlist and the load count, and both release the model left. */
+/** THE WRITER'S MODEL SWITCHED, by a model picked on a tale (Seth, 2026-11-03: "the default should
+ *  be the last model chosen on the last tale opened"). Checked against the shortlist and the load
+ *  count, and it releases the model left. The model card's own switch, `POST /api/model`, was
+ *  removed the same day: a model is chosen on a tale and nowhere else. */
 async function switchUsual(c: Ctx, want: string): Promise<{ active: string; released: string | null; kept: string | null } | { error: string }> {
   try {
     const was = c.defaultModel;
@@ -3272,18 +3284,6 @@ export const routes: Record<string, Handler> = {
         named.length === 1 ? 'goes' : 'go'} back to the local model.` } : {}) };
   },
 
-  // Per WRITER, not per process. A story that names its own model still wins over this — see
-  // modelFor — so the order is story, then writer, then the boot default. Two writers on two
-  // different models is the point: the router holds three at once (`--models-max 3`).
-  //
-  // ponytail: MAX_LOADED is 2 and it is a bound, not a measurement. Two writers on two models is
-  // what Seth wants and the router holds three (`--models-max 3`), but the F-numbers for two
-  // concurrent writers were taken on ONE model with two slots — two models at FULL BUDGET is a
-  // different sum and nobody has run it. Ceiling: two is a guess sitting between one measured pair
-  // and the router's three. Upgrade path is to measure a pair on this box and raise it; the
-  // measurement is deliberately not run here, because the way to run it is to oversubscribe the
-  // cache while somebody is mid-generation, and the failure it produces is their lost prose.
-  'POST /api/model': (c: Ctx) => switchUsual(c, String(c.body.model ?? '')),
   'POST /api/stories':   (c) => {
     // #104 · A NEW WORLD FOR THE IP, made with the tale. Its own path, because it waits on the model.
     if (c.body.newWorld) return storyInNewWorld(c);

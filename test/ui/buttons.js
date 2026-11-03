@@ -124,7 +124,7 @@ await wait(1200);
 // #23 took the model list OFF this page — the rail footer has the one that stays, and what is left
 // is a writing record. All three asserted, because "the list is gone" on its own would also pass on
 // a page that failed to render at all, which is the failure this change could plausibly have caused.
-const models = await page.eval("document.querySelectorAll('#page [data-pickmodel]').length");
+const models = await page.eval("document.querySelectorAll('#page [data-talemodel]').length");
 ok("the writing record lists no models (" + models + ")", models === 0);
 // The list is on Storyteller's Model tab, behind the menu's model name (`data-modelmenu`, #131), so
 // the door is what to assert, not a list that is not on screen until you ask for it.

@@ -378,6 +378,8 @@ let shelfOverride: any = null;
 // Whether the canned model list says the server holds a Featherless key. Off, as it was before the
 // field existed; a check that needs it on sets it and reads the list again.
 let modelsRemote = false;
+// The remote row as the server sends it with no key: listed, not pickable (`ready: false`).
+let farUnready = false;
 // Whether the library answer says this writer is the admin. Off: the fixture's writer is not. The
 // model panel checks flip it to see the admin's view beside the writer's.
 let libAdmin = false;
@@ -561,7 +563,7 @@ let worldDown = 0;
         // #53. A remote row, in the shape the route gives it: its status says where it runs, not
         // whether it is awake, because Featherless keeps no model asleep that a writer can see.
         { id: 'featherless:Grey/Kestrel-Heretic-24B', status: 'remote', source: 'remote',
-          ctxSize: 32768, perSlot: 32768, cost: 2 }] }
+          ctxSize: 32768, perSlot: 32768, cost: 2, ...(farUnready ? { ready: false } : {}) }] }
     // #21. A skeleton, not a created story — which is the whole reason it lands on the page to be
     // edited before anything is written.
     : url.startsWith('/api/style') ? { style: 'Wet streets and short sentences.' }
@@ -2936,7 +2938,7 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   const page = html('page');
   assert.doesNotMatch(page, /llama-server/, 'the server address is gone');
   assert.doesNotMatch(page, /data-router=/, 'and the restart and stop controls with it');
-  assert.doesNotMatch(page, /data-pickmodel=/,
+  assert.doesNotMatch(page, /data-talemodel=/,
     'and the second copy of the model list — the rail footer has the one that stays');
   assert.match(page, /What you have written/, 'the writing record is what the page is now');
   // The slot, the canon cap and the snapshot button are the machine's, not the writer's: since
@@ -3098,10 +3100,11 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   const mine = html('sideBody').replace(/<!--[\s\S]*?-->/g, '');
   assert.match(mine, /about 38,000 words/, 'WRITER-MODEL: how much it reads, in words');
   assert.match(mine, /about 44 words a second/, 'WRITER-MODEL: how fast, in words');
-  // On screen, so the tags come off first: the switch carries the id in its attribute, and should.
+  // On screen, so the tags come off first: the presses carry the id in their attributes, and should.
   assert.doesNotMatch(mine.replace(/<[^>]*>/g, ' '), /tokens|tok\/s|preset file|Qwen3\.6-WNTH-35B-A3B-NN|bakeoff|twelve times/,
     'WRITER-MODEL: and none of the machine talk');
-  assert.match(mine, /data-pickmodel="Qwen3\.6-WNTH-35B-A3B-NN"/, 'WRITER-MODEL: with the switch');
+  // Seth, 2026-11-03: a model is chosen on the Model tab's list and nowhere else.
+  assert.doesNotMatch(mine, /data-pickmodel=|data-talemodel=|Write with this one/, 'NO-SWITCH: and no switch on the card');
   click({ modelinfo: 'write-nt-qwen36-h' });
   // #131. The others are the rows around it on the same tab, so it needs no press of its own.
   assert.match(html('sideBody'), /<button data-tellerlist="tale"/,
@@ -3137,8 +3140,8 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.doesNotMatch(panel, /&amp;middot;/, 'FACT-DOT: the dot between words and tokens is a dot, not the entity as text');
   assert.match(panel, /words · [\d,]+ tokens/, 'FACT-DOT: words and tokens with a dot between');
   assert.match(panel, /twelve times the speed/, 'the hand-written blurb, quoted from presets.ini');
-  assert.match(panel, /data-pickmodel="Qwen3\.6-WNTH-35B-A3B-NN"/,
-    'and the switch is on the panel, which is the whole of what checks.md asked for');
+  assert.doesNotMatch(panel, /data-pickmodel=|data-talemodel=|Write with this one/,
+    'NO-SWITCH: the admin\'s card has no switch either: the Model tab\'s list is where a model is chosen');
 
   // THE LOADED MODEL'S NUMBER COMES FROM THE RUNNING SERVER, NOT FROM THE FILE. presets.ini says
   // 100000 over two slots; llama-server rounds its own allocation and reports 50,048, and that is
@@ -3150,7 +3153,6 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.match(loaded, /50,048 tokens/, 'the running server\'s own figure, not the file\'s 50,000');
   assert.match(loaded, /half of what this machine holds \(100,096 tokens\)/, 'and it says so');
   assert.match(loaded, /writing now/, 'and this is the one writing');
-  assert.doesNotMatch(loaded, /data-pickmodel=/, 'so there is nothing to switch to');
 
   // The exception is an exception. A panel about a BOOK still has nothing to say with no book open.
   click({ home: 1 }); await sleep(40);
@@ -3189,16 +3191,31 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.match(far, /2 units of your Featherless plan/, 'REMOTE-PANEL: its unit cost, on the writer\'s own plan');
   assert.match(far, /all of it is yours/, 'REMOTE-OWN: a Featherless model\'s room is not shared');
   assert.match(far, /on Featherless/, 'REMOTE-PANEL: and where it runs');
-  assert.doesNotMatch(far, /data-pickmodel=/,
-    'REMOTE-PANEL: with Featherless not set up, there is no Write with this one');
-
-  // With a key, the switch is back. The list is read again so the panel learns it.
-  modelsRemote = true;
+  // A model is chosen on the Model tab's list, so that is where an unpickable one must not be offered.
+  const listed = () => {
+    click({ tellerlist: 'tale' });
+    const list = html('sideBody');
+    click({ tellerlist: 'tale' });
+    return list;
+  };
+  farUnready = true;
   click({ dropshort: 'featherless:Other/Unused-12B' });
   await sleep(40);
+  const dim = listed();
+  assert.match(dim, /data-unready="featherless:Grey\/Kestrel-Heretic-24B"/,
+    'the detector: the list was open and holds the model, greyed');
+  assert.doesNotMatch(dim, /data-talemodel="featherless:Grey\/Kestrel-Heretic-24B"/,
+    'REMOTE-PANEL: with Featherless not set up, the list does not offer it');
+
+  // With a key, the list offers it. The list is read again so the panel learns it.
+  modelsRemote = true; farUnready = false;
+  click({ dropshort: 'featherless:Other/Unused-12B' });
+  await sleep(40);
+  assert.match(listed(), /data-talemodel="featherless:Grey\/Kestrel-Heretic-24B"/,
+    'REMOTE-PANEL: and with Featherless set up, the list offers it');
   click({ modelinfo: FAR });
-  assert.match(html('sideBody'), /data-pickmodel="featherless:Grey\/Kestrel-Heretic-24B"/,
-    'and with Featherless set up, the switch is on the panel');
+  assert.doesNotMatch(strip(html('sideBody')), /data-pickmodel=|data-talemodel=|Write with this one/,
+    'NO-SWITCH: while its card still has no switch');
   modelsRemote = false;
   click({ dropshort: 'featherless:Other/Unused-12B' });
   await sleep(40);
@@ -3215,12 +3232,13 @@ ok('the model panel reads the router, the preset file, this database and the id,
   const was = (globalThis as any).fetch;
   let reads = 0;
   (globalThis as any).fetch = async (url: string, init?: any) => {
-    if (url === '/api/model') return { ok: true, status: 200, json: async () => ({ active: 'featherless:Grey/Kestrel-Heretic-24B' }) };
     if (String(url).startsWith('/api/story?')) reads++;
     return was(url, init);
   };
   try {
-    click({ pickmodel: 'featherless:Grey/Kestrel-Heretic-24B' }); await sleep(60);
+    click({ modelmenu: '1' }); await sleep(30);
+    click({ tellerlist: 'tale' });
+    click({ talemodel: 'Wayfarer-2-RPNT-12B' }); await sleep(60);
     assert.ok(reads >= 1, 'MODEL-PICK-REREAD: picking a model in a tale reads the tale again, so the menu names it');
   } finally { (globalThis as any).fetch = was; click({ home: 1 }); await sleep(30); }
 }
@@ -4026,7 +4044,8 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
 // THE MODEL PANEL IN A BOOK reads what writes that book. "Writing now" is the book's model, not the
 // writer default; a guest opening the owner's remote pin is told its limit and its cost from the
 // pin row the book carries, not "Featherless did not say", which was false; and a remote model not
-// on this writer's own shortlist offers no switch, because the server refuses it as a default.
+// on this writer's own shortlist is not offered on the Model tab's list, because the server refuses
+// it as a default.
 {
   const strip = (h: string) => h.replace(/<!--[\s\S]*?-->/g, '');
   const LENT = 'featherless:owner/Lent-Remote-24B';
@@ -4055,7 +4074,16 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   assert.match(lent, /2 units of your Featherless plan/, 'LENT-PANEL: and the cost the owner\'s shortlist holds');
   assert.doesNotMatch(lent, /did not say/, 'LENT-PANEL: never "Featherless did not say", which is false');
   assert.match(lent, /writing now/, 'WRITING-NOW: the model that writes the open book is the one writing');
-  assert.doesNotMatch(lent, /data-pickmodel=/, 'LENT-PANEL: and no switch to a model off this writer\'s list');
+  assert.doesNotMatch(lent, /data-pickmodel=|data-talemodel=|Write with this one/, 'LENT-PANEL: and no switch on its card');
+  // A model is chosen on the Model tab's list, so that is where a lent one must not be offered.
+  const offered = (id: string) => {
+    click({ tellerlist: 'tale' });
+    const list = html('sideBody');
+    click({ tellerlist: 'tale' });
+    assert.match(list, /id="talemodels"/, 'the detector: the list was open');
+    return list.includes(`data-talemodel="${id}"`);
+  };
+  assert.ok(!offered(LENT), 'LENT-PANEL: the list offers no model off this writer\'s list');
   const dflt = await panelFor('write-nt-qwen36-h');
   assert.doesNotMatch(dflt, /writing now/, 'WRITING-NOW: the writer default does not write this book');
 
@@ -4066,12 +4094,11 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   await sleep(40);
   const idle = await panelFor(LENT);
   assert.doesNotMatch(idle, /writing now/, 'the detector: here the pin is not writing');
-  assert.doesNotMatch(idle, /data-pickmodel=/,
-    'LENT-PANEL: a remote model off this writer\'s own shortlist offers no Write with this one');
+  assert.ok(!offered(LENT),
+    'LENT-PANEL: a remote model off this writer\'s own shortlist is not offered to pick');
   assert.match(idle, /not on your shortlist/, 'LENT-PANEL: and says why');
-  const own = await panelFor('featherless:Grey/Kestrel-Heretic-24B');
-  assert.match(own, /data-pickmodel="featherless:Grey\/Kestrel-Heretic-24B"/,
-    'while a remote model on the writer\'s own shortlist still offers the switch');
+  assert.ok(offered('featherless:Grey/Kestrel-Heretic-24B'),
+    'while a remote model on the writer\'s own shortlist is offered');
 
   STORY.model = was.model; (STORY as any).pin = was.pin; (STORY.story as any).model = was.story;
   modelsRemote = false;
@@ -5618,12 +5645,12 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
     && at(/data-gen="temperature"/) < at(/data-gen="target_words"/),
     'TELLER-TALE: the model that writes this tale, Plans first, how much he reads, then the sliders');
   assert.doesNotMatch(model, />On every tale</, 'TELLER-NOEVERY: no "On every tale" section');
-  assert.doesNotMatch(model, /data-tellerlist="usual"|data-pickmodel=/, 'TELLER-NOEVERY: and no usual model row');
+  assert.doesNotMatch(model, /data-tellerlist="usual"/, 'TELLER-NOEVERY: and no usual model row');
   // Seth: "remove the drop down and instead do the panel to open on toggle."
   assert.doesNotMatch(model, /data-storymodel=/, 'TELLER-NOSELECT: no drop-down to choose the tale\'s model');
   assert.doesNotMatch(model, /<select[^>]*aria-label="[^"]*model/i, 'TELLER-NOSELECT: and no drop-down for any model');
   assert.match(model, /<button data-tellerlist="tale" aria-expanded="false"/, 'TELLER-TOGGLE: the tale\'s model is one row, shut');
-  assert.doesNotMatch(model, /data-talemodel=|data-pickmodel=/, 'TELLER-TOGGLE: no list until a row is pressed');
+  assert.doesNotMatch(model, /data-talemodel=/, 'TELLER-TOGGLE: no list until a row is pressed');
   // Seth: "The add button can go up top by the close and expand button".
   assert.doesNotMatch(model, /data-findmodel=/, 'TELLER-PLUS: no ＋ beside the model row');
   assert.match(html('sideHead'), /data-findmodel="1"[\s\S]*data-panelfull="1"[\s\S]*data-panel=""/,
@@ -5649,7 +5676,6 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   assert.ok(!picks.includes('Qwen3.6-WNTH-35B-A3B-NN'),
     'TELLER-ONCE: the tale follows your model, so the row names it and the list does not again');
   assert.strictEqual(new Set(picks).size, picks.length, 'TELLER-ONCE: no model twice');
-  assert.doesNotMatch(taleOpen, /data-pickmodel=/, 'TELLER-TOGGLE: only the pressed row\'s list opens');
   const before = POSTED.length;
   click({ talemodel: 'Wayfarer-2-RPNT-12B' });
   await sleep(40);

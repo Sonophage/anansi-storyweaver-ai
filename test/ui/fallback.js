@@ -28,7 +28,8 @@ const sid = (await call("/api/stories")).stories.find((s) => s.title === "The Si
 const added = await call("/api/shortlist", { model: REMOTE });
 ok(`the remote model is on the shortlist (${added.error ?? "added"})`, !added.error);
 const write = async (model, variantOf) => {
-  await call("/api/model", { model, storyId: sid });
+  // Pinned the way the Model tab picks a model, which also makes it the writer's own.
+  await call("/api/story", { id: sid, story: { model } });
   const g = await call("/api/generate", { storyId: sid, mode: "continue" });
   const v = await call("/api/accept", { storyId: sid, body: g.prose, mode: "continue", genId: g.genId,
     ...(variantOf ? { variantOf, rejected: false } : {}) });

@@ -550,7 +550,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'summarize', 'extract', 'decide', 'branch', 'delbranch', 'newthread', 'entry',
   'carryon',
   'spark', 'blank', 'backup', 'putback', 'hit', 'expand', 'delentry', 'backentry',
-  'kind', 'pickmodel', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
+  'kind', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
   // #36. A followed card, per card. `unlink` was taken by the entry-LINKS feature years of commits
   // ago, so these say what they do to a followed thread instead of reusing that word.
   'takeover', 'dropfollow', 'handback', 'sendup', 'bringback', 'savefollowed',
@@ -4682,13 +4682,15 @@ const hemShownIsDone = () => ritualScene(null).closed;
  *  A REMOTE model has no router and no preset file: its context and its cost are the Featherless
  *  catalogue's, recorded on the shortlist, and its description is its Hugging Face card.
  *
- *  ABOUT THE BOX, NOT ABOUT A BOOK — hence the note when the open story pins its own model: this
- *  switch is real but a pinned story outranks it, and a panel that offered a switch without saying
- *  so would be lying by omission. Its "writing now" is the strip's reading (`writingNow`): in a
- *  book, the model that writes that book.
+ *  Its "writing now" is the strip's reading (`writingNow`): in a book, the model that writes that
+ *  book.
  *
  *  #131 · IT WAS A PANEL OF ITS OWN, `model`. It is drawn on Storyteller's Model tab now, under the
- *  model it is about (`tellerModel`), so it is read before the switch it carries is pressed.
+ *  model it is about (`tellerModel`).
+ *
+ *  NO SWITCH ON IT (Seth, 2026-11-03). It carried "Write with this one", a second way to choose a
+ *  model beside the tale's own list. A model is chosen on the Model tab's list and nowhere else: that
+ *  pick pins the tale and becomes the writer's model for new tales (`POST /api/story`).
  */
 function modelInfo(id) {
   if (!id) return '<div class="hint flush">No model is named yet.</div>';
@@ -4699,7 +4701,6 @@ function modelInfo(id) {
   const writing = id === writingNow();
   // The server takes a remote default only from this writer's OWN shortlist.
   const mine = (S.models ?? []).some((x) => x.id === id);
-  const pinned = V?.story?.model;
   // TWO NUMBERS FOR ONE THING, forty-eight apart. `presets.ini` says ctx-size 100000 over two
   // slots; llama-server rounds its own allocation up and reports 50,048, which is the number the
   // rail footer under this panel already shows. For the model actually loaded the running server
@@ -4775,11 +4776,6 @@ function modelInfo(id) {
       m.tps ? `the middle of ${m.runs} ${m.runs === 1 ? 'passage' : 'passages'} written with it here${m.runs < 5 ? ', too few to be sure of' : ''}`
         : 'nothing has been written with it here yet')}
 
-    ${pinned && pinned !== id
-      ? `<div class="hint" style="margin:12px 0 0; color:var(--warn)">This tale has its own model
-          &mdash; <code>${esc(modelName(pinned).name)}</code> &mdash; and this tale's model comes
-          before this switch. Change it under This tale, above.</div>` : ''}
-
     <div class="push-16">
       ${writing
         // The others are the rows around this one on the same tab (#131), so there is no press here
@@ -4792,7 +4788,7 @@ function modelInfo(id) {
         : remote && !mine
         ? `<div class="hint flush">This tale's owner chose it, and it is
             not on your shortlist, so it cannot be your model. Shortlist can add it.</div>`
-        : `<button class="btn" data-pickmodel="${esc(id)}">Write with this one</button>`}
+        : ''}
     </div></div>`;
 }
 
@@ -13849,25 +13845,6 @@ document.addEventListener('click', async (e) => {
     // book is read again, so the Storyteller names the model that writes it now.
     if (r.toast && S.place === 'story' && V) { V = await api.story(S.storyId); paint(); refreshManifest(); }
     return toast(`${modelName(d.dropshort).name} is off your shortlist.${r.toast ? ` ${r.toast}` : ''}`);
-  }
-  if (d.pickmodel) {
-    S.tellerList = null;
-    if (d.pickmodel === SRV.model) return void drawSide();
-    const r = await api.setModel(d.pickmodel, S.storyId ?? LIB[0]?.id);
-    if (r.error) return toast(r.error);
-    SRV.model = r.active; loadModels();
-    // IN A TALE THE MENU NAMES `V.model`, the model the server resolved for this tale, and only a
-    // fresh read of the tale moves it: without one the menu went on naming the old model (Seth,
-    // 2026-10-29). A tale pinned to a model of its own still names its pin, which is what writes it.
-    if (S.place === 'story' && S.storyId) { const v = await api.story(S.storyId); if (!v.error) V = v; }
-    paint();
-    // What happened to the one you were on. Said out loud because the alternative — a model that
-    // silently stays resident, or one that silently goes — is the difference between "why is the
-    // card full" and "why did that take 45 seconds", and neither question has an answer on screen.
-    const name = (id) => modelName(id).name;
-    return toast(r.released ? `Now writing with ${name(r.active)}. ${name(r.released)} released.`
-      : r.kept ? `Now writing with ${name(r.active)}. ${name(r.kept.split(' — ')[0])} kept — ${r.kept.split(' — ')[1]}.`
-      : `Now writing with ${name(r.active)}.`);
   }
 
   // #22 §3/§4. Picking a kind clears the room under it: the rooms of `character` mean nothing
