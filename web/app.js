@@ -282,7 +282,7 @@ const S = {
   memoing: null,        // the passage being turned into a thread, while Anansi is thinking
   newsBusy: false, newsError: null,   // What changed, while Anansi is writing it
   tellerTab: 'model',   // #131. Which of Storyteller's tabs is showing: model, shortlist, addmodel, voice, stats
-  tellerList: null,     // Which model row on Model has its list open: 'tale', 'usual', or none (2026-11-03)
+  tellerList: null,     // Whether the model row on Model has its list open: 'tale', or none (2026-11-03)
   // #51. Find a model: the search over the Featherless catalogue, and this writer's shortlist.
   // `hits` is null until the first answer lands; `seq` drops an answer a later search overtook.
   find: { q: '', size: '', weaving: '', cost: '', tag: '', uncensored: true, hits: null, total: 0, sizes: [], costs: [], weavings: [],
@@ -2834,6 +2834,10 @@ function drawSide() {
           place of the add form that sat under the list. */
       S.panel === 'strings' && V ? `<button data-stringnew="1" class="headadd" aria-label="Add a string"
       title="Add a string"><span>${mark('create', 16)}</span></button>` : ''}
+    ${/* AND STORYTELLER'S: Add a model (Seth, 2026-11-03: "The add button can go up top by the close
+          and expand button"), in place of a ＋ beside each model row. */
+      S.panel === 'teller' ? `<button data-findmodel="1" class="headadd" aria-label="Add a model"
+      title="Add a model"><span>${mark('create', 16)}</span></button>` : ''}
     ${fullBtn}<button class="caps-btn" data-panel="">Close</button>`;
   decode($('sideHead').querySelector('.serif'), 'panel');
   $('sideBody').innerHTML = (PANEL_HELP[S.panel] && !thRead && !(S.panel === 'threads' && S.lore && !S.entryId)
@@ -4847,14 +4851,15 @@ function addModel() {
   </div>`;
 }
 
-/** #131 · STORYTELLER'S TABS. Stats is this tale's calls, so it is not offered with no tale open.
+/** #131 · STORYTELLER'S TABS. Model and Stats are this tale's (its model, its sliders, its calls), so
+ *  neither is offered with no tale open (Seth, 2026-11-03: "remove the global On every tale").
  *  Shortlist and Add a model are two tabs since Seth's review of 2026-11-03. */
 const TELLER_TABS = [['model', 'Model'], ['shortlist', 'Shortlist'], ['addmodel', 'Add a model'],
   ['voice', 'Your voice'], ['stats', 'Stats']];
 const tellerInTale = () => S.place === 'story' && !!V;
-const tellerTabs = () => (tellerInTale() ? TELLER_TABS : TELLER_TABS.filter(([k]) => k !== 'stats'));
-/** The tab drawn: the one asked for, or Model when that one is not offered here. */
-const tellerTab = () => (tellerTabs().some(([k]) => k === S.tellerTab) ? S.tellerTab : 'model');
+const tellerTabs = () => (tellerInTale() ? TELLER_TABS : TELLER_TABS.filter(([k]) => k !== 'model' && k !== 'stats'));
+/** The tab drawn: the one asked for, or the first one offered here when that one is not. */
+const tellerTab = () => (tellerTabs().some(([k]) => k === S.tellerTab) ? S.tellerTab : tellerTabs()[0][0]);
 /** Storyteller is open on this tab. What redraws a tab's body after an answer asks this. */
 const tellerOn = (tab) => S.panel === 'teller' && tellerTab() === tab;
 /** Either tab that draws shortlist rows: an answer about the shortlist or a card redraws them. */
@@ -4871,16 +4876,16 @@ function openTeller(tab) {
   syncHash(); paint();
 }
 
-/** The writer's usual model: in a tale, the default the server read with it; elsewhere the list's. */
+/** The writer's usual model, the one last picked for a tale: in a tale, the default the server read
+ *  with it; elsewhere the list's. */
 const usualNow = () => (tellerInTale() ? V.defaultModel : null) ?? SRV.model;
 
 const PICK_ROW = 'display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r); width:100%; text-align:left';
-/** ONE MODEL IN AN OPEN LIST, and a press on it picks it (Seth, 2026-11-03: "remove the drop down
- *  and instead do the panel to open on toggle"). `attr` names what the pick sets: `pickmodel` for
- *  your usual model, `talemodel` for this tale's. The text is one span, the decode the old <option>
+/** ONE MODEL IN AN OPEN LIST, and a press on it picks it for this tale (Seth, 2026-11-03: "remove
+ *  the drop down and instead do the panel to open on toggle"). The text is one span, the decode the old <option>
  *  carried (name, detail, where it runs), and the drawn mark beside it. A REMOTE MODEL WITH NO KEY ON
  *  THE SERVER is listed, so the shortlist does not look wiped, but dimmed and not a button. */
-function pickRow(attr, value, m) {
+function pickRow(value, m) {
   const id = m?.id ?? value;
   const d = modelName(id);
   const where = m?.ready === false ? "Featherless isn't set up" : whereRuns(id, m?.status).words;
@@ -4889,20 +4894,17 @@ function pickRow(attr, value, m) {
       style="display:flex; align-items:center; gap:9px; padding:8px 10px; opacity:.55"
       ><span class="txt" style="font-size:12.5px; color:var(--dim)">${esc(text)} · ${esc(where)}</span>${runsMark(id, m.status)}</div>`;
   const body = `<span class="txt" style="font-size:12.5px; color:var(--mute)">${esc(text)} · ${esc(where)}</span>${runsMark(id, m?.status)}`;
-  // Two literal attributes, not `data-${attr}`: test/web.ts reads each button's action from source.
-  return attr === 'talemodel'
-    ? `<button data-talemodel="${esc(value)}" style="${PICK_ROW}">${body}</button>`
-    : `<button data-pickmodel="${esc(value)}" style="${PICK_ROW}">${body}</button>`;
+  return `<button data-talemodel="${esc(value)}" style="${PICK_ROW}">${body}</button>`;
 }
 
 /** THE MODEL IN FORCE, AS ONE ROW. A press on it opens the list under it (`S.tellerList`), and a
- *  pick shuts it. Beside it, What it is opens the model's info under the row, and the ＋ opens Add a
- *  model (Seth: "a plus to add a new model"). `which` is 'tale' or 'usual'. */
-function inForceRow(which, id, sub, status) {
+ *  pick shuts it. What it is sits below the row and its list (`tellerModel`), and Add a model is the
+ *  ＋ in the panel's header (Seth, 2026-11-03). */
+function inForceRow(id, sub, status) {
   const d = modelName(id);
-  const open = S.tellerList === which;
+  const open = S.tellerList === 'tale';
   return `<div style="display:flex; align-items:center; gap:6px">
-      <button data-tellerlist="${which}" aria-expanded="${open}" style="flex:1; min-width:0; display:flex;
+      <button data-tellerlist="tale" aria-expanded="${open}" style="flex:1; min-width:0; display:flex;
         align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r); text-align:left;
         background:rgba(217,178,106,.10)">
         ${runsMark(id, status)}
@@ -4911,9 +4913,6 @@ function inForceRow(which, id, sub, status) {
           ${d.bits.length ? `<span class="gold-line">${esc(d.bits.join(' · '))}${d.size ? ` · ${esc(d.size)}` : ''}</span>` : ''}
           ${sub ? `<span class="quiet">${sub}</span>` : ''}</span>
         <span aria-hidden="true" style="color:var(--dim)">${open ? '&#9652;' : '&#9662;'}</span></button>
-      <button data-modelinfo="${esc(id)}" style="color:var(--gold); font-size:11px; letter-spacing:.12em;
-        text-transform:uppercase">What it is</button>
-      <button class="btn ghost btn-side-sm" data-findmodel="1" aria-label="Add a model" title="Add a model">＋</button>
     </div>`;
 }
 
@@ -4921,40 +4920,19 @@ function inForceRow(which, id, sub, status) {
 const tellerInfo = (id) => `<div style="padding:4px 0 14px 12px; margin-left:10px; border-left:2px solid var(--line)">${
   modelInfo(id)}</div>`;
 
-/** #131 · STORYTELLER → MODEL, in two headed sections (Seth, 2026-11-03: "this should be tale
- *  dependent so maybe we need to split per tale and global settings in this panel").
- *  "This tale": the model that writes it, Plans first and how much he reads.
- *  "On every tale": your usual model, how he picks words and the longest a passage runs.
- *  Outside a tale, "On every tale" with your usual model only: the sliders save through a route
- *  that names a tale, and there is none to name.
+/** #131 · STORYTELLER → MODEL, this tale's alone (Seth, 2026-11-03: "remove the global On every
+ *  tale, we'll just leave it as a per tale option"): the model that writes it, What it is below that,
+ *  Plans first, how much he reads, how he picks words and the longest a passage runs. Drawn only in
+ *  a tale (`tellerTabs`). The sliders save to this tale (`stories.gen`); a tale whose sliders never
+ *  moved shows the writer's as they stood. The model picked here is also the one a new tale starts
+ *  with (`POST /api/story`).
  *
- *  EACH MODEL ONCE (Seth: "your model is on there twice"). A section shows its model in force as one
- *  row, and its list leaves that model out. The tale's list offers your usual model as "Your model"
- *  and never again by its own name, because picking it by name pinned the tale to it, which is a
- *  different thing that looked the same. */
+ *  EACH MODEL ONCE (Seth: "your model is on there twice"). The model in force is one row, and its
+ *  list leaves it out. The list offers your usual model as "Your model" and never again by its own
+ *  name, because picking it by name pinned the tale to it, which is a different thing that looked
+ *  the same. */
 function tellerModel() {
-  const inTale = tellerInTale();
   const usual = usualNow();
-  // Info for a model that is not in force in either section (an old door, a tag) goes under the
-  // usual row, with the others.
-  const infoAt = (id) => (S.modelPick === id ? tellerInfo(id) : '');
-  const usualList = S.tellerList !== 'usual' ? ''
-    : S.models === null ? '<div class="hint flush">Asking the router&hellip;</div>'
-    : S.models.length === 0 ? emptyModels()
-    : `<div class="stack-2" id="usualmodels">${S.models.filter((m) => m.id !== usual)
-        .map((m) => pickRow('pickmodel', m.id, m)).join('') || '<div class="hint flush">Your list holds no other model.</div>'}</div>`;
-  const taleId = inTale ? (V.story.model ?? V.model) : null;
-  const otherInfo = S.modelPick && S.modelPick !== usual && S.modelPick !== taleId ? tellerInfo(S.modelPick) : '';
-  const every = `<div class="lbl sect"${inTale ? '' : ' style="margin-top:0"'}>On every tale${inTale ? tipMark('genShared', 'On every tale') : ''}</div>
-    ${inTale ? tipCard('genShared', 'On every tale', `<p>Your model and how he picks words belong to you,
-      not to the server: changing them here changes them for every tale you write, and leaves the
-      other writer alone. Per-tale sampling was never built.</p>`) : ''}
-    <div class="lbl">Your model</div>
-    <div class="hint flush below-6">Writes every tale that does not name its own.${inTale ? '' : ' A tale names its own in Storyteller, inside that tale.'}
-      Press it to choose another.</div>
-    ${inForceRow('usual', usual, '', (S.models ?? []).find((m) => m.id === usual)?.status)}
-    ${usualList}${infoAt(usual)}${otherInfo}`;
-  if (!inTale) return every;
   const g = V.gen ?? SRV.gen ?? {};
   // The writer's models plus this book's own remote pin, which a guest's list does not hold.
   const listed = withPin(S.models, V.pin);
@@ -4982,7 +4960,7 @@ function tellerModel() {
     : listed.length === 0 ? emptyModels()
     : `<div class="stack-2" id="talemodels">${pin ? `<button data-talemodel="" style="${PICK_ROW}"><span class="txt"
           style="font-size:12.5px; color:var(--mute)">Your model &mdash; ${esc(modelName(usual).name)}</span></button>` : ''}${
-        listed.filter((m) => m.id !== usual && m.id !== pin).map((m) => pickRow('talemodel', m.id, m)).join('')}</div>`;
+        listed.filter((m) => m.id !== usual && m.id !== pin).map((m) => pickRow(m.id, m)).join('')}</div>`;
   // The row names the tale's own model when it has one, which is the setting it edits, and says
   // when that one cannot write. `V.model` is what the server ALREADY resolved for this story
   // (modelFor in routes.ts), and it is what the hint under the row names. NOT `SRV.model`: that one
@@ -4990,13 +4968,19 @@ function tellerModel() {
   const taleSub = gone ? "this tale's own, and the router no longer offers it"
     : pin && V.model !== pin ? "this tale's own, which cannot write now"
     : pin ? "this tale's own" : 'your model';
-  // TWO HOMES ON ONE PANEL, SAID AS TWO (Seth's item 9 of the 2026-10-29 review). ADR 0003: what is
-  // this tale's comes first under its own heading, what is the writer's on every tale under another.
-  return `<div class="lbl sect" style="margin-top:0">This tale</div>
-    <div class="hint flush below-14">The model that writes it, whether he plans first, and how much he reads. Only this tale.</div>
+  // WHAT IT IS, BELOW THE CHOOSER (Seth, 2026-11-03: "What it is can go below the drop down"): under
+  // the row and the list it opens. Its info opens under it, for the model in force or, from an old
+  // door, the model that door named.
+  const shownId = pin ?? V.model;
+  const infoId = S.modelPick ?? null;
+  return `<div class="hint flush below-14" style="margin-top:0">Everything here is this tale's own.</div>
     <div class="lbl">The model that writes it</div>
-    ${inForceRow('tale', pin ?? V.model, taleSub, (listed ?? []).find((m) => m.id === (pin ?? V.model))?.status)}
-    ${taleList}${taleId !== usual ? infoAt(taleId) : ''}
+    ${inForceRow(shownId, taleSub, (listed ?? []).find((m) => m.id === shownId)?.status)}
+    ${taleList}
+    <button data-modelinfo="${esc(infoId === shownId ? '' : shownId)}" aria-expanded="${!!infoId}"
+      style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase; margin:6px 0 2px 10px"
+      >What it is</button>
+    ${infoId ? tellerInfo(infoId) : ''}
     <div class="hint">${pin && whereRuns(pin).remote && V.model !== pin
       // The server resolved the pin to the local default (no key, or the model is off the
       // owner's shortlist), so the hint must not claim the pinned model writes this book.
@@ -5033,7 +5017,6 @@ function tellerModel() {
       .map(([v, label]) => `<option value="${v}"${String(V.story.maxContext ?? '') === v ? ' selected' : ''}>${label}</option>`).join('')}</select>
     <div class="hint">Less is faster and keeps him on the recent pages; more lets him see further back.</div>
 
-    ${every}
     <div class="lbl push-14">How he picks words</div>
     ${/* NAMED FOR WHAT THE WRITER FEELS (Seth, 2026-10-31: "the sliders need to be named more user
           friendly"). Surprise, Focus and Passage length until then; the keys are the sampler's. */ ''}
@@ -5047,11 +5030,13 @@ function tellerModel() {
 }
 
 /** NAME THIS TALE'S MODEL, or null for your model, and read the tale back so the row and the menu
- *  name what writes it now. It was the change handler of the drop-down this list replaced. */
+ *  name what writes it now. It was the change handler of the drop-down this list replaced. The pick
+ *  is your model from then on too (the server's `POST /api/story`), so a new tale starts with it. */
 function saveTaleModel(model) {
   api.saveStory(S.storyId, { model }).then(async (r) => {
     if (r.error) return toast(r.error);
     V = await api.story(S.storyId);
+    if (V?.defaultModel) SRV.model = V.defaultModel;
     paint(); refreshManifest();
     // #61. `r.toast` is the server saying the move turned this book's weaving off.
     const moved = model ? `This tale's model is ${modelName(model).name} now.` : 'Back to your model.';
@@ -9663,7 +9648,8 @@ const WPAGES = {
           : `<div class="hint flush">No key yet, so you write on the local model. Your key goes in a file
               on the server, never in this page: <code>${esc(me.featherless?.file ?? '')}</code></div>`}
         <div class="lbl wide push-18">Your model</div>
-        <div class="hint flush">Your model is changed in Storyteller: press the model named at the top of the menu.</div>`
+        <div class="hint flush">A new tale starts with the model you last picked for a tale. To pick one, open a
+          tale and press the model named at the top of its menu: that opens Storyteller.</div>`
       : `
         <div class="acctface">${me.avatar
           ? `<img class="acctpic" src="${api.avatarUrl(me.avatar)}" alt="Your picture">`
@@ -12597,7 +12583,7 @@ document.addEventListener('click', async (e) => {
   // The chapter list inside a passage's tray. Toggled per passage rather than globally, so opening
   // it on one passage and then another does not leave two open.
   // #131. The model named in either menu opens Storyteller on Model, where the list is.
-  if (d.modelmenu) return void openTeller('model');
+  if (d.modelmenu) { S.modelPick = null; return void openTeller('model'); }
   if (d.dismiss) {
     const r = await api.dismiss(S.storyId, d.dismiss, d.ref ?? '');
     if (r.error) return toast(r.error);
@@ -13826,7 +13812,8 @@ document.addEventListener('click', async (e) => {
   }
   // #25. The row names a model; the panel is where it is read and where it is switched.
   // #131. Its info is drawn under it on Storyteller's Model tab, with both lists shut.
-  if (d.modelinfo) { S.modelPick = d.modelinfo; S.tellerList = null; return void openTeller('model'); }
+  // What it is: opens the model's info below the chooser, and a second press (an empty id) shuts it.
+  if (d.modelinfo !== undefined) { S.modelPick = d.modelinfo || null; S.tellerList = null; return void openTeller('model'); }
   // Seth, 2026-11-03: a model row on the Model tab opens its list on a press, and shuts it on another.
   if (d.tellerlist) { S.tellerList = S.tellerList === d.tellerlist ? null : d.tellerlist; S.modelPick = null; drawSide(); return; }
   // A pick in the tale's list names this tale's model, or '' for your model, and shuts the list.

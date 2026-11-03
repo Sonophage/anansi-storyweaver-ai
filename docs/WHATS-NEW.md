@@ -70,16 +70,19 @@ its own scene's card. Before, the later scene's change was lost while the earlie
 you to sew it in or reject it.
 
 ### Storyteller holds everything about the model
-Press the model name at the top of the menu to open Storyteller. It has five tabs: Model,
-Shortlist, Add a model, Your voice and Stats. Model has two parts. This tale holds the model that
-writes it, Plans first, and how much he reads. On every tale holds your usual model, how he picks
-words, and the longest a passage runs. Each model shows as one row: press it to open the list of
-your other models, and press one to choose it. Each model is in a list once. What it is, beside the
-row, says what the model is for and how fast it writes. The ＋ beside it opens Add a model, the
-Featherless search. Shortlist is your shortlist, where you remove a model. Your voice is your voice
-for every tale, how Anansi talks and the five modes, which were in Account → Writing. Stats is this
-tale's last calls. Storyteller is no longer a tile in the tale's menu, and Account no longer has a
-Writing page. In the library, Model shows only On every tale, with your usual model.
+Press the model name at the top of the menu to open Storyteller. In a tale it has five tabs: Model,
+Shortlist, Add a model, Your voice and Stats. Everything on Model is this tale's own: the model that
+writes it, Plans first, how much he reads, how bold his words are, how many words he weighs, and the
+longest a passage runs. A tale whose sliders you have not moved keeps the settings you had. The
+model shows as one row: press it to open the list of your other models, and press one to choose it.
+Each model is in the list once. What it is, under the list, says what the model is for and how fast
+it writes. The model you choose for a tale is also your model from then on: a new tale starts with
+it, and so does any tale that has no model of its own. The ＋ at the top,
+beside full screen and Close, opens Add a model, the Featherless search. Shortlist is your
+shortlist, where you remove a model. Your voice is your voice for every tale, how Anansi talks and
+the five modes, which were in Account → Writing. Stats is this tale's last calls. In the library,
+Storyteller has Shortlist, Add a model and Your voice. Storyteller is no longer a tile in the tale's
+menu, and Account no longer has a Writing page.
 
 ### The Tale panel opens on Tale
 The Tale panel has four tabs, Tale, Thread, Setting and Keep, and opens on Tale. Tale is one scroll: the

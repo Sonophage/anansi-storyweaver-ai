@@ -3086,6 +3086,8 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
 // on `S.place === 'story'` for every other one of them.
 {
   const side = () => (globalThis as any).document.getElementById('side');
+  // IN A TALE (2026-11-03): Storyteller's Model tab is the tale's, and the model info is drawn on it.
+  click({ open: 's-1' }); await sleep(40);
   click({ modelinfo: 'Qwen3.6-WNTH-35B-A3B-NN' });
   // The panel can be the first thing on screen, so it asks the router itself; that is a fetch.
   for (let i = 0; i < 20 && !/words a second/.test(html('sideBody')); i++) await sleep(25);
@@ -3102,15 +3104,16 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.match(mine, /data-pickmodel="Qwen3\.6-WNTH-35B-A3B-NN"/, 'WRITER-MODEL: with the switch');
   click({ modelinfo: 'write-nt-qwen36-h' });
   // #131. The others are the rows around it on the same tab, so it needs no press of its own.
-  assert.match(html('sideBody'), /<button data-tellerlist="usual"/,
+  assert.match(html('sideBody'), /<button data-tellerlist="tale"/,
     'WRITER-MODEL: and the info sits on Model, under the row that opens the others to choose from');
 
   libAdmin = true; click({ home: 1 });
   await sleep(40);
+  click({ open: 's-1' }); await sleep(40);
   click({ modelinfo: 'Qwen3.6-WNTH-35B-A3B-NN' });
   for (let i = 0; i < 20 && !/tokens a second/.test(html('sideBody')); i++) await sleep(25);
 
-  assert.strictEqual(side().hidden, false, 'the model panel opens with no story open');
+  assert.strictEqual(side().hidden, false, 'the model panel opens');
   const panel = html('sideBody');
   assert.match(panel, /Qwen3\.6/, 'named by its family, not by the whole id');
   assert.match(panel, /Qwen3\.6-WNTH-35B-A3B-NN/, 'and the raw id is on the panel, because that is '
@@ -3150,8 +3153,10 @@ ok('a story pinned to a model the router dropped still shows that pin, and can l
   assert.doesNotMatch(loaded, /data-pickmodel=/, 'so there is nothing to switch to');
 
   // The exception is an exception. A panel about a BOOK still has nothing to say with no book open.
+  click({ home: 1 }); await sleep(40);
   click({ panel: 'story' });
   assert.strictEqual(side().hidden, true, 'every other panel is still gated on a story being open');
+  click({ open: 's-1' }); await sleep(40);
 
   // A THIN SAMPLE SAYS SO. 41.2 tok/s off three calls and off two hundred are different claims.
   click({ modelinfo: 'Wayfarer-2-RPNT-12B' });
@@ -3251,25 +3256,21 @@ ok('picking a model in a tale reads the tale again, so the menu names the new on
   assert.match(label, BADGES, 'the label says what it is, not only what it is called');
 
   // 2 · THE LIST, on Storyteller's Model tab since #131 (it dropped open under the label before).
-  // Sliced from the first row to the sampler, so an assertion here cannot be satisfied by the tale's
-  // picker above it — the two render the same badge string for the same model, and a check that
-  // cannot tell them apart proves nothing about the one it names.
+  // Sliced from the list's own box to What it is under it, so an assertion here cannot be satisfied
+  // by the row in force above it — the two render the same badge string for the same model, and a
+  // check that cannot tell them apart proves nothing about the one it names.
   click({ modelmenu: '1' });
-  for (let i = 0; i < 20 && !/data-tellerlist="usual"/.test(html('sideBody')); i++) await sleep(25);
-  click({ tellerlist: 'usual' });
+  for (let i = 0; i < 20 && !/data-tellerlist="tale"/.test(html('sideBody')); i++) await sleep(25);
+  click({ tellerlist: 'tale' });
   const body = visible(html('sideBody'));
-  const list = body.slice(body.indexOf('data-tellerlist="usual"'), body.indexOf('data-gen='));
+  const list = body.slice(body.indexOf('id="talemodels"'), body.indexOf('data-modelinfo='));
   assert.ok(list.length > 200, 'the list must actually be open');
-  assert.match(list, BADGES, 'every row says what it is for, whether it thinks, and its tier');
+  // The model in force (the one BADGES names) is the row, not a row of its list (section 3).
   assert.match(list, /Roleplay · trained open/,
-    'and a model with no H reads as trained open, never as censored');
-  // Not the size, on this one: the strip is nowrap with an ellipsis, the size is the longest badge
-  // and the least of what was asked for here, and it is one press away on the panel. Anchored to
-  // the badge line — the raw id is in each row's own attribute and carries the size with it, so a
-  // bare /35B-A3B/ could never fail.
-  assert.doesNotMatch(list, /uncensored · 35B-A3B/, 'the size must not be in the badge line here');
+    'every row says what it is for, and a model with no H reads as trained open, never as censored');
 
   // 3 · THE STORYTELLER, which is where a book pins its own.
+  click({ tellerlist: 'tale' });
   click({ panel: 'teller' });
   await sleep(30);
   const teller = visible(html('sideBody'));
@@ -3326,14 +3327,10 @@ ok('the rail label, the rail list and the Storyteller all read the id the panel 
   const at = (re: RegExp) => teller.search(re);
   assert.ok(at(/data-tellerlist="tale"/) < at(/data-story="weaving"/) && at(/data-story="weaving"/) < at(/>How he picks words</),
     'between the book\'s model and the sampler');
-  // TWO HOMES ON ONE PANEL, SAID AS TWO (Seth's item 9, 2026-10-29). The panel opened on "These are
-  // yours, not per tale" above a model picker that is per tale. Now "This tale" heads the model,
-  // Plans first and the reading cap, and "On every tale" heads the sampler.
-  assert.doesNotMatch(teller, /not per tale/, 'TELLER-HOMES: no banner that says the whole panel is not per tale');
-  assert.ok(at(/>This tale</) !== -1 && at(/>This tale</) < at(/data-tellerlist="tale"/),
-    'TELLER-HOMES: "This tale" heads the model');
-  assert.ok(at(/data-story="maxContext"/) < at(/>On every tale</) && at(/>On every tale</) < at(/data-gen=/),
-    'TELLER-HOMES: and "On every tale" comes after the tale\'s own settings and heads the sampler');
+  // ONE HOME (Seth, 2026-11-03: "remove the global On every tale, we'll just leave it as a per tale
+  // option"). The panel opened once on "These are yours, not per tale"; now everything on it is.
+  assert.doesNotMatch(teller, /not per tale|On every tale/, 'TELLER-HOMES: nothing on the panel says it is not per tale');
+  assert.match(teller, /this tale(&#39;|')s own/, 'TELLER-HOMES: it says everything here is this tale\'s own');
   assert.doesNotMatch(teller, /foot of the menu/, 'TELLER-HOMES: and it does not send the writer to the foot of a menu that is at the top on a phone');
 
   STORY.story.weaving = true;
@@ -3953,34 +3950,6 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
       spider: body.includes(first('spider')), feather: body.includes(first('feather')) };
   };
 
-  // #131. The list is on Storyteller's Model tab, under Your model, open on a press (2026-11-03).
-  click({ modelmenu: '1' });
-  for (let i = 0; i < 20 && !/data-tellerlist="usual"/.test(html('sideBody')); i++) await sleep(25);
-  click({ tellerlist: 'usual' });
-  const tab = visible(html('sideBody'));
-  click({ tellerlist: 'usual' });
-  const rail = tab.slice(tab.indexOf('>Your model<'));
-  const row = (id: string) => {
-    const at = rail.indexOf(`<button data-pickmodel="${id}"`);
-    assert.ok(at > 0, `the list lists ${id}`);
-    return rail.slice(at, rail.indexOf('</button>', at));
-  };
-
-  const awake = runs(row('Qwen3.6-WNTH-35B-A3B-NN'));
-  assert.deepStrictEqual([awake.where, awake.awake, awake.ring, awake.fill, awake.spider, awake.feather],
-    ['local', true, 'local', 'var(--src-local)', true, false],
-    'a loaded local model: a filled circle in the local colour, and the spider');
-  const asleep = runs(row('Wayfarer-2-RPNT-12B'));
-  assert.deepStrictEqual([asleep.where, asleep.awake, asleep.ring, asleep.fill, asleep.spider],
-    ['local', false, 'local', 'transparent', true],
-    'an unloaded local model: the same colour, hollow, and still the spider');
-  const remote = runs(row('featherless:Grey/Kestrel-Heretic-24B'));
-  assert.deepStrictEqual([remote.where, remote.awake, remote.ring, remote.fill, remote.spider, remote.feather],
-    ['remote', true, 'remote', 'var(--src-remote)', false, true],
-    'a remote model: always filled, in the remote colour, with the feather');
-  assert.match(row('featherless:Grey/Kestrel-Heretic-24B'), /Kestrel Heretic 24B/,
-    'and the row still names it by its decoded name');
-
   // THE STRIP at the top of the menu. The rail's button is the strip's own (#131: nothing drops
   // open under it any more).
   const strip = visible(html('rail'));
@@ -4002,17 +3971,39 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   click({ panel: 'teller' });
   await sleep(30);
   const teller = visible(html('sideBody'));
-  click({ tellerlist: 'tale' });
+  // Open, whatever an earlier check left it at: a press toggles it.
+  if (!/data-tellerlist="tale" aria-expanded="true"/.test(teller)) click({ tellerlist: 'tale' });
   const list = visible(html('sideBody'));
   const option = (id: string) => list.match(new RegExp(`data-talemodel="${id}"[^>]*><span[^>]*>([^<]*)</span>`))?.[1] ?? '';
+  // #131. The list is on Storyteller's Model tab, under the tale's model, open on a press (2026-11-03).
+  const row = (id: string) => {
+    const at = list.indexOf(`<button data-talemodel="${id}"`);
+    assert.ok(at > 0, `the list lists ${id}`);
+    return list.slice(at, list.indexOf('</button>', at));
+  };
+  const awake = runs(row('Qwen3.6-WNTH-35B-A3B-NN'));
+  assert.deepStrictEqual([awake.where, awake.awake, awake.ring, awake.fill, awake.spider, awake.feather],
+    ['local', true, 'local', 'var(--src-local)', true, false],
+    'a loaded local model: a filled circle in the local colour, and the spider');
+  const asleep = runs(row('Wayfarer-2-RPNT-12B'));
+  assert.deepStrictEqual([asleep.where, asleep.awake, asleep.ring, asleep.fill, asleep.spider],
+    ['local', false, 'local', 'transparent', true],
+    'an unloaded local model: the same colour, hollow, and still the spider');
+  const remote = runs(row('featherless:Grey/Kestrel-Heretic-24B'));
+  assert.deepStrictEqual([remote.where, remote.awake, remote.ring, remote.fill, remote.spider, remote.feather],
+    ['remote', true, 'remote', 'var(--src-remote)', false, true],
+    'a remote model: always filled, in the remote colour, with the feather');
+  assert.match(row('featherless:Grey/Kestrel-Heretic-24B'), /Kestrel Heretic 24B/,
+    'and the row still names it by its decoded name');
+
   assert.match(option('Qwen3\\.6-WNTH-35B-A3B-NN'), / · local, awake$/, 'a loaded local option says so');
   assert.match(option('Wayfarer-2-RPNT-12B'), / · local, asleep$/, 'an unloaded one says so');
   assert.match(option('featherless:Grey/Kestrel-Heretic-24B'), / · remote, on Featherless$/,
     'and a remote option says where it runs');
   const beside = teller.slice(teller.indexOf('data-tellerlist="tale"'));
-  const using = runs(beside.slice(0, beside.indexOf('What it is')));
+  const using = runs(beside.slice(0, beside.indexOf('</button>')));
   assert.deepStrictEqual([using.where, using.awake, using.feather], ['remote', true, true],
-    'beside the select, the mark for the model this book is written by');
+    'on the row, the mark for the model this book is written by');
   // THE STRIP NAMES WHAT WRITES THE OPEN BOOK. The writer default here is local; this book's
   // resolved model is remote, so a strip that read only the default would show the spider. The
   // model list is read again first (taking another model off the shortlist does that), because a
@@ -5620,22 +5611,23 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
     'TELLER-TABS: Model, Shortlist, Add a model, Your voice and Stats in a tale');
   const model = html('sideBody').replace(/<!--[\s\S]*?-->/g, '');
   const at = (re: RegExp) => model.search(re);
-  // Seth, 2026-11-03: "this should be tale dependent". Two headed sections, the tale's first.
-  assert.ok(at(/>This tale</) !== -1 && at(/>This tale</) < at(/data-tellerlist="tale"/)
-    && at(/data-tellerlist="tale"/) < at(/data-story="weaving"/) && at(/data-story="weaving"/) < at(/data-story="maxContext"/),
-    'TELLER-SECTIONS: "This tale" holds the model that writes it, Plans first and how much he reads');
-  assert.ok(at(/data-story="maxContext"/) < at(/>On every tale</) && at(/>On every tale</) < at(/data-tellerlist="usual"/)
-    && at(/data-tellerlist="usual"/) < at(/data-gen="temperature"/) && at(/data-gen="temperature"/) < at(/data-gen="target_words"/),
-    'TELLER-SECTIONS: and "On every tale" holds your usual model, how he picks words and the longest a passage runs');
+  // Seth, 2026-11-03: "remove the global On every tale, we'll just leave it as a per tale option".
+  // One section: this tale's model, Plans first, how much he reads, and every slider.
+  assert.ok(at(/data-tellerlist="tale"/) !== -1 && at(/data-tellerlist="tale"/) < at(/data-story="weaving"/)
+    && at(/data-story="weaving"/) < at(/data-story="maxContext"/) && at(/data-story="maxContext"/) < at(/data-gen="temperature"/)
+    && at(/data-gen="temperature"/) < at(/data-gen="target_words"/),
+    'TELLER-TALE: the model that writes this tale, Plans first, how much he reads, then the sliders');
+  assert.doesNotMatch(model, />On every tale</, 'TELLER-NOEVERY: no "On every tale" section');
+  assert.doesNotMatch(model, /data-tellerlist="usual"|data-pickmodel=/, 'TELLER-NOEVERY: and no usual model row');
   // Seth: "remove the drop down and instead do the panel to open on toggle."
   assert.doesNotMatch(model, /data-storymodel=/, 'TELLER-NOSELECT: no drop-down to choose the tale\'s model');
   assert.doesNotMatch(model, /<select[^>]*aria-label="[^"]*model/i, 'TELLER-NOSELECT: and no drop-down for any model');
   assert.match(model, /<button data-tellerlist="tale" aria-expanded="false"/, 'TELLER-TOGGLE: the tale\'s model is one row, shut');
-  assert.match(model, /<button data-tellerlist="usual" aria-expanded="false"/, 'TELLER-TOGGLE: and so is your usual model');
   assert.doesNotMatch(model, /data-talemodel=|data-pickmodel=/, 'TELLER-TOGGLE: no list until a row is pressed');
-  // Seth: "a plus to add a new model".
-  assert.match(model.slice(at(/data-tellerlist="usual"/), at(/data-gen="temperature"/)), /data-findmodel="1"[^>]*>＋</,
-    'TELLER-PLUS: a ＋ beside the model row opens Add a model');
+  // Seth: "The add button can go up top by the close and expand button".
+  assert.doesNotMatch(model, /data-findmodel=/, 'TELLER-PLUS: no ＋ beside the model row');
+  assert.match(html('sideHead'), /data-findmodel="1"[\s\S]*data-panelfull="1"[\s\S]*data-panel=""/,
+    'TELLER-PLUS: one ＋ in the header, beside full screen and Close');
   click({ findmodel: '1' });
   assert.strictEqual(shown(), 'addmodel', 'TELLER-PLUS: and the ＋ lands on Add a model');
   click({ tellertab: 'model' });
@@ -5664,14 +5656,10 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   assert.ok(POSTED.slice(before).some((p: any) => p.url === '/api/story' && p.body.story?.model === 'Wayfarer-2-RPNT-12B'),
     'TELLER-PICK: a pick saves the tale\'s model');
   assert.doesNotMatch(html('sideBody'), /data-talemodel=/, 'TELLER-PICK: and closes the list');
-  click({ tellerlist: 'usual' });
-  const usualOpen = html('sideBody');
-  const mine = [...usualOpen.matchAll(/data-pickmodel="([^"]*)"/g)].map((m) => m[1]);
-  assert.ok(mine.length >= 2, `the detector: your list is drawn (${mine.join(', ')})`);
-  assert.ok(!mine.includes('Qwen3.6-WNTH-35B-A3B-NN'), 'TELLER-ONCE: the model in force is the row, not in the list again');
-  assert.strictEqual(new Set(mine).size, mine.length, 'TELLER-ONCE: no model twice in your list');
-  click({ tellerlist: 'usual' });
-  assert.doesNotMatch(html('sideBody'), /data-pickmodel=/, 'TELLER-TOGGLE: a second press shuts it');
+  click({ tellerlist: 'tale' });
+  assert.match(html('sideBody'), /data-talemodel=/, 'TELLER-TOGGLE: a press opens it again');
+  click({ tellerlist: 'tale' });
+  assert.doesNotMatch(html('sideBody'), /data-talemodel=/, 'TELLER-TOGGLE: and a second press shuts it');
   // A tale with a model of its own: "Your model" is in its list, once, and never by its own name.
   const wasPin = { model: STORY.model, story: (STORY.story as any).model };
   STORY.model = 'Wayfarer-2-RPNT-12B'; (STORY.story as any).model = 'Wayfarer-2-RPNT-12B';
@@ -5692,12 +5680,20 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   click({ modelmenu: '1' });
   await sleep(30);
 
-  // WHAT IT IS, under the row it is about.
+  // WHAT IT IS, below the chooser (Seth, 2026-11-03: "What it is can go below the drop down"): under
+  // the row and the list it opens, before Plans first.
+  click({ tellerlist: 'tale' });
+  let info = html('sideBody');
+  assert.ok(info.indexOf('data-talemodel=') > info.indexOf('data-tellerlist="tale"')
+    && info.indexOf('data-modelinfo=') > info.lastIndexOf('data-talemodel=')
+    && info.indexOf('data-modelinfo=') < info.indexOf('data-story="weaving"'),
+    'TELLER-INFO: What it is is below the row and its open list');
   click({ modelinfo: 'write-nt-qwen36-h' });
-  const info = html('sideBody');
-  const row = info.indexOf('data-tellerlist="usual"');
-  assert.ok(row > 0 && info.indexOf('How fast he writes', row) > row && info.indexOf('How fast he writes', row) < info.indexOf('data-gen="temperature"'),
-    'TELLER-INFO: the model info is drawn under the model row it is about');
+  info = html('sideBody');
+  const press = info.indexOf('data-modelinfo=');
+  assert.ok(press > info.indexOf('data-tellerlist="tale"') && info.indexOf('How fast he writes') > press
+    && info.indexOf('How fast he writes') < info.indexOf('data-story="weaving"'),
+    'TELLER-INFO: and the model info opens under it');
 
   click({ tellertab: 'stats' });
   assert.strictEqual(shown(), 'stats', 'TELLER-STATS: the Stats tab');
@@ -5745,18 +5741,17 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   assert.strictEqual(shown(), 'model', 'TELLER-WAS: a model address lands on Model');
   (globalThis as any).location.hash = '';
 
-  // OUTSIDE A TALE: Model with the usual model only, Shortlist and Your voice.
+  // OUTSIDE A TALE: no Model tab, since every setting on it is the tale's.
   click({ home: 1 });
   await sleep(40);
   click({ modelmenu: '1' });
   await sleep(30);
   assert.strictEqual(side().hidden, false, 'TELLER-LIB: Storyteller opens in the library');
-  assert.deepStrictEqual(tabsOf(html('sideBody')), ['model', 'shortlist', 'addmodel', 'voice'],
-    'TELLER-LIB: Model, Shortlist, Add a model and Your voice, and no Stats');
-  assert.match(html('sideBody'), />On every tale<[\s\S]*<button data-tellerlist="usual"/, 'TELLER-LIB: the usual model, on every tale');
-  assert.doesNotMatch(html('sideBody'), />This tale</, 'TELLER-LIB: no "This tale" with no tale');
-  assert.doesNotMatch(html('sideBody'), /data-storymodel=|data-tellerlist="tale"|data-story="|data-gen=/,
-    'TELLER-LIB: and no per-tale controls, and no sliders');
+  assert.deepStrictEqual(tabsOf(html('sideBody')), ['shortlist', 'addmodel', 'voice'],
+    'TELLER-LIB: Shortlist, Add a model and Your voice, and no Model or Stats');
+  assert.strictEqual(shown(), 'shortlist', 'TELLER-LIB: it opens on Shortlist');
+  assert.doesNotMatch(html('sideBody'), /data-tellerlist=|data-story="|data-gen=/,
+    'TELLER-LIB: and no model row and no sliders');
   click({ tellertab: 'stats' });
   assert.notStrictEqual(shown(), 'stats', 'TELLER-LIB: Stats cannot be shown with no tale');
   click({ tellertab: 'voice' });
@@ -5772,6 +5767,7 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   click({ accttab: 'model' });
   assert.match(html('page'), /No key yet/, 'ACCT-MODEL: the Model tab keeps the Featherless key');
   assert.match(html('page'), /Storyteller/, 'ACCT-MODEL: and names Storyteller as where the model is changed');
+  assert.match(html('page'), /the model you last picked for a tale/, 'ACCT-MODEL: and says a new tale starts with the model last picked');
   assert.doesNotMatch(html('page'), /pick from its list/, 'ACCT-MODEL: not a list that is gone');
   click({ accttab: 'profile' });
 }
