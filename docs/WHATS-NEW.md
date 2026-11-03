@@ -16,7 +16,7 @@ Everything below this line was written by that model call, before it was removed
 
 
 
-## 2026-11-03 · Threads and pockets save as you type
+## 2026-11-03 · A thread is edited where you read it
 
 ### A thread is edited where you read it
 There is no separate screen for altering a thread any more. Tap its name, its kind, Always true,
@@ -24,10 +24,33 @@ where it stands, its wake words or your notes, and it turns into a box right the
 is kept a moment after you stop, and the last of it when you leave the thread, by Back, by opening
 another thread or another tale, or by Esc. What the thread said before goes into Past edits once
 for each visit. An emptied Always true is never kept: you are told, and the thread stays open until
-it holds something. A thread now has four tabs: The thread, Timeline, Pockets and More. More holds
-what the settings button held: Stitched together, Copy to another tale, Merge with another thread,
-Read the whole tale for this thread, This thread as JSON, Retire, Delete (still two presses), and
-Past edits with Put this back. Moving between the tabs keeps anything you were typing.
+it holds something. A thread has four tabs: The thread, Timeline, Pockets and More. More holds
+Stitched together, Copy to another tale, Merge with another thread, Read the whole tale for this
+thread, This thread as JSON, Retire, Delete (two presses), and Past edits with Put this back.
+Moving between the tabs keeps anything you were typing.
+
+### Timeline and Past edits
+The Timeline is where a thread stands, scene by scene: the model is sent the entry for the scene it
+is writing. Past edits, under More, is what the thread and its pockets said before you changed
+them, with Put this back. The model never sees Past edits.
+
+### A pocket saves as you type
+A pocket you open on a thread, a string, a rule or one of your own keeps what you type a moment
+after you stop. So does where a thread stood from scene 1 in its Timeline. Done, at the top,
+closes it, and Undo my changes puts it back as it was when you opened it. What a pocket said
+before goes into Past edits once, when you press Done. When Anansi edits a pocket, Use this puts
+his version in the box, and Done keeps it.
+
+### A pocket is Off, On a word, or On
+Each pocket shows the same eye a thread does. The open eye is On: it is sent every time. The shut
+eye is On a word: it is sent only when one of its wake words comes up, and the eye opens to show
+when one has. The struck eye is Off: it is never sent, even when one of its wake words comes up. A
+tap on the eye goes Off, On a word, On, and back to Off, and shows the new state's name for a
+moment. A string has no wake words, so its eye goes Off and On. An outfit keeps Wear this. A pocket
+you add starts On; a new outfit is added unworn. Your pockets from before keep doing what they did:
+one that was on is On, and one that was off but had wake words is On a word. A pocket comes with
+its thread when you import a tale you exported.
+
 ### Merge two pockets of a thread into one
 Open a pocket and press Merge with another pocket… to pick another pocket of the same thread. The
 box opens with both texts joined, and Ask Anansi can make them read as one. Change it as you like,
@@ -35,83 +58,53 @@ then press Merge. The pocket you opened stays, with that text, its kind and whet
 it also wakes on the other pocket's wake words. The other pocket is removed, and its text is kept in
 Past edits, so you can put it back. Cancel goes back to the pocket and changes nothing.
 
-### Storyteller holds everything about the model
-Storyteller is now one place with five tabs: Model, Shortlist, Add a model, Your voice and Stats.
-Press the model name at the top of the menu to open it. Model has two parts. This tale holds the
-model that writes it, Plans first, and how much he reads. On every tale holds your usual model, how
-he picks words, and the longest a passage runs. Each model shows as one row: press it to open the
-list of your other models, and press one to choose it. Each model is in a list once. What it is,
-beside the row, says what the model is for and how fast it writes. The ＋ beside it opens Add a
-model, the Featherless search; Shortlist is your shortlist, where you remove a model. Your voice is
-your voice for every tale, how Anansi talks and the five modes, which were in Account → Writing.
-Stats is this tale's last calls. Storyteller is no longer a tile in the tale's menu, and Account no
-longer has a Writing page. In the library, Model shows only On every tale, with your usual model.
+### Two scenes can change the same pocket
+When two hemmed scenes both change one thread's pocket, or what the thread says, each change is on
+its own scene's card. Before, the later scene's change was lost while the earlier one waited for
+you to sew it in or reject it.
 
-### A pocket has the thread's eye: Off, On a word, or On
-Each pocket now shows the same eye a thread does, where it said On or Off. The open eye is On: it
-is sent every time. The shut eye is On a word: it is sent only when one of its wake words comes
-up, and the eye opens to show when one has. The struck eye is Off: it is never sent, even when a
-wake word comes up. A tap on the eye goes Off, On a word, On, and back to Off, as on a thread's
-card, and shows the new state's name for a moment. A string has no wake words, so its eye goes
-Off and On. Your pockets keep doing what they did: one that was on is On, and one that was off but
-had wake words is On a word. An outfit keeps Wear this. A pocket you add starts On, and Off means
-its wake words never wake it. A new outfit is still added unworn. A pocket now comes with its thread
-when you import a tale you exported.
+### Storyteller holds everything about the model
+Press the model name at the top of the menu to open Storyteller. It has five tabs: Model,
+Shortlist, Add a model, Your voice and Stats. Model has two parts. This tale holds the model that
+writes it, Plans first, and how much he reads. On every tale holds your usual model, how he picks
+words, and the longest a passage runs. Each model shows as one row: press it to open the list of
+your other models, and press one to choose it. Each model is in a list once. What it is, beside the
+row, says what the model is for and how fast it writes. The ＋ beside it opens Add a model, the
+Featherless search. Shortlist is your shortlist, where you remove a model. Your voice is your voice
+for every tale, how Anansi talks and the five modes, which were in Account → Writing. Stats is this
+tale's last calls. Storyteller is no longer a tile in the tale's menu, and Account no longer has a
+Writing page. In the library, Model shows only On every tale, with your usual model.
+
 ### The Tale panel opens on Tale
-The Tale panel has three tabs now, Tale, Setting and Keep, and opens on Tale. Tale is one
-scroll: the cover first, as large as a thread's picture, then the title, the genre and how the tale
-began, then the voice and Spice, which were their own Voice tab. Replacing, removing, drawing or
-finding a cover, and how it shows at the head of each scene, are in one fold under the cover, shut
-until you open it. A tale with no cover shows the ways to add one straight away. Where the tale
-stands now is shown once, on The tale's thread.
+The Tale panel has three tabs, Tale, Setting and Keep, and opens on Tale. Tale is one scroll: the
+cover first, as large as a thread's picture, then the title, the genre and how the tale began,
+then the voice and Spice, which were their own Voice tab. Replacing, removing, drawing or finding a
+cover, and how it shows at the head of each scene, are in one fold under the cover, shut until you
+open it. A tale with no cover shows the ways to add one straight away.
+
 ### The tale's thread is beside Tale in the menu
-The tale's own thread, which was the Thread tab of the Tale panel, is now its own place in the
-tale's menu, beside Tale at the top, where Storyteller was. It holds where the tale stands, its
-rules, its promises and open questions, and your own instructions, as before.
+The tale's own thread, which was the Thread tab of the Tale panel, is its own place in the tale's
+menu, beside Tale at the top. It holds where the tale stands, its rules, its promises and open
+questions, and your own instructions.
+
+### One button opens and closes the menu on a desk
+On a desk the menu button in the header opens the menu and closes it, in one press, whichever menu
+is showing. The arrow at the top of the menu is gone. The icon at the top of each menu takes you to
+the other one. On a phone, where the menu covers the screen, its ✕ stays.
+
+### Threads in three columns on a wide panel
+On a desk, when you make a tale's Threads full screen, the threads sit in three columns. Beside the
+page, and on a phone, they stay in one. The cards keep their size.
+
 ### The demo library moved to Account
 The Demo library switch is no longer in the main menu. It is under Account, in Your books, beside
 Import and Export. While you are in the demo library, the library page shows "Leave the demo
 library" at the top, so the way back to your own tales is always in sight.
-### Threads in three columns on a wide panel
-On a desk, when you make a tale's Threads full screen, the threads sit in three columns. Beside the
-page, and on a phone, they stay in one. The cards keep their size.
-### One button opens and closes the menu on a desk
-The arrow at the top of the menu is gone on a desk: the menu button in the header opens it and
-closes it. In a tale, one press closes the main menu too; it no longer turns into the tale's menu
-first. The icon at the top of each menu still takes you to the other one. On a phone, where the
-menu covers the screen, its ✕ stays.
-### Altering a thread saves as you type
-Editing a thread has no Save any more. Its name, where it stands, your notes, its wake words and
-its Always true are kept a moment after you stop typing. Done, at the top, keeps the last of it and
-goes back to reading the thread, and so do Back and Esc. Cancel is now Undo my changes: it puts the
-thread back as it was when you opened it. What the thread said before goes into Alterations once,
-when you press Done, and a scene summary is marked out of date only then, if something it said is
-gone. An empty Always true is never kept: Done says so and stays open.
-### A pocket you open saves as you type
-A pocket you open on a thread, a string, a rule or one of your own keeps what you type a moment
-after you stop. Done, at the top, closes it, and Undo my changes puts it back as it was when you
-opened it. What a pocket said before goes into Alterations once, when you press Done. When Anansi
-edits it, Use this puts his version in the box, and Done keeps it.
-### Scene 1 in Over time saves as you type
-When a later change is where a thread stands now, you open where it stood from scene 1 in Over
-time. That now keeps what you type, as the change rows already did. Done closes it, and Undo my
-changes puts it back as it was when you opened it.
-### Adding something says Add
-Where a press makes something new, it now says Add and not Save: a new pocket, a new change over
-time, and a new pocket while you set up a tale. It does the same as before.
-### Send to, on a thread from a world
-A thread your tale follows from a world has Send to and the world's name, which was Save to: it
-sends your words to the world, so every tale that follows the thread sees them. It does the same as
-before.
-### Two scenes can change the same pocket
-When two hemmed scenes both change one thread's pocket, or what the thread says, each change is now
-on its own scene's card. Before, the later scene's change was lost while the earlier one waited for
-you to sew it in or reject it.
-### Over time is now Timeline, and Earlier versions is Past edits
-They looked like the same list, and they are not. The Timeline is where a thread stands, scene by
-scene: the model is sent the entry for the scene it is writing. Past edits, under More, is what the
-thread said before you changed it, with Put this back. The model never sees it. Only the names
-changed; both work as before.
+
+### Add, and Send to
+Where a press makes something new, it says Add: a new pocket, a new Timeline entry, and a new
+pocket while you set up a tale. A thread your tale follows from a world has Send to and the world's
+name: it sends your words to the world, so every tale that follows the thread sees them.
 
 ## 2026-11-02 · The library shows who is in your scene
 
