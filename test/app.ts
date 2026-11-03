@@ -1727,6 +1727,8 @@ ok('Sent now keeps a thread you tap until the next passage, and kind tabs narrow
   typeIn('thq', 'Sereth');
   assert.match(html('thlist'), /Envoy Sereth/,
     'a thread is found by a word that appears only in its title');
+  assert.match(html('thlist'), /class="card plate thplate thtall[^"]*" data-arcana="character"/,
+    'ARCANA-NUMERALS: a thread card names its kind, for the numeral Arcana draws');
 
   typeIn('thq', 'gaslamps');
   assert.match(html('thlist'), /The lamplighter/,
@@ -2392,6 +2394,21 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     }
     assert.ok(THEMES.arcana.faces && !Object.entries(THEMES).some(([k, t]: any) => k !== 'arcana' && t.faces),
       'ARCANA-FACES: Arcana names its display faces, and no other theme fetches any');
+
+    // ONE NUMERAL PER KIND, LIKE TAROT (Seth, 2026-11-03). Under Arcana a thread card and a pocket
+    // kind's heading show the numeral of what they ARE, not their place in a list: every Character the
+    // same, every outfit the same. The table is the `--arcana` rules keyed on `data-arcana` in
+    // app.html. Each kind a writer sees (the thread kinds, and every pocket kind in src/slots.ts:
+    // all slots less Always true, the tale's strings included) has exactly one, and no two share one.
+    const { SLOTS, KINDS: TS_KINDS } = await import('../src/slots.ts');
+    const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+    const rows = [...css.matchAll(/\[data-arcana="([\w]+)"\]\s*\{\s*--arcana:\s*"([IVXL]+)"/g)].map((m) => [m[1], m[2]]);
+    const pockets = [...new Set(Object.values(SLOTS).flatMap((l: any) => l.map((x: any) => x.name)))].filter((n) => n !== 'facts');
+    const want = [...TS_KINDS, ...pockets].sort();
+    assert.deepStrictEqual(rows.map(([k]) => k).sort(), want, 'ARCANA-NUMERALS: every thread kind and pocket kind has exactly one numeral, and nothing else has one');
+    const nums = rows.map(([, n]) => n);
+    assert.strictEqual(new Set(nums).size, nums.length, `ARCANA-NUMERALS: no two kinds share a numeral (${nums.join(' ')})`);
+    assert.doesNotMatch(css, /counter\(arcana/, 'ARCANA-NUMERALS: the list-position counter is gone');
   }
   // THE FIVE THAT LEFT (2026-11-02). A look saved with one of them still paints a theme that exists.
   for (const gone of ['obsidian', 'parchment', 'fantasy', 'novelist', 'no-such-theme'])
@@ -5361,6 +5378,8 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   };
   assert.ok(kindBefore(face, 'Voice', 'How she sounds'), 'POCKET-KINDS: an on pocket sits under its kind');
   assert.ok(kindBefore(face.slice(dividerAt), 'Interiority', 'What she wants'), 'POCKET-KINDS: and an off one under its kind, below Not turned on');
+  // The kind's heading carries its kind, for Arcana's numeral (the table in app.html).
+  assert.match(face, /data-arcana="voice" class="lbl pkgroup">Voice</, 'ARCANA-NUMERALS: a pocket kind\'s heading names its kind');
 
   // §8 · READ SAYS WHAT IS TRUE ABOVE THE TABS; THE CONTROL IS UNDER MORE (#136).
   click({ entry: 'e-done' });

@@ -2867,12 +2867,51 @@ html[data-ui-theme="arcana"] #page .card.plate:not(:has(> img))::before { conten
   margin:0 0 8px; border:1px solid var(--edge); border-radius:var(--r);
   background:url('/web/arcana-moon.svg') 50% 46% / 34px no-repeat, url('/web/arcana-sunburst.svg') 50% 70% / 92% auto no-repeat,
     url('/web/arcana-wash.svg') 50% 50% / 110% auto no-repeat, url('/web/arcana-canvas.svg') center / cover, var(--rail); }
-/* THE TALE'S THREADS ARE THE MAJOR ARCANA. Each tall card is counted in Roman numerals, in the
-   order the list draws them, so a card with no picture still has a face: its number in a gilt
-   diamond over a bloom and a sunburst, where the picture would be. A card WITH a picture
-   (`.thart`) keeps it, framed. Counted in CSS, so nothing in the list's markup changes. */
-html[data-ui-theme="arcana"] #thlist { counter-reset:arcana; }
-html[data-ui-theme="arcana"] #thlist .thplate.thtall { counter-increment:arcana; }
+/* ONE NUMERAL PER KIND, LIKE TAROT (Seth, 2026-11-03: "the numeral says what the thread or pocket
+   IS"). Every Character wears the same card, every outfit the same; the place in a list says nothing.
+   This is the one table. `data-arcana` is the kind on a thread card and on a pocket kind's heading
+   (and the tale's Promises and Open questions), and `--arcana` is the numeral drawn from it.
+   test/app.ts holds it to every thread kind and every pocket kind in src/slots.ts, one each, no
+   numeral twice. Always true is not a pocket and has none.
+     THREADS
+       character      I      The Magician: the one who acts, will made into deeds.
+       lore           II     The High Priestess: hidden knowledge behind the veil, the scroll.
+       item           X      The Wheel of Fortune: a thing that turns, changes hands, turns the tale.
+       place          XXI    The World: the whole ground the story stands on.
+     POCKETS
+       voice          V      The Hierophant: the one who speaks and is listened to.
+       relationships  VI     The Lovers: two people and the bond between them.
+       outfit         VII    The Chariot: the driver in his armour, dressed for the road.
+       what_it_does   VIII   Strength: the power a thing holds and what it can do.
+       interiority    IX     The Hermit: alone with the lamp, what is never said aloud.
+       question       XII    The Hanged Man: suspended, unresolved, the answer not yet come.
+       promise        XVII   The Star: hope held out, a thing owed to the reader.
+       atmosphere     XVIII  The Moon: mood, mist, the light a place is seen by.
+       appearance     XIX    The Sun: seen plain, in full daylight.
+       who_is_here    XX     Judgement: the gathered crowd, those who answer the call there. */
+html[data-ui-theme="arcana"] [data-arcana="character"]     { --arcana:"I"; }
+html[data-ui-theme="arcana"] [data-arcana="lore"]          { --arcana:"II"; }
+html[data-ui-theme="arcana"] [data-arcana="item"]          { --arcana:"X"; }
+html[data-ui-theme="arcana"] [data-arcana="place"]         { --arcana:"XXI"; }
+html[data-ui-theme="arcana"] [data-arcana="voice"]         { --arcana:"V"; }
+html[data-ui-theme="arcana"] [data-arcana="relationships"] { --arcana:"VI"; }
+html[data-ui-theme="arcana"] [data-arcana="outfit"]        { --arcana:"VII"; }
+html[data-ui-theme="arcana"] [data-arcana="what_it_does"]  { --arcana:"VIII"; }
+html[data-ui-theme="arcana"] [data-arcana="interiority"]   { --arcana:"IX"; }
+html[data-ui-theme="arcana"] [data-arcana="question"]      { --arcana:"XII"; }
+html[data-ui-theme="arcana"] [data-arcana="promise"]       { --arcana:"XVII"; }
+html[data-ui-theme="arcana"] [data-arcana="atmosphere"]    { --arcana:"XVIII"; }
+html[data-ui-theme="arcana"] [data-arcana="appearance"]    { --arcana:"XIX"; }
+html[data-ui-theme="arcana"] [data-arcana="who_is_here"]   { --arcana:"XX"; }
+
+/* THE TALE'S THREADS ARE THE MAJOR ARCANA. Every tall card has a face: its kind's numeral in a gilt
+   diamond, with the sunburst and the constellation behind it. A card with no picture has them over
+   a gold bloom; a card WITH a picture (`.thart`) has them laid over the picture, faint, so the
+   picture still reads (Seth, 2026-11-03: a picture replaced all of it, and that was what was
+   missing). Over a picture they are `::before` at z -1: above the picture (-2), and painted before
+   the card's own fade (`::after`, also -1), which is clear at the top where they sit. The diamond
+   is on the name's `::before` so the card's two are free for that; the name is not positioned, so
+   the diamond is placed against the card. */
 html[data-ui-theme="arcana"] #thlist .thplate.thtall:not(.thart) {
   background:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat,
     url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat,
@@ -2881,11 +2920,48 @@ html[data-ui-theme="arcana"] #thlist .thplate.thtall:not(.thart) {
     url('/web/arcana-sunburst.svg') 50% 22% / 92% auto no-repeat,
     url('/web/arcana-wash.svg') 50% 4% / 74% auto no-repeat,
     url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
-html[data-ui-theme="arcana"] #thlist .thplate.thtall:not(.thart)::before { content:counter(arcana, upper-roman);
+html[data-ui-theme="arcana"] #thlist .thplate.thart::before { content:''; position:absolute; inset:0; z-index:-1;
+  pointer-events:none; opacity:.55;
+  background:url('/web/arcana-stars.svg') 50% 6% / 80% auto no-repeat,
+    url('/web/arcana-sunburst.svg') 50% 22% / 92% auto no-repeat; }
+html[data-ui-theme="arcana"] #thlist .thplate.thtall .platename::before { content:var(--arcana, "");
   position:absolute; left:50%; top:58px; width:84px; height:84px; margin-left:-42px;
   display:flex; align-items:center; justify-content:center; pointer-events:none;
-  font-family:var(--arc-deco); font-size:26px; letter-spacing:.04em; color:var(--ink-bright);
+  font-family:var(--arc-deco); font-size:24px; letter-spacing:.02em; color:var(--ink-bright);
   background:url('/web/arcana-diamond.svg') center / contain no-repeat; }
+/* Over a picture the diamond is smaller and higher, at the head of the card where a tarot card has
+   its number, and less than solid: centred where the bare card has it, it sat on every face. */
+html[data-ui-theme="arcana"] #thlist .thplate.thart .platename::before { top:14px; width:60px; height:60px;
+  margin-left:-30px; font-size:17px; opacity:.85; filter:drop-shadow(0 2px 6px rgba(0,0,0,.7)); }
+
+/* A POCKET KIND'S NUMERAL, beside its heading in a thread's Pockets list (and the tale's Promises and
+   Open questions): the same numeral in ink, in a small gilt diamond, at the right of the heading's
+   rule, the way a tarot card carries its number. */
+html[data-ui-theme="arcana"] :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana] { display:flex; align-items:center; gap:10px; }
+html[data-ui-theme="arcana"] :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana]::after { content:var(--arcana, "");
+  margin-left:auto; flex:0 0 auto; padding:0 6px 0 22px; min-width:22px; text-align:right;
+  font-family:var(--arc-deco); font-size:13px; letter-spacing:.06em; text-transform:none; color:var(--ink-bright);
+  background:url('/web/arcana-diamond.svg') left center / 16px 16px no-repeat; }
+
+/* A COVER WITH A PICTURE keeps the card's sky (Seth, 2026-11-03): the sunburst and the constellation
+   laid faint over the Library's hero, a shelf card and a tale's banner, as the bare ones have them
+   over the bloom. On the shade each already lays over its picture, so the words stay readable. */
+html[data-ui-theme="arcana"] .resumeband.haspic > .wash::after,
+html[data-ui-theme="arcana"] .storycard .art:not(.bare) > .fade::after,
+html[data-ui-theme="arcana"] .lbanner > .fade::after { content:''; position:absolute; inset:0; pointer-events:none; opacity:.5; }
+/* The hero's sunburst is already there, behind the title (`.rings::before`, above), but under the
+   picture's shade it all but vanished; over a picture it is lifted above the shade, faint, with the
+   words above it. The constellation is added, sized like the bare hero's. */
+html[data-ui-theme="arcana"] .resumeband.haspic > .rings { z-index:1; opacity:.75; }
+html[data-ui-theme="arcana"] .resumeband.haspic > :is(.herobody, .glass) { z-index:2; }
+html[data-ui-theme="arcana"] .resumeband.haspic > .wash::after { opacity:.75;
+  background:url('/web/arcana-stars.svg') 50% 18% / min(88%, 560px) auto no-repeat; }
+html[data-ui-theme="arcana"] .storycard .art:not(.bare) > .fade::after {
+  background:url('/web/arcana-stars.svg') 50% 12% / 90% auto no-repeat,
+    url('/web/arcana-sunburst.svg') 50% 26% / 120% auto no-repeat; }
+html[data-ui-theme="arcana"] .lbanner > .fade::after {
+  background:url('/web/arcana-sunburst.svg') 82% 120% / 300px auto no-repeat,
+    url('/web/arcana-stars.svg') 86% 30% / 260px auto no-repeat; }
 html[data-ui-theme="arcana"] #thlist .thplate.thart { border-color:var(--gold-dim); }
 html[data-ui-theme="arcana"] #thlist .thplate.thart > .thpic {
   -webkit-mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; }

@@ -3638,7 +3638,7 @@ function taleThread() {
        ['question', 'Open questions', 'What the tale has asked and not yet answered.', 'No open questions yet.']]
         .map(([k, head, hint, none]) => {
           const xs = (V.strings ?? []).filter((x) => (x.kind ?? 'promise') === k);
-          return `<div class="lbl sect">${head} &middot; <span class="tnum">${xs.length}</span></div>
+          return `<div class="lbl sect" data-arcana="${k}">${head} &middot; <span class="tnum">${xs.length}</span></div>
     <div class="hint lead-6">${hint} Each is sent while it is on.</div>
     <div class="stack">${stringList(xs, `<div class="hint flush">${none}</div>`)}</div>`;
         }).join('')}
@@ -8137,7 +8137,7 @@ const pocketList = (e, rows) => {
   const seen = new Set();
   const row = (a) => { const at = seen.has(a.slot) ? '' : ` data-slotat="${esc(a.slot)}"`; seen.add(a.slot); return pocketRow(a, pocketSwitch(e, a), at); };
   const byKind = (list) => [...new Set(list.map((a) => a.slot))].map((slot) =>
-    `<div class="lbl pkgroup">${esc(pocketTitle(slot))}</div>${list.filter((a) => a.slot === slot).map(row).join('')}`).join('');
+    `<div data-arcana="${esc(slot)}" class="lbl pkgroup">${esc(pocketTitle(slot))}</div>${list.filter((a) => a.slot === slot).map(row).join('')}`).join('');
   const on = byKind(rows.filter((a) => a.active)), off = byKind(rows.filter((a) => !a.active));
   return `<div class="pocketlist">${on}${off ? `<div class="lbl pkoff">Not turned on${tipMark('pocketsOff', 'Not turned on')}</div>
     ${tipCard('pocketsOff', 'Not turned on', `<p>Written down, and not reaching the model &mdash;
@@ -9167,7 +9167,7 @@ function threadPlate(e, lit) {
   const { look, label, state } = reachMark(e, lit);
   return `<div class="throw">
     <div style="position:relative">
-      <button class="card plate thplate thtall${pic ? ' thart' : ''}" data-entry="${e.id}">
+      <button class="card plate thplate thtall${pic ? ' thart' : ''}" data-arcana="${esc(e.entryType)}" data-entry="${e.id}">
         ${/* THE PICTURE IS THE CARD'S GROUND (Seth, 2026-11-02): the whole card, dark at the foot
               where the words are and the picture at the top. It was a 104px strip above the name. */
           pic ? `<img class="thpic" src="${pic}" alt="" loading="lazy">` : ''}

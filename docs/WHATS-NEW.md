@@ -42,8 +42,13 @@ A tale's banner over its threads, and the picture at the head of a scene, are fr
 stepped corners; a banner with no cover gets the card back. On the Threads page a card with no
 picture has a painted band where the picture would be, so every card stands the same height.
 ### A tale's threads are its Major Arcana
-In a tale's Threads list each card is numbered in Roman numerals, and a thread with no picture
-shows its number in a gilt diamond over a bloom of gold. One with a picture keeps it.
+Under Arcana every thread card carries a tarot numeral in a gilt diamond, and the numeral says what
+the thread is, not where it sits in the list: every character is I, The Magician; lore is II, The
+High Priestess; an item is X, The Wheel of Fortune; a place is XXI, The World. Each kind of pocket
+has its own numeral too, beside its heading in a thread's pockets: a voice is V, an outfit VII, a
+relationship VI, and so on. A thread with a picture keeps it, with the sunburst, the stars and its
+numeral laid faintly over it; one without a picture has them over a bloom of gold. A tale's cover,
+on the shelf, at the top of the Library and over its threads, gets the same faint sunburst and stars.
 ### No glow along the top
 Under Arcana the glow across the top of the screen is gone. What is waiting is still counted on
 the Workbench in the tale's menu.
