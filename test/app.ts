@@ -5984,9 +5984,11 @@ ok('Storyteller → Your voice shows When you reweave after the five modes, fill
   POSTED.length = 0; click({ pocketeye: 'i-2' }); await sleep(40);
   assert.deepStrictEqual(POSTED.find((x) => x.url === '/api/addon/on')?.body, { storyId: 's-1', id: 'i-2', activation: 'always_on' },
     'OWN-EYE-WORDLESS: one of your own goes Off to On, with no On a word between');
-  click({ panel: 'talethread' });
-  // The ＋: the pocket panel on the tale's thread, offering all four kinds.
+  // The ＋: the pocket panel on the tale's thread, offering all four kinds. Reached by the real door:
+  // away to the Tale tab, then the Thread tab, which the ＋ is drawn under.
+  click({ storytab: 'book' }); click({ storytab: 'thread' });
   click({ taleadd: '1' }); await sleep(20);
+  assert.match(html('sideBody'), /data-tab="thread"/, 'TALE-KINDS: the ＋ is pressed from the Tale panel\'s Thread tab');
   let box = html('pocketPanel');
   assert.deepStrictEqual([...box.matchAll(/data-pocketkind="(\w+)"/g)].map((m) => m[1]), ['promise', 'question', 'rule', 'instruction'],
     'TALE-KINDS: the ＋ offers a promise, an open question, a rule and one of your own');
