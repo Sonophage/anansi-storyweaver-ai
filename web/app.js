@@ -8380,7 +8380,7 @@ function cardFace(e, slots) {
       // on it, where it is altered, asked about and removed. On first, then what is not on, the order
       // the model is told them in. Always true is not here: it is not a pocket (#77).
       const order = slots.map((sl) => sl.name).filter((n) => n !== 'facts');
-      // Outfits off `e.outfits`, the wardrobe's own view of the same rows, as the wear chips read them.
+      // Outfits off `e.outfits`, the wardrobe's own view of the same rows, as the outfit cards on the Threads list read them.
       const mine = [...rooms.filter((a) => a.slot !== 'outfit'),
         ...(e.outfits ?? []).map((o) => ({ ...o, slot: 'outfit' }))].filter((a) => order.includes(a.slot))
         .sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot));
