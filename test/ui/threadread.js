@@ -146,8 +146,8 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
     h: Math.round(b.getBoundingClientRect().height) })))`).then(JSON.parse);
   const has = (re, key) => rows.some((r) => re.test(r.text) && r.keys.split(',').includes(key));
   ok(`⋯ opens a menu of the rarer actions (${rows.map((r) => r.text).join(' | ')})`,
-     has(/^Alter/, 'cardview') && has(/^Over time/, 'readgo') && has(/^Stitched/, 'readgo')
-       && has(/^Copy to another tale/, 'readgo') && has(/^Earlier versions/, 'readgo')
+     has(/^Alter/, 'cardview') && has(/^Timeline/, 'readgo') && has(/^Stitched/, 'readgo')
+       && has(/^Copy to another tale/, 'readgo') && has(/^Past edits/, 'readgo')
        && has(/as JSON/, 'readgo') && has(/^Read the whole tale/, 'scanstory')
        && (has(/^Retire/, 'retire') || has(/^Bring it back/, 'unretire')) && has(/^Delete/, 'delentry'));
   ok("  every row 44px or more", rows.length > 0 && rows.every((r) => r.h >= 44));

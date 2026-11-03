@@ -93,11 +93,11 @@ _Avoid_: synopsis, plot, blurb, story arc
 **The tale's thread**:
 The one thread about the tale itself. Its Always true is the setting; its pockets are the text the
 writer gives the model for the whole tale: Voice first, then the tale's rules, then the writer's
-own. Its Over time is where the tale stands now, one paragraph each hem writes and the writer sews
+own. Its Timeline is where the tale stands now, one paragraph each hem writes and the writer sews
 in; from the first hem on, the model reads that instead of the premise, which stays as how the tale
 began. Spice, the cast choices and the model stay settings. (Decided 2026-10-26; where it stands
 2026-10-28, ADR 0010. Built in #125 as a thread of kind `tale`, one per tale, made at its first
-hem: Always true the setting, its first Over time entry the premise. Its pockets are still where
+hem: Always true the setting, its first Timeline entry the premise. Its pockets are still where
 #75 put them.)
 _Avoid_: story card, tale instructions, author's note
 
@@ -115,13 +115,22 @@ still say Facts.)
 _Avoid_: facts, facts pocket, the core
 _In code_: the `facts` addon
 
-**Over time**:
-A thread's dated record, scene by scene. Each entry is the whole of where the thread stands from
-that scene on, with a short label for what changed; an outfit put on and a retirement are entries
-too. The model reads Always true and the entry in force at the scene being written. Anansi chalks
-each change at hemming; the writer sews it in. (Decided 2026-10-26; the screens still have Info.)
-_Avoid_: info, information, body, as it stands, state, states, history (for a thread)
-_In code_: `entries.body`, `entry_states`
+**Timeline**:
+A thread's dated record in story time, scene by scene. Each entry is the whole of where the thread
+stands from that scene on, with a short label for what changed; an outfit put on and a retirement
+are entries too. The model reads Always true and the entry in force at the scene being written, so
+the Timeline is sent by scene. Anansi chalks each change at hemming; the writer sews it in.
+(Decided 2026-10-26 as Over time; renamed Timeline 2026-11-03, #135. Code comments still say Over
+time.) Not Past edits, which is edit history and never sent.
+_Avoid_: over time, info, information, body, as it stands, state, states, history (for a thread)
+_In code_: `entries.body`, `entry_states`, `states`, the `time` tab
+
+**Past edits**:
+A thread's edit history: what a field said before the writer or Anansi changed it, each with Put
+this back. It is never sent to the model. Not the Timeline, which is story time. (Named 2026-11-03,
+#135.)
+_Avoid_: earlier versions, history, over time
+_In code_: `entry_revisions`, `fieldHistory`, `data-readgo="history"`
 
 **Always on / On a word**:
 When a thread reaches the model: every time, or when one of its wake words appears.
