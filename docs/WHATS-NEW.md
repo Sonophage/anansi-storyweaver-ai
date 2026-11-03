@@ -63,7 +63,9 @@ On a desk, when you make a tale's Threads full screen, the threads sit in three 
 page, and on a phone, they stay in one. The cards keep their size.
 ### One button opens and closes the menu on a desk
 The arrow at the top of the menu is gone on a desk: the menu button in the header opens it and
-closes it. On a phone, where the menu covers the screen, its ✕ stays.
+closes it. In a tale, one press closes the main menu too; it no longer turns into the tale's menu
+first. The icon at the top of each menu still takes you to the other one. On a phone, where the
+menu covers the screen, its ✕ stays.
 ### Altering a thread saves as you type
 Editing a thread has no Save any more. Its name, where it stands, your notes, its wake words and
 its Always true are kept a moment after you stop typing. Done, at the top, keeps the last of it and

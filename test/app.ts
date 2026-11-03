@@ -1472,7 +1472,7 @@ assert.doesNotMatch(modeRow, /data-threadsel|data-goblock="threads:"|data-newlor
   'the threads dial is gone from above the box');
 assert.match(html('bar'), /<button data-goblock="threads:" aria-label="This tale's threads"/,
   'and the tale\'s title in the header opens this tale\'s threads');
-assert.match(html('bar'), /data-railview="story" class="pill(?: [^"]*)?" aria-label="This tale's menu"/,
+assert.match(html('bar'), /data-railview="story" data-railhead="1" class="pill(?: [^"]*)?" aria-label="This tale's menu"/,
   'while the ⋯ still opens the tale\'s menu');
 ok('the composer offers one mode dial and the name beside it, and the title opens the threads');
 
@@ -5816,6 +5816,30 @@ ok('the demo library is a plate in Account → Your books, and the library says 
   } finally { (globalThis as any).matchMedia = wide; }
 }
 ok('at a desk the header icon is the one menu control; a full-screen menu keeps its ✕');
+
+// ---- ONE PRESS CLOSES (Seth, 2026-11-03: "yes a one press close"). In a tale at a desk, with the main
+// menu showing (swapped to from the tale's), the header's menu control shuts it. It swapped to the
+// tale's menu first, and a second press shut it. The swap stays the menu's own icon.
+{
+  const root = (globalThis as any).document.documentElement;
+  click({ open: 's-1' }); await sleep(40);
+  if (root.dataset.uiRail === 'open') click({ railview: 'story', railhead: '1' });
+  assert.notStrictEqual(root.dataset.uiRail, 'open', 'the detector: the menu starts shut');
+  assert.match(html('bar'), /<button data-railview="story" data-railhead="1"/, 'the detector: the header carries its menu control');
+  click({ railview: 'story', railhead: '1' }); await sleep(20);
+  assert.strictEqual(root.dataset.uiRail, 'open', 'HEAD-OPENS: the header opens the tale\'s menu');
+  click({ railview: 'workspace' }); await sleep(20);
+  assert.match(html('rail'), /class="railswap" data-railview="story"/, 'the detector: the main menu is showing, with its icon to the tale\'s');
+  click({ railview: 'story', railhead: '1' }); await sleep(20);
+  assert.notStrictEqual(root.dataset.uiRail, 'open', 'HEAD-ONE-CLOSE: one press of the header shuts the main menu');
+  click({ railview: 'story', railhead: '1' }); await sleep(20);
+  click({ railview: 'workspace' }); await sleep(20);
+  click({ railview: 'story' }); await sleep(20);
+  assert.strictEqual(root.dataset.uiRail, 'open', 'SWAP-KEPT: the menu\'s own icon still swaps to the tale\'s menu');
+  assert.doesNotMatch(html('rail'), /class="railswap" data-railview="story"/, '  and the tale\'s menu is the one showing');
+  click({ railview: 'story', railhead: '1' }); await sleep(20);
+}
+ok('in a tale at a desk, one press of the header shuts the main menu, and the swap is the menu\'s icon');
 
 // ---- THREE COLUMNS OF THREADS WHERE THE PANEL IS WIDE (#133). Measured on the PANEL's width, not the
 // window's, so a 400px panel on a wide desk stays one column; the cards keep their 260px. The browser

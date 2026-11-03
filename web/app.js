@@ -1400,7 +1400,9 @@ function drawBar() {
         return n ? `<button data-panel="waiting" class="pill benchnew" aria-label="${say}" title="${say}"
           ><span aria-hidden="true" style="display:flex">${mark('workbench', 17)}</span><span class="tnum">${n}</span><span class="btnword">New</span></button>` : '';
       })()}
-      ${inStory ? `<button data-railview="story" class="pill" aria-label="This tale's menu" title="This tale's menu"
+      ${/* `data-railhead`: the header's own menu control, which shuts whichever menu is open (Seth,
+            2026-11-03: "yes a one press close"). The menu's own icon is the swap. */ ''}
+      ${inStory ? `<button data-railview="story" data-railhead="1" class="pill" aria-label="This tale's menu" title="This tale's menu"
         style="display:flex; align-items:center; gap:7px; padding:6px 11px; color:var(--chrome-dim)"
         >${mark('webfull', 17)}<span class="btnword">Menu</span></button>` : ''}
     </div>`;
@@ -12751,7 +12753,8 @@ document.addEventListener('click', async (e) => {
     const want = d.railview;
     // The menu SHOWN, not `S.railView`: that can still say 'story' after the tale has gone (‹ and
     // Back forget it), and then the main menu's icon to the last tale shut the menu instead.
-    if (S.rail && (taleMenuShown() ? 'story' : 'workspace') === want) S.rail = false;
+    // The header's control at a desk shuts either menu in one press; the swap is the menu's own icon.
+    if (S.rail && ((d.railhead && !overlay()) || (taleMenuShown() ? 'story' : 'workspace') === want)) S.rail = false;
     else {
       if (want === 'story' && S.place !== 'story') {
         if (!lastTale()) return;
