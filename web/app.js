@@ -3597,11 +3597,14 @@ function talkPast(t) {
  *  Save to read. This tab holds the rest: where the tale stands (its Over time, #125, ADR 0010), the
  *  tale's Rules, its strings (ADR 0011) and any instruction of the writer's own. Stored where each
  *  always was, so what the model is sent, and where in the prompt, does not move. */
+/** WHICH TALE PANEL TAB TO SHOW (#130). Tale opens first. A tab's KEY never moves, so Tale keeps
+ *  `book`, and `voice` (the old first tab, folded into Tale) lands on it from a stored or linked press. */
+function storyTabOf(k) { return !k || k === 'voice' ? 'book' : k; }
 function taleThread() {
   const rules = V.taleRules ?? [];
   const own = V.talePockets ?? [];
   return `<div class="hint lead-10">The tale's own thread: what Anansi is told about the whole tale, every
-      time. Its Always true is the setting, on the Setting tab, and its voice is on the Voice tab.</div>
+      time. Its Always true is the setting, on the Setting tab, and its voice is on the Tale tab.</div>
     <div class="lbl wide">Where the tale stands</div>
     ${taleNowBox() || '<div class="hint flush">Nothing yet. Each hem writes where the tale stands, and you sew it in from its card.</div>'}
     <div class="end-row push-14"><span class="hint flush fill">Rules, promises, open questions and your own.
@@ -5240,15 +5243,13 @@ const PANELS = {
     const body = `${f.k === 'writingStyle' ? helpText('voice') : ''}${
       f.hint ? `<p>${esc(f.hint)}</p>` : ''}`;
     // #125 · ADR 0010. THE PREMISE IS HOW THE TALE BEGAN, and once a hem's paragraph is sewn in it is
-    // no longer sent: where the tale stands now is, shown beneath it. Written at each hem and sewn in
-    // from its card, so it is read here, not typed.
+    // no longer sent: where the tale stands now is. That is shown once, on the Thread tab (#130).
     const label = f.k === 'premise' ? 'How the tale began' : f.label;
     return `<label class="lbl" for="f-story-${f.k}">${label}${body ? tipMark(k, label) : ''}</label>
         ${body ? tipCard(k, label, body) : ''}
         ${f.area ? `<textarea class="field" id="f-story-${f.k}" data-story="${f.k}">${esc(V.story[f.k] ?? '')}</textarea>`
                  : `<input class="field" id="f-story-${f.k}" data-story="${f.k}" value="${esc(V.story[f.k] ?? '')}">`}
         ${S.putBack?.storyId === S.storyId && S.putBack.key === f.k ? putBackButton() : ''}
-        ${f.k === 'premise' ? taleNowBox() : ''}
         <!-- #18 §2. The one field with a re-roll, because it is the one written FROM two others.
              Voice is yours and a book's premise cannot guess it; the house style is what a book of
              this genre does on the page, which the genre and the premise between them do say.
@@ -5261,65 +5262,10 @@ const PANELS = {
           S.styling ? 'Writing&hellip;' : 'Have Anansi write it'}</button>` : ''}`;
   };
     const IDENT = ['title', 'genre', 'premise'];
-    const tab = S.storyTab ?? 'voice';
-    return `<div class="stack" data-tab="${tab}">
-      <!-- FOUR GROUPS, NOT ONE LONG FORM. Seth, 2026-09-02: "this needs the same treatment that
-           threads got with the filters. this is so much information that its overwhelming. give it
-           filter buttons to reach the information. title, genre and premise can be the second
-           filter. the voice of the weave and how the book is written van be the first." His two
-           groups are the first two. The rest of the panel had to go somewhere: Spice joins the
-           voice, because it is the register rather than a fact about the world; the pickers and the
-           world link are The world; the exports, the archive and the delete are Keep.
-           THEY SWITCH IN CSS, NOT BY REDRAWING. Every box in here is free text that Save commits,
-           and a repaint on a tab press throws away whatever was half-typed — the bug this file
-           records seven separate times. Every group is drawn and the attribute on the
-           container picks the one you see, so switching cannot lose a word. The fifth, Thread, is the
-           tale's own thread (2026-10-29). -->
-      <div class="lead-14 row-6">
-        ${[['voice', 'Voice'], ['book', 'The tale'], ['thread', 'Thread'], ['world', 'Setting'], ['keep', 'Keep']]
-          .map(([k, label]) => `<button class="chip fill center-press" data-storytab="${k}"
-            aria-pressed="${tab === k}"
-            >${label}</button>`).join('')}
-      </div>
-      <div class="sgroup" data-group="voice">
-      ${fields.filter((f) => !IDENT.includes(f.k)).map(field).join('')}
-      <!-- for/id, not a bare label. test/web.ts pairs a label to its control by for="" and id="" —
-           a word above a box names nothing, and tapping it does not focus the box. These two were
-           unnamed the whole time and the check passed by luck: its wrapped-in-a-label branch takes
-           the NEAREST preceding label in the file text, and before the story panel was regrouped
-           that happened to land on one that closed after this select. Regrouping moved the text and
-           the check started telling the truth. -->
-      <label class="lbl" for="f-story-spice">Spice${helpMark('spice')}</label>
-      ${helpBody('spice')}
-      ${(() => {
-        // Six options, not five plus a box. The written override was on screen always, which made
-        // it noise on every story that does not use it. A story is on a level OR on a written
-        // register, never both, so the sixth option IS the switch.
-        const custom = !!V.story.spiceNote?.trim();
-        return `<select class="field" id="f-story-spice" data-story="spice">${SPICE.map((l, i) =>
-          `<option value="${i + 1}" ${!custom && Number(V.story.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}
-          <option value="custom" ${custom ? 'selected' : ''}>Custom — say it yourself</option></select>
-        <div id="spiceCustom" ${custom ? '' : 'hidden'}>
-          <label class="lbl" for="f-story-spiceNote">The register, in your words${
-            tipMark('sRegister', 'The register, in your words')}</label>
-          ${tipCard('sRegister', 'The register, in your words', `<p>This replaces the level
-            entirely &mdash; it is the register line the model receives.</p>`)}
-          <textarea class="field" id="f-story-spiceNote" data-story="spiceNote"
-            placeholder="e.g. explicit, but never coy about it — the vocabulary of the writing sample"
-            >${esc(V.story.spiceNote ?? '')}</textarea>
-        </div>`;
-      })()}
-
-      </div>
-      <div class="sgroup" data-group="book">
-      <div class="lbl sect-top">The cover${
-        tipMark('sCover', 'The cover')}</div>
-      ${tipCard('sCover', 'The cover', `<p>Shrunk to 900px wide in the browser and stored in the
-        database, not on disk &mdash; the nightly backup is one file, and a path would leave the
-        covers out of it.</p>`)}
-      ${V.cover ? `<img src="${api.coverUrl(S.storyId, V.cover)}" alt=""
-        style="width:100%; height:120px; object-fit:cover; border-radius:var(--r); border:1px solid var(--edge)">` : ''}
-      <div style="display:flex; gap:7px; margin-top:${V.cover ? '7px' : '0'}">
+    const tab = storyTabOf(S.storyTab);
+    // THE COVER'S CONTROLS. Out in the open with no cover, as there is nothing to hide them behind;
+    // inside the fold under the picture with one (#130).
+    const coverAdd = `<div style="display:flex; gap:7px">
         <label class="btn ghost" style="flex:1; display:flex; align-items:center; justify-content:center; cursor:pointer">
           ${V.cover ? 'Replace it' : 'Choose an image'}
           <input type="file" accept="image/*" data-cover="1" hidden></label>
@@ -5333,14 +5279,43 @@ const PANELS = {
            shrink-and-store path a chosen file takes. One picture, one route, one contract.
            The anonymous tier serves sana at 665x886 and ignores width, height and model, so
            there are no controls for those: a control that is ignored is a control that lies. -->
-      ${drawTray()}
-      ${V.cover ? `${tipCard('sHero', 'Using it at the head of every scene', `<p>The same picture,
+      ${drawTray()}`;
+    const coverTip = tipCard('sCover', 'The cover', `<p>Shrunk to 900px wide in the browser and stored in the
+        database, not on disk &mdash; the nightly backup is one file, and a path would leave the
+        covers out of it.</p>`);
+    return `<div class="stack" data-tab="${tab}">
+      <!-- FOUR GROUPS, NOT ONE LONG FORM. Seth, 2026-09-02: "this needs the same treatment that
+           threads got with the filters. this is so much information that its overwhelming. give it
+           filter buttons to reach the information." Tale first and opened on (#130, Seth,
+           2026-11-03: "The tale should be called Tale and should be the first thing a tale opens
+           to"): the cover, what the tale is, then how it is written and its Spice, in one scroll.
+           The pickers and the world link are Setting; the exports, the archive and the delete are
+           Keep; Thread is the tale's own thread (2026-10-29).
+           THEY SWITCH IN CSS, NOT BY REDRAWING. Every box in here is typed text that saves after a
+           pause, and a repaint on a tab press throws away whatever was half-typed — the bug this
+           file records seven separate times. Every group is drawn and the attribute on the
+           container picks the one you see, so switching cannot lose a word. -->
+      <div class="lead-14 row-6">
+        ${[['book', 'Tale'], ['thread', 'Thread'], ['world', 'Setting'], ['keep', 'Keep']]
+          .map(([k, label]) => `<button class="chip fill center-press" data-storytab="${k}"
+            aria-pressed="${tab === k}"
+            >${label}</button>`).join('')}
+      </div>
+      <div class="sgroup" data-group="book">
+      <!-- #130. THE COVER, LARGE, as an open thread's picture is: the same rule, not a second
+           picture style. Everything about it sits in one fold under it, shut until asked. -->
+      ${V.cover ? `<img class="readpic" src="${api.coverUrl(S.storyId, V.cover)}" alt="">
+      ${foldSection('talecover', 'The cover and how it shows', `<div class="end-row">${
+        tipMark('sCover', 'The cover')}</div>
+      ${coverTip}
+      ${coverAdd}
+      ${tipCard('sHero', 'Using it at the head of every scene', `<p>The same picture,
         as a plate above each scene's title. There is no second image to choose &mdash; a scene
         shows the cover or nothing.</p>`)}
       <label style="display:flex; align-items:center; gap:9px; margin-top:11px; cursor:pointer">
         <input type="checkbox" data-story="chapterHero" ${V.story.chapterHero ? 'checked' : ''}>
         <span class="body-ink">Use it at the head of every scene</span>${
-          tipMark('sHero', 'Using it at the head of every scene')}</label>` : ''}
+          tipMark('sHero', 'Using it at the head of every scene')}</label>
 
       ${V.cover && V.story.chapterHero ? `${tipCard('sSticky', 'Keeping it behind the prose', `<p>It
         stays put and the writing moves over it, fading left to right into the page. Instead of a
@@ -5371,9 +5346,39 @@ const PANELS = {
         <label class="line pressable push-8">
           <input type="checkbox" data-story="coverFlip" ${V.story.coverFlip ? 'checked' : ''}>
           <span class="body-ink">Show it on the right, fading to the left</span></label>
-        ` : ''}` : ''}
+        ` : ''}` : ''}`)}` : `<div class="lbl sect-top">The cover${
+        tipMark('sCover', 'The cover')}</div>
+      ${coverTip}
+      ${coverAdd}`}
 
       ${fields.filter((f) => IDENT.includes(f.k)).map(field).join('')}
+      ${fields.filter((f) => !IDENT.includes(f.k)).map(field).join('')}
+      <!-- for/id, not a bare label. test/web.ts pairs a label to its control by for="" and id="" —
+           a word above a box names nothing, and tapping it does not focus the box. These two were
+           unnamed the whole time and the check passed by luck: its wrapped-in-a-label branch takes
+           the NEAREST preceding label in the file text, and before the story panel was regrouped
+           that happened to land on one that closed after this select. Regrouping moved the text and
+           the check started telling the truth. -->
+      <label class="lbl" for="f-story-spice">Spice${helpMark('spice')}</label>
+      ${helpBody('spice')}
+      ${(() => {
+        // Six options, not five plus a box. The written override was on screen always, which made
+        // it noise on every story that does not use it. A story is on a level OR on a written
+        // register, never both, so the sixth option IS the switch.
+        const custom = !!V.story.spiceNote?.trim();
+        return `<select class="field" id="f-story-spice" data-story="spice">${SPICE.map((l, i) =>
+          `<option value="${i + 1}" ${!custom && Number(V.story.spice) === i + 1 ? 'selected' : ''}>${i + 1} · ${l}</option>`).join('')}
+          <option value="custom" ${custom ? 'selected' : ''}>Custom — say it yourself</option></select>
+        <div id="spiceCustom" ${custom ? '' : 'hidden'}>
+          <label class="lbl" for="f-story-spiceNote">The register, in your words${
+            tipMark('sRegister', 'The register, in your words')}</label>
+          ${tipCard('sRegister', 'The register, in your words', `<p>This replaces the level
+            entirely &mdash; it is the register line the model receives.</p>`)}
+          <textarea class="field" id="f-story-spiceNote" data-story="spiceNote"
+            placeholder="e.g. explicit, but never coy about it — the vocabulary of the writing sample"
+            >${esc(V.story.spiceNote ?? '')}</textarea>
+        </div>`;
+      })()}
       </div>
       <div class="sgroup" data-group="world">
       <!-- WHICH WORLD OR IP THIS BOOK BELONGS TO — Seth, 2026-09-02: "Is there a way in the story
@@ -12817,11 +12822,11 @@ document.addEventListener('click', async (e) => {
    * bug seven other handlers in this file carry a note about. The attribute and the pressed states
    * are flipped where they are; the stylesheet does the rest. */
   if (d.storytab) {
-    S.storyTab = d.storytab;
+    S.storyTab = storyTabOf(d.storytab);
     const box = t.closest?.('[data-tab]');
-    if (box) box.dataset.tab = d.storytab;
+    if (box) box.dataset.tab = S.storyTab;
     for (const b of document.querySelectorAll('[data-storytab]'))
-      b.setAttribute('aria-pressed', String(b.dataset.storytab === d.storytab));
+      b.setAttribute('aria-pressed', String(b.dataset.storytab === S.storyTab));
     return;
   }
   /* The Chapter panel's four, and the same argument exactly: its name, how it opens and where it
@@ -13923,7 +13928,13 @@ document.addEventListener('click', async (e) => {
   // The native <summary> click has already flipped the element; this records it so the repaint
   // agrees rather than snapping the section shut under whatever was pressed inside it.
   // The wizard's folds repaint the wizard, so what is typed on the step is read back first.
-  if (d.fold) { harvestSpark(); S.folds = { ...S.folds, [d.fold]: !S.folds?.[d.fold] }; paint(); return; }
+  // The Tale panel's cover fold does not repaint at all (#130): every box on that panel saves after a
+  // pause, and a repaint inside the pause puts the stored text back on screen.
+  if (d.fold) {
+    harvestSpark(); S.folds = { ...S.folds, [d.fold]: !S.folds?.[d.fold] };
+    if (d.fold !== 'talecover') paint();
+    return;
+  }
   // One press goes to the work, not to a list of where the work might be.
   /** The band's two doors into the last-written book, and the difference between them.
    *

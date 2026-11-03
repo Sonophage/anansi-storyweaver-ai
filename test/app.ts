@@ -1748,28 +1748,64 @@ ok('Sent now keeps a thread you tap until the next passage, and kind tabs narrow
   ok('the thread search reads the rooms, not just the title a card may not keep its text in');
 }
 
-// ---- THE STORY PANEL IS FOUR GROUPS BEHIND FOUR CHIPS (2026-09-02).
-// Seth: "this is so much information that its overwhelming. give it filter buttons to reach the
-// information." Eleven fields, a cover, a world link, three exports, an archive and a delete were
-// one scroll.
+// ---- THE TALE PANEL IS FOUR GROUPS BEHIND FOUR CHIPS, AND OPENS ON TALE (#130, 2026-11-03).
+// Seth (bugs.md): "The tale should be called Tale and should be the first thing a tale opens to."
+// Voice went into Tale: the cover first, then what the tale is, then how it is written, then Spice.
 {
   click({ panel: 'story' });
   await sleep(40);
-  const panel = html('sideBody');
-  for (const g of ['voice', 'book', 'thread', 'world', 'keep'])
+  let panel = html('sideBody');
+  assert.deepStrictEqual([...panel.matchAll(/data-storytab="(\w+)"[^>]*>([^<]+)</g)].map((m) => [m[1], m[2].trim()]),
+    [['book', 'Tale'], ['thread', 'Thread'], ['world', 'Setting'], ['keep', 'Keep']],
+    'TALE-TABS: the tab row is Tale, Thread, Setting, Keep, in that order');
+  for (const g of ['book', 'thread', 'world', 'keep'])
     assert.match(panel, new RegExp(`data-group="${g}"`), `the panel must draw the ${g} group`);
+  assert.doesNotMatch(panel, /data-group="voice"/, 'TALE-NO-VOICE: there is no Voice group');
   // ALL FOUR ARE DRAWN AND ONE IS SHOWN. The container says which, and the stylesheet does the
   // hiding — asserted here as the attribute, because that is the contract the CSS reads.
-  assert.match(panel, /data-tab="voice"/, 'and it opens on the voice, which is the group he named first');
-  assert.match(panel, /data-storytab="book"/, 'with a chip for each of them');
-  // HIS TWO GROUPS, in his order: the voice first, title/genre/premise second.
-  const voice = panel.match(/data-group="voice"[\s\S]*?data-group="book"/)?.[0] ?? '';
-  assert.match(voice, /f-story-writingStyle/, 'the voice group holds the voice of the weave');
-  assert.match(voice, /f-story-styleNote/, 'and how this book is written');
-  assert.ok(!/f-story-title/.test(voice), 'and not the title, which is the second group');
-  const book = panel.match(/data-group="book"[\s\S]*?data-group="world"/)?.[0] ?? '';
-  for (const k of ['title', 'genre', 'premise'])
-    assert.match(book, new RegExp(`f-story-${k}`), `the book group holds the ${k}`);
+  assert.match(panel, /data-tab="book"/, 'TALE-OPENS: the panel opens on Tale');
+  const tale = panel.match(/data-group="book"[\s\S]*?data-group="world"/)?.[0] ?? '';
+  const at = (re: RegExp) => tale.search(re);
+  // THE ORDER: cover, its fold, title, genre, how it began, the voice fields, then Spice.
+  const order = [/class="readpic"/, /data-fold="talecover"/, /id="f-story-title"/, /id="f-story-genre"/,
+    /id="f-story-premise"/, /id="f-story-writingStyle"/, /id="f-story-styleNote"/, /id="f-story-spice"/,
+    /id="f-story-spiceNote"/].map(at);
+  assert.ok(order.every((n) => n > -1), `TALE-HOLDS: Tale holds the cover, its fold, the tale, the voice and Spice (${order})`);
+  assert.deepStrictEqual([...order].sort((a, b) => a - b), order, 'TALE-ORDER: in that order');
+  assert.match(tale, /<img class="readpic" src="[^"]*api\/cover\?story=s-1/, 'TALE-COVER: the cover is drawn as a thread\'s picture is');
+  // THE FOLD: closed, and every cover control and heading setting inside it.
+  const fold = tale.match(/<details class="fold[^>]*>[\s\S]*?<\/details>/)?.[0] ?? '';
+  assert.ok(fold && !/<details[^>]*\bopen\b/.test(fold.slice(0, fold.indexOf('>') + 1)), 'TALE-FOLD-SHUT: the cover fold is closed by default');
+  for (const [what, re] of [['Replace', /data-cover="1"/], ['Remove', /data-delcover="1"/], ['Have one drawn', /data-drawcover="open"/],
+    ['Find one online', /data-findcover="open"/], ['the head of every scene', /data-story="chapterHero"/]] as const)
+    assert.match(fold, re, `TALE-FOLD-HOLDS: ${what} is inside the fold`);
+  assert.doesNotMatch(tale.replace(fold, ''), /data-cover=|data-delcover|data-drawcover|data-findcover|data-story="chapter|data-story="cover/,
+    '  and none of them outside it');
+  // A PRESS ON THE FOLD DOES NOT REPAINT, the same sentinel as the explanations use: every box on
+  // this panel saves after a pause, and a repaint inside it puts the stored text back on screen.
+  nodes.get('sideBody').innerHTML = 'STALE';
+  click({ fold: 'talecover' }); await sleep(30);
+  assert.strictEqual(html('sideBody'), 'STALE', 'TALE-FOLD-QUIET: opening the cover fold does not repaint the panel');
+  click({ panel: 'story' }); await sleep(40);
+  assert.match(html('sideBody'), /<details class="fold[^>]*\bopen\b[^>]*>\s*<summary[^>]*data-fold="talecover"/,
+    '  and it stays open through the next repaint that does happen');
+  click({ fold: 'talecover' }); click({ panel: 'story' }); await sleep(40);
+  // NO COVER: the add controls are out, as there is nothing to hide them behind.
+  const hadCover = (STORY as any).cover;
+  (STORY as any).cover = null;
+  click({ open: 's-1' }); await sleep(40);
+  click({ panel: 'story' }); await sleep(40);
+  panel = html('sideBody');
+  const bare = panel.match(/data-group="book"[\s\S]*?data-group="world"/)?.[0] ?? '';
+  assert.doesNotMatch(bare, /class="readpic"|<details/, 'TALE-NO-COVER: with no cover there is no picture and no fold');
+  for (const re of [/data-cover="1"/, /Choose an image/, /data-drawcover="open"/, /data-findcover="open"/])
+    assert.match(bare, re, `TALE-ADD: with no cover the add controls are out (${re})`);
+  (STORY as any).cover = hadCover;
+  click({ open: 's-1' }); await sleep(40);
+  // AN OLD `voice` TAB LANDS ON TALE.
+  click({ storytab: 'voice' }); click({ panel: 'story' }); await sleep(40);
+  assert.match(html('sideBody'), /data-tab="book"/, 'TALE-OLD-VOICE: a stored voice tab opens Tale');
+  assert.match(html('sideBody'), /data-storytab="book"[^>]*aria-pressed="true"/, '  with the Tale chip pressed');
   // AND PRESSING A CHIP DOES NOT REDRAW, which is asserted ON THE SOURCE rather than through this
   // harness. Every box in the panel saves after a pause in the typing, so a repaint on a tab press
   // throws away a half-written premise — the bug this file records seven times in other handlers.
@@ -1790,7 +1826,7 @@ ok('Sent now keeps a thread you tap until the next passage, and kind tabs narrow
   click({ panel: 'context' });
   await sleep(40);
 }
-ok('the story panel is four groups behind four chips, and switching cannot lose what you typed');
+ok('the Tale panel is Tale, Thread, Setting and Keep, opens on Tale, and keeps the cover controls in one fold');
 
 // In words on screen since 2026-10-25 ("46% of his room"); the counts are kept in its tooltip.
 assert.match(html('sideBody'), />46% of his room</);
@@ -8092,13 +8128,14 @@ const hemCardOf = (side: string) => {
   HEM_VIEW = { ...HEM_VIEW, taleThread: { ...TALE, nowStateId: 'ts-1', states: [{ id: 'ts-1', fromChapter: 2, body: NOW }] } };
   click({ open: 's-1' }); await settle();
   click({ panel: 'story' }); await settle();
-  assert.match(book(), new RegExp(`Where it stands now[\\s\\S]*?${NOW}`), 'TALE-NOW: and where it stands now, once sewn in');
+  // #130. Shown once, on the Thread tab: not under how the tale began as well.
+  assert.doesNotMatch(book(), /Where it stands now|data-talenow/, 'TALE-NOW-ONCE: where it stands now is not on the Tale tab');
   click({ panel: '' }); click({ storytab: 'thread' }); click({ panel: 'story' }); await settle();
   assert.match(html('sideBody').match(/data-group="thread"[\s\S]*/)?.[0] ?? '', /Where the tale stands[\s\S]*?Where it stands now[\s\S]*?the sixth has burned/,
     "TALE-OWN: the tale's own thread shows where it stands too");
   (globalThis as any).fetch = canned;
   click({ open: 's-1' }); await settle();
-  ok("where the tale stands is a diff on the hem's card, and the tale's settings show how it began and where it stands now");
+  ok("where the tale stands is a diff on the hem's card, the Tale tab shows how it began, and the Thread tab where it stands now");
 }
 
 // ---- #92 · THE CARD'S STATES, and the presses each one offers: running, a pass that did not run

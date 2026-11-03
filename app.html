@@ -2252,11 +2252,10 @@ details.fold[open] > summary::before { content:'\2304\00a0'; }
    the document region stays on screen behind the workspace pages. */
 #read[hidden], #dock[hidden], #page[hidden] { display:none !important; }
 
-/* THE STORY PANEL'S FIVE GROUPS. Only one is on screen and the container's attribute says which —
+/* THE TALE PANEL'S FOUR GROUPS. Only one is on screen and the container's attribute says which —
    see the note in `story()` for why this is CSS and not a redraw: every field in there is free text
    that Save commits, and a repaint on a tab press loses whatever was half-typed. */
 .sgroup { display:none; flex-direction:column; }
-[data-tab="voice"] > .sgroup[data-group="voice"],
 [data-tab="book"]  > .sgroup[data-group="book"],
 [data-tab="world"] > .sgroup[data-group="world"],
 [data-tab="keep"]  > .sgroup[data-group="keep"],
