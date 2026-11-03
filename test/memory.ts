@@ -1658,7 +1658,7 @@ ok('the brief names who starts the scene; every other always-on thread is mentio
   // ITS RAW ANSWER IS KEPT (2026-11-01): a walk on the real model chalked nothing, and nothing said
   // what the model had answered.
   const logged = (new (await import('node:sqlite')).DatabaseSync(DB, { readOnly: true }) as any)
-    .prepare("SELECT manifest FROM generations WHERE story_id = ? AND role = 'hem-new' ORDER BY created_at DESC LIMIT 1").get(t.id);
+    .prepare("SELECT manifest FROM generations WHERE story_id = ? AND role = 'hem-new' ORDER BY created_at DESC, rowid DESC LIMIT 1").get(t.id);
   assert.match(JSON.parse(logged?.manifest ?? '{}').raw ?? '', /black dress from the show/, 'NEEDS-RAW: the needs ask logs what the model answered');
   tidied = {}; needsFound = [];
 }

@@ -4753,9 +4753,12 @@ export function logGeneration(g: any) {
   // manifest is only useful while debugging a recent call, so keep the newest 200 and null
   // the rest. Each manifest is ~3 KB, so unbounded is a slow leak, not a fast one.
   // (The id is returned below so the take this produced can be tied to it.)
+  // `rowid` BREAKS A TIE in `created_at`: two calls logged in the same millisecond (every call under
+  // the tests' virtual clock) sorted in no fixed order, so the row just written could be the one
+  // nulled. test/memory.ts NEEDS-RAW failed about half its runs on it (2026-11-03).
   q(`UPDATE generations SET manifest = NULL WHERE id IN (
        SELECT id FROM generations WHERE manifest IS NOT NULL
-       ORDER BY created_at DESC LIMIT -1 OFFSET 200)`).run();
+       ORDER BY created_at DESC, rowid DESC LIMIT -1 OFFSET 200)`).run();
   return gid;
 }
 
