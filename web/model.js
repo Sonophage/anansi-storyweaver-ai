@@ -881,9 +881,10 @@ export const THEMES = {
 };
 
 /** THE APP'S DISPLAY FACES: thin deco capitals for titles, a geometric sans for labels (Arcana, Seth,
- *  2026-11-03). Every theme's, since the ornament is every theme's; fetched once by `loadFaces`. The
- *  prose keeps whatever font the writer chose. */
-export const FACES = 'Poiret+One&family=Josefin+Sans:wght@400;600';
+ *  2026-11-03), and a high-contrast serif with its italic for a scene's title and its line (Seth's
+ *  reference, 2026-11-03). Every theme's, since the ornament is every theme's; fetched once by
+ *  `loadFaces`. The prose keeps whatever font the writer chose. */
+export const FACES = 'Poiret+One&family=Josefin+Sans:wght@400;600&family=Cormorant+Garamond:ital,wght@0,500;1,400';
 
 /** THE PAPER'S GRAIN, the painted canvas laid over every theme's own page wash: neutral light and
  *  shade, no colour of its own, so it is the same paper under any colour set. */

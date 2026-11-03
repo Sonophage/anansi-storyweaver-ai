@@ -1020,6 +1020,8 @@ html[data-reading="1"] .carry { display:none !important; }
   left:14px; right:14px; } }
 
 .band { display:flex; flex-direction:column; gap:13px; padding:8px 0 10px; }
+.band-num { font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--label); }
+.band-sun { display:none; }
 .band-title { font-size:48px; line-height:1.04; color:var(--body); text-wrap:pretty; }
 .band-epi { display:flex; align-items:flex-start; gap:14px; max-width:520px; }
 .band-epi i { width:1px; align-self:stretch; background:var(--gold-dim); opacity:.5; flex:0 0 auto; }
@@ -2774,6 +2776,7 @@ html:root :is(.card, .lbanner, #col .plate, .storycard, .resumeband > .glass, :i
 html:root {
   --arc-deco:'Poiret One','IBM Plex Sans',system-ui,sans-serif;     /* titles: thin geometric capitals */
   --arc-small:'Josefin Sans','IBM Plex Sans',system-ui,sans-serif;  /* labels and the menu's words */
+  --arc-serif:'Cormorant Garamond','EB Garamond',Georgia,serif;     /* a scene's title and its line */
 }
 
 /* THE GROUNDS. The page's is the row's wash; the menu, the side panel and the sheets get the same
@@ -2819,7 +2822,7 @@ html:root #bar .bare-btn .serif,
 html:root .resumeband .bandtitle,
 html:root .storycard .art .serif {
   font-family:var(--arc-deco); font-weight:400; text-transform:uppercase; letter-spacing:.16em; }
-html:root :is(#bar .up, .resumeband .herokind, .resumeband .herocount, .band > div:first-child,
+html:root :is(#bar .up, .resumeband .herokind, .resumeband .herocount, .band-num,
   #col .block .from, .railhead, .kicker) { font-family:var(--arc-small); letter-spacing:.3em; }
 /* A tag is a short word in a row of them: at .3em each chip read twice its width (Seth, 2026-11-03).
    Out of the list above, whose `#col` made it outrank any rule for a tag on its own. */
@@ -2874,6 +2877,30 @@ html:root .storycard .art.bare > .fade::before { content:''; position:absolute; 
 html:root .storycard .art.bare > .fade::after { content:''; position:absolute; inset:0; pointer-events:none;
   background:var(--gold); opacity:.7; -webkit-mask:url('/web/arcana-sunburst.svg') 50% 26% / 120% auto no-repeat;
   mask:url('/web/arcana-sunburst.svg') 50% 26% / 120% auto no-repeat; }
+
+/* THE HEAD OF A SCENE IS A TAROT TITLE (Seth, 2026-11-03, his reference "SCENE IX / The Drake's
+   Key"): centred, under a half sunburst rising from a small arc; "SCENE IX" in spaced capitals with
+   the number in Roman numerals; the title large in a high-contrast serif; the scene's line in its
+   italic, with no bar beside it; the gilt chevron rule centred under all of it. The sunburst is the
+   gilt file as a mask in the accent, like every ornament here. */
+html:root .band { align-items:center; text-align:center; gap:12px; padding:4px 0 8px; }
+html:root .band-sun { display:block; width:min(400px, 78%); aspect-ratio:3 / 1; margin:0 0 -4px;
+  background:var(--gold); opacity:.6;
+  -webkit-mask:url('/web/arcana-sunburst.svg') center bottom / contain no-repeat;
+  mask:url('/web/arcana-sunburst.svg') center bottom / contain no-repeat; }
+html:root .band-num { font-size:15px; letter-spacing:.42em; margin-right:-.42em; color:var(--mute); }
+html:root .band-title { font-family:var(--arc-serif); font-weight:500; font-size:58px; line-height:1.05;
+  color:var(--ink-bright); letter-spacing:.005em; }
+html:root .band-epi { justify-content:center; max-width:560px; }
+html:root .band-epi i { display:none; }
+html:root .band-epi span { font-family:var(--arc-serif); font-style:italic; font-size:24px; line-height:1.35; color:var(--mute); }
+html:root .band-rule { align-self:stretch; height:22px; margin-top:10px;
+  -webkit-mask:url('/web/arcana-divider.svg') center / min(700px, 100%) 22px no-repeat;
+  mask:url('/web/arcana-divider.svg') center / min(700px, 100%) 22px no-repeat; }
+@media (max-width:719px) { html:root .band-sun { width:min(240px, 70%); }
+  html:root .band-num { font-size:12px; } html:root .band-title { font-size:36px; }
+  html:root .band-epi span { font-size:19px; }
+  html:root .band-rule { height:18px; -webkit-mask-size:100% 18px; mask-size:100% 18px; } }
 
 /* THE SCENE'S FIRST LETTER, illuminated: deco capital in a gilt box over a wash of gold. Still
    ::first-letter, for the reason above the rule it extends: the passage is contenteditable. */

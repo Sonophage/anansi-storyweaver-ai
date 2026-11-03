@@ -1162,6 +1162,23 @@ assert.ok(html('col').includes('<div class="said" data-edit="p-2"><span class="q
   'ACCENT-PAGE: and so is a line of speech');
 assert.match(html('col'), /Envoy Sereth/, 'a speaker label must render');
 assert.match(html('col'), /You · Ilva Marren/, 'a human passage must be attributed to the persona');
+// THE SCENE'S HEAD IS A TAROT TITLE (Seth, 2026-11-03, his reference "SCENE IX / The Drake's Key"): a
+// half sunburst over it, the scene's number in Roman numerals in spaced capitals, the title, its line
+// in italic, the gilt rule. The open scene here is c-2, so it is Scene II.
+{
+  const head = html('col').match(/<div class="band">[\s\S]*?<div class="band-rule"><\/div>/)?.[0] ?? '';
+  assert.match(head, /<i class="band-sun" aria-hidden="true"><\/i>/, 'SCENE-HEAD: a half sunburst over the scene\'s head');
+  assert.match(head, /<div class="band-num">Scene II<\/div>/, 'SCENE-HEAD: the scene\'s number in Roman numerals');
+  assert.ok(head.indexOf('band-sun') < head.indexOf('band-num'), 'SCENE-HEAD: the sunburst is over the number');
+  const { readFileSync } = await import('node:fs');
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  assert.match(page, /html:root \.band-sun \{[^}]*mask:url\('\/web\/arcana-sunburst\.svg'\)/, 'SCENE-HEAD: the sunburst is the gilt one, in the accent');
+  assert.match(page, /html:root \.band-title \{[^}]*font-family:var\(--arc-serif\)/, 'SCENE-HEAD: the title in the high-contrast serif');
+  assert.match(page, /html:root \.band-epi span \{[^}]*font-family:var\(--arc-serif\)[^}]*font-style:italic/, 'SCENE-HEAD: its line in the italic serif');
+  const { FACES } = await import('../web/model.js');
+  assert.match(FACES, /Cormorant\+Garamond:ital/, 'SCENE-HEAD: the serif is one of the app\'s faces, with its italic');
+}
+ok('a scene opens under a sunburst, its number in Roman numerals');
 // THE CLASS TOKEN, not the whole attribute. This read `class="block speak"` exactly, so it went red
 // the moment that passage also carried a mode accent — a true statement about the markup breaking on
 // an unrelated addition. `\b` on both sides, or `speak` would also match `m-speak`.

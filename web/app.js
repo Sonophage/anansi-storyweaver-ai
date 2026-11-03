@@ -2016,8 +2016,8 @@ function drawDoc() {
     ${isFirst ? '' : '<div class="chapbreak" aria-hidden="true"><span></span><i></i><span></span></div>'}
     ${plateFor}
     <div class="band">
-      <div style="font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--label)">
-        Scene ${c.index}</div>
+      <i class="band-sun" aria-hidden="true"></i>
+      <div class="band-num">Scene ${roman(c.index) || c.index}</div>
       ${plateFor ? '' : `<div class="serif band-title">${esc(sceneName(c))}</div>`}
       ${(() => { const e = epigraphOf(list); return e ? `<div class="band-epi"><i></i><span class="serif">${esc(e)}</span></div>` : ''; })()}
       <div class="band-rule"></div>

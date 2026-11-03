@@ -184,6 +184,11 @@ In the tale's menu each scene is a small card: a fine frame with gilt corners, i
 same thin face as the titles, and its number as a numeral over it, X for the tenth scene. The main
 menu's tales are cards the same way. A row or tile under the pointer turns your theme's colour, and
 nothing is underlined while it is: not even the brush stroke under the page you are on.
+### A scene opens like a tarot card's title
+The head of each scene is centred under a half sunburst in your theme's colour. Over the title is
+the scene's number as a numeral in spaced capitals, SCENE IX for the ninth. The title is large in
+a fine, high-contrast serif, the scene's line is in its italic under it, and the gilt rule with
+its chevrons and diamond sits centred under both.
 ### No glow along the top
 The glow across the top of the screen is gone. What is waiting is still counted on the Workbench in
 the tale's menu.
