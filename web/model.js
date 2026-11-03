@@ -865,7 +865,7 @@ const GRAIN = "url('/web/arcana-canvas.svg') center / cover no-repeat";
  *  app.html (`--suit`, keyed on data-arcana). */
 const ROMAN = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
   [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
-const roman = (n) => ROMAN.reduce((out, [v, r]) => { while (n >= v) { out += r; n -= v; } return out; }, '');
+export const roman = (n) => ROMAN.reduce((out, [v, r]) => { while (n >= v) { out += r; n -= v; } return out; }, '');
 export const minorRank = (n) => (n === 1 ? 'Ace' : n >= 11 && n <= 14 ? ['Page', 'Knight', 'Queen', 'King'][n - 11] : roman(n));
 
 /** THEMES THAT LEFT THE LIST, and the one each look now reads as (2026-11-02: Obsidian, Parchment,

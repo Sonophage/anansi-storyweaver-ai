@@ -5689,6 +5689,27 @@ ok("each menu has an ink icon that swaps to the other in place, and from the Lib
 }
 ok("both menus' tiles share one class and their rows another, with the sizes in the classes");
 
+// ---- THE MENUS IN ARCANA (Seth, 2026-11-03). (a) A row or tile under the pointer turns the theme's
+// accent and wears no underline, not even the brush stroke under the page you are on. (b) The tale's
+// Scenes and the main menu's Tales are cards, not plain rows: a gilt frame with stepped corners, the
+// deco face, and a scene's numeral over its name, as a card has its number.
+{
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  const hover = css.match(/html:root #rail :is\(\.railtile, \.railrow\):is\(:hover, :focus-visible\)[^{]*\{[^}]*\}/g)?.join(' ') ?? '';
+  assert.match(hover, /color:var\(--gold\) !important/, 'MENU-HOVER: a menu row under the pointer turns the accent');
+  assert.match(hover, /background-image:none !important/, 'MENU-HOVER: and the brush stroke under the page you are on goes');
+  assert.match(hover, /text-decoration:none/, 'MENU-HOVER: with no underline');
+  assert.match(css, /html:root #rail \.railrow::before \{[^}]*mask:url\('\/web\/arcana-corner-tl\.svg'\)/, 'MENU-CARDS: a menu row has the stepped gilt corners');
+  assert.match(css, /html:root #rail \.railrow > \.txt \{[^}]*font-family:var\(--arc-deco\)/, 'MENU-CARDS: and its name in the deco face');
+  click({ open: 's-1' }); await sleep(40);
+  click({ railview: 'story' }); await sleep(20);
+  const tale = html('rail');
+  assert.match(tale, /data-chapter="c-2"[^>]*><span class="rownum">II<\/span><span class="txt">/, 'MENU-CARDS: scene 2\'s row carries its numeral, II, over its name');
+  assert.match(tale, /data-chapter="c-1"[^>]*><span class="rownum">I<\/span>/, 'MENU-CARDS: and scene 1\'s, I');
+}
+ok('the menus in Arcana: a gold hover with no underline, and scenes and tales as cards');
+
 // ---- A SCENE PRESSED IN THE TALE'S MENU OPENS IT AND PUTS THE MENU AWAY (Seth, 2026-10-30: "hitting
 // a chapter in tale menu should just open the chapter and hide the menu"), where the menu covers the
 // page. At a desk the rail sits beside the page and stays.

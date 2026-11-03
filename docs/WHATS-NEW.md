@@ -175,6 +175,11 @@ heading, and the tale's Promises and Open questions, show their suit's mark. Str
 too, on the Strings screen and on the tale's own Thread tab: a promise is a card of Wands and an open
 question a card of Swords, ranked among its kind, with whether it is a promise or a question and how
 long it has waited at its foot.
+### The menus, as cards
+In the tale's menu each scene is a small card: a fine frame with gilt corners, its name in the
+same thin face as the titles, and its number as a numeral over it, X for the tenth scene. The main
+menu's tales are cards the same way. A row or tile under the pointer turns your theme's colour, and
+nothing is underlined while it is: not even the brush stroke under the page you are on.
 ### No glow along the top
 The glow across the top of the screen is gone. What is waiting is still counted on the Workbench in
 the tale's menu.

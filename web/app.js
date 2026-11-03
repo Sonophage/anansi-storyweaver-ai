@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, FACES } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -1001,7 +1001,8 @@ function drawRail() {
        ${[...T.chapters].reverse().map((c, i) => `<button data-chapter="${c.id}" class="railrow${
          T.cover ? ' arted' : ''}"${
          c.id === T.currentChapter.id ? ' aria-current="true"' : ''}
-         style="color:${c.id === T.currentChapter.id ? 'var(--ink-bright)' : 'var(--faint)'}"><span class="txt">${
+         style="color:${c.id === T.currentChapter.id ? 'var(--ink-bright)' : 'var(--faint)'}"><span class="rownum">${
+         /* ITS NUMERAL OVER ITS NAME, as a card has its number (Arcana, Seth, 2026-11-03). */ roman(c.index)}</span><span class="txt">${
          esc(sceneName(c))}</span>${rowArt(T.cover ? api.coverUrl(T.id, T.cover) : '', i)}</button>`).join('')}`
     // NO "Open" LIST HERE. It reprinted the first four books in a rail whose first row is already
     // My stories (Library, now), which is the same door with a complete list behind it. Seth, 2026-08-31: "the
