@@ -5135,6 +5135,17 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   // anchor, or pressing its chip in the head scrolls to nothing.
   assert.match(face, /data-slotat="voice"/, 'the on room anchors its slot');
   assert.match(face, /data-slotat="interiority"/, 'and so does a slot whose only room is off');
+  // BY KIND INSIDE EACH SECTION (Seth, 2026-11-03): a heading for the kind, then its pockets. The
+  // face and the Pockets tab draw it from one list (pocketList), so both are read here.
+  const kindBefore = (html: string, kind: string, name: string) => {
+    const h = html.search(new RegExp(`class="lbl pkgroup">${kind}<`)), n = html.indexOf(name);
+    return h > 0 && n > h;
+  };
+  assert.ok(kindBefore(face, 'Voice', 'How she sounds'), 'POCKET-KINDS: an on pocket sits under its kind');
+  assert.ok(kindBefore(face.slice(dividerAt), 'Interiority', 'What she wants'), 'POCKET-KINDS: and an off one under its kind, below Not turned on');
+  click({ cardview: 'form' }); click({ cardtab: 'rooms' }); await sleep(30);
+  assert.ok(kindBefore(html('sideBody'), 'Voice', 'How she sounds'), 'POCKET-KINDS: the Pockets tab groups them the same way');
+  click({ cancelalter: '1' }); await sleep(30);
 
   // §8 · READ SAYS WHAT IS TRUE; EDIT IS WHERE YOU CHANGE IT.
   click({ entry: 'e-done' });

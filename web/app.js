@@ -7953,8 +7953,8 @@ function inventTray(kind, label, placeholder, value = '', named = '') {
 const pocketRow = (a, sw, at = '', lines = 1) => `<div class="pocketrow${a.active ? ' lit' : ''}"${at}>
     <button class="pocketopen" data-editroom="${esc(a.id)}" aria-label="Open ${esc(a.name)}">
       <span class="pkname">${esc(a.name)}</span>
-      <span class="pkline${lines > 1 ? ' clamp2' : ''}"><span class="pkkind">${esc(slotLabel(a.slot))}</span>${
-        String(a.body ?? '').trim() ? ` &middot; ${esc(lines > 1 ? String(a.body) : String(a.body).split('\n')[0])}` : ''}</span></button>
+      ${/* No kind on the row: the kind's heading is over it (pocketList). */ ''}
+      <span class="pkline${lines > 1 ? ' clamp2' : ''}">${esc(lines > 1 ? String(a.body ?? '') : String(a.body ?? '').split('\n')[0])}</span></button>
     ${sw}</div>`;
 /** The on/off switch a pocket row wears; an outfit's is its wearing, one at a time (EXCLUSIVE_SLOTS). */
 const pocketSwitch = (e, a, wear = false) => wear && a.slot === 'outfit'
@@ -7962,11 +7962,16 @@ const pocketSwitch = (e, a, wear = false) => wear && a.slot === 'outfit'
   : `<button data-addonon="${esc(a.id)}:${a.active ? '0' : '1'}" class="tag pocketsw" aria-pressed="${!!a.active}"
       aria-label="${esc(a.name)} is ${a.active ? 'on. Tap to turn it off' : 'off. Tap to turn it on'}"
       >${a.active ? 'On' : 'Off'}</button>`;
-/** The list itself: on first, then what is not on under a quiet divider, then the add row. */
+/** The list itself: on first, then what is not on under a quiet divider, then the add row. BY KIND
+ *  INSIDE EACH (Seth, 2026-11-03: "pockets should be categorized by type both on edit and not"; he
+ *  kept the two sections): a small heading per kind, its pockets under it, in the slot order `rows`
+ *  arrives in. The jump anchor is on the first row of each kind, wherever that falls. */
 const pocketList = (e, rows, sw, lines) => {
   const seen = new Set();
   const row = (a) => { const at = seen.has(a.slot) ? '' : ` data-slotat="${esc(a.slot)}"`; seen.add(a.slot); return pocketRow(a, sw(a), at, lines); };
-  const on = rows.filter((a) => a.active).map(row).join(''), off = rows.filter((a) => !a.active).map(row).join('');
+  const byKind = (list) => [...new Set(list.map((a) => a.slot))].map((slot) =>
+    `<div class="lbl pkgroup">${esc(pocketTitle(slot))}</div>${list.filter((a) => a.slot === slot).map(row).join('')}`).join('');
+  const on = byKind(rows.filter((a) => a.active)), off = byKind(rows.filter((a) => !a.active));
   return `<div class="pocketlist">${on}${off ? `<div class="lbl pkoff">Not turned on${tipMark('pocketsOff', 'Not turned on')}</div>
     ${tipCard('pocketsOff', 'Not turned on', `<p>Written down, and not reaching the model &mdash;
       either switched off, or until one of its wake words appears.</p>`)}${off}` : ''}

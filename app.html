@@ -2012,20 +2012,24 @@ html[data-rerollsheet="1"] #scrim { opacity:1; pointer-events:auto; z-index:31; 
    is one press into the pocket box; the switch sits on the right. A pocket that is off is dimmer. */
 .pocketlist { display:flex; flex-direction:column; margin-top:2px; }
 .pocketrow { display:flex; align-items:center; gap:12px; padding:13px 0; border-bottom:1px solid var(--line); }
-.pocketrow:first-child { border-top:1px solid var(--line); }
 .pocketrow .pocketopen { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; text-align:left;
   cursor:pointer; min-height:44px; justify-content:center; }
 .pocketrow .pkname { font-size:15px; color:var(--ink-bright); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pocketrow .pkline { font-size:12.5px; line-height:1.5; color:var(--mute); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pocketrow .pkline.clamp2 { white-space:normal; }
-.pocketrow .pkkind { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--label); }
+/* A KIND'S HEADING over its pockets (2026-11-03), with the rule its first row would have had. */
+/* In the serif and in sentence case, not the capitals the sections wear, so a kind never reads as a
+   third section heading under Pockets and Not turned on. */
+.pocketlist .pkgroup { margin:18px 0 0; padding-bottom:6px; border-bottom:1px solid var(--line);
+  font-family:'Instrument Serif', var(--serif, serif); font-size:18px; letter-spacing:0; text-transform:none;
+  color:var(--ink-bright); }
+.pocketlist .pkgroup:first-child, .pocketlist .pkoff + .pkgroup, .pocketlist .pkoff + .tipcard + .pkgroup { margin-top:8px; }
 .pocketrow:not(.lit) .pkname { color:var(--ink); }
 .pocketrow:not(.lit) .pkline { color:var(--dim); }
 .pocketrow .pocketsw { flex:0 0 auto; cursor:pointer; }
 .pocketrow .pocketsw[aria-pressed="true"] { border-color:var(--edge-lit); color:var(--ink-bright); }
-.pocketlist .pkoff { margin:22px 0 6px; color:var(--faint); }
-.pocketlist .pkoff:first-child { margin-top:2px; }
-.pocketlist .pkoff + .tipcard + .pocketrow, .pocketlist .pkoff + .pocketrow { border-top:1px solid var(--line); }
+.pocketlist .pkoff { margin:28px 0 4px; color:var(--faint); }
+.pocketlist .pkoff:first-child { margin-top:6px; }
 .pocketlist .pkempty { margin:4px 0 6px; }
 .pkadd { align-self:flex-start; min-height:44px; padding:0 2px; margin-top:8px; font-size:13px; color:var(--gold); }
 
