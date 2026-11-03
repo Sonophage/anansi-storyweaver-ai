@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -8121,9 +8121,13 @@ function inventTray(kind, label, placeholder, value = '', named = '') {
  *  is atrocious"). No box: rows on a hairline, as the hem lists its rows. The name, then its kind
  *  and its text on one line under it; the whole left side opens the pocket panel; the switch on the
  *  right. `at` is the jump anchor, on the first row of each kind. Two lines of its text show. */
-const pocketRow = (a, sw, at = '') => `<div class="pocketrow${a.active ? ' lit' : ''}"${at}>
+/*  A MINOR ARCANA CARD (Seth, 2026-11-03: "pockets are the Minor Arcana"). The row names its kind
+ *  (`data-arcana`, for its suit in the one table in app.html) and its rank in that kind on the thread
+ *  (`minorRank`); the stylesheet draws the suit's mark in a gilt diamond and "Ace of Cups" over the name. */
+const pocketRow = (a, sw, at = '', rank = '') => `<div class="pocketrow${a.active ? ' lit' : ''}" data-arcana="${esc(a.slot)}" data-rank="${esc(rank)}"${at}>
+    <span class="pksuit" aria-hidden="true"></span>
     <button class="pocketopen" data-editroom="${esc(a.id)}" aria-label="Open ${esc(a.name)}">
-      <span class="pkname">${esc(a.name)}</span>
+      ${rank ? `<span class="pkrank">${esc(rank)}</span>` : ''}<span class="pkname">${esc(a.name)}</span>
       ${/* No kind on the row: the kind's heading is over it (pocketList). */ ''}
       <span class="pkline clamp2">${esc(String(a.body ?? ''))}</span></button>
     ${sw}</div>`;
@@ -8138,7 +8142,11 @@ const pocketSwitch = (e, a) => a.slot === 'outfit'
  *  arrives in. The jump anchor is on the first row of each kind, wherever that falls. */
 const pocketList = (e, rows) => {
   const seen = new Set();
-  const row = (a) => { const at = seen.has(a.slot) ? '' : ` data-slotat="${esc(a.slot)}"`; seen.add(a.slot); return pocketRow(a, pocketSwitch(e, a), at); };
+  // ITS RANK IS ITS PLACE AMONG ITS KIND on the thread, in the order `rows` arrives, counted before the
+  // list is split into on and off, so turning a pocket off does not deal it a new card.
+  const rank = new Map(), count = {};
+  for (const a of rows) rank.set(a, minorRank(count[a.slot] = (count[a.slot] ?? 0) + 1));
+  const row = (a) => { const at = seen.has(a.slot) ? '' : ` data-slotat="${esc(a.slot)}"`; seen.add(a.slot); return pocketRow(a, pocketSwitch(e, a), at, rank.get(a)); };
   const byKind = (list) => [...new Set(list.map((a) => a.slot))].map((slot) =>
     `<div data-arcana="${esc(slot)}" class="lbl pkgroup">${esc(pocketTitle(slot))}</div>${list.filter((a) => a.slot === slot).map(row).join('')}`).join('');
   const on = byKind(rows.filter((a) => a.active)), off = byKind(rows.filter((a) => !a.active));

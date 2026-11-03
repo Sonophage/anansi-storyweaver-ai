@@ -2925,17 +2925,22 @@ html[data-ui-theme="arcana"] #page .card.plate:not(:has(> img))::before { conten
        lore           II     The High Priestess: hidden knowledge behind the veil, the scroll.
        item           X      The Wheel of Fortune: a thing that turns, changes hands, turns the tale.
        place          XXI    The World: the whole ground the story stands on.
-     POCKETS
-       voice          V      The Hierophant: the one who speaks and is listened to.
-       relationships  VI     The Lovers: two people and the bond between them.
-       outfit         VII    The Chariot: the driver in his armour, dressed for the road.
-       what_it_does   VIII   Strength: the power a thing holds and what it can do.
-       interiority    IX     The Hermit: alone with the lamp, what is never said aloud.
-       question       XII    The Hanged Man: suspended, unresolved, the answer not yet come.
-       promise        XVII   The Star: hope held out, a thing owed to the reader.
-       atmosphere     XVIII  The Moon: mood, mist, the light a place is seen by.
-       appearance     XIX    The Sun: seen plain, in full daylight.
-       who_is_here    XX     Judgement: the gathered crowd, those who answer the call there.
+     POCKETS ARE THE MINOR ARCANA (Seth, 2026-11-03), so they have no numeral: each kind is in one of
+     the four suits, and each pocket is ranked in its kind on its thread (`minorRank`, web/model.js).
+       CUPS, feeling and the bonds between people
+         relationships   two people and what holds them; the Two of Cups is a pledge.
+         interiority     what is felt and never said; the cup is what is held inside.
+       SWORDS, word and thought
+         voice           how a person speaks; the blade is the edge on a word.
+         question        what is asked and not yet answered; swords are the suit of the mind, and of doubt.
+       PENTACLES, the body and the material world
+         appearance      how it looks, plain in the light; the suit of the seen and the touched.
+         outfit          what it wears, coat and cloth; the suit of things owned.
+         what_it_does    what it can do in the world; the coin is power that is spent.
+       WANDS, will, motion and fire
+         promise         a thing the tale has set going and must carry through; will held over time.
+         atmosphere      the air a place is felt in; wands are fire and weather, the suit that moves.
+         who_is_here     the people gathered in a place, each come of their own will.
    AND ONE CONSTELLATION PER KIND, `--sky` (Seth, 2026-11-03: "can the constellations be different per
    thread type and pocket type"): web/arcana-sky-<kind>.svg, each drawn as its card. Character, the
    Magician's figure, one hand raised; lore, two pillars, the arch and a veil; item, the Wheel; place,
@@ -2948,16 +2953,16 @@ html[data-ui-theme="arcana"] [data-arcana="character"]     { --arcana:"I"; --sky
 html[data-ui-theme="arcana"] [data-arcana="lore"]          { --arcana:"II"; --sky:url('/web/arcana-sky-lore.svg'); }
 html[data-ui-theme="arcana"] [data-arcana="item"]          { --arcana:"X"; --sky:url('/web/arcana-sky-item.svg'); }
 html[data-ui-theme="arcana"] [data-arcana="place"]         { --arcana:"XXI"; --sky:url('/web/arcana-sky-place.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="voice"]         { --arcana:"V"; --sky:url('/web/arcana-sky-voice.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="relationships"] { --arcana:"VI"; --sky:url('/web/arcana-sky-relationships.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="outfit"]        { --arcana:"VII"; --sky:url('/web/arcana-sky-outfit.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="what_it_does"]  { --arcana:"VIII"; --sky:url('/web/arcana-sky-what_it_does.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="interiority"]   { --arcana:"IX"; --sky:url('/web/arcana-sky-interiority.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="question"]      { --arcana:"XII"; --sky:url('/web/arcana-sky-question.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="promise"]       { --arcana:"XVII"; --sky:url('/web/arcana-sky-promise.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="atmosphere"]    { --arcana:"XVIII"; --sky:url('/web/arcana-sky-atmosphere.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="appearance"]    { --arcana:"XIX"; --sky:url('/web/arcana-sky-appearance.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="who_is_here"]   { --arcana:"XX"; --sky:url('/web/arcana-sky-who_is_here.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="voice"]         { --suit:url('/web/arcana-suit-swords.svg'); --suit-name:"Swords"; --sky:url('/web/arcana-sky-voice.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="relationships"] { --suit:url('/web/arcana-suit-cups.svg'); --suit-name:"Cups"; --sky:url('/web/arcana-sky-relationships.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="outfit"]        { --suit:url('/web/arcana-suit-pentacles.svg'); --suit-name:"Pentacles"; --sky:url('/web/arcana-sky-outfit.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="what_it_does"]  { --suit:url('/web/arcana-suit-pentacles.svg'); --suit-name:"Pentacles"; --sky:url('/web/arcana-sky-what_it_does.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="interiority"]   { --suit:url('/web/arcana-suit-cups.svg'); --suit-name:"Cups"; --sky:url('/web/arcana-sky-interiority.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="question"]      { --suit:url('/web/arcana-suit-swords.svg'); --suit-name:"Swords"; --sky:url('/web/arcana-sky-question.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="promise"]       { --suit:url('/web/arcana-suit-wands.svg'); --suit-name:"Wands"; --sky:url('/web/arcana-sky-promise.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="atmosphere"]    { --suit:url('/web/arcana-suit-wands.svg'); --suit-name:"Wands"; --sky:url('/web/arcana-sky-atmosphere.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="appearance"]    { --suit:url('/web/arcana-suit-pentacles.svg'); --suit-name:"Pentacles"; --sky:url('/web/arcana-sky-appearance.svg'); }
+html[data-ui-theme="arcana"] [data-arcana="who_is_here"]   { --suit:url('/web/arcana-suit-wands.svg'); --suit-name:"Wands"; --sky:url('/web/arcana-sky-who_is_here.svg'); }
 
 /* THE TALE'S THREADS ARE THE MAJOR ARCANA. Every tall card has a face: its kind's numeral in a gilt
    diamond, with the sunburst and the constellation behind it. A card with no picture has them over
@@ -2983,20 +2988,66 @@ html[data-ui-theme="arcana"] #thlist .thplate.thtall .platename::before { conten
   position:absolute; left:50%; top:58px; width:84px; height:84px; margin-left:-42px;
   display:flex; align-items:center; justify-content:center; pointer-events:none;
   font-family:var(--arc-deco); font-size:24px; letter-spacing:.02em; color:var(--ink-bright);
-  background:url('/web/arcana-diamond.svg') center / contain no-repeat; }
+  background:color-mix(in srgb, var(--doc-bg) 85%, transparent); clip-path:polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+/* The diamond's gilt is a mask filled with the accent, laid over the dark the numeral sits on: the
+   file is line only, so it takes the theme's colour. */
+html[data-ui-theme="arcana"] #thlist .thplate.thtall .platename::after { content:'';
+  position:absolute; left:50%; top:58px; width:84px; height:84px; margin-left:-42px; pointer-events:none;
+  background:var(--gold); -webkit-mask:url('/web/arcana-diamond.svg') center / contain no-repeat;
+  mask:url('/web/arcana-diamond.svg') center / contain no-repeat; }
 /* Over a picture the diamond is smaller and higher, at the head of the card where a tarot card has
    its number, and less than solid: centred where the bare card has it, it sat on every face. */
 html[data-ui-theme="arcana"] #thlist .thplate.thart .platename::before { top:14px; width:60px; height:60px;
-  margin-left:-30px; font-size:17px; opacity:.85; filter:drop-shadow(0 2px 6px rgba(0,0,0,.7)); }
+  margin-left:-30px; font-size:17px; background:color-mix(in srgb, var(--doc-bg) 70%, transparent); }
+html[data-ui-theme="arcana"] #thlist .thplate.thart .platename::after { top:14px; width:60px; height:60px;
+  margin-left:-30px; opacity:.85; }
 
-/* A POCKET KIND'S NUMERAL, beside its heading in a thread's Pockets list (and the tale's Promises and
-   Open questions): the same numeral in ink, in a small gilt diamond, at the right of the heading's
-   rule, the way a tarot card carries its number. */
+/* A POCKET KIND'S SUIT, beside its heading in a thread's Pockets list (and the tale's Promises and
+   Open questions): the suit's mark in a small gilt diamond at the right of the heading's rule. Two
+   mask layers in one, the diamond and the mark, filled with the accent. */
 html[data-ui-theme="arcana"] :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana] { display:flex; align-items:center; gap:10px; }
-html[data-ui-theme="arcana"] :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana]::after { content:var(--arcana, "");
-  margin-left:auto; flex:0 0 auto; padding:0 6px 0 22px; min-width:22px; text-align:right;
-  font-family:var(--arc-deco); font-size:13px; letter-spacing:.06em; text-transform:none; color:var(--ink-bright);
-  background:url('/web/arcana-diamond.svg') left center / 16px 16px no-repeat; }
+html[data-ui-theme="arcana"] :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana]::after { content:'';
+  margin-left:auto; flex:0 0 auto; width:22px; height:22px; background:var(--gold);
+  -webkit-mask:var(--suit) center / 11px 11px no-repeat, url('/web/arcana-diamond.svg') center / contain no-repeat;
+  mask:var(--suit) center / 11px 11px no-repeat, url('/web/arcana-diamond.svg') center / contain no-repeat; }
+
+/* POCKETS ARE THE MINOR ARCANA (Seth, 2026-11-03: "with similar styling" to the threads' cards). Each
+   pocket in a thread's list is a card: a gilt frame with stepped corners, the painted card back with
+   its kind's constellation faint behind the eye, its suit's mark in a small gilt diamond at the left,
+   its rank and suit over its name ("Ace of Cups", "Knight of Swords"), the name in the deco face. The
+   eye stays the control on the right. The gilt is masks filled with the accent: the corners on the
+   card's ::after, the sky on its ::before, the diamond and the mark on the suit's two. */
+html[data-ui-theme="arcana"] .pocketlist .pocketrow { position:relative; isolation:isolate; gap:12px;
+  margin:8px 0 0; padding:12px 6px 12px 12px; border:1px solid var(--edge); border-radius:var(--r);
+  background:url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
+html[data-ui-theme="arcana"] .pocketlist .pocketrow.lit { border-color:var(--gold-dim); }
+html[data-ui-theme="arcana"] .pocketlist .pocketrow::before { content:''; position:absolute; inset:0; z-index:-1;
+  pointer-events:none; opacity:.3; background:var(--gold);
+  -webkit-mask:var(--sky) right -24px center / auto 150% no-repeat; mask:var(--sky) right -24px center / auto 150% no-repeat; }
+html[data-ui-theme="arcana"] .pocketlist .pocketrow::after { content:''; position:absolute; inset:2px; pointer-events:none;
+  background:var(--gold); opacity:.8;
+  -webkit-mask:url('/web/arcana-corner-tl.svg') top left / 14px no-repeat, url('/web/arcana-corner-tr.svg') top right / 14px no-repeat,
+    url('/web/arcana-corner-bl.svg') bottom left / 14px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 14px no-repeat;
+  mask:url('/web/arcana-corner-tl.svg') top left / 14px no-repeat, url('/web/arcana-corner-tr.svg') top right / 14px no-repeat,
+    url('/web/arcana-corner-bl.svg') bottom left / 14px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 14px no-repeat; }
+.pksuit, .pkrank { display:none; }
+html[data-ui-theme="arcana"] .pocketlist .pksuit { display:block; position:relative; flex:0 0 auto; width:38px; height:38px; }
+html[data-ui-theme="arcana"] .pocketlist .pksuit::before { content:''; position:absolute; inset:0;
+  background:color-mix(in srgb, var(--doc-bg) 85%, transparent); clip-path:polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+html[data-ui-theme="arcana"] .pocketlist .pksuit::after { content:''; position:absolute; inset:0; background:var(--gold);
+  -webkit-mask:var(--suit) center / 17px 17px no-repeat, url('/web/arcana-diamond.svg') center / contain no-repeat;
+  mask:var(--suit) center / 17px 17px no-repeat, url('/web/arcana-diamond.svg') center / contain no-repeat; }
+html[data-ui-theme="arcana"] .pocketlist .pkrank { display:block; font-family:var(--arc-small); font-size:11px;
+  letter-spacing:.18em; text-transform:uppercase; color:var(--dim); }
+html[data-ui-theme="arcana"] .pocketlist .pkrank::after { content:" of " var(--suit-name, ""); }
+html[data-ui-theme="arcana"] .pocketlist .pkrank { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* An outfit's switch is words, not the eye: kept short so the card's name still has the room. */
+html[data-ui-theme="arcana"] .pocketlist .pocketsw { letter-spacing:.06em; padding:6px 8px; white-space:normal; max-width:96px;
+  text-align:center; line-height:1.3; }
+html[data-ui-theme="arcana"] .pocketlist .pkname { font-family:var(--arc-deco); text-transform:uppercase;
+  letter-spacing:.1em; font-size:15px; }
+/* The kind's heading over its cards needs no rule of its own: the cards are framed. */
+html[data-ui-theme="arcana"] .pocketlist .pkgroup { border-bottom:0; padding-bottom:0; margin-top:24px; }
 
 /* A COVER WITH A PICTURE keeps the card's sky (Seth, 2026-11-03): the sunburst and the constellation
    laid faint over the Library's hero, a shelf card and a tale's banner, as the bare ones have them

@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" fill="none">
-  <!-- The frame a card's arcana number sits in: a double gilt diamond on the dark, with a point of
-       gold at each tip. -->
-  <path d="M40 4L76 40 40 76 4 40z" fill="#0B0B0C" fill-opacity="0.85" stroke="#5F5132" stroke-width="1"/>
-  <path d="M40 10L70 40 40 70 10 40z" stroke="#C8A252" stroke-width="1"/>
-  <path d="M40 0l2.5 4h-5zM40 80l-2.5-4h5zM0 40l4-2.5v5zM80 40l-4 2.5v-5z" fill="#C8A252"/>
+  <!-- The frame a card's number or suit sits in: a double gilt diamond with a point at each tip. Line
+       only: the dark inside it is the stylesheet's, so the file can be a mask in any theme's colour. -->
+  <path d="M40 4L76 40 40 76 4 40z" stroke="#c8a252" stroke-opacity="0.45" stroke-width="1"/>
+  <path d="M40 10L70 40 40 70 10 40z" stroke="#c8a252" stroke-width="1.2"/>
+  <path d="M40 0l2.5 4h-5zM40 80l-2.5-4h5zM0 40l4-2.5v5zM80 40l-4 2.5v-5z" fill="#c8a252"/>
 </svg>

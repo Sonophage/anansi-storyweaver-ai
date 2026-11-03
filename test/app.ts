@@ -2411,7 +2411,16 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     const rows = [...css.matchAll(/\[data-arcana="([\w]+)"\]\s*\{\s*--arcana:\s*"([IVXL]+)"/g)].map((m) => [m[1], m[2]]);
     const pockets = [...new Set(Object.values(SLOTS).flatMap((l: any) => l.map((x: any) => x.name)))].filter((n) => n !== 'facts');
     const want = [...TS_KINDS, ...pockets].sort();
-    assert.deepStrictEqual(rows.map(([k]) => k).sort(), want, 'ARCANA-NUMERALS: every thread kind and pocket kind has exactly one numeral, and nothing else has one');
+    // THE THREADS ARE THE MAJOR ARCANA, so only a thread kind has a numeral; a pocket is a Minor
+    // Arcana card and has a suit instead (Seth, 2026-11-03), below.
+    assert.deepStrictEqual(rows.map(([k]) => k).sort(), [...TS_KINDS].sort(), 'ARCANA-NUMERALS: every thread kind has exactly one numeral, and nothing else has one');
+    // POCKETS ARE THE MINOR ARCANA: every pocket kind a writer sees is in exactly one of the four
+    // suits, named once in the same table, and each suit's mark is a file ARCANA-FILES checked.
+    const suits = [...css.matchAll(/\[data-arcana="(\w+)"\]\s*\{[^}]*--suit:\s*url\('\/web\/arcana-suit-(\w+)\.svg'\)/g)].map((m) => [m[1], m[2]]);
+    assert.deepStrictEqual(suits.map(([k]) => k).sort(), [...pockets].sort(), 'MINOR-SUITS: every pocket kind has exactly one suit, and no thread kind has one');
+    assert.deepStrictEqual([...new Set(suits.map(([, x]) => x))].sort(), ['cups', 'pentacles', 'swords', 'wands'], 'MINOR-SUITS: the four suits, and only those');
+    for (const x of ['cups', 'pentacles', 'swords', 'wands'])
+      assert.ok(named.includes(`/web/arcana-suit-${x}.svg`), `MINOR-SUITS: the ${x} mark is named in app.html and checked`);
     const nums = rows.map(([, n]) => n);
     assert.strictEqual(new Set(nums).size, nums.length, `ARCANA-NUMERALS: no two kinds share a numeral (${nums.join(' ')})`);
     assert.doesNotMatch(css, /counter\(arcana/, 'ARCANA-NUMERALS: the list-position counter is gone');
@@ -2424,6 +2433,12 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     assert.deepStrictEqual(skies.map(([k]) => k).sort(), want, 'ARCANA-SKY: every thread kind and pocket kind names one constellation');
     assert.strictEqual(new Set(skies.map(([, f]) => f)).size, skies.length, 'ARCANA-SKY: no two kinds share a constellation');
     for (const [k, f] of skies) assert.ok(named.includes(f) && existsSync(new URL('..' + f, import.meta.url)), `ARCANA-SKY: ${k}'s ${f} is on disk`);
+  }
+  // A POCKET'S RANK IN ITS SUIT (Seth, 2026-11-03): Ace, II to X, the four court cards, then numerals.
+  {
+    const { minorRank } = await import('../web/model.js');
+    assert.deepStrictEqual([1, 2, 10, 11, 12, 13, 14, 15, 21].map(minorRank),
+      ['Ace', 'II', 'X', 'Page', 'Knight', 'Queen', 'King', 'XV', 'XXI'], 'MINOR-RANK: Ace, II to X, Page, Knight, Queen, King, then numerals');
   }
   // THE FIVE THAT LEFT (2026-11-02). A look saved with one of them still paints a theme that exists.
   for (const gone of ['obsidian', 'parchment', 'fantasy', 'novelist', 'no-such-theme'])
@@ -5395,6 +5410,10 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   assert.ok(kindBefore(face.slice(dividerAt), 'Interiority', 'What she wants'), 'POCKET-KINDS: and an off one under its kind, below Not turned on');
   // The kind's heading carries its kind, for Arcana's numeral (the table in app.html).
   assert.match(face, /data-arcana="voice" class="lbl pkgroup">Voice</, 'ARCANA-NUMERALS: a pocket kind\'s heading names its kind');
+  // AND EACH POCKET IS A MINOR ARCANA CARD: its row names its kind (for the suit) and its rank in
+  // that kind on this thread. Her one voice is the Ace.
+  assert.match(face, /<div class="pocketrow[^"]*" data-arcana="voice" data-rank="Ace"[^>]*>[\s\S]*?How she sounds/,
+    'MINOR-ROW: a pocket row names its suit\'s kind and its rank');
 
   // §8 · READ SAYS WHAT IS TRUE ABOVE THE TABS; THE CONTROL IS UNDER MORE (#136).
   click({ entry: 'e-done' });

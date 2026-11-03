@@ -854,6 +854,15 @@ export const THEMES = {
                faces: 'Poiret+One&family=Josefin+Sans:wght@400;600' },
 };
 
+/** A POCKET'S RANK IN ITS SUIT (Seth, 2026-11-03: "pockets are the Minor Arcana"). The nth pocket of
+ *  one kind on a thread, counted as a suit is: Ace, II to X, then Page, Knight, Queen and King for 11
+ *  to 14, and past the King the numerals run on. The suit itself is the kind's, in the one table in
+ *  app.html (`--suit`, keyed on data-arcana). */
+const ROMAN = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+  [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+const roman = (n) => ROMAN.reduce((out, [v, r]) => { while (n >= v) { out += r; n -= v; } return out; }, '');
+export const minorRank = (n) => (n === 1 ? 'Ace' : n >= 11 && n <= 14 ? ['Page', 'Knight', 'Queen', 'King'][n - 11] : roman(n));
+
 /** THEMES THAT LEFT THE LIST, and the one each look now reads as (2026-11-02: Obsidian, Parchment,
  *  Cyberpunk, Fantasy and Novelist removed at Seth's word). A look saved on a device, a tale or a
  *  writer's default still names the old key; any key not in THEMES reads as Ink. */

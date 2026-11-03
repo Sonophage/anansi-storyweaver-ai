@@ -148,6 +148,15 @@ has its own numeral too, beside its heading in a thread's pockets: a voice is V,
 relationship VI, and so on. A thread with a picture keeps it, with the sunburst, the stars and its
 numeral laid faintly over it; one without a picture has them over a bloom of gold. A tale's cover,
 on the shelf, at the top of the Library and over its threads, gets the same faint sunburst and stars.
+### A thread's pockets are its Minor Arcana
+Each pocket on a thread is a card of the Minor Arcana. Each kind of pocket belongs to a suit: Cups
+for feeling and bonds (relationships, what is kept inside), Swords for word and thought (voice, a
+question), Pentacles for the body and the things it has (appearance, outfit, what it does), and Wands
+for will and motion (a promise, the air of a place, who is here). A pocket shows its suit's mark in a
+small gilt diamond and its rank among the pockets of its kind on that thread, over its name: Ace of
+Cups, II of Cups, up to X, then Page, Knight, Queen and King. Its rank stays when you turn it off.
+Each pocket is framed like a card, with its kind's stars faint behind its eye, and the eye is still
+what turns it on and off. A kind's heading shows its suit's mark.
 ### A constellation for each kind
 Each kind of thread has its own stars behind its numeral, drawn as its card: a character is the
 Magician's figure with one hand raised, lore two pillars under an arch with a veil between them, an
