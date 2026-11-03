@@ -720,6 +720,25 @@ function migrate() {
   // that they are paused when never answered. NULL on rows from before it, which read as none held.
   add('hems', 'held', 'TEXT');
   backfillActPrints();
+  /* #134 · A POCKET IS OFF, ON A WORD, OR ON (`ACTIVATIONS`, a thread's three), in its own column. Until
+   * now it had only `active`, and an off pocket with wake words was sent when a word fired, which the
+   * switch did not say. `backfillPocketActivation` gives each row the one it already behaved as.
+   *
+   * ponytail: `active` is kept in step for one release, by the two triggers below, so the code before
+   * this column reads a database written after it correctly if it is put back. On is `active = 1`,
+   * and every older writer of `active` (the exclusive slots' sibling clear, a string's mark, a worn
+   * outfit) moves `activation` with it, by the migration's own rule. Trigger to remove: the release
+   * after 2026-11-03 has shipped with no rollback; then move the readers of `active` that are left
+   * (outfits, strings, the tale's rules, `addons_one_active`) onto `activation` and drop both. */
+  add('addons', 'activation', 'TEXT');
+  db.exec(`CREATE TRIGGER IF NOT EXISTS addons_activation_new AFTER INSERT ON addons WHEN NEW.activation IS NULL
+    BEGIN UPDATE addons SET activation = CASE WHEN NEW.active = 1 THEN 'always_on' ELSE 'triggered' END WHERE id = NEW.id; END;
+  CREATE TRIGGER IF NOT EXISTS addons_activation_step AFTER UPDATE OF active ON addons
+    WHEN NEW.activation IS NOT NULL AND (NEW.active = 1) <> (NEW.activation = 'always_on')
+    BEGIN UPDATE addons SET activation = CASE WHEN NEW.active = 1 THEN 'always_on'
+      WHEN (CASE WHEN json_valid(NEW.keys) THEN json_array_length(NEW.keys) ELSE 0 END) > 0 THEN 'triggered'
+      ELSE 'off' END WHERE id = NEW.id; END;`);
+  backfillPocketActivation();
 
   // PLAN-08, the last step of the wardrobe move. The copy above has run on every boot since Phase 2
   // and is idempotent, so by the time this line is reached every outfit is an addon in the `outfit`
@@ -2286,6 +2305,16 @@ export function backfillActPrints(): number {
     db.prepare('UPDATE arcs SET summaries_hash = ? WHERE id = ?')
       .run(actPrintAt(a.story_id, a.branch_id, a.from_chapter, a.to_chapter), a.id);
   return rows.length;
+}
+
+/** #134 · THE ACTIVATION A POCKET FROM BEFORE THE COLUMN ALREADY BEHAVED AS, and only for rows that
+ *  have none: on is On (`always_on`), off with wake words is On a word (`triggered`, it was sent when
+ *  a word fired), off without is Off. A second run writes nothing. A NEW pocket is On a word, as a
+ *  new thread is (`addons_activation_new`). Function declaration: runs inside `migrate()`. */
+export function backfillPocketActivation(): number {
+  return Number(db.prepare(`UPDATE addons SET activation = CASE WHEN active = 1 THEN 'always_on'
+    WHEN (CASE WHEN json_valid(keys) THEN json_array_length(keys) ELSE 0 END) > 0 THEN 'triggered'
+    ELSE 'off' END WHERE activation IS NULL`).run().changes);
 }
 
 export const passagesOfChapter = (chapterId: string) =>

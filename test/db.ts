@@ -4661,4 +4661,33 @@ ok('a new thread starts with one good single-word keyword', () => {
   db.delStory(st.id);
 });
 
+/* #134 · A POCKET IS OFF, ON A WORD, OR ON, in its own column. A pocket from before had only the on/off
+ * switch, and an off one with wake words was sent when a word fired. The migration keeps every one
+ * reaching the model as it did: on is On, off with wake words is On a word, off without is Off. */
+ok('a pocket from before the eye takes the activation it already behaved as, once', () => {
+  const me = db.owner('pocket-eye-mig');
+  const st = db.createStory(me, { title: 'Pocket eye' });
+  const e = db.upsertEntry(st.id, me, { title: 'Wren', body: 'a smith', entryType: 'character' })!;
+  const mk = (name: string, keys: string[], on: boolean) => {
+    const id = db.upsertAddon(st.id, e, { slot: 'interiority', name, body: name, keys })!;
+    if (on) db.setAddonActive(st.id, id, true);
+    return id;
+  };
+  const on = mk('on', [], true), heard = mk('heard', ['anvil'], false), off = mk('off', [], false);
+  const raw = new RawDb('/tmp/anansi-test.db');
+  // As a row was before the column: no activation at all.
+  raw.prepare('UPDATE addons SET activation = NULL WHERE entry_id = ?').run(e);
+  const act = (id: string) => (raw.prepare('SELECT activation FROM addons WHERE id = ?').get(id) as any).activation;
+  assert.ok(db.backfillPocketActivation() >= 3, 'POCKET-MIG: the migration fills the pockets that have none');
+  assert.strictEqual(act(on), 'always_on', 'POCKET-MIG-ON: a pocket switched on is On');
+  assert.strictEqual(act(heard), 'triggered', 'POCKET-MIG-WORD: an off pocket with wake words is On a word');
+  assert.strictEqual(act(off), 'off', 'POCKET-MIG-OFF: an off pocket with no wake words is Off');
+  // A writer's later choice is not undone by a second run.
+  raw.prepare("UPDATE addons SET activation = 'off' WHERE id = ?").run(heard);
+  assert.strictEqual(db.backfillPocketActivation(), 0, 'POCKET-MIG-ONCE: a second run writes nothing');
+  assert.strictEqual(act(heard), 'off', '  and leaves what was set since alone');
+  raw.close();
+  db.delStory(st.id);
+});
+
 console.log(`\n${n} checks passed`);
