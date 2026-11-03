@@ -4876,10 +4876,6 @@ function openTeller(tab) {
   syncHash(); paint();
 }
 
-/** The writer's usual model, the one last picked for a tale: in a tale, the default the server read
- *  with it; elsewhere the list's. */
-const usualNow = () => (tellerInTale() ? V.defaultModel : null) ?? SRV.model;
-
 const PICK_ROW = 'display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r); width:100%; text-align:left';
 /** ONE MODEL IN AN OPEN LIST, and a press on it picks it for this tale (Seth, 2026-11-03: "remove
  *  the drop down and instead do the panel to open on toggle"). The text is one span, the decode the old <option>
@@ -4916,10 +4912,6 @@ function inForceRow(id, sub, status) {
     </div>`;
 }
 
-/** The model info, set in under the model it is about. */
-const tellerInfo = (id) => `<div style="padding:4px 0 14px 12px; margin-left:10px; border-left:2px solid var(--line)">${
-  modelInfo(id)}</div>`;
-
 /** #131 · STORYTELLER → MODEL, this tale's alone (Seth, 2026-11-03: "remove the global On every
  *  tale, we'll just leave it as a per tale option"): the model that writes it, What it is below that,
  *  Plans first, how much he reads, how he picks words and the longest a passage runs. Drawn only in
@@ -4932,7 +4924,8 @@ const tellerInfo = (id) => `<div style="padding:4px 0 14px 12px; margin-left:10p
  *  name, because picking it by name pinned the tale to it, which is a different thing that looked
  *  the same. */
 function tellerModel() {
-  const usual = usualNow();
+  // The writer's usual model, the one last picked for a tale: the default the server read with it.
+  const usual = V.defaultModel ?? SRV.model;
   const g = V.gen ?? SRV.gen ?? {};
   // The writer's models plus this book's own remote pin, which a guest's list does not hold.
   const listed = withPin(S.models, V.pin);
@@ -4980,7 +4973,7 @@ function tellerModel() {
     <button data-modelinfo="${esc(infoId === shownId ? '' : shownId)}" aria-expanded="${!!infoId}"
       style="color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase; margin:6px 0 2px 10px"
       >What it is</button>
-    ${infoId ? tellerInfo(infoId) : ''}
+    ${infoId ? `<div style="padding:4px 0 14px 12px; margin-left:10px; border-left:2px solid var(--line)">${modelInfo(infoId)}</div>` : ''}
     <div class="hint">${pin && whereRuns(pin).remote && V.model !== pin
       // The server resolved the pin to the local default (no key, or the model is off the
       // owner's shortlist), so the hint must not claim the pinned model writes this book.

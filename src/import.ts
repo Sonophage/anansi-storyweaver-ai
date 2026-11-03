@@ -465,7 +465,8 @@ function pocketsIn(storyId: string, entryId: string | null, pockets?: any[]) {
     if (!name || !body) continue;
     const id = db.upsertAddon(storyId, entryId, { id: have.get(`${p.slot}:${name.toLowerCase()}`) ?? '',
       slot: p.slot, name, body, keys: keysOf(p.keys) });
-    if (id) db.setAddonActivation(storyId, id, pocketReach({ activation: p.activation, keys: keysOf(p.keys) }));
+    // Its eye, which `fromExport` gave it from the file, or from what its switch and words sent it by.
+    if (id) db.setAddonActivation(storyId, id, p.activation);
   }
 }
 
@@ -476,8 +477,8 @@ function pocketsIn(storyId: string, entryId: string | null, pockets?: any[]) {
 function takeRules(storyId: string, inc: Incoming) {
   for (const r of (inc.rules ?? []).slice(0, MAX_ENTRIES)) {
     const id = clip(r.body) ? db.upsertAddon(storyId, null, { slot: 'rule', name: r.name, body: clip(r.body), keys: r.keys }) : null;
-    // #134 · Its eye, or from a file without one, what its switch and words sent it by (`pocketReach`).
-    if (id) db.setAddonActivation(storyId, id, pocketReach({ activation: r.activation as any, active: !!r.active, keys: keysOf(r.keys), slot: 'rule' }));
+    // #134 · Its eye, which `fromExport` gave it: the file's, or what its switch and words sent it by.
+    if (id) db.setAddonActivation(storyId, id, String(r.activation));
   }
 }
 

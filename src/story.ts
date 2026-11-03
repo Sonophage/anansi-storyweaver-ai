@@ -441,8 +441,8 @@ export function assemble(v: NonNullable<ReturnType<typeof view>>, slot: Slot,
     // ADR 0005 · Its rules that are not Off (#134, by their eye). A tale following a World does not
     // read the World's rules.
     // ponytail: no World holds a rule today; read them through `followPair` if one ever does.
-    rules: ((v as any).taleRules ?? []).filter((a: any) => pocketReach({ ...a, slot: 'rule' }) !== 'off')
-      .map((a: any) => ({ ...a, activation: pocketReach({ ...a, slot: 'rule' }) })),
+    rules: ((v as any).taleRules ?? []).map((a: any) => ({ ...a, activation: pocketReach({ ...a, slot: 'rule' }) }))
+      .filter((a: any) => a.activation !== 'off'),
     // #125 · WHERE THE TALE STANDS at the scene being written: the tale's thread's Over time entry in
     // force there, by the rule every thread's is read by. Its scene-1 text is the premise, so a tale
     // with nothing sewn in, or no thread yet, sends the premise as before.

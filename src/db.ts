@@ -739,11 +739,11 @@ function migrate() {
   // one: `IF NOT EXISTS` would keep the first body a library got, and nothing would say so.
   // #134 · A RULE OF THE TALE gets the eye too (2026-11-03). A library whose trigger was written
   // before that has its rules' activation by the pockets' reading of the switch, which is not how a
-  // rule was sent; `reachRules` puts each right, once, because the old trigger is the only mark that
-  // it has not been done (a later eye press on a rule must not be undone by the next boot).
+  // rule was sent; this puts each right by its switch and words, once, because the old trigger is the
+  // only mark that it has not been done (a later eye press on a rule must not be undone by the next boot).
   const before = (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'addons_activation_new'")
     .get() as any)?.sql as string | undefined;
-  if (before && !before.includes("'rule'")) reachRules();
+  if (before && !before.includes("'rule'")) db.exec(`UPDATE addons SET activation = ${oldSwitchSQL('')} WHERE slot = 'rule'`);
   // ON A WORD WITH NO WORD TO WAKE IT IS NEVER SENT, and its eye would say it might be. Any write that
   // leaves a row there (its words cleared by a save, the eye set On a word on one with none) gives it
   // what the old switch sent with no words: a rule On, every other pocket Off. `active` already
@@ -2354,11 +2354,6 @@ function wordsSQL(p: string): string {
 /** Whether a row's activation is the switch's on: On for a pocket, anything but Off for a rule. */
 function switchOnSQL(p: string): string {
   return `(CASE WHEN ${p}slot = 'rule' THEN ${p}activation <> 'off' ELSE ${p}activation = 'always_on' END)`;
-}
-/** Each rule of every tale given the activation its switch and words already sent it by. Once: see
- *  the call in `migrate()`. */
-function reachRules(): number {
-  return Number(db.prepare(`UPDATE addons SET activation = ${oldSwitchSQL('')} WHERE slot = 'rule'`).run().changes);
 }
 
 /** #134 · THE ACTIVATION A POCKET FROM BEFORE THE COLUMN ALREADY BEHAVED AS, and only for rows that
