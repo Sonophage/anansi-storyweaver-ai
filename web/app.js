@@ -8161,7 +8161,7 @@ function cardFace(e, slots) {
    * story id, which is the audit this comment exists instead of.
    */
   if (e.sharedFrom) return `<div class="stack">
-    ${pageBar('read')}
+    ${pageBar()}
     ${threadPic(e) ? `<img src="${threadPic(e)}" alt="" style="width:100%; max-height:240px;
       object-fit:cover; border-radius:var(--r); border:1px solid var(--edge); margin:0 0 11px">` : ''}
     ${cardHead(e, [])}

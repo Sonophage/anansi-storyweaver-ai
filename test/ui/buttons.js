@@ -20,21 +20,20 @@ await wait(600);
 const cards = await page.eval("document.querySelectorAll('#page [data-entry]').length");
 console.log("  entries listed on the Worlds page: " + cards);
 await page.click('#page [data-entry]');
-// A CARD OPENS ON ITS FACE, not its form — that is the whole point of the face, so that pressing a
-// thread to READ it does not land you in a page of empty boxes. This asserted the form directly
-// and had been dying on it since; `panels.js` and `phone.js` learned to press Edit and this file
-// was missed. Both halves are asserted now, so neither can quietly become the other.
-ok("clicking an entry opens its face", await page.eval("!!document.querySelector('[data-cardview=\"form\"]')"));
-await page.click('[data-cardview="form"]');
+// A CARD OPENS ON READ, with no box open: pressing a thread to READ it does not land you in a page of
+// empty boxes. Read is also its editor (#136, 2026-11-03): a tap on a field opens its box in place.
+ok("clicking an entry opens its Read", await page.eval("!!document.querySelector('.readface') && !document.querySelector('[data-f]')"));
+await page.click('[data-readedit="title"]');
 await wait(300);
-ok("  and Edit opens the form", await page.eval("!!document.querySelector('[data-f=\"body\"]')"));
+ok("  and a tap on the name opens its box", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
 ok("  with the name field populated", !!(await page.eval("document.querySelector('[data-f=\"title\"]')?.value")));
 
-// editing it actually saves
-await page.eval("document.querySelector('[data-f=\"title\"]').value = 'RENAMED BY TEST'");
-await page.click('[data-alterdone="1"]');
+// editing it actually saves: typed, then the last write when the thread is left
+await page.eval("(() => { const b = document.querySelector('[data-f=\"title\"]'); b.value = 'RENAMED BY TEST';"
+  + " b.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()");
+await page.click('[data-backentry]');
 await wait(900);
-ok("Done writes the new name", await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json(); return v.entries.some(e => e.title === 'RENAMED BY TEST'); })()"));
+ok("leaving writes the new name", await page.eval("(async () => { const v = await (await fetch('/api/story?story=" + sid + "')).json(); return v.entries.some(e => e.title === 'RENAMED BY TEST'); })()"));
 
 // ---- 2. New character
 await page.goto("http://127.0.0.1:5179/#" + sid + "/threads");

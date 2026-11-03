@@ -30,11 +30,9 @@ await page.click('[data-nav="threads"]');
 await wait(700);
 await page.click(`[data-entry="${eid}"]`);
 await wait(700);
-// The form, not the face — the picture row lives on the editable side.
-if (await page.eval(`!!document.querySelector('[data-cardview="form"]')`)) {
-  await page.click('[data-cardview="form"]');
-  await wait(600);
-}
+// The picture row lives on Read's More tab (#136, 2026-11-03: Read is the editor).
+await page.click('[data-cardtab="more"]');
+await wait(300);
 ok("the card form offers an optional picture",
    (await page.eval(`!!document.querySelector('[data-picfind="${eid}"]')`)) === true);
 ok("  and says it is optional rather than showing an empty frame",

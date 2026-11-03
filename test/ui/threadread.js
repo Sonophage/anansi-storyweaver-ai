@@ -2,11 +2,12 @@
 //
 //   node --experimental-strip-types bench/drive.ts http://127.0.0.1:5179/ test/ui/threadread.js
 //
-// The shape: "‹ Threads" and ⋯ in the header, the name, ONE row of tags (kind, how it reaches
-// Anansi with the list's own mark, N pockets), the thread's text, each pocket as a card with its
-// switch on it, and the rarer actions under ⋯. And the half that matters as much: every action the
-// old Read screen and the form's More tab offered still has a door from here, and Back and Esc take
-// one step at a time — ⋯ first, then the thread, then the drawer.
+// The shape: "‹ Threads", ＋ and Tidy in the header, the name, ONE row of tags (kind, how it reaches
+// Anansi with the list's own mark, N pockets), the thread's text, and four tabs: The thread,
+// Timeline, Pockets (each pocket a row with its switch on it) and More (the rarer actions, which
+// were under ⋯ until #136, 2026-11-03: Read is the editor). And the half that matters as much:
+// every action the old screens offered still has a door from here, old links to the menu's rows
+// still open the right tab, and Back and Esc take one step at a time — the thread, then the drawer.
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (m, cond) => { console.log(`  ${cond ? "ok  " : "FAIL"} ${m}${cond ? "" : "   <-- broken"}`); if (!cond) red++; };
@@ -30,8 +31,7 @@ const openThread = async (name) => {
 const state = () => page.eval(`JSON.stringify({ hash: location.hash,
   drawer: !document.getElementById('side').hidden,
   reading: !!document.querySelector('#sideBody .readface'),
-  list: !!document.getElementById('thq'),
-  menu: !!document.querySelector('#sideBody .readmenu') })`).then(JSON.parse);
+  list: !!document.getElementById('thq') })`).then(JSON.parse);
 
 for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']]) {
   await page.mobile(w, h);
@@ -51,15 +51,15 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
 
   // ---- The header
   const head = await page.eval(`JSON.stringify((() => {
-    const b = document.querySelector('#sideHead [data-backentry]'), m = document.querySelector('#sideHead [data-readmenu]');
+    const b = document.querySelector('#sideHead [data-backentry]'), m = document.querySelector('#sideHead [data-tidy]');
     const box = (x) => x ? [Math.round(x.getBoundingClientRect().width), Math.round(x.getBoundingClientRect().height)] : null;
     return { back: b?.textContent.replace(/\\s+/g, ' ').trim() ?? null, backBox: box(b), more: box(m),
       left: b ? b.getBoundingClientRect().left < innerWidth / 2 : false,
       right: m ? m.getBoundingClientRect().left > innerWidth / 2 : false,
       close: !!document.querySelector('#sideHead [data-panel=""]'),
-      oldBar: !!document.querySelector('#sideBody .savebar') }; })())`).then(JSON.parse);
-  ok(`the header has "‹ Threads" on the left and ⋯ on the right (${JSON.stringify(head)})`,
-     /^‹ ?Threads$/i.test(head.back ?? '') && head.left && head.right);
+      oldBar: !!document.querySelector('#sideBody .savebar'), menu: !!document.querySelector('[data-readmenu]') }; })())`).then(JSON.parse);
+  ok(`the header has "‹ Threads" on the left and Tidy on the right, and no ⋯ (${JSON.stringify(head)})`,
+     /^‹ ?Threads$/i.test(head.back ?? '') && head.left && head.right && !head.menu);
   ok("  each 44px to the finger", head.backBox?.[1] >= 44 && head.more?.[0] >= 44 && head.more?.[1] >= 44);
   ok("  with Close still there, and the old Read / Alter / Back bar gone", head.close && !head.oldBar);
 
@@ -73,7 +73,7 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
     return { name: f.querySelector('.readname')?.textContent ?? '', rows: rows.length,
       tags: tags.map((t) => t.textContent.replace(/\\s+/g, ' ').trim()), lines: tops.size,
       look: reach?.dataset.look ?? null, reachLabel: reach?.getAttribute('aria-label') ?? '',
-      text: f.querySelector('.readbody')?.textContent.trim() ?? '',
+      text: f.querySelector('[data-readedit="stands"]')?.textContent.trim() ?? '',
       jumps: f.querySelectorAll('.readtags ~ * [data-goslot], .readtags [data-goslot]').length }; })())`).then(JSON.parse);
   ok(`the name, and ONE row of tags: kind, how it reaches Anansi, pockets (${JSON.stringify(face?.tags)})`,
      face?.name === 'Marek Vale' && face.rows === 1 && face.tags.length === 3
@@ -88,6 +88,9 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
 
   // ---- Each pocket a row, with its switch on the row (rows on a hairline since 2026-11-02, not cards).
   // #134 · The switch is the thread's eye, its state on data-reach; an outfit keeps its Wear.
+  // On the Pockets tab since #136: the tabs are shown by the stylesheet, so it is pressed first.
+  await page.click('#sideBody [data-cardtab="rooms"]');
+  await wait(400);
   const pocketCards = await page.eval(`JSON.stringify([...document.querySelectorAll('#sideBody .readface .pocketrow')]
     .filter((c) => c.querySelector('[data-pocketeye], [data-wear]')).map((c) => {
       const sw = c.querySelector('[data-pocketeye], [data-wear]');
@@ -136,68 +139,57 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
       && !(back.pins ?? []).some((p) => p.entryId === marek.id && p.chapterId === back.currentChapter.id));
   }
 
-  // ---- ⋯ holds every action the old screens had, and each one goes somewhere
-  await page.click('#sideHead [data-readmenu]');
+  // ---- More holds every action ⋯ held (#136), and each one goes somewhere
+  await page.click('#sideBody [data-cardtab="more"]');
   await wait(500);
-  ok("  one flat list, no folds inside it", await page.eval(`!document.querySelector('#sideBody .readmenu details')`));
-  ok("Tidy is an icon in the header, not a row", await page.eval(
-    `!!document.querySelector('#sideHead [data-tidy]') && !document.querySelector('#sideBody .readmenu [data-tidy]')`));
-  const rows = await page.eval(`JSON.stringify([...document.querySelectorAll('#sideBody .readmenu .readrow')].map((b) => ({
-    text: b.textContent.replace(/\\s+/g, ' ').trim(), keys: Object.keys(b.dataset).join(','),
-    h: Math.round(b.getBoundingClientRect().height) })))`).then(JSON.parse);
-  const has = (re, key) => rows.some((r) => re.test(r.text) && r.keys.split(',').includes(key));
-  ok(`⋯ opens a menu of the rarer actions (${rows.map((r) => r.text).join(' | ')})`,
-     has(/^Alter/, 'cardview') && has(/^Timeline/, 'readgo') && has(/^Stitched/, 'readgo')
-       && has(/^Copy to another tale/, 'readgo') && has(/^Past edits/, 'readgo')
-       && has(/as JSON/, 'readgo') && has(/^Read the whole tale/, 'scanstory')
-       && (has(/^Retire/, 'retire') || has(/^Bring it back/, 'unretire')) && has(/^Delete/, 'delentry'));
-  ok("  every row 44px or more", rows.length > 0 && rows.every((r) => r.h >= 44));
+  ok("Tidy is an icon in the header, not a row of More", await page.eval(
+    `!!document.querySelector('#sideHead [data-tidy]') && !document.querySelector('#sideBody [data-tidy]')`));
+  const more = await page.eval(`JSON.stringify((() => {
+    const p = document.querySelector('#sideBody .pane[data-pane="more"]');
+    const seen = (sel) => [...(p?.querySelectorAll(sel) ?? [])].some((x) => x.offsetParent !== null);
+    return { shown: !!p && p.offsetParent !== null, edges: seen('[data-fold="edges"]'), copy: seen('[data-fold="copy"]'),
+      merge: seen('[data-mergestart]'), scan: seen('[data-scanstory]'), json: seen('#f-card-json'),
+      past: seen('[data-fieldhistory]'), retire: seen('[data-retire], [data-unretire]'), del: seen('[data-delentry]') }; })())`).then(JSON.parse);
+  ok(`More holds the rarer actions (${JSON.stringify(more)})`, Object.values(more).every(Boolean));
 
   if (w === 390) {
-    // Each door that opens the form lands on the tab that holds it, with that section open.
+    // AN OLD DOOR TO A MENU ROW (data-readgo, from a link or a stale screen) lands on the tab that
+    // holds it, with that section open. No row on screen carries one now, so the press is made by a
+    // button put in the drawer for it, which the app's one click handler reads like any other.
     for (const [go, tab, sel] of [['time', 'time', '[data-addstate]'], ['edges', 'more', '[data-link], [data-unlink]'],
                                   ['copy', 'more', '[data-copyentry]'], ['history', 'more', '[data-revertfield], .hint'],
                                   ['json', 'more', '#f-card-json']]) {
       await list(sid); await openThread('Marek Vale');
-      await page.click('#sideHead [data-readmenu]'); await wait(400);
-      await page.click(`#sideBody .readmenu [data-readgo="${go}"]`); await wait(900);
+      await page.eval(`(() => { const b = document.createElement('button'); b.dataset.readgo = ${JSON.stringify(go)};
+        document.getElementById('sideBody').append(b); b.click(); return 1; })()`); await wait(900);
       const at = await page.eval(`JSON.stringify((() => {
-        const pane = [...document.querySelectorAll('#sideBody .pane')].find((p) => !p.hidden);
         const t = document.querySelector('[data-cardtab][aria-pressed="true"]')?.dataset.cardtab;
         const target = [...document.querySelectorAll(${JSON.stringify(sel)})].find((x) => x.offsetParent !== null);
-        return { tab: t, visible: !!target }; })())`).then(JSON.parse);
-      ok(`  "${go}" opens the form on its tab with it showing (${JSON.stringify(at)})`, at.tab === tab && at.visible);
+        return { tab: t, box: document.querySelector('.cardpanes')?.dataset.tab, visible: !!target }; })())`).then(JSON.parse);
+      ok(`  "${go}" opens Read on its tab with it showing (${JSON.stringify(at)})`, at.tab === tab && at.box === tab && at.visible);
     }
     // Delete still asks twice.
     await list(sid); const key = await openThread('the Silver Key');
-    await page.click('#sideHead [data-readmenu]'); await wait(400);
-    await page.click('#sideBody .readmenu [data-delentry]'); await wait(600);
-    ok("Delete under ⋯ asks again before it deletes",
+    await page.click('#sideBody [data-cardtab="more"]'); await wait(400);
+    await page.click('#sideBody [data-delentry]'); await wait(600);
+    ok("Delete under More asks again before it deletes",
        (await story(sid)).entries.some((e) => e.id === key));
   }
 
-  // ---- Back and Esc: ⋯ first, then the thread, then the drawer
+  // ---- Back and Esc: the thread, then the drawer (no ⋯ step since #136)
   await list(sid); await openThread('Marek Vale');
-  await page.click('#sideHead [data-readmenu]'); await wait(400);
   const s0 = await state();
   await page.eval("(() => { history.back(); return 1; })()"); await wait(800);
   const s1 = await state();
-  await page.eval("(() => { history.back(); return 1; })()"); await wait(800);
-  const s2 = await state();
   await page.eval("(() => { history.back(); return 1; })()"); await wait(1000);
-  const s3 = await state();
-  ok(`Back shuts ⋯ first (${JSON.stringify(s1)})`, s0.menu && s1.reading && !s1.menu);
-  ok(`  then returns to the list (${JSON.stringify(s2)})`, s2.drawer && s2.list && !s2.reading);
-  ok(`  then shuts the drawer and stays in the tale (${JSON.stringify(s3)})`, !s3.drawer && s3.hash === '#' + sid);
+  const s2 = await state();
+  ok(`Back returns to the list (${JSON.stringify(s1)})`, s0.reading && s1.drawer && s1.list && !s1.reading);
+  ok(`  then shuts the drawer and stays in the tale (${JSON.stringify(s2)})`, !s2.drawer && s2.hash === '#' + sid);
 
   await list(sid); await openThread('Marek Vale');
-  await page.click('#sideHead [data-readmenu]'); await wait(400);
   await page.key("Escape", 27); await wait(500);
   const e1 = await state();
-  await page.key("Escape", 27); await wait(500);
-  const e2 = await state();
-  ok(`Esc shuts ⋯ first, then returns to the list (${JSON.stringify(e1)} > ${JSON.stringify(e2)})`,
-     e1.reading && !e1.menu && e2.list && !e2.reading);
+  ok(`Esc returns to the list (${JSON.stringify(e1)})`, e1.list && !e1.reading);
 
   // ‹ Threads, then Back: no dead step left behind.
   await list(sid); await openThread('Marek Vale');

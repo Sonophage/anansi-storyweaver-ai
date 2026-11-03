@@ -234,7 +234,7 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   // ---- A card opens the thread; the + opens the tray; every tale's threads is still a door
   await page.click(`#thlist .card.plate[data-entry="${marek.id}"]`);
   await wait(700);
-  ok("pressing a card opens that thread", await page.eval("!!document.querySelector('[data-cardview]')"));
+  ok("pressing a card opens that thread", await page.eval("!!document.querySelector('.readface[data-readof]')"));
   await page.goto(B + "/#" + sid + "/threads");
   for (let i = 0; i < 40 && !(await page.visible('#thq')); i++) await wait(250);
   await page.click('#sideHead [data-newlore]');

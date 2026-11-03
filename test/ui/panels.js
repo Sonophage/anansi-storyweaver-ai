@@ -371,10 +371,9 @@ ok("  and no longer offers Where this is going, on this panel or any other",
     + " const c = cs.sort((a, b) => (b.textContent||'').length - (a.textContent||'').length)[0];"
     + " if (!c) return false; c.click(); return true; })()");
   await wait(900);
-  // The card lands on its face; this section is about the FORM's body field not being cut off, so
-  // it has to open the form first. Pressing it here rather than changing what is asserted: the
-  // growing textarea is still the thing under test and it still lives in the form.
-  await page.eval("(() => { document.querySelector('[data-cardview=\"form\"]')?.click(); return 1; })()");
+  // The card lands on Read with no box open; this section is about the body box not being cut off,
+  // so it taps where it stands to open that box in place (#136, 2026-11-03: Read is the editor).
+  await page.eval("(() => { document.querySelector('[data-readedit=\"stands\"]')?.click(); return 1; })()");
   await wait(600);
   const box = await page.eval("(() => { const t = document.querySelector('textarea[data-f]');"
     + " return t ? JSON.stringify({ chars: t.value.length, client: t.clientHeight, scroll: t.scrollHeight }) : null; })()");
@@ -597,23 +596,25 @@ await page.click('[data-lorekind="character"]');
 await wait(500);
 await page.click('[data-newthread="character"]');
 await wait(1200);
-const mine = await page.eval("(() => document.querySelector('[data-f=\"title\"]') ? 1 : 0)()");
+// A new thread opens on Read with where it stands open to write (#136, 2026-11-03).
+const mine = await page.eval("(() => document.querySelector('.readface [data-f=\"body\"]') ? 1 : 0)()");
 ok("a card can be made to test on, so the fixture is left alone", mine === 1);
 const mineId = (await story()).entries.length > cardsBefore
   ? (await story()).entries.at(-1).id : null;
 
-// An Always true on it, through the empty box The thread tab draws for a thread that has none (#126:
-// the add tray that used to be its door is gone, and the pocket panel does not offer it). Typed,
-// and saved once the typing pauses (ADR 0004, pass three).
+// An Always true on it, through the empty box The thread tab opens in place for a thread that has
+// none (#126: the add tray that used to be its door is gone, and the pocket panel does not offer it;
+// #136: a tap on "Nothing written down yet" opens the box). Typed, and saved once the typing pauses
+// (ADR 0004, pass three).
 await page.click('[data-cardtab="card"]');
+await wait(500);
+await page.click('[data-readedit="facts"]');
 await wait(500);
 await page.eval(`(() => { const b = document.querySelector('[data-ab="facts"]'); b.value = '[she is 41 and left-handed]';
   b.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
 await wait(1400);
-await page.click('[data-cardtab="card"]');
-await wait(700);
 const facts = await page.eval(`(() => {
-  const pane = document.querySelector('.pane:not([hidden])');
+  const pane = document.querySelector('.pane[data-pane="card"]');
   const at = pane?.querySelector('[data-slotat="facts"]');
   const body = pane?.querySelector('[data-ab]');
   const info = pane?.querySelector('#f-card-body');
@@ -656,9 +657,8 @@ ok(`  and putting it back updates the card rather than duplicating it (${nBefore
 ok("  with the edit landing on it",
    /put back/.test(back.entries.find((e) => e.id === card.id)?.body ?? ''));
 
-// And the card goes, so every section below sees the fixture it expects. Alter is pressed only
-// if Read is what is showing: the form has no Alter button of its own since the v2 Alter screen.
-if (await page.visible('[data-cardview="form"]')) { await page.click('[data-cardview="form"]'); await wait(500); }
+// And the card goes, so every section below sees the fixture it expects. Delete is on Read's More
+// tab since #136 (2026-11-03).
 await page.click('[data-cardtab="more"]');
 await wait(500);
 for (let i = 0; i < 2; i++) { await page.click('[data-delentry]'); await wait(500); }
@@ -955,22 +955,24 @@ if (anyEntry) {
   // common act while editing it is the deliberate one. So the form is one press away, and every
   // check that drives the form presses that button — asserted here rather than assumed, because
   // this is the line that tells the two views apart.
-  ok("  (a card opens on its face, not its form)",
-     (await page.eval("!!document.querySelector('[data-cardview]')")) === true
+  // SINCE #136 (2026-11-03) READ IS ALSO THE EDITOR: a field is its text until tapped, then a box in
+  // place. So the card still opens with no box, and a tap on the name opens its box.
+  ok("  (a card opens on Read, with no box open)",
+     (await page.eval("!!document.querySelector('.readface')")) === true
      && (await page.eval("!!document.querySelector('[data-f=\"title\"]')")) === false);
-  await page.click('[data-cardview="form"]');
+  await page.click('[data-readedit="title"]');
   await wait(400);
-  ok("  and Edit this card opens the form", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
-  // THE BAR IS THE DRAWER'S HEADER NOW (v2 Alter screen, 2026-10-25). Seth, 2026-09-01, of the
-  // card's own bar: "theres a space above it and the threads and close section can we remove the
-  // padding and make the background full width of the panel." The bar is gone and its two presses
-  // are in the header itself, which is the full width of the panel with nothing above it — so
-  // what this asserts is that the form draws no bar of its own and the header carries both. They
-  // are Undo my changes and Done since it saves as you type (ADR 0004, pass three).
+  ok("  and a tap on the name opens its box in place", await page.eval("!!document.querySelector('[data-f=\"title\"]')"));
+  // THE BAR IS THE DRAWER'S HEADER (v2 redesign, 2026-10-25). Seth, 2026-09-01, of the card's own
+  // bar: "theres a space above it and the threads and close section can we remove the padding and
+  // make the background full width of the panel." Read draws no bar of its own, and it saves as you
+  // type (ADR 0004, pass three; ADR 0013), so the header has no Undo my changes and no Done: its way
+  // out, "‹ Threads", is the last write.
   const barBox = await page.eval(`JSON.stringify({ bar: !!document.querySelector('#sideBody .savebar'),
-    cancel: !!document.querySelector('#sideHead [data-alterundo]'), save: !!document.querySelector('#sideHead [data-alterdone]') })`);
-  ok(`  and the form's Undo my changes and Done are the drawer's header, with no bar under it (${barBox})`,
-     barBox === JSON.stringify({ bar: false, cancel: true, save: true }));
+    cancel: !!document.querySelector('[data-alterundo]'), save: !!document.querySelector('[data-alterdone]'),
+    back: !!document.querySelector('#sideHead [data-backentry]') })`);
+  ok(`  and Read has no Undo my changes, no Done and no bar under the header (${barBox})`,
+     barBox === JSON.stringify({ bar: false, cancel: false, save: false, back: true }));
 
   // THE FORM IS TABBED, 2026-09-02 handoff. VISIBLE, not merely present: a hidden pane keeps all
   // of its markup, so `querySelector` finds every field on every tab and a presence check would
@@ -980,20 +982,21 @@ if (anyEntry) {
       return !!e && e.offsetParent !== null; })()`);
     const onTab = () => page.eval(`[...document.querySelectorAll('[data-cardtab]')]
       .filter((t) => t.getAttribute('aria-pressed') === 'true').map((t) => t.dataset.cardtab).join()`);
-    ok(`  the form opens on The card (${await onTab()})`, (await onTab()) === 'card');
-    ok('    with Name and Trigger words on it, and not the Pockets list, the states or Delete',
-       (await vis('#f-card-title')) && (await vis('#f-card-keys'))
-       && !(await vis('.pane:not([hidden]) [data-pocketnew]')) && !(await vis('[data-addstate]')) && !(await vis('[data-delentry]')));
+    ok(`  Read opens on The thread (${await onTab()})`, (await onTab()) === 'card');
+    ok('    with Name and Wake words on it, and not the Pockets list, the states or Delete',
+       (await vis('#f-card-title')) && (await vis('[data-readedit="keys"]'))
+       && !(await vis('.pane[data-pane="rooms"] .pocketlist')) && !(await vis('[data-addstate]')) && !(await vis('[data-delentry]')));
     await page.click('[data-cardtab="rooms"]'); await wait(400);
     // The name is above the tabs since 2026-11-02, on every tab, so the card field that hides is the keys.
     ok('    Pockets shows + Add a pocket and hides the card fields',
        // The ＋ is the header's since 2026-11-03, on every tab; the tab holds the list.
-       (await vis('#sideHead [data-pocketnew]')) && (await vis('.pane:not([hidden]) .pocketlist')) && !(await vis('#f-card-keys')));
+       (await vis('#sideHead [data-pocketnew]')) && (await vis('.pane[data-pane="rooms"] .pocketlist')) && !(await vis('[data-readedit="keys"]')));
     await page.click('[data-cardtab="time"]'); await wait(400);
-    ok('    Over time shows the states editor', await vis('[data-addstate]'));
+    ok('    Timeline shows the states editor', await vis('[data-addstate]'));
     await page.click('[data-cardtab="more"]'); await wait(400);
-    ok('    More shows Delete and Your notes',
-       (await vis('[data-delentry]')) && (await vis('#f-card-notes')));
+    // Your notes moved to The thread tab, opened in place, with #136.
+    ok('    More shows Delete and This thread as JSON',
+       (await vis('[data-delentry]')) && (await vis('#f-card-json')));
 
     // THE JUMP CHIP MUST OPEN THE TAB IT LANDS IN — the handoff's one dead control in its own
     // prototype: with the form tabbed, a chip scrolls to a heading the tabs have taken off screen.
@@ -1037,7 +1040,8 @@ if (anyEntry) {
   await page.click(`[data-entry="${anyEntry}"]`);
   await wait(700);
   const face = await page.eval(`(() => ({
-    slots: [...document.querySelectorAll('[data-slotat]')].map(x => x.dataset.slotat),
+    // Always true's anchor is on Read whether or not it is filled (#136): it is not a pocket.
+    slots: [...document.querySelectorAll('[data-slotat]')].map(x => x.dataset.slotat).filter((x) => x !== 'facts'),
     jumps: [...document.querySelectorAll('[data-goslot].tag')].map(x => x.dataset.goslot),
     bodyEdits: [...document.querySelectorAll('[data-editroom]')].map(x => x.dataset.editroom),
     shows: /her fear/.test(document.querySelector('#sideBody')?.textContent || ''),
@@ -1077,18 +1081,18 @@ if (anyEntry) {
   await page.click('[data-pocketdone]'); await wait(400);
   // THE POCKETS TAB, ON THEN OFF. This one is off at this point in the run, so its row belongs
   // BELOW the divider, and the check further down watches it move above it once it is on.
-  await page.click('[data-cardview="form"]'); await wait(600);
   await page.click('[data-cardtab="rooms"]'); await wait(400);
   const listed = await page.eval(`(() => {
-    const row = document.querySelector('.pane:not([hidden]) [data-editroom="${made}"]');
-    const div = [...document.querySelectorAll('.pane:not([hidden]) .lbl')].find(x => /Not turned on/.test(x.textContent));
+    const row = document.querySelector('.pane[data-pane="rooms"] [data-editroom="${made}"]');
+    const div = [...document.querySelectorAll('.pane[data-pane="rooms"] .lbl')].find(x => /Not turned on/.test(x.textContent));
     return { row: !!row && row.offsetParent !== null, divider: !!div,
       under: !!(row && div) && !!(div.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING) }; })()`);
   ok(`  and the Pockets tab lists it as a row (${JSON.stringify(listed)})`, listed.row === true);
-  // NO JUMP CHIPS IN THE FORM (2026-11-02): the Pockets tab is one press, and the chips were a second
-  // row of tabs above the tabs. The read face keeps its pockets tag, checked above.
+  // NO ROW OF JUMP CHIPS (2026-11-02): the Pockets tab is one press, and the chips were a second
+  // row of tabs above the tabs. Read keeps its one pockets tag, checked above.
   await page.click('[data-cardtab="more"]'); await wait(300);
-  ok('  the form draws no jump chips above its tabs', await page.eval("!document.querySelector('#sideBody [data-goslot]')"));
+  ok('  Read draws one pockets tag and no row of jump chips above its tabs',
+     await page.eval("document.querySelectorAll('#sideBody [data-goslot]').length <= 1"));
   // ---- ON, THEN OFF, IN THE FORM TOO. Seth, 2026-08-30: "would having the order of whats turned
   // on, off and empty be possible in the edit screen too." Falsify by dropping the grouping: the
   // divider goes and this reds.
@@ -1103,10 +1107,9 @@ if (anyEntry) {
   // #78. Over time is its tab's whole content, not a fold, so only the other two fold.
   ok(`  and Brings in with it and Another book are folded shut, Over time is no fold (${JSON.stringify(tails)})`,
      tails.states === null && tails.edges === false && tails.copy === false);
-  // Back to Read by Done: nothing was typed, so nothing is written (the old Read button is the
-  // drawer header's Done since the v2 Alter screen and ADR 0004).
-  await page.click('#sideHead [data-alterdone]');
-  await wait(500);
+  // The pocket's eye is on the Pockets tab, which is Read's since #136.
+  await page.click('[data-cardtab="rooms"]');
+  await wait(400);
   // The switch is the writer's half of how a room reaches the model; its keys are the other half.
   // #134 · A new pocket is On a word, as a new thread is: the shut eye. A tap makes it On.
   ok(`  and the room starts on a word (${face && face.on})`, !!face && face.on === 'word');
@@ -1115,18 +1118,17 @@ if (anyEntry) {
   const flipped = await page.eval("document.querySelector('[data-pocketeye]')?.dataset.reach");
   ok(`  turning it on sticks (${flipped})`, flipped === 'on');
   // THE OTHER HALF OF THE ORDERING, and the reason the pair is worth two lines: a check that only
-  // ever saw the room below the divider would pass against a form that puts EVERYTHING below it.
-  await page.click('[data-cardview="form"]');
-  await wait(600);
+  // ever saw the room below the divider would pass against a list that puts EVERYTHING below it.
   const regrouped = await page.eval(`(() => ({
     box: !!document.querySelector('[data-editroom="${made}"]'),
     divider: [...document.querySelectorAll('.lbl')].some(x => /Not turned on/.test(x.textContent)) }))()`);
-  ok(`  and the form moves it up out of "Not turned on" when it goes on (${
+  ok(`  and the list moves it up out of "Not turned on" when it goes on (${
        JSON.stringify(regrouped)})`, regrouped.box === true && regrouped.divider === false);
-  await page.click('#sideHead [data-alterdone]');
-  await wait(500);
 
-  await page.click('[data-cardview="form"]');
+  // The wake words are a box only once tapped (#136).
+  await page.click('[data-cardtab="card"]');
+  await wait(300);
+  await page.click('[data-readedit="keys"]');
   await wait(400);
   // ---- PLAN-08 Phase 1. The trigger words are readable and editable whatever the activation is.
   // They were greyed out on an always-on entry, which is most of them — so the one screen that
@@ -1141,7 +1143,8 @@ if (anyEntry) {
     if (!i) return null;
     const card = document.getElementById('tip-cardKeys');
     const hint = card ? card.textContent : '';
-    return { disabled: i.disabled, alwaysOn: hint.indexOf('always-on') >= 0 };
+    // "always on" or "always-on": the tip's wording moved with #136; either names the state.
+    return { disabled: i.disabled, alwaysOn: /always.on/.test(hint) };
   })()`);
   console.log("  trigger words field: " + JSON.stringify(keyf));
   ok("the trigger words can be read and edited on an always-on entry",
@@ -1158,7 +1161,7 @@ if (anyEntry) {
       // as the line for the character, which answers a question nobody asked.
       ownBox: t.every(x => x.querySelector('[data-invdir]')) };
   })()`);
-  console.log("  invent trays in the entry editor: " + JSON.stringify(trays));
+  console.log("  invent trays on Read: " + JSON.stringify(trays));
   ok(`the open card can be written by Anansi (${trays && trays.kinds.join(',')})`,
      !!trays && trays.kinds.some((k) => ['character', 'lore', 'item'].includes(k)));
   ok("  and every tray on the screen has its own direction box",
@@ -1251,8 +1254,6 @@ const dressed = await page.eval(`(() => ({
 ok(`the face draws one outfit heading, not two (${dressed.heads})`, dressed.heads === 1);
 ok(`  with every coat drawn through the ordinary room path (${dressed.coats} of ${heldBy})`,
    heldBy >= 2 && dressed.coats === heldBy);
-await page.click('[data-cardview="form"]');
-await wait(500);
 // #126 · A POCKET IS ADDED IN THE POCKET PANEL, opened from the Pockets tab's + Add a pocket (or
 // the header's ＋). The kind is picked in the panel, and Ask Anansi is the row under its fields.
 await page.click('[data-cardtab="rooms"]');
@@ -1276,8 +1277,6 @@ await page.click('[data-pocketx]'); await wait(400);
   await page.goto(B + "/#" + sid3 + "/threads");
   for (let i = 0; i < 40 && !(await page.visible(`[data-entry="${who.id}"]`)); i++) await wait(250);
   await page.click(`[data-entry="${who.id}"]`);
-  for (let i = 0; i < 40 && !(await page.visible('[data-cardview="form"]')); i++) await wait(250);
-  await page.click('[data-cardview="form"]');
   // POCKETS TAB. `S.cardTab` resets to The card when a DIFFERENT thread opens, and this section has
   // just opened another card.
   for (let i = 0; i < 40 && !(await page.visible('[data-cardtab="rooms"]')); i++) await wait(250);
@@ -1289,7 +1288,7 @@ await page.click('[data-pocketx]'); await wait(400);
   const expectPills = view.filter((n) => n !== 'facts').length;
   // An empty pocket draws NOTHING in the list: a heading for it is the eight-empty-headings problem.
   ok('an empty pocket draws no row in the list at all',
-     (await page.eval(`!document.querySelector('.pane:not([hidden]) [data-slotat="${empty}"]')`)) === true);
+     (await page.eval(`!document.querySelector('.pane[data-pane="rooms"] [data-slotat="${empty}"]')`)) === true);
   for (let i = 0; i < 40 && !(await page.visible('#sideHead [data-pocketnew]')); i++) await wait(250);
   await page.click('#sideHead [data-pocketnew]');
   await wait(400);
@@ -1312,29 +1311,17 @@ await page.click('[data-pocketx]'); await wait(400);
   ok('  and Cancel shuts it',
      (await page.eval("document.getElementById('pocketPanel')?.hidden")) === true);
 }
-// ---- SAVE IS AT THE TOP AND THERE IS ONLY ONE. Seth, 2026-08-30: "the save button need to be up
-// top", "move it". Asserted as ONE and as above the body field, not merely as present: a second
-// Save left at the foot is two things to keep in step, and a Save that moved but did not lead is
-// the same scroll it always was.
+// ---- NO SAVE AND NO DONE. Seth, 2026-08-30, wanted the one Save at the top; ADR 0004 (pass three)
+// made it save as you type, and since #136 (ADR 0013) Read is the editor and leaving it is the last
+// write. So the press that remains is the way out, in the header, which does not scroll.
 {
-  // ON THE CARD TAB, because that is where the body field lives and this measures GEOMETRY. A field
-  // inside a hidden pane reports a rect of all zeros, so "Done is above the body" compares against
-  // a top of 0 and fails on a form where it is perfectly true. Done itself is in the bar above the
-  // tabs and is on screen whichever one is showing.
   await page.click('[data-cardtab="card"]');
   await wait(400);
-  const saves = await page.eval(`(() => { const s = [...document.querySelectorAll('[data-alterdone]')];
-    const body = document.querySelector('[data-f="body"]');
-    return { n: s.length, above: s[0] && body
-      ? s[0].getBoundingClientRect().top < body.getBoundingClientRect().top : null,
-      // In the header, which is outside #sideBody — the one part of the drawer that scrolls.
-      fixed: s[0] ? !!s[0].closest('#sideHead') && !s[0].closest('#sideBody') : null }; })()`);
+  const saves = await page.eval(`(() => ({ n: document.querySelectorAll('[data-alterdone], [data-saveentry]').length,
+    back: !!document.querySelector('#sideHead [data-backentry]') }))()`);
   console.log("  save: " + JSON.stringify(saves));
-  ok(`the form has exactly one Done (${saves.n})`, saves.n === 1);
-  ok('  and it is above the body rather than under a dozen sections', saves.above === true);
-  // Moving it up without pinning it only inverts the scroll: the bar rode #sideBody. The header
-  // does not scroll at all.
-  ok(`  in a bar that stays put while the form scrolls (${saves.fixed})`, saves.fixed === true);
+  ok(`Read has no Save and no Done (${saves.n})`, saves.n === 0);
+  ok(`  and its way out is in the header, which stays put while Read scrolls (${saves.back})`, saves.back === true);
 }
 // THE CARD'S TAIL SECTIONS ARE FOLDS NOW, SHUT BY DEFAULT (2026-08-30). Seth: "the over time and
 // the brings in with it and another book should be toggle and defaulted as off." Their fields are
@@ -1733,8 +1720,6 @@ ok("  and it is still there a moment later, not eaten by a repaint",
   await wait(700);
   await page.click('[data-entry="' + parent.id + '"]');
   await wait(500);
-  await page.click('[data-cardview="form"]');
-  await wait(500);
   await openFold('edges');
   const picked = await page.eval("(() => { const sel = document.querySelector('[data-lk=\"child\"]');"
     + " if (!sel) return 'no connect control'; const o = [...sel.options].find(x => x.textContent === 'Ghost Wolf');"
@@ -1831,7 +1816,7 @@ ok("  and it is still there a moment later, not eaten by a repaint",
   await wait(600);
   const face = (await page.text('#sideBody') || '');
   ok("a followed thread opens read-only, naming the book it lives in", /lives in The Ash Cycle/.test(face));
-  ok("  and offers no way to edit it here", !(await page.visible('[data-cardview="form"]')));
+  ok("  and offers no field to open in place here", !(await page.visible('[data-readedit]')));
 
   // FORKING IS A COPY, and the proof is that the source does not move afterwards.
   await page.goto(B + "/#" + sid3 + "/story");

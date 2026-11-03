@@ -22,9 +22,10 @@ ok(`the Threads drawer lists a thread to open (${first})`, !!first);
 if (first) {
   await page.click(`#sideBody [data-entry="${first}"]`);
   await wait(700);
-  await page.click("#sideHead [data-readmenu]");
-  await wait(500);
-  ok("its ⋯ menu offers Merge with another thread", await page.eval("!!document.querySelector('[data-mergestart]')"));
+  // The ⋯ menu is gone; its rows are Read's More tab (#136, 2026-11-03).
+  await page.click('#sideBody [data-cardtab="more"]');
+  await wait(400);
+  ok("its More tab offers Merge with another thread", await page.eval("!!document.querySelector('[data-mergestart]')"));
   await page.click("[data-mergestart]");
   await wait(900);
   const box = () => page.eval("(() => { const b = document.getElementById('mergePanel');"
@@ -47,18 +48,18 @@ if (first) {
   await wait(700);
   const shut = await box();
   ok(`MERGE-CANCEL: Cancel shuts it (${JSON.stringify(shut)})`, !shut.shown);
-  ok("  and the thread is still open under it", await page.eval("!!document.querySelector('#sideHead [data-readmenu]')"));
+  ok("  and the thread is still open under it", await page.eval("!!document.querySelector('#sideBody .readface')"));
 
   // And Back shuts it, without leaving the thread.
-  await page.click("#sideHead [data-readmenu]");
-  await wait(500);
+  await page.click('#sideBody [data-cardtab="more"]');
+  await wait(400);
   await page.click("[data-mergestart]");
   await wait(900);
-  ok("MERGE-REOPENS: it opens again from the menu", (await box()).shown);
+  ok("MERGE-REOPENS: it opens again from More", (await box()).shown);
   await page.eval("(() => { history.back(); return 1; })()");
   await wait(900);
   ok("MERGE-BACK: Back shuts it", !(await box()).shown);
-  ok("  and the thread is still open", await page.eval("!!document.querySelector('#sideHead [data-readmenu]')"));
+  ok("  and the thread is still open", await page.eval("!!document.querySelector('#sideBody .readface')"));
   }
 }
 console.log(red ? `\n  ${red} red` : "\n  all green");

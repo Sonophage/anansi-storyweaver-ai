@@ -49,17 +49,18 @@ await page.goto(B + "/#" + sid + "/threads");
 // afterwards gave undefined and turned four probe errors into four fake bugs.
 const eid = await page.eval("document.querySelector('[data-entry]')?.dataset.entry");
 await page.click('[data-entry="' + eid + '"]');
-// A card opens on its FACE. Everything below reaches for the form — the activation chips, the
-// kind chips — so press Edit first, the way panels.js and phone.js already do. This scenario was
-// missed when they were fixed and has died on the first click ever since.
-await page.click('[data-cardview="form"]');
-await wait(300);
-await page.click('[data-act="triggered"]');
-await wait(700);
+// A card opens on Read, which is its editor too (#136, 2026-11-03). Activation is the eye in its tags
+// (off, on a word, on, off), so it is tapped until the thread is on a word: at most three taps.
+await wait(600);
 let e = (await entries()).find((x) => x.id === eid);
+for (let i = 0; i < 3 && e?.activation !== 'triggered'; i++) {
+  await page.click(`[data-flipact="${eid}"]`);
+  await wait(900);
+  e = (await entries()).find((x) => x.id === eid);
+}
 ok(`switching activation to triggered persists (now ${e?.activation})`, e?.activation === "triggered");
-// THE KIND IS UNDER MORE since the v2 Alter screen (2026-10-25; Seth: "move em under more").
-await page.click('[data-cardtab="more"]');
+// THE KIND IS A TAG ON READ: a tap opens the kinds in place, and a kind saves at once (#136).
+await page.click('[data-readedit="kind"]');
 await wait(300);
 await page.click('[data-kind="lore"]');
 await wait(700);
@@ -322,20 +323,12 @@ ok("  and offers no editor until one is picked", !before.includes('When it reach
 const leid = await page.eval("document.querySelector('#page [data-entry]')?.dataset.entry");
 await page.eval("(() => { document.querySelector('[data-entry=\"" + leid + "\"]').click(); return 1; })()");
 await wait(1200);
-// A card opens on its FACE here too. Assert the face first so the two views cannot quietly become
-// one, then press Edit — the same fix as the activation chips at the top of this file, and the one
-// `panels.js` and `phone.js` already carry.
-ok("  pressing one opens its face", await page.eval("!!document.querySelector('#page [data-cardview=\"form\"]')"));
-await page.eval("(() => { document.querySelector('#page [data-cardview=\"form\"]').click(); return 1; })()");
-await wait(700);
+// A card opens on Read here too, which is also its editor (#136, 2026-11-03): no Edit to press.
+ok("  pressing one opens its Read", await page.eval("!!document.querySelector('#page .readface')"));
 const opened = (await page.eval("document.querySelector('#page .aside')?.textContent") || '').trim();
-// The rooms of the entry editor. Either one proves the editor rendered rather than the hint. A
-// check that the first box held the thread's own body was red on main and was taken out at Seth's
-// word (2026-10-30): the first textarea on the v2 Alter screen is not the body any more.
-ok("  and Edit opens the form, with no need to find its book on the shelf first",
-   // "Kind" since the v2 Alter screen, under More (it was "Type", on the first tab). "Wake words" is
-   // the label the reach switch sits beside since 2026-11-02; its old heading is its aria-label now.
-   opened.includes('Wake words') && opened.includes('Kind'));
+// Labels of Read's The thread tab. Either proves Read rendered rather than the hint.
+ok("  and Read is open, with no need to find its book on the shelf first",
+   opened.includes('Wake words') && opened.includes('Always true'));
 
 // ---- The door out of a single book's threads. The panel is one story's by construction, so the
 // list that spans every book needs a way in from inside one.
