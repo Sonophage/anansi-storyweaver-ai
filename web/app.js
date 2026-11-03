@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, FACES } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -175,7 +175,7 @@ applyHwkb();
 
 const LOOK = 'anansi.look';
 const LOOK_KEYS = ['theme', 'font', 'size', 'scale'];
-const SHIPPED = { theme: 'ink', font: 'serif', size: 'm', scale: '100' };
+const SHIPPED = { theme: 'arcana', font: 'serif', size: 'm', scale: '100' };
 const MYLOOK = { ...SHIPPED };
 // Wrapped because a private window throws on access rather than returning null.
 try { Object.assign(MYLOOK, JSON.parse(localStorage.getItem(LOOK) || '{}')); } catch { /* no storage */ }
@@ -212,9 +212,8 @@ function loadFonts() {
   l.href = `https://fonts.googleapis.com/css2?${Object.values(WEBFONTS).map((f) => `family=${f}`).join('&')}&display=swap`;
   document.head?.appendChild?.(l);   // `?.`: test/app.ts drives this against a DOM stub with no <head>
 }
-/** A THEME'S OWN FACES (Arcana, 2026-11-03): the display type a theme sets its titles and labels
- *  in, named on its row as `faces`. Fetched the first time that theme is on screen, once per theme,
- *  and never for a theme that names none, so the other themes cost nothing. */
+/** THE APP'S DISPLAY FACES (Arcana, 2026-11-03): the type titles and labels are set in, `FACES` in
+ *  web/model.js. Every theme's since Arcana's styling became the app's; fetched once, on the first look. */
 const facesAsked = new Set();
 function loadFaces(faces) {
   if (!faces || facesAsked.has(faces)) return;
@@ -227,12 +226,13 @@ function loadFaces(faces) {
 function applyLook() {
   root.dataset.uiTheme = look.theme; root.dataset.uiFont = look.font; root.dataset.uiSize = look.size;
   if (WEBFONTS[look.font]) loadFonts();
-  loadFaces(THEMES[look.theme]?.faces);
+  loadFaces(FACES);   // the app's display faces, under every theme (Arcana everywhere, 2026-11-03)
   root.dataset.uiScale = look.scale ?? '100';
   // Every colour, derived from the theme's one row and written as custom properties. It replaced
   // three hand-written CSS blocks — which is why there were three themes and not nine, and why
   // the light one had to restate the greys and the gold by hand to avoid dark text on cream.
-  // data-ui-theme stays: rules that are not colours still key on it, and so do the tests.
+  // data-ui-theme stays, for the tests and the browser scenarios that read which theme is on; no
+  // rule in app.html keys on it since a theme became colours only (2026-11-03).
   const vars = themeVars(look.theme);
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
   const meta = document.querySelector('meta[name="theme-color"]');

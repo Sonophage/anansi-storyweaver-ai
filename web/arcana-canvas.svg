@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="780" height="1688" viewBox="0 0 780 1688" preserveAspectRatio="xMidYMid slice">
-  <!-- The Arcana theme's ground: charcoal watercolour paper. A soft cloud of dried wash, the faint
+  <!-- The paper's grain, under every theme: watercolour paper with no colour of its own, laid over
+       the theme's paper (themeVars, web/model.js) and its menu and panel colours. A soft cloud of dried wash, the faint
        tide-lines a wash leaves where it dried, the tooth of cold-pressed paper, and the edges sunk.
        No direction to any of it and no light from anywhere: it is a surface, not a scene.
        Procedural, so it is a few hundred bytes and never a picture to decode. -->
@@ -26,7 +27,6 @@
       <stop offset="1" stop-color="#000000" stop-opacity="0.55"/>
     </radialGradient>
   </defs>
-  <rect width="780" height="1688" fill="#0B0B0C"/>
   <rect width="780" height="1688" filter="url(#cloud)" opacity="0.05"/>
   <rect width="780" height="1688" filter="url(#tide)" opacity="0.07"/>
   <rect width="780" height="1688" filter="url(#tooth)" opacity="0.045"/>

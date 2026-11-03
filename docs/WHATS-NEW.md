@@ -126,28 +126,35 @@ library" at the top, so the way back to your own tales is always in sight.
 Where a press makes something new, it says Add: a new pocket, a new Timeline entry, and a new
 pocket while you set up a tale. A thread your tale follows from a world has Send to and the world's
 name: it sends your words to the world, so every tale that follows the thread sees them.
-### A new theme: Arcana
-Look has a fifth theme, Arcana: black, graphite and gold, painted. The page, the menu and the side
-panel sit on dark watercolour paper, and gold is line-work: a chevron rule under each scene's title,
-stepped corners on cards, a double gilt frame on the tale you left off in, arched like a tarot card,
-with a sunburst behind its name. The first letter of a scene is set in a gilt box over a wash of
-gold. Titles are thin deco capitals and labels a clean geometric face; your story keeps whatever
-font you chose. The one gold button on a screen has a dry brush through it.
+### Arcana, the new look
+Anansi now looks like Arcana: painted, with tarot and art deco in it. The page, the menu and the
+side panel sit on watercolour paper, and the gilt is line-work: a chevron rule under each scene's
+title, stepped corners on cards, a double gilt frame on the tale you left off in, arched like a tarot
+card, with a sunburst behind its name. The first letter of a scene is set in a gilt box over a wash.
+Titles are thin deco capitals and labels a clean geometric face; your story keeps whatever font you
+chose. The one gold button on a screen has a dry brush through it.
+### Every theme is Arcana in its own colours
+Look still has five themes, Arcana, Ink, Grimdark, Sci-fi and Romance, and each one now changes only
+the colours. The frames, the stars, the numerals and the suits are the same in all five, drawn in
+that theme's accent: gold in Arcana and Ink, copper in Grimdark, steel blue in Sci-fi, rose in
+Romance. Every theme has the same watercolour paper under its own colour. Arcana is the look a new
+writer starts with, and a look saved with a theme that is no longer on the list opens as Arcana.
 ### A tale or a shelf card with no cover
-Under Arcana, a tale without a picture shows a card back instead of a plain wash: a gold
-watercolour bloom, a sunburst and a crescent moon on the painted canvas.
+A tale without a picture shows a card back instead of a plain wash: a watercolour bloom, a sunburst
+and a crescent moon on the painted paper.
 ### Banners and threads, framed in gilt
 A tale's banner over its threads, and the picture at the head of a scene, are framed in gilt with
 stepped corners; a banner with no cover gets the card back. On the Threads page a card with no
 picture has a painted band where the picture would be, so every card stands the same height.
 ### A tale's threads are its Major Arcana
-Under Arcana every thread card carries a tarot numeral in a gilt diamond, and the numeral says what
-the thread is, not where it sits in the list: every character is I, The Magician; lore is II, The
-High Priestess; an item is X, The Wheel of Fortune; a place is XXI, The World. Each kind of pocket
-has its own numeral too, beside its heading in a thread's pockets: a voice is V, an outfit VII, a
-relationship VI, and so on. A thread with a picture keeps it, with the sunburst, the stars and its
-numeral laid faintly over it; one without a picture has them over a bloom of gold. A tale's cover,
-on the shelf, at the top of the Library and over its threads, gets the same faint sunburst and stars.
+Every thread card carries a tarot numeral in a gilt diamond, and the numeral says what the thread
+is, not where it sits in the list: every character is I, The Magician; lore is II, The High
+Priestess; an item is X, The Wheel of Fortune; a place is XXI, The World. Behind the numeral are its
+kind's own stars, drawn as its card: a character is the Magician's figure with one hand raised, lore
+two pillars under an arch with a veil between them, an item the Wheel, a place the World's globe. A
+thread with a picture keeps it, with the sunburst, the stars and its numeral laid faintly over it;
+one without a picture has them over a bloom. A tale's cover, on the shelf, at the top of the Library
+and over its threads, gets the same faint sunburst and stars.
 ### A thread's pockets are its Minor Arcana
 Each pocket on a thread is a card of the Minor Arcana. Each kind of pocket belongs to a suit: Cups
 for feeling and bonds (relationships, what is kept inside), Swords for word and thought (voice, a
@@ -155,15 +162,12 @@ question), Pentacles for the body and the things it has (appearance, outfit, wha
 for will and motion (a promise, the air of a place, who is here). A pocket shows its suit's mark in a
 small gilt diamond and its rank among the pockets of its kind on that thread, over its name: Ace of
 Cups, II of Cups, up to X, then Page, Knight, Queen and King. Its rank stays when you turn it off.
-Each pocket is framed like a card, with its kind's stars faint behind its eye, and the eye is still
-what turns it on and off. A kind's heading shows its suit's mark.
-### A constellation for each kind
-Each kind of thread has its own stars behind its numeral, drawn as its card: a character is the
-Magician's figure with one hand raised, lore two pillars under an arch with a veil between them, an
-item the Wheel, a place the World's globe. Each kind of pocket has its own too.
+Each pocket is framed like a card, with its kind's own stars faint behind its eye, and the eye is
+still what turns it on and off. A kind's heading, and the tale's Promises and Open questions, show
+their suit's mark.
 ### No glow along the top
-Under Arcana the glow across the top of the screen is gone. What is waiting is still counted on
-the Workbench in the tale's menu.
+The glow across the top of the screen is gone. What is waiting is still counted on the Workbench in
+the tale's menu.
 ### A drawer stays with its tale
 Going to another tale closes the drawer you had open, the hem included, so the next tale opens on
 its page. A link that names a drawer still opens that drawer.

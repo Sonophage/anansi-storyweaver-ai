@@ -2398,8 +2398,27 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
       for (const c of svg.match(/<!--([\s\S]*?)-->/g) ?? [])
         assert.ok(!c.slice(4, -3).includes('--'), `ARCANA-FILES: ${p} has a comment with -- in it, which is invalid XML`);
     }
-    assert.ok(THEMES.arcana.faces && !Object.entries(THEMES).some(([k, t]: any) => k !== 'arcana' && t.faces),
-      'ARCANA-FACES: Arcana names its display faces, and no other theme fetches any');
+    // ARCANA EVERYWHERE (Seth, 2026-11-03): its frames, ornament and faces are the app's under every
+    // theme, and a theme is a colour set. So no rule keys on the Arcana theme, no theme row names
+    // faces (they are the app's, fetched whatever the theme), and every gilt file is drawn as a mask
+    // filled with the theme's accent, never as an image with the gold baked in.
+    const { FACES } = await import('../web/model.js');
+    assert.ok(FACES && !Object.values(THEMES).some((t: any) => t.faces), 'ARCANA-FACES: the display faces are the app\'s, not a theme\'s');
+    const html0 = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+    assert.doesNotMatch(html0, /data-ui-theme="arcana"\]/, 'ARCANA-EVERYWHERE: no rule keys on the Arcana theme');
+    const GILT = /arcana-(corner-..|divider|stars|sky-\w+|suit-\w+|sunburst|diamond|runes|wash)\.svg/;
+    for (const m of html0.matchAll(/url\('\/web\/(arcana-[\w-]+\.svg)'\)/g)) {
+      if (!GILT.test(m[1])) continue;
+      const decl = html0.slice(Math.max(html0.lastIndexOf(';', m.index!), html0.lastIndexOf('{', m.index!)) + 1, m.index!);
+      assert.match(decl, /^\s*(-webkit-)?mask(-image)?:|^\s*--(sky|suit):|^\s*(-webkit-)?mask(-image)?:[^;]*$/,
+        `ORNAMENT-MASK: ${m[1]} is drawn as a mask in the theme's accent, not an image (${decl.trim().slice(0, 60)})`);
+    }
+    // THE PAPER'S GRAIN ON EVERY THEME, over that theme's own colours: the canvas carries no paper
+    // colour of its own, and every theme's page wash lays it first.
+    const canvas = readFileSync(new URL('../web/arcana-canvas.svg', import.meta.url), 'utf8');
+    assert.doesNotMatch(canvas, /<rect[^>]*fill="#[0-9a-fA-F]{6}"/, 'PAPER-GRAIN: the canvas has no paper colour baked in');
+    for (const name of Object.keys(THEMES))
+      assert.match(String(themeVars(name)['--doc-wash']), /^url\('\/web\/arcana-canvas\.svg'\)/, `PAPER-GRAIN: ${name}'s page has the grain`);
 
     // ONE NUMERAL PER KIND, LIKE TAROT (Seth, 2026-11-03). Under Arcana a thread card and a pocket
     // kind's heading show the numeral of what they ARE, not their place in a list: every Character the
@@ -2441,11 +2460,20 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
       ['Ace', 'II', 'X', 'Page', 'Knight', 'Queen', 'King', 'XV', 'XXI'], 'MINOR-RANK: Ace, II to X, Page, Knight, Queen, King, then numerals');
   }
   // THE FIVE THAT LEFT (2026-11-02). A look saved with one of them still paints a theme that exists.
+  // ARCANA IS THE DEFAULT (Seth, 2026-11-03), so a look saved with a theme that is gone reads as Arcana.
   for (const gone of ['obsidian', 'parchment', 'fantasy', 'novelist', 'no-such-theme'])
-    assert.strictEqual(themeNow(gone), 'ink', `THEME-WAS: a look saved as ${gone} reads as Ink`);
+    assert.strictEqual(themeNow(gone), 'arcana', `THEME-WAS: a look saved as ${gone} reads as Arcana`);
   assert.strictEqual(themeNow('cyberpunk'), 'scifi', 'THEME-WAS: and Cyberpunk as Sci-fi');
   assert.strictEqual(themeNow('romance'), 'romance', 'a theme still on the list is left alone');
-  assert.deepStrictEqual(themeVars('obsidian'), themeVars('ink'), 'and its colours are the ones it reads as');
+  assert.strictEqual(themeNow('ink'), 'ink', 'and Ink is still on the list');
+  assert.deepStrictEqual(themeVars('obsidian'), themeVars('arcana'), 'and its colours are the ones it reads as');
+  {
+    const { readFileSync } = await import('node:fs');
+    assert.match(readFileSync(new URL('../app.html', import.meta.url), 'utf8'), /<html lang="en" data-ui-theme="arcana"/,
+      'ARCANA-DEFAULT: the page starts on Arcana');
+    assert.match(readFileSync(new URL('../web/app.js', import.meta.url), 'utf8'), /const SHIPPED = \{ theme: 'arcana'/,
+      'ARCANA-DEFAULT: and the shipped look is Arcana');
+  }
 
   // Named explicitly, not read off one theme and compared to the others: deriving the expected
   // set from obsidian meant a token deleted from ALL nine still matched, which is what happened

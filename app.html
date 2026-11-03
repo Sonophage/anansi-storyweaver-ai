@@ -2,7 +2,7 @@
 <!-- The look lives in data-ui-* so it cannot collide with the data-* names the click
      delegation treats as actions. data-theme on <html> plus [data-theme] in the
      delegation meant every click in the app matched <html> and toggled the rail. -->
-<html lang="en" data-ui-theme="ink" data-ui-font="serif" data-ui-size="m">
+<html lang="en" data-ui-theme="arcana" data-ui-font="serif" data-ui-size="m">
 <head>
 <meta charset="utf-8">
 <!-- interactive-widget=resizes-content: when the on-screen keyboard opens, SHORTEN the layout
@@ -68,7 +68,8 @@
    from that row by themeVars(), which applyLook() writes onto <html> as custom properties. Three
    hand-written blocks lived here and that is exactly why there were three: each new theme meant
    restating the greys, the gold and the chrome by hand, and the light one that forgot rendered
-   dark text on cream. Rules that are NOT colours still key on data-ui-theme, below. */
+   dark text on cream. No rule keys on data-ui-theme any more: since 2026-11-03 a theme is colours
+   only, and the ornament below (ARCANA) is every theme's. */
 html[data-ui-size="xs"] { --prose:16px; --gap:22px; --col:620px; }
 html[data-ui-size="s"] { --prose:18px; --gap:26px; --col:660px; }
 html[data-ui-size="m"] { --prose:20px; --gap:30px; --col:720px; }
@@ -2733,9 +2734,15 @@ body[data-dev] #devbar {
    as the texture of things ... claire obscure with that watercolor paint brush feeling ... tarot,
    arcane", and then "a bit more into the arcane and a bit more into the art deco".
 
-   Its colours are its row in THEMES (web/model.js), like every theme's. Everything here is what a
-   row cannot say: the painted grounds, the gilt rules and corners, the tarot arch, the type. All of
-   it keys on data-ui-theme="arcana", so no other theme draws a pixel of it.
+   ARCANA IS THE APP'S STYLING UNDER EVERY THEME (Seth, 2026-11-03: "Arcana everywhere, then
+   default"). Everything here is what a THEMES row cannot say: the painted grounds, the gilt rules and
+   corners, the tarot arch, the numerals and suits, the type. None of it keys on a theme any more:
+   Ink, Grimdark, Sci-fi, Romance and Arcana are colour sets, and Arcana is the shipped one. Every
+   rule is `html:root ...`, which is the specificity the theme attribute selector it replaced
+   had, so nothing here wins or loses a fight it did not before.
+   EVERY GILT FILE IS A MASK filled with `--gold`, the theme's accent, so the line-work takes each
+   theme's colour (test/app.ts ORNAMENT-MASK). What is neutral stays an image: the paper's grain
+   (laid under every theme's page by themeVars), the moon, the dry brush and the ink stroke.
 
    GOLD STAYS WHAT ADR 0004 SAYS IT IS. The one filled press on a screen is gold, now with a dry
    brush in it. The ornament — rules, corners, the arch, the sunburst — is gilt line-work, which is
@@ -2745,175 +2752,197 @@ body[data-dev] #devbar {
    THE TEXTURES ARE SVG, web/arcana-*.svg: turbulence filters, not pictures, so each is a few
    hundred bytes, scales to any screen and is served by the same static path as icon.svg.
    ================================================================================================ */
-html[data-ui-theme="arcana"] {
+html:root {
   --r:3px;
   --arc-deco:'Poiret One','IBM Plex Sans',system-ui,sans-serif;     /* titles: thin geometric capitals */
   --arc-small:'Josefin Sans','IBM Plex Sans',system-ui,sans-serif;  /* labels and the menu's words */
 }
 
 /* THE GROUNDS. The page's is the row's wash; the menu, the side panel and the sheets get the same
-   painted canvas over their own colour, so nothing in the theme is flat. The side panel's is on
+   painted canvas over their own colour, so nothing is flat. The side panel's is on
    #sideInner, NOT #side: on a phone #side is the dimmed veil over the whole page, laid out even
    while closed, and a ground on it covered the page (it did, on the first try). */
-html[data-ui-theme="arcana"] :is(#rail, #sideInner, #appearance, #pocketPanel, #mergePanel) {
+html:root :is(#rail, #sideInner, #appearance, #pocketPanel, #mergePanel) {
   background-image:url('/web/arcana-canvas.svg'); background-size:cover; background-position:center; }
 
 /* THE RULES AND CORNERS, one gilt vocabulary everywhere: a chevron rule where a hairline was, and
-   four stepped corners on a card. Background layers, not pseudo-elements, so a card that already
-   uses ::before or ::after keeps them. */
-html[data-ui-theme="arcana"] :is(#sideBody .card, .resumeband > .glass, #appearance .card) {
-  background-image:url('/web/arcana-corner-tl.svg'), url('/web/arcana-corner-tr.svg'),
-    url('/web/arcana-corner-bl.svg'), url('/web/arcana-corner-br.svg');
-  background-position:top left, top right, bottom left, bottom right;
-  background-size:20px 20px; background-repeat:no-repeat; }
-html[data-ui-theme="arcana"] .band-rule { height:18px; background:url('/web/arcana-divider.svg') center / min(320px, 100%) 18px no-repeat; }
+   four stepped corners on a card. EVERY GILT FILE IS A MASK filled with the theme's accent
+   (`background:var(--gold)`), so the line-work is gold under Arcana, rose under Romance, steel under
+   Sci-fi; a file with the gold baked in would be gold under all of them. The corners are on a card's
+   ::after, laid over it and taking no taps; the cards that use their own ::after are left out (a
+   tall thread card draws its own, below; a deck card's says Yes or No). */
+html:root :where(#sideBody .card, #appearance .card, #page .card.plate, .resumeband > .glass):not(.thtall, .deckcard) { position:relative; }
+html:root :is(#sideBody .card, #appearance .card, #page .card.plate, .resumeband > .glass):not(.thtall, .deckcard)::after {
+  content:''; position:absolute; inset:0; pointer-events:none; background:var(--gold);
+  -webkit-mask:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat,
+    url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat;
+  mask:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat,
+    url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat; }
+html:root .band-rule { height:18px; background:var(--gold);
+  -webkit-mask:url('/web/arcana-divider.svg') center / min(320px, 100%) 18px no-repeat;
+  mask:url('/web/arcana-divider.svg') center / min(320px, 100%) 18px no-repeat; }
 /* The panel's header rule runs the header's whole width, with the chevron at its middle: alone and
    320px wide it sat centred under nothing (Seth, 2026-11-03). */
-html[data-ui-theme="arcana"] #sideHead { border-bottom-color:transparent; }
-html[data-ui-theme="arcana"] #sideHead::after { content:''; position:absolute; left:22px; right:22px; bottom:-7px; height:14px;
+html:root #sideHead { border-bottom-color:transparent; }
+html:root #sideHead::after { content:''; position:absolute; left:22px; right:22px; bottom:-7px; height:14px;
   pointer-events:none; background:var(--gold);
   -webkit-mask:url('/web/arcana-divider.svg') center / 220px 14px no-repeat,
     linear-gradient(90deg, transparent, rgba(0,0,0,.45) 12%, rgba(0,0,0,.45) 88%, transparent) center / 100% 1px no-repeat;
   mask:url('/web/arcana-divider.svg') center / 220px 14px no-repeat,
     linear-gradient(90deg, transparent, rgba(0,0,0,.45) 12%, rgba(0,0,0,.45) 88%, transparent) center / 100% 1px no-repeat; }
-html[data-ui-theme="arcana"] #bar { border-bottom-color:transparent;
-  background-image:url('/web/arcana-divider.svg'); background-repeat:no-repeat;
-  background-position:center bottom 2px; background-size:min(420px, 82%) 14px; }
+html:root #bar { border-bottom-color:transparent; }
+html:root #bar::after { content:''; position:absolute; left:0; right:0; bottom:2px; height:14px; pointer-events:none;
+  background:var(--gold); -webkit-mask:url('/web/arcana-divider.svg') center / min(420px, 82%) 14px no-repeat;
+  mask:url('/web/arcana-divider.svg') center / min(420px, 82%) 14px no-repeat; }
 
 /* THE TYPE. Titles in thin deco capitals, labels in a geometric sans; the prose is untouched and
    keeps whatever font the writer picked in Look. */
-html[data-ui-theme="arcana"] #bar .bare-btn .serif,
-html[data-ui-theme="arcana"] .resumeband .bandtitle,
-html[data-ui-theme="arcana"] .storycard .art .serif {
+html:root #bar .bare-btn .serif,
+html:root .resumeband .bandtitle,
+html:root .storycard .art .serif {
   font-family:var(--arc-deco); font-weight:400; text-transform:uppercase; letter-spacing:.16em; }
-html[data-ui-theme="arcana"] :is(#bar .up, .resumeband .herokind, .resumeband .herocount, .band > div:first-child,
+html:root :is(#bar .up, .resumeband .herokind, .resumeband .herocount, .band > div:first-child,
   #col .block .from, .railhead, .kicker) { font-family:var(--arc-small); letter-spacing:.3em; }
 /* A tag is a short word in a row of them: at .3em each chip read twice its width (Seth, 2026-11-03).
    Out of the list above, whose `#col` made it outrank any rule for a tag on its own. */
-html[data-ui-theme="arcana"] .tag { font-family:var(--arc-small); border-radius:2px; letter-spacing:.14em; }
+html:root .tag { font-family:var(--arc-small); border-radius:2px; letter-spacing:.14em; }
 /* Tighter where the line is short: a book's name in the bar, and the hero's "where you left off". */
-html[data-ui-theme="arcana"] #bar .bare-btn .serif { letter-spacing:.08em; }
-html[data-ui-theme="arcana"] .resumeband .herokind { letter-spacing:.1em; }
-@media (max-width:719px) { html[data-ui-theme="arcana"] #sideInner { border-top-color:var(--gold-dim); } }
+html:root #bar .bare-btn .serif { letter-spacing:.08em; }
+html:root .resumeband .herokind { letter-spacing:.1em; }
+@media (max-width:719px) { html:root #sideInner { border-top-color:var(--gold-dim); } }
 
 /* THE LIBRARY'S HERO IS A TAROT CARD: an arched top, a double gilt frame inside it, a sunburst
    rising behind the title where the breathing rings were, and a chevron rule under the title. */
-html[data-ui-theme="arcana"] .resumeband {
+html:root .resumeband {
   border-radius:min(46vw, 300px) min(46vw, 300px) var(--r) var(--r) / 210px 210px var(--r) var(--r);
   border-color:var(--gold-dim); }
-html[data-ui-theme="arcana"] .resumeband::before,
-html[data-ui-theme="arcana"] .resumeband::after { content:''; position:absolute; pointer-events:none; z-index:2;
+html:root .resumeband::before,
+html:root .resumeband::after { content:''; position:absolute; pointer-events:none; z-index:2;
   border-radius:inherit; }
-html[data-ui-theme="arcana"] .resumeband::before { inset:6px; border:1px solid var(--gold); }
-html[data-ui-theme="arcana"] .resumeband::after { inset:11px; border:1px solid var(--gold-dim); opacity:.55; }
-html[data-ui-theme="arcana"] .resumeband > .rings > i { display:none; }
-html[data-ui-theme="arcana"] .resumeband > .rings::before { content:''; position:absolute; width:460px; height:230px;
-  left:-230px; top:-200px; background:url('/web/arcana-sunburst.svg') center / contain no-repeat; opacity:.8; }
-html[data-ui-theme="arcana"] .resumeband .bandtitle { font-size:clamp(30px, 10vw, 56px); }
-html[data-ui-theme="arcana"] .resumeband .herorule { width:220px; height:17px;
-  background:url('/web/arcana-divider.svg') center / contain no-repeat; }
-html[data-ui-theme="arcana"] .resumeband > .glass { border-radius:var(--r); }
-/* No cover: the card's back. A gold watercolour bloom under a constellation, on the painted
-   canvas, in place of the gold gradient every other theme paints. */
-html[data-ui-theme="arcana"] .resumeband:not(.haspic) {
-  background:url('/web/arcana-stars.svg') 50% 16% / 88% auto no-repeat,
-    url('/web/arcana-wash.svg') 50% 30% / 125% auto no-repeat,
-    url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
+html:root .resumeband::before { inset:6px; border:1px solid var(--gold); }
+html:root .resumeband::after { inset:11px; border:1px solid var(--gold-dim); opacity:.55; }
+html:root .resumeband > .rings > i { display:none; }
+html:root .resumeband > .rings::before { content:''; position:absolute; width:460px; height:230px;
+  left:-230px; top:-200px; background:var(--gold); opacity:.8;
+  -webkit-mask:url('/web/arcana-sunburst.svg') center / contain no-repeat;
+  mask:url('/web/arcana-sunburst.svg') center / contain no-repeat; }
+html:root .resumeband .bandtitle { font-size:clamp(30px, 10vw, 56px); }
+html:root .resumeband .herorule { width:220px; height:17px;
+  background:var(--gold); -webkit-mask:url('/web/arcana-divider.svg') center / contain no-repeat;
+  mask:url('/web/arcana-divider.svg') center / contain no-repeat; }
+html:root .resumeband > .glass { border-radius:var(--r); }
+/* No cover: the card's back. A watercolour bloom in the accent under a constellation, on the painted
+   canvas, in place of a plain gradient: the bloom on the shade's ::before, the stars on its ::after
+   (which a cover's hero uses for the same stars, below). */
+html:root .resumeband:not(.haspic) { background:url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
+html:root .resumeband:not(.haspic) > .wash::before { content:''; position:absolute; inset:0; pointer-events:none;
+  background:var(--gold); opacity:.55; -webkit-mask:url('/web/arcana-wash.svg') 50% 30% / 125% auto no-repeat;
+  mask:url('/web/arcana-wash.svg') 50% 30% / 125% auto no-repeat; }
+html:root .resumeband:not(.haspic) > .wash::after { content:''; position:absolute; inset:0; pointer-events:none;
+  background:var(--gold); -webkit-mask:url('/web/arcana-stars.svg') 50% 16% / 88% auto no-repeat;
+  mask:url('/web/arcana-stars.svg') 50% 16% / 88% auto no-repeat; }
 
 /* A SHELF CARD WITH NO COVER gets the same back. `.bare` is written by the card's renderer when
    there is no cover: the art carries its cover or its gradient inline, so only a class can tell
    the two apart, and only the bare one is overridden. */
-html[data-ui-theme="arcana"] .storycard { border-color:var(--edge-lit); }
-html[data-ui-theme="arcana"] .storycard .art.bare {
+html:root .storycard { border-color:var(--edge-lit); }
+html:root .storycard .art.bare {
   background:url('/web/arcana-moon.svg') 50% 34% / 54px 54px no-repeat,
-    url('/web/arcana-sunburst.svg') 50% 26% / 120% auto no-repeat,
-    url('/web/arcana-wash.svg') 50% 34% / 120% auto no-repeat,
     url('/web/arcana-canvas.svg') center / cover, var(--sheet) !important; }
+/* Its bloom and sunburst in the accent, on the shade over it: the art's own ::after is its spine. */
+html:root .storycard .art.bare > .fade::before { content:''; position:absolute; inset:0; pointer-events:none;
+  background:var(--gold); opacity:.5; -webkit-mask:url('/web/arcana-wash.svg') 50% 34% / 120% auto no-repeat;
+  mask:url('/web/arcana-wash.svg') 50% 34% / 120% auto no-repeat; }
+html:root .storycard .art.bare > .fade::after { content:''; position:absolute; inset:0; pointer-events:none;
+  background:var(--gold); opacity:.7; -webkit-mask:url('/web/arcana-sunburst.svg') 50% 26% / 120% auto no-repeat;
+  mask:url('/web/arcana-sunburst.svg') 50% 26% / 120% auto no-repeat; }
 
 /* THE SCENE'S FIRST LETTER, illuminated: deco capital in a gilt box over a wash of gold. Still
    ::first-letter, for the reason above the rule it extends: the passage is contenteditable. */
-html[data-ui-theme="arcana"] #col .block.opening .narr::first-letter {
+html:root #col .block.opening .narr::first-letter {
   font-family:var(--arc-deco); color:var(--ink-bright); font-size:52px; line-height:1;
   padding:6px 10px 4px; margin:4px 12px 0 0; border:1px solid var(--gold);
-  background:url('/web/arcana-wash.svg') center / 170% 170% no-repeat; }
-@media (max-width:719px) { html[data-ui-theme="arcana"] #col .block.opening .narr::first-letter { font-size:40px; padding:5px 8px 3px; } }
+  background:radial-gradient(closest-side, color-mix(in srgb, var(--gold) 38%, transparent), transparent); }
+@media (max-width:719px) { html:root #col .block.opening .narr::first-letter { font-size:40px; padding:5px 8px 3px; } }
 
 /* THE PRESSES. The one gold button keeps its gold and gains a dry brush across it; the wide ones
    are cut to a deco point at each end. */
-html[data-ui-theme="arcana"] :is(.btn:not(.ghost), #nextrow .quillcell > button:not([aria-expanded="true"]), #send.stopping, .rerollbox .rwgo) {
+html:root :is(.btn:not(.ghost), #nextrow .quillcell > button:not([aria-expanded="true"]), #send.stopping, .rerollbox .rwgo) {
   background-image:url('/web/arcana-brush.svg'); background-size:100% 100%; background-repeat:no-repeat; }
-html[data-ui-theme="arcana"] .btn:not(.ghost) { border-radius:0;
+html:root .btn:not(.ghost) { border-radius:0;
   clip-path:polygon(12px 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 12px 100%, 0 50%); }
 
 /* THE MENUS. A gilt rule under the model, the tiles as small square cards, the page you are on in
    ink with an ink brush under it, every row's picture with a painted edge, and the rune wheel faint
    at the foot of the rail where the list runs out. */
-html[data-ui-theme="arcana"] .talemodel > button[data-modelmenu] { border-bottom-color:transparent; }
-html[data-ui-theme="arcana"] .talemodel::after { content:''; display:block; height:20px; margin:0 16px 4px;
-  background:url('/web/arcana-divider.svg') center / min(320px, 100%) 20px no-repeat; }
-html[data-ui-theme="arcana"] .talemodel > button[data-modelmenu] .txt > span:first-child {
+html:root .talemodel > button[data-modelmenu] { border-bottom-color:transparent; }
+html:root .talemodel::after { content:''; display:block; height:20px; margin:0 16px 4px;
+  background:var(--gold); -webkit-mask:url('/web/arcana-divider.svg') center / min(320px, 100%) 20px no-repeat;
+  mask:url('/web/arcana-divider.svg') center / min(320px, 100%) 20px no-repeat; }
+html:root .talemodel > button[data-modelmenu] .txt > span:first-child {
   font-family:var(--arc-deco); font-size:17px !important; letter-spacing:.1em; }
-html[data-ui-theme="arcana"] #rail .taletiles > .railtile:not([aria-pressed="true"]) {
+html:root #rail .taletiles > .railtile:not([aria-pressed="true"]) {
   border:1px solid var(--edge) !important; background-color:rgba(11,11,12,.4) !important; }
-html[data-ui-theme="arcana"] #rail .taletiles > .railtile[aria-current] {
+html:root #rail .taletiles > .railtile[aria-current] {
   border-color:var(--edge-lit) !important;
   background:url('/web/arcana-stroke.svg') center bottom 6px / 58% 6px no-repeat, var(--chip) !important; }
-html[data-ui-theme="arcana"] .railtile > .txt { font-family:var(--arc-small); letter-spacing:.04em; }
-html[data-ui-theme="arcana"] .arted > .rowart {
+html:root .railtile > .txt { font-family:var(--arc-small); letter-spacing:.04em; }
+html:root .arted > .rowart {
   -webkit-mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat;
   mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; }
-html[data-ui-theme="arcana"] #rail::after { content:''; position:absolute; left:50%; bottom:24px; z-index:-1;
+html:root #rail::after { content:''; position:absolute; left:50%; bottom:24px; z-index:-1;
   width:240px; height:240px; margin-left:-120px; pointer-events:none; opacity:.14;
-  background:url('/web/arcana-runes.svg') center / contain no-repeat; }
-html[data-ui-theme="arcana"][data-ui-rail="closed"] #rail::after,
-html[data-ui-theme="arcana"][data-ui-rail="closed"] .talemodel::after { display:none; }
+  background:var(--gold); -webkit-mask:url('/web/arcana-runes.svg') center / contain no-repeat;
+  mask:url('/web/arcana-runes.svg') center / contain no-repeat; }
+html:root[data-ui-rail="closed"] #rail::after,
+html:root[data-ui-rail="closed"] .talemodel::after { display:none; }
 
 /* NO GLOW ALONG THE TOP (Seth, 2026-11-03: "that top glow can go away"). It is the waiting notice
-   (#owed, above); under Arcana what is waiting is said by the Workbench count in the tale's menu,
-   which is already there in every theme. */
-html[data-ui-theme="arcana"] #owed { display:none; }
+   (#owed, above); what is waiting is said by the Workbench count in the tale's menu instead. Under
+   every theme since Arcana's styling became the app's (2026-11-03). */
+html:root #owed { display:none; }
 
 /* A TALE'S BANNER over its threads: a gilt frame inside its edge and stepped corners, the tale's
    name in the deco capitals. With no cover it is a card back like the shelf's: a bloom of gold
    under a constellation and a sunburst. `:has(.art)` is the cover; the banner has no class for it. */
-html[data-ui-theme="arcana"] .lbanner { border-color:var(--gold-dim); min-height:120px; }
-html[data-ui-theme="arcana"] .lbanner::before { content:''; position:absolute; inset:5px; z-index:1;
-  border:1px solid var(--gold); opacity:.6; pointer-events:none; border-radius:var(--r); }
-html[data-ui-theme="arcana"] .lbanner::after { content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
-  background:url('/web/arcana-corner-tl.svg') top left / 22px no-repeat, url('/web/arcana-corner-tr.svg') top right / 22px no-repeat,
+html:root .lbanner { border-color:var(--gold-dim); min-height:120px; }
+/* The inner frame is an outline, which leaves ::before free for the card back's sky. */
+html:root .lbanner { outline:1px solid color-mix(in srgb, var(--gold) 60%, transparent); outline-offset:-6px; }
+html:root .lbanner::after { content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
+  background:var(--gold); -webkit-mask:url('/web/arcana-corner-tl.svg') top left / 22px no-repeat, url('/web/arcana-corner-tr.svg') top right / 22px no-repeat,
+    url('/web/arcana-corner-bl.svg') bottom left / 22px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 22px no-repeat;
+  mask:url('/web/arcana-corner-tl.svg') top left / 22px no-repeat, url('/web/arcana-corner-tr.svg') top right / 22px no-repeat,
     url('/web/arcana-corner-bl.svg') bottom left / 22px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 22px no-repeat; }
-html[data-ui-theme="arcana"] .lbanner > .txt { z-index:2; }
-html[data-ui-theme="arcana"] .lbanner .serif { font-family:var(--arc-deco); text-transform:uppercase; letter-spacing:.16em; }
-html[data-ui-theme="arcana"] .lbanner:not(:has(.art)) {
-  background:url('/web/arcana-sunburst.svg') 82% 120% / 300px auto no-repeat,
-    url('/web/arcana-stars.svg') 86% 30% / 260px auto no-repeat,
-    url('/web/arcana-wash.svg') 88% 50% / 340px auto no-repeat,
-    url('/web/arcana-canvas.svg') center / cover, var(--sheet) !important; }
+html:root .lbanner > .txt { z-index:2; }
+html:root .lbanner .serif { font-family:var(--arc-deco); text-transform:uppercase; letter-spacing:.16em; }
+html:root .lbanner:not(:has(.art)) { background:url('/web/arcana-canvas.svg') center / cover, var(--sheet) !important; }
+html:root .lbanner:not(:has(.art))::before { content:''; position:absolute; inset:0; z-index:0; pointer-events:none;
+  background:var(--gold); opacity:.6;
+  -webkit-mask:url('/web/arcana-sunburst.svg') 82% 120% / 300px auto no-repeat, url('/web/arcana-stars.svg') 86% 30% / 260px auto no-repeat, url('/web/arcana-wash.svg') 88% 50% / 340px auto no-repeat;
+  mask:url('/web/arcana-sunburst.svg') 82% 120% / 300px auto no-repeat, url('/web/arcana-stars.svg') 86% 30% / 260px auto no-repeat, url('/web/arcana-wash.svg') 88% 50% / 340px auto no-repeat; }
 
 /* THE PICTURE AT THE HEAD OF A SCENE, framed the same way. */
-html[data-ui-theme="arcana"] #col .plate { border:1px solid var(--gold-dim); }
-html[data-ui-theme="arcana"] #col .plate::before { content:''; position:absolute; inset:5px; z-index:1;
+html:root #col .plate { border:1px solid var(--gold-dim); }
+html:root #col .plate::before { content:''; position:absolute; inset:5px; z-index:1;
   border:1px solid var(--gold); opacity:.6; pointer-events:none; border-radius:var(--r); }
-html[data-ui-theme="arcana"] #col .plate-title { font-family:var(--arc-deco); text-transform:uppercase; letter-spacing:.12em; }
+html:root #col .plate-title { font-family:var(--arc-deco); text-transform:uppercase; letter-spacing:.12em; }
 
-/* THREAD CARDS. The gold bar down the left is a state colour in every other theme; here the card
+/* THREAD CARDS. The gold bar down the left (`.card.plate`, above) read as a state colour; the card
    is framed in gilt corners instead, and its name is in the deco capitals. */
-html[data-ui-theme="arcana"] .card.plate { border-left:1px solid var(--edge); }
-html[data-ui-theme="arcana"] .card.plate .platename { font-family:var(--arc-deco); text-transform:uppercase;
+html:root .card.plate { border-left:1px solid var(--edge); }
+html:root .card.plate .platename { font-family:var(--arc-deco); text-transform:uppercase;
   letter-spacing:.12em; font-size:20px; }
-html[data-ui-theme="arcana"] #page .card.plate {
-  background-image:url('/web/arcana-corner-tl.svg'), url('/web/arcana-corner-tr.svg'),
-    url('/web/arcana-corner-bl.svg'), url('/web/arcana-corner-br.svg');
-  background-position:top left, top right, bottom left, bottom right; background-size:18px 18px; background-repeat:no-repeat; }
+/* Its corners are the shared card corners (THE RULES AND CORNERS, above). */
 /* Its picture, the band across the top of a card on the cross-tale Threads page, with a painted
    edge; and the same band painted as a card back when there is no picture, so a card with a face
    and a card without one stand the same height in the grid. */
-html[data-ui-theme="arcana"] #page .card.plate > img {
+html:root #page .card.plate > img {
   -webkit-mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; }
-html[data-ui-theme="arcana"] #page .card.plate:not(:has(> img))::before { content:''; display:block; height:104px;
+html:root #page .card.plate:not(:has(> img))::before { content:''; display:block; height:104px;
   margin:0 0 8px; border:1px solid var(--edge); border-radius:var(--r);
-  background:url('/web/arcana-moon.svg') 50% 46% / 34px no-repeat, url('/web/arcana-sunburst.svg') 50% 70% / 92% auto no-repeat,
-    url('/web/arcana-wash.svg') 50% 50% / 110% auto no-repeat, url('/web/arcana-canvas.svg') center / cover, var(--rail); }
+  background:url('/web/arcana-moon.svg') 50% 46% / 34px no-repeat,
+    radial-gradient(closest-side, color-mix(in srgb, var(--gold) 34%, transparent), transparent) 50% 50% / 70% 120% no-repeat,
+    url('/web/arcana-canvas.svg') center / cover, var(--rail); }
 /* ONE NUMERAL PER KIND, LIKE TAROT (Seth, 2026-11-03: "the numeral says what the thread or pocket
    IS"). Every Character wears the same card, every outfit the same; the place in a list says nothing.
    This is the one table. `data-arcana` is the kind on a thread card and on a pocket kind's heading
@@ -2949,20 +2978,20 @@ html[data-ui-theme="arcana"] #page .card.plate:not(:has(> img))::before { conten
    looks, a coat for what it wears, the pentacle's star for what it can do, the Star on its staff for
    a promise, a moon over mist for the air of a place, a crowd under a call for who is here. A cover
    or a card with no kind keeps web/arcana-stars.svg. */
-html[data-ui-theme="arcana"] [data-arcana="character"]     { --arcana:"I"; --sky:url('/web/arcana-sky-character.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="lore"]          { --arcana:"II"; --sky:url('/web/arcana-sky-lore.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="item"]          { --arcana:"X"; --sky:url('/web/arcana-sky-item.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="place"]         { --arcana:"XXI"; --sky:url('/web/arcana-sky-place.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="voice"]         { --suit:url('/web/arcana-suit-swords.svg'); --suit-name:"Swords"; --sky:url('/web/arcana-sky-voice.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="relationships"] { --suit:url('/web/arcana-suit-cups.svg'); --suit-name:"Cups"; --sky:url('/web/arcana-sky-relationships.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="outfit"]        { --suit:url('/web/arcana-suit-pentacles.svg'); --suit-name:"Pentacles"; --sky:url('/web/arcana-sky-outfit.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="what_it_does"]  { --suit:url('/web/arcana-suit-pentacles.svg'); --suit-name:"Pentacles"; --sky:url('/web/arcana-sky-what_it_does.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="interiority"]   { --suit:url('/web/arcana-suit-cups.svg'); --suit-name:"Cups"; --sky:url('/web/arcana-sky-interiority.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="question"]      { --suit:url('/web/arcana-suit-swords.svg'); --suit-name:"Swords"; --sky:url('/web/arcana-sky-question.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="promise"]       { --suit:url('/web/arcana-suit-wands.svg'); --suit-name:"Wands"; --sky:url('/web/arcana-sky-promise.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="atmosphere"]    { --suit:url('/web/arcana-suit-wands.svg'); --suit-name:"Wands"; --sky:url('/web/arcana-sky-atmosphere.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="appearance"]    { --suit:url('/web/arcana-suit-pentacles.svg'); --suit-name:"Pentacles"; --sky:url('/web/arcana-sky-appearance.svg'); }
-html[data-ui-theme="arcana"] [data-arcana="who_is_here"]   { --suit:url('/web/arcana-suit-wands.svg'); --suit-name:"Wands"; --sky:url('/web/arcana-sky-who_is_here.svg'); }
+html:root [data-arcana="character"]     { --arcana:"I"; --sky:url('/web/arcana-sky-character.svg'); }
+html:root [data-arcana="lore"]          { --arcana:"II"; --sky:url('/web/arcana-sky-lore.svg'); }
+html:root [data-arcana="item"]          { --arcana:"X"; --sky:url('/web/arcana-sky-item.svg'); }
+html:root [data-arcana="place"]         { --arcana:"XXI"; --sky:url('/web/arcana-sky-place.svg'); }
+html:root [data-arcana="voice"]         { --suit:url('/web/arcana-suit-swords.svg'); --suit-name:"Swords"; --sky:url('/web/arcana-sky-voice.svg'); }
+html:root [data-arcana="relationships"] { --suit:url('/web/arcana-suit-cups.svg'); --suit-name:"Cups"; --sky:url('/web/arcana-sky-relationships.svg'); }
+html:root [data-arcana="outfit"]        { --suit:url('/web/arcana-suit-pentacles.svg'); --suit-name:"Pentacles"; --sky:url('/web/arcana-sky-outfit.svg'); }
+html:root [data-arcana="what_it_does"]  { --suit:url('/web/arcana-suit-pentacles.svg'); --suit-name:"Pentacles"; --sky:url('/web/arcana-sky-what_it_does.svg'); }
+html:root [data-arcana="interiority"]   { --suit:url('/web/arcana-suit-cups.svg'); --suit-name:"Cups"; --sky:url('/web/arcana-sky-interiority.svg'); }
+html:root [data-arcana="question"]      { --suit:url('/web/arcana-suit-swords.svg'); --suit-name:"Swords"; --sky:url('/web/arcana-sky-question.svg'); }
+html:root [data-arcana="promise"]       { --suit:url('/web/arcana-suit-wands.svg'); --suit-name:"Wands"; --sky:url('/web/arcana-sky-promise.svg'); }
+html:root [data-arcana="atmosphere"]    { --suit:url('/web/arcana-suit-wands.svg'); --suit-name:"Wands"; --sky:url('/web/arcana-sky-atmosphere.svg'); }
+html:root [data-arcana="appearance"]    { --suit:url('/web/arcana-suit-pentacles.svg'); --suit-name:"Pentacles"; --sky:url('/web/arcana-sky-appearance.svg'); }
+html:root [data-arcana="who_is_here"]   { --suit:url('/web/arcana-suit-wands.svg'); --suit-name:"Wands"; --sky:url('/web/arcana-sky-who_is_here.svg'); }
 
 /* THE TALE'S THREADS ARE THE MAJOR ARCANA. Every tall card has a face: its kind's numeral in a gilt
    diamond, with the sunburst and the constellation behind it. A card with no picture has them over
@@ -2972,41 +3001,46 @@ html[data-ui-theme="arcana"] [data-arcana="who_is_here"]   { --suit:url('/web/ar
    the card's own fade (`::after`, also -1), which is clear at the top where they sit. The diamond
    is on the name's `::before` so the card's two are free for that; the name is not positioned, so
    the diamond is placed against the card. */
-html[data-ui-theme="arcana"] #thlist .thplate.thtall:not(.thart) {
-  background:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat,
-    url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat,
-    linear-gradient(to top, var(--sheet) 0%, var(--sheet) 34%, transparent 60%),
-    var(--sky, url('/web/arcana-stars.svg')) 50% 6% / 80% auto no-repeat,
-    url('/web/arcana-sunburst.svg') 50% 22% / 92% auto no-repeat,
-    url('/web/arcana-wash.svg') 50% 4% / 74% auto no-repeat,
-    url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
-html[data-ui-theme="arcana"] #thlist .thplate.thart::before { content:''; position:absolute; inset:0; z-index:-1;
-  pointer-events:none; opacity:.55;
-  background:var(--sky, url('/web/arcana-stars.svg')) 50% 6% / 80% auto no-repeat,
-    url('/web/arcana-sunburst.svg') 50% 22% / 92% auto no-repeat; }
-html[data-ui-theme="arcana"] #thlist .thplate.thtall .platename::before { content:var(--arcana, "");
+html:root #thlist .thplate.thtall:not(.thart) { background:url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
+/* The bloom on ::before, then the corners, the kind's sky and the sunburst on ::after, both under the
+   words (z -1 in the card's own stacking), all in the accent. */
+html:root #thlist .thplate.thtall:not(.thart)::before { content:''; position:absolute; inset:0; z-index:-1;
+  pointer-events:none; background:var(--gold); opacity:.5;
+  -webkit-mask:url('/web/arcana-wash.svg') 50% 4% / 74% auto no-repeat;
+  mask:url('/web/arcana-wash.svg') 50% 4% / 74% auto no-repeat; }
+html:root #thlist .thplate.thtall:not(.thart)::after { content:''; position:absolute; inset:0; z-index:-1;
+  pointer-events:none; background:var(--gold);
+  -webkit-mask:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat,
+    url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat, var(--sky, url('/web/arcana-stars.svg')) 50% 6% / 80% auto no-repeat, url('/web/arcana-sunburst.svg') 50% 22% / 92% auto no-repeat;
+  mask:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat,
+    url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat, var(--sky, url('/web/arcana-stars.svg')) 50% 6% / 80% auto no-repeat, url('/web/arcana-sunburst.svg') 50% 22% / 92% auto no-repeat; }
+html:root #thlist .thplate.thart::before { content:''; position:absolute; inset:0; z-index:-1;
+  pointer-events:none; opacity:.6; background:var(--gold);
+  -webkit-mask:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat, url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat, var(--sky, url('/web/arcana-stars.svg')) 50% 6% / 80% auto no-repeat, url('/web/arcana-sunburst.svg') 50% 22% / 92% auto no-repeat;
+  mask:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat, url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat, var(--sky, url('/web/arcana-stars.svg')) 50% 6% / 80% auto no-repeat, url('/web/arcana-sunburst.svg') 50% 22% / 92% auto no-repeat; }
+html:root #thlist .thplate.thtall .platename::before { content:var(--arcana, "");
   position:absolute; left:50%; top:58px; width:84px; height:84px; margin-left:-42px;
   display:flex; align-items:center; justify-content:center; pointer-events:none;
   font-family:var(--arc-deco); font-size:24px; letter-spacing:.02em; color:var(--ink-bright);
   background:color-mix(in srgb, var(--doc-bg) 85%, transparent); clip-path:polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
 /* The diamond's gilt is a mask filled with the accent, laid over the dark the numeral sits on: the
    file is line only, so it takes the theme's colour. */
-html[data-ui-theme="arcana"] #thlist .thplate.thtall .platename::after { content:'';
+html:root #thlist .thplate.thtall .platename::after { content:'';
   position:absolute; left:50%; top:58px; width:84px; height:84px; margin-left:-42px; pointer-events:none;
   background:var(--gold); -webkit-mask:url('/web/arcana-diamond.svg') center / contain no-repeat;
   mask:url('/web/arcana-diamond.svg') center / contain no-repeat; }
 /* Over a picture the diamond is smaller and higher, at the head of the card where a tarot card has
    its number, and less than solid: centred where the bare card has it, it sat on every face. */
-html[data-ui-theme="arcana"] #thlist .thplate.thart .platename::before { top:14px; width:60px; height:60px;
+html:root #thlist .thplate.thart .platename::before { top:14px; width:60px; height:60px;
   margin-left:-30px; font-size:17px; background:color-mix(in srgb, var(--doc-bg) 70%, transparent); }
-html[data-ui-theme="arcana"] #thlist .thplate.thart .platename::after { top:14px; width:60px; height:60px;
+html:root #thlist .thplate.thart .platename::after { top:14px; width:60px; height:60px;
   margin-left:-30px; opacity:.85; }
 
 /* A POCKET KIND'S SUIT, beside its heading in a thread's Pockets list (and the tale's Promises and
    Open questions): the suit's mark in a small gilt diamond at the right of the heading's rule. Two
    mask layers in one, the diamond and the mark, filled with the accent. */
-html[data-ui-theme="arcana"] :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana] { display:flex; align-items:center; gap:10px; }
-html[data-ui-theme="arcana"] :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana]::after { content:'';
+html:root :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana] { display:flex; align-items:center; gap:10px; }
+html:root :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana]::after { content:'';
   margin-left:auto; flex:0 0 auto; width:22px; height:22px; background:var(--gold);
   -webkit-mask:var(--suit) center / 11px 11px no-repeat, url('/web/arcana-diamond.svg') center / contain no-repeat;
   mask:var(--suit) center / 11px 11px no-repeat, url('/web/arcana-diamond.svg') center / contain no-repeat; }
@@ -3017,59 +3051,61 @@ html[data-ui-theme="arcana"] :is(.pocketlist .pkgroup, .lbl.sect)[data-arcana]::
    its rank and suit over its name ("Ace of Cups", "Knight of Swords"), the name in the deco face. The
    eye stays the control on the right. The gilt is masks filled with the accent: the corners on the
    card's ::after, the sky on its ::before, the diamond and the mark on the suit's two. */
-html[data-ui-theme="arcana"] .pocketlist .pocketrow { position:relative; isolation:isolate; gap:12px;
+html:root .pocketlist .pocketrow { position:relative; isolation:isolate; gap:12px;
   margin:8px 0 0; padding:12px 6px 12px 12px; border:1px solid var(--edge); border-radius:var(--r);
   background:url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
-html[data-ui-theme="arcana"] .pocketlist .pocketrow.lit { border-color:var(--gold-dim); }
-html[data-ui-theme="arcana"] .pocketlist .pocketrow::before { content:''; position:absolute; inset:0; z-index:-1;
+html:root .pocketlist .pocketrow.lit { border-color:var(--gold-dim); }
+html:root .pocketlist .pocketrow::before { content:''; position:absolute; inset:0; z-index:-1;
   pointer-events:none; opacity:.3; background:var(--gold);
   -webkit-mask:var(--sky) right -24px center / auto 150% no-repeat; mask:var(--sky) right -24px center / auto 150% no-repeat; }
-html[data-ui-theme="arcana"] .pocketlist .pocketrow::after { content:''; position:absolute; inset:2px; pointer-events:none;
+html:root .pocketlist .pocketrow::after { content:''; position:absolute; inset:2px; pointer-events:none;
   background:var(--gold); opacity:.8;
   -webkit-mask:url('/web/arcana-corner-tl.svg') top left / 14px no-repeat, url('/web/arcana-corner-tr.svg') top right / 14px no-repeat,
     url('/web/arcana-corner-bl.svg') bottom left / 14px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 14px no-repeat;
   mask:url('/web/arcana-corner-tl.svg') top left / 14px no-repeat, url('/web/arcana-corner-tr.svg') top right / 14px no-repeat,
     url('/web/arcana-corner-bl.svg') bottom left / 14px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 14px no-repeat; }
 .pksuit, .pkrank { display:none; }
-html[data-ui-theme="arcana"] .pocketlist .pksuit { display:block; position:relative; flex:0 0 auto; width:38px; height:38px; }
-html[data-ui-theme="arcana"] .pocketlist .pksuit::before { content:''; position:absolute; inset:0;
+html:root .pocketlist .pksuit { display:block; position:relative; flex:0 0 auto; width:38px; height:38px; }
+html:root .pocketlist .pksuit::before { content:''; position:absolute; inset:0;
   background:color-mix(in srgb, var(--doc-bg) 85%, transparent); clip-path:polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
-html[data-ui-theme="arcana"] .pocketlist .pksuit::after { content:''; position:absolute; inset:0; background:var(--gold);
+html:root .pocketlist .pksuit::after { content:''; position:absolute; inset:0; background:var(--gold);
   -webkit-mask:var(--suit) center / 17px 17px no-repeat, url('/web/arcana-diamond.svg') center / contain no-repeat;
   mask:var(--suit) center / 17px 17px no-repeat, url('/web/arcana-diamond.svg') center / contain no-repeat; }
-html[data-ui-theme="arcana"] .pocketlist .pkrank { display:block; font-family:var(--arc-small); font-size:11px;
+html:root .pocketlist .pkrank { display:block; font-family:var(--arc-small); font-size:11px;
   letter-spacing:.18em; text-transform:uppercase; color:var(--dim); }
-html[data-ui-theme="arcana"] .pocketlist .pkrank::after { content:" of " var(--suit-name, ""); }
-html[data-ui-theme="arcana"] .pocketlist .pkrank { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+html:root .pocketlist .pkrank::after { content:" of " var(--suit-name, ""); }
+html:root .pocketlist .pkrank { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 /* An outfit's switch is words, not the eye: kept short so the card's name still has the room. */
-html[data-ui-theme="arcana"] .pocketlist .pocketsw { letter-spacing:.06em; padding:6px 8px; white-space:normal; max-width:96px;
+html:root .pocketlist .pocketsw { letter-spacing:.06em; padding:6px 8px; white-space:normal; max-width:96px;
   text-align:center; line-height:1.3; }
-html[data-ui-theme="arcana"] .pocketlist .pkname { font-family:var(--arc-deco); text-transform:uppercase;
+html:root .pocketlist .pkname { font-family:var(--arc-deco); text-transform:uppercase;
   letter-spacing:.1em; font-size:15px; }
 /* The kind's heading over its cards needs no rule of its own: the cards are framed. */
-html[data-ui-theme="arcana"] .pocketlist .pkgroup { border-bottom:0; padding-bottom:0; margin-top:24px; }
+html:root .pocketlist .pkgroup { border-bottom:0; padding-bottom:0; margin-top:24px; }
 
 /* A COVER WITH A PICTURE keeps the card's sky (Seth, 2026-11-03): the sunburst and the constellation
    laid faint over the Library's hero, a shelf card and a tale's banner, as the bare ones have them
    over the bloom. On the shade each already lays over its picture, so the words stay readable. */
-html[data-ui-theme="arcana"] .resumeband.haspic > .wash::after,
-html[data-ui-theme="arcana"] .storycard .art:not(.bare) > .fade::after,
-html[data-ui-theme="arcana"] .lbanner > .fade::after { content:''; position:absolute; inset:0; pointer-events:none; opacity:.5; }
+html:root .resumeband.haspic > .wash::after,
+html:root .storycard .art:not(.bare) > .fade::after,
+html:root .lbanner > .fade::after { content:''; position:absolute; inset:0; pointer-events:none; opacity:.5;
+  background:var(--gold); }
 /* The hero's sunburst is already there, behind the title (`.rings::before`, above), but under the
    picture's shade it all but vanished; over a picture it is lifted above the shade, faint, with the
    words above it. The constellation is added, sized like the bare hero's. */
-html[data-ui-theme="arcana"] .resumeband.haspic > .rings { z-index:1; opacity:.75; }
-html[data-ui-theme="arcana"] .resumeband.haspic > :is(.herobody, .glass) { z-index:2; }
-html[data-ui-theme="arcana"] .resumeband.haspic > .wash::after { opacity:.75;
-  background:url('/web/arcana-stars.svg') 50% 18% / min(88%, 560px) auto no-repeat; }
-html[data-ui-theme="arcana"] .storycard .art:not(.bare) > .fade::after {
-  background:url('/web/arcana-stars.svg') 50% 12% / 90% auto no-repeat,
-    url('/web/arcana-sunburst.svg') 50% 26% / 120% auto no-repeat; }
-html[data-ui-theme="arcana"] .lbanner > .fade::after {
-  background:url('/web/arcana-sunburst.svg') 82% 120% / 300px auto no-repeat,
-    url('/web/arcana-stars.svg') 86% 30% / 260px auto no-repeat; }
-html[data-ui-theme="arcana"] #thlist .thplate.thart { border-color:var(--gold-dim); }
-html[data-ui-theme="arcana"] #thlist .thplate.thart > .thpic {
+html:root .resumeband.haspic > .rings { z-index:1; opacity:.75; }
+html:root .resumeband.haspic > :is(.herobody, .glass) { z-index:2; }
+html:root .resumeband.haspic > .wash::after { opacity:.75;
+  -webkit-mask:url('/web/arcana-stars.svg') 50% 18% / min(88%, 560px) auto no-repeat;
+  mask:url('/web/arcana-stars.svg') 50% 18% / min(88%, 560px) auto no-repeat; }
+html:root .storycard .art:not(.bare) > .fade::after {
+  -webkit-mask:url('/web/arcana-stars.svg') 50% 12% / 90% auto no-repeat, url('/web/arcana-sunburst.svg') 50% 26% / 120% auto no-repeat;
+  mask:url('/web/arcana-stars.svg') 50% 12% / 90% auto no-repeat, url('/web/arcana-sunburst.svg') 50% 26% / 120% auto no-repeat; }
+html:root .lbanner > .fade::after {
+  -webkit-mask:url('/web/arcana-sunburst.svg') 82% 120% / 300px auto no-repeat, url('/web/arcana-stars.svg') 86% 30% / 260px auto no-repeat;
+  mask:url('/web/arcana-sunburst.svg') 82% 120% / 300px auto no-repeat, url('/web/arcana-stars.svg') 86% 30% / 260px auto no-repeat; }
+html:root #thlist .thplate.thart { border-color:var(--gold-dim); }
+html:root #thlist .thplate.thart > .thpic {
   -webkit-mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; mask:url('/web/arcana-ragged.svg') center / 100% 100% no-repeat; }
 </style>
 </head>

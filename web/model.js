@@ -842,17 +842,22 @@ export const THEMES = {
                accent: '#D98AA0', warn: '#C4667C', good: '#8FB89C', speak: 'rgba(217,138,160,.4)',
                wash: 'radial-gradient(60% 45% at 28% 0%, rgba(190,110,140,.22), transparent 70%), linear-gradient(180deg,#1D1420,#100B10 55%)' },
   /* ARCANA (Seth, 2026-11-03): "black grey and gold ... the gold and filigree ... the texture of
-   * things ... tarot, arcane", painted like a watercolour brush, with art deco in the ornament.
-   * Its colours are a row like every other; its wash is the painted canvas, `web/arcana-canvas.svg`,
-   * over the paper. What is not a colour — the filigree, the textures, the type — keys on
-   * data-ui-theme="arcana" in app.html. `faces` is the one thing a row has not had before: the two
-   * display faces the theme sets its titles and labels in, fetched only while it is the look
-   * (`loadFaces` in web/app.js). The prose keeps whatever font the writer chose. */
+   * things ... tarot, arcane", painted like a watercolour brush, with art deco in the ornament. The
+   * shipped theme. Since the same day its frames, ornament and faces are the app's under every theme
+   * (app.html, the ARCANA block), so this row, like every other, is colours only. */
   arcana:    { label: 'Arcana',    dark: 1, swatch: '#0B0B0C', ink: '#E6E2DA', paper: '#0B0B0C', rail: '#0C0C0E', sheet: '#111113',
                accent: '#C8A252', warn: '#C8705A', good: '#8FAE9A', speak: 'rgba(196,192,184,.34)',
-               wash: "url('/web/arcana-canvas.svg') center / cover no-repeat, linear-gradient(180deg,#0E0E10,#08080A 60%)",
-               faces: 'Poiret+One&family=Josefin+Sans:wght@400;600' },
+               wash: 'linear-gradient(180deg,#0E0E10,#08080A 60%)' },
 };
+
+/** THE APP'S DISPLAY FACES: thin deco capitals for titles, a geometric sans for labels (Arcana, Seth,
+ *  2026-11-03). Every theme's, since the ornament is every theme's; fetched once by `loadFaces`. The
+ *  prose keeps whatever font the writer chose. */
+export const FACES = 'Poiret+One&family=Josefin+Sans:wght@400;600';
+
+/** THE PAPER'S GRAIN, the painted canvas laid over every theme's own page wash: neutral light and
+ *  shade, no colour of its own, so it is the same paper under any colour set. */
+const GRAIN = "url('/web/arcana-canvas.svg') center / cover no-repeat";
 
 /** A POCKET'S RANK IN ITS SUIT (Seth, 2026-11-03: "pockets are the Minor Arcana"). The nth pocket of
  *  one kind on a thread, counted as a suit is: Ace, II to X, then Page, Knight, Queen and King for 11
@@ -865,9 +870,10 @@ export const minorRank = (n) => (n === 1 ? 'Ace' : n >= 11 && n <= 14 ? ['Page',
 
 /** THEMES THAT LEFT THE LIST, and the one each look now reads as (2026-11-02: Obsidian, Parchment,
  *  Cyberpunk, Fantasy and Novelist removed at Seth's word). A look saved on a device, a tale or a
- *  writer's default still names the old key; any key not in THEMES reads as Ink. */
+ *  writer's default still names the old key; any key not in THEMES reads as Arcana, the shipped one
+ *  (2026-11-03; it was Ink). */
 const THEME_WAS = { cyberpunk: 'scifi' };
-export const themeNow = (key) => (THEMES[key] ? key : THEME_WAS[key] ?? 'ink');
+export const themeNow = (key) => (THEMES[key] ? key : THEME_WAS[key] ?? 'arcana');
 
 /** Blend two hex colours. The design's own mix(), unchanged. */
 const mix = (hex, over, a) => {
@@ -971,7 +977,7 @@ export function themeVars(key) {
   const woven = apart([opaque(S.speak), opaque(S.good), mix(S.accent, away, .22), opaque(S.warn),
     mix(S.ink, away, S.dark ? .42 : .28), mix(S.good, toward, .12), mix(S.accent, S.ink, .15)], S.paper, S.dark);
   return {
-    '--doc-bg': S.paper, '--doc-wash': S.wash, '--rail': S.rail, '--sheet': S.sheet,
+    '--doc-bg': S.paper, '--doc-wash': `${GRAIN}, ${S.wash}`, '--rail': S.rail, '--sheet': S.sheet,
     '--body': S.ink, '--ink': S.ink,
     '--ink-bright': mix(S.ink, toward, .35),
     '--narr': mix(S.ink, away, .16),
