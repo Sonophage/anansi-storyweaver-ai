@@ -8124,8 +8124,11 @@ function inventTray(kind, label, placeholder, value = '', named = '') {
 /*  A MINOR ARCANA CARD (Seth, 2026-11-03: "pockets are the Minor Arcana"). The row names its kind
  *  (`data-arcana`, for its suit in the one table in app.html) and its rank in that kind on the thread
  *  (`minorRank`); the stylesheet draws the suit's mark in a gilt diamond and "Ace of Cups" over the name. */
-const pocketRow = (a, sw, at = '', rank = '') => `<div class="pocketrow${a.active ? ' lit' : ''}" data-arcana="${esc(a.slot)}" data-rank="${esc(rank)}"${at}>
-    <span class="pksuit" aria-hidden="true"></span>
+/*  ITS HEAD IS THE THREAD'S PICTURE (Seth, 2026-11-03: "pocket cards fade from the banner to dark"):
+ *  `pic` is the thread's own (`threadPic`), drawn at the card's head and fading to its dark paper at
+ *  the foot, as the thread's card and its open picture fade; with none the card is as it was. */
+const pocketRow = (a, sw, at = '', rank = '', pic = '') => `<div class="pocketrow${a.active ? ' lit' : ''}${pic ? ' pkart' : ''}" data-arcana="${esc(a.slot)}" data-rank="${esc(rank)}"${at}>
+    ${pic ? `<img class="pkpic" src="${pic}" alt="" loading="lazy">` : ''}<span class="pksuit" aria-hidden="true"></span>
     <button class="pocketopen" data-editroom="${esc(a.id)}" aria-label="Open ${esc(a.name)}">
       ${rank ? `<span class="pkrank">${esc(rank)}</span>` : ''}<span class="pkname">${esc(a.name)}</span>
       ${/* No kind on the row: the kind's heading is over it (pocketList). */ ''}
@@ -8144,9 +8147,9 @@ const pocketList = (e, rows) => {
   const seen = new Set();
   // ITS RANK IS ITS PLACE AMONG ITS KIND on the thread, in the order `rows` arrives, counted before the
   // list is split into on and off, so turning a pocket off does not deal it a new card.
-  const rank = new Map(), count = {};
+  const rank = new Map(), count = {}, pic = threadPic(e);
   for (const a of rows) rank.set(a, minorRank(count[a.slot] = (count[a.slot] ?? 0) + 1));
-  const row = (a) => { const at = seen.has(a.slot) ? '' : ` data-slotat="${esc(a.slot)}"`; seen.add(a.slot); return pocketRow(a, pocketSwitch(e, a), at, rank.get(a)); };
+  const row = (a) => { const at = seen.has(a.slot) ? '' : ` data-slotat="${esc(a.slot)}"`; seen.add(a.slot); return pocketRow(a, pocketSwitch(e, a), at, rank.get(a), pic); };
   const byKind = (list) => [...new Set(list.map((a) => a.slot))].map((slot) =>
     `<div data-arcana="${esc(slot)}" class="lbl pkgroup">${esc(pocketTitle(slot))}</div>${list.filter((a) => a.slot === slot).map(row).join('')}`).join('');
   const on = byKind(rows.filter((a) => a.active)), off = byKind(rows.filter((a) => !a.active));

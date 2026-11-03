@@ -168,8 +168,9 @@ for will and motion (a promise, the air of a place, who is here). A pocket shows
 small gilt diamond and its rank among the pockets of its kind on that thread, over its name: Ace of
 Cups, II of Cups, up to X, then Page, Knight, Queen and King. Its rank stays when you turn it off.
 Each pocket is framed like a card, with its kind's own stars faint behind its eye, and the eye is
-still what turns it on and off. A kind's heading, and the tale's Promises and Open questions, show
-their suit's mark.
+still what turns it on and off. On a thread with a picture, each pocket card carries that picture
+at its head, fading to the dark of the card toward its foot, as the thread's own card does. A kind's
+heading, and the tale's Promises and Open questions, show their suit's mark.
 ### No glow along the top
 The glow across the top of the screen is gone. What is waiting is still counted on the Workbench in
 the tale's menu.

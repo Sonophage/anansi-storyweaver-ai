@@ -3096,6 +3096,17 @@ html:root .pocketlist .pocketsw { letter-spacing:.06em; padding:6px 8px; white-s
   text-align:center; line-height:1.3; }
 html:root .pocketlist .pkname { font-family:var(--arc-deco); text-transform:uppercase;
   letter-spacing:.1em; font-size:15px; }
+/* ITS HEAD IS THE THREAD'S PICTURE (Seth, 2026-11-03: "pocket cards fade from the banner to dark").
+   A thread with a picture deals its pocket cards with it at their head, fading to the card's dark
+   toward its foot, the same picture-to-dark a thread card and an open thread's picture have. Under the
+   sky and the words (z -2, as a thread card's picture), and less than solid, so the name and the
+   rank over it still read; the eye keeps a shadow, as it does on a thread card's picture. */
+html:root .pocketlist .pocketrow.pkart > .pkpic { position:absolute; inset:0; z-index:-2; width:100%; height:100%;
+  object-fit:cover; object-position:center 25%; border-radius:inherit; opacity:.62;
+  -webkit-mask-image:linear-gradient(to bottom, #000 0%, rgba(0,0,0,.55) 40%, transparent 92%);
+  mask-image:linear-gradient(to bottom, #000 0%, rgba(0,0,0,.55) 40%, transparent 92%); }
+html:root .pocketlist .pocketrow.pkart .pocketopen { text-shadow:0 1px 3px rgba(0,0,0,.85); }
+html:root .pocketlist .pocketrow.pkart > :is(.pocketsw, .pkeye) { filter:drop-shadow(0 1px 3px rgba(0,0,0,.85)); }
 /* The kind's heading over its cards needs no rule of its own: the cards are framed. */
 html:root .pocketlist .pkgroup { border-bottom:0; padding-bottom:0; margin-top:24px; }
 

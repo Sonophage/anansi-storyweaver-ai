@@ -5452,6 +5452,23 @@ ok('what changed is read from docs/WHATS-NEW.md, and the parser meets the real f
   // that kind on this thread. Her one voice is the Ace.
   assert.match(face, /<div class="pocketrow[^"]*" data-arcana="voice" data-rank="Ace"[^>]*>[\s\S]*?How she sounds/,
     'MINOR-ROW: a pocket row names its suit\'s kind and its rank');
+  // POCKET CARDS FADE FROM THE BANNER TO DARK (Seth, 2026-11-03): Kesh has a picture, so each of her
+  // pocket cards carries it at its head, as her thread card and her open picture do.
+  const kesh = face.match(/<div class="pocketrow[^"]*" data-arcana="voice"[^>]*>[\s\S]*?How she sounds/)?.[0] ?? '';
+  assert.match(kesh, /^<div class="pocketrow[^"]*\bpkart\b/, 'POCKET-PIC: a pocket card of a thread with a picture is marked as one');
+  assert.match(kesh, /<img class="pkpic" src="\/api\/entry\/image\?story=s-1&entry=e-1&v=1788300000000"/,
+    'POCKET-PIC: and carries the thread\'s own picture');
+  {
+    const had = STORY.entryImages['e-1'];
+    delete (STORY.entryImages as any)['e-1'];
+    try {
+      click({ backentry: '1' }); await sleep(30); click({ entry: 'e-1' }); await sleep(30);
+      const bare = html('sideBody');
+      assert.match(bare, /How she sounds/, 'POCKET-PIC: the bare face was drawn');
+      assert.doesNotMatch(bare, /class="pkpic"|\bpkart\b/, 'POCKET-PIC: a thread with no picture keeps the plain card');
+    } finally { STORY.entryImages['e-1'] = had; }
+    click({ backentry: '1' }); await sleep(30); click({ entry: 'e-1' }); await sleep(30);
+  }
 
   // §8 · READ SAYS WHAT IS TRUE ABOVE THE TABS; THE CONTROL IS UNDER MORE (#136).
   click({ entry: 'e-done' });
