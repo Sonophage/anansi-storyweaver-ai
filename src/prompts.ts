@@ -2022,6 +2022,12 @@ changes, all its pockets with it, and never an entry: entries are only threads y
   few of its own words that only it contains. Leave text empty: the passage is rewritten from its
   own text and the writer's message after you answer, and you never write it. Only when the
   writer asks for the prose to change, and never a new passage.
+- model.set: the model this tale is written by, switched to another: the model by its name as the
+  models above are listed. Only when the writer asks for the switch in so many words ("switch this
+  tale to Kimi"); a question about which model suits them is answered from the models listed, in
+  the reply, and is not a switch.
+- hem.start: hem the scene being written, which closes it and opens the next. Nothing else to send.
+  Only when the writer asks for the hem in so many words ("hem this scene").
 
 The rules, the writer's own instructions and the strings the tale has are listed by name above
 the writer's message, with whether each is on and where each string stands. Name them as listed.

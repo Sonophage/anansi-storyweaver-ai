@@ -1,5 +1,5 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
-import { count, chat, SENTENCE_END, structured, structuredRetry, model, models, checkModel, allowList, modelFor, webSearch, searchConfigured,
+import { count, chat, SENTENCE_END, structured, structuredRetry, model, models, checkModel, allowList, allowed, modelFor, webSearch, searchConfigured,
          releasable, unload, busyOn, isRemote, remoteReady, keyPathFor, REMOTE_PREFIX, askSwitchWith } from './llama.ts';
 import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound, RESULT_CAP,
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
@@ -20,7 +20,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
-import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
+import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn, shortModel } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
@@ -419,6 +419,79 @@ const describable = async (c: Ctx, ids: unknown[]) => {
 
 /** What the shortlist routes answer when the id they are handed is not a remote one. */
 const NOT_REMOTE = `a remote model id starts with "${REMOTE_PREFIX}"`;
+
+/** A TALE'S OWN SAVE, the tale panel's and the Model tab's (`POST /api/story`), and since #156 Talk's
+ *  model switch, so a model picked in either place is pinned, checked and made the writer's default
+ *  the one way. `id` is the story the gate already checked; `story` the fields to write. */
+async function saveStory(c: Ctx, id: string, story: any) {
+  // A story may name its own model, so this is the one field that has to be checked against the
+  // world before it is stored. Refused here rather than at generation time, where the failure
+  // would arrive mid-sentence and look like the model breaking.
+  const want = story?.model;
+  // A remote pin must be on the shortlist of the writer who OWNS the book — `writerModel` checks
+  // the pin against that writer too, so a guest cannot pin the owner's book to a model of theirs.
+  if (want && isRemote(want)) shortlistedOrRefuse(db.getStory(id)?.owner_id ?? c.owner, want);
+  else if (want) {
+    const known = await models().catch(() => [] as { id: string }[]);
+    if (known.length && !known.some((m) => m.id === want))
+      throw Object.assign(new Error(
+        `the router does not serve "${want}" — or it is not on this app's allowlist`), { code: 400 });
+  }
+  // #61. Turning weaving on is refused for a book whose model cannot take the switch: the model
+  // the book will have after this save, which may be the one this same save picks. And a weaving
+  // book moved to such a model has its weaving turned off, with a toast that says so: left on, it
+  // would be a setting nothing reads, behind a switch the Storyteller no longer draws. Unless the
+  // new model always weaves: the book still weaves, so nothing went off, and the switch is left as
+  // the writer set it for whichever model comes next.
+  const v = bookOf(id);
+  const after = { ...v, story: { ...v.story, ...(story && 'model' in story ? { model: want } : {}) } };
+  const cannot = !!story && !canWeave(c, after);
+  if (cannot && story.weaving === true) throw Object.assign(new Error(CANNOT_WEAVE), { code: 400 });
+  const cleared = cannot && 'model' in story && !!v.story.weaving && story.weaving === undefined
+    && !alwaysWeaves(c, after);
+  db.updateStory(id, cleared ? { ...story, weaving: false } : story);
+  // THE MODEL PICKED ON A TALE IS THE WRITER'S MODEL FROM THEN ON (Seth, 2026-11-03: "the default
+  // should be the last model chosen on the last tale opened"), so a new tale starts with it. Only
+  // the tale's owner: a guest's pick is checked against the owner's shortlist, not their own.
+  // A switch refused (the load count) leaves the pin in place and says why.
+  const moved = want && db.getStory(id)?.owner_id === c.owner && want !== c.defaultModel
+    ? await switchUsual(c, String(want)) : null;
+  const notUsual = moved && 'error' in moved ? `Your model for new tales did not change: ${moved.error}` : '';
+  const toast = [cleared ? "Plans first is off for this tale now: its new model can't be asked to plan first." : '', notUsual]
+    .filter(Boolean).join(' ');
+  return { ...viewOf(c, id), ...(toast ? { toast } : {}) };
+}
+
+/** HEM THIS SCENE: the scene being written closes, the next opens, and the hem's passes run after the
+ *  answer. The hem screen's own press (`POST /api/chapter/end`), and since #156 Talk's, with the body
+ *  that press sends. `storyId` is the story the gate already checked. */
+function endScene(c: Ctx, storyId: string, body: any) {
+  // Closing a chapter is standing behind everything in it.
+  db.claimPassages(storyId);
+  const v = viewOf(c, storyId);
+  // A break is a real passage so NEW SCENE has something to fire on and ordinals stay dense.
+  db.addPassage({ storyId: v.id, branchId: v.branchId!, chapterId: v.currentChapter.id,
+    body: body.note ?? '', author: 'human', isBreak: true });
+  const closing = v.currentChapter.id;
+  const r = db.endChapter(v.id, v.branchId!, body.nextTitle);
+  // #89. THE PASSES RUN AFTER THE ANSWER: the writer starts the next scene while they work, and
+  // the view shows the hem running, then done.
+  // THE NEXT SCENE IS ASKED FOR, NOT GUESSED (Seth, 2026-10-30): the hem drawer sends `next: false`
+  // and asks the writer what the next scene is while the other passes run; their answer comes
+  // through `/api/chapter/hem` with `pass: 'next'` and `brief` (2026-11-01).
+  // `ask` (the hem drawer, 2026-10-30): where things stand waits for that answer, so the
+  // tale's and the people's passes are held with the next scene's, and run when the writer answers
+  // (`/api/chapter/hem` with `asked`). The summary, new threads and retirements run now.
+  // What is held is kept on the hem's row (`held`): the drawer asks while it is, and the scene's card
+  // shows it paused if the writer never answers.
+  const ask = body.ask === true;
+  const remember = body.remember !== false;
+  const want: HemWant = { summary: body.summarise !== false, tale: !ask, memory: remember && !ask,
+    facts: body.extract !== false, finished: body.retire !== false, next: body.next !== false && !ask };
+  const run = db.beginHem(v.id, closing, ask ? ['tale', ...(remember ? ['memory'] : []), 'next'] : []);
+  queueHem(v.id, () => hemPasses(c, v.id, closing, r.opened, want, run));
+  return { ...r, ...viewOf(c, v.id) };
+}
 
 /** A remote id a writer may name as a default or a pin: on `owner`'s shortlist, with a key set.
  *  Returns the id so callers read as an assignment, the way `checkModel` does for local ones. */
@@ -824,6 +897,58 @@ function applyChange(storyId: string, owner: string, ch: Change):
   // version: the copy goes, with its pockets, Over time and dated events, and the World's is read.
   if (ch.op === 'takeover.unmake') return db.relinkEntry(storyId, owner, ch.thread, 'theirs') ? {} : null;
   return null;
+}
+
+/** #156 · A CHECKED CHANGE APPLIED, the two that go through a route of their own as well as the rest:
+ *  the tale's model through the Model tab's save (`saveStory`), which pins it and makes it the
+ *  writer's model for new tales, and a hem through the hem screen's own press (`endScene`), with the
+ *  body that press sends. Everything else is `applyChange`'s. `note` is what the save said besides. */
+async function actOn(c: Ctx, storyId: string, ch: Change):
+  Promise<{ thread?: string; addon?: string; state?: string; event?: string; note?: string } | null> {
+  if (ch.op === 'model.set') {
+    try {
+      const r: any = await saveStory(c, storyId, { model: ch.to });
+      // AN UNDO TO NO PIN gives the writer back their model for new tales too: the save above only
+      // moves it when it pins one.
+      const back = ch.undo && !ch.to && ch.usual && c.defaultModel !== ch.usual
+        && db.getStory(storyId)?.owner_id === c.owner ? await switchUsual(c, ch.usual) : null;
+      const note = [r.toast, back && 'error' in back ? `Your model for new tales did not change back: ${back.error}` : '']
+        .filter(Boolean).join(' ');
+      return note ? { note } : {};
+    } catch { return null; }
+  }
+  if (ch.op === 'hem.start') return endScene(c, storyId, { next: false, ask: true }) ? {} : null;
+  return applyChange(storyId, c.owner, ch);
+}
+
+/** #156 · WHAT TALK KNOWS OF THE MODELS, and what `model.set` may switch to: the model writing the
+ *  tale, its pin, the writer's model for new tales, and every model the tale may be pinned to (the
+ *  local ones, and the book owner's shortlist when Featherless is set up, as `saveStory` checks).
+ *  THE LOCAL ONES FROM `presets.ini`, the router's own file, not from asking the router: that is a
+ *  round trip on every Talk, fifteen seconds when the router is down. `saveStory` still asks it
+ *  before a local pin is written. */
+function modelsOf(c: Ctx, v: any) {
+  const owner = db.getStory(v.id)?.owner_id ?? c.owner;
+  const local = presets().map((p: any) => String(p.id)).filter(allowed);
+  const listed = remoteReady() ? db.shortlistOf(owner) : [];
+  return { using: writerModel(c, v), pin: (v.story.model as string | null) ?? null, usual: c.defaultModel ?? model(),
+    ids: [...new Set([...local, ...listed.map((m) => m.id)])], listed };
+}
+/** The models, in a line or two of the material, so Talk can advise and name one to switch to. The
+ *  facts each has here: how much it reads, its cost, whether it plans first, and how fast it has
+ *  written on this box. Nothing about a model is written that is not recorded. */
+function modelsLine(m: ReturnType<typeof modelsOf>): string {
+  const speed = db.modelSpeeds() as Record<string, { tps?: number }>;
+  const meta = Object.fromEntries(presets().map((p: any) => [p.id, p]));
+  const fact = (id: string) => {
+    const row = m.listed.find((x) => x.id === id);
+    return [row ? 'on Featherless' : 'on this box',
+      (row?.context ?? meta[id]?.perSlot) && `reads ${Math.round((row?.context ?? meta[id].perSlot) / 1000)}k tokens`,
+      row?.cost != null && `cost ${row.cost}`, row?.weaving && `plans first: ${row.weaving}`,
+      speed[id]?.tps && `${Math.round(speed[id].tps!)} tokens a second here`].filter(Boolean).join(', ');
+  };
+  return `This tale is written by ${shortModel(m.using)}${m.pin ? '' : ', the writer\'s model for new tales, as the tale names none of its own'}. `
+    + `The models it can be switched to, when the writer asks: ${m.ids.map((id) => `${shortModel(id)} (${fact(id)})`).join('; ') || 'none'}.`;
 }
 
 /** #99 · A PAGE'S LINK IN A THREAD'S NOTES, one line a page, and lines taken out by an Undo. Notes
@@ -4052,44 +4177,7 @@ export const routes: Record<string, Handler> = {
    *  a shared showcase, not a second private account. The body carries only on or off. */
   'POST /api/demo': (c: Ctx) => { c.setDemo(!!c.body.on); return { demo: !!c.body.on }; },
 
-  'POST /api/story':     async (c) => {
-    // A story may name its own model, so this is the one field that has to be checked against the
-    // world before it is stored. Refused here rather than at generation time, where the failure
-    // would arrive mid-sentence and look like the model breaking.
-    const want = c.body.story?.model;
-    // A remote pin must be on the shortlist of the writer who OWNS the book — `writerModel` checks
-    // the pin against that writer too, so a guest cannot pin the owner's book to a model of theirs.
-    if (want && isRemote(want)) shortlistedOrRefuse(db.getStory(c.body.id)?.owner_id ?? c.owner, want);
-    else if (want) {
-      const known = await models().catch(() => [] as { id: string }[]);
-      if (known.length && !known.some((m) => m.id === want))
-        throw Object.assign(new Error(
-          `the router does not serve "${want}" — or it is not on this app's allowlist`), { code: 400 });
-    }
-    // #61. Turning weaving on is refused for a book whose model cannot take the switch: the model
-    // the book will have after this save, which may be the one this same save picks. And a weaving
-    // book moved to such a model has its weaving turned off, with a toast that says so: left on, it
-    // would be a setting nothing reads, behind a switch the Storyteller no longer draws. Unless the
-    // new model always weaves: the book still weaves, so nothing went off, and the switch is left as
-    // the writer set it for whichever model comes next.
-    const v = bookOf(c.body.id);
-    const after = { ...v, story: { ...v.story, ...(c.body.story && 'model' in c.body.story ? { model: want } : {}) } };
-    const cannot = !!c.body.story && !canWeave(c, after);
-    if (cannot && c.body.story.weaving === true) throw Object.assign(new Error(CANNOT_WEAVE), { code: 400 });
-    const cleared = cannot && 'model' in c.body.story && !!v.story.weaving && c.body.story.weaving === undefined
-      && !alwaysWeaves(c, after);
-    db.updateStory(c.body.id, cleared ? { ...c.body.story, weaving: false } : c.body.story);
-    // THE MODEL PICKED ON A TALE IS THE WRITER'S MODEL FROM THEN ON (Seth, 2026-11-03: "the default
-    // should be the last model chosen on the last tale opened"), so a new tale starts with it. Only
-    // the tale's owner: a guest's pick is checked against the owner's shortlist, not their own.
-    // A switch refused (the load count) leaves the pin in place and says why.
-    const moved = want && db.getStory(c.body.id)?.owner_id === c.owner && want !== c.defaultModel
-      ? await switchUsual(c, String(want)) : null;
-    const notUsual = moved && 'error' in moved ? `Your model for new tales did not change: ${moved.error}` : '';
-    const toast = [cleared ? "Plans first is off for this tale now: its new model can't be asked to plan first." : '', notUsual]
-      .filter(Boolean).join(' ');
-    return { ...viewOf(c, c.body.id), ...(toast ? { toast } : {}) };
-  },
+  'POST /api/story':     async (c) => saveStory(c, c.body.id, c.body.story),
   'POST /api/chapter':   (c) => { db.updateChapter(c.body.storyId, c.body.chapterId, c.body.chapter); return viewOf(c, c.body.storyId); },
 
   /** WHAT CHANGED, READ FROM A FILE. #24, and Seth on 2026-08-29: "lets just have it show case
@@ -4335,33 +4423,7 @@ export const routes: Record<string, Handler> = {
     queueHem(storyId, () => hemPasses(c, storyId, chapterId, opened, want, run, names ?? undefined));
     return viewOf(c, storyId);
   },
-  'POST /api/chapter/end': async (c) => {
-    // Closing a chapter is standing behind everything in it.
-    db.claimPassages(c.body.storyId);
-    const v = viewOf(c, c.body.storyId);
-    // A break is a real passage so NEW SCENE has something to fire on and ordinals stay dense.
-    db.addPassage({ storyId: v.id, branchId: v.branchId!, chapterId: v.currentChapter.id,
-      body: c.body.note ?? '', author: 'human', isBreak: true });
-    const closing = v.currentChapter.id;
-    const r = db.endChapter(v.id, v.branchId!, c.body.nextTitle);
-    // #89. THE PASSES RUN AFTER THE ANSWER: the writer starts the next scene while they work, and
-    // the view shows the hem running, then done.
-    // THE NEXT SCENE IS ASKED FOR, NOT GUESSED (Seth, 2026-10-30): the hem drawer sends `next: false`
-    // and asks the writer what the next scene is while the other passes run; their answer comes
-    // through `/api/chapter/hem` with `pass: 'next'` and `brief` (2026-11-01).
-    // `ask` (the hem drawer, 2026-10-30): where things stand waits for that answer, so the
-    // tale's and the people's passes are held with the next scene's, and run when the writer answers
-    // (`/api/chapter/hem` with `asked`). The summary, new threads and retirements run now.
-    // What is held is kept on the hem's row (`held`): the drawer asks while it is, and the scene's card
-    // shows it paused if the writer never answers.
-    const ask = c.body.ask === true;
-    const remember = c.body.remember !== false;
-    const want: HemWant = { summary: c.body.summarise !== false, tale: !ask, memory: remember && !ask,
-      facts: c.body.extract !== false, finished: c.body.retire !== false, next: c.body.next !== false && !ask };
-    const run = db.beginHem(v.id, closing, ask ? ['tale', ...(remember ? ['memory'] : []), 'next'] : []);
-    queueHem(v.id, () => hemPasses(c, v.id, closing, r.opened, want, run));
-    return { ...r, ...viewOf(c, v.id) };
-  },
+  'POST /api/chapter/end': async (c) => endScene(c, c.body.storyId, c.body),
 
   // ---- history & revert. §7.4's safety argument is "you can revert" — this is the revert. ----
   // Two different histories, and conflating them is what hid regenerations. `passage` is the
@@ -4747,6 +4809,8 @@ export const routes: Record<string, Handler> = {
     const pointed = summoned.length ? 'The writer pointed at these by name. They are what the question is '
         + 'about, and they are canon — not a suggestion and not a stranger\'s text:\n\n'
         + summoned.join('\n\n') : '';
+    // #156 · THE MODELS, for advice and for a switch the writer asks for (`model.set`).
+    const tm = modelsOf(c, v);
     const ask = [
       // WHICH CHAPTER IT IS LOOKING AT. F33: asked which chapter set a promise up, it said 1 for
       // three promises in a story on chapter 2 — nothing in what it was given said which chapter
@@ -4778,6 +4842,10 @@ export const routes: Record<string, Handler> = {
       // instructions that are on and the strings in play, by text and never by name, and none of
       // the ones that are off. A fact, like the lines above; `checkAsked` is the guard.
       talesOwn(v as any),
+      // #156 · Which model writes the tale and which it could, and what a hem would close: facts, like
+      // the lines above, so a request names a model the tale can have and a hem knows its scene.
+      modelsLine(tm),
+      `Scene ${v.currentChapter.index} is the one being written. Hemming it closes it and opens the next.`,
     ].filter(Boolean).join('\n\n');
     const thisTurn = [pointed, sourcesText(sources), said].filter(Boolean).join('\n\n');
 
@@ -4851,7 +4919,9 @@ export const routes: Record<string, Handler> = {
     // a change whose thread or kind the writer's message and the exchange before it never named is an
     // offer. A thread or a string is chalked as one, with the entries and strings below; anything else
     // the writer did not ask for is not done, and the answer says so.
-    const tale0 = taleOf(v.id), before = writerBefore(c.body.turns);
+    // #156 · The tale as `checkAsked` reads it, with the models a switch may name.
+    const taleAt = (id: string) => ({ ...taleOf(id), models: tm });
+    const tale0 = taleAt(v.id), before = writerBefore(c.body.turns);
     const { asked, offered } = entriesAsked(r.data.entries, tale0, said, before);
     const notDone: { said: string; why: string }[] = [];
     const raws: any[] = [], strings: any[] = [...((r.data as any).strings ?? [])], held: any[] = [];
@@ -4891,6 +4961,10 @@ export const routes: Record<string, Handler> = {
       // #154 · A rename reaches the whole tale: only when asked, never offered.
       else if (op === 'thread.rename') notDone.push({ said: `Rename ${raw.thread}${raw.title ? ` to ${raw.title}` : ''}`,
         why: 'you did not ask for a new name' });
+      // #156 · The model and a hem change only when asked, and are never offered (ADR 0014).
+      else if (op === 'model.set') notDone.push({ said: `Switch this tale to ${String(raw.model ?? 'another model')}`,
+        why: 'you did not ask for the model to change' });
+      else if (op === 'hem.start') notDone.push({ said: 'Hem this scene', why: 'you did not ask for a hem' });
       else held.push(raw);
     }
     for (const x of strings) {
@@ -4998,7 +5072,10 @@ export const routes: Record<string, Handler> = {
     // #122 · `diff` is the text before and after, for the line to draw as a diff (null when it
     // rewrote no text).
     const changes: { words: string; undo: any; diff?: { before: string; after: string } | null;
-                     card?: Card }[] = [];
+                     card?: Card; hem?: string }[] = [];
+    // #156 · A HEM IS STARTED LAST, after every other change in the answer, because it closes the scene
+    // they were made in: one asked beside a scene's title must land on the scene being hemmed.
+    let hemLast: Change | null = null;
     // `raws` are the asked changes, decided above (#152), as `expandAsked` reads them: a change sent
     // twice once, a new thread sent once per pocket as one thread and its pockets (Seraphine,
     // 2026-11-03), and after them a request sent as an entry.
@@ -5034,7 +5111,7 @@ export const routes: Record<string, Handler> = {
       if (aim.to === 'takeover' && !copy) { notDone.push({ said: `Change ${aim.raw.thread}`,
         why: `this tale could not take ${aim.raw.thread} over from ${world!.title}` }); continue; }
       const handBack = () => { if (copy) db.relinkEntry(v.id, c.owner, copy, 'theirs'); };
-      const k = checkAsked(aim.raw, taleOf(where));
+      const k = checkAsked(aim.raw, taleAt(where));
       // A NEW THREAD NOT MADE is one line, not one more for each pocket sent with it: its own line says
       // why, and every pocket of it would only say again that there is no such thread.
       const named = String(aim.raw?.title ?? aim.raw?.thread ?? '').trim().toLowerCase();
@@ -5051,7 +5128,10 @@ export const routes: Record<string, Handler> = {
         if ('error' in rw) { notDone.push({ said: wordsFor({ ...k.change, text: '' }).replace(/: \u201c.*$/, ''), why: String(rw.error) }); continue; }
         k.change.text = rw.text;
       }
-      const made = applyChange(where, c.owner, k.change);
+      if (k.change.op === 'hem.start') { hemLast = k.change; continue; }
+      const made = await actOn(c, where, k.change);
+      // A second switch in the same answer is checked against the model the first one left.
+      if (made && k.change.op === 'model.set') Object.assign(tm, { pin: k.change.to, using: k.change.to });
       if (made && k.change.op === 'thread.rename') renamedTo.set(k.change.title.trim().toLowerCase(), k.change.to);
       if (!made) { handBack(); notDone.push({ said: wordsFor(k.change), why: `the ${aim.to === 'world' ? 'World' : 'tale'} refused it` }); continue; }
       // #99 · THE PAGE IT CAME FROM, in the notes of the thread it made or changed: writer-only,
@@ -5075,8 +5155,13 @@ export const routes: Record<string, Handler> = {
       // #152 · Asked to make a thread the tale has, its line says the thread was there and was changed.
       const there = raw?.existed ? `${String((k.change as any).title ?? '')} was already in the tale, so this changed it. ` : '';
       changes.push({ words: there + (aim.to === 'world' ? `${wordsFor(k.change)} In ${world!.title}, for every tale that follows it.`
-        : wordsFor(k.change)), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change),
+        : wordsFor(k.change)) + (made.note ? ` ${made.note}` : ''), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change),
         card: cardOf(k.change, made) });
+    }
+    if (hemLast?.op === 'hem.start') {
+      if (await actOn(c, v.id, hemLast)) changes.push({ words: wordsFor(hemLast), undo: null, diff: null,
+        card: cardOf(hemLast, {}), hem: hemLast.chapter });
+      else notDone.push({ said: 'Hem this scene', why: 'the tale refused it' });
     }
     // #144 · A NEW THREAD'S UNDO CARRIES THE POCKETS MADE WITH IT, so one Undo takes the thread away whole.
     for (const ch of changes) if (ch.undo?.op === 'thread.unmake')
@@ -5113,7 +5198,7 @@ export const routes: Record<string, Handler> = {
    *  tale is the writer's). `checkUndo` holds the rest, and its file's header says exactly what that
    *  is and is not: an Undo is not proved to be Talk's, so a forged one can do to the writer's own
    *  tale what their own save or Delete could, and no more. */
-  'POST /api/talk/undo': (c: Ctx) => {
+  'POST /api/talk/undo': async (c: Ctx) => {
     const v = bookOf(c.body.storyId);
     // #101 · AN UNDO OF A CHANGE TO CANON names the World it was written to. It reaches only the
     // World this tale follows, and only for the writer who owns both (`worldOf`), whatever it names.
@@ -5121,9 +5206,10 @@ export const routes: Record<string, Handler> = {
     const world = named ? worldOf(c.owner, v) : null;
     if (named && world?.id !== String(named)) return { error: 'Not undone: that World is not one this tale follows.' };
     const where = world ? world.id : v.id;
-    const k = checkUndo(c.body.undo, taleOf(where));
+    // #156 · With the models, for the Undo of a switch, read as the Talk that made it read them.
+    const k = checkUndo(c.body.undo, { ...taleOf(where), models: modelsOf(c, bookOf(where)) });
     if (!k.ok) return { error: `Not undone: ${k.why}.` };
-    if (!applyChange(where, c.owner, k.change)) return { error: 'Not undone: the tale refused it.' };
+    if (!await actOn(c, where, k.change)) return { error: 'Not undone: the tale refused it.' };
     // #99 · and the link lines the change added to that thread's notes, if it is still there. Only
     // on the thread the checked Undo resolved in this tale, and only those exact lines.
     const noted = Array.isArray(c.body.undo?.noted) ? c.body.undo.noted.map(String) : [];

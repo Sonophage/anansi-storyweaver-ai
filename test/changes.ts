@@ -424,7 +424,7 @@ ok('UNDO-FORGED: an Undo cannot make a pocket, or leave a thread On a word with 
 });
 
 // ONE-SIDED PAIR. Every operation the model may ask for must have an Undo, and every operation that
-// can be applied (asked, or an Undo's own) must be one the route's `applyChange` writes. A new
+// can be applied (asked, or an Undo's own) must be one the route's `applyChange` or `actOn` writes. A new
 // operation added to the list without both lands with `undo: null`, or as "the tale refused it".
 const OWN = {
   taleRules: [{ id: 'r-toll', name: 'The toll', body: 'Every crossing costs a coin.', keys: [], active: true },
@@ -434,7 +434,10 @@ const OWN = {
   strings: [{ id: 'st-letter', title: 'The letter he has not opened', kind: 'promise', status: 'open', summoned: true },
             { id: 'st-ring', title: 'Who took the ring', kind: 'question', status: 'paid', summoned: false },
             { id: 'st-debt', title: 'The debt', kind: 'promise', status: 'open', summoned: false }] };
-const every = { ...dated, ...OWN, passages: [{ id: 'p-every', chapterId: 'c-none', body: 'The rain had not stopped.' }],
+const every = { ...dated, ...OWN, passages: [{ id: 'p-every', chapterId: 'c-none', body: 'The rain had not stopped.' },
+    { id: 'p-now', chapterId: 'c-2', body: 'Mid-river, the ferry turned.' }],
+  models: { using: 'Qwen3.6-WNTH-35B-A3B-NN', pin: null, usual: 'Qwen3.6-WNTH-35B-A3B-NN',
+    ids: ['Qwen3.6-WNTH-35B-A3B-NN', 'featherless:moonshotai/Kimi-K2-Instruct'] },
   entries: [...dated.entries,
   { id: 'e-letter', title: 'The letter', entryType: 'item', activation: 'triggered', keys: ['letter'], addons: [], events: [] }] };
 const ASKS: Record<string, any> = {
@@ -453,7 +456,11 @@ const ASKS: Record<string, any> = {
   'instruction.switch': { title: 'Tense', on: false },
   'passage.set': { quote: 'the rain had not', text: 'The rain stopped at last.' },
   'thread.rename': { thread: 'Talia Venn', title: 'Tess Venn' },
+  'model.set': { model: 'Kimi K2' },
+  'hem.start': {},
 };
+/** #156 · What has no Undo, by design: a hem closes the scene, and nothing puts a scene back open. */
+const NO_UNDO = ['hem.start'];
 
 ok('ONE-SIDED-PAIR: every operation on the list has an Undo, and the Undo is one Undo can do', () => {
   assert.deepStrictEqual(Object.keys(ASKS).sort(), [...ch.ASKED].sort(),
@@ -461,6 +468,7 @@ ok('ONE-SIDED-PAIR: every operation on the list has an Undo, and the Undo is one
   for (const op of ch.ASKED) {
     const c = done(ch.checkAsked({ op, ...ASKS[op] }, every));
     const u = ch.undoFor(c, { thread: 'e-new', addon: 'a-new', state: 'st-new', event: 'ev-new' });
+    if (NO_UNDO.includes(op)) { assert.strictEqual(u, null, `${op} is on NO_UNDO and has an Undo`); continue; }
     assert.ok(u, `${op} has no Undo`);
     const back = ch.checkUndo(u, every);
     assert.ok(back.ok || !/not something Undo can do/.test(back.why), `${op}'s Undo is ${u!.op}, which Undo cannot do`);
@@ -469,9 +477,12 @@ ok('ONE-SIDED-PAIR: every operation on the list has an Undo, and the Undo is one
 
 ok('ONE-SIDED-PAIR: every operation that can be applied is one the route writes', () => {
   const src = readFileSync(new URL('../src/routes.ts', import.meta.url), 'utf8');
-  const at = src.indexOf('function applyChange(');
-  assert.ok(at > 0, 'applyChange is in src/routes.ts');
-  const body = src.slice(at, src.indexOf('\n}\n', at));
+  // #156 · applyChange, and `actOn` for the two that go through an async route of their own.
+  const body = ['function applyChange(', 'async function actOn('].map((fn) => {
+    const at = src.indexOf(fn);
+    assert.ok(at > 0, `${fn} is in src/routes.ts`);
+    return src.slice(at, src.indexOf('\n}\n', at));
+  }).join('\n');
   for (const op of [...ch.ASKED, ...ch.UNMAKE])
     assert.ok(body.includes(`ch.op === '${op}'`), `applyChange does not write ${op}`);
 });
@@ -1157,6 +1168,47 @@ ok('the passages that mention a thing are found by whole word, any case, and a r
     { id: 'q3', chapterId: 'c1', body: 'Bellwardenry is a word.' }] };
   assert.deepStrictEqual(ch.mentioning(plural, 'the Bellwardens').map((x: any) => x.id), ['q1', 'q2'], 'LORE-PLURAL: singular, plural and possessive');
   assert.deepStrictEqual(ch.mentioning(plural, 'Bellwarden').map((x: any) => x.id), ['q1', 'q2'], '  either way round');
+});
+
+// #156 · THE MODEL AND THE HEM, asked only: the model by a name the writer gives, among the ones the
+// tale can be written by; a hem of the scene being written, which needs prose to hem.
+ok('a model is switched only to one the tale can be written by, and only when asked; a hem only of the scene being written', () => {
+  const KIMI = 'featherless:moonshotai/Kimi-K2-Instruct', QWEN = 'Qwen3.6-WNTH-35B-A3B-NN';
+  const tl = { ...tale, models: { using: QWEN, pin: null, usual: QWEN, ids: [QWEN, KIMI, 'featherless:moonshotai/Kimi-Dev-72B'] },
+    chapters: [{ id: 'c1', index: 1 }, { id: 'c2', index: 2 }], at: 2,
+    passages: [{ id: 'p1', chapterId: 'c1', body: 'Old prose.' }, { id: 'p2', chapterId: 'c2', body: 'New prose.' }] };
+  assert.ok(ch.ASKED.includes('model.set') && ch.ASKED.includes('hem.start'), 'MODEL-HEM-OPS: both are on the list');
+  const sw = done(ch.checkAsked({ op: 'model.set', model: 'Kimi K2' }, tl));
+  assert.deepStrictEqual([sw.to, sw.before, sw.usual], [KIMI, null, QWEN], 'MODEL-SET: a name resolves to the one model it means');
+  refused(ch.checkAsked({ op: 'model.set', model: 'Kimi' }, tl), /more than one/);
+  refused(ch.checkAsked({ op: 'model.set', model: 'GPT-9' }, tl), /not one of the models/);
+  refused(ch.checkAsked({ op: 'model.set', model: 'qwen3.6' }, tl), /already/);
+  assert.match(ch.wordsFor(sw), /Kimi-K2-Instruct/, 'MODEL-WORDS: the line names the new model');
+  assert.match(ch.wordsFor(sw), /Qwen3\.6/, '  and the old one');
+  const back = ch.undoFor(sw, {});
+  assert.deepStrictEqual([back.to, back.wrote], [null, KIMI], 'MODEL-UNDO: its Undo puts back the pin that was there');
+  const pinned = { ...tl, models: { ...tl.models, pin: KIMI, using: KIMI } };
+  const u = done(ch.checkUndo(back, pinned));
+  assert.deepStrictEqual([u.to, u.usual], [null, QWEN], 'MODEL-UNDO-CHECK: while the tale is on the model Talk set');
+  refused(ch.checkUndo(back, { ...tl, models: { ...tl.models, pin: QWEN } }), /changed since/);
+  refused(ch.checkUndo({ ...back, to: 'featherless:someone/Gone' }, pinned), /not one of the models/);
+
+  const mod = { op: 'model.set', model: 'Kimi K2' };
+  assert.ok(ch.askedOf(mod, tl, 'switch this tale to Kimi K2'), 'MODEL-ASKED: switch, and the model named');
+  assert.ok(ch.askedOf(mod, tl, 'can you change the model to kimi?'), '  a request put as a question');
+  assert.ok(!ch.askedOf(mod, tl, 'which model would follow my voice better?'), 'MODEL-UNASKED: a question about models');
+  assert.ok(!ch.askedOf(mod, tl, 'should I use Kimi?'), '  even one that names it');
+  assert.ok(!ch.askedOf(mod, tl, 'make Talia thirty'), '  nor a request for something else');
+
+  const hem = done(ch.checkAsked({ op: 'hem.start' }, tl));
+  assert.deepStrictEqual([hem.chapter, hem.index], ['c2', 2], 'HEM-START: the scene being written, whatever scene is named');
+  assert.strictEqual(done(ch.checkAsked({ op: 'hem.start', scene: 1 }, tl)).chapter, 'c2', '  scene 1 named, still the one being written');
+  refused(ch.checkAsked({ op: 'hem.start' }, { ...tl, passages: [{ id: 'p1', chapterId: 'c1', body: 'Old prose.' }] }), /nothing in it/);
+  assert.strictEqual(ch.undoFor(hem, {}), null, 'HEM-NO-UNDO: a hem has no Undo');
+  assert.ok(ch.askedOf({ op: 'hem.start' }, tl, 'hem this scene'), 'HEM-ASKED: hem this scene');
+  assert.ok(ch.askedOf({ op: 'hem.start' }, tl, 'could you hem it for me?'), '  asked as a question');
+  assert.ok(!ch.askedOf({ op: 'hem.start' }, tl, 'what does hemming do?'), 'HEM-UNASKED: a question about it');
+  assert.ok(!ch.askedOf({ op: 'hem.start' }, tl, 'make Talia thirty'), '  nor anything else');
 });
 
 console.log(`\n${n} checks passed`);

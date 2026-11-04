@@ -11852,8 +11852,16 @@ async function talk(said, mentions, anyway = false) {
     meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens read`, prompt: r.prompt ?? null }];
   S.talk.draft = r.directive || null;
   // A thread that landed is a proposal, and the queue lives under Chapter. A change is in the tale.
-  if (r.proposed || r.changes?.length) V = await api.story(S.storyId);
+  // #156 · A model Talk switched is the writer's model too, as a pick on the Model tab makes it.
+  if (r.proposed || r.changes?.length) { V = await api.story(S.storyId); if (V?.defaultModel) SRV.model = V.defaultModel; }
+  // #156 · A HEM TALK STARTED takes over, on the scene it closed, as the hem screen's own press does.
+  const hem = (r.changes ?? []).find((x) => x.hem)?.hem;
+  if (hem) {
+    S.ritualOf = hem; S.hemSteer = ''; S.hemWho?.delete(hem); saveHemWho();
+    S.setup = null; S.setupStep = null; S.panel = 'ritual'; syncHash();
+  }
   paint();
+  if (hem || r.changes?.some((x) => x.card?.key === 'model')) refreshManifest();
   const b = $('askBox'); if (b) { b.value = ''; b.focus(); }
 }
 
@@ -14021,6 +14029,7 @@ document.addEventListener('click', async (e) => {
       const r = await api.talkUndo(S.storyId, ch.undo, S.talk.sessionId);
       if (r.error) { if (r !== V) { V = await api.story(S.storyId); paint(); } return toast(r.error); }
       ch.undone = true; V = r; said = r.undone || said;
+      if (V?.defaultModel) SRV.model = V.defaultModel;
     }
     paint();
     return toast(said);

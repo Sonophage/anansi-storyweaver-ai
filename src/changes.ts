@@ -48,7 +48,7 @@ import { retiredAt, pocketReach } from './context.ts';
 export const OFFERED = ['prose.remove'] as const;
 export const ASKED = ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire',
   'tale.set', 'scene.set', 'string.set', 'string.stand', 'rule.set', 'rule.switch',
-  'instruction.set', 'instruction.switch', 'passage.set', 'thread.rename'] as const;
+  'instruction.set', 'instruction.switch', 'passage.set', 'thread.rename', 'model.set', 'hem.start'] as const;
 /** What only an Undo may do, beside putting back old text. `pocket.unmake` takes away a rule or an
  *  instruction Talk added, which hang off no thread, so `room.unmake` (which finds a thread first)
  *  cannot reach them. */
@@ -56,7 +56,7 @@ export const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake', 'retire.u
   'pocket.unmake'] as const;
 /** What an Undo may put back as it was: the asked operations that write over a value, by id. */
 const PUT_BACK = ['thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set', 'string.stand',
-  'rule.set', 'rule.switch', 'instruction.set', 'instruction.switch', 'passage.set', 'thread.rename'] as const;
+  'rule.set', 'rule.switch', 'instruction.set', 'instruction.switch', 'passage.set', 'thread.rename', 'model.set'] as const;
 
 /** THE TALE'S OWN FIELDS TALK MAY CHANGE, the story's own columns, as the writer names them. The
  *  voice is `writingStyle` and the style note `styleNote` in the story and in `db.updateStory`;
@@ -109,6 +109,8 @@ export const CHANGES_SCHEMA = {
       // #153 · passage.set: the passage by its number in that scene, or by a quote of its own words.
       passage: { type: 'integer', minimum: 1 },
       quote: { type: 'string', maxLength: 200 },
+      // #156 · model.set: the model, by its name as the material lists it.
+      model: { type: 'string', maxLength: 120 },
       // string.stand: where the string stands now.
       stand: { type: 'string', enum: [...STANDS] },
       // rule.switch, instruction.switch: on or off.
@@ -162,7 +164,10 @@ export type Tale = { entries: Thread[]; story?: Record<string, any>;
    *  the view's own names, so the route hands them over as it read them. */
   taleRules?: Own[]; talePockets?: Own[]; strings?: Str[];
   /** #153 · The tale's passages on the branch being written, as the view has them. */
-  passages?: { id: string; chapterId: string; body: string; isBreak?: boolean; author?: string }[] };
+  passages?: { id: string; chapterId: string; body: string; isBreak?: boolean; author?: string }[];
+  /** #156 · Which model writes the tale (`using`), the tale's own pin, the writer's model for new
+   *  tales (`usual`), and every model the tale may be switched to, local and shortlisted. */
+  models?: { using: string; pin: string | null; usual: string | null; ids: string[] } };
 
 export type Change =
   | { op: 'thread.new'; title: string; type: string; always: string; keys: string[]; activation: string }
@@ -184,6 +189,11 @@ export type Change =
   | { op: 'passage.set'; passage: string; scene: number; n: number; note: string; text: string; before: string;
       author: string; undo?: true }
   | { op: 'room.unmake'; thread: string; title: string; addon: string; room: string }
+  /** #156 · The tale's model, through the Model tab's own save: `to` is pinned, `before` is the pin it
+   *  had (null for none), `usual` the writer's model for new tales before it. On an Undo, `to` is put back. */
+  | { op: 'model.set'; to: string | null; before: string | null; usual: string | null; undo?: true }
+  /** #156 · A hem of the scene being written, through the hem's own press. It has no Undo. */
+  | { op: 'hem.start'; chapter: string; index: number }
   /** `before` is the field's text before the change; on an Undo, the text being put back. `key` is
    *  the story's own name for the field (`TALE_KEY`), which the route writes to. */
   | { op: 'tale.set'; field: string; key: string; text: string; before: string; undo?: true }
@@ -222,7 +232,7 @@ export type Change =
 export type Checked = { ok: true; change: Change } | { ok: false; said: string; why: string };
 
 const NOT_TALK = 'that is not something Talk can do. It changes the tale, its threads, its rules, instructions '
-  + 'and strings, its scenes, and a passage when asked; it does not delete anything or write new prose.';
+  + 'and strings, its scenes, and when asked a passage, the model or a hem; it does not delete anything or write new prose.';
 
 /** A name as both sides of a comparison read it: case, punctuation and a leading article gone. */
 const norm = (t: unknown) => String(t ?? '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
@@ -309,6 +319,8 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   }
   if (op === 'tale.set') return taleSet(tale, raw, said, false);
   if (op === 'passage.set') return passageSet(tale, raw, said, false);
+  if (op === 'model.set') return modelSet(tale, raw, said, false);
+  if (op === 'hem.start') return hemStart(tale, said);
   if (op === 'scene.set') return sceneSet(tale, raw, said, false);
   if (op === 'string.set') return stringSet(tale, raw, said);
   if (op === 'string.stand') return standOn(tale, raw, said, false);
@@ -480,6 +492,13 @@ const TALE_ASK: Record<string, RegExp> = {
   title: /\btitle\b|\brename (it|the (tale|story|book))\b/,
   voice: /\b(narration|narrator|narrative)\b|\b(tale|story)\W?s? voice\b|\bvoice of the (tale|story)\b|\brevoice\b/,
 };
+/** #156 · A message that asks for something: anything but a question, unless the question is a
+ *  request ("can you hem it?"). The verbs a model is switched with, and the words of a model's id that
+ *  name it, without the ones every id carries. */
+const REQUEST = (own: string) => !/\?\s*$/.test(own.trim()) || /^\s*(please\s+)?(can|could|would|will) you\b/.test(own);
+const SWITCH = /\b(switch|change|move|swap|use|put|pin|set|try)\b/;
+const MODEL_COMMON = new Set(['featherless', 'instruct', 'chat', 'gguf', 'base', 'model', 'it']);
+const modelWords = (id: unknown) => words(id).filter((w) => w.length > 2 && !MODEL_COMMON.has(w) && !/^\d+$/.test(w));
 export function askedOf(raw: any, tale: Tale, said: string, before = ''): boolean {
   const own = String(said ?? '').toLowerCase();
   const heard = new Set(words(PRONOUN.test(own) ? `${own}\n${before}` : own));
@@ -507,6 +526,11 @@ export function askedOf(raw: any, tale: Tale, said: string, before = ''): boolea
   // taking out, or that it no longer exists ("the Choir doesn't exist any more", the spec's own words).
   if (op === 'prose.remove') return mentions(own, String(raw.title ?? ''))
     && /\b(remove|cut|strip|delete|erase|scrub|get rid of)\b|\btake\b[^.!?]*\bout\b|\b(doesn'?t|does not|don'?t|do not|never) exists?\b|\bno longer\b|\b(is|are) gone\b/.test(own);
+  // #156 · The model and the hem are asked in so many words, and a question about them is not asking:
+  // "which model would follow my voice better?" wants advice, "can you hem it?" wants a hem.
+  if (op === 'model.set') { const id = modelNamed(tale, raw.model).hit;
+    return REQUEST(own) && SWITCH.test(own) && (/\bmodels?\b/.test(own) || modelWords(id ?? raw.model).some((w) => heard.has(w))); }
+  if (op === 'hem.start') return REQUEST(own) && /\b(hem|hemming)\b/.test(own);
   // #153 · A passage is asked for with a verb of changing AND what prose is called, or by quoting
   // several of its words: "who is in this scene?" and "what's her best line?" ask for nothing, and a
   // name alone ("Morgott") is not a quote of a passage.
@@ -1052,6 +1076,47 @@ function setOn(t: Thread, slot: string, text: string, said: string, undo: boolea
     ...(wake ? { wake: true as const } : {}) } };
 }
 
+/** #156 · A model's id as the writer reads it: no `featherless:` and no maker in front. */
+export const shortModel = (id: string) => id.replace(/^featherless:/, '').replace(/^[^/]*\//, '');
+/** WHICH MODEL A NAME MEANS, `threadNamed`'s rule over the ids the tale may be written by: the exact
+ *  id, else the one whose words hold the name's ("Kimi K2"). Two is a question, not a guess. */
+function modelNamed(tale: Tale, name: unknown): { hit?: string; why?: string } {
+  const ids = tale.models?.ids ?? [];
+  const exact = ids.find((id) => id.toLowerCase() === String(name ?? '').trim().toLowerCase());
+  if (exact) return { hit: exact };
+  const near = byName(ids, name, (id) => id);
+  if (near.length === 1) return { hit: near[0] };
+  const list = ids.map(shortModel).join(', ') || 'none';
+  if (near.length > 1) return { why: `more than one model could be "${String(name ?? '').trim()}": ${near.map(shortModel).join(', ')}. Say which` };
+  return { why: `"${String(name ?? '').trim() || 'nothing'}" is not one of the models this tale can be written by: ${list}` };
+}
+/** #156 · THE TALE'S MODEL, asked: one this tale can be written by, and not the one it is written by
+ *  already. AN UNDO puts back the pin it had, or none, while the tale is still on the model Talk set
+ *  (`wrote`), and only to a model it may still be written by. */
+function modelSet(tale: Tale, raw: any, said: string, undo: boolean): Checked {
+  const m = tale.models;
+  if (!m) return { ok: false, said, why: 'the models could not be read' };
+  if (undo) {
+    if ((m.pin ?? null) !== (raw?.wrote ?? null)) return { ok: false, said, why: SINCE };
+    const to = raw?.to == null ? null : String(raw.to);
+    if (to && !m.ids.includes(to)) return { ok: false, said, why: `"${shortModel(to)}" is not one of the models this tale can be written by now` };
+    return { ok: true, change: { op: 'model.set', to, before: m.pin, usual: raw?.usual == null ? null : String(raw.usual), undo: true } };
+  }
+  const { hit, why } = modelNamed(tale, raw?.model);
+  if (!hit) return { ok: false, said, why: why! };
+  if (hit === m.using) return { ok: false, said, why: `this tale is written by ${shortModel(hit)} already` };
+  return { ok: true, change: { op: 'model.set', to: hit, before: m.pin, usual: m.usual } };
+}
+/** #156 · A HEM OF THE SCENE BEING WRITTEN, whatever scene the answer named: it closes that scene, and
+ *  only the scene being written can close. One with no prose has nothing to hem. */
+function hemStart(tale: Tale, said: string): Checked {
+  const ch = (tale.chapters ?? []).find((x) => x.index === (tale.at ?? 1));
+  if (!ch) return { ok: false, said, why: 'there is no scene being written' };
+  if (!(tale.passages ?? []).some((p) => p.chapterId === ch.id && !p.isBreak && String(p.body ?? '').trim()))
+    return { ok: false, said, why: `scene ${ch.index} has nothing in it to hem yet` };
+  return { ok: true, change: { op: 'hem.start', chapter: ch.id, index: ch.index } };
+}
+
 /** One Undo, checked against the tale. By id, never by name: it names what was changed. */
 export function checkUndo(raw: any, tale: Tale): Checked {
   const op = String(raw?.op ?? '');
@@ -1060,6 +1125,7 @@ export function checkUndo(raw: any, tale: Tale): Checked {
     return { ok: false, said, why: 'that is not something Undo can do' };
   if (op === 'tale.set') return taleSet(tale, raw, said, true);
   if (op === 'passage.set') return passageSet(tale, raw, said, true);
+  if (op === 'model.set') return modelSet(tale, raw, said, true);
   if (op === 'thread.rename') { const t = tale.entries.find((e) => e.id === String(raw.thread ?? ''));
     return t ? renameOn(tale, t, raw, said, true) : { ok: false, said, why: 'that thread is no longer in this tale' }; }
   if (op === 'scene.set') return sceneSet(tale, raw, said, true);
@@ -1151,6 +1217,11 @@ export function wordsFor(c: Change): string {
   }
   if (c.op === 'passage.set') return c.undo ? `Put back passage ${c.n} of scene ${c.scene}.`
     : `Rewrote passage ${c.n} of scene ${c.scene} (${clip(c.note)}): \u201c${clip(c.text)}\u201d`;
+  if (c.op === 'model.set') return c.undo
+    ? `This tale is written by ${c.to ? shortModel(c.to) : 'your model for new tales'} again.`
+    : `This tale is written by ${shortModel(c.to ?? '')} now, not ${shortModel(c.before ?? c.usual ?? '') || 'the one before'}. `
+      + 'It is your model for new tales too.';
+  if (c.op === 'hem.start') return `Hemming scene ${c.index}. Its screen shows each step as it runs.`;
   if (c.op === 'thread.new') return `Made a new thread: ${c.title}, ${an(c.type)}.`;
   if (c.op === 'thread.unmake') return `Took away ${c.title}.`;
   if (c.op === 'room.unmake') return `Took away ${c.title}'s ${roomLabel(c.room)}.`;
@@ -1211,6 +1282,8 @@ export function cardOf(c: Change, made: { thread?: string }): Card {
   if (c.op === 'thread.retire') return { key: c.thread, title: c.title, label: 'Retired' };
   if (c.op === 'tale.set') return { key: 'tale', title: 'The tale', label: cap(c.field.replace(/_/g, ' ')) };
   if (c.op === 'thread.rename') return { key: c.thread, title: c.to, label: 'Renamed' };
+  if (c.op === 'model.set') return { key: 'model', title: 'The model', label: shortModel(c.to ?? '') };
+  if (c.op === 'hem.start') return { key: `hem:${c.chapter}`, title: `Scene ${c.index}`, label: 'Hemming' };
   if (c.op === 'passage.set') return { key: `passage:${c.passage}`, title: `Scene ${c.scene}, passage ${c.n}`, label: 'The prose' };
   if (c.op === 'scene.set') return { key: `scene:${c.chapter}`, title: `Scene ${c.index}`, label: c.field === 'title' ? 'Title' : 'Heads toward' };
   if (c.op === 'string.set' || c.op === 'string.stand') return { key: 'strings', title: 'Strings', label: c.name };
@@ -1230,6 +1303,7 @@ export function textsOf(c: Change): { before: string; after: string } | null {
   if (c.op === 'thread.set' || c.op === 'tale.set' || c.op === 'scene.set' || c.op === 'string.set' || c.op === 'passage.set')
     return { before: c.before ?? '', after: c.text };
   if (c.op === 'thread.rename') return { before: c.title, after: c.to };
+  if (c.op === 'model.set') return { before: shortModel(c.before ?? c.usual ?? ''), after: shortModel(c.to ?? '') };
   if (c.op === 'thread.overtime') return { before: c.before?.body ?? '', after: c.text };
   // A rule's words changed and not its text: the diff is of the words, as a thread's wake is.
   if (c.op === 'rule.set' || c.op === 'instruction.set') return c.before && c.text.trim() === c.before.text.trim()
@@ -1468,6 +1542,8 @@ export function draftWords(c: DraftChange): string {
  *  minted, which nothing knows before it. Returned with the change, and sent back by the Undo. */
 export function undoFor(c: Change, made: { thread?: string; addon?: string; state?: string; event?: string }) {
   if (c.op === 'passage.set') return { op: 'passage.set', passage: c.passage, text: c.before, wrote: c.text, author: c.author };
+  if (c.op === 'model.set') return { op: 'model.set', to: c.before, wrote: c.to, usual: c.usual };
+  if (c.op === 'hem.start') return null;
   if (c.op === 'thread.rename') return { op: 'thread.rename', thread: c.thread, title: c.to, to: c.title, keys: c.keysBefore,
     wroteKeys: c.keys, places: c.places.map((p) => ({ ...p, before: p.after, after: p.before,
       ...(p.nameBefore != null ? { name: p.nameBefore, nameBefore: p.name } : {}) })) };

@@ -4249,6 +4249,25 @@ ok('Talk lives in the composer, small or full screen, with the conversation abov
 }
 ok('a change Talk made shows in the conversation with Undo, and Undo sends that change back');
 
+// #156 · A HEM TALK STARTED: the hem screen takes over, on the scene it closed, as the hem's own press
+// leaves it. The fake server keeps nothing, so the scene named is one the fixture already has closed.
+{
+  try {
+    click({ open: 's-1' });
+    await sleep(40);
+    click({ panel: 'anansi' });
+    await sleep(30);
+    stubTalk = { reply: 'The scene is hemmed.', seconds: 1, tokens: 10, changes: [{ words: 'Hemming scene 1.', undo: null,
+      diff: null, card: { key: 'hem:c-1', title: 'Scene 1', label: 'Hemming' }, hem: 'c-1' }] };
+    (document as any).getElementById('input').value = 'hem this scene';
+    click({ send: '1' });
+    await sleep(80);
+    assert.match(html('sideHead'), /<div class="pbanner" data-mark="ritual"/, 'TALK-HEM-OPENS: the hem screen takes over');
+    assert.match(html('sideBody'), /Scene I &middot; hemmed/, 'TALK-HEM-SCENE: on the scene the hem closed');
+  } finally { stubTalk = null; }
+}
+ok('a hem Talk started opens the hem screen on its scene');
+
 // #151 · TALK'S CHANGES AND OFFERS ARE WORKBENCH CARDS (ADR 0014). One card per thread, its pockets
 // inside with their own Undo and the card's Undo all; an offer is the Workbench's own chalked card in
 // the conversation, decided through the same press, and one already decided says so.

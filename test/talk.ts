@@ -10,7 +10,7 @@
 //   node --experimental-strip-types test/talk.ts
 import assert from 'node:assert';
 import { createServer } from 'node:http';
-import { unlinkSync, readFileSync } from 'node:fs';
+import { unlinkSync, readFileSync, writeFileSync } from 'node:fs';
 
 const DB = '/tmp/anansi-talk.db';
 for (const f of ['', '-wal', '-shm']) { try { unlinkSync(DB + f); } catch {} }
@@ -43,6 +43,7 @@ const QUESTIONS = [{ title: 'Whether the debt is real', line: 'Nobody has seen t
 const FILLCARD = {"reply":"I have filled out the Seraphine card with all the details from your prompt. Here is the completed entry:\n\n**Character Name:** Seraphine\n\n**Role:** Antagonist / Love Interest / Guide\n\n**Appearance:**\n- **Age:** Late 20s to early 30s\n- **Height:** 5'7\"\n- **Build:** Slender but athletic, with a lithe grace\n- **Hair:** Dark brown, styled in a sleek, modern bob\n- **Eyes:** Piercing green, with a hint of gold\n- **Skin:** Pale, with a faint sheen of sweat\n- **Outfit:**\n  - Black latex bodysuit, form-fitting and glossy\n  - Red latex gloves, elbow-length\n  - Black latex boots, knee-high with a slight heel\n  - A silver pendant necklace, shaped like a key\n\n**Personality:**\n- **Confident:** She knows what she wants and goes after it\n- **Possessive:** She likes to claim things and people\n- **Intellectual:** She enjoys puzzles and challenges\n- **Seductive:** She uses her body and voice as weapons\n- **Mysterious:** She keeps her true motives hidden\n\n**Speech:**\n- **Tone:** Low, husky, and intimate\n- **Pace:** Slow and deliberate, with pauses for effect\n- **Vocabulary:** Precise and evocative, with a touch of archaic flair\n- **Quirks:**\n  - Often uses metaphors related to the body and bones\n  - Speaks in a way that feels both inviting and threatening\n  - Her voice can shift from soft and seductive to sharp and commanding\n\n**Backstory:**\n- **Origin:** Unknown, but she has been in Sutera for a long time\n- **Motivation:** She is drawn to the Stranger and wants to understand them\n- **Conflict:** She must balance her desire for the Stranger with her role in the city\n- **Arc:** She will likely become more involved in the Stranger's journey, possibly helping or hindering them\n\n**Relationships:**\n- **The Stranger:** She is fascinated by them and wants to get close\n- **Vel:** She sees Vel as a rival for the Stranger's attention\n- **The Choir of Saints:** She is a member and follows their rules, but has her own agenda\n\n**Quotes:**\n- \"I have been waiting for you, stranger.\"\n- \"You are a puzzle I intend to solve.\"\n- \"Do not be afraid. I am not your enemy.\"\n\n**Notes:**\n- Seraphine is a complex character with multiple layers\n- She can be both a help and a hindrance to the Stranger\n- Her true motives are not entirely clear, adding to the mystery\n\nLet me know if you would like any changes or additional details!","changes":[],"entries":[{"title":"Seraphine","type":"character","body":"A nun of the Choir of Saints, but not as the poor know them. Her habit is cut low, the black fabric pulled taut over strong thighs, ending in heels that click against the blood-stained cobblestones with precise, deliberate rhythm. Red latex gloves stretch to her elbows, shiny and tight, holding the silence of the confessional in their grip. Her voice is a low murmur, barely louder than the gun’s whisper, but it fills the space between them like spilled oil.\n\nShe is hungry, but not for food. She watches the Stranger like a collector watches a rare, dangerous artifact. There is a maternalpossess","keys":["Seraphine","Choir of Saints","Latex","Habit"],"field":"appearance"}]};
 
 let calls: any[] = [];
+const LOCAL_MODEL = process.env.ANANSI_MODEL ?? 'Qwen3.6-WNTH-35B-A3B-NN';
 let memoType: string | null = null;   // what kind of thread "Remember this" answers with, when set
 let breakFirst = false;   // answer the first call with a truncated object, as running out of room does
 let breakAll = false;     // and every call, for an answer that fails outright
@@ -52,6 +53,9 @@ const srv = createServer((req, res) => {
   let raw = '';
   req.on('data', (d) => { raw += d; });
   req.on('end', () => {
+    // #156 · THE ROUTER'S LIST, which a model switch back to a local model checks. Not a call to the
+    // model, so it is not kept in `calls`, which the tests read as what the model was sent.
+    if (req.url?.endsWith('/v1/models')) return void res.end(JSON.stringify({ data: [{ id: LOCAL_MODEL, status: { value: 'loaded' } }] }));
     const b = JSON.parse(raw || '{}');
     calls.push(b);
     const cut = breakAll || (breakFirst && calls.length === 1);
@@ -133,6 +137,9 @@ const srv = createServer((req, res) => {
       RENAMEPAD: { reply: 'Warmer.', changes: [{ op: 'thread.set', thread: 'Isolde Marr', title: 'Isolde the Ferrywoman', text: 'Isolde keeps the ferry ledger, and hums.' }] },
       RENAMETEXT: { reply: 'Ysra, keeper of the crossing.', changes: [{ op: 'thread.set', thread: 'Isolde Marr', title: 'Ysra Marr', text: 'Ysra keeps the crossing.' }] },
       LOREOUT: { reply: "I've taken the Bellwardens out of every passage.", changes: [{ op: 'prose.remove', title: 'the Bellwardens' }] },
+      // #156 · a model switch and a hem, each sent whatever the writer said: the route decides.
+      MODELQ: { reply: 'Kimi K2 holds a voice closely; I have switched you over.', changes: [{ op: 'model.set', model: 'Kimi K2' }] },
+      HEMIT: { reply: 'The scene is hemmed.', changes: [{ op: 'hem.start' }] },
       PROSEEDIT: { reply: 'Colder now.', changes: [{ op: 'passage.set', quote: 'Morgott watched the river in the lamplight', text: 'make it colder' }] },
       // A plain answer that only sounds like a claim: nothing was asked, so nothing is taken off.
       SETIN: { reply: 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.' },
@@ -380,7 +387,7 @@ await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
 process.env.ANANSI_LLAMA = `http://127.0.0.1:${(srv.address() as any).port}`;
 
 const db = await import('../src/db.ts');
-const { routes } = await import('../src/routes.ts');
+const { routes, hemSettled } = await import('../src/routes.ts');
 const { TALK_SCHEMA, TALK_SETUP_SCHEMA, INVENT } = await import('../src/prompts.ts');
 const { ALL_SLOTS: ALL_SLOTS_T } = await import('../src/slots.ts');
 
@@ -1620,7 +1627,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.ok(!age.error, age.error);
   const ops = calls[0].response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum;
   assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire', 'tale.set', 'scene.set',
-    'string.set', 'string.stand', 'rule.set', 'rule.switch', 'instruction.set', 'instruction.switch', 'passage.set', 'thread.rename', 'prose.remove'],
+    'string.set', 'string.stand', 'rule.set', 'rule.switch', 'instruction.set', 'instruction.switch', 'passage.set', 'thread.rename', 'model.set', 'hem.start', 'prose.remove'],
     `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
 
   // Always true, changed at once.
@@ -1639,7 +1646,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'The Quay'), 'CHANGE-OFFER: and not in the tale');
 
   // Undo puts back exactly what was there.
-  const back: any = undo(age.changes[0].undo);
+  const back: any = (await undo(age.changes[0].undo));
   assert.ok(!back.error, back.error);
   assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is twenty.', 'UNDO-EXACT: the old Always true, word for word');
   assert.match(back.undone, /Put back Talia Venn's Always true/, `UNDO-EXACT: and says so (${back.undone})`);
@@ -1657,7 +1664,7 @@ ok('emptying the box gives her back the voice she shipped with');
   const r1 = revert(hist().find((r) => r.previous_value === 'Talia is thirty.').id);
   assert.ok(!r1.error, r1.error);
   assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is thirty.', 'TALK-HIST-REVERT: the history puts Talk\'s text back');
-  const reUndo: any = undo(age.changes[0].undo);
+  const reUndo: any = (await undo(age.changes[0].undo));
   assert.ok(!reUndo.error, reUndo.error);
   assert.strictEqual(room(talia, 'facts')[0]?.body, 'Talia is twenty.', 'TALK-HIST-UNDO: and Talk\'s Undo still takes it off');
   assert.strictEqual(hist().filter((r) => r.label === 'Always true').length, 4, '  and both are kept');
@@ -1674,7 +1681,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(v1[0].active, 1, 'CHANGE-ROOM: switched on, or it never reaches the model (it has no wake words)');
   assert.strictEqual(room(morgott, 'facts').length, 0, 'CHANGE-ROOM: and nothing else of his was written');
   assert.match(voice.changes[0].words, /Morgott's voice/);
-  undo(voice.changes[0].undo);
+  (await undo(voice.changes[0].undo));
   assert.strictEqual(room(morgott, 'voice').length, 0, 'UNDO-ROOM: a room Talk made is taken away by its Undo');
   ok('asked to change one room, Talk makes that room alone, and Undo takes it away again');
 
@@ -1689,7 +1696,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(ferry.activation, 'always_on', 'CHANGE-NEW: a character Talk makes is always on');
   assert.match(made.changes[0].words, /new thread.*The ferryman/i);
   assert.strictEqual(made.changes[0].diff ?? null, null, 'CHANGE-DIFF: a new thread replaced no text, so its line has no diff');
-  const gone: any = undo(made.changes[0].undo);
+  const gone: any = (await undo(made.changes[0].undo));
   assert.ok(!gone.error, gone.error);
   assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'The ferryman'),
     'UNDO-NEW: undoing a thread Talk made removes it');
@@ -1719,7 +1726,7 @@ ok('emptying the box gives her back the voice she shipped with');
   const again = await say('CHANGE-NEW: add the ferryman as a character');
   const ferry2 = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'The ferryman');
   db.upsertAddon(tale.id, ferry2.id, { slot: 'facts', name: 'facts', body: 'Rows the dead. Hates the living.' });
-  const kept: any = undo(again.changes[0].undo);
+  const kept: any = (await undo(again.changes[0].undo));
   assert.match(String(kept.error), /changed since/, 'UNDO-CHANGED: a thread the writer changed since is theirs');
   assert.ok((db.entriesOf(tale.id) as any[]).some((e) => e.id === ferry2.id), 'UNDO-CHANGED: and it is still there');
   ok('an Undo does not take away a thread the writer has changed since Talk made it');
@@ -1833,7 +1840,7 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.strictEqual(after[0].body, 'Grey wool, silver at the cuffs.', '  with the new text');
     assert.notStrictEqual(after[0].activation, 'off', `WAKE-ON: a pocket Talk writes on request is switched on (${after[0].activation})`);
     assert.match(w.changes[0].words, /switched it on/i, `WAKE-SAID: the line says so (${w.changes[0].words})`);
-    const back = undo(w.changes[0].undo);
+    const back = (await undo(w.changes[0].undo));
     assert.ok(!back.error, back.error);
     assert.strictEqual(room(id, 'appearance')[0].body, 'Plain.', '  Undo puts the text back');
     assert.strictEqual(room(id, 'appearance')[0].activation, 'off', 'WAKE-UNDO: and puts the pocket back Off');
@@ -1868,7 +1875,7 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.ok(him, '  Brannoc was made');
     assert.strictEqual(room(him.id, 'voice').length + room(him.id, 'appearance').length, 2, '  with two pockets');
     const made = m.changes.find((x: any) => x.undo?.op === 'thread.unmake');
-    const gone = undo(made.undo);
+    const gone = (await undo(made.undo));
     assert.ok(!gone.error, `UNMAKE-WITH-POCKETS: the thread's own Undo works with its pockets still on (${gone.error})`);
     assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'Brannoc'), 'UNMAKE-WITH-POCKETS: and he is gone');
   }
@@ -1942,12 +1949,12 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.match(rewrites.at(-1)!, /\[Writing:/, 'PASSAGE-DIRECTIVE: the rewrite carries the tale\'s point of view, tense and lockout block');
     assert.ok(revs().includes(was), 'PASSAGE-ALTERATIONS: the old text is kept in its Alterations');
     assert.match(ed.changes[0].card.title, /^Scene \d+, passage \d+$/, 'PASSAGE-CARD: its card names it');
-    assert.ok(!undo(ed.changes[0].undo).error, '  Undo works');
+    assert.ok(!(await undo(ed.changes[0].undo)).error, '  Undo works');
     assert.strictEqual(first().body, was, 'PASSAGE-UNDO: and puts the old text back');
     assert.strictEqual(first().author, wasBy, 'PASSAGE-UNDO-AUTHOR: and its author');
     const again = await say('CHANGE-PROSEEDIT: make the passage where Morgott watched the river colder');
     db.editPassage(tale.id, first().id, 'The writer rewrote it by hand.');
-    assert.match(String(undo(again.changes[0].undo).error), /changed since/, 'PASSAGE-UNDO-SINCE: after a hand edit, Undo refuses and says why');
+    assert.match(String((await undo(again.changes[0].undo)).error), /changed since/, 'PASSAGE-UNDO-SINCE: after a hand edit, Undo refuses and says why');
     assert.strictEqual(first().body, 'The writer rewrote it by hand.', '  and the writer\'s text stands');
   }
   ok('Talk edits a passage when asked, keeps the old one in Alterations, and its Undo never writes over the writer');
@@ -1982,7 +1989,7 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.strictEqual(rn.changes.length, 1, 'RENAME-ONE-CARD: one change, one card');
     assert.match(rn.changes[0].words, /Renamed Isolde Marr to Ysra Marr: 2 passages, 2 pockets, the premise/, `  that says where (${rn.changes[0].words})`);
     db.editPassage(tale.id, pb, 'The writer rewrote it: Ysra Marr, alone.');
-    const back = undo(rn.changes[0].undo);
+    const back = (await undo(rn.changes[0].undo));
     assert.ok(!back.error, back.error);
     assert.strictEqual((db.entriesOf(tale.id) as any[]).find((x) => x.id === iso).title, 'Isolde Marr', 'RENAME-UNDO: the old name back');
     assert.strictEqual(body(pa), '"Isolde," he said. Isolde did not look up.', '  in the prose as Talk left it');
@@ -2143,9 +2150,9 @@ ok('emptying the box gives her back the voice she shipped with');
   const hers = db.upsertEntry(other.id, db.owner('stranger'), { title: 'Hers', body: '' });
   db.upsertAddon(other.id, hers, { slot: 'facts', name: 'facts', body: 'Hers alone.' });
   const herFacts = (db.addonsOf(other.id) as any[])[0];
-  const cross: any = undo({ op: 'thread.set', thread: hers, room: 'facts', addon: herFacts.id, text: 'BOB WAS HERE' });
+  const cross: any = (await undo({ op: 'thread.set', thread: hers, room: 'facts', addon: herFacts.id, text: 'BOB WAS HERE' }));
   assert.match(String(cross.error), /no longer in this tale/, 'UNDO-SCOPE: another tale\'s thread is not in this one');
-  const crossGone: any = undo({ op: 'thread.unmake', thread: hers, title: 'Hers', text: 'Hers alone.' });
+  const crossGone: any = (await undo({ op: 'thread.unmake', thread: hers, title: 'Hers', text: 'Hers alone.' }));
   assert.ok(crossGone.error, 'UNDO-SCOPE: nor can it be taken away from here');
   assert.strictEqual((db.addonsOf(other.id) as any[])[0].body, 'Hers alone.', 'UNDO-SCOPE: and hers is as it was');
   assert.ok((db.entriesOf(other.id) as any[]).some((e) => e.id === hers), 'UNDO-SCOPE: still there');
@@ -2172,7 +2179,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(story().premise, 'A river nobody crosses twice.', 'TALE-SET: the premise is changed');
   assert.strictEqual(story().title, 'The Delta', 'TALE-SET: and nothing else of the tale');
   assert.match(dark.changes[0]?.words ?? '', /tale's premise/, `TALE-SET: the line says so (${JSON.stringify(dark.changes)})`);
-  const back: any = undo(dark.changes[0].undo);
+  const back: any = (await undo(dark.changes[0].undo));
   assert.ok(!back.error, back.error);
   assert.strictEqual(story().premise, 'A river between the living and the dead.', 'UNDO-TALE: the old premise, word for word');
   ok('asked to change the premise, Talk changes it, and Undo puts back the old one');
@@ -2188,7 +2195,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(sc.changes.length, 2, `SCENE-SET: two done (${JSON.stringify(sc.changes)})`);
   assert.match(sc.reply, /Not done.*no scene 9/, `SCENE-MISSING: the reply says scene 9 is not there:\n${sc.reply}`);
   assert.strictEqual((db.chapters(tale.id) as any[]).length, 2, 'SCENE-MISSING: and no scene was made for it');
-  for (const x of sc.changes) assert.ok(!undo(x.undo).error);
+  for (const x of sc.changes) assert.ok(!(await undo(x.undo)).error);
   assert.strictEqual(scene(tale.chapterId).title, 'The Bank', 'UNDO-SCENE: the old title');
   assert.strictEqual(scene(c2).authors_note ?? '', '', 'UNDO-SCENE: and where it heads is empty again, as it was');
   ok('asked to rename a scene or change where it heads, Talk does, refuses a scene that is not there, and Undo puts both back');
@@ -2207,7 +2214,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.deepStrictEqual(JSON.parse(row(charon).keys), ['Charon', 'ferryman'], 'THREAD-WAKE: with the words asked for');
   assert.strictEqual(row(letter).body, 'Sealed, unread.', 'THREAD-WAKE: and nothing else of the thread is written');
   assert.match(wake.changes.map((x: any) => x.words).join(' | '), /The letter is Always on now.*Charon is On a word now: Charon, ferryman/);
-  for (const x of wake.changes) assert.ok(!undo(x.undo).error);
+  for (const x of wake.changes) assert.ok(!(await undo(x.undo)).error);
   for (const [id, before] of [[letter, was.letter], [charon, was.charon]] as const)
     for (const col of ['activation', 'keys', 'title', 'body', 'entry_type', 'last_editor'])
       assert.strictEqual(row(id)[col], before[col], `UNDO-WAKE: ${before.title}'s ${col} is as it was`);
@@ -2233,7 +2240,7 @@ ok('emptying the box gives her back the voice she shipped with');
     'THREAD-OVERTIME: and where she stands from scene 1 is left alone');
   assert.match(ot.reply, /Not done.*no scene 7/, `OVERTIME-MISSING: the reply says scene 7 is not there:\n${ot.reply}`);
   assert.strictEqual(ot.changes.length, 2);
-  for (const x of ot.changes) assert.ok(!undo(x.undo).error);
+  for (const x of ot.changes) assert.ok(!(await undo(x.undo)).error);
   assert.strictEqual(JSON.stringify(states()), statesBefore,
     'UNDO-OVERTIME: the new entry is gone and the old one is back, body, label and hint alike');
   ok('asked to record a change Over time, Talk dates it, refuses a scene that is not there, and Undo puts the record back');
@@ -2249,7 +2256,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(rid.changes.length, 1, 'THREAD-RETIRE: the retirement is done, and the delete is not');
   assert.match(rid.changes[0].words, /Retired The letter from scene 4/);
   assert.match(rid.reply, /Not done.*not something Talk can do/, 'THREAD-RETIRE: and the reply says the delete was not done');
-  const brought: any = undo(rid.changes[0].undo);
+  const brought: any = (await undo(rid.changes[0].undo));
   assert.ok(!brought.error, brought.error);
   assert.match(brought.undone, /Brought back The letter/);
   assert.strictEqual(events(), eventsBefore, 'UNDO-RETIRE: its Over time has no retirement in it, as before');
@@ -2279,7 +2286,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(s1[0].summoned, 1, 'TALK-STRING-NEW: and in play');
   assert.ok(db.taleThreadOf(tale.id), "TALK-STRING-NEW: on the tale's thread, made for it");
   assert.match(added.changes[0].words, /open question.*Who sent the letter/i, `  the line says so (${added.changes[0].words})`);
-  const gone: any = undo(added.changes[0].undo);
+  const gone: any = (await undo(added.changes[0].undo));
   assert.ok(!gone.error, gone.error);
   assert.strictEqual(db.stringsOf(tale.id).length, 0, 'TALK-STRING-UNDO: Undo takes the string away');
   ok("asked for a string, Talk adds it to the tale's thread in play, and Undo takes it away");
@@ -2290,7 +2297,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(db.stringsOf(tale.id)[0].body, 'Sealed, and still unopened.', 'TALK-STRING-EDIT: the string is rewritten');
   assert.strictEqual(db.stringsOf(tale.id).length, 1, '  in place');
   assert.deepStrictEqual(changed.changes[0].diff, { before: 'Sent by his brother.', after: 'Sealed, and still unopened.' });
-  const back: any = undo(changed.changes[0].undo);
+  const back: any = (await undo(changed.changes[0].undo));
   assert.ok(!back.error, back.error);
   assert.strictEqual(db.stringsOf(tale.id)[0].body, 'Sent by his brother.', 'TALK-STRING-EDIT-UNDO: Undo puts the old text back');
   ok('asked to change a string, Talk rewrites it, and Undo puts back the old text');
@@ -2303,7 +2310,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.deepStrictEqual([k.id, k.kind, k.body, k.owed_by], [sid, 'question', 'Sent by his brother.', null],
     `TALK-STRING-KIND: the same string is an open question at once, its text kept, owed by no scene (${JSON.stringify(turned.changes)})`);
   assert.strictEqual(turned.changes[0].words, 'Made The letter he has not opened an open question.');
-  const unturned: any = undo(turned.changes[0].undo);
+  const unturned: any = (await undo(turned.changes[0].undo));
   assert.ok(!unturned.error, unturned.error);
   assert.deepStrictEqual([db.stringsOf(tale.id)[0].id, db.stringsOf(tale.id)[0].kind], [sid, 'promise'],
     'TALK-STRING-KIND-UNDO: Undo makes it a promise again');
@@ -2423,45 +2430,45 @@ ok('emptying the box gives her back the voice she shipped with');
   const age = await say('CHANGE-AGE: make Talia thirty');
   const facts = (db.addonsOf(tale.id) as any[]).find((a) => a.entry_id === talia && a.slot === 'facts');
   db.upsertAddon(tale.id, talia, { id: facts.id, slot: 'facts', name: 'facts', body: 'Talia is forty.' });
-  refusedSince(undo(age.changes[0].undo), 'an Always true the writer changed since');
+  refusedSince((await undo(age.changes[0].undo)), 'an Always true the writer changed since');
   assert.strictEqual((db.addonsOf(tale.id) as any[]).find((a) => a.id === facts.id).body, 'Talia is forty.',
     'UNDO-LATER: and the writer\'s Always true stays');
 
   // tale.set
   const dark = await say('CHANGE-PREMISE: make the premise darker');
   db.updateStory(tale.id, { premise: 'The writer\'s own premise.' });
-  refusedSince(undo(dark.changes[0].undo), 'a premise the writer changed since');
+  refusedSince((await undo(dark.changes[0].undo)), 'a premise the writer changed since');
   assert.strictEqual((db.getStory(tale.id) as any).premise, 'The writer\'s own premise.', 'UNDO-LATER: and the premise stays');
 
   // scene.set: the title the writer changed is refused; where it heads, untouched, still goes back.
   const sc = await say('CHANGE-SCENE: rename scene 1 The Ford, and send this one toward the far bank');
   db.updateChapter(tale.id, tale.chapterId, { title: 'The Writer\'s Ford' });
   const [title, heads] = [sc.changes.find((x: any) => /title/.test(x.words)), sc.changes.find((x: any) => /heads/.test(x.words))];
-  refusedSince(undo(title.undo), 'a scene title the writer changed since');
+  refusedSince((await undo(title.undo)), 'a scene title the writer changed since');
   assert.strictEqual((db.chapters(tale.id) as any[]).find((x) => x.id === tale.chapterId).title, 'The Writer\'s Ford',
     'UNDO-LATER: and the title stays');
-  assert.ok(!undo(heads.undo).error, 'UNDO-LATER: what nobody changed since is still undone');
+  assert.ok(!(await undo(heads.undo)).error, 'UNDO-LATER: what nobody changed since is still undone');
 
   // thread.wake: the writer put the letter back on its word by hand; Charon is untouched.
   const wake = await say('CHANGE-WAKE: keep the letter always on, and Charon only on his name');
   db.upsertEntry(tale.id, me, { id: letter, title: 'The letter', entryType: 'item', body: 'Sealed.',
     activation: 'triggered', keys: ['letter', 'seal'] });
   const [wl, wc] = [wake.changes.find((x: any) => /letter/.test(x.words)), wake.changes.find((x: any) => /Charon/.test(x.words))];
-  refusedSince(undo(wl.undo), 'how a thread wakes, changed by the writer since');
+  refusedSince((await undo(wl.undo)), 'how a thread wakes, changed by the writer since');
   assert.deepStrictEqual(JSON.parse(row(letter).keys), ['letter', 'seal'], 'UNDO-LATER: and the writer\'s wake words stay');
-  assert.ok(!undo(wc.undo).error, 'UNDO-LATER: Charon, untouched, is still undone');
+  assert.ok(!(await undo(wc.undo)).error, 'UNDO-LATER: Charon, untouched, is still undone');
 
   // thread.overtime: the entry from scene 2 Talk wrote over, written again by the writer.
   const ot = await say('CHANGE-OVERTIME: from scene 3 Vel is blind in one eye');
   db.upsertState(tale.id, vel, { id: hand, fromChapter: 2, body: 'Vel is drowned.', label: 'Fell in' });
   const over = ot.changes.find((x: any) => /scene 2/.test(x.words));
-  refusedSince(undo(over.undo), 'an Over time entry the writer changed since');
+  refusedSince((await undo(over.undo)), 'an Over time entry the writer changed since');
   assert.strictEqual((db.statesForStory(tale.id).get(vel) ?? []).find((s: any) => s.id === hand)?.body, 'Vel is drowned.',
     'UNDO-LATER: and the writer\'s Over time stays');
 
   // A forged Undo that leaves out what Talk wrote proves nothing, and is refused the same way.
   const { wrote: _w, ...bare } = heads.undo;
-  refusedSince(undo(bare), 'an Undo that does not say what Talk wrote');
+  refusedSince((await undo(bare)), 'an Undo that does not say what Talk wrote');
   ok('an Undo of a thread room, the premise, a scene, how a thread wakes or its Over time never writes over a later edit');
 }
 
@@ -2566,7 +2573,7 @@ ok('emptying the box gives her back the voice she shipped with');
   await say('What does Charon want?', false);
   assert.doesNotMatch(wire(), /myth\.example/, 'LINK-NOT-SENT: the link in the notes never reaches the model');
   const talias = fw.changes.find((x: any) => /Talia/.test(x.words));
-  const back: any = undo(talias.undo);
+  const back: any = (await undo(talias.undo));
   assert.ok(!back.error, back.error);
   assert.strictEqual(notesOf('Talia'), 'Her own note.', 'UNDO-LINK: Undo puts the notes back as they were');
   ok('a thread made or changed from a page has the link in its notes, never in its text, and Undo takes it out');
@@ -2941,7 +2948,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'Malenia'), 'IP-CANON-NEW: not in the tale');
   assert.strictEqual(canon.changes.length, 2, `IP-CANON: two changes, two lines (${canon.reply})`);
   assert.match(canon.changes[0].words, /Morgott's voice.*Elden Ring/, `IP-CANON-LINE: the line names the World (${canon.changes[0].words})`);
-  for (const c of [...canon.changes].reverse()) { const r = undo(c.undo); assert.ok(!r.error, r.error); }
+  for (const c of [...canon.changes].reverse()) { const r = (await undo(c.undo)); assert.ok(!r.error, r.error); }
   assert.deepStrictEqual(pockets(ring.id, wMorgott), [['facts', 'The Omen King, alone.']], 'IP-CANON-UNDO: Undo takes the voice back off the World');
   assert.ok(!(db.entriesOf(ring.id) as any[]).some((e) => e.title === 'Malenia'), 'IP-CANON-UNDO: and the new World thread away');
   ok('an asked change to canon goes to the World, and Undo takes it back');
@@ -2956,7 +2963,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.deepStrictEqual(pockets(ring.id, wMorgott), [['facts', 'The Omen King, alone.']], 'IP-MINE: and the World\'s is untouched');
   assert.ok(!seen().sharedFrom, 'IP-MINE: the tale reads its own Morgott');
   assert.match(mine.changes[0].words, /this tale's own/, `IP-MINE-LINE: the line says it is the tale's own now (${mine.changes[0].words})`);
-  const back = undo(mine.changes[0].undo);
+  const back = (await undo(mine.changes[0].undo));
   assert.ok(!back.error, back.error);
   assert.ok(!own(), 'IP-MINE-UNDO: Undo hands the thread back');
   assert.strictEqual(seen().sharedFrom, 'Elden Ring', 'IP-MINE-UNDO: and the tale reads the World\'s Morgott again');
@@ -2987,7 +2994,7 @@ ok('emptying the box gives her back the voice she shipped with');
   const other = db.createWorld(me, { title: 'Dune' });
   const spice = db.upsertEntry(other.id, me, { title: 'Spice', body: '', entryType: 'lore', activation: 'always_on' });
   db.upsertAddon(other.id, spice, { slot: 'facts', name: 'facts', body: 'It flows.' });
-  const forged = undo({ op: 'thread.unmake', thread: spice, title: 'Spice', text: 'It flows.', world: other.id });
+  const forged = (await undo({ op: 'thread.unmake', thread: spice, title: 'Spice', text: 'It flows.', world: other.id }));
   assert.match(String(forged.error), /^Not undone/, `IP-UNDO-SCOPE: refused (${JSON.stringify(forged.error)})`);
   assert.ok(db.entriesOf(other.id).length === 1, 'IP-UNDO-SCOPE: and that World keeps its thread');
   ok('only the World\'s owner changes it through Talk, and an Undo reaches only the World the tale follows');
@@ -3309,8 +3316,11 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   db.upsertString(tale.id, { title: 'The debt', body: 'Owed since spring.', kind: 'promise', status: 'dropped' });
   const rulesBefore = own('rule'), instrBefore = own('instruction');
   const str = (title: string) => (db.stringsOf(tale.id) as any[]).find((x) => x.title === title);
-  const undoAll = (r: any) => [...r.changes].reverse().map((c: any) => { const u: any = undo(c.undo);
-    assert.ok(!u.error, `${c.words}: ${u.error}`); return u.undone; });
+  // In order, newest first, each awaited: the Undo route is async since #156.
+  const undoAll = async (r: any) => { const out: any[] = [];
+    for (const c of [...r.changes].reverse()) { const u: any = await undo(c.undo);
+      assert.ok(!u.error, `${c.words}: ${u.error}`); out.push(u.undone); }
+    return out; };
 
   // RULES
   const rules = await say('CHANGE-RULES: add a tide rule, make the toll two coins, and switch dawn law on');
@@ -3330,7 +3340,7 @@ ok('Talk sends the threads the question, the conversation or the page names, and
     'TALK-RULE-DIFF: the line draws the old and new text');
   assert.deepStrictEqual(rules.changes.map((c: any) => c.words), ['Added a rule to the tale, on: The tide, on a word: night.',
     'Changed the rule The toll: “Every crossing costs two coins.”', 'Switched the rule Dawn law on.']);
-  assert.deepStrictEqual(undoAll(rules), ['Put back the rule Dawn law: off.', 'Put back the rule The toll.', 'Took away the rule The tide.']);
+  assert.deepStrictEqual(await undoAll(rules), ['Put back the rule Dawn law: off.', 'Put back the rule The toll.', 'Took away the rule The tide.']);
   assert.deepStrictEqual(own('rule'), rulesBefore, 'TALK-RULE-UNDO: Undo puts every rule back as it was');
   ok('asked for a rule, Talk adds, changes or switches it at once, and Undo puts each back');
 
@@ -3341,7 +3351,7 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   assert.ok(!always.error && always.changes.length === 1, always.error ?? always.reply);
   assert.deepStrictEqual([named('rule', 'Dawn law')?.keys, eye('Dawn law')], [[], 'always_on'],
     'TALK-RULE-EYE: Always on takes its words away and sets it On');
-  undoAll(always);
+  await undoAll(always);
   assert.deepStrictEqual([named('rule', 'Dawn law')?.keys, eye('Dawn law')], [['dawn'], 'triggered'],
     'TALK-RULE-EYE-UNDO: Undo puts its words back, On a word');
   routes['POST /api/addon/on'](ctxOf({ id: (db.addonsOf(tale.id) as any[]).find((a) => a.name === 'Dawn law').id, on: false }));
@@ -3355,7 +3365,7 @@ ok('Talk sends the threads the question, the conversation or the page names, and
     'TALK-INSTRUCTION-NEW: added on');
   assert.strictEqual(named('instruction', 'Tense')?.body, 'Keep to the present tense.', 'TALK-INSTRUCTION-EDIT');
   assert.strictEqual(named('instruction', 'No oaths')?.on, true, 'TALK-INSTRUCTION-SWITCH');
-  undoAll(instr);
+  await undoAll(instr);
   assert.deepStrictEqual(own('instruction'), instrBefore, 'TALK-INSTRUCTION-UNDO: Undo puts every instruction back as it was');
   ok("asked for one of the writer's own instructions, Talk adds, changes or switches it, and Undo puts each back");
 
@@ -3370,7 +3380,7 @@ ok('Talk sends the threads the question, the conversation or the page names, and
     ['paid', 0, 1, 4, 'Sent by his brother.'], 'TALK-STAND-TIE: tied off and out of play, everything else as it was');
   assert.deepStrictEqual([str('The debt').status, str('The debt').summoned], ['open', 1], 'TALK-STAND-REOPEN: the debt is open and in play');
   assert.strictEqual(stand.changes[1].words, 'Reopened the promise The debt: it is in play.');
-  undoAll(stand);
+  await undoAll(stand);
   assert.deepStrictEqual([str('The letter he has not opened').status, str('The letter he has not opened').summoned,
     str('The letter he has not opened').owed_by], ['open', 1, 4], 'TALK-STAND-UNDO: the letter is in play again');
   assert.deepStrictEqual([str('The debt').status, str('The debt').summoned], ['dropped', 0], 'TALK-STAND-UNDO: the debt is let go again');
@@ -3383,7 +3393,7 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   assert.deepStrictEqual([st().title, st().genre, st().writing_style, st().style_note],
     ['The Far Bank', 'noir, gothic, horror', 'Long, slow sentences; the river does the feeling.', 'Rain in every scene.'],
     `TALK-TALE-FIELDS: title, genre (tidied), voice and style note are changed (${more.reply})`);
-  undoAll(more);
+  await undoAll(more);
   assert.deepStrictEqual([st().title, st().genre, st().style_note ?? ''], ['The Ford', 'noir', ''],
     'TALK-TALE-FIELDS-UNDO: Undo puts each back, the tidied genre included');
   assert.notStrictEqual(st().writing_style, 'Long, slow sentences; the river does the feeling.', '  and the voice');
@@ -3457,6 +3467,69 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   assert.ok(!(await routes['POST /api/spark/talk/session/remove'](ctx({ session: s1.sessionId })) as any).error, 'SETUP-REMOVE');
   assert.strictEqual(db.talkSession(me, null, s1.sessionId), null, '  and it is gone');
   ok('a setup Talk answer is kept too, listed, opened and removed, and carries exactly the prompt that was sent');
+}
+
+// #156 · TALK KNOWS THE MODELS, SWITCHES THE MODEL AND STARTS A HEM, each only when asked (ADR 0014).
+{
+  const KEY = '/tmp/anansi-talk-156.key', INI = '/tmp/anansi-talk-156.ini';
+  writeFileSync(KEY, 'not-a-real-key');
+  writeFileSync(INI, `[${LOCAL_MODEL}]\nctx-size = 100096\nparallel = 2\n`);
+  const keyWas = process.env.ANANSI_FEATHERLESS_KEY_FILE, iniWas = process.env.ANANSI_PRESETS;
+  process.env.ANANSI_FEATHERLESS_KEY_FILE = KEY;
+  process.env.ANANSI_PRESETS = INI;
+  const KIMI = 'featherless:moonshotai/Kimi-K2-Instruct';
+  db.addToShortlist(me, KIMI, 32768, null, 2);
+  db.addToShortlist(me, 'featherless:moonshotai/Kimi-Dev-72B', 32768);
+  const tale = db.createStory(me, { title: 'The Weir', premise: 'A lock on a slow river.' });
+  db.addPassage({ ...tale, storyId: tale.id, body: 'Wenna counted the boats.' });
+  // The writer's model for new tales, as the server keeps it per writer.
+  let usual: string | null = null;
+  const ctxOf = (body: any) => ({ body: { storyId: tale.id, ...body }, query: new URLSearchParams(),
+    owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: usual,
+    setDefaultModel: (id: string) => { usual = id; }, otherDefaults: () => [] }) as any;
+  const say = (said: string) => { calls = []; return routes['POST /api/talk'](ctxOf({ said })) as Promise<any>; };
+  const pin = () => (db.getStory(tale.id) as any).model ?? null;
+
+  const q = await say('ABOUT-MODELQ: which model would follow my voice better?');
+  assert.ok(!q.error, q.error);
+  const sys = String(calls[0].messages[0].content);
+  assert.match(sys, new RegExp(`This tale is written by ${LOCAL_MODEL.replace(/[.]/g, '\\.')}`), 'MODEL-MATERIAL: Talk is told the model writing the tale');
+  assert.match(sys, /Kimi-K2-Instruct \(on Featherless, reads 33k tokens, cost 2\)/, 'MODEL-SHORTLIST: and the shortlist, each with what is known of it');
+  assert.strictEqual(pin(), null, 'MODEL-UNASKED: a question about models switches nothing');
+  assert.strictEqual(usual, null, '  and the writer\'s model for new tales stays');
+  assert.ok(q.notDone.some((x: any) => /model to change/.test(x.why)), `MODEL-UNASKED-SAID: the answer says so (${JSON.stringify(q.notDone)})`);
+  assert.ok(!q.chalked.length, '  and it is not offered');
+
+  const sw = await say('ABOUT-MODELQ: switch this tale to Kimi K2');
+  assert.ok(!sw.error, sw.error);
+  assert.strictEqual(pin(), KIMI, `MODEL-PIN: the tale is pinned to it (${JSON.stringify(sw.notDone)})`);
+  assert.strictEqual(usual, KIMI, 'MODEL-DEFAULT: and it is the writer\'s model for new tales');
+  assert.strictEqual(sw.changes[0].card.title, 'The model', 'MODEL-CARD: its card');
+  assert.deepStrictEqual([sw.changes[0].diff.before, sw.changes[0].diff.after], [LOCAL_MODEL, 'Kimi-K2-Instruct'], '  names the old model and the new');
+  const back = await routes['POST /api/talk/undo'](ctxOf({ undo: sw.changes[0].undo })) as any;
+  assert.ok(!back.error, back.error);
+  assert.strictEqual(pin(), null, 'MODEL-UNDO: Undo puts the tale back as it was');
+  assert.strictEqual(usual, LOCAL_MODEL, 'MODEL-UNDO-DEFAULT: and the writer\'s model for new tales');
+
+  const scene = () => (db.getStory(tale.id) as any) && (db.chapters(tale.id) as any[]);
+  const first = scene()[0].id;
+  const hq = await say('ABOUT-HEMIT: what does hemming do?');
+  assert.ok(!hq.error, hq.error);
+  assert.strictEqual(scene().length, 1, 'HEM-UNASKED: a question about hemming hems nothing');
+  assert.ok(hq.notDone.some((x: any) => /did not ask for a hem/.test(x.why)), `HEM-UNASKED-SAID: the answer says so (${JSON.stringify(hq.notDone)})`);
+  const hm = await say('ABOUT-HEMIT: hem this scene');
+  assert.ok(!hm.error, hm.error);
+  assert.strictEqual(scene().find((x: any) => x.id === first)?.status, 'closed', `HEM-START: the scene being written is hemmed (${JSON.stringify(hm.notDone)})`);
+  assert.strictEqual(scene().length, 2, '  and the next one opens');
+  assert.ok(db.hemOf(tale.id, first), 'HEM-RUNS: its hem is running');
+  assert.strictEqual(hm.changes[0].hem, first, 'HEM-OPENS: the answer names the scene, for the hem screen to open on');
+  assert.strictEqual(hm.changes[0].undo, null, '  and a hem has no Undo');
+  await hemSettled(tale.id);
+
+  process.env.ANANSI_FEATHERLESS_KEY_FILE = keyWas ?? '';
+  if (iniWas == null) delete process.env.ANANSI_PRESETS; else process.env.ANANSI_PRESETS = iniWas;
+  ok('Talk knows the models; it switches the model and hems the scene only when asked, and the switch has an Undo');
 }
 
 srv.close();

@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-04 · Talk fills in the card you ask for
 
+### Ask Talk about models, switch the model, or hem the scene
+Talk knows which model writes your tale and every model on your shortlist, so you can ask which one
+would suit what you are writing. Say "switch this tale to Kimi" and it does what a pick on the Model
+tab does: the tale is written by that model, and it is your model for new tales too. The card names
+the old model and the new one, with Undo. Say "hem this scene" and the scene you are writing is
+hemmed, and the hem screen opens on it. Talk never does either unless you ask.
+
 ### Take something out of the story, one passage at a time
 Tell Talk something is gone ("the Bellwardens don't exist any more, take them out of the prose") and
 it rewrites each passage that mentions it, without it, and offers each one as its own card. Nothing
