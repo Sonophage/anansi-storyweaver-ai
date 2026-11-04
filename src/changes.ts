@@ -105,6 +105,12 @@ export const CHANGES_SCHEMA = {
       keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
       // thread.overtime: what changed, in a few words.
       label: { type: 'string', maxLength: 60 },
+      // thread.new, thread.set: the thread's pockets, each its room and its text, beside the change's
+      // own text (Seraphine, 2026-11-03: a character is several pockets, and four changes were the
+      // most one answer could carry). Before `text`, so the grammar reaches both.
+      pockets: { type: 'array', maxItems: 6, items: { type: 'object',
+        properties: { room: { type: 'string', enum: [...ALL_SLOTS] }, text: { type: 'string', maxLength: 600 } },
+        required: ['room', 'text'] } },
       // thread.set: the new text of that room. thread.new: its Always true. thread.overtime: the
       // whole of where the thread stands from that scene on. tale.set, scene.set: the field's text.
       text: { type: 'string', maxLength: 600 },
@@ -301,26 +307,35 @@ export function expandAsked(raws: unknown, _tale: Tale): any[] {
     return named == null ? null : roomOf(named);
   };
   const out: any[] = [], made = new Map<string, any>();
-  for (const raw of list) {
-    const op = String(raw?.op ?? '');
+  for (const whole of list) {
+    const op = String(whole?.op ?? '');
+    // ONE CHANGE CARRYING ITS POCKETS, as the grammar offers it: each is a pocket change on the same
+    // thread, after the change itself.
+    const { pockets, ...raw } = whole ?? {};
+    const name = String(raw.title ?? raw.thread ?? '').trim();
+    const each = (op === 'thread.new' || op === 'thread.set') && name && Array.isArray(pockets)
+      ? (pockets as any[]).map((p) => ({ op: 'thread.set', thread: op === 'thread.set' ? String(raw.thread ?? '').trim() : name,
+          room: roomOf(p?.room), text: p?.text, ...(raw.to ? { to: raw.to } : {}) })) : [];
     if (op === 'thread.set') {
       const room = pocketOf(raw);
       const { field: _f, ...rest } = raw;
-      out.push(room ? { ...rest, room } : raw);
+      // A change that only carries pockets is those pockets, not an empty change to its Always true.
+      if (!each.length || String(raw.text ?? '').trim()) out.push(room ? { ...rest, room } : raw);
+      out.push(...each);
       continue;
     }
-    if (op !== 'thread.new' || !norm(raw.title ?? raw.thread)) { out.push(raw); continue; }
-    const name = norm(raw.title ?? raw.thread), room = pocketOf(raw);
+    if (op !== 'thread.new' || !norm(name)) { out.push(whole); continue; }
+    const room = pocketOf(raw);
     const { field: _f, room: _r, text, ...about } = raw;
-    let head = made.get(name);
-    if (!head) { head = { ...about, op }; made.set(name, head); out.push(head); }
+    let head = made.get(norm(name));
+    if (!head) { head = { ...about, op }; made.set(norm(name), head); out.push(head); }
     if (room && room !== 'facts') {
-      out.push({ op: 'thread.set', thread: String(raw.title ?? raw.thread).trim(), room, text,
-        ...(raw.to ? { to: raw.to } : {}) });
+      out.push({ op: 'thread.set', thread: name, room, text, ...(raw.to ? { to: raw.to } : {}) });
     } else if (head.text == null) {
       // The member that carries the Always true carries the thread's own keys and wake, too.
       Object.assign(head, about, { op, text });
     }
+    out.push(...each);
   }
   return out;
 }

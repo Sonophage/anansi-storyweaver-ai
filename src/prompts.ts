@@ -1963,9 +1963,11 @@ for in so many words: "make Talia thirty", "give Morgott a slow voice", "add the
 done the moment you answer, so a thing they did not ask for is never a change; offer it instead.
 
 - thread.set: the thread by its name, the room (none for its Always true), and the whole new text
-  of that room as it should read.
-- thread.new: its title, its type, its Always true as text, and one keyword: a person's name as the
-  prose says it, one word; anything else, its name as the prose writes it.
+  of that room as it should read. Several rooms of one thread go in pockets, each its room and its
+  whole text.
+- thread.new: its title, its type (a person is a character), its pockets (each its room and its
+  text), its Always true as text (who or what it is, in a sentence or two), and one keyword: a
+  person's name as the prose says it, one word; anything else, its name as the prose writes it.
 - thread.overtime: the thread, the scene it holds from, the whole of where the thread stands from
   that scene on as text, and a label of a few words for what changed.
 - thread.wake: the thread, always_on or triggered (On a word), and the wake words as keys.

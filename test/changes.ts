@@ -838,6 +838,11 @@ const { TALK_CONTRACT } = await import('../src/prompts.ts');
 ok('CONTRACT-EVERY-OP: TALK_CONTRACT describes every operation the model may ask for', () => {
   for (const op of ch.ASKED) assert.ok(TALK_CONTRACT.includes(`- ${op}:`), `CONTRACT-EVERY-OP: TALK_CONTRACT does not describe ${op}`);
 });
+ok('CONTRACT-POCKETS: the contract tells the model a new thread carries its pockets and an Always true', () => {
+  const line = TALK_CONTRACT.slice(TALK_CONTRACT.indexOf('- thread.new:'), TALK_CONTRACT.indexOf('- thread.overtime:'));
+  assert.match(line, /pockets/, `CONTRACT-POCKETS: thread.new names its pockets (${line})`);
+  assert.match(line, /Always true/, 'CONTRACT-POCKETS: and still its Always true');
+});
 
 // THE GRAMMAR KEEPS THE SCHEMA'S KEY ORDER. The local server compiles the schema to a grammar with
 // every optional key in the order it is declared, so a key after `text` shuts `text` out once it is
@@ -879,6 +884,24 @@ ok('ASKED-PER-POCKET: a new thread sent once per pocket, the pocket in room or f
   const made = { ...tale, entries: [...tale.entries, { id: 'e-new', title: 'Seraphine', entryType: 'character', addons: [] }] };
   assert.ok(ch.checkAsked(out[0], tale).ok, 'the new thread is done');
   for (const r of out.slice(1)) assert.ok(ch.checkAsked(r, made).ok, `and each pocket on it (${JSON.stringify(ch.checkAsked(r, made))})`);
+});
+
+ok('ASKED-POCKETS: one change carrying its pockets is the change, then one pocket change each', () => {
+  const out = ch.expandAsked([
+    { op: 'thread.new', title: 'Seraphine', type: 'character', pockets: [
+      { room: 'voice', text: 'A low murmur.' }, { room: 'outfit', text: 'Red latex gloves.' }], text: 'A novitiate.' },
+    { op: 'thread.set', thread: 'Talia Venn', pockets: [{ room: 'interiority', text: 'Wants the debt gone.' }] },
+  ], tale);
+  assert.deepStrictEqual(out.map((r: any) => [r.op, r.title ?? r.thread, r.room ?? null, r.text]), [
+    ['thread.new', 'Seraphine', null, 'A novitiate.'],
+    ['thread.set', 'Seraphine', 'voice', 'A low murmur.'],
+    ['thread.set', 'Seraphine', 'outfit', 'Red latex gloves.'],
+    ['thread.set', 'Talia Venn', 'interiority', 'Wants the debt gone.'],
+  ], `ASKED-POCKETS: ${JSON.stringify(out)}`);
+  assert.ok(!('pockets' in out[0]), 'and the pockets are not left on the change itself');
+  const keys = Object.keys(ch.CHANGES_SCHEMA.items.properties);
+  assert.ok(keys.includes('pockets') && keys.indexOf('pockets') < keys.indexOf('text'),
+    `ASKED-POCKETS: the grammar offers pockets, before the text (${keys.join(', ')})`);
 });
 
 console.log(`\n${n} checks passed`);
