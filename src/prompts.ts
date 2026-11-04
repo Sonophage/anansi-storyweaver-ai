@@ -1,6 +1,6 @@
 // Prompt text for the non-prose roles. PROMPTS.md §5 is the source; these are the
 // rev-2 wordings the councils asked for.
-import { ALL_SLOTS, STRING_SLOTS } from './slots.ts';
+import { ALL_SLOTS, KINDS, STRING_SLOTS } from './slots.ts';
 import { CHANGES_SCHEMA, DRAFT_CHANGES_SCHEMA } from './changes.ts';
 import { PARTS } from './contradictions.ts';
 import { STRING_FRAMES } from './context.ts';
@@ -1081,6 +1081,8 @@ since forgotten. Your job is to turn it into a thread — a piece of reference t
 every call from now on.
 
     title  What the thing is called. A name, not a description of it.
+    type   What it is: character for a person, place for a place, item for a thing someone can
+           hold, lore for an event, a group or anything else.
     body   fact, fact, fact — what is TRUE because of this passage, as a plain description with no
            brackets and not the name in front. Sixty to a hundred and
            forty words. Facts somebody could contradict: who did what, what changed, what is owed,
@@ -1095,6 +1097,16 @@ she will not say so. A body that reads like a line of the book is a body the mod
 into the book word for word, which is the one failure this must not have.
 
 Do not invent. Everything in the thread has to be in the passage or already in the canon above.`;
+
+/** MEMO's answer: a thread's own shape, and WHAT IT IS (Seraphine, 2026-11-03). The page sends no
+ *  kind, so every thread "Remember this" made was lore, the nun it was pointed at included. The kind
+ *  is asked before the body, so the grammar reaches it first. */
+export const MEMO_SCHEMA = { type: 'object', properties: {
+    title: { type: 'string', maxLength: 80 },
+    type: { type: 'string', enum: [...KINDS] },
+    body: { type: 'string' },
+    keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
+  }, required: ['title', 'type', 'body', 'keys'] } as const;
 
 // (RELEASE and RELEASE_SCHEMA lived here. Removed 2026-08-29 with #24: "what changed" is read
 // from docs/WHATS-NEW.md now instead of being written by a model call over the git log. The prompt

@@ -38,6 +38,7 @@ const QUESTIONS = [{ title: 'Whether the debt is real', line: 'Nobody has seen t
   { title: 'Who sent the letter', line: 'It came under the door with no name on it.' }];
 
 let calls: any[] = [];
+let memoType: string | null = null;   // what kind of thread "Remember this" answers with, when set
 let breakFirst = false;   // answer the first call with a truncated object, as running out of room does
 let breakAll = false;     // and every call, for an answer that fails outright
 const srv = createServer((req, res) => {
@@ -294,7 +295,7 @@ const srv = createServer((req, res) => {
       : props.title && props.note ? { title: 'The Rust Year', note: NOTE }
       : asksToRemember ? { title: 'The Broken Stair',
           body: '[the lower stair: tread gave under her weight, rail came away, unrepaired]',
-          keys: ['stair', 'rail'] }
+          keys: ['stair', 'rail'], ...(memoType ? { title: 'The Nun', type: memoType } : {}) }
       // NAME BEFORE KEYS, and the order is load-bearing. An addon's schema is name + body + keys
       // (PLAN-08: a room fires on its own words, so the shape has to be able to carry them), and
       // a card's is title + body + keys. `props.keys` alone no longer tells them apart — checked
@@ -641,6 +642,24 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.ok(!shown.includes(SPOKEN_LINE),
     'a line of dialogue in the passage must not reach the ask');
   ok('a passage the writer points at becomes a thread in the queue, as facts and as an instruction');
+
+  // A PERSON COMES OUT A CHARACTER (Seraphine, 2026-11-03). The nun was made from "Remember this" on
+  // the passage she walks into, and every one it made was lore: the page sends no kind, the route
+  // fell back to lore, and the answer had nowhere to say what the thing is.
+  const kinds = calls[0].response_format?.json_schema?.schema?.properties?.type?.enum;
+  assert.ok(Array.isArray(kinds) && kinds.includes('character'), `MEMO-KIND: the answer may say what kind of thread it is (${kinds})`);
+  memoType = 'character';
+  const nun = await memo(target.id);
+  memoType = null;
+  assert.ok(!nun.error, nun.error);
+  assert.strictEqual((db.proposalsOf(story.id) as any[]).find((x) => x.title === 'The Nun')?.entry_type, 'character',
+    'MEMO-KIND: a person the passage is about is chalked a character');
+  assert.strictEqual(made.entry_type, 'lore', '  and with no kind said, it is lore as before');
+  // And ITS RAW ANSWER IS KEPT: "Remember this" logged no row, so what made the nun was a guess.
+  const memoRow = (new (await import('node:sqlite')).DatabaseSync(DB, { readOnly: true }) as any)
+    .prepare("SELECT manifest FROM generations WHERE story_id = ? AND role = 'memo' ORDER BY created_at DESC, rowid DESC LIMIT 1").get(story.id);
+  assert.match(JSON.parse(memoRow?.manifest ?? '{}').raw ?? '', /The Nun/, 'MEMO-RAW: Remember this logs what the model answered');
+  ok('a passage about a person becomes a character thread, not lore');
 }
 
 // ---- 6b. a chapter names itself when it opens

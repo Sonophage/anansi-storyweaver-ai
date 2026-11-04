@@ -7,7 +7,7 @@ import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 // The hem's structured asks: plain lines on a remote model, read back into the schema's object.
 import { shaped } from './shaped.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, RESTAND, NEEDS, SCENE_NAME, TALE_STANDS, STRINGS_STAND, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, RESTAND, NEEDS, SCENE_NAME, TALE_STANDS, STRINGS_STAND, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, MEMO_SCHEMA, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
 import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, keysTakenBy, oneKeyword, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -4051,15 +4051,23 @@ export const routes: Record<string, Handler> = {
       text,
     ].filter(Boolean).join('\n\n');
 
-    const r = await structuredRetry(MEMO, body, inventSchema('lore'),
+    const t0 = Date.now();
+    const r = await structuredRetry(MEMO, body, MEMO_SCHEMA,
       { model: writerModel(c, v), max_tokens: MEMO_TOKENS });
+    // ITS RAW ANSWER IS KEPT, as Talk's is: this call logged no row, so on 2026-11-03 nothing said
+    // that it was what made the nun.
+    db.logGeneration({ storyId: v.id, chapterId: ch.id, model: writerModel(c, v), role: 'memo',
+      params: { max_tokens: MEMO_TOKENS }, manifest: { raw: String((r as any).raw ?? '').slice(0, 12000) },
+      latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data?.title || !r.data?.body) return { error: r.error ?? 'nothing usable came back' };
 
     // WHERE IT CAME FROM, on the proposal. Seth asked for it and it is nearly free — a thread
     // whose origin is on the record is a thread you can go back and check.
     const added = db.addProposal(v.id, {
       kind: 'new', chapterId: ch.id, title: String(r.data.title).trim(),
-      body: String(r.data.body).trim(), entryType: c.body.entryType || 'lore',
+      // The kind the page sends, else the one the answer says, else lore: a person is a character.
+      body: String(r.data.body).trim(),
+      entryType: c.body.entryType || (KINDS.includes(String(r.data.type)) ? String(r.data.type) : 'lore'),
       keys: Array.isArray(r.data.keys) ? r.data.keys : [],
     });
     return added
