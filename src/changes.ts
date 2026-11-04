@@ -127,7 +127,7 @@ export const CHANGES_SCHEMA = {
   },
 } as const;
 
-type Room = { id: string; slot: string; name: string; body: string; keys: string[]; active: boolean };
+type Room = { id: string; slot: string; name: string; body: string; keys: string[]; active: boolean; activation?: string };
 type Thread = { id: string; title: string; entryType: string; addons?: Room[]; sharedFrom?: string | null;
   originId?: string | null;
   activation?: string; keys?: string[]; states?: State[];
@@ -154,7 +154,9 @@ export type Change =
   /** `addon` is the room it writes over, null for one it makes; `before` is that room's text, null
    *  when there was none. On an Undo, `before` is the text being put back. */
   | { op: 'thread.set'; thread: string; title: string; room: string; addon: string | null;
-      name: string; keys: string[]; text: string; before: string | null; undo?: true }
+      name: string; keys: string[]; text: string; before: string | null; undo?: true;
+      /** #144 · `wake`: the pocket was Off and this request switches it on. `off`: an Undo puts it back Off. */
+      wake?: true; off?: true }
   | { op: 'thread.unmake'; thread: string; title: string }
   | { op: 'room.unmake'; thread: string; title: string; addon: string; room: string }
   /** `before` is the field's text before the change; on an Undo, the text being put back. `key` is
@@ -773,9 +775,14 @@ function setOn(t: Thread, slot: string, text: string, said: string, undo: boolea
   if (!undo && !text) return { ok: false, said, why: 'it came with no text' };
   if (!undo && cur && cur.body.trim() === text) return { ok: false, said,
     why: `${t.title}'s ${roomLabel(slot)} already says that` };
+  // #144 · AN OFF POCKET WRITTEN ON REQUEST IS SWITCHED ON (Seraphine, 2026-11-04: her appearance was
+  // Off, Talk filled it, and it never reached a passage). It takes nothing off in a one-at-a-time
+  // kind: `roomFor` picks an On pocket of the room first, so an Off one is written only when none is On.
+  const wake = !undo && !!cur && (cur.activation ?? (cur.active ? 'always_on' : 'off')) === 'off';
   return { ok: true, change: { op: 'thread.set', thread: t.id, title: t.title, room: slot,
     addon: cur?.id ?? null, name, keys: cur?.keys ?? [],
-    text, before: undo ? text : cur ? cur.body : null, ...(undo ? { undo: true as const } : {}) } };
+    text, before: undo ? text : cur ? cur.body : null, ...(undo ? { undo: true as const } : {}),
+    ...(wake ? { wake: true as const } : {}) } };
 }
 
 /** One Undo, checked against the tale. By id, never by name: it names what was changed. */
@@ -807,7 +814,10 @@ export function checkUndo(raw: any, tale: Tale): Checked {
   const t = tale.entries.find((e) => e.id === String(raw.thread ?? '')) ?? (aString ? own! : undefined);
   if (!t) return { ok: false, said, why: 'that thread is no longer in this tale' };
   const text = String(raw.text ?? '');
-  if (op === 'thread.set') return setOn(t, roomOf(raw.room), text, said, true, raw.addon ?? null, raw.wrote, raw.wroteKind);
+  if (op === 'thread.set') {
+    const k = setOn(t, roomOf(raw.room), text, said, true, raw.addon ?? null, raw.wrote, raw.wroteKind);
+    return k.ok && raw.off === true && k.change.op === 'thread.set' ? { ...k, change: { ...k.change, off: true } } : k;
+  }
   if (op === 'thread.wake') return wakeOn(t, raw, said, true);
   if (op === 'thread.overtime') return overtimeOn(tale, t, raw, said, true);
   // TAKEN AWAY ONLY WHILE IT IS AS TALK MADE IT. The text it was made with rides in the Undo and is
@@ -817,8 +827,11 @@ export function checkUndo(raw: any, tale: Tale): Checked {
   if (op === 'thread.unmake') {
     if (t.sharedFrom || norm(t.title) !== norm(raw.title)) return changed;
     const always = (t.addons ?? []).find((a) => a.slot === 'facts')?.body ?? '';
+    // #144 · THE POCKETS TALK MADE WITH IT, by id and text, go with it: the thread's Undo waited until
+    // each pocket's own Undo had been pressed. Any other pocket, or one changed since, is the writer's.
+    const own = new Map((Array.isArray(raw.pockets) ? raw.pockets : []).map((p: any) => [String(p?.addon ?? ''), String(p?.text ?? '').trim()]));
     // An Over time entry made since is a change too (#98): taking the thread away would take it.
-    if (always.trim() !== text.trim() || (t.addons ?? []).some((a) => a.slot !== 'facts')
+    if (always.trim() !== text.trim() || (t.addons ?? []).some((a) => a.slot !== 'facts' && own.get(a.id) !== a.body.trim())
       || (t.states ?? []).length) return changed;
     return { ok: true, change: { op, thread: t.id, title: t.title } };
   }
@@ -899,8 +912,8 @@ export function wordsFor(c: Change): string {
   if (c.op === 'string.set') return c.addon ? `Changed the ${roomLabel(c.kind)} ${c.name}: “${clip(c.text)}”`
     : `Added ${an(roomLabel(c.kind))} to the tale, in play: ${c.name}.`;
   if (c.undo && STRING_SLOTS.includes(c.room)) return `Put back the ${roomLabel(c.room)} ${c.name}.`;
-  if (c.undo) return `Put back ${c.title}'s ${roomLabel(c.room)}.`;
-  return `Changed ${c.title}'s ${roomLabel(c.room)}: “${clip(c.text)}”`;
+  if (c.undo) return `Put back ${c.title}'s ${roomLabel(c.room)}${c.off ? ', Off' : ''}.`;
+  return `Changed ${c.title}'s ${roomLabel(c.room)}: “${clip(c.text)}”${c.wake ? ' It was Off; switched it on.' : ''}`;
 }
 
 /** #122 · WHAT A CHANGE LINE SHOWS AS A DIFF: the text the change replaced and the text it wrote,
@@ -1176,6 +1189,7 @@ export function undoFor(c: Change, made: { thread?: string; addon?: string; stat
   // The first Always true on a thread that had none gets no Undo: `checkUndo` never takes one away.
   if (c.before == null) return c.room === 'facts' ? null
     : { op: 'room.unmake', thread: c.thread, addon: made.addon, text: c.text };
-  return { op: 'thread.set', thread: c.thread, room: c.room, addon: c.addon, text: c.before, wrote: c.text };
+  return { op: 'thread.set', thread: c.thread, room: c.room, addon: c.addon, text: c.before, wrote: c.text,
+    ...(c.wake ? { off: true } : {}) };
 }
 

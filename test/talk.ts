@@ -105,6 +105,10 @@ const srv = createServer((req, res) => {
       // #144 · A CLAIM IN THE MIDDLE of a reply whose change was not done (2026-11-04).
       MIDCLAIM: { reply: 'Vel is a ferryman of the lower tiers. I have also added her voice and her outfit to the card. Her pockets are now filled in. Ask me anything.',
         changes: [{ op: 'thread.set', thread: 'Nobody Here', room: 'voice', text: 'A low murmur.' }] },
+      // #144 · A POCKET THAT IS OFF, written on request, and a new thread made with its pockets.
+      WAKEOFF: { reply: 'Her look is written.', changes: [{ op: 'thread.set', thread: 'Odile', room: 'appearance', text: 'Grey wool, silver at the cuffs.' }] },
+      MAKEWITH: { reply: 'Here he is.', changes: [{ op: 'thread.new', title: 'Brannoc', type: 'character', text: 'A lockkeeper who counts boats.',
+        pockets: [{ room: 'voice', text: 'Slow, and never wrong.' }, { room: 'appearance', text: 'Oilskin and a lantern.' }] }] },
       // A plain answer that only sounds like a claim: nothing was asked, so nothing is taken off.
       SETIN: { reply: 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.' },
       // The card as one entry with its pockets, which the grammar offers now: her appearance in the
@@ -1760,6 +1764,42 @@ ok('emptying the box gives her back the voice she shipped with');
       `MIDCLAIM-QUESTION: an answer to a question keeps every sentence:\n${q.reply}`);
   }
   ok('a claim of a change anywhere in the reply is taken off when nothing was done');
+
+  // #144 · WRITTEN ON REQUEST, AN OFF POCKET IS ON (Seraphine, 2026-11-04: her appearance was Off, Talk
+  // filled it, and it stayed Off, so it never reached a passage). Its Undo puts it back Off.
+  {
+    const id = db.upsertEntry(tale.id, me, { title: 'Odile', body: '', entryType: 'character', activation: 'always_on', keys: [] })!;
+    db.upsertAddon(tale.id, id, { slot: 'facts', name: 'facts', body: 'A weaver.' });
+    const look = db.upsertAddon(tale.id, id, { slot: 'appearance', name: 'appearance', body: 'Plain.' })!;
+    db.setAddonActivation(tale.id, look, 'off');
+    const w = await say('CHANGE-WAKEOFF: write her appearance');
+    assert.ok(!w.error, w.error);
+    const after = room(id, 'appearance');
+    assert.strictEqual(after.length, 1, '  one appearance pocket');
+    assert.strictEqual(after[0].body, 'Grey wool, silver at the cuffs.', '  with the new text');
+    assert.notStrictEqual(after[0].activation, 'off', `WAKE-ON: a pocket Talk writes on request is switched on (${after[0].activation})`);
+    assert.match(w.changes[0].words, /switched it on/i, `WAKE-SAID: the line says so (${w.changes[0].words})`);
+    const back = undo(w.changes[0].undo);
+    assert.ok(!back.error, back.error);
+    assert.strictEqual(room(id, 'appearance')[0].body, 'Plain.', '  Undo puts the text back');
+    assert.strictEqual(room(id, 'appearance')[0].activation, 'off', 'WAKE-UNDO: and puts the pocket back Off');
+  }
+  ok('a pocket that was Off is switched on when Talk writes it on request, and Undo puts it back Off');
+
+  // #144 · A THREAD TALK MADE WITH POCKETS is taken away by its own Undo, pockets and all. Its Undo
+  // waited until every pocket's Undo had been pressed first.
+  {
+    const m = await say('CHANGE-MAKEWITH: make the lockkeeper');
+    assert.ok(!m.error, m.error);
+    const him = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'Brannoc');
+    assert.ok(him, '  Brannoc was made');
+    assert.strictEqual(room(him.id, 'voice').length + room(him.id, 'appearance').length, 2, '  with two pockets');
+    const made = m.changes.find((x: any) => x.undo?.op === 'thread.unmake');
+    const gone = undo(made.undo);
+    assert.ok(!gone.error, `UNMAKE-WITH-POCKETS: the thread's own Undo works with its pockets still on (${gone.error})`);
+    assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'Brannoc'), 'UNMAKE-WITH-POCKETS: and he is gone');
+  }
+  ok('a thread Talk made with pockets is taken away by its own Undo');
 
   // ASKED, THOUGH THE MODEL SENT IT AS AN OFFER (Seraphine, 2026-11-04). The writer asked for her card
   // to be filled in, and the answer carried no change: only an entry naming her, for one pocket. A

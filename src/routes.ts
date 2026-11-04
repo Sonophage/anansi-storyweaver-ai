@@ -714,6 +714,9 @@ function applyChange(storyId: string, owner: string, ch: Change):
       name: ch.name, body: ch.text, keys: ch.keys });
     if (!id) return null;
     if (!ch.addon && !ch.keys.length) db.setAddonActive(storyId, id, true);
+    // #144 · An Off pocket written on request is switched on; its Undo puts it back Off.
+    if (ch.wake) db.setAddonActivation(storyId, id, ch.keys.length ? 'triggered' : 'always_on');
+    if (ch.off) db.setAddonActivation(storyId, id, 'off');
     return { addon: id };
   }
   // #128 · A STRING, through the pocket panel's own write on the tale's thread, which is made here the
@@ -4816,6 +4819,10 @@ export const routes: Record<string, Handler> = {
       changes.push({ words: aim.to === 'world' ? `${wordsFor(k.change)} In ${world!.title}, for every tale that follows it.`
         : wordsFor(k.change), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change) });
     }
+    // #144 · A NEW THREAD'S UNDO CARRIES THE POCKETS MADE WITH IT, so one Undo takes the thread away whole.
+    for (const ch of changes) if (ch.undo?.op === 'thread.unmake')
+      ch.undo = { ...ch.undo, pockets: changes.filter((x) => x.undo?.op === 'room.unmake' && x.undo.thread === ch.undo.thread)
+        .map((x) => ({ addon: x.undo.addon, text: x.undo.text })) };
     const answer = [talkReply(r.data.reply, notDone, searchFailed, changes.length, asksForChange(said) ? chalked : [],
       asksForChange(said) || raws.length > 0),
       unsure.length ? askWhich(unsure, world!.title) : ''].filter(Boolean).join('\n\n');

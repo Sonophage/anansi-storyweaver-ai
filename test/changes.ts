@@ -187,6 +187,16 @@ ok('UNDO-UNMAKE: a thread or room Talk made is taken away only while it is as Ta
     /changed since/i);
   assert.ok(ch.checkUndo({ op: 'room.unmake', thread: 'e-talia', addon: 'a-tv', text: 'Quick and dry.' }, made).ok);
   refused(ch.checkUndo({ op: 'room.unmake', thread: 'e-talia', addon: 'a-tv', text: 'Slow.' }, made), /changed since/i);
+  // #144 · With the pockets Talk made it with, named by id and text, it goes whole; a pocket the Undo
+  // does not name, or one changed since, is the writer's, and keeps the thread.
+  const dressed = { entries: [...tale.entries, { id: 'e-new', title: 'The ferryman', entryType: 'character',
+    addons: [room('a-nf', 'facts', 'Rows.'), room('a-nv', 'voice', 'Slow.')] }] };
+  const asMade = { op: 'thread.unmake', thread: 'e-new', title: 'The ferryman', text: 'Rows.' };
+  assert.ok(ch.checkUndo({ ...asMade, pockets: [{ addon: 'a-nv', text: 'Slow.' }] }, dressed).ok,
+    'UNMAKE-POCKETS: taken away with the pockets it was made with');
+  refused(ch.checkUndo(asMade, dressed), /changed since/i);
+  refused(ch.checkUndo({ ...asMade, pockets: [{ addon: 'a-nv', text: 'Slower.' }] }, dressed), /changed since/i);
+  refused(ch.checkUndo({ ...asMade, pockets: [{ addon: 'a-other', text: 'Slow.' }] }, dressed), /changed since/i);
   refused(ch.checkUndo({ op: 'thread.delete', thread: 'e-talia' }, made), /not something Undo can do/i);
   refused(ch.checkUndo({ op: 'thread.new', title: 'X', type: 'lore', text: 'y' }, made), /not something Undo can do/i);
 });

@@ -18,6 +18,17 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-04 · Talk fills in the card you ask for
 
+### Talk does what it says, and says only what it did
+- "Fill out her card" works now when you were just talking about her. Before, without her name it
+  was only a suggestion.
+- A long pocket arrives whole. Before, it could stop in the middle of a word.
+- A pocket is written once, even when Talk sends it twice in one answer.
+- A pocket that was Off is switched on when Talk writes it for you, so it reaches your story. Its
+  Undo puts it back Off.
+- One Undo takes away a person Talk made, with every pocket it gave them.
+- When nothing was changed, Talk no longer says "I have added…" in the middle of its answer, and it
+  no longer repeats the app's own notes back to you.
+
 ### Asked to fill in a thread, Talk writes it
 Ask Talk to fill out, write or change a thread by its name, and it now writes it, every pocket it
 gives, each with its own line and Undo. Before, it could send your request to the Workbench as a
