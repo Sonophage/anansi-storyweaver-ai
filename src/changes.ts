@@ -328,14 +328,22 @@ export function expandAsked(raws: unknown, _tale: Tale): any[] {
     const room = pocketOf(raw);
     const { field: _f, room: _r, text, ...about } = raw;
     let head = made.get(norm(name));
-    if (!head) { head = { ...about, op }; made.set(norm(name), head); out.push(head); }
-    if (room && room !== 'facts') {
-      out.push({ op: 'thread.set', thread: name, room, text, ...(raw.to ? { to: raw.to } : {}) });
-    } else if (head.text == null) {
-      // The member that carries the Always true carries the thread's own keys and wake, too.
-      Object.assign(head, about, { op, text });
+    if (!head) { head = { ...about, op, always: [] as unknown[] }; made.set(norm(name), head); out.push(head); }
+    if (room && room !== 'facts') out.push({ op: 'thread.set', thread: name, room, text, ...(raw.to ? { to: raw.to } : {}) });
+    else {
+      // The first member that carries an Always true carries the thread's own keys and wake, too.
+      if (!head.always.length) Object.assign(head, about, { op });
+      head.always.push(text);
     }
-    out.push(...each);
+    // A FACTS POCKET ON A NEW THREAD IS PART OF WHAT IT IS: it joins the Always true rather than
+    // writing over it. Measured on the real model, two answers in two sent one beside the text.
+    for (const p of each) (p.room === 'facts' ? head.always : out).push(p.room === 'facts' ? p.text : p);
+  }
+  // The parts of each new thread's Always true, joined in the order sent; none is no text.
+  for (const head of made.values()) {
+    const parts = (head.always as unknown[]).map((x) => String(x ?? '').trim()).filter(Boolean);
+    delete head.always;
+    if (parts.length) head.text = parts.join(' ');
   }
   return out;
 }

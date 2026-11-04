@@ -899,6 +899,14 @@ ok('ASKED-POCKETS: one change carrying its pockets is the change, then one pocke
     ['thread.set', 'Talia Venn', 'interiority', 'Wants the debt gone.'],
   ], `ASKED-POCKETS: ${JSON.stringify(out)}`);
   assert.ok(!('pockets' in out[0]), 'and the pockets are not left on the change itself');
+  // MEASURED on the real model, twice in two: a facts pocket beside the text. Both are what it is,
+  // so both are its Always true, and no pocket change writes over the one the thread was made with.
+  const both = ch.expandAsked([{ op: 'thread.new', title: 'Seraphine', type: 'character',
+    pockets: [{ room: 'voice', text: 'A low murmur.' }, { room: 'facts', text: 'She is a nun of the Choir of Saints.' }],
+    text: 'A nun with a predatory hunger for the Stranger.' }], tale);
+  assert.deepStrictEqual(both.map((r: any) => [r.op, r.room ?? null, r.text]), [
+    ['thread.new', null, 'A nun with a predatory hunger for the Stranger. She is a nun of the Choir of Saints.'],
+    ['thread.set', 'voice', 'A low murmur.']], `ASKED-POCKETS-FACTS: a new thread's facts pocket joins its Always true (${JSON.stringify(both)})`);
   const keys = Object.keys(ch.CHANGES_SCHEMA.items.properties);
   assert.ok(keys.includes('pockets') && keys.indexOf('pockets') < keys.indexOf('text'),
     `ASKED-POCKETS: the grammar offers pockets, before the text (${keys.join(', ')})`);
