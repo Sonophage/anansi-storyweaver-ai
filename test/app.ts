@@ -1197,29 +1197,41 @@ ok('a scene opens under a sunburst, its number in Roman numerals');
   assert.match(page, /html:root \.pbanner > \.pbmark::after \{[^}]*arcana-diamond\.svg/, 'NO-DIVIDER: the panel banner keeps its diamond');
 }
 ok('no chevron divider or decorative gilt line under any header');
-// THE QUILL IS A SEAL, NOT A BRUSHED DISC (Seth, 2026-11-03: no brush texture, "more arcane"). The
-// composer's centre press is still the screen's one gold press (ADR 0004) and still a 60px round
-// target: a gold fill with a fine ring inside it and a faint eight-rayed sigil under the quill, both
-// line-work, and a gilt ring outside it. Its states stay apart: open (the box is up) is the ring
-// with no fill, held is pressed in and brighter, and writing keeps the glow it had.
+// THE CENTRE PRESS IS THE EMBLEM (Seth, 2026-11-03, of the Threads panel's banner: "I want that to
+// replace the whole centre button instead of the circle I press to bring up the input"). No circle,
+// no ring, no round fill: the banner's diamond with the web mark in its middle and its sunburst behind
+// it, every part a mask in the accent. Still #quill, and still the screen's one gold press (ADR 0004):
+// a tap opens the box, a hold talks. Its states stay apart: held is pressed in and lit, open is the
+// diamond's outline only, the keyboard's ring is a diamond, and the wait glows round its shape.
 {
   const { readFileSync, existsSync } = await import('node:fs');
   const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  click({ open: 's-1' }); await sleep(40);
+  const q = html('dockCol').match(/<button id="quill"[^>]*>[\s\S]*?<\/button>/)?.[0] ?? '';
+  assert.match(q, /<button id="quill" data-dockopen="1" aria-expanded="false"\s+aria-label="Open the box, to write it yourself\. Hold to talk to Anansi"/,
+    'EMBLEM: still the quill press, its tap, its state and its words');
+  assert.match(q, /<span class="emdia" aria-hidden="true"><\/span><\/button>$/, 'EMBLEM: the diamond is in it, hidden from a screen reader');
+  assert.doesNotMatch(q, /<svg/, 'EMBLEM: no icon drawn in it: the mark is the banner\'s, a mask');
+  const rule = page.match(/#nextrow \.quillcell > button \{[^}]*\}/)?.[0] ?? '';
+  assert.match(rule, /width:60px; height:60px;/, 'EMBLEM: the same 60px footprint, so the bar does not move');
+  assert.doesNotMatch(rule, /border-radius|background:var\(--gold\)/, 'EMBLEM: no circle and no gold fill');
+  assert.doesNotMatch(page, /html:root #quill[^{]*\{[^}]*(border-radius:50%|radial-gradient)/, 'EMBLEM: no round seal rules are left');
+  assert.match(page, /html:root #quill::before, html:root #quill::after \{[^}]*mask:url\('\/web\/arcana-sunburst\.svg'\)/, 'EMBLEM: the banner\'s sunburst behind it, rising and turned down');
+  assert.match(page, /html:root #quill > \.emdia::before \{ width[^}]*mask:url\('\/web\/arcana-diamond\.svg'\)/, 'EMBLEM: the banner\'s diamond');
+  assert.match(page, /html:root #quill > \.emdia::after \{ width[^}]*mask:url\('\/web\/arcana-mark-web\.svg'\)/, 'EMBLEM: the web mark in its middle');
+  assert.match(page, /html:root #quill:active:not\(:disabled\) \{[^}]*transform:scale/, 'EMBLEM: held, it presses in');
+  assert.match(page, /html:root #quill\[aria-expanded="true"\]::before/, 'EMBLEM: open, it is quieter');
+  assert.match(page, /html:root #quill:focus-visible > \.emdia \{[^}]*outline:/, 'EMBLEM: the keyboard\'s ring is drawn on the diamond');
   const brush = page.match(/html:root :is\([^{]*\)\s*\{\s*background-image:url\('\/web\/arcana-brush\.svg'\)/)?.[0] ?? '';
-  assert.ok(brush && !/quill/.test(brush), 'QUILL-SEAL: the quill has no brush texture');
-  assert.match(page, /#nextrow \.quillcell > button \{[^}]*width:60px; height:60px; border-radius:50%/, 'QUILL-SEAL: still a round 60px press');
-  assert.match(page, /html:root #quill::before \{[^}]*mask:url\('\/web\/arcana-sigil\.svg'\)/, 'QUILL-SEAL: a sigil inside it, as a mask');
-  assert.match(page, /html:root #quill::after \{[^}]*border:1px solid var\(--gold/, 'QUILL-SEAL: and a gilt ring outside it');
-  assert.match(page, /html:root #quill:active:not\(:disabled\) \{/, 'QUILL-SEAL: held, it shows it');
-  assert.match(page, /html:root #quill\[aria-expanded="true"\] \{[^}]*background:none/, 'QUILL-SEAL: open, it is the ring with no fill');
-  assert.ok(existsSync(new URL('../web/arcana-sigil.svg', import.meta.url)), 'QUILL-SEAL: the sigil is on disk');
-  // THE CENTRE ICON IS THE WEB'S WEDGE, RAYS DOWN (Seth, 2026-11-03).
-  { const { MARK } = await import('../web/model.js');
-    const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
-    assert.ok(MARK.web && /id="quill"[^]*?mark\('web', 30\)\}<\/button>/.test(src), 'QUILL-ICON: the press carries the web wedge');
-    assert.match(page, /html:root #quill > svg \{[^}]*transform:translateY\(-17\.5%\) scaleY\(-1\)/, 'QUILL-ICON: turned over so the rays face down, and lifted to the centre'); }
+  assert.ok(brush && !/quill/.test(brush), 'EMBLEM: no brush texture on it');
+  assert.match(page, /#dock\.folded #quill \{ animation:pressglow /, 'EMBLEM: while the model works, it glows');
+  assert.match(page, /@keyframes pressglow \{[^}]*filter:drop-shadow/, 'EMBLEM: round its own shape, not a box');
+  assert.doesNotMatch(page, /arcana-sigil/, 'EMBLEM: the seal\'s sigil is gone');
+  assert.ok(!existsSync(new URL('../web/arcana-sigil.svg', import.meta.url)), 'EMBLEM: and its file');
+  const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /mark\('web', 30\)/, 'EMBLEM: the turned-over wedge is gone from the press');
 }
-ok('the quill is a gilt seal with a sigil, no brush');
+ok('the centre press is the emblem: the banner\'s diamond, web and sunburst, no circle');
 // THE PANEL TABS AND THE KIND CHIPS ARE 44px TO THE FINGER (Seth's rule: about 32px to the eye, 44px
 // to the finger). The Arcana tabs became spaced capitals with no boxes on 2026-11-03 and stood 28px
 // tall; the threads list's kind chips stood 34px. test/ui/targets.js measured both short on a phone.
@@ -2630,7 +2642,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     assert.ok(FACES && !Object.values(THEMES).some((t: any) => t.faces), 'ARCANA-FACES: the display faces are the app\'s, not a theme\'s');
     const html0 = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
     assert.doesNotMatch(html0, /data-ui-theme="arcana"\]/, 'ARCANA-EVERYWHERE: no rule keys on the Arcana theme');
-    const GILT = /arcana-(corner-..|divider|stars|sky-\w+|suit-\w+|glyph-\w+|mark-\w+|sigil|sunburst|diamond|runes|wash)\.svg/;
+    const GILT = /arcana-(corner-..|divider|stars|sky-\w+|suit-\w+|glyph-\w+|mark-\w+|sunburst|diamond|runes|wash)\.svg/;
     for (const m of html0.matchAll(/url\('\/web\/(arcana-[\w-]+\.svg)'\)/g)) {
       if (!GILT.test(m[1])) continue;
       const decl = html0.slice(Math.max(html0.lastIndexOf(';', m.index!), html0.lastIndexOf('{', m.index!)) + 1, m.index!);
@@ -10518,7 +10530,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     await sleep(400);
   } finally { shell.appendChild = was2; }
   const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
-  assert.strictEqual(src.match(/\$\{writingLoader\(\)\}/g)?.length, 2, 'SPHERE-LOADER: the inline passage being written shows it too');
+  assert.strictEqual(src.match(/\$\{writingLoader\(\)\}/g)?.length, 1, 'SPHERE-LOADER: only the veil has its own; the passage being written inline leaves it to the press');
   assert.doesNotMatch(page, /loenbreathe|\.writingnow \.(loen|en)\b/, 'SPHERE-LOADER: the breathing Loenese loader text is gone from the stylesheet');
   assert.doesNotMatch(src, /\bglyph\(\)|dataset\.glyphs/, 'LOENESE: the random-glyph decode is gone');
   assert.match(src, /for \(const sp of spans\) loenIn\(sp, LOEN_WORD_MS\)/, 'LOENESE-WORD: drainVeil sends every streamed word through it');
@@ -10572,6 +10584,13 @@ ok('Loenese: the font ships, and headers and streamed words turn out of it into 
     cv2.closest = (q: string) => (q === '.written' ? {} : null);
     queue.shift()!(32);
     assert.strictEqual(queue.length, 0, 'SPHERE-LOOP: at the first word it stops');
+    // THE PRESS'S SPHERE runs while Anansi writes: asked each frame, and it stops when writing ends.
+    let writing = true;
+    const cv3: any = { ...cv, isConnected: true, closest: () => null };
+    sphereIn(cv3, 60, () => writing); queue.shift()!(16);
+    assert.strictEqual(queue.length, 1, 'SPHERE-LOOP: while it is writing, it turns');
+    writing = false; queue.shift()!(32);
+    assert.strictEqual(queue.length, 0, 'SPHERE-LOOP: when writing ends it asks for no more frames');
     // REDUCED MOTION: one still frame, no loop.
     const mm = (globalThis as any).matchMedia; arcs = 0;
     (globalThis as any).matchMedia = () => ({ matches: true, addEventListener() {} });
@@ -10584,6 +10603,36 @@ ok('Loenese: the font ships, and headers and streamed words turn out of it into 
   assert.match(src, /after the 'listening' loader in loadersz \(MIT/, 'SPHERE-CREDIT: the loader credits loadersz');
 }
 ok('the loader is a turning sphere of dots: pure maths on the unit sphere, a bounded ripple, one loop that stops off the page or at the first word, still under reduced motion');
+
+// ---- THE SPHERE AT THE PRESS (Seth, 2026-11-03: "when Anansi is writing I want that to fade away and
+// use the loader you just made in that position"). While a passage is written the emblem fades and the
+// sphere turns where it was, saying "Anansi is writing" to a screen reader; when the writing ends the
+// sphere goes and the emblem comes back. Driven through a held generation.
+{
+  const { readFileSync } = await import('node:fs');
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  const cell = () => html('dockCol').match(/<div class="quillcell[^"]*"[^>]*>[\s\S]*?<\/button>\s*(?:<canvas[^>]*><\/canvas>\s*)?<\/div>/)?.[0] ?? '';
+  let open!: () => void;
+  try {
+    click({ open: 's-1' }); await sleep(40);
+    assert.match(cell(), /data-writing="false"/, 'PRESS-SPHERE: before a press, the cell is not writing');
+    assert.doesNotMatch(cell(), /<canvas/, 'PRESS-SPHERE: and has no sphere');
+    streamGate = new Promise<void>((r) => { open = r; });
+    void click({ continue: '1' }); await sleep(30);
+    assert.match(cell(), /data-writing="true"/, 'PRESS-SPHERE: while Anansi writes, the press cell says so');
+    assert.match(cell(), /<canvas class="presssphere" role="status" aria-label="Anansi is writing"><\/canvas>/,
+      'PRESS-SPHERE: and the sphere is in it, telling a screen reader in English');
+    assert.match(cell(), /<button id="quill" data-dockopen="1"/, 'PRESS-SPHERE: the press is still there, under it, to tap or hold');
+    open(); streamGate = null; await sleep(300);
+    click({ open: 's-1' }); await sleep(40);
+    assert.match(cell(), /data-writing="false"/, 'PRESS-SPHERE: when the writing ends, the cell is not writing');
+    assert.doesNotMatch(cell(), /<canvas|Anansi is writing/, 'PRESS-SPHERE: and the sphere is gone, the emblem back');
+  } finally { streamGate = null; }
+  assert.match(page, /#nextrow \.quillcell\.writing #quill \{[^}]*opacity:0/, 'PRESS-SPHERE: the emblem fades away');
+  assert.match(page, /#nextrow \.presssphere \{[^}]*width:60px; height:60px;[^}]*transition:opacity \.3s/, 'PRESS-SPHERE: the sphere fades in over it, at its size');
+  assert.match(page, /prefers-reduced-motion: reduce\) \{ #nextrow \.quillcell :is\(#quill, \.presssphere\) \{ transition:none/, 'PRESS-SPHERE: no fade under reduced motion');
+}
+ok('while Anansi writes the emblem fades and the sphere turns in its place, then the emblem comes back');
 
 // ---- THE ACTION LABEL TRANSLATES OUT OF LOENESE WHEN IT IS NEW ON SCREEN (Seth, 2026-11-03: "The
 // action dividers do the same"). New is a passage that landed while the book was open; a repaint, or
@@ -10745,8 +10794,15 @@ ok('the old script is a switch on the Tale tab, on by default; off, the tale sho
   try {
     // A REWEAVE THAT LANDS. Held before its first word, so the stretch while it is written can be looked at.
     streamGate = new Promise<void>((r) => { open = r; });
-    click({ re: 'p-5' }); click({ re: 'p-5' }); await wait();
+    const make = (document as any).createElement, made: any[] = [];
+    (document as any).createElement = (t: string) => { const o = make(t); made.push(o); return o; };
+    try { click({ re: 'p-5' }); click({ re: 'p-5' }); await wait(); } finally { (document as any).createElement = make; }
     assert.match(blockOf('p-5'), /class="block[^"]* rerolling-out/, 'the old version is drawn hidden while the new one is written');
+    // THE SPHERE IS AT THE PRESS, NOT IN THE PASSAGE (Seth, 2026-11-03): the passage being written
+    // keeps its label and its words, and draws no loader of its own.
+    { const g = made.filter((o: any) => /\binlive\b/.test(String(o.className ?? ''))).at(-1);
+      assert.match(String(g?.innerHTML ?? ''), /<div class="from fresh"/, 'INLINE-NO-LOADER: the passage being written is drawn, with its label');
+      assert.doesNotMatch(String(g?.innerHTML ?? ''), /<canvas/, 'INLINE-NO-LOADER: and no loader in it'); }
     click({ rerollx: '1' }); await wait();
     assert.match(blockOf('p-5'), /class="block[^"]* rerolling-out/, 'and a repaint draws it hidden again');
     open(); streamGate = null; await wait(200);

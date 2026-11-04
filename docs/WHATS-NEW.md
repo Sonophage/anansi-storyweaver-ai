@@ -18,13 +18,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · A thread is edited where you read it
 
-### A new mark on the round button
-The round button at the foot of the page wears the web's wedge, the small mark beside each heading,
-turned over so its rays reach down, in place of the quill.
+### The button under the page is the web in its diamond
+The round button in the middle under the page, the one you tap to write and hold to talk, is now
+the emblem from the top of the Threads panel: the gilt diamond with the web in its middle and rays
+of light all round it. It does the same things it did. Held down, it presses in and brightens.
 ### A turning globe while Anansi writes
-While you wait for the first word of a passage, a small globe of dots now turns where the
-words will start, a slow ripple running round it. It replaces the words "Anansi is writing", which
-a screen reader still says. With reduced motion it holds still.
+While Anansi writes a passage, the diamond under the page fades away and a small globe of dots
+turns in its place, a slow ripple running round it, until the passage is written; then the diamond
+comes back. The words "Anansi is writing" are gone from the page, and a screen reader still says
+them. With reduced motion the globe holds still and nothing fades.
 
 ### Each tale can turn the old script off
 The Tale tab has a new switch, "Letters translate from the old script", under the cover. It is on
@@ -266,10 +268,6 @@ keeps the header it had.
 The chevron-and-diamond divider and the gilt lines under titles are gone everywhere: under the top
 bar, a side panel's name, the model in the menu, the tale you left off in, and a scene's head. Cards
 keep their gilt frames and corners.
-### The round button under the page is a gilt seal
-The round gold button in the middle under the page, the one you press to write and hold to talk,
-is a seal: gold with a fine ring and a faint sunburst of rays under the quill, and a thin gilt ring
-around it. Held down, it presses in and brightens; while Anansi thinks it glows, as before.
 ### No glow along the top
 The glow across the top of the screen is gone. What is waiting is still counted on the Workbench in
 the tale's menu.

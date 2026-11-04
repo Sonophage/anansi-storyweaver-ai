@@ -832,8 +832,8 @@ let loenOff = () => false;
 export const loenGate = (off) => { loenOff = off; };
 
 // ---------------------------------------------------------------------------
-// THE LOADER: a sphere of dots turning slowly while a ripple runs round it, shown on the passage
-// being written until its first word (Seth, 2026-11-03).
+// THE LOADER: a sphere of dots turning slowly while a ripple runs round it (Seth, 2026-11-03). It
+// stands in for the composer's centre press while Anansi writes, and on the veil until the first word.
 // Written after the 'listening' loader in loadersz (MIT, github/npm loadersz): its maths, not its
 // code, since Anansi takes no dependency.
 export const SPHERE_DOTS = 190;
@@ -861,9 +861,10 @@ export function sphereFrame(t, n = SPHERE_DOTS, ripple = 0.1, yaw = t * 0.15, ti
 }
 /** Draw the sphere on canvas `cv`, `px` CSS pixels square, in the canvas's own colour (the accent,
  *  from the stylesheet), sharp at the screen's pixel density. One frame a frame until the canvas
- *  leaves the page or its passage gets its first word (`.written`); then it asks for no more, so a
- *  loader never outlives its passage. Reduced motion draws one still frame. */
-export function sphereIn(cv, px) {
+ *  leaves the page, its passage gets its first word (`.written`), or `live` says no (the press's
+ *  sphere: while Anansi writes); then it asks for no more, so a loader never outlives what it waits
+ *  on. Reduced motion draws one still frame. */
+export function sphereIn(cv, px, live = () => true) {
   const ctx = cv?.getContext?.('2d');
   if (!ctx) return;
   // Sharp at the size it is SHOWN, which is not `px` under the interface scale (a `zoom` on the
@@ -873,21 +874,23 @@ export function sphereIn(cv, px) {
   cv.width = cv.height = Math.round(shown * Math.min(globalThis.devicePixelRatio || 1, 2));
   const dpr = cv.width / px;
   const ink = globalThis.getComputedStyle?.(cv)?.color || 'currentColor';
-  const R = px * 0.41, c = px / 2;
+  // The dots keep the size they have at the veil's 80px and shrink with a smaller sphere, so the
+  // press's 60px one stays a sphere of dots and not a blot.
+  const R = px * 0.41, c = px / 2, k = Math.min(1, px / 80);
   const draw = (t) => {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, px, px);
     ctx.fillStyle = ink;
     for (const d of sphereFrame(t)) {
       ctx.globalAlpha = Math.min(1, d.a);
-      ctx.beginPath(); ctx.arc(c + d.x * R, c - d.y * R, d.r, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(c + d.x * R, c - d.y * R, d.r * k, 0, Math.PI * 2); ctx.fill();
     }
   };
   // The listening loader's clock starts at .6 s, so its still frame already has the ripple in it.
   if (still()) { draw(0.6); return; }
   let t0 = null;
   const tick = (now) => {
-    if (!cv.isConnected || cv.closest?.('.written')) return;
+    if (!cv.isConnected || cv.closest?.('.written') || !live()) return;
     t0 ??= now;
     draw(0.6 + (now - t0) / 1000);
     requestAnimationFrame(tick);

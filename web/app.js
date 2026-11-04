@@ -799,7 +799,7 @@ function armed(t, key, ask) {
  *  and is why it is not guarded. */
 /** THE GLOW, WHENEVER THE MODEL IS WORKING. Seth, 2026-09-03: "whenever something is happening
  *  with the ai, that border that glows should be present." The border was a ring round the window
- *  until 2026-10-25 and is the box's or the quill's glow now (app.html, thinkglow). It was up for the composer's presses and
+ *  until 2026-10-25 and is the box's or the quill's glow now (app.html, thinkglow and pressglow). It was up for the composer's presses and
  *  for a re-roll, and down for everything else the model does — writing a card, pulling a thread off
  *  the web, the four chapter-end passes, naming a chapter, the wizard. Those are the LONG ones.
  *
@@ -2358,12 +2358,12 @@ function holdLearned() {
 
 /** #71 · THE THREE BUTTONS, in Seth's second round (2026-10-25): [↻] [quill] [✦], marks only.
  *
- *  ↻ reweaves the last passage. THE QUILL in its circle opens the box and everything around it and
+ *  ↻ reweaves the last passage. THE QUILL (the emblem since 2026-11-03) opens the box and everything around it and
  *  writes nothing. ONE STATE OR THE OTHER (Seth, 2026-10-25): with the box up this whole bar is
  *  hidden, and the box folds back with the ⌄ at its top edge, Esc, or a tap on the prose above it
  *  (`foldBox`). The first round's handle over the bar is gone. Held, it turns the box to
  *  Talk; the hold is read by the pointer listeners below the click dispatcher. The "hold to talk"
- *  hint sits above the circle. ✦ CONTINUES: Anansi writes the next passage with no box at all.
+ *  hint sits above the press. ✦ CONTINUES: Anansi writes the next passage with no box at all.
  *
  *  ONE STOP AT A TIME. While Anansi writes, ✦ is Stop when the box is folded, because then it is the
  *  only Stop on screen. Send folds the box (see `generate`), so this is the Stop after every Send.
@@ -2374,6 +2374,12 @@ function holdLearned() {
  *  NO BACKTICKS IN THE HTML COMMENTS BELOW: they are inside a template literal. */
 function nextBar(last) {
   const busy = !!S.busy;
+  // THE SPHERE AT THE PRESS. `data-writing` is the truth; the `writing` class is what is SHOWN, drawn
+  // as it was shown before this draw and turned to the truth by `pressTurn` once it is on the page, so
+  // the change fades rather than jumps, and a repaint mid-write does not fade the emblem out again.
+  // The canvas is drawn only while writing: at the end the sphere goes at once, and the emblem fades
+  // back in over the place it stood.
+  const shown = PRESS_SHOWN;
   // THE HINT KEEPS ITS ROOM WHILE ANANSI WRITES, hidden rather than taken out: it appeared the moment a
   // passage landed, the bar grew 18px, the page under it shrank, and the prose jumped up by that much
   // (2026-10-28, measured in a browser: the view went 674px to 656px at the landing).
@@ -2385,24 +2391,45 @@ function nextBar(last) {
         aria-label="Reweave the last passage. Hold, or Alt+click, to change the instruction first"
         title="Reweave the last passage. Hold, or Alt+click, to change the instruction first"
         ><span class="serif">↻</span></button>
-      <div class="quillcell">
-        ${/* ABOVE the circle (Seth, 2026-10-25): a thumb on the circle covers what is under it. */ ''}
+      <div class="quillcell${shown ? ' writing' : ''}" data-writing="${busy}">
+        ${/* ABOVE the press (Seth, 2026-10-25): a thumb on the press covers what is under it. */ ''}
         ${hint ? `<small class="holdhint"${busy ? ' style="visibility:hidden" aria-hidden="true"' : ''}>${hwkb ? 'hold, or Alt+T, to talk' : 'hold to talk'}</small>` : ''}
         ${/* #55's planning count came OFF the bar on 2026-10-27 (Seth: "remove the thinking from above
               the middle circle"). It went on 2026-10-26; the count still shows in the passage being
               written, above its first word, and beside the open box. */ ''}
         <button id="quill" data-dockopen="1" aria-expanded="${open}"
           aria-label="${open ? 'Fold the box away. Hold to talk to Anansi' : 'Open the box, to write it yourself. Hold to talk to Anansi'}"
-          title="${open ? 'Fold the box away' : 'Write it yourself'}. Hold to talk to Anansi">${/* THE ORB-WEB'S WEDGE, RAYS DOWN (Seth, 2026-11-03: "the triangle with rays ... as the center
-            icon instead for the input button, invert it vertically so the rays face down"): the help
-            mark's quadrant of the web (MARK.web), turned over by the stylesheet (#quill > svg). */
-            mark('web', 30)}</button>
+          title="${open ? 'Fold the box away' : 'Write it yourself'}. Hold to talk to Anansi">${/* THE EMBLEM (Seth, 2026-11-03): the
+            Threads banner's diamond with the web mark in it and its sunburst behind, all drawn by the
+            stylesheet as masks in the accent (THE CENTRE PRESS IS THE EMBLEM, app.html). The span is
+            the diamond; the rays are the press's own ::before and ::after. */
+            ''}<span class="emdia" aria-hidden="true"></span></button>
+        ${busy ? '<canvas class="presssphere" role="status" aria-label="Anansi is writing"></canvas>' : ''}
       </div>
       ${busy && !open
         ? `<button id="cont" data-stop="1" class="stopping" aria-label="Stop writing" title="Stop">${mark('stop', 18)}<span class="btnword">Stop</span></button>`
         : `<button id="cont" data-continue="1" ${busy ? 'disabled' : ''} aria-label="Continue: Anansi writes the next passage"
             title="Continue: Anansi writes the next passage"><span class="serif">✦</span></button>`}
     </div></div>`;
+}
+
+/** THE SPHERE AT THE PRESS (Seth, 2026-11-03: "when Anansi is writing I want that to fade away and
+ *  use the loader you just made in that position"). While a passage is written (`S.busy`) the emblem
+ *  fades out and the turning sphere (sphereIn, web/model.js) fades in where it stood; when the writing
+ *  ends the sphere goes and the emblem fades back. Called by drawDock once the bar is on
+ *  the page. One canvas and one loop at a time: a repaint draws a new canvas and the old one's loop
+ *  ends as it leaves the page; the loop also ends the frame the writing does. */
+const PRESS_PX = 60;
+let PRESS_SHOWN = false;
+function pressTurn() {
+  const busy = !!S.busy;
+  const cell = document.querySelector('#nextrow .quillcell');
+  if (cell && cell.classList.contains('writing') !== busy) {
+    void cell.offsetWidth;   // the state as drawn is laid out first, so the change is a transition
+    cell.classList.toggle('writing', busy);
+  }
+  PRESS_SHOWN = busy;
+  if (busy) sphereIn(document.querySelector('#nextrow .presssphere'), PRESS_PX, () => !!S.busy);
 }
 
 /** #71 · THE BULB AND ANANSI'S THREE IDEAS, under the last passage beside the line that says how to
@@ -2678,6 +2705,7 @@ function drawDock() {
              >${mark('send', 18)}<span class="btnword">Send</span></button>`}
     </div>
     ${last ? nextBar(last) : ''}`;
+  pressTurn();
   const ta = $('input');
   // Fit to the text and let CSS clamp it. The cap used to be written twice — `140` here and
   // `max-height:140px` in the stylesheet — which is two numbers for one decision, and the pair
@@ -5625,7 +5653,7 @@ const PANELS = {
       <!-- THE OLD SCRIPT, this tale's own switch, under the cover with the rest of how the tale
            looks (Seth, 2026-11-03: "Add the text transition in the tale as a toggle"). On, its
            headers, new action labels and arriving words print in the old script and translate into
-           English, and the loader is in it; off, all of it is English at once. On for a tale that
+           English; off, all of it is English at once. On for a tale that
            never set it. A [data-story] box, so it saves itself; loenOffHere reads it. -->
       <label class="line pressable push-12">
         <input type="checkbox" data-story="loen" ${V.story.loen !== false ? 'checked' : ''}>
@@ -10847,15 +10875,18 @@ function decodeFresh(root) {
 const loenOffHere = () => S.place === 'story' && V?.story?.loen === false;
 loenGate(loenOffHere);
 
-/** THE LOADER ON THE PASSAGE BEING WRITTEN: a sphere of dots turning in the accent (sphereFrame,
- *  web/model.js; Seth, 2026-11-03), shown from the press until the first word arrives (`written`,
- *  liveDelta), with "Anansi is writing" as its label for a screen reader. It replaced the same words
- *  set in Loenese and breathing. `startLoader` sets it turning once the passage is on the page. */
+/** THE LOADER ON THE VEIL: a sphere of dots turning in the accent (sphereFrame, web/model.js; Seth,
+ *  2026-11-03), shown from the press until the first word arrives (`written`, liveDelta), with
+ *  "Anansi is writing" as its label for a screen reader. It replaced the same words set in Loenese
+ *  and breathing. `startLoader` sets it turning once the veil is on the page. The passage written
+ *  inline has none of its own since the same evening: the sphere stands in the centre press's place
+ *  instead (THE SPHERE AT THE PRESS, `pressTurn`), because the veil covers the press and the inline
+ *  passage does not. */
 const LOADER_PX = 80;
 const writingLoader = () => `<canvas class="writingnow" role="status" aria-label="Anansi is writing"></canvas>`;
 const startLoader = (g) => sphereIn(g?.querySelector?.('canvas.writingnow'), LOADER_PX);
 
-/** The block where the passage is going to land: a loader first, then the passage arriving.
+/** The block where the passage is going to land: its label first, then the passage arriving.
  *
  *  One element for both states. The wait before the first token is 0.35s warm and 7.8s cold (F24),
  *  and a page that shows nothing for either reads as hung — which is what it was reported as.
@@ -10931,7 +10962,6 @@ function ghost(replaces = null) {
     // Its label is always new on screen, so it is always `fresh` (decodeFresh, below drawDoc).
     g.innerHTML = `<div class="from fresh" data-press="${pressKey(press)}"><i></i><span>${esc(press)}${GHOST_VOICE ? ` &middot; ${esc(GHOST_VOICE)}` : ''}</span></div>
       ${WEAVE_LINE()}
-      ${writingLoader()}
       ${GHOST_VOICE ? `<div class="who">${esc(GHOST_VOICE)}</div>` : ''}
       <div class="${GHOST_VOICE ? 'said' : 'narr'}"><div class="veiltext" aria-live="polite"></div></div>`;
     // Drawn again with it in place, so the passage before it gives up the newest's row (chapterHTML).
@@ -10946,7 +10976,6 @@ function ghost(replaces = null) {
     REPLACING = replaces;
     drawDoc();
     decodeFresh(g);
-    startLoader(g);
     // THE NEW ENTRY'S HEADER GOES TO THE TOP, AT THE PRESS (Seth, 2026-10-27, below at anchorLive).
     INLINE_ANCHOR = true;
     anchorLive();
@@ -11086,7 +11115,7 @@ const weavingAt = (at) => WEAVES.has(at);
 const weaveHTML = (at = 'dock') => `<span class="wv-word" aria-hidden="true">Planning</span><span class="wv-dots" aria-hidden="true"><i></i><i></i><i></i></span> <span class="wv-secs" aria-hidden="true">${weaveSecs(at)}</span>`;
 /** The passage being written, while it is woven: the line directly under the action label, where
  *  the passage's words will start, left-aligned in the prose column. Seth, 2026-11-03: "don't centre
- *  it, just put it under the action label". The loader under it is hidden while it shows (`weaving`).
+ *  it, just put it under the action label". On the veil, the loader under it is hidden while it shows (`weaving`).
  *  Empty, and not drawn, when the passage is not woven. */
 const WEAVE_LINE = () => (weavingAt('dock')
   ? `<div class="veilweave" role="status" aria-label="Anansi is planning">${weaveHTML('dock')}</div>`
@@ -11094,7 +11123,7 @@ const WEAVE_LINE = () => (weavingAt('dock')
 function weaveShow(at) {
   const words = WEAVES.has(at) ? weaveWords(at) : '';
   const g = at === 'dock' ? document.getElementById('ghost') : null;
-  // The loader comes back with the count gone (THE WEAVING, app.html).
+  // The veil's loader comes back with the count gone (THE WEAVING, app.html).
   if (!words) g?.classList?.remove?.('weaving');
   const els = at === 'dock'
     ? [g?.querySelector?.('.veilweave'), document.getElementById('weaving')]
@@ -11179,7 +11208,8 @@ function liveDelta(d) {
       box.insertAdjacentHTML('beforebegin', `<div class="who">${esc(V?.story?.title ?? '')}</div>`);
     }
   }
-  // `written` takes the loader away at the first word (writingLoader), on the veil and inline alike.
+  // `written` takes the veil's loader away at the first word (writingLoader). The press's sphere
+  // turns on until the writing ends (pressTurn).
   document.getElementById('ghost')?.classList.add('written');
   PEND += d;
   if (DRAIN == null) DRAIN = requestAnimationFrame(drainVeil);
@@ -11425,6 +11455,9 @@ function working(kind) {
   else delete root.dataset.work;
   // The phase resets with every call: a new press is a new wait, however the last one ended.
   delete root.dataset.streaming;
+  // THE PRESS FOLLOWS THE WRITING (pressTurn). Every writing call starts and ends here, and not every
+  // one redraws the dock when `S.busy` changes, so a press still showing the other state is redrawn.
+  if (!!S.busy !== PRESS_SHOWN && document.querySelector('#nextrow .quillcell')) drawDock();
 }
 
 async function refreshHistory() {

@@ -377,7 +377,7 @@ input, textarea { font:inherit; color:inherit; }
 
 /* LOENESE. Seth, 2026-11-03: "You know how we have the glyph transitions: replace it with this font
    and slowly have it blur to English, and while Anansi is writing use 'Anansi is writing' in this font
-   as a loader." (The loader became a sphere of dots later that day; see THE LOADER.) A cipher face: every letter, digit and common mark has one Loenese glyph, so the same
+   as a loader." (The loader became a sphere of dots later that day; see THE LOADER ON THE VEIL and THE SPHERE AT THE PRESS.) A cipher face: every letter, digit and common mark has one Loenese glyph, so the same
    words set in it are the same words, unreadable.
    ponytail: fan-made font with no stated licence; fine for this two-writer private app; ask its maker
    (Zilchaz, LotM fandom wiki) or replace it with an original script before Anansi is offered to anyone
@@ -401,13 +401,11 @@ input, textarea { font:inherit; color:inherit; }
   transform-origin:50% 72%; }
 .cy::after { content:attr(data-cy); }
 
-/* THE LOADER: a sphere of dots turning in the accent (sphereIn, web/model.js), from the press until
-   the first word (`written`, liveDelta). Its size here is the size it is drawn at (LOADER_PX); `color`
-   is the ink the canvas reads. Inline it sits under the action label, at the left, where the words
-   will start, as the weaving line does; on the veil, which has no label, it is centred. One still
-   frame under reduced motion. */
-.writingnow { display:block; width:80px; height:80px; margin:10px 0 0 -8px; color:var(--gold); }
-#ghost.veil .writingnow { margin:10px auto 0; }
+/* THE LOADER ON THE VEIL: a sphere of dots turning in the accent (sphereIn, web/model.js), from the
+   press until the first word (`written`, liveDelta), centred. Its size here is the size it is drawn at
+   (LOADER_PX); `color` is the ink the canvas reads. One still frame under reduced motion. The passage
+   written inline has none: the sphere stands at the centre press instead (THE SPHERE AT THE PRESS). */
+.writingnow { display:block; width:80px; height:80px; margin:10px auto 0; color:var(--gold); }
 #ghost.written .writingnow { display:none; }
 
 /* THE WEAVING: while a woven passage is planned, before its first word (#55). Seth, 2026-11-03:
@@ -1099,7 +1097,7 @@ html[data-reading="1"] .carry { display:none !important; }
 /* --- composer ---------------------------------------------------------- */
 /* Column, not row. The dock was a row until the 2px working bar had to sit above the composer, and
    at width:100% that sibling pushed the whole composer off the right edge for the length of every
-   call. The bar is gone — the box or the quill glows instead (thinkglow) — and the
+   call. The bar is gone — the box or the quill glows instead (thinkglow, pressglow) — and the
    column stays: #dockCol and the mode rail are stacked, which is what it is for. */
 /* THE CONTEXT BAR. Full width, three pixels, directly under the header — not a number to read,
    because the number is in the reading a press opens and the blocks behind it are one more press
@@ -1378,8 +1376,11 @@ html[data-ui-mode="narrate"] #modes select[data-modesel] { --dial:var(--m-narrat
    round the whole window (2026-09-02 to 2026-10-25). */
 @keyframes thinkglow { 0%, 100% { box-shadow:0 0 0 1px var(--work, var(--gold)), 0 0 10px 0 var(--work, var(--gold)); }
   50% { box-shadow:0 0 0 1px var(--work, var(--gold)), 0 0 24px 4px var(--work, var(--gold)); } }
-html[data-work]:not([data-streaming]) #dock:not(.folded) #inputWrap,
-html[data-work]:not([data-streaming]) #dock.folded #quill { animation:thinkglow 1.8s var(--ease) infinite; }
+html[data-work]:not([data-streaming]) #dock:not(.folded) #inputWrap { animation:thinkglow 1.8s var(--ease) infinite; }
+/* The press is the emblem, a diamond with no box, so its glow is a shadow round its own shape. */
+@keyframes pressglow { 0%, 100% { filter:drop-shadow(0 0 2px var(--work, var(--gold))); }
+  50% { filter:drop-shadow(0 0 9px var(--work, var(--gold))); } }
+html[data-work]:not([data-streaming]) #dock.folded #quill { animation:pressglow 1.8s var(--ease) infinite; }
 html[data-work="speak"]    { --work:var(--m-speak-ink); }
 html[data-work="act"]      { --work:var(--m-act-ink); }
 html[data-work="direct"]   { --work:var(--m-direct-ink); }
@@ -1392,9 +1393,9 @@ html[data-work="reroll"]   { --work:var(--gold); }
 html[data-work="ai"]       { --work:var(--gold); }
 /* Reduced motion keeps the glow and drops the pulse. */
 @media (prefers-reduced-motion: reduce) {
-  html[data-work]:not([data-streaming]) #dock:not(.folded) #inputWrap,
-  html[data-work]:not([data-streaming]) #dock.folded #quill {
+  html[data-work]:not([data-streaming]) #dock:not(.folded) #inputWrap {
     animation:none; box-shadow:0 0 0 1px var(--work, var(--gold)), 0 0 16px 2px var(--work, var(--gold)); }
+  html[data-work]:not([data-streaming]) #dock.folded #quill { animation:none; filter:drop-shadow(0 0 6px var(--work, var(--gold))); }
 }
 /* NO RULE UNDER THE COMPOSER — Seth, 2026-09-02: "remove the bottom accented line". It was a gold
    1px underline the full width of the row, with a parchment override beside it for the one theme
@@ -1447,14 +1448,23 @@ html[data-work="ai"]       { --work:var(--gold); }
 /* THE STOP ICON ON A PHONE, THE WORD AT A DESK (Seth, 2026-11-03). The phone hides `.btnword` (below)
    and keeps the square; at a desk the round button is too small for both, so it keeps the word. */
 @media (min-width:720px) { #nextrow #cont.stopping > svg { display:none; } }
-/* THE QUILL, in its circle, in the middle, with the hold hint under it. */
-#nextrow .quillcell { display:flex; flex-direction:column; align-items:center; gap:4px; }
+/* THE QUILL, the emblem in the middle (THE CENTRE PRESS IS THE EMBLEM, below), with the hold hint
+   above it. The cell is where the turning sphere stands in for it while Anansi writes. */
+#nextrow .quillcell { position:relative; display:flex; flex-direction:column; align-items:center; gap:4px; }
 /* NO SELECTION AND NO CALLOUT ON A LONG PRESS: holding the quill is a gesture here, and on an
-   iPhone a hold selects and opens the callout menu over the button. */
-#nextrow .quillcell > button { width:60px; height:60px; border-radius:50%; background:var(--gold);
-  color:var(--on-gold); display:flex; align-items:center; justify-content:center;
+   iPhone a hold selects and opens the callout menu over the button. The 60px it always had, so the
+   bar did not move when the circle became the emblem; its rays reach past it, and take no taps. */
+#nextrow .quillcell > button { width:60px; height:60px; position:relative;
   -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }
-#nextrow .quillcell > button[aria-expanded="true"] { background:none; border:1px solid var(--gold); color:var(--gold); }
+/* THE SPHERE AT THE PRESS (pressTurn, web/app.js): while Anansi writes the emblem fades away and the
+   turning sphere fades in where it stood, the size of the press, in the accent; when the writing ends
+   they change back. The sphere takes no taps: the press is still under it, to tap or hold. No fade
+   under reduced motion, where the sphere is one still frame. */
+#nextrow .presssphere { position:absolute; left:50%; bottom:0; width:60px; height:60px; margin-left:-30px;
+  color:var(--gold); pointer-events:none; opacity:0; transition:opacity .3s var(--ease); }
+#nextrow .quillcell.writing .presssphere { opacity:1; }
+#nextrow .quillcell.writing #quill { opacity:0; }
+@media (prefers-reduced-motion: reduce) { #nextrow .quillcell :is(#quill, .presssphere) { transition:none; } }
 /* Over a picture the hint has no ground of its own, so it carries a halo of the page's colour. */
 #nextrow .holdhint { font-size:11px; letter-spacing:.06em; color:var(--faint); white-space:nowrap;
   text-shadow:0 0 6px var(--doc-bg), 0 0 2px var(--doc-bg); }
@@ -3110,31 +3120,44 @@ html:root #col .block.opening .narr::first-letter {
 @media (max-width:719px) { html:root #col .block.opening .narr::first-letter { font-size:40px; padding:5px 8px 3px; } }
 
 /* THE PRESSES. The one gold button keeps its gold and its pill, and gains a dry brush across it. The
-   composer's quill is the exception: it is a gilt seal (THE QUILL IS A GILT SEAL, below). */
+   composer's quill is the exception: it is the emblem (THE CENTRE PRESS IS THE EMBLEM, below). */
 html:root :is(.btn:not(.ghost), #send.stopping, .rerollbox .rwgo) {
   background-image:url('/web/arcana-brush.svg'); background-size:100% 100%; background-repeat:no-repeat; }
 
 
-/* THE QUILL IS A GILT SEAL (Seth, 2026-11-03: no brush on it, "more arcane"). Still the screen's one
-   gold press (ADR 0004) and still the 60px circle: a gold fill a shade deeper at its rim, a fine ring
-   of the dark inside its edge, a faint sixteen-rayed sigil under the quill (web/arcana-sigil.svg, a
-   mask in the dark on the gold), and a gilt ring just outside it. The quill stays in the dark ink on
-   top. Its states stay apart: OPEN (the box is up) is the outer ring and the sigil in gold with no
-   fill; HELD is pressed in and lit; WRITING keeps its glow (thinkglow, above), which is a shadow and
-   so does not touch the rings. */
-html:root #quill { position:relative; isolation:isolate;
-  background:radial-gradient(circle at 50% 38%, var(--gold-lit), var(--gold) 58%, color-mix(in srgb, var(--gold) 72%, #000) 100%);
-  transition:transform var(--t) var(--ease), filter var(--t) var(--ease); }
-html:root #quill > svg { position:relative; z-index:1; transform:translateY(-17.5%) scaleY(-1); }
-html:root #quill::before { content:''; position:absolute; inset:3px; border-radius:50%; pointer-events:none;
-  background:var(--on-gold); opacity:.42;
-  -webkit-mask:url('/web/arcana-sigil.svg') center / 100% 100% no-repeat; mask:url('/web/arcana-sigil.svg') center / 100% 100% no-repeat; }
-html:root #quill::after { content:''; position:absolute; inset:-6px; border-radius:50%; pointer-events:none;
-  border:1px solid var(--gold-dim); }
-html:root #quill:active:not(:disabled) { transform:scale(.93); filter:brightness(1.12); }
-html:root #quill[aria-expanded="true"] { background:none; border:1px solid var(--gold); color:var(--gold); }
-html:root #quill[aria-expanded="true"]::before { background:var(--gold); opacity:.5; }
-html:root #quill[aria-expanded="true"]::after { border-color:color-mix(in srgb, var(--gold) 45%, transparent); }
+/* THE CENTRE PRESS IS THE EMBLEM (Seth, 2026-11-03, of the Threads panel's banner: "I want that to
+   replace the whole centre button instead of the circle I press to bring up the input"). It was a
+   gilt seal, a gold circle with a sigil and a ring. Now it is the banner's emblem at the size of the
+   press, from the banner's own files, every one a mask in the accent: the sunburst behind it, all
+   round (the banner's half rising, ::before, and the same half turned down, ::after), then the
+   diamond holding the dark (`.emdia`, a square turned a quarter), its gilt (`.emdia::before`) and
+   the web mark in its middle (`.emdia::after`). Its states stay apart: HELD presses in and lights;
+   OPEN (the box is up) is the diamond's outline alone; the KEYBOARD'S RING is drawn on the diamond,
+   so it is a diamond too; WHILE THE MODEL WORKS it glows round its shape (pressglow, above). While
+   Anansi writes it fades and the turning sphere stands in its place (THE SPHERE AT THE PRESS). */
+html:root #quill { isolation:isolate; background:none; border:0; padding:0; color:var(--gold);
+  transition:opacity .3s var(--ease), transform var(--t) var(--ease), filter var(--t) var(--ease); }
+html:root #quill::before, html:root #quill::after { content:''; position:absolute; z-index:0; left:50%; width:160px; height:80px;
+  margin-left:-80px; pointer-events:none; background:var(--gold); opacity:.85;
+  -webkit-mask:url('/web/arcana-sunburst.svg') center bottom / 100% 100% no-repeat;
+  mask:url('/web/arcana-sunburst.svg') center bottom / 100% 100% no-repeat; }
+html:root #quill::before { bottom:50%; }
+html:root #quill::after { top:50%; transform:rotate(180deg); }
+html:root #quill > .emdia { position:absolute; z-index:1; left:50%; top:50%; width:42.4px; height:42.4px;
+  margin:-21.2px 0 0 -21.2px; transform:rotate(45deg); pointer-events:none;
+  background:color-mix(in srgb, var(--doc-bg) 92%, transparent); }
+html:root #quill > .emdia::before, html:root #quill > .emdia::after { content:''; position:absolute; left:50%; top:50%;
+  transform:rotate(-45deg); background:var(--gold); }
+html:root #quill > .emdia::before { width:60px; height:60px; margin:-30px 0 0 -30px;
+  -webkit-mask:url('/web/arcana-diamond.svg') center / contain no-repeat; mask:url('/web/arcana-diamond.svg') center / contain no-repeat; }
+html:root #quill > .emdia::after { width:26px; height:26px; margin:-13px 0 0 -13px;
+  -webkit-mask:url('/web/arcana-mark-web.svg') center / contain no-repeat; mask:url('/web/arcana-mark-web.svg') center / contain no-repeat; }
+html:root #quill:active:not(:disabled) { transform:scale(.93); filter:brightness(1.25); }
+html:root #quill:focus-visible { outline:none; }
+html:root #quill:focus-visible > .emdia { outline:2px solid var(--gold-lit); outline-offset:4px; }
+html:root #quill[aria-expanded="true"]::before, html:root #quill[aria-expanded="true"]::after { opacity:0; }
+html:root #quill[aria-expanded="true"] > .emdia { background:none; }
+html:root #quill[aria-expanded="true"] > .emdia::after { opacity:.5; }
 
 /* THE MENUS. Nothing under the model, the tiles as small square cards, the page you are on in
    the bright ink with the ink rule beside it (ADR 0004) and nothing under it (Seth, 2026-11-03:

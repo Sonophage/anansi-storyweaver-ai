@@ -4,7 +4,7 @@
 //
 //   bash test/ui/run.sh bar
 //
-// Seth's second round, 2026-10-25: "[↻] [🪶] [✦]", marks only. ↻ reweaves. The quill in its circle
+// Seth's second round, 2026-10-25: "[↻] [🪶] [✦]", marks only. ↻ reweaves. The quill (the emblem since 2026-11-03)
 // opens the box and writes nothing; held, the box and Send go to Talk, and the "hold to talk" hint
 // sits under it. ✦ continues with no box, and is Stop while he writes with the box folded. With
 // the box up, Send writes (an empty box continues) and is the one Stop. The three ideas are a bulb
@@ -60,16 +60,20 @@ ok("BAR-FOLDED: and the mode row, the box and Send are behind them",
    !(await shown('#modes')) && !(await shown('#input')) && !(await shown('#send')));
 const words = await page.eval("[...document.querySelectorAll('#nextrow button')].map((b) => b.textContent.trim()).join('|')");
 ok(`ICONS-ONLY: the buttons carry marks, not words (${JSON.stringify(words)})`, !/[A-Za-z]/.test(words));
-ok("QUILL-MARK: the middle is a quill drawn in the marks' own hand, in a circle",
+// THE EMBLEM (Seth, 2026-11-03): the Threads banner's diamond, web mark and sunburst, no circle, in
+// the 60px the circle had.
+ok("QUILL-EMBLEM: the middle is the emblem, a diamond in the 60px the circle had, with no round fill",
    await page.eval(`(() => { const q = document.getElementById('quill'); if (!q) return false;
-     const r = q.getBoundingClientRect(); return q.querySelectorAll('svg path').length >= 6
-       && getComputedStyle(q).borderRadius === '50%' && Math.abs(r.width - r.height) < 1; })()`));
+     const r = q.getBoundingClientRect(), d = q.querySelector('.emdia'), c = getComputedStyle(q);
+     return !!d && !q.querySelector('svg') && Math.round(r.width) === 60 && Math.round(r.height) === 60
+       && c.backgroundColor === 'rgba(0, 0, 0, 0)' && c.backgroundImage === 'none'
+       && /arcana-sunburst/.test(getComputedStyle(q, '::before').maskImage || getComputedStyle(q, '::before').webkitMaskImage); })()`));
 
-// ---- the hold hint, under the circle, and no callout or selection on it
+// ---- the hold hint, above the press, and no callout or selection on it
 ok("HINT: the quill says it can be held, the first few times",
    /hold to talk/.test(await page.eval("document.querySelector('.quillcell .holdhint')?.textContent ?? ''")));
-// ABOVE since 2026-10-25 (Seth): a thumb on the circle covers whatever is under it.
-ok("HINT-ABOVE: and the hint sits above the circle",
+// ABOVE since 2026-10-25 (Seth): a thumb on the press covers whatever is under it.
+ok("HINT-ABOVE: and the hint sits above the press",
    await page.eval(`(() => { const q = document.getElementById('quill'), h = document.querySelector('.quillcell .holdhint');
      if (!q || !h) return false; const a = q.getBoundingClientRect(), b = h.getBoundingClientRect();
      return b.bottom <= a.top + 1 && Math.abs((b.left + b.right) / 2 - (a.left + a.right) / 2) < 3; })()`));
@@ -80,10 +84,10 @@ const grounds = await page.eval(`['#dock', '#dockCol', '#nextbar', '#nextrow', '
   return c ? q + ' ' + c.backgroundColor + ' ' + c.backgroundImage : q + ' missing'; })`);
 ok(`BAR-TRANSPARENT: the bar's own background is transparent (${JSON.stringify(grounds)})`,
    grounds.every((g) => / rgba\(0, 0, 0, 0\) none$/.test(g)));
-// A fill is a colour or a painted image: the quill is a gilt seal since 2026-11-03, a radial gradient
-// with no background colour under it.
+// A fill is a colour or a painted image. The quill is the emblem since 2026-11-03: its fill is the
+// diamond's dark, on the span inside it, so it is that span that is asked.
 ok("BUTTONS-FILLED: and the three buttons keep their own fills",
-   await page.eval(`[...document.querySelectorAll('#nextrow button')].every((b) => { const c = getComputedStyle(b);
+   await page.eval(`[...document.querySelectorAll('#nextrow button')].every((b) => { const c = getComputedStyle(b.id === 'quill' ? b.querySelector('.emdia') : b);
      return c.backgroundColor !== 'rgba(0, 0, 0, 0)' || c.backgroundImage !== 'none'; })`));
 ok("NOCALLOUT: the quill's text cannot be selected",
    (await page.eval("getComputedStyle(document.getElementById('quill')).userSelect")) === 'none');

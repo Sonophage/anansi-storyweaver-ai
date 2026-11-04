@@ -46,7 +46,8 @@ const veil = () => page.eval(`(() => {
     ring: (() => { const folded = document.getElementById('dock')?.classList.contains('folded');
       const f = document.getElementById(folded ? 'quill' : 'inputWrap');
       if (!f) return 'MISSING';
-      return getComputedStyle(f).animationName === 'thinkglow' ? 'moving' : 'gone'; })(),
+      // The quill's glow is `pressglow` since it became the emblem (2026-11-03): a shadow round a diamond.
+      return /^(thinkglow|pressglow)$/.test(getComputedStyle(f).animationName) ? 'moving' : 'gone'; })(),
     streaming: document.documentElement.dataset.streaming === '1',
     dark: getComputedStyle(g).backgroundColor,
     meter: fill ? parseFloat(fill.style.height) || 0 : -1,
