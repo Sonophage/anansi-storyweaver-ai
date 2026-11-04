@@ -214,10 +214,17 @@ _In code_: `decide` accept / reject
 
 **Talk**:
 The conversation with Anansi about a tale. What the writer asks him in so many words to change, he
-changes at once, and it can be undone; what he offers unasked is chalked. He does not write prose
-there. He may look things up on the web when the writer lets him, and names every page he used.
-(Decided 2026-10-28.) Each talk is kept, and Past talks opens an earlier one to carry on
-(2026-10-30).
+changes at once, and each change shows in the conversation as a card, the Workbench's own, with what
+it was, what it is now, and Undo. What he offers unasked shows there as a chalked card, to sew in or
+reject; a change that names a thread or kind the writer did not mention is an offer, whatever
+Anansi calls it. Asked to make a thread the tale already has, he changes that thread. He may look
+things up on the web when the writer lets him, and names every page he used. (Decided 2026-10-28;
+cards 2026-11-04.) Each talk is kept, and Past talks opens an earlier one to carry on (2026-10-30).
+A new tale can be set up by talking: the talk fills the new tale in, and Start makes it.
+Asked, he may also change the story's prose: edit a passage, or rename a thread everywhere it is
+written. Taking something out of the prose he only offers, passage by passage. Asked, he starts a
+hem of the scene the writer is in, or changes the model that writes the tale; he knows the models
+and may advise on them, and never offers either. (ADR 0014.)
 _Avoid_: chat, Anansi chat, ask Anansi
 _In code_: `/api/talk`; a kept talk is a row of `talk_sessions`
 
