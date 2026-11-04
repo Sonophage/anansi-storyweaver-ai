@@ -28,7 +28,8 @@ const send = async (text) => {
     i.value = ${JSON.stringify(text)}; return 1; })()`);
   await page.eval("(() => { document.getElementById('send').click(); return 1; })()");
 };
-const COUNT = /^Planning\u2026 \d+s$/;
+// "Planning", three dots drawn by the stylesheet (empty elements), and the seconds (2026-11-03).
+const COUNT = /^Planning \d+s$/;
 
 // THE VEIL, SWITCHED ON. It was retired for inline writing on 2026-10-25 and kept behind a switch
 // so it can come back; this scenario is about it, so it keeps it on and keeps it tested.
@@ -99,7 +100,7 @@ ok("leaving the veil puts no count on the three-button bar",
 await until("!document.getElementById('ghost')", 20, 100);
 await page.click("#quill");
 ok("  and opening the box shows the count beside the composer",
-  await until(`/^Planning\u2026 \\d+s$/.test(document.getElementById('weaving')?.textContent ?? '')`, 20, 100));
+  await until(`/^Planning \\d+s$/.test(document.getElementById('weaving')?.textContent ?? '')`, 20, 100));
 ok("  seen, and only once",
   await page.eval("(() => { const w = document.getElementById('weaving'); return !!w && !!w.offsetParent && document.querySelectorAll('#weaving').length === 1; })()"));
 ok("  where Stop is, too", await page.eval("[...document.querySelectorAll('#dock [data-stop]')].filter((b) => b.offsetParent).length === 1"));

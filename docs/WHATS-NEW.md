@@ -18,6 +18,17 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · A thread is edited where you read it
 
+### Each tale can turn the old script off
+The Tale tab has a new switch, "Letters translate from the old script", under the cover. It is on
+for every tale. Turn it off and that tale shows plain words at once: its headings, the labels over
+new passages and the words Anansi writes no longer arrive in the old script, and "Anansi is writing"
+is written in plain English. The library and your account keep the effect.
+
+### Planning sits under the passage label, with three dots
+When your book has Anansi plan first, "Planning" and the seconds now sit at the left, just under
+the passage label, where the words will start. The words stay still, and three small dots fade in
+and out one after another. The sunburst behind it is gone. The same line shows beside Send.
+
 ### Passage labels decode too, sit a little lower, and planning looks like part of the page
 The small label over a passage, such as "Woven" or "Speak", now translates out of the old script
 the same way a heading does, but only when it is new: on the passage Anansi is writing, and on a

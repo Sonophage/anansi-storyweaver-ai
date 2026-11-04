@@ -47,6 +47,9 @@ const toStory = (r: any) => ({
   coverBlur: Number(r.cover_blur ?? 0),
   coverFlip: !!r.cover_flip,
   coverFade: r.cover_fade == null ? true : !!r.cover_fade,
+  // Whether the tale's words print in the old script and translate (the decode). On for a row
+  // written before the column existed, as the column's own default is.
+  loen: r.loen == null ? true : !!r.loen,
 });
 const toChapter = (c: any) => ({
   id: c.id, index: c.idx, title: c.title, summary: c.summary,

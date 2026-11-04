@@ -3619,6 +3619,36 @@ ok('a tale keeps its cover blur and flip, a partial save leaves them, and a copy
   assert.deepStrictEqual([view(cid).cover_blur, view(cid).cover_flip], [8, 1], 'a copy of the tale carries them');
 });
 
+// THE OLD SCRIPT, a switch per tale (Seth, 2026-11-03). On by default, saved like the cover's
+// switches, carried by a copy; and `loenOffFor`, the one write bench/loen-off.ts makes, turns it off
+// on the tales a login OWNS and nowhere else, without moving any of them on the shelf.
+ok('a tale keeps its old-script switch, and loenOffFor turns it off on one login\'s own tales only', () => {
+  const kia = db.owner('loen-kia'), seth = db.owner('loen-seth');
+  const view = (id: string) => db.getStory(id) as any;
+  const a = db.createStory(kia, { title: 'Kia one', premise: 'p' });
+  const b = db.createStory(kia, { title: 'Kia two', premise: 'p' });
+  const c = db.createStory(seth, { title: 'Seth one', premise: 'p' });
+  assert.strictEqual(view(a.id).loen, 1, 'LOEN-DB: on for a new tale');
+  db.updateStory(a.id, { loen: false });
+  assert.strictEqual(view(a.id).loen, 0, 'LOEN-DB: and can be turned off');
+  db.updateStory(a.id, { title: 'Kia one again' });
+  assert.strictEqual(view(a.id).loen, 0, 'LOEN-DB: a save that does not name it leaves it off');
+  const copy = db.duplicateStory(kia, a.id, 'Kia copy') as any;
+  assert.strictEqual(view(copy?.id ?? copy).loen, 0, 'LOEN-DB: a copy carries it');
+  db.updateStory(a.id, { loen: true });
+  // Seth writes in one of Kia's tales and she in one of his: owning is the rule, not writing in.
+  db.db.prepare('INSERT INTO story_writers (story_id, owner_id, added_at) VALUES (?, ?, ?)').run(c.id, kia, 1);
+  const was = [a, b, c].map((t) => view(t.id).updated_at);
+  assert.strictEqual(db.loenOffFor('nobody-at-all'), null, 'LOEN-OFF-FOR: an unknown login changes nothing');
+  assert.strictEqual(db.db.prepare('SELECT COUNT(*) AS n FROM users WHERE login = ?').get('nobody-at-all')!.n, 0, '  and makes no account');
+  assert.deepStrictEqual(db.loenOffFor('loen-kia')!.sort(), ['Kia one again', 'Kia two'],
+    'LOEN-OFF-FOR: it names the tales it turned off: the login\'s own, the copy already off');
+  assert.deepStrictEqual([a, b].map((t) => view(t.id).loen), [0, 0], 'LOEN-OFF-FOR: every tale the login owns is off');
+  assert.strictEqual(view(c.id).loen, 1, 'LOEN-OFF-FOR: a tale they only write in is left alone');
+  assert.deepStrictEqual([a, b, c].map((t) => view(t.id).updated_at), was, 'LOEN-OFF-FOR: and nothing moves on the shelf');
+  assert.deepStrictEqual(db.loenOffFor('loen-kia'), [], 'LOEN-OFF-FOR: a second run changes nothing');
+});
+
 // #103 · A NEW TALE NAMING AN IP FOLLOWS THE WORLD ITS WRITER ALREADY HAS BY THAT NAME. The match
 // is the title, trimmed and in any case, and only among that writer's own Worlds.
 ok('a World is found by its name for its own writer, and never for another', () => {

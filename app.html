@@ -403,34 +403,38 @@ input, textarea { font:inherit; color:inherit; }
 
 /* THE LOADER: "Anansi is writing", set in Loenese, in the accent, breathing, from the press until the
    first word (`written`, liveDelta). The English is its label, for a screen reader. Still, and fully
-   readable as a shape, under reduced motion. */
+   readable as a shape, under reduced motion. In a tale with the old script off (`en`, writingLoader)
+   the same words in the text's own face, breathing the same. */
 .writingnow { display:block; text-align:center; color:var(--gold); line-height:1.4; }
-.writingnow .loen { font-family:'Loenese'; font-size:22px; letter-spacing:.08em;
-  animation:loenbreathe 2.6s ease-in-out infinite; }
+.writingnow .loen, .writingnow .en { animation:loenbreathe 2.6s ease-in-out infinite; }
+.writingnow .loen { font-family:'Loenese'; font-size:22px; letter-spacing:.08em; }
+.writingnow .en { font-size:17px; font-style:italic; letter-spacing:.04em; }
 @keyframes loenbreathe { 0%, 100% { opacity:.4; text-shadow:none; }
   50% { opacity:1; text-shadow:0 0 14px color-mix(in srgb, var(--gold) 55%, transparent); } }
 #ghost.written .writingnow { display:none; }
-@media (prefers-reduced-motion: reduce) { .writingnow .loen { animation:none; opacity:.9; } }
+@media (prefers-reduced-motion: reduce) { .writingnow .loen, .writingnow .en { animation:none; opacity:.9; } }
 
-/* THE WEAVING: while a woven passage is planned, before its first word (#55; Seth, 2026-11-03: "can
-   we polish that so it feels more a part of what's on screen"). It was a line of small grey
-   capitals under the loader, a status line from somewhere else. It is the loader's own now, in the
-   place the passage will land: a half sunburst rising behind "Anansi is writing", as one rises over
-   a scene's title, breathing with it; and under it "Planning… 12s" in the label's spaced capitals and
-   the accent, its word translated out of Loenese as it appears (weaveDecode). No box and no rule: the
-   passage has none. Empty for every other wait and from the first word on, and an empty one takes no
-   room. Still under reduced motion, like the loader. */
-#ghost.weaving .writingnow::before { content:''; display:block; width:min(300px, 66%); aspect-ratio:3 / 1;
-  margin:0 auto -10px; background:var(--gold); opacity:.5; transform-origin:50% 100%;
-  -webkit-mask:url('/web/arcana-sunburst.svg') center bottom / contain no-repeat;
-  mask:url('/web/arcana-sunburst.svg') center bottom / contain no-repeat;
-  animation:weaverise 2.6s ease-in-out infinite; }
-@keyframes weaverise { 0%, 100% { opacity:.45; transform:scale(.94); } 50% { opacity:1; transform:none; } }
-#ghost .veilweave { display:block; text-align:center; margin:6px -.3em 0 0; font-family:var(--arc-small);
+/* THE WEAVING: while a woven passage is planned, before its first word (#55). Seth, 2026-11-03:
+   "don't centre it, just put it under the action label, and three dots that fade in and out; keep
+   the text not animated." So "Planning ··· 12s" sits left-aligned directly under the label, where the
+   passage's words will start, in the label's spaced capitals and the accent; the words are still,
+   and only the three dots fade in and out, one after another (still under reduced motion). The
+   loader under it is hidden while it shows. It replaced, the same day, a centred line under a
+   half sunburst rising behind the loader, its word translated out of Loenese. No box and no rule:
+   the passage has none. Empty for every other wait and from the first word on, and an empty one
+   takes no room. */
+#ghost.weaving .writingnow { display:none; }
+#ghost .veilweave { display:block; text-align:left; margin:6px 0 0; font-family:var(--arc-small);
   font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:var(--gold); opacity:.8; }
 #ghost .veilweave:empty { display:none; }
 .veilweave .wv-secs, .weaving .wv-secs { text-transform:none; letter-spacing:.12em; font-variant-numeric:tabular-nums; }
-@media (prefers-reduced-motion: reduce) { #ghost.weaving .writingnow::before { animation:none; } }
+.wv-dots { display:inline-flex; gap:4px; margin:0 6px 0 2px; vertical-align:middle; }
+.wv-dots i { width:3px; height:3px; border-radius:50%; background:currentColor; opacity:.2;
+  animation:wvdot 1.2s ease-in-out infinite; }
+.wv-dots i:nth-child(2) { animation-delay:.2s; }
+.wv-dots i:nth-child(3) { animation-delay:.4s; }
+@keyframes wvdot { 0%, 80%, 100% { opacity:.2; } 40% { opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .wv-dots i { animation:none; opacity:.8; } }
 
 /* A panel's contents SETTLE in after the panel itself has arrived, so the two reads as one move
    rather than a race. The delay is the panel's own transition, near enough. */

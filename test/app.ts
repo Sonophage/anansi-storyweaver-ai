@@ -10513,7 +10513,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     await sleep(400);
   } finally { shell.appendChild = was2; }
   const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
-  assert.strictEqual(src.match(/\$\{WRITING_NOW\}/g)?.length, 2, 'LOENESE-LOADER: the inline passage being written shows it too');
+  assert.strictEqual(src.match(/\$\{writingLoader\(\)\}/g)?.length, 2, 'LOENESE-LOADER: the inline passage being written shows it too');
   assert.doesNotMatch(src, /\bglyph\(\)|dataset\.glyphs/, 'LOENESE: the random-glyph decode is gone');
   assert.match(src, /for \(const sp of spans\) loenIn\(sp, LOEN_WORD_MS\)/, 'LOENESE-WORD: drainVeil sends every streamed word through it');
   assert.doesNotMatch(page, /loenout|loenin|--t-loen/, 'LOENESE: the blur keyframes are gone');
@@ -10548,8 +10548,10 @@ ok('Loenese: the font ships, headers and streamed words turn out of it into Engl
 }
 ok('a label new on screen translates out of Loenese, a repainted one does not, and every label sits 10px lower');
 
-// ---- THE WEAVING, IN THE PASSAGE BEING WRITTEN (Seth, 2026-11-03: "can we polish that so it feels
-// more a part of what's on screen"). The veil's markup, caught as it goes onto #shell.
+// ---- THE WEAVING, UNDER THE ACTION LABEL (Seth, 2026-11-03: "don't centre it, just put it under the
+// action label, and three dots that fade in and out; keep the text not animated"). It replaced a
+// centred line under a rising sunburst, its word translated out of Loenese. The veil's markup, caught
+// as it goes onto #shell.
 {
   const { readFileSync } = await import('node:fs');
   const shell = (document as any).getElementById('shell');
@@ -10557,33 +10559,102 @@ ok('a label new on screen translates out of Loenese, a repainted one does not, a
   shell.appendChild = (g: any) => { veil = g; };
   const weaving = (STORY as any).weaves;
   let open!: () => void;
+  const DOTS = '<span class="wv-dots" aria-hidden="true"><i></i><i></i><i></i></span>';
   try {
     (STORY as any).weaves = true;
     click({ open: 's-1' }); await sleep(40);
     streamGate = new Promise<void>((r) => { open = r; });
     void click({ continue: '1' }); await sleep(30);
     const markup = String(veil?.innerHTML ?? '');
-    assert.match(String(veil?.className), /\bweaving\b/, 'WEAVE-LINE: the passage being written is marked weaving, which raises the sunburst behind the loader');
-    assert.match(markup, /<div class="veilweave" role="status" aria-label="Anansi is planning"><span class="wv-word" aria-hidden="true">Planning…<\/span> <span class="wv-secs" aria-hidden="true">0s<\/span><\/div>/,
-      'WEAVE-LINE: Planning and its seconds, in two parts, hidden from a screen reader, which is told Anansi is planning');
+    assert.match(markup, new RegExp('<div class="veilweave" role="status" aria-label="Anansi is planning"><span class="wv-word" aria-hidden="true">Planning</span>'
+      + DOTS.replace(/[/]/g, '\\/') + ' <span class="wv-secs" aria-hidden="true">0s</span></div>'),
+      'WEAVE-DOTS: Planning, three dots and its seconds, hidden from a screen reader, which is told Anansi is planning once');
+    assert.ok(markup.indexOf('class="veilweave"') < markup.indexOf('class="writingnow"'),
+      'WEAVE-UNDER: the line comes first, where the passage will start, before the loader');
     open(); await sleep(60);
     (STORY as any).weaves = false;
     click({ open: 's-1' }); await sleep(40);
     streamGate = new Promise<void>((r) => { open = r; });
     void click({ continue: '1' }); await sleep(30);
-    assert.doesNotMatch(String(veil?.className), /\bweaving\b/, 'WEAVE-LINE: a passage not woven is not marked');
-    assert.match(String(veil?.innerHTML), /<div class="veilweave" role="status"><\/div>/, '  and its line is empty, with no label to read out');
+    assert.match(String(veil?.innerHTML), /<div class="veilweave" role="status"><\/div>/, 'WEAVE-DOTS: a passage not woven has an empty line, with no label to read out');
     open(); await sleep(60);
   } finally { streamGate = null; shell.appendChild = was; (STORY as any).weaves = weaving; }
   const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
-  assert.match(page, /#ghost\.weaving \.writingnow::before \{[^}]*background:var\(--gold\)[^}]*mask:url\('\/web\/arcana-sunburst\.svg'\)[^}]*animation:weaverise/,
-    'WEAVE-LINE: the sunburst is the scene head\'s, in the accent, breathing');
-  assert.match(page, /#ghost \.veilweave \{[^}]*font-family:var\(--arc-small\)[^}]*color:var\(--gold\)/, 'WEAVE-LINE: the line is in the label\'s capitals and the accent');
-  assert.doesNotMatch(page, /\.veilweave[^{]*\{[^}]*\b(?:border|background)\b/, 'WEAVE-LINE: with no box');
+  const line = page.match(/#ghost \.veilweave \{[^}]*\}/)?.[0] ?? '';
+  assert.match(line, /text-align:left/, 'WEAVE-UNDER: the line is left-aligned in the prose column, not centred');
+  assert.doesNotMatch(line, /animation/, 'WEAVE-STILL: the words are not animated');
+  assert.match(page, /\.wv-dots i \{[^}]*animation:wvdot [^}]*\}/, 'WEAVE-DOTS: each dot fades in and out');
+  assert.match(page, /\.wv-dots i:nth-child\(2\) \{ animation-delay:[^}]*\}\s*\.wv-dots i:nth-child\(3\) \{ animation-delay:/, '  one after another');
+  assert.match(page, /prefers-reduced-motion: reduce\) \{ \.wv-dots i \{ animation:none;/, '  and are still under reduced motion');
+  assert.doesNotMatch(page, /weaverise|#ghost\.weaving \.writingnow::before/, 'WEAVE-STILL: the rising sunburst behind the loader is gone');
   const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
-  assert.match(src, /function weaveDecode\(g\) \{\n  const w = g\?\.querySelector\?\.\('\.veilweave \.wv-word'\);\n  if \(w\) loenIn\(/, 'WEAVE-LINE: its word translates out of Loenese');
+  assert.doesNotMatch(src, /weaveDecode|\.wv-word'\);\n\s*if \(w\) loenIn/, 'WEAVE-STILL: Planning is never put through the decode');
+  assert.match(src, /id="weaving" class="weaving tnum" role="status" aria-label="Anansi is planning">\$\{weaveHTML\('dock'\)\}/,
+    'WEAVE-DOTS: the composer\'s count is the same markup');
 }
-ok('the weaving sits in the passage being written: a sunburst behind the loader, Planning in the accent, said once to a screen reader');
+ok('the weaving sits under the action label: Planning, three fading dots and its seconds, still words, said once to a screen reader');
+
+// ---- THE OLD SCRIPT, A SWITCH PER TALE (Seth, 2026-11-03: "Add the text transition in the tale as a
+// toggle"). On for a tale that never set it. Off, the tale shows English at once everywhere the
+// decode runs (headers, streamed words, new action labels: all go through loenIn) and the loader
+// says Anansi is writing in plain English. Outside a tale it follows the default, on.
+{
+  const { loenIn, LOEN_WORD_MS } = await import('../web/model.js');
+  const stub = (text: string) => {
+    const o: any = el('__loenoff__' + Math.random()); let h = text;
+    Object.defineProperty(o, 'innerHTML', { get: () => h, set: (v: string) => { h = String(v); } });
+    Object.defineProperty(o, 'textContent', { get: () => h.replace(/<[^>]*>/g, '') });
+    return o;
+  };
+  const shell = (document as any).getElementById('shell');
+  const was = shell.appendChild; let veil: any = null;
+  shell.appendChild = (g: any) => { veil = g; };
+  const box = () => html('sideBody').match(/<label[^>]*>\s*<input type="checkbox" data-story="loen"[^>]*>[\s\S]*?<\/label>/)?.[0] ?? '';
+  let open!: () => void;
+  try {
+    // ON BY DEFAULT: the fixture tale has no value.
+    assert.strictEqual((STORY.story as any).loen, undefined, 'the fixture tale has never set the switch');
+    click({ open: 's-1' }); await sleep(40);
+    click({ storytab: 'book' }); click({ panel: 'story' }); await sleep(40);
+    assert.match(box(), /checked/, 'LOEN-SWITCH: the Tale tab draws the switch, on for a tale that never set it');
+    assert.match(box(), /Letters translate from the old script/, 'LOEN-SWITCH: named in plain words');
+    const on = stub('Chapter the second'); loenIn(on, LOEN_WORD_MS);
+    assert.ok(on.classList.contains('decoding') && /class="lo"/.test(on.innerHTML), 'LOEN-DEFAULT: an unset tale decodes');
+    streamGate = new Promise<void>((r) => { open = r; });
+    void click({ continue: '1' }); await sleep(30);
+    assert.match(String(veil?.innerHTML), /<span class="loen" aria-hidden="true">Anansi is writing<\/span>/, 'LOEN-DEFAULT: and its loader is in Loenese');
+    open(); await sleep(60); streamGate = null;
+
+    // OFF.
+    (STORY.story as any).loen = false;
+    click({ open: 's-1' }); await sleep(40);
+    click({ storytab: 'book' }); click({ panel: 'story' }); await sleep(40);
+    assert.ok(box() && !/checked/.test(box()), 'LOEN-SWITCH: drawn off for a tale that turned it off');
+    const off = stub('Chapter the second'); loenIn(off, LOEN_WORD_MS);
+    assert.strictEqual(off.innerHTML, 'Chapter the second', 'LOEN-OFF: no Loenese is written in the tale, English at once');
+    assert.ok(!off.classList.contains('decoding'), 'LOEN-OFF: and nothing is marked decoding');
+    streamGate = new Promise<void>((r) => { open = r; });
+    void click({ continue: '1' }); await sleep(30);
+    const m = String(veil?.innerHTML);
+    assert.match(m, /class="writingnow"[^>]*aria-label="Anansi is writing"><span class="en" aria-hidden="true">Anansi is writing<\/span>/, 'LOEN-OFF: the loader says Anansi is writing in plain English');
+    assert.doesNotMatch(m, /class="loen"/, '  with no Loenese in it');
+    open(); await sleep(60); streamGate = null;
+
+    // THE SWITCH SAVES ITSELF to the tale, as every [data-story] box does.
+    const changeIn = (target: any) => (listeners.change ?? []).forEach((f: Function) => f({ target }));
+    POSTED.length = 0;
+    changeIn({ dataset: { story: 'loen' }, type: 'checkbox', checked: true });
+    await sleep(700);
+    const saved = POSTED.find((p: any) => p.url === '/api/story' && p.body.story?.loen !== undefined);
+    assert.strictEqual(saved?.body.story.loen, true, 'LOEN-SWITCH: turning it on saves it to the tale, with no Save pressed');
+
+    // OUTSIDE A TALE the default holds, whatever the last tale said.
+    click({ home: 1 }); await sleep(40);
+    const lib = stub('Your tales'); loenIn(lib, LOEN_WORD_MS);
+    assert.ok(lib.classList.contains('decoding'), 'LOEN-OUTSIDE: the library decodes, as the default says');
+  } finally { delete (STORY.story as any).loen; shell.appendChild = was; streamGate = null; }
+}
+ok('the old script is a switch on the Tale tab, on by default; off, the tale shows English at once and its loader is plain');
 
 // ---- WRITING INLINE: THE OLD VERSION STAYS HIDDEN WHILE THE NEW ONE IS WRITTEN, THROUGH A REPAINT.
 // It was hidden by a class put on the DOM at the press, and a repaint rebuilds #col, so the old

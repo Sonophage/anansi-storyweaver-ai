@@ -825,6 +825,11 @@ export const BLOCK_ORIGIN = {
 // Reduced motion, asked by the decode (below), whose text resolves out of the Loenese face rather
 // than fading in; it resolved out of random glyphs until 2026-11-03.
 export const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Whether the open tale has the old script turned off (its own switch, `loen`; Seth, 2026-11-03:
+ *  "Add the text transition in the tale as a toggle"). The app hands in how to ask (`loenGate`),
+ *  because only it knows which tale is open; until then, and outside a tale, the decode runs. */
+let loenOff = () => false;
+export const loenGate = (off) => { loenOff = off; };
 
 // ---------------------------------------------------------------------------
 // THE DECODE. Text prints in the Loenese cipher face, holds a beat, and then translates to English
@@ -906,11 +911,14 @@ const loenRand = () => {
  *  Its English markup is `el.inkHTML` when it has one (a streamed word, which inkAccent may rewrite
  *  while it turns) and what it held at the start otherwise. It stops, writing nothing, when the
  *  element leaves the page or its text is changed under it (a repaint), so no Loenese is ever left
- *  over words it did not write. Markup is written only when a letter changes. */
+ *  over words it did not write. Markup is written only when a letter changes. Writes nothing under
+ *  reduced motion or in a tale whose switch is off (loenGate). */
 export function loenIn(el, ms) {
   const text = el?.textContent ?? '';
   const len = [...text].length;
-  if (!len || still()) return;
+  // THE ONE FLOOR: reduced motion, or a tale with the switch off, gets the English as it stands.
+  // Every decode (a header, a new action label, a streamed word) comes through here.
+  if (!len || still() || loenOff()) return;
   const prev = el.loenJob;
   const job = el.loenJob = { text, html: prev?.text === text ? prev.html : el.innerHTML, start: Date.now(),
     plan: loenPlan(len, ms), rand: loenRand(), shown: null, base: null };

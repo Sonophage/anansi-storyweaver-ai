@@ -570,6 +570,10 @@ function migrate() {
   // Whether the page fades in over the cover at all (Seth, 2026-10-27: "it can be a mixture of that
   // gradient or blur or either"). On by default: it is what every tale has had.
   add('stories', 'cover_fade', 'INTEGER DEFAULT 1');
+  // Whether this tale's words print in the old script and translate into English (the decode, in
+  // web/model.js). Seth, 2026-11-03: "Add the text transition in the tale as a toggle". On by
+  // default: it is what every tale has had since that morning.
+  add('stories', 'loen', 'INTEGER DEFAULT 1');
   // The character the model must not write: no dialogue, no action, no interior. Null on every
   // story until somebody names one, which keeps the behaviour of every existing book unchanged.
   // A NAME rather than an entry id, because it also has to work for a protagonist who has no
@@ -1520,6 +1524,19 @@ export function setStoryLook(storyId: string, ownerId: string, look: any) {
   // it — belt to the handler's braces, and the pattern every open route here follows.
   q('UPDATE stories SET look = ?, updated_at = ? WHERE id = ? AND owner_id = ?')
     .run(look == null ? null : JSON.stringify(look), now(), storyId, ownerId);
+}
+
+/** THE OLD SCRIPT OFF ON EVERY TALE ONE LOGIN OWNS, for bench/loen-off.ts (Seth, 2026-11-03: "turn
+ *  it off for Kia"). Owns, by `owner_id`, and not MINE(): a tale she only writes in is its owner's
+ *  to switch. Returns the titles it turned off (none on a second run), or null for a login with no
+ *  account, and makes none, which `owner()` would. `updated_at` is left alone on purpose: the newest
+ *  tale gets the shelf's resume band, and a switch about how the words arrive is not a change to the
+ *  book. A tale's own switch saves through updateStory, which does move it. */
+export function loenOffFor(login: string): string[] | null {
+  const who = q('SELECT id FROM users WHERE login = ?').get(login) as any;
+  if (!who) return null;
+  return (q(`UPDATE stories SET loen = 0 WHERE owner_id = ? AND COALESCE(loen, 1) != 0 RETURNING title`)
+    .all(who.id) as any[]).map((r) => r.title);
 }
 
 /** The only ownership question, asked in one place. Postgres would do this with RLS;
@@ -3737,7 +3754,7 @@ export function updateStory(id: string, s: any) {
   q(`UPDATE stories SET title=?,genre=?,premise=?,setting=?,pov=?,persona=?,writing_style=?,
       spice=?,spice_note=?,max_context=?,status=?,model=?,
       locked_character=?,lockout_on=?,weaving=?,chapter_hero=?,chapter_sticky=?,cover_opacity=?,
-      cover_blur=?,cover_flip=?,cover_fade=?,auto_open=?,
+      cover_blur=?,cover_flip=?,cover_fade=?,loen=?,auto_open=?,
       lore_from=?,style_note=?,world=?,world_note=?,updated_at=? WHERE id=?`)
     .run(p('title', 'title'), tidyGenre(p('genre', 'genre')), p('premise', 'premise'), p('setting', 'setting'),
       p('pov', 'pov'), p('persona', 'persona') ?? null, p('writingStyle', 'writing_style'),
@@ -3760,6 +3777,7 @@ export function updateStory(id: string, s: any) {
       Math.max(0, Math.min(MAX_COVER_BLUR, Math.round(Number(p('coverBlur', 'cover_blur')) || 0))),
       Number(p('coverFlip', 'cover_flip') ? 1 : 0),
       Number((p('coverFade', 'cover_fade') ?? 1) ? 1 : 0),
+      Number((p('loen', 'loen') ?? 1) ? 1 : 0),
       // A boolean over the wire, an integer in the column, and `undefined` means "leave it" —
       // p() already resolves that to the current value, so a partial save cannot switch it off.
       Number(p('autoOpen', 'auto_open') ? 1 : 0),
@@ -4260,10 +4278,10 @@ export function duplicateStory(ownerId: string, storyId: string, title: string) 
    * somewhere the world book does not exist, and this lands beside it. A copy of a book set in a
    * world is a book set in that world. */
   q(`UPDATE stories SET lore_from=?, is_world=?, world=?, world_note=?, auto_open=?, look=?,
-       chapter_hero=?, chapter_sticky=?, cover_opacity=?, cover_blur=?, cover_flip=?, cover_fade=?, weaving=? WHERE id=?`)
+       chapter_hero=?, chapter_sticky=?, cover_opacity=?, cover_blur=?, cover_flip=?, cover_fade=?, loen=?, weaving=? WHERE id=?`)
     .run(src.lore_from ?? null, src.is_world ?? 0, src.world ?? null, src.world_note ?? null,
       src.auto_open, src.look ?? null, src.chapter_hero, src.chapter_sticky, src.cover_opacity,
-      src.cover_blur ?? 0, src.cover_flip ?? 0, src.cover_fade ?? 1, src.weaving ?? 0, made.id);
+      src.cover_blur ?? 0, src.cover_flip ?? 0, src.cover_fade ?? 1, src.loen ?? 1, src.weaving ?? 0, made.id);
 
   const ledger = copyLedger(storyId, made.id, ownerId);
   const cards = ledger?.map ?? new Map<string, string>();

@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, still, decodeMs, loenIn, LOEN_WORD_MS, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES, pressOf, pressKey } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, still, decodeMs, loenIn, loenGate, LOEN_WORD_MS, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES, pressOf, pressKey } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -5619,6 +5619,15 @@ const PANELS = {
       ${coverTip}
       ${coverAdd}`}
 
+      <!-- THE OLD SCRIPT, this tale's own switch, under the cover with the rest of how the tale
+           looks (Seth, 2026-11-03: "Add the text transition in the tale as a toggle"). On, its
+           headers, new action labels and arriving words print in the old script and translate into
+           English, and the loader is in it; off, all of it is English at once. On for a tale that
+           never set it. A [data-story] box, so it saves itself; loenOffHere reads it. -->
+      <label class="line pressable push-12">
+        <input type="checkbox" data-story="loen" ${V.story.loen !== false ? 'checked' : ''}>
+        <span class="body-ink">Letters translate from the old script</span></label>
+
       ${fields.filter((f) => IDENT.includes(f.k)).map(field).join('')}
       ${fields.filter((f) => !IDENT.includes(f.k)).map(field).join('')}
       <!-- for/id, not a bare label. test/web.ts pairs a label to its control by for="" and id="" —
@@ -10829,11 +10838,19 @@ function decodeFresh(root) {
   for (const el of root?.querySelectorAll?.('.from.fresh > span') ?? []) loenIn(el, decodeMs([...el.textContent].length));
 }
 
+/** THE OPEN TALE'S OWN SWITCH FOR THE OLD SCRIPT (`loen`, the Tale tab). Off, every decode in it
+ *  writes the English at once, as reduced motion does (loenIn asks this). Outside a tale, and in a
+ *  tale that never set it, the default holds: on. */
+const loenOffHere = () => S.place === 'story' && V?.story?.loen === false;
+loenGate(loenOffHere);
+
 /** "Anansi is writing", as the loader on the passage being written: set in Loenese and breathing in
  *  the accent (app.html, the loader under LOENESE), with the English as its label for a screen
  *  reader. Shown from the press until the first word arrives (`written`, liveDelta). Seth,
- *  2026-11-03: "while Anansi is writing use 'Anansi is writing' in this font as a loader". */
-const WRITING_NOW = '<div class="writingnow" role="status" aria-label="Anansi is writing"><span class="loen" aria-hidden="true">Anansi is writing</span></div>';
+ *  2026-11-03: "while Anansi is writing use 'Anansi is writing' in this font as a loader". In a tale
+ *  with the old script off it says the same words in plain English (`en`), breathing the same. */
+const writingLoader = () => `<div class="writingnow" role="status" aria-label="Anansi is writing"><span class="${
+  loenOffHere() ? 'en' : 'loen'}" aria-hidden="true">Anansi is writing</span></div>`;
 
 /** The block where the passage is going to land: a loader first, then the passage arriving.
  *
@@ -10910,8 +10927,8 @@ function ghost(replaces = null) {
     // the speaker the press sent (GHOST_VOICE); an opening quote is seen at the first word (liveDelta).
     // Its label is always new on screen, so it is always `fresh` (decodeFresh, below drawDoc).
     g.innerHTML = `<div class="from fresh" data-press="${pressKey(press)}"><i></i><span>${esc(press)}${GHOST_VOICE ? ` &middot; ${esc(GHOST_VOICE)}` : ''}</span></div>
-      ${WRITING_NOW}
       ${WEAVE_LINE()}
+      ${writingLoader()}
       ${GHOST_VOICE ? `<div class="who">${esc(GHOST_VOICE)}</div>` : ''}
       <div class="${GHOST_VOICE ? 'said' : 'narr'}"><div class="veiltext" aria-live="polite"></div></div>`;
     // Drawn again with it in place, so the passage before it gives up the newest's row (chapterHTML).
@@ -10925,7 +10942,7 @@ function ghost(replaces = null) {
     // is how the cause was found).
     REPLACING = replaces;
     drawDoc();
-    decodeFresh(g); weaveDecode(g);
+    decodeFresh(g);
     // THE NEW ENTRY'S HEADER GOES TO THE TOP, AT THE PRESS (Seth, 2026-10-27, below at anchorLive).
     INLINE_ANCHOR = true;
     anchorLive();
@@ -10947,8 +10964,8 @@ function ghost(replaces = null) {
            addition to "the blur, the rule, and nothing else": a weaving wait is a median 60 s
            (F60), and a minute of blur with nothing counting reads as a hang. Empty, and so not
            drawn, for every other passage and from the first word on. -->
-      ${WRITING_NOW}
       ${WEAVE_LINE()}
+      ${writingLoader()}
       <div class="veilrow">
         <div class="veilmeter" aria-hidden="true"><i></i></div>
         <div class="veiltext" aria-live="polite"></div>
@@ -10960,7 +10977,6 @@ function ghost(replaces = null) {
       <div class="veilcarry"></div>
     </div>`;
   shell.appendChild(g);
-  weaveDecode(g);
 }
 
 
@@ -11056,27 +11072,24 @@ const WEAVES = new Map();
 const weaveSecs = (at) => `${Math.floor((Date.now() - WEAVES.get(at).t0) / 1000)}s`;
 const weaveWords = (at = 'dock') => `Planning\u2026 ${weaveSecs(at)}`;
 const weavingAt = (at) => WEAVES.has(at);
-/** THE PASSAGE'S COUNT, in two parts so the seconds can tick without rewriting the word: "Planning…"
- *  translates out of Loenese once, as the label over it does (weaveDecode), and a tick that wrote the
- *  whole line would end that. Its text is still weaveWords. The parts are hidden from a screen
- *  reader, which is told "Anansi is planning" once (WEAVE_LINE) rather than a number every second. */
-const weaveHTML = (at = 'dock') => `<span class="wv-word" aria-hidden="true">Planning\u2026</span> <span class="wv-secs" aria-hidden="true">${weaveSecs(at)}</span>`;
-/** The passage being written, while it is woven: the line under the loader. Seth, 2026-11-03: "The
- *  Anansi weaving, can we polish that so it feels more a part of what's on screen." In the loader's
- *  own treatment (app.html, THE WEAVING): a sunburst rising behind "Anansi is writing", and this line
- *  in the label's spaced capitals and the accent. Empty, and not drawn, when the passage is not woven. */
+/** THE PASSAGE'S COUNT: "Planning", three dots that fade in and out one after another (app.html,
+ *  THE WEAVING), and the seconds. In parts so a tick rewrites only the seconds and the dots keep their
+ *  rhythm. The words are plain English and still: Seth, 2026-11-03: "three dots that fade in and out;
+ *  keep the text not animated". The parts are hidden from a screen reader, which is told "Anansi is
+ *  planning" once (WEAVE_LINE) rather than a number every second. The passage and the composer
+ *  (#weaving) show the same markup. */
+const weaveHTML = (at = 'dock') => `<span class="wv-word" aria-hidden="true">Planning</span><span class="wv-dots" aria-hidden="true"><i></i><i></i><i></i></span> <span class="wv-secs" aria-hidden="true">${weaveSecs(at)}</span>`;
+/** The passage being written, while it is woven: the line directly under the action label, where
+ *  the passage's words will start, left-aligned in the prose column. Seth, 2026-11-03: "don't centre
+ *  it, just put it under the action label". The loader under it is hidden while it shows (`weaving`).
+ *  Empty, and not drawn, when the passage is not woven. */
 const WEAVE_LINE = () => (weavingAt('dock')
   ? `<div class="veilweave" role="status" aria-label="Anansi is planning">${weaveHTML('dock')}</div>`
   : '<div class="veilweave" role="status"></div>');
-/** "Planning…" out of Loenese, once, when the passage being written is drawn woven. */
-function weaveDecode(g) {
-  const w = g?.querySelector?.('.veilweave .wv-word');
-  if (w) loenIn(w, decodeMs([...w.textContent].length));
-}
 function weaveShow(at) {
   const words = WEAVES.has(at) ? weaveWords(at) : '';
   const g = at === 'dock' ? document.getElementById('ghost') : null;
-  // The sunburst goes with the count (THE WEAVING, app.html).
+  // The loader comes back with the count gone (THE WEAVING, app.html).
   if (!words) g?.classList?.remove?.('weaving');
   const els = at === 'dock'
     ? [g?.querySelector?.('.veilweave'), document.getElementById('weaving')]
@@ -11161,7 +11174,7 @@ function liveDelta(d) {
       box.insertAdjacentHTML('beforebegin', `<div class="who">${esc(V?.story?.title ?? '')}</div>`);
     }
   }
-  // `written` takes the loader away at the first word (WRITING_NOW), on the veil and inline alike.
+  // `written` takes the loader away at the first word (writingLoader), on the veil and inline alike.
   document.getElementById('ghost')?.classList.add('written');
   PEND += d;
   if (DRAIN == null) DRAIN = requestAnimationFrame(drainVeil);
