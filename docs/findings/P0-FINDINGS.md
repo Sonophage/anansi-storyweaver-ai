@@ -3290,3 +3290,86 @@ this chapter opens:", copied from the scene-opening block.
 
 **Harness.** `bench/reroll-echo.ts check` (in `test/all.ts`), the plain run for the report, `show N`
 for pairs to read.
+
+## F67 — asking a reweave again when it opens like the version it replaces cuts same openings from 18% to 8% on Ornith (p = 0.02), and leaves the word-for-word share where it was; a What didn't work note changed nothing measurable (2026-11-04)
+
+**The question.** F66 found that a reweave (in code, a reroll) often starts with the replaced
+version's first five narration words, and that every repeat read by eye copied the opening and then
+went elsewhere. A reweave sends the prompt that wrote the passage, byte for byte (ADR 0012), so its
+opening is drawn from the same distribution again. Does Ornith do this when asked today, and does a
+check in code move the reweave away? Does a note in What didn't work?
+
+**The measure.** `bench/reroll-away.ts`, the F66 measures from `bench/echo.ts`, narration only, each
+new version scored against the chosen version it replaces:
+- SAME OPENING: the first five narration words are the replaced version's (`openingOf`, the same
+  function the app check uses).
+- REJECTED >= 0.10: F66's word-for-word share, scene phrases left out.
+- R-OWN >= 0.10: REJECTED with the passage's own directive phrases left out too. In Direct mode both
+  versions copy the writer's synopsis; this column is what neither took from the prompt.
+
+**The treatment.** `ANANSI_REROLL_AWAY=1`: a non-streaming reweave whose opening is the replaced
+version's is asked again on a new seed, twice at most (`src/routes.ts`, `rerollAway`). Off, it is
+the same code. Not a prompt change, so the manifest of a reweave carries `away: true|false`, checked
+for every passage before any generation.
+
+**The run.** Ornith-1.0-RPNTH-35B on the local router, Seth's sampler (temperature 0.7, top_p 0.7,
+min_p 0.05, 300 words). Twelve chosen versions Ornith wrote: four Direct passages of The Murmur in
+the Marrow (directives written as prose) and eight Continue and Speak passages of ENCORE. Each run
+rerolls every passage five times per arm, interleaved, two scratch servers at the same time, one
+generation each per step. Takes under 20 phrases left out: none were. Errors: none.
+
+Baseline (Murmur only, control alone, before the treatment existed): 8 of 24 same openings (33%), 6
+of them the directive's own first words, all six on one passage.
+
+| run | arm | versions | SAME OPENING | REJECTED >= .1 | R-OWN >= .1 | asked again | median s |
+|---|---|---|---|---|---|---|---|
+| 1 | control | 60 | 12 (20%) | 11 (18%) | 8 (13%) | 0 | 15 |
+| 1 | away | 60 | 4 (7%) | 13 (22%) | 7 (12%) | 15 | 19 |
+| 2 | control | 60 | 10 (17%) | 12 (20%) | 7 (12%) | 0 | 14 |
+| 2 | away | 60 | 5 (8%) | 14 (23%) | 6 (10%) | 13 | 17 |
+| 1+2 | control | 120 | **22 (18%)** | 23 (19%) | 15 (13%) | 0 | 14 |
+| 1+2 | away | 120 | **9 (8%)** | 27 (23%) | 13 (11%) | 28 | 18 |
+| 3 | control | 60 | 15 (25%) | 13 (22%) | 8 (13%) | 0 | 15 |
+| 3 | note | 60 | 11 (18%) | 9 (15%) | 8 (13%) | 0 | 16 |
+
+Fisher, two-sided. Away against its own control, pooled: SAME OPENING p = 0.020 (run 1 alone
+0.058, run 2 alone 0.27), REJECTED p = 0.63, R-OWN p = 0.84. Note against its control: SAME OPENING
+p = 0.51, REJECTED p = 0.48, R-OWN p = 1.0. Each pooled pair was run simultaneously; the pool adds
+two such pairs, it does not compare across times.
+
+By tale, pooled: ENCORE (no directive) 10 of 80 same openings against 1 of 80; the Murmur 12 of 40
+against 8 of 40. One Murmur passage opened with its directive's words in 10 of 10 control versions
+and 6 of 10 with the treatment: two asks again do not get past a directive that is itself the
+opening sentence.
+
+Cost: 40 extra generations for 120 reweaves (33% more model time), 28 reweaves asked again, 12 of
+them twice. Median wait 14 s to 18 s, p90 22 s to 29 s, non-streaming.
+
+**What this settles.**
+- Ornith copies the opening on a reweave today, at 17% to 25% of reweaves across three control
+  arms, close to F66's 25% from history.
+- Asking again on a same opening moves the opening: 18% to 8%, p = 0.02 over 240 versions. Where the
+  opening is not the directive's, it nearly ends it: 12 such openings of 120 against 3 of 120.
+- It does not move the word-for-word share. REJECTED and R-OWN are flat. The copied phrases read in
+  run 1 sit through the whole version, not in the opening, and all 44 R-OWN flags in the three runs
+  were in the Murmur's Direct passages; ENCORE had none in any arm. A new first sentence is not a new version.
+- A What didn't work note that names no content ("It came back the same as last time. Open it
+  differently and take the moment another way.") measured flat, as F44 predicts: 15 to 11 of 60,
+  p = 0.51.
+
+**What it does not settle.**
+- No writer gets the treatment. It runs only on a reweave that does not stream; the app streams. To
+  ship it, the stream must hold its first five narration words back, compare, and ask again before
+  any word reaches the page (the ponytail on `rerollAway`). On a stream the cost would be a few
+  tokens, not a whole passage.
+- Whether a different opening is a better version. Nothing here scores quality.
+- The paraphrased repeat (F66) is still not measured.
+- A note that names what was wrong ("she enters the same way") was not tested: the model is not
+  shown the old version (ADR 0012), so only content the writer types can steer it. One generic note,
+  one wording.
+- Two tales, twelve passages, one model and one sampler. top_p 0.7 makes the opening peaked; a looser
+  sampler may repeat less without any check.
+
+**Harness.** `bench/reroll-away.ts check` (in `test/all.ts`); `run <out.jsonl> 5 control@5301
+away@5302+away` against two scratch servers on copies of the library (`+note` for the note arm);
+`report <out.jsonl>...`. `test/away.ts` holds the app check on a fake router.
