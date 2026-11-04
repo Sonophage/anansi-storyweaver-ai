@@ -18,11 +18,15 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · A thread is edited where you read it
 
+### A turning globe while Anansi writes
+While you wait for the first word of a passage, a small globe of dots now turns where the
+words will start, a slow ripple running round it. It replaces the words "Anansi is writing", which
+a screen reader still says. With reduced motion it holds still.
+
 ### Each tale can turn the old script off
 The Tale tab has a new switch, "Letters translate from the old script", under the cover. It is on
 for every tale. Turn it off and that tale shows plain words at once: its headings, the labels over
-new passages and the words Anansi writes no longer arrive in the old script, and "Anansi is writing"
-is written in plain English. The library and your account keep the effect.
+new passages and the words Anansi writes no longer arrive in the old script. The library and your account keep the effect.
 
 ### Planning sits under the passage label, with three dots
 When your book has Anansi plan first, "Planning" and the seconds now sit at the left, just under

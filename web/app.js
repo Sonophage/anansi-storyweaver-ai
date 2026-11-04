@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, still, decodeMs, loenIn, loenGate, LOEN_WORD_MS, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES, pressOf, pressKey } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, still, decodeMs, loenIn, loenGate, LOEN_WORD_MS, sphereIn, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES, pressOf, pressKey } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -10844,13 +10844,13 @@ function decodeFresh(root) {
 const loenOffHere = () => S.place === 'story' && V?.story?.loen === false;
 loenGate(loenOffHere);
 
-/** "Anansi is writing", as the loader on the passage being written: set in Loenese and breathing in
- *  the accent (app.html, the loader under LOENESE), with the English as its label for a screen
- *  reader. Shown from the press until the first word arrives (`written`, liveDelta). Seth,
- *  2026-11-03: "while Anansi is writing use 'Anansi is writing' in this font as a loader". In a tale
- *  with the old script off it says the same words in plain English (`en`), breathing the same. */
-const writingLoader = () => `<div class="writingnow" role="status" aria-label="Anansi is writing"><span class="${
-  loenOffHere() ? 'en' : 'loen'}" aria-hidden="true">Anansi is writing</span></div>`;
+/** THE LOADER ON THE PASSAGE BEING WRITTEN: a sphere of dots turning in the accent (sphereFrame,
+ *  web/model.js; Seth, 2026-11-03), shown from the press until the first word arrives (`written`,
+ *  liveDelta), with "Anansi is writing" as its label for a screen reader. It replaced the same words
+ *  set in Loenese and breathing. `startLoader` sets it turning once the passage is on the page. */
+const LOADER_PX = 80;
+const writingLoader = () => `<canvas class="writingnow" role="status" aria-label="Anansi is writing"></canvas>`;
+const startLoader = (g) => sphereIn(g?.querySelector?.('canvas.writingnow'), LOADER_PX);
 
 /** The block where the passage is going to land: a loader first, then the passage arriving.
  *
@@ -10943,6 +10943,7 @@ function ghost(replaces = null) {
     REPLACING = replaces;
     drawDoc();
     decodeFresh(g);
+    startLoader(g);
     // THE NEW ENTRY'S HEADER GOES TO THE TOP, AT THE PRESS (Seth, 2026-10-27, below at anchorLive).
     INLINE_ANCHOR = true;
     anchorLive();
@@ -10977,6 +10978,7 @@ function ghost(replaces = null) {
       <div class="veilcarry"></div>
     </div>`;
   shell.appendChild(g);
+  startLoader(g);
 }
 
 

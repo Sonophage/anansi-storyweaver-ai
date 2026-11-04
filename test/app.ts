@@ -10508,17 +10508,77 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     click({ open: 's-1' }); await sleep(40);
     click({ continue: '1' }); await sleep(10);
     const markup = String(veil?.innerHTML ?? '');
-    assert.match(markup, /class="writingnow"[^>]*role="status"[^>]*aria-label="Anansi is writing"/, 'LOENESE-LOADER: the veil says Anansi is writing, in English, to a screen reader');
-    assert.match(markup, /<span class="loen" aria-hidden="true">Anansi is writing<\/span>/, 'LOENESE-LOADER: and shows it set in Loenese');
+    assert.match(markup, /<canvas class="writingnow" role="status" aria-label="Anansi is writing"><\/canvas>/, 'SPHERE-LOADER: the veil\'s loader is a canvas that says Anansi is writing, in English, to a screen reader');
+    assert.doesNotMatch(markup, /<span class="(loen|en)" aria-hidden="true">Anansi is writing/, 'SPHERE-LOADER: and no loader text, in Loenese or English, is left');
     await sleep(400);
   } finally { shell.appendChild = was2; }
   const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
-  assert.strictEqual(src.match(/\$\{writingLoader\(\)\}/g)?.length, 2, 'LOENESE-LOADER: the inline passage being written shows it too');
+  assert.strictEqual(src.match(/\$\{writingLoader\(\)\}/g)?.length, 2, 'SPHERE-LOADER: the inline passage being written shows it too');
+  assert.doesNotMatch(page, /loenbreathe|\.writingnow \.(loen|en)\b/, 'SPHERE-LOADER: the breathing Loenese loader text is gone from the stylesheet');
   assert.doesNotMatch(src, /\bglyph\(\)|dataset\.glyphs/, 'LOENESE: the random-glyph decode is gone');
   assert.match(src, /for \(const sp of spans\) loenIn\(sp, LOEN_WORD_MS\)/, 'LOENESE-WORD: drainVeil sends every streamed word through it');
   assert.doesNotMatch(page, /loenout|loenin|--t-loen/, 'LOENESE: the blur keyframes are gone');
 }
-ok('Loenese: the font ships, headers and streamed words turn out of it into English letter by letter, and Anansi is writing is said in it');
+ok('Loenese: the font ships, and headers and streamed words turn out of it into English letter by letter');
+
+// ---- THE LOADER IS A TURNING SPHERE OF DOTS (Seth, 2026-11-03), after the "listening" loader in
+// loadersz. The point maths is pure (sphereFrame); the loop (sphereIn) draws it on a canvas, one
+// frame under reduced motion, and stops for good when the canvas leaves the page.
+{
+  const { sphereFrame, sphereIn, SPHERE_DOTS } = await import('../web/model.js');
+  assert.strictEqual(SPHERE_DOTS, 190, 'SPHERE-DOTS: about 190 dots, as the listening loader draws');
+  const flat = sphereFrame(0.6, 190, 0);
+  assert.strictEqual(flat.length, 190, 'SPHERE-DOTS: one dot per point');
+  const len = (d: any) => Math.hypot(d.x, d.y, d.z);
+  assert.ok(flat.every((d: any) => Math.abs(len(d) - 1) < 1e-9), 'SPHERE-UNIT: with no ripple every point is on the unit sphere');
+  // Fibonacci heights: the first point sits 1/n below the top pole, the last 1/n above the bottom.
+  const ys = sphereFrame(0, 4, 0, 0, 0).map((d: any) => d.y).sort((a: number, b: number) => b - a);
+  assert.deepStrictEqual(ys.map((y: number) => +y.toFixed(9)), [0.75, 0.25, -0.25, -0.75], 'SPHERE-UNIT: heights spread evenly, pole to pole');
+  let lo = Infinity, hi = -Infinity;
+  for (let t = 0; t < 12; t += 0.37) for (const d of sphereFrame(t)) { lo = Math.min(lo, len(d)); hi = Math.max(hi, len(d)); }
+  assert.ok(lo >= 0.9 - 1e-9 && hi <= 1.1 + 1e-9, `SPHERE-RIPPLE: the ripple stays within ten per cent (${lo.toFixed(3)}..${hi.toFixed(3)})`);
+  assert.ok(lo < 0.92 && hi > 1.08, 'SPHERE-RIPPLE: and it does move them, both ways');
+  const f = sphereFrame(1.3);
+  const front = f.reduce((a: any, b: any) => (b.z > a.z ? b : a)), back = f.reduce((a: any, b: any) => (b.z < a.z ? b : a));
+  assert.ok(front.r > back.r && front.a > back.a, 'SPHERE-DEPTH: a dot in front is bigger and brighter than one behind');
+  assert.ok(f.every((d: any, i: number) => i === 0 || f[i - 1].z <= d.z), 'SPHERE-DEPTH: drawn back to front');
+
+  // THE LOOP, on a stub canvas and a scheduler that runs a frame only when told to.
+  const raf = (globalThis as any).requestAnimationFrame;
+  const queue: Function[] = [];
+  (globalThis as any).requestAnimationFrame = (fn: Function) => { queue.push(fn); return queue.length; };
+  let arcs = 0;
+  const ctx = { setTransform() {}, clearRect() {}, beginPath() {}, arc() { arcs++; }, fill() {}, globalAlpha: 1, fillStyle: '' };
+  const cv: any = { isConnected: true, width: 0, height: 0, getContext: () => ctx, closest: () => null };
+  try {
+    sphereIn(cv, 80);
+    assert.ok(cv.width >= 80 && cv.width === cv.height, 'SPHERE-SHARP: the canvas is sized in device pixels');
+    assert.strictEqual(queue.length, 1, 'SPHERE-LOOP: one frame is asked for');
+    queue.shift()!(16);
+    assert.strictEqual(arcs, 190, 'SPHERE-LOOP: a frame draws every dot');
+    assert.strictEqual(queue.length, 1, 'SPHERE-LOOP: and asks for the next');
+    cv.isConnected = false;
+    queue.shift()!(32);
+    assert.strictEqual(queue.length, 0, 'SPHERE-LOOP: off the page, it asks for no more frames');
+    assert.strictEqual(arcs, 190, 'SPHERE-LOOP: and draws nothing more');
+    // The first word: the ghost is marked written, and the loop ends there too.
+    const cv2: any = { ...cv, isConnected: true, closest: () => null };
+    sphereIn(cv2, 80); queue.shift()!(16);
+    cv2.closest = (q: string) => (q === '.written' ? {} : null);
+    queue.shift()!(32);
+    assert.strictEqual(queue.length, 0, 'SPHERE-LOOP: at the first word it stops');
+    // REDUCED MOTION: one still frame, no loop.
+    const mm = (globalThis as any).matchMedia; arcs = 0;
+    (globalThis as any).matchMedia = () => ({ matches: true, addEventListener() {} });
+    try { sphereIn({ ...cv, isConnected: true }, 80); } finally { (globalThis as any).matchMedia = mm; }
+    assert.strictEqual(arcs, 190, 'SPHERE-STILL: reduced motion draws one frame');
+    assert.strictEqual(queue.length, 0, 'SPHERE-STILL: and asks for no more');
+  } finally { (globalThis as any).requestAnimationFrame = raf; }
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../web/model.js', import.meta.url), 'utf8');
+  assert.match(src, /after the 'listening' loader in loadersz \(MIT/, 'SPHERE-CREDIT: the loader credits loadersz');
+}
+ok('the loader is a turning sphere of dots: pure maths on the unit sphere, a bounded ripple, one loop that stops off the page or at the first word, still under reduced motion');
 
 // ---- THE ACTION LABEL TRANSLATES OUT OF LOENESE WHEN IT IS NEW ON SCREEN (Seth, 2026-11-03: "The
 // action dividers do the same"). New is a passage that landed while the book was open; a repaint, or
@@ -10622,7 +10682,6 @@ ok('the weaving sits under the action label: Planning, three fading dots and its
     assert.ok(on.classList.contains('decoding') && /class="lo"/.test(on.innerHTML), 'LOEN-DEFAULT: an unset tale decodes');
     streamGate = new Promise<void>((r) => { open = r; });
     void click({ continue: '1' }); await sleep(30);
-    assert.match(String(veil?.innerHTML), /<span class="loen" aria-hidden="true">Anansi is writing<\/span>/, 'LOEN-DEFAULT: and its loader is in Loenese');
     open(); await sleep(60); streamGate = null;
 
     // OFF.
@@ -10635,9 +10694,7 @@ ok('the weaving sits under the action label: Planning, three fading dots and its
     assert.ok(!off.classList.contains('decoding'), 'LOEN-OFF: and nothing is marked decoding');
     streamGate = new Promise<void>((r) => { open = r; });
     void click({ continue: '1' }); await sleep(30);
-    const m = String(veil?.innerHTML);
-    assert.match(m, /class="writingnow"[^>]*aria-label="Anansi is writing"><span class="en" aria-hidden="true">Anansi is writing<\/span>/, 'LOEN-OFF: the loader says Anansi is writing in plain English');
-    assert.doesNotMatch(m, /class="loen"/, '  with no Loenese in it');
+    assert.doesNotMatch(String(veil?.innerHTML), /class="loen"/, 'LOEN-OFF: no Loenese in the veil');
     open(); await sleep(60); streamGate = null;
 
     // THE SWITCH SAVES ITSELF to the tale, as every [data-story] box does.
@@ -10654,7 +10711,7 @@ ok('the weaving sits under the action label: Planning, three fading dots and its
     assert.ok(lib.classList.contains('decoding'), 'LOEN-OUTSIDE: the library decodes, as the default says');
   } finally { delete (STORY.story as any).loen; shell.appendChild = was; streamGate = null; }
 }
-ok('the old script is a switch on the Tale tab, on by default; off, the tale shows English at once and its loader is plain');
+ok('the old script is a switch on the Tale tab, on by default; off, the tale shows English at once');
 
 // ---- WRITING INLINE: THE OLD VERSION STAYS HIDDEN WHILE THE NEW ONE IS WRITTEN, THROUGH A REPAINT.
 // It was hidden by a class put on the DOM at the press, and a repaint rebuilds #col, so the old

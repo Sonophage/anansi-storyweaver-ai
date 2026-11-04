@@ -832,6 +832,66 @@ let loenOff = () => false;
 export const loenGate = (off) => { loenOff = off; };
 
 // ---------------------------------------------------------------------------
+// THE LOADER: a sphere of dots turning slowly while a ripple runs round it, shown on the passage
+// being written until its first word (Seth, 2026-11-03).
+// Written after the 'listening' loader in loadersz (MIT, github/npm loadersz): its maths, not its
+// code, since Anansi takes no dependency.
+export const SPHERE_DOTS = 190;
+const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+/** The dots of one frame at `t` seconds, back to front. Each is a point of a Fibonacci sphere (a
+ *  golden-angle spiral, so the dots fall evenly), pushed out or in by a four-lobed ripple of
+ *  `ripple` (a tenth: every dot stays within 10% of the unit sphere), then turned by `yaw` about
+ *  the upright and tipped by `tilt` toward the viewer. x right, y up, z toward the viewer, all in
+ *  units of the sphere's radius. `r` is the dot's radius in CSS pixels whatever the sphere's size,
+ *  as the listening loader draws them; `a` is its alpha. Both grow toward the front, and with the
+ *  ripple's swell. */
+export function sphereFrame(t, n = SPHERE_DOTS, ripple = 0.1, yaw = t * 0.15, tilt = 0.38) {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw), ct = Math.cos(tilt), st = Math.sin(tilt);
+  const dots = [];
+  for (let i = 0; i < n; i++) {
+    const y = 1 - (2 * (i + 0.5)) / n, ring = Math.sqrt(1 - y * y), th = i * GOLDEN;
+    const x = Math.cos(th) * ring, z = Math.sin(th) * ring;
+    const l = 1 + Math.sin(4 * Math.atan2(z, x) - 2.7 * t + 5 * y) * ripple;
+    const px = (x * cy - z * sy) * l, u = (x * sy + z * cy) * l;
+    const py = y * l * ct - u * st, pz = y * l * st + u * ct;
+    const depth = (pz + 1) / 2, swell = Math.max(0, l - 1) * 10;
+    dots.push({ x: px, y: py, z: pz, r: 0.45 + depth * 1.55 + swell * 0.45, a: 0.14 + depth * 0.64 + swell * 0.08 });
+  }
+  return dots.sort((p, q) => p.z - q.z);
+}
+/** Draw the sphere on canvas `cv`, `px` CSS pixels square, in the canvas's own colour (the accent,
+ *  from the stylesheet), sharp at the screen's pixel density. One frame a frame until the canvas
+ *  leaves the page or its passage gets its first word (`.written`); then it asks for no more, so a
+ *  loader never outlives its passage. Reduced motion draws one still frame. */
+export function sphereIn(cv, px) {
+  const ctx = cv?.getContext?.('2d');
+  if (!ctx) return;
+  const dpr = Math.min(globalThis.devicePixelRatio || 1, 2);
+  cv.width = cv.height = Math.round(px * dpr);
+  const ink = globalThis.getComputedStyle?.(cv)?.color || 'currentColor';
+  const R = px * 0.41, c = px / 2;
+  const draw = (t) => {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, px, px);
+    ctx.fillStyle = ink;
+    for (const d of sphereFrame(t)) {
+      ctx.globalAlpha = Math.min(1, d.a);
+      ctx.beginPath(); ctx.arc(c + d.x * R, c - d.y * R, d.r, 0, Math.PI * 2); ctx.fill();
+    }
+  };
+  // The listening loader's clock starts at .6 s, so its still frame already has the ripple in it.
+  if (still()) { draw(0.6); return; }
+  let t0 = null;
+  const tick = (now) => {
+    if (!cv.isConnected || cv.closest?.('.written')) return;
+    t0 ??= now;
+    draw(0.6 + (now - t0) / 1000);
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+// ---------------------------------------------------------------------------
 // THE DECODE. Text prints in the Loenese cipher face, holds a beat, and then translates to English
 // left to right. Seth, 2026-11-03: "make it so that it still cycles through the English letters, so
 // it prints in Loenese and slowly translates to English; right now the transition almost looks

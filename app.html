@@ -17,7 +17,7 @@
 <link rel="manifest" href="./web/app.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- The Loenese face (the decode and the loader, below), fetched with the page so the first header
+<!-- The Loenese face (the decode, below), fetched with the page so the first header
      decode has its glyphs rather than waiting on them. `crossorigin` because fonts load in CORS mode. -->
 <link rel="preload" href="/web/loenese.otf" as="font" type="font/otf" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -377,7 +377,7 @@ input, textarea { font:inherit; color:inherit; }
 
 /* LOENESE. Seth, 2026-11-03: "You know how we have the glyph transitions: replace it with this font
    and slowly have it blur to English, and while Anansi is writing use 'Anansi is writing' in this font
-   as a loader." A cipher face: every letter, digit and common mark has one Loenese glyph, so the same
+   as a loader." (The loader became a sphere of dots later that day; see THE LOADER.) A cipher face: every letter, digit and common mark has one Loenese glyph, so the same
    words set in it are the same words, unreadable.
    ponytail: fan-made font with no stated licence; fine for this two-writer private app; ask its maker
    (Zilchaz, LotM fandom wiki) or replace it with an original script before Anansi is offered to anyone
@@ -401,18 +401,14 @@ input, textarea { font:inherit; color:inherit; }
   transform-origin:50% 72%; }
 .cy::after { content:attr(data-cy); }
 
-/* THE LOADER: "Anansi is writing", set in Loenese, in the accent, breathing, from the press until the
-   first word (`written`, liveDelta). The English is its label, for a screen reader. Still, and fully
-   readable as a shape, under reduced motion. In a tale with the old script off (`en`, writingLoader)
-   the same words in the text's own face, breathing the same. */
-.writingnow { display:block; text-align:center; color:var(--gold); line-height:1.4; }
-.writingnow .loen, .writingnow .en { animation:loenbreathe 2.6s ease-in-out infinite; }
-.writingnow .loen { font-family:'Loenese'; font-size:22px; letter-spacing:.08em; }
-.writingnow .en { font-size:17px; font-style:italic; letter-spacing:.04em; }
-@keyframes loenbreathe { 0%, 100% { opacity:.4; text-shadow:none; }
-  50% { opacity:1; text-shadow:0 0 14px color-mix(in srgb, var(--gold) 55%, transparent); } }
+/* THE LOADER: a sphere of dots turning in the accent (sphereIn, web/model.js), from the press until
+   the first word (`written`, liveDelta). Its size here is the size it is drawn at (LOADER_PX); `color`
+   is the ink the canvas reads. Inline it sits under the action label, at the left, where the words
+   will start, as the weaving line does; on the veil, which has no label, it is centred. One still
+   frame under reduced motion. */
+.writingnow { display:block; width:80px; height:80px; margin:10px 0 0 -8px; color:var(--gold); }
+#ghost.veil .writingnow { margin:10px auto 0; }
 #ghost.written .writingnow { display:none; }
-@media (prefers-reduced-motion: reduce) { .writingnow .loen, .writingnow .en { animation:none; opacity:.9; } }
 
 /* THE WEAVING: while a woven passage is planned, before its first word (#55). Seth, 2026-11-03:
    "don't centre it, just put it under the action label, and three dots that fade in and out; keep
