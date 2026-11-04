@@ -3358,10 +3358,11 @@ them twice. Median wait 14 s to 18 s, p90 22 s to 29 s, non-streaming.
   p = 0.51.
 
 **What it does not settle.**
-- No writer gets the treatment. It runs only on a reweave that does not stream; the app streams. To
-  ship it, the stream must hold its first five narration words back, compare, and ask again before
-  any word reaches the page (the ponytail on `rerollAway`). On a stream the cost would be a few
-  tokens, not a whole passage.
+- The arms above ran without streaming. The streamed path got its gate later the same day: the
+  stream holds its words until it has six narration words, and asks again before the page sees a
+  same opening (`test/away.ts`, GATE-*). Checked on Ornith on a scratch server with 9 streamed
+  reweaves of the two passages with the highest control rate: 0 same openings reached the page, and
+  7 of the 9 were asked again. Not an A/B. The switch is still off by default.
 - Whether a different opening is a better version. Nothing here scores quality.
 - The paraphrased repeat (F66) is still not measured.
 - A note that names what was wrong ("she enters the same way") was not tested: the model is not
@@ -3373,3 +3374,46 @@ them twice. Median wait 14 s to 18 s, p90 22 s to 29 s, non-streaming.
 **Harness.** `bench/reroll-away.ts check` (in `test/all.ts`); `run <out.jsonl> 5 control@5301
 away@5302+away` against two scratch servers on copies of the library (`+note` for the note arm);
 `report <out.jsonl>...`. `test/away.ts` holds the app check on a fake router.
+
+## F68 — a What didn't work note that names what the old version opened on cuts same openings from 25% to 3% (p = 0.001), with no extra call; the word-for-word share does not move significantly (2026-11-04)
+
+**The question.** F67's note named nothing ("It came back the same as last time…") and measured
+flat. The model is not shown the old version (ADR 0012), so a note can only steer it with content the
+writer types. Does a note that names what the old version did, as Seth would write it, move the
+reweave?
+
+**The arm.** `bench/reroll-away.ts`, arm `+named`. One note per passage, written by hand from the
+replaced version's first sentence, paraphrased and never quoted ("It opened on Tessa not answering
+right away again.", "It opened on the door sighing shut again."), each followed by "Start it a
+different way." The list is `NAMED` in the bench; the check refuses a note with a quote mark in it.
+Sent as `whatFailed`, so it reaches MODE inside the writer's When you reweave frame, checked through
+the manifest for every passage before generating. `ANANSI_REROLL_AWAY` off on both servers.
+
+**The run.** As F67: Ornith, Seth's sampler, the same twelve passages, five reweaves each per arm,
+two scratch servers at the same time. No errors, no short versions.
+
+| arm | versions | SAME OPENING | REJECTED >= .1 | R-OWN >= .1 | extra calls | median s |
+|---|---|---|---|---|---|---|
+| control | 60 | 15 (25%) | 13 (22%) | 8 (13%) | 0 | 16 |
+| named note | 60 | **2 (3%)** | 8 (13%) | 6 (10%) | 0 | 17 |
+
+Fisher, two-sided: SAME OPENING p = 0.0011, REJECTED p = 0.34, R-OWN p = 0.78. By tale: ENCORE 8 of
+40 against 0 of 40; the Murmur 7 of 20 against 2 of 20. The passage whose directive is its opening
+sentence went from 4 of 5 to 0 of 5. Both same openings left were on one Murmur passage, whose note
+named the shadow detaching from the rib.
+
+**What this settles.**
+- A note that names the opening steers the opening, and more than asking again does (F67: 18% to
+  8%), at no extra generation. F44 and F67's flat results were notes that named nothing the model
+  could act on.
+- It does not settle the word-for-word share: 13 to 8 of 60 is in the right direction, p = 0.34.
+
+**What it does not settle.**
+- The notes were written by the person running the bench, who had read each old opening. A writer
+  writes them in the moment, and some will name less.
+- One note per passage, held across five reweaves. A writer's next note would name the new version.
+- Whether the new versions are better, and whether a note naming something other than the opening
+  (a beat, a line) steers the body. Only the opening was named.
+- F67's ask-again and this note were never run together.
+
+**Harness.** `bench/reroll-away.ts run <out.jsonl> 5 control@5301 named@5302+named`, `report`.
