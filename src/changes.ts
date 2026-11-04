@@ -384,7 +384,9 @@ export function entriesAsked(entries: unknown, tale: Tale, said: string): { aske
   for (const e of list) {
     const t = threadNamed(tale, e?.title).hit;
     if (!t || !words(t.title).some((w) => w.length > 2 && heard.has(w))) { offered.push(e); continue; }
-    asked.push({ op: 'thread.set', thread: t.title, room: e.field ?? 'none', text: e.body });
+    // Its pockets, if it carried any, are that change's pockets (`expandAsked`).
+    asked.push({ op: 'thread.set', thread: t.title, room: e.field ?? 'none', text: e.body,
+      ...(Array.isArray(e.pockets) ? { pockets: e.pockets } : {}) });
   }
   return { asked, offered };
 }

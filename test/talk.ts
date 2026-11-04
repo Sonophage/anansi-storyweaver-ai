@@ -102,6 +102,19 @@ const srv = createServer((req, res) => {
                   { op: 'thread.new', title: 'Ysolde', type: 'character', field: 'voice', text: 'A low murmur.' },
                   { op: 'thread.new', title: 'Ysolde', type: 'character', field: 'outfit', text: 'Red latex gloves.' }] },
       FILLCARD,
+      // The card as one entry with its pockets, which the grammar offers now: her appearance in the
+      // entry's own room, and two more pockets beside it.
+      FILLPOCKETS: { reply: 'Her card is filled in.',
+        entries: [{ title: 'Seraphine', type: 'character', keys: ['Seraphine'], field: 'appearance',
+          pockets: [{ room: 'interiority', text: 'She wants the Stranger kept, not saved.' },
+                    { room: 'relationships', text: 'Vel: a rival for the Stranger.' }],
+          body: 'Tall; a habit cut low; red latex gloves to the elbow.' }] },
+      // And a new person offered unasked, with pockets of her own: one card on the Workbench.
+      NEWNUN: { reply: 'The choir has an abbess too.',
+        entries: [{ title: 'Mother Agathe', type: 'character', keys: ['Agathe'], field: 'none',
+          pockets: [{ room: 'voice', text: 'Dry; never raises it.' },
+                    { room: 'outfit', text: 'A plain grey habit.' }],
+          body: 'The abbess of the Choir of Saints.' }] },
       // Everything here is something the route must refuse, and the reply claims all of it was done.
       BAD: { reply: 'Done, all of it.',
         changes: [{ op: 'thread.set', thread: 'Nobody', text: 'Old.' },
@@ -1737,6 +1750,51 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.strictEqual(room(her.id, 'appearance').length, 0, 'TALK-ASKED-ENTRY: its Undo takes the pocket away');
   }
   ok('a request about a thread the model sent back as an offer is done as asked, with Undo');
+
+  // A CARD WITH ITS POCKETS (2026-11-04). An entry may carry pockets, each its room and its text,
+  // declared before its body so the grammar reaches them. Asked, each is done with its own Undo;
+  // offered about a thread the tale has, each is chalked on its own; a new thread offered is one card
+  // that brings its pockets when it is sewn in.
+  {
+    const props = calls[0].response_format?.json_schema?.schema?.properties?.entries?.items?.properties ?? {};
+    assert.strictEqual(props.pockets?.maxItems, 6, `ENTRY-POCKETS: an entry may carry up to six pockets (${JSON.stringify(props.pockets)})`);
+    assert.deepStrictEqual(Object.keys(props.pockets.items.properties), ['room', 'text'], 'ENTRY-POCKETS: each its room and its text');
+    const keys = Object.keys(props);
+    assert.ok(keys.indexOf('pockets') < keys.indexOf('body'), `ENTRY-POCKETS: declared before the body (${keys.join(', ')})`);
+
+    const her = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'Seraphine');
+    const before = (db.proposalsOf(tale.id) as any[]).length;
+    const about = await say('ABOUT-FILLPOCKETS: what is Seraphine like inside?');
+    assert.ok(!about.error, about.error);
+    const offers = (db.proposalsOf(tale.id) as any[]).filter((p) => p.title === 'Seraphine');
+    assert.deepStrictEqual(offers.map((p) => p.field).sort(), ['appearance', 'interiority', 'relationships'],
+      `ENTRY-POCKETS: offered, one chalk per pocket (${offers.map((p) => p.field)})`);
+    assert.strictEqual((db.proposalsOf(tale.id) as any[]).length, before + 3, '  and nothing else');
+    for (const p of offers) db.setProposalStatus(tale.id, p.id, 'rejected');
+
+    const fill = await say('CHANGE-FILLPOCKETS: fill out Seraphine\'s pockets');
+    assert.ok(!fill.error, fill.error);
+    assert.deepStrictEqual(fill.notDone, [], `ENTRY-POCKETS: nothing refused (${JSON.stringify(fill.notDone)})`);
+    assert.strictEqual(room(her.id, 'appearance')[0]?.body, 'Tall; a habit cut low; red latex gloves to the elbow.', 'ENTRY-POCKETS: asked, her appearance');
+    assert.strictEqual(room(her.id, 'interiority')[0]?.body, 'She wants the Stranger kept, not saved.', 'ENTRY-POCKETS: asked, her interiority');
+    assert.strictEqual(room(her.id, 'relationships')[0]?.body, 'Vel: a rival for the Stranger.', 'ENTRY-POCKETS: asked, her relationships');
+    assert.strictEqual(fill.changes.length, 3, `ENTRY-POCKETS: three lines (${fill.changes.map((x: any) => x.words).join(' | ')})`);
+    assert.ok(fill.changes.every((x: any) => x.undo), '  each with its Undo');
+    for (const x of [...fill.changes].reverse()) assert.ok(!(await undo(x.undo)).error, 'undone');
+
+    const nun = await say('ABOUT-NEWNUN: who runs the choir?');
+    assert.ok(!nun.error, nun.error);
+    assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'Mother Agathe'), 'ENTRY-POCKETS: an offer makes no thread');
+    const card = (db.proposalsOf(tale.id) as any[]).filter((p) => p.title === 'Mother Agathe');
+    assert.strictEqual(card.length, 1, `ENTRY-POCKETS: a new thread offered is one card (${card.length})`);
+    assert.deepStrictEqual(Object.keys(JSON.parse(card[0].rooms ?? '{}')).sort(), ['outfit', 'voice'], 'ENTRY-POCKETS: carrying its pockets');
+    await routes['POST /api/proposal'](ctxOf(tale.id, { id: card[0].id, accept: true }));
+    const agathe = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'Mother Agathe');
+    assert.ok(agathe, 'sewn in');
+    assert.strictEqual(room(agathe.id, 'voice')[0]?.body, 'Dry; never raises it.', 'ENTRY-POCKETS: sewn in, it brings its voice');
+    assert.strictEqual(room(agathe.id, 'outfit')[0]?.body, 'A plain grey habit.', 'ENTRY-POCKETS: and its outfit');
+  }
+  ok('an entry carries its pockets: asked, each is done; offered, each is chalked, and a new thread is one card');
 
   // AN UNDO REACHES ONLY THIS TALE: another tale's thread, named from your own tale,
   // resolves to nothing. The dispatcher's half — another writer's tale id — is test/scope.ts's.

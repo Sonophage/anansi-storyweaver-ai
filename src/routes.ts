@@ -4670,23 +4670,42 @@ export const routes: Record<string, Handler> = {
     // A REQUEST SENT BACK AS AN OFFER is done as asked, with the changes below (`entriesAsked`):
     // chalked, it was a second press for a thing the writer had already said (ADR 0007).
     const { asked, offered } = entriesAsked(r.data.entries, taleOf(v.id), said);
-    for (const e of offered) {
-      if (!e?.title?.trim() || !e?.body?.trim()) continue;
-      const cls = classify(existing, e);
-      if (!cls) continue;
-      // NO URL IN THE BODY. Seth, 2026-09-01: "i dont need anansi to post where the information is
-      // coming from like the url links." It used to append ` [https://…]` to every card a search
-      // helped write — so a thread's canon carried a link, which then rode into every prompt that
-      // fired it and out again through export. The search results still reach the MODEL; what they
-      // no longer do is end up in the writer's own text.
-      // THE ROOM THE CHAT NAMED, through the same door extraction uses. Before 2026-09-01 this
-      // line passed no field and TALK_SCHEMA had none to pass, so padding a card in conversation
-      // replaced its whole description — see `roomAsked`.
-      const { field, target, said } = roomAsked(v.entries as any[], cls, e);
-      if (said) continue;
-      if (db.addProposal(v.id, { ...cls, chapterId: v.currentChapter.id, title: e.title.trim(),
-        body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
-        activation: e.activation, field, target })) proposed++;
+    // AN OFFER WITH POCKETS (2026-11-04): about a thread the tale has, each pocket is one chalk in its
+    // own room, as the entry's own `field` is; a new thread is one card, its pockets riding as its
+    // rooms (one per room its kind has, as the hem's do) and written when it is sewn in.
+    for (const { pockets, ...whole } of offered as any[]) {
+      const each = (Array.isArray(pockets) ? pockets : []).filter((p: any) => String(p?.text ?? '').trim());
+      let card: any = null;
+      for (const e of [whole, ...each.map((p: any) => ({ ...whole, field: p.room, body: p.text }))]) {
+        if (!e?.title?.trim() || !e?.body?.trim()) continue;
+        const cls = classify(existing, e);
+        if (!cls) continue;
+        if (!cls.entry_id && card) {
+          const slot = String(e.field);
+          if (slot === 'facts') card.body = `${card.body} ${e.body.trim()}`;
+          else if (slotsFor(card.entryType).some((sl) => sl.name === slot) && !card.rooms[slot])
+            card.rooms[slot] = { name: slot, body: e.body.trim() };
+          continue;
+        }
+        // A pocket is never a new thread's whole text: with no card for it to ride on, it is dropped.
+        if (!cls.entry_id && e !== whole) continue;
+        // NO URL IN THE BODY. Seth, 2026-09-01: "i dont need anansi to post where the information is
+        // coming from like the url links." It used to append ` [https://…]` to every card a search
+        // helped write — so a thread's canon carried a link, which then rode into every prompt that
+        // fired it and out again through export. The search results still reach the MODEL; what they
+        // no longer do is end up in the writer's own text.
+        // THE ROOM THE CHAT NAMED, through the same door extraction uses. Before 2026-09-01 this
+        // line passed no field and TALK_SCHEMA had none to pass, so padding a card in conversation
+        // replaced its whole description — see `roomAsked`.
+        const { field, target, said } = roomAsked(v.entries as any[], cls, e);
+        if (said) continue;
+        const one = { ...cls, chapterId: v.currentChapter.id, title: e.title.trim(),
+          body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
+          activation: e.activation, field, target };
+        if (!cls.entry_id) { card = { ...one, rooms: {} }; continue; }
+        if (db.addProposal(v.id, one)) proposed++;
+      }
+      if (card && db.addProposal(v.id, { ...card, rooms: Object.keys(card.rooms).length ? card.rooms : undefined })) proposed++;
     }
 
     // #97 · WHAT THE WRITER ASKED FOR IS DONE NOW (ADR 0007). Each change is checked against the
