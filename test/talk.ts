@@ -1931,7 +1931,8 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.strictEqual(first().body, REWRITTEN, 'PASSAGE-EDIT: the passage is rewritten by the prose engine');
     assert.match(rewrites.at(-1)!, new RegExp(was.slice(0, 20).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
       'PASSAGE-READS: the rewrite is sent the passage\'s real text');
-    assert.match(rewrites.at(-1)!, /make it colder/, '  and the writer\'s request');
+    assert.match(rewrites.at(-1)!, /make the passage where Morgott watched the river colder/, 'PASSAGE-REQUEST: and the writer\'s own message as the request');
+    assert.doesNotMatch(rewrites.at(-1)!, /The writer asks: make it colder/, '  not the model\'s copy of it');
     assert.notStrictEqual(wasBy, 'model', '  (the passage was the writer\'s own before)');
     assert.strictEqual(first().author, 'model', 'PASSAGE-AUTHOR: a passage Talk rewrote is the model\'s');
     assert.match(rewrites.at(-1)!, /\[Writing:/, 'PASSAGE-DIRECTIVE: the rewrite carries the tale\'s point of view, tense and lockout block');

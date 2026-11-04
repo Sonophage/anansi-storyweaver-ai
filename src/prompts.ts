@@ -1992,7 +1992,8 @@ changes, all its pockets with it, and never an entry: entries are only threads y
   is written, under the voice. You are not shown either, so change one only when the writer gives
   the whole of what it should say.
 - scene.set: the scene by its number (none for the scene being written), the field (title or
-  heads_toward) and its whole new text.
+  heads_toward) and its whole new text. Nothing else of a scene: to change the words of its prose,
+  that is passage.set.
 - string.set: a string of the tale, by its name as title, and its whole text as it should read. A
   name the tale has changes that string; a new name adds one, with its kind: promise, or question
   for an open question. A promise is set up to pay off and an open question is kept open; neither
@@ -2012,8 +2013,8 @@ changes, all its pockets with it, and never an entry: entries are only threads y
   false.
 - passage.set: one passage of the tale's prose the writer asks to change: the scene by its number
   (none for the scene being written) and the passage by its number in that scene, or a quote of a
-  few of its own words that only it contains; and, as text, what to change, in the writer's words.
-  You do not write the passage: it is rewritten from its own text after you answer. Only when the
+  few of its own words that only it contains. Leave text empty: the passage is rewritten from its
+  own text and the writer's message after you answer, and you never write it. Only when the
   writer asks for the prose to change, and never a new passage.
 
 The rules, the writer's own instructions and the strings the tale has are listed by name above

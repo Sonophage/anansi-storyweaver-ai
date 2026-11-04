@@ -4973,7 +4973,10 @@ export const routes: Record<string, Handler> = {
         && !taleOf(where).entries.some((e: any) => String(e.title).trim().toLowerCase() === named)) { handBack(); continue; }
       if (!k.ok) { handBack(); notDone.push({ said: k.said, why: k.why }); continue; }
       // #153 · STEP TWO: the passage is rewritten from its real text before anything is written.
+      // The request is the writer's own message, not the model's copy of it: on Ornith (2026-11-04) the
+      // model sent a passage's text where the request belonged, and the rewrite followed that instead.
       if (k.change.op === 'passage.set') {
+        k.change.note = said;
         const rw = await rewritePassage(c, where, k.change);
         if ('error' in rw) { notDone.push({ said: wordsFor({ ...k.change, text: '' }).replace(/: \u201c.*$/, ''), why: String(rw.error) }); continue; }
         k.change.text = rw.text;

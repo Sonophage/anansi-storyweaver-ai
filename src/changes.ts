@@ -632,8 +632,8 @@ function passageSet(tale: Tale, raw: any, said: string, undo: boolean): Checked 
     return { ok: true, change: { op: 'passage.set', passage: p.id, ...at(p), note: '', text: String(raw.text ?? ''), before: p.body,
       author: String(raw.author ?? p.author ?? 'model'), undo: true } };
   }
+  // What to change. The route puts the writer's own message here before the rewrite (#153).
   const note = String(raw.text ?? '').trim();
-  if (!note) return { ok: false, said, why: 'it did not say what to change' };
   let hit;
   if (String(raw.quote ?? '').trim()) {
     const q = squash(raw.quote);
