@@ -16,6 +16,15 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-11-04 · Talk fills in the card you ask for
+
+### Asked to fill in a thread, Talk writes it
+Ask Talk to fill out, write or change a thread by its name, and it now writes it, every pocket it
+gives, each with its own line and Undo. Before, it could send your request to the Workbench as a
+suggestion for one pocket and still say it had filled the card in. What Talk suggests without being
+asked still goes to the Workbench, and a new person it suggests arrives there as one card with all
+their pockets. When something you asked for only went to the Workbench, Talk now says so first.
+
 ## 2026-11-03 · A thread is edited where you read it
 
 ### Talk makes a whole character when you ask
