@@ -149,7 +149,7 @@ ok('CHANGE-NEW-NO-TEXT: a new thread with no Always true is not made, on a tale 
 });
 
 ok('CHANGE-CLOSED-LIST: no delete, no prose, and nothing an Undo alone may do', () => {
-  for (const op of ['thread.delete', 'passage.set', 'prose.write', 'thread.unmake', 'room.unmake', '', undefined])
+  for (const op of ['thread.delete', 'prose.write', 'thread.unmake', 'room.unmake', '', undefined])
     refused(ch.checkAsked({ op, thread: 'Talia', text: 'x', addon: 'a-tf', title: 'Talia Venn' }, tale),
       /not something Talk can do/i);
   refused(ch.checkAsked(null, tale), /not something Talk can do/i);
@@ -434,7 +434,8 @@ const OWN = {
   strings: [{ id: 'st-letter', title: 'The letter he has not opened', kind: 'promise', status: 'open', summoned: true },
             { id: 'st-ring', title: 'Who took the ring', kind: 'question', status: 'paid', summoned: false },
             { id: 'st-debt', title: 'The debt', kind: 'promise', status: 'open', summoned: false }] };
-const every = { ...dated, ...OWN, entries: [...dated.entries,
+const every = { ...dated, ...OWN, passages: [{ id: 'p-every', chapterId: 'c-none', body: 'The rain had not stopped.' }],
+  entries: [...dated.entries,
   { id: 'e-letter', title: 'The letter', entryType: 'item', activation: 'triggered', keys: ['letter'], addons: [], events: [] }] };
 const ASKS: Record<string, any> = {
   'thread.new': { title: 'The ferryman', type: 'character', text: 'Rows.' },
@@ -450,6 +451,7 @@ const ASKS: Record<string, any> = {
   'rule.switch': { title: 'The toll', on: false },
   'instruction.set': { title: 'Weather', text: 'Let the weather carry the feeling.' },
   'instruction.switch': { title: 'Tense', on: false },
+  'passage.set': { quote: 'the rain had not', text: 'The rain stopped at last.' },
 };
 
 ok('ONE-SIDED-PAIR: every operation on the list has an Undo, and the Undo is one Undo can do', () => {
@@ -1028,6 +1030,34 @@ ok('making a thread the tale already has is a change to that thread, pockets and
   assert.deepStrictEqual(out.map((r: any) => [r.op, r.thread, r.room, r.text, !!r.existed]),
     [['thread.set', 'Talia Venn', 'facts', 'A courier.', true], ['thread.set', 'Talia Venn', 'voice', 'Quick.', true]],
     `NEW-EXISTING: changes the thread she is (${JSON.stringify(out)})`);
+});
+
+// #153 · ONE PASSAGE, EDITED WHEN ASKED (ADR 0014): found by scene and number, or by a quote of it.
+ok('a passage is found by scene and number or by a quote, edited whole, and put back only as Talk left it', () => {
+  const prose = { ...tale, chapters: [{ id: 'c1', index: 1 }, { id: 'c2', index: 2 }],
+    passages: [{ id: 'p1', chapterId: 'c1', body: 'The rain had not stopped.' },
+               { id: 'p2', chapterId: 'c2', body: 'Talia counted the boats.' },
+               { id: 'pb', chapterId: 'c2', body: '', isBreak: true },
+               { id: 'p3', chapterId: 'c2', body: 'Morgott watched the river. The boats were late.' }] };
+  const by = done(ch.checkAsked({ op: 'passage.set', scene: 2, passage: 2, text: 'Morgott watched the river, cold.' }, prose));
+  assert.deepStrictEqual([by.passage, by.before, by.text], ['p3', 'Morgott watched the river. The boats were late.', 'Morgott watched the river, cold.'],
+    'PASSAGE-BY-NUMBER: scene 2, passage 2, breaks not counted');
+  assert.strictEqual(done(ch.checkAsked({ op: 'passage.set', quote: 'counted the boats', text: 'Talia lost count.' }, prose)).passage, 'p2',
+    'PASSAGE-BY-QUOTE: a quoted run finds its passage');
+  refused(ch.checkAsked({ op: 'passage.set', quote: 'the boats', text: 'x' }, prose), /more than one passage/i);
+  refused(ch.checkAsked({ op: 'passage.set', quote: 'a dragon', text: 'x' }, prose), /no passage/i);
+  refused(ch.checkAsked({ op: 'passage.set', scene: 9, passage: 1, text: 'x' }, prose), /no passage/i);
+  refused(ch.checkAsked({ op: 'passage.set', scene: 1, passage: 1, text: 'The rain had not stopped.' }, prose), /already says that/i);
+  refused(ch.checkAsked({ op: 'passage.set', text: 'x' }, prose), /names no passage/i);
+  const undo = ch.undoFor(by, {});
+  assert.deepStrictEqual(undo, { op: 'passage.set', passage: 'p3', text: 'Morgott watched the river. The boats were late.',
+    wrote: 'Morgott watched the river, cold.' }, 'PASSAGE-UNDO: its Undo puts the old text back');
+  const after = { ...prose, passages: prose.passages.map((x) => x.id === 'p3' ? { ...x, body: 'Morgott watched the river, cold.' } : x) };
+  assert.ok(ch.checkUndo(undo, after).ok, 'PASSAGE-UNDO-OK: while it holds what Talk wrote');
+  const edited = { ...prose, passages: prose.passages.map((x) => x.id === 'p3' ? { ...x, body: 'The writer changed it.' } : x) };
+  refused(ch.checkUndo(undo, edited), /changed since/i);
+  assert.ok(ch.askedOf({ op: 'passage.set', scene: 2, passage: 2, text: 'x' }, prose, 'make the second passage of scene 2 colder'), 'PASSAGE-ASKED');
+  assert.ok(!ch.askedOf({ op: 'passage.set', scene: 2, passage: 2, text: 'x' }, prose, 'who is Morgott?'), 'PASSAGE-UNASKED');
 });
 
 console.log(`\n${n} checks passed`);

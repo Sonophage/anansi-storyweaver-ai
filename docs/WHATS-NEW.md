@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-04 · Talk fills in the card you ask for
 
+### Talk edits a passage when you ask
+Ask Talk to change a passage ("make the first passage of scene 2 colder", or quote a few of its
+words) and it rewrites that passage. The old version is kept in the passage's Alterations, and the
+card has an Undo, which will not write over anything you have changed since. Talk still never
+writes a new passage, and it changes no prose you did not ask about.
+
 ### Say what the old version did, and the new one avoids it
 The Reweave box's What didn't work now asks you to name what the old version did, like "it opened on
 John not answering again". Tested on the local model, a note like that took a new version opening

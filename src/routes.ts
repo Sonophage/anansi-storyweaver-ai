@@ -734,6 +734,8 @@ function applyChange(storyId: string, owner: string, ch: Change):
   // story's own name for it (`key`: the voice is `writingStyle`). Only the one field is named, and
   // `updateStory` leaves every field it is not handed as it was, and tidies a genre as every save does.
   if (ch.op === 'tale.set') { db.updateStory(storyId, { [ch.key]: ch.text }); return {}; }
+  // #153 · One passage, through the edit Alter makes, so its old text is kept in its Alterations.
+  if (ch.op === 'passage.set') { db.editPassage(storyId, ch.passage, ch.text); return {}; }
   // WHERE A STRING STANDS, through the one door the Strings screen and the pocket panel use
   // (`standString` on the page, `POST /api/string`): `upsertString` writes the switch and the mark.
   // It writes the whole string, so the rest of it is handed back as it stands, owed by included.
@@ -1171,7 +1173,7 @@ const ownWords = (answer: unknown) => String(answer ?? '').split(/\n\n+/)
 const taleOf = (id: string) => { const v = bookOf(id) as any;
   return { entries: v.entries as any[], story: v.story, chapters: v.chapters, at: v.currentChapter?.index ?? 1,
     taleThread: v.taleThread ?? null, taleRules: v.taleRules ?? [], talePockets: v.talePockets ?? [],
-    strings: v.strings ?? [] }; };
+    strings: v.strings ?? [], passages: v.passages ?? [] }; };
 
 /** #101 · THE WORLD A TALK CHANGE MAY REACH: the one this tale follows, read as `taleOf` reads a
  *  tale, and only when the writer OWNS both. Not `MINE()`: being called in to write in a tale is not
@@ -4820,6 +4822,8 @@ export const routes: Record<string, Handler> = {
       else if (op === 'thread.set') offered.push({ title: raw.thread, keys: raw.keys,
         field: raw.room && raw.room !== 'none' ? raw.room : undefined, body: raw.text });
       else if (op === 'string.set') strings.push({ title: raw.title, body: raw.text, kind: raw.kind });
+      // #153 · A passage is changed only when asked, and never offered (ADR 0014).
+      else if (op === 'passage.set') notDone.push({ said: 'Change a passage', why: 'you did not ask for the prose to change' });
       else held.push(raw);
     }
     for (const x of strings) {

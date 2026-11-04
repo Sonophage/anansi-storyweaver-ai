@@ -126,6 +126,8 @@ const srv = createServer((req, res) => {
         pockets: [{ room: 'voice', text: 'Never in a hurry.' }] }] },
       GHOST: { reply: 'Tidied.', changes: [{ op: 'thread.set', thread: 'Nobody Here', room: 'outfit', text: 'Wool.' }] },
       ASKPROMISE: { reply: 'A promise, then.', changes: [{ op: 'string.set', title: 'The pistol', kind: 'promise', text: 'The pistol will be fired.' }] },
+      // #153 · a passage, edited when asked.
+      PROSEEDIT: { reply: 'Colder now.', changes: [{ op: 'passage.set', scene: 1, passage: 1, text: 'The river ran cold and black under the lamps.' }] },
       // A plain answer that only sounds like a claim: nothing was asked, so nothing is taken off.
       SETIN: { reply: 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.' },
       // The card as one entry with its pockets, which the grammar offers now: her appearance in the
@@ -146,7 +148,7 @@ const srv = createServer((req, res) => {
         changes: [{ op: 'thread.set', thread: 'Nobody', text: 'Old.' },
                   { op: 'thread.set', thread: 'Ring Law', room: 'voice', text: 'Loud.' },
                   { op: 'thread.delete', thread: 'Talia' },
-                  { op: 'passage.set', text: 'The rain stopped.' }] },
+                  { op: 'prose.write', text: 'The rain stopped.' }] },
       // #98 · the rest of the list.
       PREMISE: { reply: 'The premise is darker now.',
         changes: [{ op: 'tale.set', field: 'premise', text: 'A river nobody crosses twice.' }] },
@@ -1607,7 +1609,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.ok(!age.error, age.error);
   const ops = calls[0].response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum;
   assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire', 'tale.set', 'scene.set',
-    'string.set', 'string.stand', 'rule.set', 'rule.switch', 'instruction.set', 'instruction.switch'],
+    'string.set', 'string.stand', 'rule.set', 'rule.switch', 'instruction.set', 'instruction.switch', 'passage.set'],
     `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
 
   // Always true, changed at once.
@@ -1903,6 +1905,30 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.deepStrictEqual(ghost.chalked, [], '  and nothing chalked');
   }
   ok('only what the writer named is done; unasked threads and strings are offered, the rest not done; making an existing thread changes it');
+
+  // #153 · TALK EDITS A PASSAGE WHEN ASKED, kept in its Alterations, with an Undo that never writes over
+  // the writer; asked nothing about the prose, it touches none.
+  {
+    const first = () => (db.passagesOf(tale.id) as any[]).filter((p) => !p.is_break && p.chapter_id === (db.passagesOf(tale.id) as any[])[0].chapter_id)[0];
+    const was = first().body;
+    const revs = () => (db.passageHistory(tale.id, first().id) as any[]).map((r) => r.body);
+    const quiet = await say('CHANGE-PROSEEDIT: what do you make of Talia?');
+    assert.strictEqual(first().body, was, 'PASSAGE-UNASKED: asked nothing about the prose, no passage changes');
+    assert.ok(quiet.notDone.some((x: any) => /passage/.test(x.said)), `PASSAGE-UNASKED-SAID: and the answer says so (${JSON.stringify(quiet.notDone)})`);
+    assert.ok(!quiet.chalked.length, '  and it is not offered on the Workbench');
+    const ed = await say('CHANGE-PROSEEDIT: make the first passage of scene 1 colder');
+    assert.ok(!ed.error, ed.error);
+    assert.strictEqual(first().body, 'The river ran cold and black under the lamps.', 'PASSAGE-EDIT: the passage is edited');
+    assert.ok(revs().includes(was), 'PASSAGE-ALTERATIONS: the old text is kept in its Alterations');
+    assert.strictEqual(ed.changes[0].card.title, 'Scene 1, passage 1', 'PASSAGE-CARD: its card names it');
+    assert.ok(!undo(ed.changes[0].undo).error, '  Undo works');
+    assert.strictEqual(first().body, was, 'PASSAGE-UNDO: and puts the old text back');
+    const again = await say('CHANGE-PROSEEDIT: make the first passage of scene 1 colder');
+    db.editPassage(tale.id, first().id, 'The writer rewrote it by hand.');
+    assert.match(String(undo(again.changes[0].undo).error), /changed since/, 'PASSAGE-UNDO-SINCE: after a hand edit, Undo refuses and says why');
+    assert.strictEqual(first().body, 'The writer rewrote it by hand.', '  and the writer\'s text stands');
+  }
+  ok('Talk edits a passage when asked, keeps the old one in Alterations, and its Undo never writes over the writer');
 
   // ASKED, THOUGH THE MODEL SENT IT AS AN OFFER (Seraphine, 2026-11-04). The writer asked for her card
   // to be filled in, and the answer carried no change: only an entry naming her, for one pocket. A
