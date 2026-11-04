@@ -941,6 +941,52 @@ async function intoTale() {
   return S.place === 'story';
 }
 
+/** THE MODEL AT THE TOP OF A MENU, ONE FUNCTION FOR BOTH (Seth, 2026-11-03: "In the main menu that AI
+ *  model selector should match the one in a tale"). The tale's menu and the main menu draw this and
+ *  nothing else in their `.talemodel` head, so the two cannot drift; it opens Storyteller either way. */
+function modelHead() {
+  // What the strip at the foot names. `SRV.model` alone changes meaning whenever the list is read
+  // again, so the strip reads `writingNow`.
+  const writing = writingNow();
+  // THE DOT SAYS WHAT THE ROUTER SAID. Before the list is read, a local model is marked awake while
+  // the writer has a slot, which is what this dot said before it had a row (#53). Once the list is
+  // read, a model that is not on it is not awake: the dot was green with the router down
+  // (usability check, 2026-10-24), because the fallback still answered for a list that had come
+  // back empty.
+  const localStatus = modelsHere()?.find((m) => m.id === writing)?.status
+    ?? (S.models === null && SRV.slot ? 'loaded' : 'unloaded');
+  return `
+    <!-- The model, and the place to change it. It was a label: the one thing on this rail that
+         named something you can act on and could not be acted on. The router's stop and restart
+         left the screen with Preferences (#23) — this is the switch, where you are already looking
+         when you wonder what is writing.
+         #131 · IT OPENS STORYTELLER ON MODEL (Seth, 2026-11-03). It dropped a list of models open
+         under itself, whose rows opened a third panel; the list and the model info are that tab's
+         now. The attribute keeps its old name, modelmenu: it is still the menu's model. -->
+    <button data-modelmenu="1"
+      style="margin-top:auto; padding:14px 20px; border-top:1px solid var(--line); display:flex;
+      align-items:center; gap:12px; white-space:nowrap; overflow:hidden; width:100%; text-align:left">
+      <!-- #53. The model's own row once the list has been read. Before that, a local model is
+           marked awake while the router answers, which is what this dot said before it had a row.
+           In a book, the model named is the one that WRITES it, resolved by the server with its
+           pin, remote pins included; on the shelf, the writer's default. -->
+      ${runsMark(writing, localStatus)}
+      <span class="txt stack-2 squeeze">
+        <span style="font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis"
+          title="${esc(writing || '')}">${esc(modelName(writing).name)}</span>
+        <!-- WHAT IT IS, not only what it is called. #25, and Seth on 2026-08-29: "we need the
+             uncensored writing roleplay and the nn label on all three panels." The family alone
+             ("Qwen3.6") says nothing about whether it writes or roleplays, whether it refuses, or
+             whether it is one of the three that scored write 8/10 in the bakeoff — and all four of
+             those are already in the id. One decode, every surface: here, and the list and the picker
+             on Storyteller's Model tab. The size is left out of the badges on purpose; this strip is nowrap. -->
+        ${modelName(writing).bits.length ? `<span class="gold-line">${esc(modelName(writing).bits.join(' \u00b7 '))}</span>` : ''}
+        <span class="quiet">${whereRuns(writing).remote ? 'on Featherless'
+          : S.modelsDown ? 'on this machine, not answering'
+          : localStatus === 'loaded' ? 'on this machine' : 'on this machine, asleep'}</span>
+      </span></button>`;
+}
+
 function drawRail() {
   // Which menu, not where you are. Inside a story the rail can be showing either one, and on a
   // Library page it can be showing the last tale's.
@@ -983,16 +1029,6 @@ function drawRail() {
   // again. Seth: "anansies web can be removed from the story menu since we already have a button
   // that pulls up the main menu and its the same amount of clicks."
   const back = '';
-  // What the strip at the foot names. `SRV.model` alone changes meaning whenever the list is read
-  // again, so the strip reads `writingNow`.
-  const writing = writingNow();
-  // THE DOT SAYS WHAT THE ROUTER SAID. Before the list is read, a local model is marked awake while
-  // the writer has a slot, which is what this dot said before it had a row (#53). Once the list is
-  // read, a model that is not on it is not awake: the dot was green with the router down
-  // (usability check, 2026-10-24), because the fallback still answered for a list that had come
-  // back empty.
-  const localStatus = modelsHere()?.find((m) => m.id === writing)?.status
-    ?? (S.models === null && SRV.slot ? 'loaded' : 'unloaded');
   const tail = storyMenu && T?.story?.is_world
     // A world book has no chapters to list and nothing to write in. What it has is its lore, and
     // the rail says so rather than showing an empty Chapters heading.
@@ -1016,36 +1052,7 @@ function drawRail() {
     // open option in the main menu that should be removed."
     : '';
 
-  const modelBlock = `
-    <!-- The model, and the place to change it. It was a label: the one thing on this rail that
-         named something you can act on and could not be acted on. The router's stop and restart
-         left the screen with Preferences (#23) — this is the switch, where you are already looking
-         when you wonder what is writing.
-         #131 · IT OPENS STORYTELLER ON MODEL (Seth, 2026-11-03). It dropped a list of models open
-         under itself, whose rows opened a third panel; the list and the model info are that tab's
-         now. The attribute keeps its old name, modelmenu: it is still the menu's model. -->
-    <button data-modelmenu="1"
-      style="margin-top:auto; padding:14px 20px; border-top:1px solid var(--line); display:flex;
-      align-items:center; gap:12px; white-space:nowrap; overflow:hidden; width:100%; text-align:left">
-      <!-- #53. The model's own row once the list has been read. Before that, a local model is
-           marked awake while the router answers, which is what this dot said before it had a row.
-           In a book, the model named is the one that WRITES it, resolved by the server with its
-           pin, remote pins included; on the shelf, the writer's default. -->
-      ${runsMark(writing, localStatus)}
-      <span class="txt stack-2 squeeze">
-        <span style="font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis"
-          title="${esc(writing || '')}">${esc(modelName(writing).name)}</span>
-        <!-- WHAT IT IS, not only what it is called. #25, and Seth on 2026-08-29: "we need the
-             uncensored writing roleplay and the nn label on all three panels." The family alone
-             ("Qwen3.6") says nothing about whether it writes or roleplays, whether it refuses, or
-             whether it is one of the three that scored write 8/10 in the bakeoff — and all four of
-             those are already in the id. One decode, every surface: here, and the list and the picker
-             on Storyteller's Model tab. The size is left out of the badges on purpose; this strip is nowrap. -->
-        ${modelName(writing).bits.length ? `<span class="gold-line">${esc(modelName(writing).bits.join(' \u00b7 '))}</span>` : ''}
-        <span class="quiet">${whereRuns(writing).remote ? 'on Featherless'
-          : S.modelsDown ? 'on this machine, not answering'
-          : localStatus === 'loaded' ? 'on this machine' : 'on this machine, asleep'}</span>
-      </span></button>`;
+  const modelBlock = modelHead();
   /* THE TALE'S MENU, MODEL FIRST AND THREE COLUMNS (Seth, 2026-10-28: "Let's do the model up top then
    * were going to do three columns under that the first column will be scenes and that should be
    * scrollable, invert the order so the latest scene is up top and then for the other two we do the
@@ -2855,7 +2862,9 @@ function drawSide() {
   root.dataset.sidefull = !side.hidden && (alwaysFull || phone() || PANEL_FULL.has(S.panel)) ? '1' : '0';
   // THE RAY BANNER (`.pbanner`) beside the page, and on a phone, where every panel is full (Seth,
   // 2026-11-03: "put back the nice ray header we had on those panels"); not on a desk in full screen.
-  root.dataset.sidebanner = !side.hidden && !alwaysFull && (phone() || !PANEL_FULL.has(S.panel)) ? '1' : '0';
+  // THE HEM AND THE NEXT SCENE CARRY IT EVERYWHERE (Seth, 2026-11-03: they "haven't been properly
+  // skinned"): they are only ever full, and they are the screens that were left plain.
+  root.dataset.sidebanner = !side.hidden && (alwaysFull || phone() || !PANEL_FULL.has(S.panel)) ? '1' : '0';
   if (side.hidden) return;
   const full = PANEL_FULL.has(S.panel);
   const fullBtn = alwaysFull ? '' : `<button class="headfull" data-panelfull="1" aria-pressed="${full}"
@@ -2876,8 +2885,8 @@ function drawSide() {
    * diamond on the line holding the panel's own mark. Which mark is the one table in app.html
    * (`--mark`, keyed on `data-mark`): the panel's key, and `read` for an open thread. Drawn always and
    * hidden by the stylesheet in full screen, which keeps the header it had; the hem and the next
-   * scene are always full and never have one. No `.serif` inside: decode() writes the first one. */
-  const banner = alwaysFull ? '' : `<div class="pbanner" data-mark="${thRead || S.panel === 'entry' ? 'read' : esc(S.panel)}" aria-hidden="true">${
+   * scene are always full and always have one. No `.serif` inside: decode() writes the first one. */
+  const banner = `<div class="pbanner" data-mark="${thRead || S.panel === 'entry' ? 'read' : esc(S.panel)}" aria-hidden="true">${
     V?.cover ? `<i class="pbpic" style="background-image:url('${api.coverUrl(S.storyId, V.cover)}')"></i>` : ''}<b class="pbmark"></b></div>`;
   // NEW THREAD: "‹ Threads" back to the list (the same data-newlore press that opened it), and Close.
   if (S.panel === 'threads' && S.lore && !S.entryId) sameOrSet('sideHead').innerHTML = `${banner}
@@ -4328,7 +4337,7 @@ function hemPausedHTML(ch) {
  * (`hemDrafts`), brings in who it names, and tells the people pass who is in the next scene. */
 function hemAsk(ch) {
   if (!hemAsking(ch)) return '';
-  return `<div class="card hemask push-8">
+  return `<div class="card arccard hemask push-8">
     <label class="lbl flush" for="hemsteer-${esc(ch.id)}">What is the next scene?</label>
     <textarea class="field grow" id="hemsteer-${esc(ch.id)}" data-hemsteer="${esc(ch.id)}"
       placeholder="Its goal, who is in it, and where">${esc(S.hemSteer ?? '')}</textarea>
@@ -4357,7 +4366,7 @@ function hemDrafts(ch) {
         <button class="btn ghost fill" data-hemskip="${field}" data-ch="${esc(next.id)}">Skip</button>
         <button class="btn ghost fill" data-panel="setup" data-setupat="premise">Edit</button>
         <button class="btn ghost fill" data-hemuse="${field}" data-ch="${esc(next.id)}">Use</button></div></div>`;
-  return `<div class="card hemdrafts push-8">
+  return `<div class="card arccard hemdrafts push-8">
     <div class="lbl flush">${String(next.brief ?? '').trim() ? `${esc(sceneName(next))}, drafted from your brief`
       : `Anansi chose ${esc(sceneName(next))}`}</div>
     ${part('How it opens', next.opensWith, 'opens')}
@@ -4374,14 +4383,14 @@ function hemDrafts(ch) {
 function hemSummary(ch) {
   const id = esc(ch.id), sum = String(ch.summary ?? '').trim();
   const label = ch.summaryAuthor === 'human' ? 'Your summary' : 'The summary';
-  if (!sum || S.hemSumEdit === ch.id) return `<div class="card hemsum push-8">
+  if (!sum || S.hemSumEdit === ch.id) return `<div class="card arccard hemsum push-8">
     <label class="lbl flush" for="hemsum-${id}">${label}</label>
     <textarea class="field hemsumbox" id="hemsum-${id}" data-hemsumtext="${id}" aria-label="The summary of ${esc(sceneName(ch))}"
       placeholder="No summary came back. Write one, or try the summary again.">${esc(ch.summary ?? '')}</textarea>
     ${sum ? `<button class="btn ghost push-8" data-hemsumdone="${id}">Done</button>` : ''}</div>`;
   // Used is THIS text: a summary written again (Hem it again, Try again) is asked about again.
   if (S.hemSumUsed?.get(ch.id) === sum) return `<div class="hint flush" data-hemsumused>${label}: using it.</div>`;
-  return `<div class="card hemsum push-8">
+  return `<div class="card arccard hemsum push-8">
     <div class="lbl flush">${label}</div>
     <div class="hemsumread" data-hemsumread="${id}">${esc(sum)}</div>
     <div class="btnrow">
@@ -4398,7 +4407,7 @@ const hemWhoOpen = (ch) => !!hemNext(ch) && !hemAsking(ch) && !S.hemWho?.has(ch.
 function hemWho(ch) {
   const next = hemNext(ch);
   if (!next || !hemWhoOpen(ch)) return '';
-  return `<div class="card hemwho push-8">
+  return `<div class="card arccard hemwho push-8">
     <div class="lbl flush">Who is in ${esc(sceneName(next))}</div>
     <div class="hint flush">Take out who is not in it, bring in who is. Tap an eye to change how a thread
       comes in: off, on a word, or on. Off is off in every scene.</div>
@@ -4493,6 +4502,18 @@ function hemSteps(ch, closed) {
         ${x.line ? `<span class="hint flush hemline">${esc(x.line)}</span>` : ''}</span></li>`).join('')}</ol>`;
 }
 
+/** A HEADER IN THE ARCANA LANGUAGE, for the screens that are not a scene: the hem, the next scene's
+ *  setup and New tale (Seth, 2026-11-03: they "haven't been properly skinned"). It is the scene head's
+ *  tarot title: a half sunburst, a kicker in spaced capitals, the title large in the serif, and an
+ *  italic line under it. With a mark (`mk`), the panel banner's gilt diamond holding that mark sits on
+ *  the sunburst's foot; which file is the table in app.html, keyed on `data-mark`. Every part is
+ *  markup the caller has already escaped. */
+const arcHead = (kick, title, line = '', mk = '') => `<div class="archead"${mk ? ` data-mark="${mk}"` : ''}>
+    <i class="archead-sun" aria-hidden="true"></i>${mk ? '<b class="archead-mark" aria-hidden="true"><i></i></b>' : ''}
+    ${kick ? `<div class="archead-kick">${kick}</div>` : ''}
+    <div class="archead-title">${title}</div>
+    ${line ? `<div class="archead-line">${line}</div>` : ''}</div>`;
+
 /** Which scene the hem drawer is about, and whether it is closed. See ritualPanel. */
 function ritualScene(of = S.ritualOf) {
   const started = (V.passages ?? []).some((p) => p.chapterId === V.currentChapter.id && !p.isBreak);
@@ -4531,7 +4552,7 @@ function ritualPanel() {
     ${ch.hem.state === 'running' ? `<div class="hint">Anansi is still on the rest. What he found to decide
       shows here when he is done.</div>` : ''}`);
   if (told) act.push(hemDrafts(ch));
-  if (failed.length) act.push(`<div class="card hemfail">${failed.map((x) => `<div class="line-8 wraps">
+  if (failed.length) act.push(`<div class="card arccard hemfail">${failed.map((x) => `<div class="line-8 wraps">
       <span class="note fill"><span class="inked">${esc(x.name)}</span> did not run &mdash; ${esc(x.line.replace(/^Did not run: /, ''))}</span>
       <button class="btn ghost" data-hemagain="${esc(ch.id)}" data-pass="${x.k}">Try again</button></div>`).join('')}
     <div class="hint flush">Nothing was lost: the scene is hemmed and the prose is untouched.</div></div>`);
@@ -4540,7 +4561,7 @@ function ritualPanel() {
   // it are already said by now, so the setup opens on the step that is left. The others are on its rail.
   if (you?.k === 'setup') act.push('<button class="btn fill" data-panel="setup" data-setupat="more">Set up the next scene</button>');
 
-  return `<div class="lbl wide">${esc(sceneName(ch))}${closed ? ' &middot; hemmed' : ''}</div>
+  return `${arcHead(`Scene ${roman(ch.index)}${closed ? ' &middot; hemmed' : ''}`, esc(sceneName(ch)))}
     ${hemSteps(ch, closed)}
     <div class="hemact">${act.filter(Boolean).join('')}</div>
     ${/* THE RARER PRESSES, folded: run the whole hem again (two presses, since it drops what is still
@@ -7099,9 +7120,7 @@ function sparkReview() {
    * HARVEST FIRST, in the handler — what is on screen is what the re-roll should be written against,
    * including edits the writer has just made and not navigated away from. */
   // ONE WORD FOR IT (Seth, 2026-10-30): every re-roll press on these steps says Reweave.
-  const rerollField = (k) => `<button data-spfield="${k}" ${busy || S.spark.spField ? 'disabled' : ''}
-      style="background:none; border:0; padding:2px 0 0; cursor:pointer; font-size:11px;
-      letter-spacing:.1em; text-transform:uppercase; color:var(--gold-dim)"
+  const rerollField = (k) => `<button data-spfield="${k}" class="arclink" ${busy || S.spark.spField ? 'disabled' : ''}
     >${S.spark.spField === k ? 'asking&hellip;' : 'Reweave'}</button>`;
 
   const reroll = (label) => S.spark.idea
@@ -7197,10 +7216,12 @@ function sparkReview() {
     : key === 'threads' ? sparkThreads({ area, busy, kept, dropped })
     : sparkBegin(s, { row, area });
 
-  return `<div style="display:flex; gap:5px; margin-bottom:14px">${STEPS.map(([, t], i) => `
-      <button data-sparkstep="${i + 1}" aria-pressed="${step === i + 1}" style="flex:1; height:5px;
-        border-radius:99px; background:${i + 1 <= step ? 'var(--ink-bright)' : 'var(--chip)'}"
-        aria-label="${esc(t)}"></button>`).join('')}</div>
+  // THE STEPS ARE TABS (Arcana, Seth, 2026-11-03: New tale "hasn't been properly skinned"): each its
+  // numeral and its name in spaced capitals, the one you are on bright. They were four bars.
+  return `<div class="arctabs">${STEPS.map(([, t], i) => `
+      <button data-sparkstep="${i + 1}" aria-pressed="${step === i + 1}" class="arctab"
+        aria-label="${esc(t)}"><span class="arcnum">${roman(i + 1)}</span>${esc(t)}</button>`).join('')}</div>
+    <div class="card arccard wizcard">
     <div class="line-8">
       <div class="lbl flush wide">${step} of ${STEPS.length} &middot; ${esc(STEPS[step - 1][1])}</div>
       <!-- #100 · TALK, ON EVERY STEP: the same window a tale has, working on this draft. He speaks
@@ -7219,10 +7240,9 @@ function sparkReview() {
     <!-- Before the last step it is a small link that says it skips the rest: as a full button
          under Next it read as the next step, and skipped the remaining ones without a word. -->
     ${step < STEPS.length
-      ? `<button data-accept-spark="1" style="margin-top:10px; align-self:flex-start; font-size:12px;
-          color:var(--faint); text-decoration:underline">Skip the other steps and start writing</button>`
+      ? `<button data-accept-spark="1" class="arclink push-10">Skip the other steps and start writing</button>`
       : '<button class="btn push-8" data-accept-spark="1">Start writing</button>'}
-    <button class="btn ghost push-8" data-drop-spark="1">Discard it</button>`;
+    <button class="btn ghost push-8" data-drop-spark="1">Discard it</button></div>`;
 }
 
 /** The thread of the character you play: it stays while you play them (Seth, 2026-10-27). */
@@ -7331,10 +7351,7 @@ function sparkThreads({ area, busy, kept, dropped }) {
         // aria-pressed, added 2026-09-01: it is a toggle and every other toggle in this app says
         // so. A screen reader had no way to know which kinds were on, and a check had to read the
         // inline background colour to find out.
-        return `<button data-spkind="${k}" aria-pressed="${on}" style="font-size:11.5px; padding:7px 14px;
-          border-radius:var(--r-pill); border:1px solid ${on ? 'var(--ink-bright)' : 'var(--chip)'};
-          background:${on ? 'rgba(217,178,106,.12)' : 'transparent'};
-          color:${on ? 'var(--gold-lit)' : 'var(--mute)'}">${esc(KIND_PLURAL[k] ?? k)}</button>`;
+        return `<button data-spkind="${k}" aria-pressed="${on}" class="arcchip">${esc(KIND_PLURAL[k] ?? k)}</button>`;
       }).join('')}
     </div>
     <div class="line-8 push-6"><span class="lbl wide flush fill">The threads &middot; <span class="tnum">${list.length}</span></span>
@@ -7519,13 +7536,13 @@ function sparkBegin(s, { row, area }) {
     ${!review ? `<div class="hint flush">He reads the whole tale back, says what he would change, and
         lists where two parts of it disagree. Skipping it costs nothing.</div>`
     : (review.changes.length || review.entries.length || sparkClashCount())
-    ? `${sparkClashes()}${review.changes.map((ch, i) => `<div class="card below-8 gap-6">
+    ? `${sparkClashes()}${review.changes.map((ch, i) => `<div class="card arccard below-8 gap-6">
         <div class="kind">${esc(ch.field)}</div>
         <div class="note">${esc(ch.value)}</div>
         <div class="hint flush">${esc(ch.why)}</div>
         <button class="btn ghost small-btn" data-spapply="${i}">Use this instead</button></div>`).join('')}
       ${review.entries.length ? `<div class="lbl wide push-14">Threads he would add</div>
-        ${review.entries.map((e, i) => `<div class="card below-8 gap-6">
+        ${review.entries.map((e, i) => `<div class="card arccard below-8 gap-6">
           <div class="base-8">
             <span class="name-14">${esc(e.title)}</span>
             <span class="tag">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></div>
@@ -7534,7 +7551,7 @@ function sparkBegin(s, { row, area }) {
     : `<div class="hint flush">He would not change anything. That is a real answer, and it is the one a
         tale that hangs together gets.</div>`}
     ${S.spark.undo ? `<button class="btn ghost push-14" data-spundo="1">Undo ${esc(S.spark.undo.what)}</button>` : ''}
-    ${clash.length ? `<div class="card push-14 gap-6" role="alert">
+    ${clash.length ? `<div class="card arccard push-14 gap-6" role="alert">
       <div class="kind">The Voice and the point of view disagree</div>
       <div class="note">Your Voice says ${esc(clash.map((c) => c.said).join('; '))}, and the point of view
         is ${esc(s.pov)}. The model would be told both.</div>
@@ -7554,7 +7571,7 @@ function sparkBegin(s, { row, area }) {
     ${(S.spark.questions ?? []).length ? `<div class="lbl sect">Open questions</div>
       <div class="hint lead-6">What the tale keeps asking. Each one you tick becomes a string from the
         first scene, and Anansi is told not to answer it yet.</div>
-      ${S.spark.questions.map((q, i) => `<label class="card below-8 gap-6" style="cursor:pointer">
+      ${S.spark.questions.map((q, i) => `<label class="card arccard below-8 gap-6" style="cursor:pointer">
         <span class="base-8"><input type="checkbox" data-spquestion="${i}"${q.keep === false ? '' : ' checked'}>
           <span class="name-14">${esc(q.title)}</span></span>
         <span class="note">${esc(q.line)}</span></label>`).join('')}` : ''}
@@ -7563,7 +7580,7 @@ function sparkBegin(s, { row, area }) {
       <div class="hint lead-6">This tale follows it, so its people come in with it. They are the World's
         threads, not copies: change one there and it changes here. Your tale's own thread of the same
         name wins in this tale.</div>
-      ${ipWorld.people.length ? ipWorld.people.map((e) => `<div class="card below-8 gap-6">
+      ${ipWorld.people.length ? ipWorld.people.map((e) => `<div class="card arccard below-8 gap-6">
         <span class="name-14">${esc(e.title)}</span><span class="note">${esc(e.body ?? '')}</span>
         ${openingMark(e.title)}</div>`).join('')
         : '<div class="hint flush">Nobody in it yet.</div>'}` : ''}
@@ -7571,19 +7588,19 @@ function sparkBegin(s, { row, area }) {
         <span class="tnum">${ipNew.length}</span></div>
       <div class="hint lead-6">Made when you start the tale, with these as its threads, and this tale
         follows it. Anansi writes each one then, one at a time.</div>
-      ${ipNew.map((f) => `<div class="card below-8 gap-6">
+      ${ipNew.map((f) => `<div class="card arccard below-8 gap-6">
         <span class="name-14">${esc(f.name)}</span>${f.memory
           ? '<span class="hint flush">from memory, not looked up</span>' : ''}<span class="note">${esc(f.line ?? '')}</span>
         ${openingMark(f.name)}</div>`).join('')}` : ''}
     <div class="lbl sect">Your own</div>
     <div class="hint lead-6">Anything else for the whole tale, as an instruction. Sent while it is on, and it starts on.</div>
-    ${(S.spark.talePockets ?? []).map((p, i) => `<div class="card snug gap-6">
+    ${(S.spark.talePockets ?? []).map((p, i) => `<div class="card arccard snug gap-6">
       <div class="line">
         <input class="field flush name-field" data-sptpname="${i}" aria-label="What to call this instruction" value="${esc(p.name ?? '')}">
         <button class="del-x" data-spdroptp="${i}" aria-label="Remove this instruction">&#10005;</button></div>
       <textarea class="field grow flush min-52" data-sptpbody="${i}" aria-label="The instruction">${esc(p.body ?? '')}</textarea>
     </div>`).join('')}
-    <div class="card snug gap-6">
+    <div class="card arccard snug gap-6">
       <input class="field flush" data-sptpnew="name" aria-label="A name for the instruction" placeholder="A name: Slow burn">
       <textarea class="field grow flush min-52" data-sptpnew="body" aria-label="The instruction" placeholder="The instruction, for the whole tale"></textarea>
       <button class="btn ghost" data-spaddtp="1">Add it</button></div>
@@ -7591,7 +7608,7 @@ function sparkBegin(s, { row, area }) {
     <div class="hint lead-6">Press a thread to change it on The threads.</div>
     ${threads.length ? threads.map(([e, i]) => {
       const rooms = Object.entries(e.rooms ?? {}).filter(([slot]) => slot !== 'facts');
-      return `<button class="card below-8 gap-6" data-spopen="${i}" style="display:flex; flex-direction:column; width:100%; text-align:left">
+      return `<button class="card arccard below-8 gap-6" data-spopen="${i}" style="display:flex; flex-direction:column; width:100%; text-align:left">
         <span class="base-8"><span class="name-14">${esc(e.title)}</span>
           <span class="tag">${esc(KIND_PLURAL[e.entryType] ?? e.entryType)}</span></span>
         <span class="note">${esc(e.body ?? '')}</span>
@@ -7833,19 +7850,15 @@ function setupPanel() {
 
   // THE HEM'S STEPS STAY ON TOP while the next scene is set up (Seth, 2026-10-30: "it should always
   // show the steps"), the same list the hem screen draws.
-  const rail = `${justClosed?.hem ? hemSteps(justClosed, true) : ''}<div style="display:flex; gap:6px; margin-bottom:15px">
+  // ITS STEPS ARE TABS, spaced capitals with no boxes, the one you are on bright (Arcana, Seth,
+  // 2026-11-03: the setup "hasn't been properly skinned"); `.arctabs` in app.html. A count is ink.
+  const rail = `${justClosed?.hem ? hemSteps(justClosed, true) : ''}<div class="arctabs">
     ${SETUP_STEPS.map(([k, l], i) => {
       const owed = k === 'cards' ? leftN : k === 'more' ? fresh.length : 0;
       const dead = (k === 'cards' && !leftN) || (scanning && k !== step);
       const here = k === step;
-      return `<button data-setupstep="${k}" ${dead ? 'disabled' : ''} style="flex:1; text-align:left;
-        padding:7px 9px; border-radius:var(--r); font-size:11px; letter-spacing:.1em;
-        text-transform:uppercase;
-        border:1px solid ${here ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
-        background:${here ? 'rgba(217,178,106,.10)' : 'transparent'};
-        color:${dead ? 'var(--ink-ghost)' : here ? 'var(--ink-bright)' : 'var(--mute)'};
-        opacity:${dead ? '.5' : '1'}">${i + 1} &middot; ${esc(l)}${
-        owed ? ` <span class="gilt">${owed}</span>` : ''}</button>`;
+      return `<button data-setupstep="${k}" class="arctab" aria-pressed="${here}" ${dead ? 'disabled' : ''}
+        ><span class="arcnum">${roman(i + 1)}</span>${esc(l)}${owed ? ` <span class="tnum">${owed}</span>` : ''}</button>`;
     }).join('')}</div>`;
 
   const skip = `<button class="btn ghost push-8" data-skipsetup="1" ${scanning ? 'disabled' : ''}>Skip &mdash; just write</button>`
@@ -7873,10 +7886,9 @@ function setupPanel() {
     <span class="row-label">what it found</span></button>` : '';
 
   // ---- 1 · WHAT IT LEFT. The chapter that just closed, as decisions and nothing else.
-  if (step === 'cards') return `<div class="stack">
+  if (step === 'cards') return `<div class="stack setupbody">
     ${rail}
-    <div class="serif title-md">${
-      esc(sceneName(justClosed))}: what it left${tipMark('setLeft', 'What the scene left')}</div>
+    ${arcHead('What it left', `${esc(sceneName(justClosed))}${tipMark('setLeft', 'What the scene left')}`)}
     ${tipCard('setLeft', 'What the scene left', `<p>All of it is chalked: nothing here is in the tale
       until you sew it in, and nothing here is required &mdash; what you leave stays on the
       Workbench.</p>`)}
@@ -7907,19 +7919,15 @@ function setupPanel() {
   // ---- 3 · ANYONE NEW. After the beat, because the beat is what says who is needed.
   if (step === 'more') {
     const kind = S.setupKind ?? 'character';
-    return `<div class="stack">
+    return `<div class="stack setupbody">
       ${rail}
-      <div class="serif title-md">Anyone new</div>
+      ${arcHead(esc(sceneName(ch)), 'Anyone new')}
       <div class="end-row push-6">${
         tipMark('setInvent', 'Having Anansi write one for this scene')}</div>
       ${tipCard('setInvent', 'Having Anansi write one for this scene', `<p>Anansi reads where you
         said the scene heads and chalks a thread for it. It shows below, under New threads, and on
         the Workbench until you decide; nothing is in the tale until you sew it in.</p>`)}
-      <div class="push-12 row-6">${KINDS.map((k) => `<button data-setupkind="${k}" aria-pressed="${k === kind}"
-        style="flex:1; text-align:center; font-size:11px; padding:8px 0; border-radius:var(--r);
-        border:1px solid ${k === kind ? 'rgba(217,178,106,.42)' : 'var(--chip)'};
-        background:${k === kind ? 'rgba(217,178,106,.10)' : 'transparent'};
-        color:${k === kind ? 'var(--ink-bright)' : 'var(--mute)'}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+      <div class="push-12 row-6">${KINDS.map((k) => `<button data-setupkind="${k}" aria-pressed="${k === kind}" class="arcchip fill">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
       <!-- THE BEAT IS THE STEER, prefilled rather than described. Seth asked for "the option of
            adding new cards based on that premise", and a box that says "based on the premise" while
            being empty is a box the writer has to retype the premise into. It is editable, because
@@ -7970,11 +7978,10 @@ function setupPanel() {
   }
 
   // ---- 2 · THE NEXT CHAPTER. Title and beat together, and a way to steer what Anansi suggests.
-  return `<div class="stack">
+  return `<div class="stack setupbody">
     ${rail}
     ${closedRow}
-    <div class="serif title-md">${esc(sceneName(ch))}${
-      tipMark('setNext', 'Setting up the next scene')}</div>
+    ${arcHead(`Scene ${roman(ch.index)}`, `${esc(sceneName(ch))}${tipMark('setNext', 'Setting up the next scene')}`)}
     ${tipCard('setNext', 'Setting up the next scene', `<p>Nothing here is required. Leave it and
       write.</p>`)}
 
@@ -9955,11 +9962,10 @@ const WPAGES = {
         <textarea class="field" id="f-bf-${k}" data-bf="${k}" placeholder="${esc(ph ?? '')}"
           style="min-height:88px">${esc(S.blank[k] ?? '')}</textarea>
         ${hint ? `<div class="hint">${hint}</div>` : ''}`;
-      return `<div style="display:flex; flex-direction:column; gap:0; max-width:640px">
-        <div class="serif title-lg">Start blank</div>
-        <div style="font-size:14px; line-height:1.65; color:var(--mute); margin:10px 0 6px">Everything here
-          is editable afterwards, and everything here can be left empty. The title is the only one
-          you will miss.</div>
+      return `<div class="wizpage">
+        ${arcHead('New tale', 'Start blank', `Everything here is editable afterwards, and everything here
+          can be left empty. The title is the only one you will miss.`, 'newtale')}
+        <div class="card arccard wizcard">
         ${f('title', 'Title')}
         ${f('genre', 'Genre', 'Comma separated. Each one becomes its own tag in the library.')}
         ${area('premise', 'Premise', 'One or two sentences. Anansi reads it every time he writes.',
@@ -10002,7 +10008,7 @@ const WPAGES = {
         <div class="hint">You are not asked who <em>you play</em> or <em>where this is going</em>
           — both are drawn from things you have not written yet. They are in the Tale drawer once
           there are threads to draw from.</div>
-      </div>`;
+      </div></div>`;
     }
     // POST /api/spark returns { story, entries } — a skeleton, not a created story. The page used
     // to look for r.storyId, find nothing, and repaint: ten seconds of waiting for no visible
@@ -10018,16 +10024,15 @@ const WPAGES = {
     // lost your words. On a phone `.split` stacks (app.html:1021), which put that empty box ABOVE
     // the wizard: the first thing on screen, and the wrong thing.
     if (S.spark) {
-      return `<div style="display:flex; flex-direction:column; gap:16px; max-width:640px">
-        <div class="serif title-lg">What came back</div>
-        <div class="hint flush">Nothing is written until you start the tale.</div>
+      return `<div class="wizpage">
+        ${arcHead('New tale', 'What came back', 'Nothing is written until you start the tale.', 'newtale')}
         ${sparkReview()}</div>`;
     }
     return `<div class="split">
-      <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:16px; max-width:640px">
-        <div class="serif title-lg">Hand him one idea</div>
-        <div style="font-size:14px; line-height:1.65; color:var(--mute)">Spark turns an idea into a skeleton.
-          Every field stays editable, and the cast comes back as threads you keep or reject.</div>
+      <div class="wizpage fill">
+        ${arcHead('New tale', 'Hand him one idea', `Spark turns an idea into a skeleton. Every field stays
+          editable, and the cast comes back as threads you keep or reject.`, 'newtale')}
+        <div class="card arccard wizcard">
         <textarea id="idea" class="field serif" aria-label="The idea to spark a tale from"
           placeholder="Six houses have one winter to sign a peace none of them wants…"
           style="font-size:17px; line-height:1.6; min-height:130px"></textarea>
@@ -10035,6 +10040,7 @@ const WPAGES = {
         <div style="display:flex; gap:12px; padding-top:6px; flex-wrap:wrap">
           <button class="btn big-btn" data-spark="1">Spark a skeleton</button>
           <button class="btn ghost" data-blank="1" style="width:auto; padding:0 24px; height:48px">Start blank</button></div>
+        </div>
 
         <!-- #30 · A WHOLE BOOK IN ONE COMMAND. Seth: "one more copy button and field ... this one
              would allow me to set a stroy and characters and everything from one command."
@@ -10045,7 +10051,7 @@ const WPAGES = {
              paste as json needs to be hidden under a toggle or a button that opens that option."
              And no longer admin-only: The Web opened to every writer the same day, so a writer who
              can copy the prompt can use what it gives back. -->
-        <div style="border-top:1px solid var(--line); margin-top:22px; padding-top:16px">
+        <div class="push-14">
           <button class="btn ghost" data-forgehere="${S.forgeHere ? '' : '1'}"
             aria-expanded="${S.forgeHere ? 'true' : 'false'}"
             style="width:auto; padding:0 18px; height:38px; font-size:12.5px">${

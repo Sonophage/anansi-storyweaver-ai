@@ -330,7 +330,9 @@ const ok = (m: string, fn?: unknown) => {
     // the same reason — they are labels that do not carry the class every other label carries.
     assert.match(sheet, /details\.fold > summary \{[^}]*text-transform:\s*uppercase/,
       "a fold's heading is a label too — Over time, Brings in with it, Another book");
-    assert.match(js, /data-setupstep="\$\{k\}"[\s\S]{0,220}text-transform:uppercase/,
+    // Since 2026-11-03 the step chips are the Arcana tabs, whose capitals are in the stylesheet.
+    assert.match(js, /data-setupstep="\$\{k\}" class="arctab"/, 'the next-chapter steps are the tabs');
+    assert.match(sheet, /html:root \.arctab \{[^}]*text-transform:uppercase/,
       'and so are the next-chapter step chips');
     ok(`every label is set in real capitals, one spelling (${kept}), menu and info excepted`);
   }

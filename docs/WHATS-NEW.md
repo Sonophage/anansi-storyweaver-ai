@@ -18,6 +18,23 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · A thread is edited where you read it
 
+### Buttons are flat
+The gold button on a screen had a dry brush streaked through it. It is plain gold now, and no other
+button has a texture on it either. The painted paper stays on the page, the panels and the cards.
+### Hemming a scene and the next scene match the rest of the app
+Hemming the scene and The next scene now open on the same banner as the other panels, with a
+diamond holding their own marks: shears for the hem, a key for the next scene. The scene you hemmed
+is named like the top of a scene, "SCENE IX" over its title. The boxes that ask you something are
+cards on the painted paper with gold corners, and the next scene's three steps are spaced capitals
+you tap, like a panel's tabs. Everything does what it did.
+### New tale matches the rest of the app
+New tale opens under a sunburst and a quill in its diamond, with its title like the top of a scene.
+Each step is a card with gold corners, the four steps are spaced capitals with their numerals in
+place of the four bars, and the kinds of thread you pick are rounded chips that turn bright, not
+gold, when they are on.
+### The model at the top of both menus is one and the same
+The model named at the top of the main menu is drawn by the same piece as the one at the top of a
+tale's menu, so the two always look alike, and either one opens Storyteller.
 ### The button under the page is the web in its diamond
 The round button in the middle under the page, the one you tap to write and hold to talk, is now
 the emblem from the top of the Threads panel: the gilt diamond with the web in its middle, and a

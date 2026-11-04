@@ -2855,10 +2855,11 @@ input[type="range"]:focus-visible { outline:2px solid var(--gold-lit); outline-o
    had, so nothing here wins or loses a fight it did not before.
    EVERY GILT FILE IS A MASK filled with `--gold`, the theme's accent, so the line-work takes each
    theme's colour (test/app.ts ORNAMENT-MASK). What is neutral stays an image: the paper's grain
-   (laid under every theme's page by themeVars), the moon and the dry brush.
+   (laid under every theme's page by themeVars) and the moon. The grain is for the page, the panels
+   and the cards, never a button (THE PRESSES ARE FLAT, below).
 
-   GOLD STAYS WHAT ADR 0004 SAYS IT IS. The one filled press on a screen is gold, now with a dry
-   brush in it. The ornament — rules, corners, the arch, the sunburst — is gilt line-work, which is
+   GOLD STAYS WHAT ADR 0004 SAYS IT IS. The one filled press on a screen is gold, a flat fill of the
+   accent. The ornament — rules, corners, the arch, the sunburst — is gilt line-work, which is
    neither a label nor a state nor a press. Labels, tags, the page you are on and every count stay
    in ink; the page you are on has the ink rule beside it, and nothing under it.
 
@@ -3042,7 +3043,9 @@ html:root .from > i { width:18px; height:18px; border-radius:0; background:var(-
      context    What he reads   an open eye.
      teller     Storyteller     the Star, eight-pointed.
      history    Alterations     the hourglass: what was before.
-     updates    What the update moved   a wheel turning. */
+     updates    What the update moved   a wheel turning.
+     ritual     Hemming the scene   shears, that cut the thread when a scene is done.
+     setup      The next scene  a key, that opens it. */
 html:root .pbanner[data-mark="story"]    { --mark:url('/web/arcana-mark-moon.svg'); }
 html:root .pbanner[data-mark="threads"]  { --mark:url('/web/arcana-mark-web.svg'); }
 html:root .pbanner[data-mark="read"]     { --mark:url('/web/arcana-mark-needle.svg'); }
@@ -3056,6 +3059,8 @@ html:root .pbanner[data-mark="context"]  { --mark:url('/web/arcana-mark-eye.svg'
 html:root .pbanner[data-mark="teller"]   { --mark:url('/web/arcana-mark-star.svg'); }
 html:root .pbanner[data-mark="history"]  { --mark:url('/web/arcana-mark-hourglass.svg'); }
 html:root .pbanner[data-mark="updates"]  { --mark:url('/web/arcana-mark-wheel.svg'); }
+html:root .pbanner[data-mark="ritual"]   { --mark:url('/web/arcana-mark-scissors.svg'); }
+html:root .pbanner[data-mark="setup"]    { --mark:url('/web/arcana-mark-key.svg'); }
 /* THE BAND SHOWS BESIDE THE PAGE, AND ON A PHONE EVEN THOUGH EVERY PANEL IS FULL THERE (Seth, 2026-11-03:
    "put back the nice ray header we had on those panels"). drawSide sets `data-sidebanner`. A desk in
    full screen keeps the plain header. */
@@ -3119,10 +3124,81 @@ html:root #col .block.opening .narr::first-letter {
   background:radial-gradient(closest-side, color-mix(in srgb, var(--gold) 38%, transparent), transparent); }
 @media (max-width:719px) { html:root #col .block.opening .narr::first-letter { font-size:40px; padding:5px 8px 3px; } }
 
-/* THE PRESSES. The one gold button keeps its gold and its pill, and gains a dry brush across it. The
-   composer's quill is the exception: it is the emblem (THE CENTRE PRESS IS THE EMBLEM, below). */
-html:root :is(.btn:not(.ghost), #send.stopping, .rerollbox .rwgo) {
-  background-image:url('/web/arcana-brush.svg'); background-size:100% 100%; background-repeat:no-repeat; }
+/* THE PRESSES ARE FLAT (Seth, 2026-11-03: "Some buttons have a texture on them that should be
+   removed"). The gold press had a dry brush laid through it; now no button carries an image: the one
+   gold press is a flat fill of the accent (ADR 0004), and every other press is the theme's own flat
+   colour. The paper's grain stays on the page, the panels and the cards. test/app.ts FLAT-PRESS. */
+
+/* THE HEM, THE NEXT SCENE AND NEW TALE, IN THE SAME LANGUAGE (Seth, 2026-11-03: "Hemming the scene and
+   a new tale haven't been properly skinned"). The hem and the next scene open on the panel banner with
+   their own marks (the table above). Inside them and on New tale:
+     .archead   the scene head's tarot title (arcHead, web/app.js): a half sunburst, a kicker in spaced
+                capitals, the title large in the serif, an italic line; with `data-mark`, the banner's
+                diamond on the sunburst's foot holding that mark.
+     .arccard   a card: the painted paper, the stepped gilt corners, the lift.
+     .arctabs   steps as tabs: a numeral and a name in spaced capitals, no boxes, the one you are on
+                bright, each a 44px box to the finger as the panel tabs are.
+     .arcchip   a kind to pick: a rounded chip in spaced capitals, ink when it is on, not gold.
+     .arclink   a small press in words: spaced capitals, no underline.
+   The accent is line-work only (the sunburst, the diamond, the corners) and the one gold press. */
+html:root .archead { display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px; padding:0 0 18px; }
+html:root .archead-sun { display:block; width:min(340px, 74%); aspect-ratio:3 / 1; margin:0 0 -4px;
+  background:var(--gold); opacity:.6;
+  -webkit-mask:url('/web/arcana-sunburst.svg') center bottom / contain no-repeat;
+  mask:url('/web/arcana-sunburst.svg') center bottom / contain no-repeat; }
+html:root .archead[data-mark] .archead-sun { margin:0; }
+/* In the hem and the next scene the banner above already rises in a sunburst: one is enough. */
+html:root #sideBody .archead-sun { display:none; }
+html:root #sideBody .archead { padding-top:6px; }
+html:root .archead[data-mark="newtale"] { --mark:url('/web/arcana-mark-quill.svg'); }
+html:root .archead-mark { position:relative; display:block; flex:0 0 auto; width:56px; height:56px; margin:-28px 0 -2px; }
+html:root .archead-mark::before { content:''; position:absolute; inset:2px;
+  background:color-mix(in srgb, var(--doc-bg) 92%, transparent); clip-path:polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+html:root .archead-mark::after { content:''; position:absolute; inset:0; background:var(--gold);
+  -webkit-mask:url('/web/arcana-diamond.svg') center / contain no-repeat; mask:url('/web/arcana-diamond.svg') center / contain no-repeat; }
+html:root .archead-mark > i { position:absolute; left:50%; top:50%; width:26px; height:26px; margin:-13px 0 0 -13px; z-index:1;
+  background:var(--ink-bright); -webkit-mask:var(--mark) center / contain no-repeat; mask:var(--mark) center / contain no-repeat; }
+html:root .archead-kick { font-family:var(--arc-small); font-size:13px; letter-spacing:.42em; margin-right:-.42em;
+  text-transform:uppercase; color:var(--mute); }
+html:root .archead-title { font-family:var(--arc-serif); font-weight:500; font-size:46px; line-height:1.08;
+  color:var(--ink-bright); letter-spacing:.005em; }
+html:root .archead-line { font-family:var(--arc-serif); font-style:italic; font-size:19px; line-height:1.4;
+  color:var(--mute); max-width:540px; }
+@media (max-width:719px) { html:root .archead-title { font-size:32px; } html:root .archead-line { font-size:17px; }
+  html:root .archead-kick { font-size:11.5px; } }
+html:root .wizpage { display:flex; flex-direction:column; gap:16px; max-width:640px; min-width:0; }
+html:root .arccard { position:relative; border-color:var(--edge); border-radius:var(--r-tight); box-shadow:var(--lift);
+  background:url('/web/arcana-canvas.svg') center / cover, var(--sheet); }
+html:root .arccard::after { content:''; position:absolute; inset:0; pointer-events:none; background:var(--gold);
+  -webkit-mask:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat,
+    url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat;
+  mask:url('/web/arcana-corner-tl.svg') top left / 20px no-repeat, url('/web/arcana-corner-tr.svg') top right / 20px no-repeat,
+    url('/web/arcana-corner-bl.svg') bottom left / 20px no-repeat, url('/web/arcana-corner-br.svg') bottom right / 20px no-repeat; }
+html:root .wizcard { gap:6px; padding:22px 22px 20px; }
+@media (max-width:719px) { html:root .wizcard { padding:18px 16px 16px; } }
+/* Their labels in the small geometric face, as the panels' tabs and the menu's words are. */
+html:root :is(.wizpage, .hemact, .hemmore, .setupbody) :is(.lbl, .kind) { font-family:var(--arc-small); letter-spacing:.2em; }
+html:root .hemsteps .hemname { font-family:var(--arc-small); letter-spacing:.06em; font-size:14px; }
+html:root .arctabs { display:flex; justify-content:safe center; gap:22px; overflow-x:auto; scrollbar-width:none;
+  margin:0 -11px 12px; padding:0 11px; }
+html:root .arctab { flex:0 0 auto; display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 11px; margin:0 -11px;
+  border:0; border-radius:0; background:none; box-shadow:none; font-family:var(--arc-small); font-size:12.5px;
+  letter-spacing:.22em; text-transform:uppercase; color:var(--dim); white-space:nowrap; }
+html:root .arctab[aria-pressed="true"] { color:var(--ink-bright); }
+html:root .arctab:hover:not(:disabled) { color:var(--gold); }
+html:root .arctab:disabled { opacity:.45; }
+html:root .arcnum { font-family:var(--arc-deco); letter-spacing:.06em; }
+@media (max-width:719px) { html:root .arctabs { gap:12px; } html:root .arctab { gap:5px; font-size:11px; letter-spacing:.1em; padding:0 6px; margin:0 -6px; }
+  /* The hem's and the next scene's names are the longest a panel has: smaller, so they are whole. */
+  html[data-sidebanner="1"] #sideHead:has(> .pbanner:is([data-mark="ritual"], [data-mark="setup"])) > .panelname { font-size:21px; letter-spacing:.1em; } }
+html:root .arcchip { min-height:36px; padding:0 14px; border:1px solid var(--edge); border-radius:var(--r-pill); background:transparent;
+  color:var(--mute); font-family:var(--arc-small); font-size:11.5px; letter-spacing:.16em; text-transform:uppercase; }
+html:root .arcchip[aria-pressed="true"] { border-color:var(--ink-bright); color:var(--ink-bright); background:var(--chip); }
+html:root .arcchip:hover { border-color:var(--gold-dim); color:var(--gold); }
+html:root .arclink { align-self:flex-start; min-height:32px; padding:0; border:0; background:none; text-decoration:none; cursor:pointer;
+  font-family:var(--arc-small); font-size:11.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--mute); }
+html:root .arclink:hover:not(:disabled) { color:var(--gold); }
+html:root .arclink:disabled { opacity:.5; }
 
 
 /* THE CENTRE PRESS IS THE EMBLEM (Seth, 2026-11-03, of the Threads panel's banner: "I want that to

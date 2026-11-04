@@ -964,7 +964,19 @@ assert.match(html('rail'), /Library/,
   'the menu button must reach the workspace menu without leaving the story');
 assert.ok(!/list chapters|Chapters/.test(html('rail')),
   'and the chapter list goes with it — it named a book you are no longer looking at');
+// ONE MODEL HEAD FOR BOTH MENUS (Seth, 2026-11-03: "In the main menu that AI model selector should
+// match the one in a tale"). The main menu's head, drawn from inside the tale, is the tale menu's,
+// byte for byte, and it opens Storyteller in both.
+const headOf = () => html('rail').match(/<button data-modelmenu="1"[\s\S]*?<\/button>/)?.[0] ?? '';
+const mainHead = headOf();
 click({ railview: 'story' });
+assert.ok(mainHead.length > 0 && mainHead === headOf(), 'MODEL-HEAD: the main menu and the tale menu draw the same model head');
+{
+  const src = (await import('node:fs')).readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+  assert.strictEqual((src.match(/<button data-modelmenu="1"/g) ?? []).length, 1, 'MODEL-HEAD: one place writes it');
+  assert.match(src, /function modelHead\(\)[\s\S]*?<button data-modelmenu="1"/, 'MODEL-HEAD: and that place is modelHead');
+  assert.match(src, /const modelBlock = modelHead\(\);[\s\S]{0,4000}<div class="talemodel">\$\{modelBlock\}/, 'MODEL-HEAD: drawn into both menus\' head');
+}
 assert.match(html('rail'), /Storyteller/, "the story's name must bring its own menu back");
 assert.doesNotMatch(html('rail'), /class="railclose"/, 'with no close of its own at a desk: the header icon opens and shuts it (#133)');
 ok('the menu and the story name are two doors onto one rail');
@@ -1253,8 +1265,7 @@ ok('no chevron divider or decorative gilt line under any header');
   assert.match(page, /html:root #quill:active:not\(:disabled\) \{[^}]*transform:scale/, 'EMBLEM: held, it presses in');
   assert.match(page, /html:root #quill\[aria-expanded="true"\] > \.emdia \{ background:none; \}/, 'EMBLEM: open, it is quieter');
   assert.match(page, /html:root #quill:focus-visible > \.emdia \{[^}]*outline:/, 'EMBLEM: the keyboard\'s ring is drawn on the diamond');
-  const brush = page.match(/html:root :is\([^{]*\)\s*\{\s*background-image:url\('\/web\/arcana-brush\.svg'\)/)?.[0] ?? '';
-  assert.ok(brush && !/quill/.test(brush), 'EMBLEM: no brush texture on it');
+  assert.doesNotMatch(page, /#quill[^{]*\{[^}]*arcana-brush/, 'EMBLEM: no brush texture on it');
   assert.match(page, /#dock\.folded #quill \{ animation:pressglow /, 'EMBLEM: while the model works, it glows');
   assert.match(page, /@keyframes pressglow \{[^}]*filter:drop-shadow/, 'EMBLEM: round its own shape, not a box');
   assert.doesNotMatch(page, /arcana-sigil/, 'EMBLEM: the seal\'s sigil is gone');
@@ -1263,6 +1274,24 @@ ok('no chevron divider or decorative gilt line under any header');
   assert.doesNotMatch(src, /mark\('web', 30\)/, 'EMBLEM: the turned-over wedge is gone from the press');
 }
 ok('the centre press is the emblem: the banner\'s diamond and web, no rays, its four dots turning a peak every 3 s');
+// THE PRESSES ARE FLAT (Seth, 2026-11-03: "Some buttons have a texture on them that should be removed").
+// No rule whose selector names a press lays an image over it: not the brush, the paper's grain, a
+// wash or a ragged edge. The gold press is a flat fill of the accent (ADR 0004). A press is a `.btn`,
+// a `button`, a pill, a chip, a tab or one of the named presses; a card that happens to be a button
+// (a menu row, a thread card) is a card and keeps its paper.
+{
+  const { readFileSync, existsSync } = await import('node:fs');
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  const css = page.slice(page.indexOf('<style>'), page.indexOf('</style>')).replace(/\/\*[\s\S]*?\*\//g, '');
+  const PRESS = /(^|[\s,(>+~])(?:\.btn\b|button\b|\.pill\b|\.arcchip\b|\.arctab\b|\.arclink\b|#send\b|#cont\b|\.rwgo\b|\.headsave\b|\.tag\.pressable\b|\.caps-btn\b)(?![\w-])/;
+  const TEXTURE = /background(?:-image)?\s*:[^;}]*url\(\s*'?\/web\/arcana-(?:brush|canvas|wash|ragged|grain)/;
+  const textured = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, sel, body]) => PRESS.test(sel) && TEXTURE.test(body)).map(([, sel]) => sel.trim());
+  assert.deepStrictEqual(textured, [], `FLAT-PRESS: no press carries a texture (${textured.join(' | ')})`);
+  assert.doesNotMatch(css, /arcana-brush/, 'FLAT-PRESS: nothing lays the dry brush');
+  assert.ok(!existsSync(new URL('../web/arcana-brush.svg', import.meta.url)), 'FLAT-PRESS: and its file is gone');
+}
+ok('no button carries a texture: the presses are flat');
 // THE PANEL TABS AND THE KIND CHIPS ARE 44px TO THE FINGER (Seth's rule: about 32px to the eye, 44px
 // to the finger). The Arcana tabs became spaced capitals with no boxes on 2026-11-03 and stood 28px
 // tall; the threads list's kind chips stood 34px. test/ui/targets.js measured both short on a phone.
@@ -1637,7 +1666,9 @@ ok('any panel can be full screen, per panel, remembered on this device');
   const { readFileSync, existsSync } = await import('node:fs');
   const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
   const rows = [...page.matchAll(/\.pbanner\[data-mark="(\w+)"\]\s*\{\s*--mark:\s*url\('\/web\/(arcana-mark-[\w-]+\.svg)'\)/g)].map((m) => [m[1], m[2]]);
-  const PANELS = ['story', 'threads', 'read', 'chapter', 'chapters', 'search', 'waiting', 'strings', 'anansi', 'context', 'teller', 'history', 'updates'];
+  const PANELS = ['story', 'threads', 'read', 'chapter', 'chapters', 'search', 'waiting', 'strings', 'anansi', 'context', 'teller', 'history', 'updates',
+    // The hem and the next scene, which are always full and carry the banner everywhere (2026-11-03).
+    'ritual', 'setup'];
   assert.deepStrictEqual(rows.map(([k]) => k).sort(), [...PANELS].sort(), 'PANEL-MARK: every panel beside the page has exactly one mark');
   assert.strictEqual(new Set(rows.map(([, f]) => f)).size, rows.length, 'PANEL-MARK: no two panels share a mark');
   assert.strictEqual(rows.find(([k]) => k === 'story')?.[1], 'arcana-mark-moon.svg', 'PANEL-MARK: Tale is the moon');
@@ -4800,6 +4831,16 @@ ok('VOICE-OFFER: the tale starts with the writer\'s Voice and offers the spark\'
     const steps = [...html('page').matchAll(/data-sparkstep="\d+"[^>]*?aria-label="([^"]+)"/g)].map((m) => m[1]);
     assert.deepStrictEqual(steps, ['The tale', 'You', 'The threads', 'Begin'],
       'WIZ-ORDER: four steps, You before the threads, and Begin last (Seth, 2026-10-30)');
+    // NEW TALE IN THE ARCANA LANGUAGE (Seth, 2026-11-03: "a new tale haven't been properly skinned"):
+    // the tarot title with the new tale's mark, the steps as tabs, the step itself on a card, and no
+    // gold wash on a kind chip.
+    {
+      const pg = html('page');
+      assert.match(pg, /<div class="archead" data-mark="newtale">[\s\S]*?<div class="archead-title">What came back<\/div>/, 'WIZ-SKIN: the wizard opens on the tarot title, with its mark');
+      assert.match(pg, /<div class="arctabs">\s*<button data-sparkstep="1" aria-pressed="true" class="arctab"/, 'WIZ-SKIN: its steps are the spaced-capital tabs');
+      assert.match(pg, /<div class="card arccard wizcard">/, 'WIZ-SKIN: and the step is a card on the paper');
+      assert.doesNotMatch(pg, /text-decoration:underline|rgba\(217,178,106/, 'WIZ-SKIN: no underline and no gold wash');
+    }
 
     // THE TALE: about eleven controls on screen, and the rest in two folds.
     let tale = html('page');
@@ -7906,7 +7947,12 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   const ran = { summary: null, memory: null, facts: null, finished: null, next: null };
 
   let side = await reportOn(ran);
-  assert.match(side, /The Envoy &middot; hemmed/, 'the report is about the scene that was hemmed');
+  assert.match(side, /<div class="archead-kick">Scene II &middot; hemmed<\/div>\s*<div class="archead-title">The Envoy<\/div>/, 'the report is about the scene that was hemmed');
+  // THE HEM IN THE ARCANA LANGUAGE (Seth, 2026-11-03: "Hemming the scene ... haven't been properly
+  // skinned"): its head is the tarot title, it opens on the panel banner with its own mark, and its
+  // cards are on the paper with the gilt corners.
+  assert.match(side, /^\s*<div class="archead">/, 'HEM-SKIN: the hem opens on the tarot title');
+  assert.match(html('sideHead'), /<div class="pbanner" data-mark="ritual"/, 'HEM-SKIN: under the panel banner, with the hem\'s mark');
   assert.doesNotMatch(side, /did not run/, 'a hem where everything ran draws no failure report');
 
   // One pass down. The reason is the model's own words, so it has to be printed rather than
@@ -7920,7 +7966,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.match(side, /Nothing was lost/, 'and says the scene itself closed');
   // The ones that ran are not listed. A report that names every pass every time is a report nobody
   // reads to the end.
-  assert.doesNotMatch(side.match(/class="card hemfail">[\s\S]*?Nothing was lost/)?.[0] ?? '', /Changes to the people in it/, 'and a pass that ran is not in the list');
+  assert.doesNotMatch(side.match(/class="card arccard hemfail">[\s\S]*?Nothing was lost/)?.[0] ?? '', /Changes to the people in it/, 'and a pass that ran is not in the list');
   assert.match(side, /data-hemagain="c-2" data-pass="facts"/, '  and that pass alone can be tried again');
 
   side = await reportOn({ summary: 'llama-server is not running', facts: 'llama-server is not running' });
@@ -8074,11 +8120,12 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   await sleep(30);
   side = html('sideBody');
   assert.match(side, /data-setupstep="cards"/, 'the setup panel has a cards step');
-  // THE STEP THAT IS LIT, not merely present. Read off the rail's own highlight, which is what a
-  // writer sees, and asserted against the OTHER step too — a check for "cards is lit" would pass on
-  // a panel that lit every step.
+  // THE STEP THAT IS LIT, not merely present. Read off the tab's own pressed state, which the
+  // stylesheet lights (`.arctab[aria-pressed="true"]`, since the tabs went Arcana on 2026-11-03), and
+  // asserted against the OTHER step too — a check for "cards is lit" would pass on a panel that lit
+  // every step.
   const litStep = (html) => [...html.matchAll(/data-setupstep="([a-z]+)"([^>]*?)>/g)]
-    .filter((m) => /rgba\(217,178,106,\.42\)/.test(m[2])).map((m) => m[1]);
+    .filter((m) => /aria-pressed="true"/.test(m[2])).map((m) => m[1]);
   assert.deepStrictEqual(litStep(side), ['cards'],
     'a close that proposed cards must open on them, and on nothing else');
   assert.match(side, /What it left/, 'and the step says what it is');
@@ -8142,11 +8189,11 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.doesNotMatch(whatLeft, /The ferryman/,
     'a new thread must not also sit under What it left — that step is what changed');
   // The count on the rail is per step, so each says what IT owes rather than the whole queue.
-  assert.match(whatLeft, /1 &middot; What it left <span[^>]*>1</, 'one change owed on step one');
+  assert.match(whatLeft, /<span class="arcnum">I<\/span>What it left <span[^>]*>1</, 'one change owed on step one');
   // THREE: the ferryman from the close, and the fixture's two new threads chalked against the scene
   // being set up (pr-1, pr-5), which is where Have Anansi write someone chalks (Seth, 2026-10-30: "any
   // new threads anansi makes isn't shown to me"). The string chalked there (pr-2) is not a thread.
-  assert.match(whatLeft, /3 &middot; Anyone new <span[^>]*>3</, 'and three new threads on step three');
+  assert.match(whatLeft, /<span class="arcnum">III<\/span>Anyone new <span[^>]*>3</, 'and three new threads on step three');
   click({ setupstep: 'more' }); await sleep(30);
   assert.match(html('sideBody'), /The lamplighter/, 'SETUP-ASKED-HERE: a new thread chalked against this scene is on Anyone new');
   assert.doesNotMatch(html('sideBody'), /The debt nobody has called in/, '  and a string is not');
@@ -9119,7 +9166,10 @@ const hemCardOf = (side: string) => {
 {
   click({ open: 's-1' }); await sleep(40);
   click({ panel: 'setup', setupat: 'more' }); await sleep(30);
-  assert.match(html('sideBody'), /<div class="serif title-md">Anyone new<\/div>/, 'HEM-SETUP-AT: it opens the setup on Anyone new');
+  assert.match(html('sideBody'), /<div class="archead-title">Anyone new<\/div>/, 'HEM-SETUP-AT: it opens the setup on Anyone new');
+  assert.match(html('sideHead'), /<div class="pbanner" data-mark="setup"/, 'SETUP-SKIN: the next scene opens on the panel banner, with its own mark');
+  assert.match(html('sideBody'), /<div class="arctabs">\s*<button data-setupstep="cards" class="arctab"/, 'SETUP-SKIN: its steps are the spaced-capital tabs');
+  assert.doesNotMatch(html('sideBody'), /rgba\(217,178,106/, 'SETUP-SKIN: and no gold wash on a step or a kind');
   click({ panel: '' }); await sleep(20);
   ok('the hem\'s Set up the next scene opens on Anyone new');
 }
@@ -9185,7 +9235,7 @@ const hemCardOf = (side: string) => {
   click({ panel: 'setup' }); click({ setupstep: 'premise' }); await settle();
   const setup = html('sideBody');
   assert.deepStrictEqual([...setup.matchAll(/data-setupstep="([a-z]+)"([^>]*?)>/g)]
-    .filter((m) => /rgba\(217,178,106,\.42\)/.test(m[2])).map((m) => m[1]), ['premise'],
+    .filter((m) => /aria-pressed="true"/.test(m[2])).map((m) => m[1]), ['premise'],
     'HEM-SETUP-OPENS: the press opens the setup on The next scene');
   assert.match(setup, /data-setup="title" value="The Envoy"/, "  with the scene's own title");
   assert.match(setup, /data-setup="note"[^>]*>By the end the debt is called in, with Marek in the room\./, '  the suggested note');
@@ -9223,8 +9273,8 @@ const hemCardOf = (side: string) => {
   assert.doesNotMatch(left, /data-hemopen=/, '  nor Reopen the hem');
   assert.doesNotMatch(left, /The bellringer/, 'SETUP-LEFT-NONEW: nor a new thread, which is Anyone new\'s');
   assert.match(left, /data-deckall="accept" data-ids="hs-1,hs-2"[^>]*>Sew it in/, '  each thread sewn in whole from its card');
-  assert.match(left, /1 &middot; What it left <span[^>]*>3</, '  and its count is the three changes');
-  assert.match(left, /3 &middot; Anyone new <span[^>]*>1</, "  and Anyone new's is the new thread");
+  assert.match(left, /<span class="arcnum">I<\/span>What it left <span[^>]*>3</, '  and its count is the three changes');
+  assert.match(left, /<span class="arcnum">III<\/span>Anyone new <span[^>]*>1</, "  and Anyone new's is the new thread");
   click({ setupstep: 'more' }); await settle();
   const more = html('sideBody');
   assert.match(more, /data-hemthread="new:The bellringer"/, 'SETUP-NEW-HERE: the new thread is on Anyone new, as a thread block');
@@ -9395,7 +9445,7 @@ const hemCardOf = (side: string) => {
   assert.match(screens.more, /data-whosaid>[^<]*Envoy Sereth/, 'WHO-ONCE: Anyone new says who is in a scene a hem opened');
   click({ hemwhoagain: 'c-1' }); await settle();
   screens.hem = html('sideBody');
-  assert.match(screens.hem, /class="card hemwho/, '  and Change who is in it opens that list on the hem screen');
+  assert.match(screens.hem, /class="card arccard hemwho/, '  and Change who is in it opens that list on the hem screen');
   const controls: Record<string, RegExp> = {
     'what the next scene is': /data-setup="brief"|data-hemsteer=/,
     'the summary': /data-hemsumtext=/, 'Reopen the hem': /data-hemopen=/,
@@ -9410,7 +9460,7 @@ const hemCardOf = (side: string) => {
   // ONE NAME, ONE STEP: the setup draws the hem's steps above its own, so none of its names may be one
   // of the hem's ("The next scene" was both Anansi's draft and the setup's boxes).
   const hemNames = [...screens.more.matchAll(/<span class="hemname">([^<]+)</g)].map((m) => m[1].trim());
-  const setupNames = [...screens.more.matchAll(/data-setupstep="\w+"[^>]*>\d &middot; ([^<]+?)(?: <|<)/g)].map((m) => m[1].trim());
+  const setupNames = [...screens.more.matchAll(/data-setupstep="\w+"[^>]*><span class="arcnum">[IVX]+<\/span>([^<]+?)(?: <|<)/g)].map((m) => m[1].trim());
   assert.ok(hemNames.length && setupNames.length === 3, `  (read ${hemNames.length} hem steps, ${setupNames.length} setup steps)`);
   assert.deepStrictEqual(setupNames.filter((n) => hemNames.includes(n)), [], 'ONCE-NAMES: no setup step has a hem step\'s name');
   const threads = (s: string) => [...s.matchAll(/data-hemthread="([^"]+)"/g)].map((m) => m[1]);
@@ -9501,7 +9551,7 @@ const hemCardOf = (side: string) => {
     side = html('sideBody');
     assert.doesNotMatch(side, /data-hemsteer=/, 'HEM-WHO-NEXT: the box gives way once sent');
     assert.match(side, /data-hemstep="who"[^>]*data-state="you"/, '  to who is in the next scene, the gold step');
-    assert.match(side, /class="card hemwho[\s\S]*data-hemwhodone="c-2"/, '  with its list and Done');
+    assert.match(side, /class="card arccard hemwho[\s\S]*data-hemwhodone="c-2"/, '  with its list and Done');
     assert.doesNotMatch(side, /data-hemsumtext=/, '  and no summary yet');
     click({ hemwhodone: 'c-2' }); await settle();
     side = html('sideBody');
@@ -9675,7 +9725,7 @@ const hemCardOf = (side: string) => {
     assert.ok(JSON.parse((globalThis as any).localStorage.getItem('anansi.hemwho') ?? '[]').includes('c-br2'),
       'WHO-KEPT: Done on who is in the next scene is kept on this device, so a reload does not ask again');
     let side = html('sideBody');
-    assert.match(side, /class="card hemdrafts[\s\S]*How it opens[\s\S]*At dawn, on the far bank\.[\s\S]*Where it is going[\s\S]*finds the bell waiting/,
+    assert.match(side, /class="card arccard hemdrafts[\s\S]*How it opens[\s\S]*At dawn, on the far bank\.[\s\S]*Where it is going[\s\S]*finds the bell waiting/,
       'DRAFTS: the hem shows the opening and where it is going, drafted from the brief');
     assert.match(side, /The Far Bank, drafted from your brief/, 'DRAFTS-SAYS-BRIEF: and says so, as the scene has a brief');
     assert.match(side, /data-hemskip="opens"[\s\S]*data-setupat="premise"[\s\S]*data-hemuse="opens"/, '  each with Skip, Edit and Use');
@@ -9703,7 +9753,7 @@ const hemCardOf = (side: string) => {
     click({ open: 's-1' }); await settle();
     click({ panel: 'ritual' }); await settle();
     side = html('sideBody');
-    assert.ok(/class="card hemdrafts/.test(side) && !/from your brief/.test(side) && /Anansi chose The Far Bank/.test(side),
+    assert.ok(/class="card arccard hemdrafts/.test(side) && !/from your brief/.test(side) && /Anansi chose The Far Bank/.test(side),
       'DRAFTS-NO-BRIEF: with no brief on the scene, the card says Anansi chose it');
   } finally {
     (globalThis as any).fetch = canned;
