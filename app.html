@@ -3125,7 +3125,7 @@ html:root :is(.btn:not(.ghost), #send.stopping, .rerollbox .rwgo) {
 html:root #quill { position:relative; isolation:isolate;
   background:radial-gradient(circle at 50% 38%, var(--gold-lit), var(--gold) 58%, color-mix(in srgb, var(--gold) 72%, #000) 100%);
   transition:transform var(--t) var(--ease), filter var(--t) var(--ease); }
-html:root #quill > svg { position:relative; z-index:1; }
+html:root #quill > svg { position:relative; z-index:1; transform:translateY(-17.5%) scaleY(-1); }
 html:root #quill::before { content:''; position:absolute; inset:3px; border-radius:50%; pointer-events:none;
   background:var(--on-gold); opacity:.42;
   -webkit-mask:url('/web/arcana-sigil.svg') center / 100% 100% no-repeat; mask:url('/web/arcana-sigil.svg') center / 100% 100% no-repeat; }

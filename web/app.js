@@ -2393,7 +2393,10 @@ function nextBar(last) {
               written, above its first word, and beside the open box. */ ''}
         <button id="quill" data-dockopen="1" aria-expanded="${open}"
           aria-label="${open ? 'Fold the box away. Hold to talk to Anansi' : 'Open the box, to write it yourself. Hold to talk to Anansi'}"
-          title="${open ? 'Fold the box away' : 'Write it yourself'}. Hold to talk to Anansi">${mark('quill', 24)}</button>
+          title="${open ? 'Fold the box away' : 'Write it yourself'}. Hold to talk to Anansi">${/* THE ORB-WEB'S WEDGE, RAYS DOWN (Seth, 2026-11-03: "the triangle with rays ... as the center
+            icon instead for the input button, invert it vertically so the rays face down"): the help
+            mark's quadrant of the web (MARK.web), turned over by the stylesheet (#quill > svg). */
+            mark('web', 30)}</button>
       </div>
       ${busy && !open
         ? `<button id="cont" data-stop="1" class="stopping" aria-label="Stop writing" title="Stop">${mark('stop', 18)}<span class="btnword">Stop</span></button>`

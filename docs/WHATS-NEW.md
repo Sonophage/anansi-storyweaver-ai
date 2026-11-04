@@ -18,6 +18,9 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · A thread is edited where you read it
 
+### A new mark on the round button
+The round button at the foot of the page wears the web's wedge, the small mark beside each heading,
+turned over so its rays reach down, in place of the quill.
 ### A turning globe while Anansi writes
 While you wait for the first word of a passage, a small globe of dots now turns where the
 words will start, a slow ripple running round it. It replaces the words "Anansi is writing", which

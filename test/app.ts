@@ -1213,6 +1213,11 @@ ok('no chevron divider or decorative gilt line under any header');
   assert.match(page, /html:root #quill:active:not\(:disabled\) \{/, 'QUILL-SEAL: held, it shows it');
   assert.match(page, /html:root #quill\[aria-expanded="true"\] \{[^}]*background:none/, 'QUILL-SEAL: open, it is the ring with no fill');
   assert.ok(existsSync(new URL('../web/arcana-sigil.svg', import.meta.url)), 'QUILL-SEAL: the sigil is on disk');
+  // THE CENTRE ICON IS THE WEB'S WEDGE, RAYS DOWN (Seth, 2026-11-03).
+  { const { MARK } = await import('../web/model.js');
+    const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+    assert.ok(MARK.web && /id="quill"[^]*?mark\('web', 30\)\}<\/button>/.test(src), 'QUILL-ICON: the press carries the web wedge');
+    assert.match(page, /html:root #quill > svg \{[^}]*transform:translateY\(-17\.5%\) scaleY\(-1\)/, 'QUILL-ICON: turned over so the rays face down, and lifted to the centre'); }
 }
 ok('the quill is a gilt seal with a sigil, no brush');
 // THE PANEL TABS AND THE KIND CHIPS ARE 44px TO THE FINGER (Seth's rule: about 32px to the eye, 44px
