@@ -11,7 +11,8 @@
 //   node --experimental-strip-types bench/reroll-away.ts run <out.jsonl> <rerolls per passage> <arm> [<arm>]
 //   node --experimental-strip-types bench/reroll-away.ts report <out.jsonl> [<out.jsonl> ...]
 //
-// An arm is `name@port[+note][+away]`: `+note` fills What didn't work on every reroll (NOTE below),
+// An arm is `name@port[+note|+named][+away]`: `+note` fills What didn't work on every reroll (NOTE below),
+// `+named` fills it with the note for that passage (NAMED below), which names what its opening did;
 // `+away` says the server runs with ANANSI_REROLL_AWAY=1. Both are checked through
 // `POST /api/manifest` before anything is generated, and the run stops if an arm is not what it says.
 // Two arms run AT THE SAME TIME, one generation each per step, so drift lands on both alike (F55).
@@ -39,11 +40,35 @@ const NOTE = 'It came back the same as last time. Open it differently and take t
 /** F66's line for a word-for-word repeat: unrelated takes from another scene reach it in under 1% of pairs. */
 const FLAG = 0.1;
 
-export type Arm = { name: string; base: string; note: boolean; away: boolean };
+/** What Seth would type under Reweave when a version opened the same way: the opening's content in
+ *  his own words, one note per passage, written by hand on 2026-11-04 from each replaced version's
+ *  first sentence. Paraphrased, never quoted: a quoted sentence is the old version sent again, and
+ *  the model copies quoted text (docs/adr/0012). */
+export const NAMED: Record<string, string> = {
+  'p-88fa7b0d': 'It opened on a shadow detaching itself from the rib again.',
+  'p-415b96b5': 'It opened on her heels clicking on the cobblestones again.',
+  'p-7c9dd221': 'It opened on her reaching out and the glove on his jaw again.',
+  'p-602ea192': 'It opened on the door sighing shut again.',
+  'p-48a10acf': 'It opened on her not turning around again.',
+  'p-2f2d1315': 'It opened on her stepping back again.',
+  'p-e714aa39': 'It opened on her setting the bottle down again.',
+  'p-ad66d166': 'It opened on Seth not moving and the air getting thick again.',
+  'p-6596e5c4': 'It opened on the words landing soft again.',
+  'p-3afb0e08': 'It opened on Tessa not looking at him again.',
+  'p-3dbbdde8': 'It opened on Tessa snorting again.',
+  'p-42533cc8': 'It opened on Tessa not answering right away again.',
+};
+const START = ' Start it a different way.';
+/** The note an arm sends for a passage, or none. */
+export const noteFor = (arm: Arm, id: string) => arm.named ? (NAMED[id] ? NAMED[id] + START : undefined) : arm.note ? NOTE : undefined;
+
+export type Arm = { name: string; base: string; note: boolean; named: boolean; away: boolean };
 export const armOf = (spec: string): Arm => {
-  const m = /^(\w+)@(\d+)((?:\+(?:note|away))*)$/.exec(spec);
-  if (!m) throw new Error(`an arm is name@port[+note][+away], not ${spec}`);
-  return { name: m[1], base: `http://127.0.0.1:${m[2]}`, note: m[3].includes('+note'), away: m[3].includes('+away') };
+  const m = /^(\w+)@(\d+)((?:\+(?:note|named|away))*)$/.exec(spec);
+  if (!m) throw new Error(`an arm is name@port[+note|+named][+away], not ${spec}`);
+  const a = { name: m[1], base: `http://127.0.0.1:${m[2]}`, note: m[3].includes('+note'), named: m[3].includes('+named'), away: m[3].includes('+away') };
+  if (a.note && a.named) throw new Error(`an arm sends one note, not both: ${spec}`);
+  return a;
 };
 
 /** One take's scores against the take it replaces. `openInDirective`: its first five narration words
@@ -87,6 +112,13 @@ if (mode === 'check') {
   ok('ARMS: a bare arm is neither; flags are read off the spec', !a.note && !a.away && a.base.endsWith(':5301') && b.note && b.away);
   let threw = false; try { armOf('treat@5302+typo'); } catch { threw = true; }
   ok('ARMS-STRICT: an unknown flag is refused, not ignored', threw);
+  let both = false; try { armOf('treat@5302+note+named'); } catch { both = true; }
+  const nm = armOf('named@5302+named');
+  ok('NAMED: a named arm sends each passage its own note, and nothing for a passage it has none for',
+     both && noteFor(nm, 'p-602ea192') === NAMED['p-602ea192'] + START && noteFor(nm, 'p-none') === undefined
+     && noteFor(b, 'p-602ea192') === NOTE && noteFor(a, 'p-602ea192') === undefined);
+  ok('NAMED-UNQUOTED: no named note quotes the version it names',
+     Object.values(NAMED).every((t) => !/["“”]/.test(t)));
 
   const A = 'The door sighs shut, sealing out the wet breath of the city, and the room goes still around them.';
   const B = 'Seraphine crosses to the chair and rests one gloved hand on its back, waiting for him to obey.';
@@ -168,11 +200,11 @@ for (const arm of ARMS) {
   }
   for (const p of passages) {
     const m = await j(arm.base, '/api/manifest', { storyId: p.sid, chapterId: p.chapter, regenerateOf: p.id, count: false,
-      ...(arm.note ? { whatFailed: NOTE } : {}) });
+      ...(noteFor(arm, p.id) ? { whatFailed: noteFor(arm, p.id) } : {}) });
     const modeText = m.manifest?.blocks?.find((b: any) => b.kind === 'MODE')?.text ?? '';
-    const sentNote = modeText.includes(NOTE);
+    const sentNote = modeText.includes(noteFor(arm, p.id) ?? NOTE);
     const v = await j(arm.base, `/api/story?story=${p.sid}&chapter=${p.chapter}`);
-    const good = sentNote === arm.note && (m.away === true) === arm.away && v.model === MODEL;
+    const good = sentNote === (arm.note || arm.named) && (m.away === true) === arm.away && v.model === MODEL;
     console.log(`  verify ${arm.name} ${p.id}: note ${sentNote ? 'sent' : 'not sent'}, away ${m.away === true ? 'on' : 'off'}, model ${v.model}  ${good ? 'ok' : 'BAD'}`);
     if (!good) throw new Error(`arm ${arm.name} is not what it says`);
   }
@@ -184,7 +216,7 @@ async function one(arm: Arm, p: any, i: number): Promise<Row> {
   const t0 = Date.now();
   try {
     const r = await j(arm.base, '/api/generate', { storyId: p.sid, chapterId: p.chapter, regenerateOf: p.id,
-      ...(arm.note ? { whatFailed: NOTE } : {}) });
+      ...(noteFor(arm, p.id) ? { whatFailed: noteFor(arm, p.id) } : {}) });
     if (r.error || !r.prose) return { arm: arm.name, slot: p.id, i, error: String(r.error ?? 'no prose') };
     return { arm: arm.name, slot: p.id, i, ...score(r.prose, p.body, p.scene, String(p.directive ?? '')),
       away: r.away, s: Math.round((Date.now() - t0) / 1000), words: words(r.prose),
