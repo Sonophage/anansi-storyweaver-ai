@@ -18,6 +18,9 @@ paragraph made colder.
 - **Every change is a card in the conversation, the Workbench's own card.** What the writer asked
   for is done, and its card shows what it was, what it is now, and Undo. What Anansi offers unasked
   is a chalked card with Sew it in and Reject, in the conversation as well as on the Workbench.
+- **One card per thread**, its pockets inside, each with its own Undo and the card with Undo all;
+  an offer the same, with Sew in all and a Reject per pocket. An offer is one chalked card, shown in
+  the conversation and on the Workbench, and deciding it in one place decides it in both.
 - **The app decides what was asked, as well as the model.** A change counts as asked only when the
   writer's message, or the exchange just before it, names its thread or its kind. Anything else is
   an offer, whatever the model called it.
@@ -25,17 +28,20 @@ paragraph made colder.
 - **Talk may change existing prose when asked.** One passage anywhere in the tale, named by scene
   and passage or by a quote, is edited in place and kept in its Alterations, with a card and Undo.
   Talk does not write new passages: that stays with the five actions.
-- **A rename is done when asked**: the thread, its wake words, and the name in every passage and
-  every other thread's text, as one card with one Undo.
+- **A rename is done when asked**: the thread, its wake words, and the name in every passage, every
+  other thread's text, the strings and the premise, as one card with one Undo.
+- **An Undo never writes over the writer.** It puts back every place still as Talk left it, skips any
+  the writer has changed since, and says which it skipped.
 - **Taking lore out of the prose is offered, never done**: one chalked card per passage, each with
   its rewrite, because each is the model's judgement.
 - **Talk may start a hem of the scene the writer is in, and change the tale's model, only when
   asked.** It knows which model writes the tale and what is on the writer's shortlist, and may
-  advise on them. It never offers either.
+  advise on them. It never offers either. A model it switches is pinned to the tale and becomes the
+  writer's model for new tales, as a pick on the tale's Model tab does.
 - **Advice changes nothing.** What Anansi suggests comes as cards: a thread or a string to sew in or
   reject, a direction to put in the composer.
 - **A new tale can be set up by talking.** New tale's own Talk fills the draft, and Start makes the
-  tale. The I–IV steps stay for a writer who prefers the form.
+  tale; asked in so many words, Anansi presses Start himself. The I–IV steps stay for a writer who prefers the form.
 
 ## Considered and not chosen
 
