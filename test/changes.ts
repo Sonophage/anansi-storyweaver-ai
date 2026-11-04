@@ -452,6 +452,7 @@ const ASKS: Record<string, any> = {
   'instruction.set': { title: 'Weather', text: 'Let the weather carry the feeling.' },
   'instruction.switch': { title: 'Tense', on: false },
   'passage.set': { quote: 'the rain had not', text: 'The rain stopped at last.' },
+  'thread.rename': { thread: 'Talia Venn', title: 'Tess Venn' },
 };
 
 ok('ONE-SIDED-PAIR: every operation on the list has an Undo, and the Undo is one Undo can do', () => {
@@ -848,24 +849,49 @@ ok('TALK-SEES-OWN: Talk is shown the tale\'s rules, instructions and strings by 
 // half done. The live answer on The Nun (a lore thread the writer wanted as a character called
 // Seraphine) was four changes to The Nun with no text; the grammar put `title` and `type` before
 // `text`, which is where a rename would have gone.
-ok('ASKED-RENAME: a change that renames a thread or changes its kind is refused by name, and its text still lands', () => {
+ok('ASKED-RENAME: a new kind is refused by name, and a rename alone or with text is the rename, then the text on the new name', () => {
   const out = ch.expandAsked([{ op: 'thread.set', thread: 'Ring Law', title: 'The Ring', type: 'character', text: 'A ring of law.' }], tale);
-  const checked = out.map((r: any) => ch.checkAsked(r, tale));
-  const no = checked.find((c: any) => !c.ok);
-  assert.ok(no, `ASKED-RENAME: the rename is refused (${JSON.stringify(checked)})`);
-  assert.match(no.why, /does not rename a thread or change its kind/, `ASKED-RENAME: and says why (${no.why})`);
-  assert.match(no.why, /Ring Law's card/, 'ASKED-RENAME: and where the writer can do it');
-  assert.ok(checked.some((c: any) => c.ok && c.change.text === 'A ring of law.'), 'ASKED-RENAME: the text it carried is still done');
+  const no = ch.checkAsked(out[0], tale);
+  assert.ok(!no.ok, `ASKED-RENAME: a new kind is refused (${JSON.stringify(no)})`);
+  assert.match(no.why, /does not change a thread's kind/, `ASKED-RENAME: and says why (${no.why})`);
   // The thread's own name and kind sent back with a change are no rename.
   const same = ch.expandAsked([{ op: 'thread.set', thread: 'ring law', title: 'Ring Law', type: 'item', text: 'Old.' }], tale);
   assert.deepStrictEqual(same.map((r: any) => r.op), ['thread.set'], 'ASKED-RENAME: the same name and kind is no rename');
-  // The live shape: the name and kind and nothing else. One line, the rename's, not one more for no text.
-  const bare = ch.expandAsked([{ op: 'thread.set', thread: 'Ring Law', title: 'The Ring', type: 'character' }], tale);
+  const bare = ch.expandAsked([{ op: 'thread.set', thread: 'Ring Law', title: 'The Ring' }], tale);
   assert.deepStrictEqual(bare.map((r: any) => r.op), ['thread.rename'], `ASKED-RENAME: a rename alone is the rename alone (${JSON.stringify(bare)})`);
-  assert.deepStrictEqual(ch.expandAsked([{ op: 'thread.set', thread: 'Ring Law', title: 'The Ring' }], tale).map((r: any) => r.op),
-    ['thread.rename'], 'ASKED-RENAME: a new name alone is a rename');
-  assert.deepStrictEqual(ch.expandAsked([{ op: 'thread.set', thread: 'Ring Law', type: 'lore' }], tale).map((r: any) => r.op),
-    ['thread.rename'], 'ASKED-RENAME: and so is a new kind alone');
+  const withText = ch.expandAsked([{ op: 'thread.set', thread: 'Ring Law', title: 'The Ring', text: 'A ring of law.' }], tale);
+  assert.deepStrictEqual(withText.map((r: any) => [r.op, r.thread]), [['thread.rename', 'Ring Law'], ['thread.set', 'The Ring']],
+    'ASKED-RENAME: the rename, then its text, on the new name');
+});
+
+// #154 · A RENAME, EVERYWHERE THE NAME IS WRITTEN, when asked (ADR 0014).
+ok('a rename changes the thread, its wake words, the prose, other threads, the tale\'s pockets and the premise, by whole word', () => {
+  const named = { ...tale, story: { premise: 'Talia Venn owes the river.', setting: 'Sutera' }, chapters: [{ id: 'c1', index: 1 }],
+    entries: tale.entries.map((e: any) => e.id === 'e-talia' ? { ...e, keys: ['Talia', 'courier'] } : e),
+    taleRules: [{ id: 'r-1', name: 'The toll', body: 'Talia never pays the toll.', keys: [], active: true }],
+    passages: [{ id: 'p1', chapterId: 'c1', body: '"Talia!" he said. Talia\'s boots were wet. Talian bread, and talia lower case.' },
+               { id: 'p2', chapterId: 'c1', body: 'Nobody here.' }] };
+  const c = done(ch.checkAsked({ op: 'thread.rename', thread: 'Talia Venn', title: 'Tess Venn' }, named));
+  assert.deepStrictEqual([c.title, c.to], ['Talia Venn', 'Tess Venn'], 'RENAME: from and to');
+  const at = (kind: string, id: string) => c.places.find((x: any) => x.kind === kind && x.id === id);
+  assert.strictEqual(at('passage', 'p1')?.after, '"Tess!" he said. Tess\'s boots were wet. Talian bread, and talia lower case.',
+    'RENAME-PROSE: narration and dialogue, possessive too; never inside another word or in another case');
+  assert.ok(!at('passage', 'p2'), '  a passage without the name is not a place');
+  assert.strictEqual(at('pocket', 'a-mr2')?.after, 'Owes Tess.', 'RENAME-OTHERS: another thread\'s pocket');
+  assert.strictEqual(at('pocket', 'r-1')?.after, 'Tess never pays the toll.', 'RENAME-OWN: a rule of the tale');
+  assert.strictEqual(at('tale', 'premise')?.after, 'Tess Venn owes the river.', 'RENAME-PREMISE: the premise');
+  assert.deepStrictEqual(c.keys, ['Tess', 'courier'], 'RENAME-KEYS: and its wake words');
+  refused(ch.checkAsked({ op: 'thread.rename', thread: 'Talia Venn', title: 'Morgott, the Omen King' }, named), /already a thread called/i);
+  // ITS UNDO puts back every place still as Talk left it, and names the ones it leaves.
+  const u = ch.undoFor(c, {});
+  const after = { ...named, story: { ...named.story, premise: at('tale', 'premise').after },
+    entries: named.entries.map((e: any) => e.id === 'e-talia' ? { ...e, title: 'Tess Venn', keys: c.keys }
+      : e.id === 'e-morgott' ? { ...e, addons: e.addons.map((a: any) => a.id === 'a-mr2' ? { ...a, body: 'Owes Tess.' } : a) } : e),
+    taleRules: [{ ...named.taleRules[0], body: 'Tess never pays the toll.' }],
+    passages: [{ ...named.passages[0], body: 'The writer rewrote this one.' }, named.passages[1]] };
+  const back = done(ch.checkUndo(u, after));
+  assert.deepStrictEqual(back.places.map((x: any) => x.id).sort(), ['a-mr2', 'premise', 'r-1'], 'RENAME-UNDO: every place still as Talk left it');
+  assert.match(ch.wordsFor(back), /scene 1, passage 1/, `RENAME-UNDO-SKIPPED: and it names the one it leaves (${ch.wordsFor(back)})`);
 });
 
 // ONE-SIDED PAIR, the model's half. An operation on the list that the contract never describes is

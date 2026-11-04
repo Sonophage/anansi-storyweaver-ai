@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-04 · Talk fills in the card you ask for
 
+### Rename someone everywhere, from Talk
+Tell Talk "Isolde is called Ysra now" and the name changes everywhere it is written: the thread and
+its wake words, every passage (what people say and what the narration says), other threads that
+mention her, the tale's strings, rules and premise. It is one card with one Undo. Undo puts the old
+name back wherever the text is still as Talk left it, and tells you which places you have changed
+since and were left alone.
+
 ### Talk edits a passage when you ask
 Ask Talk to change a passage ("make the first passage of scene 2 colder", or quote a few of its
 words) and that passage is rewritten from its own text, in your tale's voice, with the same rules

@@ -129,6 +129,7 @@ const srv = createServer((req, res) => {
       GHOST: { reply: 'Tidied.', changes: [{ op: 'thread.set', thread: 'Nobody Here', room: 'outfit', text: 'Wool.' }] },
       ASKPROMISE: { reply: 'A promise, then.', changes: [{ op: 'string.set', title: 'The pistol', kind: 'promise', text: 'The pistol will be fired.' }] },
       // #153 · a passage, edited when asked.
+      RENAMEIT: { reply: 'Ysra it is.', changes: [{ op: 'thread.rename', thread: 'Isolde Marr', title: 'Ysra Marr' }] },
       PROSEEDIT: { reply: 'Colder now.', changes: [{ op: 'passage.set', quote: 'Morgott watched the river in the lamplight', text: 'make it colder' }] },
       // A plain answer that only sounds like a claim: nothing was asked, so nothing is taken off.
       SETIN: { reply: 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.' },
@@ -1616,7 +1617,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.ok(!age.error, age.error);
   const ops = calls[0].response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum;
   assert.deepStrictEqual(ops, ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire', 'tale.set', 'scene.set',
-    'string.set', 'string.stand', 'rule.set', 'rule.switch', 'instruction.set', 'instruction.switch', 'passage.set'],
+    'string.set', 'string.stand', 'rule.set', 'rule.switch', 'instruction.set', 'instruction.switch', 'passage.set', 'thread.rename'],
     `CHANGE-WIRE: the model may ask for these and no others (${ops})`);
 
   // Always true, changed at once.
@@ -1947,6 +1948,46 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.strictEqual(first().body, 'The writer rewrote it by hand.', '  and the writer\'s text stands');
   }
   ok('Talk edits a passage when asked, keeps the old one in Alterations, and its Undo never writes over the writer');
+
+  // #154 · A RENAME, EVERYWHERE THE NAME IS WRITTEN, when asked; one Undo, which leaves what the writer
+  // changed since and says so.
+  {
+    const chap = (db.passagesOf(tale.id) as any[])[0].chapter_id;
+    const iso = db.upsertEntry(tale.id, me, { title: 'Isolde Marr', body: '', entryType: 'character', activation: 'triggered', keys: ['Isolde'] })!;
+    db.upsertAddon(tale.id, iso, { slot: 'facts', name: 'facts', body: 'Isolde keeps the ferry ledger.' });
+    const other = db.upsertEntry(tale.id, me, { title: 'Corwen', body: '', entryType: 'character', activation: 'always_on', keys: [] })!;
+    const owes = db.upsertAddon(tale.id, other, { slot: 'relationships', name: 'Isolde', body: 'Owes Isolde a coin.', keys: ['ledger'] })!;
+    const pa = db.addPassage({ storyId: tale.id, branchId: db.activeBranchOf(tale.id), chapterId: chap, body: '"Isolde," he said. Isolde did not look up.' });
+    const pb = db.addPassage({ storyId: tale.id, branchId: db.activeBranchOf(tale.id), chapterId: chap, body: 'Isolde Marr closed the ledger.' });
+    db.updateStory(tale.id, { premise: 'Isolde Marr keeps the crossing.' });
+    const body = (id: string) => (db.passagesOf(tale.id) as any[]).find((p) => p.id === id).body;
+    const unasked = await say('CHANGE-RENAMEIT: who keeps the ledger?');
+    assert.strictEqual(body(pa), '"Isolde," he said. Isolde did not look up.', 'RENAME-UNASKED: not asked, nothing renamed');
+    assert.ok(unasked.notDone.some((x: any) => /new name/.test(x.why)), '  and the answer says so');
+    const rn = await say('CHANGE-RENAMEIT: Isolde is called Ysra now');
+    assert.ok(!rn.error, rn.error);
+    const e = (db.entriesOf(tale.id) as any[]).find((x) => x.id === iso);
+    assert.strictEqual(e.title, 'Ysra Marr', 'RENAME-THREAD: the thread has its new name');
+    assert.deepStrictEqual(JSON.parse(e.keys), ['Ysra'], 'RENAME-KEYS: and its wake word');
+    assert.strictEqual(body(pa), '"Ysra," he said. Ysra did not look up.', 'RENAME-PASSAGE: dialogue and narration');
+    assert.strictEqual(body(pb), 'Ysra Marr closed the ledger.', '  the whole name too');
+    assert.ok((db.passageHistory(tale.id, pa) as any[]).some((r) => r.body.startsWith('"Isolde,"')), 'RENAME-ALTERATIONS: the old text is in Alterations');
+    const pocket = (db.addonsOf(tale.id) as any[]).find((a) => a.id === owes);
+    assert.strictEqual(pocket.body, 'Owes Ysra a coin.', 'RENAME-OTHER: another thread\'s pocket');
+    assert.deepStrictEqual(JSON.parse(pocket.keys), ['ledger'], '  and that pocket keeps its own wake words');
+    assert.strictEqual(db.getStory(tale.id).premise, 'Ysra Marr keeps the crossing.', 'RENAME-PREMISE: the premise');
+    assert.strictEqual(rn.changes.length, 1, 'RENAME-ONE-CARD: one change, one card');
+    assert.match(rn.changes[0].words, /Renamed Isolde Marr to Ysra Marr: 2 passages, 2 pockets, the premise/, `  that says where (${rn.changes[0].words})`);
+    db.editPassage(tale.id, pb, 'The writer rewrote it: Ysra Marr, alone.');
+    const back = undo(rn.changes[0].undo);
+    assert.ok(!back.error, back.error);
+    assert.strictEqual((db.entriesOf(tale.id) as any[]).find((x) => x.id === iso).title, 'Isolde Marr', 'RENAME-UNDO: the old name back');
+    assert.strictEqual(body(pa), '"Isolde," he said. Isolde did not look up.', '  in the prose as Talk left it');
+    assert.strictEqual(body(pb), 'The writer rewrote it: Ysra Marr, alone.', 'RENAME-UNDO-SKIP: never over the writer\'s own edit');
+    assert.match(back.undone, /changed since: scene \d+, passage \d+/, `RENAME-UNDO-SAID: and the Undo says what it left (${back.undone})`);
+    assert.strictEqual(db.getStory(tale.id).premise, 'Isolde Marr keeps the crossing.', '  the premise back');
+  }
+  ok('Talk renames a thread everywhere when asked, with one card and one Undo that leaves the writer\'s own edits');
 
   // ASKED, THOUGH THE MODEL SENT IT AS AN OFFER (Seraphine, 2026-11-04). The writer asked for her card
   // to be filled in, and the answer carried no change: only an entry naming her, for one pocket. A

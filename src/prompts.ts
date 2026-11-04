@@ -1987,6 +1987,9 @@ changes, all its pockets with it, and never an entry: entries are only threads y
 - thread.wake: the thread, always_on or triggered (On a word), and the wake words as keys.
 - thread.retire: the thread, and the scene it stops from (none for the next scene). "Get rid of it"
   means this: you never delete a thread.
+- thread.rename: the thread by its name now, and its new name as title. Only when the writer asks
+  for a new name in so many words ("Talia is called Tess now"). The name is changed everywhere it is
+  written, prose and threads alike; you send only the two names.
 - tale.set: the field (premise, setting, title, genre, voice or style_note) and its whole new text.
   The voice is how the narration sounds, written as instructions; the style note is how this tale
   is written, under the voice. You are not shown either, so change one only when the writer gives

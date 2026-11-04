@@ -45,7 +45,7 @@ import { retiredAt, pocketReach } from './context.ts';
  *  instructions, each added, changed, or switched on or off. */
 export const ASKED = ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire',
   'tale.set', 'scene.set', 'string.set', 'string.stand', 'rule.set', 'rule.switch',
-  'instruction.set', 'instruction.switch', 'passage.set'] as const;
+  'instruction.set', 'instruction.switch', 'passage.set', 'thread.rename'] as const;
 /** What only an Undo may do, beside putting back old text. `pocket.unmake` takes away a rule or an
  *  instruction Talk added, which hang off no thread, so `room.unmake` (which finds a thread first)
  *  cannot reach them. */
@@ -53,7 +53,7 @@ export const UNMAKE = ['thread.unmake', 'room.unmake', 'state.unmake', 'retire.u
   'pocket.unmake'] as const;
 /** What an Undo may put back as it was: the asked operations that write over a value, by id. */
 const PUT_BACK = ['thread.set', 'thread.overtime', 'thread.wake', 'tale.set', 'scene.set', 'string.stand',
-  'rule.set', 'rule.switch', 'instruction.set', 'instruction.switch', 'passage.set'] as const;
+  'rule.set', 'rule.switch', 'instruction.set', 'instruction.switch', 'passage.set', 'thread.rename'] as const;
 
 /** THE TALE'S OWN FIELDS TALK MAY CHANGE, the story's own columns, as the writer names them. The
  *  voice is `writingStyle` and the style note `styleNote` in the story and in `db.updateStory`;
@@ -69,6 +69,12 @@ const STAND_MARK: Record<string, string> = { in_play: 'open', set_aside: 'open',
 /** A SCENE'S FIELDS TALK MAY CHANGE: its title and Heads toward (`authors_note` in the column). Opens
  *  with is not on it: the ticket names these two, and an opening is the writer's first beat. */
 const SCENE_FIELDS = ['title', 'heads_toward'] as const;
+
+/** #154 · One place a name is written: a passage, a pocket (a thread's, a string, a rule, an
+ *  instruction) or one of the tale's own fields. `thread` is the pocket's thread, null for a rule or
+ *  an instruction; `where` says it in the writer's words, for an Undo that leaves it. */
+type Place = { kind: 'passage' | 'pocket' | 'tale'; id: string; before: string; after: string;
+  thread?: string | null; slot?: string; name?: string; keys?: string[]; where: string };
 
 /** The schema fragment Talk's answer carries. Flat, one object per change: the grammar cannot say
  *  "these fields for this operation", and the checks below are what enforce that. */
@@ -164,6 +170,11 @@ export type Change =
       /** #144 · `wake`: the pocket was Off and this request switches it on. `off`: an Undo puts it back Off. */
       wake?: true; off?: true }
   | { op: 'thread.unmake'; thread: string; title: string }
+  /** #154 · A rename: `title` to `to`, the wake words after (`keys`) and before, and every place the
+   *  name was written, each with its text before and after. On an Undo, `skipped` names the places
+   *  the writer changed since, which are left as they are. */
+  | { op: 'thread.rename'; thread: string; title: string; to: string; keys: string[]; keysBefore: string[];
+      places: Place[]; skipped?: string[]; undo?: true }
   /** #153 · One passage, by id; `scene` and `n` say which, in the writer's words. TWO STEPS (Seth,
    *  2026-11-04): `note` is what the writer asked to change, and `text` is the passage the prose engine
    *  rewrote from it, filled in by the route before it is written. `author` is whose it was. */
@@ -277,9 +288,9 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   if (raw && typeof raw.text === 'string') raw = { ...raw, text: raw.text.replace(LINK, '').trim() };
   const op = String(raw?.op ?? '');
   const said = saidOf(raw);
-  // Made only by `expandAsked`, from a change that named a thread by another name or kind.
-  if (op === 'thread.rename') return { ok: false, said: raw.title ? `Rename ${raw.thread} to ${raw.title}` : `Make ${raw.thread} ${an(String(raw.type))}`,
-    why: `Talk does not rename a thread or change its kind. Do it on ${raw.thread}'s card, then ask again` };
+  // A new kind is refused by name; a rename is done everywhere the name is written (#154).
+  if (op === 'thread.rename' && String(raw.type ?? '').trim()) return { ok: false, said: `Make ${raw.thread} ${an(String(raw.type))}`,
+    why: `Talk does not change a thread's kind. Do it on ${raw.thread}'s card, then ask again` };
   if (!(ASKED as readonly string[]).includes(op)) return { ok: false, said, why: NOT_TALK };
   if (op === 'thread.new') {
     const n = newThread(raw, tale);
@@ -305,6 +316,7 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   if (op === 'thread.wake') return wakeOn(hit, raw, said, false);
   if (op === 'thread.overtime') return overtimeOn(tale, hit, raw, said, false);
   if (op === 'thread.retire') return retireOn(tale, hit, raw, said);
+  if (op === 'thread.rename') return renameOn(tale, hit, raw, said);
   return setOn(hit, roomOf(raw.room), String(raw.text ?? '').trim(), said, false);
 }
 
@@ -361,7 +373,10 @@ export function expandAsked(raws: unknown, tale: Tale): any[] {
       const text = twin && len(twin.text) > len(raw.text) ? twin.text : raw.text;
       const only = !String(text ?? '').trim() && (rooms.size > 0 || renamed || rekind);
       // Its name and kind are left on it when they are the thread's own, for the words a refusal uses.
-      const base = renamed || rekind ? rest : { ...rest, ...(rename != null ? { title: rename } : {}), ...(kind != null ? { type: kind } : {}) };
+      // After a rename, the text and pockets it carried land on the thread by its new name.
+      const base = renamed || rekind ? { ...rest, ...(renamed ? { thread: String(rename).trim() } : {}) }
+        : { ...rest, ...(rename != null ? { title: rename } : {}), ...(kind != null ? { type: kind } : {}) };
+      if (renamed) for (const p of each) p.thread = String(rename).trim();
       if (!only) out.push(room ? { ...base, room, text } : { ...base, text });
       out.push(...rooms.values());
       continue;
@@ -610,6 +625,75 @@ const followed = (t: Thread, said: string): Checked => ({ ok: false, said,
  *  that put the old value back would write over their edit. The unmake operations compare `text` the
  *  same way. An Undo with no `wrote` proves nothing about what is there, so it is refused too. */
 const SINCE = 'it has been changed since';
+
+/** #154 · A RENAME, EVERYWHERE THE NAME IS WRITTEN (ADR 0014), asked in so many words: the thread, its
+ *  wake words, every passage (narration and dialogue), every pocket of every thread, the tale's
+ *  strings, rules and instructions, and its premise and setting. By whole word and case, so "Talian"
+ *  and "talia" are left alone. A name of more than one word also swaps its first word ("Talia" in
+ *  "Talia Venn"), the way prose calls people. One change, one card, one Undo.
+ *
+ *  ponytail: whole word and case. Ceiling: a first name that is also an ordinary word ("Will", "Hope")
+ *  is swapped wherever it starts a sentence; the card lists every place so a wrong one can be seen.
+ *  Trigger: a writer finds a wrong swap; then ask before swapping a first name that is a dictionary word. */
+const escRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const swapIn = (text: string, pairs: [string, string][]) =>
+  pairs.reduce((t, [a, b]) => t.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escRe(a)}(?![\\p{L}\\p{N}])`, 'gu'), b), text);
+const pairsOf = (from: string, to: string): [string, string][] => {
+  const a = from.trim().split(/\s+/), b = to.trim().split(/\s+/);
+  return [[from.trim(), to.trim()], ...(a.length > 1 && a[0].length > 2 && a[0] !== b[0] ? [[a[0], b[0]] as [string, string]] : [])];
+};
+function placesOf(tale: Tale, pairs: [string, string][]): Place[] {
+  const out: Place[] = [];
+  const scene = (chapterId: string) => (tale.chapters ?? []).find((c: any) => c.id === chapterId) as any;
+  const ps = (tale.passages ?? []).filter((p) => !p.isBreak);
+  for (const p of ps) {
+    const after = swapIn(p.body, pairs);
+    const n = ps.filter((x) => x.chapterId === p.chapterId).findIndex((x) => x.id === p.id) + 1;
+    if (after !== p.body) out.push({ kind: 'passage', id: p.id, before: p.body, after, where: `scene ${scene(p.chapterId)?.index ?? '?'}, passage ${n}` });
+  }
+  // A pocket keeps its own wake words: its save writes them with its text, and an empty list clears them.
+  const pocket = (a: { id: string; slot?: string; name: string; body: string; keys?: string[] }, thread: string | null, of: string) => {
+    const after = swapIn(a.body, pairs);
+    if (after !== a.body) out.push({ kind: 'pocket', id: a.id, before: a.body, after, thread, slot: a.slot, name: a.name,
+      keys: a.keys ?? [], where: `${of}'s ${a.name}` });
+  };
+  for (const e of tale.entries.filter((x) => !x.sharedFrom)) for (const a of e.addons ?? []) pocket(a, e.id, e.title);
+  for (const a of tale.taleThread?.addons ?? []) pocket(a, tale.taleThread!.id, 'the tale');
+  for (const a of tale.taleRules ?? []) pocket({ ...a, slot: 'rule' }, null, 'the rule');
+  for (const a of tale.talePockets ?? []) pocket({ ...a, slot: 'instruction' }, null, 'your instruction');
+  for (const f of ['premise', 'setting'] as const) {
+    const was = String(tale.story?.[f] ?? '');
+    const after = swapIn(was, pairs);
+    if (after !== was) out.push({ kind: 'tale', id: f, before: was, after, where: `the tale's ${f}` });
+  }
+  return out;
+}
+/** The text a place holds now, as the tale was read. */
+function nowAt(tale: Tale, p: Place): string | undefined {
+  if (p.kind === 'passage') return tale.passages?.find((x) => x.id === p.id)?.body;
+  if (p.kind === 'tale') return tale.story?.[p.id];
+  const all = [...tale.entries.flatMap((e) => e.addons ?? []), ...(tale.taleThread?.addons ?? []), ...(tale.taleRules ?? []), ...(tale.talePockets ?? [])];
+  return all.find((a: any) => a.id === p.id)?.body;
+}
+function renameOn(tale: Tale, t: Thread, raw: any, said: string, undo = false): Checked {
+  if (t.sharedFrom) return followed(t, said);
+  const to = String((undo ? raw.to : raw.title) ?? '').trim();
+  if (!to) return { ok: false, said, why: 'it gave no new name' };
+  if (!undo) {
+    const twin = tale.entries.find((e) => e.id !== t.id && norm(e.title) === norm(to));
+    if (twin) return { ok: false, said, why: `there is already a thread called ${twin.title}` };
+    const pairs = pairsOf(t.title, to);
+    return { ok: true, change: { op: 'thread.rename', thread: t.id, title: t.title, to, places: placesOf(tale, pairs),
+      keys: (t.keys ?? []).map((k) => swapIn(k, pairs)), keysBefore: t.keys ?? [] } };
+  }
+  // AN UNDO: the name back if the thread still has Talk's, and every place still as Talk left it.
+  if (norm(t.title) !== norm(raw.title)) return { ok: false, said, why: `${t.title} has been renamed since` };
+  const all = (Array.isArray(raw.places) ? raw.places : []) as Place[];
+  const kept = all.filter((p) => String(nowAt(tale, p) ?? '').trim() === String(p.before).trim());
+  return { ok: true, change: { op: 'thread.rename', thread: t.id, title: t.title, to, places: kept,
+    keys: Array.isArray(raw.keys) ? raw.keys : [], keysBefore: t.keys ?? [],
+    skipped: all.filter((p) => !kept.includes(p)).map((p) => p.where), undo: true } };
+}
 
 /** #153 · ONE PASSAGE, EDITED WHEN ASKED (ADR 0014): found by its scene and its number there (breaks
  *  not counted; none is the scene being written), or by a quote of its own words, which must find
@@ -910,6 +994,8 @@ export function checkUndo(raw: any, tale: Tale): Checked {
     return { ok: false, said, why: 'that is not something Undo can do' };
   if (op === 'tale.set') return taleSet(tale, raw, said, true);
   if (op === 'passage.set') return passageSet(tale, raw, said, true);
+  if (op === 'thread.rename') { const t = tale.entries.find((e) => e.id === String(raw.thread ?? ''));
+    return t ? renameOn(tale, t, raw, said, true) : { ok: false, said, why: 'that thread is no longer in this tale' }; }
   if (op === 'scene.set') return sceneSet(tale, raw, said, true);
   if (op === 'string.stand') return standOn(tale, raw, said, true);
   if (op === 'rule.set' || op === 'instruction.set') return ownSet(tale, op, raw, said, true);
@@ -989,6 +1075,14 @@ export function checkUndo(raw: any, tale: Tale): Checked {
 
 /** What a change did, in the writer's words: one line in the conversation. */
 export function wordsFor(c: Change): string {
+  if (c.op === 'thread.rename') {
+    const n = (k: string) => c.places.filter((p) => p.kind === k).length;
+    const parts = [n('passage') && `${n('passage')} passage${n('passage') === 1 ? '' : 's'}`,
+      n('pocket') && `${n('pocket')} pocket${n('pocket') === 1 ? '' : 's'}`, ...c.places.filter((p) => p.kind === 'tale').map((p) => `the ${p.id}`)].filter(Boolean);
+    const where = parts.length ? `: ${parts.join(', ')}` : '';
+    return c.undo ? `Put back the name ${c.to}${where}.${c.skipped?.length ? ` Left as they are, changed since: ${c.skipped.join('; ')}.` : ''}`
+      : `Renamed ${c.title} to ${c.to}${where}.`;
+  }
   if (c.op === 'passage.set') return c.undo ? `Put back passage ${c.n} of scene ${c.scene}.`
     : `Rewrote passage ${c.n} of scene ${c.scene} (${clip(c.note)}): \u201c${clip(c.text)}\u201d`;
   if (c.op === 'thread.new') return `Made a new thread: ${c.title}, ${an(c.type)}.`;
@@ -1050,6 +1144,7 @@ export function cardOf(c: Change, made: { thread?: string }): Card {
   if (c.op === 'thread.overtime') return { key: c.thread, title: c.title, label: 'Timeline' };
   if (c.op === 'thread.retire') return { key: c.thread, title: c.title, label: 'Retired' };
   if (c.op === 'tale.set') return { key: 'tale', title: 'The tale', label: cap(c.field.replace(/_/g, ' ')) };
+  if (c.op === 'thread.rename') return { key: c.thread, title: c.to, label: 'Renamed' };
   if (c.op === 'passage.set') return { key: `passage:${c.passage}`, title: `Scene ${c.scene}, passage ${c.n}`, label: 'The prose' };
   if (c.op === 'scene.set') return { key: `scene:${c.chapter}`, title: `Scene ${c.index}`, label: c.field === 'title' ? 'Title' : 'Heads toward' };
   if (c.op === 'string.set' || c.op === 'string.stand') return { key: 'strings', title: 'Strings', label: c.name };
@@ -1068,6 +1163,7 @@ export function textsOf(c: Change): { before: string; after: string } | null {
   if (c.op === 'string.set' && c.wasKind && c.text.trim() === (c.before ?? '').trim()) return null;
   if (c.op === 'thread.set' || c.op === 'tale.set' || c.op === 'scene.set' || c.op === 'string.set' || c.op === 'passage.set')
     return { before: c.before ?? '', after: c.text };
+  if (c.op === 'thread.rename') return { before: c.title, after: c.to };
   if (c.op === 'thread.overtime') return { before: c.before?.body ?? '', after: c.text };
   // A rule's words changed and not its text: the diff is of the words, as a thread's wake is.
   if (c.op === 'rule.set' || c.op === 'instruction.set') return c.before && c.text.trim() === c.before.text.trim()
@@ -1306,6 +1402,8 @@ export function draftWords(c: DraftChange): string {
  *  minted, which nothing knows before it. Returned with the change, and sent back by the Undo. */
 export function undoFor(c: Change, made: { thread?: string; addon?: string; state?: string; event?: string }) {
   if (c.op === 'passage.set') return { op: 'passage.set', passage: c.passage, text: c.before, wrote: c.text, author: c.author };
+  if (c.op === 'thread.rename') return { op: 'thread.rename', thread: c.thread, title: c.to, to: c.title, keys: c.keysBefore,
+    places: c.places.map((p) => ({ ...p, before: p.after, after: p.before })) };
   if (c.op === 'thread.new') return { op: 'thread.unmake', thread: made.thread, title: c.title, text: c.always };
   if (c.op === 'thread.retire') return { op: 'retire.unmake', thread: c.thread, event: made.event };
   if (c.op === 'thread.overtime') return c.before

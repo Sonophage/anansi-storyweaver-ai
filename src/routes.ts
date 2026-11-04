@@ -734,6 +734,21 @@ function applyChange(storyId: string, owner: string, ch: Change):
   // story's own name for it (`key`: the voice is `writingStyle`). Only the one field is named, and
   // `updateStory` leaves every field it is not handed as it was, and tidies a genre as every save does.
   if (ch.op === 'tale.set') { db.updateStory(storyId, { [ch.key]: ch.text }); return {}; }
+  // #154 · A RENAME, through each place's own save: the thread's (its name and wake words, the rest
+  // handed back as it stands, as a wake does), each passage's edit (so Alterations keeps the old text),
+  // each pocket's, and the tale's own fields.
+  if (ch.op === 'thread.rename') {
+    const cur = db.entriesOf(storyId).find((e: any) => e.id === ch.thread);
+    if (!cur) return null;
+    if (!db.upsertEntry(storyId, owner, { id: cur.id, title: ch.to, body: cur.body, entryType: cur.entry_type,
+      activation: cur.activation, keys: ch.keys, lastEditor: cur.last_editor })) return null;
+    for (const p of ch.places) {
+      if (p.kind === 'passage') db.editPassage(storyId, p.id, p.after);
+      else if (p.kind === 'pocket') db.upsertAddon(storyId, p.thread ?? null, { id: p.id, slot: p.slot, name: p.name, body: p.after, keys: p.keys ?? [] });
+      else db.updateStory(storyId, { [p.id]: p.after });
+    }
+    return { thread: ch.thread };
+  }
   // #153 · One passage, through the edit Alter makes, so its old text is kept in its Alterations.
   // A passage Talk rewrote is the model's from then on (Seth, 2026-11-04): the prose engine wrote it,
   // and F53's marking of the writer's own passages must not tell the model its words are the writer's.
@@ -4859,6 +4874,9 @@ export const routes: Record<string, Handler> = {
       else if (op === 'string.set') strings.push({ title: raw.title, body: raw.text, kind: raw.kind });
       // #153 · A passage is changed only when asked, and never offered (ADR 0014).
       else if (op === 'passage.set') notDone.push({ said: 'Change a passage', why: 'you did not ask for the prose to change' });
+      // #154 · A rename reaches the whole tale: only when asked, never offered.
+      else if (op === 'thread.rename') notDone.push({ said: `Rename ${raw.thread}${raw.title ? ` to ${raw.title}` : ''}`,
+        why: 'you did not ask for a new name' });
       else held.push(raw);
     }
     for (const x of strings) {
