@@ -1537,10 +1537,11 @@ ok('You play is a picker: search first, then who is in this scene, then everyone
   { const wide = (globalThis as any).matchMedia;
     (globalThis as any).matchMedia = () => ({ matches: true, addEventListener() {} });   // phone width
     try {
-      click({ panel: 'strings' }); await sleep(20);
-      assert.strictEqual(rootEl.dataset.sidefull, '0', 'THREADS-FULL-PHONE: another panel is a sheet on a phone');
-      click({ panel: 'threads' }); await sleep(20);
-      assert.strictEqual(rootEl.dataset.sidefull, '1', 'THREADS-FULL-PHONE: Threads fills a phone screen');
+      // AND EVERY OTHER PANEL (Seth, 2026-11-03: "same treatment for any other panels").
+      for (const p of ['threads', 'strings', 'story', 'chapter', 'chapters', 'waiting', 'teller', 'context']) {
+        click({ panel: p }); await sleep(20);
+        assert.strictEqual(rootEl.dataset.sidefull, '1', `PANELS-FULL-PHONE: ${p} fills a phone screen`);
+      }
     } finally { (globalThis as any).matchMedia = wide; } }
   click({ panel: 'chapter' }); await sleep(20);
   assert.strictEqual(rootEl.dataset.sidefull, '0', 'a panel opens beside the page');

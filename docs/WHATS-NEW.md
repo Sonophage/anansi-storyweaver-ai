@@ -19,8 +19,8 @@ Everything below this line was written by that model call, before it was removed
 ## 2026-11-03 · A thread is edited where you read it
 
 ### Threads opens full screen, with All and Sent now as buttons
-A tale's Threads now opens over the whole screen, on a phone too, with no gap or banner above the
-list. On a computer the button beside Close still puts it back beside the page, and it stays that
+A tale's Threads now opens over the whole screen, and on a phone every panel does, with no gap or
+banner above it. On a computer the button beside Close still puts it back beside the page, and it stays that
 way on that device. All and Sent now are buttons of their own either side of the search: All, the
 search, then Sent now.
 ### The tabs in a panel are easy to tap on a phone

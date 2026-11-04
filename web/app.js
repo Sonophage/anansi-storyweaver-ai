@@ -2813,11 +2813,11 @@ function drawSide() {
   // AND ANY OTHER PANEL THE WRITER HAS MADE FULL (Seth, 2026-11-02), from the press beside Close.
   const alwaysFull = S.panel === 'ritual' || S.panel === 'setup';
   // Not on a phone, where the press is hidden (app.html) and the panel is already a sheet.
-  // THREADS IS FULL ON A PHONE TOO (Seth, 2026-11-03: "Threads still has spacing up top, this is on
-  // mobile"): the sheet stops at 88% of the screen and carries the panel banner, which left a band
-  // of page and a tall head above the list. Full, it fills the screen with the plain header.
-  root.dataset.sidefull = !side.hidden && (alwaysFull
-    || (PANEL_FULL.has(S.panel) && (!phone() || S.panel === 'threads'))) ? '1' : '0';
+  // EVERY PANEL IS FULL ON A PHONE (Seth, 2026-11-03: "Threads still has spacing up top, this is on
+  // mobile", then "same treatment for any other panels that do that"): the bottom sheet stopped at
+  // 88% of the screen and carried the panel banner, which left a band of page and a tall head above
+  // the content. Full, a panel fills the screen with the plain header. A desk keeps the choice.
+  root.dataset.sidefull = !side.hidden && (alwaysFull || phone() || PANEL_FULL.has(S.panel)) ? '1' : '0';
   if (side.hidden) return;
   const full = PANEL_FULL.has(S.panel);
   const fullBtn = alwaysFull ? '' : `<button class="headfull" data-panelfull="1" aria-pressed="${full}"
