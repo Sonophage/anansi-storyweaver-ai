@@ -10938,9 +10938,10 @@ function ghost(replaces = null) {
  *  The 2026-09-02 design handoff, replacing the letter-by-letter lock-in that preceded it: each word
  *  arrives whole in its own span, the last three stay in the accent, and everything behind them is
  *  ink. No field held open for text that has not been written, no count and no status line. Each
- *  word focused in out of a blur until 2026-11-03; it arrives set in Loenese now and turns to
- *  English a letter at a time over two seconds (loenIn), so the newest few words are always still
- *  in the cipher.
+ *  word focused in out of a blur until 2026-11-03; it arrives set in Loenese now, holds, and
+ *  translates to English a letter at a time, each letter passing through a few English letters
+ *  before it settles (loenIn, over LOEN_WORD_MS), so the newest few words are always still in the
+ *  cipher.
  *
  *  CALCULATED, NOT PER DELTA, which survives from the version before it and for the same reason: a
  *  delta is a token, so anything driven by one runs at whatever uneven rate the model is writing at.
@@ -11133,7 +11134,7 @@ function drainVeil(now) {
       const spans = paged ? inkParagraphs(el, text) : [Object.assign(document.createElement('span'), { inkRaw: text })];
       if (!paged) { el.append(spans[0]); inkAccent(el); }
       for (const sp of spans) sp.classList.add('w', 'tip');
-      // EACH WORD ARRIVES IN LOENESE and turns to English a letter at a time (loenIn, as a header
+      // EACH WORD ARRIVES IN LOENESE and translates to English a letter at a time (loenIn, as a header
       // does), so the frontier is the newest few words.
       for (const sp of spans) loenIn(sp, LOEN_WORD_MS);
       const span = spans.at(-1);

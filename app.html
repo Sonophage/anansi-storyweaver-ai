@@ -394,14 +394,20 @@ input, textarea { font:inherit; color:inherit; }
    would paint that layer in the fallback serif first, which reads as the English twice. */
 @font-face { font-family:'Loenese'; src:url('/web/loenese.otf') format('opentype'); font-display:block; }
 
-/* THE DECODE, a letter at a time (loenIn, web/model.js). A letter not yet turned is a `.lo` span
-   holding the English letter, its fill cleared, with the same letter in `data-loen` painted over it
-   in Loenese. The span is the English letter's width, so the line does not move; the Loenese glyph
-   is centred on it and, being wider, overhangs its neighbours a little. Reduced motion never makes
-   one (`still()`). */
-.lo { position:relative; -webkit-text-fill-color:transparent; }
-.lo::after { content:attr(data-loen); position:absolute; left:50%; top:0; transform:translateX(-50%);
-  font-family:'Loenese'; color:var(--gold); -webkit-text-fill-color:currentColor; pointer-events:none; }
+/* THE DECODE: printed in Loenese, then translated a letter at a time (loenIn, web/model.js). A letter
+   not yet turned is a `.lo` span holding the English letter, its fill cleared, with the same letter in
+   `data-loen` painted over it in Loenese. A letter being translated is a `.cy` span the same way, with
+   the English letter it is passing through in `data-cy`, in the text's own face and the accent. Each
+   span is the English letter's width, so the line does not move; what is painted over it is centred
+   on it. The Loenese is drawn at .85 of its size, because at full size its glyphs are wider than
+   narrow letters and ran into each other, which read as a glitch; it is scaled rather than set
+   smaller, so it keeps the text's baseline. Reduced motion never makes either (`still()`). */
+.lo, .cy { position:relative; -webkit-text-fill-color:transparent; }
+.lo::after, .cy::after { position:absolute; left:50%; top:0; transform:translateX(-50%);
+  color:var(--gold); -webkit-text-fill-color:currentColor; pointer-events:none; }
+.lo::after { content:attr(data-loen); font-family:'Loenese'; transform:translateX(-50%) scale(.85);
+  transform-origin:50% 72%; }
+.cy::after { content:attr(data-cy); }
 
 /* THE LOADER: "Anansi is writing", set in Loenese, in the accent, breathing, from the press until the
    first word (`written`, liveDelta). The English is its label, for a screen reader. Still, and fully

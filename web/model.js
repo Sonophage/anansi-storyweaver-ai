@@ -827,55 +827,101 @@ export const BLOCK_ORIGIN = {
 export const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ---------------------------------------------------------------------------
-// THE DECODE. Text turns from the Loenese cipher face into English one letter at a time, left to
-// right, spaces held so the shape of the line reads from the first frame. Seth, 2026-11-03: "let it
-// do the old transition from one font to the other instead, and make the transition a little
-// longer." The old transition was the bureau's random-glyph decode at two frames per character; the
-// letters not yet turned are now the same letters set in Loenese, and it runs half as long again.
-// For one day before this the whole layer blurred away at once.
+// THE DECODE. Text prints in the Loenese cipher face, holds a beat, and then translates to English
+// left to right. Seth, 2026-11-03: "make it so that it still cycles through the English letters, so
+// it prints in Loenese and slowly translates to English; right now the transition almost looks
+// glitched." So a letter the wave reaches does not jump from Loenese to itself: it runs through a
+// few random English letters of its own case (a digit through digits) for `cycle` ms and then
+// settles, and because each letter cycles longer than the wave takes to reach the next, several are
+// cycling at once in a short band behind it. Spaces are held, and punctuation turns straight to
+// itself. Earlier the same day a letter jumped from Loenese to English with nothing between, and for
+// a day before that the whole Loenese layer blurred away at once.
 //
-// EACH LETTER KEEPS ITS ENGLISH. A letter not yet turned is a span holding the English letter with
-// its fill cleared and the same letter in `data-loen`, which the stylesheet paints over it in
-// Loenese (app.html, THE DECODE). So textContent is the English the whole time (a screen reader, a
-// copy, a test), and each letter takes exactly its English width: the wider Loenese glyph overhangs
-// its neighbours rather than pushing the line.
+// EACH LETTER KEEPS ITS ENGLISH. A letter not yet turned is a `.lo` span holding the English letter
+// with its fill cleared and the same letter in `data-loen`, which the stylesheet paints over it in
+// Loenese; a cycling letter is a `.cy` span the same way, with the letter it is passing through in
+// `data-cy` painted in the English face (app.html, THE DECODE). So textContent is the English the
+// whole time (a screen reader, a copy, a test), and each letter takes exactly its English width: a
+// wider glyph over it overhangs its neighbours rather than pushing the line.
 
-/** How long a header's decode runs, in ms: three 60 fps frames (50 ms) a character, and never less
- *  than fifteen characters' worth, so 20 letters take a second. Timed rather than counted in frames,
- *  so a 120 Hz screen does not run it at twice the speed. */
-export const decodeMs = (len) => Math.max(15, len) * 50;
+/** The decode's pace, in ms. `hold`: the least time the text shows whole in Loenese. `step`: the
+ *  wave's time from one letter to the next on a header. `cycle`: how long a letter passes through
+ *  other letters. `tick`: how often a passing letter changes (calm, not every frame). `maxStep`:
+ *  the slowest the wave moves, when a short text has time to spare (the hold takes the rest). */
+export const LOEN = { hold: 350, step: 55, maxStep: 110, cycle: 420, tick: 70 };
+/** How long a header's decode runs, in ms: the hold, the wave over every letter, and the last
+ *  letter's cycle, so 20 letters take about 1.8 s. Never under 1.1 s, so a short one is not a
+ *  flicker, and never over 3 s, so a long one is not a wait. Timed rather than counted in frames, so
+ *  a 120 Hz screen does not run it at twice the speed. */
+export const decodeMs = (len) =>
+  Math.min(3000, Math.max(1100, LOEN.hold + Math.max(0, len - 1) * LOEN.step + LOEN.cycle));
 /** A streamed word's decode, from its arrival to all English, whatever its length. */
-export const LOEN_WORD_MS = 2000;
+export const LOEN_WORD_MS = 2200;
 
-/** `html` with every letter from the `revealed`-th on (counted in characters, an entity as one)
- *  marked to show in Loenese. Tags are kept and whitespace is never marked. */
-export function loenHTML(html, revealed) {
+/** The plan for `len` letters to be English in `ms`: the wave moves at most `maxStep` a letter and
+ *  the hold takes what is left, but never less than LOEN.hold (a long text's wave is quickened
+ *  instead). The last letter always settles at exactly `ms`. */
+export function loenPlan(len, ms) {
+  const { hold, maxStep, cycle, tick } = LOEN;
+  if (len < 2) return { hold: Math.max(hold, ms - cycle), step: 0, cycle, tick };
+  const step = Math.min(maxStep, Math.max(0, ms - hold - cycle) / (len - 1));
+  return { hold: ms - cycle - (len - 1) * step, step, cycle, tick };
+}
+
+const CYCLE_SETS = ['ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz', '0123456789'];
+/** `html` as it stands `t` ms into a decode that runs on `plan` (loenPlan). Letter `i` (counted in
+ *  characters, an entity as one) shows in Loenese until `hold + i·step`, then, if it is a letter or
+ *  a digit, passes through others of its kind for `cycle` ms, then is itself (an entity is
+ *  punctuation, and turns straight to itself). Tags are kept and
+ *  whitespace is never marked. `rand(i, k)` picks the letter `i` shows on its `k`-th tick, a number
+ *  in [0, 1): handed in so that a test fixes it, and asked by tick so a letter holds between ticks
+ *  however often this runs. */
+export function loenHTML(html, t, plan, rand) {
   let at = 0;
   return String(html).replace(/<[^>]*>|&[#\w]+;|[^]/gu, (c) => {
     if (c.length > 1 && c[0] === '<') return c;
-    if (at++ < revealed || /^(?:\s|&nbsp;|&#160;)$/u.test(c)) return c;
-    return `<span class="lo" data-loen="${c === '"' ? '&quot;' : c}">${c}</span>`;
+    const i = at++, since = t - (plan.hold + i * plan.step);
+    if (/^(?:\s|&nbsp;|&#160;)$/u.test(c)) return c;
+    if (since < 0) return `<span class="lo" data-loen="${c === '"' ? '&quot;' : c}">${c}</span>`;
+    const set = since < plan.cycle && c[0] !== '&' && (/\d/.test(c) ? CYCLE_SETS[2] : /\p{Lu}/u.test(c) ? CYCLE_SETS[0] : /\p{Ll}/u.test(c) ? CYCLE_SETS[1] : null);
+    if (!set) return c;
+    let n = Math.floor(rand(i, Math.floor(since / plan.tick)) * set.length) % set.length;
+    if (set[n] === c) n = (n + 1) % set.length;
+    return `<span class="cy" data-cy="${set[n]}">${c}</span>`;
   });
 }
 
-/** Decode `el` over `ms`: at once all Loenese, then a letter at a time to English, on frames. The
- *  element is marked `decoding` until it is done. Its English markup is `el.inkHTML` when it has one
- *  (a streamed word, which inkAccent may rewrite while it turns) and what it held at the start
- *  otherwise. It stops, writing nothing, when the element leaves the page or its text is changed
- *  under it (a repaint), so no Loenese is ever left over words it did not write. */
+/** A source for loenHTML that is random per decode and fixed per (letter, tick), so a letter does
+ *  not change between its ticks. */
+const loenRand = () => {
+  const salt = (Math.random() * 2 ** 32) >>> 0;
+  return (i, k) => {
+    let x = (salt ^ Math.imul(i + 1, 374761393) ^ Math.imul(k + 1, 668265263)) >>> 0;
+    x = Math.imul(x ^ (x >>> 13), 1274126177);
+    return ((x ^ (x >>> 16)) >>> 0) / 2 ** 32;
+  };
+};
+
+/** Decode `el` over `ms` (loenPlan), on frames. The element is marked `decoding` until it is done.
+ *  Its English markup is `el.inkHTML` when it has one (a streamed word, which inkAccent may rewrite
+ *  while it turns) and what it held at the start otherwise. It stops, writing nothing, when the
+ *  element leaves the page or its text is changed under it (a repaint), so no Loenese is ever left
+ *  over words it did not write. Markup is written only when a letter changes. */
 export function loenIn(el, ms) {
   const text = el?.textContent ?? '';
   const len = [...text].length;
   if (!len || still()) return;
   const prev = el.loenJob;
-  const job = el.loenJob = { text, html: prev?.text === text ? prev.html : el.innerHTML, start: Date.now(), shown: -1 };
+  const job = el.loenJob = { text, html: prev?.text === text ? prev.html : el.innerHTML, start: Date.now(),
+    plan: loenPlan(len, ms), rand: loenRand(), shown: null, base: null };
   el.classList.add('decoding');
   const step = () => {
     if (el.loenJob !== job) return;
     if (el.isConnected === false || el.textContent !== text) { el.loenJob = null; el.classList.remove('decoding'); return; }
-    const r = Math.min(len, Math.floor((Date.now() - job.start) / ms * len));
-    if (r !== job.shown) { job.shown = r; const base = el.inkHTML ?? job.html; el.innerHTML = r < len ? loenHTML(base, r) : base; }
-    if (r < len) requestAnimationFrame(step);
+    const t = Date.now() - job.start, base = el.inkHTML ?? job.html;
+    const out = t < ms ? loenHTML(base, t, job.plan, job.rand) : base;
+    if (out !== job.shown || base !== job.base) { job.shown = out; job.base = base; el.innerHTML = out; }
+    if (t < ms) requestAnimationFrame(step);
     else { el.loenJob = null; el.classList.remove('decoding'); }
   };
   step();

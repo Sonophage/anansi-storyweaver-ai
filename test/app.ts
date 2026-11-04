@@ -10383,20 +10383,56 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   assert.match(page.slice(Math.max(0, page.indexOf(face) - 600), page.indexOf(face)), /ponytail: fan-made font with no stated licence/,
     'LOENESE-FACE: and carries its ponytail beside it');
 
-  // THE DECODE, LETTER BY LETTER (Seth, 2026-11-03: "let it do the old transition from one font to
-  // the other instead, and make the transition a little longer"). Left to right, each letter not yet
-  // turned is the same letter set in Loenese, painted by the stylesheet from `data-loen` over the
-  // English letter, which is still there with its fill cleared. So textContent is English throughout.
-  const { decodeMs, loenHTML, loenIn, LOEN_WORD_MS } = await import('../web/model.js');
-  assert.strictEqual(decodeMs(20), 1000, 'LOENESE-PACE: three 60 fps frames a character, so 20 letters take a second');
-  assert.strictEqual(decodeMs(4), 750, 'LOENESE-PACE: and never under fifteen characters\' worth');
-  assert.strictEqual(decodeMs(15), 750, '  (fifteen exactly is the floor)');
-  assert.ok(LOEN_WORD_MS >= 1600 && LOEN_WORD_MS <= 2000, 'LOENESE-PACE: a streamed word turns over 1.6 to 2 seconds');
-  assert.strictEqual(loenHTML('Ab c', 1), 'A<span class="lo" data-loen="b">b</span> <span class="lo" data-loen="c">c</span>',
-    'LOENESE-LETTERS: letters from the frontier on are marked one by one, and a space is held');
-  assert.strictEqual(loenHTML('<em>Hi</em> &quot;', 1), '<em>H<span class="lo" data-loen="i">i</span></em> <span class="lo" data-loen="&quot;">&quot;</span>',
-    'LOENESE-LETTERS: markup is kept, and an entity is one letter');
-  assert.strictEqual(loenHTML('He said', 99), 'He said', 'LOENESE-LETTERS: past the end, it is the English as it was');
+  // THE DECODE, PRINTED IN LOENESE AND TRANSLATED (Seth, 2026-11-03: "make it so that it still
+  // cycles through the English letters, so it prints in Loenese and slowly translates to English;
+  // right now the transition almost looks glitched"). The text shows whole in Loenese and holds a
+  // beat; then a wave runs left to right, and each letter it reaches runs through a few random
+  // English letters of its own case before it settles. Every letter keeps its English in the markup
+  // (`.lo` paints Loenese over it, `.cy` paints the passing letter), so textContent is English
+  // throughout. The random source is handed in, so every frame here is fixed.
+  const { decodeMs, loenHTML, loenIn, loenPlan, LOEN, LOEN_WORD_MS } = await import('../web/model.js');
+  const plain = (h: string) => h.replace(/<[^>]*>/g, '');
+  const lo = (c: string) => `<span class="lo" data-loen="${c}">${c}</span>`;
+  const cy = (shown: string, c: string) => `<span class="cy" data-cy="${shown}">${c}</span>`;
+  const P = { hold: 100, step: 10, cycle: 40, tick: 20 }, zero = () => 0;
+  // 'Ab, c9': A turns at 100, b 110, the comma 120, the space 130, c 140, 9 150; each settles 40 later.
+  assert.strictEqual(loenHTML('Ab, c9', 0, P, zero), lo('A') + lo('b') + lo(',') + ' ' + lo('c') + lo('9'),
+    'LOENESE-CYCLE: before the wave the whole text is Loenese, the space held');
+  assert.strictEqual(loenHTML('Ab, c9', 125, P, zero), cy('B', 'A') + cy('a', 'b') + ', ' + lo('c') + lo('9'),
+    'LOENESE-CYCLE: in the band behind the wave letters pass through English of their own case, the comma turns straight to itself, Loenese ahead');
+  assert.strictEqual(loenHTML('Ab, c9', 155, P, zero), 'Ab, ' + cy('a', 'c') + cy('0', '9'),
+    'LOENESE-CYCLE: behind the band each letter is its real self, and a digit passes through digits');
+  assert.strictEqual(loenHTML('Ab, c9', 190, P, zero), 'Ab, c9', 'LOENESE-CYCLE: once the last has settled it is the English as it was');
+  assert.strictEqual(loenHTML('<em>Hi</em> &quot;', 0, P, zero), `<em>${lo('H')}${lo('i')}</em> <span class="lo" data-loen="&quot;">&quot;</span>`,
+    'LOENESE-CYCLE: markup is kept, and an entity is one letter');
+  // The passing letter changes on the tick, not on every frame: the source is asked by (letter, tick).
+  const byTick = (_i: number, k: number) => (k * 7 % 26) / 26;
+  assert.strictEqual(loenHTML('A', 101, P, byTick), loenHTML('A', 119, P, byTick), 'LOENESE-CYCLE: a passing letter holds for its tick');
+  assert.notStrictEqual(loenHTML('A', 119, P, byTick), loenHTML('A', 121, P, byTick), '  and changes at the next');
+  for (let t = 0; t <= 200; t += 3) for (const h of ['Ab, c9', 'It\'s "Mr. Ó," 42!', '<em>x</em> &quot;Q&amp;A&#39;s&quot;']) {
+    const out = loenHTML(h, t, P, Math.random);
+    assert.strictEqual(plain(out), plain(h), `LOENESE-CYCLE: textContent is the English at every step (${t} ms)`);
+    for (const m of out.matchAll(/<span class="cy" data-cy="([^"]*)">([^<]*)<\/span>/g)) {
+      assert.match(m[2], /^[\p{L}\d]$/u, `LOENESE-CYCLE: only letters and digits pass through others (not ${JSON.stringify(m[2])})`);
+      assert.strictEqual(/\d/.test(m[1]), /\d/.test(m[2]), '  a digit through digits only');
+      assert.strictEqual(m[1] === m[1].toUpperCase(), m[2] === m[2].toUpperCase(), '  and a letter through its own case');
+      assert.notStrictEqual(m[1], m[2], '  never showing its own letter early');
+    }
+  }
+
+  // THE TIMING. Calm and a little slower than before: a 20-letter header about 1.5 to 2 s with its
+  // hold, a streamed word 2 to 2.5 s, a passing letter changing every 60 to 80 ms.
+  assert.ok(decodeMs(20) >= 1500 && decodeMs(20) <= 2000, `LOENESE-PACE: a 20-letter header takes 1.5 to 2 s (${decodeMs(20)})`);
+  assert.ok(decodeMs(3) >= 1000 && decodeMs(200) <= 3000, `LOENESE-PACE: a short header is not a flicker and a long one not a wait (${decodeMs(3)}, ${decodeMs(200)})`);
+  assert.ok(LOEN_WORD_MS >= 2000 && LOEN_WORD_MS <= 2500, 'LOENESE-PACE: a streamed word turns over 2 to 2.5 s');
+  assert.ok(LOEN.tick >= 60 && LOEN.tick <= 80, 'LOENESE-PACE: a passing letter changes every 60 to 80 ms');
+  for (const [n, ms] of [[1, LOEN_WORD_MS], [6, LOEN_WORD_MS], [30, LOEN_WORD_MS], [3, decodeMs(3)], [20, decodeMs(20)], [200, decodeMs(200)]]) {
+    const p = loenPlan(n, ms);
+    assert.ok(Math.abs(p.hold + (n - 1) * p.step + p.cycle - ms) < 1e-6, `LOENESE-PACE: the last of ${n} letters settles at ${ms} ms`);
+    assert.ok(p.hold >= LOEN.hold, `  after holding in Loenese at least ${LOEN.hold} ms (${p.hold})`);
+    assert.ok(p.cycle >= 3 * p.tick, '  each letter passing through at least three others');
+    assert.ok(n < 2 || p.step < p.cycle, '  and several turning at once, a band and not one letter at a time');
+  }
 
   // A stub whose textContent is read from its markup, the way a browser's is.
   const ents: Record<string, string> = { '&quot;': '"', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&#39;': "'" };
@@ -10409,20 +10445,24 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   const raf = (globalThis as any).requestAnimationFrame;
   (globalThis as any).requestAnimationFrame = (f: Function) => setTimeout(() => f(Date.now()), 16);
   const bar = nodes.get('bar'), was = bar.querySelector;
-  const T = 'The Ashfall Concordat, again';   // 28 characters: 1,400 ms
+  const T = 'The Ashfall Concordat, again';
+  const tp = loenPlan([...T].length, decodeMs([...T].length));
   const title = live(T);
   bar.querySelector = (s: string) => (s === '.serif' ? title : null);
   try {
+    const t0 = Date.now();
     click({ open: 's-1' }); await sleep(40);
     assert.strictEqual(title.textContent, T, 'LOENESE-DECODE: the title stays English in textContent');
     assert.ok(title.classList.contains('decoding'), 'LOENESE-DECODE: and the element is marked as decoding');
-    assert.match(title.innerHTML, /^T?<span class="lo" data-loen="[Th]">/, 'LOENESE-DECODE: it starts all but whole in Loenese');
-    await sleep(660);
-    assert.match(title.innerHTML, /^The Ash[^<]*<span class="lo"/, 'LOENESE-DECODE: half way, the left half is English and the right still Loenese');
+    assert.match(title.innerHTML.replace(/<span class="lo" data-loen="[^"]*">[^<]*<\/span>/g, ''), /^ *$/, 'LOENESE-DECODE: it prints whole in Loenese first');
+    await sleep(tp.hold + 10 * tp.step + 200 - (Date.now() - t0));
+    const mid = title.innerHTML;
+    assert.match(mid, /^The As/, `LOENESE-DECODE: part way, the left is English (${mid.slice(0, 60)})`);
+    assert.ok(mid.includes('class="cy"') && mid.indexOf('class="cy"') < mid.indexOf('class="lo"'), '  then letters passing through English, then Loenese still to come');
     assert.strictEqual(title.textContent, T, '  and textContent is still the English');
-    await sleep(560);
-    assert.ok(title.classList.contains('decoding'), 'LOENESE-PACE: a 28-letter title is still turning at 1.25 s');
-    await sleep(250);
+    await sleep(decodeMs([...T].length) - 150 - (Date.now() - t0));
+    assert.ok(title.classList.contains('decoding'), 'LOENESE-PACE: the title is still turning just before its time');
+    await sleep(decodeMs([...T].length) + 150 - (Date.now() - t0));
     assert.ok(!title.classList.contains('decoding'), 'LOENESE-DECODE: the mark comes off once every letter has turned');
     assert.strictEqual(title.innerHTML, T, '  and the markup is the English as it was');
 
@@ -10435,17 +10475,19 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
     assert.ok(!sub.classList.contains('decoding'), '  and the mark comes off');
 
     // A STREAMED WORD (drainVeil marks each one with the same call): it arrives wholly in Loenese,
-    // from its accented markup (`inkHTML`), and is English letter by letter by LOEN_WORD_MS.
+    // from its accented markup (`inkHTML`), translates, and is its own markup again by LOEN_WORD_MS.
     const W = '<span class="q">&quot;Run,</span> ';
     const word = live(W, { inkHTML: W });
+    const wp = loenPlan(6, LOEN_WORD_MS), w0 = Date.now();
     loenIn(word, LOEN_WORD_MS);
     assert.ok(word.classList.contains('decoding'), 'LOENESE-WORD: the word is marked');
     assert.strictEqual((word.innerHTML.match(/class="lo"/g) ?? []).length, 5, 'LOENESE-WORD: and arrives with every letter in Loenese');
     assert.strictEqual(word.textContent, '"Run, ', '  its textContent English');
-    await sleep(LOEN_WORD_MS / 2);
-    const left = (word.innerHTML.match(/class="lo"/g) ?? []).length;
-    assert.ok(left > 0 && left < 5, `LOENESE-WORD: half way it is part English (${left} of 5 letters still Loenese)`);
-    await sleep(LOEN_WORD_MS / 2 + 40);
+    await sleep(wp.hold + 1.5 * wp.step + 40 - (Date.now() - w0));
+    const turning = (word.innerHTML.match(/class="cy"/g) ?? []).length, ahead = (word.innerHTML.match(/class="lo"/g) ?? []).length;
+    assert.ok(turning > 0 && ahead > 0, `LOENESE-WORD: part way it is translating (${turning} passing, ${ahead} still Loenese)`);
+    assert.match(word.innerHTML, /^<span class="q">&quot;/, '  with the quote, which does not cycle, already itself');
+    await sleep(LOEN_WORD_MS + 60 - (Date.now() - w0));
     assert.strictEqual(word.innerHTML, W, 'LOENESE-WORD: by the end it is its own markup again');
     assert.ok(!word.classList.contains('decoding'), '  unmarked');
 
