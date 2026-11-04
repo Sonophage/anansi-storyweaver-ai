@@ -735,7 +735,9 @@ function applyChange(storyId: string, owner: string, ch: Change):
   // `updateStory` leaves every field it is not handed as it was, and tidies a genre as every save does.
   if (ch.op === 'tale.set') { db.updateStory(storyId, { [ch.key]: ch.text }); return {}; }
   // #153 · One passage, through the edit Alter makes, so its old text is kept in its Alterations.
-  if (ch.op === 'passage.set') { db.editPassage(storyId, ch.passage, ch.text); return {}; }
+  // A passage Talk rewrote is the model's from then on (Seth, 2026-11-04): the prose engine wrote it,
+  // and F53's marking of the writer's own passages must not tell the model its words are the writer's.
+  if (ch.op === 'passage.set') { db.editPassage(storyId, ch.passage, ch.text, false, ch.undo ? ch.author : 'model'); return {}; }
   // WHERE A STRING STANDS, through the one door the Strings screen and the pocket panel use
   // (`standString` on the page, `POST /api/string`): `upsertString` writes the switch and the mark.
   // It writes the whole string, so the rest of it is handed back as it stands, owed by included.
@@ -1365,6 +1367,39 @@ const AWAY_RETRIES = 2;
 /** The most words the stream gate holds back while it waits for five narration words: a take that
  *  opens on a long line of dialogue is released unjudged rather than kept off the page. */
 const HOLD_WORDS = 40;
+
+/** #153 · A PASSAGE TALK WAS ASKED TO CHANGE, REWRITTEN BY THE PROSE ENGINE (Seth, 2026-11-04: two
+ *  steps). Talk sees only the last few passages, so it never writes the text itself: it names the
+ *  passage and the writer's request, and this call reads the passage's real text and rewrites it as
+ *  a Direct passage would be written, with the tale's voice, tense and lockout (DIRECTIVE), the book
+ *  up to that passage, and the writer's own prompts. Not weaving and not streamed. Returns the new
+ *  text, or why it could not. */
+const REWRITE = (body: string, note: string) => 'Rewrite the passage below as the writer asks, and give back the '
+  + 'whole passage, rewritten. Keep what happens in it; change only what they ask.\n\nThe writer asks: '
+  + `${note}\n\nThe passage:\n${body}`;
+async function rewritePassage(c: Ctx, storyId: string, ch: { passage: string; note: string; before: string }) {
+  const v = viewOf(c, storyId);
+  const p = v.passages.find((x: any) => x.id === ch.passage);
+  if (!p) return { error: 'that passage is no longer in this tale' };
+  const using = writerModel(c, v);
+  const { reply, manifest, prompt, stop } = weaveAssemble(c, v, 'prose', proseCap(c), (cap) =>
+    assemble(v, slotFor(c, v, using), 'direct', REWRITE(ch.before, ch.note), p.ordinal, cap, undefined,
+      db.promptsOf(c.owner), 0, undefined));
+  if (stop || manifest.overflowed) return { error: (stop as any)?.error ?? manifest.overflowReason ?? 'it would not fit' };
+  const t0 = Date.now();
+  try {
+    const r = await chat(SYSTEM, prompt.slice(SYSTEM.length), { ...c.gen, model: using, max_tokens: Math.max(reply.maxTokens, 900),
+      chat_template_kwargs: { enable_thinking: false } });
+    const text = r.finish === 'length' ? trimToSentence(clean(r.prose)) : clean(r.prose);
+    db.logGeneration({ storyId, chapterId: p.chapterId, passageId: p.id, model: using, role: 'talk-rewrite', manifest,
+      params: { max_tokens: Math.max(reply.maxTokens, 900) }, promptTokens: r.usage?.prompt_tokens,
+      completionTokens: r.usage?.completion_tokens, latencyMs: Date.now() - t0 });
+    return text.trim() ? { text } : { error: 'the rewrite came back empty' };
+  } catch (e: any) {
+    db.logGeneration({ storyId, model: using, role: 'talk-rewrite', manifest, error: e?.message, latencyMs: Date.now() - t0 });
+    return { error: e?.message ?? 'the rewrite failed' };
+  }
+}
 
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
@@ -4937,6 +4972,12 @@ export const routes: Record<string, Handler> = {
       if (!k.ok && aim.raw?.op === 'thread.set' && unmade.has(named)
         && !taleOf(where).entries.some((e: any) => String(e.title).trim().toLowerCase() === named)) { handBack(); continue; }
       if (!k.ok) { handBack(); notDone.push({ said: k.said, why: k.why }); continue; }
+      // #153 · STEP TWO: the passage is rewritten from its real text before anything is written.
+      if (k.change.op === 'passage.set') {
+        const rw = await rewritePassage(c, where, k.change);
+        if ('error' in rw) { notDone.push({ said: wordsFor({ ...k.change, text: '' }).replace(/: \u201c.*$/, ''), why: String(rw.error) }); continue; }
+        k.change.text = rw.text;
+      }
       const made = applyChange(where, c.owner, k.change);
       if (!made) { handBack(); notDone.push({ said: wordsFor(k.change), why: `the ${aim.to === 'world' ? 'World' : 'tale'} refused it` }); continue; }
       // #99 · THE PAGE IT CAME FROM, in the notes of the thread it made or changed: writer-only,

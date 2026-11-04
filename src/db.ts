@@ -2414,13 +2414,15 @@ export const passagesOfChapter = (chapterId: string) =>
 /** `again`: a later write of the same Alter (ADR 0004: Alter saves as you type, once per pause).
  *  The first write of an opening keeps what was there as a revision; the later ones only change
  *  the text, so one Alter is one row in Alterations and not one per pause in the typing. */
-export function editPassage(storyId: string, id: string, body: string, again = false) {
+/** `author`, when given, is whose the passage is now (#153: one Talk rewrote is the model's). */
+export function editPassage(storyId: string, id: string, body: string, again = false, author?: string) {
   const cur = q('SELECT body, story_id FROM passages WHERE id = ? AND story_id = ?')
     .get(id, storyId) as any;
   if (!cur) return;
   if (!again) q('INSERT INTO passage_revisions (id,passage_id,body,replaced_at) VALUES (?,?,?,?)')
     .run(uid('pr-'), id, cur.body, now());
   q('UPDATE passages SET body = ? WHERE id = ?').run(body, id);
+  if (author) q('UPDATE passages SET author = ? WHERE id = ?').run(author, id);
   touch(cur.story_id);
 }
 /** DELETE A CHAPTER, AND EVERYTHING THAT WAS ONLY EVER ABOUT IT. Seth, 2026-08-30: "we also need

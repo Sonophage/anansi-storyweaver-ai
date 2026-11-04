@@ -153,7 +153,7 @@ export type Tale = { entries: Thread[]; story?: Record<string, any>;
    *  the view's own names, so the route hands them over as it read them. */
   taleRules?: Own[]; talePockets?: Own[]; strings?: Str[];
   /** #153 · The tale's passages on the branch being written, as the view has them. */
-  passages?: { id: string; chapterId: string; body: string; isBreak?: boolean }[] };
+  passages?: { id: string; chapterId: string; body: string; isBreak?: boolean; author?: string }[] };
 
 export type Change =
   | { op: 'thread.new'; title: string; type: string; always: string; keys: string[]; activation: string }
@@ -164,8 +164,11 @@ export type Change =
       /** #144 · `wake`: the pocket was Off and this request switches it on. `off`: an Undo puts it back Off. */
       wake?: true; off?: true }
   | { op: 'thread.unmake'; thread: string; title: string }
-  /** #153 · One passage, by id; `scene` and `n` say which, in the writer's words. */
-  | { op: 'passage.set'; passage: string; scene: number; n: number; text: string; before: string; undo?: true }
+  /** #153 · One passage, by id; `scene` and `n` say which, in the writer's words. TWO STEPS (Seth,
+   *  2026-11-04): `note` is what the writer asked to change, and `text` is the passage the prose engine
+   *  rewrote from it, filled in by the route before it is written. `author` is whose it was. */
+  | { op: 'passage.set'; passage: string; scene: number; n: number; note: string; text: string; before: string;
+      author: string; undo?: true }
   | { op: 'room.unmake'; thread: string; title: string; addon: string; room: string }
   /** `before` is the field's text before the change; on an Undo, the text being put back. `key` is
    *  the story's own name for the field (`TALE_KEY`), which the route writes to. */
@@ -609,9 +612,11 @@ const followed = (t: Thread, said: string): Checked => ({ ok: false, said,
 const SINCE = 'it has been changed since';
 
 /** #153 · ONE PASSAGE, EDITED WHEN ASKED (ADR 0014): found by its scene and its number there (breaks
- *  not counted), or by a quote of its own words, which must find exactly one. The whole new text is
- *  written through the passage's own edit, so the old version is kept in its Alterations. An Undo puts
- *  the old text back only while the passage holds what Talk wrote. */
+ *  not counted; none is the scene being written), or by a quote of its own words, which must find
+ *  exactly one. Talk names the passage and what to change (`text`, the writer's request); the route
+ *  has the prose engine rewrite it from its real text, and writes that through the passage's own edit,
+ *  so the old version is kept in its Alterations. An Undo puts the old text and author back only while
+ *  the passage holds what Talk wrote. */
 const squash = (t: unknown) => String(t ?? '').toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"')
   .replace(/\s+/g, ' ').trim();
 function passageSet(tale: Tale, raw: any, said: string, undo: boolean): Checked {
@@ -624,10 +629,11 @@ function passageSet(tale: Tale, raw: any, said: string, undo: boolean): Checked 
     const p = ps.find((x) => x.id === String(raw.passage ?? ''));
     if (!p) return { ok: false, said, why: 'that passage is no longer in this tale' };
     if (!stillWrote(raw.wrote, p.body)) return { ok: false, said, why: SINCE };
-    return { ok: true, change: { op: 'passage.set', passage: p.id, ...at(p), text: String(raw.text ?? ''), before: p.body, undo: true } };
+    return { ok: true, change: { op: 'passage.set', passage: p.id, ...at(p), note: '', text: String(raw.text ?? ''), before: p.body,
+      author: String(raw.author ?? p.author ?? 'model'), undo: true } };
   }
-  const text = String(raw.text ?? '').trim();
-  if (!text) return { ok: false, said, why: 'it came with no text' };
+  const note = String(raw.text ?? '').trim();
+  if (!note) return { ok: false, said, why: 'it did not say what to change' };
   let hit;
   if (String(raw.quote ?? '').trim()) {
     const q = squash(raw.quote);
@@ -642,8 +648,8 @@ function passageSet(tale: Tale, raw: any, said: string, undo: boolean): Checked 
     hit = ch ? ps.filter((p) => p.chapterId === ch.id)[Number(raw.passage) - 1] : undefined;
     if (!hit) return { ok: false, said, why: `there is no passage ${raw.passage} in scene ${scene}` };
   } else return { ok: false, said, why: 'it names no passage: give the scene and its number, or quote it' };
-  if (hit.body.trim() === text) return { ok: false, said, why: 'that passage already says that' };
-  return { ok: true, change: { op: 'passage.set', passage: hit.id, ...at(hit), text, before: hit.body } };
+  return { ok: true, change: { op: 'passage.set', passage: hit.id, ...at(hit), note, text: '', before: hit.body,
+    author: String(hit.author ?? 'model') } };
 }
 const stillWrote = (wrote: unknown, now: unknown) => typeof wrote === 'string' && String(now ?? '').trim() === wrote.trim();
 
@@ -984,7 +990,7 @@ export function checkUndo(raw: any, tale: Tale): Checked {
 /** What a change did, in the writer's words: one line in the conversation. */
 export function wordsFor(c: Change): string {
   if (c.op === 'passage.set') return c.undo ? `Put back passage ${c.n} of scene ${c.scene}.`
-    : `Changed passage ${c.n} of scene ${c.scene}: \u201c${clip(c.text)}\u201d`;
+    : `Rewrote passage ${c.n} of scene ${c.scene} (${clip(c.note)}): \u201c${clip(c.text)}\u201d`;
   if (c.op === 'thread.new') return `Made a new thread: ${c.title}, ${an(c.type)}.`;
   if (c.op === 'thread.unmake') return `Took away ${c.title}.`;
   if (c.op === 'room.unmake') return `Took away ${c.title}'s ${roomLabel(c.room)}.`;
@@ -1299,7 +1305,7 @@ export function draftWords(c: DraftChange): string {
 /** THE CHANGE THAT PUTS THIS ONE BACK, built once it is applied: `made` holds the ids the write
  *  minted, which nothing knows before it. Returned with the change, and sent back by the Undo. */
 export function undoFor(c: Change, made: { thread?: string; addon?: string; state?: string; event?: string }) {
-  if (c.op === 'passage.set') return { op: 'passage.set', passage: c.passage, text: c.before, wrote: c.text };
+  if (c.op === 'passage.set') return { op: 'passage.set', passage: c.passage, text: c.before, wrote: c.text, author: c.author };
   if (c.op === 'thread.new') return { op: 'thread.unmake', thread: made.thread, title: c.title, text: c.always };
   if (c.op === 'thread.retire') return { op: 'retire.unmake', thread: c.thread, event: made.event };
   if (c.op === 'thread.overtime') return c.before

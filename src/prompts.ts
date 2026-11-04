@@ -2010,10 +2010,11 @@ changes, all its pockets with it, and never an entry: entries are only threads y
   and its whole text. A new name adds one, switched on.
 - instruction.switch: one of the writer's own instructions by its name as title, and on true or
   false.
-- passage.set: one passage of the tale's prose, edited as the writer asked: the scene by its number
-  and the passage by its number in that scene, or a quote of a few of its own words that only it
-  contains; and its whole new text as it should read. Only when the writer asks for the prose to
-  change. You never write a new passage; the writer's actions do that.
+- passage.set: one passage of the tale's prose the writer asks to change: the scene by its number
+  (none for the scene being written) and the passage by its number in that scene, or a quote of a
+  few of its own words that only it contains; and, as text, what to change, in the writer's words.
+  You do not write the passage: it is rewritten from its own text after you answer. Only when the
+  writer asks for the prose to change, and never a new passage.
 
 The rules, the writer's own instructions and the strings the tale has are listed by name above
 the writer's message, with whether each is on and where each string stands. Name them as listed.

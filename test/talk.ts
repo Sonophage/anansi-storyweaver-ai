@@ -46,6 +46,8 @@ let calls: any[] = [];
 let memoType: string | null = null;   // what kind of thread "Remember this" answers with, when set
 let breakFirst = false;   // answer the first call with a truncated object, as running out of room does
 let breakAll = false;     // and every call, for an answer that fails outright
+const REWRITTEN = 'The river ran cold and black under the lamps.';
+const rewrites: string[] = [];
 const srv = createServer((req, res) => {
   let raw = '';
   req.on('data', (d) => { raw += d; });
@@ -127,7 +129,7 @@ const srv = createServer((req, res) => {
       GHOST: { reply: 'Tidied.', changes: [{ op: 'thread.set', thread: 'Nobody Here', room: 'outfit', text: 'Wool.' }] },
       ASKPROMISE: { reply: 'A promise, then.', changes: [{ op: 'string.set', title: 'The pistol', kind: 'promise', text: 'The pistol will be fired.' }] },
       // #153 · a passage, edited when asked.
-      PROSEEDIT: { reply: 'Colder now.', changes: [{ op: 'passage.set', scene: 1, passage: 1, text: 'The river ran cold and black under the lamps.' }] },
+      PROSEEDIT: { reply: 'Colder now.', changes: [{ op: 'passage.set', quote: 'Morgott watched the river in the lamplight', text: 'make it colder' }] },
       // A plain answer that only sounds like a claim: nothing was asked, so nothing is taken off.
       SETIN: { reply: 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.' },
       // The card as one entry with its pockets, which the grammar offers now: her appearance in the
@@ -357,7 +359,12 @@ const srv = createServer((req, res) => {
       // One field of the skeleton, asked again (SPARK_FIELD_SCHEMA).
       : props.value ? { value: 'Aldis, on the stair at dusk, wants the ledger before the lamps are lit.' }
       : { reply: LONG };
+    // #153 · THE PROSE ENGINE'S REWRITE of a passage Talk was asked to change: plain prose, no schema.
+    const rewrite = !b.response_format && /Rewrite the passage below as the writer asks/.test(JSON.stringify(b.messages ?? []));
+    rewrites.push(...(rewrite ? [JSON.stringify(b.messages)] : []));
     res.writeHead(200, { 'Content-Type': 'application/json' });
+    if (rewrite) return void res.end(JSON.stringify({ choices: [{ message: { content: REWRITTEN }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 400, completion_tokens: 40 } }));
     res.end(JSON.stringify({ choices: [{ message: { content: cut
         // truncated mid-object, unparseable. Short of its close for an answer under 900 (✦'s idea).
         ? JSON.stringify(answer).slice(0, Math.min(900, JSON.stringify(answer).length - 2))
@@ -1909,21 +1916,31 @@ ok('emptying the box gives her back the voice she shipped with');
   // #153 · TALK EDITS A PASSAGE WHEN ASKED, kept in its Alterations, with an Undo that never writes over
   // the writer; asked nothing about the prose, it touches none.
   {
-    const first = () => (db.passagesOf(tale.id) as any[]).filter((p) => !p.is_break && p.chapter_id === (db.passagesOf(tale.id) as any[])[0].chapter_id)[0];
-    const was = first().body;
+    // The writer's own passage, so whose it is after a rewrite can be seen to change.
+    db.addPassage({ storyId: tale.id, branchId: db.activeBranchOf(tale.id), chapterId: (db.passagesOf(tale.id) as any[])[0].chapter_id,
+      body: 'Morgott watched the river in the lamplight.', author: 'human' });
+    const first = () => (db.passagesOf(tale.id) as any[]).filter((p) => !p.is_break && p.chapter_id === (db.passagesOf(tale.id) as any[])[0].chapter_id).at(-1);
+    const was = first().body, wasBy = first().author;
     const revs = () => (db.passageHistory(tale.id, first().id) as any[]).map((r) => r.body);
     const quiet = await say('CHANGE-PROSEEDIT: what do you make of Talia?');
     assert.strictEqual(first().body, was, 'PASSAGE-UNASKED: asked nothing about the prose, no passage changes');
     assert.ok(quiet.notDone.some((x: any) => /passage/.test(x.said)), `PASSAGE-UNASKED-SAID: and the answer says so (${JSON.stringify(quiet.notDone)})`);
     assert.ok(!quiet.chalked.length, '  and it is not offered on the Workbench');
-    const ed = await say('CHANGE-PROSEEDIT: make the first passage of scene 1 colder');
+    const ed = await say('CHANGE-PROSEEDIT: make the passage where Morgott watched the river colder');
     assert.ok(!ed.error, ed.error);
-    assert.strictEqual(first().body, 'The river ran cold and black under the lamps.', 'PASSAGE-EDIT: the passage is edited');
+    assert.strictEqual(first().body, REWRITTEN, 'PASSAGE-EDIT: the passage is rewritten by the prose engine');
+    assert.match(rewrites.at(-1)!, new RegExp(was.slice(0, 20).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+      'PASSAGE-READS: the rewrite is sent the passage\'s real text');
+    assert.match(rewrites.at(-1)!, /make it colder/, '  and the writer\'s request');
+    assert.notStrictEqual(wasBy, 'model', '  (the passage was the writer\'s own before)');
+    assert.strictEqual(first().author, 'model', 'PASSAGE-AUTHOR: a passage Talk rewrote is the model\'s');
+    assert.match(rewrites.at(-1)!, /\[Writing:/, 'PASSAGE-DIRECTIVE: the rewrite carries the tale\'s point of view, tense and lockout block');
     assert.ok(revs().includes(was), 'PASSAGE-ALTERATIONS: the old text is kept in its Alterations');
-    assert.strictEqual(ed.changes[0].card.title, 'Scene 1, passage 1', 'PASSAGE-CARD: its card names it');
+    assert.match(ed.changes[0].card.title, /^Scene \d+, passage \d+$/, 'PASSAGE-CARD: its card names it');
     assert.ok(!undo(ed.changes[0].undo).error, '  Undo works');
     assert.strictEqual(first().body, was, 'PASSAGE-UNDO: and puts the old text back');
-    const again = await say('CHANGE-PROSEEDIT: make the first passage of scene 1 colder');
+    assert.strictEqual(first().author, wasBy, 'PASSAGE-UNDO-AUTHOR: and its author');
+    const again = await say('CHANGE-PROSEEDIT: make the passage where Morgott watched the river colder');
     db.editPassage(tale.id, first().id, 'The writer rewrote it by hand.');
     assert.match(String(undo(again.changes[0].undo).error), /changed since/, 'PASSAGE-UNDO-SINCE: after a hand edit, Undo refuses and says why');
     assert.strictEqual(first().body, 'The writer rewrote it by hand.', '  and the writer\'s text stands');

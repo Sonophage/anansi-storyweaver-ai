@@ -20,8 +20,10 @@ Everything below this line was written by that model call, before it was removed
 
 ### Talk edits a passage when you ask
 Ask Talk to change a passage ("make the first passage of scene 2 colder", or quote a few of its
-words) and it rewrites that passage. The old version is kept in the passage's Alterations, and the
-card has an Undo, which will not write over anything you have changed since. Talk still never
+words) and that passage is rewritten from its own text, in your tale's voice, with the same rules
+your actions follow. The old version is kept in the passage's Alterations, and the card has an Undo,
+which will not write over anything you have changed since. A passage rewritten this way counts as
+Anansi's from then on. Talk still never
 writes a new passage, and it changes no prose you did not ask about.
 
 ### Say what the old version did, and the new one avoids it

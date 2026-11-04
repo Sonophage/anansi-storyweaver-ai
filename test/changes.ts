@@ -1039,19 +1039,19 @@ ok('a passage is found by scene and number or by a quote, edited whole, and put 
                { id: 'p2', chapterId: 'c2', body: 'Talia counted the boats.' },
                { id: 'pb', chapterId: 'c2', body: '', isBreak: true },
                { id: 'p3', chapterId: 'c2', body: 'Morgott watched the river. The boats were late.' }] };
-  const by = done(ch.checkAsked({ op: 'passage.set', scene: 2, passage: 2, text: 'Morgott watched the river, cold.' }, prose));
-  assert.deepStrictEqual([by.passage, by.before, by.text], ['p3', 'Morgott watched the river. The boats were late.', 'Morgott watched the river, cold.'],
-    'PASSAGE-BY-NUMBER: scene 2, passage 2, breaks not counted');
+  const by = done(ch.checkAsked({ op: 'passage.set', scene: 2, passage: 2, text: 'make it colder' }, prose));
+  assert.deepStrictEqual([by.passage, by.before, by.note], ['p3', 'Morgott watched the river. The boats were late.', 'make it colder'],
+    'PASSAGE-BY-NUMBER: scene 2, passage 2, breaks not counted; the request rides as the note');
   assert.strictEqual(done(ch.checkAsked({ op: 'passage.set', quote: 'counted the boats', text: 'Talia lost count.' }, prose)).passage, 'p2',
     'PASSAGE-BY-QUOTE: a quoted run finds its passage');
   refused(ch.checkAsked({ op: 'passage.set', quote: 'the boats', text: 'x' }, prose), /more than one passage/i);
   refused(ch.checkAsked({ op: 'passage.set', quote: 'a dragon', text: 'x' }, prose), /no passage/i);
   refused(ch.checkAsked({ op: 'passage.set', scene: 9, passage: 1, text: 'x' }, prose), /no passage/i);
-  refused(ch.checkAsked({ op: 'passage.set', scene: 1, passage: 1, text: 'The rain had not stopped.' }, prose), /already says that/i);
   refused(ch.checkAsked({ op: 'passage.set', text: 'x' }, prose), /names no passage/i);
-  const undo = ch.undoFor(by, {});
+  // The route fills in what the prose engine wrote; its Undo puts the old text and author back.
+  const undo = ch.undoFor({ ...by, text: 'Morgott watched the river, cold.' }, {});
   assert.deepStrictEqual(undo, { op: 'passage.set', passage: 'p3', text: 'Morgott watched the river. The boats were late.',
-    wrote: 'Morgott watched the river, cold.' }, 'PASSAGE-UNDO: its Undo puts the old text back');
+    wrote: 'Morgott watched the river, cold.', author: 'model' }, 'PASSAGE-UNDO: its Undo puts the old text and author back');
   const after = { ...prose, passages: prose.passages.map((x) => x.id === 'p3' ? { ...x, body: 'Morgott watched the river, cold.' } : x) };
   assert.ok(ch.checkUndo(undo, after).ok, 'PASSAGE-UNDO-OK: while it holds what Talk wrote');
   const edited = { ...prose, passages: prose.passages.map((x) => x.id === 'p3' ? { ...x, body: 'The writer changed it.' } : x) };
