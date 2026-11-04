@@ -109,8 +109,15 @@ try { CTX_OPEN = localStorage.getItem(CTX_KEY) === '1'; } catch { /* no storage 
 /** WHICH PANELS ARE FULL SCREEN, on this device (Seth, 2026-11-02: "all the panels can be full screen
  *  especially threads"). Per panel: a press in its head adds or removes it (`data-panelfull`). */
 const PANELFULL_KEY = 'anansi.panelfull';
-const PANEL_FULL = (() => { try { return new Set(JSON.parse(localStorage.getItem(PANELFULL_KEY) || '[]')); }
-  catch { return new Set(); } })();
+// THREADS OPENS FULL SCREEN (Seth, 2026-11-03: "Threads, when you open it, can we just make it a full
+// panel"). Its default, and once on a device that saved a choice before this (`.threads` marks it
+// done); the press beside Close still puts it back beside the page, and that is kept.
+const PANEL_FULL = (() => {
+  let set; try { set = new Set(JSON.parse(localStorage.getItem(PANELFULL_KEY) || '[]')); } catch { set = new Set(); }
+  try { if (!localStorage.getItem(PANELFULL_KEY + '.threads')) { set.add('threads');
+    localStorage.setItem(PANELFULL_KEY + '.threads', '1'); localStorage.setItem(PANELFULL_KEY, JSON.stringify([...set])); } }
+  catch { set.add('threads'); }
+  return set; })();
 const savePanelFull = () => { try { localStorage.setItem(PANELFULL_KEY, JSON.stringify([...PANEL_FULL])); } catch { /* no storage */ } };
 
 /** WHO IS IN THE NEXT SCENE, ANSWERED: the hems whose Done was pressed, kept on this device, so a
@@ -5399,17 +5406,19 @@ const PANELS = {
       ${(() => {
         const pin = pinModes();
         const n = V.entries.filter((e) => inContext(e, pin)).length;
-        return `<div class="thfind">
-          <span class="thfindmark">${mark('search', 17)}</span>
-          <input id="thq" type="search" aria-label="Search this tale's threads"
-            value="${esc(S.threadQ)}" placeholder="Search">
-          ${/* In context first. Seth, 2026-09-03: "flip the order of all and in context so in
-               context is the first thing that you see." It is the question the panel is open to
-               answer; All is the wider view you fall back to. The default is untouched — All is
-               still the filter in force, this is which chip the eye lands on. */
-            [['1', 'Sent now', n], ['0', 'All', V.entries.length]].map(([v, l, c]) =>
+        /* ALL AND SENT NOW ARE BUTTONS OF THEIR OWN, LEFT OF THE SEARCH (Seth, 2026-11-03: "put All
+         * on the left hand side as a button and Sent now as a button instead of in the search bar").
+         * They sat inside the search box, Sent now first (2026-09-03); All leads now, and the box
+         * holds only the search. */
+        return `<div class="thscope">
+          ${[['0', 'All', V.entries.length], ['1', 'Sent now', n]].map(([v, l, c]) =>
             `<button class="chip" data-onlyin="${v}" aria-pressed="${(S.onlyIn ? '1' : '0') === v}"
               >${l} <span class="tnum faint">${c}</span></button>`).join('')}
+          <div class="thfind">
+            <span class="thfindmark">${mark('search', 17)}</span>
+            <input id="thq" type="search" aria-label="Search this tale's threads"
+              value="${esc(S.threadQ)}" placeholder="Search">
+          </div>
         </div>
         <div class="thkinds">${/* "ALL KINDS", WITH NO COUNT (Seth, 2026-11-03): it said "All 21" one row
             under the scope's own "All 21", the same words and number twice. The row never wraps:

@@ -63,10 +63,11 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
       qw: Math.round(q.getBoundingClientRect().width),
       tall: Math.min(...c.map((e) => e.getBoundingClientRect().height)) });
   })()`).then((x) => x && JSON.parse(x));
-  ok(`search, Sent now and All sit in one row (${JSON.stringify(row)})`,
+  ok(`All, Sent now and the search sit in one row (${JSON.stringify(row)})`,
      !!row && row.spread <= 4 && row.inside && row.qw >= 80);
-  ok("  and the filters still carry their counts",
-     !!row && /^Sent now \d+$/.test(row.labels[0]) && row.labels[1] === `All ${n}`);
+  // ALL FIRST, THEN SENT NOW, as buttons left of the search box (Seth, 2026-11-03).
+  ok("  and the filters still carry their counts, All first",
+     !!row && row.labels[0] === `All ${n}` && /^Sent now \d+$/.test(row.labels[1]));
 
   // ---- Each kind with its count, and the cards under it
   const groups = await page.eval(`JSON.stringify([...document.querySelectorAll('#thlist [data-kindhead]')].map((h) => ({

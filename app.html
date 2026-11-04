@@ -1662,9 +1662,14 @@ textarea.field { resize:vertical; min-height:70px; }
   white-space:nowrap; padding:4px 9px; border-radius:var(--r-pill); border:1px solid var(--chip);
   background:var(--sheet); color:var(--ink-bright); font-size:12px; line-height:1.3;
   animation:fade var(--t-fast) var(--ease-out) both; }
-/* SEARCH AND THE TWO FILTERS, ONE ROW. The chips are 38px to the eye in a 50px box; the ::before
-   takes each one to 44px for the finger without making the row taller. */
-.thfind { display:flex; align-items:center; gap:5px; padding:5px 5px 5px 12px; border:1px solid var(--chip);
+/* ALL, SENT NOW, THEN THE SEARCH (2026-11-03): two buttons of their own on the left, the box holding
+   only the search. The chips are 38px to the eye; the ::before takes each one to 44px for the finger
+   without making the row taller. */
+.thscope { display:flex; align-items:center; gap:7px; }
+.thscope > .chip { position:relative; flex:0 0 auto; height:44px; padding:0 13px; white-space:nowrap;
+  border-radius:var(--r-pill); cursor:pointer; }
+.thscope > .thfind { flex:1 1 auto; min-width:0; }
+.thfind { display:flex; align-items:center; gap:5px; padding:3px 5px 3px 12px; border:1px solid var(--chip);
   border-radius:var(--r); background:var(--field); }
 .thfind:focus-within { border-color:var(--edge-lit); }
 .thfindmark { display:flex; color:var(--faint); }

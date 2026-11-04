@@ -1528,13 +1528,19 @@ ok('You play is a picker: search first, then who is in this scene, then everyone
 {
   const rootEl = (globalThis as any).document.documentElement;
   const store = (globalThis as any).localStorage;
+  // THREADS OPENS FULL BY DEFAULT (Seth, 2026-11-03), and is marked done on this device, once.
   click({ panel: 'threads' }); await sleep(20);
+  assert.strictEqual(rootEl.dataset.sidefull, '1', 'THREADS-FULL: Threads opens full screen');
+  assert.strictEqual(store.getItem('anansi.panelfull.threads'), '1', 'THREADS-FULL: and the default is applied once');
+  assert.match(html('sideHead'), /data-panelfull="1"[^>]*aria-pressed="true"/, 'its head carries the full-screen press, pressed');
+  click({ panel: 'chapter' }); await sleep(20);
   assert.strictEqual(rootEl.dataset.sidefull, '0', 'a panel opens beside the page');
-  assert.match(html('sideHead'), /data-panelfull="1"[^>]*aria-pressed="false"/, 'its head carries the full-screen press');
   click({ panelfull: '1' }); await sleep(20);
   assert.strictEqual(rootEl.dataset.sidefull, '1', 'the press spreads it over the page');
   assert.match(html('sideHead'), /data-panelfull="1"[^>]*aria-pressed="true"/, 'and says so');
-  assert.ok(JSON.parse(store.getItem('anansi.panelfull') ?? '[]').includes('threads'), 'and this device remembers it');
+  assert.ok(JSON.parse(store.getItem('anansi.panelfull') ?? '[]').includes('chapter'), 'and this device remembers it');
+  click({ panelfull: '1' }); await sleep(20);
+  click({ panel: 'threads' }); await sleep(20);
   click({ panel: 'strings' }); await sleep(20);
   assert.strictEqual(rootEl.dataset.sidefull, '0', 'per panel: another opens beside the page');
   click({ panel: 'threads' }); await sleep(20);
@@ -1695,6 +1701,8 @@ ok('the header names the book, and carries no reading of its own');
     'COUNTS-ICONS: the context icon on the left, the threads icon on the right (Seth, 2026-11-01)');
   click({ ctxthreads: '1' }); await sleep(10);
   assert.strictEqual(html('sideBody').includes('data-onlyin="1" aria-pressed="true"'), true, 'THREADS-OPEN: the threads icon opens Threads on Sent now');
+  assert.match(html('sideBody'), /class="thscope">\s*<button class="chip" data-onlyin="0"[\s\S]*data-onlyin="1"[\s\S]*<div class="thfind">\s*<span class="thfindmark">[\s\S]*id="thq"[^>]*>\s*<\/div>/,
+    'THREADS-SCOPE: All, then Sent now, as buttons left of the search; the search box holds only the search');
   assert.match(html('ctxread'), /data-ctxthreads="1" aria-pressed="true"/, '  and says it is open');
   click({ ctxthreads: '1' }); await sleep(10);
   assert.match(html('ctxread'), /data-ctxthreads="1" aria-pressed="false"/, 'THREADS-SHUT: a second press shuts it');
