@@ -16,7 +16,7 @@ import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultMode
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
 import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, narrationOnly, retirable, fires, summaryReaches,
-         weaveFit, actSpan, reweaveOf, pocketText, openingOf } from './context.ts';
+         weaveFit, actSpan, reweaveOf, pocketText, openingOf, narrationWords } from './context.ts';
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
@@ -1353,14 +1353,16 @@ const joins = (ending: string) => /^[,.;:!?…’”)\]]/.test(ending) ? '' : ' 
  *  in six opens with the rejected take's first five narration words. Telling the model what was
  *  rejected measured flat (F44), and sending the take made it copy or continue it (ADR 0012), so the
  *  check is in code. Read per call, not at load, so one test process can switch it.
- *  ponytail: non-streaming only, so no writer gets it yet. A stream's words are on the page as they
- *  arrive and are never restarted under the writer's eyes; shipping it needs the stream to hold its
- *  first five narration words back, compare, and abort and re-ask before showing any. Build that only
- *  if the A/B (bench/reroll-away.ts) shows the same-opening rate falls. */
+ *  F67: same openings 18% to 8% on Ornith (p = 0.02); the word-for-word share did not move. A whole
+ *  answer is checked when it arrives; a stream is held at the gate in `generate` until its opening
+ *  can be read, so the page never sees a copied one. */
 const rerollAway = () => process.env.ANANSI_REROLL_AWAY === '1';
 /** How many times a same opening is asked again. Two: with a per-reroll rate p it leaves p cubed, and
  *  each ask is a whole passage's wait on a call that does not stream. */
 const AWAY_RETRIES = 2;
+/** The most words the stream gate holds back while it waits for five narration words: a take that
+ *  opens on a long line of dialogue is released unjudged rather than kept off the page. */
+const HOLD_WORDS = 40;
 
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
@@ -1450,27 +1452,65 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   try {
     // The story's own model, or the process default. `chat` spreads opts over its own defaults,
     // so naming it here is all it takes — every call has always carried a model name.
-    const ask = () => chat(SYSTEM, prompt.slice(SYSTEM.length),
+    const ask = (sink = page, stop = onDelta ? c.signal : undefined) => chat(SYSTEM, prompt.slice(SYSTEM.length),
       // `max_tokens` after the sampler, which carries the writer's own: a weaving call needs the
       // raised one, and F5 is what the writer's one does to a plan.
       { ...(isRemote(using) && REMOTE_REPETITION_PENALTY != null
           ? { repetition_penalty: REMOTE_REPETITION_PENALTY } : {}),
         ...c.gen, max_tokens: reply.maxTokens, seed, model: using,
         chat_template_kwargs: { enable_thinking: reply.weaves },
-        ...(lands ? { land_words: from, land_slack: slack } : {}) }, page,
+        ...(lands ? { land_words: from, land_slack: slack } : {}) }, sink,
       // Only the streaming call. `onDelta` is present exactly when there is a writer watching
       // this arrive, which is exactly when there is a Stop button to press.
-      onDelta ? c.signal : undefined);
-    let r = await ask();
+      stop);
     // #140, AWAY (`rerollAway` above): a reroll whose opening is the replaced take's is asked again
     // on a fresh seed. `seeds` are the ones left behind; `seed` ends as the one that wrote the take.
     let away: { retried: number; seeds: number[] } | undefined;
-    const theirs = c.body.regenerateOf && !onDelta && rerollAway()
+    const theirs = c.body.regenerateOf && rerollAway()
       ? openingOf(v.passages.find((p) => p.id === c.body.regenerateOf)?.body ?? '') : '';
-    while (theirs && openingOf(clean(r.prose)) === theirs && (away?.retried ?? 0) < AWAY_RETRIES) {
+    const again = () => {
       away = { retried: (away?.retried ?? 0) + 1, seeds: [...(away?.seeds ?? []), seed] };
       seed = Math.floor(Math.random() * 2 ** 31);
+    };
+    let r: Awaited<ReturnType<typeof ask>>;
+    if (theirs && page) {
+      // THE STREAM GATE. A stream's words are on the page as they arrive, and a passage is never
+      // restarted under the writer's eyes, so the first words are HELD until the opening can be
+      // read: six narration words (the sixth begun means the fifth is whole), or HOLD_WORDS words
+      // of any kind for a take that opens on a long line of dialogue. A same opening aborts this
+      // call before the page sees a word and asks again; anything else is released and streams on.
+      // Stop during the hold is Stop: `c.signal` still ends the call, and the page, and so
+      // `stopped_takes`, saw nothing. The landing count runs in `readSSE` on every word, held or not.
+      for (;;) {
+        const gate = new AbortController();
+        let held = '', open = false, same = false;
+        const last = (away?.retried ?? 0) >= AWAY_RETRIES;
+        const sink = (d: string) => {
+          if (open) return page(d);
+          if (same) return;
+          held += d;
+          if (narrationWords(held).length < 6 && (held.match(/\S+/g) ?? []).length < HOLD_WORDS) return;
+          if (!last && openingOf(held) === theirs) { same = true; gate.abort(); return; }
+          open = true; page(held);
+        };
+        try {
+          r = await ask(sink, c.signal ? AbortSignal.any([c.signal, gate.signal]) : gate.signal);
+          // A take that ended inside the hold is released whole: it was too short to judge, or it
+          // was the last ask and is shown whatever it opens with.
+          if (!open && !same && held) page(held);
+          if (!same) break;
+        } catch (e: any) {
+          // A Stop that lands with the gate's abort is caught by the next ask, which starts aborted.
+          if (!same) throw e;
+        }
+        again();
+      }
+    } else {
       r = await ask();
+      while (theirs && openingOf(clean(r.prose)) === theirs && (away?.retried ?? 0) < AWAY_RETRIES) {
+        again();
+        r = await ask();
+      }
     }
     // THE CEILING, so it still has to be visible when it fires. `capFor` puts it well
     // above anything measured, but a runaway can reach it — and until now that arrived as a

@@ -32,14 +32,29 @@ const srv = createServer((req, res) => {
     if (req.url === '/tokenize') return send({ tokens: Array.from({ length: 200 }, (_, i) => i) });
     if (b.response_format) return send({ choices: [{ message: { content: JSON.stringify({ entries: [] }) } }] });
     if (b.max_tokens === 1) return send({ choices: [{ message: { content: '' } }] });
-    calls.push({ seed: b.seed, stream: !!b.stream });
-    const text = answers.length > 1 ? answers.shift()! : answers[0];
+    // The landing's ending: the passage so far comes back as the model's own turn.
+    const ending = (b.messages?.length ?? 0) > 2;
+    if (!ending) calls.push({ seed: b.seed, stream: !!b.stream });
+    const text = ending ? 'And there it ends.' : answers.length > 1 ? answers.shift()! : answers[0];
     if (!b.stream) return send({ choices: [{ message: { content: text }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 200, completion_tokens: 40 } });
+    // A word a frame, a few milliseconds apart, as a real stream arrives. STALL sends three words
+    // and then nothing, so a Stop can land while the gate is still holding them.
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
-    res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 200, completion_tokens: 40 } })}\n\n`);
-    res.end('data: [DONE]\n\n');
+    const stall = text.startsWith('STALL'), split = text.startsWith('SPLIT');
+    // SPLIT sends three characters a frame, so a word arrives in pieces, as tokens do.
+    const words = split ? text.slice(5).trim().match(/[\s\S]{1,3}/g) ?? []
+      : (stall ? text.slice(5).trim() : text).match(/\S+\s*/g) ?? [];
+    let i = 0, gone = false;
+    res.on('close', () => { gone = true; });
+    const next = () => {
+      if (gone) return;
+      if (stall && i === 3) return;
+      if (i < words.length) { res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: words[i++] } }] })}\n\n`); setTimeout(next, 2); return; }
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 200, completion_tokens: 40 } })}\n\n`);
+      res.end('data: [DONE]\n\n');
+    };
+    next();
   });
 });
 await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
@@ -49,6 +64,7 @@ process.env.ANANSI_LLAMA = `http://127.0.0.1:${(srv.address() as any).port}`;
 const db = await import('../src/db.ts');
 const { routes } = await import('../src/routes.ts');
 const { openingOf } = await import('../src/context.ts');
+const { DatabaseSync } = await import('node:sqlite');
 
 const me = db.owner('away');
 const s = db.createStory(me, { title: 'Away', premise: 'A city on a dead god.' }) as any;
@@ -128,14 +144,99 @@ process.env.ANANSI_REROLL_AWAY = '1';
   const first = await routes['POST /api/generate'](ctx({ storyId: s.id, mode: 'continue' })) as any;
   assert.ok(!first.error && calls.length === 1, 'AWAY-FIRST-TAKE: a first take is never asked again: there is nothing it replaces');
 
-  // A STREAM IS NEVER RESTARTED under the writer's eyes: its words are on the page as they arrive.
-  answers = [SAME];
+  ok('with the switch on a reroll that opens like the take it replaces is asked again, twice at most');
+}
+
+// ---- THE STREAM GATE: a streamed reroll holds its first words back until it has five narration
+// words, and a same opening is asked again before any of them reaches the page.
+/** A fresh take to reroll each time: a streamed reroll lands a version, which then stands in the slot. */
+const fresh = () => { const t = db.addPassage({ ...s, storyId: s.id, body: REPLACED, author: 'model' }) as any; return String(t?.id ?? t); };
+const streamed = async (extra: any = {}, signal?: AbortSignal, onPage?: (d: string) => void) => {
   calls = [];
-  const h = await routes['POST /api/generate'](ctx({ storyId: s.id, mode: 'continue', regenerateOf: takeId, stream: true })) as any;
-  await h.__stream(() => {});
-  assert.strictEqual(calls.length, 1, `AWAY-STREAM: a streamed reroll is one call (${calls.length})`);
-  assert.ok(calls[0].stream, 'AWAY-STREAM: and it was streamed');
-  ok('with the switch on a reroll that opens like the take it replaces is asked again, twice at most, never on a stream');
+  const c = ctx({ storyId: s.id, mode: 'continue', regenerateOf: fresh(), stream: true, ...extra });
+  if (signal) c.signal = signal;
+  const page: string[] = [];
+  const h = await routes['POST /api/generate'](c) as any;
+  const last = await h.__stream((o: any) => { if (o?.d) { page.push(o.d); onPage?.(o.d); } });
+  return { last, page: page.join(''), id: c.body.regenerateOf };
+};
+const kept = (id: string) => {
+  const d = new DatabaseSync(DB, { readOnly: true });
+  try { return d.prepare('SELECT body FROM stopped_takes WHERE replaced = ?').all(id) as any[]; } finally { d.close(); }
+};
+{
+  delete process.env.ANANSI_REROLL_AWAY;
+  answers = [SAME, OTHER];
+  const off = await streamed();
+  assert.strictEqual(calls.length, 1, `GATE-OFF: with the switch off a streamed reroll is one call (${calls.length})`);
+  assert.strictEqual(off.page, SAME, 'GATE-OFF: and the page sees every word of it');
+
+  process.env.ANANSI_REROLL_AWAY = '1';
+  answers = [SAME, OTHER];
+  const g = await streamed();
+  assert.strictEqual(calls.length, 2, `GATE-RETRY: a same opening on a stream is asked again (${calls.length} calls)`);
+  assert.ok(calls.every((x) => x.stream), 'GATE-RETRY: both calls streamed');
+  assert.notStrictEqual(calls[0].seed, calls[1].seed, 'GATE-SEED: on a new seed');
+  assert.strictEqual(g.page, OTHER, `GATE-PAGE: the page sees only the new take, never the copied opening (${g.page})`);
+  assert.strictEqual(g.last.prose, OTHER, 'GATE-PROSE: and the new take is the one that lands');
+  assert.deepStrictEqual(g.last.away, { retried: 1, seeds: [calls[0].seed] }, 'GATE-SAYS: the answer says it asked again');
+  assert.ok(g.last.passageId && (db.db.prepare('SELECT body FROM passages WHERE id = ?').get(g.last.passageId) as any)?.body === OTHER,
+    'GATE-SAVED: the version saved is the new take');
+
+  answers = ['SPLIT ' + SAME, OTHER];
+  const split = await streamed();
+  assert.strictEqual(split.page, OTHER, `GATE-SPLIT: a fifth word that arrives in pieces is read whole before the gate decides (${split.page})`);
+
+  answers = [OTHER];
+  const f = await streamed();
+  assert.ok(calls.length === 1 && f.page === OTHER && f.last.away === undefined,
+    'GATE-FRESH: a take that opens elsewhere streams whole, on one call');
+
+  answers = [SAME];
+  const stuck = await streamed();
+  assert.strictEqual(calls.length, 3, `GATE-LIMIT: asked again twice at most (${calls.length})`);
+  assert.strictEqual(stuck.page, SAME, 'GATE-LIMIT: and the last take reaches the page once, whole');
+
+  answers = ['Too short here.'];
+  const short = await streamed();
+  assert.strictEqual(short.page, 'Too short here.', 'GATE-SHORT: a take that ends inside the hold is released to the page');
+
+  // STOP DURING THE HOLD: the call stops, the page saw nothing, so nothing is kept as stopped.
+  answers = ['STALL The door sighs shut behind them'];
+  const ac = new AbortController();
+  setTimeout(() => ac.abort(), 60);
+  const st = await streamed({}, ac.signal);
+  assert.ok(st.last.aborted, 'GATE-STOP: Stop during the hold stops the reroll');
+  assert.ok(calls.length === 1 && st.page === '', `GATE-STOP: on one call, with nothing on the page (${calls.length}, ${st.page})`);
+  assert.strictEqual(kept(st.id).length, 0, 'GATE-STOP-KEPT: and nothing is kept, since the page showed nothing');
+
+  // STOP AFTER THE RELEASE: what the page saw is what is kept, held words included.
+  const ac2 = new AbortController();
+  answers = [OTHER + ' ' + 'word '.repeat(200) + 'STALLED'];
+  let n2 = 0;
+  const st2 = await streamed({}, ac2.signal, () => { if (++n2 === 3) ac2.abort(); });
+  assert.ok(st2.last.aborted, 'GATE-STOP-LATE: stopped after the gate let the take through');
+  const k2 = kept(st2.id);
+  assert.ok(k2.length === 1 && k2[0].body === st2.page && st2.page.startsWith('Seraphine crosses to the chair'),
+    `GATE-STOP-LATE: the kept words are exactly what the page showed (${k2[0]?.body})`);
+
+  // LANDING still works behind the gate: a long take past the slider is stopped and given its ending.
+  const withSlider = async () => {
+    calls = [];
+    const c = ctx({ storyId: s.id, mode: 'continue', regenerateOf: fresh(), stream: true });
+    c.gen = { ...c.gen, target_words: 20 };
+    const page: string[] = [];
+    const h = await routes['POST /api/generate'](c) as any;
+    const last = await h.__stream((o: any) => { if (o?.d) page.push(o.d); });
+    return { last, page: page.join('') };
+  };
+  answers = [SAME + ' ' + 'more '.repeat(40), OTHER + ' ' + 'on and on. '.repeat(20)];
+  const land = await withSlider();
+  assert.ok(!land.page.includes('door sighs'), 'GATE-LAND: the copied opening never reaches the page');
+  assert.ok(land.page.startsWith('Seraphine') && land.page.trimEnd().endsWith('And there it ends.'),
+    `GATE-LAND: the new take streams and lands with its ending (${land.page})`);
+  assert.strictEqual(land.last.prose.replace(/\s+/g, ' '), land.page.replace(/\s+/g, ' ').trim(), 'GATE-LAND: and what landed is what the page showed');
+  ok('a streamed reroll holds its opening, asks again on a same one before the page sees it, and Stop and landing still work');
 }
 delete process.env.ANANSI_REROLL_AWAY;
 
