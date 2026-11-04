@@ -1629,6 +1629,17 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(prose(), proseBefore, 'CHANGE-NO-PROSE: not one passage changed in this whole block');
   ok('a change naming no thread, a room the kind lacks, or an operation off the list is refused, and the reply says so');
 
+  // ITS RAW ANSWER IS KEPT (2026-11-03), beside the context manifest: on Seraphine every change Talk
+  // was sent failed, and the row kept only what was sent, so what the model answered was lost.
+  {
+    const row = (new (await import('node:sqlite')).DatabaseSync(DB, { readOnly: true }) as any)
+      .prepare("SELECT manifest FROM generations WHERE story_id = ? AND role = 'talk' ORDER BY created_at DESC, rowid DESC LIMIT 1").get(tale.id);
+    const m = JSON.parse(row?.manifest ?? '{}');
+    assert.match(String(m.raw ?? ''), /thread\.delete/, 'TALK-RAW: Talk logs what the model answered, changes and all');
+    assert.ok(m.totals, 'TALK-RAW: and still the context manifest it was sent');
+  }
+  ok('Talk keeps the model\'s raw answer in its generation row');
+
   // AN UNDO REACHES ONLY THIS TALE: another tale's thread, named from your own tale,
   // resolves to nothing. The dispatcher's half — another writer's tale id — is test/scope.ts's.
   const other = db.createStory(db.owner('stranger'), { title: 'Not yours' });

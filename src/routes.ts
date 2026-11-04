@@ -4624,8 +4624,11 @@ export const routes: Record<string, Handler> = {
       { model: using, temperature: 0.6,
         max_tokens: reply.maxTokens, remoteCap: true, messages,
         chat_template_kwargs: { enable_thinking: reply.weaves } });
+    // ITS RAW ANSWER IS KEPT beside the manifest, trimmed as the needs ask's is (the newest 200 keep
+    // theirs): on Seraphine (2026-11-03) every change failed and nothing said what the model had sent.
     db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role: 'talk',
-      params: wove(reply, r), manifest, latencyMs: Date.now() - t0, error: r.error ?? null });
+      params: wove(reply, r), manifest: { ...manifest, raw: String((r as any).raw ?? '').slice(0, 12000) },
+      latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
     // Threads become proposals — the same pipeline extraction uses, so classify() and the dedupe
@@ -5440,7 +5443,13 @@ export const routes: Record<string, Handler> = {
       `Pockets: ${seen.map((a: any) => `${a.slot} "${a.name}": ${a.body}`).join(' | ') || 'none'}`,
       `Pockets its kind can have: ${slotsFor(e.entryType).map((sl) => sl.name)
         .filter((n) => n !== 'facts' && !(lock && n === 'voice')).join(', ')}`].join('\n');
-    const r = await structuredRetry(TIDY, ask, TIDY_SCHEMA, { model: backgroundModel(c, v), max_tokens: MEMORY_TOKENS });
+    const t0 = Date.now(), using = backgroundModel(c, v);
+    const r = await structuredRetry(TIDY, ask, TIDY_SCHEMA, { model: using, max_tokens: MEMORY_TOKENS });
+    // ITS RAW ANSWER IS KEPT, as Talk's is (2026-11-03): Tidy logged no row, so the tidy that sorted
+    // Seraphine as lore could not be read afterwards.
+    db.logGeneration({ storyId: v.id, chapterId: v.currentChapter?.id ?? null, model: using, role: 'tidy',
+      params: { max_tokens: MEMORY_TOKENS }, manifest: { raw: String((r as any).raw ?? '').slice(0, 12000) },
+      latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'the tidy returned nothing usable' };
     const grp = `tidy:${e.id}:${Date.now()}`, chapterId = v.currentChapter?.id ?? null;
     // #114 · WHICH SIDE OF A CONTRADICTION IT KEPT rides on every row of the card, which shows it.

@@ -957,6 +957,11 @@ ok('the house style is written from the genre and the premise, and never from th
   const mine = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === h);
   assert.strictEqual(mine.length, 4, `TIDY-CHALKS: Always true, where it stands and two pockets are chalked (${mine.length})`);
   assert.strictEqual(new Set(mine.map((p) => p.grp)).size, 1, '  as one card');
+  // ITS RAW ANSWER IS KEPT (2026-11-03): Tidy logged no row at all, so a tidy that came back
+  // wrong (Seraphine's, filed as lore) could not be read afterwards.
+  const logged = (new (await import('node:sqlite')).DatabaseSync(DB, { readOnly: true }) as any)
+    .prepare("SELECT manifest FROM generations WHERE story_id = ? AND role = 'tidy' ORDER BY created_at DESC, rowid DESC LIMIT 1").get(t.id);
+  assert.match(JSON.parse(logged?.manifest ?? '{}').raw ?? '', /never names it/, 'TIDY-RAW: the tidy logs what the model answered');
   for (const p of mine) await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: true }));
   const rooms = (db.addonsOf(t.id) as any[]).filter((a) => a.entry_id === h);
   assert.strictEqual(rooms.find((a) => a.slot === 'facts')?.body, 'a singer from Jersey',
