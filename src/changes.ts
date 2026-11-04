@@ -362,6 +362,33 @@ export function expandAsked(raws: unknown, tale: Tale): any[] {
   return out;
 }
 
+/** The words a request to change a thread is made with, as the contract's examples say them. */
+const ASKS = /\b(fill|write|add|change|update|make|give|set|put|flesh|expand|complete|rewrite|edit|fix)\b/i;
+
+/** A REQUEST THE MODEL SENT BACK AS AN OFFER. Seraphine, 2026-11-04: asked "fill out the seraphine
+ *  card and fill her pockets", the real model answered with no change and one entry naming her, so
+ *  the request was chalked as an offer (ADR 0007's other lane) and the reply said it was done. An
+ *  entry is asked when the writer's message asks for a change in so many words (`ASKS`) and names a
+ *  thread this tale has that the entry is about: it is that thread's change, its room from `field`
+ *  and its text from `body`, and `expandAsked` and `checkAsked` take it from there like any other.
+ *  Everything else stays an offer: a new thread, and a thread the writer only asked about.
+ *
+ *  ponytail: "asked" is a word list and a name in the message. Ceiling: a request by pronoun alone
+ *  ("fill out her card") or in a verb not on the list is still chalked. Trigger: a writer's request
+ *  found chalked in the Workbench; then read which thread the conversation is on. */
+export function entriesAsked(entries: unknown, tale: Tale, said: string): { asked: any[]; offered: any[] } {
+  const list = (Array.isArray(entries) ? entries : []) as any[];
+  if (!ASKS.test(said)) return { asked: [], offered: list };
+  const heard = new Set(words(said));
+  const asked: any[] = [], offered: any[] = [];
+  for (const e of list) {
+    const t = threadNamed(tale, e?.title).hit;
+    if (!t || !words(t.title).some((w) => w.length > 2 && heard.has(w))) { offered.push(e); continue; }
+    asked.push({ op: 'thread.set', thread: t.title, room: e.field ?? 'none', text: e.body });
+  }
+  return { asked, offered };
+}
+
 /** A NEW THREAD'S NAME, KIND AND ALWAYS TRUE, checked the one way for a tale and a draft: it has a
  *  name, its kind is a kind, no thread already has that name, and it comes with an Always true. A
  *  thread with none would be made with nothing the model is told about it, and the reply would still

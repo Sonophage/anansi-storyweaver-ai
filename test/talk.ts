@@ -37,6 +37,11 @@ const OPENS = 'The lower stair, an hour before dawn; rain off the rock, the lamp
 const QUESTIONS = [{ title: 'Whether the debt is real', line: 'Nobody has seen the ledger but the moneylender.' },
   { title: 'Who sent the letter', line: 'It came under the door with no name on it.' }];
 
+// Seraphine, 2026-11-04 00:05, word for word as the real model answered "Ok fill out the seraphine
+// card and fill her pockets please": no changes, the card sent as an offer for one pocket, and a
+// reply that says it filled her in. The body is the 600 characters the grammar cut it to.
+const FILLCARD = {"reply":"I have filled out the Seraphine card with all the details from your prompt. Here is the completed entry:\n\n**Character Name:** Seraphine\n\n**Role:** Antagonist / Love Interest / Guide\n\n**Appearance:**\n- **Age:** Late 20s to early 30s\n- **Height:** 5'7\"\n- **Build:** Slender but athletic, with a lithe grace\n- **Hair:** Dark brown, styled in a sleek, modern bob\n- **Eyes:** Piercing green, with a hint of gold\n- **Skin:** Pale, with a faint sheen of sweat\n- **Outfit:**\n  - Black latex bodysuit, form-fitting and glossy\n  - Red latex gloves, elbow-length\n  - Black latex boots, knee-high with a slight heel\n  - A silver pendant necklace, shaped like a key\n\n**Personality:**\n- **Confident:** She knows what she wants and goes after it\n- **Possessive:** She likes to claim things and people\n- **Intellectual:** She enjoys puzzles and challenges\n- **Seductive:** She uses her body and voice as weapons\n- **Mysterious:** She keeps her true motives hidden\n\n**Speech:**\n- **Tone:** Low, husky, and intimate\n- **Pace:** Slow and deliberate, with pauses for effect\n- **Vocabulary:** Precise and evocative, with a touch of archaic flair\n- **Quirks:**\n  - Often uses metaphors related to the body and bones\n  - Speaks in a way that feels both inviting and threatening\n  - Her voice can shift from soft and seductive to sharp and commanding\n\n**Backstory:**\n- **Origin:** Unknown, but she has been in Sutera for a long time\n- **Motivation:** She is drawn to the Stranger and wants to understand them\n- **Conflict:** She must balance her desire for the Stranger with her role in the city\n- **Arc:** She will likely become more involved in the Stranger's journey, possibly helping or hindering them\n\n**Relationships:**\n- **The Stranger:** She is fascinated by them and wants to get close\n- **Vel:** She sees Vel as a rival for the Stranger's attention\n- **The Choir of Saints:** She is a member and follows their rules, but has her own agenda\n\n**Quotes:**\n- \"I have been waiting for you, stranger.\"\n- \"You are a puzzle I intend to solve.\"\n- \"Do not be afraid. I am not your enemy.\"\n\n**Notes:**\n- Seraphine is a complex character with multiple layers\n- She can be both a help and a hindrance to the Stranger\n- Her true motives are not entirely clear, adding to the mystery\n\nLet me know if you would like any changes or additional details!","changes":[],"entries":[{"title":"Seraphine","type":"character","body":"A nun of the Choir of Saints, but not as the poor know them. Her habit is cut low, the black fabric pulled taut over strong thighs, ending in heels that click against the blood-stained cobblestones with precise, deliberate rhythm. Red latex gloves stretch to her elbows, shiny and tight, holding the silence of the confessional in their grip. Her voice is a low murmur, barely louder than the gun’s whisper, but it fills the space between them like spilled oil.\n\nShe is hungry, but not for food. She watches the Stranger like a collector watches a rare, dangerous artifact. There is a maternalpossess","keys":["Seraphine","Choir of Saints","Latex","Habit"],"field":"appearance"}]};
+
 let calls: any[] = [];
 let memoType: string | null = null;   // what kind of thread "Remember this" answers with, when set
 let breakFirst = false;   // answer the first call with a truncated object, as running out of room does
@@ -71,7 +76,8 @@ const srv = createServer((req, res) => {
     // #97 · A REQUEST TO CHANGE THE TALE, keyed on the writer's own words like the branches above.
     // Each answer is what a model asked that question would return in `changes`; the route is what
     // decides which of them are done.
-    const asked = /CHANGE-(\w+)/.exec(String(b.messages?.at(-1)?.content ?? ''))?.[1];
+    // ABOUT- keys the same answer to a message with no word of asking in it (`entriesAsked` reads it).
+    const asked = /(?:CHANGE|ABOUT)-(\w+)/.exec(String(b.messages?.at(-1)?.content ?? ''))?.[1];
     const CHANGES: Record<string, any> = {
       AGE: { reply: 'Done: she is thirty now.',
         changes: [{ op: 'thread.set', thread: 'Talia', room: 'none', text: 'Talia is thirty.' }],
@@ -95,6 +101,7 @@ const srv = createServer((req, res) => {
         changes: [{ op: 'thread.new', title: 'Ysolde', type: 'character', field: 'voice', text: 'A low murmur.' },
                   { op: 'thread.new', title: 'Ysolde', type: 'character', field: 'voice', text: 'A low murmur.' },
                   { op: 'thread.new', title: 'Ysolde', type: 'character', field: 'outfit', text: 'Red latex gloves.' }] },
+      FILLCARD,
       // Everything here is something the route must refuse, and the reply claims all of it was done.
       BAD: { reply: 'Done, all of it.',
         changes: [{ op: 'thread.set', thread: 'Nobody', text: 'Old.' },
@@ -1702,6 +1709,34 @@ ok('emptying the box gives her back the voice she shipped with');
       `TALK-NOTHING-DONE: one line for the thread, none for its pockets (${JSON.stringify(none.notDone)})`);
   }
   ok('when nothing asked for was done, the answer says so first, once per thing asked');
+
+  // ASKED, THOUGH THE MODEL SENT IT AS AN OFFER (Seraphine, 2026-11-04). The writer asked for her card
+  // to be filled in, and the answer carried no change: only an entry naming her, for one pocket. A
+  // question about her is still answered with an offer, chalked; the request is done, with Undo.
+  {
+    const her = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'Seraphine');
+    const BODY = FILLCARD.entries[0].body;
+    const asked = await say('ABOUT-FILLCARD: what is Seraphine wearing?');
+    assert.ok(!asked.error, asked.error);
+    assert.deepStrictEqual(asked.changes, [], 'TALK-ASKED-ENTRY: a question changes nothing');
+    assert.strictEqual(asked.proposed, 1, 'TALK-ASKED-ENTRY: what it offers about her is chalked');
+    const offer = (db.proposalsOf(tale.id) as any[]).find((p) => p.title === 'Seraphine' && p.field === 'appearance');
+    assert.ok(offer, 'TALK-ASKED-ENTRY: on the Workbench, for her appearance');
+    db.setProposalStatus(tale.id, offer.id, 'rejected');
+
+    const fill = await say('CHANGE-FILLCARD: Ok fill out the seraphine card and fill her pockets please');
+    assert.ok(!fill.error, fill.error);
+    assert.strictEqual(room(her.id, 'appearance')[0]?.body, BODY.trim(),
+      'TALK-ASKED-ENTRY: asked to fill her card, her appearance is written');
+    assert.strictEqual(fill.changes.length, 1, `TALK-ASKED-ENTRY: one change, with its line (${JSON.stringify(fill.notDone)})`);
+    assert.match(fill.changes[0].words, /Seraphine/, '  naming her');
+    assert.strictEqual(fill.proposed, 0, 'TALK-ASKED-ENTRY: and nothing about her is chalked as well');
+    assert.ok(!(db.proposalsOf(tale.id) as any[]).some((p) => p.title === 'Seraphine'), '  not on the Workbench');
+    const back = await undo(fill.changes[0].undo);
+    assert.ok(!back.error, back.error);
+    assert.strictEqual(room(her.id, 'appearance').length, 0, 'TALK-ASKED-ENTRY: its Undo takes the pocket away');
+  }
+  ok('a request about a thread the model sent back as an offer is done as asked, with Undo');
 
   // AN UNDO REACHES ONLY THIS TALE: another tale's thread, named from your own tale,
   // resolves to nothing. The dispatcher's half — another writer's tale id — is test/scope.ts's.
