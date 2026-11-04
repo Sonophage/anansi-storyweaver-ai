@@ -2813,7 +2813,11 @@ function drawSide() {
   // AND ANY OTHER PANEL THE WRITER HAS MADE FULL (Seth, 2026-11-02), from the press beside Close.
   const alwaysFull = S.panel === 'ritual' || S.panel === 'setup';
   // Not on a phone, where the press is hidden (app.html) and the panel is already a sheet.
-  root.dataset.sidefull = !side.hidden && (alwaysFull || (PANEL_FULL.has(S.panel) && !phone())) ? '1' : '0';
+  // THREADS IS FULL ON A PHONE TOO (Seth, 2026-11-03: "Threads still has spacing up top, this is on
+  // mobile"): the sheet stops at 88% of the screen and carries the panel banner, which left a band
+  // of page and a tall head above the list. Full, it fills the screen with the plain header.
+  root.dataset.sidefull = !side.hidden && (alwaysFull
+    || (PANEL_FULL.has(S.panel) && (!phone() || S.panel === 'threads'))) ? '1' : '0';
   if (side.hidden) return;
   const full = PANEL_FULL.has(S.panel);
   const fullBtn = alwaysFull ? '' : `<button class="headfull" data-panelfull="1" aria-pressed="${full}"
@@ -5406,12 +5410,11 @@ const PANELS = {
       ${(() => {
         const pin = pinModes();
         const n = V.entries.filter((e) => inContext(e, pin)).length;
-        /* ALL AND SENT NOW ARE BUTTONS OF THEIR OWN, LEFT OF THE SEARCH (Seth, 2026-11-03: "put All
-         * on the left hand side as a button and Sent now as a button instead of in the search bar").
-         * They sat inside the search box, Sent now first (2026-09-03); All leads now, and the box
-         * holds only the search. */
+        /* ALL, THE SEARCH, THEN SENT NOW (Seth, 2026-11-03: All and Sent now as buttons of their own,
+         * "put the search between them"). They sat inside the search box, Sent now first
+         * (2026-09-03); the box holds only the search now. */
         return `<div class="thscope">
-          ${[['0', 'All', V.entries.length], ['1', 'Sent now', n]].map(([v, l, c]) =>
+          ${[['0', 'All', V.entries.length]].map(([v, l, c]) =>
             `<button class="chip" data-onlyin="${v}" aria-pressed="${(S.onlyIn ? '1' : '0') === v}"
               >${l} <span class="tnum faint">${c}</span></button>`).join('')}
           <div class="thfind">
@@ -5419,6 +5422,9 @@ const PANELS = {
             <input id="thq" type="search" aria-label="Search this tale's threads"
               value="${esc(S.threadQ)}" placeholder="Search">
           </div>
+          ${[['1', 'Sent now', n]].map(([v, l, c]) =>
+            `<button class="chip" data-onlyin="${v}" aria-pressed="${(S.onlyIn ? '1' : '0') === v}"
+              >${l} <span class="tnum faint">${c}</span></button>`).join('')}
         </div>
         <div class="thkinds">${/* "ALL KINDS", WITH NO COUNT (Seth, 2026-11-03): it said "All 21" one row
             under the scope's own "All 21", the same words and number twice. The row never wraps:

@@ -65,7 +65,7 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
   })()`).then((x) => x && JSON.parse(x));
   ok(`All, Sent now and the search sit in one row (${JSON.stringify(row)})`,
      !!row && row.spread <= 4 && row.inside && row.qw >= 80);
-  // ALL FIRST, THEN SENT NOW, as buttons left of the search box (Seth, 2026-11-03).
+  // ALL, THE SEARCH, THEN SENT NOW (Seth, 2026-11-03): in the DOM, All comes first and Sent now last.
   ok("  and the filters still carry their counts, All first",
      !!row && row.labels[0] === `All ${n}` && /^Sent now \d+$/.test(row.labels[1]));
 

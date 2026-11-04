@@ -1533,6 +1533,15 @@ ok('You play is a picker: search first, then who is in this scene, then everyone
   assert.strictEqual(rootEl.dataset.sidefull, '1', 'THREADS-FULL: Threads opens full screen');
   assert.strictEqual(store.getItem('anansi.panelfull.threads'), '1', 'THREADS-FULL: and the default is applied once');
   assert.match(html('sideHead'), /data-panelfull="1"[^>]*aria-pressed="true"/, 'its head carries the full-screen press, pressed');
+  // ON A PHONE TOO (Seth, 2026-11-03: "Threads still has spacing up top, this is on mobile").
+  { const wide = (globalThis as any).matchMedia;
+    (globalThis as any).matchMedia = () => ({ matches: true, addEventListener() {} });   // phone width
+    try {
+      click({ panel: 'strings' }); await sleep(20);
+      assert.strictEqual(rootEl.dataset.sidefull, '0', 'THREADS-FULL-PHONE: another panel is a sheet on a phone');
+      click({ panel: 'threads' }); await sleep(20);
+      assert.strictEqual(rootEl.dataset.sidefull, '1', 'THREADS-FULL-PHONE: Threads fills a phone screen');
+    } finally { (globalThis as any).matchMedia = wide; } }
   click({ panel: 'chapter' }); await sleep(20);
   assert.strictEqual(rootEl.dataset.sidefull, '0', 'a panel opens beside the page');
   click({ panelfull: '1' }); await sleep(20);
@@ -1701,8 +1710,8 @@ ok('the header names the book, and carries no reading of its own');
     'COUNTS-ICONS: the context icon on the left, the threads icon on the right (Seth, 2026-11-01)');
   click({ ctxthreads: '1' }); await sleep(10);
   assert.strictEqual(html('sideBody').includes('data-onlyin="1" aria-pressed="true"'), true, 'THREADS-OPEN: the threads icon opens Threads on Sent now');
-  assert.match(html('sideBody'), /class="thscope">\s*<button class="chip" data-onlyin="0"[\s\S]*data-onlyin="1"[\s\S]*<div class="thfind">\s*<span class="thfindmark">[\s\S]*id="thq"[^>]*>\s*<\/div>/,
-    'THREADS-SCOPE: All, then Sent now, as buttons left of the search; the search box holds only the search');
+  assert.match(html('sideBody'), /class="thscope">\s*<button class="chip" data-onlyin="0"[^]*?<\/button>\s*<div class="thfind">\s*<span class="thfindmark">[^]*?id="thq"[^>]*>\s*<\/div>\s*<button class="chip" data-onlyin="1"/,
+    'THREADS-SCOPE: All, the search, then Sent now; the search box holds only the search');
   assert.match(html('ctxread'), /data-ctxthreads="1" aria-pressed="true"/, '  and says it is open');
   click({ ctxthreads: '1' }); await sleep(10);
   assert.match(html('ctxread'), /data-ctxthreads="1" aria-pressed="false"/, 'THREADS-SHUT: a second press shuts it');
