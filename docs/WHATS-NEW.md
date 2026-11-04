@@ -20,7 +20,7 @@ Everything below this line was written by that model call, before it was removed
 
 ### Say what the old version did, and the new one avoids it
 The Reweave box's What didn't work now asks you to name what the old version did, like "it opened on
-Tessa not answering again". Tested on the local model, a note like that took a new version opening
+John not answering again". Tested on the local model, a note like that took a new version opening
 the same way as the old one from one reweave in four to one in thirty. A general note ("make it
 different") did nothing measurable.
 
