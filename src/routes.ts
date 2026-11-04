@@ -1074,9 +1074,12 @@ async function castNames(world: string, using: string, o: { kinds: string[]; wan
 /** THE EARLIER TURNS, for both Talk routes: the last six, each capped. Each exchange is context for
  *  the next, so the fifth question would otherwise cost several times the first. */
 /** The conversation so far as chat turns, writer and Anansi, the last six. */
+/*  ANANSI'S OWN WORDS ONLY (#144): an answer the writer was shown carries the app's lines beside his
+ *  reply (`talkReply`), and sent back as his turn the model copied them into its next reply as if it
+ *  had said them. They are taken off here, by the same prefixes `talkReply` writes them with. */
 const turnMessages = (turns: unknown) => (Array.isArray(turns) ? turns : []).slice(-6)
-  .filter((t: any) => String(t?.text ?? '').trim())
-  .map((t: any) => ({ role: t?.you ? 'user' : 'assistant', content: String(t.text).slice(0, 1200) }));
+  .map((t: any) => ({ role: t?.you ? 'user' : 'assistant', content: (t?.you ? String(t?.text ?? '') : ownWords(t?.text)).trim().slice(0, 1200) }))
+  .filter((m) => m.content);
 /** What Talk's material says around the conversation: it follows, as turns (`turnMessages`). */
 const TALK_FRAME = 'The writer is talking to you in the conversation that follows, not asking for prose. '
   + 'Everything above is what you know about their story. Do not continue the story.\n\nFor this conversation:\n{{directive}}';
@@ -1106,24 +1109,46 @@ const SETUP_THREADS = 30, SETUP_POCKETS = 4;
  *  off. AND WHAT WAS ONLY OFFERED (Seraphine, 2026-11-04): asked to fill her card, the answer was
  *  chalked and the reply opened "I have filled out the Seraphine card". With nothing done, what a
  *  request chalked instead (`offered`) is said first, as offered and not written.
- *  ponytail: only a claim the reply opens with is caught, "Done" or "I have" with a verb of changing
- *  in its first sentence; a claim elsewhere stays, under the line that says what was done. Trigger: a
- *  reply that claims a change in other words is read as done; then mark the reply as Anansi's words
- *  under the line. */
+ *  #144: a claim later in the reply is taken off too (`unclaimed`), but only when the writer asked
+ *  for a change: an answer to a question keeps every sentence.
+ *  ponytail: a claim is a verb list ("I have added", "is now filled in"). Ceiling: a claim in other
+ *  words stays, and with a request and nothing done, a sentence like "I have made my peace" is taken
+ *  off. Trigger: a writer reads a reply as done when it was not, or a reply missing a sentence; then
+ *  mark the reply as Anansi's words under the line instead of editing it. */
 const CLAIMED = [/^(?:all\s+)?done\b[\s.!:,;\u2014\u2013-]*/i,
   /^i(?:'ve|\u2019ve|\s+have)?\s+(?:now\s+|just\s+)?(?:filled|updated|added|written|wrote|made|changed|created|set)\b[^.!?\n]*[.!?]?\s*/i];
+/** The app's own lines in an answer, each the start of a paragraph `talkReply` writes. */
+const APP_SAYS = { notDone: 'Not done.', nothing: 'Nothing was changed.', offered: 'Offered on the Workbench, not written:',
+  noWeb: 'The web search failed' } as const;
+/** A sentence that says Anansi made a change: "I have added …", or "… is now filled in". The passive
+ *  half has the narrow list only, so "the tale is set in Sutera" is never read as a claim. */
+const CHANGED = '(?:filled(?:\\s+(?:in|out))?|updated|added|written|wrote|made|changed|created|set|fleshed\\s+out|expanded|given|put)';
+const CLAIM_ANYWHERE = new RegExp(`\\bI(?:'ve|\u2019ve|\\s+have)?\\s+(?:also\\s+|now\\s+|just\\s+)*${CHANGED}\\b`
+  + '|\\b(?:is|are|has been|have been)\\s+(?:now\\s+)?(?:filled\\s+(?:in|out)|updated|added|written|fleshed\\s+out)\\b', 'i');
+/** The reply with every claim sentence taken off, the space between sentences kept as it was. */
+const unclaimed = (text: string) => {
+  const parts = text.split(/(?<=[.!?])(\s+)/), out: string[] = [];
+  for (let i = 0; i < parts.length; i += 2) if (!CLAIM_ANYWHERE.test(parts[i])) out.push(parts[i], parts[i + 1] ?? '');
+  return out.join('').trim();
+};
 const talkReply = (reply: unknown, notDone: { said: string; why: string }[], searchFailed: string | null, done = 1,
-                   offered: string[] = []) => {
-  const lines = notDone.map((x) => `Not done. ${x.said}: ${x.why}.`).join('\n');
+                   offered: string[] = [], asked = false) => {
+  const lines = notDone.map((x) => `${APP_SAYS.notDone} ${x.said}: ${x.why}.`).join('\n');
   const said = String(reply ?? '').trim();
-  const bare = CLAIMED.reduce((t, re) => t.replace(re, ''), said);
-  const head = done > 0 ? [] : [notDone.length ? 'Nothing was changed.\n' + lines : '',
-    offered.length ? 'Offered on the Workbench, not written:\n' + offered.join('\n') : '',
-    !notDone.length && !offered.length && bare !== said ? 'Nothing was changed.' : ''].filter(Boolean);
+  // #144 · AND A CLAIM ANYWHERE IN IT: with nothing done, a sentence saying a change was made is taken
+  // off wherever it stands ("I have also added her voice", "Her pockets are now filled in").
+  const opened = CLAIMED.reduce((t, re) => t.replace(re, ''), said);
+  const bare = done > 0 || !asked ? opened : unclaimed(opened);
+  const head = done > 0 ? [] : [notDone.length ? `${APP_SAYS.nothing}\n` + lines : '',
+    offered.length ? `${APP_SAYS.offered}\n` + offered.join('\n') : '',
+    !notDone.length && !offered.length && bare !== said ? APP_SAYS.nothing : ''].filter(Boolean);
   return (head.length ? [...head, bare] : [said, lines])
-    .concat(searchFailed ? `The web search failed (${searchFailed}), so this answer does not use the web.` : '')
+    .concat(searchFailed ? `${APP_SAYS.noWeb} (${searchFailed}), so this answer does not use the web.` : '')
     .filter(Boolean).join('\n\n');
 };
+/** An answer as Anansi said it: the paragraphs `talkReply` added taken off. */
+const ownWords = (answer: unknown) => String(answer ?? '').split(/\n\n+/)
+  .filter((p) => !Object.values(APP_SAYS).some((x) => p.trimStart().startsWith(x))).join('\n\n');
 
 /** #98 · THE TALE A CHANGE IS CHECKED AGAINST, read through the gate as it stands now: its threads,
  *  its own fields, its scenes, and the scene the writer is in. #128 · And the tale's own thread,
@@ -4791,7 +4816,8 @@ export const routes: Record<string, Handler> = {
       changes.push({ words: aim.to === 'world' ? `${wordsFor(k.change)} In ${world!.title}, for every tale that follows it.`
         : wordsFor(k.change), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change) });
     }
-    const answer = [talkReply(r.data.reply, notDone, searchFailed, changes.length, asksForChange(said) ? chalked : []),
+    const answer = [talkReply(r.data.reply, notDone, searchFailed, changes.length, asksForChange(said) ? chalked : [],
+      asksForChange(said) || raws.length > 0),
       unsure.length ? askWhich(unsure, world!.title) : ''].filter(Boolean).join('\n\n');
     // KEPT: the writer's words and the answer they were shown, in this writer's session in this
     // tale (`db.talkSay`). `prompt` is exactly what was sent, for the page's Copy prompt; it holds

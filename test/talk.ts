@@ -102,6 +102,11 @@ const srv = createServer((req, res) => {
                   { op: 'thread.new', title: 'Ysolde', type: 'character', field: 'voice', text: 'A low murmur.' },
                   { op: 'thread.new', title: 'Ysolde', type: 'character', field: 'outfit', text: 'Red latex gloves.' }] },
       FILLCARD,
+      // #144 · A CLAIM IN THE MIDDLE of a reply whose change was not done (2026-11-04).
+      MIDCLAIM: { reply: 'Vel is a ferryman of the lower tiers. I have also added her voice and her outfit to the card. Her pockets are now filled in. Ask me anything.',
+        changes: [{ op: 'thread.set', thread: 'Nobody Here', room: 'voice', text: 'A low murmur.' }] },
+      // A plain answer that only sounds like a claim: nothing was asked, so nothing is taken off.
+      SETIN: { reply: 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.' },
       // The card as one entry with its pockets, which the grammar offers now: her appearance in the
       // entry's own room, and two more pockets beside it.
       FILLPOCKETS: { reply: 'Her card is filled in.',
@@ -418,6 +423,20 @@ await routes['POST /api/talk']({ body: { storyId: story.id, said: 'And who am I?
   assert.ok(calls[0].presence_penalty == null && calls[0].frequency_penalty == null, 'TALK-NO-PENALTY: no presence or frequency penalty on Talk');
 }
 ok('Talk is a chat: the story in the system message, the conversation as turns');
+// #144 · ITS OWN WORDS ONLY. The answer a writer was shown carries the app's lines too ("Nothing was
+// changed.", "Not done. …", "Offered on the Workbench, not written:"), and sent back as Anansi's turn
+// the model copied them into its next reply as if it had said them (Seraphine, 2026-11-04).
+calls = [];
+await routes['POST /api/talk']({ body: { storyId: story.id, said: 'Try again.',
+  turns: [{ you: true, text: 'Fill her card.' },
+          { text: 'Nothing was changed.\nNot done. Change Vel: there is no thread called Vel.\n\nShe is ready for you.\n\n'
+            + 'Offered on the Workbench, not written:\nVel: voice\n\nThe web search failed (timeout), so this answer does not use the web.' }] },
+  query: new URLSearchParams(), owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+  gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {} } as any);
+assert.strictEqual(calls[0].messages[2].content, 'She is ready for you.',
+  `OWN-WORDS: Anansi's earlier turn goes back without the app's lines (${JSON.stringify(calls[0].messages[2].content)})`);
+ok('an earlier answer goes back to the model as Anansi\'s own words, not the app\'s notes on it');
+
 
 // ---- 3. the room reserved is the room spent
 // It assembled the prompt against 900 tokens of reserved output and then asked for 1,600. The
@@ -1726,6 +1745,21 @@ ok('emptying the box gives her back the voice she shipped with');
       `TALK-NOTHING-DONE: one line for the thread, none for its pockets (${JSON.stringify(none.notDone)})`);
   }
   ok('when nothing asked for was done, the answer says so first, once per thing asked');
+
+  {
+    const mid = await say('CHANGE-MIDCLAIM: add her voice and outfit');
+    assert.ok(!mid.error, mid.error);
+    assert.match(mid.reply, /^Nothing was changed\./, `MIDCLAIM-HEAD: nothing done is said first:\n${mid.reply}`);
+    assert.ok(!/I have also added|now filled in/.test(mid.reply), `MIDCLAIM-GONE: a claim of a change in the middle of the reply is taken off:\n${mid.reply}`);
+    assert.match(mid.reply, /Vel is a ferryman of the lower tiers\.[\s\S]*Ask me anything\./, `MIDCLAIM-KEPT: the rest of the reply stays:\n${mid.reply}`);
+  }
+  {
+    const q = await say('ABOUT-SETIN: where does it happen?');
+    assert.ok(!q.error, q.error);
+    assert.strictEqual(q.reply, 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.',
+      `MIDCLAIM-QUESTION: an answer to a question keeps every sentence:\n${q.reply}`);
+  }
+  ok('a claim of a change anywhere in the reply is taken off when nothing was done');
 
   // ASKED, THOUGH THE MODEL SENT IT AS AN OFFER (Seraphine, 2026-11-04). The writer asked for her card
   // to be filled in, and the answer carried no change: only an entry naming her, for one pocket. A
