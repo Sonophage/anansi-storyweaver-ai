@@ -200,6 +200,14 @@ another character's name, a line of dialogue read as a POV break.
 list was renamed on 2026-08-27; the old `write-nt-*` names return `400 model not found`.
 `ANANSI_MODEL` overrides the default in `llama.ts`; a story may pin its own in `stories.model`.
 
+**The test bench model is Ornith.** Seth, 2026-11-04: every test and A/B arm that calls a model
+runs on the local `Ornith-1.0-RPNTH-35B`, so there is one fixed baseline. Pin it on the fixture
+story or set `ANANSI_MODEL` on the scratch server, and confirm it through `POST /api/manifest`
+before generating. Ornith's preset has more slots than Qwen3.6's, so each slot is smaller and a
+long book's prompt is trimmed on it; `curl -s http://127.0.0.1:8080/v1/models` shows each preset's
+`--ctx-size` and `--parallel`. Findings measured on another model do not carry their numbers over
+to Ornith (the F57 rule): re-measure before relying on one.
+
 It is a reasoning model: **`chat_template_kwargs: {enable_thinking: false}` is sent on every call
 unless the book weaves.** With thinking on at a prose cap it returned no prose at all on three runs
 of four (F5), and structured roles truncate their JSON the same way (F23). Weaving (the writer's
