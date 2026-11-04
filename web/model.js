@@ -866,8 +866,12 @@ export function sphereFrame(t, n = SPHERE_DOTS, ripple = 0.1, yaw = t * 0.15, ti
 export function sphereIn(cv, px) {
   const ctx = cv?.getContext?.('2d');
   if (!ctx) return;
-  const dpr = Math.min(globalThis.devicePixelRatio || 1, 2);
-  cv.width = cv.height = Math.round(px * dpr);
+  // Sharp at the size it is SHOWN, which is not `px` under the interface scale (a `zoom` on the
+  // body): the backing store is measured, and the drawing scaled to fill it. Hidden, it measures 0
+  // and falls back to `px`.
+  const shown = cv.getBoundingClientRect?.().width || px;
+  cv.width = cv.height = Math.round(shown * Math.min(globalThis.devicePixelRatio || 1, 2));
+  const dpr = cv.width / px;
   const ink = globalThis.getComputedStyle?.(cv)?.color || 'currentColor';
   const R = px * 0.41, c = px / 2;
   const draw = (t) => {
