@@ -1150,6 +1150,13 @@ ok('the passages that mention a thing are found by whole word, any case, and a r
   assert.ok(ch.askedOf(rm, tl, "the Choir doesn't exist any more, take it out of the prose"), 'LORE-ASKED: take it out');
   assert.ok(ch.askedOf(rm, tl, 'remove the Choir from the story'), '  remove');
   assert.ok(!ch.askedOf(rm, tl, 'what is the Choir?'), 'LORE-UNASKED: a question about it');
+  assert.ok(ch.askedOf(rm, tl, "the Choir doesn't exist any more"), 'LORE-ASKED-GONE: the spec\'s own words');
+  assert.ok(ch.askedOf(rm, tl, 'take the Choir out of the story'), 'LORE-ASKED-TAKE: take it out, the thing between');
+  assert.ok(!ch.askedOf(rm, tl, 'drop the bit where she cries'), 'LORE-ASKED-THING: the thing itself must be named');
+  const plural = { ...tl, passages: [{ id: 'q1', chapterId: 'c1', body: "A Bellwarden's bell." }, { id: 'q2', chapterId: 'c1', body: 'Two bellwardens.' },
+    { id: 'q3', chapterId: 'c1', body: 'Bellwardenry is a word.' }] };
+  assert.deepStrictEqual(ch.mentioning(plural, 'the Bellwardens').map((x: any) => x.id), ['q1', 'q2'], 'LORE-PLURAL: singular, plural and possessive');
+  assert.deepStrictEqual(ch.mentioning(plural, 'Bellwarden').map((x: any) => x.id), ['q1', 'q2'], '  either way round');
 });
 
 console.log(`\n${n} checks passed`);

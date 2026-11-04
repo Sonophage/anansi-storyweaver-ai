@@ -503,8 +503,10 @@ export function askedOf(raw: any, tale: Tale, said: string, before = ''): boolea
   if (op.startsWith('instruction.')) return whole(raw.title) || ASK_KIND.instruction.test(own);
   if (op === 'tale.set') return TALE_ASK[String(raw.field)]?.test(own) ?? false;
   if (op === 'scene.set') return ASK_KIND.scene.test(own);
-  // #155 · Taking a thing out of the prose is asked with a verb of taking out.
-  if (op === 'prose.remove') return /\b(remove|take (it |them )?out|cut|strip|delete|get rid|drop|erase|scrub)\b/.test(own);
+  // #155 · Taking a thing out of the prose is asked by naming the thing AND saying it goes: a verb of
+  // taking out, or that it no longer exists ("the Choir doesn't exist any more", the spec's own words).
+  if (op === 'prose.remove') return mentions(own, String(raw.title ?? ''))
+    && /\b(remove|cut|strip|delete|erase|scrub|get rid of)\b|\btake\b[^.!?]*\bout\b|\b(doesn'?t|does not|don'?t|do not|never) exists?\b|\bno longer\b|\b(is|are) gone\b/.test(own);
   // #153 · A passage is asked for with a verb of changing AND what prose is called, or by quoting
   // several of its words: "who is in this scene?" and "what's her best line?" ask for nothing, and a
   // name alone ("Morgott") is not a quote of a passage.
@@ -634,21 +636,27 @@ const followed = (t: Thread, said: string): Checked => ({ ok: false, said,
  *  same way. An Undo with no `wrote` proves nothing about what is there, so it is refused too. */
 const SINCE = 'it has been changed since';
 
-/** #155 · THE PASSAGES THAT MENTION A THING, in the order they are read: by whole word and any case
- *  ("the Choir", "the choir"), never inside another word ("Choirmaster"); breaks skipped. A leading
- *  "the" is not required, so "Choir" finds "the Choir" too. */
+/** #155 · THE PASSAGES THAT MENTION A THING, in the order they are read: by whole word and any case,
+ *  singular, plural or possessive ("Bellwarden's", "bellwardens"), never inside another word
+ *  ("Bellwardenry"); breaks skipped. A leading "the" is not required. `mentions` is the one test. */
+const mentionRe = (thing: string) => {
+  const core = String(thing ?? '').trim().replace(/^(the|a|an)\s+/i, '');
+  if (!core) return null;
+  const stem = core.replace(/(?:'s|\u2019s|es|s)$/i, '');
+  const e = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![\\p{L}\\p{N}])(?:${e(core)}|${e(stem)}(?:s|es|'s|\u2019s)?)(?![\\p{L}\\p{N}])`, 'iu');
+};
+const mentions = (text: string, thing: string) => !!mentionRe(thing)?.test(text);
+export function mentioning(tale: Tale, thing: string) {
+  const re = mentionRe(thing);
+  return re ? (tale.passages ?? []).filter((p) => !p.isBreak && re.test(p.body)) : [];
+}
 /** Which passage a passage is, in the writer's words: its scene's number and its place in it. */
 export function passageAt(tale: Tale, id: string) {
   const ps = (tale.passages ?? []).filter((p) => !p.isBreak && String(p.body ?? '').trim());
   const p = ps.find((x) => x.id === id);
   const ch = p && (tale.chapters ?? []).find((c: any) => c.id === p.chapterId) as any;
   return { scene: Number(ch?.index ?? 0), n: p ? ps.filter((x) => x.chapterId === p.chapterId).findIndex((x) => x.id === id) + 1 : 0 };
-}
-export function mentioning(tale: Tale, thing: string) {
-  const core = String(thing ?? '').trim().replace(/^(the|a|an)\s+/i, '');
-  if (!core) return [];
-  const re = new RegExp(`(?<![\\p{L}\\p{N}])${core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
-  return (tale.passages ?? []).filter((p) => !p.isBreak && re.test(p.body));
 }
 
 /** #154 · A RENAME, EVERYWHERE THE NAME IS WRITTEN (ADR 0014), asked in so many words: the thread, its

@@ -3801,7 +3801,8 @@ function deckCards(only = null, inHem = false) {
   const taken = new Set(hems.map((c) => c.key.split(':').slice(0, 2).join(':')));
   const groups = new Map();
   for (const p of props.filter((x) => !taken.has(x.grp))) { const k = p.grp || p.id; groups.set(k, [...(groups.get(k) ?? []), p]); }
-  const what = (ps) => ps[0].entryType === 'string' ? 'A string, chalked' : ps.some((p) => !p.entryId) ? 'New thread'
+  const what = (ps) => ps[0].entryType === 'passage' ? 'A passage, rewritten' : ps[0].entryType === 'string' ? 'A string, chalked'
+    : ps.some((p) => !p.entryId) ? 'New thread'
     : ps.some((p) => (p.grp ?? '').startsWith('hem:')) ? 'Hemming found'
     : (ps[0].grp ?? '').startsWith('restand:') ? 'Where it stands, rewritten' : ps[0].kind === 'tidy' ? 'Tidy this thread'
     : 'Anansi chalked';
@@ -4058,6 +4059,8 @@ function hemRow(p, i, rows) {
 function rowLabel(p) {
   const onto = p.entryId ? [...(V.entries ?? []), ...(V.taleThread ? [V.taleThread] : [])].find((x) => x.id === p.entryId) : null;
   const name = p.pocket ?? [...(onto?.addons ?? []), ...(onto?.outfits ?? [])].find((a) => a.id === p.target)?.name;
+  // #155 · A passage offered without a thing is prose, not a thread.
+  if (p.entryType === 'passage') return 'The prose';
   return p.entryType === 'state' ? `Where it stands, from scene ${esc(String(p.keys?.[0] ?? ''))}`
     : p.entryType === 'string' ? `A new ${esc(slotLabel(p.field ?? 'promise'))}`
     : p.field === 'facts' ? 'Always true' : p.field ? `${esc(pocketTitle(p.field))}${name ? ` &middot; ${esc(name)}` : ''}`
@@ -4085,11 +4088,12 @@ function deckRow(p, foot = false) {
         ${Object.entries(p.rooms).map(([slot, r]) => `<div style="font-size:12px; line-height:1.45; color:var(--mute); margin-top:4px">
           <span class="lbl flush">${slot === 'stands' ? 'Where it stands' : esc(pocketTitle(slot))}${r?.name && r.name !== slot ? ` &middot; ${esc(r.name)}` : ''}</span>
           ${esc(typeof r === 'object' ? r.body ?? '' : String(r))}</div>`).join('')}` : ''}
-      <div class="deckredo">
+      ${/* #155 · Anansi edits writes a thread's description; a rewritten passage is edited in its box. */
+        p.entryType === 'passage' ? '' : `<div class="deckredo">
         <input class="field" data-aeask="${esc(p.id)}" placeholder="What to change (optional)"
           aria-label="What should change, for Anansi to write it again" style="margin:0; flex:1; font-size:12px">
         <button class="btn ghost" data-anansiedit="${esc(p.id)}" style="flex:0 0 auto; width:auto; padding:0 14px">Anansi edits</button>
-      </div>`;
+      </div>`}`;
 }
 
 /** UPKEEP AS CARDS (Seth, 2026-10-26: "Summaries and such those sit at the bottom instead of also

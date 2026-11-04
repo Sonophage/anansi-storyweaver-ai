@@ -4749,7 +4749,9 @@ export function addProposal(storyId: string, p: any) {
     // accepting both makes two threads with one name.
     .update([subject, p.entry_id ?? '', target, ...(p.target ? [p.target] : []),
       // #152 · A held Talk change is its operation and what it names, as well as its title.
-      ...(p.change ? [String(p.change.op ?? ''), String(p.change.field ?? p.change.title ?? p.change.thread ?? '')] : []),
+      ...(p.change ? [String(p.change.op ?? ''), String(p.change.field ?? p.change.title ?? p.change.thread ?? ''),
+        // #155 · a passage offered without a thing is that passage and that thing.
+        String(p.change.passage ?? ''), String(p.change.thing ?? '')] : []),
       ...(target === 'state' ? [String((p.keys ?? [])[0] ?? '')] : []),
       ...((target === 'body' && p.entry_id) || target.startsWith('room:') ? [String(p.chapterId ?? '')] : [])].join('\u0000')).digest('hex').slice(0, 32);
   try {
@@ -4781,6 +4783,9 @@ export function addProposal(storyId: string, p: any) {
 /** Nothing here is canon. Screen 28: "1 new · 2 changed · 1 conflict · nothing is canon yet."
  *  A conflict is specifically a model proposal against a body a human pinned — the arbitration
  *  rule keys on provenance, so those never auto-apply and never bulk-accept. */
+/** #155 · Every held Talk change of a tale, open or decided: what was offered before, and how it went. */
+export const heldChanges = (storyId: string) => (q("SELECT id, status, change FROM proposals WHERE story_id = ? AND change IS NOT NULL")
+  .all(storyId) as any[]).map((r) => { try { return { ...r, change: JSON.parse(r.change) }; } catch { return null; } }).filter(Boolean);
 export const proposalsOf = (storyId: string) => q(
   "SELECT * FROM proposals WHERE story_id = ? AND status = 'open' ORDER BY created_at").all(storyId) as any[];
 export const proposal = (storyId: string, id: string) =>

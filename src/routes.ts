@@ -1149,7 +1149,7 @@ const SETUP_THREADS = 30, SETUP_POCKETS = 4;
  *  mark the reply as Anansi's words under the line instead of editing it. */
 /** The verbs a claim of a change is made with: one list for a claim the reply opens with and one
  *  anywhere in it. Not "made", "set" or "put": "I made my peace", "the tale is set in". */
-const CHANGED = '(?:filled(?:\\s+(?:in|out))?|updated|added|written|wrote|changed|created|fleshed\\s+out|expanded)';
+const CHANGED = '(?:filled(?:\\s+(?:in|out))?|updated|added|written|wrote|changed|created|fleshed\\s+out|expanded|removed|taken|rewritten)';
 const CLAIMED = [/^(?:all\s+)?done\b[\s.!:,;\u2014\u2013-]*/i,
   new RegExp(`^i(?:'ve|\u2019ve|\\s+have)?\\s+(?:now\\s+|just\\s+)?${CHANGED}\\b[^.!?\\n]*[.!?]?\\s*`, 'i')];
 /** The app's own lines in an answer, each the start of a paragraph `talkReply` writes. */
@@ -1395,6 +1395,8 @@ const HOLD_WORDS = 40;
  *  a Direct passage would be written, with the tale's voice, tense and lockout (DIRECTIVE), the book
  *  up to that passage, and the writer's own prompts. Not weaving and not streamed. Returns the new
  *  text, or why it could not. */
+/** #155 · How many passages one Talk answer rewrites to offer, across every thing it was asked to take out. */
+const MAX_REMOVE = 6;
 const REWRITE = (body: string, note: string) => 'Rewrite the passage below as the writer asks, and give back the '
   + 'whole passage, rewritten. Keep what happens in it; change only what they ask.\n\nThe writer asks: '
   + `${note}\n\nThe passage:\n${body}`;
@@ -1410,7 +1412,7 @@ async function rewritePassage(c: Ctx, storyId: string, ch: { passage: string; no
   const t0 = Date.now();
   try {
     const r = await chat(SYSTEM, prompt.slice(SYSTEM.length), { ...c.gen, model: using, max_tokens: Math.max(reply.maxTokens, 900),
-      chat_template_kwargs: { enable_thinking: false } });
+      chat_template_kwargs: { enable_thinking: false }, remoteCap: true });
     const text = r.finish === 'length' ? trimToSentence(clean(r.prose)) : clean(r.prose);
     db.logGeneration({ storyId, chapterId: p.chapterId, passageId: p.id, model: using, role: 'talk-rewrite', manifest,
       params: { max_tokens: Math.max(reply.maxTokens, 900) }, promptTokens: r.usage?.prompt_tokens,
@@ -4916,26 +4918,37 @@ export const routes: Record<string, Handler> = {
     // #155 · TAKING A THING OUT OF THE PROSE: each passage that mentions it is rewritten by the prose
     // engine (`rewritePassage`, the writer's own words as the request) and offered as its own card,
     // never written. A cap on how many per answer, because each is a model call.
-    // ponytail: MAX_REMOVE passages per answer. Ceiling: a thing in forty passages needs several asks.
-    // Trigger: a writer asking for a long removal; then run the rest in the background.
-    const MAX_REMOVE = 6;
+    // ponytail: MAX_REMOVE passages per answer, one model call each, one after another. Ceiling: a thing
+    // in forty passages needs several asks, and six calls on Featherless can take minutes. Trigger: a
+    // writer asking for a long removal; then run the rewrites in the background and chalk as they land.
+    const chalked: string[] = [];
+    // A passage that already has a card for this thing, open or rejected, is not rewritten again, so
+    // asking again reaches the next ones; MAX_REMOVE is the whole answer's, across every thing.
+    let left = MAX_REMOVE;
+    const offeredBefore = db.heldChanges(v.id).filter((h: any) => h.change?.op === 'prose.remove' && h.status !== 'accepted');
     for (const raw of removals) {
       const thing = String(raw.title ?? '').trim();
-      const hits = mentioning(tale0, thing);
-      if (!hits.length) { notDone.push({ said: `Take ${thing || 'it'} out of the prose`, why: `no passage mentions ${thing || 'it'}` }); continue; }
-      for (const hit of hits.slice(0, MAX_REMOVE)) {
-        const rw = await rewritePassage(c, v.id, { passage: hit.id, note: said, before: hit.body });
+      const done0 = new Set(offeredBefore.filter((h: any) => String(h.change.thing ?? '').toLowerCase() === thing.toLowerCase()).map((h: any) => h.change.passage));
+      const hits = mentioning(tale0, thing).filter((p) => !done0.has(p.id));
+      if (!hits.length) { notDone.push({ said: `Take ${thing || 'it'} out of the prose`, why: `no passage mentions ${thing || 'it'} that is not already on the Workbench` }); continue; }
+      const now = hits.slice(0, Math.max(0, left));
+      for (const hit of now) {
+        left--;
+        const rw = await rewritePassage(c, v.id, { passage: hit.id, before: hit.body,
+          note: `Take ${thing} out of this passage entirely: it is no longer part of the story. Change nothing else.` });
         const at = passageAt(tale0, hit.id);
-        if ('error' in rw) { notDone.push({ said: `Rewrite scene ${at.scene}, passage ${at.n}`, why: String(rw.error) }); continue; }
-        if (db.addProposal(v.id, { kind: 'changed', entryType: 'passage', chapterId: hit.chapterId, title: `Scene ${at.scene}, passage ${at.n}`,
-            body: rw.text, delta: `Takes ${thing} out of this passage.`, change: { op: 'prose.remove', passage: hit.id, before: hit.body, thing } })) proposed++;
+        const title = at.scene ? `Scene ${at.scene}, passage ${at.n}` : 'A passage';
+        if ('error' in rw) { notDone.push({ said: `Rewrite ${title}`, why: String(rw.error) }); continue; }
+        if (db.addProposal(v.id, { kind: 'changed', entryType: 'passage', chapterId: hit.chapterId, title,
+            body: rw.text, delta: `Takes ${thing} out of this passage.`, change: { op: 'prose.remove', passage: hit.id, before: hit.body, thing } })) {
+          proposed++; chalked.push(`${title}: without ${thing}`);
+        }
       }
-      if (hits.length > MAX_REMOVE) notDone.push({ said: `Take ${thing} out of ${hits.length - MAX_REMOVE} more passages`,
+      if (hits.length > now.length) notDone.push({ said: `Take ${thing} out of ${hits.length - now.length} more passages`,
         why: `only ${MAX_REMOVE} are rewritten at a time; decide these and ask again` });
     }
     // What was chalked from them, a line each, for the answer to say first when a request was only
     // offered (`talkReply`).
-    const chalked: string[] = [];
     // AN OFFER WITH POCKETS (2026-11-04): about a thread the tale has, each pocket is one chalk in its
     // own room, as the entry's own `field` is; a new thread is one card, its pockets riding as its
     // rooms (one per room its kind has, as the hem's do) and written when it is sewn in.
@@ -5929,8 +5942,9 @@ export const routes: Record<string, Handler> = {
       // #155 · A PASSAGE OFFERED WITHOUT A THING: sewn in only while the passage still says what it said
       // when the rewrite was made, through the passage's own edit (Alterations keeps the old), and it is
       // the model's from then on, as a passage Talk rewrote is.
-      if (c.body.accept && p.change && JSON.parse(p.change).op === 'prose.remove') {
-        const raw = JSON.parse(p.change);
+      const held = (() => { try { return p.change ? JSON.parse(p.change) : null; } catch { return null; } })();
+      if (c.body.accept && held?.op === 'prose.remove') {
+        const raw = held;
         const cur = (db.passagesOf(c.body.storyId) as any[]).find((x) => x.id === raw.passage);
         if (!cur) return { error: 'Not sewn in: that passage is no longer in this tale.' };
         if (String(cur.body).trim() !== String(raw.before).trim()) return { error: 'Not sewn in: that passage has changed since it was rewritten.' };

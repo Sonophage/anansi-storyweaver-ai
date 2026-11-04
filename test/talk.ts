@@ -132,7 +132,7 @@ const srv = createServer((req, res) => {
       RENAMEIT: { reply: 'Ysra it is.', changes: [{ op: 'thread.rename', thread: 'Isolde Marr', title: 'Ysra Marr' }] },
       RENAMEPAD: { reply: 'Warmer.', changes: [{ op: 'thread.set', thread: 'Isolde Marr', title: 'Isolde the Ferrywoman', text: 'Isolde keeps the ferry ledger, and hums.' }] },
       RENAMETEXT: { reply: 'Ysra, keeper of the crossing.', changes: [{ op: 'thread.set', thread: 'Isolde Marr', title: 'Ysra Marr', text: 'Ysra keeps the crossing.' }] },
-      LOREOUT: { reply: 'Here is how each passage reads without them.', changes: [{ op: 'prose.remove', title: 'the Bellwardens' }] },
+      LOREOUT: { reply: "I've taken the Bellwardens out of every passage.", changes: [{ op: 'prose.remove', title: 'the Bellwardens' }] },
       PROSEEDIT: { reply: 'Colder now.', changes: [{ op: 'passage.set', quote: 'Morgott watched the river in the lamplight', text: 'make it colder' }] },
       // A plain answer that only sounds like a claim: nothing was asked, so nothing is taken off.
       SETIN: { reply: 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.' },
@@ -2019,7 +2019,7 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.ok(cards.every((p) => p.entry_type === 'passage' && p.body === REWRITTEN), '  each with its rewrite');
     const forB3 = cards.find((p) => JSON.parse(p.change).passage === b3)!;
     const forB1 = cards.find((p) => JSON.parse(p.change).passage === b1)!;
-    db.editPassage(tale.id, b3, 'The writer rewrote this one herself.');
+    db.editPassage(tale.id, b3, 'The writer rewrote this one herself, bellwardens and all.');
     const late = await routes['POST /api/proposal'](ctxOf(tale.id, { id: forB3.id, accept: true })) as any;
     assert.match(String(late.error), /changed since/, 'LORE-SINCE: a passage changed since is not written over');
     const sewn = await routes['POST /api/proposal'](ctxOf(tale.id, { id: forB1.id, accept: true })) as any;
@@ -2027,6 +2027,17 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.strictEqual(body(b1), REWRITTEN, 'LORE-SEWN: sewn in, that passage is rewritten');
     assert.ok((db.passageHistory(tale.id, b1) as any[]).some((h) => h.body === 'The Bellwardens rang the hour.'), '  its old text in Alterations');
     assert.strictEqual((db.passagesOf(tale.id) as any[]).find((p) => p.id === b1).author, 'model', '  and it is the model\'s');
+    // ASK AGAIN: a passage whose card is open or was rejected is not rewritten again; the rest are reached.
+    const rej = cards.find((p) => JSON.parse(p.change).passage === b3)!;
+    await routes['POST /api/proposal'](ctxOf(tale.id, { id: rej.id, accept: false }));
+    const b4 = add('The bellwardens are everywhere.');
+    const before = rewrites.length;
+    const again = await say("CHANGE-LOREOUT: the Bellwardens don't exist any more, take them out of the prose");
+    const fresh = (db.proposalsOf(tale.id) as any[]).filter((p) => again.chalked.includes(p.id)).map((p) => JSON.parse(p.change).passage);
+    assert.deepStrictEqual(fresh, [b4], `LORE-AGAIN: only the passage with no card yet (${JSON.stringify(fresh)})`);
+    assert.strictEqual(rewrites.length - before, 1, '  and only it is sent to the model');
+    // The reply does not claim the prose was changed when it was only offered.
+    assert.match(again.reply, /Offered on the Workbench, not written/, `LORE-OFFERED-SAID: the answer says it is offered (${again.reply})`);
   }
   ok('taking lore out of the prose is offered passage by passage, and a card is sewn in only while its passage is unchanged');
 
