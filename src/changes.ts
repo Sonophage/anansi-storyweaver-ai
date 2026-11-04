@@ -109,11 +109,13 @@ export const CHANGES_SCHEMA = {
       // own text (Seraphine, 2026-11-03: a character is several pockets, and four changes were the
       // most one answer could carry). Before `text`, so the grammar reaches both.
       pockets: { type: 'array', maxItems: 6, items: { type: 'object',
-        properties: { room: { type: 'string', enum: [...ALL_SLOTS] }, text: { type: 'string', maxLength: 600 } },
+        properties: { room: { type: 'string', enum: [...ALL_SLOTS] }, text: { type: 'string' } },
         required: ['room', 'text'] } },
       // thread.set: the new text of that room. thread.new: its Always true. thread.overtime: the
       // whole of where the thread stands from that scene on. tale.set, scene.set: the field's text.
-      text: { type: 'string', maxLength: 600 },
+      // NO maxLength (#144), F25's reason: the GBNF converter honours it and closes the string
+      // mid-word with the JSON still valid. Seraphine's pockets were cut at 600 characters mid-word.
+      text: { type: 'string' },
       // #99 · the search results this change was made from, by their numbers. The route puts their
       // links in the thread's notes; they never go in its text.
       sources: { type: 'array', maxItems: 3, items: { type: 'integer', minimum: 1 } },
@@ -331,11 +333,20 @@ export function expandAsked(raws: unknown, tale: Tale): any[] {
         ...(renamed ? { title: String(rename).trim() } : {}), ...(rekind ? { type: String(kind).trim() } : {}) });
       // A change that only carries pockets is those pockets, not an empty change to its Always true.
       // A change that only renames is the rename, not an empty change to its Always true too.
-      const only = !String(raw.text ?? '').trim() && (each.length > 0 || renamed || rekind);
+      // ONE WRITE PER ROOM (#144, Seraphine 2026-11-04): a change whose own room is also one of its
+      // pockets wrote that room twice, two lines and two Undos for one pocket. The longer text is kept,
+      // on the change itself; the same for two pockets naming one room.
+      const len = (t: unknown) => String(t ?? '').trim().length;
+      const rooms = new Map<string, any>();
+      for (const p of each) { const had = rooms.get(p.room); if (!had || len(p.text) > len(had.text)) rooms.set(p.room, p); }
+      const twin = room ? rooms.get(room) : null;
+      if (twin) rooms.delete(room!);
+      const text = twin && len(twin.text) > len(raw.text) ? twin.text : raw.text;
+      const only = !String(text ?? '').trim() && (rooms.size > 0 || renamed || rekind);
       // Its name and kind are left on it when they are the thread's own, for the words a refusal uses.
       const base = renamed || rekind ? rest : { ...rest, ...(rename != null ? { title: rename } : {}), ...(kind != null ? { type: kind } : {}) };
-      if (!only) out.push(room ? { ...base, room } : base);
-      out.push(...each);
+      if (!only) out.push(room ? { ...base, room, text } : { ...base, text });
+      out.push(...rooms.values());
       continue;
     }
     if (op !== 'thread.new' || !norm(name)) { out.push(whole); continue; }
@@ -376,17 +387,25 @@ export const asksForChange = (said: string) => ASKS.test(said);
  *  and its text from `body`, and `expandAsked` and `checkAsked` take it from there like any other.
  *  Everything else stays an offer: a new thread, and a thread the writer only asked about.
  *
- *  ponytail: "asked" is a word list and a name in the message. Ceiling: a request by pronoun alone
- *  ("fill out her card") or in a verb not on the list is still chalked. Trigger: a writer's request
- *  found chalked in the Workbench; then read which thread the conversation is on. */
-export function entriesAsked(entries: unknown, tale: Tale, said: string): { asked: any[]; offered: any[] } {
+ *  BY PRONOUN TOO (#144): "fill out her card" names nobody, so it is asked when the message has a
+ *  pronoun and the conversation before it (`earlier`, the turns as the route sends them) named the
+ *  thread the model answered about. The model chose the thread; the conversation is the evidence the
+ *  writer meant it.
+ *
+ *  ponytail: "asked" is a word list, a name in the message or a pronoun after the name. Ceiling: a
+ *  verb not on the list, or a pronoun for a thread last named more than six turns back, is still
+ *  chalked. Trigger: a writer's request found chalked in the Workbench. */
+const PRONOUN = /\b(she|her|hers|he|him|his|they|them|their|it|its)\b/i;
+export function entriesAsked(entries: unknown, tale: Tale, said: string, earlier = ''): { asked: any[]; offered: any[] } {
   const list = (Array.isArray(entries) ? entries : []) as any[];
   if (!asksForChange(said)) return { asked: [], offered: list };
   const heard = new Set(words(said));
+  const before = PRONOUN.test(said) ? new Set(words(earlier)) : new Set<string>();
+  const named = (t: { title: string }, by: Set<string>) => words(t.title).some((w) => w.length > 2 && by.has(w));
   const asked: any[] = [], offered: any[] = [];
   for (const e of list) {
     const t = threadNamed(tale, e?.title).hit;
-    if (!t || !words(t.title).some((w) => w.length > 2 && heard.has(w))) { offered.push(e); continue; }
+    if (!t || !(named(t, heard) || named(t, before))) { offered.push(e); continue; }
     // Its pockets, if it carried any, are that change's pockets (`expandAsked`).
     asked.push({ op: 'thread.set', thread: t.title, room: e.field ?? 'none', text: e.body,
       ...(Array.isArray(e.pockets) ? { pockets: e.pockets } : {}) });

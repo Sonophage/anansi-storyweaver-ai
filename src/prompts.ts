@@ -2160,9 +2160,10 @@ export const TALK_SCHEMA = {
           // 2026-11-04: asked to fill her card, one pocket came back). Before `body`, for
           // CHANGES_SCHEMA's reason: the grammar keeps the declared order.
           pockets: { type: 'array', maxItems: 6, items: { type: 'object',
-            properties: { room: { type: 'string', enum: [...ALL_SLOTS] }, text: { type: 'string', maxLength: 600 } },
+            properties: { room: { type: 'string', enum: [...ALL_SLOTS] }, text: { type: 'string' } },
             required: ['room', 'text'] } },
-          body: { type: 'string', maxLength: 600 },
+          // No maxLength on either text, per F25 (#144): it closed Seraphine's pockets mid-word.
+          body: { type: 'string' },
           keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
           // WHICH ROOM OF AN EXISTING CARD, or `none` for the card's own body. Added 2026-09-01,
           // and the same enum EXTRACT_SCHEMA carries for the same reason — free text would let the

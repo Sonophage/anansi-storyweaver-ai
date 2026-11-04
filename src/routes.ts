@@ -4679,7 +4679,7 @@ export const routes: Record<string, Handler> = {
     }
     // A REQUEST SENT BACK AS AN OFFER is done as asked, with the changes below (`entriesAsked`):
     // chalked, it was a second press for a thing the writer had already said (ADR 0007).
-    const { asked, offered } = entriesAsked(r.data.entries, taleOf(v.id), said);
+    const { asked, offered } = entriesAsked(r.data.entries, taleOf(v.id), said, turns);
     // What was chalked from them, a line each, for the answer to say first when a request was only
     // offered (`talkReply`).
     const chalked: string[] = [];

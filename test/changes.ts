@@ -936,4 +936,33 @@ ok('ASKED-POCKETS: one change carrying its pockets is the change, then one pocke
     `ASKED-POCKETS: the grammar offers pockets, before the text (${keys.join(', ')})`);
 });
 
+// #144 · THREE SERAPHINE LEFTOVERS IN THE SLICE (2026-11-04).
+ok('a field and a pocket of the same room on one change are written once, the longer text', () => {
+  const out = ch.expandAsked([{ op: 'thread.set', thread: 'Talia Venn', room: 'voice', text: 'Quick.',
+    pockets: [{ room: 'voice', text: 'Quick, dry, and never first to speak.' }, { room: 'appearance', text: 'Tall.' }] }], tale);
+  assert.deepStrictEqual(out.map((r: any) => [r.op, r.room, r.text]), [
+    ['thread.set', 'voice', 'Quick, dry, and never first to speak.'], ['thread.set', 'appearance', 'Tall.']],
+    `ONE-ROOM: one write per room (${JSON.stringify(out)})`);
+  const field = ch.expandAsked([{ op: 'thread.set', thread: 'Talia Venn', field: 'voice', text: 'Quick, dry, and never first.',
+    pockets: [{ room: 'voice', text: 'Quick.' }] }], tale);
+  assert.deepStrictEqual(field.map((r: any) => [r.room, r.text]), [['voice', 'Quick, dry, and never first.']],
+    `ONE-ROOM-FIELD: the room named in field counts too (${JSON.stringify(field)})`);
+});
+
+ok('a request by pronoun is done when the conversation just named the thread the model answered about', () => {
+  const e = [{ title: 'Talia Venn', field: 'voice', body: 'Quick and dry.' }];
+  const by = ch.entriesAsked(e, tale, 'fill out her card', 'WRITER: who is Talia Venn?\nANANSI: A courier.');
+  assert.strictEqual(by.asked.length, 1, 'PRONOUN-ASKED: "her" after the conversation named Talia is a request about Talia');
+  const cold = ch.entriesAsked(e, tale, 'fill out her card', 'WRITER: who is Morgott?');
+  assert.strictEqual(cold.asked.length, 0, 'PRONOUN-COLD: "her" with Talia not named in the conversation stays an offer');
+  const none = ch.entriesAsked(e, tale, 'fill out the card', 'WRITER: who is Talia Venn?');
+  assert.strictEqual(none.asked.length, 0, 'PRONOUN-NONE: no name and no pronoun stays an offer');
+});
+
+ok('no text Talk writes is capped by the grammar (F25: a capped string closes mid-word)', () => {
+  const p = ch.CHANGES_SCHEMA.items.properties as any;
+  assert.ok(!('maxLength' in p.text), 'NO-CAP-TEXT: a change\'s text has no maxLength');
+  assert.ok(!('maxLength' in p.pockets.items.properties.text), 'NO-CAP-POCKET: a pocket\'s text has no maxLength');
+});
+
 console.log(`\n${n} checks passed`);

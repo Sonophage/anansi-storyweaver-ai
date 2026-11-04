@@ -382,8 +382,12 @@ assert.ok(!('maxLength' in (TALK_SCHEMA.properties.reply as any)),
 // The fields that ARE short keep their bounds: an unbounded string is where a reasoning model
 // writes an essay (F18), and those are the fields where that is a defect rather than the answer.
 assert.strictEqual((TALK_SCHEMA.properties.directive as any).maxLength, 400);
-assert.strictEqual((TALK_SCHEMA.properties.entries as any).items.properties.body.maxLength, 600);
-ok('the reply is unbounded and the fields that are not the answer still are not');
+// An entry's body was bounded at 600 (F18: an unbounded field is where a reasoning model writes an
+// essay). It cut Seraphine's pockets mid-word (#144, F25), so it is unbounded like the reply; the
+// answer's own token cap is what holds an essay now.
+assert.ok(!('maxLength' in (TALK_SCHEMA.properties.entries as any).items.properties.body),
+  'ENTRY-UNCAPPED: an entry body is not cut mid-word by the grammar (#144)');
+ok('the reply and an entry body are unbounded; the directive keeps its bound');
 
 // ---- 2. a long answer arrives whole
 const wide = await ask(50_048);
