@@ -382,7 +382,8 @@ await page.eval("(() => { document.querySelector('[data-appearance=\"1\"]')?.cli
 await wait(400);
 const tabs = await page.eval("[...document.querySelectorAll('[data-looktab]')].map(b => b.dataset.looktab).join(',')");
 ok(`the Aa menu splits into tabs (${tabs})`, tabs === 'theme,font,size,scale');
-ok("  showing the themes first", (await page.eval("document.querySelectorAll('[data-theme]').length")) === 4);
+// Eight themes since 2026-11-03 (Ink left, four arrived).
+ok("  showing the themes first", (await page.eval("document.querySelectorAll('[data-theme]').length")) === 8);
 ok("  and only the themes — not the fonts and sizes as well",
    (await page.eval("document.querySelectorAll('[data-fontpick]').length")) === 0
    && (await page.eval("document.querySelectorAll('[data-sizepick]').length")) === 0);

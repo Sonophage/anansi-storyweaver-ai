@@ -80,8 +80,11 @@ const grounds = await page.eval(`['#dock', '#dockCol', '#nextbar', '#nextrow', '
   return c ? q + ' ' + c.backgroundColor + ' ' + c.backgroundImage : q + ' missing'; })`);
 ok(`BAR-TRANSPARENT: the bar's own background is transparent (${JSON.stringify(grounds)})`,
    grounds.every((g) => / rgba\(0, 0, 0, 0\) none$/.test(g)));
+// A fill is a colour or a painted image: the quill is a gilt seal since 2026-11-03, a radial gradient
+// with no background colour under it.
 ok("BUTTONS-FILLED: and the three buttons keep their own fills",
-   await page.eval(`[...document.querySelectorAll('#nextrow button')].every((b) => getComputedStyle(b).backgroundColor !== 'rgba(0, 0, 0, 0)')`));
+   await page.eval(`[...document.querySelectorAll('#nextrow button')].every((b) => { const c = getComputedStyle(b);
+     return c.backgroundColor !== 'rgba(0, 0, 0, 0)' || c.backgroundImage !== 'none'; })`));
 ok("NOCALLOUT: the quill's text cannot be selected",
    (await page.eval("getComputedStyle(document.getElementById('quill')).userSelect")) === 'none');
 // Read off the page's own source: Chrome drops a property it does not know from the parsed

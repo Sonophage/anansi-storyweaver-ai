@@ -935,10 +935,12 @@ ok("  and New thread closes again", !(await page.eval("!!document.getElementById
       pill: !!c.querySelector('.alwayson'),
       chip: !!document.querySelector('#sideBody [data-flipact]') }); })()`);
   const p = plate ? JSON.parse(plate) : null;
+  // No gold bar down the left since Arcana (2026-11-03): a 1px edge, the card framed in gilt corners,
+  // and the name in the 20px deco capitals.
   // A 260px FLOOR on the tale's list since 2026-11-02 (Seth: "twice as big"; it had none since the
   // v2 redesign). test/ui/threadlist.js holds the rest of the card's shape.
   ok(`  threads are drawn as plates (${plate})`,
-     p != null && p.spine === '3px' && p.minH === '260px' && p.name === '22px');
+     p != null && p.spine === '1px' && p.minH === '260px' && p.name === '20px');
   // The pill is the one difference between the two surfaces and it is deliberate: here the eye
   // beside the card is the PRESSABLE switch, so a second unpressable copy inside it would be the
   // same fact twice, one of which does nothing. On the cross-book page there is no switch and the

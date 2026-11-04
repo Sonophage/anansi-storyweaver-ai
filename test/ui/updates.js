@@ -20,7 +20,9 @@ for (let i = 0; i < 40 && !(await page.visible('[data-storytab="keep"]')); i++) 
 await page.click('[data-storytab="keep"]');
 ok("Tale → Keep has a way to the update report", await until("!!document.querySelector('[data-panel=\"updates\"]')?.offsetParent", 20));
 await page.eval("(() => { document.querySelector('[data-panel=\"updates\"]')?.click(); return 1; })()");
-ok("  which opens it", await until("document.getElementById('sideHead')?.innerText.includes('What the update moved')", 20));
+// textContent, not innerText: the panel's name is drawn in spaced capitals since 2026-11-03, and
+// innerText returns the capitals.
+ok("  which opens it", await until("document.getElementById('sideHead')?.textContent.includes('What the update moved')", 20));
 ok(`  and a tale nothing moved in says so (${JSON.stringify((await body()).slice(0, 80))})`, /Nothing has moved in this tale/.test(await body()));
 
 // ---- a tale with a line
@@ -31,6 +33,6 @@ const text = await body();
 ok(`  when the backup was taken (${JSON.stringify(text.match(/backup[^\n]*/i)?.[0] ?? null)})`, /backup was taken/i.test(text));
 ok("  and, inside the first week, how to put the library back", /put the library back/i.test(text) && /pre-update-.*\.db/.test(text));
 await page.eval("(() => { document.querySelector('#sideBody [data-entry=\"e-report-aldis\"]')?.click(); return 1; })()");
-ok("the link opens the thread", await until("document.getElementById('sideBody')?.innerText.includes('Aldis Fen') && !document.getElementById('sideHead')?.innerText.includes('What the update moved')", 20));
+ok("the link opens the thread", await until("document.getElementById('sideBody')?.innerText.includes('Aldis Fen') && !document.getElementById('sideHead')?.textContent.includes('What the update moved')", 20));
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");
