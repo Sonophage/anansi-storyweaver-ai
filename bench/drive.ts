@@ -59,7 +59,14 @@ const page = {
     // Navigate, then reload, so goto always lands on a freshly booted page.
     await send('Page.navigate', { url });
     await wait(150);
-    await send('Page.reload', { ignoreCache: false });
+    // THE RELOAD CAN LAND WHILE THE NAVIGATION IS STILL SWAPPING THE PAGE IN. Chromium then answers
+    // "Not attached to an active page" and the scenario died with it: railshut and surfaces, one run
+    // in three alone and every run under load, 2026-11-03. That one answer is retried, a moment
+    // later, a bounded number of times; any other error still throws at once.
+    for (let i = 0; ; i++) {
+      try { await send('Page.reload', { ignoreCache: false }); break; }
+      catch (e: any) { if (i >= 20 || !/Not attached to an active page/.test(e.message)) throw e; await wait(150); }
+    }
     await wait(1200);
     // The app boots from fetches, so wait for it to have painted something.
     for (let i = 0; i < 40; i++) {
