@@ -3213,3 +3213,65 @@ holding it is dropped. The shipped prompts still name no length.
 
 **Harness.** `bench/wordsab.ts`, against scratch copies only (it rewrites prompts, the slider and the
 tale's model pin on the servers it talks to). `0` runs sets up and verifies without generating.
+
+## F66 — a reroll copies the rejected take word for word in 4% of rerolls (none by chance), and starts with its first five words in 16%; the paraphrased repeat Seth also rerolls for is invisible to the detector (2026-11-04)
+
+**The question.** Seth gave two reasons he rerolls: the take repeats something said earlier in the
+scene, or the new take repeats the one he just rejected, "the exact same or close enough". How
+often does either happen in the library's history?
+
+**The measure.** `bench/reroll-echo.ts`, read-only, no model. A pair is a reroll: a take and the
+slot's take before it. Every share is of the take's five-word narration phrases (the `echo`
+detector, now `bench/echo.ts`, shared with `bench/repetition.ts`).
+- REJECTED: phrases also in the replaced take and NOT in the scene before the slot. A phrase both
+  takes lifted from the scene is not a repeat of the rejected take.
+- CONTROL: REJECTED against a replaced take from another scene of the same tale: what unrelated takes
+  share by chance.
+- SCENE: phrases already in the scene's chosen passages before the slot.
+- SAME OPENING: the take's first five narration words are the replaced take's first five.
+
+Takes under 20 phrases are left out (4); a tale copied whole counts once (18 duplicate pairs). Demo
+tales are left out.
+
+**The run.** 2026-11-04, the live library: 3,100 passages, 376 pairs. Stopped
+takes: none, because they were not kept until this commit (`stopped_takes`, from now on).
+
+| | pairs | REJECTED ≥ 0.10 | CONTROL ≥ 0.10 | SCENE ≥ 0.10 | SAME OPENING |
+|---|---|---|---|---|---|
+| all | 376 | 4% (16) | 0% | 7% | 16% |
+| Seth | 238 | 7% | 0% | 11% | 17% |
+| Kia | 138 | 0% | 0% | 1% | 14% |
+| Ornith-1.0-RPNTH-35B | 36 | 22% | 0% | 3% | 25% |
+| Qwen3.6-WNTH-35B-A3B-NN | 102 | 0% | 0% | 0% | 15% |
+| Forgotten-Transgression-24B (remote) | 145 | 3% | 0% | 14% | 10% |
+
+Medians: REJECTED 0.010 against CONTROL 0.000.
+
+**The detector, read by eye on takes it was not written for** (`show 8`). The 6 highest and the 8
+nearest the 0.10 line: all 14 are real repeats, and all 14 copy the rejected take's OPENING (one to
+three sentences, word for word) and then go somewhere else. The top one (0.873) is the same take
+twice with the quote marks changed. Of 6 unflagged pairs, evenly spaced: 3 are the same beat in other
+words (the same scars on the same hands; the same feet off the same dashboard), which a five-word
+phrase match cannot see.
+
+**What this settles.**
+- The word-for-word repeat is real and not chance: 16 pairs over the line against none in the
+  control.
+- Its shape is the opening. A reroll that keeps the rejected take's first sentence is the visible
+  form of "it wrote the same thing again", and it happens in about one reroll in six.
+- On Ornith, the test bench model, it is worst: 8 of 36 pairs over the line. n is small.
+
+**What it does not settle.**
+- The paraphrased repeat ("close enough") is not measured. 3 of 6 clean-read pairs had it, n = 6.
+  A semantic measure is the upgrade path, and it costs a model call or embeddings per pair.
+- Takes the writer stopped are the ones he saw repeating, and none were kept until now. These rates
+  are for FINISHED takes only, so they are a floor. Re-run after a few weeks of writing.
+- "The take it replaced" is the slot's previous variant (see the ponytail in the bench). A stopped
+  take carries the real one.
+- No control for SAME OPENING was computed.
+
+**Also seen.** Two unchosen takes in one of Seth's scenes start with the prompt's own label "How
+this chapter opens:", copied from the scene-opening block.
+
+**Harness.** `bench/reroll-echo.ts check` (14 checks, in `test/all.ts`), plain run for the report,
+`show N` for pairs to read.

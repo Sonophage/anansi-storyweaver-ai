@@ -12,7 +12,7 @@
 //
 // ECHO, the second question (2026-10-29). Seth's book on GLM-4-32B carried "the bitter taste, a
 // familiar anchor" and "lets the caffeine take hold" from one passage into the next two: no loop
-// inside a passage, a phrase copied out of the prompt. `echo` below measures that: the share of a
+// inside a passage, a phrase copied out of the prompt. `echo` (bench/echo.ts) measures that: the share of a
 // passage's five-word phrases that are already in the book's last 12 passages, narration only.
 // On vLLM-style servers `repetition_penalty` counts the prompt's tokens as well as the reply's, so
 // it is the one documented knob that could reach an echo; this asks whether it does.
@@ -42,7 +42,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { input } from '../test/fixture.ts';
-import { narrationOnly } from '../src/context.ts';
+import { echo } from './echo.ts';
 
 const CHECK = process.argv[2] === 'check';
 const RUNS = CHECK ? 1 : Math.max(1, Number(process.argv[2]) || 3);
@@ -104,23 +104,7 @@ export function repetition(text: string) {
 export const runaway = (m: ReturnType<typeof repetition>) =>
   m.charRun >= 12 || m.wordRun >= 6 || m.phraseShare >= 0.15;
 
-/** What a take copies from the book before it: the share of its five-word phrases (narration
- *  only, words only, lower case) that already stand in `before`. A share, not a count, because the
- *  penalty arms write shorter passages (F62) and a count would fall with length alone. Dialogue
- *  is left out: a character may repeat a line; only the narrator's echo is the complaint. */
-const ECHO_N = 5;
-const grams = (s: string) => {
-  const w = narrationOnly(s).toLowerCase().match(/[\p{L}\p{N}'’]+/gu) ?? [];
-  const out: string[] = [];
-  for (let i = 0; i + ECHO_N <= w.length; i++) out.push(w.slice(i, i + ECHO_N).join(' '));
-  return out;
-};
-export function echo(text: string, before: string[]) {
-  const prior = new Set(before.flatMap(grams));
-  const mine = grams(text);
-  const shared = mine.filter((g) => prior.has(g)).length;
-  return { echoShare: mine.length ? +(shared / mine.length).toFixed(3) : 0, echoed: shared };
-}
+// `echo` lives in bench/echo.ts, shared with bench/reroll-echo.ts.
 const namedHit = (text: string) => NAMED.some((p) => text.toLowerCase().includes(p));
 
 /** The scratch copy. `VACUUM INTO` over a read-only connection: SQLite writes a fresh, consistent
