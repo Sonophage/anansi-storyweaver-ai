@@ -272,7 +272,7 @@ export const api = {
   talkOf:       (storyId, id)    => j(`/api/talk/session?story=${encodeURIComponent(storyId)}&session=${encodeURIComponent(id)}`),
   talkDel:      (storyId, id)    => j('/api/talk/session/remove', 'POST', { storyId, session: id }),
   // #97. Puts back one change Talk made: `undo` is that change's own, as the server returned it.
-  talkUndo:     (storyId, undo)  => j('/api/talk/undo', 'POST', { storyId, undo }),
+  talkUndo:     (storyId, undo, sessionId) => j('/api/talk/undo', 'POST', { storyId, undo, sessionId }),
   // ✦ (#71). Three ideas for the next beat, for the writer to pick from. Writes nothing.
   idea:         (storyId)        => j('/api/idea', 'POST', { storyId }),
   bug:          (o)              => j('/api/bug', 'POST', o),

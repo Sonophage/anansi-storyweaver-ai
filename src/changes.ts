@@ -923,7 +923,8 @@ export function wordsFor(c: Change): string {
 /** #151 · WHICH CARD A CHANGE IS DRAWN ON (ADR 0014): one card per thread, so `key` is the thread for
  *  every change to one, and the tale, a scene, the strings, the rules and the writer's instructions
  *  each have a card of their own. `label` is the change's row on that card. */
-export function cardOf(c: Change, made: { thread?: string } = {}): { key: string; title: string; label: string } {
+export type Card = { key: string; title: string; label: string };
+export function cardOf(c: Change, made: { thread?: string }): Card {
   const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
   if (c.op === 'thread.new') return { key: made.thread ?? c.title, title: c.title, label: 'The thread' };
   if (c.op === 'thread.set') return STRING_SLOTS.includes(c.room)

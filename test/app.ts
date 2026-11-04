@@ -4270,23 +4270,33 @@ ok('a change Talk made shows in the conversation with Undo, and Undo sends that 
     const done = [...dock.matchAll(/<div class="deckcard card"[^>]*data-deckkind="done"[\s\S]*?(?=<div class="deckcard card"|$)/g)].map((m) => m[0]);
     assert.strictEqual(done.length, 2, `CARD-PER-THREAD: two cards, Aldis and the tale (${done.length})`);
     const aldis = done.find((c) => c.includes('Aldis'))!;
-    assert.strictEqual((aldis.match(/data-talkundo="/g) ?? []).length, 2, 'CARD-POCKETS: Aldis\'s card holds both pockets, each with its Undo');
-    assert.match(aldis, /data-talkundoall="[^"]+"/, 'CARD-UNDO-ALL: and Undo all');
-    assert.ok(!/data-talkundoall/.test(done.find((c) => c.includes('The tale'))!), 'CARD-UNDO-ALL: not on a card of one change');
+    assert.strictEqual((aldis.match(/data-talkundo="\d+:\d+"/g) ?? []).length, 2, 'CARD-POCKETS: Aldis\'s card holds both pockets, each with its Undo');
+    const ALL = /data-talkundo="(\d+:\d+(?:,\d+)+)"[^>]*>Undo all/;
+    assert.match(aldis, ALL, 'CARD-UNDO-ALL: and Undo all');
+    assert.doesNotMatch(done.find((c) => c.includes('The tale'))!, /Undo all/, 'CARD-UNDO-ALL: not on a card of one change');
     const chalk = dock.match(/<div class="deckcard card"[^>]*data-deckkind="chalk"[\s\S]*?Witness rite[\s\S]*?data-deckall="accept"[^>]*data-ids="([^"]+)"/);
     assert.ok(chalk && chalk[1] === 'pr-1', 'CARD-OFFER: the offer is the Workbench\'s chalked card, in the conversation');
-    assert.match(dock, /1 already decided on the Workbench/, 'CARD-OFFER-DECIDED: an offer decided elsewhere says so');
+    assert.match(dock, /1 offer decided/, 'CARD-OFFER-DECIDED: an offer already decided is counted, wherever it was decided');
     assert.doesNotMatch(dock, /chalked &mdash; under This scene/, 'CARD-NO-LINK: the old link line is gone');
 
     POSTED.length = 0;
-    click({ talkundoall: aldis.match(/data-talkundoall="([^"]+)"/)![1] }); await sleep(100);
+    click({ talkundo: aldis.match(ALL)![1] }); await sleep(100);
     const undos = POSTED.filter((p: any) => p.url === '/api/talk/undo').map((p: any) => p.body.undo.room);
     assert.deepStrictEqual(undos, ['appearance', 'voice'], `CARD-UNDO-ALL-SENDS: both, newest first (${JSON.stringify(undos)})`);
     assert.doesNotMatch(html('dockCol').split('Write her voice and look, and the premise').at(-1)!.match(/data-deckkind="done"[\s\S]*?Aldis[\s\S]*?(?=data-deckkind|$)/)![0], /data-talkundo=/,
       'CARD-UNDO-ALL-DONE: and the card has no Undo left');
 
+    // The same offer is drawn on the Workbench too: Sew it in reads the box on ITS card, not the
+    // first box with that id in the page (#151 review).
     POSTED.length = 0;
-    click({ deckall: 'accept', ids: 'pr-1' }); await sleep(100);
+    const talkBox = { value: 'Edited in Talk.' };
+    const card = { querySelector: (q: string) => q === '[data-pbody="pr-1"]' ? talkBox : null };
+    (listeners.click ?? []).forEach((f: Function) => f({ target: { closest: () => ({ dataset: { deckall: 'accept', ids: 'pr-1' },
+      querySelector: () => null, disabled: false, textContent: '', style: {},
+      closest: (q: string) => q === '.deckcard' ? card : null }) } }));
+    await sleep(100);
+    assert.strictEqual(POSTED.find((p: any) => p.url === '/api/proposal')?.body.body, 'Edited in Talk.',
+      'CARD-OFFER-OWN-BOX: Sew it in sends the text in its own card\'s box');
     assert.ok(POSTED.some((p: any) => p.url === '/api/proposal' && p.body.id === 'pr-1' && p.body.accept === true),
       'CARD-OFFER-SEW: Sew it in on the Talk card is the Workbench\'s own decision');
   } finally { stubTalk = null; stubUndo = null; }

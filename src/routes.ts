@@ -20,7 +20,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
-import { checkAsked, expandAsked, entriesAsked, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
+import { checkAsked, expandAsked, entriesAsked, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
@@ -4772,7 +4772,7 @@ export const routes: Record<string, Handler> = {
     // #122 · `diff` is the text before and after, for the line to draw as a diff (null when it
     // rewrote no text).
     const changes: { words: string; undo: any; diff?: { before: string; after: string } | null;
-                     card?: { key: string; title: string; label: string } }[] = [];
+                     card?: Card }[] = [];
     const notDone: { said: string; why: string }[] = [];
     // As `expandAsked` reads them: a change sent twice once, a new thread sent once per pocket as one
     // thread and its pockets (Seraphine, 2026-11-03). And after them, a request sent as an entry.
@@ -4886,6 +4886,8 @@ export const routes: Record<string, Handler> = {
     const noted = Array.isArray(c.body.undo?.noted) ? c.body.undo.noted.map(String) : [];
     if (noted.length && k.change.op !== 'thread.unmake' && 'thread' in k.change)
       noteLinks(where, c.owner, k.change.thread, [], noted);
+    // #151 · and the kept talk it came from remembers it, for a talk opened again.
+    db.talkUndone(c.owner, v.id, c.body.sessionId, c.body.undo);
     return { undone: wordsFor(k.change), ...viewOf(c, v.id) };
   },
 

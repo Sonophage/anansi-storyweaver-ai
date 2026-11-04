@@ -1605,8 +1605,7 @@ export function talkSay(ownerId: string, storyId: string | null, sessionId: unkn
   const { where, args } = talkScope(ownerId, storyId);
   const at = now();
   // #151 · Anansi's turn keeps its cards (what it changed, what it chalked), for a talk opened again.
-  const pair = [{ you: true, text: said, at }, { text: reply, at,
-    ...(cards.changes?.length ? { changes: cards.changes } : {}), ...(cards.chalked?.length ? { chalked: cards.chalked } : {}) }];
+  const pair = [{ you: true, text: said, at }, { text: reply, at, ...cards }];
   const had = sessionId ? q(`SELECT t.id, t.turns FROM talk_sessions t WHERE t.id = ? AND ${where}`)
     .get(String(sessionId), ...args) as any : null;
   if (had) {
@@ -1618,6 +1617,15 @@ export function talkSay(ownerId: string, storyId: string | null, sessionId: unkn
   q(`INSERT INTO talk_sessions (id, owner_id, story_id, title, turns, created_at, updated_at) VALUES (?,?,?,?,?,?,?)`)
     .run(id, ownerId, storyId, talkTitle(said), JSON.stringify(pair), at, at);
   return id;
+}
+/** #151 · A kept talk remembers a change it made was undone: the change whose Undo this is. */
+export function talkUndone(ownerId: string, storyId: string | null, sessionId: unknown, undo: unknown) {
+  const { where, args } = talkScope(ownerId, storyId);
+  const r = sessionId ? q(`SELECT t.id, t.turns FROM talk_sessions t WHERE t.id = ? AND ${where}`).get(String(sessionId), ...args) as any : null;
+  if (!r) return;
+  const key = JSON.stringify(undo), turns = JSON.parse(r.turns);
+  for (const t of turns) for (const ch of t.changes ?? []) if (JSON.stringify(ch.undo) === key) ch.undone = true;
+  q('UPDATE talk_sessions SET turns = ? WHERE id = ?').run(JSON.stringify(turns), r.id);
 }
 /** This writer's sessions here, newest first, without their turns: a list to pick from. */
 export function talkSessions(ownerId: string, storyId: string | null) {

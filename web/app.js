@@ -585,7 +585,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // out of Talk.
   'dockopen', 'dockfold', 'idea', 'ideapick', 'dockwrite', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'wear', 'talemodel', 'tellerlist', 'lbook',
-  'ask', 'usedraft', 'copydraft', 'clearchat', 'talkundo', 'talkundoall', 'talkadd', 'copyentry', 'delcover', 'drawcover', 'usecover',
+  'ask', 'usedraft', 'copydraft', 'clearchat', 'talkundo', 'talkadd', 'copyentry', 'delcover', 'drawcover', 'usecover',
   // The talks kept (2026-10-30): the list, one opened, one deleted; and an answer's prompt copied.
   'talkpast', 'talkopen', 'talkdel', 'copyprompt',
   // A cover found on the web rather than drawn, 2026-09-01.
@@ -3623,16 +3623,20 @@ function talkCards(turn, i) {
   const groups = new Map();
   (turn.changes ?? []).forEach((ch, j) => {
     const key = ch.card?.key ?? `c${j}`;
-    if (!groups.has(key)) groups.set(key, { kind: 'done', turn: i, title: ch.card?.title ?? 'Changed',
-      sub: ch.refused ? 'Not done' : 'Done, as you asked', rows: [] });
+    if (!groups.has(key)) groups.set(key, { kind: 'done', turn: i, title: ch.card?.title ?? 'Changed', rows: [] });
     groups.get(key).rows.push({ label: ch.card?.label ?? '', ch, j });
   });
+  // What the card says it is reads every row, not the first: some refused is Partly done.
+  for (const g of groups.values()) {
+    const no = g.rows.filter(({ ch }) => ch.refused).length;
+    g.sub = no === 0 ? 'Done, as you asked' : no === g.rows.length ? 'Not done' : 'Partly done';
+  }
   const ids = turn.chalked ?? [];
   const open = new Set(ids.filter((id) => (V?.proposals ?? []).some((p) => p.id === id)));
   const offers = open.size ? deckCards(open) : [];
   const gone = ids.length - open.size;
   return [...groups.values(), ...offers].map((c) => deckCard(c, 0, 0)).join('')
-    + (gone ? `<div class="caption">${gone} already decided on the Workbench</div>` : '');
+    + (gone ? `<div class="caption">${gone} offer${gone === 1 ? '' : 's'} decided</div>` : '');
 }
 
 /** THE CONVERSATION'S TURNS, drawn once for Talk in a tale's composer (2026-10-29) and in the setup's
@@ -4150,8 +4154,7 @@ function deckCard(c, i, top) {
         : ch.refused || !ch.undo ? '' : `<button class="tag" data-talkundo="${c.turn}:${j}" style="cursor:pointer">Undo</button>`}</div>
       ${ch.diff && !ch.refused ? diffHTML(ch.diff.before, ch.diff.after) : ''}</div>`).join('');
     const live = c.rows.filter(({ ch }) => ch.undo && !ch.undone && !ch.refused).map(({ j }) => j);
-    const all = `${c.turn}:${live.join()}`;
-    right = live.length > 1 ? `<button class="btn ghost" data-talkundoall="${all}">Undo all</button>` : '';
+    right = live.length > 1 ? `<button class="btn ghost" data-talkundo="${c.turn}:${live.join()}">Undo all</button>` : '';
   } else if (c.kind === 'upkeep') {
     body = `<div class="note">${esc(c.body)}</div>`;
     right = c.right; left = c.left;
@@ -11836,7 +11839,7 @@ async function talk(said, mentions, anyway = false) {
   S.talk.searchable = r.searchable ?? S.talk.searchable;
   S.talk.sessionId = r.sessionId ?? S.talk.sessionId;
   S.talk.turns = [...S.talk.turns, { you: false, text: r.reply || '(nothing came back)',
-    sources: r.sources ?? [], proposed: r.proposed ?? 0, changes: r.changes ?? [], chalked: r.chalked ?? [],
+    sources: r.sources ?? [], changes: r.changes ?? [], chalked: r.chalked ?? [],
     meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens read`, prompt: r.prompt ?? null }];
   S.talk.draft = r.directive || null;
   // A thread that landed is a proposal, and the queue lives under Chapter. A change is in the tale.
@@ -13942,8 +13945,7 @@ document.addEventListener('click', async (e) => {
     const r = setup ? await api.sparkTalkOf(d.talkopen) : await api.talkOf(S.storyId, d.talkopen);
     if (r.error) return toast(r.error);
     // #151 · An answer's cards come back with it: what it changed, and what it chalked.
-    const turns = (r.turns ?? []).map((x) => ({ you: !!x.you, text: String(x.text ?? ''),
-      ...(x.changes ? { changes: x.changes } : {}), ...(x.chalked ? { chalked: x.chalked } : {}) }));
+    const turns = (r.turns ?? []).map((x) => ({ you: !!x.you, text: String(x.text ?? ''), changes: x.changes, chalked: x.chalked }));
     if (setup) Object.assign(setupTalk(), { turns, sessionId: r.id });
     else S.talk = { ...S.talk, turns, sessionId: r.id, draft: null };
     S.talkPast = null;
@@ -13998,29 +14000,21 @@ document.addEventListener('click', async (e) => {
     if (ch.undo.key === 'world') void ipFollow();
     return;
   }
-  // #151 · UNDO ALL on a thread's card: each pocket's own Undo, newest first, stopping at the first
-  // the server refuses, which says why.
-  if (d.talkundoall) {
-    const [i, js] = String(d.talkundoall).split(':');
+  // ONE CHANGE'S UNDO, or a card's Undo all (#151: `i:j,k`), each pocket's own Undo newest first,
+  // stopping at the first the server refuses, which says why. Each names this talk, so the kept talk
+  // remembers it was undone.
+  if (d.talkundo) {
+    const [i, js] = String(d.talkundo).split(':');
+    let said = 'Undone.';
     for (const j of js.split(',').map(Number).reverse()) {
       const ch = S.talk.turns[Number(i)]?.changes?.[j];
       if (!ch || ch.undone) continue;
-      const r = await api.talkUndo(S.storyId, ch.undo);
-      if (r.error) { V = await api.story(S.storyId); paint(); return toast(r.error); }
-      ch.undone = true; V = r;
+      const r = await api.talkUndo(S.storyId, ch.undo, S.talk.sessionId);
+      if (r.error) { if (r !== V) { V = await api.story(S.storyId); paint(); } return toast(r.error); }
+      ch.undone = true; V = r; said = r.undone || said;
     }
     paint();
-    return toast('Undone.');
-  }
-  if (d.talkundo) {
-    const [i, j] = String(d.talkundo).split(':').map(Number);
-    const ch = S.talk.turns[i]?.changes?.[j];
-    if (!ch || ch.undone) return;
-    const r = await api.talkUndo(S.storyId, ch.undo);
-    if (r.error) return toast(r.error);
-    ch.undone = true;
-    V = r; paint();
-    return toast(r.undone || 'Undone.');
+    return toast(said);
   }
   // #25. The row names a model; the panel is where it is read and where it is switched.
   // #131. Its info is drawn under it on Storyteller's Model tab, with both lists shut.
@@ -14123,11 +14117,14 @@ document.addEventListener('click', async (e) => {
     const ids = String(d.ids ?? '').split(',').filter(Boolean);
     const yes = d.deckall === 'accept';
     const rows = (V.proposals ?? []).filter((p) => ids.includes(p.id));
+    // ITS OWN CARD'S BOXES (#151): an offer in Talk is drawn on the Workbench too, and the first box
+    // with that id in the page could be the other card's.
+    const own = t.closest?.('.deckcard') ?? document;
     for (const id of ids) {
-      const edited = document.querySelector(`[data-pbody="${id}"]`)?.value;
+      const edited = own.querySelector(`[data-pbody="${id}"]`)?.value;
       // The state box, as `decide` reads it: on a card with one thread this is its only Sew it in.
-      const asState = document.querySelector(`[data-pstate="${id}"]`)?.checked
-        ? Number(document.querySelector(`[data-pchap="${id}"]`)?.value) : 0;
+      const asState = own.querySelector(`[data-pstate="${id}"]`)?.checked
+        ? Number(own.querySelector(`[data-pchap="${id}"]`)?.value) : 0;
       const r = await api.decide({ storyId: S.storyId, id, accept: yes, ...(yes && asState > 0 ? { asState } : {}),
         ...(yes && edited != null ? { body: edited } : {}) });
       if (r.error) { V = await api.story(S.storyId); paint(); return toast(r.error); }
@@ -15870,7 +15867,8 @@ document.addEventListener('contextmenu', (e) => {
   // swipe and swallows the click it ends on; anything shorter is a tap and does what a tap does.
   let drag = null, swallow = false;
   document.addEventListener('pointerdown', (e) => {
-    const card = e.target.closest?.('.deckcard:not([hidden])');
+    // A card of what Talk already did waits for no yes or no, so it does not swipe (#151).
+    const card = e.target.closest?.('.deckcard:not([hidden]):not([data-deckkind="done"])');
     if (!card || e.target.closest('input, textarea, select, [contenteditable]')) return;
     drag = { card, x: e.clientX, y: e.clientY, dx: 0, moved: false };
   });

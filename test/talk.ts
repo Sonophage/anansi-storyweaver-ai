@@ -1744,6 +1744,13 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.deepStrictEqual(sera.changes.map((x: any) => x.card.label), ['The thread', 'Voice', 'Outfit'], 'CARD-LABEL: each row its pocket');
     const kept = db.talkSession(me, tale.id, sera.sessionId)!.turns.at(-1);
     assert.strictEqual(kept.changes?.length, 3, 'CARD-KEPT: a kept talk keeps its cards, for a talk opened again');
+    // An Undo names its talk, and the kept talk then says that change was undone (#151 review).
+    const voice = sera.changes.find((x: any) => x.card.label === 'Voice');
+    const u = await routes['POST /api/talk/undo'](ctxOf(tale.id, { undo: voice.undo, sessionId: sera.sessionId })) as any;
+    assert.ok(!u.error, u.error);
+    const after = db.talkSession(me, tale.id, sera.sessionId)!.turns.at(-1);
+    assert.strictEqual(after.changes.find((x: any) => x.card.label === 'Voice').undone, true, 'CARD-KEPT-UNDONE: a kept talk remembers what was undone');
+    assert.ok(!after.changes.find((x: any) => x.card.label === 'Outfit').undone, '  and only that');
   }
   ok('a new character sent once per pocket is one thread with its pockets');
 
