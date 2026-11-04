@@ -976,4 +976,34 @@ ok('no text Talk writes is capped by the grammar (F25: a capped string closes mi
   assert.ok(!('maxLength' in (ch.DRAFT_CHANGES_SCHEMA as any).items.properties.text), 'NO-CAP-DRAFT: a setup change\'s text has no maxLength');
 });
 
+// #152 · WHAT WAS ASKED, DECIDED BY THE APP (ADR 0014): a change counts as asked only when the writer's
+// message, or the exchange before it, names its thread or its kind.
+ok('a change is asked only when the message or the last exchange names its thread or its kind', () => {
+  const asked = (raw: any, said: string, earlier = '') => ch.askedOf(raw, tale, said, earlier);
+  const voice = { op: 'thread.set', thread: 'Talia Venn', room: 'voice', text: 'Low.' };
+  assert.ok(asked(voice, 'fill out Talia\'s card'), 'ASKED-NAME: her name in the message');
+  assert.ok(asked(voice, 'fill out her card', 'WRITER: who is Talia Venn?'), 'ASKED-EARLIER: her name in the exchange before');
+  assert.ok(!asked(voice, 'fill out Morgott\'s card'), 'UNASKED-OTHER: another thread named');
+  const promise = { op: 'string.set', title: 'The Unwrapping', kind: 'promise', text: 'She will be unwrapped.' };
+  assert.ok(!asked(promise, 'fill out the seraphine card and fill her pockets'), 'UNASKED-STRING: a promise nobody mentioned');
+  assert.ok(asked(promise, 'add a promise about the gloves'), 'ASKED-KIND: its kind named');
+  assert.ok(asked(promise, 'the unwrapping should be a string'), 'ASKED-STRING-NAME: its own name named');
+  const rule = { op: 'instruction.set', title: "Seraphine's Directive", text: 'Keep her slow.' };
+  assert.ok(!asked(rule, 'fill out her card', 'WRITER: who is Talia?'), 'UNASKED-INSTRUCTION: an instruction nobody asked for');
+  assert.ok(asked(rule, 'add an instruction to keep her slow'), 'ASKED-INSTRUCTION: asked by kind');
+  const made = { op: 'thread.new', title: 'Brannoc', type: 'character', text: 'A lockkeeper.' };
+  assert.ok(asked(made, 'add a new character, a lockkeeper'), 'ASKED-NEW-KIND: a new character asked for by kind');
+  assert.ok(!asked(made, 'what is the weather in the lower tiers?'), 'UNASKED-NEW: a new thread nobody asked for');
+  assert.ok(asked({ op: 'tale.set', field: 'premise', text: 'x' }, 'change the premise'), 'ASKED-TALE: a field named');
+  assert.ok(!asked({ op: 'tale.set', field: 'premise', text: 'x' }, 'fill out her card'), 'UNASKED-TALE: a field not named');
+});
+
+ok('making a thread the tale already has is a change to that thread, pockets and all', () => {
+  const out = ch.expandAsked([{ op: 'thread.new', title: 'Talia Venn', type: 'character', text: 'A courier.',
+    pockets: [{ room: 'voice', text: 'Quick.' }] }], tale);
+  assert.deepStrictEqual(out.map((r: any) => [r.op, r.thread, r.room, r.text, !!r.existed]),
+    [['thread.set', 'Talia Venn', 'facts', 'A courier.', true], ['thread.set', 'Talia Venn', 'voice', 'Quick.', true]],
+    `NEW-EXISTING: changes the thread she is (${JSON.stringify(out)})`);
+});
+
 console.log(`\n${n} checks passed`);

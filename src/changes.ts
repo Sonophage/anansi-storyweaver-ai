@@ -355,6 +355,14 @@ export function expandAsked(raws: unknown, tale: Tale): any[] {
       continue;
     }
     if (op !== 'thread.new' || !norm(name)) { out.push(whole); continue; }
+    // #152 · A THREAD THE TALE ALREADY HAS, asked to be made, is a change to it: its text to its
+    // Always true, its pockets to theirs, each marked so its line says it was there already.
+    const have = threadNamed(tale, name).hit;
+    if (have && norm(have.title) === norm(name)) {
+      if (String(raw.text ?? '').trim()) out.push({ op: 'thread.set', thread: have.title, room: 'facts', text: raw.text, existed: true });
+      for (const p of each) out.push({ ...p, thread: have.title, existed: true });
+      continue;
+    }
     const room = pocketOf(raw);
     const { field: _f, room: _r, text, ...about } = raw;
     let head = made.get(norm(name));
@@ -416,6 +424,51 @@ export function entriesAsked(entries: unknown, tale: Tale, said: string, earlier
       ...(Array.isArray(e.pockets) ? { pockets: e.pockets } : {}) });
   }
   return { asked, offered };
+}
+
+/** #152 · WHAT WAS ASKED, DECIDED BY THE APP (ADR 0014). The model puts a change in `changes` when it
+ *  believes the writer asked for it; on 2026-11-04, asked for Seraphine's card, it also wrote two
+ *  promises and an instruction nobody mentioned. So a change counts as asked only when the writer's
+ *  message, or the exchange before it (`earlier`), names its thread or its pocket by a word of its
+ *  name longer than two letters, or names its kind ("promise", "rule", "premise", "character"...).
+ *  Anything else is an offer. The one place this rule lives.
+ *
+ *  ponytail: names and kind words, by word. Ceiling: "give her a sister" asks for a new thread by a
+ *  verb not on the list and is offered rather than done; and any verb of making ("make her slower")
+ *  lets a new thread the model adds count as asked. Trigger: a writer finds a request offered, or an
+ *  unasked new thread made; then read what the message names against the thread's own text. */
+const KIND_WORDS: Record<string, RegExp> = {
+  string: /\b(promises?|questions?|strings?)\b/,
+  rule: /\brules?\b/,
+  instruction: /\binstructions?\b/,
+  scene: /\bscenes?\b/,
+  // A new thread asked for by what it is, not its name ("add the ferryman"): a verb of making will do.
+  newThread: /\b(new|add|make|create|introduce)\b/,
+};
+/** The words a tale's own field is asked for by: "rename it" is its title, "regenre" its genre. */
+const TALE_WORDS: Record<string, RegExp> = { premise: /premise/, setting: /setting|\bset in\b/, title: /title|\bname|rename|\bcall/,
+  genre: /genre/, voice: /voice/, style_note: /style/ };
+export function askedOf(raw: any, tale: Tale, said: string, earlier = ''): boolean {
+  const text = `${said}\n${earlier}`.toLowerCase();
+  const heard = new Set(words(text));
+  const named = (name: unknown) => words(String(name ?? '')).some((w) => w.length > 2 && heard.has(w));
+  // A string, rule or instruction is often named after a thread ("Seraphine's Directive"): every word
+  // of its name must be heard, or a request about Seraphine asks for every pocket that says her name.
+  const whole = (name: unknown) => { const ws = words(String(name ?? '')).filter((w) => w.length > 2);
+    return ws.length > 0 && ws.every((w) => heard.has(w)); };
+  const op = String(raw?.op ?? '');
+  // Off the list, it is refused by `checkAsked` with its own reason ("not something Talk can do").
+  if (!(ASKED as readonly string[]).includes(op)) return true;
+  if (op.startsWith('thread.')) {
+    const t = threadNamed(tale, raw.thread ?? raw.title).hit;
+    return named(t?.title ?? raw.thread ?? raw.title) || (op === 'thread.new' && KIND_WORDS.newThread.test(text));
+  }
+  if (op.startsWith('string.')) return whole(raw.title) || KIND_WORDS.string.test(text);
+  if (op.startsWith('rule.')) return whole(raw.title) || KIND_WORDS.rule.test(text);
+  if (op.startsWith('instruction.')) return whole(raw.title) || KIND_WORDS.instruction.test(text);
+  if (op === 'tale.set') return (TALE_WORDS[String(raw.field)] ?? /$^/).test(text) || /\btale\b/.test(text);
+  if (op === 'scene.set') return KIND_WORDS.scene.test(text);
+  return false;
 }
 
 /** A NEW THREAD'S NAME, KIND AND ALWAYS TRUE, checked the one way for a tale and a draft: it has a

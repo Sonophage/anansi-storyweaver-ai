@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-04 · Talk fills in the card you ask for
 
+### Talk does only what you name
+Talk now writes only what your message, or the one just before it, names: a thread by its name, or a
+kind of thing ("a promise", "a rule", "the premise"). Anything else it wanted to add arrives as a
+suggestion card for you to sew in or reject. Before, asked for Seraphine's card, it also wrote two
+promises and an instruction nobody asked for. Ask Talk to make someone the tale already has, and it
+fills in their card instead of refusing.
+
 ### What Talk does shows as cards
 What Talk changes now shows in the conversation as a card, the same card the Workbench uses: one
 per thread, with each pocket's old and new text, an Undo on each, and Undo all. What Anansi suggests

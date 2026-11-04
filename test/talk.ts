@@ -113,6 +113,16 @@ const srv = createServer((req, res) => {
       PARTCLAIM: { reply: 'Odile is ready. She says "Mind the cuffs." I have added her voice and her outfit to the card. Her letters are written in cipher. She smiles.',
         changes: [{ op: 'thread.set', thread: 'Odile', room: 'voice', text: 'Soft, and always a question.' },
                   { op: 'thread.set', thread: 'Nobody Here', room: 'outfit', text: 'Wool.' }] },
+      // #152 · THE #144 REPLAY'S SHAPE (Ornith, 2026-11-04): asked for Seraphine's card, the answer also
+      // wrote two promises and an instruction nobody asked for, and made her again.
+      REPLAY: { reply: 'Seraphine is filed, with two promises and a directive for her.',
+        changes: [{ op: 'thread.set', thread: 'Seraphine', room: 'voice', text: 'Low, husky, and slow.' },
+                  { op: 'string.set', title: 'The Unwrapping', kind: 'promise', text: 'She will be unwrapped.' },
+                  { op: 'string.set', title: "The Pistol's Secret", kind: 'promise', text: 'The pistol whispers for a reason.' },
+                  { op: 'instruction.set', title: "Seraphine's Directive", text: 'Keep her slow and deliberate.' }] },
+      REMAKE: { reply: 'Seraphine, fresh.', changes: [{ op: 'thread.new', title: 'Seraphine', type: 'character',
+        text: 'A nun of the Choir, hungry for the Stranger.', pockets: [{ room: 'outfit', text: 'Black silk and red gloves.' }] }] },
+      ASKPROMISE: { reply: 'A promise, then.', changes: [{ op: 'string.set', title: 'The pistol', kind: 'promise', text: 'The pistol will be fired.' }] },
       // A plain answer that only sounds like a claim: nothing was asked, so nothing is taken off.
       SETIN: { reply: 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.' },
       // The card as one entry with its pockets, which the grammar offers now: her appearance in the
@@ -1701,7 +1711,7 @@ ok('emptying the box gives her back the voice she shipped with');
   // What the tale cannot take is not done, and the reply says so, whatever the model claimed.
   const entriesBefore = JSON.stringify(db.entriesOf(tale.id));
   const roomsBefore = JSON.stringify(db.addonsOf(tale.id));
-  const bad = await say('CHANGE-BAD: do all of these');
+  const bad = await say('CHANGE-BAD: do all of these to Nobody, the Ring Law, Talia and the passage');
   assert.ok(!bad.error, bad.error);
   assert.strictEqual(bad.changes.length, 0, 'CHANGE-REFUSED: none of these is done');
   assert.strictEqual(JSON.stringify(db.entriesOf(tale.id)), entriesBefore, 'CHANGE-REFUSED: no thread changed, none deleted');
@@ -1770,7 +1780,7 @@ ok('emptying the box gives her back the voice she shipped with');
   ok('when nothing asked for was done, the answer says so first, once per thing asked');
 
   {
-    const mid = await say('CHANGE-MIDCLAIM: add her voice and outfit');
+    const mid = await say('CHANGE-MIDCLAIM: add a voice and outfit for Nobody Here');
     assert.ok(!mid.error, mid.error);
     assert.match(mid.reply, /^Nothing was changed\./, `MIDCLAIM-HEAD: nothing done is said first:\n${mid.reply}`);
     assert.ok(!/I have also added|now filled in/.test(mid.reply), `MIDCLAIM-GONE: a claim of a change in the middle of the reply is taken off:\n${mid.reply}`);
@@ -1785,7 +1795,7 @@ ok('emptying the box gives her back the voice she shipped with');
   {
     const odile = db.upsertEntry(tale.id, me, { title: 'Odile', body: '', entryType: 'character', activation: 'always_on', keys: [] })!;
     db.upsertAddon(tale.id, odile, { slot: 'facts', name: 'facts', body: 'A weaver.' });
-    const part = await say('CHANGE-PARTCLAIM: add her voice and outfit');
+    const part = await say("CHANGE-PARTCLAIM: add Odile's voice and the outfit for Nobody Here");
     assert.ok(!part.error, part.error);
     assert.strictEqual(part.changes.length, 1, '  one change done');
     assert.ok(!/I have added her voice and her outfit/.test(part.reply), `MIDCLAIM-PARTIAL: with something refused, the reply's claims are taken off; the change lines say what was done:\n${part.reply}`);
@@ -1800,7 +1810,7 @@ ok('emptying the box gives her back the voice she shipped with');
     const id = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'Odile').id;
     const look = db.upsertAddon(tale.id, id, { slot: 'appearance', name: 'appearance', body: 'Plain.' })!;
     db.setAddonActivation(tale.id, look, 'off');
-    const w = await say('CHANGE-WAKEOFF: write her appearance');
+    const w = await say("CHANGE-WAKEOFF: write Odile's appearance");
     assert.ok(!w.error, w.error);
     const after = room(id, 'appearance');
     assert.strictEqual(after.length, 1, '  one appearance pocket');
@@ -1823,7 +1833,7 @@ ok('emptying the box gives her back the voice she shipped with');
     const off = db.upsertAddon(tale.id, id, { slot: 'appearance', name: 'appearance', body: 'Plain.' })!;
     db.setAddonActivation(tale.id, off, 'off');
     const looks = () => room(id, 'appearance');
-    const w = await say('CHANGE-WAKESIB: write her appearance');
+    const w = await say("CHANGE-WAKESIB: write Maren's appearance");
     assert.ok(!w.error, w.error);
     const on = looks().find((a) => a.id === worded)!;
     assert.strictEqual(on.body, 'Grey wool, silver at the cuffs.', `WAKE-SIBLING: the On a word pocket is the one written (${JSON.stringify(looks().map((a) => [a.name, a.activation, a.body]))})`);
@@ -1836,7 +1846,7 @@ ok('emptying the box gives her back the voice she shipped with');
   // #144 · A THREAD TALK MADE WITH POCKETS is taken away by its own Undo, pockets and all. Its Undo
   // waited until every pocket's Undo had been pressed first.
   {
-    const m = await say('CHANGE-MAKEWITH: make the lockkeeper');
+    const m = await say('CHANGE-MAKEWITH: make Brannoc the lockkeeper');
     assert.ok(!m.error, m.error);
     const him = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'Brannoc');
     assert.ok(him, '  Brannoc was made');
@@ -1847,6 +1857,32 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.ok(!(db.entriesOf(tale.id) as any[]).some((e) => e.title === 'Brannoc'), 'UNMAKE-WITH-POCKETS: and he is gone');
   }
   ok('a thread Talk made with pockets is taken away by its own Undo');
+
+  // #152 · THE APP DECIDES WHAT WAS ASKED. Seraphine's change is done; the promises nobody mentioned are
+  // offers (chalked cards); the instruction nobody mentioned is not done, and the answer says so.
+  {
+    const strBefore = (db.addonsOf(tale.id) as any[]).filter((a) => a.slot === 'promise').length;
+    const own = () => (db.addonsOf(tale.id) as any[]).filter((a) => a.slot === 'instruction').length;
+    const instrBefore = own();
+    const rp = await say('CHANGE-REPLAY: fill out the seraphine card and fill her pockets');
+    assert.ok(!rp.error, rp.error);
+    assert.deepStrictEqual(rp.changes.map((x: any) => x.card.title), ['Seraphine'], `ASKED-ONLY: only her change is done (${rp.changes.map((x: any) => x.words).join(' | ')})`);
+    assert.strictEqual((db.addonsOf(tale.id) as any[]).filter((a) => a.slot === 'promise').length, strBefore, 'ASKED-ONLY: no promise written');
+    assert.strictEqual(own(), instrBefore, 'ASKED-ONLY: no instruction written');
+    const offers = (db.proposalsOf(tale.id) as any[]).filter((p) => rp.chalked.includes(p.id)).map((p) => p.title).sort();
+    assert.deepStrictEqual(offers, ["The Pistol's Secret", 'The Unwrapping'], `OFFERED-STRINGS: the two promises are offer cards (${offers})`);
+    assert.ok(rp.notDone.some((x: any) => /Seraphine's Directive/.test(x.said) && /did not ask/.test(x.why)),
+      `UNASKED-SAID: the instruction is not done, and the answer says why (${JSON.stringify(rp.notDone)})`);
+    const pr = await say('CHANGE-ASKPROMISE: add a promise about the pistol');
+    assert.strictEqual(pr.changes.length, 1, 'ASKED-PROMISE: a promise asked for by its kind is written');
+    const her = (db.entriesOf(tale.id) as any[]).filter((e) => e.title === 'Seraphine');
+    const again = await say('CHANGE-REMAKE: make Seraphine');
+    assert.strictEqual((db.entriesOf(tale.id) as any[]).filter((e) => e.title === 'Seraphine').length, 1, 'REMAKE: no second Seraphine');
+    assert.strictEqual(room(her[0].id, 'outfit').at(-1)?.body ?? room(her[0].id, 'outfit')[0]?.body, 'Black silk and red gloves.', 'REMAKE: her own card is changed, pockets too');
+    assert.ok(again.changes.length >= 1 && again.changes.every((x: any) => /already in the tale/.test(x.words)),
+      `REMAKE-SAID: each line says she was already there (${again.changes.map((x: any) => x.words).join(' | ')})`);
+  }
+  ok('only what the writer named is done; unasked threads and strings are offered, the rest not done; making an existing thread changes it');
 
   // ASKED, THOUGH THE MODEL SENT IT AS AN OFFER (Seraphine, 2026-11-04). The writer asked for her card
   // to be filled in, and the answer carried no change: only an entry naming her, for one pocket. A
@@ -3167,7 +3203,7 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   ok("asked for one of the writer's own instructions, Talk adds, changes or switches it, and Undo puts each back");
 
   // WHERE A STRING STANDS
-  const stand = await say('CHANGE-STAND: tie off the letter, and bring the debt back');
+  const stand = await say('CHANGE-STAND: tie off the letter, bring the debt back, and set the oath aside');
   assert.ok(!stand.error, stand.error);
   assert.strictEqual(stand.changes.length, 2, `TALK-STAND: two are done (${stand.reply})`);
   assert.match(stand.reply, /Not done\. Change where the string the oath stands: there is no string called "the oath"/,

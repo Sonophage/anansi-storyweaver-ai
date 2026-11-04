@@ -20,7 +20,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
-import { checkAsked, expandAsked, entriesAsked, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
+import { checkAsked, expandAsked, entriesAsked, askedOf, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
@@ -4709,7 +4709,34 @@ export const routes: Record<string, Handler> = {
     // A second queue would be a second place to forget to look.
     // #128 · Of its kind, a promise or an open question, kept in the proposal's `field` (a string has
     // no thread to aim a pocket at) and read back by Sew it in. Anything else is a promise (`stringKind`).
-    for (const x of ((r.data as any).strings ?? [])) {
+    // #152 · WHAT WAS ASKED IS DECIDED HERE, by the app as well as the model (`askedOf`, ADR 0014):
+    // a change whose thread or kind the writer's message and the exchange before it never named is an
+    // offer. A thread or a string is chalked as one, with the entries and strings below; anything else
+    // the writer did not ask for is not done, and the answer says so.
+    const { asked, offered } = entriesAsked(r.data.entries, taleOf(v.id), said, lastExchange(c.body.turns));
+    const notDone: { said: string; why: string }[] = [];
+    const raws: any[] = [], strings: any[] = [...((r.data as any).strings ?? [])];
+    // An unasked thread is offered as one card: a new one with its pockets riding on it, as an entry
+    // carries them; a change to one the tale has, one offer per pocket.
+    const fresh = new Map<string, any>();
+    for (const raw of expandAsked([...(Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4),
+      ...asked], taleOf(v.id))) {
+      if (askedOf(raw, taleOf(v.id), said, lastExchange(c.body.turns))) { raws.push(raw); continue; }
+      const op = String(raw?.op ?? '');
+      const head = op === 'thread.set' ? fresh.get(String(raw.thread ?? '').trim().toLowerCase()) : null;
+      if (op === 'thread.new') {
+        const e = { title: raw.title, type: raw.type, keys: raw.keys, body: raw.text, pockets: [] as any[] };
+        fresh.set(String(raw.title ?? '').trim().toLowerCase(), e);
+        if (String(raw.text ?? '').trim()) offered.push(e);
+        else notDone.push({ said: `Make a new thread: ${raw.title}`, why: `it came with no Always true for ${raw.title}` });
+      } else if (head) head.pockets.push({ room: raw.room, text: raw.text });
+      else if (op === 'thread.set') offered.push({ title: raw.thread, keys: raw.keys,
+        field: raw.room && raw.room !== 'none' ? raw.room : undefined, body: raw.text });
+      else if (op === 'string.set') strings.push({ title: raw.title, body: raw.text, kind: raw.kind });
+      else notDone.push({ said: `${op.split('.')[0]} ${String(raw.title ?? raw.thread ?? raw.field ?? '').trim()}`.trim(),
+        why: 'you did not ask for it. Ask for it by name and it is done' });
+    }
+    for (const x of strings) {
       if (!x?.title?.trim()) continue;
       const kind = db.stringKind(x.kind ?? 'promise');
       if (db.addProposal(v.id, { kind: 'new', entry_id: null, field: kind,
@@ -4720,7 +4747,6 @@ export const routes: Record<string, Handler> = {
     }
     // A REQUEST SENT BACK AS AN OFFER is done as asked, with the changes below (`entriesAsked`):
     // chalked, it was a second press for a thing the writer had already said (ADR 0007).
-    const { asked, offered } = entriesAsked(r.data.entries, taleOf(v.id), said, lastExchange(c.body.turns));
     // What was chalked from them, a line each, for the answer to say first when a request was only
     // offered (`talkReply`).
     const chalked: string[] = [];
@@ -4773,11 +4799,9 @@ export const routes: Record<string, Handler> = {
     // rewrote no text).
     const changes: { words: string; undo: any; diff?: { before: string; after: string } | null;
                      card?: Card }[] = [];
-    const notDone: { said: string; why: string }[] = [];
-    // As `expandAsked` reads them: a change sent twice once, a new thread sent once per pocket as one
-    // thread and its pockets (Seraphine, 2026-11-03). And after them, a request sent as an entry.
-    const raws = expandAsked([...(Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4),
-      ...asked], taleOf(v.id));
+    // `raws` are the asked changes, decided above (#152), as `expandAsked` reads them: a change sent
+    // twice once, a new thread sent once per pocket as one thread and its pockets (Seraphine,
+    // 2026-11-03), and after them a request sent as an entry.
     // #101 · IN A TALE THAT FOLLOWS A WORLD, a change the model did not place as canon or as the
     // writer's version is a question. Then NOTHING in this answer is done, the rest included: the
     // writer answers one line and asks again, rather than finding half of what they said applied.
@@ -4831,8 +4855,10 @@ export const routes: Record<string, Handler> = {
       }
       const undo = undoFor(k.change, made);
       const withWorld = undo && aim.to === 'world' ? { ...undo, world: world!.id } : undo;
-      changes.push({ words: aim.to === 'world' ? `${wordsFor(k.change)} In ${world!.title}, for every tale that follows it.`
-        : wordsFor(k.change), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change),
+      // #152 · Asked to make a thread the tale has, its line says the thread was there and was changed.
+      const there = raw?.existed ? `${String((k.change as any).title ?? '')} was already in the tale, so this changed it. ` : '';
+      changes.push({ words: there + (aim.to === 'world' ? `${wordsFor(k.change)} In ${world!.title}, for every tale that follows it.`
+        : wordsFor(k.change)), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change),
         card: cardOf(k.change, made) });
     }
     // #144 · A NEW THREAD'S UNDO CARRIES THE POCKETS MADE WITH IT, so one Undo takes the thread away whole.
