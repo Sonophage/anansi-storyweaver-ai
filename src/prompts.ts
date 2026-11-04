@@ -2238,7 +2238,8 @@ export const TALK_SETUP_SCHEMA = {
         properties: {
           title: { type: 'string', maxLength: 80 },
           type: { type: 'string', enum: ['character', 'place', 'lore', 'item'] },
-          body: { type: 'string', maxLength: 600 },
+          // No maxLength, per F25 (#144): the converter closes a capped string mid-word.
+          body: { type: 'string' },
         },
         required: ['title', 'type', 'body'],
       },

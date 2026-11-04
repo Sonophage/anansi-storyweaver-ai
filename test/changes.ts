@@ -973,6 +973,7 @@ ok('no text Talk writes is capped by the grammar (F25: a capped string closes mi
   const p = ch.CHANGES_SCHEMA.items.properties as any;
   assert.ok(!('maxLength' in p.text), 'NO-CAP-TEXT: a change\'s text has no maxLength');
   assert.ok(!('maxLength' in p.pockets.items.properties.text), 'NO-CAP-POCKET: a pocket\'s text has no maxLength');
+  assert.ok(!('maxLength' in (ch.DRAFT_CHANGES_SCHEMA as any).items.properties.text), 'NO-CAP-DRAFT: a setup change\'s text has no maxLength');
 });
 
 console.log(`\n${n} checks passed`);

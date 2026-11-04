@@ -109,6 +109,10 @@ const srv = createServer((req, res) => {
       WAKEOFF: { reply: 'Her look is written.', changes: [{ op: 'thread.set', thread: 'Odile', room: 'appearance', text: 'Grey wool, silver at the cuffs.' }] },
       MAKEWITH: { reply: 'Here he is.', changes: [{ op: 'thread.new', title: 'Brannoc', type: 'character', text: 'A lockkeeper who counts boats.',
         pockets: [{ room: 'voice', text: 'Slow, and never wrong.' }, { room: 'appearance', text: 'Oilskin and a lantern.' }] }] },
+      WAKESIB: { reply: 'Her look is written.', changes: [{ op: 'thread.set', thread: 'Maren', room: 'appearance', text: 'Grey wool, silver at the cuffs.' }] },
+      PARTCLAIM: { reply: 'Odile is ready. She says "Mind the cuffs." I have added her voice and her outfit to the card. Her letters are written in cipher. She smiles.',
+        changes: [{ op: 'thread.set', thread: 'Odile', room: 'voice', text: 'Soft, and always a question.' },
+                  { op: 'thread.set', thread: 'Nobody Here', room: 'outfit', text: 'Wool.' }] },
       // A plain answer that only sounds like a claim: nothing was asked, so nothing is taken off.
       SETIN: { reply: 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.' },
       // The card as one entry with its pockets, which the grammar offers now: her appearance in the
@@ -351,7 +355,7 @@ process.env.ANANSI_LLAMA = `http://127.0.0.1:${(srv.address() as any).port}`;
 
 const db = await import('../src/db.ts');
 const { routes } = await import('../src/routes.ts');
-const { TALK_SCHEMA, INVENT } = await import('../src/prompts.ts');
+const { TALK_SCHEMA, TALK_SETUP_SCHEMA, INVENT } = await import('../src/prompts.ts');
 const { ALL_SLOTS: ALL_SLOTS_T } = await import('../src/slots.ts');
 
 const me = db.owner('talker');
@@ -396,6 +400,8 @@ assert.strictEqual((TALK_SCHEMA.properties.directive as any).maxLength, 400);
 // answer's own token cap is what holds an essay now.
 assert.ok(!('maxLength' in (TALK_SCHEMA.properties.entries as any).items.properties.body),
   'ENTRY-UNCAPPED: an entry body is not cut mid-word by the grammar (#144)');
+assert.ok(!('maxLength' in (TALK_SETUP_SCHEMA.properties.entries as any).items.properties.body),
+  'ENTRY-UNCAPPED-SETUP: nor in the setup talk (#144)');
 ok('the reply and an entry body are unbounded; the directive keeps its bound');
 
 // ---- 2. a long answer arrives whole
@@ -1763,13 +1769,22 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.strictEqual(q.reply, 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.',
       `MIDCLAIM-QUESTION: an answer to a question keeps every sentence:\n${q.reply}`);
   }
+  {
+    const odile = db.upsertEntry(tale.id, me, { title: 'Odile', body: '', entryType: 'character', activation: 'always_on', keys: [] })!;
+    db.upsertAddon(tale.id, odile, { slot: 'facts', name: 'facts', body: 'A weaver.' });
+    const part = await say('CHANGE-PARTCLAIM: add her voice and outfit');
+    assert.ok(!part.error, part.error);
+    assert.strictEqual(part.changes.length, 1, '  one change done');
+    assert.ok(!/I have added her voice and her outfit/.test(part.reply), `MIDCLAIM-PARTIAL: with something refused, the reply's claims are taken off; the change lines say what was done:\n${part.reply}`);
+    assert.match(part.reply, /Odile is ready\. She says "Mind the cuffs\."[\s\S]*She smiles\./, `MIDCLAIM-SPLIT: a quote closing a sentence still ends it, so the claim after it goes alone:\n${part.reply}`);
+    assert.match(part.reply, /Her letters are written in cipher\./, `MIDCLAIM-FACT: a fact about the story is not a claim:\n${part.reply}`);
+  }
   ok('a claim of a change anywhere in the reply is taken off when nothing was done');
 
   // #144 · WRITTEN ON REQUEST, AN OFF POCKET IS ON (Seraphine, 2026-11-04: her appearance was Off, Talk
   // filled it, and it stayed Off, so it never reached a passage). Its Undo puts it back Off.
   {
-    const id = db.upsertEntry(tale.id, me, { title: 'Odile', body: '', entryType: 'character', activation: 'always_on', keys: [] })!;
-    db.upsertAddon(tale.id, id, { slot: 'facts', name: 'facts', body: 'A weaver.' });
+    const id = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'Odile').id;
     const look = db.upsertAddon(tale.id, id, { slot: 'appearance', name: 'appearance', body: 'Plain.' })!;
     db.setAddonActivation(tale.id, look, 'off');
     const w = await say('CHANGE-WAKEOFF: write her appearance');
@@ -1783,6 +1798,25 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.ok(!back.error, back.error);
     assert.strictEqual(room(id, 'appearance')[0].body, 'Plain.', '  Undo puts the text back');
     assert.strictEqual(room(id, 'appearance')[0].activation, 'off', 'WAKE-UNDO: and puts the pocket back Off');
+  }
+  // THE REVIEW'S CASE: a room with an On a word pocket and an Off one. The write goes over the On a
+  // word one, nothing is switched, and the Off one stays Off.
+  {
+    const id = db.upsertEntry(tale.id, me, { title: 'Maren', body: '', entryType: 'character', activation: 'always_on', keys: [] })!;
+    db.upsertAddon(tale.id, id, { slot: 'facts', name: 'facts', body: 'A miller.' });
+    // On a word first and Off newest, so "the newest" would pick the Off one.
+    const worded = db.upsertAddon(tale.id, id, { slot: 'appearance', name: 'in the rain', body: 'A sodden shawl.', keys: ['rain'] })!;
+    db.setAddonActivation(tale.id, worded, 'triggered');
+    const off = db.upsertAddon(tale.id, id, { slot: 'appearance', name: 'appearance', body: 'Plain.' })!;
+    db.setAddonActivation(tale.id, off, 'off');
+    const looks = () => room(id, 'appearance');
+    const w = await say('CHANGE-WAKESIB: write her appearance');
+    assert.ok(!w.error, w.error);
+    const on = looks().find((a) => a.id === worded)!;
+    assert.strictEqual(on.body, 'Grey wool, silver at the cuffs.', `WAKE-SIBLING: the On a word pocket is the one written (${JSON.stringify(looks().map((a) => [a.name, a.activation, a.body]))})`);
+    assert.strictEqual(on.activation, 'triggered', 'WAKE-SIBLING: and it is still On a word');
+    assert.ok(looks().filter((a) => a.id !== worded).every((a) => a.activation === 'off'), 'WAKE-SIBLING: the Off one is left Off');
+    assert.ok(!/switched it on/i.test(w.changes[0].words), `WAKE-SIBLING: nothing says it was switched (${w.changes[0].words})`);
   }
   ok('a pocket that was Off is switched on when Talk writes it on request, and Undo puts it back Off');
 

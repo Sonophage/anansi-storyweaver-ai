@@ -1074,20 +1074,23 @@ async function castNames(world: string, using: string, o: { kinds: string[]; wan
   return { found, sources, memory, seconds: +((Date.now() - t0) / 1000).toFixed(1) };
 }
 
-/** THE EARLIER TURNS, for both Talk routes: the last six, each capped. Each exchange is context for
- *  the next, so the fifth question would otherwise cost several times the first. */
-/** The conversation so far as chat turns, writer and Anansi, the last six. */
-/*  ANANSI'S OWN WORDS ONLY (#144): an answer the writer was shown carries the app's lines beside his
- *  reply (`talkReply`), and sent back as his turn the model copied them into its next reply as if it
- *  had said them. They are taken off here, by the same prefixes `talkReply` writes them with. */
+/** THE EARLIER TURNS, for both Talk routes: the last six, each capped, as chat turns (`turnMessages`)
+ *  or as one block of text (`turnsOf`). Each exchange is context for the next, so the fifth question
+ *  would otherwise cost several times the first.
+ *
+ *  ANANSI'S OWN WORDS ONLY (#144), in both: an answer the writer was shown carries the app's lines
+ *  beside his reply (`talkReply`), and sent back as his turn the model copied them into its next reply
+ *  as if it had said them. They are taken off by the same prefixes `talkReply` writes them with. */
+const spoken = (t: any) => (t?.you ? String(t?.text ?? '') : ownWords(t?.text)).trim().slice(0, 1200);
 const turnMessages = (turns: unknown) => (Array.isArray(turns) ? turns : []).slice(-6)
-  .map((t: any) => ({ role: t?.you ? 'user' : 'assistant', content: (t?.you ? String(t?.text ?? '') : ownWords(t?.text)).trim().slice(0, 1200) }))
-  .filter((m) => m.content);
+  .map((t: any) => ({ role: t?.you ? 'user' : 'assistant', content: spoken(t) })).filter((m) => m.content);
 /** What Talk's material says around the conversation: it follows, as turns (`turnMessages`). */
 const TALK_FRAME = 'The writer is talking to you in the conversation that follows, not asking for prose. '
   + 'Everything above is what you know about their story. Do not continue the story.\n\nFor this conversation:\n{{directive}}';
 const turnsOf = (turns: unknown) => (Array.isArray(turns) ? turns : []).slice(-6)
-  .map((t: any) => `${t?.you ? 'WRITER' : 'ANANSI'}: ${String(t?.text ?? '').slice(0, 1200)}`).join('\n');
+  .map((t: any) => `${t?.you ? 'WRITER' : 'ANANSI'}: ${spoken(t)}`).join('\n');
+/** #144 · The last exchange only, words alone: who "her" in a request can mean (`entriesAsked`). */
+const lastExchange = (turns: unknown) => (Array.isArray(turns) ? turns : []).slice(-2).map(spoken).join('\n');
 
 /** THE SEARCH RESULTS, as both Talk routes frame them: a stranger's text, never instructions. THE
  *  NUMBER, NOT THE URL: it used to say "keep the url with anything you propose", and a url kept in
@@ -1118,19 +1121,23 @@ const SETUP_THREADS = 30, SETUP_POCKETS = 4;
  *  words stays, and with a request and nothing done, a sentence like "I have made my peace" is taken
  *  off. Trigger: a writer reads a reply as done when it was not, or a reply missing a sentence; then
  *  mark the reply as Anansi's words under the line instead of editing it. */
+/** The verbs a claim of a change is made with: one list for a claim the reply opens with and one
+ *  anywhere in it. Not "made", "set" or "put": "I made my peace", "the tale is set in". */
+const CHANGED = '(?:filled(?:\\s+(?:in|out))?|updated|added|written|wrote|changed|created|fleshed\\s+out|expanded)';
 const CLAIMED = [/^(?:all\s+)?done\b[\s.!:,;\u2014\u2013-]*/i,
-  /^i(?:'ve|\u2019ve|\s+have)?\s+(?:now\s+|just\s+)?(?:filled|updated|added|written|wrote|made|changed|created|set)\b[^.!?\n]*[.!?]?\s*/i];
+  new RegExp(`^i(?:'ve|\u2019ve|\\s+have)?\\s+(?:now\\s+|just\\s+)?${CHANGED}\\b[^.!?\\n]*[.!?]?\\s*`, 'i')];
 /** The app's own lines in an answer, each the start of a paragraph `talkReply` writes. */
 const APP_SAYS = { notDone: 'Not done.', nothing: 'Nothing was changed.', offered: 'Offered on the Workbench, not written:',
   noWeb: 'The web search failed' } as const;
-/** A sentence that says Anansi made a change: "I have added …", or "… is now filled in". The passive
- *  half has the narrow list only, so "the tale is set in Sutera" is never read as a claim. */
-const CHANGED = '(?:filled(?:\\s+(?:in|out))?|updated|added|written|wrote|made|changed|created|set|fleshed\\s+out|expanded|given|put)';
+/** A sentence that says Anansi made a change: "I have added …", or "her card is now filled in". The
+ *  passive half needs a word for what Talk writes (card, pocket, thread), so "her letters are written
+ *  in cipher" is a fact about the story and not a claim. */
 const CLAIM_ANYWHERE = new RegExp(`\\bI(?:'ve|\u2019ve|\\s+have)?\\s+(?:also\\s+|now\\s+|just\\s+)*${CHANGED}\\b`
-  + '|\\b(?:is|are|has been|have been)\\s+(?:now\\s+)?(?:filled\\s+(?:in|out)|updated|added|written|fleshed\\s+out)\\b', 'i');
-/** The reply with every claim sentence taken off, the space between sentences kept as it was. */
+  + `|\\b(?:card|pockets?|threads?|entry|profile|ledger)\\b[^.!?]*\\b(?:is|are|has been|have been)\\s+(?:now\\s+)?${CHANGED}\\b`, 'i');
+/** The reply with every claim sentence taken off, the space between sentences kept as it was. A
+ *  sentence ends at . ! or ? and any closing quote or bracket after it. */
 const unclaimed = (text: string) => {
-  const parts = text.split(/(?<=[.!?])(\s+)/), out: string[] = [];
+  const parts = text.split(/(?<=[.!?]["\u201d\u2019)\]]*)(\s+)/), out: string[] = [];
   for (let i = 0; i < parts.length; i += 2) if (!CLAIM_ANYWHERE.test(parts[i])) out.push(parts[i], parts[i + 1] ?? '');
   return out.join('').trim();
 };
@@ -1141,11 +1148,14 @@ const talkReply = (reply: unknown, notDone: { said: string; why: string }[], sea
   // #144 · AND A CLAIM ANYWHERE IN IT: with nothing done, a sentence saying a change was made is taken
   // off wherever it stands ("I have also added her voice", "Her pockets are now filled in").
   const opened = CLAIMED.reduce((t, re) => t.replace(re, ''), said);
-  const bare = done > 0 || !asked ? opened : unclaimed(opened);
+  // With anything asked for refused or nothing done, the reply's claims cannot be trusted: they come
+  // off, and the change lines say what was done.
+  const doubt = asked && (done === 0 || notDone.length > 0);
+  const bare = doubt ? unclaimed(opened) : opened;
   const head = done > 0 ? [] : [notDone.length ? `${APP_SAYS.nothing}\n` + lines : '',
     offered.length ? `${APP_SAYS.offered}\n` + offered.join('\n') : '',
     !notDone.length && !offered.length && bare !== said ? APP_SAYS.nothing : ''].filter(Boolean);
-  return (head.length ? [...head, bare] : [said, lines])
+  return (head.length ? [...head, bare] : [doubt ? bare : said, lines])
     .concat(searchFailed ? `${APP_SAYS.noWeb} (${searchFailed}), so this answer does not use the web.` : '')
     .filter(Boolean).join('\n\n');
 };
@@ -3832,7 +3842,8 @@ export const routes: Record<string, Handler> = {
         && !have.has(String(e.title).trim().toLowerCase()))
       .map((e) => sparkThread(e.title, e.type, e.body, []));
     outsideOnly(entries, you.held);
-    const answer = talkReply(r.data.reply, notDone, searchFailed, changes.length);
+    const answer = talkReply(r.data.reply, notDone, searchFailed, changes.length, [],
+      asksForChange(said) || (Array.isArray((r.data as any).changes) && (r.data as any).changes.length > 0));
     // KEPT, as a setup talk with no tale (`db.talkSay`): the one row this route writes. `prompt` is
     // exactly what was sent, for the page's Copy prompt, and is not kept.
     const sessionId = db.talkSay(c.owner, null, c.body.sessionId, said, answer.trim());
@@ -4707,7 +4718,7 @@ export const routes: Record<string, Handler> = {
     }
     // A REQUEST SENT BACK AS AN OFFER is done as asked, with the changes below (`entriesAsked`):
     // chalked, it was a second press for a thing the writer had already said (ADR 0007).
-    const { asked, offered } = entriesAsked(r.data.entries, taleOf(v.id), said, turns);
+    const { asked, offered } = entriesAsked(r.data.entries, taleOf(v.id), said, lastExchange(c.body.turns));
     // What was chalked from them, a line each, for the answer to say first when a request was only
     // offered (`talkReply`).
     const chalked: string[] = [];

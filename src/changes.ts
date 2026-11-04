@@ -245,9 +245,12 @@ function threadNamed(tale: Tale, name: unknown): { hit?: Thread; why?: string } 
 /** The room of `t` a change to `slot` writes over: Always true is one per thread; a room a thread
  *  can have several of is the live one, else the newest — `roomOffer`'s rule in routes.ts, which
  *  a chalked change already follows. */
+/** The pocket of a room a request writes over: the one On, else one On a word (#144: an On a word
+ *  pocket is stored switched off, so it was passed over for an Off one), else the newest. */
+const isOff = (a: Room) => (a.activation ?? (a.active ? 'always_on' : 'off')) === 'off';
 const roomFor = (t: Thread, slot: string) => {
   const have = (t.addons ?? []).filter((a) => a.slot === slot);
-  return have.find((a) => a.active) ?? have.at(-1) ?? null;
+  return have.find((a) => a.active) ?? have.find((a) => !isOff(a)) ?? have.at(-1) ?? null;
 };
 
 const hasRoom = (t: Thread, slot: string) => slotsFor(t.entryType).some((s) => s.name === slot);
@@ -777,8 +780,9 @@ function setOn(t: Thread, slot: string, text: string, said: string, undo: boolea
     why: `${t.title}'s ${roomLabel(slot)} already says that` };
   // #144 · AN OFF POCKET WRITTEN ON REQUEST IS SWITCHED ON (Seraphine, 2026-11-04: her appearance was
   // Off, Talk filled it, and it never reached a passage). It takes nothing off in a one-at-a-time
-  // kind: `roomFor` picks an On pocket of the room first, so an Off one is written only when none is On.
-  const wake = !undo && !!cur && (cur.activation ?? (cur.active ? 'always_on' : 'off')) === 'off';
+  // kind: `roomFor` picks an On or On a word pocket of the room first, so an Off one is written only
+  // when every pocket of that room is Off.
+  const wake = !undo && !!cur && isOff(cur);
   return { ok: true, change: { op: 'thread.set', thread: t.id, title: t.title, room: slot,
     addon: cur?.id ?? null, name, keys: cur?.keys ?? [],
     text, before: undo ? text : cur ? cur.body : null, ...(undo ? { undo: true as const } : {}),
@@ -1063,7 +1067,8 @@ export const DRAFT_CHANGES_SCHEMA = {
       title: { type: 'string', maxLength: 80 },
       type: { type: 'string', enum: [...KINDS] },
       // tale.set and thread.set: the whole new text. thread.new: its Always true.
-      text: { type: 'string', maxLength: 1200 },
+      // No maxLength, per F25 (#144): the converter closes a capped string mid-word.
+      text: { type: 'string' },
       // The search results this change was made from, by their numbers (#99).
       sources: { type: 'array', maxItems: 3, items: { type: 'integer', minimum: 1 } },
     },
