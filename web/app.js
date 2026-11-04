@@ -11827,6 +11827,13 @@ function mentionsSaid(said, list) {
 /** The question already on the Talk window as yours, asked. Its own function since #56, so a
  *  weaving refusal can ask it again from the Talk panel's row without putting it up twice: `anyway`
  *  is Write anyway, and the conversation sent is the one before the question either way. */
+/** THE HEM SCREEN ON A SCENE JUST HEMMED, by the Hem this scene press and by Talk (#156): the
+ *  scene's steps, its question about the next scene asked again, and no setup stepped through. */
+function hemScreenOn(id) {
+  S.ritualOf = id; S.hemSteer = ''; S.hemWho?.delete(id); saveHemWho();
+  S.setup = null; S.setupStep = null; S.panel = 'ritual'; syncHash();
+}
+
 async function talk(said, mentions, anyway = false) {
   if (S.weaveFit?.where === 'talk') S.weaveFit = null;
   S.talk.busy = true; S.talkPast = null;
@@ -11856,10 +11863,7 @@ async function talk(said, mentions, anyway = false) {
   if (r.proposed || r.changes?.length) { V = await api.story(S.storyId); if (V?.defaultModel) SRV.model = V.defaultModel; }
   // #156 · A HEM TALK STARTED takes over, on the scene it closed, as the hem screen's own press does.
   const hem = (r.changes ?? []).find((x) => x.hem)?.hem;
-  if (hem) {
-    S.ritualOf = hem; S.hemSteer = ''; S.hemWho?.delete(hem); saveHemWho();
-    S.setup = null; S.setupStep = null; S.panel = 'ritual'; syncHash();
-  }
+  if (hem) hemScreenOn(hem);
   paint();
   if (hem || r.changes?.some((x) => x.card?.key === 'model')) refreshManifest();
   const b = $('askBox'); if (b) { b.value = ''; b.focus(); }
@@ -14688,9 +14692,8 @@ document.addEventListener('click', async (e) => {
     // was never asked about). The new scene is open behind it; no setup is stepped through and no
     // opening passage is written: that is `savesetup`'s. Not What he reads (Seth, 2026-10-27).
     // A scene hemmed again in this tab is asked again: what was asked and done was the last hem's.
-    S.ritualOf = closing.id; S.hemSteer = ''; S.hemWho?.delete(closing.id); saveHemWho();
-    S.setup = null; S.setupStep = null; S.panel = 'ritual';
-    syncHash(); paint(); refreshManifest();
+    hemScreenOn(closing.id);
+    paint(); refreshManifest();
     return;
   }
   // How the next scene starts (`hemAsk`): the writer's words go into the scene as written, and the

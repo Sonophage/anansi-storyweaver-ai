@@ -10,7 +10,7 @@
  * the closed list, how a name resolves to a thread, what a change says in the writer's words, and
  * what puts it back. It never opens the database and never defines the ownership clause. Applying a
  * checked change is the route's, through the db functions a hand-made edit uses (`upsertEntry`,
- * `upsertAddon`), so `last_editor`, the stale-summary rule and the ownership floor in those apply
+ * `upsertAddon`), and the model and a hem through the Model tab's save and the hem press, so `last_editor`, the stale-summary rule and the ownership floor in those apply
  * to Talk exactly as they apply to the writer's own press. And the tale it checks against is the
  * one the route already read through the gate, so a name can only ever resolve to a thread of a
  * tale the writer may change.
@@ -42,7 +42,8 @@ import { retiredAt, pocketReach } from './context.ts';
  *  string, a pocket of the tale's own thread (ADR 0011), which no other operation reaches. Then the
  *  tale's own pockets, which no thread operation reaches either (Seth, 2026-10-29: Talk should do
  *  what it could not): where a string stands, the tale's rules (ADR 0005) and the writer's own
- *  instructions, each added, changed, or switched on or off. */
+ *  instructions, each added, changed, or switched on or off. ADR 0014 adds a passage, a rename, the
+ *  tale's model and a hem of the scene being written, each only when asked. */
 /** #155 · What the model may send that is never done, only offered: taking a thing out of the prose,
  *  one chalked card per passage, each with that passage's rewrite (ADR 0014). */
 export const OFFERED = ['prose.remove'] as const;
@@ -495,9 +496,10 @@ const TALE_ASK: Record<string, RegExp> = {
 /** #156 · A message that asks for something: anything but a question, unless the question is a
  *  request ("can you hem it?"). The verbs a model is switched with, and the words of a model's id that
  *  name it, without the ones every id carries. */
-const REQUEST = (own: string) => !/\?\s*$/.test(own.trim()) || /^\s*(please\s+)?(can|could|would|will) you\b/.test(own);
+const REQUEST = (own: string) => (!/\?\s*$/.test(own.trim()) || /^\s*(please\s+)?(can|could|would|will) you\b/.test(own))
+  && !/\b(don'?t|do not|never|no need to)\b|\bnot yet\b/.test(own);
 const SWITCH = /\b(switch|change|move|swap|use|put|pin|set|try)\b/;
-const MODEL_COMMON = new Set(['featherless', 'instruct', 'chat', 'gguf', 'base', 'model', 'it']);
+const MODEL_COMMON = new Set(['featherless', 'instruct', 'chat', 'gguf', 'base', 'model']);
 const modelWords = (id: unknown) => words(id).filter((w) => w.length > 2 && !MODEL_COMMON.has(w) && !/^\d+$/.test(w));
 export function askedOf(raw: any, tale: Tale, said: string, before = ''): boolean {
   const own = String(said ?? '').toLowerCase();
@@ -1082,8 +1084,6 @@ export const shortModel = (id: string) => id.replace(/^featherless:/, '').replac
  *  id, else the one whose words hold the name's ("Kimi K2"). Two is a question, not a guess. */
 function modelNamed(tale: Tale, name: unknown): { hit?: string; why?: string } {
   const ids = tale.models?.ids ?? [];
-  const exact = ids.find((id) => id.toLowerCase() === String(name ?? '').trim().toLowerCase());
-  if (exact) return { hit: exact };
   const near = byName(ids, name, (id) => id);
   if (near.length === 1) return { hit: near[0] };
   const list = ids.map(shortModel).join(', ') || 'none';
@@ -1092,14 +1092,14 @@ function modelNamed(tale: Tale, name: unknown): { hit?: string; why?: string } {
 }
 /** #156 · THE TALE'S MODEL, asked: one this tale can be written by, and not the one it is written by
  *  already. AN UNDO puts back the pin it had, or none, while the tale is still on the model Talk set
- *  (`wrote`), and only to a model it may still be written by. */
+ *  (`wrote`). */
 function modelSet(tale: Tale, raw: any, said: string, undo: boolean): Checked {
   const m = tale.models;
   if (!m) return { ok: false, said, why: 'the models could not be read' };
   if (undo) {
     if ((m.pin ?? null) !== (raw?.wrote ?? null)) return { ok: false, said, why: SINCE };
+    // The pin put back is checked by the save itself, which says why it refuses one.
     const to = raw?.to == null ? null : String(raw.to);
-    if (to && !m.ids.includes(to)) return { ok: false, said, why: `"${shortModel(to)}" is not one of the models this tale can be written by now` };
     return { ok: true, change: { op: 'model.set', to, before: m.pin, usual: raw?.usual == null ? null : String(raw.usual), undo: true } };
   }
   const { hit, why } = modelNamed(tale, raw?.model);
@@ -1219,8 +1219,7 @@ export function wordsFor(c: Change): string {
     : `Rewrote passage ${c.n} of scene ${c.scene} (${clip(c.note)}): \u201c${clip(c.text)}\u201d`;
   if (c.op === 'model.set') return c.undo
     ? `This tale is written by ${c.to ? shortModel(c.to) : 'your model for new tales'} again.`
-    : `This tale is written by ${shortModel(c.to ?? '')} now, not ${shortModel(c.before ?? c.usual ?? '') || 'the one before'}. `
-      + 'It is your model for new tales too.';
+    : `This tale is written by ${shortModel(c.to ?? '')} now, not ${shortModel(c.before ?? c.usual ?? '') || 'the one before'}.`;
   if (c.op === 'hem.start') return `Hemming scene ${c.index}. Its screen shows each step as it runs.`;
   if (c.op === 'thread.new') return `Made a new thread: ${c.title}, ${an(c.type)}.`;
   if (c.op === 'thread.unmake') return `Took away ${c.title}.`;
@@ -1543,7 +1542,6 @@ export function draftWords(c: DraftChange): string {
 export function undoFor(c: Change, made: { thread?: string; addon?: string; state?: string; event?: string }) {
   if (c.op === 'passage.set') return { op: 'passage.set', passage: c.passage, text: c.before, wrote: c.text, author: c.author };
   if (c.op === 'model.set') return { op: 'model.set', to: c.before, wrote: c.to, usual: c.usual };
-  if (c.op === 'hem.start') return null;
   if (c.op === 'thread.rename') return { op: 'thread.rename', thread: c.thread, title: c.to, to: c.title, keys: c.keysBefore,
     wroteKeys: c.keys, places: c.places.map((p) => ({ ...p, before: p.after, after: p.before,
       ...(p.nameBefore != null ? { name: p.nameBefore, nameBefore: p.name } : {}) })) };

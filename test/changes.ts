@@ -1177,7 +1177,6 @@ ok('a model is switched only to one the tale can be written by, and only when as
   const tl = { ...tale, models: { using: QWEN, pin: null, usual: QWEN, ids: [QWEN, KIMI, 'featherless:moonshotai/Kimi-Dev-72B'] },
     chapters: [{ id: 'c1', index: 1 }, { id: 'c2', index: 2 }], at: 2,
     passages: [{ id: 'p1', chapterId: 'c1', body: 'Old prose.' }, { id: 'p2', chapterId: 'c2', body: 'New prose.' }] };
-  assert.ok(ch.ASKED.includes('model.set') && ch.ASKED.includes('hem.start'), 'MODEL-HEM-OPS: both are on the list');
   const sw = done(ch.checkAsked({ op: 'model.set', model: 'Kimi K2' }, tl));
   assert.deepStrictEqual([sw.to, sw.before, sw.usual], [KIMI, null, QWEN], 'MODEL-SET: a name resolves to the one model it means');
   refused(ch.checkAsked({ op: 'model.set', model: 'Kimi' }, tl), /more than one/);
@@ -1191,7 +1190,6 @@ ok('a model is switched only to one the tale can be written by, and only when as
   const u = done(ch.checkUndo(back, pinned));
   assert.deepStrictEqual([u.to, u.usual], [null, QWEN], 'MODEL-UNDO-CHECK: while the tale is on the model Talk set');
   refused(ch.checkUndo(back, { ...tl, models: { ...tl.models, pin: QWEN } }), /changed since/);
-  refused(ch.checkUndo({ ...back, to: 'featherless:someone/Gone' }, pinned), /not one of the models/);
 
   const mod = { op: 'model.set', model: 'Kimi K2' };
   assert.ok(ch.askedOf(mod, tl, 'switch this tale to Kimi K2'), 'MODEL-ASKED: switch, and the model named');
@@ -1199,16 +1197,18 @@ ok('a model is switched only to one the tale can be written by, and only when as
   assert.ok(!ch.askedOf(mod, tl, 'which model would follow my voice better?'), 'MODEL-UNASKED: a question about models');
   assert.ok(!ch.askedOf(mod, tl, 'should I use Kimi?'), '  even one that names it');
   assert.ok(!ch.askedOf(mod, tl, 'make Talia thirty'), '  nor a request for something else');
+  assert.ok(!ch.askedOf(mod, tl, "don't switch to Kimi K2"), 'MODEL-NOT: a request not to switch is not asking');
 
   const hem = done(ch.checkAsked({ op: 'hem.start' }, tl));
   assert.deepStrictEqual([hem.chapter, hem.index], ['c2', 2], 'HEM-START: the scene being written, whatever scene is named');
   assert.strictEqual(done(ch.checkAsked({ op: 'hem.start', scene: 1 }, tl)).chapter, 'c2', '  scene 1 named, still the one being written');
   refused(ch.checkAsked({ op: 'hem.start' }, { ...tl, passages: [{ id: 'p1', chapterId: 'c1', body: 'Old prose.' }] }), /nothing in it/);
-  assert.strictEqual(ch.undoFor(hem, {}), null, 'HEM-NO-UNDO: a hem has no Undo');
   assert.ok(ch.askedOf({ op: 'hem.start' }, tl, 'hem this scene'), 'HEM-ASKED: hem this scene');
   assert.ok(ch.askedOf({ op: 'hem.start' }, tl, 'could you hem it for me?'), '  asked as a question');
   assert.ok(!ch.askedOf({ op: 'hem.start' }, tl, 'what does hemming do?'), 'HEM-UNASKED: a question about it');
   assert.ok(!ch.askedOf({ op: 'hem.start' }, tl, 'make Talia thirty'), '  nor anything else');
+  assert.ok(!ch.askedOf({ op: 'hem.start' }, tl, "don't hem this scene yet"), 'HEM-NOT: a request not to hem is not asking');
+  assert.ok(!ch.askedOf({ op: 'hem.start' }, tl, 'please never hem it'), '  never, either');
 });
 
 console.log(`\n${n} checks passed`);

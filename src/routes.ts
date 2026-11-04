@@ -422,8 +422,9 @@ const NOT_REMOTE = `a remote model id starts with "${REMOTE_PREFIX}"`;
 
 /** A TALE'S OWN SAVE, the tale panel's and the Model tab's (`POST /api/story`), and since #156 Talk's
  *  model switch, so a model picked in either place is pinned, checked and made the writer's default
- *  the one way. `id` is the story the gate already checked; `story` the fields to write. */
-async function saveStory(c: Ctx, id: string, story: any) {
+ *  the one way. `id` is the story the gate already checked; `story` the fields to write. `keepUsual`
+ *  leaves the writer's model for new tales alone: an Undo after the writer picked another since. */
+async function saveStory(c: Ctx, id: string, story: any, keepUsual = false) {
   // A story may name its own model, so this is the one field that has to be checked against the
   // world before it is stored. Refused here rather than at generation time, where the failure
   // would arrive mid-sentence and look like the model breaking.
@@ -454,7 +455,7 @@ async function saveStory(c: Ctx, id: string, story: any) {
   // should be the last model chosen on the last tale opened"), so a new tale starts with it. Only
   // the tale's owner: a guest's pick is checked against the owner's shortlist, not their own.
   // A switch refused (the load count) leaves the pin in place and says why.
-  const moved = want && db.getStory(id)?.owner_id === c.owner && want !== c.defaultModel
+  const moved = !keepUsual && want && db.getStory(id)?.owner_id === c.owner && want !== c.defaultModel
     ? await switchUsual(c, String(want)) : null;
   const notUsual = moved && 'error' in moved ? `Your model for new tales did not change: ${moved.error}` : '';
   const toast = [cleared ? "Plans first is off for this tale now: its new model can't be asked to plan first." : '', notUsual]
@@ -902,25 +903,33 @@ function applyChange(storyId: string, owner: string, ch: Change):
 /** #156 · A CHECKED CHANGE APPLIED, the two that go through a route of their own as well as the rest:
  *  the tale's model through the Model tab's save (`saveStory`), which pins it and makes it the
  *  writer's model for new tales, and a hem through the hem screen's own press (`endScene`), with the
- *  body that press sends. Everything else is `applyChange`'s. `note` is what the save said besides. */
+ *  body that press sends. Everything else is `applyChange`'s. `note` is what the save said besides.
+ *  A SAVE THAT REFUSES THROWS, with its reason, for the caller to say. */
 async function actOn(c: Ctx, storyId: string, ch: Change):
   Promise<{ thread?: string; addon?: string; state?: string; event?: string; note?: string } | null> {
   if (ch.op === 'model.set') {
-    try {
-      const r: any = await saveStory(c, storyId, { model: ch.to });
-      // AN UNDO TO NO PIN gives the writer back their model for new tales too: the save above only
-      // moves it when it pins one.
-      const back = ch.undo && !ch.to && ch.usual && c.defaultModel !== ch.usual
-        && db.getStory(storyId)?.owner_id === c.owner ? await switchUsual(c, ch.usual) : null;
-      const note = [r.toast, back && 'error' in back ? `Your model for new tales did not change back: ${back.error}` : '']
-        .filter(Boolean).join(' ');
-      return note ? { note } : {};
-    } catch { return null; }
+    const own = db.getStory(storyId)?.owner_id === c.owner;
+    // AN UNDO NEVER WRITES OVER THE WRITER: their model for new tales is put back only while it is
+    // still the one Talk's switch made it (`before`, the pin the Undo checked is still there).
+    const keep = !!ch.undo && c.defaultModel !== ch.before;
+    const r: any = await saveStory(c, storyId, { model: ch.to }, keep);
+    // An Undo to no pin gives the writer back their model for new tales too: the save only moves it
+    // when it pins one.
+    const back = ch.undo && !keep && !ch.to && ch.usual && own ? await switchUsual(c, ch.usual) : null;
+    const note = [r.toast, back && 'error' in back ? `Your model for new tales did not change back: ${back.error}` : '',
+      // Only the owner's moves (`saveStory`); a co-writer is not told it did.
+      !ch.undo && ch.to && own && !/did not change/.test(r.toast ?? '') ? 'It is your model for new tales too.' : '']
+      .filter(Boolean).join(' ');
+    return note ? { note } : {};
   }
-  if (ch.op === 'hem.start') return endScene(c, storyId, { next: false, ask: true }) ? {} : null;
+  if (ch.op === 'hem.start') { endScene(c, storyId, { next: false, ask: true }); return {}; }
   return applyChange(storyId, c.owner, ch);
 }
 
+// ponytail: the local models are read from presets.ini, and `saveStory` checks a local pin against the
+// router, so a preset the router does not serve is listed and then refused (with its reason). Ceiling:
+// the file and the router disagree. Trigger: a writer told a listed model is not served; then cache the
+// router's list (`models()`) and read that here.
 /** #156 · WHAT TALK KNOWS OF THE MODELS, and what `model.set` may switch to: the model writing the
  *  tale, its pin, the writer's model for new tales, and every model the tale may be pinned to (the
  *  local ones, and the book owner's shortlist when Featherless is set up, as `saveStory` checks).
@@ -4810,7 +4819,7 @@ export const routes: Record<string, Handler> = {
         + 'about, and they are canon — not a suggestion and not a stranger\'s text:\n\n'
         + summoned.join('\n\n') : '';
     // #156 · THE MODELS, for advice and for a switch the writer asks for (`model.set`).
-    const tm = modelsOf(c, v);
+    const pickable = modelsOf(c, v);
     const ask = [
       // WHICH CHAPTER IT IS LOOKING AT. F33: asked which chapter set a promise up, it said 1 for
       // three promises in a story on chapter 2 — nothing in what it was given said which chapter
@@ -4844,8 +4853,10 @@ export const routes: Record<string, Handler> = {
       talesOwn(v as any),
       // #156 · Which model writes the tale and which it could, and what a hem would close: facts, like
       // the lines above, so a request names a model the tale can have and a hem knows its scene.
-      modelsLine(tm),
-      `Scene ${v.currentChapter.index} is the one being written. Hemming it closes it and opens the next.`,
+      modelsLine(pickable),
+      `Scene ${v.currentChapter.index} is the one being written. Hemming it closes it and opens the next.`
+        + ((v.chapters as any[]).some((x) => x.index < v.currentChapter.index && db.hemOf(v.id, x.id)?.state === 'running')
+          ? ' The hem of an earlier scene is still running.' : ''),
     ].filter(Boolean).join('\n\n');
     const thisTurn = [pointed, sourcesText(sources), said].filter(Boolean).join('\n\n');
 
@@ -4920,7 +4931,7 @@ export const routes: Record<string, Handler> = {
     // offer. A thread or a string is chalked as one, with the entries and strings below; anything else
     // the writer did not ask for is not done, and the answer says so.
     // #156 · The tale as `checkAsked` reads it, with the models a switch may name.
-    const taleAt = (id: string) => ({ ...taleOf(id), models: tm });
+    const taleAt = (id: string) => ({ ...taleOf(id), models: pickable });
     const tale0 = taleAt(v.id), before = writerBefore(c.body.turns);
     const { asked, offered } = entriesAsked(r.data.entries, tale0, said, before);
     const notDone: { said: string; why: string }[] = [];
@@ -5075,7 +5086,7 @@ export const routes: Record<string, Handler> = {
                      card?: Card; hem?: string }[] = [];
     // #156 · A HEM IS STARTED LAST, after every other change in the answer, because it closes the scene
     // they were made in: one asked beside a scene's title must land on the scene being hemmed.
-    let hemLast: Change | null = null;
+    let hemLast: Extract<Change, { op: 'hem.start' }> | null = null;
     // `raws` are the asked changes, decided above (#152), as `expandAsked` reads them: a change sent
     // twice once, a new thread sent once per pocket as one thread and its pockets (Seraphine,
     // 2026-11-03), and after them a request sent as an entry.
@@ -5129,9 +5140,10 @@ export const routes: Record<string, Handler> = {
         k.change.text = rw.text;
       }
       if (k.change.op === 'hem.start') { hemLast = k.change; continue; }
-      const made = await actOn(c, where, k.change);
-      // A second switch in the same answer is checked against the model the first one left.
-      if (made && k.change.op === 'model.set') Object.assign(tm, { pin: k.change.to, using: k.change.to });
+      // A save that refuses says why (#156): the model's, which checks the shortlist and the router.
+      let made: Awaited<ReturnType<typeof actOn>>;
+      try { made = await actOn(c, where, k.change); }
+      catch (e: any) { handBack(); notDone.push({ said: wordsFor(k.change), why: String(e?.message ?? e) }); continue; }
       if (made && k.change.op === 'thread.rename') renamedTo.set(k.change.title.trim().toLowerCase(), k.change.to);
       if (!made) { handBack(); notDone.push({ said: wordsFor(k.change), why: `the ${aim.to === 'world' ? 'World' : 'tale'} refused it` }); continue; }
       // #99 · THE PAGE IT CAME FROM, in the notes of the thread it made or changed: writer-only,
@@ -5158,10 +5170,10 @@ export const routes: Record<string, Handler> = {
         : wordsFor(k.change)) + (made.note ? ` ${made.note}` : ''), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change),
         card: cardOf(k.change, made) });
     }
-    if (hemLast?.op === 'hem.start') {
-      if (await actOn(c, v.id, hemLast)) changes.push({ words: wordsFor(hemLast), undo: null, diff: null,
-        card: cardOf(hemLast, {}), hem: hemLast.chapter });
-      else notDone.push({ said: 'Hem this scene', why: 'the tale refused it' });
+    if (hemLast) {
+      try { await actOn(c, v.id, hemLast);
+        changes.push({ words: wordsFor(hemLast), undo: null, diff: null, card: cardOf(hemLast, {}), hem: hemLast.chapter }); }
+      catch (e: any) { notDone.push({ said: 'Hem this scene', why: String(e?.message ?? e) }); }
     }
     // #144 · A NEW THREAD'S UNDO CARRIES THE POCKETS MADE WITH IT, so one Undo takes the thread away whole.
     for (const ch of changes) if (ch.undo?.op === 'thread.unmake')
@@ -5209,7 +5221,8 @@ export const routes: Record<string, Handler> = {
     // #156 · With the models, for the Undo of a switch, read as the Talk that made it read them.
     const k = checkUndo(c.body.undo, { ...taleOf(where), models: modelsOf(c, bookOf(where)) });
     if (!k.ok) return { error: `Not undone: ${k.why}.` };
-    if (!await actOn(c, where, k.change)) return { error: 'Not undone: the tale refused it.' };
+    try { if (!await actOn(c, where, k.change)) return { error: 'Not undone: the tale refused it.' }; }
+    catch (e: any) { return { error: `Not undone: ${String(e?.message ?? e)}.` }; }
     // #99 · and the link lines the change added to that thread's notes, if it is still there. Only
     // on the thread the checked Undo resolved in this tale, and only those exact lines.
     const noted = Array.isArray(c.body.undo?.noted) ? c.body.undo.noted.map(String) : [];

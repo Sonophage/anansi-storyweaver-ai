@@ -3511,6 +3511,24 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   assert.ok(!back.error, back.error);
   assert.strictEqual(pin(), null, 'MODEL-UNDO: Undo puts the tale back as it was');
   assert.strictEqual(usual, LOCAL_MODEL, 'MODEL-UNDO-DEFAULT: and the writer\'s model for new tales');
+  assert.match(sw.changes[0].words, /your model for new tales too/, 'MODEL-USUAL-SAID: the line says it is the writer\'s model now');
+
+  // An Undo never writes over what the writer chose since: a model for new tales picked by hand stays.
+  const sw2 = await say('ABOUT-MODELQ: switch this tale to Kimi K2');
+  usual = 'featherless:moonshotai/Kimi-Dev-72B';
+  assert.ok(!(await routes['POST /api/talk/undo'](ctxOf({ undo: sw2.changes[0].undo })) as any).error, 'undone');
+  assert.strictEqual(pin(), null, '  the tale is put back');
+  assert.strictEqual(usual, 'featherless:moonshotai/Kimi-Dev-72B', 'MODEL-UNDO-KEEPS: the model for new tales the writer picked since stays');
+  usual = null;
+  // A refused save says why, rather than "the tale refused it". Built by hand, with no Talk call: a tale
+  // on a remote model would send that call to Featherless.
+  db.updateStory(tale.id, { model: KIMI });
+  db.removeFromShortlist(me, 'featherless:moonshotai/Kimi-Dev-72B');
+  const why = await routes['POST /api/talk/undo'](ctxOf({ undo: { op: 'model.set',
+    to: 'featherless:moonshotai/Kimi-Dev-72B', wrote: KIMI, usual: null } })) as any;
+  assert.match(String(why.error), /not on the shortlist/, `MODEL-UNDO-WHY: a refused Undo says why (${why.error})`);
+  db.updateStory(tale.id, { model: null });
+  usual = null;
 
   const scene = () => (db.getStory(tale.id) as any) && (db.chapters(tale.id) as any[]);
   const first = scene()[0].id;
