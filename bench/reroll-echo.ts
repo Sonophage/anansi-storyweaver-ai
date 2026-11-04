@@ -21,23 +21,8 @@
 // take and rerolls THAT one is paired with the wrong take. Stopped takes carry the real one. Store the
 // replaced id on every generation if the two kinds of pair disagree.
 import { DatabaseSync } from 'node:sqlite';
-import { grams, echo } from './echo.ts';
+import { grams, echo, rerollEcho } from './echo.ts';
 import { input } from '../test/fixture.ts';
-
-/** REJECTED and SCENE for one take. Shares of the take's own phrases, three decimals. `shared` is
- *  the repeated phrases themselves, for `show`. */
-export function rerollEcho(take: string, replaced: string, scene: string[]) {
-  const sceneGrams = new Set(scene.flatMap(grams));
-  const theirs = grams(replaced);
-  const old = new Set(theirs.filter((g) => !sceneGrams.has(g)));
-  const mine = grams(take);
-  const hits = mine.filter((g) => old.has(g));
-  // OPENING: the take starts with the rejected take's first five narration words. Every flagged pair
-  // read on 2026-11-04 did this: the reroll copied the opening, then went somewhere else.
-  return { rejected: mine.length ? +(hits.length / mine.length).toFixed(3) : 0, repeated: hits.length,
-           shared: [...new Set(hits)], sameOpening: !!theirs[0] && mine[0] === theirs[0],
-           sceneShare: echo(take, scene).echoShare, phrases: mine.length };
-}
 
 export type Passage = { id: string; story_id: string; chapter_id: string; branch_id: string; slot_key: number;
   variant_index: number; selected: number; author: string; body: string; is_break: number; owner: string; model: string | null };
