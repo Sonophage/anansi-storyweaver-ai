@@ -128,6 +128,8 @@ if (pid && pid !== '0' && existsSync(`/proc/${pid}/environ`)) {
   row('server', `pid ${pid}, up since ${sh(`ps -o lstart= -p ${pid}`)}`);
   row('prompt flags', [
     `prose-author ${get('ANANSI_PROSE_AUTHOR') === '0' ? 'OFF' : 'ON'}`,
+    // #140: not a prompt change, but it decides what a reroll returns, so it is read from the process too.
+    `reroll-away ${get('ANANSI_REROLL_AWAY') === '1' ? 'ON' : 'OFF'}`,
   ].join(' · '));
   row('writers allowed', (get('ANANSI_ALLOW') ?? '(unset — loopback only)').split(',').length + ' in ANANSI_ALLOW');
 } else {

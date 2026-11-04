@@ -16,7 +16,7 @@ import { view, assemble, budgetFor, capFor, MAX_TARGET_WORDS, clean, defaultMode
 import { fileBug, build } from './report.ts';
 import { news } from './news.ts';
 import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, narrationOnly, retirable, fires, summaryReaches,
-         weaveFit, actSpan, reweaveOf, pocketText } from './context.ts';
+         weaveFit, actSpan, reweaveOf, pocketText, openingOf } from './context.ts';
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
@@ -1346,6 +1346,22 @@ const landAt = (text: string, n: number, slack: number) => {
  *  line of dialogue there, so it takes the space: the first live try glued `strained,"Strangers`. */
 const joins = (ending: string) => /^[,.;:!?…’”)\]]/.test(ending) ? '' : ' ';
 
+/** #140 · A REROLL THAT OPENS LIKE THE TAKE IT REPLACES IS ASKED AGAIN, on a new seed, when
+ *  ANANSI_REROLL_AWAY=1. Off by default, so the control arm of its A/B is this same code.
+ *  A reroll sends the prompt that wrote the take, byte for byte (docs/adr/0012), so its first words
+ *  come from the same distribution, and on a peaked sampler they come out the same: F66, one reroll
+ *  in six opens with the rejected take's first five narration words. Telling the model what was
+ *  rejected measured flat (F44), and sending the take made it copy or continue it (ADR 0012), so the
+ *  check is in code. Read per call, not at load, so one test process can switch it.
+ *  ponytail: non-streaming only, so no writer gets it yet. A stream's words are on the page as they
+ *  arrive and are never restarted under the writer's eyes; shipping it needs the stream to hold its
+ *  first five narration words back, compare, and abort and re-ask before showing any. Build that only
+ *  if the A/B (bench/reroll-away.ts) shows the same-opening rate falls. */
+const rerollAway = () => process.env.ANANSI_REROLL_AWAY === '1';
+/** How many times a same opening is asked again. Two: with a per-reroll rate p it leaves p cubed, and
+ *  each ask is a whole passage's wait on a call that does not stream. */
+const AWAY_RETRIES = 2;
+
 async function generate(c: Ctx, mode0: string, directive0: string | undefined, role = 'prose',
                         onDelta?: (d: string) => void) {
   // ASKING FOR THE NEXT PASSAGE CLAIMS WHAT IS ALREADY THERE — "only claimed after the next
@@ -1422,7 +1438,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
    * combination that reproduces; the manifest on the row is what says whether the prompt matched.
    * `Number.isSafeInteger` because this arrives from a browser and goes into a model payload. */
   const asked = Number(c.body?.seed);
-  const seed = Number.isSafeInteger(asked) && asked >= 0 ? asked : Math.floor(Math.random() * 2 ** 31);
+  let seed = Number.isSafeInteger(asked) && asked >= 0 ? asked : Math.floor(Math.random() * 2 ** 31);
   const t0 = Date.now();
   // A passage lands inside the slider (LANDING above). Not Talk, which is not a passage, and not with the
   // slider off. `tail` is the last thing the page was sent, so the ending's first word is spaced right.
@@ -1434,7 +1450,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   try {
     // The story's own model, or the process default. `chat` spreads opts over its own defaults,
     // so naming it here is all it takes — every call has always carried a model name.
-    const r = await chat(SYSTEM, prompt.slice(SYSTEM.length),
+    const ask = () => chat(SYSTEM, prompt.slice(SYSTEM.length),
       // `max_tokens` after the sampler, which carries the writer's own: a weaving call needs the
       // raised one, and F5 is what the writer's one does to a plan.
       { ...(isRemote(using) && REMOTE_REPETITION_PENALTY != null
@@ -1445,6 +1461,17 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
       // Only the streaming call. `onDelta` is present exactly when there is a writer watching
       // this arrive, which is exactly when there is a Stop button to press.
       onDelta ? c.signal : undefined);
+    let r = await ask();
+    // #140, AWAY (`rerollAway` above): a reroll whose opening is the replaced take's is asked again
+    // on a fresh seed. `seeds` are the ones left behind; `seed` ends as the one that wrote the take.
+    let away: { retried: number; seeds: number[] } | undefined;
+    const theirs = c.body.regenerateOf && !onDelta && rerollAway()
+      ? openingOf(v.passages.find((p) => p.id === c.body.regenerateOf)?.body ?? '') : '';
+    while (theirs && openingOf(clean(r.prose)) === theirs && (away?.retried ?? 0) < AWAY_RETRIES) {
+      away = { retried: (away?.retried ?? 0) + 1, seeds: [...(away?.seeds ?? []), seed] };
+      seed = Math.floor(Math.random() * 2 ** 31);
+      r = await ask();
+    }
     // THE CEILING, so it still has to be visible when it fires. `capFor` puts it well
     // above anything measured, but a runaway can reach it — and until now that arrived as a
     // paragraph that stopped mid-word with nothing on screen to say why. Trimmed to the last
@@ -1500,7 +1527,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
       // 5,000 is tuned from. The plan itself is never stored: it is never shown, and the row is.
       // A landed one says where it stopped and how long the ending ran; the usage is the passage's.
       params: { ...c.gen, seed, ms: appMs,
-                ...wove(reply, r), ...(landing ? { landed: landing } : {}) },
+                ...wove(reply, r), ...(landing ? { landed: landing } : {}), ...(away ? { away } : {}) },
       manifest, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
     /* PERSISTED HERE, UNCLAIMED, WHEN SOMEBODY IS WATCHING — bugs.md #9.
@@ -1545,7 +1572,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
              // Only when it was inherited rather than typed: the surface says which instruction it
              // re-ran, because silently re-applying one reads as the model deciding on its own.
              ...(directive && !directive0?.trim() ? { reusedDirective: directive } : {}),
-             seconds: +(ms / 1000).toFixed(1), manifest, genId };
+             seconds: +(ms / 1000).toFixed(1), manifest, genId, ...(away ? { away } : {}) };
   } catch (e: any) {
     // A stopped generation is logged as stopped, not as a failure. `GET /api/activity` reads
     // these rows and a writer who stops three takes should not find three errors waiting under
@@ -5410,7 +5437,10 @@ export const routes: Record<string, Handler> = {
     const canon = new Set(manifest.blocks.filter((b: any) => b.kind === 'CANON-ALWAYS' || b.kind === 'CANON-TRIGGERED')
       .map((b: any) => b.id));
     const kinds = Object.fromEntries(v.entries.filter((e: any) => canon.has(e.id)).map((e: any) => [e.id, e.entryType]));
-    return { manifest, prompt, exact, weaveFit: refusal, kinds };
+    // #140: whether a reroll here would be asked again on a same opening, so an A/B arm can be
+    // checked before it generates. Not a prompt change, so nothing else in the manifest shows it.
+    return { manifest, prompt, exact, weaveFit: refusal, kinds,
+             ...(c.body.regenerateOf ? { away: rerollAway() } : {}) };
   },
   // Streaming is opt-in per call, not a second route: the gate, the budget check, the /tokenize
   // and the generation log are the same code either way. p50 was 5.7s of blank page before the

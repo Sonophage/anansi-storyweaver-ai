@@ -692,6 +692,21 @@ export const quotedSpans = (text: string): [number, number][] =>
 export const narrationOnly = (text: string) =>
   String(text ?? '').replace(QUOTED(), ' ').replace(/[ \t]{2,}/g, ' ');
 
+/** A text's narration as words: lower case, letters, digits and apostrophes only. The one tokeniser
+ *  for the echo measures in bench/ (bench/echo.ts) and for `openingOf`, so a take the app calls a
+ *  same opening is one the bench counts as one. */
+export const narrationWords = (text: string) =>
+  narrationOnly(text).toLowerCase().match(/[\p{L}\p{N}'’]+/gu) ?? [];
+
+/** A take's opening: its first five narration words, or '' under five. F66 measured a reroll
+ *  starting with the rejected take's opening in 16% of rerolls, and every repeat read by eye copied
+ *  the opening and then went elsewhere. Five words, the echo detector's phrase length: two takes
+ *  that share them were not opened apart. */
+export const openingOf = (text: string) => {
+  const w = narrationWords(text);
+  return w.length < 5 ? '' : w.slice(0, 5).join(' ');
+};
+
 /** The facts in a piece of ledger text, as a set: the names and the numbers.
  *
  *  Used for two different jobs that ask the same question — did the FACTS change, or only the

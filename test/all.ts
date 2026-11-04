@@ -33,13 +33,13 @@ serialise();
  * ignored: its purpose was to keep unknown reds from landing on the next person, and running them
  * first is a stronger version of the same care.
  */
-const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'memory.ts', 'report.ts', 'talk.ts', 'changes.ts', 'diff.ts', 'forge.ts', 'web.ts', 'app.ts', 'remote.ts', 'keys.ts', 'account.ts', 'weave.ts', 'status.ts', 'shaped.ts',
+const suites = ['engine.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'memory.ts', 'report.ts', 'talk.ts', 'changes.ts', 'diff.ts', 'forge.ts', 'web.ts', 'app.ts', 'remote.ts', 'keys.ts', 'account.ts', 'weave.ts', 'status.ts', 'shaped.ts', 'away.ts',
                 ...['order', 'contractions', 'lockout', 'quote', 'ledger-audit', 'modes', 'drift',
                     'fires', 'retire', 'cast', 'voice', 'utilisation', 'weight',
                     'council06', 'lockout-book', 'weave-json', 'repetition', 'lockout-cheap', 'words', 'preview',
                     // Both green and both run by nobody until 2026-10-29. `stats.ts` runs its
                     // self-check when invoked directly, so it takes no subcommand.
-                    'stale', 'reroll-echo'].map((b) => `../bench/${b}.ts check`), '../bench/stats.ts'];
+                    'stale', 'reroll-echo', 'reroll-away'].map((b) => `../bench/${b}.ts check`), '../bench/stats.ts'];
 const started = Date.now();
 
 /* EVERY BENCH ENTRY GETS ITS OWN DATABASE, and this is not tidiness.
