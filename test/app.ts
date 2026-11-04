@@ -1215,6 +1215,40 @@ ok('no chevron divider or decorative gilt line under any header');
   assert.ok(existsSync(new URL('../web/arcana-sigil.svg', import.meta.url)), 'QUILL-SEAL: the sigil is on disk');
 }
 ok('the quill is a gilt seal with a sigil, no brush');
+// THE PANEL TABS AND THE KIND CHIPS ARE 44px TO THE FINGER (Seth's rule: about 32px to the eye, 44px
+// to the finger). The Arcana tabs became spaced capitals with no boxes on 2026-11-03 and stood 28px
+// tall; the threads list's kind chips stood 34px. test/ui/targets.js measured both short on a phone.
+// The tabs are 44px boxes with the words centred in them; the chips keep their 34px look and take
+// 5px of reach above and below, inside a row padded to hold it (a scrolling row clips what overflows).
+{
+  const { readFileSync } = await import('node:fs');
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  assert.match(page, /html\[data-sidefull="0"\] #sideBody :is\(\[data-storytab\], \[data-chaptab\], \[data-tellertab\], \.tabchip\) \{[^}]*min-height:44px/,
+    'TAB-TOUCH: a panel tab is 44px tall');
+  // And wide: "Tale" is 39px of words. Each tab reaches half the 22px gap to either side, and the row
+  // is padded by the same, so the first and last tabs keep their reach and nothing moves.
+  assert.match(page, /html\[data-sidefull="0"\] #sideBody :is\(\[data-storytab\], \[data-chaptab\], \[data-tellertab\], \.tabchip\) \{[^}]*padding:0 11px; margin:0 -11px;/,
+    'TAB-TOUCH: a panel tab reaches into the gap on either side');
+  assert.match(page, /html\[data-sidefull="0"\] #sideBody :is\(\.row-6:has\(> \[data-storytab\], > \[data-chaptab\], > \[data-tellertab\]\), \.tabrow\) \{[^}]*gap:22px;[^}]*padding:0 11px; margin-left:-11px; margin-right:-11px;/,
+    'TAB-TOUCH: and the row holds the reach of the first and last');
+  assert.match(page, /\.thkinds \{[^}]*padding:5px 0; margin:3px 0 -5px/, 'KIND-TOUCH: the kinds row has room for the reach, and keeps its place');
+  assert.match(page, /\.thkinds > \.chip \{[^}]*position:relative/, 'KIND-TOUCH: a kind chip holds its reach');
+  assert.match(page, /\.thkinds > \.chip::before \{ content:''; position:absolute; inset:-5px 0; \}/, 'KIND-TOUCH: 5px of reach above and below a kind chip');
+}
+ok('the panel tabs and the kind chips are 44px to the finger');
+// A SHORT SCREEN HAS NO BANNER OVER A PANEL. The panel's banner (2026-11-03) is 96px of picture over a
+// 44px name on a phone. On Seth's 360x360 Titan with the keyboard up the screen is 216px tall, and the
+// header left the panel's body 36px: the wake-word box being typed in sat 4px under the keyboard
+// (test/ui/threadalter.js). Under 480px of height the banner goes and the header is the name alone.
+{
+  const { readFileSync } = await import('node:fs');
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  const short = page.match(/@media \(max-height:480px\) \{[^@]*?\} \}/)?.[0] ?? '';
+  assert.match(short, /html\[data-sidefull="0"\] #sideHead \{ --band:0px; padding-top:18px; \}/, 'SHORT-NO-BANNER: the header loses the banner\'s room');
+  assert.match(short, /html\[data-sidefull="0"\] #sideHead > \.pbanner \{ display:none; \}/, 'SHORT-NO-BANNER: and the banner');
+  assert.ok(page.indexOf(short) > page.indexOf('html[data-sidefull="0"] #sideHead { --band:96px;'), 'SHORT-NO-BANNER: after the phone rule, so it wins over it');
+}
+ok('a short screen has no banner over a panel');
 // A GLYPH PER ACTION (Seth, 2026-11-03, his reference "≈ WOVEN"): every label a passage's chip can
 // show carries its own small line glyph before it. The labels are named here, from the four ways
 // the chip is reached (the model wrote it; a composer mode; Continue; the fallbacks for a passage

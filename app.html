@@ -1738,10 +1738,13 @@ textarea.field { resize:vertical; min-height:70px; }
 .cardpanes .askrow .deckredo > .field { height:44px; }
 .cardpanes .askrow .deckredo > .btn { border-radius:var(--r); }
 /* THE THREADS LIST: the search row, 8, the kinds in one row that scrolls sideways rather than wrap,
-   16 to the first kind. */
-.thkinds { display:flex; gap:8px; margin:8px 0 0; overflow-x:auto; scrollbar-width:none; }
+   16 to the first kind. Each kind is 34px to the eye and 44px to the finger: 5px of reach above and
+   below it, inside 5px of the row's own padding (the row scrolls, so it clips whatever overflows it),
+   and the row's margins give that padding back so nothing around it moves. */
+.thkinds { display:flex; gap:8px; padding:5px 0; margin:3px 0 -5px; overflow-x:auto; scrollbar-width:none; }
 .thkinds::-webkit-scrollbar { display:none; }
-.thkinds > .chip { flex:0 0 auto; padding:8px 11px; font-size:12.5px; white-space:nowrap; }
+.thkinds > .chip { position:relative; flex:0 0 auto; padding:8px 11px; font-size:12.5px; white-space:nowrap; }
+.thkinds > .chip::before { content:''; position:absolute; inset:-5px 0; }
 #thlist > [data-kindhead] { margin-top:16px; }
 /* A THREAD'S OUTFITS ARE SMALL CARDS SLID OUT FROM UNDER ITS CARD (Seth, 2026-11-03: "make the
    outfits look like a small popped-out card coming from the other card it belongs to, and fix the
@@ -3026,11 +3029,14 @@ html[data-sidefull="0"] #sideHead > .panelname { font-family:var(--arc-deco); fo
   font-size:34px; line-height:1.1; letter-spacing:.18em; flex:0 0 auto; max-width:100%; }
 html[data-sidefull="0"] #sideHead > .caps-btn { font-family:var(--arc-small); font-size:13px; letter-spacing:.3em; margin-right:-.3em; margin-left:auto; }
 /* THE TABS, spaced capitals with no boxes, the one you are on bright. One row that scrolls sideways
-   when the names are wider than the panel. */
+   when the names are wider than the panel. Each tab is still a 44px box to the finger, the words
+   centred in it (28px tall until 2026-11-03, measured short on a phone by test/ui/targets.js), and
+   it reaches half the gap to either side (Tale is 39px of words); the row's padding holds the reach
+   of the first and last tab, and its margins give that padding back, so the words do not move. */
 html[data-sidefull="0"] #sideBody :is(.row-6:has(> [data-storytab], > [data-chaptab], > [data-tellertab]), .tabrow) {
-  gap:22px; overflow-x:auto; scrollbar-width:none; padding-bottom:4px; }
+  gap:22px; overflow-x:auto; scrollbar-width:none; padding:0 11px; margin-left:-11px; margin-right:-11px; }
 html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip) {
-  flex:0 0 auto; padding:8px 0; border:0; border-radius:0; background:none; box-shadow:none;
+  flex:0 0 auto; min-height:44px; padding:0 11px; margin:0 -11px; border:0; border-radius:0; background:none; box-shadow:none;
   font-family:var(--arc-small); font-size:13px; letter-spacing:.24em; text-transform:uppercase; color:var(--dim); }
 html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip)[aria-pressed="true"] { color:var(--ink-bright); }
 html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip):hover { color:var(--gold); }
@@ -3038,6 +3044,12 @@ html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tel
   html[data-sidefull="0"] #sideHead { --band:96px; padding-top:calc(var(--band) + 44px); }
   html[data-sidefull="0"] #sideHead > .panelname { font-size:26px; letter-spacing:.14em; }
   html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip) { font-size:12px; letter-spacing:.18em; } }
+/* A SHORT SCREEN HAS NO BANNER. Under 480px of height (a phone with its keyboard up, a square phone)
+   the banner's 96px left a panel's body too little room: 36px on a 360x360 screen with the keyboard
+   up, and the box being typed in sat under the keyboard. The header is the name alone there. */
+@media (max-height:480px) {
+  html[data-sidefull="0"] #sideHead { --band:0px; padding-top:18px; }
+  html[data-sidefull="0"] #sideHead > .pbanner { display:none; } }
 
 /* THE SCENE'S FIRST LETTER, illuminated: deco capital in a gilt box over a wash of gold. Still
    ::first-letter, for the reason above the rule it extends: the passage is contenteditable. */

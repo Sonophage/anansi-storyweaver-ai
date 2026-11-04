@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · A thread is edited where you read it
 
+### The tabs in a panel are easy to tap on a phone
+The tabs at the top of a tale's panel, a chapter's panel and the storyteller's panel, and the kinds
+above a tale's Threads, take a full finger's tap again.
+### A small screen keeps room for what you type
+On a short screen, or a phone with its keyboard up, a panel opens without its picture banner, so the
+box you type in stays above the keyboard.
 ### A character's outfits are small cards under their card
 In a tale's Threads, a character's outfits are small cards that slide out from under the foot of
 their card, in its frame. The one worn is lit; the others are dim. They line up evenly on a phone,
