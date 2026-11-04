@@ -738,13 +738,19 @@ function applyChange(storyId: string, owner: string, ch: Change):
   // handed back as it stands, as a wake does), each passage's edit (so Alterations keeps the old text),
   // each pocket's, and the tale's own fields.
   if (ch.op === 'thread.rename') {
-    const cur = db.entriesOf(storyId).find((e: any) => e.id === ch.thread);
-    if (!cur) return null;
-    if (!db.upsertEntry(storyId, owner, { id: cur.id, title: ch.to, body: cur.body, entryType: cur.entry_type,
-      activation: cur.activation, keys: ch.keys, lastEditor: cur.last_editor })) return null;
+    // A thread's row is written whole, so each write hands back the rest of it as it stands now.
+    const entry = (id: string, o: { title?: string; keys?: string[]; body?: string }) => {
+      const cur = db.entriesOf(storyId).find((e: any) => e.id === id);
+      return cur && db.upsertEntry(storyId, owner, { id: cur.id, title: o.title ?? cur.title, body: o.body ?? cur.body,
+        entryType: cur.entry_type, activation: cur.activation, keys: o.keys ?? JSON.parse(cur.keys || '[]'), lastEditor: cur.last_editor });
+    };
+    // An Undo leaves the name and the wake words where the writer changed them since (`keepName`, `keepKeys`).
+    if (!(ch.keepName && ch.keepKeys) && !entry(ch.thread, { ...(ch.keepName ? {} : { title: ch.to }), ...(ch.keepKeys ? {} : { keys: ch.keys }) })) return null;
     for (const p of ch.places) {
       if (p.kind === 'passage') db.editPassage(storyId, p.id, p.after);
       else if (p.kind === 'pocket') db.upsertAddon(storyId, p.thread ?? null, { id: p.id, slot: p.slot, name: p.name, body: p.after, keys: p.keys ?? [] });
+      else if (p.kind === 'thread') entry(p.id, { body: p.after });
+      else if (p.kind === 'scene') { const [id, f] = p.id.split(':'); db.updateChapter(storyId, id, { [f]: p.after }); }
       else db.updateStory(storyId, { [p.id]: p.after });
     }
     return { thread: ch.thread };
@@ -4961,15 +4967,22 @@ export const routes: Record<string, Handler> = {
     // writer's version is a question. Then NOTHING in this answer is done, the rest included: the
     // writer answers one line and asks again, rather than finding half of what they said applied.
     const unmade = new Set<string>();
+    // #154 · After a rename, a change that named the thread as it was lands on it by its new name.
+    const renamedTo = new Map<string, string>();
     const unsure = raws.flatMap((raw: any) => { const a = aimOf(raw, taleOf(v.id), world); return 'ask' in a ? [a.ask] : []; });
-    for (const raw of unsure.length ? [] : raws) {
+    for (let raw of unsure.length ? [] : raws) {
       // Placed against the tale as the changes before it left it, so a second change to a thread the
       // first one took over lands on the tale's copy.
       // Canon asked for by a writer who does not own the World this tale follows is not theirs to
       // change, and is not quietly written to the tale instead: that was not what they asked.
       if (!world && v.follows && raw?.to === 'world') { notDone.push({ said: `Change ${String(raw.thread ?? raw.title ?? 'it')}`,
         why: `${v.follows.title} is a World only its owner changes` }); continue; }
+      const was = String(raw?.thread ?? '').trim().toLowerCase();
+      if (raw?.op !== 'thread.rename' && renamedTo.has(was)) raw = { ...raw, thread: renamedTo.get(was) };
       const aim = aimOf(raw, taleOf(v.id), world);
+      // A thread that is a World's is renamed in its World, where every tale that follows it reads it.
+      if (raw?.op === 'thread.rename' && aim.to && aim.to !== 'tale') { notDone.push({ said: `Rename ${raw.thread}`,
+        why: 'it is a World\'s thread: rename it in its World' }); continue; }
       if ('refused' in aim) { notDone.push(aim.refused); continue; }
       if ('ask' in aim) continue;
       // CANON: checked against the World and written there, through the same slice and the same
@@ -5000,6 +5013,7 @@ export const routes: Record<string, Handler> = {
         k.change.text = rw.text;
       }
       const made = applyChange(where, c.owner, k.change);
+      if (made && k.change.op === 'thread.rename') renamedTo.set(k.change.title.trim().toLowerCase(), k.change.to);
       if (!made) { handBack(); notDone.push({ said: wordsFor(k.change), why: `the ${aim.to === 'world' ? 'World' : 'tale'} refused it` }); continue; }
       // #99 · THE PAGE IT CAME FROM, in the notes of the thread it made or changed: writer-only,
       // never sent to a model. Numbers the model named that no result has are dropped. Its Undo

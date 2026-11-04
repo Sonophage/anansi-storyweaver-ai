@@ -860,8 +860,8 @@ ok('ASKED-RENAME: a new kind is refused by name, and a rename alone or with text
   const bare = ch.expandAsked([{ op: 'thread.set', thread: 'Ring Law', title: 'The Ring' }], tale);
   assert.deepStrictEqual(bare.map((r: any) => r.op), ['thread.rename'], `ASKED-RENAME: a rename alone is the rename alone (${JSON.stringify(bare)})`);
   const withText = ch.expandAsked([{ op: 'thread.set', thread: 'Ring Law', title: 'The Ring', text: 'A ring of law.' }], tale);
-  assert.deepStrictEqual(withText.map((r: any) => [r.op, r.thread]), [['thread.rename', 'Ring Law'], ['thread.set', 'The Ring']],
-    'ASKED-RENAME: the rename, then its text, on the new name');
+  assert.deepStrictEqual(withText.map((r: any) => [r.op, r.thread]), [['thread.rename', 'Ring Law'], ['thread.set', 'Ring Law']],
+    'ASKED-RENAME: the rename, then its text, naming the thread as it was (the route follows the rename)');
 });
 
 // #154 · A RENAME, EVERYWHERE THE NAME IS WRITTEN, when asked (ADR 0014).
@@ -1089,6 +1089,53 @@ ok('a passage is found by scene and number or by a quote, edited whole, and put 
   assert.ok(ch.askedOf({ op: 'passage.set', quote: 'watched the river. The boats', text: 'x' }, prose, 'in "watched the river. The boats", cut the boats'), 'PASSAGE-QUOTE: several of its words quoted');
   assert.strictEqual(done(ch.checkAsked({ op: 'passage.set', passage: 1, text: 'Talia lost count.' }, { ...prose, at: 2 })).passage, 'p2',
     'PASSAGE-HERE: no scene is the scene the writer is in');
+});
+
+// #154 review: names it was not written for.
+ok('a rename swaps names safely: articles, punctuation, everyday words, surnames, all at once, $ in a name', () => {
+  const t1 = (title: string, extra: any = {}) => ({ entries: [{ id: 'e-x', title, entryType: 'character', keys: [], addons: [] }],
+    chapters: [{ id: 'c1', index: 1 }], ...extra });
+  const prose = (body: string) => ({ passages: [{ id: 'p1', chapterId: 'c1', body }] });
+  const after = (title: string, to: string, body: string) => {
+    const r = ch.checkAsked({ op: 'thread.rename', thread: title, title: to }, t1(title, prose(body)));
+    assert.ok(r.ok, `refused: ${r.why}`);
+    return r.change.places.find((x: any) => x.id === 'p1')?.after ?? body;
+  };
+  assert.strictEqual(after('The Old Man', 'Grandpa Joe', 'The river ran. The Old Man slept.'), 'The river ran. Grandpa Joe slept.',
+    'PAIR-ARTICLE: "The" is never swapped as a first name');
+  assert.strictEqual(after('Ann Lee', 'Bea Ann', 'Ann Lee waved. Ann smiled.'), 'Bea Ann waved. Bea smiled.', 'PAIR-AT-ONCE: swaps are made at once, not one after another');
+  assert.strictEqual(after('Morgott, the Omen King', 'Margit, the Fell Omen', 'Morgott said no.'), 'Margit said no.', 'PAIR-COMMA: a first name before a comma');
+  assert.strictEqual(after('Talia Venn', 'Talia Cole', 'Miss Venn nodded. Talia Venn left.'), 'Miss Cole nodded. Talia Cole left.', 'PAIR-SURNAME: only the surname changed');
+  assert.strictEqual(after('Will Hart', 'Sam Hart', 'Will it rain? Will Hart thought so.'), 'Will it rain? Sam Hart thought so.', 'PAIR-COMMON: an everyday first name is not swapped alone');
+  assert.strictEqual(after('Talia', 'Te$&ss', 'Talia ran.'), 'Te$&ss ran.', 'PAIR-DOLLAR: a $ in a name is written as it is');
+});
+
+ok('a rename reaches what reaches the model: a thread\'s own text and a pocket\'s name, and a scene\'s title', () => {
+  const tl = { entries: [{ id: 'e-t', title: 'Talia Venn', entryType: 'character', keys: [], addons: [] },
+    { id: 'e-m', title: 'Morgott', entryType: 'character', keys: [], body: 'Morgott hunts Talia.', addons: [{ id: 'a-1', slot: 'relationships', name: 'Talia', body: 'Hates her.', keys: [], active: true }] }],
+    chapters: [{ id: 'c1', index: 1, title: 'Talia at the ford', authorsNote: 'Talia crosses.' }] };
+  const c = done(ch.checkAsked({ op: 'thread.rename', thread: 'Talia Venn', title: 'Tess Venn' }, tl));
+  assert.ok(c.places.some((x: any) => x.kind === 'thread' && x.id === 'e-m' && x.after === 'Morgott hunts Tess.'), 'RENAME-THREAD-TEXT: another thread\'s own text');
+  assert.ok(c.places.some((x: any) => x.kind === 'pocket' && x.id === 'a-1' && x.name === 'Tess'), 'RENAME-POCKET-NAME: a pocket named for her');
+  assert.ok(c.places.some((x: any) => x.kind === 'scene' && x.after === 'Tess at the ford'), 'RENAME-SCENE: a scene\'s title');
+  assert.ok(c.places.some((x: any) => x.kind === 'scene' && x.after === 'Tess crosses.'), '  and where it heads');
+});
+
+ok('a rename is asked only with a word for naming; its Undo puts back what it can even after the thread is renamed again', () => {
+  const ren = { op: 'thread.rename', thread: 'Talia Venn', title: 'Talia the Ferrywoman' };
+  assert.ok(!ch.askedOf(ren, tale, 'Talia looks tired, make her warmer'), 'RENAME-ASKED-VERB: naming her is not asking for a new name');
+  assert.ok(ch.askedOf(ren, tale, 'Talia is called Tess now'), '  "called" is');
+  assert.ok(ch.askedOf(ren, tale, 'rename Talia to Tess'), '  "rename" is');
+  const tl = { ...tale, chapters: [{ id: 'c1', index: 1 }], passages: [{ id: 'p1', chapterId: 'c1', body: 'Talia ran.' }],
+    entries: tale.entries.map((e: any) => e.id === 'e-talia' ? { ...e, keys: ['Talia'] } : e) };
+  const c = done(ch.checkAsked({ op: 'thread.rename', thread: 'Talia Venn', title: 'Tess Venn' }, tl));
+  const u = ch.undoFor(c, {});
+  const later = { ...tl, passages: [{ id: 'p1', chapterId: 'c1', body: 'Tess ran.' }],
+    entries: tl.entries.map((e: any) => e.id === 'e-talia' ? { ...e, title: 'Tessa Venn', keys: ['Tessa'] } : e) };
+  const back = done(ch.checkUndo(u, later));
+  assert.deepStrictEqual(back.places.map((x: any) => x.id), ['p1'], 'RENAME-UNDO-AGAIN: the prose comes back though the thread was renamed since');
+  assert.match(ch.wordsFor(back), /name/i, `  and the Undo says it left the name (${ch.wordsFor(back)})`);
+  assert.ok(back.keepName && back.keepKeys, 'RENAME-UNDO-KEYS: the writer\'s name and wake words are left as they are');
 });
 
 console.log(`\n${n} checks passed`);

@@ -130,6 +130,8 @@ const srv = createServer((req, res) => {
       ASKPROMISE: { reply: 'A promise, then.', changes: [{ op: 'string.set', title: 'The pistol', kind: 'promise', text: 'The pistol will be fired.' }] },
       // #153 · a passage, edited when asked.
       RENAMEIT: { reply: 'Ysra it is.', changes: [{ op: 'thread.rename', thread: 'Isolde Marr', title: 'Ysra Marr' }] },
+      RENAMEPAD: { reply: 'Warmer.', changes: [{ op: 'thread.set', thread: 'Isolde Marr', title: 'Isolde the Ferrywoman', text: 'Isolde keeps the ferry ledger, and hums.' }] },
+      RENAMETEXT: { reply: 'Ysra, keeper of the crossing.', changes: [{ op: 'thread.set', thread: 'Isolde Marr', title: 'Ysra Marr', text: 'Ysra keeps the crossing.' }] },
       PROSEEDIT: { reply: 'Colder now.', changes: [{ op: 'passage.set', quote: 'Morgott watched the river in the lamplight', text: 'make it colder' }] },
       // A plain answer that only sounds like a claim: nothing was asked, so nothing is taken off.
       SETIN: { reply: 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.' },
@@ -1986,6 +1988,14 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.strictEqual(body(pb), 'The writer rewrote it: Ysra Marr, alone.', 'RENAME-UNDO-SKIP: never over the writer\'s own edit');
     assert.match(back.undone, /changed since: scene \d+, passage \d+/, `RENAME-UNDO-SAID: and the Undo says what it left (${back.undone})`);
     assert.strictEqual(db.getStory(tale.id).premise, 'Isolde Marr keeps the crossing.', '  the premise back');
+    // A model padding her title is no rename: her text lands, her name does not change.
+    const pad = await say('CHANGE-RENAMEPAD: make Isolde warmer');
+    assert.strictEqual((db.entriesOf(tale.id) as any[]).find((x) => x.id === iso).title, 'Isolde Marr', 'RENAME-PAD: a padded title renames nobody');
+    assert.ok(pad.changes.some((x: any) => /hums/.test(x.words)), `  and the text it carried still lands (${pad.changes.map((x: any) => x.words).join(' | ')})`);
+    // A rename with text: the text lands on her by her new name.
+    const rt = await say('CHANGE-RENAMETEXT: Isolde is called Ysra Marr now, and she keeps the crossing');
+    assert.deepStrictEqual(rt.notDone, [], `RENAME-TEXT: nothing refused (${JSON.stringify(rt.notDone)})`);
+    assert.strictEqual(room(iso, 'facts')[0]?.body, 'Ysra keeps the crossing.', '  her text lands on her new name');
   }
   ok('Talk renames a thread everywhere when asked, with one card and one Undo that leaves the writer\'s own edits');
 
