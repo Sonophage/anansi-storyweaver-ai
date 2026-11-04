@@ -3362,7 +3362,7 @@ them twice. Median wait 14 s to 18 s, p90 22 s to 29 s, non-streaming.
   stream holds its words until it has six narration words, and asks again before the page sees a
   same opening (`test/away.ts`, GATE-*). Checked on Ornith on a scratch server with 9 streamed
   reweaves of the two passages with the highest control rate: 0 same openings reached the page, and
-  7 of the 9 were asked again. Not an A/B. The switch is still off by default.
+  4 of the 9 were asked again (3 of them twice). Not an A/B. The switch is still off by default.
 - Whether a different opening is a better version. Nothing here scores quality.
 - The paraphrased repeat (F66) is still not measured.
 - A note that names what was wrong ("she enters the same way") was not tested: the model is not
