@@ -20,7 +20,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
-import { checkAsked, expandAsked, entriesAsked, askedOf, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
+import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
@@ -4855,11 +4855,17 @@ export const routes: Record<string, Handler> = {
     const raws: any[] = [], strings: any[] = [...((r.data as any).strings ?? [])], held: any[] = [];
     // An unasked thread is offered as one card: a new one with its pockets riding on it, as an entry
     // carries them; a change to one the tale has, one offer per pocket.
-    const fresh = new Map<string, any>();
+    const fresh = new Map<string, any>(), removals: any[] = [];
     const key = (n: unknown) => String(n ?? '').trim().toLowerCase();
     for (const raw of expandAsked([...(Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4),
       ...asked], tale0)) {
       const op = String(raw?.op ?? '');
+      // #155 · Taking a thing out of the prose is only ever offered, and only when asked.
+      if (op === 'prose.remove') {
+        if (askedOf(raw, tale0, said, before)) removals.push(raw);
+        else notDone.push({ said: `Take ${String(raw.title ?? 'it')} out of the prose`, why: 'you did not ask for the prose to change' });
+        continue;
+      }
       if (askedOf(raw, tale0, said, before)) { raws.push(raw); continue; }
       // A CHANGE TO A THREAD THE TALE DOES NOT HAVE goes to `checkAsked` with the asked ones: the pocket
       // of a new thread that was asked for ("add the ferryman", his voice) is done once he is made, and
@@ -4906,6 +4912,26 @@ export const routes: Record<string, Handler> = {
       if (db.addProposal(v.id, { kind: 'changed', chapterId: v.currentChapter.id, entryType: String(raw.op).split('.')[0],
           entry_id: (k.change as any).thread ?? null, title: card.label ? `${card.title}: ${card.label}` : card.title,
           body: String((k.change as any).text ?? wordsFor(k.change)), delta: wordsFor(k.change), change: raw })) proposed++;
+    }
+    // #155 · TAKING A THING OUT OF THE PROSE: each passage that mentions it is rewritten by the prose
+    // engine (`rewritePassage`, the writer's own words as the request) and offered as its own card,
+    // never written. A cap on how many per answer, because each is a model call.
+    // ponytail: MAX_REMOVE passages per answer. Ceiling: a thing in forty passages needs several asks.
+    // Trigger: a writer asking for a long removal; then run the rest in the background.
+    const MAX_REMOVE = 6;
+    for (const raw of removals) {
+      const thing = String(raw.title ?? '').trim();
+      const hits = mentioning(tale0, thing);
+      if (!hits.length) { notDone.push({ said: `Take ${thing || 'it'} out of the prose`, why: `no passage mentions ${thing || 'it'}` }); continue; }
+      for (const hit of hits.slice(0, MAX_REMOVE)) {
+        const rw = await rewritePassage(c, v.id, { passage: hit.id, note: said, before: hit.body });
+        const at = passageAt(tale0, hit.id);
+        if ('error' in rw) { notDone.push({ said: `Rewrite scene ${at.scene}, passage ${at.n}`, why: String(rw.error) }); continue; }
+        if (db.addProposal(v.id, { kind: 'changed', entryType: 'passage', chapterId: hit.chapterId, title: `Scene ${at.scene}, passage ${at.n}`,
+            body: rw.text, delta: `Takes ${thing} out of this passage.`, change: { op: 'prose.remove', passage: hit.id, before: hit.body, thing } })) proposed++;
+      }
+      if (hits.length > MAX_REMOVE) notDone.push({ said: `Take ${thing} out of ${hits.length - MAX_REMOVE} more passages`,
+        why: `only ${MAX_REMOVE} are rewritten at a time; decide these and ask again` });
     }
     // What was chalked from them, a line each, for the answer to say first when a request was only
     // offered (`talkReply`).
@@ -5900,6 +5926,18 @@ export const routes: Record<string, Handler> = {
       // agrees. `db.proposalTarget` is the definition; this is the only other caller.
       // #152 · A HELD TALK CHANGE is sewn in through Talk's own checks and writes, against the tale as
       // it is now, with the text the writer left in the box.
+      // #155 · A PASSAGE OFFERED WITHOUT A THING: sewn in only while the passage still says what it said
+      // when the rewrite was made, through the passage's own edit (Alterations keeps the old), and it is
+      // the model's from then on, as a passage Talk rewrote is.
+      if (c.body.accept && p.change && JSON.parse(p.change).op === 'prose.remove') {
+        const raw = JSON.parse(p.change);
+        const cur = (db.passagesOf(c.body.storyId) as any[]).find((x) => x.id === raw.passage);
+        if (!cur) return { error: 'Not sewn in: that passage is no longer in this tale.' };
+        if (String(cur.body).trim() !== String(raw.before).trim()) return { error: 'Not sewn in: that passage has changed since it was rewritten.' };
+        db.editPassage(c.body.storyId, raw.passage, String(c.body.body ?? p.body), false, 'model');
+        db.setProposalStatus(c.body.storyId, id, 'accepted');
+        continue;
+      }
       if (c.body.accept && p.change) {
         const raw = JSON.parse(p.change);
         const k = checkAsked(c.body.body != null && 'text' in raw ? { ...raw, text: String(c.body.body) } : raw, taleOf(c.body.storyId));

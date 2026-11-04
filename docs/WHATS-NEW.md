@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-04 · Talk fills in the card you ask for
 
+### Take something out of the story, one passage at a time
+Tell Talk something is gone ("the Bellwardens don't exist any more, take them out of the prose") and
+it rewrites each passage that mentions it, without it, and offers each one as its own card. Nothing
+changes until you sew a card in, and a passage you have edited since is never written over. Six
+passages are rewritten at a time; ask again for the rest.
+
 ### Rename someone everywhere, from Talk
 Tell Talk "Isolde is called Ysra now" and the name changes everywhere it is written: the thread and
 its wake words, every passage (what people say and what the narration says), other threads that

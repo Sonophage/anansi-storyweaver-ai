@@ -43,6 +43,9 @@ import { retiredAt, pocketReach } from './context.ts';
  *  tale's own pockets, which no thread operation reaches either (Seth, 2026-10-29: Talk should do
  *  what it could not): where a string stands, the tale's rules (ADR 0005) and the writer's own
  *  instructions, each added, changed, or switched on or off. */
+/** #155 · What the model may send that is never done, only offered: taking a thing out of the prose,
+ *  one chalked card per passage, each with that passage's rewrite (ADR 0014). */
+export const OFFERED = ['prose.remove'] as const;
 export const ASKED = ['thread.new', 'thread.set', 'thread.overtime', 'thread.wake', 'thread.retire',
   'tale.set', 'scene.set', 'string.set', 'string.stand', 'rule.set', 'rule.switch',
   'instruction.set', 'instruction.switch', 'passage.set', 'thread.rename'] as const;
@@ -88,7 +91,7 @@ export const CHANGES_SCHEMA = {
     // written as op, title, type could not carry an Always true at all: Seraphine, 2026-11-03.
     // test/changes.ts CHANGE-ORDER holds this.
     properties: {
-      op: { type: 'string', enum: [...ASKED] },
+      op: { type: 'string', enum: [...ASKED, ...OFFERED] },
       // thread.set: the thread by its name, as the writer and the model know it.
       thread: { type: 'string', maxLength: 80 },
       // thread.new: its name. string.set, string.stand, rule.*, instruction.*: the pocket's name.
@@ -486,7 +489,7 @@ export function askedOf(raw: any, tale: Tale, said: string, before = ''): boolea
   const whole = (name: unknown) => { const ws = nameWords(name); return ws.length > 0 && ws.every((w) => heard.has(w)); };
   const op = String(raw?.op ?? '');
   // Off the list, it is refused by `checkAsked` with its own reason ("not something Talk can do").
-  if (!(ASKED as readonly string[]).includes(op)) return true;
+  if (!(ASKED as readonly string[]).includes(op) && !(OFFERED as readonly string[]).includes(op)) return true;
   // #154 · A rename needs a word for naming as well as the name: "make her warmer" names Talia and
   // asks for no new name, and a model padding her title ("Talia the Ferrywoman") must not rename her.
   if (op === 'thread.rename') return named(threadNamed(tale, raw.thread).hit?.title ?? raw.thread)
@@ -500,6 +503,8 @@ export function askedOf(raw: any, tale: Tale, said: string, before = ''): boolea
   if (op.startsWith('instruction.')) return whole(raw.title) || ASK_KIND.instruction.test(own);
   if (op === 'tale.set') return TALE_ASK[String(raw.field)]?.test(own) ?? false;
   if (op === 'scene.set') return ASK_KIND.scene.test(own);
+  // #155 · Taking a thing out of the prose is asked with a verb of taking out.
+  if (op === 'prose.remove') return /\b(remove|take (it |them )?out|cut|strip|delete|get rid|drop|erase|scrub)\b/.test(own);
   // #153 · A passage is asked for with a verb of changing AND what prose is called, or by quoting
   // several of its words: "who is in this scene?" and "what's her best line?" ask for nothing, and a
   // name alone ("Morgott") is not a quote of a passage.
@@ -628,6 +633,23 @@ const followed = (t: Thread, said: string): Checked => ({ ok: false, said,
  *  that put the old value back would write over their edit. The unmake operations compare `text` the
  *  same way. An Undo with no `wrote` proves nothing about what is there, so it is refused too. */
 const SINCE = 'it has been changed since';
+
+/** #155 · THE PASSAGES THAT MENTION A THING, in the order they are read: by whole word and any case
+ *  ("the Choir", "the choir"), never inside another word ("Choirmaster"); breaks skipped. A leading
+ *  "the" is not required, so "Choir" finds "the Choir" too. */
+/** Which passage a passage is, in the writer's words: its scene's number and its place in it. */
+export function passageAt(tale: Tale, id: string) {
+  const ps = (tale.passages ?? []).filter((p) => !p.isBreak && String(p.body ?? '').trim());
+  const p = ps.find((x) => x.id === id);
+  const ch = p && (tale.chapters ?? []).find((c: any) => c.id === p.chapterId) as any;
+  return { scene: Number(ch?.index ?? 0), n: p ? ps.filter((x) => x.chapterId === p.chapterId).findIndex((x) => x.id === id) + 1 : 0 };
+}
+export function mentioning(tale: Tale, thing: string) {
+  const core = String(thing ?? '').trim().replace(/^(the|a|an)\s+/i, '');
+  if (!core) return [];
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
+  return (tale.passages ?? []).filter((p) => !p.isBreak && re.test(p.body));
+}
 
 /** #154 · A RENAME, EVERYWHERE THE NAME IS WRITTEN (ADR 0014), asked in so many words: the thread, its
  *  wake words, every passage (narration and dialogue), every pocket of every thread, the tale's

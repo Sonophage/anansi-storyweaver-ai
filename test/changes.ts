@@ -1138,4 +1138,18 @@ ok('a rename is asked only with a word for naming; its Undo puts back what it ca
   assert.ok(back.keepName && back.keepKeys, 'RENAME-UNDO-KEYS: the writer\'s name and wake words are left as they are');
 });
 
+// #155 · LORE OUT OF THE PROSE IS OFFERED, passage by passage (ADR 0014): which passages mention it.
+ok('the passages that mention a thing are found by whole word, any case, and a removal is asked with a verb of taking out', () => {
+  const tl = { ...tale, chapters: [{ id: 'c1', index: 1 }],
+    passages: [{ id: 'p1', chapterId: 'c1', body: 'The Choir sang below.' }, { id: 'pb', chapterId: 'c1', body: '', isBreak: true },
+               { id: 'p2', chapterId: 'c1', body: 'Nobody here. Choirmaster Vey.' }, { id: 'p3', chapterId: 'c1', body: 'She left the choir behind.' }] };
+  assert.deepStrictEqual(ch.mentioning(tl, 'the Choir').map((x: any) => x.id), ['p1', 'p3'], 'LORE-FIND: whole word, any case, breaks skipped');
+  assert.deepStrictEqual(ch.mentioning(tl, 'Choir').map((x: any) => x.id), ['p1', 'p3'], '  "Choirmaster" is not "Choir"');
+  assert.ok(ch.OFFERED.includes('prose.remove') && !ch.ASKED.includes('prose.remove'), 'LORE-OFFER-ONLY: never a change, only an offer');
+  const rm = { op: 'prose.remove', title: 'the Choir' };
+  assert.ok(ch.askedOf(rm, tl, "the Choir doesn't exist any more, take it out of the prose"), 'LORE-ASKED: take it out');
+  assert.ok(ch.askedOf(rm, tl, 'remove the Choir from the story'), '  remove');
+  assert.ok(!ch.askedOf(rm, tl, 'what is the Choir?'), 'LORE-UNASKED: a question about it');
+});
+
 console.log(`\n${n} checks passed`);

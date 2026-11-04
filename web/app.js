@@ -3838,6 +3838,8 @@ const hemShows = (ch, ps) => ch.hem.state === 'running' || ps.length > 0 || (!ch
  *  where the thread stands, the pocket it lands in for a pocket row. Null when there is nothing
  *  before it (a new thread, a retirement, an empty pocket). */
 function hemBefore(p) {
+  // #155 · An offered rewrite of a passage: what the passage says now.
+  if (p.entryType === 'passage') return (V.passages ?? []).find((x) => x.id === p.passageId)?.body ?? null;
   // #125 · The tale's own thread is not among the threads, and its row reads the same way.
   const e = p.entryId ? [...(V.entries ?? []), ...(V.taleThread ? [V.taleThread] : [])].find((x) => x.id === p.entryId) : null;
   if (!e || p.entryType === 'retire') return null;

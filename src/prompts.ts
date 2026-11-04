@@ -1987,6 +1987,9 @@ changes, all its pockets with it, and never an entry: entries are only threads y
 - thread.wake: the thread, always_on or triggered (On a word), and the wake words as keys.
 - thread.retire: the thread, and the scene it stops from (none for the next scene). "Get rid of it"
   means this: you never delete a thread.
+- prose.remove: when the writer asks for something to be taken out of the prose ("the Choir does not
+  exist any more"), the thing as title. It is never done at once: each passage that mentions it is
+  rewritten without it and offered for the writer to sew in or reject.
 - thread.rename: the thread by its name now, and its new name as title. Only when the writer asks
   for a new name in so many words ("Talia is called Tess now"). The name is changed everywhere it is
   written, prose and threads alike; you send only the two names.
