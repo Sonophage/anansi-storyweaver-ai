@@ -1058,6 +1058,11 @@ ok('a passage is found by scene and number or by a quote, edited whole, and put 
   refused(ch.checkUndo(undo, edited), /changed since/i);
   assert.ok(ch.askedOf({ op: 'passage.set', scene: 2, passage: 2, text: 'x' }, prose, 'make the second passage of scene 2 colder'), 'PASSAGE-ASKED');
   assert.ok(!ch.askedOf({ op: 'passage.set', scene: 2, passage: 2, text: 'x' }, prose, 'who is Morgott?'), 'PASSAGE-UNASKED');
+  assert.ok(!ch.askedOf({ op: 'passage.set', scene: 2, passage: 2, text: 'x' }, prose, 'who is in this scene?'), 'PASSAGE-QUESTION: a question about a scene asks for no edit');
+  assert.ok(!ch.askedOf({ op: 'passage.set', quote: 'Morgott', text: 'x' }, prose, 'who is Morgott?'), 'PASSAGE-NAME-QUOTE: a name is not a quote of a passage');
+  assert.ok(ch.askedOf({ op: 'passage.set', quote: 'watched the river. The boats', text: 'x' }, prose, 'in "watched the river. The boats", cut the boats'), 'PASSAGE-QUOTE: several of its words quoted');
+  assert.strictEqual(done(ch.checkAsked({ op: 'passage.set', passage: 1, text: 'Talia lost count.' }, { ...prose, at: 2 })).passage, 'p2',
+    'PASSAGE-HERE: no scene is the scene the writer is in');
 });
 
 console.log(`\n${n} checks passed`);

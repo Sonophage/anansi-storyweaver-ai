@@ -17,8 +17,9 @@
  *
  * TWO GRAMMARS, ONE FILE. `checkAsked` is what the model may ask for. `checkUndo` is what an Undo
  * may do: put back the value that was there, or take away a thread, a pocket, an Over time entry or
- * a retirement Talk made. Neither list touches prose. The unmake operations are refused from the
- * model by name.
+ * a retirement Talk made. The only prose either touches is one passage the writer asked to change
+ * (`passage.set`, #153), put back by its own Undo. The unmake operations are refused from the model
+ * by name.
  *
  * WHAT HOLDS FOR AN UNDO, which the page sends back and so anyone can forge. It acts by id, on the
  * tale the route read through the gate, so it reaches only the writer's own tale. A put-back is
@@ -442,6 +443,8 @@ export function entriesAsked(entries: unknown, tale: Tale, said: string, before 
 const NOT_A_NAME = new Set(['the', 'and', 'for', 'with', 'from', 'old', 'new', 'one', 'two', 'her', 'his', 'its', 'who',
   'what', 'man', 'woman', 'lord', 'lady', 'king', 'queen', 'house', 'city', 'place']);
 const nameWords = (name: unknown) => words(name).filter((w) => w.length > 2 && !NOT_A_NAME.has(w));
+/** The verbs a change to prose is asked with. */
+const EDIT_VERB = /\b(make|change|rewrite|edit|fix|cut|trim|tighten|shorten|lengthen|soften|sharpen|darken|warm|cool|redo|rework|turn|give)\b/;
 const ASK_KIND: Record<string, RegExp> = {
   string: /\b(add|make|create|write|set up|new|another)\b[^.!?]*\b(promises?|questions?|strings?)\b|\bstrings?\b/,
   rule: /\brules?\b/,
@@ -476,9 +479,11 @@ export function askedOf(raw: any, tale: Tale, said: string, before = ''): boolea
   if (op.startsWith('instruction.')) return whole(raw.title) || ASK_KIND.instruction.test(own);
   if (op === 'tale.set') return TALE_ASK[String(raw.field)]?.test(own) ?? false;
   if (op === 'scene.set') return ASK_KIND.scene.test(own);
-  // #153 · A passage is asked for by what prose is called, or by quoting it.
-  if (op === 'passage.set') return /\b(passages?|paragraphs?|prose|sentences?|lines?|scenes?)\b/.test(own)
-    || (!!String(raw.quote ?? '').trim() && squash(own).includes(squash(raw.quote)));
+  // #153 · A passage is asked for with a verb of changing AND what prose is called, or by quoting
+  // several of its words: "who is in this scene?" and "what's her best line?" ask for nothing, and a
+  // name alone ("Morgott") is not a quote of a passage.
+  if (op === 'passage.set') return (EDIT_VERB.test(own) && /\b(passages?|paragraphs?|prose|sentences?|lines?|scenes?)\b/.test(own))
+    || (words(raw.quote).length >= 4 && squash(own).includes(squash(raw.quote)));
   return false;
 }
 
@@ -630,10 +635,12 @@ function passageSet(tale: Tale, raw: any, said: string, undo: boolean): Checked 
     if (!found.length) return { ok: false, said, why: `no passage says "${String(raw.quote).trim()}"` };
     if (found.length > 1) return { ok: false, said, why: `more than one passage says "${String(raw.quote).trim()}". Quote more of it` };
     hit = found[0];
-  } else if (raw.scene != null && raw.passage != null) {
-    const ch = (tale.chapters ?? []).find((c: any) => Number(c.index) === Number(raw.scene)) as any;
+  } else if (raw.passage != null) {
+    // No scene is the scene the writer is in, as every other change that names a scene reads it.
+    const scene = raw.scene ?? tale.at;
+    const ch = (tale.chapters ?? []).find((c: any) => Number(c.index) === Number(scene)) as any;
     hit = ch ? ps.filter((p) => p.chapterId === ch.id)[Number(raw.passage) - 1] : undefined;
-    if (!hit) return { ok: false, said, why: `there is no passage ${raw.passage} in scene ${raw.scene}` };
+    if (!hit) return { ok: false, said, why: `there is no passage ${raw.passage} in scene ${scene}` };
   } else return { ok: false, said, why: 'it names no passage: give the scene and its number, or quote it' };
   if (hit.body.trim() === text) return { ok: false, said, why: 'that passage already says that' };
   return { ok: true, change: { op: 'passage.set', passage: hit.id, ...at(hit), text, before: hit.body } };

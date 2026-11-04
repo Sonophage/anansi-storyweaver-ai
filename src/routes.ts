@@ -4895,7 +4895,8 @@ export const routes: Record<string, Handler> = {
     // tale as it stands after the ones before it, so "add the ferryman, and give him a voice" can
     // land in one answer. A change the tale cannot take is not done, and the reply says so in
     // Anansi's own answer: the model may have said it did it, and the writer must not be left
-    // believing that. No operation on the list deletes anything or touches prose.
+    // believing that. No operation on the list deletes anything; the one that touches prose edits a
+    // passage the writer asked to change (#153).
     // #122 · `diff` is the text before and after, for the line to draw as a diff (null when it
     // rewrote no text).
     const changes: { words: string; undo: any; diff?: { before: string; after: string } | null;
