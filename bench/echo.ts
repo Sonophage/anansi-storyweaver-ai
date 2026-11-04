@@ -5,7 +5,7 @@ import { narrationOnly } from '../src/context.ts';
 
 /** Phrase length in words. Five: long enough that ordinary phrases ("she looked at the") rarely
  *  match by chance, short enough that a carried phrase ("the bitter taste a familiar") is seen. */
-export const ECHO_N = 5;
+const ECHO_N = 5;
 
 /** A text's five-word phrases: narration only, words only, lower case. Dialogue is left out: a
  *  character may repeat a line; only the narrator's echo is the complaint. */

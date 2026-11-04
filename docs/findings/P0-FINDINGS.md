@@ -3223,47 +3223,62 @@ often does either happen in the library's history?
 **The measure.** `bench/reroll-echo.ts`, read-only, no model. A pair is a reroll: a take and the
 slot's take before it. Every share is of the take's five-word narration phrases (the `echo`
 detector, now `bench/echo.ts`, shared with `bench/repetition.ts`).
-- REJECTED: phrases also in the replaced take and NOT in the scene before the slot. A phrase both
-  takes lifted from the scene is not a repeat of the rejected take.
+- REJECTED: phrases also in the replaced take and NOT in the scene before the slot. This is a
+  narrower number than the issue's "phrases that are in the take before it": a phrase both takes
+  lifted from the scene is a scene echo, and is counted under SCENE instead.
 - CONTROL: REJECTED against a replaced take from another scene of the same tale: what unrelated takes
-  share by chance.
-- SCENE: phrases already in the scene's chosen passages before the slot.
-- SAME OPENING: the take's first five narration words are the replaced take's first five.
+  share by chance. (A neighbouring slot is not unrelated: the next passage carries the moment on.)
+- SCENE: phrases already in the scene's chosen passages before the slot. Reported for rerolls and,
+  separately, for every model take.
+- SAME OPENING: the take's first five narration words are the replaced take's first five. Added
+  after the eye check below showed the repeats take this shape.
 
-Takes under 20 phrases are left out (4); a tale copied whole counts once (18 duplicate pairs). Demo
-tales are left out.
+Takes under 20 phrases are left out (4); a tale copied whole counts once (18 duplicate pairs); demo
+tales are left out. The replaced take is the previous variant; 393 of the 398 replaced takes in the
+library carry the `rejected` flag, so nearly every pair is a reroll AWAY from the take it is read
+against.
 
-**The run.** 2026-11-04, the live library: 3,100 passages, 376 pairs. Stopped
-takes: none, because they were not kept until this commit (`stopped_takes`, from now on).
+**The run.** 2026-11-04, the live library: 3,100 passages, 376 pairs from 178 rerolled slots.
+Stopped takes: none, because they were not kept until this commit (`stopped_takes`, from now on).
 
 | | pairs | REJECTED ≥ 0.10 | CONTROL ≥ 0.10 | SCENE ≥ 0.10 | SAME OPENING |
 |---|---|---|---|---|---|
 | all | 376 | 4% (16) | 0% | 7% | 16% |
 | Seth | 238 | 7% | 0% | 11% | 17% |
 | Kia | 138 | 0% | 0% | 1% | 14% |
-| Ornith-1.0-RPNTH-35B | 36 | 22% | 0% | 3% | 25% |
-| Qwen3.6-WNTH-35B-A3B-NN | 102 | 0% | 0% | 0% | 15% |
 | Forgotten-Transgression-24B (remote) | 145 | 3% | 0% | 14% | 10% |
+| Qwen3.6-WNTH-35B-A3B-NN | 102 | 0% | 0% | 0% | 15% |
+| Ornith-1.0-RPNTH-35B | 36 | 22% | 0% | 3% | 25% |
+| Kimi-K2.5 (remote) | 26 | 0% | 0% | 0% | 27% |
+| Gemma-4-26B antislop (remote) | 18 | 0% | 0% | 0% | 22% |
+| rp-t-glm47flash-h | 11 | 0% | (no control) | 9% | 0% |
 
 Medians: REJECTED 0.010 against CONTROL 0.000.
 
-**The detector, read by eye on takes it was not written for** (`show 8`). The 6 highest and the 8
-nearest the 0.10 line: all 14 are real repeats, and all 14 copy the rejected take's OPENING (one to
-three sentences, word for word) and then go somewhere else. The top one (0.873) is the same take
-twice with the quote marks changed. Of 6 unflagged pairs, evenly spaced: 3 are the same beat in other
-words (the same scars on the same hands; the same feet off the same dashboard), which a five-word
-phrase match cannot see.
+SCENE over every model take (742 takes, first takes included): 6% at 0.10 or more; Seth's tales 11%,
+Kia's 2%; Forgotten-Transgression-24B 15% (227 takes), Qwen3.6 2% (207), Ornith 2% (56).
+
+**The detector, read by eye on takes it was not written for** (`show`).
+- Flagged: the 6 highest and the 8 nearest the 0.10 line. All 14 are real repeats, and all 14 copy
+  the rejected take's OPENING (one to three sentences, word for word) and then go somewhere else.
+  The top one (0.873) is the same take twice with the quote marks changed.
+- Unflagged, 10 evenly spaced: 6 agree (a different take). 4 are repeats it scores under the line:
+  2 open with the rejected take's words and leave them too soon to reach 0.10 ("The publicist's
+  smile tightens…", "Messmer's hand tightens, not enough to bruise, but enough to hold"), and 2 are
+  the same beat in other words (the same rigid body and tail lashing once; the same text message
+  retold). An earlier read of 6 unflagged pairs found the same: 3 were the same beat in other words.
 
 **What this settles.**
 - The word-for-word repeat is real and not chance: 16 pairs over the line against none in the
   control.
 - Its shape is the opening. A reroll that keeps the rejected take's first sentence is the visible
-  form of "it wrote the same thing again", and it happens in about one reroll in six.
+  form of "it wrote the same thing again", and it happens in about one reroll in six. SAME OPENING
+  catches cases REJECTED misses.
 - On Ornith, the test bench model, it is worst: 8 of 36 pairs over the line. n is small.
 
 **What it does not settle.**
-- The paraphrased repeat ("close enough") is not measured. 3 of 6 clean-read pairs had it, n = 6.
-  A semantic measure is the upgrade path, and it costs a model call or embeddings per pair.
+- The paraphrased repeat ("close enough") is not measured: 2 of 10 unflagged pairs, and 3 of 6 in the
+  earlier read. A semantic measure is the upgrade path, at a model call or an embedding per pair.
 - Takes the writer stopped are the ones he saw repeating, and none were kept until now. These rates
   are for FINISHED takes only, so they are a floor. Re-run after a few weeks of writing.
 - "The take it replaced" is the slot's previous variant (see the ponytail in the bench). A stopped
@@ -3273,5 +3288,5 @@ phrase match cannot see.
 **Also seen.** Two unchosen takes in one of Seth's scenes start with the prompt's own label "How
 this chapter opens:", copied from the scene-opening block.
 
-**Harness.** `bench/reroll-echo.ts check` (14 checks, in `test/all.ts`), plain run for the report,
-`show N` for pairs to read.
+**Harness.** `bench/reroll-echo.ts check` (in `test/all.ts`), the plain run for the report, `show N`
+for pairs to read.

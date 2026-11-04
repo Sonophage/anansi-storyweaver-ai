@@ -24,17 +24,18 @@ import { DatabaseSync } from 'node:sqlite';
 import { grams, echo } from './echo.ts';
 import { input } from '../test/fixture.ts';
 
-/** REJECTED and SCENE for one take. Shares of the take's own phrases, three decimals. */
+/** REJECTED and SCENE for one take. Shares of the take's own phrases, three decimals. `shared` is
+ *  the repeated phrases themselves, for `show`. */
 export function rerollEcho(take: string, replaced: string, scene: string[]) {
   const sceneGrams = new Set(scene.flatMap(grams));
-  const old = new Set(grams(replaced).filter((g) => !sceneGrams.has(g)));
+  const theirs = grams(replaced);
+  const old = new Set(theirs.filter((g) => !sceneGrams.has(g)));
   const mine = grams(take);
-  const repeated = mine.filter((g) => old.has(g)).length;
+  const hits = mine.filter((g) => old.has(g));
   // OPENING: the take starts with the rejected take's first five narration words. Every flagged pair
   // read on 2026-11-04 did this: the reroll copied the opening, then went somewhere else.
-  const first = grams(replaced)[0];
-  return { rejected: mine.length ? +(repeated / mine.length).toFixed(3) : 0, repeated,
-           sameOpening: !!first && mine[0] === first,
+  return { rejected: mine.length ? +(hits.length / mine.length).toFixed(3) : 0, repeated: hits.length,
+           shared: [...new Set(hits)], sameOpening: !!theirs[0] && mine[0] === theirs[0],
            sceneShare: echo(take, scene).echoShare, phrases: mine.length };
 }
 
@@ -48,14 +49,15 @@ export type Pair = { kind: 'finished' | 'stopped'; story: string; owner: string;
 /** Every reroll as a pair: each finished take against the slot's take before it, and each stopped
  *  take against the take it was rerolling. The scene is the chosen, non-empty passages before the
  *  slot in the same chapter and branch. Pure: rows in, pairs out. */
+const written = (rows: Passage[]) => rows.filter((r) => !r.is_break && String(r.body ?? '').trim());
+/** The scene before a take: the chosen passages before its slot, in its chapter and branch. */
+const sceneOf = (live: Passage[], r: Passage) => live
+  .filter((x) => x.selected && x.chapter_id === r.chapter_id && x.branch_id === r.branch_id && x.slot_key < r.slot_key)
+  .sort((a, b) => a.slot_key - b.slot_key).map((x) => x.body);
+
 export function pairsOf(rows: Passage[], stopped: Stopped[]): Pair[] {
-  const live = rows.filter((r) => !r.is_break && String(r.body ?? '').trim());
-  const slotOf = (r: Passage) => `${r.chapter_id}:${r.branch_id}:${r.slot_key}`;
-  const slots = new Map<string, Passage[]>();
-  for (const r of live) slots.set(slotOf(r), [...(slots.get(slotOf(r)) ?? []), r]);
-  const sceneOf = (r: Passage) => live
-    .filter((x) => x.selected && x.chapter_id === r.chapter_id && x.branch_id === r.branch_id && x.slot_key < r.slot_key)
-    .sort((a, b) => a.slot_key - b.slot_key).map((x) => x.body);
+  const live = written(rows);
+  const slots = Map.groupBy(live, (r) => `${r.chapter_id}:${r.branch_id}:${r.slot_key}`);
   const label = (r: Passage) => `${r.chapter_id}:${r.slot_key}`;
   const out: Omit<Pair, 'control' | 'controlSlot'>[] = [];
   const seen = new Set<string>();
@@ -67,14 +69,14 @@ export function pairsOf(rows: Passage[], stopped: Stopped[]): Pair[] {
     const ts = takes.filter((t) => t.author === 'model').sort((a, b) => a.variant_index - b.variant_index);
     for (let i = 1; i < ts.length; i++)
       push({ kind: 'finished', story: ts[i].story_id, owner: ts[i].owner, model: ts[i].model, slot: label(ts[i]),
-        takeId: ts[i].id, take: ts[i].body, replacedId: ts[i - 1].id, replaced: ts[i - 1].body, scene: sceneOf(ts[i]) });
+        takeId: ts[i].id, take: ts[i].body, replacedId: ts[i - 1].id, replaced: ts[i - 1].body, scene: sceneOf(live, ts[i]) });
   }
   const byId = new Map(live.map((r) => [r.id, r]));
   for (const s of stopped) {
     const r = s.replaced ? byId.get(s.replaced) : undefined;
-    if (!r || !String(s.body).trim()) continue;
+    if (!r) continue;
     push({ kind: 'stopped', story: s.story_id, owner: s.owner, model: s.model, slot: label(r),
-      takeId: s.generation_id, take: s.body, replacedId: r.id, replaced: r.body, scene: sceneOf(r) });
+      takeId: s.generation_id, take: s.body, replacedId: r.id, replaced: r.body, scene: sceneOf(live, r) });
   }
   // THE CONTROL: the replaced take of the next pair in the same tale, from ANOTHER SCENE. A
   // neighbouring slot is not unrelated: the next passage carries the last one's moment on.
@@ -83,6 +85,15 @@ export function pairsOf(rows: Passage[], stopped: Stopped[]): Pair[] {
     const same = out.filter((q) => q.story === p.story && sceneKey(q.slot) !== sceneKey(p.slot));
     const after = same.find((q) => out.indexOf(q) > i) ?? same[0];
     return { ...p, control: after?.replaced ?? null, controlSlot: after?.slot ?? null };
+  });
+}
+
+/** SCENE for every model take, rerolled or not: what a take copies from the scene before it. */
+export function sceneEchoes(rows: Passage[]) {
+  const live = written(rows);
+  return live.filter((r) => r.author === 'model').map((r) => {
+    const scene = sceneOf(live, r);
+    return { owner: r.owner, model: r.model, share: echo(r.body, scene).echoShare, phrases: grams(r.body).length };
   });
 }
 
@@ -147,6 +158,14 @@ if (CHECK) {
      ps.filter((p) => p.story === 's1').every((p) => p.control != null && p.controlSlot!.split(':')[0] !== p.slot.split(':')[0]));
   ok('DEDUPE: a copied tale\'s rerolls are counted once', ps.filter((p) => p.take === 'take b1 body').length === 1);
 
+  // SCENE OVER EVERY TAKE, not only rerolls: a first take that copies the scene is scored too.
+  const echoes = sceneEchoes([...rows, row('f0', 9, 0, { body: 'the writer opens' })]);
+  ok('SCENE-ALL: every model take is scored against its scene, the first take of a slot included',
+     echoes.length === rows.filter((r) => r.author === 'model').length + 1 && echoes.at(-1)!.share === 0);
+  const W = 'Mara counted the steps down to the cellar before the lamp failed.';
+  ok('SCENE-ALL-COPY: a first take that copies the scene is all echo (1)',
+     sceneEchoes([row('w0', 1, 0, { selected: 1, author: 'human', body: W }), row('w1', 2, 0, { body: W })])[0].share === 1);
+
   // OUTSIDE ITS HOME: the fixture book was not written for this. Its passages are distinct prose, so
   // read as rerolls of each other they repeat nothing, and read as their own scene they echo nothing.
   const fx = input.passages.map((p) => p.body);
@@ -189,12 +208,8 @@ if (process.argv[2] === 'show') {
   // Pairs to read by eye: the detector checked against takes it was not written for.
   const k = Math.max(1, Number(process.argv[3]) || 10);
   const words = (t: string, n = 60) => t.replace(/\s+/g, ' ').trim().split(' ').slice(0, n).join(' ');
-  const shared = (p: typeof pairs[number]) => {
-    const sc = new Set(p.scene.flatMap(grams)), old = new Set(grams(p.replaced).filter((g) => !sc.has(g)));
-    return [...new Set(grams(p.take).filter((g) => old.has(g)))];
-  };
   const print = (p: typeof pairs[number]) => console.log(`\n  ${p.kind} ${p.owner} ${p.slot}  rejected ${p.rejected}  scene ${p.sceneShare}`
-    + `\n    TAKE      ${words(p.take)}\n    REPLACED  ${words(p.replaced)}\n    SHARED    ${shared(p).slice(0, 8).join(' | ')}`);
+    + `\n    TAKE      ${words(p.take)}\n    REPLACED  ${words(p.replaced)}\n    SHARED    ${p.shared.slice(0, 8).join(' | ')}`);
   const flagged = pairs.filter((p) => p.rejected >= FLAG).sort((a, b) => b.rejected - a.rejected);
   const clean = pairs.filter((p) => p.rejected < FLAG);
   console.log(`\n  FLAGGED (REJECTED >= ${FLAG}): the ${k} highest of ${flagged.length}`);
@@ -221,12 +236,12 @@ const line = (name: string, ps: typeof pairs) => {
     + `${pct(ps.map((p) => +p.sameOpening), 1).padStart(4)}`);
 };
 console.log(`\n  reroll echo — ${LIVE}, read-only. ${rows.length} passages, ${stops.length} stopped takes`
-  + `${hasStops ? '' : ' (no stopped_takes table yet)'}. ${scored.length - pairs.length} short takes left out.`);
+  + `${hasStops ? '' : ' (no stopped_takes table yet)'}. ${scored.length - pairs.length} short takes left out.`
+  + `\n  ${pairs.length} pairs from ${new Set(pairs.map((p) => p.story + ' ' + p.slot)).size} rerolled slots.`);
 console.log(`\n  ${''.padEnd(46)} ${'pairs'.padStart(5)}   REJECTED (vs the take replaced)   CONTROL (vs another scene)      SCENE              SAME`);
 console.log(`  ${''.padEnd(46)} ${''.padStart(5)}   med   p90   >=.1 >=.25   med   p90   >=.1 >=.25   med   p90   >=.1   OPENING`);
 const by = (key: (p: typeof pairs[number]) => string, min = 1) => {
-  const g = new Map<string, typeof pairs>();
-  for (const p of pairs) g.set(key(p), [...(g.get(key(p)) ?? []), p]);
+  const g = Map.groupBy(pairs, key);
   for (const [k, ps] of [...g].sort((a, b) => b[1].length - a[1].length)) if (ps.length >= min) line(k, ps);
 };
 line('all', pairs);
@@ -238,3 +253,17 @@ console.log(`\n  A pair is a reroll: a take and the take it replaced. Shares are
   + `\n  phrases. REJECTED leaves out phrases the scene already had; CONTROL is the same measure against a take`
   + `\n  from another scene of the tale, so it shows what unrelated takes share by chance. SAME OPENING: the`
   + `\n  take starts with the replaced take's first five narration words. Models with 10+ pairs.\n`);
+
+// SCENE OVER EVERY TAKE: the first take of a slot as well as each reroll.
+const all = sceneEchoes(rows).filter((t) => t.phrases >= MIN_PHRASES);
+const sceneLine = (name: string, ts: typeof all) => {
+  const sh = ts.map((t) => t.share);
+  console.log(`  ${name.padEnd(46)} ${String(ts.length).padStart(5)}   ${q(sh, .5).toFixed(3)} ${q(sh, .9).toFixed(3)} `
+    + `${pct(sh, .1).padStart(4)} ${pct(sh, .25).padStart(4)}`);
+};
+console.log(`  SCENE, EVERY MODEL TAKE                        takes   med   p90   >=.1 >=.25`);
+sceneLine('all', all);
+for (const [k, ts] of [...Map.groupBy(all, (t) => t.owner)].sort((a, b) => b[1].length - a[1].length)) sceneLine(k, ts);
+for (const [k, ts] of [...Map.groupBy(all, (t) => (t.model ?? '(no generation row)').replace(/^featherless:/, 'fl:').slice(0, 46))]
+  .sort((a, b) => b[1].length - a[1].length)) if (ts.length >= 10) sceneLine(k, ts);
+console.log();

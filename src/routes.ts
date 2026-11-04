@@ -1514,7 +1514,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     const stopped = c.signal?.aborted || e?.name === 'AbortError';
     const genId = db.logGeneration({ storyId: v.id, model: using, role, manifest,
       error: stopped ? 'stopped by the writer' : e?.message, latencyMs: Date.now() - t0 });
-    if (stopped) return { aborted: true, manifest, genId };
+    if (stopped) return { aborted: true, manifest, genId, storyId: v.id };
     return { error: e?.message ?? 'generation failed', manifest };
   }
 }
@@ -5322,7 +5322,7 @@ export const routes: Record<string, Handler> = {
         let shown = '';
         const r: any = await generate(c, c.body.mode ?? 'direct', c.body.directive, 'prose',
           (d) => { shown += d; send({ d }); });
-        if (r?.aborted) db.keepStopped(r.genId, c.body.storyId, c.body.regenerateOf, shown);
+        if (r?.aborted) db.keepStopped(r.genId, r.storyId, c.body.regenerateOf, shown);
         return r;
       } }
     : generate(c, c.body.mode ?? 'direct', c.body.directive),

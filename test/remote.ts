@@ -1919,12 +1919,27 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
   // Stopped before a word arrived: nothing to keep.
   const ac2 = new AbortController();
   ac2.abort();
-  const c2 = ctx(me, { storyId: story.id, mode: 'continue', stream: true });
+  const c2 = ctx(me, { storyId: story.id, mode: 'continue', stream: true, regenerateOf: first.last.passageId });
   c2.signal = ac2.signal;
   script.push('overcap');
   const l2 = await (await routes['POST /api/generate'](c2)).__stream(() => {});
   assert.ok(l2.aborted, 'stopped at once');
   assert.strictEqual(kept().length, 1, 'STOPPED-EMPTY: a take stopped before its first word keeps nothing');
+
+  // Only a reroll is kept, and only of a take in this tale: a stopped Continue, or a reroll naming a
+  // passage that is not this tale's, keeps no text.
+  const stopAt = async (extra: any) => {
+    const ac3 = new AbortController();
+    const c3 = ctx(me, { storyId: story.id, mode: 'continue', stream: true, ...extra });
+    c3.signal = ac3.signal;
+    script.push('overcap');
+    let k = 0;
+    return (await routes['POST /api/generate'](c3)).__stream((o: any) => { if (o?.d && ++k === 10) ac3.abort(); });
+  };
+  assert.ok((await stopAt({})).aborted, 'a plain Continue, stopped');
+  assert.strictEqual(kept().length, 1, 'STOPPED-REROLL-ONLY: a stopped Continue keeps nothing');
+  assert.ok((await stopAt({ regenerateOf: 'p-not-in-this-tale' })).aborted, 'a reroll of a foreign id, stopped');
+  assert.strictEqual(kept().length, 1, 'STOPPED-OWN-TALE: a reroll naming another tale\'s take keeps nothing');
 
   // The tale's deletion takes its stopped takes with it.
   db.delStory(story.id);

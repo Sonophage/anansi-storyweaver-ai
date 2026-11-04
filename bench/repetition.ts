@@ -104,7 +104,6 @@ export function repetition(text: string) {
 export const runaway = (m: ReturnType<typeof repetition>) =>
   m.charRun >= 12 || m.wordRun >= 6 || m.phraseShare >= 0.15;
 
-// `echo` lives in bench/echo.ts, shared with bench/reroll-echo.ts.
 const namedHit = (text: string) => NAMED.some((p) => text.toLowerCase().includes(p));
 
 /** The scratch copy. `VACUUM INTO` over a read-only connection: SQLite writes a fresh, consistent
