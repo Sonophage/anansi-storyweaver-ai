@@ -364,6 +364,9 @@ export function expandAsked(raws: unknown, tale: Tale): any[] {
 
 /** The words a request to change a thread is made with, as the contract's examples say them. */
 const ASKS = /\b(fill|write|add|change|update|make|give|set|put|flesh|expand|complete|rewrite|edit|fix)\b/i;
+/** Whether the writer's message asks for a change, by `ASKS`: also what the answer reads to say a
+ *  request was only offered (`talkReply` in routes.ts). */
+export const asksForChange = (said: string) => ASKS.test(said);
 
 /** A REQUEST THE MODEL SENT BACK AS AN OFFER. Seraphine, 2026-11-04: asked "fill out the seraphine
  *  card and fill her pockets", the real model answered with no change and one entry naming her, so
@@ -378,7 +381,7 @@ const ASKS = /\b(fill|write|add|change|update|make|give|set|put|flesh|expand|com
  *  found chalked in the Workbench; then read which thread the conversation is on. */
 export function entriesAsked(entries: unknown, tale: Tale, said: string): { asked: any[]; offered: any[] } {
   const list = (Array.isArray(entries) ? entries : []) as any[];
-  if (!ASKS.test(said)) return { asked: [], offered: list };
+  if (!asksForChange(said)) return { asked: [], offered: list };
   const heard = new Set(words(said));
   const asked: any[] = [], offered: any[] = [];
   for (const e of list) {

@@ -20,7 +20,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
-import { checkAsked, expandAsked, entriesAsked, checkUndo, undoFor, wordsFor, textsOf, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
+import { checkAsked, expandAsked, entriesAsked, asksForChange, checkUndo, undoFor, wordsFor, textsOf, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
@@ -1102,16 +1102,26 @@ const SETUP_THREADS = 30, SETUP_POCKETS = 4;
 /*  NOTHING DONE IS SAID FIRST (Seraphine, 2026-11-03). The reply is written before the changes, so
  *  the model says "Done." before any of them is checked; every one failed, and the answer still
  *  opened "Done. She is fully fleshed out now". With changes asked and none done, the answer opens
- *  by saying nothing was changed, the lines why follow, and a "Done" the reply opens with is taken
- *  off. ponytail: only a leading "Done" is caught; a claim elsewhere in the reply stays, under the
- *  line that says nothing was changed. Trigger: a reply that claims a change in other words is read
- *  as done; then mark the reply as Anansi's words under the line. */
-const talkReply = (reply: unknown, notDone: { said: string; why: string }[], searchFailed: string | null, done = 1) => {
+ *  by saying nothing was changed, the lines why follow, and the claim the reply opens with is taken
+ *  off. AND WHAT WAS ONLY OFFERED (Seraphine, 2026-11-04): asked to fill her card, the answer was
+ *  chalked and the reply opened "I have filled out the Seraphine card". With nothing done, what a
+ *  request chalked instead (`offered`) is said first, as offered and not written.
+ *  ponytail: only a claim the reply opens with is caught, "Done" or "I have" with a verb of changing
+ *  in its first sentence; a claim elsewhere stays, under the line that says what was done. Trigger: a
+ *  reply that claims a change in other words is read as done; then mark the reply as Anansi's words
+ *  under the line. */
+const CLAIMED = [/^(?:all\s+)?done\b[\s.!:,;\u2014\u2013-]*/i,
+  /^i(?:'ve|\u2019ve|\s+have)?\s+(?:now\s+|just\s+)?(?:filled|updated|added|written|wrote|made|changed|created|set)\b[^.!?\n]*[.!?]?\s*/i];
+const talkReply = (reply: unknown, notDone: { said: string; why: string }[], searchFailed: string | null, done = 1,
+                   offered: string[] = []) => {
   const lines = notDone.map((x) => `Not done. ${x.said}: ${x.why}.`).join('\n');
-  const none = notDone.length > 0 && done === 0;
   const said = String(reply ?? '').trim();
-  return (none ? ['Nothing was changed.\n' + lines, said.replace(/^(?:all\s+)?done\b[\s.!:,;\u2014\u2013-]*/i, '')]
-    : [said, lines]).concat(searchFailed ? `The web search failed (${searchFailed}), so this answer does not use the web.` : '')
+  const bare = CLAIMED.reduce((t, re) => t.replace(re, ''), said);
+  const head = done > 0 ? [] : [notDone.length ? 'Nothing was changed.\n' + lines : '',
+    offered.length ? 'Offered on the Workbench, not written:\n' + offered.join('\n') : '',
+    !notDone.length && !offered.length && bare !== said ? 'Nothing was changed.' : ''].filter(Boolean);
+  return (head.length ? [...head, bare] : [said, lines])
+    .concat(searchFailed ? `The web search failed (${searchFailed}), so this answer does not use the web.` : '')
     .filter(Boolean).join('\n\n');
 };
 
@@ -4670,6 +4680,9 @@ export const routes: Record<string, Handler> = {
     // A REQUEST SENT BACK AS AN OFFER is done as asked, with the changes below (`entriesAsked`):
     // chalked, it was a second press for a thing the writer had already said (ADR 0007).
     const { asked, offered } = entriesAsked(r.data.entries, taleOf(v.id), said);
+    // What was chalked from them, a line each, for the answer to say first when a request was only
+    // offered (`talkReply`).
+    const chalked: string[] = [];
     // AN OFFER WITH POCKETS (2026-11-04): about a thread the tale has, each pocket is one chalk in its
     // own room, as the entry's own `field` is; a new thread is one card, its pockets riding as its
     // rooms (one per room its kind has, as the hem's do) and written when it is sewn in.
@@ -4703,9 +4716,11 @@ export const routes: Record<string, Handler> = {
           body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
           activation: e.activation, field, target };
         if (!cls.entry_id) { card = { ...one, rooms: {} }; continue; }
-        if (db.addProposal(v.id, one)) proposed++;
+        if (db.addProposal(v.id, one)) { proposed++; chalked.push(`${one.title}: ${field ? field.replace(/_/g, ' ') : 'its description'}`); }
       }
-      if (card && db.addProposal(v.id, { ...card, rooms: Object.keys(card.rooms).length ? card.rooms : undefined })) proposed++;
+      if (card && db.addProposal(v.id, { ...card, rooms: Object.keys(card.rooms).length ? card.rooms : undefined })) {
+        proposed++; chalked.push(`${card.title}: a new ${card.entryType}`);
+      }
     }
 
     // #97 · WHAT THE WRITER ASKED FOR IS DONE NOW (ADR 0007). Each change is checked against the
@@ -4776,7 +4791,7 @@ export const routes: Record<string, Handler> = {
       changes.push({ words: aim.to === 'world' ? `${wordsFor(k.change)} In ${world!.title}, for every tale that follows it.`
         : wordsFor(k.change), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change) });
     }
-    const answer = [talkReply(r.data.reply, notDone, searchFailed, changes.length),
+    const answer = [talkReply(r.data.reply, notDone, searchFailed, changes.length, asksForChange(said) ? chalked : []),
       unsure.length ? askWhich(unsure, world!.title) : ''].filter(Boolean).join('\n\n');
     // KEPT: the writer's words and the answer they were shown, in this writer's session in this
     // tale (`db.talkSay`). `prompt` is exactly what was sent, for the page's Copy prompt; it holds

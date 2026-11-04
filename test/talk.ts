@@ -1749,6 +1749,22 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.ok(!back.error, back.error);
     assert.strictEqual(room(her.id, 'appearance').length, 0, 'TALK-ASKED-ENTRY: its Undo takes the pocket away');
   }
+  // ASKED, AND ONLY CHALKED: the answer says so first, and the reply's own claim that it filled her
+  // in is taken off. Asked by pronoun, the request cannot be told from an offer, so it is chalked.
+  {
+    const her = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'Seraphine');
+    const fill = await say('CHANGE-FILLCARD: ok now fill out her card please');
+    assert.ok(!fill.error, fill.error);
+    assert.deepStrictEqual(fill.changes, [], '  nothing done');
+    assert.strictEqual(room(her.id, 'appearance').length, 0, '  her appearance is not written');
+    assert.match(fill.reply, /^Offered on the Workbench, not written:\n.*Seraphine.*appearance/i,
+      `TALK-OFFERED-SAID: the answer opens by saying what was only offered:\n${fill.reply.slice(0, 200)}`);
+    assert.ok(!/I have filled out/i.test(fill.reply), `TALK-OFFERED-SAID: and the claim that it was filled is gone:\n${fill.reply.slice(0, 300)}`);
+    assert.match(fill.reply, /Let me know if you would like any changes/, '  the rest of the reply is kept');
+    for (const p of (db.proposalsOf(tale.id) as any[]).filter((p) => p.title === 'Seraphine')) db.setProposalStatus(tale.id, p.id, 'rejected');
+  }
+  ok('a request that was only chalked says so first, and the reply does not claim it was written');
+
   // And the contract says which is which, in one sentence beside the rule (2026-11-04).
   {
     const { TALK_CONTRACT: TC } = await import('../src/prompts.ts');
