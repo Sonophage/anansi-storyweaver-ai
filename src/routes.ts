@@ -1532,10 +1532,20 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
       // THE ENDING REACHES THE PAGE A SENTENCE AT A TIME. Held to its word stop it is trimmed to its
       // last sentence, and words the page had already shown then vanished when the passage was saved
       // (seen live, 2026-11-02). Whole sentences only, and the rest once the model ends on its own.
-      let first = true, held = '';
+      // THE SEAM IS SAVED AS THE PAGE SHOWED IT. `partial` and `ending` are both trimmed, so a stream
+      // that ended on a paragraph break, or an ending that opened on one, showed a break on the page
+      // and saved a space (seen live on Ornith, 2026-11-04: page and saved passage differed). So the
+      // whitespace the page got at the join is recorded here and is what the saved passage uses.
+      let first = true, held = '', seam: string | null = null;
       const emit = (t: string) => {
         if (!onDelta || !t) return;
-        if (first) { first = false; if (!/\s$/.test(tail) && !/^\s/.test(t) && joins(t.trimStart())) onDelta(' '); }
+        if (first) {
+          first = false;
+          const space = !/\s$/.test(tail) && !/^\s/.test(t) && joins(t.trimStart()) ? ' ' : '';
+          if (space) onDelta(space);
+          // `tail` is the last thing the page was sent, so its trailing whitespace is the page's.
+          seam = (tail.match(/\s*$/)?.[0] ?? '') + space + (t.match(/^\s*/)?.[0] ?? '');
+        }
         onDelta(t);
       };
       try {
@@ -1552,7 +1562,7 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
         const ending = e.finish === 'length' ? trimToSentence(clean(e.prose)) : clean(e.prose);
         if (e.finish !== 'length') emit(held);
         if (!ending) throw new Error('no ending');
-        prose = partial + joins(ending) + ending;
+        prose = partial + (seam ?? joins(ending)) + ending;
         cut = false;
         landing = { at: target, ending: (ending.match(/\S+/g) ?? []).length };
       } catch (err: any) {

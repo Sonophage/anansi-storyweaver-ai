@@ -22,6 +22,8 @@ delete process.env.ANANSI_REROLL_AWAY;
 let calls: { seed: number; stream: boolean }[] = [];
 /** What the fake answers, one per prose call; the last one repeats when the queue runs dry. */
 let answers: string[] = [];
+/** What the landing's ending says. A real model may open it on a paragraph break. */
+let endingText = 'And there it ends.';
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -35,7 +37,7 @@ const srv = createServer((req, res) => {
     // The landing's ending: the passage so far comes back as the model's own turn.
     const ending = (b.messages?.length ?? 0) > 2;
     if (!ending) calls.push({ seed: b.seed, stream: !!b.stream });
-    const text = ending ? 'And there it ends.' : answers.length > 1 ? answers.shift()! : answers[0];
+    const text = ending ? endingText : answers.length > 1 ? answers.shift()! : answers[0];
     if (!b.stream) return send({ choices: [{ message: { content: text }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 200, completion_tokens: 40 } });
     // A word a frame, a few milliseconds apart, as a real stream arrives. STALL sends three words
@@ -44,7 +46,7 @@ const srv = createServer((req, res) => {
     const stall = text.startsWith('STALL'), split = text.startsWith('SPLIT');
     // SPLIT sends three characters a frame, so a word arrives in pieces, as tokens do.
     const words = split ? text.slice(5).trim().match(/[\s\S]{1,3}/g) ?? []
-      : (stall ? text.slice(5).trim() : text).match(/\S+\s*/g) ?? [];
+      : (stall ? text.slice(5).trim() : text).match(/\s*\S+\s*/g) ?? [];
     let i = 0, gone = false;
     res.on('close', () => { gone = true; });
     const next = () => {
@@ -59,6 +61,49 @@ const srv = createServer((req, res) => {
 });
 await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
 process.env.ANANSI_LLAMA = `http://127.0.0.1:${(srv.address() as any).port}`;
+
+/* A FAKE FEATHERLESS, because both writers are on it and a gate restart there is a second request.
+ * It holds ONE stream at a time, as the plan does: a call that arrives while another is still open is
+ * a 429, the way the real one refuses a second concurrent call. `flScript` can also force a 429. The
+ * backoff is shrunk so a 429 costs milliseconds here; live it is 2, 6 and 12 seconds. */
+let flScript: string[] = [];
+let flCalls: { status: number; seed: number }[] = [];
+let flOpen = 0;
+const fl = createServer((req, res) => {
+  let raw = '';
+  req.on('data', (d) => { raw += d; });
+  req.on('end', () => {
+    const b = JSON.parse(raw || '{}');
+    const json = (status: number, o: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
+    if (req.url === '/v1/tokenize') return json(200, { count: 200 });
+    if (req.url !== '/v1/chat/completions') return json(404, { error: { message: 'no route' } });
+    if ((b.messages?.length ?? 0) > 2) return json(200, { choices: [{ message: { content: 'And there it ends.' }, finish_reason: 'stop' }] });
+    const busy = flOpen > 0 || flScript[0] === '429';
+    if (flScript[0] === '429') flScript.shift();
+    flCalls.push({ status: busy ? 429 : 200, seed: b.seed });
+    if (busy) return json(429, { error: { message: 'concurrency limit' } });
+    const text = flScript.length > 1 ? flScript.shift()! : flScript[0];
+    flOpen++;
+    let closed = false;
+    res.on('close', () => { if (!closed) { closed = true; flOpen--; } });
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    const words = text.match(/\S+\s*/g) ?? [];
+    let i = 0;
+    const next = () => {
+      if (res.destroyed) return;
+      if (i < words.length) { res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: words[i++] } }] })}\n\n`); setTimeout(next, 2); return; }
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\n`);
+      res.end('data: [DONE]\n\n');
+    };
+    next();
+  });
+});
+await new Promise<void>((r) => fl.listen(0, '127.0.0.1', r));
+process.env.ANANSI_FEATHERLESS_URL = `http://127.0.0.1:${(fl.address() as any).port}/v1`;
+const { writeFileSync } = await import('node:fs');
+writeFileSync('/tmp/anansi-away.key', 'fl-away-test-key\n');
+process.env.ANANSI_FEATHERLESS_KEY_FILE = '/tmp/anansi-away.key';
+process.env.ANANSI_FEATHERLESS_BACKOFF_MS = '10,10,10';
 
 // Imported AFTER the host is set: llama.ts reads it once, at module load.
 const db = await import('../src/db.ts');
@@ -236,9 +281,63 @@ const kept = (id: string) => {
   assert.ok(land.page.startsWith('Seraphine') && land.page.trimEnd().endsWith('And there it ends.'),
     `GATE-LAND: the new take streams and lands with its ending (${land.page})`);
   assert.strictEqual(land.last.prose.replace(/\s+/g, ' '), land.page.replace(/\s+/g, ' ').trim(), 'GATE-LAND: and what landed is what the page showed');
+  // THE SEAM. Live on Ornith (2026-11-04) one landed reroll saved text the page had not shown. A
+  // stream that ends on a paragraph break, or an ending that opens on one, put a break on the page
+  // and a space in the saved passage. With the switch off as well: it is the landing's, not the gate's.
+  for (const sw of ['0', '1']) {
+    process.env.ANANSI_REROLL_AWAY = sw;
+    for (const [tailWs, lead] of [['', '\n\n'], ['\n\n', ''], ['', '']]) {
+      endingText = lead + 'And there it ends.';
+      answers = [OTHER + ' ' + 'on and on. '.repeat(15) + 'last one.' + tailWs + 'and more. '.repeat(20)];
+      const seam = await withSlider();
+      assert.strictEqual(seam.last.prose, seam.page.trim(),
+        `LAND-SEAM (switch ${sw}, stream ends ${JSON.stringify(tailWs)}, ending opens ${JSON.stringify(lead)}): the saved passage is the text the page showed`);
+    }
+  }
+  endingText = 'And there it ends.';
+  process.env.ANANSI_REROLL_AWAY = '1';
   ok('a streamed reroll holds its opening, asks again on a same one before the page sees it, and Stop and landing still work');
+}
+
+// ---- ON FEATHERLESS: a restart is a second request, and Featherless holds one at a time.
+{
+  process.env.ANANSI_REROLL_AWAY = '1';
+  const REMOTE = 'featherless:fake/Away-Model-heretic';
+  db.addToShortlist(me, REMOTE, 32768, "doesn't weave", 1, false);
+  const rs = db.createStory(me, { title: 'Away, remote' }) as any;
+  db.updateStory(rs.id, { model: REMOTE });
+  db.addPassage({ ...rs, storyId: rs.id, body: 'The lower tiers still pulse.' });
+  const rfresh = () => { const t = db.addPassage({ ...rs, storyId: rs.id, body: REPLACED, author: 'model' }) as any; return String(t?.id ?? t); };
+  const remote = async () => {
+    flCalls = [];
+    const c = ctx({ storyId: rs.id, mode: 'continue', regenerateOf: rfresh(), stream: true });
+    const page: string[] = [];
+    const h = await routes['POST /api/generate'](c) as any;
+    const last = await h.__stream((o: any) => { if (o?.d) page.push(o.d); });
+    return { last, page: page.join('') };
+  };
+
+  flScript = [SAME, OTHER];
+  const g = await remote();
+  assert.ok(!g.last.error, g.last.error);
+  assert.strictEqual(g.page, OTHER, `REMOTE-GATE: on Featherless too the page sees only the new take (${g.page})`);
+  const served = flCalls.filter((x) => x.status === 200);
+  assert.strictEqual(served.length, 2, `REMOTE-COST: a restart is one more Featherless stream (${JSON.stringify(flCalls)})`);
+  if (process.env.AWAY_SHOW) console.log('    REMOTE-GATE calls', JSON.stringify(flCalls));
+  assert.strictEqual(flOpen, 0, 'REMOTE-CLOSED: the aborted stream is closed, so Featherless is not left holding it');
+
+  flScript = [SAME, '429', '429', OTHER];
+  const busy = await remote();
+  assert.strictEqual(busy.page, OTHER, `REMOTE-BUSY: a 429 on the restart is waited out on the backoff, then the new take streams (${busy.last.error ?? busy.page})`);
+  assert.deepStrictEqual(flCalls.map((x) => x.status), [200, 429, 429, 200], 'REMOTE-BUSY: two refusals, then the stream');
+
+  flScript = [SAME, '429', '429', '429', '429', OTHER];
+  const out = await remote();
+  assert.strictEqual(out.last.error, 'Featherless is busy, try again', `REMOTE-BUSY-OUT: past the backoff the reroll ends as a busy one does (${out.last.error})`);
+  assert.strictEqual(out.page, '', 'REMOTE-BUSY-OUT: and the page never saw the copied opening');
+  ok('on Featherless a restart is one more stream; a 429 on it is waited out, and past the backoff it fails as busy');
 }
 delete process.env.ANANSI_REROLL_AWAY;
 
 console.log(`\n${n} checks passed`);
-srv.close();
+for (const x of [srv, fl]) { x.closeAllConnections(); x.close(); }
