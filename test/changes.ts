@@ -832,6 +832,30 @@ ok('TALK-SEES-OWN: Talk is shown the tale\'s rules, instructions and strings by 
   assert.strictEqual(ch.talesOwn(whole), '', 'nothing to show is no line');
 });
 
+// TALK DOES NOT RENAME A THREAD OR CHANGE ITS KIND, and a change that tries is told so rather than
+// half done. The live answer on The Nun (a lore thread the writer wanted as a character called
+// Seraphine) was four changes to The Nun with no text; the grammar put `title` and `type` before
+// `text`, which is where a rename would have gone.
+ok('ASKED-RENAME: a change that renames a thread or changes its kind is refused by name, and its text still lands', () => {
+  const out = ch.expandAsked([{ op: 'thread.set', thread: 'Ring Law', title: 'The Ring', type: 'character', text: 'A ring of law.' }], tale);
+  const checked = out.map((r: any) => ch.checkAsked(r, tale));
+  const no = checked.find((c: any) => !c.ok);
+  assert.ok(no, `ASKED-RENAME: the rename is refused (${JSON.stringify(checked)})`);
+  assert.match(no.why, /does not rename a thread or change its kind/, `ASKED-RENAME: and says why (${no.why})`);
+  assert.match(no.why, /Ring Law's card/, 'ASKED-RENAME: and where the writer can do it');
+  assert.ok(checked.some((c: any) => c.ok && c.change.text === 'A ring of law.'), 'ASKED-RENAME: the text it carried is still done');
+  // The thread's own name and kind sent back with a change are no rename.
+  const same = ch.expandAsked([{ op: 'thread.set', thread: 'ring law', title: 'Ring Law', type: 'item', text: 'Old.' }], tale);
+  assert.deepStrictEqual(same.map((r: any) => r.op), ['thread.set'], 'ASKED-RENAME: the same name and kind is no rename');
+  // The live shape: the name and kind and nothing else. One line, the rename's, not one more for no text.
+  const bare = ch.expandAsked([{ op: 'thread.set', thread: 'Ring Law', title: 'The Ring', type: 'character' }], tale);
+  assert.deepStrictEqual(bare.map((r: any) => r.op), ['thread.rename'], `ASKED-RENAME: a rename alone is the rename alone (${JSON.stringify(bare)})`);
+  assert.deepStrictEqual(ch.expandAsked([{ op: 'thread.set', thread: 'Ring Law', title: 'The Ring' }], tale).map((r: any) => r.op),
+    ['thread.rename'], 'ASKED-RENAME: a new name alone is a rename');
+  assert.deepStrictEqual(ch.expandAsked([{ op: 'thread.set', thread: 'Ring Law', type: 'lore' }], tale).map((r: any) => r.op),
+    ['thread.rename'], 'ASKED-RENAME: and so is a new kind alone');
+});
+
 // ONE-SIDED PAIR, the model's half. An operation on the list that the contract never describes is
 // one the model is allowed to send and never told how: it is on the wire and never used.
 const { TALK_CONTRACT } = await import('../src/prompts.ts');

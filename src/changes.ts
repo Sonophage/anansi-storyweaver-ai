@@ -259,6 +259,9 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   if (raw && typeof raw.text === 'string') raw = { ...raw, text: raw.text.replace(LINK, '').trim() };
   const op = String(raw?.op ?? '');
   const said = saidOf(raw);
+  // Made only by `expandAsked`, from a change that named a thread by another name or kind.
+  if (op === 'thread.rename') return { ok: false, said: raw.title ? `Rename ${raw.thread} to ${raw.title}` : `Make ${raw.thread} ${an(String(raw.type))}`,
+    why: `Talk does not rename a thread or change its kind. Do it on ${raw.thread}'s card, then ask again` };
   if (!(ASKED as readonly string[]).includes(op)) return { ok: false, said, why: NOT_TALK };
   if (op === 'thread.new') {
     const n = newThread(raw, tale);
@@ -294,7 +297,7 @@ export function checkAsked(raw: any, tale: Tale): Checked {
  *  of Seraphine on the real model named the voice there. And A NEW THREAD SENT ONCE PER POCKET is one
  *  new thread, with the text sent with no pocket (or `none`) as its Always true, then one thread.set
  *  per pocket on it, in the order sent, each checked against the tale as the one before left it. */
-export function expandAsked(raws: unknown, _tale: Tale): any[] {
+export function expandAsked(raws: unknown, tale: Tale): any[] {
   const seen = new Set<string>(), list: any[] = [];
   for (const raw of (Array.isArray(raws) ? raws : []) as any[]) {
     const key = JSON.stringify(raw);
@@ -318,9 +321,20 @@ export function expandAsked(raws: unknown, _tale: Tale): any[] {
           room: roomOf(p?.room), text: p?.text, ...(raw.to ? { to: raw.to } : {}) })) : [];
     if (op === 'thread.set') {
       const room = pocketOf(raw);
-      const { field: _f, ...rest } = raw;
+      const { field: _f, title: rename, type: kind, ...rest } = raw;
+      // A NAME OR A KIND THAT IS NOT THE THREAD'S is a rename, which Talk does not do: it is refused
+      // by name (`checkAsked`), and the text the change carried is still done.
+      const t = threadNamed(tale, raw.thread).hit;
+      const renamed = !!t && !!norm(rename) && norm(rename) !== norm(t.title);
+      const rekind = !!t && !!String(kind ?? '').trim() && String(kind).trim() !== t.entryType;
+      if (renamed || rekind) out.push({ op: 'thread.rename', thread: t!.title,
+        ...(renamed ? { title: String(rename).trim() } : {}), ...(rekind ? { type: String(kind).trim() } : {}) });
       // A change that only carries pockets is those pockets, not an empty change to its Always true.
-      if (!each.length || String(raw.text ?? '').trim()) out.push(room ? { ...rest, room } : raw);
+      // A change that only renames is the rename, not an empty change to its Always true too.
+      const only = !String(raw.text ?? '').trim() && (each.length > 0 || renamed || rekind);
+      // Its name and kind are left on it when they are the thread's own, for the words a refusal uses.
+      const base = renamed || rekind ? rest : { ...rest, ...(rename != null ? { title: rename } : {}), ...(kind != null ? { type: kind } : {}) };
+      if (!only) out.push(room ? { ...base, room } : base);
       out.push(...each);
       continue;
     }
