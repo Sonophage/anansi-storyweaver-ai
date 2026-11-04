@@ -1872,10 +1872,18 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.deepStrictEqual(rp.changes.map((x: any) => x.card.title), ['Seraphine'], `ASKED-ONLY: only her change is done (${rp.changes.map((x: any) => x.words).join(' | ')})`);
     assert.strictEqual((db.addonsOf(tale.id) as any[]).filter((a) => a.slot === 'promise').length, strBefore, 'ASKED-ONLY: no promise written');
     assert.strictEqual(own(), instrBefore, 'ASKED-ONLY: no instruction written');
-    const offers = (db.proposalsOf(tale.id) as any[]).filter((p) => rp.chalked.includes(p.id)).map((p) => p.title).sort();
+    const offers = (db.proposalsOf(tale.id) as any[]).filter((p) => rp.chalked.includes(p.id) && p.entry_type === 'string').map((p) => p.title).sort();
     assert.deepStrictEqual(offers, ["The Pistol's Secret", 'The Unwrapping'], `OFFERED-STRINGS: the two promises are offer cards (${offers})`);
-    assert.ok(rp.notDone.some((x: any) => /Seraphine's Directive/.test(x.said) && /did not ask/.test(x.why)),
-      `UNASKED-SAID: the instruction is not done, and the answer says why (${JSON.stringify(rp.notDone)})`);
+    // Seth, 2026-11-04: the Workbench holds the rest too. The instruction is an offer card; sewn in,
+    // it is written through Talk's own checks, with the text the writer left in the box.
+    const instr = (db.proposalsOf(tale.id) as any[]).find((p) => rp.chalked.includes(p.id) && p.entry_type === 'instruction');
+    assert.ok(instr, `OFFERED-INSTRUCTION: the unasked instruction is an offer card (${JSON.stringify(rp.notDone)})`);
+    assert.strictEqual(own(), instrBefore, '  and not written');
+    const sewn = await routes['POST /api/proposal'](ctxOf(tale.id, { id: instr.id, accept: true, body: 'Keep her slow, always.' })) as any;
+    assert.ok(!sewn.error, sewn.error);
+    const made = (db.addonsOf(tale.id) as any[]).find((a) => a.slot === 'instruction' && a.name === "Seraphine's Directive");
+    assert.strictEqual(made?.body, 'Keep her slow, always.', 'SEWN-INSTRUCTION: Sew it in writes it, with the edited text');
+    assert.strictEqual(db.proposal(tale.id, instr.id).status, 'accepted', '  and the card is decided');
     const pr = await say('CHANGE-ASKPROMISE: add a promise about the pistol');
     assert.strictEqual(pr.changes.length, 1, 'ASKED-PROMISE: a promise asked for by its kind is written');
     const her = (db.entriesOf(tale.id) as any[]).filter((e) => e.title === 'Seraphine');

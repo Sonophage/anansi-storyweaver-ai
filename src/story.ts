@@ -296,6 +296,8 @@ export function view(storyId: string, focusChapterId?: string) {
       target: p.target ?? null,
       // #73. One Workbench card per group, the narration line it came from, and a pocket's name.
       grp: p.grp ?? null, line: p.line ?? null, pocket: p.pocket ?? null,
+      // #152 · A Talk change held whole: its card has nowhere else to send it, so no Goes in.
+      held: !!p.change,
       // #114. The other pockets a tidy's merge replaces, so its card can say they go too.
       merges: (() => { try { return p.merges ? JSON.parse(p.merges) : null; } catch { return null; } })(),
       // The pockets a new thread arrives with, so its card can show them before it is sewn in.

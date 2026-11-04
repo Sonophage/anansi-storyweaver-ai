@@ -418,6 +418,9 @@ function migrate() {
   add('proposals', 'pocket', 'TEXT');
   // #114. The other pockets a tidy's merged pocket replaces (JSON, addon ids): sewn in, they go.
   add('proposals', 'merges', 'TEXT');
+  // #152 · A TALK CHANGE NOBODY ASKED FOR, held whole (a rule, an instruction, a tale's field, a scene,
+  // a thread's wake, Over time or retirement): Sew it in sends it through Talk's own checks.
+  add('proposals', 'change', 'TEXT');
   // #114. A pocket's kind and name beside its old text in the history, so a pocket since deleted
   // can be made again. Rows from before carry neither (`revertEntryField` says what it does then).
   add('entry_revisions', 'slot', 'TEXT');
@@ -4743,12 +4746,14 @@ export function addProposal(storyId: string, p: any) {
     // new thread (no `entry_id`): two scenes that meet the same new person are one offer, or
     // accepting both makes two threads with one name.
     .update([subject, p.entry_id ?? '', target, ...(p.target ? [p.target] : []),
+      // #152 · A held Talk change is its operation and what it names, as well as its title.
+      ...(p.change ? [String(p.change.op ?? ''), String(p.change.field ?? p.change.title ?? p.change.thread ?? '')] : []),
       ...(target === 'state' ? [String((p.keys ?? [])[0] ?? '')] : []),
       ...((target === 'body' && p.entry_id) || target.startsWith('room:') ? [String(p.chapterId ?? '')] : [])].join('\u0000')).digest('hex').slice(0, 32);
   try {
     q(`INSERT INTO proposals (id,story_id,chapter_id,entry_id,title,body,entry_type,keys,kind,delta,
-        field,activation,target,content_hash,source,rooms,grp,line,pocket,merges,created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        field,activation,target,content_hash,source,rooms,grp,line,pocket,merges,change,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(uid('pp-'), storyId, p.chapterId ?? null, p.entry_id ?? null, p.title, p.body,
         p.entryType ?? 'lore', JSON.stringify(p.keys ?? []), p.kind, p.delta ?? null,
         // A slot this proposal aims at, or null for the card's own body. Validated here rather
@@ -4766,6 +4771,7 @@ export function addProposal(storyId: string, p: any) {
         p.rooms && typeof p.rooms === 'object' ? JSON.stringify(p.rooms) : null,
         p.grp ?? null, p.line ?? null, p.pocket ?? null,
         Array.isArray(p.merges) && p.merges.length ? JSON.stringify(p.merges.map(String)) : null,
+        p.change && typeof p.change === 'object' ? JSON.stringify(p.change) : null,
         now());
     return true;
   } catch { return false; }   // unique index: already proposed, not an error

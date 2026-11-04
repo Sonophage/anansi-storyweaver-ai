@@ -4717,7 +4717,7 @@ export const routes: Record<string, Handler> = {
     const tale0 = taleOf(v.id), before = writerBefore(c.body.turns);
     const { asked, offered } = entriesAsked(r.data.entries, tale0, said, before);
     const notDone: { said: string; why: string }[] = [];
-    const raws: any[] = [], strings: any[] = [...((r.data as any).strings ?? [])];
+    const raws: any[] = [], strings: any[] = [...((r.data as any).strings ?? [])], held: any[] = [];
     // An unasked thread is offered as one card: a new one with its pockets riding on it, as an entry
     // carries them; a change to one the tale has, one offer per pocket.
     const fresh = new Map<string, any>();
@@ -4743,8 +4743,7 @@ export const routes: Record<string, Handler> = {
       else if (op === 'thread.set') offered.push({ title: raw.thread, keys: raw.keys,
         field: raw.room && raw.room !== 'none' ? raw.room : undefined, body: raw.text });
       else if (op === 'string.set') strings.push({ title: raw.title, body: raw.text, kind: raw.kind });
-      else notDone.push({ said: `${op.split('.')[0]} ${String(raw.title ?? raw.thread ?? raw.field ?? '').trim()}`.trim(),
-        why: 'you did not ask for it. Ask for it by name and it is done' });
+      else held.push(raw);
     }
     for (const x of strings) {
       if (!x?.title?.trim()) continue;
@@ -4757,6 +4756,17 @@ export const routes: Record<string, Handler> = {
     }
     // A REQUEST SENT BACK AS AN OFFER is done as asked, with the changes below (`entriesAsked`):
     // chalked, it was a second press for a thing the writer had already said (ADR 0007).
+    // #152 · ANYTHING ELSE UNASKED IS HELD WHOLE ON THE WORKBENCH (Seth, 2026-11-04: "teach the
+    // workbench"): checked now, so an offer the tale could never take is said not done instead, and
+    // checked again when it is sewn in, against the tale as it is then.
+    for (const raw of held) {
+      const k = checkAsked(raw, tale0);
+      if (!k.ok) { notDone.push({ said: k.said, why: k.why }); continue; }
+      const card = cardOf(k.change, {});
+      if (db.addProposal(v.id, { kind: 'changed', chapterId: v.currentChapter.id, entryType: String(raw.op).split('.')[0],
+          entry_id: (k.change as any).thread ?? null, title: card.label ? `${card.title}: ${card.label}` : card.title,
+          body: String((k.change as any).text ?? wordsFor(k.change)), delta: wordsFor(k.change), change: raw })) proposed++;
+    }
     // What was chalked from them, a line each, for the answer to say first when a request was only
     // offered (`talkReply`).
     const chalked: string[] = [];
@@ -5727,6 +5737,16 @@ export const routes: Record<string, Handler> = {
       // below used to test `entry_type` and `field` themselves, which meant two places decided
       // what a proposal DOES and nothing made them agree — and the dedupe is only correct if it
       // agrees. `db.proposalTarget` is the definition; this is the only other caller.
+      // #152 · A HELD TALK CHANGE is sewn in through Talk's own checks and writes, against the tale as
+      // it is now, with the text the writer left in the box.
+      if (c.body.accept && p.change) {
+        const raw = JSON.parse(p.change);
+        const k = checkAsked(c.body.body != null && 'text' in raw ? { ...raw, text: String(c.body.body) } : raw, taleOf(c.body.storyId));
+        if (!k.ok) return { error: `Not sewn in: ${k.why}.` };
+        if (!applyChange(c.body.storyId, c.owner, k.change)) return { error: 'Not sewn in: the tale refused it.' };
+        db.setProposalStatus(c.body.storyId, id, 'accepted');
+        continue;
+      }
       const target = db.proposalTarget(p);
       if (c.body.accept && target === 'state') {
         // A state is not an entry either. The chapter it comes into force in rides in `keys`, and

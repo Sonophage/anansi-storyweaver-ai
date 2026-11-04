@@ -4232,7 +4232,7 @@ function proposalCard(p, { foot = false } = {}) {
   // form reads them from there: a hand-written list on the screen drifts from the one the database
   // enforces. A kind with no slots yields no select.
   const onto = p.entryId ? (V.entries ?? []).find((x) => x.id === p.entryId) : null;
-  const canMove = !!onto && !['retire', 'state', 'string'].includes(p.entryType);
+  const canMove = !!onto && !p.held && !['retire', 'state', 'string'].includes(p.entryType);
   // NOT ALWAYS TRUE (#77): on a thread that exists only the writer changes it, and the server sews a
   // change aimed at it in as an Over time entry, so offering it here would offer the one place it
   // cannot land.
