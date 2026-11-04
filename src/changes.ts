@@ -359,7 +359,8 @@ export function expandAsked(raws: unknown, tale: Tale): any[] {
     // Always true, its pockets to theirs, each marked so its line says it was there already.
     const have = threadNamed(tale, name).hit;
     if (have && norm(have.title) === norm(name)) {
-      if (String(raw.text ?? '').trim()) out.push({ op: 'thread.set', thread: have.title, room: 'facts', text: raw.text, existed: true });
+      if (String(raw.text ?? '').trim()) out.push({ op: 'thread.set', thread: have.title, room: 'facts', text: raw.text, existed: true,
+        ...(raw.to ? { to: raw.to } : {}), ...(raw.sources ? { sources: raw.sources } : {}) });
       for (const p of each) out.push({ ...p, thread: have.title, existed: true });
       continue;
     }
@@ -400,25 +401,16 @@ export const asksForChange = (said: string) => ASKS.test(said);
  *  and its text from `body`, and `expandAsked` and `checkAsked` take it from there like any other.
  *  Everything else stays an offer: a new thread, and a thread the writer only asked about.
  *
- *  BY PRONOUN TOO (#144): "fill out her card" names nobody, so it is asked when the message has a
- *  pronoun and the conversation before it (`earlier`, the turns as the route sends them) named the
- *  thread the model answered about. The model chose the thread; the conversation is the evidence the
- *  writer meant it.
- *
- *  ponytail: "asked" is a word list, a name in the message or a pronoun after the name. Ceiling: a
- *  verb not on the list, or a pronoun for a thread last named more than six turns back, is still
- *  chalked. Trigger: a writer's request found chalked in the Workbench. */
+ *  WHICH THREAD WAS NAMED is `askedOf`'s question, the one asked rule (#152): by name, or by pronoun
+ *  after the writer's message before it named the thread. Its ponytail holds the ceilings. */
 const PRONOUN = /\b(she|her|hers|he|him|his|they|them|their|it|its)\b/i;
-export function entriesAsked(entries: unknown, tale: Tale, said: string, earlier = ''): { asked: any[]; offered: any[] } {
+export function entriesAsked(entries: unknown, tale: Tale, said: string, before = ''): { asked: any[]; offered: any[] } {
   const list = (Array.isArray(entries) ? entries : []) as any[];
   if (!asksForChange(said)) return { asked: [], offered: list };
-  const heard = new Set(words(said));
-  const before = PRONOUN.test(said) ? new Set(words(earlier)) : new Set<string>();
-  const named = (t: { title: string }, by: Set<string>) => words(t.title).some((w) => w.length > 2 && by.has(w));
   const asked: any[] = [], offered: any[] = [];
   for (const e of list) {
     const t = threadNamed(tale, e?.title).hit;
-    if (!t || !(named(t, heard) || named(t, before))) { offered.push(e); continue; }
+    if (!t || !askedOf({ op: 'thread.set', thread: t.title }, tale, said, before)) { offered.push(e); continue; }
     // Its pockets, if it carried any, are that change's pockets (`expandAsked`).
     asked.push({ op: 'thread.set', thread: t.title, room: e.field ?? 'none', text: e.body,
       ...(Array.isArray(e.pockets) ? { pockets: e.pockets } : {}) });
@@ -429,45 +421,53 @@ export function entriesAsked(entries: unknown, tale: Tale, said: string, earlier
 /** #152 · WHAT WAS ASKED, DECIDED BY THE APP (ADR 0014). The model puts a change in `changes` when it
  *  believes the writer asked for it; on 2026-11-04, asked for Seraphine's card, it also wrote two
  *  promises and an instruction nobody mentioned. So a change counts as asked only when the writer's
- *  message, or the exchange before it (`earlier`), names its thread or its pocket by a word of its
- *  name longer than two letters, or names its kind ("promise", "rule", "premise", "character"...).
- *  Anything else is an offer. The one place this rule lives.
+ *  own message names its thread or pocket, or asks for its kind ("add a promise", "the narration
+ *  voice", "rename the tale"). The writer's message before it (`before`) counts only behind a pronoun
+ *  ("fill out her card"), and Anansi's own words never count: him naming a thing is not the writer
+ *  asking for it. The one place this rule lives; `entriesAsked` asks it too.
  *
- *  ponytail: names and kind words, by word. Ceiling: "give her a sister" asks for a new thread by a
- *  verb not on the list and is offered rather than done; and any verb of making ("make her slower")
- *  lets a new thread the model adds count as asked. Trigger: a writer finds a request offered, or an
- *  unasked new thread made; then read what the message names against the thread's own text. */
-const KIND_WORDS: Record<string, RegExp> = {
-  string: /\b(promises?|questions?|strings?)\b/,
+ *  ponytail: names and kind words, by word. Ceilings: a thread named by a common word that is not on
+ *  NOT_A_NAME ("Hope", "Will") counts whenever the word is said; a request in words not on these
+ *  lists ("give her a sister") is offered rather than done; a pronoun reaches back one message only.
+ *  Trigger: a writer finds a request offered, or a change made they did not ask for; then read the
+ *  message against the thread's own text instead of word lists. */
+const NOT_A_NAME = new Set(['the', 'and', 'for', 'with', 'from', 'old', 'new', 'one', 'two', 'her', 'his', 'its', 'who',
+  'what', 'man', 'woman', 'lord', 'lady', 'king', 'queen', 'house', 'city', 'place']);
+const nameWords = (name: unknown) => words(name).filter((w) => w.length > 2 && !NOT_A_NAME.has(w));
+const ASK_KIND: Record<string, RegExp> = {
+  string: /\b(add|make|create|write|set up|new|another)\b[^.!?]*\b(promises?|questions?|strings?)\b|\bstrings?\b/,
   rule: /\brules?\b/,
   instruction: /\binstructions?\b/,
-  scene: /\bscenes?\b/,
-  // A new thread asked for by what it is, not its name ("add the ferryman"): a verb of making will do.
-  newThread: /\b(new|add|make|create|introduce)\b/,
+  scene: /\bscenes?\b[^.!?]*\b(title|rename|call|heads?|toward|towards)\b|\b(title|rename|call|heads?|toward|towards)\b[^.!?]*\bscenes?\b/,
+  // A new thread asked for by what it is ("add the ferryman"); "make her slower" is not making one.
+  newThread: /\b(add|create|introduce)\b|\bmake\b(?!\s+(her|him|them|it|me|us|this|that|his|its)\b)/,
 };
-/** The words a tale's own field is asked for by: "rename it" is its title, "regenre" its genre. */
-const TALE_WORDS: Record<string, RegExp> = { premise: /premise/, setting: /setting|\bset in\b/, title: /title|\bname|rename|\bcall/,
-  genre: /genre/, voice: /voice/, style_note: /style/ };
-export function askedOf(raw: any, tale: Tale, said: string, earlier = ''): boolean {
-  const text = `${said}\n${earlier}`.toLowerCase();
-  const heard = new Set(words(text));
-  const named = (name: unknown) => words(String(name ?? '')).some((w) => w.length > 2 && heard.has(w));
+/** The words a tale's own field is asked for by. Not "voice" alone: a character has one too, and the
+ *  tale's voice outranks everything for register (F37). Not "called" alone: "what is she called?". */
+const TALE_ASK: Record<string, RegExp> = {
+  premise: /\bpremise\b/, setting: /\bsetting\b/, genre: /genre\b/, style_note: /\bstyle\b/,
+  title: /\btitle\b|\brename (it|the (tale|story|book))\b/,
+  voice: /\b(narration|narrator|narrative)\b|\b(tale|story)\W?s? voice\b|\bvoice of the (tale|story)\b|\brevoice\b/,
+};
+export function askedOf(raw: any, tale: Tale, said: string, before = ''): boolean {
+  const own = String(said ?? '').toLowerCase();
+  const heard = new Set(words(PRONOUN.test(own) ? `${own}\n${before}` : own));
+  const named = (name: unknown) => nameWords(name).some((w) => heard.has(w));
   // A string, rule or instruction is often named after a thread ("Seraphine's Directive"): every word
   // of its name must be heard, or a request about Seraphine asks for every pocket that says her name.
-  const whole = (name: unknown) => { const ws = words(String(name ?? '')).filter((w) => w.length > 2);
-    return ws.length > 0 && ws.every((w) => heard.has(w)); };
+  const whole = (name: unknown) => { const ws = nameWords(name); return ws.length > 0 && ws.every((w) => heard.has(w)); };
   const op = String(raw?.op ?? '');
   // Off the list, it is refused by `checkAsked` with its own reason ("not something Talk can do").
   if (!(ASKED as readonly string[]).includes(op)) return true;
   if (op.startsWith('thread.')) {
     const t = threadNamed(tale, raw.thread ?? raw.title).hit;
-    return named(t?.title ?? raw.thread ?? raw.title) || (op === 'thread.new' && KIND_WORDS.newThread.test(text));
+    return named(t?.title ?? raw.thread ?? raw.title) || (op === 'thread.new' && ASK_KIND.newThread.test(own));
   }
-  if (op.startsWith('string.')) return whole(raw.title) || KIND_WORDS.string.test(text);
-  if (op.startsWith('rule.')) return whole(raw.title) || KIND_WORDS.rule.test(text);
-  if (op.startsWith('instruction.')) return whole(raw.title) || KIND_WORDS.instruction.test(text);
-  if (op === 'tale.set') return (TALE_WORDS[String(raw.field)] ?? /$^/).test(text) || /\btale\b/.test(text);
-  if (op === 'scene.set') return KIND_WORDS.scene.test(text);
+  if (op.startsWith('string.')) return whole(raw.title) || ASK_KIND.string.test(own);
+  if (op.startsWith('rule.')) return whole(raw.title) || ASK_KIND.rule.test(own);
+  if (op.startsWith('instruction.')) return whole(raw.title) || ASK_KIND.instruction.test(own);
+  if (op === 'tale.set') return TALE_ASK[String(raw.field)]?.test(own) ?? false;
+  if (op === 'scene.set') return ASK_KIND.scene.test(own);
   return false;
 }
 

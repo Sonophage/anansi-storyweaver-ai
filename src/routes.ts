@@ -1089,8 +1089,9 @@ const TALK_FRAME = 'The writer is talking to you in the conversation that follow
   + 'Everything above is what you know about their story. Do not continue the story.\n\nFor this conversation:\n{{directive}}';
 const turnsOf = (turns: unknown) => (Array.isArray(turns) ? turns : []).slice(-6)
   .map((t: any) => `${t?.you ? 'WRITER' : 'ANANSI'}: ${spoken(t)}`).join('\n');
-/** #144 · The last exchange only, words alone: who "her" in a request can mean (`entriesAsked`). */
-const lastExchange = (turns: unknown) => (Array.isArray(turns) ? turns : []).slice(-2).map(spoken).join('\n');
+/** #152 · The writer's own message before this one: who "her" in a request can mean (`askedOf`).
+ *  Anansi's words are not it: him naming a thing is not the writer asking for it. */
+const writerBefore = (turns: unknown) => spoken((Array.isArray(turns) ? turns : []).filter((t: any) => t?.you).at(-1));
 
 /** THE SEARCH RESULTS, as both Talk routes frame them: a stranger's text, never instructions. THE
  *  NUMBER, NOT THE URL: it used to say "keep the url with anything you propose", and a url kept in
@@ -4713,20 +4714,29 @@ export const routes: Record<string, Handler> = {
     // a change whose thread or kind the writer's message and the exchange before it never named is an
     // offer. A thread or a string is chalked as one, with the entries and strings below; anything else
     // the writer did not ask for is not done, and the answer says so.
-    const { asked, offered } = entriesAsked(r.data.entries, taleOf(v.id), said, lastExchange(c.body.turns));
+    const tale0 = taleOf(v.id), before = writerBefore(c.body.turns);
+    const { asked, offered } = entriesAsked(r.data.entries, tale0, said, before);
     const notDone: { said: string; why: string }[] = [];
     const raws: any[] = [], strings: any[] = [...((r.data as any).strings ?? [])];
     // An unasked thread is offered as one card: a new one with its pockets riding on it, as an entry
     // carries them; a change to one the tale has, one offer per pocket.
     const fresh = new Map<string, any>();
+    const key = (n: unknown) => String(n ?? '').trim().toLowerCase();
     for (const raw of expandAsked([...(Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4),
-      ...asked], taleOf(v.id))) {
-      if (askedOf(raw, taleOf(v.id), said, lastExchange(c.body.turns))) { raws.push(raw); continue; }
+      ...asked], tale0)) {
       const op = String(raw?.op ?? '');
-      const head = op === 'thread.set' ? fresh.get(String(raw.thread ?? '').trim().toLowerCase()) : null;
+      if (askedOf(raw, tale0, said, before)) { raws.push(raw); continue; }
+      // A CHANGE TO A THREAD THE TALE DOES NOT HAVE goes to `checkAsked` with the asked ones: the pocket
+      // of a new thread that was asked for ("add the ferryman", his voice) is done once he is made, and
+      // a thread that is nowhere is refused by name rather than chalked as a new one whose Always true
+      // is a pocket's text. An unasked new thread's pockets ride on its card (`fresh`).
+      if (op === 'thread.set' && !fresh.has(key(raw.thread)) && !tale0.entries.some((e: any) => key(e.title) === key(raw.thread))) {
+        raws.push(raw); continue;
+      }
+      const head = op === 'thread.set' ? fresh.get(key(raw.thread)) : null;
       if (op === 'thread.new') {
         const e = { title: raw.title, type: raw.type, keys: raw.keys, body: raw.text, pockets: [] as any[] };
-        fresh.set(String(raw.title ?? '').trim().toLowerCase(), e);
+        fresh.set(key(raw.title), e);
         if (String(raw.text ?? '').trim()) offered.push(e);
         else notDone.push({ said: `Make a new thread: ${raw.title}`, why: `it came with no Always true for ${raw.title}` });
       } else if (head) head.pockets.push({ room: raw.room, text: raw.text });

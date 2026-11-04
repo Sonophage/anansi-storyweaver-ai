@@ -998,6 +998,30 @@ ok('a change is asked only when the message or the last exchange names its threa
   assert.ok(!asked({ op: 'tale.set', field: 'premise', text: 'x' }, 'fill out her card'), 'UNASKED-TALE: a field not named');
 });
 
+// #152 review: wording the rule was not written for.
+ok('the asked rule holds against common words, Anansi\'s own turn, pronouns, the tale\'s voice and loose verbs', () => {
+  const asked = (raw: any, said: string, earlier = '') => ch.askedOf(raw, tale, said, earlier);
+  const morgott = { op: 'thread.set', thread: 'Morgott, the Omen King', room: 'voice', text: 'Slow.' };
+  assert.ok(!asked(morgott, 'fill out the seraphine card'), 'COMMON-WORD: "the" is not a name word');
+  assert.ok(asked(morgott, 'give Morgott a slow voice'), '  but his own name is');
+  const talia = { op: 'thread.set', thread: 'Talia Venn', room: 'voice', text: 'Low.' };
+  assert.ok(!asked(talia, 'thanks', 'Talia Venn is filed.'), 'ANANSI-TURN: what came before counts only behind a pronoun');
+  assert.ok(asked(talia, 'fill out her card', 'who is Talia Venn?'), 'PRONOUN-EARLIER: "her" after the writer named her');
+  const promise = { op: 'string.set', title: 'The Unwrapping', kind: 'promise', text: 'x' };
+  assert.ok(!asked(promise, 'quick question about Talia'), 'STRING-QUESTION: "question" in a sentence is not asking for a string');
+  assert.ok(asked(promise, 'add a promise about her gloves'), '  "add a promise" is');
+  const voice = { op: 'tale.set', field: 'voice', text: 'x' };
+  assert.ok(!asked(voice, 'give Seraphine a voice'), "TALE-VOICE: a character's voice is not the tale's");
+  assert.ok(asked(voice, 'change the narration voice to second person'), '  the narration voice is');
+  assert.ok(!asked({ op: 'tale.set', field: 'title', text: 'x' }, 'what is she called?'), 'TALE-TITLE: "called" is not a rename');
+  assert.ok(asked({ op: 'tale.set', field: 'title', text: 'x' }, 'rename the tale'), '  renaming the tale is');
+  assert.ok(!asked({ op: 'scene.set', field: 'title', text: 'x' }, 'who is in this scene?'), 'SCENE-QUESTION: a question about the scene');
+  const made = { op: 'thread.new', title: 'Brannoc', type: 'character', text: 'A lockkeeper.' };
+  assert.ok(!asked(made, "what's new with Talia?"), 'NEW-NOT-VERB: "new" in a question is not making');
+  assert.ok(!asked(made, 'make her slower'), 'MAKE-HER: making someone something is not making a thread');
+  assert.ok(asked(made, 'add the lockkeeper'), '  adding one is');
+});
+
 ok('making a thread the tale already has is a change to that thread, pockets and all', () => {
   const out = ch.expandAsked([{ op: 'thread.new', title: 'Talia Venn', type: 'character', text: 'A courier.',
     pockets: [{ room: 'voice', text: 'Quick.' }] }], tale);

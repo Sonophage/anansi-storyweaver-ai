@@ -122,6 +122,9 @@ const srv = createServer((req, res) => {
                   { op: 'instruction.set', title: "Seraphine's Directive", text: 'Keep her slow and deliberate.' }] },
       REMAKE: { reply: 'Seraphine, fresh.', changes: [{ op: 'thread.new', title: 'Seraphine', type: 'character',
         text: 'A nun of the Choir, hungry for the Stranger.', pockets: [{ room: 'outfit', text: 'Black silk and red gloves.' }] }] },
+      MAKEWITH2: { reply: 'Wenna keeps the lock.', changes: [{ op: 'thread.new', title: 'Wenna', type: 'character', text: 'Keeps the lock at the weir.',
+        pockets: [{ room: 'voice', text: 'Never in a hurry.' }] }] },
+      GHOST: { reply: 'Tidied.', changes: [{ op: 'thread.set', thread: 'Nobody Here', room: 'outfit', text: 'Wool.' }] },
       ASKPROMISE: { reply: 'A promise, then.', changes: [{ op: 'string.set', title: 'The pistol', kind: 'promise', text: 'The pistol will be fired.' }] },
       // A plain answer that only sounds like a claim: nothing was asked, so nothing is taken off.
       SETIN: { reply: 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.' },
@@ -1878,9 +1881,18 @@ ok('emptying the box gives her back the voice she shipped with');
     const her = (db.entriesOf(tale.id) as any[]).filter((e) => e.title === 'Seraphine');
     const again = await say('CHANGE-REMAKE: make Seraphine');
     assert.strictEqual((db.entriesOf(tale.id) as any[]).filter((e) => e.title === 'Seraphine').length, 1, 'REMAKE: no second Seraphine');
-    assert.strictEqual(room(her[0].id, 'outfit').at(-1)?.body ?? room(her[0].id, 'outfit')[0]?.body, 'Black silk and red gloves.', 'REMAKE: her own card is changed, pockets too');
+    assert.ok(room(her[0].id, 'outfit').some((a) => a.body === 'Black silk and red gloves.'), 'REMAKE: her own card is changed, pockets too');
     assert.ok(again.changes.length >= 1 && again.changes.every((x: any) => /already in the tale/.test(x.words)),
       `REMAKE-SAID: each line says she was already there (${again.changes.map((x: any) => x.words).join(' | ')})`);
+    // A thread made by what it is keeps the pockets it came with (review: they were offered apart).
+    const lk = await say('CHANGE-MAKEWITH2: add the lockkeeper');
+    const brannoc2 = (db.entriesOf(tale.id) as any[]).find((e) => e.title === 'Wenna');
+    assert.ok(brannoc2, `MADE-BY-KIND: the lockkeeper is made (${lk.reply})`);
+    assert.strictEqual(room(brannoc2.id, 'voice')[0]?.body, 'Never in a hurry.', 'MADE-POCKETS: with her pockets, not offered apart');
+    // A change to a thread the tale does not have, unasked, is refused, not chalked as a new thread.
+    const ghost = await say('CHANGE-GHOST: tidy up the card');
+    assert.ok(ghost.notDone.some((x: any) => /no thread called/.test(x.why)), `GHOST: refused by name (${JSON.stringify(ghost.notDone)})`);
+    assert.deepStrictEqual(ghost.chalked, [], '  and nothing chalked');
   }
   ok('only what the writer named is done; unasked threads and strings are offered, the rest not done; making an existing thread changes it');
 
