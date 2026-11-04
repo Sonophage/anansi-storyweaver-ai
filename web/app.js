@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES, pressOf, pressKey } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, still, decodeMs, loenIn, LOEN_WORD_MS, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES, pressOf, pressKey } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -10786,33 +10786,19 @@ async function openStory(id, chapter) {
  *  Scroll only when you were already at the bottom: yanking the page down while someone is
  *  reading an earlier paragraph is worse than not following the text. */
 // ---------- the decode ----------
-// LOENESE (Seth, 2026-11-03: "replace it with this font and slowly have it blur to English"). A
-// header's words first show set in the Loenese cipher face, then the Loenese blurs out while the
-// English sharpens in under it. Two places want it and they want it differently: a HEADER decodes
-// once, when its text changes, and that is this function. STREAMING prose decodes word by word as
-// it arrives (drainVeil marks each word the same way), because a live 300-word passage set whole in
-// a cipher would be unreadable, and the bureau's decode only ever went on short headers.
-//
-// THE WORDS GO IN AN ATTRIBUTE and the stylesheet paints them over the top in the Loenese face
-// (app.html, LOENESE). The real title stays in textContent the whole time, which is what a screen
-// reader reads, what a copy takes, and what a test asserting a header can see. Nothing moves: the
-// layer is placed over the English and takes no room of its own.
+// LOENESE, letter by letter (loenIn, web/model.js, has the how and Seth's words). Two places want it
+// and they want it differently: a HEADER decodes once, when its text changes, and that is this
+// function. STREAMING prose decodes word by word as it arrives (drainVeil sends each word through
+// loenIn), because a live 300-word passage set whole in a cipher would be unreadable, and the
+// bureau's decode only ever went on short headers.
 /** Titles already on screen, by slot, so a repaint that says the same thing does not re-run the
  *  animation. Every panel repaint replaces the element, so the memory cannot live on it. */
 const DECODED = {};
-/** How long the decode runs, in ms: app.html's --t-loen (a header) and --t-loenword (a streamed
- *  word). The mark comes off after it, so the layer is not left on the page at opacity 0. */
-const LOEN_MS = 1100, LOEN_WORD_MS = 1300;
 function decode(el, slot) {
   const target = el?.textContent ?? '';
   if (!el || !target.trim() || DECODED[slot] === target) return;
   DECODED[slot] = target;
-  // Nothing to animate under reduced motion. The element already holds the finished text.
-  if (still()) return;
-  el.dataset.loen = target;
-  el.classList.add('decoding');
-  // A repaint during the animation throws this element away; the timer then touches a detached node.
-  setTimeout(() => { el.classList.remove('decoding'); delete el.dataset.loen; }, LOEN_MS);
+  loenIn(el, decodeMs([...target].length));
 }
 
 /** "Anansi is writing", as the loader on the passage being written: set in Loenese and breathing in
@@ -10952,8 +10938,9 @@ function ghost(replaces = null) {
  *  The 2026-09-02 design handoff, replacing the letter-by-letter lock-in that preceded it: each word
  *  arrives whole in its own span, the last three stay in the accent, and everything behind them is
  *  ink. No field held open for text that has not been written, no count and no status line. Each
- *  word focused in out of a blur until 2026-11-03; it arrives set in Loenese now and resolves to
- *  English over 1.3s (decode, above), so the newest few words are always still in the cipher.
+ *  word focused in out of a blur until 2026-11-03; it arrives set in Loenese now and turns to
+ *  English a letter at a time over two seconds (loenIn), so the newest few words are always still
+ *  in the cipher.
  *
  *  CALCULATED, NOT PER DELTA, which survives from the version before it and for the same reason: a
  *  delta is a token, so anything driven by one runs at whatever uneven rate the model is writing at.
@@ -11146,12 +11133,9 @@ function drainVeil(now) {
       const spans = paged ? inkParagraphs(el, text) : [Object.assign(document.createElement('span'), { inkRaw: text })];
       if (!paged) { el.append(spans[0]); inkAccent(el); }
       for (const sp of spans) sp.classList.add('w', 'tip');
-      // EACH WORD ARRIVES IN LOENESE and resolves to English a moment later (decode, above): the
-      // same layer as a header's, on the word's own span, so the frontier is the newest few words.
-      if (!still()) for (const sp of spans) {
-        sp.dataset.loen = sp.textContent;
-        setTimeout(() => { delete sp.dataset.loen; }, LOEN_WORD_MS);
-      }
+      // EACH WORD ARRIVES IN LOENESE and turns to English a letter at a time (loenIn, as a header
+      // does), so the frontier is the newest few words.
+      for (const sp of spans) loenIn(sp, LOEN_WORD_MS);
       const span = spans.at(-1);
       /* THE GLOW GOES ON THE FIRST WORD — Seth, 2026-09-02: "Remove the border around the ghost as
        * soon as something starts streaming." The glow says something is happening, and once words

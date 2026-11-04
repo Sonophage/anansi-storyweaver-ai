@@ -48,21 +48,22 @@ ok("  with no tap needed to see it", await until("!document.querySelector('#dock
 
 // ---- where the page sits, and how the words arrive (Seth, 2026-10-25)
 // At the press the page moves ONCE so the new entry's header sits at the top, under the app's header
-// (Seth, 2026-10-27), and then it stays still while he writes below the fold. Each word comes up out of
-// a blur (Seth, 2026-10-26: "cinematically fade in from a blur"; it scrambled for a day before).
+// (Seth, 2026-10-27), and then it stays still while he writes below the fold. Each word arrives in
+// Loenese and turns to English a letter at a time (Seth, 2026-11-03); it came up out of a blur before
+// that (2026-10-26), and scrambled for a day before that.
 // Watched from inside the page, because the moments are shorter than a round trip from here.
 await page.eval(`(() => { const read = document.getElementById('read');
   // Instantly: #read scrolls smoothly, and a page still gliding to the bottom when the press lands
   // is not a reader sitting at the bottom.
   read.scrollTo({ top: read.scrollHeight, behavior: 'instant' });
-  window.__w = { tops: [], blurred: 0, words: 0, seam: null };
+  window.__w = { tops: [], inLoen: 0, words: 0, seam: null };
   new MutationObserver((ms) => { for (const m of ms) {
     for (const n of m.addedNodes ?? []) if (n.classList?.contains?.('w')) {
       window.__w.words++; window.__w.tops.push(Math.round(read.scrollTop));
       // The last word lands in the frame that takes the block away, and a detached word has no
       // style to read: counted only while it is on the page.
       if (n.isConnected) { window.__w.live = (window.__w.live ?? 0) + 1;
-        if (getComputedStyle(n).animationName === 'loenin' && n.dataset.loen) window.__w.blurred++; }
+        if (n.classList.contains('decoding') && n.querySelector('.lo')) window.__w.inLoen++; }
       if (window.__w.words === 1) { const c = getComputedStyle(n);
         window.__w.font = [c.fontFamily, c.fontSize, c.fontStyle].join(' | ');
         window.__w.label = document.querySelector('#ghost .from')?.textContent.replace(/\\s+/g, ' ').trim() ?? null; }
@@ -78,7 +79,7 @@ await until("!document.getElementById('ghost')", 120);
 await wait(300);
 const w = await page.eval("JSON.stringify(window.__w)").then(JSON.parse);
 console.log("  arrival: " + JSON.stringify(w));
-ok(`the words arrive in Loenese and resolve to English (${w.blurred} of the ${w.live} on the page)`, w.live > 0 && w.blurred === w.live);
+ok(`the words arrive in Loenese and resolve to English (${w.inLoen} of the ${w.live} on the page)`, w.live > 0 && w.inLoen === w.live);
 // NOTHING MOVES while he writes; the last word is recorded in the frame the passage lands in, when
 // the composer folds and the five-word fixture passage cannot fill the room it leaves.
 const writing = w.tops.slice(0, -1);

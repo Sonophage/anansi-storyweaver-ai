@@ -822,9 +822,64 @@ export const BLOCK_ORIGIN = {
   MODE:              ['The mode you picked',     'doc'],
 };
 
-// Reduced motion, asked by the decode (web/app.js), whose text resolves out of the Loenese face
-// rather than fading in; it resolved out of random glyphs until 2026-11-03.
+// Reduced motion, asked by the decode (below), whose text resolves out of the Loenese face rather
+// than fading in; it resolved out of random glyphs until 2026-11-03.
 export const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------------------------------------------------------------------------
+// THE DECODE. Text turns from the Loenese cipher face into English one letter at a time, left to
+// right, spaces held so the shape of the line reads from the first frame. Seth, 2026-11-03: "let it
+// do the old transition from one font to the other instead, and make the transition a little
+// longer." The old transition was the bureau's random-glyph decode at two frames per character; the
+// letters not yet turned are now the same letters set in Loenese, and it runs half as long again.
+// For one day before this the whole layer blurred away at once.
+//
+// EACH LETTER KEEPS ITS ENGLISH. A letter not yet turned is a span holding the English letter with
+// its fill cleared and the same letter in `data-loen`, which the stylesheet paints over it in
+// Loenese (app.html, THE DECODE). So textContent is the English the whole time (a screen reader, a
+// copy, a test), and each letter takes exactly its English width: the wider Loenese glyph overhangs
+// its neighbours rather than pushing the line.
+
+/** How long a header's decode runs, in ms: three 60 fps frames (50 ms) a character, and never less
+ *  than fifteen characters' worth, so 20 letters take a second. Timed rather than counted in frames,
+ *  so a 120 Hz screen does not run it at twice the speed. */
+export const decodeMs = (len) => Math.max(15, len) * 50;
+/** A streamed word's decode, from its arrival to all English, whatever its length. */
+export const LOEN_WORD_MS = 2000;
+
+/** `html` with every letter from the `revealed`-th on (counted in characters, an entity as one)
+ *  marked to show in Loenese. Tags are kept and whitespace is never marked. */
+export function loenHTML(html, revealed) {
+  let at = 0;
+  return String(html).replace(/<[^>]*>|&[#\w]+;|[^]/gu, (c) => {
+    if (c.length > 1 && c[0] === '<') return c;
+    if (at++ < revealed || /^(?:\s|&nbsp;|&#160;)$/u.test(c)) return c;
+    return `<span class="lo" data-loen="${c === '"' ? '&quot;' : c}">${c}</span>`;
+  });
+}
+
+/** Decode `el` over `ms`: at once all Loenese, then a letter at a time to English, on frames. The
+ *  element is marked `decoding` until it is done. Its English markup is `el.inkHTML` when it has one
+ *  (a streamed word, which inkAccent may rewrite while it turns) and what it held at the start
+ *  otherwise. It stops, writing nothing, when the element leaves the page or its text is changed
+ *  under it (a repaint), so no Loenese is ever left over words it did not write. */
+export function loenIn(el, ms) {
+  const text = el?.textContent ?? '';
+  const len = [...text].length;
+  if (!len || still()) return;
+  const prev = el.loenJob;
+  const job = el.loenJob = { text, html: prev?.text === text ? prev.html : el.innerHTML, start: Date.now(), shown: -1 };
+  el.classList.add('decoding');
+  const step = () => {
+    if (el.loenJob !== job) return;
+    if (el.isConnected === false || el.textContent !== text) { el.loenJob = null; el.classList.remove('decoding'); return; }
+    const r = Math.min(len, Math.floor((Date.now() - job.start) / ms * len));
+    if (r !== job.shown) { job.shown = r; const base = el.inkHTML ?? job.html; el.innerHTML = r < len ? loenHTML(base, r) : base; }
+    if (r < len) requestAnimationFrame(step);
+    else { el.loenJob = null; el.classList.remove('decoding'); }
+  };
+  step();
+}
 
 // ---------------------------------------------------------------------------
 // THEMES. One row per theme, and every token below is derived from it.

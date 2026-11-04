@@ -19,9 +19,9 @@ Everything below this line was written by that model call, before it was removed
 ## 2026-11-03 · A thread is edited where you read it
 
 ### Words arrive in the old script, and "Anansi is writing" is written in it
-A heading that changes now shows first in a strange, hidden script, which blurs away as the plain
-words come clear under it. When Anansi writes, each new word arrives in that script too and turns
-into the word a moment later. Before the first word, the place where the passage will appear says
+A heading that changes now shows first in a strange, hidden script, and turns into the plain words
+one letter at a time, from left to right, over about a second. When Anansi writes, each new word
+arrives in that script too and turns into the word letter by letter over about two seconds. Before the first word, the place where the passage will appear says
 "Anansi is writing" in the same script, glowing softly. A screen reader still hears the plain
 words, and with reduced motion on, the plain words show at once.
 

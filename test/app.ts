@@ -10372,7 +10372,7 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
 // ---- LOENESE. Seth, 2026-11-03: "You know how we have the glyph transitions: replace it with this
 // font and slowly have it blur to English, and while Anansi is writing use 'Anansi is writing' in this
 // font as a loader." The font is a cipher: one Loenese glyph per ASCII letter, so the same words set
-// in it are the same words, unreadable, and the decode is that layer blurring out over the English.
+// in it are the same words, unreadable, and the decode turns them to English a letter at a time.
 {
   const { readFileSync } = await import('node:fs');
   const font = readFileSync(new URL('../web/loenese.otf', import.meta.url));
@@ -10383,21 +10383,80 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   assert.match(page.slice(Math.max(0, page.indexOf(face) - 600), page.indexOf(face)), /ponytail: fan-made font with no stated licence/,
     'LOENESE-FACE: and carries its ponytail beside it');
 
-  // THE HEADER DECODE. The title keeps its English in textContent the whole time; the Loenese is an
-  // attribute the stylesheet paints over it, so a reader, a copy and every check here see English.
+  // THE DECODE, LETTER BY LETTER (Seth, 2026-11-03: "let it do the old transition from one font to
+  // the other instead, and make the transition a little longer"). Left to right, each letter not yet
+  // turned is the same letter set in Loenese, painted by the stylesheet from `data-loen` over the
+  // English letter, which is still there with its fill cleared. So textContent is English throughout.
+  const { decodeMs, loenHTML, loenIn, LOEN_WORD_MS } = await import('../web/model.js');
+  assert.strictEqual(decodeMs(20), 1000, 'LOENESE-PACE: three 60 fps frames a character, so 20 letters take a second');
+  assert.strictEqual(decodeMs(4), 750, 'LOENESE-PACE: and never under fifteen characters\' worth');
+  assert.strictEqual(decodeMs(15), 750, '  (fifteen exactly is the floor)');
+  assert.ok(LOEN_WORD_MS >= 1600 && LOEN_WORD_MS <= 2000, 'LOENESE-PACE: a streamed word turns over 1.6 to 2 seconds');
+  assert.strictEqual(loenHTML('Ab c', 1), 'A<span class="lo" data-loen="b">b</span> <span class="lo" data-loen="c">c</span>',
+    'LOENESE-LETTERS: letters from the frontier on are marked one by one, and a space is held');
+  assert.strictEqual(loenHTML('<em>Hi</em> &quot;', 1), '<em>H<span class="lo" data-loen="i">i</span></em> <span class="lo" data-loen="&quot;">&quot;</span>',
+    'LOENESE-LETTERS: markup is kept, and an entity is one letter');
+  assert.strictEqual(loenHTML('He said', 99), 'He said', 'LOENESE-LETTERS: past the end, it is the English as it was');
+
+  // A stub whose textContent is read from its markup, the way a browser's is.
+  const ents: Record<string, string> = { '&quot;': '"', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&#39;': "'" };
+  const live = (html: string, extra: any = {}) => {
+    const o: any = { ...el('__loen__' + Math.random()), ...extra }; let h = html;
+    Object.defineProperty(o, 'innerHTML', { get: () => h, set: (v: string) => { h = String(v); } });
+    Object.defineProperty(o, 'textContent', { get: () => h.replace(/<[^>]*>/g, '').replace(/&[#\w]+;/g, (e) => ents[e] ?? e) });
+    return o;
+  };
+  const raf = (globalThis as any).requestAnimationFrame;
+  (globalThis as any).requestAnimationFrame = (f: Function) => setTimeout(() => f(Date.now()), 16);
   const bar = nodes.get('bar'), was = bar.querySelector;
-  const title = { ...el('__loentitle__'), textContent: 'The Ashfall Concordat, again' };
+  const T = 'The Ashfall Concordat, again';   // 28 characters: 1,400 ms
+  const title = live(T);
   bar.querySelector = (s: string) => (s === '.serif' ? title : null);
   try {
     click({ open: 's-1' }); await sleep(40);
-    assert.strictEqual(title.textContent, 'The Ashfall Concordat, again', 'LOENESE-DECODE: the title stays English in textContent');
-    assert.strictEqual(title.dataset.loen, 'The Ashfall Concordat, again', 'LOENESE-DECODE: the same words are marked for the Loenese layer');
+    assert.strictEqual(title.textContent, T, 'LOENESE-DECODE: the title stays English in textContent');
     assert.ok(title.classList.contains('decoding'), 'LOENESE-DECODE: and the element is marked as decoding');
-    assert.strictEqual(title.dataset.glyphs, undefined, 'LOENESE-DECODE: no random glyphs are written any more');
-    await sleep(1600);
-    assert.ok(!title.classList.contains('decoding'), 'LOENESE-DECODE: the mark comes off once the English has resolved');
-    assert.strictEqual(title.dataset.loen, undefined, '  and the layer with it');
-  } finally { bar.querySelector = was; }
+    assert.match(title.innerHTML, /^T?<span class="lo" data-loen="[Th]">/, 'LOENESE-DECODE: it starts all but whole in Loenese');
+    await sleep(660);
+    assert.match(title.innerHTML, /^The Ash[^<]*<span class="lo"/, 'LOENESE-DECODE: half way, the left half is English and the right still Loenese');
+    assert.strictEqual(title.textContent, T, '  and textContent is still the English');
+    await sleep(560);
+    assert.ok(title.classList.contains('decoding'), 'LOENESE-PACE: a 28-letter title is still turning at 1.25 s');
+    await sleep(250);
+    assert.ok(!title.classList.contains('decoding'), 'LOENESE-DECODE: the mark comes off once every letter has turned');
+    assert.strictEqual(title.innerHTML, T, '  and the markup is the English as it was');
+
+    // A REPAINT MID-DECODE that writes other words is left alone: no Loenese written over it.
+    const sub = live('Chapter the second'); bar.querySelector = (s: string) => (s === '.serif' ? sub : null);
+    click({ open: 's-1' }); await sleep(40);
+    // Whatever the decode wrote is replaced, the way a render rewrites its header.
+    sub.innerHTML = 'Chapter the third'; await sleep(200);
+    assert.strictEqual(sub.innerHTML, 'Chapter the third', 'LOENESE-DECODE: text rewritten mid-decode is not written over with Loenese');
+    assert.ok(!sub.classList.contains('decoding'), '  and the mark comes off');
+
+    // A STREAMED WORD (drainVeil marks each one with the same call): it arrives wholly in Loenese,
+    // from its accented markup (`inkHTML`), and is English letter by letter by LOEN_WORD_MS.
+    const W = '<span class="q">&quot;Run,</span> ';
+    const word = live(W, { inkHTML: W });
+    loenIn(word, LOEN_WORD_MS);
+    assert.ok(word.classList.contains('decoding'), 'LOENESE-WORD: the word is marked');
+    assert.strictEqual((word.innerHTML.match(/class="lo"/g) ?? []).length, 5, 'LOENESE-WORD: and arrives with every letter in Loenese');
+    assert.strictEqual(word.textContent, '"Run, ', '  its textContent English');
+    await sleep(LOEN_WORD_MS / 2);
+    const left = (word.innerHTML.match(/class="lo"/g) ?? []).length;
+    assert.ok(left > 0 && left < 5, `LOENESE-WORD: half way it is part English (${left} of 5 letters still Loenese)`);
+    await sleep(LOEN_WORD_MS / 2 + 40);
+    assert.strictEqual(word.innerHTML, W, 'LOENESE-WORD: by the end it is its own markup again');
+    assert.ok(!word.classList.contains('decoding'), '  unmarked');
+
+    // REDUCED MOTION: the English at once, nothing marked.
+    const mm = (globalThis as any).matchMedia;
+    (globalThis as any).matchMedia = () => ({ matches: true, addEventListener() {} });
+    try { const w2 = live('still '); loenIn(w2, LOEN_WORD_MS);
+      assert.strictEqual(w2.innerHTML, 'still ', 'LOENESE-STILL: reduced motion writes no Loenese');
+      assert.ok(!w2.classList.contains('decoding'), '  and marks nothing');
+    } finally { (globalThis as any).matchMedia = mm; }
+  } finally { bar.querySelector = was; (globalThis as any).requestAnimationFrame = raf; }
 
   // THE LOADER. The veil's markup, caught as it goes onto #shell.
   const shell = (document as any).getElementById('shell');
@@ -10414,8 +10473,10 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
   assert.strictEqual(src.match(/\$\{WRITING_NOW\}/g)?.length, 2, 'LOENESE-LOADER: the inline passage being written shows it too');
   assert.doesNotMatch(src, /\bglyph\(\)|dataset\.glyphs/, 'LOENESE: the random-glyph decode is gone');
+  assert.match(src, /for \(const sp of spans\) loenIn\(sp, LOEN_WORD_MS\)/, 'LOENESE-WORD: drainVeil sends every streamed word through it');
+  assert.doesNotMatch(page, /loenout|loenin|--t-loen/, 'LOENESE: the blur keyframes are gone');
 }
-ok('Loenese: the font ships, the header decodes out of it into English, and Anansi is writing is said in it');
+ok('Loenese: the font ships, headers and streamed words turn out of it into English letter by letter, and Anansi is writing is said in it');
 
 // ---- WRITING INLINE: THE OLD VERSION STAYS HIDDEN WHILE THE NEW ONE IS WRITTEN, THROUGH A REPAINT.
 // It was hidden by a class put on the DOM at the press, and a repaint rebuilds #col, so the old
