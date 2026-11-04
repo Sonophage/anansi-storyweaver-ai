@@ -1099,10 +1099,21 @@ const SETUP_THREADS = 30, SETUP_POCKETS = 4;
  *  change that was not done (the model may have said it did it, and the writer must not be left
  *  believing that), then a line when a web search failed, so an answer without the web is not
  *  mistaken for one that looked and found nothing. */
-const talkReply = (reply: unknown, notDone: { said: string; why: string }[], searchFailed: string | null) =>
-  [String(reply ?? '').trim(), notDone.map((x) => `Not done. ${x.said}: ${x.why}.`).join('\n'),
-   searchFailed ? `The web search failed (${searchFailed}), so this answer does not use the web.` : '']
+/*  NOTHING DONE IS SAID FIRST (Seraphine, 2026-11-03). The reply is written before the changes, so
+ *  the model says "Done." before any of them is checked; every one failed, and the answer still
+ *  opened "Done. She is fully fleshed out now". With changes asked and none done, the answer opens
+ *  by saying nothing was changed, the lines why follow, and a "Done" the reply opens with is taken
+ *  off. ponytail: only a leading "Done" is caught; a claim elsewhere in the reply stays, under the
+ *  line that says nothing was changed. Trigger: a reply that claims a change in other words is read
+ *  as done; then mark the reply as Anansi's words under the line. */
+const talkReply = (reply: unknown, notDone: { said: string; why: string }[], searchFailed: string | null, done = 1) => {
+  const lines = notDone.map((x) => `Not done. ${x.said}: ${x.why}.`).join('\n');
+  const none = notDone.length > 0 && done === 0;
+  const said = String(reply ?? '').trim();
+  return (none ? ['Nothing was changed.\n' + lines, said.replace(/^(?:all\s+)?done\b[\s.!:,;\u2014\u2013-]*/i, '')]
+    : [said, lines]).concat(searchFailed ? `The web search failed (${searchFailed}), so this answer does not use the web.` : '')
     .filter(Boolean).join('\n\n');
+};
 
 /** #98 · THE TALE A CHANGE IS CHECKED AGAINST, read through the gate as it stands now: its threads,
  *  its own fields, its scenes, and the scene the writer is in. #128 · And the tale's own thread,
@@ -3783,7 +3794,7 @@ export const routes: Record<string, Handler> = {
         && !have.has(String(e.title).trim().toLowerCase()))
       .map((e) => sparkThread(e.title, e.type, e.body, []));
     outsideOnly(entries, you.held);
-    const answer = talkReply(r.data.reply, notDone, searchFailed);
+    const answer = talkReply(r.data.reply, notDone, searchFailed, changes.length);
     // KEPT, as a setup talk with no tale (`db.talkSay`): the one row this route writes. `prompt` is
     // exactly what was sent, for the page's Copy prompt, and is not kept.
     const sessionId = db.talkSay(c.owner, null, c.body.sessionId, said, answer.trim());
@@ -4682,6 +4693,7 @@ export const routes: Record<string, Handler> = {
     // #101 · IN A TALE THAT FOLLOWS A WORLD, a change the model did not place as canon or as the
     // writer's version is a question. Then NOTHING in this answer is done, the rest included: the
     // writer answers one line and asks again, rather than finding half of what they said applied.
+    const unmade = new Set<string>();
     const unsure = raws.flatMap((raw: any) => { const a = aimOf(raw, taleOf(v.id), world); return 'ask' in a ? [a.ask] : []; });
     for (const raw of unsure.length ? [] : raws) {
       // Placed against the tale as the changes before it left it, so a second change to a thread the
@@ -4704,6 +4716,12 @@ export const routes: Record<string, Handler> = {
         why: `this tale could not take ${aim.raw.thread} over from ${world!.title}` }); continue; }
       const handBack = () => { if (copy) db.relinkEntry(v.id, c.owner, copy, 'theirs'); };
       const k = checkAsked(aim.raw, taleOf(where));
+      // A NEW THREAD NOT MADE is one line, not one more for each pocket sent with it: its own line says
+      // why, and every pocket of it would only say again that there is no such thread.
+      const named = String(aim.raw?.title ?? aim.raw?.thread ?? '').trim().toLowerCase();
+      if (!k.ok && aim.raw?.op === 'thread.new') unmade.add(named);
+      if (!k.ok && aim.raw?.op === 'thread.set' && unmade.has(named)
+        && !taleOf(where).entries.some((e: any) => String(e.title).trim().toLowerCase() === named)) { handBack(); continue; }
       if (!k.ok) { handBack(); notDone.push({ said: k.said, why: k.why }); continue; }
       const made = applyChange(where, c.owner, k.change);
       if (!made) { handBack(); notDone.push({ said: wordsFor(k.change), why: `the ${aim.to === 'world' ? 'World' : 'tale'} refused it` }); continue; }
@@ -4727,7 +4745,7 @@ export const routes: Record<string, Handler> = {
       changes.push({ words: aim.to === 'world' ? `${wordsFor(k.change)} In ${world!.title}, for every tale that follows it.`
         : wordsFor(k.change), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change) });
     }
-    const answer = [talkReply(r.data.reply, notDone, searchFailed),
+    const answer = [talkReply(r.data.reply, notDone, searchFailed, changes.length),
       unsure.length ? askWhich(unsure, world!.title) : ''].filter(Boolean).join('\n\n');
     // KEPT: the writer's words and the answer they were shown, in this writer's session in this
     // tale (`db.talkSay`). `prompt` is exactly what was sent, for the page's Copy prompt; it holds

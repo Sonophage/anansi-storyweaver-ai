@@ -88,6 +88,12 @@ const srv = createServer((req, res) => {
                   { op: 'thread.new', title: 'Seraphine', type: 'character', field: 'voice', text: 'A low murmur; calls everyone darling.' },
                   { op: 'thread.new', title: 'Seraphine', type: 'character', field: 'outfit', text: 'A habit cut low; red latex gloves to the elbow.' },
                   { op: 'thread.new', title: 'Seraphine', type: 'character', text: 'A novitiate of the Choir of Saints.' }] },
+      // And as the live answer ended (2026-11-03): pockets with no Always true at all, one sent twice,
+      // under a reply that says it is done.
+      NOALWAYS: { reply: 'Done. Ysolde is in the ledger now, fully dressed.',
+        changes: [{ op: 'thread.new', title: 'Ysolde', type: 'character', field: 'voice', text: 'A low murmur.' },
+                  { op: 'thread.new', title: 'Ysolde', type: 'character', field: 'voice', text: 'A low murmur.' },
+                  { op: 'thread.new', title: 'Ysolde', type: 'character', field: 'outfit', text: 'Red latex gloves.' }] },
       // Everything here is something the route must refuse, and the reply claims all of it was done.
       BAD: { reply: 'Done, all of it.',
         changes: [{ op: 'thread.set', thread: 'Nobody', text: 'Old.' },
@@ -1662,6 +1668,21 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.strictEqual(sera.changes.length, 3, `TALK-POCKETS: three lines, the voice once (${sera.changes.map((x: any) => x.words).join(' | ')})`);
   }
   ok('a new character sent once per pocket is one thread with its pockets');
+
+  // NOTHING DONE IS SAID FIRST, and the model's "Done." is not left to say otherwise. One line for
+  // the thread that was not made, not one more for each of its pockets.
+  {
+    const n = db.entriesOf(tale.id).length;
+    const none = await say('CHANGE-NOALWAYS: send her to the workbench');
+    assert.ok(!none.error, none.error);
+    assert.strictEqual(db.entriesOf(tale.id).length, n, '  nothing was made');
+    assert.match(none.reply, /^Nothing was changed\./, `TALK-NOTHING-DONE: the answer opens by saying nothing was changed:\n${none.reply}`);
+    assert.ok(!/^Done\b/m.test(none.reply), `TALK-NOTHING-DONE: and no line of it opens with "Done":\n${none.reply}`);
+    assert.match(none.reply, /Ysolde is in the ledger now/, '  the rest of what Anansi said is kept');
+    assert.deepStrictEqual(none.notDone.map((x: any) => x.said), ['Make a new thread: Ysolde'],
+      `TALK-NOTHING-DONE: one line for the thread, none for its pockets (${JSON.stringify(none.notDone)})`);
+  }
+  ok('when nothing asked for was done, the answer says so first, once per thing asked');
 
   // AN UNDO REACHES ONLY THIS TALE: another tale's thread, named from your own tale,
   // resolves to nothing. The dispatcher's half — another writer's tale id — is test/scope.ts's.
