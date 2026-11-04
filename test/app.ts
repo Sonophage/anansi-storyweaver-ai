@@ -1276,8 +1276,8 @@ ok('a short screen has no banner over a panel');
   assert.match(page, /html:root \.from > i \{[^}]*background:var\(--gold\)[^}]*mask:var\(--glyph\)/, 'PRESS-GLYPH: the glyph is a mask in the theme\'s accent');
   // And the chip on the page names its label: p-1 the model wrote, p-3 the writer spoke.
   const col = html('col');
-  assert.match(col, /<div class="from" data-press="woven"><i><\/i>Woven/, 'PRESS-GLYPH: a woven passage\'s chip names its glyph');
-  assert.match(col, /<div class="from" data-press="speak"><i><\/i>Speak/, 'PRESS-GLYPH: and a spoken one\'s');
+  assert.match(col, /<div class="from" data-press="woven"><i><\/i><span>Woven/, 'PRESS-GLYPH: a woven passage\'s chip names its glyph');
+  assert.match(col, /<div class="from" data-press="speak"><i><\/i><span>Speak/, 'PRESS-GLYPH: and a spoken one\'s');
 }
 ok('every label a passage can show has one glyph');
 // THE CLASS TOKEN, not the whole attribute. This read `class="block speak"` exactly, so it went red
@@ -1353,7 +1353,7 @@ assert.match(html('col'), /class="block you(?: [^"]*)?"/, 'the writer\'s own lin
  * Narrate, because both write a bare human row. The fixture has one of each shape. */
 {
   const col = html('col');
-  const chips = [...col.matchAll(/<div class="from(?: [^"]*)?"(?: data-press="\w+")?><i><\/i>([^<]*)</g)].map((m) => m[1].trim());
+  const chips = [...col.matchAll(/<div class="from(?: [^"]*)?"(?: data-press="\w+")?><i><\/i><span>([^<]*)</g)].map((m) => m[1].trim());
   assert.strictEqual(chips.length, (col.match(/class="block/g) ?? []).length,
     'every passage says where it came from, not just the ones with a mode');
   // AT THE TOP OF ITS BLOCK, which is what was asked for — before the prose, not under it.
@@ -1374,7 +1374,7 @@ assert.match(html('col'), /class="block you(?: [^"]*)?"/, 'the writer\'s own lin
   // THE WRITER'S OWN PASSAGES keep their press: p-3 is a line the writer spoke.
   assert.ok(chips.some((c) => /^Speak/.test(c)), `a passage the writer wrote names its press — got ${JSON.stringify(chips)}`);
   // AND A SPOKEN LINE CARRIES WHO SAID IT, which is the one thing the colour cannot say.
-  assert.match(col, /<div class="from(?: [^"]*)?" data-press="woven"><i><\/i>Woven &middot; Envoy Sereth</,
+  assert.match(col, /<div class="from(?: [^"]*)?" data-press="woven"><i><\/i><span>Woven &middot; Envoy Sereth</,
     'a line the model voiced for someone names them on the chip');
   // THE SPEAK ACTION IS IN THE SPEECH HIGHLIGHT (Seth, 2026-10-29): the writer's spoken line reads in
   // the colour quoted speech has in the prose.
@@ -10519,6 +10519,71 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   assert.doesNotMatch(page, /loenout|loenin|--t-loen/, 'LOENESE: the blur keyframes are gone');
 }
 ok('Loenese: the font ships, headers and streamed words turn out of it into English letter by letter, and Anansi is writing is said in it');
+
+// ---- THE ACTION LABEL TRANSLATES OUT OF LOENESE WHEN IT IS NEW ON SCREEN (Seth, 2026-11-03: "The
+// action dividers do the same"). New is a passage that landed while the book was open; a repaint, or
+// the passages already there when the book was drawn, are not, or every label would go at each paint.
+// And the label sits 10px lower than its box ("Lower them a bit, by like 10px").
+{
+  const { readFileSync } = await import('node:fs');
+  const fresh = (col: string) => [...col.matchAll(/<div class="from fresh" data-press="\w+"><i><\/i><span>([^<]*)<\/span>/g)].map((m) => m[1]);
+  click({ open: 's-1' }); await sleep(40);
+  assert.deepStrictEqual(fresh(html('col')), [], 'LABEL-DECODE: no label is new when the book is drawn');
+  const extra = { id: 'p-new', ordinal: 6, body: 'She set the seal down.', author: 'human', speaker: null, mode: 'act',
+    isBreak: false, chapterId: 'c-2', variantIndex: 1, variants: [{ id: 'p-new', selected: true }] };
+  (STORY.passages as any[]).push(extra);
+  try {
+    click({ open: 's-1' }); await sleep(40);
+    assert.deepStrictEqual(fresh(html('col')), ['Act'], 'LABEL-DECODE: a passage that landed carries the decode mark, and only it');
+    click({ open: 's-1' }); await sleep(40);
+    assert.deepStrictEqual(fresh(html('col')), [], 'LABEL-DECODE: and a repaint of it does not set it going again');
+  } finally { (STORY.passages as any[]).splice((STORY.passages as any[]).indexOf(extra), 1); }
+  const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+  assert.match(src, /root\?\.querySelectorAll\?\.\('\.from\.fresh > span'\)[^\n]*loenIn\(el, decodeMs/, 'LABEL-DECODE: a marked label goes through the decode, its words in English in textContent');
+  assert.match(src, /g\.innerHTML = `<div class="from fresh"/, 'LABEL-DECODE: the passage being written is always new');
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  const rule = page.match(/\n\.from \{[^}]*\}/)?.[0] ?? '';
+  assert.match(rule, /position:relative; top:10px;/, 'LABEL-LOWER: the label is drawn 10px below its box, on every passage and the one being written');
+  assert.doesNotMatch(page.replace(rule, ''), /\.from[^{,]*\{[^}]*\btop:/, 'LABEL-LOWER: and no other rule moves it back');
+}
+ok('a label new on screen translates out of Loenese, a repainted one does not, and every label sits 10px lower');
+
+// ---- THE WEAVING, IN THE PASSAGE BEING WRITTEN (Seth, 2026-11-03: "can we polish that so it feels
+// more a part of what's on screen"). The veil's markup, caught as it goes onto #shell.
+{
+  const { readFileSync } = await import('node:fs');
+  const shell = (document as any).getElementById('shell');
+  const was = shell.appendChild; let veil: any = null;
+  shell.appendChild = (g: any) => { veil = g; };
+  const weaving = (STORY as any).weaves;
+  let open!: () => void;
+  try {
+    (STORY as any).weaves = true;
+    click({ open: 's-1' }); await sleep(40);
+    streamGate = new Promise<void>((r) => { open = r; });
+    void click({ continue: '1' }); await sleep(30);
+    const markup = String(veil?.innerHTML ?? '');
+    assert.match(String(veil?.className), /\bweaving\b/, 'WEAVE-LINE: the passage being written is marked weaving, which raises the sunburst behind the loader');
+    assert.match(markup, /<div class="veilweave" role="status" aria-label="Anansi is planning"><span class="wv-word" aria-hidden="true">Planning…<\/span> <span class="wv-secs" aria-hidden="true">0s<\/span><\/div>/,
+      'WEAVE-LINE: Planning and its seconds, in two parts, hidden from a screen reader, which is told Anansi is planning');
+    open(); await sleep(60);
+    (STORY as any).weaves = false;
+    click({ open: 's-1' }); await sleep(40);
+    streamGate = new Promise<void>((r) => { open = r; });
+    void click({ continue: '1' }); await sleep(30);
+    assert.doesNotMatch(String(veil?.className), /\bweaving\b/, 'WEAVE-LINE: a passage not woven is not marked');
+    assert.match(String(veil?.innerHTML), /<div class="veilweave" role="status"><\/div>/, '  and its line is empty, with no label to read out');
+    open(); await sleep(60);
+  } finally { streamGate = null; shell.appendChild = was; (STORY as any).weaves = weaving; }
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  assert.match(page, /#ghost\.weaving \.writingnow::before \{[^}]*background:var\(--gold\)[^}]*mask:url\('\/web\/arcana-sunburst\.svg'\)[^}]*animation:weaverise/,
+    'WEAVE-LINE: the sunburst is the scene head\'s, in the accent, breathing');
+  assert.match(page, /#ghost \.veilweave \{[^}]*font-family:var\(--arc-small\)[^}]*color:var\(--gold\)/, 'WEAVE-LINE: the line is in the label\'s capitals and the accent');
+  assert.doesNotMatch(page, /\.veilweave[^{]*\{[^}]*\b(?:border|background)\b/, 'WEAVE-LINE: with no box');
+  const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+  assert.match(src, /function weaveDecode\(g\) \{\n  const w = g\?\.querySelector\?\.\('\.veilweave \.wv-word'\);\n  if \(w\) loenIn\(/, 'WEAVE-LINE: its word translates out of Loenese');
+}
+ok('the weaving sits in the passage being written: a sunburst behind the loader, Planning in the accent, said once to a screen reader');
 
 // ---- WRITING INLINE: THE OLD VERSION STAYS HIDDEN WHILE THE NEW ONE IS WRITTEN, THROUGH A REPAINT.
 // It was hidden by a class put on the DOM at the press, and a repaint rebuilds #col, so the old

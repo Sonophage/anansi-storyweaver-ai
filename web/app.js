@@ -1721,8 +1721,11 @@ function passageHTML(p, newest, opening) {
    * IT IS HIDDEN WHILE READING, in the CSS with the rest of the apparatus. A chip over every
    * paragraph is a writing tool, and reading is the mode that takes the tools away. */
   const press = pressOf(p, spoken);
-  const from = `<div class="from" data-press="${pressKey(press)}"><i></i>${esc(press)}${
-    p.speaker ? ` &middot; ${esc(p.speaker)}` : ''}</div>`;
+  // The words in a span of their own: the chip is a flex row, and the decode writes a span per
+  // letter, each of which would be a flex item with the chip's gap after it. `fresh` on a label new
+  // on screen (labelNew), which drawDoc then decodes out of Loenese.
+  const from = `<div class="from${labelNew(p) ? ' fresh' : ''}" data-press="${pressKey(press)}"><i></i><span>${esc(press)}${
+    p.speaker ? ` &middot; ${esc(p.speaker)}` : ''}</span></div>`;
   // `directed` stays on a passage written to order: it says so (the reweave box reads it), and the
   // Woven bar is the later rule, so it is the colour that shows.
   const cls = `block${mine ? ' you' : spoken && !woven ? ' speak' : ''}${p.directed && !mine ? ' directed' : ''}${m}${p.id === S.found ? ' found' : ''}${p.id === S.arrived ? ' arrived' : ''}`
@@ -2062,6 +2065,7 @@ function drawDoc() {
         i === 0,
       )).join('')
     : chapterHTML(ch, ps, plate, true, true);
+  decodeFresh(col);
   /* WHEREVER A PASSAGE CAME FROM, IT LANDS THE SAME WAY. Seth, 2026-09-01: "every new message that
    * comes in should scroll to the bottom of the last message not the new message to make it easier
    * to read."
@@ -2660,7 +2664,7 @@ function drawDock() {
       <!-- #55. WHILE A WEAVING BOOK'S PASSAGE IS BEING WOVEN, the count, here and on the veil. Only
            drawn while it runs; weaveStop empties it, and the next draw leaves it out. -->
       ${weavingAt('dock') && !folded
-        ? `<span id="weaving" class="weaving tnum" aria-live="polite">${weaveWords('dock')}</span>` : ''}
+        ? `<span id="weaving" class="weaving tnum" role="status" aria-label="Anansi is planning">${weaveHTML('dock')}</span>` : ''}
       ${S.busy && !veilUp()
         ? `<button id="send" data-stop="1" class="stopping" aria-label="Stop writing"
              title="Stop">${mark('stop', 18)}<span class="btnword">Stop</span></button>`
@@ -10801,6 +10805,30 @@ function decode(el, slot) {
   loenIn(el, decodeMs([...target].length));
 }
 
+/** THE ACTION LABEL TRANSLATES OUT OF LOENESE WHEN IT IS NEW ON SCREEN, as a header does. Seth,
+ *  2026-11-03: "The action dividers do the same." New means the passage being written (ghost) and a
+ *  passage that landed in the book while it was open: the passages already in a book when it is
+ *  first drawn are remembered without decoding, so opening a book, changing scene or a repaint sets
+ *  nothing going. Keyed by passage id, and by every variant's id, so turning to another version is
+ *  not new either. The passage written inline lands already decoded (QUIET_LAND).
+ *  ponytail: a repaint while a label is still turning draws it in English at once, and it does not
+ *  turn again; carry the job across repaints if a label seen snapping reads as a glitch. */
+const LABELLED = { story: null, seen: new Set() };
+function labelNew(p) {
+  const ids = (x) => [x.id, ...(x.variants ?? []).map((y) => y.id)];
+  if (LABELLED.story !== S.storyId) {
+    LABELLED.story = S.storyId;
+    LABELLED.seen = new Set((V?.passages ?? []).flatMap(ids));
+  }
+  if (LABELLED.seen.has(p.id)) return false;
+  for (const id of ids(p)) LABELLED.seen.add(id);
+  return p.id !== QUIET_LAND;
+}
+/** Decode every label under `root` marked new (`fresh`). Reduced motion writes nothing (loenIn). */
+function decodeFresh(root) {
+  for (const el of root?.querySelectorAll?.('.from.fresh > span') ?? []) loenIn(el, decodeMs([...el.textContent].length));
+}
+
 /** "Anansi is writing", as the loader on the passage being written: set in Loenese and breathing in
  *  the accent (app.html, the loader under LOENESE), with the English as its label for a screen
  *  reader. Shown from the press until the first word arrives (`written`, liveDelta). Seth,
@@ -10874,15 +10902,16 @@ function ghost(replaces = null) {
     // THE DROP CAP TOO, when this is the scene's first passage: it lands with one (`opening`,
     // passageHTML), so it is written with one rather than gaining it as it lands (2026-10-27).
     const opens = !GHOST_VOICE && !(V?.passages ?? []).some((p) => p.chapterId === V?.currentChapter?.id && !p.isBreak);
-    g.id = 'ghost'; g.className = `block inlive m-woven${opens ? ' opening' : ''}`;
+    g.id = 'ghost'; g.className = `block inlive m-woven${opens ? ' opening' : ''}${weavingAt('dock') ? ' weaving' : ''}`;
     // SET AS IT WILL LAND. A passage with a named voice lands as speech — the name above it, in the
     // same face and size as narration since 2026-10-29 — and one that opens on a quote does too
     // (`spoken`, passageHTML). It was always written as narration and changed font the moment it
     // landed (Seth, 2026-10-26). The voice is
     // the speaker the press sent (GHOST_VOICE); an opening quote is seen at the first word (liveDelta).
-    g.innerHTML = `<div class="from" data-press="${pressKey(press)}"><i></i>${esc(press)}${GHOST_VOICE ? ` &middot; ${esc(GHOST_VOICE)}` : ''}</div>
+    // Its label is always new on screen, so it is always `fresh` (decodeFresh, below drawDoc).
+    g.innerHTML = `<div class="from fresh" data-press="${pressKey(press)}"><i></i><span>${esc(press)}${GHOST_VOICE ? ` &middot; ${esc(GHOST_VOICE)}` : ''}</span></div>
       ${WRITING_NOW}
-      <div class="veilweave" aria-live="polite">${weavingAt('dock') ? weaveWords('dock') : ''}</div>
+      ${WEAVE_LINE()}
       ${GHOST_VOICE ? `<div class="who">${esc(GHOST_VOICE)}</div>` : ''}
       <div class="${GHOST_VOICE ? 'said' : 'narr'}"><div class="veiltext" aria-live="polite"></div></div>`;
     // Drawn again with it in place, so the passage before it gives up the newest's row (chapterHTML).
@@ -10896,6 +10925,7 @@ function ghost(replaces = null) {
     // is how the cause was found).
     REPLACING = replaces;
     drawDoc();
+    decodeFresh(g); weaveDecode(g);
     // THE NEW ENTRY'S HEADER GOES TO THE TOP, AT THE PRESS (Seth, 2026-10-27, below at anchorLive).
     INLINE_ANCHOR = true;
     anchorLive();
@@ -10903,7 +10933,7 @@ function ghost(replaces = null) {
   }
 
   const g = document.createElement('div');
-  g.id = 'ghost'; g.className = 'veil';
+  g.id = 'ghost'; g.className = `veil${weavingAt('dock') ? ' weaving' : ''}`;
   // innerHTML is safe here and only here: every character of it is written below, and the one place
   // untrusted text lands is `.veiltext`, which only ever receives text through `esc` and `accent`
   // (`inkAccent`, web/model.js).
@@ -10918,7 +10948,7 @@ function ghost(replaces = null) {
            (F60), and a minute of blur with nothing counting reads as a hang. Empty, and so not
            drawn, for every other passage and from the first word on. -->
       ${WRITING_NOW}
-      <div class="veilweave" aria-live="polite">${weavingAt('dock') ? weaveWords('dock') : ''}</div>
+      ${WEAVE_LINE()}
       <div class="veilrow">
         <div class="veilmeter" aria-hidden="true"><i></i></div>
         <div class="veiltext" aria-live="polite"></div>
@@ -10930,6 +10960,7 @@ function ghost(replaces = null) {
       <div class="veilcarry"></div>
     </div>`;
   shell.appendChild(g);
+  weaveDecode(g);
 }
 
 
@@ -11022,14 +11053,41 @@ function anchorLive() {
  *  'dock' for a passage (the veil and the composer), 'talk' for the Talk window's line, and for an
  *  invention the label of the tray's button. A place absent from it is not being woven for. */
 const WEAVES = new Map();
-const weaveWords = (at = 'dock') => `Planning\u2026 ${Math.floor((Date.now() - WEAVES.get(at).t0) / 1000)}s`;
+const weaveSecs = (at) => `${Math.floor((Date.now() - WEAVES.get(at).t0) / 1000)}s`;
+const weaveWords = (at = 'dock') => `Planning\u2026 ${weaveSecs(at)}`;
 const weavingAt = (at) => WEAVES.has(at);
+/** THE PASSAGE'S COUNT, in two parts so the seconds can tick without rewriting the word: "Planning…"
+ *  translates out of Loenese once, as the label over it does (weaveDecode), and a tick that wrote the
+ *  whole line would end that. Its text is still weaveWords. The parts are hidden from a screen
+ *  reader, which is told "Anansi is planning" once (WEAVE_LINE) rather than a number every second. */
+const weaveHTML = (at = 'dock') => `<span class="wv-word" aria-hidden="true">Planning\u2026</span> <span class="wv-secs" aria-hidden="true">${weaveSecs(at)}</span>`;
+/** The passage being written, while it is woven: the line under the loader. Seth, 2026-11-03: "The
+ *  Anansi weaving, can we polish that so it feels more a part of what's on screen." In the loader's
+ *  own treatment (app.html, THE WEAVING): a sunburst rising behind "Anansi is writing", and this line
+ *  in the label's spaced capitals and the accent. Empty, and not drawn, when the passage is not woven. */
+const WEAVE_LINE = () => (weavingAt('dock')
+  ? `<div class="veilweave" role="status" aria-label="Anansi is planning">${weaveHTML('dock')}</div>`
+  : '<div class="veilweave" role="status"></div>');
+/** "Planning…" out of Loenese, once, when the passage being written is drawn woven. */
+function weaveDecode(g) {
+  const w = g?.querySelector?.('.veilweave .wv-word');
+  if (w) loenIn(w, decodeMs([...w.textContent].length));
+}
 function weaveShow(at) {
   const words = WEAVES.has(at) ? weaveWords(at) : '';
+  const g = at === 'dock' ? document.getElementById('ghost') : null;
+  // The sunburst goes with the count (THE WEAVING, app.html).
+  if (!words) g?.classList?.remove?.('weaving');
   const els = at === 'dock'
-    ? [document.getElementById('ghost')?.querySelector?.('.veilweave'), document.getElementById('weaving')]
+    ? [g?.querySelector?.('.veilweave'), document.getElementById('weaving')]
     : at === 'talk' ? [document.getElementById('talkweaving')] : [at];
-  for (const el of els) if (el) el.textContent = words;
+  for (const el of els) {
+    if (!el) continue;
+    const secs = words && el.querySelector?.('.wv-secs');
+    if (secs) secs.textContent = weaveSecs(at);
+    else el.textContent = words;
+    if (!words) el.removeAttribute?.('aria-label');
+  }
 }
 /** At the press, once the call is going to be sent, and before the place that shows it is drawn,
  *  so it is drawn already counting. A button's label is written at once, since nothing redraws it. */

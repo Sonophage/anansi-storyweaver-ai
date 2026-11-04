@@ -18,6 +18,16 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · A thread is edited where you read it
 
+### Passage labels decode too, sit a little lower, and planning looks like part of the page
+The small label over a passage, such as "Woven" or "Speak", now translates out of the old script
+the same way a heading does, but only when it is new: on the passage Anansi is writing, and on a
+passage that has just arrived. Opening a book, changing scene or scrolling leaves the labels still.
+Each label also sits a little lower, closer to the words it describes, with more space above it.
+When your book has Anansi plan first, the wait now happens where the passage will appear: a soft
+sunburst rises and fades behind "Anansi is writing", and under it "Planning…" with the seconds,
+in the same small capitals and colour as the labels. A screen reader hears "Anansi is planning"
+once instead of a new number every second.
+
 ### Words arrive in the old script, and "Anansi is writing" is written in it
 A heading that changes now prints first in a strange, hidden script, holds for a moment, and then
 translates into the plain words from left to right: each letter runs through a few other letters

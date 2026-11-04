@@ -233,8 +233,6 @@ input, textarea { font:inherit; color:inherit; }
    (THE DECODE, under LOENESE below; Seth, 2026-11-03). Before that it came up out of a blur
    (2026-10-26: "Make the text cinematically fade in from a blur when the ai writes"), and it
    scrambled in for a day before that (2026-10-25). */
-#ghost.inlive .veilweave { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--label); }
-#ghost.inlive .veilweave:empty { display:none; }
 .block.rerolling-out { display:none; }
 #ghost.veil { position:absolute; inset:0; z-index:50; display:flex; align-items:flex-start;
   justify-content:center;
@@ -304,12 +302,6 @@ input, textarea { font:inherit; color:inherit; }
   color:var(--ink); white-space:pre-wrap; overflow-wrap:break-word; scrollbar-width:none; }
 #ghost.veil .veiltext::-webkit-scrollbar { display:none; }
 #ghost.veil .veilrow { display:flex; align-items:stretch; gap:22px; }
-/* #55. "WEAVING… 12s", above the prose while a weaving book's passage is planned. In the same
-   small capitals as Stop, in the muted ink so it reads as a state and not a control. Empty for every
-   other wait and from the first word on, and an empty one takes no room. */
-#ghost.veil .veilweave { font-size:11px; letter-spacing:.14em; text-transform:uppercase;
-  color:var(--mute); font-variant-numeric:tabular-nums; }
-#ghost.veil .veilweave:empty { display:none; }
 #ghost.veil .veilmeter { flex:0 0 3px; width:3px; align-self:stretch; background:var(--chip);
   border-radius:var(--r-tight); overflow:hidden; }
 #ghost.veil .veilmeter i { display:block; width:100%; height:0; background:var(--gold);
@@ -419,6 +411,26 @@ input, textarea { font:inherit; color:inherit; }
   50% { opacity:1; text-shadow:0 0 14px color-mix(in srgb, var(--gold) 55%, transparent); } }
 #ghost.written .writingnow { display:none; }
 @media (prefers-reduced-motion: reduce) { .writingnow .loen { animation:none; opacity:.9; } }
+
+/* THE WEAVING: while a woven passage is planned, before its first word (#55; Seth, 2026-11-03: "can
+   we polish that so it feels more a part of what's on screen"). It was a line of small grey
+   capitals under the loader, a status line from somewhere else. It is the loader's own now, in the
+   place the passage will land: a half sunburst rising behind "Anansi is writing", as one rises over
+   a scene's title, breathing with it; and under it "Planning… 12s" in the label's spaced capitals and
+   the accent, its word translated out of Loenese as it appears (weaveDecode). No box and no rule: the
+   passage has none. Empty for every other wait and from the first word on, and an empty one takes no
+   room. Still under reduced motion, like the loader. */
+#ghost.weaving .writingnow::before { content:''; display:block; width:min(300px, 66%); aspect-ratio:3 / 1;
+  margin:0 auto -10px; background:var(--gold); opacity:.5; transform-origin:50% 100%;
+  -webkit-mask:url('/web/arcana-sunburst.svg') center bottom / contain no-repeat;
+  mask:url('/web/arcana-sunburst.svg') center bottom / contain no-repeat;
+  animation:weaverise 2.6s ease-in-out infinite; }
+@keyframes weaverise { 0%, 100% { opacity:.45; transform:scale(.94); } 50% { opacity:1; transform:none; } }
+#ghost .veilweave { display:block; text-align:center; margin:6px -.3em 0 0; font-family:var(--arc-small);
+  font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:var(--gold); opacity:.8; }
+#ghost .veilweave:empty { display:none; }
+.veilweave .wv-secs, .weaving .wv-secs { text-transform:none; letter-spacing:.12em; font-variant-numeric:tabular-nums; }
+@media (prefers-reduced-motion: reduce) { #ghost.weaving .writingnow::before { animation:none; } }
 
 /* A panel's contents SETTLE in after the panel itself has arrived, so the two reads as one move
    rather than a race. The delay is the panel's own transition, near enough. */
@@ -905,7 +917,10 @@ html[data-ui-font="serif"] :is(.narr, .said) em { font-style:normal; }
    second one readable without a legend.
    `--m` is only set by the mode classes, so a passage written before modes existed falls back to
    the faint chip it would have had. */
-.from { display:inline-flex; align-items:center; gap:6px; margin:0 0 7px;
+/* 10px LOWER THAN ITS BOX (Seth, 2026-11-03: "Lower them a bit, by like 10px"): nearer the words it
+   is about, further from the passage above. Moved, not given a margin, so nothing under it moves
+   and the passage being written keeps the place it will land in. test/app.ts LABEL-LOWER. */
+.from { display:inline-flex; align-items:center; gap:6px; margin:0 0 7px; position:relative; top:10px;
   font-size:11px; letter-spacing:.12em; text-transform:uppercase;
   color:var(--m, var(--label)); opacity:.9; }
 .from i { width:5px; height:5px; border-radius:50%; flex:0 0 auto;
@@ -1386,9 +1401,10 @@ html[data-work="ai"]       { --work:var(--gold); }
    the gold was wrong on. The padding stays: it is the gap between the field and the edge of the
    dock, and it was never the line's. */
 #inputRow { display:flex; align-items:flex-end; gap:16px; padding:0 0 14px; }
-/* #55. The same count beside Send, for a writer who left the veil while the passage was woven. */
-#inputRow .weaving { align-self:center; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
-  color:var(--mute); white-space:nowrap; }
+/* #55. The same count beside Send, for a writer who left the veil while the passage was woven. In
+   the passage's own words for it since 2026-11-03 (THE WEAVING): spaced capitals in the accent. */
+#inputRow .weaving { align-self:center; font-family:var(--arc-small); font-size:11px; letter-spacing:.3em;
+  text-transform:uppercase; color:var(--gold); opacity:.8; white-space:nowrap; }
 #inputRow .weaving:empty { display:none; }
 /* #71 · THE THREE BUTTONS. Once a passage has landed the bottom of the screen is ↻, the quill and
    ✦, marks only (round two), and the box is behind the quill: FOLDED hides it, and TALKING hides
