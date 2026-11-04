@@ -1749,6 +1749,12 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.ok(!back.error, back.error);
     assert.strictEqual(room(her.id, 'appearance').length, 0, 'TALK-ASKED-ENTRY: its Undo takes the pocket away');
   }
+  // And the contract says which is which, in one sentence beside the rule (2026-11-04).
+  {
+    const { TALK_CONTRACT: TC } = await import('../src/prompts.ts');
+    assert.match(TC.replace(/\s+/g, ' '), /asks you to fill, write, add to or change a thread[^.]*is a change[^.]*entries[^.]*unasked/,
+      'TALK-ASKED-CONTRACT: a request to fill or change a thread is a change; entries are for what is offered unasked');
+  }
   ok('a request about a thread the model sent back as an offer is done as asked, with Undo');
 
   // A CARD WITH ITS POCKETS (2026-11-04). An entry may carry pockets, each its room and its text,

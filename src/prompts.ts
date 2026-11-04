@@ -1973,6 +1973,8 @@ You may also offer, when the writer's message calls for it and not otherwise:
 WHAT THE WRITER ASKS YOU TO CHANGE, you change, in changes, and nowhere else. Only what they asked
 for in so many words: "make Talia thirty", "give Morgott a slow voice", "add the ferryman". Each is
 done the moment you answer, so a thing they did not ask for is never a change; offer it instead.
+When the writer asks you to fill, write, add to or change a thread, that thread is a change in
+changes, all its pockets with it, and never an entry: entries are only threads you offer unasked.
 
 - thread.set: the thread by its name, the room (none for its Always true), and the whole new text
   of that room as it should read. Several rooms of one thread go in pockets, each its room and its
