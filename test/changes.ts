@@ -839,4 +839,18 @@ ok('CONTRACT-EVERY-OP: TALK_CONTRACT describes every operation the model may ask
   for (const op of ch.ASKED) assert.ok(TALK_CONTRACT.includes(`- ${op}:`), `CONTRACT-EVERY-OP: TALK_CONTRACT does not describe ${op}`);
 });
 
+// THE GRAMMAR KEEPS THE SCHEMA'S KEY ORDER. The local server compiles the schema to a grammar with
+// every optional key in the order it is declared, so a key after `text` shuts `text` out once it is
+// written. MEASURED 2026-11-03, replaying Seraphine on the real model: it wrote
+// {"op":"thread.new","title":"Seraphine","type":"character","field":"voice","to":"tale"} three times,
+// and every one was refused for having no Always true. Everything a change names comes first.
+ok('CHANGE-ORDER: the keys that name what a change is aimed at come before its text, in both grammars', () => {
+  for (const [name, schema] of [['CHANGES_SCHEMA', ch.CHANGES_SCHEMA], ['DRAFT_CHANGES_SCHEMA', ch.DRAFT_CHANGES_SCHEMA]] as const) {
+    const keys = Object.keys(schema.items.properties);
+    const at = keys.indexOf('text');
+    for (const k of ['op', 'thread', 'title', 'type', 'room', 'field'])
+      if (keys.includes(k)) assert.ok(keys.indexOf(k) < at, `CHANGE-ORDER: ${name} declares ${k} after text (${keys.join(', ')})`);
+  }
+});
+
 console.log(`\n${n} checks passed`);

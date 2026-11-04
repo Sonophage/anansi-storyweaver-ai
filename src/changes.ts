@@ -75,34 +75,39 @@ export const CHANGES_SCHEMA = {
   type: 'array', maxItems: 4,
   items: {
     type: 'object',
+    // IN THIS ORDER, everything a change names before its text. The local server compiles the schema
+    // to a grammar that holds every optional key to the order declared here, so a key declared after
+    // `text` shuts `text` out once it is written. `title` and `type` were after it, and a new thread
+    // written as op, title, type could not carry an Always true at all: Seraphine, 2026-11-03.
+    // test/changes.ts CHANGE-ORDER holds this.
     properties: {
       op: { type: 'string', enum: [...ASKED] },
       // thread.set: the thread by its name, as the writer and the model know it.
       thread: { type: 'string', maxLength: 80 },
-      // thread.set: the room, or `none` for its Always true.
-      room: { type: 'string', enum: ['none', ...ALL_SLOTS] },
-      // thread.set: the new text of that room. thread.new: its Always true. thread.overtime: the
-      // whole of where the thread stands from that scene on. tale.set, scene.set: the field's text.
-      text: { type: 'string', maxLength: 600 },
-      // thread.overtime: what changed, in a few words.
-      label: { type: 'string', maxLength: 60 },
       // thread.new: its name. string.set, string.stand, rule.*, instruction.*: the pocket's name.
       title: { type: 'string', maxLength: 80 },
       type: { type: 'string', enum: [...KINDS] },
       // string.set: a promise or an open question. Left out on a string the tale has, it keeps its own.
       kind: { type: 'string', enum: [...STRING_SLOTS] },
-      // string.stand: where the string stands now.
-      stand: { type: 'string', enum: [...STANDS] },
-      // rule.switch, instruction.switch: on or off.
-      on: { type: 'boolean' },
-      // thread.new, thread.wake and rule.set: Always on or On a word, and the wake words.
-      keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
-      activation: { type: 'string', enum: ['always_on', 'triggered'] },
+      // thread.set: the room, or `none` for its Always true.
+      room: { type: 'string', enum: ['none', ...ALL_SLOTS] },
       // tale.set: which of the tale's own fields. scene.set: which of the scene's.
       field: { type: 'string', enum: [...new Set([...TALE_FIELDS, ...SCENE_FIELDS])] },
       // scene.set: the scene by its number. thread.overtime: the scene it holds from. None is the
       // scene the writer is in. thread.retire: the scene it is retired from; none is the next one.
       scene: { type: 'integer', minimum: 1 },
+      // string.stand: where the string stands now.
+      stand: { type: 'string', enum: [...STANDS] },
+      // rule.switch, instruction.switch: on or off.
+      on: { type: 'boolean' },
+      // thread.new, thread.wake and rule.set: Always on or On a word, and the wake words.
+      activation: { type: 'string', enum: ['always_on', 'triggered'] },
+      keys: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 40 } },
+      // thread.overtime: what changed, in a few words.
+      label: { type: 'string', maxLength: 60 },
+      // thread.set: the new text of that room. thread.new: its Always true. thread.overtime: the
+      // whole of where the thread stands from that scene on. tale.set, scene.set: the field's text.
+      text: { type: 'string', maxLength: 600 },
       // #99 · the search results this change was made from, by their numbers. The route puts their
       // links in the thread's notes; they never go in its text.
       sources: { type: 'array', maxItems: 3, items: { type: 'integer', minimum: 1 } },
@@ -908,11 +913,11 @@ export const DRAFT_CHANGES_SCHEMA = {
       thread: { type: 'string', maxLength: 80 },
       // thread.set: the room, or `none` for its Always true.
       room: { type: 'string', enum: ['none', ...ALL_SLOTS] },
-      // tale.set and thread.set: the whole new text. thread.new: its Always true.
-      text: { type: 'string', maxLength: 1200 },
-      // thread.new only.
+      // thread.new only. Before `text`, for CHANGES_SCHEMA's reason: the grammar keeps this order.
       title: { type: 'string', maxLength: 80 },
       type: { type: 'string', enum: [...KINDS] },
+      // tale.set and thread.set: the whole new text. thread.new: its Always true.
+      text: { type: 'string', maxLength: 1200 },
       // The search results this change was made from, by their numbers (#99).
       sources: { type: 'array', maxItems: 3, items: { type: 'integer', minimum: 1 } },
     },
