@@ -1210,17 +1210,48 @@ ok('no chevron divider or decorative gilt line under any header');
   const q = html('dockCol').match(/<button id="quill"[^>]*>[\s\S]*?<\/button>/)?.[0] ?? '';
   assert.match(q, /<button id="quill" data-dockopen="1" aria-expanded="false"\s+aria-label="Open the box, to write it yourself\. Hold to talk to Anansi"/,
     'EMBLEM: still the quill press, its tap, its state and its words');
-  assert.match(q, /<span class="emdia" aria-hidden="true"><\/span><\/button>$/, 'EMBLEM: the diamond is in it, hidden from a screen reader');
+  assert.match(q, /<span class="emdia" aria-hidden="true"><\/span><span class="emdots" aria-hidden="true">(<i><\/i>){4}<\/span><\/button>$/,
+    'EMBLEM: the diamond is in it, and its four dots, hidden from a screen reader');
   assert.doesNotMatch(q, /<svg/, 'EMBLEM: no icon drawn in it: the mark is the banner\'s, a mask');
   const rule = page.match(/#nextrow \.quillcell > button \{[^}]*\}/)?.[0] ?? '';
   assert.match(rule, /width:60px; height:60px;/, 'EMBLEM: the same 60px footprint, so the bar does not move');
   assert.doesNotMatch(rule, /border-radius|background:var\(--gold\)/, 'EMBLEM: no circle and no gold fill');
-  assert.doesNotMatch(page, /html:root #quill[^{]*\{[^}]*(border-radius:50%|radial-gradient)/, 'EMBLEM: no round seal rules are left');
-  assert.match(page, /html:root #quill::before, html:root #quill::after \{[^}]*mask:url\('\/web\/arcana-sunburst\.svg'\)/, 'EMBLEM: the banner\'s sunburst behind it, rising and turned down');
-  assert.match(page, /html:root #quill > \.emdia::before \{ width[^}]*mask:url\('\/web\/arcana-diamond\.svg'\)/, 'EMBLEM: the banner\'s diamond');
+  // The dots are round; the press is not.
+  assert.doesNotMatch(page, /html:root #quill(?! > \.emdots > i)[^{]*\{[^}]*(border-radius:50%|radial-gradient)/, 'EMBLEM: no round seal rules are left');
+  // NO RAYS (Seth, 2026-11-03: "Remove the rays"): nothing on the press's own pseudo-elements.
+  assert.doesNotMatch(page, /#quill(\[[^\]]*\])?::(before|after)/, 'EMBLEM-NO-RAYS: nothing drawn on the press\'s own ::before or ::after');
+  assert.doesNotMatch(page, /#quill[^{]*\{[^}]*arcana-sunburst/, 'EMBLEM-NO-RAYS: no sunburst on the press');
+  // The diamond with no marks at its tips: the marks are the four dots now.
+  assert.match(page, /html:root #quill > \.emdia::before \{ width[^}]*mask:url\('\/web\/arcana-diamond-plain\.svg'\)/, 'EMBLEM: the banner\'s diamond, plain');
+  const plain = readFileSync(new URL('../web/arcana-diamond-plain.svg', import.meta.url), 'utf8');
+  const full = readFileSync(new URL('../web/arcana-diamond.svg', import.meta.url), 'utf8');
+  assert.doesNotMatch(plain, /fill="#/, 'EMBLEM-PLAIN: no marks at the tips');
+  for (const d of full.match(/<path d="M40 \d+L[^"]*z" stroke[^>]*>/g) ?? [])
+    assert.ok(plain.includes(d), `EMBLEM-PLAIN: the same gilt line as the banner's diamond (${d.slice(0, 30)})`);
+  // THE DOTS TURN (Seth, 2026-11-03: "the dots around the diamond: have them move to the next peaks
+  // every three seconds, slowly, when idle"). Four dots on one path round the diamond's peaks,
+  // a quarter apart; one beat is 3 s, a glide and then a rest, four beats to the round.
+  const dots = page.match(/html:root #quill > \.emdots > i \{[^}]*\}/)?.[0] ?? '';
+  assert.match(dots, /offset-path:path\('M30 2L58 30 30 58 2 30Z'\)/, 'EMBLEM-DOTS: the dots run along the diamond, peak to peak');
+  assert.match(dots, /background:var\(--gold\)/, 'EMBLEM-DOTS: in the accent');
+  assert.match(page, /html:root #quill \{[^}]*--beat:3s;/, 'EMBLEM-DOTS: one beat is 3 s');
+  assert.match(dots, /animation:emdots calc\(var\(--beat\) \* 4\) linear infinite/, 'EMBLEM-DOTS: four beats to the round');
+  const kf = page.match(/@keyframes emdots \{[^@]*?\}\s*\}/)?.[0] ?? '';
+  const stops = [...kf.matchAll(/([\d.]+)%[^{]*\{[^}]*offset-distance:([\d.]+)%/g)].map((m) => [+m[1], +m[2]]);
+  // Each beat: rest on a peak, then glide to the next one in the last 1.2 s of the 3 s (10% of the round).
+  assert.deepEqual(stops, [[0, 0], [15, 0], [25, 25], [40, 25], [50, 50], [65, 50], [75, 75], [90, 75], [100, 100]],
+    `EMBLEM-DOTS: rest, then a quarter glide, every beat (${JSON.stringify(stops)})`);
+  for (let k = 1; k < 4; k++) {
+    assert.match(page, new RegExp(`html:root #quill > \\.emdots > i:nth-child\\(${k + 1}\\) \\{ offset-distance:${k * 25}%; animation-delay:calc\\(var\\(--beat\\) \\* -${k}\\); \\}`),
+      `EMBLEM-DOTS: dot ${k + 1} sits a peak further on, and keeps it while moving`);
+  }
+  const still = page.match(/html:root :is\(#quill:active, #quill\[aria-expanded="true"\], \.quillcell\.writing #quill\) > \.emdots > i \{[^}]*\}/)?.[0] ?? '';
+  assert.match(still, /animation-play-state:paused/, 'EMBLEM-DOTS: still while held, open or writing');
+  assert.match(page, /@media \(prefers-reduced-motion: reduce\) \{ html:root #quill > \.emdots > i \{ animation:none; \} \}/,
+    'EMBLEM-DOTS: under reduced motion, no motion: each dot on its own peak');
   assert.match(page, /html:root #quill > \.emdia::after \{ width[^}]*mask:url\('\/web\/arcana-mark-web\.svg'\)/, 'EMBLEM: the web mark in its middle');
   assert.match(page, /html:root #quill:active:not\(:disabled\) \{[^}]*transform:scale/, 'EMBLEM: held, it presses in');
-  assert.match(page, /html:root #quill\[aria-expanded="true"\]::before/, 'EMBLEM: open, it is quieter');
+  assert.match(page, /html:root #quill\[aria-expanded="true"\] > \.emdia \{ background:none; \}/, 'EMBLEM: open, it is quieter');
   assert.match(page, /html:root #quill:focus-visible > \.emdia \{[^}]*outline:/, 'EMBLEM: the keyboard\'s ring is drawn on the diamond');
   const brush = page.match(/html:root :is\([^{]*\)\s*\{\s*background-image:url\('\/web\/arcana-brush\.svg'\)/)?.[0] ?? '';
   assert.ok(brush && !/quill/.test(brush), 'EMBLEM: no brush texture on it');
@@ -1231,7 +1262,7 @@ ok('no chevron divider or decorative gilt line under any header');
   const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /mark\('web', 30\)/, 'EMBLEM: the turned-over wedge is gone from the press');
 }
-ok('the centre press is the emblem: the banner\'s diamond, web and sunburst, no circle');
+ok('the centre press is the emblem: the banner\'s diamond and web, no rays, its four dots turning a peak every 3 s');
 // THE PANEL TABS AND THE KIND CHIPS ARE 44px TO THE FINGER (Seth's rule: about 32px to the eye, 44px
 // to the finger). The Arcana tabs became spaced capitals with no boxes on 2026-11-03 and stood 28px
 // tall; the threads list's kind chips stood 34px. test/ui/targets.js measured both short on a phone.
@@ -2642,7 +2673,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     assert.ok(FACES && !Object.values(THEMES).some((t: any) => t.faces), 'ARCANA-FACES: the display faces are the app\'s, not a theme\'s');
     const html0 = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
     assert.doesNotMatch(html0, /data-ui-theme="arcana"\]/, 'ARCANA-EVERYWHERE: no rule keys on the Arcana theme');
-    const GILT = /arcana-(corner-..|divider|stars|sky-\w+|suit-\w+|glyph-\w+|mark-\w+|sunburst|diamond|runes|wash)\.svg/;
+    const GILT = /arcana-(corner-..|divider|stars|sky-\w+|suit-\w+|glyph-\w+|mark-\w+|sunburst|diamond(-plain)?|runes|wash)\.svg/;
     for (const m of html0.matchAll(/url\('\/web\/(arcana-[\w-]+\.svg)'\)/g)) {
       if (!GILT.test(m[1])) continue;
       const decl = html0.slice(Math.max(html0.lastIndexOf(';', m.index!), html0.lastIndexOf('{', m.index!)) + 1, m.index!);

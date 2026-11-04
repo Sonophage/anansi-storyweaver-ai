@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" fill="none">
+  <!-- The same double gilt diamond as arcana-diamond.svg, with no point at its tips: on the composer's
+       centre press four dots stand on the tips instead and walk round them. Line only, a mask. -->
+  <path d="M40 4L76 40 40 76 4 40z" stroke="#c8a252" stroke-opacity="0.45" stroke-width="1"/>
+  <path d="M40 10L70 40 40 70 10 40z" stroke="#c8a252" stroke-width="1.2"/>
+</svg>

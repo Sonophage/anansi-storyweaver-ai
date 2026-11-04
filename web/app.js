@@ -2400,10 +2400,10 @@ function nextBar(last) {
         <button id="quill" data-dockopen="1" aria-expanded="${open}"
           aria-label="${open ? 'Fold the box away. Hold to talk to Anansi' : 'Open the box, to write it yourself. Hold to talk to Anansi'}"
           title="${open ? 'Fold the box away' : 'Write it yourself'}. Hold to talk to Anansi">${/* THE EMBLEM (Seth, 2026-11-03): the
-            Threads banner's diamond with the web mark in it and its sunburst behind, all drawn by the
-            stylesheet as masks in the accent (THE CENTRE PRESS IS THE EMBLEM, app.html). The span is
-            the diamond; the rays are the press's own ::before and ::after. */
-            ''}<span class="emdia" aria-hidden="true"></span></button>
+            Threads banner's diamond with the web mark in it, drawn by the stylesheet as masks in the
+            accent (THE CENTRE PRESS IS THE EMBLEM, app.html). The first span is the diamond; the
+            second holds the four dots that walk round its tips. */
+            ''}<span class="emdia" aria-hidden="true"></span><span class="emdots" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
         ${busy ? '<canvas class="presssphere" role="status" aria-label="Anansi is writing"></canvas>' : ''}
       </div>
       ${busy && !open

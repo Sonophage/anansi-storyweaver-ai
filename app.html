@@ -1453,7 +1453,7 @@ html[data-work="ai"]       { --work:var(--gold); }
 #nextrow .quillcell { position:relative; display:flex; flex-direction:column; align-items:center; gap:4px; }
 /* NO SELECTION AND NO CALLOUT ON A LONG PRESS: holding the quill is a gesture here, and on an
    iPhone a hold selects and opens the callout menu over the button. The 60px it always had, so the
-   bar did not move when the circle became the emblem; its rays reach past it, and take no taps. */
+   bar did not move when the circle became the emblem. */
 #nextrow .quillcell > button { width:60px; height:60px; position:relative;
   -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }
 /* THE SPHERE AT THE PRESS (pressTurn, web/app.js): while Anansi writes the emblem fades away and the
@@ -3128,34 +3128,52 @@ html:root :is(.btn:not(.ghost), #send.stopping, .rerollbox .rwgo) {
 /* THE CENTRE PRESS IS THE EMBLEM (Seth, 2026-11-03, of the Threads panel's banner: "I want that to
    replace the whole centre button instead of the circle I press to bring up the input"). It was a
    gilt seal, a gold circle with a sigil and a ring. Now it is the banner's emblem at the size of the
-   press, from the banner's own files, every one a mask in the accent: the sunburst behind it, all
-   round (the banner's half rising, ::before, and the same half turned down, ::after), then the
-   diamond holding the dark (`.emdia`, a square turned a quarter), its gilt (`.emdia::before`) and
-   the web mark in its middle (`.emdia::after`). Its states stay apart: HELD presses in and lights;
-   OPEN (the box is up) is the diamond's outline alone; the KEYBOARD'S RING is drawn on the diamond,
-   so it is a diamond too; WHILE THE MODEL WORKS it glows round its shape (pressglow, above). While
-   Anansi writes it fades and the turning sphere stands in its place (THE SPHERE AT THE PRESS). */
-html:root #quill { isolation:isolate; background:none; border:0; padding:0; color:var(--gold);
+   press, from the banner's own files, every one a mask in the accent: the diamond holding the dark
+   (`.emdia`, a square turned a quarter), its gilt (`.emdia::before`, the diamond with no marks at its
+   tips) and the web mark in its middle (`.emdia::after`). The banner's sunburst stood behind it on the
+   first evening and came off the same night (Seth: "Remove the rays"). Its states stay apart: HELD
+   presses in and lights; OPEN (the box is up) is the diamond's outline alone; the KEYBOARD'S RING is
+   drawn on the diamond, so it is a diamond too; WHILE THE MODEL WORKS it glows round its shape
+   (pressglow, above). While Anansi writes it fades and the turning sphere stands in its place (THE
+   SPHERE AT THE PRESS). */
+html:root #quill { isolation:isolate; background:none; border:0; padding:0; color:var(--gold); --beat:3s;
   transition:opacity .3s var(--ease), transform var(--t) var(--ease), filter var(--t) var(--ease); }
-html:root #quill::before, html:root #quill::after { content:''; position:absolute; z-index:0; left:50%; width:160px; height:80px;
-  margin-left:-80px; pointer-events:none; background:var(--gold); opacity:.85;
-  -webkit-mask:url('/web/arcana-sunburst.svg') center bottom / 100% 100% no-repeat;
-  mask:url('/web/arcana-sunburst.svg') center bottom / 100% 100% no-repeat; }
-html:root #quill::before { bottom:50%; }
-html:root #quill::after { top:50%; transform:rotate(180deg); }
 html:root #quill > .emdia { position:absolute; z-index:1; left:50%; top:50%; width:42.4px; height:42.4px;
   margin:-21.2px 0 0 -21.2px; transform:rotate(45deg); pointer-events:none;
   background:color-mix(in srgb, var(--doc-bg) 92%, transparent); }
 html:root #quill > .emdia::before, html:root #quill > .emdia::after { content:''; position:absolute; left:50%; top:50%;
   transform:rotate(-45deg); background:var(--gold); }
 html:root #quill > .emdia::before { width:60px; height:60px; margin:-30px 0 0 -30px;
-  -webkit-mask:url('/web/arcana-diamond.svg') center / contain no-repeat; mask:url('/web/arcana-diamond.svg') center / contain no-repeat; }
+  -webkit-mask:url('/web/arcana-diamond-plain.svg') center / contain no-repeat; mask:url('/web/arcana-diamond-plain.svg') center / contain no-repeat; }
 html:root #quill > .emdia::after { width:26px; height:26px; margin:-13px 0 0 -13px;
   -webkit-mask:url('/web/arcana-mark-web.svg') center / contain no-repeat; mask:url('/web/arcana-mark-web.svg') center / contain no-repeat; }
+/* THE DOTS ROUND THE DIAMOND (Seth, 2026-11-03: "the dots around the diamond: have them move to the
+   next peaks every three seconds, slowly, when idle"). Four dots on one path through the diamond's
+   four peaks, just outside its outer line, in the press's own 60px (top, right, bottom, left,
+   clockwise). Each beat (`--beat`, 3 s) they rest on the peaks, then all four glide together to the
+   next peak in the last 1.2 s, so the pattern turns a quarter a beat. One set of keyframes serves all
+   four: each dot starts a beat further round (its delay) and sits on its own peak when nothing moves
+   (its offset-distance), which is what reduced motion shows. Held, open or writing, they stop where
+   they are. */
+html:root #quill > .emdots { position:absolute; z-index:2; inset:0; pointer-events:none; }
+html:root #quill > .emdots > i { position:absolute; left:0; top:0; width:3.5px; height:3.5px; border-radius:50%;
+  background:var(--gold); offset-path:path('M30 2L58 30 30 58 2 30Z'); offset-anchor:center; offset-rotate:0deg;
+  offset-distance:0%; animation:emdots calc(var(--beat) * 4) linear infinite; }
+html:root #quill > .emdots > i:nth-child(2) { offset-distance:25%; animation-delay:calc(var(--beat) * -1); }
+html:root #quill > .emdots > i:nth-child(3) { offset-distance:50%; animation-delay:calc(var(--beat) * -2); }
+html:root #quill > .emdots > i:nth-child(4) { offset-distance:75%; animation-delay:calc(var(--beat) * -3); }
+@keyframes emdots {
+  0% { offset-distance:0%; } 15% { offset-distance:0%; animation-timing-function:ease-in-out; }
+  25% { offset-distance:25%; } 40% { offset-distance:25%; animation-timing-function:ease-in-out; }
+  50% { offset-distance:50%; } 65% { offset-distance:50%; animation-timing-function:ease-in-out; }
+  75% { offset-distance:75%; } 90% { offset-distance:75%; animation-timing-function:ease-in-out; }
+  100% { offset-distance:100%; }
+}
+html:root :is(#quill:active, #quill[aria-expanded="true"], .quillcell.writing #quill) > .emdots > i { animation-play-state:paused; }
+@media (prefers-reduced-motion: reduce) { html:root #quill > .emdots > i { animation:none; } }
 html:root #quill:active:not(:disabled) { transform:scale(.93); filter:brightness(1.25); }
 html:root #quill:focus-visible { outline:none; }
 html:root #quill:focus-visible > .emdia { outline:2px solid var(--gold-lit); outline-offset:4px; }
-html:root #quill[aria-expanded="true"]::before, html:root #quill[aria-expanded="true"]::after { opacity:0; }
 html:root #quill[aria-expanded="true"] > .emdia { background:none; }
 html:root #quill[aria-expanded="true"] > .emdia::after { opacity:.5; }
 

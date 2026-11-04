@@ -20,8 +20,10 @@ Everything below this line was written by that model call, before it was removed
 
 ### The button under the page is the web in its diamond
 The round button in the middle under the page, the one you tap to write and hold to talk, is now
-the emblem from the top of the Threads panel: the gilt diamond with the web in its middle and rays
-of light all round it. It does the same things it did. Held down, it presses in and brightens.
+the emblem from the top of the Threads panel: the gilt diamond with the web in its middle, and a
+small dot on each of its four points. While it waits, every three seconds the four dots glide
+slowly round the diamond's edges to the next point. It does the same things it did. Held down, it
+presses in and brightens, and the dots hold still. With reduced motion they stay on the points.
 ### A turning globe while Anansi writes
 While Anansi writes a passage, the diamond under the page fades away and a small globe of dots
 turns in its place, a slow ripple running round it, until the passage is written; then the diamond

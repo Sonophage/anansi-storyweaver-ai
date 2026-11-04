@@ -60,14 +60,15 @@ ok("BAR-FOLDED: and the mode row, the box and Send are behind them",
    !(await shown('#modes')) && !(await shown('#input')) && !(await shown('#send')));
 const words = await page.eval("[...document.querySelectorAll('#nextrow button')].map((b) => b.textContent.trim()).join('|')");
 ok(`ICONS-ONLY: the buttons carry marks, not words (${JSON.stringify(words)})`, !/[A-Za-z]/.test(words));
-// THE EMBLEM (Seth, 2026-11-03): the Threads banner's diamond, web mark and sunburst, no circle, in
-// the 60px the circle had.
-ok("QUILL-EMBLEM: the middle is the emblem, a diamond in the 60px the circle had, with no round fill",
+// THE EMBLEM (Seth, 2026-11-03): the Threads banner's diamond and web mark, no circle and no rays,
+// in the 60px the circle had, with four dots on its peaks that walk round them.
+ok("QUILL-EMBLEM: the middle is the emblem, a diamond in the 60px the circle had, with no round fill and no rays",
    await page.eval(`(() => { const q = document.getElementById('quill'); if (!q) return false;
      const r = q.getBoundingClientRect(), d = q.querySelector('.emdia'), c = getComputedStyle(q);
      return !!d && !q.querySelector('svg') && Math.round(r.width) === 60 && Math.round(r.height) === 60
        && c.backgroundColor === 'rgba(0, 0, 0, 0)' && c.backgroundImage === 'none'
-       && /arcana-sunburst/.test(getComputedStyle(q, '::before').maskImage || getComputedStyle(q, '::before').webkitMaskImage); })()`));
+       && q.querySelectorAll('.emdots > i').length === 4
+       && !/arcana-sunburst/.test(getComputedStyle(q, '::before').maskImage || getComputedStyle(q, '::before').webkitMaskImage || ''); })()`));
 
 // ---- the hold hint, above the press, and no callout or selection on it
 ok("HINT: the quill says it can be held, the first few times",
