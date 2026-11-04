@@ -18,6 +18,16 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · A thread is edited where you read it
 
+### Talk makes a whole character when you ask
+Ask Talk for a full character and it now makes one thread with its Always true and each of its
+pockets (voice, appearance, outfit, inner life, relationships), each with its own line and Undo.
+Before, it could come back with the same "Not done" line four times and no character at all. When
+nothing you asked for was done, Talk now says so first, instead of opening with "Done." Talk does
+not rename a thread or change its kind; asked to, it says so and tells you to do it on the thread.
+### Remember this makes a person a character
+Remember this on a passage about someone now chalks a character, with room for a voice, an outfit
+and the rest. Before, everything it made was lore, so Tidy could only give it lore's pockets.
+
 ### Buttons are flat
 The gold button on a screen had a dry brush streaked through it. It is plain gold now, and no other
 button has a texture on it either. The painted paper stays on the page, the panels and the cards.
