@@ -20,7 +20,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
-import { checkAsked, checkUndo, undoFor, wordsFor, textsOf, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
+import { checkAsked, expandAsked, checkUndo, undoFor, wordsFor, textsOf, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
@@ -4676,7 +4676,9 @@ export const routes: Record<string, Handler> = {
     // rewrote no text).
     const changes: { words: string; undo: any; diff?: { before: string; after: string } | null }[] = [];
     const notDone: { said: string; why: string }[] = [];
-    const raws = (Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4);
+    // As `expandAsked` reads them: a change sent twice once, a new thread sent once per pocket as one
+    // thread and its pockets (Seraphine, 2026-11-03).
+    const raws = expandAsked((Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 4), taleOf(v.id));
     // #101 · IN A TALE THAT FOLLOWS A WORLD, a change the model did not place as canon or as the
     // writer's version is a question. Then NOTHING in this answer is done, the rest included: the
     // writer answers one line and asks again, rather than finding half of what they said applied.

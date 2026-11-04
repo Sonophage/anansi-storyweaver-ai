@@ -81,6 +81,13 @@ const srv = createServer((req, res) => {
       NEW: { reply: 'The ferryman is in the tale.',
         changes: [{ op: 'thread.new', title: 'The ferryman', type: 'character',
           text: 'Rows the dead across for a coin.', keys: ['ferryman'], activation: 'triggered' }] },
+      // Seraphine (2026-11-03), as a replay on the real model sent her: a new thread once per pocket,
+      // the pocket named in `field`, and one of them sent twice.
+      SERAPHINE: { reply: 'Done. Seraphine is in the tale.',
+        changes: [{ op: 'thread.new', title: 'Seraphine', type: 'character', field: 'voice', text: 'A low murmur; calls everyone darling.' },
+                  { op: 'thread.new', title: 'Seraphine', type: 'character', field: 'voice', text: 'A low murmur; calls everyone darling.' },
+                  { op: 'thread.new', title: 'Seraphine', type: 'character', field: 'outfit', text: 'A habit cut low; red latex gloves to the elbow.' },
+                  { op: 'thread.new', title: 'Seraphine', type: 'character', text: 'A novitiate of the Choir of Saints.' }] },
       // Everything here is something the route must refuse, and the reply claims all of it was done.
       BAD: { reply: 'Done, all of it.',
         changes: [{ op: 'thread.set', thread: 'Nobody', text: 'Old.' },
@@ -1639,6 +1646,22 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.ok(m.totals, 'TALK-RAW: and still the context manifest it was sent');
   }
   ok('Talk keeps the model\'s raw answer in its generation row');
+
+  // A CHARACTER IN SEVERAL POCKETS lands as one thread with its pockets, each line once.
+  {
+    const sera = await say('CHANGE-SERAPHINE: make the nun a full character called Seraphine');
+    assert.ok(!sera.error, sera.error);
+    const her = (db.entriesOf(tale.id) as any[]).filter((e) => e.title === 'Seraphine');
+    assert.strictEqual(her.length, 1, 'TALK-POCKETS: one thread called Seraphine');
+    assert.strictEqual(her[0].entry_type, 'character', 'TALK-POCKETS: a character');
+    assert.deepStrictEqual(room(her[0].id, 'facts').map((a) => a.body), ['A novitiate of the Choir of Saints.'], 'TALK-POCKETS: her Always true');
+    assert.strictEqual(room(her[0].id, 'voice')[0]?.body, 'A low murmur; calls everyone darling.', 'TALK-POCKETS: her voice');
+    assert.ok(room(her[0].id, 'voice')[0]?.active, 'TALK-POCKETS: switched on');
+    assert.strictEqual(room(her[0].id, 'outfit')[0]?.body, 'A habit cut low; red latex gloves to the elbow.', 'TALK-POCKETS: her outfit');
+    assert.deepStrictEqual(sera.notDone, [], `TALK-POCKETS: nothing refused (${JSON.stringify(sera.notDone)})`);
+    assert.strictEqual(sera.changes.length, 3, `TALK-POCKETS: three lines, the voice once (${sera.changes.map((x: any) => x.words).join(' | ')})`);
+  }
+  ok('a new character sent once per pocket is one thread with its pockets');
 
   // AN UNDO REACHES ONLY THIS TALE: another tale's thread, named from your own tale,
   // resolves to nothing. The dispatcher's half — another writer's tale id — is test/scope.ts's.

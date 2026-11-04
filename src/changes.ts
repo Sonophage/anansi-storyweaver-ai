@@ -280,6 +280,51 @@ export function checkAsked(raw: any, tale: Tale): Checked {
   return setOn(hit, roomOf(raw.room), String(raw.text ?? '').trim(), said, false);
 }
 
+/** THE CHANGES A MODEL SENT, AS `checkAsked` READS THEM: the one place a model's shape becomes the
+ *  grammar's. Seraphine, 2026-11-03: the live answer sent one change four times, and four lines said
+ *  "Not done" about it. A change sent twice is one change.
+ *
+ *  A THREAD'S POCKET MAY BE NAMED IN `field`, which a thread operation has no other use for: a replay
+ *  of Seraphine on the real model named the voice there. And A NEW THREAD SENT ONCE PER POCKET is one
+ *  new thread, with the text sent with no pocket (or `none`) as its Always true, then one thread.set
+ *  per pocket on it, in the order sent, each checked against the tale as the one before left it. */
+export function expandAsked(raws: unknown, _tale: Tale): any[] {
+  const seen = new Set<string>(), list: any[] = [];
+  for (const raw of (Array.isArray(raws) ? raws : []) as any[]) {
+    const key = JSON.stringify(raw);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push(raw);
+  }
+  const pocketOf = (r: any) => {
+    const named = r?.room ?? (ALL_SLOTS.includes(String(r?.field ?? '')) ? r.field : undefined);
+    return named == null ? null : roomOf(named);
+  };
+  const out: any[] = [], made = new Map<string, any>();
+  for (const raw of list) {
+    const op = String(raw?.op ?? '');
+    if (op === 'thread.set') {
+      const room = pocketOf(raw);
+      const { field: _f, ...rest } = raw;
+      out.push(room ? { ...rest, room } : raw);
+      continue;
+    }
+    if (op !== 'thread.new' || !norm(raw.title ?? raw.thread)) { out.push(raw); continue; }
+    const name = norm(raw.title ?? raw.thread), room = pocketOf(raw);
+    const { field: _f, room: _r, text, ...about } = raw;
+    let head = made.get(name);
+    if (!head) { head = { ...about, op }; made.set(name, head); out.push(head); }
+    if (room && room !== 'facts') {
+      out.push({ op: 'thread.set', thread: String(raw.title ?? raw.thread).trim(), room, text,
+        ...(raw.to ? { to: raw.to } : {}) });
+    } else if (head.text == null) {
+      // The member that carries the Always true carries the thread's own keys and wake, too.
+      Object.assign(head, about, { op, text });
+    }
+  }
+  return out;
+}
+
 /** A NEW THREAD'S NAME, KIND AND ALWAYS TRUE, checked the one way for a tale and a draft: it has a
  *  name, its kind is a kind, no thread already has that name, and it comes with an Always true. A
  *  thread with none would be made with nothing the model is told about it, and the reply would still

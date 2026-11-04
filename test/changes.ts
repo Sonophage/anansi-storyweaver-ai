@@ -853,4 +853,32 @@ ok('CHANGE-ORDER: the keys that name what a change is aimed at come before its t
   }
 });
 
+// ---- A CHARACTER IN SEVERAL POCKETS, AS A MODEL SENDS ONE (Seraphine, 2026-11-03) ----
+// The live answer repeated one change four times, and a replay on the real model sent a new thread
+// once per pocket, naming the pocket in `field`. `expandAsked` is the one place those shapes become
+// the changes `checkAsked` knows: one new thread, then one pocket change each.
+ok('ASKED-DEDUPE: the same change sent four times is one change', () => {
+  const one = { op: 'thread.new', title: 'Seraphine', type: 'character', text: 'A nun of the Choir.' };
+  const out = ch.expandAsked([one, { ...one }, { ...one }, { ...one }], tale);
+  assert.strictEqual(out.length, 1, `ASKED-DEDUPE: four identical changes are one (${JSON.stringify(out)})`);
+});
+
+ok('ASKED-PER-POCKET: a new thread sent once per pocket, the pocket in room or field, is one new thread and its pockets', () => {
+  const out = ch.expandAsked([
+    { op: 'thread.new', title: 'Seraphine', type: 'character', field: 'voice', text: 'A low murmur; calls everyone darling.' },
+    { op: 'thread.new', title: 'Seraphine', type: 'character', room: 'appearance', text: 'Tall, pale, violet eyes.' },
+    { op: 'thread.new', title: 'Seraphine', type: 'character', text: 'A novitiate of the Choir of Saints.', keys: ['Seraphine'] },
+  ], tale);
+  assert.deepStrictEqual(out.map((r: any) => [r.op, r.title ?? r.thread, r.room ?? null, r.text]), [
+    ['thread.new', 'Seraphine', null, 'A novitiate of the Choir of Saints.'],
+    ['thread.set', 'Seraphine', 'voice', 'A low murmur; calls everyone darling.'],
+    ['thread.set', 'Seraphine', 'appearance', 'Tall, pale, violet eyes.'],
+  ], `ASKED-PER-POCKET: ${JSON.stringify(out)}`);
+  assert.deepStrictEqual(out[0].keys, ['Seraphine'], 'and the new thread keeps its own keys');
+  // Checked in turn against the tale as each leaves it, as the route does, every one is done.
+  const made = { ...tale, entries: [...tale.entries, { id: 'e-new', title: 'Seraphine', entryType: 'character', addons: [] }] };
+  assert.ok(ch.checkAsked(out[0], tale).ok, 'the new thread is done');
+  for (const r of out.slice(1)) assert.ok(ch.checkAsked(r, made).ok, `and each pocket on it (${JSON.stringify(ch.checkAsked(r, made))})`);
+});
+
 console.log(`\n${n} checks passed`);
