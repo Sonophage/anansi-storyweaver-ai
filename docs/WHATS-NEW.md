@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-03 · A thread is edited where you read it
 
+### Words arrive in the old script, and "Anansi is writing" is written in it
+A heading that changes now shows first in a strange, hidden script, which blurs away as the plain
+words come clear under it. When Anansi writes, each new word arrives in that script too and turns
+into the word a moment later. Before the first word, the place where the passage will appear says
+"Anansi is writing" in the same script, glowing softly. A screen reader still hears the plain
+words, and with reduced motion on, the plain words show at once.
+
 ### Threads opens full screen, with All and Sent now as buttons
 A tale's Threads now opens over the whole screen, and on a phone every panel does, with no gap
 above it and the ray banner with its mark still at its head. On a computer the button beside Close still puts it back beside the page, and it stays that

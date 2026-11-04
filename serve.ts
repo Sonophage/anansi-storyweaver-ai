@@ -317,6 +317,16 @@ const handler = async (req: any, res: any) => {
       res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'no-cache' });
       return res.end(await readFile(HERE + 'web/icon.svg', 'utf8'));
     }
+    // THE ONE FONT ON DISK, web/loenese.otf (the Loenese decode and loader, app.html). Binary, so not
+    // through sendText, which reads and gzips text. Read first, then the headers, for the reason below.
+    // Cached for a day: it is 70 KB, it never changes, and no-cache would fetch it on every load.
+    if (/^\/web\/[\w.-]+\.otf$/.test(p)) {
+      let font: Buffer;
+      try { font = await readFile(HERE + p.slice(1)); }
+      catch { return send(res, 404, { error: 'not found' }); }
+      res.writeHead(200, { 'Content-Type': 'font/otf', 'Cache-Control': 'max-age=86400' });
+      return res.end(font);
+    }
     if (/^\/(web\/)?[\w.-]+\.(js|css|svg|webmanifest)$/.test(p)) {
       // no-cache, because these are read off disk on every request and the whole point of that is
       // that an edit is live without a restart. With no freshness header at all a phone caches

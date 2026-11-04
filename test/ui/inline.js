@@ -62,7 +62,7 @@ await page.eval(`(() => { const read = document.getElementById('read');
       // The last word lands in the frame that takes the block away, and a detached word has no
       // style to read: counted only while it is on the page.
       if (n.isConnected) { window.__w.live = (window.__w.live ?? 0) + 1;
-        if (getComputedStyle(n).animationName === 'inkin') window.__w.blurred++; }
+        if (getComputedStyle(n).animationName === 'loenin' && n.dataset.loen) window.__w.blurred++; }
       if (window.__w.words === 1) { const c = getComputedStyle(n);
         window.__w.font = [c.fontFamily, c.fontSize, c.fontStyle].join(' | ');
         window.__w.label = document.querySelector('#ghost .from')?.textContent.replace(/\\s+/g, ' ').trim() ?? null; }
@@ -78,7 +78,7 @@ await until("!document.getElementById('ghost')", 120);
 await wait(300);
 const w = await page.eval("JSON.stringify(window.__w)").then(JSON.parse);
 console.log("  arrival: " + JSON.stringify(w));
-ok(`the words come up out of a blur (${w.blurred} of the ${w.live} on the page)`, w.live > 0 && w.blurred === w.live);
+ok(`the words arrive in Loenese and resolve to English (${w.blurred} of the ${w.live} on the page)`, w.live > 0 && w.blurred === w.live);
 // NOTHING MOVES while he writes; the last word is recorded in the frame the passage lands in, when
 // the composer folds and the five-word fixture passage cannot fill the room it leaves.
 const writing = w.tops.slice(0, -1);

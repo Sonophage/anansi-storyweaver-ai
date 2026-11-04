@@ -2596,6 +2596,17 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
       'and keeps its no-cache header, which is what makes an edit live without a restart');
     ok('a missing static file is a 404, not the end of the process');
 
+    // THE LOENESE FONT is the one binary file served, by a branch of its own: whole bytes, its own
+    // type, and a missing one is a 404 that leaves the server up like any other.
+    const otf = await fetch(url + '/web/loenese.otf');
+    assert.strictEqual(otf.status, 200, 'LOENESE-SERVED: the font answers 200');
+    assert.strictEqual(otf.headers.get('content-type'), 'font/otf', 'LOENESE-SERVED: as font/otf');
+    assert.strictEqual(Buffer.from(await otf.arrayBuffer()).subarray(0, 4).toString('latin1'), 'OTTO',
+      'LOENESE-SERVED: byte for byte, not read as text');
+    assert.strictEqual((await fetch(url + '/web/missing.otf')).status, 404, 'LOENESE-SERVED: a missing font is a 404');
+    assert.strictEqual((await fetch(url + '/api/stories')).status, 200, '  and the server is still up');
+    ok('the Loenese font is served whole, and a missing one is a 404');
+
     /* AND IT IS COMPRESSED, both ways round. `fetch` decodes gzip transparently and can hide the
      * header while doing it, so this asks over raw http and reads the bytes off the socket — the
      * only way to see what actually crossed the wire.

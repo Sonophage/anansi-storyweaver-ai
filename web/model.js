@@ -822,11 +822,8 @@ export const BLOCK_ORIGIN = {
   MODE:              ['The mode you picked',     'doc'],
 };
 
-// The decode, ported from the bureau's own effect (astro-bureau-blog, the last script in
-// src/layouts/Base.astro): text resolves out of random glyphs rather than fading in. The glyph
-// set lives here because it is pure.
-export const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&/<>*';
-export const glyph = () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+// Reduced motion, asked by the decode (web/app.js), whose text resolves out of the Loenese face
+// rather than fading in; it resolved out of random glyphs until 2026-11-03.
 export const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, glyph, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES, pressOf, pressKey } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, still, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES, pressOf, pressKey } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -10786,43 +10786,40 @@ async function openStory(id, chapter) {
  *  Scroll only when you were already at the bottom: yanking the page down while someone is
  *  reading an earlier paragraph is worse than not following the text. */
 // ---------- the decode ----------
-// One frame per character, left to right, spaces held so the shape of the line is legible from the
-// first frame. Two places want it and they want it differently: a HEADER decodes once, when its
-// text changes, and that is this function. STREAMING prose decodes at its frontier only — see
-// frontier() in model.js, which is where the glyphs are. Scrambling a live 300-word passage whole
-// would be unreadable, and the bureau only ever put this on short headers.
+// LOENESE (Seth, 2026-11-03: "replace it with this font and slowly have it blur to English"). A
+// header's words first show set in the Loenese cipher face, then the Loenese blurs out while the
+// English sharpens in under it. Two places want it and they want it differently: a HEADER decodes
+// once, when its text changes, and that is this function. STREAMING prose decodes word by word as
+// it arrives (drainVeil marks each word the same way), because a live 300-word passage set whole in
+// a cipher would be unreadable, and the bureau's decode only ever went on short headers.
+//
+// THE WORDS GO IN AN ATTRIBUTE and the stylesheet paints them over the top in the Loenese face
+// (app.html, LOENESE). The real title stays in textContent the whole time, which is what a screen
+// reader reads, what a copy takes, and what a test asserting a header can see. Nothing moves: the
+// layer is placed over the English and takes no room of its own.
 /** Titles already on screen, by slot, so a repaint that says the same thing does not re-run the
  *  animation. Every panel repaint replaces the element, so the memory cannot live on it. */
 const DECODED = {};
+/** How long the decode runs, in ms: app.html's --t-loen (a header) and --t-loenword (a streamed
+ *  word). The mark comes off after it, so the layer is not left on the page at opacity 0. */
+const LOEN_MS = 1100, LOEN_WORD_MS = 1300;
 function decode(el, slot) {
   const target = el?.textContent ?? '';
   if (!el || !target.trim() || DECODED[slot] === target) return;
   DECODED[slot] = target;
-  // No rAF in the stub DOM the node suite renders against, and nothing to animate under
-  // reduced motion. The element already holds the finished text either way.
-  if (still() || typeof requestAnimationFrame !== 'function') return;
-  // Two frames per character, not one: at 60fps a one-frame-per-character decode crossed a
-  // 30-character title in half a second, which read as a flicker rather than as text arriving.
-  const len = target.length, total = Math.max(10, len) * 2;
-  let frame = 0;
+  // Nothing to animate under reduced motion. The element already holds the finished text.
+  if (still()) return;
+  el.dataset.loen = target;
   el.classList.add('decoding');
-  const tick = () => {
-    // A repaint during the animation throws this element away; its animation goes with it.
-    if (!el.isConnected) return;
-    const revealed = Math.floor((++frame / total) * len);
-    let out = '';
-    for (let i = 0; i < len; i++)
-      out += target[i] === ' ' ? ' ' : i < revealed ? target[i] : glyph();
-    // The glyphs go in an ATTRIBUTE and are painted by CSS over the top. The real title stays in
-    // textContent the whole time, which is what a screen reader reads, what a copy takes, and what
-    // a test asserting a header can see — writing glyphs into the text itself would have made every
-    // assertion in panels.js a race against half a second of animation.
-    el.dataset.glyphs = out;
-    if (frame < total) requestAnimationFrame(tick);
-    else { el.classList.remove('decoding'); delete el.dataset.glyphs; }
-  };
-  requestAnimationFrame(tick);
+  // A repaint during the animation throws this element away; the timer then touches a detached node.
+  setTimeout(() => { el.classList.remove('decoding'); delete el.dataset.loen; }, LOEN_MS);
 }
+
+/** "Anansi is writing", as the loader on the passage being written: set in Loenese and breathing in
+ *  the accent (app.html, the loader under LOENESE), with the English as its label for a screen
+ *  reader. Shown from the press until the first word arrives (`written`, liveDelta). Seth,
+ *  2026-11-03: "while Anansi is writing use 'Anansi is writing' in this font as a loader". */
+const WRITING_NOW = '<div class="writingnow" role="status" aria-label="Anansi is writing"><span class="loen" aria-hidden="true">Anansi is writing</span></div>';
 
 /** The block where the passage is going to land: a loader first, then the passage arriving.
  *
@@ -10898,6 +10895,7 @@ function ghost(replaces = null) {
     // landed (Seth, 2026-10-26). The voice is
     // the speaker the press sent (GHOST_VOICE); an opening quote is seen at the first word (liveDelta).
     g.innerHTML = `<div class="from" data-press="${pressKey(press)}"><i></i>${esc(press)}${GHOST_VOICE ? ` &middot; ${esc(GHOST_VOICE)}` : ''}</div>
+      ${WRITING_NOW}
       <div class="veilweave" aria-live="polite">${weavingAt('dock') ? weaveWords('dock') : ''}</div>
       ${GHOST_VOICE ? `<div class="who">${esc(GHOST_VOICE)}</div>` : ''}
       <div class="${GHOST_VOICE ? 'said' : 'narr'}"><div class="veiltext" aria-live="polite"></div></div>`;
@@ -10933,6 +10931,7 @@ function ghost(replaces = null) {
            addition to "the blur, the rule, and nothing else": a weaving wait is a median 60 s
            (F60), and a minute of blur with nothing counting reads as a hang. Empty, and so not
            drawn, for every other passage and from the first word on. -->
+      ${WRITING_NOW}
       <div class="veilweave" aria-live="polite">${weavingAt('dock') ? weaveWords('dock') : ''}</div>
       <div class="veilrow">
         <div class="veilmeter" aria-hidden="true"><i></i></div>
@@ -10948,12 +10947,13 @@ function ghost(replaces = null) {
 }
 
 
-/** THE PROSE, ARRIVING, INSIDE THE VEIL — WORDS FOCUSING OUT OF THE BLUR.
+/** THE PROSE, ARRIVING, INSIDE THE VEIL — WORDS RESOLVING OUT OF LOENESE.
  *
  *  The 2026-09-02 design handoff, replacing the letter-by-letter lock-in that preceded it: each word
- *  arrives whole in its own span and focuses in over .75s, the last three stay in the accent, and
- *  everything behind them is ink. No frontier of turning glyphs, no field held open for text that
- *  has not been written, no count and no status line.
+ *  arrives whole in its own span, the last three stay in the accent, and everything behind them is
+ *  ink. No field held open for text that has not been written, no count and no status line. Each
+ *  word focused in out of a blur until 2026-11-03; it arrives set in Loenese now and resolves to
+ *  English over 1.3s (decode, above), so the newest few words are always still in the cipher.
  *
  *  CALCULATED, NOT PER DELTA, which survives from the version before it and for the same reason: a
  *  delta is a token, so anything driven by one runs at whatever uneven rate the model is writing at.
@@ -11115,7 +11115,8 @@ function liveDelta(d) {
       box.insertAdjacentHTML('beforebegin', `<div class="who">${esc(V?.story?.title ?? '')}</div>`);
     }
   }
-  el.closest('.veil')?.classList.add('written');
+  // `written` takes the loader away at the first word (WRITING_NOW), on the veil and inline alike.
+  document.getElementById('ghost')?.classList.add('written');
   PEND += d;
   if (DRAIN == null) DRAIN = requestAnimationFrame(drainVeil);
 }
@@ -11145,6 +11146,12 @@ function drainVeil(now) {
       const spans = paged ? inkParagraphs(el, text) : [Object.assign(document.createElement('span'), { inkRaw: text })];
       if (!paged) { el.append(spans[0]); inkAccent(el); }
       for (const sp of spans) sp.classList.add('w', 'tip');
+      // EACH WORD ARRIVES IN LOENESE and resolves to English a moment later (decode, above): the
+      // same layer as a header's, on the word's own span, so the frontier is the newest few words.
+      if (!still()) for (const sp of spans) {
+        sp.dataset.loen = sp.textContent;
+        setTimeout(() => { delete sp.dataset.loen; }, LOEN_WORD_MS);
+      }
       const span = spans.at(-1);
       /* THE GLOW GOES ON THE FIRST WORD — Seth, 2026-09-02: "Remove the border around the ghost as
        * soon as something starts streaming." The glow says something is happening, and once words

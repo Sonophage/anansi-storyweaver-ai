@@ -10369,6 +10369,54 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   ok('the room under a short page is counted from its content, not from scrollHeight');
 }
 
+// ---- LOENESE. Seth, 2026-11-03: "You know how we have the glyph transitions: replace it with this
+// font and slowly have it blur to English, and while Anansi is writing use 'Anansi is writing' in this
+// font as a loader." The font is a cipher: one Loenese glyph per ASCII letter, so the same words set
+// in it are the same words, unreadable, and the decode is that layer blurring out over the English.
+{
+  const { readFileSync } = await import('node:fs');
+  const font = readFileSync(new URL('../web/loenese.otf', import.meta.url));
+  assert.strictEqual(font.subarray(0, 4).toString('latin1'), 'OTTO', 'LOENESE-FONT: web/loenese.otf is an OpenType (CFF) font');
+  const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  const face = page.match(/@font-face \{[^}]*font-family:'Loenese'[^}]*\}/)?.[0] ?? '';
+  assert.match(face, /src:url\('\/web\/loenese\.otf'\) format\('opentype'\)/, 'LOENESE-FACE: the @font-face names web/loenese.otf');
+  assert.match(page.slice(Math.max(0, page.indexOf(face) - 600), page.indexOf(face)), /ponytail: fan-made font with no stated licence/,
+    'LOENESE-FACE: and carries its ponytail beside it');
+
+  // THE HEADER DECODE. The title keeps its English in textContent the whole time; the Loenese is an
+  // attribute the stylesheet paints over it, so a reader, a copy and every check here see English.
+  const bar = nodes.get('bar'), was = bar.querySelector;
+  const title = { ...el('__loentitle__'), textContent: 'The Ashfall Concordat, again' };
+  bar.querySelector = (s: string) => (s === '.serif' ? title : null);
+  try {
+    click({ open: 's-1' }); await sleep(40);
+    assert.strictEqual(title.textContent, 'The Ashfall Concordat, again', 'LOENESE-DECODE: the title stays English in textContent');
+    assert.strictEqual(title.dataset.loen, 'The Ashfall Concordat, again', 'LOENESE-DECODE: the same words are marked for the Loenese layer');
+    assert.ok(title.classList.contains('decoding'), 'LOENESE-DECODE: and the element is marked as decoding');
+    assert.strictEqual(title.dataset.glyphs, undefined, 'LOENESE-DECODE: no random glyphs are written any more');
+    await sleep(1600);
+    assert.ok(!title.classList.contains('decoding'), 'LOENESE-DECODE: the mark comes off once the English has resolved');
+    assert.strictEqual(title.dataset.loen, undefined, '  and the layer with it');
+  } finally { bar.querySelector = was; }
+
+  // THE LOADER. The veil's markup, caught as it goes onto #shell.
+  const shell = (document as any).getElementById('shell');
+  const was2 = shell.appendChild; let veil: any = null;
+  shell.appendChild = (g: any) => { veil = g; };
+  try {
+    click({ open: 's-1' }); await sleep(40);
+    click({ continue: '1' }); await sleep(10);
+    const markup = String(veil?.innerHTML ?? '');
+    assert.match(markup, /class="writingnow"[^>]*role="status"[^>]*aria-label="Anansi is writing"/, 'LOENESE-LOADER: the veil says Anansi is writing, in English, to a screen reader');
+    assert.match(markup, /<span class="loen" aria-hidden="true">Anansi is writing<\/span>/, 'LOENESE-LOADER: and shows it set in Loenese');
+    await sleep(400);
+  } finally { shell.appendChild = was2; }
+  const src = readFileSync(new URL('../web/app.js', import.meta.url), 'utf8');
+  assert.strictEqual(src.match(/\$\{WRITING_NOW\}/g)?.length, 2, 'LOENESE-LOADER: the inline passage being written shows it too');
+  assert.doesNotMatch(src, /\bglyph\(\)|dataset\.glyphs/, 'LOENESE: the random-glyph decode is gone');
+}
+ok('Loenese: the font ships, the header decodes out of it into English, and Anansi is writing is said in it');
+
 // ---- WRITING INLINE: THE OLD VERSION STAYS HIDDEN WHILE THE NEW ONE IS WRITTEN, THROUGH A REPAINT.
 // It was hidden by a class put on the DOM at the press, and a repaint rebuilds #col, so the old
 // version came back under the new one being written. passageHTML draws it hidden now, from state.
@@ -10804,5 +10852,6 @@ ok('the setup Talk is the full-screen composer: the talk above the box, Back and
   }
 }
 ok('Alter saves as you type: a pause writes, Done writes the rest, Undo my changes puts it back, a refusal is said');
+
 
 console.log(`\n${n} checks passed`);
