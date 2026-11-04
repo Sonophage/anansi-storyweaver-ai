@@ -920,6 +920,26 @@ export function wordsFor(c: Change): string {
   return `Changed ${c.title}'s ${roomLabel(c.room)}: “${clip(c.text)}”${c.wake ? ' It was Off; switched it on.' : ''}`;
 }
 
+/** #151 · WHICH CARD A CHANGE IS DRAWN ON (ADR 0014): one card per thread, so `key` is the thread for
+ *  every change to one, and the tale, a scene, the strings, the rules and the writer's instructions
+ *  each have a card of their own. `label` is the change's row on that card. */
+export function cardOf(c: Change, made: { thread?: string } = {}): { key: string; title: string; label: string } {
+  const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+  if (c.op === 'thread.new') return { key: made.thread ?? c.title, title: c.title, label: 'The thread' };
+  if (c.op === 'thread.set') return STRING_SLOTS.includes(c.room)
+    ? { key: 'strings', title: 'Strings', label: c.name }
+    : { key: c.thread, title: c.title, label: cap(roomLabel(c.room)) };
+  if (c.op === 'thread.wake') return { key: c.thread, title: c.title, label: 'How it wakes' };
+  if (c.op === 'thread.overtime') return { key: c.thread, title: c.title, label: 'Timeline' };
+  if (c.op === 'thread.retire') return { key: c.thread, title: c.title, label: 'Retired' };
+  if (c.op === 'tale.set') return { key: 'tale', title: 'The tale', label: cap(c.field.replace(/_/g, ' ')) };
+  if (c.op === 'scene.set') return { key: `scene:${c.chapter}`, title: `Scene ${c.index}`, label: c.field === 'title' ? 'Title' : 'Heads toward' };
+  if (c.op === 'string.set' || c.op === 'string.stand') return { key: 'strings', title: 'Strings', label: c.name };
+  if (c.op === 'rule.set' || c.op === 'rule.switch') return { key: 'rules', title: 'Rules', label: c.name };
+  if (c.op === 'instruction.set' || c.op === 'instruction.switch') return { key: 'instructions', title: 'Your instructions', label: c.name };
+  return { key: 'other', title: 'Changed', label: '' };
+}
+
 /** #122 · WHAT A CHANGE LINE SHOWS AS A DIFF: the text the change replaced and the text it wrote,
  *  for the changes that rewrite text; null for the rest (a new thread has no before, a retirement
  *  rewrites nothing) and for an Undo, whose `before` is the text being put back. A pocket or an Over

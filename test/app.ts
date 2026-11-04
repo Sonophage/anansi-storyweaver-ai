@@ -4249,6 +4249,50 @@ ok('Talk lives in the composer, small or full screen, with the conversation abov
 }
 ok('a change Talk made shows in the conversation with Undo, and Undo sends that change back');
 
+// #151 · TALK'S CHANGES AND OFFERS ARE WORKBENCH CARDS (ADR 0014). One card per thread, its pockets
+// inside with their own Undo and the card's Undo all; an offer is the Workbench's own chalked card in
+// the conversation, decided through the same press, and one already decided says so.
+{
+  const u = (room: string) => ({ op: 'thread.set', thread: 'e-1', room, addon: `a-${room}`, text: 'old' });
+  try {
+    click({ open: 's-1' }); await sleep(40);
+    click({ panel: 'anansi' }); await sleep(30);
+    stubTalk = { reply: 'Her voice and her look are written.', seconds: 1, tokens: 10, chalked: ['pr-1', 'pr-gone'],
+      changes: [
+        { words: "Changed Aldis's voice: “Low.”", undo: u('voice'), diff: { before: 'old', after: 'Low.' }, card: { key: 'e-1', title: 'Aldis', label: 'Voice' } },
+        { words: "Changed Aldis's appearance: “Tall.”", undo: u('appearance'), diff: { before: 'old', after: 'Tall.' }, card: { key: 'e-1', title: 'Aldis', label: 'Appearance' } },
+        { words: "Changed the tale's premise: “A debt.”", undo: { op: 'tale.set', field: 'premise', text: 'x', wrote: 'A debt.' },
+          diff: { before: 'x', after: 'A debt.' }, card: { key: 'tale', title: 'The tale', label: 'Premise' } }] };
+    (document as any).getElementById('input').value = 'Write her voice and look, and the premise';
+    click({ send: '1' }); await sleep(100);
+    // This answer's cards only: the conversation still holds the turns of the test above.
+    const dock = html('dockCol').split('Write her voice and look, and the premise').at(-1)!;
+    const done = [...dock.matchAll(/<div class="deckcard card"[^>]*data-deckkind="done"[\s\S]*?(?=<div class="deckcard card"|$)/g)].map((m) => m[0]);
+    assert.strictEqual(done.length, 2, `CARD-PER-THREAD: two cards, Aldis and the tale (${done.length})`);
+    const aldis = done.find((c) => c.includes('Aldis'))!;
+    assert.strictEqual((aldis.match(/data-talkundo="/g) ?? []).length, 2, 'CARD-POCKETS: Aldis\'s card holds both pockets, each with its Undo');
+    assert.match(aldis, /data-talkundoall="[^"]+"/, 'CARD-UNDO-ALL: and Undo all');
+    assert.ok(!/data-talkundoall/.test(done.find((c) => c.includes('The tale'))!), 'CARD-UNDO-ALL: not on a card of one change');
+    const chalk = dock.match(/<div class="deckcard card"[^>]*data-deckkind="chalk"[\s\S]*?Witness rite[\s\S]*?data-deckall="accept"[^>]*data-ids="([^"]+)"/);
+    assert.ok(chalk && chalk[1] === 'pr-1', 'CARD-OFFER: the offer is the Workbench\'s chalked card, in the conversation');
+    assert.match(dock, /1 already decided on the Workbench/, 'CARD-OFFER-DECIDED: an offer decided elsewhere says so');
+    assert.doesNotMatch(dock, /chalked &mdash; under This scene/, 'CARD-NO-LINK: the old link line is gone');
+
+    POSTED.length = 0;
+    click({ talkundoall: aldis.match(/data-talkundoall="([^"]+)"/)![1] }); await sleep(100);
+    const undos = POSTED.filter((p: any) => p.url === '/api/talk/undo').map((p: any) => p.body.undo.room);
+    assert.deepStrictEqual(undos, ['appearance', 'voice'], `CARD-UNDO-ALL-SENDS: both, newest first (${JSON.stringify(undos)})`);
+    assert.doesNotMatch(html('dockCol').split('Write her voice and look, and the premise').at(-1)!.match(/data-deckkind="done"[\s\S]*?Aldis[\s\S]*?(?=data-deckkind|$)/)![0], /data-talkundo=/,
+      'CARD-UNDO-ALL-DONE: and the card has no Undo left');
+
+    POSTED.length = 0;
+    click({ deckall: 'accept', ids: 'pr-1' }); await sleep(100);
+    assert.ok(POSTED.some((p: any) => p.url === '/api/proposal' && p.body.id === 'pr-1' && p.body.accept === true),
+      'CARD-OFFER-SEW: Sew it in on the Talk card is the Workbench\'s own decision');
+  } finally { stubTalk = null; stubUndo = null; }
+}
+ok('Talk draws its changes as one Workbench card per thread, with Undo all, and its offers as chalked cards');
+
 // #99 · ANANSI MAY SEARCH. The switch is permission, so the ask sends `search: true` and never the
 // writer's words as a query; the switch reads "Anansi may search"; and every page he read is listed
 // under his answer with its link.
@@ -11000,7 +11044,9 @@ ok('the old script is a switch on the Tale tab, on by default; off, the tale sho
 const SESSIONS = [{ id: 'ts-old', title: 'Who is Marek, really', createdAt: Date.now() - 864e5, updatedAt: Date.now() - 3 * 36e5, turns: 4 },
                   { id: 'ts-older', title: 'The debt', createdAt: Date.now() - 3 * 864e5, updatedAt: Date.now() - 2 * 864e5, turns: 2 }];
 const OLD_TURNS = [{ you: true, text: 'Who is Marek, really?', at: 1 }, { text: 'A man who owes.', at: 2 },
-                   { you: true, text: 'Owes whom?', at: 3 }, { text: 'The house.', at: 4 }];
+                   { you: true, text: 'Owes whom?', at: 3 }, { text: 'The house.', at: 4,
+                     changes: [{ words: "Changed the tale's premise: \u201cA house.\u201d", undo: { op: 'tale.set', field: 'premise', text: 'x', wrote: 'A house.' },
+                                 card: { key: 'tale', title: 'The tale', label: 'Premise' } }] }];
 const PROMPT = [{ role: 'system', content: 'You are Anansi. The tale: a debt.' },
                 { role: 'user', content: 'Who is Marek?' }, { role: 'assistant', content: 'A man who owes.' },
                 { role: 'user', content: 'And the house?' }];
@@ -11061,6 +11107,7 @@ const withClipboard = (writeText: ((t: string) => Promise<void>) | null) => {
     click({ talkopen: 'ts-old' }); await sleep(30);
     assert.ok(html('dockCol').includes('Owes whom?') && html('dockCol').includes('The house.'), 'TALK-OPEN: its turns are on the page');
     assert.doesNotMatch(html('dockCol'), /data-copyprompt/, 'TALK-OPEN: an opened talk has no prompt to copy: prompts are not kept');
+    assert.match(html('dockCol'), /data-deckkind="done"[\s\S]*?The tale[\s\S]*?data-talkundo=/, 'TALK-OPEN-CARDS: an opened talk draws the cards it kept (#151)');
     stubTalk = { reply: 'Yes.', seconds: 1, tokens: 10, sessionId: 'ts-old' };
     await send('Go on');
     assert.strictEqual(talks().at(-1).body.sessionId, 'ts-old', 'TALK-OPEN-ON: the next question carries the opened talk on');

@@ -585,7 +585,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // out of Talk.
   'dockopen', 'dockfold', 'idea', 'ideapick', 'dockwrite', 'newlore', 'lorekind', 'loreread',
   'dropblank', 'makeblank', 'wear', 'talemodel', 'tellerlist', 'lbook',
-  'ask', 'usedraft', 'copydraft', 'clearchat', 'talkundo', 'talkadd', 'copyentry', 'delcover', 'drawcover', 'usecover',
+  'ask', 'usedraft', 'copydraft', 'clearchat', 'talkundo', 'talkundoall', 'talkadd', 'copyentry', 'delcover', 'drawcover', 'usecover',
   // The talks kept (2026-10-30): the list, one opened, one deleted; and an answer's prompt copied.
   'talkpast', 'talkopen', 'talkdel', 'copyprompt',
   // A cover found on the web rather than drawn, 2026-09-01.
@@ -3614,6 +3614,27 @@ const talkDraft = (t) => t.draft ? `<div class="card" style="gap:8px; border-col
           before you send it.</p>`)}
       </div>` : '';
 
+/** #151 · WHAT ONE ANSWER DID AND OFFERED, AS WORKBENCH CARDS (ADR 0014), drawn by `deckCard`, the
+ *  Workbench's own. What was asked is done: one card per thread (`card.key` from the server), each
+ *  pocket a row with what changed and its Undo, and Undo all on a card of more than one. What was
+ *  offered is the Workbench's chalked card for those proposals (`deckCards`), decided by the same
+ *  press, so a decision in one place is the decision in both; one already decided is counted. */
+function talkCards(turn, i) {
+  const groups = new Map();
+  (turn.changes ?? []).forEach((ch, j) => {
+    const key = ch.card?.key ?? `c${j}`;
+    if (!groups.has(key)) groups.set(key, { kind: 'done', turn: i, title: ch.card?.title ?? 'Changed',
+      sub: ch.refused ? 'Not done' : 'Done, as you asked', rows: [] });
+    groups.get(key).rows.push({ label: ch.card?.label ?? '', ch, j });
+  });
+  const ids = turn.chalked ?? [];
+  const open = new Set(ids.filter((id) => (V?.proposals ?? []).some((p) => p.id === id)));
+  const offers = open.size ? deckCards(open) : [];
+  const gone = ids.length - open.size;
+  return [...groups.values(), ...offers].map((c) => deckCard(c, 0, 0)).join('')
+    + (gone ? `<div class="caption">${gone} already decided on the Workbench</div>` : '');
+}
+
 /** THE CONVERSATION'S TURNS, drawn once for Talk in a tale's composer (2026-10-29) and in the setup's
  *  full-screen one (`talkDock`), so the two cannot draw a change line, its Undo or its diff differently. `t` is the
  *  conversation: `S.talk`, or the setup draft's. Indices are into `t.turns`, which the Undo reads. */
@@ -3635,13 +3656,7 @@ function talkTurns(t) {
                   .filter((s) => /^https?:\/\//i.test(s.url ?? ''))
                   .map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noreferrer"
                     style="color:var(--mute)">${esc(s.title || s.url)}</a>`).join('')}</div>` : ''}
-              ${/* #122 · UNDER EACH LINE AND ITS UNDO, what it changed, word by word (`diff` is the text
-                   before and after; none for a change that rewrote no text). */
-                (turn.changes ?? []).map((ch, j) => `<div class="line-2" style="align-items:center; gap:8px">
-                <span style="font-size:12.5px; line-height:1.45; color:var(--ink-bright); flex:1">${esc(ch.words)}</span>
-                ${ch.undone ? '<span class="caption">Undone</span>' : ch.refused || !ch.undo ? ''
-                  : `<button class="tag" data-talkundo="${i}:${j}" style="cursor:pointer">Undo</button>`}</div>${
-                  ch.diff && !ch.refused ? diffHTML(ch.diff.before, ch.diff.after) : ''}`).join('')}
+              ${talkCards(turn, i)}
               ${/* #100 · WHAT HE OFFERED during setup, each with Add: one press puts it in the draft,
                    and it then has a line and an Undo like any change. */
                 (turn.offers ?? []).map((o, j) => `<div class="line-2" style="align-items:flex-start; gap:8px">
@@ -3650,8 +3665,6 @@ function talkTurns(t) {
                   esc(String(o.body ?? '').replace(/^\[[^:]*:\s*|\]$/g, ''))}</span>
                 ${o.added ? '<span class="caption">Added</span>'
                   : `<button class="tag" data-talkadd="${i}:${j}" style="cursor:pointer">Add</button>`}</div>`).join('')}
-              ${turn.proposed ? `<button class="tag" data-panel="chapter" style="align-self:flex-start; cursor:pointer;
-                border-color:var(--edge-lit); color:var(--ink-bright)">${turn.proposed} chalked &mdash; under This scene</button>` : ''}
               ${turn.meta ? `<div class="caption">${esc(turn.meta)}</div>` : ''}
               ${/* COPY PROMPT (2026-10-30): exactly what this answer was sent, held on the turn in the
                    page's memory only, so a talk opened from the list has none to copy. */
@@ -4129,6 +4142,16 @@ function deckCard(c, i, top) {
     body = c.ps.map(hemRow).join('');
     right = `<button class="btn" data-deckall="accept" data-ids="${ids}" data-deckright="1">Sew it in &rarr;</button>`;
     left = `<button class="btn ghost" data-deckall="reject" data-ids="${ids}" data-deckleft="1">&larr; Reject</button>`;
+  } else if (c.kind === 'done') {
+    // A CHANGE ALREADY MADE: its rows and their Undo. No swipe press: nothing here waits for a yes.
+    body = c.rows.map(({ label, ch, j }) => `<div class="hemrow stack">
+      <div class="line-8"><span class="fill">${label ? `<span class="lbl sub-lbl flush">${esc(label)}</span> ` : ''}<span class="note">${esc(ch.words)}</span></span>${
+        ch.undone ? '<span class="caption">Undone</span>'
+        : ch.refused || !ch.undo ? '' : `<button class="tag" data-talkundo="${c.turn}:${j}" style="cursor:pointer">Undo</button>`}</div>
+      ${ch.diff && !ch.refused ? diffHTML(ch.diff.before, ch.diff.after) : ''}</div>`).join('');
+    const live = c.rows.filter(({ ch }) => ch.undo && !ch.undone && !ch.refused).map(({ j }) => j);
+    const all = `${c.turn}:${live.join()}`;
+    right = live.length > 1 ? `<button class="btn ghost" data-talkundoall="${all}">Undo all</button>` : '';
   } else if (c.kind === 'upkeep') {
     body = `<div class="note">${esc(c.body)}</div>`;
     right = c.right; left = c.left;
@@ -11813,7 +11836,7 @@ async function talk(said, mentions, anyway = false) {
   S.talk.searchable = r.searchable ?? S.talk.searchable;
   S.talk.sessionId = r.sessionId ?? S.talk.sessionId;
   S.talk.turns = [...S.talk.turns, { you: false, text: r.reply || '(nothing came back)',
-    sources: r.sources ?? [], proposed: r.proposed ?? 0, changes: r.changes ?? [],
+    sources: r.sources ?? [], proposed: r.proposed ?? 0, changes: r.changes ?? [], chalked: r.chalked ?? [],
     meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens read`, prompt: r.prompt ?? null }];
   S.talk.draft = r.directive || null;
   // A thread that landed is a proposal, and the queue lives under Chapter. A change is in the tale.
@@ -13918,7 +13941,9 @@ document.addEventListener('click', async (e) => {
     if (setup ? setupTalk().busy : S.talk.busy) return;
     const r = setup ? await api.sparkTalkOf(d.talkopen) : await api.talkOf(S.storyId, d.talkopen);
     if (r.error) return toast(r.error);
-    const turns = (r.turns ?? []).map((x) => ({ you: !!x.you, text: String(x.text ?? '') }));
+    // #151 · An answer's cards come back with it: what it changed, and what it chalked.
+    const turns = (r.turns ?? []).map((x) => ({ you: !!x.you, text: String(x.text ?? ''),
+      ...(x.changes ? { changes: x.changes } : {}), ...(x.chalked ? { chalked: x.chalked } : {}) }));
     if (setup) Object.assign(setupTalk(), { turns, sessionId: r.id });
     else S.talk = { ...S.talk, turns, sessionId: r.id, draft: null };
     S.talkPast = null;
@@ -13972,6 +13997,20 @@ document.addEventListener('click', async (e) => {
     // #101 · and the World it followed is let go of, or the one named before is followed again.
     if (ch.undo.key === 'world') void ipFollow();
     return;
+  }
+  // #151 · UNDO ALL on a thread's card: each pocket's own Undo, newest first, stopping at the first
+  // the server refuses, which says why.
+  if (d.talkundoall) {
+    const [i, js] = String(d.talkundoall).split(':');
+    for (const j of js.split(',').map(Number).reverse()) {
+      const ch = S.talk.turns[Number(i)]?.changes?.[j];
+      if (!ch || ch.undone) continue;
+      const r = await api.talkUndo(S.storyId, ch.undo);
+      if (r.error) { V = await api.story(S.storyId); paint(); return toast(r.error); }
+      ch.undone = true; V = r;
+    }
+    paint();
+    return toast('Undone.');
   }
   if (d.talkundo) {
     const [i, j] = String(d.talkundo).split(':').map(Number);
@@ -14094,7 +14133,7 @@ document.addEventListener('click', async (e) => {
       if (r.error) { V = await api.story(S.storyId); paint(); return toast(r.error); }
     }
     S.deckUndo = yes ? null : ids;
-    const who = t.closest('.deckcard')?.querySelector('.decktitle')?.textContent.trim();
+    const who = t.closest?.('.deckcard')?.querySelector('.decktitle')?.textContent.trim();
     V = await api.story(S.storyId); if (yes) keepSewn(rows);
     paint(); refreshManifest();
     return toast(`${who || 'It'}: ${yes ? 'sewn in.' : 'rejected. Undo puts it back.'}`);

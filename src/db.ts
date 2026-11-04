@@ -1600,10 +1600,13 @@ const talkTitle = (said: string) => {
 /** One exchange added to a session: the writer's words, then Anansi's. Returns the session's id.
  *  An id that is not this writer's session in this place (another tale's, another writer's, gone)
  *  starts a new one rather than writing to it or saying whether it exists. */
-export function talkSay(ownerId: string, storyId: string | null, sessionId: unknown, said: string, reply: string) {
+export function talkSay(ownerId: string, storyId: string | null, sessionId: unknown, said: string, reply: string,
+                        cards: { changes?: unknown[]; chalked?: string[] } = {}) {
   const { where, args } = talkScope(ownerId, storyId);
   const at = now();
-  const pair = [{ you: true, text: said, at }, { text: reply, at }];
+  // #151 · Anansi's turn keeps its cards (what it changed, what it chalked), for a talk opened again.
+  const pair = [{ you: true, text: said, at }, { text: reply, at,
+    ...(cards.changes?.length ? { changes: cards.changes } : {}), ...(cards.chalked?.length ? { chalked: cards.chalked } : {}) }];
   const had = sessionId ? q(`SELECT t.id, t.turns FROM talk_sessions t WHERE t.id = ? AND ${where}`)
     .get(String(sessionId), ...args) as any : null;
   if (had) {

@@ -1738,6 +1738,12 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.strictEqual(room(her[0].id, 'outfit')[0]?.body, 'A habit cut low; red latex gloves to the elbow.', 'TALK-POCKETS: her outfit');
     assert.deepStrictEqual(sera.notDone, [], `TALK-POCKETS: nothing refused (${JSON.stringify(sera.notDone)})`);
     assert.strictEqual(sera.changes.length, 3, `TALK-POCKETS: three lines, the voice once (${sera.changes.map((x: any) => x.words).join(' | ')})`);
+    // #151 · One card for her: every change names her thread as its card, with its pocket as the row.
+    assert.deepStrictEqual([...new Set(sera.changes.map((x: any) => x.card?.key))], [her[0].id], `CARD-KEY: one card, hers (${JSON.stringify(sera.changes.map((x: any) => x.card))})`);
+    assert.ok(sera.changes.every((x: any) => x.card.title === 'Seraphine'), 'CARD-TITLE: named for her');
+    assert.deepStrictEqual(sera.changes.map((x: any) => x.card.label), ['The thread', 'Voice', 'Outfit'], 'CARD-LABEL: each row its pocket');
+    const kept = db.talkSession(me, tale.id, sera.sessionId)!.turns.at(-1);
+    assert.strictEqual(kept.changes?.length, 3, 'CARD-KEPT: a kept talk keeps its cards, for a talk opened again');
   }
   ok('a new character sent once per pocket is one thread with its pockets');
 
@@ -1847,6 +1853,7 @@ ok('emptying the box gives her back the voice she shipped with');
     assert.strictEqual(asked.proposed, 1, 'TALK-ASKED-ENTRY: what it offers about her is chalked');
     const offer = (db.proposalsOf(tale.id) as any[]).find((p) => p.title === 'Seraphine' && p.field === 'appearance');
     assert.ok(offer, 'TALK-ASKED-ENTRY: on the Workbench, for her appearance');
+    assert.deepStrictEqual(asked.chalked, [offer.id], `CARD-CHALKED: the answer names the offer it chalked, for its card (${JSON.stringify(asked.chalked)})`);
     db.setProposalStatus(tale.id, offer.id, 'rejected');
 
     const fill = await say('CHANGE-FILLCARD: Ok fill out the seraphine card and fill her pockets please');

@@ -20,7 +20,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
-import { checkAsked, expandAsked, entriesAsked, asksForChange, checkUndo, undoFor, wordsFor, textsOf, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
+import { checkAsked, expandAsked, entriesAsked, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, checkDraft, draftWords, aimOf, askWhich, fingerprint, talesOwn } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
@@ -4702,6 +4702,8 @@ export const routes: Record<string, Handler> = {
     // Threads become proposals — the same pipeline extraction uses, so classify() and the dedupe
     // index apply and nothing arrives twice.
     const existing = db.entriesOf(v.id);
+    // #151 · WHICH PROPOSALS THIS ANSWER CHALKED, by id, for their cards in the conversation.
+    const chalkedBefore = new Set((db.proposalsOf(v.id) as any[]).map((p) => p.id));
     let proposed = 0;
     // Strings ride the SAME queue, with entry_type 'string' telling the accept path what to make.
     // A second queue would be a second place to forget to look.
@@ -4769,7 +4771,8 @@ export const routes: Record<string, Handler> = {
     // believing that. No operation on the list deletes anything or touches prose.
     // #122 · `diff` is the text before and after, for the line to draw as a diff (null when it
     // rewrote no text).
-    const changes: { words: string; undo: any; diff?: { before: string; after: string } | null }[] = [];
+    const changes: { words: string; undo: any; diff?: { before: string; after: string } | null;
+                     card?: { key: string; title: string; label: string } }[] = [];
     const notDone: { said: string; why: string }[] = [];
     // As `expandAsked` reads them: a change sent twice once, a new thread sent once per pocket as one
     // thread and its pockets (Seraphine, 2026-11-03). And after them, a request sent as an entry.
@@ -4822,13 +4825,15 @@ export const routes: Record<string, Handler> = {
         // in the fingerprint, and the World's thread was never touched.
         const left = taleOf(v.id).entries.find((e: any) => e.id === copy);
         changes.push({ words: `${k.change.title} is this tale's own now, and ${world!.title} keeps its version. `
-          + wordsFor(k.change), undo: { op: 'takeover.unmake', thread: copy, wrote: fingerprint(left) }, diff: textsOf(k.change) });
+          + wordsFor(k.change), undo: { op: 'takeover.unmake', thread: copy, wrote: fingerprint(left) }, diff: textsOf(k.change),
+          card: cardOf(k.change, made) });
         continue;
       }
       const undo = undoFor(k.change, made);
       const withWorld = undo && aim.to === 'world' ? { ...undo, world: world!.id } : undo;
       changes.push({ words: aim.to === 'world' ? `${wordsFor(k.change)} In ${world!.title}, for every tale that follows it.`
-        : wordsFor(k.change), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change) });
+        : wordsFor(k.change), undo: noted.length && withWorld ? { ...withWorld, noted } : withWorld, diff: textsOf(k.change),
+        card: cardOf(k.change, made) });
     }
     // #144 · A NEW THREAD'S UNDO CARRIES THE POCKETS MADE WITH IT, so one Undo takes the thread away whole.
     for (const ch of changes) if (ch.undo?.op === 'thread.unmake')
@@ -4840,9 +4845,11 @@ export const routes: Record<string, Handler> = {
     // KEPT: the writer's words and the answer they were shown, in this writer's session in this
     // tale (`db.talkSay`). `prompt` is exactly what was sent, for the page's Copy prompt; it holds
     // the whole story material, so it is handed back and never kept.
-    const sessionId = db.talkSay(c.owner, v.id, c.body.sessionId, said, answer.trim());
+    const chalkedIds = (db.proposalsOf(v.id) as any[]).map((p) => p.id).filter((id) => !chalkedBefore.has(id));
+    // The cards are kept with the answer, so a talk opened again draws them (#151).
+    const sessionId = db.talkSay(c.owner, v.id, c.body.sessionId, said, answer.trim(), { changes, chalked: chalkedIds });
 
-    return { reply: answer.trim(), directive: r.data.directive || null, changes, notDone,
+    return { reply: answer.trim(), directive: r.data.directive || null, changes, notDone, chalked: chalkedIds,
              proposed, sources: sources.map((x) => ({ title: x.title, url: x.url })),
              seconds: +((Date.now() - t0) / 1000).toFixed(1),
              tokens: manifest.totals.used, searchable: searchConfigured(), sessionId, prompt: messages };

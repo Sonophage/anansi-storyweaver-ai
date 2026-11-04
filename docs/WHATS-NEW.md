@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-04 · Talk fills in the card you ask for
 
+### What Talk does shows as cards
+What Talk changes now shows in the conversation as a card, the same card the Workbench uses: one
+per thread, with each pocket's old and new text, an Undo on each, and Undo all. What Anansi suggests
+without being asked is a card there too, with Sew it in and Reject, and it is the same card as on
+the Workbench, so deciding it in either place decides it in both. A talk you open again shows its
+cards.
+
 ### Talk does what it says, and says only what it did
 - "Fill out her card" works now when you were just talking about her. Before, without her name it
   was only a suggestion.
