@@ -1006,6 +1006,17 @@ CREATE TABLE IF NOT EXISTS generations (
 -- generations is the fastest-growing table and recentGenerations sorts it by time.
 CREATE INDEX IF NOT EXISTS generations_story ON generations(story_id, created_at);
 
+-- #139. The words a take had shown when the writer stopped it, and the take it was rerolling.
+-- Seth stops a reroll when it writes the take he just rejected, and those takes left no text, so
+-- bench/reroll-echo.ts could not count the repeats he stops for. Read by that bench only.
+-- ponytail: kept for measurement, not shown anywhere. To remove: delete this table, keepStopped()
+-- below logGeneration, its one call in 'POST /api/generate', and STOPPED-* in test/remote.ts; an old
+-- library keeps the table harmlessly until DROP TABLE stopped_takes. Revisit when #139/#140 close.
+CREATE TABLE IF NOT EXISTS stopped_takes (
+  generation_id TEXT PRIMARY KEY,
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  replaced TEXT, body TEXT NOT NULL);
+
 -- Named outfits, switchable. PLAN-04 04 chose these over a single "right now" line. Deliberately
 -- NOT entry_states: states are anchored to a chapter, which is the right axis for "the debt
 -- transfers in chapter seven" and the wrong one for "she puts the plate on and takes it off".
@@ -4924,6 +4935,14 @@ export function logGeneration(g: any) {
        SELECT id FROM generations WHERE manifest IS NOT NULL
        ORDER BY created_at DESC, rowid DESC LIMIT -1 OFFSET 200)`).run();
   return gid;
+}
+
+/** #139. A stopped take's shown words, kept for bench/reroll-echo.ts. Nothing shown, nothing kept.
+ *  See `stopped_takes` in the schema for how to remove this. */
+export function keepStopped(generationId: string, storyId: string, replaced: unknown, body: string) {
+  if (!body.trim()) return;
+  q('INSERT OR IGNORE INTO stopped_takes (generation_id, story_id, replaced, body) VALUES (?,?,?,?)')
+    .run(generationId, storyId, typeof replaced === 'string' ? replaced : null, body);
 }
 
 // Re-exported so `db.ftsQuery(...)` keeps working: it is the search box's own grammar and the

@@ -1512,9 +1512,9 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
     // these rows and a writer who stops three takes should not find three errors waiting under
     // Storyteller — the numbers there are how the box's health is read.
     const stopped = c.signal?.aborted || e?.name === 'AbortError';
-    db.logGeneration({ storyId: v.id, model: using, role, manifest,
+    const genId = db.logGeneration({ storyId: v.id, model: using, role, manifest,
       error: stopped ? 'stopped by the writer' : e?.message, latencyMs: Date.now() - t0 });
-    if (stopped) return { aborted: true, manifest };
+    if (stopped) return { aborted: true, manifest, genId };
     return { error: e?.message ?? 'generation failed', manifest };
   }
 }
@@ -5317,8 +5317,14 @@ export const routes: Record<string, Handler> = {
   // and the generation log are the same code either way. p50 was 5.7s of blank page before the
   // first word appeared (COUNCIL-04 #3), which read as a hung app and got Continue pressed twice.
   'POST /api/generate': (c) => c.body.stream
-    ? { __stream: (send: (o: unknown) => void) =>
-        generate(c, c.body.mode ?? 'direct', c.body.directive, 'prose', (d) => send({ d })) }
+    ? { __stream: async (send: (o: unknown) => void) => {
+        // #139: a stopped take keeps what the page showed (`stopped_takes` in db.ts says how to remove it).
+        let shown = '';
+        const r: any = await generate(c, c.body.mode ?? 'direct', c.body.directive, 'prose',
+          (d) => { shown += d; send({ d }); });
+        if (r?.aborted) db.keepStopped(r.genId, c.body.storyId, c.body.regenerateOf, shown);
+        return r;
+      } }
     : generate(c, c.body.mode ?? 'direct', c.body.directive),
 
   /** A chapter summary saved by hand, or removed with an empty one (#43). */

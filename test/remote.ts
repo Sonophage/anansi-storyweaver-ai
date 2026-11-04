@@ -1889,5 +1889,48 @@ const chatsSince = (m: { fl: number }) => fl.slice(m.fl).filter((r) => r.path ==
   ok('the model picked on a tale is the writer\'s model, so a new tale starts with it');
 }
 
+// ---- A TAKE THE WRITER STOPS keeps the words the page showed (#139) ----
+// Seth stops a reroll when he sees it writing the take he just rejected. Until this, a stopped take
+// left no text anywhere, so the repeats he stops for could not be counted.
+{
+  const kept = () => {
+    const d = new DatabaseSync(DB, { readOnly: true });
+    try {
+      return d.prepare(`SELECT s.body, s.replaced, g.error FROM stopped_takes s
+                        JOIN generations g ON g.id = s.generation_id WHERE s.story_id = ?`).all(story.id) as any[];
+    } finally { d.close(); }
+  };
+  const first = await streamed({ storyId: story.id, mode: 'continue' });
+  assert.ok(first.last.passageId, 'a take to reroll');
+  script.push('overcap');
+  const ac = new AbortController();
+  const c = ctx(me, { storyId: story.id, mode: 'continue', stream: true, regenerateOf: first.last.passageId });
+  c.signal = ac.signal;
+  const shown: string[] = [];
+  const h = await routes['POST /api/generate'](c);
+  const last = await h.__stream((o: any) => { if (o?.d) { shown.push(o.d); if (shown.length === 30) ac.abort(); } });
+  assert.ok(last.aborted, 'the reroll was stopped');
+  const rows = kept();
+  assert.strictEqual(rows.length, 1, 'STOPPED-KEPT: a stopped take is kept');
+  assert.strictEqual(rows[0].body, shown.join(''), 'STOPPED-WORDS: exactly the words the page showed');
+  assert.strictEqual(rows[0].replaced, first.last.passageId, 'STOPPED-OF: with the take it was rerolling');
+  assert.strictEqual(rows[0].error, 'stopped by the writer', 'STOPPED-TIED: tied to its stopped generation row');
+
+  // Stopped before a word arrived: nothing to keep.
+  const ac2 = new AbortController();
+  ac2.abort();
+  const c2 = ctx(me, { storyId: story.id, mode: 'continue', stream: true });
+  c2.signal = ac2.signal;
+  script.push('overcap');
+  const l2 = await (await routes['POST /api/generate'](c2)).__stream(() => {});
+  assert.ok(l2.aborted, 'stopped at once');
+  assert.strictEqual(kept().length, 1, 'STOPPED-EMPTY: a take stopped before its first word keeps nothing');
+
+  // The tale's deletion takes its stopped takes with it.
+  db.delStory(story.id);
+  assert.strictEqual(kept().length, 0, 'STOPPED-GONE: deleting the tale deletes its stopped takes');
+  ok('a stopped take keeps the words the page showed and the take it rerolled, and goes with its tale');
+}
+
 console.log(`\n${n} checks green`);
 flSrv.close(); localSrv.close(); hubSrv.close();
