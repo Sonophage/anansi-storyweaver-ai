@@ -1787,7 +1787,10 @@ function passageHTML(p, newest, opening) {
         <textarea class="field" data-rerollbox="1" aria-label="The instruction to reweave from"
           >${esc(S.reroll.text ?? '')}</textarea>
         <div class="lbl flush">What didn't work</div>
-        <textarea class="field" data-rerollwhy="1" rows="3" placeholder="Optional"
+        ${/* F68, 2026-11-04: a note naming what the old version did cut same openings from 25% to 3%;
+              a general one ("make it different") measured flat. */ ''}
+        <div class="hint flush">Name what it did, and it is avoided: what it opened on, who did what.</div>
+        <textarea class="field" data-rerollwhy="1" rows="3" placeholder="Optional. For example: it opened on Tessa not answering again"
           aria-label="What didn't work in the passage you have now, optional"
           >${esc(S.reroll.why ?? '')}</textarea>
       </div>

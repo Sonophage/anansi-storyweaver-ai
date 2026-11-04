@@ -8578,6 +8578,10 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   assert.ok(box('data-rerollwhy'), "and a What didn't work field");
   assert.strictEqual(box('data-rerollwhy')![1], '', 'which starts empty');
   assert.match(html('col'), /What didn&#39;t work|What didn't work/, 'and is named for what it is');
+  // F68 (2026-11-04): a note that names what the old version did (what it opened on) cut same openings
+  // from 25% to 3%; a general one measured flat. The box says so, in a line under its name.
+  assert.match(html('col'), /Name what it did/, 'REWEAVE-NAME-HINT: the box asks for what the old version did, by name');
+  assert.match(html('col'), /placeholder="[^"]*opened on[^"]*"/, 'REWEAVE-NAME-EXAMPLE: with an example of a named note');
   assert.doesNotMatch(html('col'), /shown the\s+passage you have now/, 'and the box does not say the passage is shown to Anansi');
 
   type('data-rerollbox', 'have the envoy arrive late');
