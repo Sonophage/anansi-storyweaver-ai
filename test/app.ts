@@ -1223,13 +1223,13 @@ ok('the quill is a gilt seal with a sigil, no brush');
 {
   const { readFileSync } = await import('node:fs');
   const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
-  assert.match(page, /html\[data-sidefull="0"\] #sideBody :is\(\[data-storytab\], \[data-chaptab\], \[data-tellertab\], \.tabchip\) \{[^}]*min-height:44px/,
+  assert.match(page, /html\[data-sidebanner="1"\] #sideBody :is\(\[data-storytab\], \[data-chaptab\], \[data-tellertab\], \.tabchip\) \{[^}]*min-height:44px/,
     'TAB-TOUCH: a panel tab is 44px tall');
   // And wide: "Tale" is 39px of words. Each tab reaches half the 22px gap to either side, and the row
   // is padded by the same, so the first and last tabs keep their reach and nothing moves.
-  assert.match(page, /html\[data-sidefull="0"\] #sideBody :is\(\[data-storytab\], \[data-chaptab\], \[data-tellertab\], \.tabchip\) \{[^}]*padding:0 11px; margin:0 -11px;/,
+  assert.match(page, /html\[data-sidebanner="1"\] #sideBody :is\(\[data-storytab\], \[data-chaptab\], \[data-tellertab\], \.tabchip\) \{[^}]*padding:0 11px; margin:0 -11px;/,
     'TAB-TOUCH: a panel tab reaches into the gap on either side');
-  assert.match(page, /html\[data-sidefull="0"\] #sideBody :is\(\.row-6:has\(> \[data-storytab\], > \[data-chaptab\], > \[data-tellertab\]\), \.tabrow\) \{[^}]*gap:22px;[^}]*padding:0 11px; margin-left:-11px; margin-right:-11px;/,
+  assert.match(page, /html\[data-sidebanner="1"\] #sideBody :is\(\.row-6:has\(> \[data-storytab\], > \[data-chaptab\], > \[data-tellertab\]\), \.tabrow\) \{[^}]*gap:22px;[^}]*padding:0 11px; margin-left:-11px; margin-right:-11px;/,
     'TAB-TOUCH: and the row holds the reach of the first and last');
   assert.match(page, /\.thkinds \{[^}]*padding:5px 0; margin:3px 0 -5px/, 'KIND-TOUCH: the kinds row has room for the reach, and keeps its place');
   assert.match(page, /\.thkinds > \.chip \{[^}]*position:relative/, 'KIND-TOUCH: a kind chip holds its reach');
@@ -1244,9 +1244,9 @@ ok('the panel tabs and the kind chips are 44px to the finger');
   const { readFileSync } = await import('node:fs');
   const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
   const short = page.match(/@media \(max-height:480px\) \{[^@]*?\} \}/)?.[0] ?? '';
-  assert.match(short, /html\[data-sidefull="0"\] #sideHead \{ --band:0px; padding-top:18px; \}/, 'SHORT-NO-BANNER: the header loses the banner\'s room');
-  assert.match(short, /html\[data-sidefull="0"\] #sideHead > \.pbanner \{ display:none; \}/, 'SHORT-NO-BANNER: and the banner');
-  assert.ok(page.indexOf(short) > page.indexOf('html[data-sidefull="0"] #sideHead { --band:96px;'), 'SHORT-NO-BANNER: after the phone rule, so it wins over it');
+  assert.match(short, /html\[data-sidebanner="1"\] #sideHead \{ --band:0px; padding-top:18px; \}/, 'SHORT-NO-BANNER: the header loses the banner\'s room');
+  assert.match(short, /html\[data-sidebanner="1"\] #sideHead > \.pbanner \{ display:none; \}/, 'SHORT-NO-BANNER: and the banner');
+  assert.ok(page.indexOf(short) > page.indexOf('html[data-sidebanner="1"] #sideHead { --band:96px;'), 'SHORT-NO-BANNER: after the phone rule, so it wins over it');
 }
 ok('a short screen has no banner over a panel');
 // A GLYPH PER ACTION (Seth, 2026-11-03, his reference "≈ WOVEN"): every label a passage's chip can
@@ -1541,6 +1541,7 @@ ok('You play is a picker: search first, then who is in this scene, then everyone
       for (const p of ['threads', 'strings', 'story', 'chapter', 'chapters', 'waiting', 'teller', 'context']) {
         click({ panel: p }); await sleep(20);
         assert.strictEqual(rootEl.dataset.sidefull, '1', `PANELS-FULL-PHONE: ${p} fills a phone screen`);
+        assert.strictEqual(rootEl.dataset.sidebanner, '1', `PANELS-BANNER-PHONE: ${p} keeps its ray banner on a phone`);
       }
     } finally { (globalThis as any).matchMedia = wide; } }
   click({ panel: 'chapter' }); await sleep(20);
@@ -1597,7 +1598,7 @@ ok('any panel can be full screen, per panel, remembered on this device');
     assert.ok(existsSync(at), `PANEL-MARK: ${k}'s ${f} is on disk`);
     assert.match(readFileSync(at, 'utf8'), /^<svg [^>]*xmlns="http:\/\/www\.w3\.org\/2000\/svg"[\s\S]*<\/svg>\s*$/, `PANEL-MARK: ${f} is an SVG`);
   }
-  assert.match(page, /html\[data-sidefull="1"\] #sideHead > \.pbanner \{ display:none; \}/, 'PANEL-BANNER: full screen keeps today\'s header');
+  assert.match(page, /html:not\(\[data-sidebanner="1"\]\) #sideHead > \.pbanner \{ display:none; \}/, 'PANEL-BANNER: full screen on a desk keeps today\'s header');
 }
 ok('a panel beside the page opens on a banner with its own mark in the diamond');
 // The tint follows the mode, and it follows it on the ROOT — which means the attribute has to be

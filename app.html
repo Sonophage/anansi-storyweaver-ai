@@ -3004,12 +3004,15 @@ html:root .pbanner[data-mark="context"]  { --mark:url('/web/arcana-mark-eye.svg'
 html:root .pbanner[data-mark="teller"]   { --mark:url('/web/arcana-mark-star.svg'); }
 html:root .pbanner[data-mark="history"]  { --mark:url('/web/arcana-mark-hourglass.svg'); }
 html:root .pbanner[data-mark="updates"]  { --mark:url('/web/arcana-mark-wheel.svg'); }
-html[data-sidefull="1"] #sideHead > .pbanner { display:none; }
+/* THE BAND SHOWS BESIDE THE PAGE, AND ON A PHONE EVEN THOUGH EVERY PANEL IS FULL THERE (Seth, 2026-11-03:
+   "put back the nice ray header we had on those panels"). drawSide sets `data-sidebanner`. A desk in
+   full screen keeps the plain header. */
+html:not([data-sidebanner="1"]) #sideHead > .pbanner { display:none; }
 /* It wraps: the name keeps its whole width, and when it and the presses do not fit on one line (Threads,
    with its count and its ＋, in a 400px drawer) the presses take a second line, at the right. */
-html[data-sidefull="0"] #sideHead { --band:124px; padding-top:calc(var(--band) + 50px); padding-bottom:10px;
+html[data-sidebanner="1"] #sideHead { --band:124px; padding-top:calc(var(--band) + 50px); padding-bottom:10px;
   flex-wrap:wrap; row-gap:10px; }
-html[data-sidefull="0"] #sideHead > .pbanner { display:block; position:absolute; left:0; right:0; top:0;
+html[data-sidebanner="1"] #sideHead > .pbanner { display:block; position:absolute; left:0; right:0; top:0;
   height:var(--band); pointer-events:none; animation:none;
   background:url('/web/arcana-canvas.svg') center / cover, var(--rail); }
 html:root .pbanner > .pbpic { position:absolute; inset:0; z-index:0; background-size:cover; background-position:center 30%;
@@ -3030,31 +3033,31 @@ html:root .pbanner > .pbmark::after { content:''; position:absolute; inset:0; ba
 html:root .pbanner::after { content:''; position:absolute; z-index:3; left:50%; bottom:-14px; width:28px; height:28px; margin-left:-14px;
   background:var(--ink-bright); -webkit-mask:var(--mark) center / contain no-repeat; mask:var(--mark) center / contain no-repeat; }
 /* The name, large and thin, and CLOSE in spaced capitals. */
-html[data-sidefull="0"] #sideHead > .panelname { font-family:var(--arc-deco); font-weight:400; text-transform:uppercase;
+html[data-sidebanner="1"] #sideHead > .panelname { font-family:var(--arc-deco); font-weight:400; text-transform:uppercase;
   font-size:34px; line-height:1.1; letter-spacing:.18em; flex:0 0 auto; max-width:100%; }
-html[data-sidefull="0"] #sideHead > .caps-btn { font-family:var(--arc-small); font-size:13px; letter-spacing:.3em; margin-right:-.3em; margin-left:auto; }
+html[data-sidebanner="1"] #sideHead > .caps-btn { font-family:var(--arc-small); font-size:13px; letter-spacing:.3em; margin-right:-.3em; margin-left:auto; }
 /* THE TABS, spaced capitals with no boxes, the one you are on bright. One row that scrolls sideways
    when the names are wider than the panel. Each tab is still a 44px box to the finger, the words
    centred in it (28px tall until 2026-11-03, measured short on a phone by test/ui/targets.js), and
    it reaches half the gap to either side (Tale is 39px of words); the row's padding holds the reach
    of the first and last tab, and its margins give that padding back, so the words do not move. */
-html[data-sidefull="0"] #sideBody :is(.row-6:has(> [data-storytab], > [data-chaptab], > [data-tellertab]), .tabrow) {
+html[data-sidebanner="1"] #sideBody :is(.row-6:has(> [data-storytab], > [data-chaptab], > [data-tellertab]), .tabrow) {
   gap:22px; overflow-x:auto; scrollbar-width:none; padding:0 11px; margin-left:-11px; margin-right:-11px; }
-html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip) {
+html[data-sidebanner="1"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip) {
   flex:0 0 auto; min-height:44px; padding:0 11px; margin:0 -11px; border:0; border-radius:0; background:none; box-shadow:none;
   font-family:var(--arc-small); font-size:13px; letter-spacing:.24em; text-transform:uppercase; color:var(--dim); }
-html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip)[aria-pressed="true"] { color:var(--ink-bright); }
-html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip):hover { color:var(--gold); }
+html[data-sidebanner="1"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip)[aria-pressed="true"] { color:var(--ink-bright); }
+html[data-sidebanner="1"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip):hover { color:var(--gold); }
 @media (max-width:719px) {
-  html[data-sidefull="0"] #sideHead { --band:96px; padding-top:calc(var(--band) + 44px); }
-  html[data-sidefull="0"] #sideHead > .panelname { font-size:26px; letter-spacing:.14em; }
-  html[data-sidefull="0"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip) { font-size:12px; letter-spacing:.18em; } }
+  html[data-sidebanner="1"] #sideHead { --band:96px; padding-top:calc(var(--band) + 44px); }
+  html[data-sidebanner="1"] #sideHead > .panelname { font-size:26px; letter-spacing:.14em; }
+  html[data-sidebanner="1"] #sideBody :is([data-storytab], [data-chaptab], [data-tellertab], .tabchip) { font-size:12px; letter-spacing:.18em; } }
 /* A SHORT SCREEN HAS NO BANNER. Under 480px of height (a phone with its keyboard up, a square phone)
    the banner's 96px left a panel's body too little room: 36px on a 360x360 screen with the keyboard
    up, and the box being typed in sat under the keyboard. The header is the name alone there. */
 @media (max-height:480px) {
-  html[data-sidefull="0"] #sideHead { --band:0px; padding-top:18px; }
-  html[data-sidefull="0"] #sideHead > .pbanner { display:none; } }
+  html[data-sidebanner="1"] #sideHead { --band:0px; padding-top:18px; }
+  html[data-sidebanner="1"] #sideHead > .pbanner { display:none; } }
 
 /* THE SCENE'S FIRST LETTER, illuminated: deco capital in a gilt box over a wash of gold. Still
    ::first-letter, for the reason above the rule it extends: the passage is contenteditable. */

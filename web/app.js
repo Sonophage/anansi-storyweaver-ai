@@ -2818,6 +2818,9 @@ function drawSide() {
   // 88% of the screen and carried the panel banner, which left a band of page and a tall head above
   // the content. Full, a panel fills the screen with the plain header. A desk keeps the choice.
   root.dataset.sidefull = !side.hidden && (alwaysFull || phone() || PANEL_FULL.has(S.panel)) ? '1' : '0';
+  // THE RAY BANNER (`.pbanner`) beside the page, and on a phone, where every panel is full (Seth,
+  // 2026-11-03: "put back the nice ray header we had on those panels"); not on a desk in full screen.
+  root.dataset.sidebanner = !side.hidden && !alwaysFull && (phone() || !PANEL_FULL.has(S.panel)) ? '1' : '0';
   if (side.hidden) return;
   const full = PANEL_FULL.has(S.panel);
   const fullBtn = alwaysFull ? '' : `<button class="headfull" data-panelfull="1" aria-pressed="${full}"
