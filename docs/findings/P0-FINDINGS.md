@@ -3363,6 +3363,11 @@ them twice. Median wait 14 s to 18 s, p90 22 s to 29 s, non-streaming.
   same opening (`test/away.ts`, GATE-*). Checked on Ornith on a scratch server with 9 streamed
   reweaves of the two passages with the highest control rate: 0 same openings reached the page, and
   4 of the 9 were asked again (3 of them twice). Not an A/B. The switch is still off by default.
+  In 1 of the 9 the saved passage differed from the text the page showed. That reroll had landed.
+  The text was deleted before it was read, so the cause is inferred, not seen: the landing saved a
+  space where the page showed a paragraph break, with the switch on or off (`test/away.ts`,
+  LAND-SEAM, red before the fix). A rerun of 18 streamed rerolls per arm, switch on and off at the
+  same time, found 0 mismatches in either arm, so it is rare.
 - Whether a different opening is a better version. Nothing here scores quality.
 - The paraphrased repeat (F66) is still not measured.
 - A note that names what was wrong ("she enters the same way") was not tested: the model is not
