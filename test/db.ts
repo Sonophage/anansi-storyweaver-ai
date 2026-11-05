@@ -2015,6 +2015,66 @@ ok('a proposal can carry the pages it came from, and only http(s) ones', () => {
   db.delStory(st.id);
 });
 
+// #143 · NOTHING TWICE ON A NEW CARD (Seth's read of five hems, 2026-11-05: four of eight cards to fix
+// said one thing in the thread and again in a pocket). His rule: the pocket keeps it, the thread's own
+// text loses it; between two pockets the later one loses it. The four cases are his, as Ornith wrote them.
+ok('a new card says each thing once: the pocket keeps it', () => {
+  const me = db.owner('twice-owner');
+  const st = db.createStory(me, { title: 'A book of repeats' });
+  const ch = (db.chapters(st.id)[0] as any).id;
+  const add = (title: string, entryType: string, body: string, rooms: any) =>
+    db.addProposal(st.id, { chapterId: ch, kind: 'new', entryType, field: 'facts', title, body, keys: [], rooms });
+  const got = (title: string) => { const r: any = db.proposalsOf(st.id).find((x: any) => x.title === title);
+    return { body: String(r?.body ?? ''), rooms: JSON.parse(r?.rooms ?? 'null') ?? {} }; };
+
+  add('The Painting', 'item', 'abstract shapes; muted colors; rough texture; on the wall',
+    { appearance: { name: 'visuals', body: 'abstract shapes in muted colors; rough texture under fingertips' },
+      stands: { body: 'on the wall of the hotel room; Halsey touches it' } });
+  const painting = got('The Painting');
+  assert.ok(!/abstract|muted|rough|wall/i.test(painting.body), `TWICE-BODY: the thread loses what a pocket says (${painting.body})`);
+  assert.ok(painting.body.trim(), 'TWICE-BODY-NOT-EMPTY: a thread whose every clause a pocket says still has a body');
+  assert.strictEqual(painting.rooms.appearance?.body, 'abstract shapes in muted colors; rough texture under fingertips',
+    'TWICE-POCKET-KEPT: the pocket keeps its words');
+
+  add('The Cell', 'place', "Small, sealed room; durasteel walls; metal grating floor; smells of old blood and cold metal; no visible windows",
+    { appearance: { name: 'Physical layout', body: 'Small, sealed room; durasteel walls; metal grating floor; no visible windows' },
+      atmosphere: { name: 'Mood', body: 'Cold; dark; oppressive; smells of old blood and cold metal; no visible windows' },
+      stands: { body: 'Small, sealed room; durasteel walls; metal grating floor; no visible windows' } });
+  const cell = got('The Cell');
+  assert.strictEqual(cell.rooms.atmosphere?.body, 'Cold; dark; oppressive; smells of old blood and cold metal',
+    'TWICE-LATER-POCKET: a later pocket loses what an earlier pocket says');
+  assert.ok(!('stands' in cell.rooms), 'TWICE-POCKET-EMPTY: a pocket with nothing of its own left is dropped');
+
+  add('The Narrator', 'character', "Human; age unknown; bare feet; calls Konrad 'Konrad'; does not return gratitude",
+    { appearance: { name: 'Physical presence', body: 'Small; bare feet' },
+      interiority: { name: 'Hidden thoughts', body: 'Does not return gratitude; does not let go of his hand' },
+      relationships: { name: 'With Konrad', body: "Calls Konrad 'Konrad'; does not flinch when he touches her; does not return gratitude" } });
+  const nar = got('The Narrator');
+  assert.strictEqual(nar.body, 'Human; age unknown', 'TWICE-BODY-KEEPS-ITS-OWN: what no pocket says stays');
+  assert.strictEqual(nar.rooms.relationships?.body, "Calls Konrad 'Konrad'; does not flinch when he touches her",
+    'TWICE-SHORT-CLAUSE: a short repeated clause goes too');
+
+  add('goblet of wine', 'item', 'a goblet of wine held by Talia; a mundane anchor in a sea of divine turmoil',
+    { what_it_does: { name: 'mundane anchor', body: 'it remains in her hand, a mundane anchor in a sea of divine turmoil' } });
+  assert.strictEqual(got('goblet of wine').body, 'a goblet of wine held by Talia', 'TWICE-GOBLET: the repeated half goes, the rest stays');
+
+  // THE WRITER'S OWN WORDS ARE NOT CUT: a World person's tale card copies the World's Always true, which
+  // the writer wrote, and only where they stand is the model's.
+  db.addProposal(st.id, { chapterId: ch, kind: 'new', entryType: 'character', field: 'facts', title: 'Lisa', keys: [],
+    body: 'Human; manager; thirties', writersBody: true,
+    rooms: { stands: { body: 'Lisa the manager waits by the door. Last seen in Scene 3.', from: 4, before: '' } } });
+  assert.strictEqual(got('Lisa').body, 'Human; manager; thirties', 'TWICE-WRITERS-BODY: the writer\'s Always true is never cut');
+
+  // AND A CARD WITH NOTHING TWICE IS STORED AS IT CAME: one shared word is not a repeat.
+  const clean = { appearance: { name: 'First glance', body: 'a scar through one eyebrow; grey at the temples' },
+    voice: { name: 'Clipped', body: 'short lines; never says sorry' } };
+  add('Marcus', 'character', 'Human; grey eyes; the label\'s fixer; owes Tessa a favour', clean);
+  const m = got('Marcus');
+  assert.strictEqual(m.body, "Human; grey eyes; the label's fixer; owes Tessa a favour", 'TWICE-CLEAN-BODY: nothing repeated, nothing cut');
+  assert.deepStrictEqual(m.rooms, clean, 'TWICE-CLEAN-ROOMS: nothing repeated, nothing cut');
+  db.delStory(st.id);
+});
+
 // The look: three layers, and the one that matters is that a book's look never becomes yours by
 // being opened. That was the shape of the bug the split exists to prevent — the surface cached
 // whatever was on screen, so reading a book with a green theme made green your default.

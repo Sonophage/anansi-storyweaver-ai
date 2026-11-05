@@ -2055,7 +2055,7 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     if (who.sharedFrom) {
       const always = alwaysTrue(who) || String(m.always ?? '').trim() || who.title;
       if (stands && db.addProposal(storyId, { kind: 'new', entry_id: null, chapterId: ch.id, title: who.title, body: always,
-          entryType: who.entryType, field: 'facts', keys: who.keys ?? [], delta, grp, line,
+          entryType: who.entryType, field: 'facts', keys: who.keys ?? [], delta, grp, line, writersBody: !!alwaysTrue(who),
           rooms: { stands: { body: stands, from: ch.index + 1, before: said.trim() } } })) {
         remembered++; taken.add(who.id);
       }

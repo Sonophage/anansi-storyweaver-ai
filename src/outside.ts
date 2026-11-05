@@ -74,3 +74,39 @@ export function placeholders(text: string): string[] {
   // No space just inside either bracket: "5 < 6 and 7 > 2" is arithmetic, "<a man>" is a slot.
   return String(text ?? '').match(/<[^<>\s][^<>\n]{0,58}[^<>\s]>|<[^<>\s]>/g) ?? [];
 }
+
+/** #143 · NOTHING TWICE ON A NEW CARD. The card contract says it and the model writes it anyway: of
+ *  eight cards Seth would fix in five Ornith hems (2026-11-05), four said one thing in the thread's own
+ *  text and again in a pocket ("abstract shapes; muted colors" over an appearance pocket of "abstract
+ *  shapes in muted colors"). His rule: the pocket keeps it and the thread's text loses it; between two
+ *  pockets, the later one loses it. A pocket left with nothing of its own is dropped; a thread left
+ *  with nothing is its title, as a World person's card is when it has no Always true.
+ *
+ *  A clause is a repeat when two thirds of its words (three letters or more, not the little ones) are
+ *  in the text it is checked against. Words, not letters, so "abstract shapes" is said by "abstract
+ *  shapes in muted colors", and no length floor, so "bare feet" goes as well as a long clause.
+ *  ponytail: a word list, English only. Ceiling: a repeat in other words ("barefoot" for "bare feet")
+ *  stays, and a clause whose words another clause happens to share goes. Trigger: a writer finding a
+ *  repeat on a new card, or a fact missing from one; then ask the model which clauses repeat. */
+const LITTLE = new Set(['the', 'and', 'not', 'does', 'did', 'with', 'his', 'her', 'hers', 'him', 'she', 'they', 'them', 'their',
+  'its', 'from', 'into', 'onto', 'for', 'are', 'was', 'were', 'has', 'have', 'had', 'who', 'that', 'this', 'when', 'than',
+  'then', 'any', 'all', 'one', 'off', 'out', 'but', 'over', 'under', 'upon', 'there', 'what', 'which', 'while']);
+const wordsOf = (t: string) => (t.toLowerCase().replace(/['’]s\b/g, '').match(/[\p{L}\p{N}]+/gu) ?? [])
+  .filter((w) => w.length > 2 && !LITTLE.has(w)).map((w) => w.length > 3 ? w.replace(/s$/, '') : w);
+/** The clauses of a card's text, each with the mark that ended it. */
+const clausesOf = (t: string) => String(t ?? '').match(/[^;.!?]+[;.!?]*["'”’)]*\s*/g) ?? [];
+/** `text` without the clauses `known` already says, or '' when nothing of its own is left. */
+const unsaid = (text: string, known: Set<string>) => clausesOf(text)
+  .filter((c) => { const w = wordsOf(c); return !w.length || w.filter((x) => known.has(x)).length * 3 < w.length * 2; })
+  .join('').trim().replace(/[;,]\s*$/, '');
+
+export function notTwice(title: string, body: string, rooms: Record<string, any>) {
+  const out: Record<string, any> = {}, said = new Set<string>();
+  for (const [slot, r] of Object.entries(rooms)) {
+    const own = typeof r === 'object' && r ? String(r.body ?? '') : String(r ?? '');
+    const kept = unsaid(own, said);
+    for (const w of wordsOf(own)) said.add(w);
+    if (kept) out[slot] = typeof r === 'object' && r ? { ...r, body: kept } : kept;
+  }
+  return { body: unsaid(body, said) || title, rooms: out };
+}

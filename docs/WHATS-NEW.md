@@ -24,6 +24,12 @@ thinking. That covers where they stand, their relationships and their voice, and
 the Hands off character while Hands off is on. What they did and where they are is still offered, and
 everyone else's feelings still are. Rewrite where it stands follows the same rule.
 
+### A new card says each thing once
+When Anansi offers you a new person, place or thing, the card no longer says the same thing in
+its main text and again in a pocket. The pocket keeps it. If a later pocket repeats an earlier one,
+the later one drops the repeat, and a pocket with nothing of its own left is not offered. If every
+line of the main text was also in a pocket, the main text is just the name.
+
 ### No more rewriting who someone is every scene
 A hem no longer offers a new description of who an existing person or place is after every scene
 (Seth was in his 30s, then 28, then 20s). Who they are is offered once, while it is still empty.

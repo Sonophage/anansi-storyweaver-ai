@@ -2211,7 +2211,8 @@ ok('the new-threads pass keeps who a thread is, keeps the played character outsi
   db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
     body: 'Morgott knelt in Leyndell and took Rennala\'s hand as his queen.' });
   answer = [
-    { name: 'Morgott', stands: '[Morgott: holds the capital, and has taken Rennala as his queen]', label: 'took a queen',
+    // "the Omen King" again in where he stands: the World's words are the writer's, and stay (#143).
+    { name: 'Morgott', stands: '[Morgott: the Omen King holds the capital, and has taken Rennala as his queen]', label: 'took a queen',
       line: 'Morgott knelt in Leyndell', always: '', pockets: [] },
     { name: 'Rennala', stands: '[Rennala: queen of the moon, and now Morgott\'s queen]', label: 'a queen again',
       line: 'took Rennala\'s hand', always: '', pockets: [] },

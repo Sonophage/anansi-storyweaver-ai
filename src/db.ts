@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, STRING_SLOTS, TO_OVER_TIME, foldLine, keysTakenBy, oneKeyword, plain, slotsFor, tidyGenre, wrapperNames } from './slots.ts';
 import { factsLost } from './context.ts';
 import { isRemote } from './llama.ts';
-import { placeholders } from './outside.ts';
+import { placeholders, notTwice } from './outside.ts';
 
 // ponytail: SQLite, not Postgres. PLAN-02 §3 locked Postgres for pgvector (unscheduled) and RLS
 // (needs a second tenant); neither is live, and Docker was not running. The schema is the target
@@ -4733,6 +4733,12 @@ export function addProposal(storyId: string, p: any) {
   // was filling a form there, not reading the scene, so the whole card is refused, not unbracketed.
   const rooms = Object.values(p.rooms ?? {}).map((r: any) => String(r?.body ?? r ?? ''));
   if ([p.title, p.body, ...rooms].some((t) => placeholders(String(t ?? '')).length)) return false;
+  // #143 · A NEW CARD SAYS EACH THING ONCE (`notTwice`): the pocket keeps it, whoever chalked it. Not a
+  // body the writer wrote (`writersBody`: a World person's tale card copies the World's Always true).
+  if (p.kind === 'new' && p.rooms && typeof p.rooms === 'object' && !p.writersBody) {
+    const once = notTwice(String(p.title ?? ''), String(p.body ?? ''), p.rooms);
+    p = { ...p, body: once.body, rooms: Object.keys(once.rooms).length ? once.rooms : undefined };
+  }
   // A NEW THREAD STARTS WITH ONE GOOD KEYWORD (`oneKeyword`), whoever chalked it.
   if (p.kind === 'new' && ['character', 'place', 'lore', 'item'].includes(String(p.entryType ?? p.entry_type ?? 'lore')))
     p = { ...p, keys: oneKeyword(p.title, p.keys, keyTaken(storyId), String(p.entryType ?? p.entry_type ?? 'lore')) };
