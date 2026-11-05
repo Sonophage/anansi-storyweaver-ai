@@ -1249,6 +1249,12 @@ ok('a model is switched only to one the tale can be written by, and only when as
   assert.ok(ch.draftAsked({ op: 'tale.set', field: 'title', text: 'The Ferry' }, dr, 'call it The Ferry'), 'DRAFT-ASK-WORDS: "call it" asks for the title');
   assert.ok(ch.draftAsked({ op: 'tale.set', field: 'voice', text: 'You.' }, dr, 'write it in second person'), '  and "second person" for the voice');
   assert.ok(!ch.draftAsked({ op: 'thread.set', thread: 'Wenna', room: 'voice', text: 'Low.' }, dr, 'what is Wenna like?'), '  a question about her asks for nothing');
+  // F70 · the press the app makes with nothing from the model: the whole message, and nothing else.
+  for (const yes of ['Set it up.', 'Ok, start the tale now.', 'set it up please', "Let's begin!"])
+    assert.ok(ch.startNow(yes), `START-NOW: "${yes}"`);
+  for (const no of ["I'm not ready to start the tale", 'set it up later', "we'll set it up tomorrow", 'set it up so the ferry sinks',
+    'Can you set it up so Vel is the villain?', "Don't set it up."])
+    assert.ok(!ch.startNow(no), `START-NOW-NOT: "${no}"`);
 });
 
 console.log(`\n${n} checks passed`);

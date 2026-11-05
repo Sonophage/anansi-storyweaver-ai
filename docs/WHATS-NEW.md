@@ -21,8 +21,8 @@ Everything below this line was written by that model call, before it was removed
 ### Fewer half-done answers from Talk
 A rewrite that comes back word for word the same is no longer saved as a change: the answer says the
 rewrite came back unchanged. When Anansi tries to rename someone but forgets the new name, the answer
-now says how to ask so it lands ("rename Isolde Marr to" and the name). And "set it up" in New tale
-makes the tale even when Anansi only says he is doing it.
+now says how to ask for it plainly ("rename Isolde Marr to" and the name). And saying just "set it up"
+in New tale makes the tale even when Anansi only says he is doing it.
 
 ### Set up a new tale by talking, and say "set it up"
 In New tale, Talk now fills in the draft with the same cards as in a tale: the premise and setting,

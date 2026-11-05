@@ -777,7 +777,8 @@ function renameOn(tale: Tale, t: Thread, raw: any, said: string, undo = false): 
   if (t.sharedFrom) return followed(t, said);
   const to = String((undo ? raw.to : raw.title) ?? '').trim();
   // F70 · Ornith sent every rename it was asked for without the new name (three runs of three). The app
-  // does not guess one from the writer's words (Seth, 2026-11-04); it says how to ask so it lands.
+  // does not guess one from the writer's words (Seth, 2026-11-04); it says how to ask for it plainly.
+  // Whether the plain form lands more often on Ornith is not measured.
   if (!to) return { ok: false, said, why: `the answer gave no new name for ${t.title}. Say it whole: "rename ${t.title} to" and the name` };
   if (!undo) {
     const twin = tale.entries.find((e) => e.id !== t.id && norm(e.title) === norm(to));
@@ -1620,6 +1621,12 @@ export const startAsked = (said: string) => {
     || /\b(start|make|create|begin) the (tale|story)( now| for me| please)*\s*([.!,]|$)/.test(own)
     || /\blet'?s (start|begin)( it| writing)?\s*[.!]*$/.test(own.trim()));
 };
+
+/** F70 · "SET IT UP" AS THE WHOLE MESSAGE, for the press the app makes when the model sent none:
+ *  "Set it up.", "Ok, start the tale now." — never a phrase inside a longer message ("I'm not ready to
+ *  start the tale", "set it up later", "set it up so the ferry sinks"). */
+export const startNow = (said: string) => /^(?:ok(?:ay)?,?\s+|now,?\s+|please,?\s+|go ahead,?\s+(?:and\s+)?)?(?:set it up|set up the (?:tale|story)|(?:start|make|create|begin) the (?:tale|story)|press start|let'?s (?:start|begin))(?:,?\s+(?:now|please|thanks|for me))*\s*[.!]*$/i
+  .test(String(said ?? '').trim());
 
 /** #158 · Seth, 2026-11-04: "fold the asked rule (askedOf, #152) into the setup talk here as well: a
  *  change the writer did not name is offered, not written to the draft." `askedOf` on the draft's

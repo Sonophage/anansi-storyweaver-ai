@@ -20,7 +20,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
-import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, offerWords, draftCard, startAsked, draftAsked, DRAFT_STRINGS, aimOf, askWhich, fingerprint, talesOwn, shortModel } from './changes.ts';
+import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, offerWords, draftCard, startAsked, startNow, draftAsked, DRAFT_STRINGS, aimOf, askWhich, fingerprint, talesOwn, shortModel } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
@@ -4145,10 +4145,11 @@ export const routes: Record<string, Handler> = {
     // has (they say it again once they have seen the cards); and not in one that named an IP, whose
     // World step runs on the page first.
     let started: { id: string; notes?: string[] } | null = null;
-    // F70 · "SET IT UP" ASKED IS THE PRESS, whether or not the model sent it: on Ornith it twice said
-    // "Starting the tale" and sent nothing. `startAsked` is a short list of set-it-up phrases, and the
+    // F70 · "SET IT UP" AS THE WHOLE MESSAGE IS THE PRESS, whether or not the model sent it: on Ornith
+    // it twice said "Starting the tale" and sent nothing. Only the whole message (`startNow`): a phrase
+    // inside a longer one ("I'm not ready to start the tale") is left to the model and `startAsked`. The
     // same refusals hold (other changes in the answer, an IP named, no Start body from the page).
-    if (startAsked(said)) start = true;
+    if (startNow(said)) start = true;
     if (start) {
       const why = !startAsked(said) ? 'you did not ask for the tale to be made'
         : changes.length || held.length ? 'it came with changes to the draft. Look at their cards, then say "set it up" again'

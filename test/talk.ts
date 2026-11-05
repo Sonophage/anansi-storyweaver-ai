@@ -295,6 +295,9 @@ const srv = createServer((req, res) => {
           slot === 'voice' ? 'Formal, and he calls everyone Tarnished.'
           : slot === 'atmosphere' ? 'Let the gold leaves fall through every scene here.' : ''])) }
       : props.queries ? { queries: QUERIES[wantsSearch] ?? [] }
+      // F70 · the whole message "Set it up.", with no key in it (the app's own press needs the whole
+      // message): what Ornith did, said it was making the tale and sent nothing.
+      : String(b.messages?.at(-1)?.content ?? '').trim() === 'Set it up.' ? CHANGES.SETUPSILENT
       : asked && CHANGES[asked] ? CHANGES[asked]
       : asksToPad ? { reply: 'She is more afraid of being right than of being wrong.',
         entries: [{ title: 'Vel', type: 'character', field: 'interiority',
@@ -3696,7 +3699,7 @@ ok('Talk sends the threads the question, the conversation or the page names, and
     'IP-HELD-THREAD: with an IP named, its people are neither made nor offered');
 
   // F70 · "Set it up" with nothing sent by the model is still the press.
-  const silent = await setupAs('ABOUT-SETUPSILENT: Set it up.', { start: START });
+  const silent = await setupAs('Set it up.', { start: START });
   assert.ok(silent.started?.id, `START-WORDS: "set it up" makes the tale though the model sent nothing (${JSON.stringify(silent.notDone)})`);
   const n1 = tales();
 
