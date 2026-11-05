@@ -388,6 +388,9 @@ somebody says. Not "Scene Four", not a summary of what happens.
 
 Reply with the name and nothing else: no quotes, no full stop.`;
 
+/** WHERE THE TALE STANDS, asked once per hem (`taleStands` in routes.ts). Not measured on its own; F72
+ *  measured its "not the place" sentence together with STANDS_FORM's "what was asked" and POCKET_FORM's
+ *  named person: kept 3 to 2 over none, at chance, and shipped on Seth's call. */
 export const TALE_STANDS =
 `Below is what a story is, where it stood before its latest scene, and that scene: its summary, or
 its narration.
