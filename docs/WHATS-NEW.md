@@ -31,6 +31,9 @@ Changes after that come as pockets and as where they stand.
 
 ### No more cards full of blanks
 A card that comes back as a fill-in form, such as "<a man>; <middle-aged>", is no longer offered.
+The same goes for Write it again on the Workbench and for Anansi filling in a pocket: they now say
+the answer came back as a form and leave your text as it was. In a new tale's draft, a part written
+as a form comes back empty for you to fill in, and the rest of the thread stays.
 
 ### A place is not mistaken for a person with a similar name
 A new place called Mohgwyn Palace is now offered as a new place. Before, it was offered as a change

@@ -23,7 +23,7 @@ import { presets } from './presets.ts';
 import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, offerWords, draftCard, startAsked, startNow, draftAsked, DRAFT_STRINGS, aimOf, askWhich, fingerprint, talesOwn, shortModel } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
-import { innerCut } from './outside.ts';
+import { innerCut, placeholders } from './outside.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
 
@@ -3075,10 +3075,16 @@ function draftThreadText(e: any): string {
  *  name. Every spark thread was Always on, so a scene-1 detail of a laundromat or forty dollars on a
  *  table rode in every scene's canon (setup prompt audit, 2026-10-28, problem F). */
 function sparkThread(rawName: string, kind: string, rawBody: string, pockets: unknown, rawStands: unknown = '') {
+  // #142 · NEVER TEMPLATE TEXT: a part the model wrote as a fill-in form ("<what they are>; <age>") is
+  // left empty or out, and the parts written properly stay. A draft, so the writer fills the rest in
+  // before Start; a chalked card is refused whole instead (`db.addProposal`).
+  const form = (t: unknown) => placeholders(String(t ?? '')).length > 0;
+  if (form(rawBody)) rawBody = '';
+  if (form(rawStands)) rawStands = '';
   const here = slotsFor(kind).map((sl) => sl.name), rooms: Record<string, any> = {};
   for (const pk of (Array.isArray(pockets) ? pockets : []) as any[]) {
     const slot = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
-    if (slot !== 'facts' && here.includes(slot) && body && !rooms[slot])
+    if (slot !== 'facts' && here.includes(slot) && body && !form(body) && !rooms[slot])
       rooms[slot] = { name: String(pk?.name ?? '').trim() || slot, body, on: true };
   }
   // NO NAME AT THE FRONT, AND NO BRACKETS (#110, ADR 0008): the setup draft shows this text as the
@@ -5438,6 +5444,10 @@ export const routes: Record<string, Handler> = {
       role: `invent:${kind}`, params: wove(reply, r), manifest, latencyMs: Date.now() - t0,
       error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
+    // #142 · NEVER TEMPLATE TEXT, the floor every chalked card has (`db.addProposal`): this door hands a
+    // pocket or a refilled card straight back to the open form, so it is held here, for all three.
+    if ([r.data.title, r.data.name, r.data.body].some((t) => placeholders(String(t ?? '')).length))
+      return { error: 'Anansi wrote it as a fill-in form, so nothing was put in the box. Try again.' };
 
     // No URL in the body — see the note in the talk route. The results reach the model; the link
     // does not reach the card.
@@ -6338,7 +6348,8 @@ export const routes: Record<string, Handler> = {
     const r = await structuredRetry(REDO, ask, REDO_SCHEMA, { model: writerModel(c, v) });
     const body = String(r.data?.body ?? '').trim();
     if (!body) return { error: r.error ?? 'Anansi did not write it again' };
-    db.setProposalBody(p.story_id, p.id, body);
+    if (!db.setProposalBody(p.story_id, p.id, body))
+      return { error: 'Anansi wrote it back as a fill-in form, so it was left as it was. Try again.' };
     return viewOf(c, p.story_id);
   },
   /** ONE POCKET OF A NEW THREAD, LEFT OUT (Seth, 2026-10-30: "I should be able to discard per pocket

@@ -43,6 +43,7 @@ const QUESTIONS = [{ title: 'Whether the debt is real', line: 'Nobody has seen t
 const FILLCARD = {"reply":"I have filled out the Seraphine card with all the details from your prompt. Here is the completed entry:\n\n**Character Name:** Seraphine\n\n**Role:** Antagonist / Love Interest / Guide\n\n**Appearance:**\n- **Age:** Late 20s to early 30s\n- **Height:** 5'7\"\n- **Build:** Slender but athletic, with a lithe grace\n- **Hair:** Dark brown, styled in a sleek, modern bob\n- **Eyes:** Piercing green, with a hint of gold\n- **Skin:** Pale, with a faint sheen of sweat\n- **Outfit:**\n  - Black latex bodysuit, form-fitting and glossy\n  - Red latex gloves, elbow-length\n  - Black latex boots, knee-high with a slight heel\n  - A silver pendant necklace, shaped like a key\n\n**Personality:**\n- **Confident:** She knows what she wants and goes after it\n- **Possessive:** She likes to claim things and people\n- **Intellectual:** She enjoys puzzles and challenges\n- **Seductive:** She uses her body and voice as weapons\n- **Mysterious:** She keeps her true motives hidden\n\n**Speech:**\n- **Tone:** Low, husky, and intimate\n- **Pace:** Slow and deliberate, with pauses for effect\n- **Vocabulary:** Precise and evocative, with a touch of archaic flair\n- **Quirks:**\n  - Often uses metaphors related to the body and bones\n  - Speaks in a way that feels both inviting and threatening\n  - Her voice can shift from soft and seductive to sharp and commanding\n\n**Backstory:**\n- **Origin:** Unknown, but she has been in Sutera for a long time\n- **Motivation:** She is drawn to the Stranger and wants to understand them\n- **Conflict:** She must balance her desire for the Stranger with her role in the city\n- **Arc:** She will likely become more involved in the Stranger's journey, possibly helping or hindering them\n\n**Relationships:**\n- **The Stranger:** She is fascinated by them and wants to get close\n- **Vel:** She sees Vel as a rival for the Stranger's attention\n- **The Choir of Saints:** She is a member and follows their rules, but has her own agenda\n\n**Quotes:**\n- \"I have been waiting for you, stranger.\"\n- \"You are a puzzle I intend to solve.\"\n- \"Do not be afraid. I am not your enemy.\"\n\n**Notes:**\n- Seraphine is a complex character with multiple layers\n- She can be both a help and a hindrance to the Stranger\n- Her true motives are not entirely clear, adding to the mystery\n\nLet me know if you would like any changes or additional details!","changes":[],"entries":[{"title":"Seraphine","type":"character","body":"A nun of the Choir of Saints, but not as the poor know them. Her habit is cut low, the black fabric pulled taut over strong thighs, ending in heels that click against the blood-stained cobblestones with precise, deliberate rhythm. Red latex gloves stretch to her elbows, shiny and tight, holding the silence of the confessional in their grip. Her voice is a low murmur, barely louder than the gun’s whisper, but it fills the space between them like spilled oil.\n\nShe is hungry, but not for food. She watches the Stranger like a collector watches a rare, dangerous artifact. There is a maternalpossess","keys":["Seraphine","Choir of Saints","Latex","Habit"],"field":"appearance"}]};
 
 let calls: any[] = [];
+let formAnswer = false;   // #142 · Invent answers a pocket as template text while this is set
 const LOCAL_MODEL = process.env.ANANSI_MODEL ?? 'Qwen3.6-WNTH-35B-A3B-NN';
 let memoType: string | null = null;   // what kind of thread "Remember this" answers with, when set
 let breakFirst = false;   // answer the first call with a truncated object, as running out of room does
@@ -363,6 +364,11 @@ const srv = createServer((req, res) => {
         // #86. A SECOND PERSON, only when the ask names somebody Hands off, so "the voice pocket goes
         // to that thread and no other" has another thread to be wrong on. His pockets are the
         // model's own and must survive; Vel's, when she is the one held, must not.
+        // #142 · A thread answered as a fill-in form, when a test sets it: its Always true, its where it
+        // stands and one pocket are template text, its outfit is not.
+        ...(formAnswer ? [{ name: 'Brother Ash', kind: 'character', body: '<what they are>; <age>',
+          stands: '<where they are>', pockets: [{ slot: 'voice', name: 'Form', body: '<how long their lines run>' },
+            { slot: 'outfit', name: 'Habit', body: 'A grey habit, frayed at the hem.' }] }] : []),
         ...(/HANDS OFF:/.test(String(b.messages?.at(-1)?.content ?? '')) ? [{ name: 'Aldis', kind: 'character',
           body: 'Owes the moneylender more than he can pay.',
           pockets: [{ slot: 'voice', name: 'Debtor', body: 'Write his lines as apologies that never finish.' }] }] : []),
@@ -386,6 +392,8 @@ const srv = createServer((req, res) => {
       // (PLAN-08: a room fires on its own words, so the shape has to be able to carry them), and
       // a card's is title + body + keys. `props.keys` alone no longer tells them apart — checked
       // first, it answered every addon with a card and the wardrobe form filled with nothing.
+      // #142 · A pocket answered as a fill-in form, when a test sets it.
+      : props.name && formAnswer ? { name: 'Its form', body: '<the garment>, <the one detail of it that shows>', keys: [] }
       : props.name ? { name: 'Mourning grey', body: '[wearing: grey, unpinned, no scripture showing]',
                        keys: ['mourning', 'grey'] }
       : props.keys ? { title: 'The Rust Choir', body: '[The Rust Choir: a congregation]',
@@ -561,6 +569,13 @@ assert.strictEqual(db.outfitsOf(story.id, vel.id).length, 0,
 // The writer's own line outranks the canon, so it has to actually reach the model.
 assert.match(String(calls[0].messages[0].content), /she is in mourning/,
   'the direction is in the prompt, or the button did nothing with what they typed');
+// #142 · THE TEMPLATE-TEXT FLOOR ON THIS DOOR TOO. Invent hands a pocket straight back to the open form,
+// past the floor every chalked card goes through, so a fill-in form landed in the writer's box.
+formAnswer = true;
+const formed: any = await invent({ kind: 'outfit', entryId: vel.id });
+formAnswer = false;
+assert.match(String(formed.error ?? ''), /form/, `INVENT-NO-PLACEHOLDER: a pocket in template text is refused, and says why (${JSON.stringify(formed).slice(0, 120)})`);
+assert.ok(!formed.outfit, '  and nothing is handed to the form');
 ok('an invented outfit comes back as two fields and nothing is worn');
 
 // PLAN-08. Every slot invents the same way an outfit did, and an addon carries its own trigger
@@ -942,6 +957,17 @@ ok('a kind that does not exist is refused rather than assembled');
   assert.match(String(lastAsk().messages[1].content), /HANDS OFF: Vel/, 'SPARK-REROLL: a re-roll still names who is held');
   assert.strictEqual(again.entries.find((e: any) => e.title === 'Vel')?.rooms?.voice?.body, YOURS_VOICE('Vel'),
     '  and still writes their thread from outside');
+
+  // #142 · THE TEMPLATE-TEXT FLOOR ON THE DRAFT: a part in template text comes back empty or is left out,
+  // and the parts written properly stay, for the writer to fill the rest before Start.
+  calls = []; formAnswer = true;
+  const formed = await cast(base);
+  formAnswer = false;
+  const ash = formed.entries.find((e: any) => e.title === 'Brother Ash');
+  assert.ok(ash, 'the thread is still in the draft');
+  assert.deepStrictEqual([ash.body, ash.stands ?? '', ash.rooms?.voice ?? null], ['', '', null],
+    `SPARK-NO-PLACEHOLDER: no template text reaches the draft (${JSON.stringify(ash)})`);
+  assert.match(ash.rooms?.outfit?.body ?? '', /grey habit/, '  and the part written properly stays');
 
   // NEVER WHAT HAPPENS NEXT, in every wizard prompt that writes a thread (#81: "he does not take the money").
   assert.ok(CAST.includes(NO_OUTCOMES), 'SPARK-NO-OUTCOME: the cast forbids what happens next');

@@ -4800,9 +4800,11 @@ export const proposal = (storyId: string, id: string) =>
   q('SELECT * FROM proposals WHERE id = ? AND story_id = ?').get(id, storyId) as any;
 export const setProposalStatus = (storyId: string, id: string, status: string) =>
   q('UPDATE proposals SET status = ? WHERE id = ? AND story_id = ?').run(status, id, storyId);
-/** #74 · Anansi's redo of one section of a Workbench card: its text, still chalked. */
+/** #74 · Anansi's redo of one section of a Workbench card: its text, still chalked.
+ *  #142 · Never template text, as `addProposal` refuses it: false, and the row is left as it was. */
 export const setProposalBody = (storyId: string, id: string, body: string) =>
-  q("UPDATE proposals SET body = ? WHERE id = ? AND story_id = ? AND status = 'open'").run(body, id, storyId).changes > 0;
+  !placeholders(body).length
+  && q("UPDATE proposals SET body = ? WHERE id = ? AND story_id = ? AND status = 'open'").run(body, id, storyId).changes > 0;
 /** One pocket out of a chalked new thread's rooms. False when the row is not open or has no such pocket. */
 export function dropProposalRoom(storyId: string, id: string, slot: string): boolean {
   const p = q("SELECT rooms FROM proposals WHERE id = ? AND story_id = ? AND status = 'open'").get(id, storyId) as any;

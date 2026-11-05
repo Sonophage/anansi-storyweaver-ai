@@ -1351,6 +1351,14 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.strictEqual(db.proposal(t.id, p.id).body, 'Long, wandering lines that stop mid-thought; she never finishes a question.',
     'REDO-CHALKED: the section holds the new text, still waiting');
   assert.strictEqual(db.proposal(t.id, p.id).status, 'open', '  and nothing was sewn in');
+  // #142 · THE TEMPLATE-TEXT FLOOR ON THIS DOOR TOO: a redo that comes back as a fill-in form leaves the
+  // section as it was, and says so. Redo wrote straight to the row, past the floor every other door has.
+  redone = '<how long their lines run>; <a word they always use>';
+  const form: any = await routes['POST /api/proposal/redo'](ctx({ storyId: t.id, id: p.id }));
+  redone = '';
+  assert.strictEqual(db.proposal(t.id, p.id).body, 'Long, wandering lines that stop mid-thought; she never finishes a question.',
+    `REDO-NO-PLACEHOLDER: a redo in template text is not written (${db.proposal(t.id, p.id).body})`);
+  assert.match(String(form.error ?? ''), /form/, `  and the answer says why (${form.error})`);
   await routes['POST /api/proposal'](ctx({ storyId: t.id, id: p.id, accept: false }));
   assert.strictEqual(db.proposal(t.id, p.id).status, 'rejected');
   await routes['POST /api/proposal/reopen'](ctx({ storyId: t.id, ids: [p.id] }));
