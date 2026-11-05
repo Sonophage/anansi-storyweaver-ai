@@ -20,7 +20,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
-import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, draftCard, startAsked, aimOf, askWhich, fingerprint, talesOwn, shortModel } from './changes.ts';
+import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, draftCard, startAsked, draftAsked, DRAFT_STRINGS, aimOf, askWhich, fingerprint, talesOwn, shortModel } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
@@ -3129,8 +3129,9 @@ function writeCast(storyId: string, owner: string, cast: any[]): string[] {
  *  ends, so what the wizard is offered and what Create takes are the same shape. */
 function openQuestions(raw: unknown): { title: string; line: string; kind?: string }[] {
   // #158 · A string Talk added to a draft carries its kind; one from the preview has none, a question.
-  return (Array.isArray(raw) ? raw : []).filter((q: any) => q?.keep !== false).slice(0, 8)
+  return (Array.isArray(raw) ? raw : []).filter((q: any) => q?.keep !== false).slice(0, DRAFT_STRINGS)
     .map((q: any) => ({ title: String(q?.title ?? '').trim().slice(0, 120), line: String(q?.line ?? '').trim().slice(0, 600),
+      // Only a promise says so: Spark's own questions go back to the wizard in the shape it has always had.
       ...(q?.kind === 'promise' ? { kind: 'promise' } : {}) }))
     .filter((q) => q.title);
 }
@@ -4032,7 +4033,7 @@ export const routes: Record<string, Handler> = {
     // #158 · and its strings: the open questions the preview keeps, and the promises Talk adds there.
     const draft = { story: st, entries: (Array.isArray(d.entries) ? d.entries : [])
       .filter((e: any) => e && e.keep !== false && String(e.title ?? '').trim()).slice(0, SETUP_THREADS),
-      strings: openQuestions(d.strings) as { title: string; line: string; kind?: string }[] };
+      strings: openQuestions(d.strings) };
     const step = String(c.body.step ?? '').trim().slice(0, 200);
     const turns = turnsOf(c.body.turns);
     const using = backgroundModel(c, { story: null });
@@ -4082,19 +4083,24 @@ export const routes: Record<string, Handler> = {
     // Each change checked against the draft as the ones before it left it, so "add the ferryman and
     // give him a voice" can land in one answer, as in a tale. Applied only to this copy; the page
     // applies the same changes to its own.
-    const changes: { words: string; change: any; card: Card; started?: { id: string; title: string; notes?: string[] } }[] = [];
+    const changes: { words: string; change: any; card: Card }[] = [];
     const notDone: { said: string; why: string }[] = [];
     let start = false;
+    // #158 · WHAT THE WRITER DID NOT NAME IS OFFERED, not written to the draft (Seth, 2026-11-04: the
+    // asked rule of #152 here as well): each with its line and card, and Add on the page applies it.
+    const held: { words: string; change: any; card: Card }[] = [];
+    const before = writerBefore(c.body.turns);
     // Up to ten: "fill in the tale" sets the empty boxes and the threads in one answer (2026-10-30).
     for (const raw of (Array.isArray((r.data as any).changes) ? (r.data as any).changes : []).slice(0, 10)) {
       const k = checkDraft(raw, draft);
       if (!k.ok) { notDone.push({ said: k.said, why: k.why }); continue; }
       const ch: any = k.change;
-      // #158 · Made last, from the draft as this answer leaves it, and only when asked.
+      // #158 · Made last, and only when asked.
       if (ch.op === 'tale.start') { start = true; continue; }
+      if (!draftAsked(raw, draft, said, before)) { held.push({ words: draftWords(k.change), change: ch, card: draftCard(k.change) }); continue; }
       if (ch.op === 'tale.set') draft.story = { ...draft.story, [ch.key]: ch.text };
       else if (ch.op === 'string.set') draft.strings = ch.before == null ? [...draft.strings, { title: ch.title, line: ch.text, kind: ch.kind }]
-        : draft.strings.map((x) => x.title.toLowerCase() !== ch.title.toLowerCase() ? x : { ...x, line: ch.text, kind: ch.kind });
+        : draft.strings.map((x) => x.title !== ch.title ? x : { ...x, line: ch.text, kind: ch.kind });
       else if (ch.op === 'thread.new') draft.entries.push(ch.thread);
       else if (ch.op === 'thread.remove') draft.entries = draft.entries.filter((e: any) => String(e.title).trim() !== ch.title);
       else draft.entries = draft.entries.map((e: any) => String(e.title).trim() !== ch.title ? e
@@ -4126,28 +4132,27 @@ export const routes: Record<string, Handler> = {
         && !have.has(String(e.title).trim().toLowerCase()))
       .map((e) => sparkThread(e.title, e.type, e.body, []));
     outsideOnly(entries, you.held);
-    // #158 · "SET IT UP": the tale is made from the draft by New tale's own Start (POST /api/stories),
-    // with what the page's Start would send (`start`, built by the page's `sparkStartBody`) and the
-    // draft as this answer left it. Only asked in so many words (`startAsked`), and not in an answer
-    // that named an IP, whose World step runs on the page first.
-    let started: { id: string; title: string; notes?: string[] } | null = null;
+    // #158 · "SET IT UP": the tale is made by New tale's own Start (POST /api/stories), from exactly
+    // what the page's Start press would send (`start`, built by its `sparkStartBody` from the draft the
+    // writer sees). Only asked in so many words (`startAsked`); not in an answer that changed the draft
+    // too, because the page may refuse one of those changes and the tale must be the draft the writer
+    // has (they say it again once they have seen the cards); and not in one that named an IP, whose
+    // World step runs on the page first.
+    let started: { id: string; notes?: string[] } | null = null;
     if (start) {
       const why = !startAsked(said) ? 'you did not ask for the tale to be made'
+        : changes.length ? 'it came with changes to the draft. Look at their cards, then say "set it up" again'
         : ip ? `the World step runs first for ${ip}. Say "set it up" again once it has`
         : !c.body.start || typeof c.body.start !== 'object' ? 'the page sent nothing to make it from' : '';
       if (why) notDone.push({ said: 'Make the tale', why });
       else {
-        const s = draft.story;
-        const made: any = await routes['POST /api/stories']({ ...c, body: { ...c.body.start,
-          title: String(s.title ?? '').trim() || 'Untitled', genre: s.genre, premise: s.premise, setting: s.setting,
-          writingStyle: s.writingStyle, entries: draft.entries.map(({ keep: _k, ...e }: any) => e),
-          strings: draft.strings, spark: true } });
+        const made: any = await routes['POST /api/stories']({ ...c, body: c.body.start });
         if (made?.error) notDone.push({ said: 'Make the tale', why: String(made.error) });
         else {
           // `notes`: what the create said of rooms it dropped, which the page's Start says too.
-          started = { id: made.id, title: String(s.title ?? '').trim() || 'Untitled', ...(made.notes?.length ? { notes: made.notes } : {}) };
-          const ch = { op: 'tale.start' as const, title: started.title };
-          changes.push({ words: draftWords(ch), change: ch, card: draftCard(ch), started });
+          started = { id: made.id, notes: made.notes };
+          const ch = { op: 'tale.start' as const, title: String(c.body.start.title ?? '').trim() || 'Untitled' };
+          changes.push({ words: draftWords(ch), change: ch, card: draftCard(ch) });
         }
       }
     }
@@ -4156,7 +4161,7 @@ export const routes: Record<string, Handler> = {
     // KEPT, as a setup talk with no tale (`db.talkSay`): the one row this route writes. `prompt` is
     // exactly what was sent, for the page's Copy prompt, and is not kept.
     const sessionId = db.talkSay(c.owner, null, c.body.sessionId, said, answer.trim());
-    return { reply: answer.trim(), changes, notDone, entries, ...(started ? { started } : {}),
+    return { reply: answer.trim(), changes, held, notDone, entries, ...(started ? { started } : {}),
              sources: sources.map((x) => ({ title: x.title, url: x.url })),
              seconds: +((Date.now() - t0) / 1000).toFixed(1), searchable: searchConfigured(),
              sessionId, prompt: messages };

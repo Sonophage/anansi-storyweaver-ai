@@ -1230,6 +1230,21 @@ ok('a model is switched only to one the tale can be written by, and only when as
   assert.ok(ch.askedOf(voice, tale, 'Could you change Talia\'s voice?'), 'ASKED-QUESTION-REQUEST: a request put as a question still asks');
   assert.ok(ch.askedOf(voice, tale, 'Change Talia\'s voice. What do you think?'), '  and so does a request with a question after it');
   assert.ok(!ch.askedOf({ op: 'prose.remove', title: 'the Choir' }, tale, 'What if the Choir did not exist?'), '  for every kind of change');
+  // #158 · "Set it up" in so many words, and nothing that only sounds like it (the reviews' own phrases).
+  for (const yes of ['set it up', 'Set it up.', 'start the tale', 'can you set it up?', "let's start"])
+    assert.ok(ch.startAsked(yes), `START-ASKED: "${yes}" asks for the tale`);
+  for (const no of ['make it darker', 'make this grimmer, please', 'start writing the opening', 'create the story of her father',
+    'start it in winter', "let's start with the ferryman", 'what happens when you set it up?', "don't set it up yet"])
+    assert.ok(!ch.startAsked(no), `START-UNASKED-WORDS: "${no}" does not`);
+  // And the draft's asked rule: named is done, unnamed is offered, Fill in the tale asks for all.
+  const dr = { story: { premise: 'A ferry.' }, entries: [{ title: 'Wenna', entryType: 'character', body: 'Keeps the landing.' }] };
+  const prem = { op: 'tale.set', field: 'premise', text: 'A darker ferry.' };
+  assert.ok(!ch.draftAsked(prem, dr, 'make it darker'), 'DRAFT-ASKED: a premise nobody named is not asked');
+  assert.ok(ch.draftAsked(prem, dr, 'make the premise darker'), '  named, it is');
+  assert.ok(ch.draftAsked(prem, dr, 'Fill in everything the tale still needs: every empty box'), '  and Fill in the tale asks for it');
+  assert.ok(ch.draftAsked({ op: 'thread.remove', thread: 'Wenna' }, dr, 'lose Wenna'), 'DRAFT-ASKED: a thread taken out by its name');
+  assert.ok(!ch.draftAsked({ op: 'thread.remove', thread: 'Wenna' }, dr, 'lose the ferryman'), '  and not by another');
+  assert.ok(!ch.draftAsked({ op: 'thread.set', thread: 'Wenna', room: 'voice', text: 'Low.' }, dr, 'what is Wenna like?'), '  a question about her asks for nothing');
 });
 
 console.log(`\n${n} checks passed`);

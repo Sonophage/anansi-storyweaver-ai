@@ -5450,6 +5450,26 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     assert.strictEqual(mapped.story[checked[1].key], 'Wet and slow.', 'ONE-MAPPING: the voice lands where the server says it lives');
     assert.strictEqual(checked[1].key, 'writingStyle', 'ONE-MAPPING: which is the draft\'s writingStyle');
 
+    // #158 · A CHANGE THE WRITER DID NOT NAME comes offered, with Add; the press applies it, on its card with Undo.
+    stubSparkTalk = { reply: 'Yes.', seconds: 1 };
+    const NOW = (await ask('Where are we?')).body.draft.story.premise;
+    stubSparkTalk = { reply: 'It could be darker.', seconds: 1, held: [{ words: `Changed the premise: “${DARKER}”`,
+      card: { key: 'tale', title: 'The tale', label: 'Premise' },
+      change: { op: 'tale.set', field: 'premise', key: 'premise', text: DARKER, before: NOW } }] };
+    await ask('Anything about the tone');
+    stubSparkTalk = { reply: 'Yes.', seconds: 1 };
+    const premiseNow = async (q: string) => (await ask(q)).body.draft.story.premise;
+    assert.strictEqual(await premiseNow('Is it darker?'), NOW, 'SETUP-HELD-NOT-WRITTEN: an offered change is not in the draft');
+    const hold = html('dockCol').split('Anything about the tone').at(-1)!.split('Is it darker?')[0].match(/Changed the premise[\s\S]*?data-talkadd="([^"]+)"/);
+    assert.ok(hold, 'SETUP-HELD-ADD: it has an Add press');
+    click({ talkadd: hold![1] }); await sleep(30);
+    assert.strictEqual(await premiseNow('Is it darker now?'), DARKER, `SETUP-HELD-ADDED: Add writes it to the draft (${nodes.get('toast').textContent})`);
+    const heldUndo = html('dockCol').split('Anything about the tone').at(-1)!.match(/data-deckkind="done"[\s\S]*?Premise[\s\S]*?data-talkundo="([^"]+)"/);
+    assert.ok(heldUndo, '  on its card, with Undo');
+    click({ talkundo: heldUndo![1] }); await sleep(30);
+    stubSparkTalk = { reply: 'Yes.', seconds: 1 };
+    assert.strictEqual((await ask('And now?')).body.draft.story.premise, NOW, '  and Undo puts it back');
+
     // #158 · A PROMISE AND A THREAD WITH POCKETS, each on its card, the promise in the draft's strings.
     stubSparkTalk = { reply: 'He is in, and the letter is a promise.', seconds: 1, changes: [
       { words: 'Added a thread: Charon, a character.', card: { key: 't:Charon', title: 'Charon', label: 'New thread' },
@@ -5504,9 +5524,9 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
       change: { op: 'tale.start', title: 'The Ferry at Dusk' }, card: { key: 'start', title: 'The Ferry at Dusk', label: 'Made' }, started }] };
     (document as any).getElementById('input').value = 'set it up';
     click({ send: '1' });
-    await settle(/Created with/, 'toast');
     for (let i = 0; i < 40 && !/Created with/.test(String(nodes.get('toast').textContent)); i++) await sleep(25);
     assert.match(String(nodes.get('toast').textContent), /Created with/, 'TALK-START-OPENS: the tale opens as after Start, and says it was made');
+    assert.match(html('dockCol'), /data-deckkind="done"[\s\S]*?The Ferry at Dusk[\s\S]*?Made/, 'TALK-START-CARD: its Talk shows the card that says the tale is made');
     // The draft is let go: the next question is Talk's in that tale, not the setup's.
     {
       click({ panel: 'anansi' }); await sleep(40);

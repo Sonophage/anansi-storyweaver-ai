@@ -200,6 +200,7 @@ const srv = createServer((req, res) => {
                     pockets: [{ room: 'voice', text: 'Slow; never haggles.' }, { room: 'appearance', text: 'Grey oilskin, one lantern.' }] },
                   { op: 'string.set', title: 'The sealed letter', kind: 'promise', text: 'Somebody will open the letter.' }] },
       STARTIT: { reply: 'It is made. Go and write it.', changes: [{ op: 'tale.start' }] },
+      STARTPLUS: { reply: 'One more promise, and it is made.', changes: [{ op: 'string.set', title: 'The toll', kind: 'promise', text: 'Somebody pays the toll.' }, { op: 'tale.start' }] },
       SETUPBAD: { reply: 'Done, all of it.',
         changes: [{ op: 'thread.set', thread: 'Nobody', text: 'Old.' },
                   { op: 'scene.set', scene: 1, field: 'title', text: 'The Ford' },
@@ -2643,7 +2644,7 @@ ok('emptying the box gives her back the voice she shipped with');
 
   const before = rows();
   const talksBefore = db.talkSessions(me, null).length;
-  const r = await setup('CHANGE-SETUP: make it darker, lose the innkeeper, Ilva speaks low, and add the ferryman',
+  const r = await setup('CHANGE-SETUP: make the premise darker, lose the innkeeper, Ilva speaks low, and add the ferryman',
     { turns: [{ you: true, text: 'Who matters in Kesh?' }, { you: false, text: 'The houses, mostly.' }] });
   assert.ok(!r.error, r.error);
   const ask = calls.at(-1).messages.map((m: any) => m.content).join('\n');
@@ -2673,6 +2674,23 @@ ok('emptying the box gives her back the voice she shipped with');
   // The one row it writes is the talk itself (2026-10-30), so it can be revisited.
   assert.strictEqual(db.talkSessions(me, null).length, talksBefore + 1, 'SETUP-WRITES-NOTHING: and one row for the talk itself');
   ok('setup Talk names the step first, sees the whole draft, and returns the asked changes, writing only the talk');
+
+  // #158 · WHAT THE WRITER DID NOT NAME IS OFFERED, NOT WRITTEN (Seth, 2026-11-04). The same answer to
+  // a message that names only the innkeeper: his removal is done; the premise, Ilva and the ferryman
+  // come back as offers, each with its line and card, for the page's Add.
+  {
+    const only = await setup('CHANGE-SETUP: lose the innkeeper');
+    assert.ok(!only.error, only.error);
+    assert.deepStrictEqual(only.changes.map((x: any) => x.change.op), ['thread.remove'], 'SETUP-ASKED: only what was named is done');
+    assert.deepStrictEqual(only.held.map((x: any) => x.change.op).sort(), ['tale.set', 'thread.new', 'thread.set'],
+      `SETUP-HELD: the rest is offered (${JSON.stringify(only.held.map((x: any) => x.words))})`);
+    assert.ok(only.held.every((x: any) => x.words && x.card?.key), '  each with its line and its card');
+    const q = await setup('CHANGE-SETUP: what would make the innkeeper matter?');
+    assert.deepStrictEqual(q.changes, [], 'SETUP-QUESTION: a question names him and changes nothing');
+    const fill = await setup('CHANGE-SETUP: Fill in everything the tale still needs from what we have talked about: every empty box, and the threads it needs.');
+    assert.strictEqual(fill.changes.length, 4, `SETUP-FILL-ASKED: Fill in the tale asks for every box and thread (${JSON.stringify(fill.held?.map((x: any) => x.words))})`);
+  }
+  ok('setup Talk offers what the writer did not name, and does what they did');
 
   // The model it uses is the one Spark uses.
   calls = [];
@@ -3622,7 +3640,9 @@ ok('Talk sends the threads the question, the conversation or the page names, and
       setting: 'A river at dusk', writingStyle: 'Quiet, second person.' },
     entries: [{ title: 'Wenna', entryType: 'character', body: 'Keeps the landing.', keys: ['Wenna'] }],
     strings: [{ title: 'The fare', line: 'What the fare really is.' }] };
-  const START = { pov: 'second person, present tense', spice: 1, lockoutOn: true, talePockets: [], opensWith: 'Dusk, rain.' };
+  // What the page's Start would send for this draft (`sparkStartBody`): the tale is made from exactly this.
+  const START = { ...draft.story, pov: 'second person, present tense', spice: 1, lockoutOn: true, talePockets: [], opensWith: 'Dusk, rain.',
+    entries: draft.entries, strings: [...draft.strings, { title: 'The sealed letter', line: 'Somebody will open the letter.', kind: 'promise' }], spark: true };
   const setupAs = (said: string, more: any = {}) => { calls = [];
     return routes['POST /api/spark/talk']({ body: { draft, step: 'Begin: Start the tale', said, ...more }, query: new URLSearchParams(),
       owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {}, setGen: () => {}, defaultModel: null } as any) as Promise<any>; };
@@ -3654,8 +3674,11 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   assert.strictEqual(tales(), n0, 'START-NEEDS-PAGE: with nothing from the page to make it from, no tale');
   assert.ok(none.notDone.some((x: any) => /sent nothing/.test(x.why)), '  and it says why');
 
-  const go = await setupAs('ABOUT-STARTIT: set it up', { start: START,
-    draft: { ...draft, strings: [...draft.strings, { title: 'The sealed letter', line: 'Somebody will open the letter.', kind: 'promise' }] } });
+  const mixed = await setupAs('ABOUT-STARTPLUS: add a promise about the toll and set it up', { start: START });
+  assert.strictEqual(tales(), n0, 'START-NOT-WITH-CHANGES: an answer that also changes the draft makes no tale');
+  assert.ok(mixed.notDone.some((x: any) => /Look at their cards/.test(x.why)), `  and says to look at the cards first (${JSON.stringify(mixed.notDone)})`);
+
+  const go = await setupAs('ABOUT-STARTIT: set it up', { start: START });
   assert.ok(!go.error, go.error);
   assert.strictEqual(tales(), n0 + 1, `START: "set it up" makes the tale (${JSON.stringify(go.notDone)})`);
   const made = db.getStory(go.started?.id) as any;
@@ -3667,7 +3690,7 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   assert.deepStrictEqual(db.stringsOf(made.id).map((x: any) => [x.title, x.kind]).sort(), [['The fare', 'question'], ['The sealed letter', 'promise']],
     'START-STRINGS: and its strings, each of its kind');
   assert.deepStrictEqual(go.changes.at(-1).card, { key: 'start', title: 'The Ferry at Dusk', label: 'Made' }, 'START-CARD: the card says the tale is made');
-  assert.deepStrictEqual(go.changes.at(-1).started, go.started, '  and names it, for the page to open');
+  assert.ok(go.started?.id, '  and the answer names it, for the page to open');
   ok('a new tale set up by talking: a thread with pockets and a string as cards, and "set it up" makes the tale by Start');
 }
 

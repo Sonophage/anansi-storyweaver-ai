@@ -3670,9 +3670,11 @@ function talkTurns(t) {
               ${/* #100 · WHAT HE OFFERED during setup, each with Add: one press puts it in the draft,
                    and it then has a line and an Undo like any change. */
                 (turn.offers ?? []).map((o, j) => `<div class="line-2" style="align-items:flex-start; gap:8px">
-                <span style="font-size:12.5px; line-height:1.45; color:var(--mute); flex:1"><span class="inked">${
+                <span style="font-size:12.5px; line-height:1.45; color:var(--mute); flex:1">${o.change
+                  /* #158 · a change the writer did not name, offered whole: its own line. */
+                  ? esc(o.words) : `<span class="inked">${
                   esc(o.title)}</span> &middot; ${esc(KIND_PLURAL[o.entryType] ?? o.entryType)} &middot; ${
-                  esc(String(o.body ?? '').replace(/^\[[^:]*:\s*|\]$/g, ''))}</span>
+                  esc(String(o.body ?? '').replace(/^\[[^:]*:\s*|\]$/g, ''))}`}</span>
                 ${o.added ? '<span class="caption">Added</span>'
                   : `<button class="tag" data-talkadd="${i}:${j}" style="cursor:pointer">Add</button>`}</div>`).join('')}
               ${turn.meta ? `<div class="caption">${esc(turn.meta)}</div>` : ''}
@@ -6712,13 +6714,16 @@ function applyDraft(ch) {
   // the server saw, so one the writer changed while he answered is not written over.
   if (ch.op === 'string.set') {
     const qs = S.spark.questions ?? (S.spark.questions = []);
-    const q = qs.find((x) => x.keep !== false && x.title.trim().toLowerCase() === ch.title.toLowerCase());
+    // By the title the server checked (`checkDraft` hands back the draft's own), and an unticked one of
+    // that name counts, so a second string of one name is never made.
+    const q = qs.find((x) => x.keep !== false && x.title.trim() === ch.title);
     if (ch.before == null) {
-      if (q) return null;
+      if (qs.some((x) => x.title.trim() === ch.title)) return null;
       qs.push({ title: ch.title, line: ch.text, kind: ch.kind, keep: true });
       return { op: ch.op, title: ch.title, text: ch.text, before: null };
     }
-    if (!q || String(q.line ?? '') !== ch.before) return null;
+    // As the server read it: trimmed, and no more than its 600 characters (`openQuestions`).
+    if (!q || String(q.line ?? '').trim().slice(0, 600) !== ch.before) return null;
     const was = { line: q.line, kind: q.kind };
     q.line = ch.text; q.kind = ch.kind;
     return { op: ch.op, title: q.title, text: ch.text, before: was };
@@ -6776,11 +6781,10 @@ function undoDraft(u) {
 
 /** A turn as it is sent back: Anansi's offers ride with his words, so "add them" can be asked for. */
 const setupTurnText = (x) => x.text + ((x.offers ?? []).filter((o) => !o.added).length
-  ? `\nOffered: ${x.offers.filter((o) => !o.added).map((o) => `${o.title} (${o.entryType}): ${o.body}`).join('; ')}` : '');
+  ? `\nOffered: ${x.offers.filter((o) => !o.added).map((o) => o.change ? o.words : `${o.title} (${o.entryType}): ${o.body}`).join('; ')}` : '');
 
 /** What Fill in the tale says for the writer: the ask TALK_SETUP answers with every empty box set. */
 const FILL_SAID = 'Fill in everything the tale still needs from what we have talked about: every empty box, and the threads it needs.';
-/** Ask, during setup. The question is already on the window as yours. */
 /** WHAT NEW TALE'S START SENDS, built from the draft: one function for the Start press and for Talk's
  *  "set it up" (#158), so the two cannot make different tales. */
 function sparkStartBody() {
@@ -6827,9 +6831,10 @@ function sparkStartBody() {
 }
 
 /** A TALE NEW TALE MADE, OPENED: the shelf read again, the tale opened, and one line saying what was
- *  made. `r` is what POST /api/stories answered; `count` how many threads it was sent. One function for
+ *  made. `r` is what POST /api/stories answered (its id, and notes on rooms it dropped). One function for
  *  the Start press and for Talk's "set it up" (#158). */
-async function sparkOpened(r, count) {
+async function sparkOpened(r) {
+  const count = sparkCast().length;   // read before the draft is let go
   const seeded = seedOf(S.spark.seed).length;   // read before the cached list and the draft are let go
   if (seeded) LEDGER = null;   // the new book's copies are not in the cached list
 
@@ -6863,6 +6868,7 @@ async function sparkOpened(r, count) {
   if (wantOpen) await openingPassage();
 }
 
+/** Ask, during setup. The question is already on the window as yours. */
 async function talkSetup(said) {
   const t = setupTalk();
   harvestSpark();
@@ -6891,13 +6897,19 @@ async function talkSetup(said) {
   });
   t.sessionId = r.sessionId ?? t.sessionId;
   t.turns = [...t.turns, { you: false, text: r.reply || '(nothing came back)', sources: r.sources ?? [],
-    changes, offers: r.entries ?? [], meta: `${r.seconds}s`, prompt: r.prompt ?? null }];
+    changes, offers: [...(r.entries ?? []), ...(r.held ?? [])], meta: `${r.seconds}s`, prompt: r.prompt ?? null }];
   paint();
   // #101 · AN IP NAMED IN TALK HANDS OVER TO THE WORLD STEP, the one the World box runs on every
   // move: the writer's World of that name is followed, or the IP is looked up for a new one.
   if (changes.some((x) => x.undo?.key === 'world')) void ipFollow();
   // #158 · "SET IT UP": the tale is made, and it opens as it does from Start.
-  if (r.started?.id) { S.spark.accepting = true; return sparkOpened(r.started, sparkCast().length); }
+  if (r.started?.id) {
+    // The card that says the tale is made goes with it: the tale's own Talk opens on this exchange.
+    const made = t.turns.slice(-2);
+    await sparkOpened(r.started);
+    S.talk = { ...S.talk, turns: made, sessionId: undefined }; S.dockTalk = true; S.dockOpen = true;
+    paint(); return;
+  }
   // The box was emptied when the question was sent (`setupAsk`), so what is in it now was typed
   // while he answered, and stays.
   $('input')?.focus({ preventScroll: true });
@@ -7718,10 +7730,11 @@ function sparkBegin(s, { row, area }) {
     ${sparkOpensWith(area)}
     ${(S.spark.questions ?? []).length ? `<div class="lbl sect">Open questions</div>
       <div class="hint lead-6">What the tale keeps asking. Each one you tick becomes a string from the
-        first scene, and Anansi is told not to answer it yet.</div>
+        first scene, and Anansi is told not to answer it yet.${/* #158 · Talk may add a promise here */
+          S.spark.questions.some((q) => q.kind === 'promise') ? ' A promise is one the tale means to pay off.' : ''}</div>
       ${S.spark.questions.map((q, i) => `<label class="card arccard below-8 gap-6" style="cursor:pointer">
         <span class="base-8"><input type="checkbox" data-spquestion="${i}"${q.keep === false ? '' : ' checked'}>
-          <span class="name-14">${esc(q.title)}</span></span>
+          <span class="name-14">${esc(q.title)}</span>${q.kind === 'promise' ? '<span class="caption">a promise</span>' : ''}</span>
         <span class="note">${esc(q.line)}</span></label>`).join('')}` : ''}
     ${ipWorld ? `<div class="lbl sect">From your World, ${esc(ipWorld.title)} &middot;
         <span class="tnum">${ipWorld.people.length}</span></div>
@@ -14114,6 +14127,15 @@ document.addEventListener('click', async (e) => {
     const [i, j] = String(d.talkadd).split(':').map(Number);
     const turn = setupTalk().turns[i], o = turn?.offers?.[j];
     if (!o || o.added) return;
+    // #158 · An offered change is applied as it was checked, with its card and its Undo.
+    if (o.change) {
+      // The press is the writer asking, so a box they typed in is theirs to change this way.
+      const undo = applyDraft(o.change);
+      if (!undo) return toast('The draft has changed since he offered it.');
+      o.added = true;
+      turn.changes = [...(turn.changes ?? []), { words: o.words, undo, diff: draftDiff(o.change), card: o.card }];
+      paint(); return;
+    }
     const undo = applyDraft({ op: 'thread.new', thread: o });
     if (!undo) return toast(`There is already a thread called ${o.title}.`);
     o.added = true;
@@ -15496,6 +15518,8 @@ document.addEventListener('click', async (e) => {
    *  book is made — and it is in `test/web.ts`'s list now that it is true. */
   if (d.acceptSpark) {
     if (!S.spark || S.spark.accepting) return;
+    // #158 · Not while he answers: "set it up" in that answer would make the tale a second time.
+    if (S.spark.talk?.busy) return toast('Anansi is still answering. Start once he has.');
     S.spark.accepting = true;
     // From STATE, not from the DOM: accept is available on every step, so most of these fields are
     // not on screen when it is pressed. harvestSpark folds in whatever is.
@@ -15504,14 +15528,13 @@ document.addEventListener('click', async (e) => {
     if (!S.spark) return;
     const openBox = document.querySelector('[data-sp-open]');
     if (openBox) S.spark.autoOpen = openBox.checked;
-    const keep = sparkCast();
     const r = await whileWorking(t, 'Creating&hellip;', () => api.createStory(sparkStartBody()));
     // `whileWorking` answers null on a re-entrant press and the state guard above should already
     // have refused it — this is the belt to that braces, and it must not clear `accepting`, or the
     // press that IS working would be unguarded from here on.
     if (!r) return;
     if (r.error) { S.spark.accepting = false; return toast(r.error); }
-    await sparkOpened(r, keep.length);
+    await sparkOpened(r);
     return;
   }
   if (d.blank) {

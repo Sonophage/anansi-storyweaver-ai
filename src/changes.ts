@@ -1429,6 +1429,8 @@ export function fingerprint(t: Thread): string {
  * /api/stories moves it into `facts` at Start); its other rooms are `rooms[slot]`, and a new thread may
  * come with them (`pockets`, #158). */
 export const DRAFT_OPS = ['tale.set', 'thread.new', 'thread.set', 'thread.remove', 'string.set', 'tale.start'] as const;
+/** The most strings Start makes from a draft (`openQuestions` in routes.ts reads this too). */
+export const DRAFT_STRINGS = 8;
 const DRAFT_FIELDS = ['title', 'premise', 'genre', 'setting', 'voice', 'world'] as const;
 /** The draft's own name for each field: the voice is `writingStyle` in the wizard and the column.
  *  The one copy: `checkDraft` hands the key back with the change, and the route and the page both
@@ -1543,6 +1545,8 @@ export function checkDraft(raw: any, draft: Draft): DraftChecked {
     if (!title) return { ok: false, said, why: 'the string had no name' };
     if (!text) return { ok: false, said, why: `it came with no line for ${title}` };
     const had = (draft.strings ?? []).find((x) => x && x.keep !== false && norm(x.title) === norm(title));
+    if (!had && (draft.strings ?? []).filter((x) => x && x.keep !== false).length >= DRAFT_STRINGS)
+      return { ok: false, said, why: `the draft holds ${DRAFT_STRINGS} strings, the most Start makes. Take one out first` };
     const kind = (STRING_SLOTS as readonly string[]).includes(String(raw.kind)) ? String(raw.kind)
       // A string the preview kept is an open question; a new one with no kind, a promise.
       : had ? (had.kind ?? 'question') : 'promise';
@@ -1600,11 +1604,33 @@ export function draftCard(c: DraftChange): Card {
 }
 
 /** #158 · "SET IT UP" IS ASKED IN SO MANY WORDS: a request (not a question, not "don't") that names
- *  making the tale. "What happens when I start?" and "don't start it yet" ask for nothing. */
+ *  making the tale. "What happens when I start?", "don't start it yet", and an edit that only sounds
+ *  like it ("make it darker", "start it in winter", "create the story of her father") ask for nothing. */
 export const startAsked = (said: string) => {
   const own = String(said ?? '').toLowerCase();
-  return REQUEST(own) && /\bset (it|this|the tale|the story|everything|it all) up\b|\b(start|make|create|begin) (it|this|the tale|the story|writing)\b|\bpress start\b|\blet'?s (start|begin)\b/.test(own);
+  return REQUEST(own) && (/\bset (it|this|the tale|the story|everything|it all) up\b|\bset up the (tale|story)\b|\bpress start\b/.test(own)
+    || /\b(start|make|create|begin) the (tale|story)\b(?!\s+(of|about|with|where|in|at|on|from)\b)/.test(own)
+    || /\blet'?s (start|begin)( it| writing)?\s*[.!]*$/.test(own.trim()));
 };
+
+/** #158 · Seth, 2026-11-04: "fold the asked rule (askedOf, #152) into the setup talk here as well: a
+ *  change the writer did not name is offered, not written to the draft." `askedOf` on the draft's
+ *  threads; a thread taken out is asked as one changed is, by its name; the World by saying so or
+ *  naming it; "fill in everything" asks for every box and thread (it is what Fill in the tale sends);
+ *  and the tale made only by `startAsked`. */
+const FILL_ALL = /\bfill (in|out) (everything|it all|the tale|the story|the rest|what (it|the tale) needs)\b|\bevery empty box\b/;
+export function draftAsked(raw: any, draft: Draft, said: string, before = ''): boolean {
+  const op = String(raw?.op ?? '');
+  const own = String(said ?? '').toLowerCase();
+  if (op === 'tale.start') return startAsked(said);
+  if (QUESTIONS_ONLY(own)) return false;
+  if (FILL_ALL.test(own)) return true;
+  const tale = draftTale(draft);
+  if (op === 'tale.set' && String(raw?.field ?? '').toLowerCase() === 'world')
+    return /\b(world|set in|based on|takes place in)\b/.test(own) || mentions(own, String(raw?.text ?? ''));
+  if (op === 'thread.remove') return askedOf({ op: 'thread.set', thread: raw?.thread }, tale, said, before);
+  return askedOf(raw, tale, said, before);
+}
 
 /** THE CHANGE THAT PUTS THIS ONE BACK, built once it is applied: `made` holds the ids the write
  *  minted, which nothing knows before it. Returned with the change, and sent back by the Undo. */
