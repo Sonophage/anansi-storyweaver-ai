@@ -61,6 +61,12 @@ const norm = (s: string) =>
 export const titleEcho = (e: Entry) =>
   e.keys.length > 0 && e.keys.every((k) => norm(k) === norm(e.title));
 
+/** #142 · THE KEYS NO PASSAGE WRITES, one at a time, each through the shipped matcher on its own: a
+ *  thread that fires on its name can still carry a second keyword nobody writes, and the per-thread
+ *  verdict reads it as safe. A thread with no keys has none to name ("no keys" is its own verdict). */
+export const deadKeys = (e: Entry, passages: string[]): string[] =>
+  e.keys.filter((k) => !passages.some((p) => fires({ ...e, keys: [k] }, p).length > 0));
+
 export type Verdict = 'is POV' | 'no keys' | 'no prose' | 'safe to trigger' | 'would go dark';
 
 /** What happens to this entry the moment it is flipped to `triggered`.
@@ -186,6 +192,18 @@ if (process.argv[2] === 'check') {
   if (titleEcho(E([], 'character', 'You')))
     red('titleEcho fired on an empty key list — "no keys" is a different defect from a title echo');
 
+  // #142 · A KEYWORD THAT NEVER APPEARS, one at a time. A thread that fires on its name can still carry
+  // a second keyword nobody writes, and the per-thread verdict above reads it as safe. Both directions,
+  // and a multi-word key, so a checker that only splits on spaces cannot pass.
+  const prose = ['Halsey shrugs off the jacket.', 'They crossed the iron bridge at dawn.'];
+  const dead = deadKeys(E(['Halsey', 'tour bus', 'iron bridge'], 'character', 'Halsey'), prose);
+  if (JSON.stringify(dead) !== JSON.stringify(['tour bus']))
+    red(`deadKeys should name exactly the key nobody writes ("tour bus"), and named ${JSON.stringify(dead)}`);
+  if (deadKeys(E(['Halsey'], 'character', 'Halsey'), prose).length)
+    red('deadKeys named a key the prose does write');
+  if (deadKeys(E([], 'character', 'You'), prose).length)
+    red('deadKeys named something on a thread with no keys — that is "no keys", a different defect');
+
   if (!bound(60).startsWith('under 5.0')) red(`the zero bound is wrong: 0 in 60 is ${bound(60)}`);
   // The small-n guard, asserted: a "bound" of 300% is not a bound and must not be printed as one.
   if (bound(1).includes('%')) red(`0 in 1 was reported as a percentage bound: ${bound(1)}`);
@@ -202,7 +220,7 @@ if (process.argv[2] === 'check') {
     : '  NOTE  the "Aldi"/"Aldis" plural collision is gone from src/context.ts — this file still\n'
       + '        warns about it on every run. Delete the warning.');
 
-  const n = CASES.length + VERDICTS.length + 5;
+  const n = CASES.length + VERDICTS.length + 8;
   console.log(bad ? `\n  ${bad} RED — do not believe a result from this\n`
                   : `\n  ${n} cases, all green\n`);
   process.exit(bad ? 1 : 0);
@@ -228,7 +246,7 @@ const stories = q('SELECT id, title, persona FROM stories ORDER BY rowid').all()
 const allEntries = q('SELECT * FROM entries ORDER BY rowid').all() as any[];
 
 type Row = {
-  story: string; e: Entry; passages: number; firedOn: number; keysHit: Set<string>;
+  story: string; e: Entry; passages: number; firedOn: number; keysHit: Set<string>; dead: string[];
   first: number | null; last: number | null; now: boolean; isPov: boolean; verdict: Verdict;
 };
 const rows: Row[] = [];
@@ -261,6 +279,7 @@ for (const s of stories) {
     }
     rows.push({
       story: s.title, e, passages: passages.length, firedOn, keysHit, first, last,
+      dead: deadKeys(e, passages.map((p) => String(p.body ?? ''))),
       now: fires(e, nowWindow).length > 0, isPov: isPov(e),
       verdict: verdictFor(e, isPov(e), passages.length, firedOn),
     });
@@ -346,6 +365,22 @@ if (thin.length) console.log(`  ${thin.length}/${safe.length} of those "safe" ve
 if (stale.length) console.log(`  ${stale.length}/${safe.length} fired only in the past and NOT on`
   + ` the live window (${stale.map((r) => r.e.title).join(', ')}):\n  safe on the record, dark on`
   + ` the next call.`);
+// #142 · KEYWORDS NOBODY WRITES, one at a time. Only threads with keys, in a tale with prose: the
+// others could not have shown a dead key, and counting them would be F10's denominator mistake.
+const askable = rows.filter((r) => r.e.keys.length && r.passages > 0);
+const deadOnes = askable.filter((r) => r.dead.length);
+// Split, because they are two different things: a thread that fires on one keyword and carries another
+// nobody writes has a bad keyword; a thread that never fires is usually one not on stage yet (a World's
+// lore, a person still to walk in), which the note at the foot already says reads dark here.
+const extra = deadOnes.filter((r) => r.firedOn > 0), silent = deadOnes.filter((r) => r.firedOn === 0);
+console.log(`\n  KEYWORDS NOBODY WRITES (#142), of ${askable.length} threads with keys in a tale with prose:`);
+console.log(`  ${extra.length} fire on one keyword and carry another no selected passage writes:`);
+for (const r of extra) console.log(`    ${cut(r.story, 22).padEnd(22)}${cut(r.e.title, 22).padEnd(22)}${r.dead.map((k) => JSON.stringify(k)).join(', ')}`);
+const byTale = new Map<string, number>();
+for (const r of silent) byTale.set(r.story, (byTale.get(r.story) ?? 0) + 1);
+console.log(`  ${silent.length} never fire at all (not on stage yet, or every keyword is wrong), by tale: `
+  + [...byTale].sort((x, y) => y[1] - x[1]).map(([t, n]) => `${t} ${n}`).join(', '));
+
 console.log(`\n  Read a firing count as a FLOOR: production scans eight passages at once plus the`
   + `\n  directive, and sticky_for holds an entry live afterwards. And "safe to trigger" is about`
   + `\n  prose that exists — a character who has not walked on stage yet reads dark here.\n`);
