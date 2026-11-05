@@ -3509,4 +3509,14 @@ rename's new name from the writer's words; match a removal by a thread's first w
 an identical rewrite; and say "nothing was changed" whenever a step the writer asked for has no card.
 Three runs of ten steps are not rates.
 
+**Tried, 2026-11-04, and what landed.** All six were built (branch `talk-backstops`, parked
+unmerged). Five review rounds each found a writer's sentence the rules misread, every one costly: "Vel
+goes by Vessa, but only at court" renamed her through the whole tale, "Her skirt is too long. Hem it."
+closed the scene, "Morgott no longer exists in her heart" offered a removal, "Put a model ship in
+Vel's room" was told a switch was not done, and a short name ("Black") reached "the Black Tower".
+Seth chose the part that reads no intent out of free text: an identical rewrite is refused,
+"set it up" (a short phrase list) is the press, and a rename with no new name is refused with how to
+ask. The rest stays open: completing a request from the writer's words needs a reader that holds up
+against sentences it was not written for, which regular expressions here did not.
+
 **Harness.** `bench/talk-replay.ts run <scratch.db> 5301 <out.jsonl>`, then `report <out.jsonl>`.

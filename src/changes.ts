@@ -776,7 +776,9 @@ const sameKeys2 = (a: unknown, b: unknown) => JSON.stringify([...(Array.isArray(
 function renameOn(tale: Tale, t: Thread, raw: any, said: string, undo = false): Checked {
   if (t.sharedFrom) return followed(t, said);
   const to = String((undo ? raw.to : raw.title) ?? '').trim();
-  if (!to) return { ok: false, said, why: 'it gave no new name' };
+  // F70 · Ornith sent every rename it was asked for without the new name (three runs of three). The app
+  // does not guess one from the writer's words (Seth, 2026-11-04); it says how to ask so it lands.
+  if (!to) return { ok: false, said, why: `the answer gave no new name for ${t.title}. Say it whole: "rename ${t.title} to" and the name` };
   if (!undo) {
     const twin = tale.entries.find((e) => e.id !== t.id && norm(e.title) === norm(to));
     if (twin) return { ok: false, said, why: `there is already a thread called ${twin.title}` };

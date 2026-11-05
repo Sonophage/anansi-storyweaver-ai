@@ -200,6 +200,11 @@ const srv = createServer((req, res) => {
                     pockets: [{ room: 'voice', text: 'Slow; never haggles.' }, { room: 'appearance', text: 'Grey oilskin, one lantern.' }] },
                   { op: 'string.set', title: 'The sealed letter', kind: 'promise', text: 'Somebody will open the letter.' }] },
       STARTIT: { reply: 'It is made. Go and write it.', changes: [{ op: 'tale.start' }] },
+      // F70 · what Ornith did on the replay: a rename with no new name, a rewrite that is the passage,
+      // and "set it up" not sent.
+      RENAMEBARE: { reply: 'Done.', changes: [{ op: 'thread.rename', thread: 'Isolde Marr' }] },
+      SAMEEDIT: { reply: 'Colder.', changes: [{ op: 'passage.set', quote: 'The river ran cold and black under the lamps', text: '' }] },
+      SETUPSILENT: { reply: 'Making the tale from the draft now.' },
       STARTHELD: { reply: 'Darker, and it is made.', changes: [{ op: 'tale.set', field: 'premise', text: 'A ferry nobody pays twice, and nobody returns.' }, { op: 'tale.start' }] },
       IPHELD: { reply: 'Discworld it is.', changes: [{ op: 'tale.set', field: 'world', text: 'Discworld' },
         { op: 'thread.new', title: 'Rincewind', type: 'character', text: 'A wizard who runs.' }] },
@@ -3690,9 +3695,14 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   assert.ok(!disc.held.some((x: any) => x.change.op === 'thread.new') && !disc.changes.some((x: any) => x.change.op === 'thread.new'),
     'IP-HELD-THREAD: with an IP named, its people are neither made nor offered');
 
+  // F70 · "Set it up" with nothing sent by the model is still the press.
+  const silent = await setupAs('ABOUT-SETUPSILENT: Set it up.', { start: START });
+  assert.ok(silent.started?.id, `START-WORDS: "set it up" makes the tale though the model sent nothing (${JSON.stringify(silent.notDone)})`);
+  const n1 = tales();
+
   const go = await setupAs('ABOUT-STARTIT: set it up', { start: START });
   assert.ok(!go.error, go.error);
-  assert.strictEqual(tales(), n0 + 1, `START: "set it up" makes the tale (${JSON.stringify(go.notDone)})`);
+  assert.strictEqual(tales(), n1 + 1, `START: "set it up" makes the tale (${JSON.stringify(go.notDone)})`);
   const made = db.getStory(go.started?.id) as any;
   assert.ok(made, 'START-NAMES: the answer names the tale made');
   assert.strictEqual(made.owner_id, me, '  and it is this writer\'s');
@@ -3704,6 +3714,29 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   assert.deepStrictEqual(go.changes.at(-1).card, { key: 'start', title: 'The Ferry at Dusk', label: 'Made' }, 'START-CARD: the card says the tale is made');
   assert.ok(go.started?.id, '  and the answer names it, for the page to open');
   ok('a new tale set up by talking: a thread with pockets and a string as cards, and "set it up" makes the tale by Start');
+}
+
+// F70 · A RENAME WITH NO NEW NAME IS REFUSED WITH HOW TO ASK, AND A REWRITE THAT IS THE PASSAGE IS NO CHANGE.
+{
+  const tale = db.createStory(me, { title: 'The Ferry Ledger', premise: 'A crossing kept by one woman.' });
+  const chap = (db.chapters(tale.id) as any[])[0].id;
+  const iso = db.upsertEntry(tale.id, me, { title: 'Isolde Marr', body: '', entryType: 'character', activation: 'triggered', keys: ['Isolde'] })!;
+  db.upsertAddon(tale.id, iso, { slot: 'facts', name: 'facts', body: 'Isolde keeps the ferry ledger.' });
+  const same = db.addPassage({ storyId: tale.id, branchId: db.activeBranchOf(tale.id), chapterId: chap, body: REWRITTEN });
+  const ctxOf = (body: any) => ({ body: { storyId: tale.id, ...body }, query: new URLSearchParams(), owner: me,
+    slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+  const say = (said: string) => { calls = []; return routes['POST /api/talk'](ctxOf({ said })) as Promise<any>; };
+
+  const rn = await say('ABOUT-RENAMEBARE: Isolde is called Ysra now');
+  assert.strictEqual((db.entriesOf(tale.id) as any[]).find((e) => e.id === iso)?.title, 'Isolde Marr', 'RENAME-NAMELESS: a rename with no new name renames nobody');
+  assert.ok(rn.notDone.some((x: any) => /no new name for Isolde Marr\. Say it whole: "rename Isolde Marr to"/.test(x.why)),
+    `  and says how to ask so it lands (${JSON.stringify(rn.notDone)})`);
+
+  const edit = await say('ABOUT-SAMEEDIT: make the passage where the river ran cold and black under the lamps colder');
+  assert.deepStrictEqual(edit.changes, [], 'SAME-REWRITE: a rewrite that is the passage changes nothing');
+  assert.ok(edit.notDone.some((x: any) => /the same as the passage/.test(x.why)), `  and says so (${JSON.stringify(edit.notDone)})`);
+  assert.strictEqual((db.passagesOf(tale.id) as any[]).find((p) => p.id === same).body, REWRITTEN, '  and the passage is as it was');
+  ok('a rename with no new name is refused with how to ask; a rewrite that is the passage changes nothing; "set it up" is the press');
 }
 
 srv.close();

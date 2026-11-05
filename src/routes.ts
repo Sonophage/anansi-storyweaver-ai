@@ -1551,7 +1551,11 @@ async function rewritePassage(c: Ctx, storyId: string, ch: { passage: string; no
     db.logGeneration({ storyId, chapterId: p.chapterId, passageId: p.id, model: using, role: 'talk-rewrite', manifest,
       params: { max_tokens: Math.max(reply.maxTokens, 900) }, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, latencyMs: Date.now() - t0 });
-    return text.trim() ? { text } : { error: 'the rewrite came back empty' };
+    // F70 · A REWRITE THAT IS THE PASSAGE is not a change: on Ornith one came back word for word and was
+    // saved and carded as "Rewrote passage 3". The one place both rewrites (an edit, a removal) pass.
+    if (!text.trim()) return { error: 'the rewrite came back empty' };
+    if (text.replace(/\s+/g, ' ').trim() === String(p.body ?? '').replace(/\s+/g, ' ').trim()) return { error: 'the rewrite came back the same as the passage' };
+    return { text };
   } catch (e: any) {
     db.logGeneration({ storyId, model: using, role: 'talk-rewrite', manifest, error: e?.message, latencyMs: Date.now() - t0 });
     return { error: e?.message ?? 'the rewrite failed' };
@@ -4141,6 +4145,10 @@ export const routes: Record<string, Handler> = {
     // has (they say it again once they have seen the cards); and not in one that named an IP, whose
     // World step runs on the page first.
     let started: { id: string; notes?: string[] } | null = null;
+    // F70 · "SET IT UP" ASKED IS THE PRESS, whether or not the model sent it: on Ornith it twice said
+    // "Starting the tale" and sent nothing. `startAsked` is a short list of set-it-up phrases, and the
+    // same refusals hold (other changes in the answer, an IP named, no Start body from the page).
+    if (startAsked(said)) start = true;
     if (start) {
       const why = !startAsked(said) ? 'you did not ask for the tale to be made'
         : changes.length || held.length ? 'it came with changes to the draft. Look at their cards, then say "set it up" again'
