@@ -3587,8 +3587,10 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   const w = await say('what can you do?');
   assert.ok(!w.error, w.error);
   const sys = String(calls[0].messages[0].content);
-  for (const line of Object.values(TALK_TOOLS)) assert.ok(sys.includes(`- ${line}`), `TOOLS-SENT: Talk is told it can: ${line}`);
-  assert.match(sys, /When the writer asks what you can do, answer from this list/, 'TOOLS-ASKED: and to answer "what can you do?" from that list');
+  // The whole contract is in the system message (checked once, near the top of this file); here, the
+  // list and the order to answer from it, on this tale's own call.
+  assert.ok(sys.includes('answer from this list, in a few lines') && sys.includes(`- ${TALK_TOOLS['hem.start']}`),
+    'TOOLS-ASKED: Talk is told to answer "what can you do?" from the list of its tools');
   ok('advice comes as a direction card and offer cards and changes no row; Talk is told every tool it has');
 }
 

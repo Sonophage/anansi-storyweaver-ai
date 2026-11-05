@@ -11110,7 +11110,8 @@ const SESSIONS = [{ id: 'ts-old', title: 'Who is Marek, really', createdAt: Date
 const OLD_TURNS = [{ you: true, text: 'Who is Marek, really?', at: 1 }, { text: 'A man who owes.', at: 2 },
                    { you: true, text: 'Owes whom?', at: 3 }, { text: 'The house.', at: 4,
                      changes: [{ words: "Changed the tale's premise: \u201cA house.\u201d", undo: { op: 'tale.set', field: 'premise', text: 'x', wrote: 'A house.' },
-                                 card: { key: 'tale', title: 'The tale', label: 'Premise' } }] }];
+                                 card: { key: 'tale', title: 'The tale', label: 'Premise' } }],
+                     directive: 'Have Marek call in the debt at the house.' }];
 const PROMPT = [{ role: 'system', content: 'You are Anansi. The tale: a debt.' },
                 { role: 'user', content: 'Who is Marek?' }, { role: 'assistant', content: 'A man who owes.' },
                 { role: 'user', content: 'And the house?' }];
@@ -11172,6 +11173,7 @@ const withClipboard = (writeText: ((t: string) => Promise<void>) | null) => {
     assert.ok(html('dockCol').includes('Owes whom?') && html('dockCol').includes('The house.'), 'TALK-OPEN: its turns are on the page');
     assert.doesNotMatch(html('dockCol'), /data-copyprompt/, 'TALK-OPEN: an opened talk has no prompt to copy: prompts are not kept');
     assert.match(html('dockCol'), /data-deckkind="done"[\s\S]*?The tale[\s\S]*?data-talkundo=/, 'TALK-OPEN-CARDS: an opened talk draws the cards it kept (#151)');
+    assert.match(html('dockCol'), /Have Marek call in the debt at the house\.[\s\S]*?data-usedraft="3"/, 'TALK-OPEN-DIRECTION: and the directive it kept, on its answer (#157)');
     stubTalk = { reply: 'Yes.', seconds: 1, tokens: 10, sessionId: 'ts-old' };
     await send('Go on');
     assert.strictEqual(talks().at(-1).body.sessionId, 'ts-old', 'TALK-OPEN-ON: the next question carries the opened talk on');

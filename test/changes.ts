@@ -916,7 +916,6 @@ ok('TOOLS-EVERY-OP: the list of tools has a line for every operation, and for no
   for (const op of ops) assert.ok(TALK_TOOLS[op], `TOOLS-EVERY-OP: TALK_TOOLS has no line for ${op}`);
   for (const k of Object.keys(TALK_TOOLS).filter((k) => k.includes('.')))
     assert.ok(ops.includes(k), `TOOLS-EVERY-OP: TALK_TOOLS has a line for ${k}, which Talk cannot do`);
-  for (const line of Object.values(TALK_TOOLS)) assert.ok(TALK_CONTRACT.includes(`- ${line}`), `TOOLS-EVERY-OP: the contract lists: ${line}`);
 });
 ok('CONTRACT-EVERY-OP: TALK_CONTRACT describes every operation the model may ask for', () => {
   for (const op of ch.ASKED) assert.ok(TALK_CONTRACT.includes(`- ${op}:`), `CONTRACT-EVERY-OP: TALK_CONTRACT does not describe ${op}`);

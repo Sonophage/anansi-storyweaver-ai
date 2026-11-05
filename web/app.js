@@ -2610,7 +2610,8 @@ function drawDock() {
       ><span class="grip" aria-hidden="true"></span></button>` : ''}
     ${/* TALK LIVES IN THE COMPOSER (Seth, 2026-10-29: drop the Talk drawer). The conversation sits
          above the box, small or full screen, drawn by the one renderer the setup's Talk also uses
-         (`talkDock`); under it the drafted directive, a refusal's row, and Talk's own row. */
+         (`talkDock`), each answer with its cards and its directive (#157); under it a refusal's row,
+         and Talk's own row. */
       S.dockTalk ? talkDock(S.talk, false) : ''}
     ${asWhom && S.playPick ? playPicker() : ''}
     <div id="modes">
@@ -11856,7 +11857,7 @@ async function talk(said, mentions, anyway = false) {
   S.talk.sessionId = r.sessionId ?? S.talk.sessionId;
   S.talk.turns = [...S.talk.turns, { you: false, text: r.reply || '(nothing came back)',
     sources: r.sources ?? [], changes: r.changes ?? [], chalked: r.chalked ?? [],
-    directive: r.directive || null,
+    directive: r.directive,
     meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens read`, prompt: r.prompt ?? null }];
   // A thread that landed is a proposal, and the queue lives under Chapter. A change is in the tale.
   // #156 · A model Talk switched is the writer's model too, as a pick on the Model tab makes it.
@@ -13968,8 +13969,7 @@ document.addEventListener('click', async (e) => {
     if (r.error) return toast(r.error);
     // #151 · An answer's cards come back with it: what it changed, and what it chalked.
     // #157 · and its direction.
-    const turns = (r.turns ?? []).map((x) => ({ you: !!x.you, text: String(x.text ?? ''), changes: x.changes, chalked: x.chalked,
-      directive: x.directive || null }));
+    const turns = (r.turns ?? []).map((x) => ({ you: !!x.you, text: String(x.text ?? ''), changes: x.changes, chalked: x.chalked, directive: x.directive }));
     if (setup) Object.assign(setupTalk(), { turns, sessionId: r.id });
     else S.talk = { ...S.talk, turns, sessionId: r.id };
     S.talkPast = null;

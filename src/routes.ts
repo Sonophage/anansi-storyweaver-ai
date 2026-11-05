@@ -4732,12 +4732,13 @@ export const routes: Record<string, Handler> = {
   /** Anansi: the conversation. The turns sent come from the page; each exchange is also kept in
    *  the writer's session (`db.talkSay`, 2026-10-30), so it survives a reload and can be revisited.
    *
-   *  Four outputs, and since #97 one of them lands here. The reply is returned; threads Anansi
-   *  OFFERS go to the proposals queue where they wait like every other proposal; the directive is
-   *  handed back, and kept with the answer, as a card whose press puts it in the composer unsent
-   *  (#157: advice changes nothing until the writer presses). What the writer ASKED to be changed (`changes`)
-   *  is written at once, each with the Undo that puts it back (ADR 0007: asked means done, offered
-   *  means chalked). No prose is ever written here. */
+   *  Four outputs, and since #97 one of them lands here. The reply is returned; what Anansi OFFERS
+   *  (threads, strings, a passage without a thing in it) goes to the proposals queue where it waits
+   *  like every other proposal; the directive is handed back, and kept with the answer, as a card
+   *  whose press puts it in the composer unsent (#157: advice changes nothing until the writer
+   *  presses). What the writer ASKED to be changed (`changes`) is written at once, each with the Undo
+   *  that puts it back (ADR 0007: asked means done, offered means chalked). Prose changes here only
+   *  as a passage the writer asked to have rewritten (#153); no new prose is written here. */
   'POST /api/talk': async (c: Ctx) => {
     const v = viewOf(c, c.body.storyId);
     const said = String(c.body.said ?? '').trim().slice(0, 2000);
@@ -5191,7 +5192,7 @@ export const routes: Record<string, Handler> = {
     // card too (#157).
     const directive = String(r.data.directive ?? '').trim() || null;
     const sessionId = db.talkSay(c.owner, v.id, c.body.sessionId, said, answer.trim(),
-      { changes, chalked: chalkedIds, ...(directive ? { directive } : {}) });
+      { changes, chalked: chalkedIds, directive: directive ?? undefined });
 
     return { reply: answer.trim(), directive, changes, notDone, chalked: chalkedIds,
              proposed, sources: sources.map((x) => ({ title: x.title, url: x.url })),
