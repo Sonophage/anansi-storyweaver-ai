@@ -49,6 +49,47 @@ The angle brackets show the form only and are never written; no brackets and not
 front. Write no sentence you would be willing to see printed in the book: a model reads this on
 every call that reaches the card and lifts finished English straight into the prose.`;
 
+/** #142 · WHAT A GOOD CARD IS, ONE TEXT FOR EVERY DOOR THAT WRITES ONE: the hem's passes, Rewrite where
+ *  it stands, Tidy, Merge, Redo, Remember this, Invent, a lookup on the web, New tale's cast and Try it
+ *  on, and Talk in a tale and in setup. Each of those prompts wrote these rules in its own words (the
+ *  one-keyword rule five times, and once contradicted by Invent's pocket asking for "single words"),
+ *  so they drifted. test/cards.ts holds every card-writing prompt to carrying this text itself, and to
+ *  re-stating none of what it owns. The rules are the ones the prompts already had, in their words
+ *  where they had them, and two that only New tale's cast asked for: a person's want and what is in
+ *  its way, and what is still open about a thread the plot turns on.
+ *  NOT MEASURED as a whole. The two rules new to most doors are the ones to measure against a control
+ *  arm on Ornith before they stay (#142's bench); the rest were in force already. */
+export const CARD_CONTRACT =
+`WHAT A GOOD CARD IS. Every thread and pocket keeps to this, whoever asked for it:
+- Concrete, and of this tale: facts somebody could contradict. No clause that could be true of
+  anyone, and no adjective doing the work of a fact.
+- Always true holds who or what it is and nothing else: no clothes, no events, no mood, no voice.
+- A person has something they want and something in its way (for one under OUTSIDE ONLY, only what
+  others can see of it). A thread the plot turns on says what is still open about it, never how it
+  ends.
+- Nothing twice: never repeat what the thread or another of its pockets already says. Where two
+  things disagree, the later and more specific one is true: write only that one.
+- Clothes go in an outfit pocket and nowhere else: not in Always true, not in where it stands, not in
+  a description.
+- A pocket's name is a short title of its own, two or three words naming what it is about: never the
+  slot's word and never the thread's name.
+- A keyword, where one is asked for, is ONE keyword that actually appears in the prose when
+  this thing is present: a person's name as the prose says it, one word; anything else, its name as
+  the prose writes it. Never another thread's name and never an everyday word. A keyword nobody
+  writes never fires.
+- Angle brackets in a shape show the form only and are never written.`;
+
+/** #142 · HOW LONG A CARD RUNS, BY THE DOOR THAT WRITES IT, in one table so two doors cannot contradict
+ *  each other about one card. The bands are the ones each prompt had. */
+export const CARD_LENGTH = {
+  cast: 'twenty to forty words',          // New tale's cast and Try it on: identity only, the rest in pockets
+  memo: 'sixty to a hundred and forty words',         // Remember this, and a lookup on the web
+  invent: 'a hundred and twenty to two hundred words',      // Invent, a whole card
+  room: 'forty to eighty words',          // Invent, one pocket; a string's text
+} as const;
+/** A band at the start of a sentence. */
+const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
+
 export const SUMMARY = (maxWords: number) =>
 `Summarize this chapter for a story bible. Under ${maxWords} words. Shorter is better; a short
 chapter gets a short summary.
@@ -167,6 +208,8 @@ tense, third person, with no brackets.
 
 ${STANDS_FORM}
 
+${CARD_CONTRACT}
+
 A thread marked OUTSIDE ONLY is written from the outside: what it did, what was done to it, what
 others can see. Never its thoughts or feelings.
 
@@ -264,8 +307,7 @@ For each thread the scene CHANGED, return:
   pockets  only pockets this scene gives the thread something NEW for, and only from its kind's
            list. Each is a plain description of how it comes across from now on, never an outcome of the
            scene: what happened goes in stands. Never repeat what the thread already says. Its name
-           is a short title of its own, two or three words naming what it is about, never the
-           slot's word and never the thread's name. Most threads get no pockets.
+           follows the card rules below. Most threads get no pockets.
   always   ONLY when its Always true is empty: who or what it is, as a plain description, with
            no brackets and not its name in front.
            Otherwise "".
@@ -274,10 +316,11 @@ ${STANDS_FORM}
 
 ${POCKET_FORM}
 
-Who or what a thread IS goes in Always true and never in stands or a pocket; clothes go in an
-outfit pocket and never in stands.
+Who or what a thread IS goes in Always true and never in stands or a pocket.
 
 ${LEDGER_REGISTER}
+
+${CARD_CONTRACT}
 
 A thread listed under IN THE NEXT SCENE is in the scene after this one, by name only. Review it even
 when this scene does little more than name it, so that where it stands is up to date before it
@@ -409,12 +452,11 @@ pockets. Sort what it says into the three parts a thread has, and change nothing
            pocket it already has, say which one it replaces (its name in replaces), or an empty
            list for a new one. Where two pockets of the same kind say overlapping things (two about
            one person, two about how they talk), MERGE them into one pocket that keeps what each
-           says, and name both in replaces. Its name is a short title of its own, never the slot's
-           word or the thread's name.
+           says, and name both in replaces. Its name follows the card rules below.
 
 Keep every fact it already holds, in one of the three; drop nothing and add nothing. Where two
-parts disagree (an age, a job, a name), the LATER and more specific one is true: write only that
-one, and never both. Check Always true and where it stands against each other above all: "34"
+parts disagree (an age, a job, a name), keep only the one the card rules below say is true, never
+both. Check Always true and where it stands against each other above all: "34"
 in one and "in his 30s" in the other disagree, and "34" is the more specific. Change the part that
 loses, even when that is Always true. Always true holds identity only: no clothes, no events, no
 mood, no voice.
@@ -430,7 +472,9 @@ are to someone), make that pocket too. Never leave a pocket a list of traits.
 
 ${POCKET_FORM}
 
-${LEDGER_REGISTER}`;
+${LEDGER_REGISTER}
+
+${CARD_CONTRACT}`;
 
 export const TIDY_SCHEMA = {
   type: 'object',
@@ -471,19 +515,20 @@ together, in the three parts a thread has:
            Every pocket of both threads is listed with a number. For each pocket you write, put
            the numbers of all the pockets it stands in for in replaces, or an empty list for a new
            one. Pockets of the same kind, from either thread, become ONE pocket that keeps what
-           each says, and name them all. Its name is a short title of its own, never the slot's
-           word or a thread's name.
+           each says, and name them all. Its name follows the card rules below.
 
 Keep every fact either thread holds, in one of the three; drop nothing and add nothing. Where the
 second thread names the first by a role or another name, that is the same one: say it once, by the
-first thread's name. Where the two disagree, the more specific one is true: write only that one,
+first thread's name. Where the two disagree, keep only the one the card rules below say is true,
 never both. Always true holds identity only: no clothes, no events, no mood, no voice.
 
   kept     one sentence saying what disagreed, which you kept, and why. Empty when nothing did.
 
 ${POCKET_FORM}
 
-${LEDGER_REGISTER}`;
+${LEDGER_REGISTER}
+
+${CARD_CONTRACT}`;
 
 /** The same answer as TIDY's, so the one function reads both (`tidyPockets`). */
 export const MERGE_SCHEMA = TIDY_SCHEMA;
@@ -507,7 +552,9 @@ again better: closer to the thread, more specific, no longer.
 
 ${POCKET_FORM}
 
-${LEDGER_REGISTER}`;
+${LEDGER_REGISTER}
+
+${CARD_CONTRACT}`;
 
 export const REDO_SCHEMA = { type: 'object', properties: { body: { type: 'string' } }, required: ['body'] } as const;
 
@@ -832,7 +879,7 @@ the premise names is one of them, the one it is about first.
 Each entry is a name, its kind, a body, where it stands, and its pockets, written to be READ BY A
 MODEL on every call: dense and specific.
 
-The body is its Always true, twenty to forty words, and it is identity only: who or what it is,
+The body is its Always true, ${CARD_LENGTH.cast}, and it is identity only: who or what it is,
 which does not change through the tale (what they are, their age, their trade, where they come
 from; what a place or thing is). Never what they want, a secret, or how they stand towards the
 others: those change, so they go below. Never its looks, its clothes or its voice: those are
@@ -858,6 +905,8 @@ short title of its own:
 ${POCKET_FORM}
 
 ${NO_OUTCOMES}
+
+${CARD_CONTRACT}
 
 ${LEDGER_REGISTER}
 
@@ -916,7 +965,7 @@ contradiction; an empty list is the right answer when the draft agrees with itse
 
 You may also propose entries the skeleton implies and the cast is missing: someone the premise
 names who is not there, the place it happens in, the thing everyone wants. Each is a name, a kind,
-a body, where it stands, and its pockets. The body is its Always true, twenty to forty words in the
+a body, where it stands, and its pockets. The body is its Always true, ${CARD_LENGTH.cast} in the
 same dense style as the cast: who or what it is, identity only, facts, not atmosphere, and never a
 finished sentence of the book. Where it stands is as the tale opens. Its pockets are from its kind's
 list:
@@ -929,6 +978,8 @@ list:
 ${POCKET_FORM}
 
 ${NO_OUTCOMES}
+
+${CARD_CONTRACT}
 
 Do not propose an entry that is already in the cast under any name. If the writer says who they
 play, change nothing about who that is; if somebody is HANDS OFF, propose nothing that has the
@@ -1084,19 +1135,18 @@ every call from now on.
     type   What it is: character for a person, place for a place, item for a thing someone can
            hold, lore for an event, a group or anything else.
     body   fact, fact, fact — what is TRUE because of this passage, as a plain description with no
-           brackets and not the name in front. Sixty to a hundred and
-           forty words. Facts somebody could contradict: who did what, what changed, what is owed,
-           what is broken, where a thing ended up.
-    keys   ONE keyword that would really appear in the prose when this matters — a person's name as
-           the prose says it, one word; anything else, its name as the prose writes it. Never another
-           thread's name.
+           brackets and not the name in front. ${cap(CARD_LENGTH.memo)}: who
+           did what, what changed, what is owed, what is broken, where a thing ended up.
+    keys   one keyword, as the card rules below say.
 
 WRITE IT AS FACTS, NOT AS PROSE. Take no sentence from the passage whole. If the passage says "the
 wrist gave under the weight and she did not cry out", the thread says: left wrist broken, strapped,
 she will not say so. A body that reads like a line of the book is a body the model will put back
 into the book word for word, which is the one failure this must not have.
 
-Do not invent. Everything in the thread has to be in the passage or already in the canon above.`;
+Do not invent. Everything in the thread has to be in the passage or already in the canon above.
+
+${CARD_CONTRACT}`;
 
 /** MEMO's answer: a thread's own shape, and WHAT IT IS (Seraphine, 2026-11-03). The page sends no
  *  kind, so every thread "Remember this" made was lore, the nun it was pointed at included. The kind
@@ -1350,10 +1400,7 @@ For each: title, type (character | place | lore | item), a body as a plain descr
 
 ${LEDGER_REGISTER}
 
-The keyword is ONE KEYWORD that ACTUALLY APPEARS IN THE PROSE when this thing is present: for a
-person, one word, their name as the prose says it; for anything else, its name as the prose writes
-it ("Iron Hands", "Long Stair"). Never another thread's name and never an everyday word. It is what makes the entry reach the model later, so a
-keyword nobody writes never fires.
+${CARD_CONTRACT}
 
 And an activation. "triggered" is the normal answer: the entry reaches the model when one of its
 keywords appears in recent prose, and stays out of the way otherwise. "always_on" means it is sent
@@ -1380,7 +1427,7 @@ When you name a room, the title is the card that already exists and the body is 
 that one thing and nothing else. Do not restate the rest of the card. Everything else about them
 stays exactly as it is.
 
-CLOTHING IS ALWAYS THE outfit ROOM AND NEVER PART OF A DESCRIPTION. What somebody is wearing
+What somebody is wearing
 changes between one chapter and the next; who they are does not. A coat written into a character's
 description follows them into every scene for the rest of the book, including the ones where they
 are not wearing it — so if this chapter says what somebody has on, propose it as their outfit, and
@@ -1391,8 +1438,8 @@ it is and nothing else (a name, an age, what they are, where they are from; wher
 disagree, the later one), never looks, clothes, voice or what has happened: those are pockets.
 "<an age>; <what they are>; <where they are from>; <who they are to someone already here>" is a
 whole body (the angle brackets are never written). And
-pockets fills every pocket its kind can have that the chapter gives you enough for, each with a
-short title of its own, two or three words naming what it is about, never the slot's word:
+pockets fills every pocket its kind can have that the chapter gives you enough for, each named as
+the card rules above say:
 
     character  appearance, voice, interiority, relationships, outfit
     place      appearance, atmosphere, who_is_here
@@ -1597,6 +1644,8 @@ them: the writer's tale outranks the world it is set in, and finds that out for 
 
 ${NO_OUTCOMES}
 
+${CARD_CONTRACT}
+
 IF THE SUBJECT IS A WORK — a novel, a game, a setting, a franchise — the card is about the WORLD it
 holds and never about the product. Not the studio, the publisher, the platform, the price, the
 release date, the reviews, the awards, the art style, or how it plays. Not "<a kind of game> released
@@ -1606,7 +1655,7 @@ world they describe and leave the rest. The angle brackets show the form only.
 
     title  The subject's own name, spelled as the best source spells it.
     body   A plain description, with no brackets and not the subject's name in front: the title
-           already names it. Sixty to a hundred and forty words, densest first: what they are, the two or
+           already names it. ${cap(CARD_LENGTH.memo)}, densest first: what they are, the two or
            three things that would change a scene they walk into, who they are to other named
            figures.
 ${rooms.length ? `    rooms  What the results say about each of these, in the same register, or an empty string
@@ -1631,9 +1680,7 @@ ${rooms.map((r) => `             ${r}`).join('\n')}
            below, from what the results say.
 
 ${POCKET_FORM}
-` : ''}    keys   ONE keyword that would really appear in prose about them — a person's name as the prose
-           says it, one word; anything else, its name as the prose writes it. Never another thread's
-           name.
+` : ''}    keys   one keyword, as the card rules above say.
 
 ${memory ? 'If you do not know it well enough to make a card' : 'If the results are about something else, or say too little to make a card'}, answer with an empty
 title. That is a real answer and it is better than a plausible one.
@@ -1713,15 +1760,13 @@ ${string ? STRING_FORM(string) : about.startsWith('outfit')
 `
     + `          not their name again.
 `
-    + `    body  A plain description with no brackets, FORTY TO EIGHTY WORDS, and only this room's
+    + `    body  A plain description with no brackets, ${CARD_LENGTH.room.toUpperCase()}, and only this room's
 `
     + `          own subject: <a habit>, <a thing they refuse>, <what they do with a number or an
 `
     + `          object>. The angle brackets are never written.
 `
-    + `    keys  single words that would really appear in the prose — a name, a place, an object.
-`
-    + `          Not the title again, not two words joined by a slash.
+    + `    keys  one keyword, as the card rules below say. Not the title again.
 
 `
     + `THIS IS ONE ROOM OF A CARD, NOT THE CARD. The ledger already holds who they are and every `
@@ -1730,9 +1775,8 @@ ${string ? STRING_FORM(string) : about.startsWith('outfit')
     + `that is a twelve-hundred-word person, and the whole canon budget goes on one of them.
 
 `
-    + `Forty to eighty words — not one sentence, and not a paragraph of atmosphere. Every clause `
-    + `carries a fact somebody could contradict: a habit, a number, a thing they carry, a thing `
-    + `they refuse. No adjective doing the work of a fact.
+    + `${cap(CARD_LENGTH.room)} — not one sentence, and not a paragraph of atmosphere: a habit, a `
+    + `number, a thing they carry, a thing they refuse.
 
 ${POCKET_FORM}`
   : `    title  What the thing is called. A name, not a description of it.
@@ -1743,20 +1787,17 @@ ${POCKET_FORM}`
 `
     + `           and not the name in front, enough that a scene could be written from it alone.
 `
-    + `    keys   ONE keyword that would really appear in the prose — a person's name as the prose says
-`
-    + `           it, one word; anything else, its name as the prose writes it. Never another thread's
-`
-    + `           name, never the word "attribute".
+    + `    keys   one keyword, as the card rules below say; never the word "attribute".
 
 `
-    + `A hundred and twenty to two hundred words. Long enough that a scene could be `
+    + `${cap(CARD_LENGTH.invent)}. Long enough that a scene could be `
     + `written from the body alone, which is the actual test — not one sentence, and not a `
-    + `paragraph of atmosphere either. Every clause has to carry a fact somebody could contradict: `
-    + `a name, a number, a habit, a debt, a thing they carry, a thing they refuse. No adjective `
-    + `doing the work of a fact, and no clause that could be true of anyone.`}
+    + `paragraph of atmosphere either: a name, a number, a habit, a debt, a thing they carry, a `
+    + `thing they refuse.`}
 
 ${LEDGER_REGISTER}
+
+${CARD_CONTRACT}
 
 It is a jumping-off point, not a line to be quoted. Write it so the model can write FROM it — facts,
 textures and relations it turns into prose of its own — and never say it back word for word. Nothing
@@ -2031,8 +2072,8 @@ changes, all its pockets with it, and never an entry: entries are only threads y
   of that room as it should read. Several rooms of one thread go in pockets, each its room and its
   whole text.
 - thread.new: its title, its type (a person is a character), its pockets (each its room and its
-  text), its Always true as text (who or what it is, in a sentence or two), and one keyword: a
-  person's name as the prose says it, one word; anything else, its name as the prose writes it.
+  text), its Always true as text (who or what it is, in a sentence or two), and one keyword, as the card
+  rules below say.
 - thread.overtime: the thread, the scene it holds from, the whole of where the thread stands from
   that scene on as text, and a label of a few words for what changed.
 - thread.wake: the thread, always_on or triggered (On a word), and the wake words as keys.
@@ -2101,6 +2142,8 @@ here, a thread you offer need not be true yet and a string need not be set up ye
 writer decides whether it ever is; everything else above still holds. Nothing of it is done until
 the writer presses, so in the reply each is a suggestion, never something you did and never
 something the story says. A suggestion only in the reply is one they must copy out by hand.
+
+${CARD_CONTRACT}
 
 ${toolsSaid(TALK_TOOLS, `A change on it is done only when they ask
 for it, and has an Undo, except a hem. What is offered (advice, and taking a thing out of the prose)
@@ -2300,6 +2343,8 @@ ${PREMISE_FORM}
   many words ("set it up", "start the tale"); nothing else to send. Never on your own.
 
 ${NO_OUTCOMES}
+
+${CARD_CONTRACT}
 
 When you offered threads before and they say yes or "add them", that is a request: each one is a
 thread.new.
