@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, STRING_SLOTS, TO_OVER_TIME, foldLine, keysTakenBy, oneKeyword, plain, slotsFor, tidyGenre, wrapperNames } from './slots.ts';
 import { factsLost } from './context.ts';
 import { isRemote } from './llama.ts';
+import { placeholders } from './outside.ts';
 
 // ponytail: SQLite, not Postgres. PLAN-02 §3 locked Postgres for pgvector (unscheduled) and RLS
 // (needs a second tenant); neither is live, and Docker was not running. The schema is the target
@@ -4726,6 +4727,12 @@ export const proposalTarget = (p: any): string =>
   : 'body';
 
 export function addProposal(storyId: string, p: any) {
+  // #143 · TEMPLATE TEXT IS NEVER A CARD, whoever chalked it: the prompts show a shape in angle
+  // brackets ("<what they are>; <age>"), and a hem of ENCORE copied it out for every thread at once,
+  // "<a man>; <middle-aged>; <a scar above his eyebrow>" filed as Seth (5 of 13 accepted). The model
+  // was filling a form there, not reading the scene, so the whole card is refused, not unbracketed.
+  const rooms = Object.values(p.rooms ?? {}).map((r: any) => String(r?.body ?? r ?? ''));
+  if ([p.title, p.body, ...rooms].some((t) => placeholders(String(t ?? '')).length)) return false;
   // A NEW THREAD STARTS WITH ONE GOOD KEYWORD (`oneKeyword`), whoever chalked it.
   if (p.kind === 'new' && ['character', 'place', 'lore', 'item'].includes(String(p.entryType ?? p.entry_type ?? 'lore')))
     p = { ...p, keys: oneKeyword(p.title, p.keys, keyTaken(storyId), String(p.entryType ?? p.entry_type ?? 'lore')) };

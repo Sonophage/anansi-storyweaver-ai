@@ -1700,6 +1700,31 @@ ok('the brief names who starts the scene; every other always-on thread is mentio
 }
 ok('what the next scene needs: new threads, and pockets for who is in it at the start');
 
+// #143 · AND OUTSIDE ONLY THERE TOO: the played character at the start of the next scene gets no
+// interiority pocket from it, and the inside is cut from any other pocket.
+{
+  const t = db.createStory(me, { title: 'Needs, played', premise: 'A tour ends.', persona: 'Halsey' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const halsey = db.upsertEntry(t.id, me, { title: 'Halsey', body: '[Halsey: a person]', entryType: 'character', keys: ['Halsey'], activation: 'always_on' })!;
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The last song ended.' });
+  tidied = { ...NEXT };
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false, ask: true }));
+  await hemSettled(t.id);
+  needsFound = [{ title: 'Halsey', type: 'character', body: '', keys: [], activation: 'triggered', field: 'outfit', stands: '', pockets: [
+    { slot: 'outfit', name: 'After the show', body: 'the black dress from the show; barefoot' },
+    { slot: 'interiority', name: 'The ask', body: 'wants him on the bus and will not say it' },
+    { slot: 'relationships', name: 'Him', body: 'Rides beside him on the bus; she hopes he stays.' }] }];
+  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', asked: true, brief: 'Later on the rooftop, just Halsey.' }));
+  await hemSettled(t.id);
+  const here = (db.proposalsOf(t.id) as any[]).filter((p) => p.chapter_id === r.opened && p.entry_id === halsey);
+  const of = (field: string) => here.find((p) => p.field === field)?.body ?? null;
+  assert.match(String(of('outfit')), /black dress/, `NEEDS-OUTSIDE: her outfit still lands (${here.map((p) => p.field)})`);
+  assert.strictEqual(of('interiority'), null, 'NEEDS-OUTSIDE-INNER: no interiority pocket for the played character');
+  assert.strictEqual(of('relationships'), 'Rides beside him on the bus.', `NEEDS-OUTSIDE-CUT: the inside is cut from her other pockets (${of('relationships')})`);
+  tidied = {}; needsFound = [];
+}
+ok('the next scene\'s pockets keep the played character outside');
+
 // ---- PAUSED UNTIL THE WRITER SAYS HOW THE NEXT SCENE STARTS (Seth, 2026-10-30) ----
 // A close that asks holds where the tale stands, the people and the next scene. What is held is kept
 // on the hem's row, so the screens can say so after a reload: asked while it is held, paused on the
@@ -2092,6 +2117,75 @@ for (const lockoutOn of [true, false]) {
   assert.ok(has('Ilse', 'interiority'), '  and anyone else gets theirs');
 }
 ok('no interiority pocket for the played or Hands off character');
+
+// #143 · OUTSIDE ONLY, IN EVERY ROOM. The floor above held the interiority pocket, and the model wrote
+// the same inside into where he stands, his relationships and his voice instead (ENCORE, 19 accepted
+// across nine scenes). The sentence that states his inside is cut and the rest of the card stays
+// (Seth, 2026-11-05); a card left with nothing is not chalked. Anyone else keeps theirs.
+for (const lockoutOn of [true, false]) {
+  const t = db.createStory(me, { title: 'Outside, every room', premise: 'p', persona: 'Seth', lockedCharacter: 'Halloran', lockoutOn }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const id: Record<string, string> = {};
+  for (const title of ['Seth', 'Halloran', 'Ilse'])
+    id[title] = db.upsertEntry(t.id, me, { title, body: `[${title}: on the quay]`, entryType: 'character', keys: [title] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'Seth pushed Halloran off the quay, and Ilse pulled him out.' });
+  const card = (name: string) => ({ name, label: 'the quay', line: '', always: '',
+    stands: `${name} climbs back up the ladder, soaked to the waist. He feels a hot shame he cannot shake.`,
+    pockets: [{ slot: 'relationships', name: 'The quay', body: `The one who went in after him; ${name} wants to thank her and cannot.` },
+              { slot: 'voice', name: 'Low', body: `Speaks low and fast, his words carrying a weight of anticipation and nervousness.` }] });
+  answer = ['Seth', 'Halloran', 'Ilse'].map(card);
+  await routes['POST /api/remember'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  answer = [];
+  const of = (who: string, pick: (p: any) => boolean) => (db.proposalsOf(t.id) as any[]).find((p) => p.entry_id === id[who] && pick(p));
+  const stands = (who: string) => of(who, (p) => p.kind === 'memory')?.body ?? null;
+  const room = (who: string, slot: string) => of(who, (p) => p.field === slot)?.body ?? null;
+  for (const who of lockoutOn ? ['Seth', 'Halloran'] : ['Seth']) {
+    assert.match(String(stands(who)), /climbs back up the ladder/, `CHALK-OUTSIDE-STANDS: ${who}'s where he stands keeps what he does (${stands(who)})`);
+    assert.doesNotMatch(String(stands(who)), /shame/, `CHALK-OUTSIDE-STANDS-CUT: and loses what he feels`);
+    assert.match(String(room(who, 'relationships')), /went in after him/, `CHALK-OUTSIDE-ROOM: ${who}'s relationships keep the outward clause (${room(who, 'relationships')})`);
+    assert.doesNotMatch(String(room(who, 'relationships')), /wants to thank/, `CHALK-OUTSIDE-ROOM-CUT: and lose the want`);
+    assert.strictEqual(room(who, 'voice'), null, `CHALK-OUTSIDE-EMPTY: a voice pocket that was only his inside is not chalked (${room(who, 'voice')})`);
+  }
+  // Anyone else, and the Hands off character with the switch off, keeps all of it.
+  for (const who of lockoutOn ? ['Ilse'] : ['Halloran', 'Ilse']) {
+    assert.match(String(stands(who)), /hot shame/, `CHALK-OUTSIDE-OTHERS: ${who} keeps the inside (${stands(who)})`);
+    assert.match(String(room(who, 'voice')), /anticipation/, '  in every room');
+  }
+}
+ok('outside only holds in where he stands, relationships and voice: the inside is cut, the rest stays');
+
+// #143 · THE NEW-THREADS PASS, ON THE FAILURES THE AUDIT FOUND (ENCORE and The Lands Between):
+// it rewrote who an existing thread is every scene (Seth "30s", "28", "20s", "mid-twenties"), it
+// copied the prompt's "<a man>; <middle-aged>" shape into cards, it chalked the played character's
+// inside as a conflict, and `classify` matched the place "Mohgwyn Palace" to the character Mohg.
+{
+  const t = db.createStory(me, { title: 'New threads, cleanly', premise: 'p', persona: 'Seth' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const seth = db.upsertEntry(t.id, me, { title: 'Seth', body: 'bookshop owner; 28', entryType: 'character', keys: ['Seth'] })!;
+  db.upsertEntry(t.id, me, { title: 'Mohg', body: 'the Lord of Blood', entryType: 'character', keys: ['Mohg'] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Seth carried the box to Mohgwyn Palace, where Mohg waited, and the concierge with the scar let him in.' });
+  found = [
+    { title: 'Seth', body: 'bookshop owner; mid-twenties; quiet, honest', type: 'character', keys: ['Seth'] },
+    { title: 'Seth', body: 'feeling the suffocating tension of the tour', type: 'character', keys: ['Seth'], field: 'interiority' },
+    { title: 'Seth', body: 'Calls Halsey by her real name; he wants her to stay.', type: 'character', keys: ['Seth'], field: 'relationships' },
+    { title: 'Mohgwyn Palace', body: 'A palace of blood under the earth.', type: 'place', keys: ['Mohgwyn'] },
+    { title: 'The Concierge', body: '<a man>; <middle-aged>; <a scar above his eyebrow>', type: 'character', keys: ['concierge'] },
+  ];
+  await routes['POST /api/extract'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  found = [];
+  const all = db.proposalsOf(t.id) as any[];
+  const onSeth = all.filter((p) => p.entry_id === seth);
+  assert.ok(!onSeth.some((p) => /mid-twenties/.test(p.body)), `NEW-NO-REWRITE: who an existing thread is, is not rewritten (${JSON.stringify(onSeth.map((p) => [p.field, p.body]))})`);
+  assert.ok(!onSeth.some((p) => p.field === 'interiority'), 'NEW-OUTSIDE-INNER: no interiority for the played character');
+  const rel = onSeth.find((p) => p.field === 'relationships');
+  assert.match(String(rel?.body), /real name/, `NEW-OUTSIDE-ROOM: his relationships keep the outward clause (${rel?.body})`);
+  assert.doesNotMatch(String(rel?.body), /wants her/, '  and lose the want');
+  const palace = all.find((p) => p.title === 'Mohgwyn Palace');
+  assert.strictEqual(palace?.kind, 'new', `NEW-WORDS-NOT-LETTERS: "Mohgwyn Palace" is a new place, not Mohg (${palace?.kind}, ${palace?.entry_id})`);
+  assert.ok(!all.some((p) => /<a man>|<middle-aged>/.test(`${p.body} ${p.rooms ?? ''}`)), 'NEW-NO-PLACEHOLDER: template text is never chalked');
+}
+ok('the new-threads pass keeps who a thread is, keeps the played character outside, matches whole words, and refuses template text');
 
 
 // A WORLD PERSON IN THE TALE. A person the tale follows from its World is considered too, and its
@@ -2488,6 +2582,14 @@ for (const [label, again] of [['hem again', {}], ['try again', { pass: 'next' }]
   const rt: any = await press(tale);
   assert.strictEqual(rt.added, 1, `RESTAND-TALE: the tale's own thread is rewritten too (${JSON.stringify(rt.error ?? rt.added)})`);
   assert.ok((db.proposalsOf(t.id) as any[]).some((p) => p.grp === `restand:${tale}` && /left the ferry/.test(p.body)), '  as a card of its own');
+  // #143 · OUTSIDE ONLY HERE TOO: played, her inside is cut and what she does stays.
+  db.updateStory(t.id, { persona: 'Ilse' });
+  restated = 'Ilse is in the reeds past the far bank, alone. She wants to be found by no one.';
+  await press(ilse);
+  const played = (db.proposalsOf(t.id) as any[]).filter((p) => p.grp === `restand:${ilse}`).map((p) => p.body);
+  assert.deepStrictEqual(played, ['Ilse is in the reeds past the far bank, alone. Last seen in Scene 1.'],
+    `RESTAND-OUTSIDE: the played character's inside is cut, the rest kept (${JSON.stringify(played)})`);
+  db.updateStory(t.id, { persona: '' });
   taleSays = ''; restated = '';
   ok('Rewrite where it stands chalks one card from the last scene, in shape, for a thread and for the tale');
 }

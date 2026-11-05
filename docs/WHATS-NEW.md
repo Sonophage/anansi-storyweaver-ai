@@ -16,6 +16,26 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-11-05 · Hemming leaves your character to you
+
+### The hem stays out of your character's head
+When a scene is hemmed, Anansi no longer writes what the character you play is feeling, wanting or
+thinking. That covers where they stand, their relationships and their voice, and the same goes for
+the Hands off character while Hands off is on. What they did and where they are is still offered, and
+everyone else's feelings still are. Rewrite where it stands follows the same rule.
+
+### No more rewriting who someone is every scene
+A hem no longer offers a new description of who an existing person or place is after every scene
+(Seth was in his 30s, then 28, then 20s). Who they are is offered once, while it is still empty.
+Changes after that come as pockets and as where they stand.
+
+### No more cards full of blanks
+A card that comes back as a fill-in form, such as "<a man>; <middle-aged>", is no longer offered.
+
+### A place is not mistaken for a person with a similar name
+A new place called Mohgwyn Palace is now offered as a new place. Before, it was offered as a change
+to Mohg.
+
 ## 2026-11-04 · Talk fills in the card you ask for
 
 ### Fewer half-done answers from Talk

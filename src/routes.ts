@@ -23,6 +23,7 @@ import { presets } from './presets.ts';
 import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, offerWords, draftCard, startAsked, startNow, draftAsked, DRAFT_STRINGS, aimOf, askWhich, fingerprint, talesOwn, shortModel } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
+import { innerCut } from './outside.ts';
 import { writeFileSync } from 'node:fs';
 import type { Slot } from './story.ts';
 
@@ -1915,6 +1916,16 @@ const outsideOf = (story: any): string[] => [story.persona, story.lockoutOn ? st
   .map((x) => String(x ?? '').trim()).filter((x, i, all) => x
     && all.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
 
+/** #143 · WHAT THE HEM MAY CHALK ONTO A THREAD, OUTSIDE ONLY. For the played and Hands off characters
+ *  (`outsideOf`): no interiority room at all, and in every other room the sentences that state their
+ *  inside are cut (`innerCut`); everyone else's text comes back as it was. ONE PLACE for every hem path
+ *  that writes onto a thread: the people pass, the new-threads pass, the next scene's pockets and
+ *  Rewrite where it stands. The prompt asks for this; the code holds it. Empty means chalk nothing. */
+function hemOutside(story: any, title: string, field: string | null, text: string): string {
+  if (!outsideOf(story).some((o) => o.toLowerCase() === String(title ?? '').trim().toLowerCase())) return text;
+  return field === 'interiority' ? '' : innerCut(text, title).kept;
+}
+
 /** THE THREADS A BRIEF NAMES, BY THEIR OWN NAMES: ids, the tale's own threads only, none retired.
  *  The hem brings them into the next scene and names them to the people pass.
  *  NOT BY WAKE WORD (Seth, 2026-11-01): a wake word is often another thread's name or a common word.
@@ -2024,9 +2035,12 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     const said = resolveBody(who, ch.index);
     // #114 · Plain, as it will be stored, so "Ilse: poles the ferry" is the same as what she has.
     // CLOTHES GO TO AN OUTFIT POCKET, on a kind that has one and when the model gave none of its own.
-    const kinds = slotsFor(who.entryType).map((sl) => sl.name)
-      .filter((k) => !(k === 'interiority' && outside.some((o) => norm(o) === norm(who.title))));
-    const fit = standsFit(m.stands, text), { worn } = clothesOut(fit);
+    const isOut = outside.some((o) => norm(o) === norm(who.title));
+    const kinds = slotsFor(who.entryType).map((sl) => sl.name).filter((k) => !(k === 'interiority' && isOut));
+    // #143 · AND NO INSIDE IN ANY OTHER ROOM: the model wrote the inside the interiority floor held out
+    // into where he stands, his relationships and his voice instead. The sentence goes, the rest stays.
+    const outer = (t: string) => hemOutside(v.story, who.title, null, t);
+    const fit = outer(standsFit(m.stands, text)), { worn } = clothesOut(fit);
     const pockets = (Array.isArray(m.pockets) ? m.pockets : []) as any[];
     if (worn && kinds.includes('outfit') && !pockets.some((pk) => pk?.slot === 'outfit'))
       pockets.push({ slot: 'outfit', name: `As in scene ${ch.index}`, body: worn });
@@ -2053,7 +2067,7 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     // never the inside of a character hemmed from the outside (#90): the prompt says so, this holds it.
     for (const pk of pockets) {
       const field = String(pk?.slot ?? '');
-      let body = String(pk?.body ?? '').trim();
+      let body = outer(String(pk?.body ?? '').trim());
       if (field === 'facts' || !kinds.includes(field) || !body || /^none[.\s]*$/i.test(body)) continue;
       // #90 · A POCKET THE THREAD ALREADY HAS IS NOT NEWS. Asked of the pocket as the model wrote it:
       // `withoutEcho` below cuts the repeated clause and leaves a stub ("Write her lines short;")
@@ -2069,7 +2083,7 @@ async function remember(c: Ctx, storyId: string, chapterId: string, scene?: stri
     }
     // ALWAYS TRUE, ONCE, WHILE IT IS EMPTY (#73): the one time Anansi may write it on a thread that
     // exists. The accept route sews it in as Always true only while it is still empty.
-    const always = String(m.always ?? '').trim();
+    const always = outer(String(m.always ?? '').trim());
     if (always && !alwaysTrue(who) && !/^none[.\s]*$/i.test(always)
       && db.addProposal(storyId, { kind: 'changed', entry_id: who.id, chapterId: ch.id, title: who.title,
         body: always, entryType: who.entryType, field: 'facts', keys: [], grp, line,
@@ -2193,7 +2207,9 @@ async function restand(c: Ctx, storyId: string, entryId: string) {
   db.logGeneration({ storyId, chapterId: seen?.id ?? null, model: using, role: 'restand', params: { max_tokens: 400 },
     latencyMs: Date.now() - t0, error: r.error ?? null });
   if (r.error) return { error: r.error };
-  const fit = standsFit(trimToSentence(clean(String(r.prose ?? ''))), [...narr.values()].join('\n\n'));
+  const said = standsFit(trimToSentence(clean(String(r.prose ?? ''))), [...narr.values()].join('\n\n'));
+  // #143 · OUTSIDE ONLY: the prompt says so, and this holds it, as the hem's people pass does.
+  const fit = hemOutside(v.story, e.title, null, said);
   const kinds = slotsFor(e.entryType).map((sl) => sl.name);
   const { stands, worn } = clothesOut(fit);
   const dress = !!worn && kinds.includes('outfit');
@@ -2601,7 +2617,9 @@ async function needsFor(c: Ctx, storyId: string, closing: string, opened: string
         if (!a.body || !NEEDS_POCKETS.includes(a.field)) continue;
         const { field, target, said } = roomAsked(v.entries as any[], cls, { ...e, field: a.field, body: a.body });
         if (said || !field) continue;
-        if (db.addProposal(v.id, { ...cls, chapterId: opened, title: e.title.trim(), body: a.body,
+        const body = hemOutside(v.story, String(v.entries.find((x: any) => x.id === cls.entry_id)?.title ?? e.title), field, a.body);
+        if (!body) continue;
+        if (db.addProposal(v.id, { ...cls, chapterId: opened, title: e.title.trim(), body,
           entryType: e.type, keys: e.keys ?? [], activation: e.activation, field, target })) pockets++;
       }
       continue;
@@ -2655,6 +2673,17 @@ async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string
     // PLAN-08 Phase 4. WHICH ROOM, if the model named one and it is a room this card can have.
     const { field, target, said } = roomAsked(v.entries as any[], cls, e);
     if (said) continue;
+    // #143 · A THREAD THAT EXISTS GETS POCKETS FROM THIS PASS, NEVER A NEW ACCOUNT OF WHO IT IS. With no
+    // room named, the answer rewrote the thread's own text: ENCORE's hems re-described Seth every scene
+    // ("30s", "28", "20s", "mid-twenties") and Halsey as once a 40s professional, 25 of 41 accepted. Who
+    // a thread is changes through Always true, written once while empty (#73), and where it stands.
+    let body = String(e.body).trim();
+    if (cls.entry_id) {
+      const was = existing.find((x: any) => x.id === cls.entry_id);
+      if (!field || (field === 'facts' && alwaysTrue(was))) continue;
+      body = hemOutside(v.story, String(was?.title ?? e.title), field, body);
+      if (!body) continue;
+    }
     // #73. A NEW THREAD'S TEXT IS WHO OR WHAT IT IS, so it is chalked as its Always true (`facts`
     // on a proposal with no thread yet); the accept route writes it there and leaves Info empty.
     // FULLY FLESHED: a new thread's pockets ride with it as its rooms, one per slot of its own kind,
@@ -2674,7 +2703,7 @@ async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string
     const stands = dress ? clothesOut(fit).stands : fit;
     if (stands) rooms.stands = { body: stands };
     const one = { ...cls, chapterId: ch.id, title: e.title.trim(),
-      body: e.body.trim(), entryType: e.type, keys: e.keys ?? [],
+      body, entryType: e.type, keys: e.keys ?? [],
       activation: e.activation, field: cls.entry_id ? field : 'facts', target,
       rooms: Object.keys(rooms).length ? rooms : undefined, grp };
     if (capped && !cls.entry_id && ++fresh > HEM_NEW_CAP) { held.push(one); continue; }
@@ -2895,7 +2924,10 @@ export function classify(existing: any[], p: any) {
   const hit = !pn ? undefined : existing.find((e) => {
     const en = norm(e.title);
     if (!en) return false;
-    if (en === pn || en.includes(pn) || pn.includes(en)) return true;
+    // CONTAINMENT BY WHOLE WORDS, not letters (#143): "Marek Vale" holds "Marek", and "Mohgwyn Palace"
+    // does not hold "Mohg" — by letters it did, and a palace was chalked onto the man as who he is.
+    const within = (a: string, b: string) => ` ${a} `.includes(` ${b} `);
+    if (en === pn || within(en, pn) || within(pn, en)) return true;
     const ew = new Set(words(e.title));
     return words(p.title).some((w) => ew.has(w));
   });
