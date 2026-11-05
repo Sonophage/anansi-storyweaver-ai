@@ -69,4 +69,13 @@ assert.ok(doors.length >= 4, `CARD-LENGTH: the lengths are one table (${doors.jo
 for (const d of doors) assert.match(String(p.CARD_LENGTH[d]), /\d|twenty|forty|sixty|hundred/i, `  ${d} gives a number`);
 ok(`card lengths come from one table, by door (${doors.join(', ')})`);
 
+// F72 · WHERE IT STANDS SAYS WHAT WAS ASKED, A RELATIONSHIP NAMES ITS PERSON, THE TALE'S CARD IS THE STORY.
+// Seth's read of three arms (B 3, A 2, contract C 0): the rules sit where each card is written, not in the
+// contract, which lost every scene.
+assert.match(String(p.STANDS_FORM), /what was asked, offered or decided in plain words/i, 'STANDS-SAY-IT: where it stands says what was asked');
+assert.match(String(p.POCKET_FORM), /relationships[\s\S]*person named in the sentence/i, 'REL-NAMED: a relationships pocket names the person');
+assert.match(String(p.TALE_STANDS), /not the\s+place/i, 'TALE-STORY: the tale\'s card keeps to the people');
+assert.doesNotMatch(String(p.CARD_CONTRACT), /ultimatum|names both people/i, 'F72-NOT-CONTRACT: the contract placement measured last and is not used');
+ok('where it stands says what was asked, relationships names the person, the tale card is the story (F72)');
+
 console.log(`\n${n} checks passed`);

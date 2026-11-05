@@ -184,7 +184,8 @@ end of the scene; for a person, how they feel now and what they want, as it will
 next scene (for a person under OUTSIDE ONLY, only what others can see of it); how it stands with the
 others in the story (who it is with or against, who holds it, what it wants from them or means to
 them); and the scene it was last seen in, as "Last seen in <the scene named under THIS SCENE>."
-Never the last moment of the scene told again, never a sentence copied from the narration, and never
+Say what was asked, offered or decided in plain words, never only a name for it ("the ultimatum",
+"his question"). Never the last moment of the scene told again, never a sentence copied from the narration, and never
 clothes: clothes the scene shows that the thread does not have yet go in an outfit pocket.`;
 
 /** REWRITE WHERE ONE THREAD STANDS NOW, the writer's press on a thread (Seth, 2026-10-31: "make it a
@@ -231,7 +232,8 @@ instruction for whoever writes the scene, so never write it as an instruction: n
                    <the one detail of it that shows>."
     interiority    what they will not say out loud, and what they do instead of saying it.
                    Shape: "<what they feel>, and <what they do> instead of saying so."
-    relationships  how they are around that one person, and what stands between them.
+    relationships  how they are around that one person, and what stands between them, with that
+                   person named in the sentence: who does what to whom.
     appearance     the one or two things another character notices first.
     atmosphere, who_is_here, what_it_does
                    what this place or object is like when it is in a scene.
@@ -392,7 +394,8 @@ its narration.
 
 Write where the story stands now, after this scene: ONE paragraph, a plain description in the
 present tense. The situation now and what is in play: who is where, what each of them wants now,
-what is in their way now, and what is still open. The WHOLE of it, not only what changed:
+what is in their way now, and what is still open. The people and what is between them, not the
+place: leave out the room, the view and the weather unless the story turns on them. The WHOLE of it, not only what changed:
 everything in "where it stood" that is still true, with this scene folded in. It replaces that
 text from the next scene on, so anything you leave out is lost from then on.
 

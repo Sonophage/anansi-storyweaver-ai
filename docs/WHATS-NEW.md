@@ -24,6 +24,11 @@ thinking. That covers where they stand, their relationships and their voice, and
 the Hands off character while Hands off is on. What they did and where they are is still offered, and
 everyone else's feelings still are. Rewrite where it stands follows the same rule.
 
+### Where someone stands says what happened
+After a hem, where someone stands now says what was asked, offered or decided in plain words, not
+just a name for it like "the ultimatum". A relationships pocket names the person it is about. Where
+the tale stands keeps to the people and what is between them, not the room or the view.
+
 ### A new card says each thing once
 When Anansi offers you a new person, place or thing, the card no longer says the same thing in
 its main text and again in a pocket. The pocket keeps it. If a later pocket repeats an earlier one,

@@ -3560,3 +3560,43 @@ add to these (F55).
 **Harness.** `bench/cards-ab.ts run <A-checkout> <B-checkout> <C-checkout>`, then `sheet`; the key is
 written beside the sheet, not in it.
 
+
+## F72 — where it stands says what was asked, relationships names its person, the tale's card keeps to the story: kept 3 to 2 over the prompts as they were, read blind on Ornith (no better than chance, shipped on the writer's call); the same rules in the card contract lost every scene (2026-11-05)
+
+**The question.** #143: Seth's read of five Ornith hems marked four cards only a prompt could fix.
+Where it stands named "the unspoken ultimatum" for Halsey and for Seth and never said what it was;
+the tale's where it stands spent half itself on the city, the window and the silence; a relationships
+pocket said "they tease him back" and named nobody. Does a rule for each help, and where does it go?
+
+**The run.** `bench/hem-ab.ts run`, Ornith-1.0-RPNTH-35B, three arms at once, each a scratch server
+(5301–5303) on its own copy of the library, all on main's prompts plus the twice check (056c048): A the
+prompts as they were; B a sentence in STANDS_FORM (say what was asked, offered or decided in plain
+words, never only a name for it), a clause in POCKET_FORM's relationships (the person named in the
+sentence: who does what to whom), a sentence in TALE_STANDS (the people and what is between them, not
+the place); C the first two as lines of CARD_CONTRACT and the same TALE_STANDS sentence. Each arm ran
+the whole hem (the hem screen's two presses) on the open scene of ENCORE, The Shadow's Debt, The Tin
+Orchard, The Lands Between and The Shadow Lands. 15 of 15 hems clean: every pass run, no call error,
+only Ornith.
+
+**The read.** One sheet, only where-it-stands and relationships cards, each tale's arms under letters
+shuffled per tale, read by Seth before anyone looked at the key.
+
+| | A (as they were) | B (where each card is written) | C (in the contract) |
+|---|---|---|---|
+| scenes kept | 2 | 3 | 0 |
+| cards read | 33 | 33 | 33 |
+| of them where it stands / relationships | 30 / 3 | 29 / 4 | 28 / 5 |
+| words per card (mean) | 57 | 61 | 56 |
+| cards with "ultimatum" | 1 | 2 | 0 |
+
+**What this settles, for these 5 reads and no more.** B over A, 3 to 2, is no better than chance
+(one-sided sign test, p = 0.5). By the rule this file keeps (F20, F37, F71's two rules), a flat clause
+is deleted; Seth chose to ship B on the lean, as F71's contract shipped on one. C, the same rules in the
+contract, was kept in no scene: of three arms, a run of none has about a 13% chance under no difference,
+so that too is a lean. The "ultimatum" count does not separate the arms: B's Seth card said what it
+was ("that she must make the choice herself") and was not kept in that scene.
+
+**Open.** Five reads by one reader. A second run is a new run (F55).
+
+**Harness.** `bench/hem-ab.ts run <A-checkout> <B-checkout> <C-checkout>`, then `sheet`; the key is
+written beside the sheet, not in it. Its `check` mode (in test/all.ts) tests the card filter.
