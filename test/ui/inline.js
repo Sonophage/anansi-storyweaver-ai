@@ -16,6 +16,10 @@ const until = async (expr, n = 60, ms = 100) => {
 
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find((s) => s.title === 'The Silver Key').id)()");
 const models = () => page.eval(`(async () => (await (await fetch('/api/story?story=${sid}')).json()).passages.filter((p) => p.author === 'model').length)()`);
+/** Until a passage started by a press has been written and has landed: seen to start before it is
+ *  waited out, because right after the press there is no ghost yet, and "no ghost" read as landed while
+ *  the passage was still on its way (and the next send then pressed its Stop). */
+const landed = async () => { await until("!!document.getElementById('ghost')", 60); return until("!document.getElementById('ghost')", 120); };
 const send = async (text) => {
   await page.eval(`(() => { const i = document.getElementById('input'); i.value = ${JSON.stringify(text)};
     i.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
@@ -75,7 +79,7 @@ await page.eval(`(() => { const read = document.getElementById('read');
     .observe(document.getElementById('col'), { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   return 1; })()`);
 await send("He looks back once.");
-await until("!document.getElementById('ghost')", 120);
+await landed();
 await wait(300);
 const w = await page.eval("JSON.stringify(window.__w)").then(JSON.parse);
 console.log("  arrival: " + JSON.stringify(w));
@@ -107,7 +111,7 @@ await page.eval(`(() => { const read = document.getElementById('read');
     .observe(document.getElementById('col'), { subtree: true, childList: true });
   return 1; })()`);
 await send("She does not turn round.");
-await until("!document.getElementById('ghost')", 120);
+await landed();
 await wait(400);
 const up = await page.eval("JSON.stringify({ up: window.__up, now: Math.round(document.getElementById('read').scrollTop) })").then(JSON.parse);
 ok(`  a reader scrolled up while she wrote is left where they were when it lands (${up.up} -> ${up.now})`,

@@ -22,6 +22,8 @@ const MODELS = [
 /** How long a weaving call plans before its first word. F60 measured a median 60 s; a scenario
  *  needs only enough to see two counts and press Stop. */
 const WEAVE_MS = 4500;
+/** How long a passage takes between its first words and the rest: long enough to see it being written. */
+const PROSE_MS = 1200;
 
 const srv = createServer((req, res) => {
   let raw = '';
@@ -70,10 +72,18 @@ const srv = createServer((req, res) => {
     if (!body.stream) return json({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 10, completion_tokens: 1 } });
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    const prose = () => {
-      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'The fake router wrote this.' },
-        finish_reason: 'stop' }] })}\n\n`);
-      res.end('data: [DONE]\n\n');
+    // IN TWO PIECES, A MOMENT APART (#159), when it is not woven: sent whole, the passage was written
+    // and done before a scenario could look, so "while he writes, ✦ is Stop" (bar.js STOP-FOLDED) saw
+    // the landing and went red, and STOP-STOPS pressed a Stop with nothing left to stop. A stopped call
+    // closes the socket, and the second piece is never sent. After a woven plan it comes whole, as the
+    // weaving scenarios were written against.
+    const prose = (pause = PROSE_MS) => {
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'The fake router ' } }] })}\n\n`);
+      const rest = setTimeout(() => {
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'wrote this.' }, finish_reason: 'stop' }] })}\n\n`);
+        res.end('data: [DONE]\n\n');
+      }, pause);
+      res.on('close', () => clearTimeout(rest));
     };
     // #55. A WEAVING CALL PLANS FIRST, so this one does: a plan in pieces for WEAVE_MS, the way the
     // real router streams one, then the prose. Long enough for a scenario to watch the count run and
@@ -81,7 +91,7 @@ const srv = createServer((req, res) => {
     if (body.chat_template_kwargs?.enable_thinking !== true) return prose();
     const started = Date.now();
     const plan = setInterval(() => {
-      if (Date.now() - started >= WEAVE_MS) { clearInterval(plan); return prose(); }
+      if (Date.now() - started >= WEAVE_MS) { clearInterval(plan); return prose(0); }
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: 'The plan, unseen. ' } }] })}\n\n`);
     }, 250);
     res.on('close', () => clearInterval(plan));
