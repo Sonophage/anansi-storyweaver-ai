@@ -3463,3 +3463,39 @@ control's runs (42%).
 **Open.** When the directive is left empty, the move is in the reply only, and once (of 26) it came
 as an offered character thread named for the move ("Morgott and Talia's Escape"). A way to raise the
 rate that is not a clause (the schema's field order, or a second small call) is untested.
+
+## F70 — the whole new Talk replayed twice on Ornith: advice, a pocket fill, a model switch and its Undo, and a hem do what their cards say; a rename, a lore removal and a setup "set it up" fail on the model's side, and one passage card claims a rewrite that changed nothing (2026-11-04)
+
+**The question.** Spec #150's last ticket (#159): walk every Talk operation on the test bench model and
+check each answer's cards, offers and reply against the rows that changed.
+
+**The run.** `bench/talk-replay.ts run`, Ornith-1.0-RPNTH-35B, scratch copies of
+`backups/pre-158-2026-11-04.db` on 5301, the tale "The Murmur in the Marrow" pinned to Ornith and
+checked. Ten steps, run twice on two fresh copies. Run 1 used an earlier detector (no "asked for"
+check, and a hem's break passage counted against it), so only run 2's mismatch count is the bench's.
+
+| step | run 1 | run 2 |
+|---|---|---|
+| advice ("What should happen next?") | 1 offer, no row | 1 offer, no row |
+| Seraphine's card | 1 pocket written | 2 pockets written |
+| rename ("Vel is called Vessa now") | not done: no new name sent | not done: four renames sent, none with a new name, aimed at pocket labels ("What is always true of Vel") |
+| passage 3 colder | rewritten | **card with no row**: the rewrite came back word for word, was saved as an edit and carded |
+| Choir of Saints out of the prose | nothing sent; reply "I will take it out" | sent, but no passage matched: the prose says "the Choir"; title and wake word ("Saints") do not match |
+| model switch to "Qwen3.6" | switched to a Featherless Huihui-Qwen3.6 model; card named it | switched to the local Qwen3.6 preset |
+| its Undo | put back | put back |
+| hem | started, scene closed and next opened | the same |
+| setup: add the tollkeeper and a promise | thread and promise as cards | nothing sent; reply only |
+| setup: "Set it up." | no tale.start sent; reply "Starting the tale. The draft is now live" | no tale.start sent; reply "Making the tale from the draft now" |
+
+**What this settles.**
+- No row changed without a card in either run, after the hem's own rows (closing scene, next scene,
+  the break passage) were counted as the hem's.
+- One claim with no row is the app's: a passage rewrite identical to the passage is saved and carded.
+- The rest are the model not sending what was asked, or sending it incomplete; the app said so where
+  the model sent something (not done, with the reason), and stayed silent where it sent nothing.
+
+**Open.** Whether the app should complete what it can decide itself: make the tale when the writer
+says "set it up" and the model sent nothing; take a rename's new name from the writer's words; match a
+removal by a thread's first word ("Choir"). Two runs of ten steps are not rates.
+
+**Harness.** `bench/talk-replay.ts run <scratch.db> 5301 <out.jsonl>`, then `report <out.jsonl>`.
