@@ -20,7 +20,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
-import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, draftCard, startAsked, draftAsked, DRAFT_STRINGS, aimOf, askWhich, fingerprint, talesOwn, shortModel } from './changes.ts';
+import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, offerWords, draftCard, startAsked, draftAsked, DRAFT_STRINGS, aimOf, askWhich, fingerprint, talesOwn, shortModel } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { writeFileSync } from 'node:fs';
@@ -4009,9 +4009,11 @@ export const routes: Record<string, Handler> = {
    *  WRITES ONE ROW, THE TALK ITSELF (2026-10-30: kept so the writer can revisit it, `db.talkSay`).
    *  Nothing of the tale: no tale, no thread, no proposal, not even the generation log a tale's Talk
    *  keeps, because that log is per tale and there is none. The draft is the page's (`S.spark`)
-   *  until Start, so each change the writer asked for is checked here against the draft the page
-   *  sent (`checkDraft`) and handed back for the page to apply, with what it said before so the
-   *  page can hold the Undo. Discard leaves no draft behind; the talk stays in the writer's list.
+   *  until Start, so each change is checked here against the draft the page sent (`checkDraft`) and
+   *  handed back: one the writer asked for in `changes`, for the page to apply, with what it said
+   *  before so the page can hold the Undo; one they did not name in `held` (#158), offered with Add.
+   *  "Set it up" alone makes the tale, by Start (`started`). Discard leaves no draft behind; the
+   *  talk stays in the writer's list.
    *
    *  THE STEP COMES FIRST in what he reads, then the draft: the ticket's "advice is about the step
    *  named". The step arrives as the page's own words for it (its STEPS list), so there is one list
@@ -4081,8 +4083,8 @@ export const routes: Record<string, Handler> = {
     if (!r.data) return { error: r.error ?? 'Anansi returned nothing usable', raw: r.raw };
 
     // Each change checked against the draft as the ones before it left it, so "add the ferryman and
-    // give him a voice" can land in one answer, as in a tale. Applied only to this copy; the page
-    // applies the same changes to its own.
+    // give him a voice" can land in one answer, as in a tale. An asked one is applied only to this
+    // copy, and the page applies the same changes to its own; an unasked one is held, unapplied.
     const changes: { words: string; change: any; card: Card }[] = [];
     const notDone: { said: string; why: string }[] = [];
     let start = false;
@@ -4097,7 +4099,13 @@ export const routes: Record<string, Handler> = {
       const ch: any = k.change;
       // #158 · Made last, and only when asked.
       if (ch.op === 'tale.start') { start = true; continue; }
-      if (!draftAsked(raw, draft, said, before)) { held.push({ words: draftWords(k.change), change: ch, card: draftCard(k.change) }); continue; }
+      // #99 · the page a thread was made or changed from, for its notes: writer-only, never sent to
+      // a model, and never in its text. Before the hold, so an offered thread keeps them too.
+      const from = (Array.isArray(raw?.sources) ? raw.sources : []).map((n: any) => sources[Number(n) - 1]).filter(Boolean);
+      const notes = from.map(noteLine).join('\n');
+      if (notes && ch.op === 'thread.new') ch.thread.notes = notes;
+      else if (notes && ch.op === 'thread.set') ch.notes = notes;
+      if (!draftAsked(raw, draft, said, before)) { held.push({ words: offerWords(k.change), change: ch, card: draftCard(k.change) }); continue; }
       if (ch.op === 'tale.set') draft.story = { ...draft.story, [ch.key]: ch.text };
       else if (ch.op === 'string.set') draft.strings = ch.before == null ? [...draft.strings, { title: ch.title, line: ch.text, kind: ch.kind }]
         : draft.strings.map((x) => x.title !== ch.title ? x : { ...x, line: ch.text, kind: ch.kind });
@@ -4106,12 +4114,6 @@ export const routes: Record<string, Handler> = {
       else draft.entries = draft.entries.map((e: any) => String(e.title).trim() !== ch.title ? e
         : ch.room === 'facts' ? { ...e, body: ch.body }
         : { ...e, rooms: { ...(e.rooms ?? {}), [ch.room]: { ...(e.rooms?.[ch.room] ?? { name: ch.room, on: true }), body: ch.text } } });
-      // #99 · the page a thread was made or changed from, for its notes: writer-only, never sent to
-      // a model, and never in its text.
-      const from = (Array.isArray(raw?.sources) ? raw.sources : []).map((n: any) => sources[Number(n) - 1]).filter(Boolean);
-      const notes = from.map(noteLine).join('\n');
-      if (notes && ch.op === 'thread.new') ch.thread.notes = notes;
-      else if (notes && ch.op === 'thread.set') ch.notes = notes;
       changes.push({ words: draftWords(k.change), change: ch, card: draftCard(k.change) });
     }
     // #101 · NAMING AN IP HANDS OVER TO THE WORLD STEP. The page runs that step on the World field
@@ -4119,8 +4121,8 @@ export const routes: Record<string, Handler> = {
     // not make the IP's people its own way in the same answer: a thread it would have made is not
     // done, and says why, and nothing is offered. One the writer wants of their own, they ask again.
     const ip = changes.find((x) => x.change.op === 'tale.set' && x.change.key === 'world')?.change.text;
-    if (ip) for (const x of changes.filter((y) => y.change.op === 'thread.new')) {
-      changes.splice(changes.indexOf(x), 1);
+    if (ip) for (const list of [changes, held]) for (const x of list.filter((y) => y.change.op === 'thread.new')) {
+      list.splice(list.indexOf(x), 1);
       notDone.push({ said: `Make a new thread: ${x.change.thread.title}`,
         why: `the people and places of ${ip} come from its World, on The threads. Ask again for one of your own` });
     }
@@ -4141,11 +4143,14 @@ export const routes: Record<string, Handler> = {
     let started: { id: string; notes?: string[] } | null = null;
     if (start) {
       const why = !startAsked(said) ? 'you did not ask for the tale to be made'
-        : changes.length ? 'it came with changes to the draft. Look at their cards, then say "set it up" again'
+        : changes.length || held.length ? 'it came with changes to the draft. Look at their cards, then say "set it up" again'
         : ip ? `the World step runs first for ${ip}. Say "set it up" again once it has`
         : !c.body.start || typeof c.body.start !== 'object' ? 'the page sent nothing to make it from' : '';
       if (why) notDone.push({ said: 'Make the tale', why });
       else {
+        // ponytail: `start` is the draft as it was at Send, so a box the writer edits while he answers
+        // is not in the tale. Ceiling: an edit in that window is lost. Trigger: a writer loses one;
+        // then answer "set it up" with a go-ahead and let the page press its own Start instead.
         const made: any = await routes['POST /api/stories']({ ...c, body: c.body.start });
         if (made?.error) notDone.push({ said: 'Make the tale', why: String(made.error) });
         else {

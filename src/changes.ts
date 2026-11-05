@@ -1590,6 +1590,11 @@ export function draftWords(c: DraftChange): string {
   return `Changed ${c.title}'s ${roomLabel(c.room)}: “${clip(c.text)}”`;
 }
 
+/** #158 · What an offered draft change would do, said as an offer and not as done: "Change the
+ *  premise: …", not "Changed the premise: …". */
+export const offerWords = (c: DraftChange) => draftWords(c).replace(/^Changed /, 'Change ').replace(/^Added /, 'Add ')
+  .replace(/^Removed /, 'Remove ').replace(/^Set in /, 'Set it in ');
+
 /** #158 · THE CARD A DRAFT CHANGE IS DRAWN ON, as `cardOf` gives a tale's: one per thread, one for the
  *  tale's own fields, one per string, one for the tale made. */
 export function draftCard(c: DraftChange): Card {
@@ -1609,7 +1614,8 @@ export function draftCard(c: DraftChange): Card {
 export const startAsked = (said: string) => {
   const own = String(said ?? '').toLowerCase();
   return REQUEST(own) && (/\bset (it|this|the tale|the story|everything|it all) up\b|\bset up the (tale|story)\b|\bpress start\b/.test(own)
-    || /\b(start|make|create|begin) the (tale|story)\b(?!\s+(of|about|with|where|in|at|on|from)\b)/.test(own)
+    // Only when nothing follows but "now", "for me" or "please": "make the story darker" is an edit.
+    || /\b(start|make|create|begin) the (tale|story)( now| for me| please)*\s*([.!,]|$)/.test(own)
     || /\blet'?s (start|begin)( it| writing)?\s*[.!]*$/.test(own.trim()));
 };
 
@@ -1618,7 +1624,10 @@ export const startAsked = (said: string) => {
  *  threads; a thread taken out is asked as one changed is, by its name; the World by saying so or
  *  naming it; "fill in everything" asks for every box and thread (it is what Fill in the tale sends);
  *  and the tale made only by `startAsked`. */
-const FILL_ALL = /\bfill (in|out) (everything|it all|the tale|the story|the rest|what (it|the tale) needs)\b|\bevery empty box\b/;
+const FILL_ALL = /\bfill (in|out) (everything|it all|the tale|the story|the rest|what (it|the tale) needs)\b|\bfill it (in|out)\b|\bevery empty box\b/;
+/** The draft's own fields, asked as a writer setting one up says them, beside `TALE_ASK`'s words. */
+const DRAFT_ASK: Record<string, RegExp> = { title: /\b(call|name|title) (it|the (tale|story))\b/,
+  voice: /\b(first|second|third) person\b|\b(past|present) tense\b/ };
 export function draftAsked(raw: any, draft: Draft, said: string, before = ''): boolean {
   const op = String(raw?.op ?? '');
   const own = String(said ?? '').toLowerCase();
@@ -1628,7 +1637,9 @@ export function draftAsked(raw: any, draft: Draft, said: string, before = ''): b
   const tale = draftTale(draft);
   if (op === 'tale.set' && String(raw?.field ?? '').toLowerCase() === 'world')
     return /\b(world|set in|based on|takes place in)\b/.test(own) || mentions(own, String(raw?.text ?? ''));
-  if (op === 'thread.remove') return askedOf({ op: 'thread.set', thread: raw?.thread }, tale, said, before);
+  // "Don't remove Wenna" names her and asks for the opposite.
+  if (op === 'thread.remove') return REQUEST(own) && askedOf({ op: 'thread.set', thread: raw?.thread }, tale, said, before);
+  if (op === 'tale.set' && DRAFT_ASK[String(raw?.field ?? '').toLowerCase()]?.test(own)) return true;
   return askedOf(raw, tale, said, before);
 }
 

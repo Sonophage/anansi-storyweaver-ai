@@ -5520,13 +5520,14 @@ ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed
   try {
     click({ panel: 'anansi' }); await settle(/id="input"/, 'dockCol');
     const started = { id: 's-1', title: 'The Ferry at Dusk' };
-    stubSparkTalk = { reply: 'It is made.', seconds: 1, started, changes: [{ words: 'Made the tale: The Ferry at Dusk. It opens now.',
+    stubSparkTalk = { reply: 'It is made.', seconds: 1, started, entries: [{ title: 'Gull', entryType: 'character', body: 'A ferry boy.', keys: ['Gull'] }], changes: [{ words: 'Made the tale: The Ferry at Dusk. It opens now.',
       change: { op: 'tale.start', title: 'The Ferry at Dusk' }, card: { key: 'start', title: 'The Ferry at Dusk', label: 'Made' }, started }] };
     (document as any).getElementById('input').value = 'set it up';
     click({ send: '1' });
     for (let i = 0; i < 40 && !/Created with/.test(String(nodes.get('toast').textContent)); i++) await sleep(25);
     assert.match(String(nodes.get('toast').textContent), /Created with/, 'TALK-START-OPENS: the tale opens as after Start, and says it was made');
     assert.match(html('dockCol'), /data-deckkind="done"[\s\S]*?The Ferry at Dusk[\s\S]*?Made/, 'TALK-START-CARD: its Talk shows the card that says the tale is made');
+    assert.doesNotMatch(html('dockCol'), /data-talkadd=/, 'TALK-START-NO-ADD: without the draft\'s Add presses, which have no draft to add to');
     // The draft is let go: the next question is Talk's in that tale, not the setup's.
     {
       click({ panel: 'anansi' }); await sleep(40);

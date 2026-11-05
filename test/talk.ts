@@ -200,6 +200,9 @@ const srv = createServer((req, res) => {
                     pockets: [{ room: 'voice', text: 'Slow; never haggles.' }, { room: 'appearance', text: 'Grey oilskin, one lantern.' }] },
                   { op: 'string.set', title: 'The sealed letter', kind: 'promise', text: 'Somebody will open the letter.' }] },
       STARTIT: { reply: 'It is made. Go and write it.', changes: [{ op: 'tale.start' }] },
+      STARTHELD: { reply: 'Darker, and it is made.', changes: [{ op: 'tale.set', field: 'premise', text: 'A ferry nobody pays twice, and nobody returns.' }, { op: 'tale.start' }] },
+      IPHELD: { reply: 'Discworld it is.', changes: [{ op: 'tale.set', field: 'world', text: 'Discworld' },
+        { op: 'thread.new', title: 'Rincewind', type: 'character', text: 'A wizard who runs.' }] },
       STARTPLUS: { reply: 'One more promise, and it is made.', changes: [{ op: 'string.set', title: 'The toll', kind: 'promise', text: 'Somebody pays the toll.' }, { op: 'tale.start' }] },
       SETUPBAD: { reply: 'Done, all of it.',
         changes: [{ op: 'thread.set', thread: 'Nobody', text: 'Old.' },
@@ -3677,6 +3680,15 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   const mixed = await setupAs('ABOUT-STARTPLUS: add a promise about the toll and set it up', { start: START });
   assert.strictEqual(tales(), n0, 'START-NOT-WITH-CHANGES: an answer that also changes the draft makes no tale');
   assert.ok(mixed.notDone.some((x: any) => /Look at their cards/.test(x.why)), `  and says to look at the cards first (${JSON.stringify(mixed.notDone)})`);
+
+  // The reviews' case: the premise change is held (no field named), and the tale is still not made,
+  // or it would be made without the change the writer asked for in the same breath.
+  const darker = await setupAs('ABOUT-STARTHELD: set it up but make it darker', { start: START });
+  assert.strictEqual(tales(), n0, 'START-NOT-WITH-HELD: an answer with an offered change makes no tale');
+  assert.match(String(darker.held?.[0]?.words), /^Change the premise/, 'OFFER-WORDS: the offer says what it would do, not that it was done');
+  const disc = await setupAs('ABOUT-IPHELD: set it in Discworld');
+  assert.ok(!disc.held.some((x: any) => x.change.op === 'thread.new') && !disc.changes.some((x: any) => x.change.op === 'thread.new'),
+    'IP-HELD-THREAD: with an IP named, its people are neither made nor offered');
 
   const go = await setupAs('ABOUT-STARTIT: set it up', { start: START });
   assert.ok(!go.error, go.error);

@@ -1234,7 +1234,8 @@ ok('a model is switched only to one the tale can be written by, and only when as
   for (const yes of ['set it up', 'Set it up.', 'start the tale', 'can you set it up?', "let's start"])
     assert.ok(ch.startAsked(yes), `START-ASKED: "${yes}" asks for the tale`);
   for (const no of ['make it darker', 'make this grimmer, please', 'start writing the opening', 'create the story of her father',
-    'start it in winter', "let's start with the ferryman", 'what happens when you set it up?', "don't set it up yet"])
+    'start it in winter', "let's start with the ferryman", 'what happens when you set it up?', "don't set it up yet",
+    'make the story darker', 'start the story over'])
     assert.ok(!ch.startAsked(no), `START-UNASKED-WORDS: "${no}" does not`);
   // And the draft's asked rule: named is done, unnamed is offered, Fill in the tale asks for all.
   const dr = { story: { premise: 'A ferry.' }, entries: [{ title: 'Wenna', entryType: 'character', body: 'Keeps the landing.' }] };
@@ -1244,6 +1245,9 @@ ok('a model is switched only to one the tale can be written by, and only when as
   assert.ok(ch.draftAsked(prem, dr, 'Fill in everything the tale still needs: every empty box'), '  and Fill in the tale asks for it');
   assert.ok(ch.draftAsked({ op: 'thread.remove', thread: 'Wenna' }, dr, 'lose Wenna'), 'DRAFT-ASKED: a thread taken out by its name');
   assert.ok(!ch.draftAsked({ op: 'thread.remove', thread: 'Wenna' }, dr, 'lose the ferryman'), '  and not by another');
+  assert.ok(!ch.draftAsked({ op: 'thread.remove', thread: 'Wenna' }, dr, "don't remove Wenna"), 'DRAFT-NOT-REMOVE: nor when told not to');
+  assert.ok(ch.draftAsked({ op: 'tale.set', field: 'title', text: 'The Ferry' }, dr, 'call it The Ferry'), 'DRAFT-ASK-WORDS: "call it" asks for the title');
+  assert.ok(ch.draftAsked({ op: 'tale.set', field: 'voice', text: 'You.' }, dr, 'write it in second person'), '  and "second person" for the voice');
   assert.ok(!ch.draftAsked({ op: 'thread.set', thread: 'Wenna', room: 'voice', text: 'Low.' }, dr, 'what is Wenna like?'), '  a question about her asks for nothing');
 });
 

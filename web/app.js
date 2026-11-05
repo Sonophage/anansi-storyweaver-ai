@@ -6905,7 +6905,8 @@ async function talkSetup(said) {
   // #158 · "SET IT UP": the tale is made, and it opens as it does from Start.
   if (r.started?.id) {
     // The card that says the tale is made goes with it: the tale's own Talk opens on this exchange.
-    const made = t.turns.slice(-2);
+    // Without its offers: Add belongs to the draft, which is gone.
+    const made = t.turns.slice(-2).map((x) => ({ ...x, offers: [] }));
     await sparkOpened(r.started);
     S.talk = { ...S.talk, turns: made, sessionId: undefined }; S.dockTalk = true; S.dockOpen = true;
     paint(); return;
@@ -14129,12 +14130,22 @@ document.addEventListener('click', async (e) => {
     if (!o || o.added) return;
     // #158 · An offered change is applied as it was checked, with its card and its Undo.
     if (o.change) {
+      // A new string past what Start makes (8: `DRAFT_STRINGS` in src/changes.ts, which the server's own
+      // check uses), or of a name the draft has unticked, is said so.
+      const qs = S.spark.questions ?? [];
+      if (o.change.op === 'string.set' && o.change.before == null) {
+        if (qs.some((x) => x.title.trim() === o.change.title)) return toast(`There is a string called ${o.change.title} already. Tick it on Begin.`);
+        if (qs.filter((x) => x.keep !== false).length >= 8) return toast('The draft holds 8 strings, the most Start makes. Untick one first.');
+      }
       // The press is the writer asking, so a box they typed in is theirs to change this way.
       const undo = applyDraft(o.change);
       if (!undo) return toast('The draft has changed since he offered it.');
       o.added = true;
       turn.changes = [...(turn.changes ?? []), { words: o.words, undo, diff: draftDiff(o.change), card: o.card }];
-      paint(); return;
+      paint();
+      // #101 · An offered World, added, hands over to the World step as an asked one does.
+      if (o.change.op === 'tale.set' && o.change.key === 'world') void ipFollow();
+      return;
     }
     const undo = applyDraft({ op: 'thread.new', thread: o });
     if (!undo) return toast(`There is already a thread called ${o.title}.`);
