@@ -1222,6 +1222,14 @@ ok('a model is switched only to one the tale can be written by, and only when as
   assert.ok(!ch.askedOf({ op: 'hem.start' }, tl, 'make Talia thirty'), '  nor anything else');
   assert.ok(!ch.askedOf({ op: 'hem.start' }, tl, "don't hem this scene yet"), 'HEM-NOT: a request not to hem is not asking');
   assert.ok(!ch.askedOf({ op: 'hem.start' }, tl, 'please never hem it'), '  never, either');
+
+  // #157 · A message of questions only asks for nothing, whatever it names (Ornith, 2026-11-04).
+  const voice = { op: 'thread.set', thread: 'Talia', room: 'voice', text: 'Low.' };
+  assert.ok(!ch.askedOf(voice, tale, 'What should change for Talia?'), 'ASKED-QUESTION: a question naming her and saying "change" asks for nothing');
+  assert.ok(!ch.askedOf(voice, tale, 'Is Talia too soft? What would fix her voice?'), '  nor two questions');
+  assert.ok(ch.askedOf(voice, tale, 'Could you change Talia\'s voice?'), 'ASKED-QUESTION-REQUEST: a request put as a question still asks');
+  assert.ok(ch.askedOf(voice, tale, 'Change Talia\'s voice. What do you think?'), '  and so does a request with a question after it');
+  assert.ok(!ch.askedOf({ op: 'prose.remove', title: 'the Choir' }, tale, 'What if the Choir did not exist?'), '  for every kind of change');
 });
 
 console.log(`\n${n} checks passed`);

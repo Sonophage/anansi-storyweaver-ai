@@ -493,11 +493,17 @@ const TALE_ASK: Record<string, RegExp> = {
   title: /\btitle\b|\brename (it|the (tale|story|book))\b/,
   voice: /\b(narration|narrator|narrative)\b|\b(tale|story)\W?s? voice\b|\bvoice of the (tale|story)\b|\brevoice\b/,
 };
-/** #156 · A message that asks for something: anything but a question, unless the question is a
- *  request ("can you hem it?"). The verbs a model is switched with, and the words of a model's id that
- *  name it, without the ones every id carries. */
-const REQUEST = (own: string) => (!/\?\s*$/.test(own.trim()) || /^\s*(please\s+)?(can|could|would|will) you\b/.test(own))
-  && !/\b(don'?t|do not|never|no need to)\b|\bnot yet\b/.test(own);
+/** #157 · A MESSAGE THAT IS ONLY QUESTIONS ASKS FOR NOTHING, unless a question is a request ("can you
+ *  hem it?"). On Ornith (2026-11-04) "What should change for Morgott?" named him and said "change", and
+ *  his relationships were rewritten while the reply said "I offer no change". A message with one
+ *  sentence that is not a question ("Make her thirty. What do you think?") still asks. */
+const QUESTIONS_ONLY = (own: string) => {
+  const said = own.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+  return said.length > 0 && said.every((s) => /\?$/.test(s) && !/^(please\s+)?(can|could|would|will) you\b/.test(s));
+};
+/** #156 · A message that asks for something, and not for it not to be done. The verbs a model is
+ *  switched with, and the words of a model's id that name it, without the ones every id carries. */
+const REQUEST = (own: string) => !QUESTIONS_ONLY(own) && !/\b(don'?t|do not|never|no need to)\b|\bnot yet\b/.test(own);
 const SWITCH = /\b(switch|change|move|swap|use|put|pin|set|try)\b/;
 const MODEL_COMMON = new Set(['featherless', 'instruct', 'chat', 'gguf', 'base', 'model']);
 const modelWords = (id: unknown) => words(id).filter((w) => w.length > 2 && !MODEL_COMMON.has(w) && !/^\d+$/.test(w));
@@ -511,6 +517,8 @@ export function askedOf(raw: any, tale: Tale, said: string, before = ''): boolea
   const op = String(raw?.op ?? '');
   // Off the list, it is refused by `checkAsked` with its own reason ("not something Talk can do").
   if (!(ASKED as readonly string[]).includes(op) && !(OFFERED as readonly string[]).includes(op)) return true;
+  // #157 · The floor for every change: a message of questions only asks for none of them.
+  if (QUESTIONS_ONLY(own)) return false;
   // #154 · A rename needs a word for naming as well as the name: "make her warmer" names Talia and
   // asks for no new name, and a model padding her title ("Talia the Ferrywoman") must not rename her.
   if (op === 'thread.rename') return named(threadNamed(tale, raw.thread).hit?.title ?? raw.thread)

@@ -1690,6 +1690,15 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.strictEqual(room(morgott, 'voice').length, 0, 'UNDO-ROOM: a room Talk made is taken away by its Undo');
   ok('asked to change one room, Talk makes that room alone, and Undo takes it away again');
 
+  // #157 · ASKED ABOUT, NOT ASKED FOR (Ornith, 2026-11-04: "What should change for Morgott?" rewrote his
+  // relationships). The same answer, to a question that names him and says "change", changes nothing.
+  const asked = await say('ABOUT-VOICE: what should change for Morgott?');
+  assert.ok(!asked.error, asked.error);
+  assert.deepStrictEqual(asked.changes, [], 'TALK-QUESTION-NO-CHANGE: a question that names him and says "change" changes nothing');
+  assert.strictEqual(room(morgott, 'voice').length, 0, '  and his voice is not written');
+  for (const p of (db.proposalsOf(tale.id) as any[]).filter((p) => asked.chalked.includes(p.id))) db.setProposalStatus(tale.id, p.id, 'rejected');
+  ok('a question about a thread changes nothing, even when it says "change"');
+
   // A new thread.
   const before = db.entriesOf(tale.id).length;
   const made = await say('CHANGE-NEW: add the ferryman as a character');

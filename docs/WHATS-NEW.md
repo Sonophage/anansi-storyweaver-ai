@@ -24,6 +24,8 @@ with each suggestion as a card: a new person or an unpaid promise to sew in or r
 move as a directive you can put in the composer. Nothing changes until you press. The directive now
 sits in the answer it came with, so it is still there when you open a past talk. Ask "what can you
 do?" and he tells you, from the list of everything Talk can do, in a tale and in New tale alike.
+A question is only a question: "what should change for Morgott?" gets an answer and changes
+nothing. To have Talk do it, say it ("change Morgott's voice"), or ask "can you…".
 
 ### Ask Talk about models, switch the model, or hem the scene
 Talk knows which model writes your tale and every model on your shortlist, so you can ask which one
