@@ -58,6 +58,17 @@ const srv = createServer((req, res) => {
       return json({ choices: [{ message: { content: JSON.stringify(answer) }, finish_reason: 'stop' }],
         usage: { prompt_tokens: 10, completion_tokens: 30 } });
     }
+    // #159 · TALK IN A TALE, told apart by an operation only a tale has. "a slow voice" asks for Marek's
+    // voice, and the answer also offers a thread nobody asked for: one done card and one chalked card.
+    if (!body.stream && ops.includes('hem.start')) {
+      const said = String(body.messages?.at(-1)?.content ?? '').split('\n\n').at(-1) ?? '';
+      const answer = /slow voice/i.test(said)
+        ? { reply: 'Marek speaks slowly now.', changes: [{ op: 'thread.set', thread: 'Marek Vale', room: 'voice', text: 'Slow, and every word counted.' }],
+            entries: [{ title: 'The Lamplighter', type: 'character', body: 'Lights the quay lamps at dusk.', keys: ['Lamplighter'], field: 'none' }] }
+        : { reply: 'The fake router answers: Marek lent the money.' };
+      return json({ choices: [{ message: { content: JSON.stringify(answer) }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 10, completion_tokens: 30 } });
+    }
     if (!body.stream) return json({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 10, completion_tokens: 1 } });
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
