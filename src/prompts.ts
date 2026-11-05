@@ -1914,6 +1914,8 @@ export const TALK_SETUP_TOOLS: Record<string, string> = {
   'thread.new': 'Add a new thread to the draft: a person, a place, a thing.',
   'thread.set': 'Rewrite a thread in the draft, or one of its pockets.',
   'thread.remove': 'Take a thread out of the draft.',
+  'string.set': 'Add or rewrite a string: a promise, or an open question.',
+  'tale.start': 'Make the tale from the draft, as Start does, when the writer says "set it up".',
 };
 
 /** WHAT YOU CAN DO, as both Talks say it: the order to answer from the list, then the list. */
@@ -2287,9 +2289,15 @@ box. Each is done the moment you answer.
   say the tale is set in a story or game that exists, the field is world and the text its name;
   its people come from its World, so make and offer none of them. A new premise keeps this shape:
 ${PREMISE_FORM}
-- thread.new: its title, its type, and its Always true as text.
+- thread.new: its title, its type, its Always true as text, and its other pockets (each its room
+  and its text).
 - thread.set: the thread by its name, the room (none for its Always true), and the whole new text.
 - thread.remove: the thread by its name.
+- string.set: a string of the tale by its name as title, its whole line as text, and its kind:
+  promise for something the tale sets up to pay off, question for an open question it keeps open.
+  A name the draft has changes that string; a new name adds one.
+- tale.start: make the tale from the draft, as Start does. Only when the writer asks for it in so
+  many words ("set it up", "start the tale"); nothing else to send. Never on your own.
 
 ${NO_OUTCOMES}
 

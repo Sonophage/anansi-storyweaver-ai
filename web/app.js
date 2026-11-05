@@ -6708,6 +6708,21 @@ function applyDraft(ch) {
     list.push({ ...structuredClone(ch.thread), keep: true });
     return { op: ch.op, title: ch.thread.title, body: ch.thread.body };
   }
+  // #158 · A promise or an open question, kept where the preview keeps them; checked against the line
+  // the server saw, so one the writer changed while he answered is not written over.
+  if (ch.op === 'string.set') {
+    const qs = S.spark.questions ?? (S.spark.questions = []);
+    const q = qs.find((x) => x.keep !== false && x.title.trim().toLowerCase() === ch.title.toLowerCase());
+    if (ch.before == null) {
+      if (q) return null;
+      qs.push({ title: ch.title, line: ch.text, kind: ch.kind, keep: true });
+      return { op: ch.op, title: ch.title, text: ch.text, before: null };
+    }
+    if (!q || String(q.line ?? '') !== ch.before) return null;
+    const was = { line: q.line, kind: q.kind };
+    q.line = ch.text; q.kind = ch.kind;
+    return { op: ch.op, title: q.title, text: ch.text, before: was };
+  }
   const at = list.findIndex((e) => e.keep !== false && String(e.title ?? '').trim() === ch.title);
   if (at < 0) return null;
   if (ch.op === 'thread.remove') return { op: ch.op, at, prev: list.splice(at, 1)[0] };
@@ -6722,7 +6737,7 @@ function applyDraft(ch) {
 /** #122 · What a draft change rewrote, before and after, for its line's diff: the tale's field, or
  *  the thread's Always true or pocket, as the server checked them (`checkDraft` sends `before`). Null
  *  for a thread made or taken away, which rewrote no text. */
-const draftDiff = (ch) => ch.op === 'tale.set' || ch.op === 'thread.set'
+const draftDiff = (ch) => ch.op === 'tale.set' || ch.op === 'thread.set' || ch.op === 'string.set'
   ? { before: ch.before ?? '', after: ch.text ?? '' } : null;
 
 /** Put one applied change back, or say why not: only while what it made is still as it made it,
@@ -6738,6 +6753,14 @@ function undoDraft(u) {
     const at = list.findIndex((e) => e.keep !== false && e.title === u.title && e.body === u.body);
     if (at < 0) return `${u.title} has been changed since`;
     list.splice(at, 1);
+    return null;
+  }
+  if (u.op === 'string.set') {
+    const qs = S.spark.questions ?? [];
+    const at = qs.findIndex((x) => x.keep !== false && x.title === u.title);
+    if (at < 0 || qs[at].line !== u.text) return `${u.title} has been changed since`;
+    if (u.before == null) qs.splice(at, 1);
+    else Object.assign(qs[at], u.before);
     return null;
   }
   if (u.op === 'thread.remove') {
@@ -6758,6 +6781,88 @@ const setupTurnText = (x) => x.text + ((x.offers ?? []).filter((o) => !o.added).
 /** What Fill in the tale says for the writer: the ask TALK_SETUP answers with every empty box set. */
 const FILL_SAID = 'Fill in everything the tale still needs from what we have talked about: every empty box, and the threads it needs.';
 /** Ask, during setup. The question is already on the window as yours. */
+/** WHAT NEW TALE'S START SENDS, built from the draft: one function for the Start press and for Talk's
+ *  "set it up" (#158), so the two cannot make different tales. */
+function sparkStartBody() {
+  const s = S.spark.story;
+  // sparkCast already drops the nameless — one rule, one place. It was filtered here too, and a
+  // check that a blank card never reaches the ledger stayed green with either filter deleted,
+  // which is a check proving nothing.
+  const keep = sparkCast().map(({ keep: _k, ...e }) => e);
+  return {
+    title: s.title || 'Untitled', genre: s.genre, premise: s.premise,
+    setting: s.setting, pov: s.pov, spice: Number(s.spice) || 2,
+    writingStyle: s.writingStyle, styleNote: s.styleNote,
+    persona: s.persona || null, lockedCharacter: s.lockedCharacter || null,
+    // #40. A NAMED FIELD LIST IS A SECOND PLACE TO FORGET, and this is the third time that has
+    // cost something — `db.createStory`'s own two comments are about the same shape at the INSERT.
+    // Adding a wizard control means adding it HERE and there, and `lockout_on` defaults to 1, so
+    // a book with the switch turned off looked identical to one where the field never arrived.
+    // Only ever sent as false; on is the column's default and the usual answer.
+    lockoutOn: s.lockoutOn !== false,
+    // #84. What the writer said of a new character on You: Create makes their thread from it when
+    // the cast made none. And the tale's own pockets from the preview.
+    personaAbout: s.personaAbout || null,
+    talePockets: S.spark.talePockets ?? [],
+    // ADR 0009. The open questions ticked in the preview, made as strings.
+    strings: sparkQuestions(),
+    // #121. The moment the tale opens in, written to scene 1's Opens with.
+    opensWith: s.opensWith || '',
+    // #84. Tells the create route to settle the yours pocket on whoever is Hands off now.
+    spark: true,
+    entries: keep,
+    // #103. The IP, and what the tale follows, IN the create: the route sets both in one place
+    // (`followPair`) and refuses a World that is not the writer's before it makes anything.
+    world: String(s.world ?? '').trim() || null,
+    loreFrom: S.spark.follow || null,
+    // #104. A new World of the IP, made first; any failure there makes nothing at all.
+    ...(ipTicked().length ? { newWorld: { title: S.spark.ipNew.title,
+      threads: ipTicked().map((f) => ({ name: f.name, kind: f.kind, memory: !!f.memory })) } } : {}),
+    seed: seedOf(S.spark.seed),
+    // #105. The World's people marked in the opening, pinned to the first scene at Create.
+    inOpening: sparkOpening(),
+    // #107. auto_open defaults on in the column, so it is only ever sent to turn it OFF.
+    ...(S.spark.autoOpen === false ? { autoOpen: false } : {}),
+  };
+}
+
+/** A TALE NEW TALE MADE, OPENED: the shelf read again, the tale opened, and one line saying what was
+ *  made. `r` is what POST /api/stories answered; `count` how many threads it was sent. One function for
+ *  the Start press and for Talk's "set it up" (#158). */
+async function sparkOpened(r, count) {
+  const seeded = seedOf(S.spark.seed).length;   // read before the cached list and the draft are let go
+  if (seeded) LEDGER = null;   // the new book's copies are not in the cached list
+
+  /* #40 stage 3. AND WHAT IT IS SET IN. `loreFrom` is the same column "Start a book here" writes,
+   * so a book followed from the wizard and a book followed from the Threads page are the same
+   * thing. #103: it rides the create itself now, so a refused follow makes no tale at all.
+   *
+   * Reported separately from the copies: following and copying are different answers to
+   * "bring your own threads" and a writer who did both should be told about both. */
+  const followed = sparkWorld();   // #104, read before the draft is let go
+
+  const wantOpen = S.spark.autoOpen !== false;
+  S.spark = null; S.sparkStep = 1; S.seedQ = '';
+  // The setup's Talk window shuts with the draft (#100); the tale's own Talk is a new conversation.
+  if (S.panel === 'anansi') S.panel = null;
+  await loadLibrary();
+  await openStory(r.id);
+  if (wantOpen) OPEN_WANTED = r.id;
+  // One line, and it says what actually happened. A refused copy fails the whole create (#107), so
+  // a tale that exists has every picked thread.
+  const brought = !seeded ? '' : `, and ${plural(seeded, 'thread', 'threads')} brought over`;
+  // #40 stage 3. Following is a different answer from copying and gets its own clause: a writer
+  // who did both should be told about both, and a writer who followed a world book has done the
+  // most consequential thing on that screen.
+  const set = followed ? `, set in ${followed}` : '';
+  // #30. A pasted cast can carry a room its kind does not have; the server drops it and says so.
+  // Surfaced here for the same reason the paste route surfaces it — a card that arrived with half
+  // its rooms and no mention of the other half is the silent loss this whole format avoids.
+  const roomNote = (r.notes ?? []).length ? ` ${r.notes[0]}` : '';
+  toast(`Created with ${count} threads${brought}${set}.${roomNote}`);
+  if (wantOpen) await openingPassage();
+}
+
 async function talkSetup(said) {
   const t = setupTalk();
   harvestSpark();
@@ -6766,7 +6871,9 @@ async function talkSetup(said) {
   drawDock(); working('direct');
   const r = await api.sparkTalk({ said, step: `${name}: ${hint}`, search: S.talk.search || undefined,
     turns: t.turns.slice(0, -1).map((x) => ({ you: x.you, text: setupTurnText(x) })),
-    draft: { story: S.spark.story, entries: S.spark.entries }, sessionId: t.sessionId || undefined });
+    // #158 · its strings too, and what Start would send, for "set it up".
+    draft: { story: S.spark.story, entries: S.spark.entries, strings: S.spark.questions ?? [] },
+    start: sparkStartBody(), sessionId: t.sessionId || undefined });
   working(null);
   t.busy = false;
   // Discarded, or started, while he answered: this answer is about a draft that is gone.
@@ -6774,10 +6881,12 @@ async function talkSetup(said) {
   if (r.error) { drawDock(); return toast(r.error); }
   S.talk.searchable = r.searchable ?? S.talk.searchable;
   const changes = (r.changes ?? []).map((x) => {
+    // #158 · The tale he made has no Undo here: it is a tale now, opened below.
+    if (x.change?.op === 'tale.start') return { words: x.words, undo: null, card: x.card };
     const why = typedHere(x.change, said);
     if (why) return { words: `Not done. ${why}`, refused: true };
     const undo = applyDraft(x.change);
-    return undo ? { words: x.words, undo, diff: draftDiff(x.change) }
+    return undo ? { words: x.words, undo, diff: draftDiff(x.change), card: x.card }
       : { words: `Not done. ${x.words} The draft changed while he answered.`, refused: true };
   });
   t.sessionId = r.sessionId ?? t.sessionId;
@@ -6787,6 +6896,8 @@ async function talkSetup(said) {
   // #101 · AN IP NAMED IN TALK HANDS OVER TO THE WORLD STEP, the one the World box runs on every
   // move: the writer's World of that name is followed, or the IP is looked up for a new one.
   if (changes.some((x) => x.undo?.key === 'world')) void ipFollow();
+  // #158 · "SET IT UP": the tale is made, and it opens as it does from Start.
+  if (r.started?.id) { S.spark.accepting = true; return sparkOpened(r.started, sparkCast().length); }
   // The box was emptied when the question was sent (`setupAsk`), so what is in it now was typed
   // while he answered, and stays.
   $('input')?.focus({ preventScroll: true });
@@ -7291,8 +7402,9 @@ const playsThis = (e) => !!S.spark?.story?.persona
 const questionsOf = (r) => (Array.isArray(r?.questions) ? r.questions : [])
   .filter((q) => String(q?.title ?? '').trim())
   .map((q) => ({ title: String(q.title), line: String(q.line ?? ''), keep: true }));
+// #158 · with its kind: a promise the setup talk added is made a promise.
 const sparkQuestions = () => (S.spark?.questions ?? []).filter((q) => q.keep !== false)
-  .map(({ title, line }) => ({ title, line }));
+  .map(({ title, line, kind }) => ({ title, line, ...(kind === 'promise' ? { kind } : {}) }));
 
 /** #117 · WHERE THE DRAFT CONTRADICTS ITSELF, as Try it on found it: both places, each with what it
  *  says, the fix and why, with Use this and Leave it. Listed once, under Try it on at the top of
@@ -15392,82 +15504,14 @@ document.addEventListener('click', async (e) => {
     if (!S.spark) return;
     const openBox = document.querySelector('[data-sp-open]');
     if (openBox) S.spark.autoOpen = openBox.checked;
-    const s = S.spark.story;
-    // sparkCast already drops the nameless — one rule, one place. It was filtered here too, and a
-    // check that a blank card never reaches the ledger stayed green with either filter deleted,
-    // which is a check proving nothing.
-    const keep = sparkCast().map(({ keep: _k, ...e }) => e);
-    const r = await whileWorking(t, 'Creating&hellip;', () => api.createStory({
-      title: s.title || 'Untitled', genre: s.genre, premise: s.premise,
-      setting: s.setting, pov: s.pov, spice: Number(s.spice) || 2,
-      writingStyle: s.writingStyle, styleNote: s.styleNote,
-      persona: s.persona || null, lockedCharacter: s.lockedCharacter || null,
-      // #40. A NAMED FIELD LIST IS A SECOND PLACE TO FORGET, and this is the third time that has
-      // cost something — `db.createStory`'s own two comments are about the same shape at the INSERT.
-      // Adding a wizard control means adding it HERE and there, and `lockout_on` defaults to 1, so
-      // a book with the switch turned off looked identical to one where the field never arrived.
-      // Only ever sent as false; on is the column's default and the usual answer.
-      lockoutOn: s.lockoutOn !== false,
-      // #84. What the writer said of a new character on You: Create makes their thread from it when
-      // the cast made none. And the tale's own pockets from the preview.
-      personaAbout: s.personaAbout || null,
-      talePockets: S.spark.talePockets ?? [],
-      // ADR 0009. The open questions ticked in the preview, made as strings.
-      strings: sparkQuestions(),
-      // #121. The moment the tale opens in, written to scene 1's Opens with.
-      opensWith: s.opensWith || '',
-      // #84. Tells the create route to settle the yours pocket on whoever is Hands off now.
-      spark: true,
-      entries: keep,
-      // #103. The IP, and what the tale follows, IN the create: the route sets both in one place
-      // (`followPair`) and refuses a World that is not the writer's before it makes anything.
-      world: String(s.world ?? '').trim() || null,
-      loreFrom: S.spark.follow || null,
-      // #104. A new World of the IP, made first; any failure there makes nothing at all.
-      ...(ipTicked().length ? { newWorld: { title: S.spark.ipNew.title,
-        threads: ipTicked().map((f) => ({ name: f.name, kind: f.kind, memory: !!f.memory })) } } : {}),
-      seed: seedOf(S.spark.seed),
-      // #105. The World's people marked in the opening, pinned to the first scene at Create.
-      inOpening: sparkOpening(),
-      // #107. auto_open defaults on in the column, so it is only ever sent to turn it OFF.
-      ...(S.spark.autoOpen === false ? { autoOpen: false } : {}),
-    }));
+    const keep = sparkCast();
+    const r = await whileWorking(t, 'Creating&hellip;', () => api.createStory(sparkStartBody()));
     // `whileWorking` answers null on a re-entrant press and the state guard above should already
     // have refused it — this is the belt to that braces, and it must not clear `accepting`, or the
     // press that IS working would be unguarded from here on.
     if (!r) return;
     if (r.error) { S.spark.accepting = false; return toast(r.error); }
-    const seeded = seedOf(S.spark.seed).length;   // read before the cached list and the draft are let go
-    if (seeded) LEDGER = null;   // the new book's copies are not in the cached list
-
-    /* #40 stage 3. AND WHAT IT IS SET IN. `loreFrom` is the same column "Start a book here" writes,
-     * so a book followed from the wizard and a book followed from the Threads page are the same
-     * thing. #103: it rides the create itself now, so a refused follow makes no tale at all.
-     *
-     * Reported separately from the copies: following and copying are different answers to
-     * "bring your own threads" and a writer who did both should be told about both. */
-    const followed = sparkWorld();   // #104, read before the draft is let go
-
-    const wantOpen = S.spark.autoOpen !== false;
-    S.spark = null; S.sparkStep = 1; S.seedQ = '';
-    // The setup's Talk window shuts with the draft (#100); the tale's own Talk is a new conversation.
-    if (S.panel === 'anansi') S.panel = null;
-    await loadLibrary();
-    await openStory(r.id);
-    if (wantOpen) OPEN_WANTED = r.id;
-    // One line, and it says what actually happened. A refused copy fails the whole create (#107), so
-    // a tale that exists has every picked thread.
-    const brought = !seeded ? '' : `, and ${plural(seeded, 'thread', 'threads')} brought over`;
-    // #40 stage 3. Following is a different answer from copying and gets its own clause: a writer
-    // who did both should be told about both, and a writer who followed a world book has done the
-    // most consequential thing on that screen.
-    const set = followed ? `, set in ${followed}` : '';
-    // #30. A pasted cast can carry a room its kind does not have; the server drops it and says so.
-    // Surfaced here for the same reason the paste route surfaces it — a card that arrived with half
-    // its rooms and no mention of the other half is the silent loss this whole format avoids.
-    const roomNote = (r.notes ?? []).length ? ` ${r.notes[0]}` : '';
-    toast(`Created with ${keep.length} threads${brought}${set}.${roomNote}`);
-    if (wantOpen) await openingPassage();
+    await sparkOpened(r, keep.length);
     return;
   }
   if (d.blank) {

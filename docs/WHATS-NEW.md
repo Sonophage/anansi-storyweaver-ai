@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-04 · Talk fills in the card you ask for
 
+### Set up a new tale by talking, and say "set it up"
+In New tale, Talk now fills in the draft with the same cards as in a tale: the premise and setting,
+new people with their voice and look already in their pockets, and promises or open questions. Each
+card has Undo. When the tale is ready, say "set it up" and Anansi presses Start for you: the tale is
+made from the draft exactly as Start makes it, and it opens. Asking what Start does makes nothing.
+
 ### Ask Talk what should happen next, and what it can do
 Ask "what should happen next?" or "what haven't I thought of?" and Anansi answers in his own voice,
 with each suggestion as a card: a new person or an unpaid promise to sew in or reject, and the next

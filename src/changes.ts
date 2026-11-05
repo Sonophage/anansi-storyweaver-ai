@@ -1419,9 +1419,16 @@ export function fingerprint(t: Thread): string {
  *     Discard throws the whole draft away anyway. The thread the writer plays stays while they play
  *     it, the rule the preview's own remove follows.
  *
+ *   - #158 · string.set: a promise or an open question of the draft, by its name: a new name adds one,
+ *     a name it has changes its line. The draft keeps them where the preview's open questions are
+ *     (`strings`, the page's `S.spark.questions`), and Start makes each a string of the tale.
+ *   - #158 · tale.start: make the tale from the draft, through New tale's own Start (POST
+ *     /api/stories). Asked only, in so many words ("set it up"), by `startAsked`; never offered.
+ *
  * A draft thread's Always true is its `body`, a plain description as the cast writes it (#110; POST
- * /api/stories moves it into `facts` at Start); its other rooms are `rooms[slot]`. */
-export const DRAFT_OPS = ['tale.set', 'thread.new', 'thread.set', 'thread.remove'] as const;
+ * /api/stories moves it into `facts` at Start); its other rooms are `rooms[slot]`, and a new thread may
+ * come with them (`pockets`, #158). */
+export const DRAFT_OPS = ['tale.set', 'thread.new', 'thread.set', 'thread.remove', 'string.set', 'tale.start'] as const;
 const DRAFT_FIELDS = ['title', 'premise', 'genre', 'setting', 'voice', 'world'] as const;
 /** The draft's own name for each field: the voice is `writingStyle` in the wizard and the column.
  *  The one copy: `checkDraft` hands the key back with the change, and the route and the page both
@@ -1444,9 +1451,14 @@ export const DRAFT_CHANGES_SCHEMA = {
       thread: { type: 'string', maxLength: 80 },
       // thread.set: the room, or `none` for its Always true.
       room: { type: 'string', enum: ['none', ...ALL_SLOTS] },
-      // thread.new only. Before `text`, for CHANGES_SCHEMA's reason: the grammar keeps this order.
+      // thread.new, string.set. Before `text`, for CHANGES_SCHEMA's reason: the grammar keeps this order.
       title: { type: 'string', maxLength: 80 },
       type: { type: 'string', enum: [...KINDS] },
+      // #158 · string.set: a promise or an open question.
+      kind: { type: 'string', enum: [...STRING_SLOTS] },
+      // #158 · thread.new: its other pockets, each its room and its text, as on a tale.
+      pockets: { type: 'array', maxItems: 6, items: { type: 'object',
+        properties: { room: { type: 'string', enum: [...ALL_SLOTS] }, text: { type: 'string' } }, required: ['room', 'text'] } },
       // tale.set and thread.set: the whole new text. thread.new: its Always true.
       // No maxLength, per F25 (#144): the converter closes a capped string mid-word.
       text: { type: 'string' },
@@ -1459,17 +1471,23 @@ export const DRAFT_CHANGES_SCHEMA = {
 
 type DraftThread = { title: string; entryType?: string; body?: string; keys?: string[];
   rooms?: Record<string, { name?: string; body?: string; on?: boolean }>; keep?: boolean; notes?: string };
-export type Draft = { story?: Record<string, any>; entries?: DraftThread[] };
+/** #158 · A promise or an open question of the draft, as the preview keeps one. */
+type DraftString = { title: string; line?: string; kind?: string; keep?: boolean };
+export type Draft = { story?: Record<string, any>; entries?: DraftThread[]; strings?: DraftString[] };
 export type DraftChange =
   /** `key` is where the draft keeps the field; `before` is its text before the change, for the
    *  page's Undo. */
   | { op: 'tale.set'; field: string; key: string; text: string; before: string }
-  /** The thread as it goes into the draft, in the shape the cast writes one. */
-  | { op: 'thread.new'; thread: { title: string; entryType: string; activation: string; body: string; keys: string[] } }
+  /** The thread as it goes into the draft, in the shape the cast writes one, its pockets in `rooms`. */
+  | { op: 'thread.new'; thread: { title: string; entryType: string; activation: string; body: string; keys: string[];
+      rooms?: Record<string, { name: string; body: string; on: boolean }> } }
   /** `room` is `facts` for its Always true; `before` is that room's text, null when there was none.
    *  `body`, on Always true only, is the thread's whole body as the draft stores it: the plain text. */
   | { op: 'thread.set'; title: string; room: string; text: string; before: string | null; body?: string }
-  | { op: 'thread.remove'; title: string };
+  | { op: 'thread.remove'; title: string }
+  /** `before` is the line it had, null for a new one. */
+  | { op: 'string.set'; title: string; kind: string; text: string; before: string | null }
+  | { op: 'tale.start'; title: string };
 export type DraftChecked = { ok: true; change: DraftChange } | { ok: false; said: string; why: string };
 
 /** The draft's threads as `threadNamed` reads a tale's: the ones the writer kept, with a kind. An
@@ -1511,9 +1529,29 @@ export function checkDraft(raw: any, draft: Draft): DraftChecked {
     // ALWAYS ON, keyed by its name, the way every thread the cast writes arrives: the preview tells
     // the writer a spark cast is always on, and a draft thread on a word the model chose would be the
     // one exception they were not told about.
+    // #158 · Its pockets, only rooms its kind has, each without the name a model put in front of it.
+    const rooms: Record<string, { name: string; body: string; on: boolean }> = {};
+    for (const p of Array.isArray(raw.pockets) ? raw.pockets : []) {
+      const slot = roomOf(p?.room), body = plain(String(p?.text ?? '').replace(LINK, '').trim(), wrapperNames(slot, title, slot));
+      if (slot !== 'facts' && body && slotsFor(type).some((s) => s.name === slot)) rooms[slot] = { name: slot, body, on: true };
+    }
     return { ok: true, change: { op: 'thread.new', thread: { title, entryType: type, activation: 'always_on',
-      body: alwaysOf(title, text), keys: [title] } } };
+      body: alwaysOf(title, text), keys: [title], ...(Object.keys(rooms).length ? { rooms } : {}) } } };
   }
+  if (op === 'string.set') {
+    const title = String(raw.title ?? '').trim();
+    if (!title) return { ok: false, said, why: 'the string had no name' };
+    if (!text) return { ok: false, said, why: `it came with no line for ${title}` };
+    const had = (draft.strings ?? []).find((x) => x && x.keep !== false && norm(x.title) === norm(title));
+    const kind = (STRING_SLOTS as readonly string[]).includes(String(raw.kind)) ? String(raw.kind)
+      // A string the preview kept is an open question; a new one with no kind, a promise.
+      : had ? (had.kind ?? 'question') : 'promise';
+    if (had && String(had.line ?? '').trim() === text && (had.kind ?? 'question') === kind)
+      return { ok: false, said, why: `${had.title} already says that` };
+    return { ok: true, change: { op: 'string.set', title: had ? String(had.title).trim() : title, kind, text,
+      before: had ? String(had.line ?? '') : null } };
+  }
+  if (op === 'tale.start') return { ok: true, change: { op: 'tale.start', title: String(st.title ?? '').trim() || 'Untitled' } };
   const { hit, why } = threadNamed(tale, raw.thread);
   if (!hit) return { ok: false, said, why: why!.replace('in this tale', 'in the draft') };
   const t = (draft.entries ?? []).find((e) => e.keep !== false && String(e.title ?? '').trim() === hit.title)!;
@@ -1542,8 +1580,31 @@ export function draftWords(c: DraftChange): string {
     : `Changed the ${c.field}: “${clip(c.text)}”`;
   if (c.op === 'thread.new') return `Added a thread: ${c.thread.title}, ${an(c.thread.entryType)}.`;
   if (c.op === 'thread.remove') return `Removed ${c.title} from the draft.`;
+  if (c.op === 'string.set') return c.before == null ? `Added ${c.kind === 'question' ? 'an open question' : 'a promise'}: ${c.title}, “${clip(c.text)}”`
+    : `Changed ${c.title}: “${clip(c.text)}”`;
+  if (c.op === 'tale.start') return `Made the tale: ${c.title}. It opens now.`;
   return `Changed ${c.title}'s ${roomLabel(c.room)}: “${clip(c.text)}”`;
 }
+
+/** #158 · THE CARD A DRAFT CHANGE IS DRAWN ON, as `cardOf` gives a tale's: one per thread, one for the
+ *  tale's own fields, one per string, one for the tale made. */
+export function draftCard(c: DraftChange): Card {
+  if (c.op === 'tale.set') return { key: 'tale', title: 'The tale', label: c.field === 'voice' ? 'Voice' : c.field === 'world' ? 'World'
+    : c.field[0].toUpperCase() + c.field.slice(1) };
+  if (c.op === 'thread.new') return { key: `t:${c.thread.title}`, title: c.thread.title, label: 'New thread' };
+  if (c.op === 'thread.remove') return { key: `t:${c.title}`, title: c.title, label: 'Removed' };
+  if (c.op === 'string.set') return { key: `s:${c.title}`, title: c.title, label: c.kind === 'question' ? 'Open question' : 'Promise' };
+  if (c.op === 'tale.start') return { key: 'start', title: c.title, label: 'Made' };
+  const l = roomLabel(c.room);
+  return { key: `t:${c.title}`, title: c.title, label: l[0].toUpperCase() + l.slice(1) };
+}
+
+/** #158 · "SET IT UP" IS ASKED IN SO MANY WORDS: a request (not a question, not "don't") that names
+ *  making the tale. "What happens when I start?" and "don't start it yet" ask for nothing. */
+export const startAsked = (said: string) => {
+  const own = String(said ?? '').toLowerCase();
+  return REQUEST(own) && /\bset (it|this|the tale|the story|everything|it all) up\b|\b(start|make|create|begin) (it|this|the tale|the story|writing)\b|\bpress start\b|\blet'?s (start|begin)\b/.test(own);
+};
 
 /** THE CHANGE THAT PUTS THIS ONE BACK, built once it is applied: `made` holds the ids the write
  *  minted, which nothing knows before it. Returned with the change, and sent back by the Undo. */

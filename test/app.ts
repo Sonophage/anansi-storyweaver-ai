@@ -5450,6 +5450,31 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
     assert.strictEqual(mapped.story[checked[1].key], 'Wet and slow.', 'ONE-MAPPING: the voice lands where the server says it lives');
     assert.strictEqual(checked[1].key, 'writingStyle', 'ONE-MAPPING: which is the draft\'s writingStyle');
 
+    // #158 · A PROMISE AND A THREAD WITH POCKETS, each on its card, the promise in the draft's strings.
+    stubSparkTalk = { reply: 'He is in, and the letter is a promise.', seconds: 1, changes: [
+      { words: 'Added a thread: Charon, a character.', card: { key: 't:Charon', title: 'Charon', label: 'New thread' },
+        change: { op: 'thread.new', thread: { title: 'Charon', entryType: 'character', activation: 'always_on', body: 'Rows for a coin.',
+          keys: ['Charon'], rooms: { voice: { name: 'voice', body: 'Slow.', on: true } } } } },
+      { words: 'Added a promise: The sealed letter', card: { key: 's:The sealed letter', title: 'The sealed letter', label: 'Promise' },
+        change: { op: 'string.set', title: 'The sealed letter', kind: 'promise', text: 'Somebody will open it.', before: null } }] };
+    await ask('Add Charon with his voice, and a promise about the letter');
+    const plus = html('dockCol').split('Add Charon with his voice').at(-1)!;
+    const cards = [...plus.matchAll(/<div class="deckcard card"[^>]*data-deckkind="done"[\s\S]*?(?=<div class="deckcard card"|$)/g)].map((m) => m[0]);
+    // Each on the card the server named: its label is the card's ("New thread", "Promise"), not the line's words.
+    assert.ok(cards.some((c) => /Charon/.test(c) && /New thread/.test(c) && /data-talkundo=/.test(c))
+      && cards.some((c) => /The sealed letter/.test(c) && /Promise/.test(c) && /data-talkundo=/.test(c)),
+      `SETUP-CARDS: the thread and the promise are each a card with Undo (${cards.length}):\n${plus.slice(0, 600)}`);
+    stubSparkTalk = { reply: 'Yes.', seconds: 1 };
+    const carried = (await ask('Good?')).body;
+    assert.deepStrictEqual(carried.draft.strings.filter((x: any) => x.title === 'The sealed letter').map((x: any) => [x.line, x.kind]),
+      [['Somebody will open it.', 'promise']], 'SETUP-STRING-DRAFT: the promise is in the draft\'s strings');
+    assert.ok(carried.draft.entries.some((e: any) => e.title === 'Charon' && e.rooms?.voice?.body === 'Slow.'), 'SETUP-POCKETS-DRAFT: Charon with his voice');
+    assert.ok(carried.start && carried.start.spark === true && carried.start.premise === carried.draft.story.premise,
+      'SETUP-START-SENT: each ask carries what Start would send, for "set it up"');
+    const undoStr = plus.match(/The sealed letter[\s\S]*?data-talkundo="([^"]+)"/)![1];
+    click({ talkundo: undoStr }); await sleep(30);
+    assert.ok(!(await ask('And now?')).body.draft.strings.some((x: any) => x.title === 'The sealed letter'), 'SETUP-STRING-UNDO: Undo takes the promise out');
+
     // DISCARD: nothing was ever posted but the spark calls, and Talk goes with the draft.
     assert.ok(POSTED.every((p) => String(p.url).startsWith('/api/spark')),
       `SETUP-TALK-NOTHING: nothing is saved before Start (${POSTED.map((p) => p.url).join(', ')})`);
@@ -5460,6 +5485,41 @@ ok("Try it on's contradictions are shown with both places and a fix, and Use thi
   } finally { doc.querySelectorAll = wasQSA; stubSparkTalk = null; }
 }
 ok('Talk on a setup step changes the draft with Undo, adds offers, keeps a typed box, and saves nothing');
+
+// #158 · "SET IT UP": the server made the tale through Start, so the page posts no create of its own;
+// the draft goes, and the tale it names opens, as after the Start press.
+{
+  const doc = (globalThis as any).document;
+  const settle = async (re: RegExp, id = 'page') => { for (let i = 0; i < 40 && !re.test(html(id)); i++) await sleep(25); };
+  click({ railview: 'workspace' }); await sleep(30);
+  click({ nav: 'create' }); await sleep(30);
+  doc.getElementById = (id: string) => id === 'idea' ? { value: 'A ferry town.' } : (nodes.get(id) ?? el(id));
+  try { click({ spark: '1' }); await settle(/data-sp="premise"/); }
+  finally { doc.getElementById = (id: string) => nodes.get(id) ?? el(id); }
+  POSTED.length = 0;
+  try {
+    click({ panel: 'anansi' }); await settle(/id="input"/, 'dockCol');
+    const started = { id: 's-1', title: 'The Ferry at Dusk' };
+    stubSparkTalk = { reply: 'It is made.', seconds: 1, started, changes: [{ words: 'Made the tale: The Ferry at Dusk. It opens now.',
+      change: { op: 'tale.start', title: 'The Ferry at Dusk' }, card: { key: 'start', title: 'The Ferry at Dusk', label: 'Made' }, started }] };
+    (document as any).getElementById('input').value = 'set it up';
+    click({ send: '1' });
+    await settle(/Created with/, 'toast');
+    for (let i = 0; i < 40 && !/Created with/.test(String(nodes.get('toast').textContent)); i++) await sleep(25);
+    assert.match(String(nodes.get('toast').textContent), /Created with/, 'TALK-START-OPENS: the tale opens as after Start, and says it was made');
+    // The draft is let go: the next question is Talk's in that tale, not the setup's.
+    {
+      click({ panel: 'anansi' }); await sleep(40);
+      (document as any).getElementById('input').value = 'Who is Wenna?';
+      click({ send: '1' }); await sleep(120);
+      const last = POSTED.filter((p: any) => String(p.url).startsWith('/api/talk') || p.url === '/api/spark/talk').at(-1);
+      assert.strictEqual(last?.url, '/api/talk', `TALK-START-DRAFT-GONE: the draft is let go, and Talk is the tale's (${last?.url})`);
+      assert.strictEqual(last?.body.storyId, 's-1', '  in the tale that was made');
+    }
+    assert.ok(!POSTED.some((p: any) => p.url === '/api/stories'), 'TALK-START-ONE-CREATE: the page makes no second tale');
+  } finally { stubSparkTalk = null; }
+}
+ok('"set it up" in the setup talk opens the tale the server made, as Start does');
 
 // #103 · AN IP THE WRITER ALREADY HAS A WORLD FOR. Named on the tale's own step, it makes the new
 // tale follow that World; the preview lists the World's people; nothing posts but the spark calls
