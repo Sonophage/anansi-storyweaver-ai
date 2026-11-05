@@ -137,7 +137,7 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
 
   // ---- Sent now: the eye and the filter answer the same question
   const lit = cards.filter((c) => c.lit === '1').map((c) => c.id).sort();
-  const sentLabel = Number(row?.labels[0]?.match(/\d+/)?.[0]);
+  const sentLabel = Number(row?.labels[1]?.match(/\d+/)?.[0]);
   await page.click('#sideBody [data-onlyin="1"]');
   await wait(500);
   const sent = await page.eval("JSON.stringify([...document.querySelectorAll('#thlist .card.plate[data-entry]')].map(c => c.dataset.entry).sort())").then(JSON.parse);

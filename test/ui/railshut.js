@@ -43,12 +43,13 @@ const measure = () => page.eval(`(() => {
   };
 })()`);
 
-// ---- a tale, with Threads open so a tile is the current one
+// ---- a tale, with This scene open so a tile is the current one. Not Threads: it opens full screen
+// since 2026-11-03 and covers the header, so the menu's door under it cannot be pressed.
 await page.goto(B + "/");
 await wait(900);
 await page.click("#page [data-open]");
 await wait(1500);
-await page.eval("(() => { document.querySelector('#rail [data-nav=\"threads\"]')?.click(); return 1; })()");
+await page.eval("(() => { document.querySelector('#rail [data-nav=\"chapter\"]')?.click(); return 1; })()");
 await wait(700);
 await shut();
 let m = await measure();

@@ -167,8 +167,10 @@ if (cast) {
 // does not move while it is up.
 const dockBox = () => page.eval("(() => { const d = document.getElementById('dockCol').getBoundingClientRect();"
   + " return [Math.round(d.left), Math.round(d.right), Math.round(d.width)]; })()");
+// The box glows with `thinkglow`; the press, an emblem with no box since 2026-11-03, with `pressglow`,
+// a shadow round its own shape (app.html).
 const glowOn = (id) => page.eval(`(() => { const e = document.getElementById('${id}');
-  return !!e && getComputedStyle(e).animationName === 'thinkglow'; })()`);
+  return !!e && getComputedStyle(e).animationName === '${id === 'quill' ? 'pressglow' : 'thinkglow'}'; })()`);
 const quiet = await dockBox();
 await page.eval("(() => { document.documentElement.dataset.work = 'speak'; return 1; })()");
 await wait(250);

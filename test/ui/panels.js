@@ -57,6 +57,15 @@ for (const [k, label] of [['story', 'Tale'], ['chapter', 'This scene'], ['thread
   await page.click(`[data-nav="${k}"]`);
   await wait(500);
   await opened(label);
+  // THREADS OPENS FULL SCREEN (2026-11-03) and covers the menu and the header, so every press on
+  // them below would land on it. Its own press beside Close puts it back beside the page, as a writer
+  // does, and that choice is kept for the rest of the run (threadlist.js does the same).
+  if (k === 'threads') {
+    ok("  it opens full screen", await page.eval("document.documentElement.dataset.sidefull === '1'"));
+    await page.click('#sideHead [data-panelfull]');
+    await wait(500);
+    ok("  and its press puts it beside the page", await page.eval("document.documentElement.dataset.sidefull === '0'"));
+  }
 }
 // Storyteller's door is the model named at the top of the menu (#131).
 await page.click('#rail [data-modelmenu="1"]');
@@ -1948,11 +1957,12 @@ ok("  and it is still there a moment later, not eaten by a repaint",
   for (let i = 0; i < 40 && !(await page.visible('#sideBody')); i++) await wait(250);
   await wait(400);
   // THE HEADING, not the whole drawer: since 2026-10-30 the hem's next-scene step names the scene it
-  // suggested ("Suggested: <title>"), and that is the new scene's name by design.
-  const said = (await page.eval("document.querySelector('#sideBody .lbl.wide')?.textContent || ''")).replace(/\s+/g, ' ');
+  // suggested ("Suggested: <title>"), and that is the new scene's name by design. The heading is the
+  // Arcana banner's title since 2026-11-03 (`arcHead`), not a label.
+  const said = (await page.eval("document.querySelector('#sideBody .archead-title')?.textContent || ''")).replace(/\s+/g, ' ');
   // The chapter that just closed is chapter 1. Reporting on chapter 2 is the defect.
   const closed = chs[0].t, opened = chs[1].t;
-  ok(`  the door opens the ritual on the chapter that CLOSED (${closed}), not the empty new one (${opened})`,
+  ok(`  the door opens the ritual on the chapter that CLOSED (${closed}), not the empty new one (${opened}): "${said.trim()}"`,
      said.includes(closed) && !said.includes(opened));
   // And it says so: a closed chapter's screen does not offer to close it again.
   ok('  and a closed chapter is not offered for closing again', !(await page.visible('[data-endchapter="1"]')));
