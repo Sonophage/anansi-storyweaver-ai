@@ -139,6 +139,8 @@ const srv = createServer((req, res) => {
       LOREOUT: { reply: "I've taken the Bellwardens out of every passage.", changes: [{ op: 'prose.remove', title: 'the Bellwardens' }] },
       // #156 · a model switch and a hem, each sent whatever the writer said: the route decides.
       MODELQ: { reply: 'Kimi K2 holds a voice closely; I have switched you over.', changes: [{ op: 'model.set', model: 'Kimi K2' }] },
+      // A model on the co-writer's own shortlist and not on the owner's.
+      MODELGUEST: { reply: 'Switched to Guest Only.', changes: [{ op: 'model.set', model: 'Guest-Only' }] },
       HEMIT: { reply: 'The scene is hemmed.', changes: [{ op: 'hem.start' }] },
       // #157 · advice: a direction, a new thread and a string, all of them suggestions.
       ADVICE: { reply: 'Wenna has not opened the letter. A lockmaster would notice that.',
@@ -3598,6 +3600,46 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   assert.strictEqual(hm.changes[0].hem, first, 'HEM-OPENS: the answer names the scene, for the hem screen to open on');
   assert.strictEqual(hm.changes[0].undo, null, '  and a hem has no Undo');
   await hemSettled(tale.id);
+
+  // A CO-WRITER SWITCHES THE TALE'S MODEL THROUGH TALK. The gate lets them in, so this is what
+  // `saveStory` and `actOn` decide for a writer who does not own the tale: the switch is checked
+  // against the OWNER's shortlist, it moves neither writer's model for new tales, and the card does
+  // not tell the co-writer it did. Undo moves neither default back either.
+  {
+    const guest = db.owner('cowriter');
+    db.addWriter(tale.id, guest);
+    // Both writers on Featherless: Kimi is on his list too, so only the owner check keeps it his choice.
+    const GUEST_ONLY = 'featherless:someone/Guest-Only-heretic';
+    db.addToShortlist(guest, GUEST_ONLY, 32768);
+    db.addToShortlist(guest, KIMI, 32768);
+    let hisUsual: string | null = LOCAL_MODEL;
+    const asGuest = (body: any) => ({ ...ctxOf(body), owner: guest, defaultModel: hisUsual,
+      setDefaultModel: (id: string) => { hisUsual = id; } }) as any;
+    const guestSays = (said: string) => { calls = []; return routes['POST /api/talk'](asGuest({ said })) as Promise<any>; };
+    assert.strictEqual(pin(), null, 'the tale starts unpinned');
+
+    const own = await guestSays('ABOUT-MODELGUEST: switch this tale to Guest-Only');
+    assert.ok(!own.error, own.error);
+    assert.strictEqual(pin(), null, `CO-MODEL-HIS-LIST: a model on the co-writer's own shortlist is refused (${JSON.stringify(own.notDone)})`);
+    assert.ok(own.notDone.some((x: any) => /not one of the models/.test(x.why)), `CO-MODEL-HIS-LIST-WHY: the answer says why (${JSON.stringify(own.notDone)})`);
+
+    const sw = await guestSays('ABOUT-MODELQ: switch this tale to Kimi K2');
+    assert.ok(!sw.error, sw.error);
+    assert.strictEqual(pin(), KIMI, `CO-MODEL-PIN: a co-writer may switch the tale to one on the owner's list (${JSON.stringify(sw.notDone)})`);
+    assert.strictEqual(hisUsual, LOCAL_MODEL, "CO-MODEL-HIS-USUAL: it does not become the co-writer's model for new tales");
+    assert.strictEqual(usual, null, "CO-MODEL-HER-USUAL: nor the owner's");
+    assert.doesNotMatch(sw.changes[0].words, /your model for new tales/, 'CO-MODEL-SAID: the card does not say it did');
+    // Then he picks Kimi for his own new tales by hand, and undoes. The owner's Undo gives the old model
+    // back when the default is still the one the switch set; his default only LOOKS like that, and is
+    // his own pick, so it stays.
+    hisUsual = KIMI;
+    const back = await routes['POST /api/talk/undo'](asGuest({ undo: sw.changes[0].undo })) as any;
+    assert.ok(!back.error, back.error);
+    assert.strictEqual(pin(), null, 'CO-MODEL-UNDO: the co-writer can undo it');
+    assert.deepStrictEqual([hisUsual, usual], [KIMI, null], 'CO-MODEL-UNDO-USUAL: and neither model for new tales moves');
+    db.dropWriter(tale.id, guest);
+  }
+  ok("a co-writer's switch through Talk is checked against the owner's list and moves neither writer's model for new tales");
 
   process.env.ANANSI_FEATHERLESS_KEY_FILE = keyWas ?? '';
   if (iniWas == null) delete process.env.ANANSI_PRESETS; else process.env.ANANSI_PRESETS = iniWas;
