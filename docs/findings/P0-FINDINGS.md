@@ -3422,3 +3422,44 @@ named the shadow detaching from the rib.
 - F67's ask-again and this note were never run together.
 
 **Harness.** `bench/reroll-away.ts run <out.jsonl> 5 control@5301 named@5302+named`, `report`.
+
+## F69 — asked "what should happen next?", Ornith fills Talk's directive about half the time, and a contract sentence naming the question as a request did not raise it (7/10 against 5/10); asked "what haven't I thought of?", never (0/20). No advice question changed a row in 62 answers (2026-11-04)
+
+**The question.** #157 asks for advice to come as cards: the next move as the directive card, with
+Put it in the composer. Asked "what should happen next?", does Ornith fill the directive, or leave
+the move in the reply? And does one contract sentence saying that the question IS a request for the
+directive raise the rate? The contract's directive rule ends "A question about the story is not that
+request ... leave the field EMPTY", which a model could read as covering it.
+
+**The arm.** Treatment: in the DIRECTIVE rule of `TALK_CONTRACT`, the sentence `"What should happen
+next?" and "what haven't I thought of?" ARE that request, though they are questions: fill the field
+with the one move you suggest.` before "Any other question about the story is not that request".
+Checked present in the treatment's system message and absent from the control's, on one probe call
+to each, before the run.
+
+**The run.** Ornith-1.0-RPNTH-35B, two scratch servers at the same time (5301 control at 237dd5f,
+5302 treatment), each on its own copy of the library (`backups/pre-157-2026-11-04.db`), the tale
+"The Lands Between — test copy" (118 passages) pinned to Ornith. Each question asked ten times per
+arm with no earlier turns, through `POST /api/talk`.
+
+| arm | "what should happen next?" directive | "what haven't I thought of?" directive | changes |
+|---|---|---|---|
+| control | 7 of 10 | 0 of 10 | 0 |
+| treatment | 5 of 10 | 0 of 10 | 0 |
+
+Fisher, two-sided, on the first column: p = 0.65. The control's rate is not stable from run to run:
+on the same code and tale, earlier runs that day gave 1 of 6 and 3 of 10, so 11 of 26 over the
+control's runs (42%).
+
+**What this settles.**
+- The sentence measured flat and was not kept. The CLAUDE.md rule about prompt clauses held again.
+- "What haven't I thought of?" is answered with offers (chalked threads and strings, 0 to 4 per
+  answer) and the reply; it never drew a directive in 20 answers in either arm. That fits ADR 0014:
+  the question asks for what was missed, not for the next move.
+- Advice is safe: no row changed in any of the 62 advice answers (40 here, 22 earlier the same day).
+  One earlier answer, to "What should change for Morgott?", did change a row; that was the asked
+  rule hearing "change" in a question, fixed in 237dd5f.
+
+**Open.** When the directive is left empty, the move is in the reply only, and once (of 26) it came
+as an offered character thread named for the move ("Morgott and Talia's Escape"). A way to raise the
+rate that is not a clause (the schema's field order, or a second small call) is untested.
