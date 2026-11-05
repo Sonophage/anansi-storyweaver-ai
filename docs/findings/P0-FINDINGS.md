@@ -3464,38 +3464,49 @@ control's runs (42%).
 as an offered character thread named for the move ("Morgott and Talia's Escape"). A way to raise the
 rate that is not a clause (the schema's field order, or a second small call) is untested.
 
-## F70 — the whole new Talk replayed twice on Ornith: advice, a pocket fill, a model switch and its Undo, and a hem do what their cards say; a rename, a lore removal and a setup "set it up" fail on the model's side, and one passage card claims a rewrite that changed nothing (2026-11-04)
+## F70 — three replays of the whole new Talk on Ornith (30 steps): a pocket fill, advice and an Undo did what they said every time; a rename never once arrived with its new name; one answer told the writer "Hemmed. Scene 1 is closed" with nothing behind it (2026-11-04)
 
 **The question.** Spec #150's last ticket (#159): walk every Talk operation on the test bench model and
 check each answer's cards, offers and reply against the rows that changed.
 
-**The run.** `bench/talk-replay.ts run`, Ornith-1.0-RPNTH-35B, scratch copies of
+**The run.** `bench/talk-replay.ts run`, Ornith-1.0-RPNTH-35B, three fresh scratch copies of
 `backups/pre-158-2026-11-04.db` on 5301, the tale "The Murmur in the Marrow" pinned to Ornith and
-checked. Ten steps, run twice on two fresh copies. Run 1 used an earlier detector (no "asked for"
-check, and a hem's break passage counted against it), so only run 2's mismatch count is the bench's.
+checked. Ten steps a run. The detector changed between runs, so only run 3's verdicts are the
+bench's as committed; runs 1 and 2 are read again here from their saved answers and row diffs. Run 3's
+bench also checked, before writing, that the server on 5301 had that copy open.
 
-| step | run 1 | run 2 |
-|---|---|---|
-| advice ("What should happen next?") | 1 offer, no row | 1 offer, no row |
-| Seraphine's card | 1 pocket written | 2 pockets written |
-| rename ("Vel is called Vessa now") | not done: no new name sent | not done: four renames sent, none with a new name, aimed at pocket labels ("What is always true of Vel") |
-| passage 3 colder | rewritten | **card with no row**: the rewrite came back word for word, was saved as an edit and carded |
-| Choir of Saints out of the prose | nothing sent; reply "I will take it out" | sent, but no passage matched: the prose says "the Choir"; title and wake word ("Saints") do not match |
-| model switch to "Qwen3.6" | switched to a Featherless Huihui-Qwen3.6 model; card named it | switched to the local Qwen3.6 preset |
-| its Undo | put back | put back |
-| hem | started, scene closed and next opened | the same |
-| setup: add the tollkeeper and a promise | thread and promise as cards | nothing sent; reply only |
-| setup: "Set it up." | no tale.start sent; reply "Starting the tale. The draft is now live" | no tale.start sent; reply "Making the tale from the draft now" |
+| step | run 1 | run 2 | run 3 |
+|---|---|---|---|
+| advice | 1 offer | 1 offer | 5 offers |
+| Seraphine's card | 1 pocket written | 2 written | 4 pockets and her Always true written, 6 cards |
+| rename ("Vel is called Vessa now") | not done: no new name sent | not done: 4 renames, none with a new name | not done: 2 renames, none with a new name |
+| passage 3 colder | rewritten | **card with no row**: the rewrite was word for word the passage, saved as an edit and carded | rewritten |
+| Choir of Saints out of the prose | nothing sent; reply "I will take it out" | sent; no passage matched | sent; no passage matched |
+| "Switch this tale to Qwen3.6" | switched to a Featherless Huihui-Qwen3.6 model | switched to the local Qwen3.6 preset | refused: four models fit "Qwen3.6", "say which" |
+| the switch's Undo | put back | put back | no switch to undo |
+| hem | started | started | **nothing sent; reply "Hemmed. Scene 1 is closed, and Scene 2 is open"** |
+| setup: add the tollkeeper and a promise | thread and promise as cards | nothing sent | nothing sent; reply "Nothing was changed." |
+| setup: "Set it up." | no tale made; reply "Starting the tale" | no tale made; reply "Making the tale from the draft now" | tale made |
 
-**What this settles.**
-- No row changed without a card in either run, after the hem's own rows (closing scene, next scene,
-  the break passage) were counted as the hem's.
-- One claim with no row is the app's: a passage rewrite identical to the passage is saved and carded.
-- The rest are the model not sending what was asked, or sending it incomplete; the app said so where
-  the model sent something (not done, with the reason), and stayed silent where it sent nothing.
+**What this settles, for these 30 steps and no more.**
+- Where a card was shown, a row of its kind changed, in all but one card of 30 steps: the passage
+  rewrite in run 2 that came back identical. That one is the app's: an identical rewrite is saved and
+  carded. Rows were matched by table, not by row (the bench's ponytail).
+- Two answers told the writer something happened that did not, with no card and no "not done": run
+  3's hem ("Hemmed") and runs 1 and 2's "set it up" ("Starting the tale", "Making the tale"). The
+  app's warning that nothing was changed is added only when the message holds one of its change verbs
+  (`asksForChange`), and "hem" and "set it up" are not among them.
+- The rest is the model not sending what was asked, or sending it incomplete, and the app saying so:
+  every rename (3 of 3) came without its new name, and a lore removal that was sent matched nothing,
+  because the prose says "the Choir" and the thread is titled "Choir of Saints" with the wake word
+  "Saints".
+- The model switch depends on what the model sends for an ambiguous name: twice it picked one of four
+  matching models (once a remote one), once it sent the name as said and the app refused it.
 
 **Open.** Whether the app should complete what it can decide itself: make the tale when the writer
-says "set it up" and the model sent nothing; take a rename's new name from the writer's words; match a
-removal by a thread's first word ("Choir"). Two runs of ten steps are not rates.
+says "set it up" and the model sent nothing; start the hem on "hem this scene" the same way; take a
+rename's new name from the writer's words; match a removal by a thread's first word ("Choir"); refuse
+an identical rewrite; and say "nothing was changed" whenever a step the writer asked for has no card.
+Three runs of ten steps are not rates.
 
 **Harness.** `bench/talk-replay.ts run <scratch.db> 5301 <out.jsonl>`, then `report <out.jsonl>`.

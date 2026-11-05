@@ -47,9 +47,9 @@ const srv = createServer((req, res) => {
     // remove a thread). Answered by the writer's words: "darker" asks for a change to the premise;
     // anything else is a question, answered with one thread offered.
     const ops = body.response_format?.json_schema?.schema?.properties?.changes?.items?.properties?.op?.enum ?? [];
+    // The writer's words are the last paragraph of the ask; earlier turns ride above them.
+    const said = String(body.messages?.at(-1)?.content ?? '').split('\n\n').at(-1) ?? '';
     if (!body.stream && ops.includes('thread.remove')) {
-      // The writer's words are the last paragraph of the ask; earlier turns ride above them.
-      const said = String(body.messages?.at(-1)?.content ?? '').split('\n\n').at(-1) ?? '';
       const answer = /darker/i.test(said)
         ? { reply: 'The premise is darker now.',
             changes: [{ op: 'tale.set', field: 'premise', text: 'The fake router made this premise darker.' }] }
@@ -60,12 +60,10 @@ const srv = createServer((req, res) => {
     }
     // #159 · TALK IN A TALE, told apart by an operation only a tale has. "a slow voice" asks for Marek's
     // voice, and the answer also offers a thread nobody asked for: one done card and one chalked card.
-    if (!body.stream && ops.includes('hem.start')) {
-      const said = String(body.messages?.at(-1)?.content ?? '').split('\n\n').at(-1) ?? '';
-      const answer = /slow voice/i.test(said)
-        ? { reply: 'Marek speaks slowly now.', changes: [{ op: 'thread.set', thread: 'Marek Vale', room: 'voice', text: 'Slow, and every word counted.' }],
-            entries: [{ title: 'The Lamplighter', type: 'character', body: 'Lights the quay lamps at dusk.', keys: ['Lamplighter'], field: 'none' }] }
-        : { reply: 'The fake router answers: Marek lent the money.' };
+    // Any other question to a tale's Talk falls through to the plain answer below, as before.
+    if (!body.stream && ops.includes('hem.start') && /slow voice/i.test(said)) {
+      const answer = { reply: 'Marek speaks slowly now.', changes: [{ op: 'thread.set', thread: 'Marek Vale', room: 'voice', text: 'Slow, and every word counted.' }],
+        entries: [{ title: 'The Lamplighter', type: 'character', body: 'Lights the quay lamps at dusk.', keys: ['Lamplighter'], field: 'none' }] };
       return json({ choices: [{ message: { content: JSON.stringify(answer) }, finish_reason: 'stop' }],
         usage: { prompt_tokens: 10, completion_tokens: 30 } });
     }

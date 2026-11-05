@@ -7,7 +7,8 @@
 const B = "http://127.0.0.1:5179";
 let red = 0;
 const ok = (m, cond) => { console.log(`  ${cond ? "ok  " : "FAIL"} ${m}${cond ? "" : "   <-- broken"}`); if (!cond) red++; };
-const until = async (expr, n = 60, ms = 100) => { for (let i = 0; i < n; i++) { if (await page.eval(expr)) return true; await wait(ms); } return false; };
+// An expression for the page, or a function here (for what the server says).
+const until = async (f, n = 60, ms = 100) => { for (let i = 0; i < n; i++) { if (typeof f === 'string' ? await page.eval(f) : await f()) return true; await wait(ms); } return false; };
 const view = (sid) => page.eval(`(async () => JSON.stringify(await (await fetch('/api/story?story=${sid}')).json()))()`).then(JSON.parse);
 const sid = await page.eval("(async () => (await (await fetch('/api/stories')).json()).stories.find((s) => s.title === 'The Silver Key').id)()");
 const voiceOf = async () => ((await view(sid)).entries.find((e) => e.title === 'Marek Vale')?.addons ?? [])
@@ -31,11 +32,10 @@ ok("CARDS-CHALK: the offer is a chalked card with Sew it in",
 ok("  and it is not made until it is sewn in", !(await view(sid)).entries.some((e) => e.title === 'The Lamplighter'));
 
 await press('#talkthread .deckcard[data-deckkind="done"] [data-talkundo]');
-const settles = async (f) => { for (let i = 0; i < 40; i++) { if (await f()) return true; await wait(100); } return false; };
-ok("CARDS-UNDO: Undo puts his voice back", await settles(async () => (await voiceOf()) === was));
+ok("CARDS-UNDO: Undo puts his voice back", await until(async () => (await voiceOf()) === was, 40));
 ok("  and the card says it was undone", await until("/Undone/.test(document.getElementById('talkthread')?.textContent ?? '')"));
 
 await press('#talkthread .deckcard[data-deckkind="chalk"] [data-deckall="accept"]');
-ok("CARDS-SEW: Sew it in makes the offered thread", await settles(async () => (await view(sid)).entries.some((e) => e.title === 'The Lamplighter')));
+ok("CARDS-SEW: Sew it in makes the offered thread", await until(async () => (await view(sid)).entries.some((e) => e.title === 'The Lamplighter'), 40));
 
 console.log(red ? `\n  ${red} red` : '\n  all green');
