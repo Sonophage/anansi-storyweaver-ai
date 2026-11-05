@@ -3520,3 +3520,43 @@ ask. The rest stays open: completing a request from the writer's words needs a r
 against sentences it was not written for, which regular expressions here did not.
 
 **Harness.** `bench/talk-replay.ts run <scratch.db> 5301 <out.jsonl>`, then `report <out.jsonl>`.
+
+## F71 — one card contract for every door: kept over the old prompts in 7 of 9 scenes read blind on Ornith (a lean, p ~ 0.09); its two new rules measured flat and were deleted (2026-11-05)
+
+**The question.** #142: fifteen prompts that write a thread or a pocket each carried their own copy of
+what a good card is. Folded into one text (`CARD_CONTRACT`, src/prompts.ts), are the cards worse, the
+same, or better? And do the two rules the contract added to most doors (a person's want and what is
+in its way; what is still open about a plot thread) buy anything?
+
+**The run.** `bench/cards-ab.ts run`, Ornith-1.0-RPNTH-35B, three arms at once, each a scratch server
+(5301–5303) on its own copy of the library, every tale checked to be pinned to Ornith before anything
+was generated: A main's prompts (9f18f36), B the contract (2339124), C the contract without its two
+new rules. Each arm ran the new-threads pass and the people pass on 8 closed scenes (ENCORE 2, 5, 7, 9;
+The Lands Between 5, 6; The Shadow Lands 1; EXPORT 6) and Invent once in three tales. 0 errors; 11
+logged calls per arm, all on Ornith. Cards: A 70, B 65, C 66.
+
+**The read.** One sheet, each scene's three arms under letters shuffled per scene, read by Seth on his
+phone before anyone looked at the key. One pick per scene, "no difference" allowed and not used.
+
+| | A (main) | B (contract) | C (contract, no new rules) |
+|---|---|---|---|
+| scenes kept | 2 | 3 | 4 |
+| template text in a card | 0 | 0 | 0 |
+| sentences of the played character's inside (Seth) | 0 | 0 | 0 |
+| words, new thread's body (mean) | 27 | 37 | 33 |
+| words, pocket (mean) | 24 | 28 | 36 |
+| keys per new thread | 1 | 1 | 1 |
+
+**What this settles, for these 9 reads and no more.** The contract (B or C) was kept over main 7 to 2.
+Seven of nine has about a 9% chance under no difference (one-sided sign test): a lean, not a proof. It
+is shipped on that lean and on its structure (one source, held by test/cards.ts), not on a measured
+gain. The two new rules: B 3, C 4, indistinguishable, so they were deleted, as CANON-REPEAT (F20) and
+the SYSTEM register clause (F37) were. The automatic checks cannot separate the arms: main already
+carried #143's floors, so every arm shows zero template text and zero inside for Seth.
+
+**Open.** Nine reads by one reader. A second run is a new run (nothing sets a seed); its numbers do not
+add to these (F55).
+
+**Harness.** `bench/cards-ab.ts run <A-checkout> <B-checkout> <C-checkout>`, then `sheet`; the key is
+written beside the sheet, not in it.
+

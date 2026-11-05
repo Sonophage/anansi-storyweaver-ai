@@ -2,7 +2,8 @@
 // scratch server on its own copy of the library, differing only in their prompts:
 //
 //   A  main's prompts, as they were before the contract
-//   B  the contract (CARD_CONTRACT in every card-writing prompt)
+//   B  the contract as first written (CARD_CONTRACT at 2339124, with the two rules below; F71 deleted them,
+//      so today's contract is what C was)
 //   C  the contract without its two rules new to most doors (a person's want and what is in its way;
 //      what is still open about a plot thread), the control for those two
 //
@@ -72,26 +73,59 @@ if (mode === 'sheet') {
       const cs = res.cards[arm].filter(g.key);
       return `<div class="col"><h3>${letters[i]} <small>${cs.length} card${cs.length === 1 ? '' : 's'}</small></h3>${cs.map(card).join('') || '<p class="none">nothing chalked</p>'}</div>`;
     }).join('');
-    const pick = ['X', 'Y', 'Z', 'same'].map((l) => `<label><input type="radio" name="g${gi}" value="${l}">${l === 'same' ? 'no difference' : l}</label>`).join('');
+    const pick = ['X', 'Y', 'Z', 'same'].map((l) => `<label for="g${gi}${l}"><input type="radio" id="g${gi}${l}" name="g${gi}" value="${l}">${l === 'same' ? 'no difference' : l}</label>`).join('');
     return `<section><h2>${esc(g.name)}</h2><div class="pick">Best: ${pick}</div><div class="cols">${cols}</div></section>`;
   }).join('');
   writeFileSync(join(OUT, 'key.json'), JSON.stringify(key, null, 2));
-  writeFileSync(join(OUT, 'sheet.html'), `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Card bench</title><style>
-:root{--bg:#f6f3ee;--ink:#222;--dim:#666;--card:#fff;--line:#ddd}
-@media (prefers-color-scheme:dark){:root{--bg:#16151a;--ink:#e8e4dc;--dim:#9a958c;--card:#211f26;--line:#3a3742}}
-body{background:var(--bg);color:var(--ink);font:15px/1.5 Georgia,serif;margin:0;padding:16px;max-width:1500px}
-h1{font-size:22px}h2{font-size:18px;margin:28px 0 6px;border-top:1px solid var(--line);padding-top:16px}
-.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
-.col h3{margin:4px 0}.col small,.t span{color:var(--dim);font-weight:normal;font-size:13px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:8px 0}
-.t{font-weight:bold}.room{font-size:14px;color:var(--ink)}.room b{color:var(--dim);font-weight:normal}
-.none{color:var(--dim)}.pick label{margin-right:14px}button{font:inherit;padding:8px 14px;margin:20px 0}
-pre{white-space:pre-wrap;background:var(--card);padding:10px;border:1px solid var(--line)}
-</style><h1>Card bench: which column would you keep?</h1>
-<p>Each section is one scene, hemmed three times with three different sets of instructions, on the same model. The letters are shuffled per section. Pick the column whose cards you would rather have in your tale, or "no difference".</p>
+  // Written as a page body (no doctype or html tags), so the same file opens locally and publishes as a
+  // private page to read on a phone. Picks are remembered in this browser only; Copy hands them back.
+  writeFileSync(join(OUT, 'sheet.html'), `<title>Card bench read</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* One reading column of cards per arm, side by side on a desk, stacked on a phone. */
+:root{--bg:#f3f1ec;--fg:#23212a;--dim:#6b6676;--card:#fffdf9;--line:#d9d4ca;--accent:#7a4e1f;
+  --serif:Georgia,'Iowan Old Style',serif;--sans:system-ui,-apple-system,'Segoe UI',sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17161c;--fg:#e9e5dd;--dim:#9c96a6;--card:#222029;--line:#3a3743;--accent:#d9a46a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#17161c;--fg:#e9e5dd;--dim:#9c96a6;--card:#222029;--line:#3a3743;--accent:#d9a46a;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:16px/1.55 var(--serif);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 40px;max-width:1500px}
+h1{font:600 21px/1.25 var(--sans);text-wrap:balance;margin:8px 0}
+.lede{max-width:65ch;color:var(--dim)}
+section{border-top:1px solid var(--line);margin-top:26px;padding-top:14px}
+h2{font:600 17px/1.3 var(--sans);margin:0 0 8px}
+.pick{display:flex;flex-wrap:wrap;gap:6px 16px;font:15px var(--sans);margin-bottom:10px}
+.pick label{display:flex;align-items:center;gap:6px;min-height:40px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.col{min-width:0}.col h3{font:600 16px var(--sans);margin:4px 0;color:var(--accent)}
+.col h3 small,.t span{color:var(--dim);font-weight:400;font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:8px 0;overflow-wrap:anywhere}
+.t{font:600 15px var(--sans)}.card p{margin:6px 0}.room{font-size:15px}.room b{color:var(--dim);font:400 13px var(--sans)}
+.none{color:var(--dim)}
+button{font:600 16px var(--sans);padding:10px 16px;margin:24px 0 10px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:var(--bg)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+pre{white-space:pre-wrap;background:var(--card);padding:10px;border:1px solid var(--line);font:14px/1.5 var(--sans);min-height:2em}
+</style>
+<h1>Which column would you keep?</h1>
+<p class="lede">Each section is one scene, hemmed three times on the same model with three different sets of instructions. The letters are shuffled in every section. Pick the column whose cards you would rather have in your tale, or "no difference". Then press Copy my picks and paste them to Mina.</p>
 ${sections}
-<button onclick="const o=[...document.querySelectorAll('section')].map((s,i)=>s.querySelector('h2').textContent+': '+(s.querySelector('input:checked')?.value??'-')).join('\n');document.getElementById('out').textContent=o;navigator.clipboard?.writeText(o)">Copy my picks</button><pre id="out"></pre>`);
+<button id="copy" type="button">Copy my picks</button>
+<pre id="out" aria-live="polite"></pre>
+<script>
+const KEY = 'cards-ab-picks';
+const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
+const saved = read();
+for (const el of document.querySelectorAll('input[type=radio]')) {
+  if (saved[el.name] === el.value) el.checked = true;
+  el.addEventListener('change', () => { const s = read(); s[el.name] = el.value; try { localStorage.setItem(KEY, JSON.stringify(s)); } catch {} });
+}
+document.getElementById('copy').addEventListener('click', () => {
+  const text = [...document.querySelectorAll('section')].map((s) => s.querySelector('h2').textContent + ': '
+    + (s.querySelector('input:checked')?.value ?? '-')).join('\\n');
+  const out = document.getElementById('out'); out.textContent = text;
+  const pick = () => { const r = document.createRange(); r.selectNodeContents(out); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); };
+  (navigator.clipboard?.writeText(text) ?? Promise.reject()).then(() => { document.getElementById('copy').textContent = 'Copied'; }, pick);
+});
+</script>`);
   console.log(`  ${join(OUT, 'sheet.html')}\n  key in ${join(OUT, 'key.json')} (not for the reader)`);
   process.exit(0);
 }

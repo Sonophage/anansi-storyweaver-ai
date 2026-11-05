@@ -35,6 +35,12 @@ The same goes for Write it again on the Workbench and for Anansi filling in a po
 the answer came back as a form and leave your text as it was. In a new tale's draft, a part written
 as a form comes back empty for you to fill in, and the rest of the thread stays.
 
+### Every new card follows the same rules
+Wherever Anansi writes a card (hemming, Remember this, filling in a card, a lookup, a new tale's cast,
+Talk), it now follows one set of rules: facts, not atmosphere; who someone is kept apart from their
+clothes and how they talk; nothing said twice; and one keyword that actually turns up in your prose.
+Filling in a single pocket now asks for one keyword too, like everything else.
+
 ### A place is not mistaken for a person with a similar name
 A new place called Mohgwyn Palace is now offered as a new place. Before, it was offered as a change
 to Mohg.

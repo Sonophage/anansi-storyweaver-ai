@@ -55,18 +55,16 @@ every call that reaches the card and lifts finished English straight into the pr
  *  one-keyword rule five times, and once contradicted by Invent's pocket asking for "single words"),
  *  so they drifted. test/cards.ts holds every card-writing prompt to carrying this text itself, and to
  *  re-stating none of what it owns. The rules are the ones the prompts already had, in their words
- *  where they had them, and two that only New tale's cast asked for: a person's want and what is in
- *  its way, and what is still open about a thread the plot turns on.
- *  NOT MEASURED as a whole. The two rules new to most doors are the ones to measure against a control
- *  arm on Ornith before they stay (#142's bench); the rest were in force already. */
+ *  where they had them.
+ *  F71: on Ornith, read blind by Seth, cards under this contract were kept over main's in 7 of 9
+ *  scenes (a lean: p ~ 0.09, one-sided). Two rules new to most doors (a person's want and what is in
+ *  its way; what is still open about a plot thread) measured flat against this text without them,
+ *  3 to 4, and were deleted, not kept as a switch. */
 export const CARD_CONTRACT =
 `WHAT A GOOD CARD IS. Every thread and pocket keeps to this, whoever asked for it:
 - Concrete, and of this tale: facts somebody could contradict. No clause that could be true of
   anyone, and no adjective doing the work of a fact.
 - Always true holds who or what it is and nothing else: no clothes, no events, no mood, no voice.
-- A person has something they want and something in its way (for one under OUTSIDE ONLY, only what
-  others can see of it). A thread the plot turns on says what is still open about it, never how it
-  ends.
 - Nothing twice: never repeat what the thread or another of its pockets already says. Where two
   things disagree, the later and more specific one is true: write only that one.
 - Clothes go in an outfit pocket and nowhere else: not in Always true, not in where it stands, not in
