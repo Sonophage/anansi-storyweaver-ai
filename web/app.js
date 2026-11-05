@@ -336,7 +336,7 @@ const S = {
   worldPulling: null,   // the name being pulled right now, so the button can say which
   setupQ: '',           // filter over the ledger on the next-chapter setup page
   lore: null,           // the + Lore tray above the composer, when it is open
-  talk: { turns: [], busy: false, search: readWebSearch(), draft: null, searchable: null },
+  talk: { turns: [], busy: false, search: readWebSearch(), searchable: null },
   // The Past talks list on screen, and whose it is: a tale's id, or 'setup' (2026-10-30).
   talkPast: null,
   // #71 · THE BOTTOM OF THE WRITING SCREEN. Once a passage has landed it is three buttons, and the
@@ -2497,7 +2497,7 @@ async function dockAsk() {
   if (S.talk.busy) return;
   const mentions = mentionsSaid(said, S.mentions);
   S.mentions = [];
-  S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true, draft: null };
+  S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true };
   clearComposer();
   paint();
   return talk(said, mentions);
@@ -2779,15 +2779,14 @@ function drawDock() {
 }
 
 /** THE CONVERSATION AND THE ROW UNDER IT, for Talk in a tale's composer and over a tale being set up
- *  (#100), drawn once so the two cannot drift. Above the box: the turns (or Past talks), the drafted
- *  directive, a refusal's row; then the row of Talk's own presses. Its last press is the one that
+ *  (#100), drawn once so the two cannot drift. Above the box: the turns (or Past talks), each answer
+ *  with its cards and its direction (#157), a refusal's row; then the row of Talk's own presses. Its last press is the one that
  *  differs: a tale goes Back to writing, and a setup has nothing to write in, so it has Fill in the
  *  tale there instead, once there is a talk to fill it from. */
 function talkDock(t, setup) {
   const searchable = setup ? S.talk.searchable : (V?.searchable ?? S.talk.searchable);
   return `<div id="talkthread" aria-live="polite">${pastHere() ? talkPast(t) : t.turns.length ? talkTurns(t)
         : talkEmpty(setup)}${talkBusy(t)}</div>
-      ${talkDraft(t)}
       ${weaveFitRow('talk')}
       <div id="talkhead">
         <span class="talklabel">${mark('webfull', 15)} Talking to Anansi</span>
@@ -3604,14 +3603,16 @@ const talkBusy = (t) => (t.busy ? (weavingAt('talk')
   ? `<div id="talkweaving" class="hint tnum flush" aria-live="polite">${weaveWords('talk')}</div>`
   : '<div class="hint flush">Asking&hellip;</div>') : '');
 
-/** A directive Anansi drafted, for the writer to use or ignore. */
-const talkDraft = (t) => t.draft ? `<div class="card" style="gap:8px; border-color:rgba(217,178,106,.34)">
+/** A DIRECTIVE ANANSI DRAFTED, for the writer to use or ignore: #157 draws it in the answer it came
+ *  with, beside that answer's cards, so advice reads as one set of cards (ADR 0014) and a talk opened
+ *  again still has it. Its press puts it in the composer unsent; nothing is written until then. */
+const talkDirection = (turn, i) => turn.directive ? `<div class="card" style="gap:8px; border-color:rgba(217,178,106,.34)">
         <div class="kind">A directive, for you to use or ignore${
           tipMark('askDraft', 'A directive')}</div>
-        <div class="note">${esc(t.draft)}</div>
+        <div class="note">${esc(turn.directive)}</div>
         <div class="btnrow">
-          <button class="btn ghost fill" data-usedraft="1">Put it in the composer</button>
-          <button class="btn ghost" data-copydraft="1" style="width:84px">Copy</button>
+          <button class="btn ghost fill" data-usedraft="${i}">Put it in the composer</button>
+          <button class="btn ghost" data-copydraft="${i}" style="width:84px">Copy</button>
         </div>
         ${tipCard('askDraft', 'A directive', `<p>It arrives in Direct mode, unsent &mdash; read it
           before you send it.</p>`)}
@@ -3664,6 +3665,7 @@ function talkTurns(t) {
                   .map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noreferrer"
                     style="color:var(--mute)">${esc(s.title || s.url)}</a>`).join('')}</div>` : ''}
               ${talkCards(turn, i)}
+              ${talkDirection(turn, i)}
               ${/* #100 · WHAT HE OFFERED during setup, each with Add: one press puts it in the draft,
                    and it then has a line and an Undo like any change. */
                 (turn.offers ?? []).map((o, j) => `<div class="line-2" style="align-items:flex-start; gap:8px">
@@ -6328,8 +6330,6 @@ const PANELS = {
           : talkEmpty(setup)}
         ${talkBusy(t)}
       </div>
-
-      ${talkDraft(t)}
 
       ${weaveFitRow('talk')}
       <div style="display:flex; flex-direction:column; gap:8px; padding-top:10px; border-top:1px solid var(--line); position:relative">
@@ -11856,8 +11856,8 @@ async function talk(said, mentions, anyway = false) {
   S.talk.sessionId = r.sessionId ?? S.talk.sessionId;
   S.talk.turns = [...S.talk.turns, { you: false, text: r.reply || '(nothing came back)',
     sources: r.sources ?? [], changes: r.changes ?? [], chalked: r.chalked ?? [],
+    directive: r.directive || null,
     meta: `${r.seconds}s · ${Number(r.tokens ?? 0).toLocaleString()} tokens read`, prompt: r.prompt ?? null }];
-  S.talk.draft = r.directive || null;
   // A thread that landed is a proposal, and the queue lives under Chapter. A change is in the tale.
   // #156 · A model Talk switched is the writer's model too, as a pick on the Model tab makes it.
   if (r.proposed || r.changes?.length) { V = await api.story(S.storyId); if (V?.defaultModel) SRV.model = V.defaultModel; }
@@ -13914,16 +13914,16 @@ document.addEventListener('click', async (e) => {
       return talkSetup(said);
     }
     const mentions = mentionsSaid(said, S.talk.mentions);
-    S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true, draft: null,
-      mentions: [] };
+    S.talk = { ...S.talk, turns: [...S.talk.turns, { you: true, text: said }], busy: true, mentions: [] };
     return talk(said, mentions);
   }
   if (d.usedraft) {
     // HANDED to the composer, not sent. Direct mode, in the box, editable — the whole safety
     // property of this feature is that Anansi never presses send.
-    const draft = S.talk.draft;
+    // #157 · The direction of the answer whose card was pressed. The card stays with its answer.
+    const draft = S.talk.turns[Number(d.usedraft)]?.directive;
     if (!draft) return;
-    S.mode = 'direct'; S.panel = null; S.talk.draft = null; S.dockTalk = false; S.dockOpen = true;
+    S.mode = 'direct'; S.panel = null; S.dockTalk = false; S.dockOpen = true;
     syncHash(); paint();
     const input = $('input');
     // FIRE THE EVENT, do not re-implement what hangs off it. This set the height by hand — a
@@ -13937,8 +13937,9 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (d.copydraft) {
-    if (!S.talk.draft) return;
-    try { await navigator.clipboard.writeText(S.talk.draft); toast('Copied.'); }
+    const draft = S.talk.turns[Number(d.copydraft)]?.directive;
+    if (!draft) return;
+    try { await navigator.clipboard.writeText(draft); toast('Copied.'); }
     catch { toast('Could not reach the clipboard — select it and copy by hand.'); }
     return;
   }
@@ -13966,9 +13967,11 @@ document.addEventListener('click', async (e) => {
     const r = setup ? await api.sparkTalkOf(d.talkopen) : await api.talkOf(S.storyId, d.talkopen);
     if (r.error) return toast(r.error);
     // #151 · An answer's cards come back with it: what it changed, and what it chalked.
-    const turns = (r.turns ?? []).map((x) => ({ you: !!x.you, text: String(x.text ?? ''), changes: x.changes, chalked: x.chalked }));
+    // #157 · and its direction.
+    const turns = (r.turns ?? []).map((x) => ({ you: !!x.you, text: String(x.text ?? ''), changes: x.changes, chalked: x.chalked,
+      directive: x.directive || null }));
     if (setup) Object.assign(setupTalk(), { turns, sessionId: r.id });
-    else S.talk = { ...S.talk, turns, sessionId: r.id, draft: null };
+    else S.talk = { ...S.talk, turns, sessionId: r.id };
     S.talkPast = null;
     drawSide(); drawDock(); return;
   }

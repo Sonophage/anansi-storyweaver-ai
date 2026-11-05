@@ -140,6 +140,11 @@ const srv = createServer((req, res) => {
       // #156 · a model switch and a hem, each sent whatever the writer said: the route decides.
       MODELQ: { reply: 'Kimi K2 holds a voice closely; I have switched you over.', changes: [{ op: 'model.set', model: 'Kimi K2' }] },
       HEMIT: { reply: 'The scene is hemmed.', changes: [{ op: 'hem.start' }] },
+      // #157 · advice: a direction, a new thread and a string, all of them suggestions.
+      ADVICE: { reply: 'Wenna has not opened the letter. A lockmaster would notice that.',
+        directive: 'Have Wenna open the sealed letter at the lock gate, with the lockmaster watching.',
+        entries: [{ title: 'The Lockmaster', type: 'character', body: 'Keeps the weir and its ledger.', keys: ['Lockmaster'], field: 'none' }],
+        strings: [{ title: 'The sealed letter', body: 'Wenna has not opened the letter.', kind: 'promise' }] },
       PROSEEDIT: { reply: 'Colder now.', changes: [{ op: 'passage.set', quote: 'Morgott watched the river in the lamplight', text: 'make it colder' }] },
       // A plain answer that only sounds like a claim: nothing was asked, so nothing is taken off.
       SETIN: { reply: 'The tale is set in Sutera, under the Great Rib. I have made my peace with its bells. Ask me anything.' },
@@ -3548,6 +3553,43 @@ ok('Talk sends the threads the question, the conversation or the page names, and
   process.env.ANANSI_FEATHERLESS_KEY_FILE = keyWas ?? '';
   if (iniWas == null) delete process.env.ANANSI_PRESETS; else process.env.ANANSI_PRESETS = iniWas;
   ok('Talk knows the models; it switches the model and hems the scene only when asked, and the switch has an Undo');
+}
+
+// #157 · ADVICE COMES AS CARDS AND CHANGES NOTHING, and "what can you do?" is answered from the list
+// of tools the contract carries (ADR 0014).
+{
+  const tale = db.createStory(me, { title: 'The Lock Gate', premise: 'A letter nobody opens.' });
+  db.addPassage({ ...tale, storyId: tale.id, body: 'Wenna kept the letter in her apron.' });
+  const ctxOf = (body: any) => ({ body: { storyId: tale.id, ...body }, query: new URLSearchParams(),
+    owner: me, slot: { global: 100_096, slots: 2, perSlot: 50_048 },
+    gen: { max_tokens: 900, temperature: 0.85 }, setGen: () => {}, defaultModel: null }) as any;
+  const say = (said: string) => { calls = []; return routes['POST /api/talk'](ctxOf({ said })) as Promise<any>; };
+  // Every row the tale owns, but the proposals: an offer is a proposal, and that is the point.
+  const rows = () => JSON.stringify([db.getStory(tale.id), db.chapters(tale.id), db.passagesOf(tale.id),
+    db.entriesOf(tale.id), db.addonsOf(tale.id)]);
+  const was = rows();
+  const a = await say('ABOUT-ADVICE: what should happen next?');
+  assert.ok(!a.error, a.error);
+  assert.match(String(a.directive), /open the sealed letter/, 'ADVICE-DIRECTION: the direction comes back for its card');
+  const offered = (db.proposalsOf(tale.id) as any[]).filter((p) => a.chalked.includes(p.id)).map((p) => p.title).sort();
+  assert.deepStrictEqual(offered, ['The Lockmaster', 'The sealed letter'], `ADVICE-OFFER: the new thread and the string are offer cards (${offered})`);
+  assert.deepStrictEqual(a.changes, [], 'ADVICE-NO-CHANGE: nothing is done');
+  assert.strictEqual(rows(), was, 'ADVICE-NO-ROW: and no row of the tale changed');
+  const kept = db.talkSession(me, tale.id, a.sessionId)!.turns.at(-1) as any;
+  assert.strictEqual(kept.directive, a.directive, 'ADVICE-KEPT: the direction is kept with its answer, for a talk opened again');
+  assert.deepStrictEqual(kept.chalked, a.chalked, '  with its offers');
+
+  const plain = await say('what does Wenna keep?');
+  assert.strictEqual(db.talkSession(me, tale.id, plain.sessionId)!.turns.at(-1).directive, undefined,
+    'ADVICE-KEPT-ONLY: an answer with no direction keeps none');
+
+  const { TALK_TOOLS } = await import('../src/prompts.ts');
+  const w = await say('what can you do?');
+  assert.ok(!w.error, w.error);
+  const sys = String(calls[0].messages[0].content);
+  for (const line of Object.values(TALK_TOOLS)) assert.ok(sys.includes(`- ${line}`), `TOOLS-SENT: Talk is told it can: ${line}`);
+  assert.match(sys, /When the writer asks what you can do, answer from this list/, 'TOOLS-ASKED: and to answer "what can you do?" from that list');
+  ok('advice comes as a direction card and offer cards and changes no row; Talk is told every tool it has');
 }
 
 srv.close();

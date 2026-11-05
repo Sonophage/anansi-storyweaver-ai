@@ -18,6 +18,13 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-04 · Talk fills in the card you ask for
 
+### Ask Talk what should happen next, and what it can do
+Ask "what should happen next?" or "what haven't I thought of?" and Anansi answers in his own voice,
+with each suggestion as a card: a new person or an unpaid promise to sew in or reject, and the next
+move as a directive you can put in the composer. Nothing changes until you press. The directive now
+sits in the answer it came with, so it is still there when you open a past talk. Ask "what can you
+do?" and he tells you, from the list of everything Talk can do.
+
 ### Ask Talk about models, switch the model, or hem the scene
 Talk knows which model writes your tale and every model on your shortlist, so you can ask which one
 would suit what you are writing. Say "switch this tale to Kimi" and it does what a pick on the Model

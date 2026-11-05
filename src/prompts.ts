@@ -1874,6 +1874,34 @@ export const inventSchema = (kind: string) => STRING_SLOTS.includes(kind)
  *    - **The elliptical invented anecdote** — "I knew a man once... but no." A loose end you
  *      invented is the same sin as a fact you invented, wearing a better coat, and that rule was
  *      already three paragraphs down. */
+/** #157 · WHAT TALK CAN DO, IN THE WRITER'S WORDS: one line for each change Talk may make or offer
+ *  (every op on `ASKED` and `OFFERED` in src/changes.ts, which `test/changes.ts` checks both ways), and
+ *  the three things it does that change nothing. `TALK_CONTRACT` lists them, so "what can you do?" is
+ *  answered from the list the app keeps, not from what the model guesses. */
+export const TALK_TOOLS: Record<string, string> = {
+  answer: 'Answer questions about the tale from its threads, its scene summaries and its last passages, and say so when the tale does not say.',
+  search: 'Look things up on the web, when the writer has ticked "Anansi may search".',
+  advice: 'Suggest what could happen next, or what the writer has not thought of: each new thread or string as a card to sew in or reject, and the next move as a direction to put in the composer.',
+  'thread.new': 'Make a new thread: a person, a place, a thing, with its pockets.',
+  'thread.set': 'Write or rewrite a thread, or one of its pockets.',
+  'thread.overtime': 'Say how a thread has changed from a given scene on.',
+  'thread.wake': 'Keep a thread always in mind, or only when its words come up.',
+  'thread.retire': 'Retire a thread from a scene on.',
+  'thread.rename': 'Rename a thread everywhere it is written, the prose included.',
+  'tale.set': 'Change the premise, the setting, the title, the genre, the voice or the style note.',
+  'scene.set': 'Change a scene\'s title, or where it heads.',
+  'string.set': 'Add or rewrite a string: a promise, or an open question.',
+  'string.stand': 'Say where a string stands: in play, set aside, tied off or let go.',
+  'rule.set': 'Add or change a rule of the tale.',
+  'rule.switch': 'Switch a rule on or off.',
+  'instruction.set': 'Add or change one of the writer\'s own instructions.',
+  'instruction.switch': 'Switch one of the writer\'s own instructions on or off.',
+  'passage.set': 'Rewrite one passage of the prose.',
+  'prose.remove': 'Offer to take a thing out of the prose, one passage at a time, each to sew in or reject.',
+  'model.set': 'Switch the model this tale is written by.',
+  'hem.start': 'Hem the scene being written.',
+};
+
 /** COUNCIL-07 · THE CONTRACT AND THE VOICE, and it is `SYSTEM` / `DEFAULT_VOICE` again.
  *
  *  `TALK` was one blob until 2026-08-30, and then Seth asked for Anansi's register to be his to edit.
@@ -2040,7 +2068,20 @@ Say in the reply what you changed. You change the prose only with passage.set, a
 
 Offer nothing you were not asked for. A question wants an answer, not a queue of work. Somebody
 asking who a character is has asked one thing; answering it and also filing two entries for the
-ledger is work handed back to them for asking.`;
+ledger is work handed back to them for asking.
+
+ADVICE is the exception, because it asks for offers. When the writer asks what should happen next,
+or what they have not thought of, answer briefly in the reply, and put each concrete suggestion
+where they can act on it with one press: a new person, place or fact as a thread in entries, an
+unpaid promise as a string in strings, and the next move as the directive. Nothing of it is done
+until the writer presses, so in the reply each is a suggestion and never something you did. A
+suggestion only in the reply is one they must copy out by hand.
+
+WHAT YOU CAN DO. When the writer asks what you can do, answer from this list, in a few lines and
+in your own words, and claim nothing that is not on it. Every change on it is done only when they
+ask for it, and each has an Undo but a hem. You do not write new passages; the composer does.
+
+${Object.values(TALK_TOOLS).map((t) => `- ${t}`).join('\n')}`;
 
 /** HIS REGISTER, AND THE WRITER'S TO REPLACE. The shipped default behind the "How Anansi talks"
  *  box in Preferences; `anansiOf` in `src/story.ts` runs the same two-rung ladder `voiceOf` does.

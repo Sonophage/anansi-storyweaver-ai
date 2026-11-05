@@ -4734,7 +4734,8 @@ export const routes: Record<string, Handler> = {
    *
    *  Four outputs, and since #97 one of them lands here. The reply is returned; threads Anansi
    *  OFFERS go to the proposals queue where they wait like every other proposal; the directive is
-   *  handed back for the composer to hold unsent. What the writer ASKED to be changed (`changes`)
+   *  handed back, and kept with the answer, as a card whose press puts it in the composer unsent
+   *  (#157: advice changes nothing until the writer presses). What the writer ASKED to be changed (`changes`)
    *  is written at once, each with the Undo that puts it back (ADR 0007: asked means done, offered
    *  means chalked). No prose is ever written here. */
   'POST /api/talk': async (c: Ctx) => {
@@ -5186,10 +5187,13 @@ export const routes: Record<string, Handler> = {
     // tale (`db.talkSay`). `prompt` is exactly what was sent, for the page's Copy prompt; it holds
     // the whole story material, so it is handed back and never kept.
     const chalkedIds = (db.proposalsOf(v.id) as any[]).map((p) => p.id).filter((id) => !chalkedBefore.has(id));
-    // The cards are kept with the answer, so a talk opened again draws them (#151).
-    const sessionId = db.talkSay(c.owner, v.id, c.body.sessionId, said, answer.trim(), { changes, chalked: chalkedIds });
+    // The cards are kept with the answer, so a talk opened again draws them (#151), the direction
+    // card too (#157).
+    const directive = String(r.data.directive ?? '').trim() || null;
+    const sessionId = db.talkSay(c.owner, v.id, c.body.sessionId, said, answer.trim(),
+      { changes, chalked: chalkedIds, ...(directive ? { directive } : {}) });
 
-    return { reply: answer.trim(), directive: r.data.directive || null, changes, notDone, chalked: chalkedIds,
+    return { reply: answer.trim(), directive, changes, notDone, chalked: chalkedIds,
              proposed, sources: sources.map((x) => ({ title: x.title, url: x.url })),
              seconds: +((Date.now() - t0) / 1000).toFixed(1),
              tokens: manifest.totals.used, searchable: searchConfigured(), sessionId, prompt: messages };

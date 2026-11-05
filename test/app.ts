@@ -4322,6 +4322,37 @@ ok('a hem Talk started opens the hem screen on its scene');
 }
 ok('Talk draws its changes as one Workbench card per thread, with Undo all, and its offers as chalked cards');
 
+// #157 · ADVICE IS CARDS IN ITS ANSWER: the direction with Put it in the composer, beside the offer's
+// chalked card, and asking posts nothing but the question. The press hands the direction over unsent.
+{
+  const DIR = 'Open the next scene on the witness rite, at dawn.';
+  try {
+    click({ open: 's-1' }); await sleep(40);
+    click({ panel: 'anansi' }); await sleep(30);
+    stubTalk = { reply: 'The rite was promised and never held.', seconds: 1, tokens: 10, chalked: ['pr-1'], changes: [], directive: DIR };
+    POSTED.length = 0;
+    (document as any).getElementById('input').value = 'What should happen next?';
+    click({ send: '1' }); await sleep(100);
+    const dock = html('dockCol').split('What should happen next?').at(-1)!;
+    const use = dock.match(/A directive, for you to use or ignore[\s\S]*?Open the next scene on the witness rite[\s\S]*?data-usedraft="(\d+)"/);
+    assert.ok(use, `ADVICE-DIRECTION: the direction is a card with Put it in the composer:\n${dock.slice(0, 800)}`);
+    assert.ok(dock.indexOf('A directive, for you') < dock.indexOf('tokens read'), 'ADVICE-IN-ANSWER: inside the answer it came with');
+    assert.match(dock, /data-deckkind="chalk"[\s\S]*?Witness rite/, 'ADVICE-OFFER: and the offer is a chalked card beside it');
+    assert.deepStrictEqual(POSTED.map((p: any) => p.url), ['/api/talk'], 'ADVICE-NOTHING: asking posts the question and nothing else');
+    // The box's input listeners size it; the fake box has none to fire (as the idea test does).
+    // The press turns the composer to Direct; the mode is put back after, for the tests below.
+    const box = nodes.get('input'), wasDispatch = box.dispatchEvent, wasValue = box.value;
+    const wasMode = html('dockCol').match(/<option value="(\w+)" selected>/)?.[1] ?? 'speak';
+    box.dispatchEvent = () => true; box.value = '';
+    try {
+      click({ usedraft: use![1] }); await sleep(40);
+      assert.strictEqual(box.value, DIR, 'ADVICE-COMPOSER: the press puts that direction in the composer');
+      assert.deepStrictEqual(POSTED.map((p: any) => p.url), ['/api/talk'], 'ADVICE-UNSENT: and sends nothing');
+    } finally { box.dispatchEvent = wasDispatch; box.value = wasValue; pickMode(wasMode); }
+  } finally { stubTalk = null; }
+}
+ok('advice shows its direction as a card in its answer, beside its offers, and the press only fills the composer');
+
 // #99 · ANANSI MAY SEARCH. The switch is permission, so the ask sends `search: true` and never the
 // writer's words as a query; the switch reads "Anansi may search"; and every page he read is listed
 // under his answer with its link.

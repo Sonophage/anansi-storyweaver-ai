@@ -1604,10 +1604,11 @@ const talkTitle = (said: string) => {
  *  An id that is not this writer's session in this place (another tale's, another writer's, gone)
  *  starts a new one rather than writing to it or saying whether it exists. */
 export function talkSay(ownerId: string, storyId: string | null, sessionId: unknown, said: string, reply: string,
-                        cards: { changes?: unknown[]; chalked?: string[] } = {}) {
+                        cards: { changes?: unknown[]; chalked?: string[]; directive?: string } = {}) {
   const { where, args } = talkScope(ownerId, storyId);
   const at = now();
-  // #151 · Anansi's turn keeps its cards (what it changed, what it chalked), for a talk opened again.
+  // #151 · Anansi's turn keeps its cards (what it changed, what it chalked, and since #157 the direction
+  // it drafted), for a talk opened again.
   const pair = [{ you: true, text: said, at }, { text: reply, at, ...cards }];
   const had = sessionId ? q(`SELECT t.id, t.turns FROM talk_sessions t WHERE t.id = ? AND ${where}`)
     .get(String(sessionId), ...args) as any : null;
