@@ -3463,6 +3463,11 @@ ok('Talk sends the threads the question, the conversation or the page names, and
     slot: { global: 100_096, slots: 2, perSlot: 50_048 }, gen: {}, setGen: () => {}, defaultModel: null } as any) as any;
   assert.ok(!s1.error, s1.error);
   assert.deepStrictEqual(s1.prompt, calls.at(-1).messages, 'SETUP-PROMPT: the setup answer carries exactly the messages sent');
+  // #157 · The New-tale talk knows its tools too, and says so from the list when asked.
+  const { TALK_SETUP_TOOLS } = await import('../src/prompts.ts');
+  const setupSys = String(calls.at(-1).messages[0].content);
+  assert.ok(setupSys.includes('answer from this list, in a few lines') && setupSys.includes(`- ${TALK_SETUP_TOOLS['thread.remove']}`),
+    'SETUP-TOOLS-ASKED: the New-tale talk is told to answer "what can you do?" from the list of its tools');
   assert.deepStrictEqual(db.talkSession(me, null, s1.sessionId)!.turns.map((t: any) => t.text),
     ['How should Kesh begin, do you think?', s1.reply], 'SETUP-KEPT: the setup talk is kept, with no tale');
   const setups = (await routes['GET /api/spark/talk/sessions'](ctx({})) as any).sessions;

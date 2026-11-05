@@ -1902,6 +1902,27 @@ export const TALK_TOOLS: Record<string, string> = {
   'hem.start': 'Hem the scene being written.',
 };
 
+/** The same list for the New-tale talk, whose changes are the draft's (`DRAFT_OPS` in src/changes.ts,
+ *  checked both ways by `test/changes.ts`). Nothing in a draft is saved, so nothing here has an Undo
+ *  but the page's own. */
+export const TALK_SETUP_TOOLS: Record<string, string> = {
+  answer: 'Answer questions about the tale being set up, its world, its plot and its people, from the draft.',
+  search: TALK_TOOLS.search,
+  suggest: 'Suggest threads the tale needs, each with Add to put it in the draft.',
+  fill: 'Fill in every box still empty, when the writer asks, and leave the boxes they wrote in as they are.',
+  'tale.set': 'Change the title, the premise, the genre, the setting or the voice, or follow a World.',
+  'thread.new': 'Add a new thread to the draft: a person, a place, a thing.',
+  'thread.set': 'Rewrite a thread in the draft, or one of its pockets.',
+  'thread.remove': 'Take a thread out of the draft.',
+};
+
+/** WHAT YOU CAN DO, as both Talks say it: the order to answer from the list, then the list. */
+const toolsSaid = (tools: Record<string, string>, more: string) =>
+`WHAT YOU CAN DO. When the writer asks what you can do, answer from this list, in a few lines and
+in your own words, and claim nothing that is not on it. ${more}
+
+${Object.values(tools).map((t) => `- ${t}`).join('\n')}`;
+
 /** COUNCIL-07 · THE CONTRACT AND THE VOICE, and it is `SYSTEM` / `DEFAULT_VOICE` again.
  *
  *  `TALK` was one blob until 2026-08-30, and then Seth asked for Anansi's register to be his to edit.
@@ -2079,12 +2100,9 @@ writer decides whether it ever is; everything else above still holds. Nothing of
 the writer presses, so in the reply each is a suggestion, never something you did and never
 something the story says. A suggestion only in the reply is one they must copy out by hand.
 
-WHAT YOU CAN DO. When the writer asks what you can do, answer from this list, in a few lines and
-in your own words, and claim nothing that is not on it. A change on it is done only when they ask
+${toolsSaid(TALK_TOOLS, `A change on it is done only when they ask
 for it, and has an Undo, except a hem. What is offered (advice, and taking a thing out of the prose)
-waits for them to sew it in or reject it. You do not write new passages; the composer does.
-
-${Object.values(TALK_TOOLS).map((t) => `- ${t}`).join('\n')}`;
+waits for them to sew it in or reject it. You do not write new passages; the composer does.`)}`;
 
 /** HIS REGISTER, AND THE WRITER'S TO REPLACE. The shipped default behind the "How Anansi talks"
  *  box in Preferences; `anansiOf` in `src/story.ts` runs the same two-rung ladder `voiceOf` does.
@@ -2285,7 +2303,10 @@ up to ten changes in all. A box they have written in stays as it is. Say in the 
 
 WHAT YOU SUGGEST without being asked goes in entries, as threads they can add with one press. Offer
 only when the question calls for it, and offer none rather than pad. Say in the reply what you
-changed. You never write the tale's prose.`;
+changed. You never write the tale's prose.
+
+${toolsSaid(TALK_SETUP_TOOLS, `A change is made in the draft only when they ask for it, and
+nothing is saved until they start the tale. You never write the tale's prose.`)}`;
 
 export const TALK_SETUP_SCHEMA = {
   type: 'object',

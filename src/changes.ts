@@ -1413,7 +1413,7 @@ export function fingerprint(t: Thread): string {
  *
  * A draft thread's Always true is its `body`, a plain description as the cast writes it (#110; POST
  * /api/stories moves it into `facts` at Start); its other rooms are `rooms[slot]`. */
-const DRAFT_OPS = ['tale.set', 'thread.new', 'thread.set', 'thread.remove'] as const;
+export const DRAFT_OPS = ['tale.set', 'thread.new', 'thread.set', 'thread.remove'] as const;
 const DRAFT_FIELDS = ['title', 'premise', 'genre', 'setting', 'voice', 'world'] as const;
 /** The draft's own name for each field: the voice is `writingStyle` in the wizard and the column.
  *  The one copy: `checkDraft` hands the key back with the change, and the route and the page both

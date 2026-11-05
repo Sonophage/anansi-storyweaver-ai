@@ -907,7 +907,7 @@ ok('a rename changes the thread, its wake words, the prose, other threads, the t
 
 // ONE-SIDED PAIR, the model's half. An operation on the list that the contract never describes is
 // one the model is allowed to send and never told how: it is on the wire and never used.
-const { TALK_CONTRACT, TALK_TOOLS } = await import('../src/prompts.ts');
+const { TALK_CONTRACT, TALK_TOOLS, TALK_SETUP_TOOLS } = await import('../src/prompts.ts');
 // #157 · THE LIST OF TOOLS NAMES EVERY CHANGE TALK MAY MAKE OR OFFER, and nothing else that looks like
 // one: a new op with no line is a tool Talk cannot tell the writer about, and a line for a gone op is
 // a claim it can do a thing it cannot.
@@ -916,6 +916,10 @@ ok('TOOLS-EVERY-OP: the list of tools has a line for every operation, and for no
   for (const op of ops) assert.ok(TALK_TOOLS[op], `TOOLS-EVERY-OP: TALK_TOOLS has no line for ${op}`);
   for (const k of Object.keys(TALK_TOOLS).filter((k) => k.includes('.')))
     assert.ok(ops.includes(k), `TOOLS-EVERY-OP: TALK_TOOLS has a line for ${k}, which Talk cannot do`);
+  // And the New-tale talk's, against the draft's own changes.
+  for (const op of ch.DRAFT_OPS) assert.ok(TALK_SETUP_TOOLS[op], `SETUP-TOOLS-EVERY-OP: TALK_SETUP_TOOLS has no line for ${op}`);
+  for (const k of Object.keys(TALK_SETUP_TOOLS).filter((k) => k.includes('.')))
+    assert.ok((ch.DRAFT_OPS as readonly string[]).includes(k), `SETUP-TOOLS-EVERY-OP: TALK_SETUP_TOOLS has a line for ${k}, which the draft cannot take`);
 });
 ok('CONTRACT-EVERY-OP: TALK_CONTRACT describes every operation the model may ask for', () => {
   for (const op of ch.ASKED) assert.ok(TALK_CONTRACT.includes(`- ${op}:`), `CONTRACT-EVERY-OP: TALK_CONTRACT does not describe ${op}`);
