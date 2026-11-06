@@ -127,12 +127,12 @@ const direct = await modeBlock('direct', null, 'He drops the key.');
 ok("Direct passes your text as an instruction", /The synopsis: He drops the key\./.test(direct));
 
 const speak = await modeBlock('speak', 'Aldis Fen');
-ok(`Speak names who spoke (${JSON.stringify(speak.slice(0, 62))})`, /spoken as Aldis Fen/.test(speak));
+ok(`Speak names who spoke (${JSON.stringify(speak.slice(0, 62))})`, /Aldis Fen has just spoken a line of dialogue/.test(speak));
 ok("  and forbids answering in their voice", /Do not put further words in Aldis Fen/.test(speak));
 
 const act = await modeBlock('act', 'Marek');
 ok("Act names who acted", /Marek has just taken an action/.test(act));
-ok("  and forbids deciding their next move", /Do not decide what Marek does next/.test(act));
+ok("  and forbids deciding their next move", /Do not decide what Marek does or says next/.test(act));
 
 const narr = await modeBlock('narrate');
 ok("Narrate tells the model the prose above is the author's", /It is the story itself, not an instruction/.test(narr));
