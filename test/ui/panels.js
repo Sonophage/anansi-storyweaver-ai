@@ -1793,10 +1793,11 @@ ok("  and it is still there a moment later, not eaten by a repaint",
     + "{method:'POST',headers:{'Content-Type':'application/json'},"
     + "body:JSON.stringify({title:'The Ash Cycle'})})).json();"
     + " const id = made.id || (made.stories||[]).find(s => s.title === 'The Ash Cycle').id;"
-    + " await fetch('/api/entry',{method:'POST',headers:{'Content-Type':'application/json'},"
-    + "body:JSON.stringify({storyId:id,entry:{title:'the Ambersand',"
-    + "body:'[the Ambersand: a house that lends at ruin]',entryType:'lore',activation:'always_on',"
-    + "keys:[],lastEditor:'human'}})}); return id; })()");
+    // Made, then turned on, as the writer does it now: a new thread starts on a word (2026-11-05).
+    + " const put=(e)=>fetch('/api/entry',{method:'POST',headers:{'Content-Type':'application/json'},"
+    + "body:JSON.stringify({storyId:id,entry:e})}).then(r=>r.json());"
+    + " const amb={title:'the Ambersand',body:'[the Ambersand: a house that lends at ruin]',entryType:'lore',activation:'always_on',keys:[],lastEditor:'human'};"
+    + " const v=await put(amb); await put({...amb,id:v.entries.find(e=>e.title==='the Ambersand').id}); return id; })()");
   ok("a world bible exists to be followed", !!world);
 
   await page.goto(B + "/#" + sid3 + "/story");

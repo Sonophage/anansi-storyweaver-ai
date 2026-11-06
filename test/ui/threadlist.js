@@ -166,10 +166,14 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
 
   // ---- The mark is the switch: off, on a word, on
   // #75: Vantic law is a rule, so it is on the tale's own thread now and not in this list. An
-  // always-on thread with no wake words is written for the same job.
-  await page.eval(`(async () => { await fetch('/api/entry', { method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ storyId: '${sid}', entry: { title: 'The curfew bell', body: '[The curfew bell: rung at the ninth hour]',
-      entryType: 'item', activation: 'always_on', keys: [] } }) }); return 1; })()`);
+  // always-on thread with no wake words is written for the same job: made, then turned on, as the
+  // writer does it now (a new thread starts on a word from its name, 2026-11-05).
+  await page.eval(`(async () => { const post = (entry) => fetch('/api/entry', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ storyId: '${sid}', entry }) }).then((r) => r.json());
+    const v = await post({ title: 'The curfew bell', body: '[The curfew bell: rung at the ninth hour]', entryType: 'item', activation: 'always_on', keys: [] });
+    const made = v.entries.find((e) => e.title === 'The curfew bell');
+    await post({ id: made.id, title: 'The curfew bell', body: '[The curfew bell: rung at the ninth hour]', entryType: 'item', activation: 'always_on', keys: [] });
+    return 1; })()`);
   await page.goto(B + "/#" + sid + "/threads");
   for (let i = 0; i < 40 && !(await page.visible('#thq')); i++) await wait(250);
   await wait(400);

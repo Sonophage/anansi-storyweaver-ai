@@ -75,8 +75,10 @@ for (const [i, p] of input.passages.entries()) {
 const ids: Record<string, string> = {};
 for (const e of input.entries) {
   const name = (e.body.match(/^\[([^:\]]+)[:\]]/) ?? [, e.title])[1].trim();
+  // A library as it stands, so each thread keeps its setting (`keepOn`): only a thread made in the app
+  // starts on a word (2026-11-05).
   ids[name] = db.upsertEntry(made.id, me, { title: name, body: e.body, entryType: e.entryType,
-    activation: e.activation, keys: e.keys, lastEditor: 'human' });
+    activation: e.activation, keys: e.keys, lastEditor: 'human' }, { keepOn: true });
 }
 // MAREK HAS POCKETS AND A CHANGE OVER TIME, so the Pockets and Over time tabs of a thread have
 // something on them in the screenshots (test/ui/shots.js opens Marek for those). Marek and not
