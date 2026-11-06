@@ -1,12 +1,14 @@
 // #149 · A FIRST READ OF ACT AND NARRATE, AGAINST DIRECT. Their prompts changed (Seth's own wording,
 // 2026-11-03) and they have hardly been used since. Two points in ENCORE, one intent each, written three
 // ways and approved by Seth (2026-11-05): an action for Act, the opening of a passage for Narrate, a
-// synopsis for Direct. Ten takes of each on Ornith. Seth reads them blind: one sheet per scene, the takes
-// shuffled, the mode hidden; the key is a separate file.
+// synopsis for Direct. Ten takes of each on Ornith. Seth reads them LABELLED, not blind (2026-11-06: each
+// command has its own job, so a take can only be judged against the job it was given). The sheet shows,
+// per scene and per command, what the command should do in Seth's words, the exact words typed, then the
+// ten takes.
 //
 //   node --experimental-strip-types bench/modes-read.ts run [takes, default 10] [bed|diner]
 //   node --experimental-strip-types bench/modes-read.ts sheet
-//   node --experimental-strip-types bench/modes-read.ts check     # the shuffle and the key, no model
+//   node --experimental-strip-types bench/modes-read.ts check     # the sheet's order, no model
 //
 // NEVER THE LIVE LIBRARY: each scene-and-mode pair gets its own copy (VACUUM INTO), because Act and
 // Narrate write the writer's line into the tale before asking, and those lines must not meet. The scene 4
@@ -38,21 +40,29 @@ export const SCENES = [
 ] as const;
 export const MODES = ['act', 'narrate', 'direct'] as const;
 
-/** Take ids shuffled for one scene's sheet, by a fixed seed, so the sheet and its key agree on a re-run. */
-export function shuffled<T>(xs: T[], seed: number) {
-  let s = seed; const rnd = () => (s = (s * 1103515245 + 12345) % 2147483648) / 2147483648;
-  return xs.map((x) => [rnd(), x] as const).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
+/** What each command should do, in Seth's words (2026-11-06). The standard each take is read against. */
+export const SHOULD: Record<(typeof MODES)[number], string> = {
+  act: 'The character selected acts and the people in the scene react to that action.',
+  narrate: 'A turn in the story. It is not rewritten, paraphrased, or anything: Anansi only writes what happens right after the end of the narration. The narration may mix prose, speech and action.',
+  direct: 'A direction, or a very basic prompt of what should happen next. Anansi takes the direction and writes using it as its direction.',
+};
+
+/** The sheet's order: scene as given, then Act, Narrate, Direct, then take number. Drops nothing. */
+export function sheetOrder<T extends { scene: string; mode: string; i: number }>(rows: T[], scenes: readonly string[]) {
+  return [...rows].sort((a, b) => scenes.indexOf(a.scene) - scenes.indexOf(b.scene)
+    || MODES.indexOf(a.mode as any) - MODES.indexOf(b.mode as any) || a.i - b.i);
 }
 
 const [, , mode, arg] = process.argv;
 
 if (mode === 'check') {
   const assert = (await import('node:assert')).default;
-  const a = shuffled([1, 2, 3, 4, 5, 6, 7, 8], 149), b = shuffled([1, 2, 3, 4, 5, 6, 7, 8], 149);
-  assert.deepStrictEqual(a, b, 'MODES-READ-SEED: the same seed shuffles the same way');
-  assert.deepStrictEqual([...a].sort(), [1, 2, 3, 4, 5, 6, 7, 8], 'MODES-READ-ALL: nothing is lost or doubled');
-  assert.notDeepStrictEqual(a, [1, 2, 3, 4, 5, 6, 7, 8], 'MODES-READ-SHUFFLED: the order is changed');
-  console.log('  ok  modes-read: the sheet shuffles every take once, the same way each time');
+  const rows = [{ scene: 'diner', mode: 'act', i: 0 }, { scene: 'bed', mode: 'direct', i: 1 }, { scene: 'bed', mode: 'act', i: 1 },
+    { scene: 'bed', mode: 'narrate', i: 0 }, { scene: 'bed', mode: 'act', i: 0 }];
+  const got = sheetOrder(rows, ['bed', 'diner']).map((r) => `${r.scene}-${r.mode}-${r.i}`);
+  assert.deepStrictEqual(got, ['bed-act-0', 'bed-act-1', 'bed-narrate-0', 'bed-direct-1', 'diner-act-0'], 'MODES-READ-ORDER: scene, then Act, Narrate, Direct, then take');
+  assert.ok(MODES.every((m) => SHOULD[m]), 'MODES-READ-SHOULD: every command has its standard');
+  console.log('  ok  modes-read: the sheet groups takes by scene and command, nothing lost');
   process.exit(0);
 }
 
@@ -113,25 +123,28 @@ if (mode === 'sheet') {
   const rows = readFileSync(join(OUT, 'takes.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((r) => r.prose);
   const esc = (t: unknown) => String(t ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]!));
   const para = (t: string) => t.split(/\n\s*\n/).map((p) => `<p>${esc(p.trim())}</p>`).join('');
-  const key: Record<string, { mode: string; i: number }> = {};
   const src = new DatabaseSync(SOURCE, { readOnly: true });
   const sections = SCENES.map((sc, si) => {
     const st = src.prepare("SELECT s.id FROM stories s JOIN users u ON u.id = s.owner_id WHERE s.title = 'ENCORE' AND u.login = 'sonophage'").get() as any;
     const ch = src.prepare('SELECT id FROM chapters WHERE story_id = ? AND idx = ?').get(st.id, sc.chapter) as any;
     const before = (src.prepare('SELECT body FROM passages WHERE chapter_id = ? AND selected = 1 AND ordinal <= ? ORDER BY ordinal DESC LIMIT 2').all(ch.id, sc.after) as any[]).reverse();
-    const takes = shuffled(rows.filter((r) => r.scene === sc.key), 149 + si);
-    const cards = takes.map((r, k) => {
-      const id = `${sc.key}-${k + 1}`; key[id] = { mode: r.mode, i: r.i };
-      return `<article class="take" id="t-${id}"><h3>Take ${k + 1}</h3><div class="prose">${para(r.prose)}</div>
-<div class="pick" role="group" aria-label="Take ${k + 1}"><label for="${id}-ok"><input type="radio" id="${id}-ok" name="${id}" value="fine"> Fine</label>
+    const NAME = { act: 'Act', narrate: 'Narrate', direct: 'Direct' } as const;
+    const groups = MODES.map((m) => {
+      const takes = sheetOrder(rows.filter((r) => r.scene === sc.key && r.mode === m), [sc.key]);
+      const cards = takes.map((r, k) => {
+        const id = `${sc.key}-${m}-${k + 1}`;
+        return `<article class="take" id="t-${id}"><h4>${NAME[m]} · take ${k + 1}</h4><div class="prose">${para(r.prose)}</div>
+<div class="pick" role="group" aria-label="${NAME[m]} take ${k + 1}"><label for="${id}-ok"><input type="radio" id="${id}-ok" name="${id}" value="fine"> Fine</label>
 <label for="${id}-fix"><input type="radio" id="${id}-fix" name="${id}" value="would fix"> Would fix</label></div>
 <label class="note" for="${id}-n">What is wrong (optional)</label><textarea id="${id}-n" name="${id}-n" rows="2"></textarea></article>`;
+      }).join('');
+      return `<div class="mode"><h3>${NAME[m]}</h3><div class="where"><div class="label">What ${NAME[m]} should do</div><p>${esc(SHOULD[m])}</p>
+<div class="label">What was typed</div><p class="typed">${esc(sc[m])}</p></div>${cards}</div>`;
     }).join('');
     return `<section><h2>${esc(sc.title)}</h2><div class="where"><div class="label">Where the scene is</div>${before.map((p) => para(p.body)).join('')}
-<div class="label">Seth's move</div><p>${esc(sc.move)}</p></div>${cards}</section>`;
+<div class="label">Seth's move</div><p>${esc(sc.move)}</p></div>${groups}</section>`;
   }).join('');
-  writeFileSync(join(OUT, 'key.json'), JSON.stringify(key, null, 2));
-  writeFileSync(join(OUT, 'sheet.html'), `<title>Act and Narrate read</title>
+  writeFileSync(join(OUT, 'sheet.html'), `<title>Act, Narrate, Direct read</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* One reading column: the scene so far, then each take as a page of the book, with two marks and a note. */
@@ -148,7 +161,10 @@ h2{font:600 18px/1.3 var(--sans);margin:0 0 10px}
 .where{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:4px 14px;font-size:15px;color:var(--dim)}
 .label{font:600 12px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-top:10px}
 .take{border-top:1px solid var(--line);padding-top:8px;margin-top:22px}
-.take h3{font:600 15px var(--sans);color:var(--accent);margin:0}
+.mode{margin-top:26px}
+h3{font:600 17px/1.3 var(--sans);margin:0 0 8px}
+.typed{color:var(--fg);font-style:italic}
+.take h4{font:600 15px var(--sans);color:var(--accent);margin:0}
 .prose p{margin:8px 0}
 .pick{display:flex;gap:18px;font:15px var(--sans);margin:8px 0}
 .pick label{display:flex;align-items:center;gap:6px;min-height:44px}
@@ -159,14 +175,14 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 pre{white-space:pre-wrap;background:var(--card);padding:10px;border:1px solid var(--line);font:14px/1.5 var(--sans);min-height:2em}
 .count{font:14px var(--sans);color:var(--dim)}
 </style>
-<h1>Act, Narrate and Direct, read blind</h1>
-<p class="lede">Two points in ENCORE. At each, Seth makes one move, and Anansi wrote what comes next thirty times, ten in each of three ways. The takes are shuffled and you are not told which way wrote which. Mark each one Fine or Would fix, and say what is wrong where you can. Then press Copy my read and paste it to Mina.</p>
+<h1>Act, Narrate and Direct, read</h1>
+<p class="lede">Two points in ENCORE. At each, Seth makes one move, typed three ways: as an Act, as a Narrate and as a Direct. Anansi answered each ten times. Each group opens with what that command should do and the exact words typed. Mark each take Fine or Would fix against that, and say what is wrong where you can. Then press Copy my read and paste it to Mina.</p>
 ${sections}
 <p class="count" id="count" aria-live="polite"></p>
 <button id="copy" type="button">Copy my read</button>
 <pre id="out" aria-live="polite"></pre>
 <script>
-const KEY = 'modes-read-149';
+const KEY = 'modes-read-149-labelled';
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
 const saved = read();
 const count = () => { const all = document.querySelectorAll('.take').length, done = new Set([...document.querySelectorAll('input:checked')].map((x) => x.name)).size;
@@ -186,7 +202,7 @@ document.getElementById('copy').addEventListener('click', () => {
   (navigator.clipboard?.writeText(text) ?? Promise.reject()).then(() => { document.getElementById('copy').textContent = 'Copied'; }, pick);
 });
 </script>`);
-  console.log(`  ${join(OUT, 'sheet.html')}\n  key in ${join(OUT, 'key.json')} (not for the reader)`);
+  console.log(`  ${join(OUT, 'sheet.html')}`);
   process.exit(0);
 }
 
