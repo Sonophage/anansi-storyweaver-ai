@@ -3727,3 +3727,30 @@ Fisher p < 0.0001. B's takes open "Halsey stares at the plate" and go on from th
 the prose (2026-11-06). One point in one tale, the one where it failed. Speak, Act and Continue still
 quote their passage; Act's quote measured well in F75. Continue quoting the model's own last passage is
 not measured.
+
+## F77 — "taking the synopsis as its direction" in place of "Rewrite it" does not stop Direct opening on the synopsis's own words: 30/30 against 30/30 (2026-11-06)
+
+**The question.** In the #149 read all ten Direct takes on ENCORE's scene 10 point opened with the
+synopsis's first sentence, "Seth doesn't argue."; Seth marked two robotic. His Direct wording said
+"Rewrite it as one full beat of the story", against his standard ("anansi takes the direction and writes
+using that as its direction"). Does "Write the next beat of the story, taking the synopsis as its
+direction" (Seth's pick of the line) change that?
+
+**The detector.** `bench/direct-echo.ts`: the take's first two sentences share a run of three or more
+words, in order, with the synopsis's first sentence. On the 60 #149 takes: 10/10 scene 10 Direct, 0/50
+of the rest. The report also counts the synopsis's four events, so a wording that echoes less by doing
+less shows.
+
+**The run.** Two arms at once, Ornith-1.0-RPNTH-35B, each a scratch server on its own copy cut back to
+the scene 10 point, differing only in that one line of Seth's saved Direct wording, each server's prompt
+checked to carry its line and the synopsis. 30 takes per arm, one at a time per arm, 0 failed.
+
+| | A ("Rewrite it") | B ("taking the synopsis as its direction") |
+|---|---|---|
+| opens on the synopsis's own words | 30/30 | 30/30 |
+| copies 8+ words of it anywhere | 1/30 | 4/30 |
+| has all four of its events | 12/30 | 11/30 |
+
+**What this settles.** Flat on every count (p = 1.0). Not shipped; Seth's wording stays as it is, as
+F20, F37, F71 and F74 were left. Every take in both arms opens "Seth doesn't argue.": a synopsis whose
+first sentence is already a line of prose is used as one, whatever the instruction calls it.
