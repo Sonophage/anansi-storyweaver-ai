@@ -872,9 +872,11 @@ ok('a kind that does not exist is refused rather than assembled');
     '  and Always true keeps who it is');
   const stair: any = db.entriesOf(tale.id).find((e: any) => e.title === 'The Long Stair');
   assert.strictEqual(stair.body, 'Half its lamps are out.', '  for every kind');
-  assert.deepStrictEqual(r.entries.map((e: any) => e.activation), ['always_on', 'triggered'],
-    'CAST-WAKE: a person starts Always on; lore wakes on a word');
-  assert.strictEqual(vel.activation, 'always_on', 'CAST-WAKE: made, the person is Always on');
+  // Seth, 2026-11-05: "all cards mention only by default". A person wakes on their name as lore does.
+  assert.deepStrictEqual(r.entries.map((e: any) => e.activation), ['triggered', 'triggered'],
+    'CAST-WAKE: a person wakes on a word, as lore does');
+  assert.strictEqual(vel.activation, 'triggered', 'CAST-WAKE: made, the person is on a word');
+  assert.deepStrictEqual(JSON.parse(vel.keys), ['Vel'], '  on their name');
   assert.strictEqual(stair.activation, 'triggered', '  and the lore is on a word');
   assert.deepStrictEqual(JSON.parse(stair.keys), ['Long Stair'], 'CAST-ONE-KEY: one keyword, its short name without the article (2026-11-01)');
 
@@ -1753,7 +1755,7 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.ok(ferry, 'CHANGE-NEW: the ferryman is a thread of the tale');
   assert.strictEqual(ferry.entry_type, 'character');
   assert.strictEqual(room(ferry.id, 'facts')[0]?.body, 'Rows the dead across for a coin.', 'CHANGE-NEW: with his Always true');
-  assert.strictEqual(ferry.activation, 'always_on', 'CHANGE-NEW: a character Talk makes is always on');
+  assert.strictEqual(ferry.activation, 'triggered', 'CHANGE-NEW: a character Talk makes wakes on a word (2026-11-05)');
   assert.match(made.changes[0].words, /new thread.*The ferryman/i);
   assert.strictEqual(made.changes[0].diff ?? null, null, 'CHANGE-DIFF: a new thread replaced no text, so its line has no diff');
   const gone: any = (await undo(made.changes[0].undo));
@@ -3252,15 +3254,19 @@ ok('emptying the box gives her back the voice she shipped with');
 }
 
 // ---- TALK READS WHAT IS ASKED (Seth, 2026-10-30: "it should only really look through everything
-// based on what I've prompted it"). An always-on thread is sent to Talk when the question, the
-// conversation or the last passages name it; the rest are listed by name only, so Anansi knows they
+// based on what I've prompted it"). A thread is sent to Talk when the question, the conversation or
+// the last passages name it, on or on a word; the rest are listed by name only, so Anansi knows they
 // exist and can ask for one. The writing prompt is not changed: it still sends every always-on thread.
+// ON A WORD TOO (2026-11-05): new threads land on a word, so a thread on a word the question names is
+// sent as an always-on one is. Oren and the toll house are set on (`keepOn`); Maren and the salt
+// market are on a word.
 {
   const tale = db.createStory(me, { title: 'The Narrow Sea', premise: 'Two ports and a debt.' }) as any;
   const base = { storyId: tale.id, branchId: tale.branchId, chapterId: tale.chapterId };
-  db.upsertEntry(tale.id, me, { title: 'Oren', body: 'Oren keeps the lighthouse and owes the harbourmaster.', activation: 'always_on', keys: ['Oren'] });
+  db.upsertEntry(tale.id, me, { title: 'Oren', body: 'Oren keeps the lighthouse and owes the harbourmaster.', activation: 'always_on', keys: ['Oren'] }, { keepOn: true });
   db.upsertEntry(tale.id, me, { title: 'Maren', body: 'Maren sails the night ferry and never pays tolls.', activation: 'always_on', keys: ['Maren'] });
-  db.upsertEntry(tale.id, me, { title: 'The Toll House', body: 'The toll house burned in the spring.', activation: 'always_on', keys: ['toll house'] });
+  db.upsertEntry(tale.id, me, { title: 'The Toll House', body: 'The toll house burned in the spring.', activation: 'always_on', keys: ['toll house'] }, { keepOn: true });
+  db.upsertEntry(tale.id, me, { title: 'The Salt Market', body: 'The salt market opens at the ebb.', activation: 'always_on', keys: ['salt market'] });
   db.addPassage({ ...base, body: 'Oren lit the lamp an hour early and watched the water.' });
   const wire = () => calls.map((b: any) => (b.messages ?? []).map((m: any) => m.content).join('\n')).join('\n');
   const talk = (said: string) => routes['POST /api/talk']({ body: { storyId: tale.id, said },
@@ -3273,6 +3279,8 @@ ok('emptying the box gives her back the voice she shipped with');
   assert.match(wire(), /owes the harbourmaster/, 'TALK-PAGE: and the one the last passage names');
   assert.doesNotMatch(wire(), /burned in the spring/, 'TALK-NOT-ASKED: an always-on thread nothing names is not sent');
   assert.match(wire(), /not sent[^\n]*:[^\n]*The Toll House/, 'TALK-INDEX: but it is named, so Anansi knows it is there');
+  assert.doesNotMatch(wire(), /opens at the ebb/, 'TALK-NOT-ASKED-WORD: a thread on a word nothing names is not sent');
+  assert.match(wire(), /not sent[^\n]*:[^\n]*The Salt Market/, 'TALK-INDEX-WORD: and it is listed by name too');
   // The writing prompt is untouched: an always-on thread still reaches every passage.
   const { assemble, view } = await import('../src/story.ts');
   const v: any = view(tale.id);

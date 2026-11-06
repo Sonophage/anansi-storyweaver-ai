@@ -2851,7 +2851,7 @@ export function plainStands(body: unknown, titles: unknown[]) { return plain(bod
  *  the hidden tab could send it) keeps no revision and stales nothing, so a summary can stay in the
  *  prompt that no longer agrees with the thread. Send the opening text with every draft and stale on
  *  the server at the next read of the tale if a writer reports a summary that outlived its thread. */
-export type WriteHow = { draft?: boolean; opened?: { title?: unknown; body?: unknown; keys?: unknown; name?: unknown } | null };
+export type WriteHow = { keepOn?: boolean; draft?: boolean; opened?: { title?: unknown; body?: unknown; keys?: unknown; name?: unknown } | null };
 
 export function upsertEntry(storyId: string, o: string, e: any, how: WriteHow = {}) {
   // THE ONE FLOOR FOR AN ACTIVATION (Seth, 2026-10-25: refuse anything else). The column stored
@@ -2885,6 +2885,21 @@ export function upsertEntry(storyId: string, o: string, e: any, how: WriteHow = 
   // the one the thread has. This defaulted to always on for updates as well as new rows, so a partial
   // save turned a thread on. A new one with no wake word still lands always on, by the floor below.
   e = { ...e, activation: e.activation ?? cur?.activation ?? 'triggered' };
+  // A NEW THREAD COMES IN WHEN THE SCENE NAMES IT (Seth, 2026-11-05: "all cards mention only by
+  // default"). Every door that makes a thread asked for always on (the hem's new card, Talk, Invent,
+  // the paste, the writer's +, the cast), and a tale of 75 threads sent every one of them and the hem
+  // took them all as in the scene. So a NEW row asked for always on lands on a word, the words it came
+  // with or one from its name (`oneKeyword`). Not the tale's thread, not the writer's own character or
+  // the Hands off one while the switch is on (they are in every scene), and not a thread the caller
+  // says is meant to be on (`keepOn`: a pasted card or a lorebook entry that says so). An existing
+  // thread keeps what it is given: the writer turning one on is the writer's to make.
+  if (!cur && e.activation === 'always_on' && e.entryType !== 'tale' && !how.keepOn) {
+    const st = q('SELECT persona, locked_character, lockout_on FROM stories WHERE id = ?').get(storyId) as any;
+    const own = [st?.persona, st?.lockout_on ? st?.locked_character : null]
+      .map((x) => String(x ?? '').trim().toLowerCase()).filter(Boolean);
+    if (!own.includes(String(e.title).trim().toLowerCase()))
+      e = { ...e, activation: 'triggered', keys: e.keys.length ? e.keys : oneKeyword(e.title, [], keyTaken(storyId), e.entryType) };
+  }
   // #114 · WHERE IT STANDS IS A PLAIN DESCRIPTION (ADR 0008), by the rule a pocket's floor uses.
   e = { ...e, body: plainStands(e.body, [e.title, cur?.title]) };
 

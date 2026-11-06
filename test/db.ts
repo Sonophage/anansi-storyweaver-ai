@@ -2075,6 +2075,41 @@ ok('a new card says each thing once: the pocket keeps it', () => {
   db.delStory(st.id);
 });
 
+// A NEW THREAD COMES IN WHEN THE SCENE NAMES IT (Seth, 2026-11-05: "all cards mention only by default").
+// Kia's tales had 66 of 75 threads always on and the hem took every one as in the scene. A new thread
+// asked for always on lands on a word from its name, characters too; the writer's own character, the
+// Hands off one, the tale's thread and a thread meant to be on (`keepOn`) stay on, and an existing
+// thread the writer turns on stays on.
+ok('a new thread lands on a word from its name, not always on', () => {
+  const me = db.owner('mention-owner');
+  const st = db.createStory(me, { title: 'A book of names', persona: 'Wren Halloway', lockedCharacter: 'Ash' });
+  db.updateStory(st.id, { lockoutOn: true });
+  const add = (title: string, entryType: string, keys: string[] = [], how: any = {}) => {
+    const id = db.upsertEntry(st.id, me, { title, body: 'b', entryType, activation: 'always_on', keys }, how);
+    return (db.entriesOf(st.id) as any[]).find((x) => x.id === id);
+  };
+  const marek = add('Marek Vale', 'character');
+  assert.strictEqual(marek?.activation, 'triggered', 'MENTION-NEW-CHARACTER: a new character lands on a word');
+  assert.deepStrictEqual(db.keysOf(marek.keys), ['Marek'], 'MENTION-NEW-KEY: on a word from its name');
+  const mill = add('The Old Mill', 'place', ['mill', 'wheel']);
+  assert.strictEqual(mill?.activation, 'triggered', 'MENTION-NEW-PLACE: a new place lands on a word');
+  assert.deepStrictEqual(db.keysOf(mill.keys), ['mill', 'wheel'], 'MENTION-KEEPS-KEYS: the words it came with are kept');
+  assert.strictEqual(add('Wren Halloway', 'character')?.activation, 'always_on', 'MENTION-PERSONA: the writer\'s character stays on');
+  assert.strictEqual(add('Ash', 'character')?.activation, 'always_on', 'MENTION-HANDS-OFF: the Hands off character stays on');
+  assert.strictEqual(add('The Iron Law', 'lore', [], { keepOn: true })?.activation, 'always_on', 'MENTION-KEEP-ON: a thread meant to be on stays on');
+  const tale = (db.entriesOf(st.id) as any[]).find((x) => x.entry_type === 'tale');
+  if (tale) assert.strictEqual(tale.activation, 'always_on', 'MENTION-TALE: the tale\'s thread stays on');
+  // THE WRITER TURNS ONE ON: an existing thread keeps what it is given.
+  db.upsertEntry(st.id, me, { id: marek.id, title: marek.title, body: 'b', entryType: 'character', activation: 'always_on', keys: ['Marek'] });
+  assert.strictEqual((db.entriesOf(st.id) as any[]).find((x) => x.id === marek.id)?.activation, 'always_on', 'MENTION-WRITER-ON: turned on, it stays on');
+  // HANDS OFF ONLY WHILE ITS SWITCH IS ON: with it off, that character is anyone.
+  const st2 = db.createStory(me, { title: 'A book with the switch off', lockedCharacter: 'Ash', lockoutOn: false });
+  const ash = db.upsertEntry(st2.id, me, { title: 'Ash', body: 'b', entryType: 'character', activation: 'always_on', keys: [] });
+  assert.strictEqual((db.entriesOf(st2.id) as any[]).find((x) => x.id === ash)?.activation, 'triggered', 'MENTION-HANDS-OFF-SWITCH: Hands off counts only while it is on');
+  db.delStory(st2.id);
+  db.delStory(st.id);
+});
+
 // The look: three layers, and the one that matters is that a book's look never becomes yours by
 // being opened. That was the shape of the bug the split exists to prevent — the surface cached
 // whatever was on screen, so reading a book with a green theme made green your default.

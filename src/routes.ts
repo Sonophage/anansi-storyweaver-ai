@@ -3092,7 +3092,9 @@ function sparkThread(rawName: string, kind: string, rawBody: string, pockets: un
   // name already, and wrapped it once read "[Seth: Seth: The Witness…]" (2026-10-27, #81).
   const name = String(rawName).trim();
   const stands = db.plainStands(rawStands, [name]);
-  return { title: name, entryType: kind, activation: kind === 'character' ? 'always_on' : 'triggered',
+  // ON A WORD, A PERSON TOO (Seth, 2026-11-05: "all cards mention only by default"): the draft says
+  // what the save will make, so the writer sees how it comes in before it is made.
+  return { title: name, entryType: kind, activation: 'triggered',
            // ONE GOOD KEYWORD WHEN IT STARTS (Seth, 2026-11-01): one word of its name (`oneKeyword`).
            body: plain(rawBody, wrapperNames('facts', name)), keys: oneKeyword(name, [name], [], kind),
            ...(stands ? { stands } : {}), ...(Object.keys(rooms).length ? { rooms } : {}) };

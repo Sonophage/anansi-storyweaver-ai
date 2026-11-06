@@ -118,7 +118,7 @@ ok('CHANGE-NEW: a new thread, with its kind, Always true and wake words', () => 
   assert.strictEqual(c.type, 'character');
   assert.strictEqual(c.always, 'Rows the dead across for a coin.');
   assert.deepStrictEqual(c.keys, ['ferryman']);
-  assert.strictEqual(c.activation, 'always_on', 'a character never lands on a word from a model\'s answer');
+  assert.strictEqual(c.activation, 'triggered', 'CHANGE-NEW-WORD: a character wakes on a word too (2026-11-05)');
   assert.match(ch.wordsFor(c), /new thread.*The ferryman/i);
   assert.deepStrictEqual(ch.undoFor(c, { thread: 'e-new' }),
     { op: 'thread.unmake', thread: 'e-new', title: 'The ferryman', text: 'Rows the dead across for a coin.' });

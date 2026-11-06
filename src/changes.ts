@@ -312,10 +312,10 @@ export function checkAsked(raw: any, tale: Tale): Checked {
     const { title, type } = n;
     // ONE GOOD KEYWORD WHEN IT STARTS (Seth, 2026-11-01), by the rule a chalked new thread follows.
     const keys = oneKeyword(title, keysOf(raw.keys), keysTakenBy(tale.entries), type);
-    // A CHARACTER NEVER LANDS ON A WORD FROM A MODEL'S ANSWER, the rule accepting a chalked thread
-    // follows: a character who stops reaching the model does not fade, he vanishes. Anything else
-    // waits for its word only when it has one; `upsertEntry` holds the same floor.
-    const activation = type !== 'character' && raw.activation === 'triggered' && keys.length ? 'triggered' : 'always_on';
+    // ON A WORD, A CHARACTER TOO (Seth, 2026-11-05: "all cards mention only by default"; this was
+    // always on for a character). Not the model's say: it fills `activation` freely. The writer turns
+    // one on with the eye. With no word at all it is on, and `upsertEntry` holds the same floor.
+    const activation = keys.length ? 'triggered' : 'always_on';
     return { ok: true, change: { op, title, type, always: alwaysOf(title, raw.text), keys, activation } };
   }
   if (op === 'tale.set') return taleSet(tale, raw, said, false);
@@ -1540,7 +1540,8 @@ export function checkDraft(raw: any, draft: Draft): DraftChecked {
       const slot = roomOf(p?.room), body = plain(String(p?.text ?? '').replace(LINK, '').trim(), wrapperNames(slot, title, slot));
       if (slot !== 'facts' && body && slotsFor(type).some((s) => s.name === slot)) rooms[slot] = { name: slot, body, on: true };
     }
-    return { ok: true, change: { op: 'thread.new', thread: { title, entryType: type, activation: 'always_on',
+    // On a word from its name, as every new thread is (2026-11-05); the draft says what the tale will get.
+    return { ok: true, change: { op: 'thread.new', thread: { title, entryType: type, activation: 'triggered',
       body: alwaysOf(title, text), keys: [title], ...(Object.keys(rooms).length ? { rooms } : {}) } } };
   }
   if (op === 'string.set') {

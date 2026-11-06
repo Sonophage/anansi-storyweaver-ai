@@ -1261,15 +1261,22 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     } else {
       const hit = fires(woken, recent);
       if (hit.length) { add('CANON-TRIGGERED', e.id, body, 'keyword', hit); continue; }
+      // TALK WAKES IT ON THE QUESTION TOO (2026-11-05), as it sends an always-on thread the question
+      // names: new threads land on a word, so a question about one would otherwise not reach it.
+      const asked = reach != null ? fires(woken, reach) : [];
+      if (asked.length) { add('CANON-TRIGGERED', e.id, body, 'named in what was asked', asked); continue; }
       // Sticky is, in practice, "extend the scan window for this entry": the keyword has to
       // fall OUT of the 8-passage window before it does anything, and then it buys stickyFor
       // more. Characters default to 3, so a person mentioned eleven passages ago is still in
       // context and stops going quietly wrong the moment they are off the page.
       const sticky = e.stickyFor ?? (e.entryType === 'character' ? 3 : 0);
+      let held = false;
       for (let back = 1; back <= sticky; back++) {
         const then = fires(woken, windowFor(back));
-        if (then.length) { add('CANON-TRIGGERED', e.id, body, `sticky ${back} back`, ['sticky', ...then]); break; }
+        if (then.length) { add('CANON-TRIGGERED', e.id, body, `sticky ${back} back`, ['sticky', ...then]); held = true; break; }
       }
+      // And Talk lists it by name with the other threads it did not send, so Anansi can ask for it.
+      if (!held && reach != null) unasked.push(e.title);
     }
   }
 

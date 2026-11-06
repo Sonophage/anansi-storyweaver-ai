@@ -1631,8 +1631,9 @@ ok('the hem keeps the answer an old page sends as the brief');
   const t = db.createStory(me, { title: 'Cast', premise: 'A tour ends.' }) as any;
   const ch0 = (db.chapters(t.id)[0] as any);
   db.updateStory(t.id, { persona: 'Ashley', lockedCharacter: 'Seth', lockoutOn: true });
+  // `keepOn`: these stand in for threads already set on, which a new save would land on a word.
   const up = (title: string, activation: string, keys: string[] = [title]) =>
-    db.upsertEntry(t.id, me, { title, body: `[${title}]`, entryType: 'character', keys, activation })!;
+    db.upsertEntry(t.id, me, { title, body: `[${title}]`, entryType: 'character', keys, activation }, { keepOn: true })!;
   const halsey = up('Halsey', 'always_on'), tessa = up('Tessa', 'always_on'), seth = up('Seth', 'always_on');
   const ashley = up('Ashley', 'always_on'), marcus = up('Marcus', 'triggered');
   const lisa = up('Lisa', 'triggered', ['Lisa', 'Halsey', 'tour']);

@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-05 · Hemming leaves your character to you
 
+### New threads come in when the scene names them
+A new person, place or thing now wakes on its name instead of being on in every scene. That goes
+for threads a hem offers, Talk makes, Invent writes, a new tale's cast, and your own +. Your own
+character, the Hands off character and the tale itself stay on. Turn any thread on with its eye and
+it stays on. Talk now also reads a thread your question names, whether it is on or waits for its word.
+
 ### The hem stays out of your character's head
 When a scene is hemmed, Anansi no longer writes what the character you play is feeling, wanting or
 thinking. That covers where they stand, their relationships and their voice, and the same goes for
