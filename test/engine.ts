@@ -726,11 +726,14 @@ ok('each mode says the one thing that distinguishes it', () => {
 
   // NARRATE LEAVES THE WRITER'S NARRATION IN THE PROSE (F76): quoted at the end of the instruction, the
   // story stopped before it and Ornith played it again, 29 takes of 30 against 1.
-  const nb = buildContext({ ...base(), mode: 'narrate' as any } as any, count);
+  // CONTINUE THE SAME WAY (Seth, 2026-11-06: "the same change for continue"). NOT MEASURED for Continue.
   const newest = base().passages.at(-1)!.body;
-  assert.ok(nb.blocks.some((b) => b.kind === 'TAIL' && b.state === 'included' && b.text.includes(newest)),
-    'NARRATE-IN-PROSE: the narration stays the last passage of the prose');
-  assert.ok(!nb.blocks.find((b) => b.kind === 'MODE')!.text.includes(newest), '  and is not quoted in the instruction');
+  for (const m of ['narrate', 'continue']) {
+    const nb = buildContext({ ...base(), mode: m as any } as any, count);
+    assert.ok(nb.blocks.some((b) => b.kind === 'TAIL' && b.state === 'included' && b.text.includes(newest)),
+      `${m.toUpperCase()}-IN-PROSE: the newest passage stays the last passage of the prose`);
+    assert.ok(!nb.blocks.find((b) => b.kind === 'MODE')!.text.includes(newest), '  and is not quoted in the instruction');
+  }
 
   // A stale tab sending a retired name degrades to the neutral mode instead of a 500.
   assert.ok(/one full beat/.test(modeText({ mode: 'cowrite' as any })),
@@ -908,17 +911,11 @@ ok('the mode instruction is fenced, and the prose it follows is not', () => {
   // THE HALF THAT IS THE POINT. A fence that opened one block early would put the sentence the
   // model continues from inside a marked-up region — which is not a boundary, it is a change to
   // what the model is imitating. The tail prose must sit OUTSIDE the fence, and before it.
-  // SINCE 2026-11-06 THE NEWEST PASSAGE IS QUOTED IN THE INSTRUCTION ({{last}} in the shipped wording,
-  // Seth's), once, after its label; the prose before it is what stays outside the fence.
-  const before = 'Marek wanted the Silver Key and would not say why.';
   const tail = 'Aldis counted the coins twice and came up short.';
-  assert.ok(out.includes(before), 'the fixture must actually reach TAIL, or this asserts nothing');
-  assert.ok(out.indexOf(before) < out.indexOf('<mode>'),
+  assert.ok(out.includes(tail), 'the fixture must actually reach TAIL, or this asserts nothing');
+  assert.ok(out.indexOf(tail) < out.indexOf('<mode>'),
     'the prose must come before the fence opens');
-  assert.ok(!fence![1].includes(before), 'and must not be inside it');
-  assert.match(fence![1], /The last thing that happened: Aldis counted the coins twice and came up short\.$/,
-    'the newest passage is quoted at the end of the instruction');
-  assert.strictEqual(out.split(tail).length, 2, 'and sent once, there');
+  assert.ok(!fence![1].includes(tail), 'and must not be inside it');
 
   // The instruction is the LAST thing in the prompt, so the fence closing it is the last token
   // the model sees. If another block ever renders after MODE, ORDER changed and this is the check

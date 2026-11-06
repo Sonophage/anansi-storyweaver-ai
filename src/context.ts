@@ -223,7 +223,8 @@ const OPENING_LINE = 'This passage begins a new scene. Open it as "How this chap
  *  Act. NOT MEASURED against the wording before it, except Act's one change.
  *  NARRATE DOES NOT QUOTE THE NARRATION (F76, the same day, Seth's saved wording too): quoted at the end,
  *  it left the story's prose, the prose stopped before it, and Ornith played it again (29 of 30 takes
- *  against 1 of 30 with it left as the last passage). Speak, Act and Continue still quote theirs.
+ *  against 1 of 30 with it left as the last passage). Continue the same way, on Seth's word, NOT MEASURED
+ *  for Continue (#164). Speak and Act still quote theirs.
  *  ONE PHRASE HELD BACK, as on 2026-10-31: his Continue ends "even if that is three sentences", and F18
  *  measured that a length named in the prompt is a length the model fills. The shipped line keeps the
  *  permission to be short without the number; his saved wording keeps his.
@@ -233,16 +234,14 @@ const OPENING_LINE = 'This passage begins a new scene. Open it as "How this chap
 export const MODE_WORDING: Record<string, string> = {
   continue: "Write what happens next in the scene, from everything in the story so far: the prose, the threads, and where each one stands.\n"
     + "Carry the scene forward by one full beat, and stop.\n"
-    + "Start where the last thing that happened ends. Do not repeat, rephrase or summarise anything already written.\n"
+    + "Start where the last passage above ends. Do not repeat, rephrase or summarise anything already written.\n"
     + "Do not skip time. Do not introduce a new character, location, or revelation unless the story so far set it up.\n"
     + "Something must change by the end of the beat: what someone wants, knows, or holds over another.\n"
     + "Keep each character true to their thread: their voice, their wants, their limits.\n"
     + "Choose the particular over the general: a detail only this place and these people would have, never a stock phrase.\n"
     + "Let what matters stay under the surface: people say less than they mean.\n"
     + "Stop when the beat lands, however short that is.\n"
-    + "Write no more than {{words}} words. Stop sooner if the beat is done.\n"
-    + "\n"
-    + "The last thing that happened: {{last}}",
+    + "Write no more than {{words}} words. Stop sooner if the beat is done.",
   speak: "{{speaker}} has just spoken a line of dialogue, given at the end.\n"
     + "Write how another character in the scene answers it: what they say back, a reaction, or a silence that says something. One answer is a whole answer.\n"
     + "Do not put further words in {{speaker}}'s mouth, and do not decide what {{speaker}} does next. Do not repeat, quote or paraphrase the line.\n"
