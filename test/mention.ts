@@ -27,14 +27,17 @@ const kept = Object.fromEntries(plan.kept.map((k) => [k.id, k.why]));
 
 assert.deepStrictEqual(flip.b?.keys, ['Two Fingers'], 'MENTION-PLAN-OWN-KEY: a thread whose own word the prose writes flips on it');
 assert.deepStrictEqual(flip.a?.keys, ['Grace', 'Morgott'], 'MENTION-PLAN-NAME: a word nobody writes gets the name the prose does');
-assert.match(String(kept.c), /never named/, 'MENTION-PLAN-UNNAMED: a thread the prose never names stays on, and says why');
+// NOT NAMED YET, IT GOES ON ITS NAME TOO (Seth, 2026-11-05, "flip them too"): it comes in the first time a
+// scene names it, and the plan says it has not been named so far.
+assert.deepStrictEqual([flip.c?.keys, flip.c?.named], [['Rennala'], false], 'MENTION-PLAN-UNNAMED: a thread not named yet flips on its name, marked not named');
+assert.strictEqual(flip.b?.named, true, '  and one the prose names is marked named');
 assert.match(String(kept.d), /your character/, 'MENTION-PLAN-PERSONA: the writer\'s character stays on');
 assert.match(String(kept.e), /Hands off/, 'MENTION-PLAN-HANDS-OFF: the Hands off character stays on');
 assert.match(String(kept.f), /tale/, 'MENTION-PLAN-TALE: the tale\'s thread stays on');
 assert.ok(!flip.g && !kept.g, 'MENTION-PLAN-ON-A-WORD: a thread already on a word is not touched');
 // DIALOGUE COUNTS: a keyword fires on the whole window, quotes included, so a name said aloud wakes it.
 assert.deepStrictEqual(flip.h?.keys, ['Erdtree'], 'MENTION-PLAN-DIALOGUE: a word said in dialogue counts, as it does when writing');
-ok('the plan flips what the prose names, on a word it writes, and keeps the rest on');
+ok('the plan flips every always-on thread with a word to wake on, and keeps the rest on');
 
 const off = mentionPlan([t('e', 'Messmer', ['Messmer'])], 'Messmer waited.', { ...story, lockoutOn: false });
 assert.deepStrictEqual(off.flip.map((f) => f.id), ['e'], 'MENTION-PLAN-SWITCH: Hands off counts only while it is on');
@@ -51,28 +54,36 @@ const live = mentionPlan([
 ], 'The iron gate shut. They crossed the Gravesite Plain at dusk. Bjorn laughed. The living wept.', story);
 const lf = Object.fromEntries(live.flip.map((f) => [f.id, f.keys]));
 assert.deepStrictEqual(lf.i, ['Fell-Handed', 'Bjorn'], 'MENTION-PLAN-NOT-THE: a person gains their name, never "the"');
-assert.ok(!lf.j && !lf.k, 'MENTION-PLAN-SHARED: a word two threads share is not a key; both stay on');
+assert.deepStrictEqual([lf.j, lf.k], [['Iron Warriors'], ['Iron Hands']], 'MENTION-PLAN-SHARED: each on its whole name, never both on "iron"');
 assert.deepStrictEqual(lf.l, ['plainsfolk', 'Gravesite Plain'], 'MENTION-PLAN-WHOLE: the whole name, where the prose writes it');
 // A ONE-WORD NAME THAT IS AN EVERYDAY WORD is not a key ("History" would wake on every "history").
-const common = mentionPlan([t('n', 'History', ['annals'], 'always_on', 'lore')], 'Their history was long.', story);
-assert.deepStrictEqual(common.flip, [], 'MENTION-PLAN-COMMON: an everyday word is not a key');
+const common = mentionPlan([t('n', 'History', ['annals'], 'always_on', 'lore'), t('z', 'Rules', [], 'always_on', 'lore')], 'Their history was long.', story);
+assert.deepStrictEqual(common.flip.map((f) => f.keys), [['annals']], 'MENTION-PLAN-COMMON: an everyday word is not added as a key');
+assert.match(String(common.kept.find((k) => k.id === 'z')?.why), /no word/, 'MENTION-PLAN-NO-WORD: a thread with no word to wake on stays on, and says why');
 // A THING'S NAME BEFORE THE COMMA: "The Warp, the Empyrean" is the Warp.
 const warp = mentionPlan([t('w', 'The Warp, the Empyrean', ['Empyrean Sea'], 'always_on', 'lore')], 'The warp shifted.', story);
 assert.deepStrictEqual(warp.flip[0]?.keys, ['Empyrean Sea', 'Warp'], 'MENTION-PLAN-COMMA: a thing is named by what comes before the comma');
-assert.ok(!lf.m, 'MENTION-PLAN-EVERYDAY: a thing is not keyed on one everyday word of its name ("living")');
+assert.deepStrictEqual(lf.m, ['jar', 'Living Jar'], 'MENTION-PLAN-EVERYDAY: a thing gains its whole name, never one everyday word of it ("living")');
 // ANOTHER PERSON'S NAME IS THEIRS: "Ash Vane" does not wake when Ash, someone else, is in the scene.
 const mara = mentionPlan([t('o', 'Ash Vane', ['Vane']), t('p', 'Ash', ['Ash'], 'triggered')], 'Ash smiled at the door.', story);
-assert.deepStrictEqual(mara.flip, [], 'MENTION-PLAN-OTHERS: a word of another person\'s name is theirs');
+assert.deepStrictEqual(mara.flip.map((f) => f.keys), [['Vane']], 'MENTION-PLAN-OTHERS: a word of another person\'s name is theirs');
 // AN EPITHET IS NOT A NAME (live library: "Magnus the Red" gained "Red", "Mortarion, The Pale King" "Pale").
 const epi = mentionPlan([t('q', 'Magnus the Red', ['Crimson King']), t('r', 'Mortarion, The Pale King', ['Death Lord'])],
   'Red banners hung. The pale light failed. Mortarion coughed.', story);
 const ef = Object.fromEntries(epi.flip.map((f) => [f.id, f.keys]));
-assert.ok(!ef.q, 'MENTION-PLAN-EPITHET: a person does not wake on a word of their epithet');
+assert.deepStrictEqual(ef.q, ['Crimson King', 'Magnus'], 'MENTION-PLAN-EPITHET: a person gains their given name, never a word of their epithet');
 assert.deepStrictEqual(ef.r, ['Death Lord', 'Mortarion'], 'MENTION-PLAN-GIVEN-NAME: a person wakes on their given name');
-ok('a thread gains only its whole name or a person\'s own name, never an everyday or shared word');
+// FOUND ON THE LIVE LIBRARY AGAIN: "Sir Gideon Ofnir" gained his whole name (an honorific is no name), and
+// "Konrad Curze (Upbringing)" a key with its note in brackets, which no prose writes.
+const more = mentionPlan([t('s', 'Sir Gideon Ofnir', ['Ofnir the Omniscient']), t('u', 'Konrad Curze (Upbringing)', [], 'always_on', 'lore')],
+  'Gideon set down the cup. Konrad Curze was a boy then.', story);
+const mf = Object.fromEntries(more.flip.map((f) => [f.id, f.keys]));
+assert.deepStrictEqual(mf.s, ['Ofnir the Omniscient', 'Gideon'], 'MENTION-PLAN-HONORIFIC: a person wakes on the first word of their name that is a name');
+assert.deepStrictEqual(mf.u, ['Konrad Curze'], 'MENTION-PLAN-BRACKETS: a note in brackets is not part of the name');
+ok('a thread gains only its whole name or a person\'s given name, never an everyday, shared or epithet word');
 
 const empty = mentionPlan([t('a', 'Morgott', ['Morgott'])], '', story);
-assert.deepStrictEqual([empty.flip.length, empty.kept.length], [0, 1], 'MENTION-PLAN-NO-PROSE: a tale with no prose flips nothing');
-ok('a tale with no prose flips nothing');
+assert.deepStrictEqual(empty.flip.map((f) => [f.keys, f.named]), [[['Morgott'], false]], 'MENTION-PLAN-NO-PROSE: a tale with no prose yet flips on names too');
+ok('a tale with no prose yet flips on names too');
 
 console.log(`\n${n} checks passed`);
