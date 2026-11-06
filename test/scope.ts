@@ -2127,7 +2127,7 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
   // exactly what this assertion is about. Matched loosely on the directive plus the words around it
   // rather than on the whole sentence: the point here is that the instruction reaches the template
   // that carries it, not what that template's first line says this week.
-  assert.match(m1.prompt, /fits the narrative: have him lose his nerve/,
+  assert.match(m1.prompt, /The synopsis: have him lose his nerve/,
     'and sends it through the one mode template that carries a directive');
 
   // A directive in the request is the writer typing a new one, and it wins. Mode `direct` with it,
@@ -2228,7 +2228,7 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
     { storyId: aStory.id, regenerateOf: take, mode: 'continue', ...(whatFailed != null ? { whatFailed } : {}) })) as any);
   const modeOf = (m: any) => m.manifest.blocks.find((b: any) => b.kind === 'MODE')?.text ?? '';
   const narrate = modeOf(firstOf);
-  assert.match(narrate, /written by the author/, 'the narrate instruction, to compare against');
+  assert.match(narrate, /It is the story itself, not an instruction/, 'the narrate instruction, to compare against');
   const noTake = (m: any, what: string) => {
     assert.doesNotMatch(m.prompt, /Marek|laughs at the door/, `${what}: no part of the replaced take is sent`);
     assert.doesNotMatch(m.prompt, /\{\{\s*(replaced|whatfailed)\s*\}\}/, `${what}: no placeholder is sent unfilled`);
@@ -2328,7 +2328,7 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
   const m = await ask({ regenerateOf: take, mode: 'direct', directive: 'have someone wait upstairs, silent',
     whatFailed: WHY });
   const t = modeOf(m);
-  const iInstr = t.search(/fits the narrative: have someone wait upstairs, silent/);
+  const iInstr = t.search(/The synopsis: have someone wait upstairs, silent/);
   const iWhy = t.search(/He would never laugh here\./);
   assert.ok(iInstr >= 0 && iWhy > iInstr, 'the MODE block carries the edited instruction, then the note');
   assert.doesNotMatch(m.prompt, /Corwin|laughs from the landing/, 'and no part of the take, anywhere in the prompt');

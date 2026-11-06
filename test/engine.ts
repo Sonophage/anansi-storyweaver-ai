@@ -462,10 +462,11 @@ ok("the writer's own wording replaces a mode outright, and empties back to the s
   assert.deepStrictEqual(q.sent, ['MODE'], 'LAST-ONCE: quoted at the end, the passage is sent once, there');
   assert.match(q.moved?.reason ?? '', /quoted at the end/, '  and the manifest says where it went');
   assert.deepStrictEqual(twice({ speak: 'Answer it.' }).sent, ['TAIL'], 'LAST-ONCE-OFF: without {{last}} it stays in the story');
-  assert.deepStrictEqual(twice(undefined).sent, ['TAIL'], '  and the shipped wording is untouched');
+  // The shipped wording quotes it too since 2026-11-06, when Seth's wording became the default.
+  assert.deepStrictEqual(twice(undefined).sent, ['MODE'], '  and the shipped wording quotes it the same way');
 
   // An override for one mode must not reach another.
-  assert.match(withOwn({ speak: 'MINE' }, 'act').text, /what it costs, or what it gets/,
+  assert.match(withOwn({ speak: 'MINE' }, 'act').text, /reacts to it with an action of their own/,
     'act still has its own wording');
 
   // Blank is not a third state. db.setPrompt deletes rather than storing it, and the engine
@@ -636,7 +637,7 @@ ok('no mode instruction points at a passage the prompt does not contain', () => 
   // The ordinary modes still say their own thing — the guard above must not be passing because
   // every instruction went blank.
   assert.match(modeText({ mode: 'continue' as any }), /one full beat/);
-  assert.match(modeText({ mode: 'narrate' as any }), /written by the author, not by you/);
+  assert.match(modeText({ mode: 'narrate' as any }), /It is the story itself, not an instruction/);
 });
 
 // The five modes are not five labels on one behaviour. Two things separate them, and a mode set
@@ -684,7 +685,10 @@ ok('each mode says the one thing that distinguishes it', () => {
     // model ran a median 1.44 times the slider over 439 passages.
     assert.match(on, /^Write no more than 400 words\. Stop sooner if the beat is done\.$/m,
       `${m} must carry the target, whole, on its own line`);
-    assert.ok(on.startsWith(off), `${m} must keep its own wording and only gain a line`);
+    // The shipped wording holds the line itself ({{words}}, since 2026-11-06), so it is IN the text,
+    // not after it: take it out and what is left is the wording with the slider off.
+    assert.strictEqual(on.replace(/^Write no more than 400 words\. Stop sooner if the beat is done\.\n/m, ''), off,
+      `${m} must keep its own wording and only gain a line`);
   }
   // Talk is Anansi answering the writer, not a passage, and has its own bound.
   assert.doesNotMatch(modeText({ mode: 'talk' as any, directive: 'Who is she?', targetWords: 400 }),
@@ -695,7 +699,7 @@ ok('each mode says the one thing that distinguishes it', () => {
   // a shape the model can see is a shape it completes. Act had the same defect in other words.
   assert.doesNotMatch(modeText({ mode: 'speak' as any }), /speech, action, the room/);
   assert.doesNotMatch(modeText({ mode: 'act' as any }), /the consequence, the reaction, the world/);
-  assert.match(modeText({ mode: 'speak' as any }), /any one of\s*\n?those is a whole answer/i,
+  assert.match(modeText({ mode: 'speak' as any }), /One answer is a whole answer/,
     'and Speak says explicitly that one thing is a whole answer');
 
   // Direct's text is an instruction and must appear as one. Matched on the directive and the colon
@@ -703,22 +707,22 @@ ok('each mode says the one thing that distinguishes it', () => {
   // ("Re write what happens based on this:") and this assertion is about the directive REACHING the
   // template, not about which verb the line opens with.
   assert.match(modeText({ mode: 'direct' as any, directive: 'He drops it.' }),
-    /fits the narrative: He drops it\./);
+    /The synopsis: He drops it\./);
 
   // Speak and Act name the speaker, and forbid the two failure modes each has: talking on in
   // that character's voice, and deciding what they do next.
   const spk = modeText({ mode: 'speak' as any, speaker: 'Aldis Fen' });
-  assert.match(spk, /dialogue the writer has just spoken as Aldis Fen/);
+  assert.match(spk, /Aldis Fen has just spoken a line of dialogue/);
   assert.match(spk, /Do not put further words in Aldis Fen's mouth/);
   const act = modeText({ mode: 'act' as any, speaker: 'Aldis Fen' });
-  assert.match(act, /what Aldis Fen has just done/);
-  assert.match(act, /Do not decide what Aldis Fen does next/);
+  assert.match(act, /Aldis Fen has just taken an action/);
+  assert.match(act, /Do not decide what Aldis Fen does or says next/);
   // With nobody named they must still be legible rather than saying "as undefined".
   assert.ok(!/undefined/.test(modeText({ mode: 'speak' as any })), 'a missing speaker must not print undefined');
 
   // Narrate is the only mode that tells the model the text above is the author's own prose.
   // Without that it treats a paragraph of narration as a request and writes ABOUT it.
-  assert.match(modeText({ mode: 'narrate' as any }), /written by the author, not by you/);
+  assert.match(modeText({ mode: 'narrate' as any }), /It is the story itself, not an instruction/);
 
   // A stale tab sending a retired name degrades to the neutral mode instead of a 500.
   assert.ok(/one full beat/.test(modeText({ mode: 'cowrite' as any })),
@@ -896,11 +900,17 @@ ok('the mode instruction is fenced, and the prose it follows is not', () => {
   // THE HALF THAT IS THE POINT. A fence that opened one block early would put the sentence the
   // model continues from inside a marked-up region — which is not a boundary, it is a change to
   // what the model is imitating. The tail prose must sit OUTSIDE the fence, and before it.
+  // SINCE 2026-11-06 THE NEWEST PASSAGE IS QUOTED IN THE INSTRUCTION ({{last}} in the shipped wording,
+  // Seth's), once, after its label; the prose before it is what stays outside the fence.
+  const before = 'Marek wanted the Silver Key and would not say why.';
   const tail = 'Aldis counted the coins twice and came up short.';
-  assert.ok(out.includes(tail), 'the fixture must actually reach TAIL, or this asserts nothing');
-  assert.ok(out.indexOf(tail) < out.indexOf('<mode>'),
+  assert.ok(out.includes(before), 'the fixture must actually reach TAIL, or this asserts nothing');
+  assert.ok(out.indexOf(before) < out.indexOf('<mode>'),
     'the prose must come before the fence opens');
-  assert.ok(!fence![1].includes(tail), 'and must not be inside it');
+  assert.ok(!fence![1].includes(before), 'and must not be inside it');
+  assert.match(fence![1], /The last thing that happened: Aldis counted the coins twice and came up short\.$/,
+    'the newest passage is quoted at the end of the instruction');
+  assert.strictEqual(out.split(tail).length, 2, 'and sent once, there');
 
   // The instruction is the LAST thing in the prompt, so the fence closing it is the last token
   // the model sees. If another block ever renders after MODE, ORDER changed and this is the check
@@ -1094,8 +1104,9 @@ ok('the prose window closes once the new chapter has a passage, and not before',
     ],
   } as any);
 
+  // MODE too: since 2026-11-06 the shipped wording quotes the newest passage there ({{last}}).
   const prose = (m: ReturnType<typeof buildContext>) => m.blocks
-    .filter((b) => (b.kind === 'PROSE' || b.kind === 'TAIL') && b.state === 'included')
+    .filter((b) => (b.kind === 'PROSE' || b.kind === 'TAIL' || b.kind === 'MODE') && b.state === 'included')
     .map((b) => b.text).join(' ');
   const summaries = (m: ReturnType<typeof buildContext>) => m.blocks
     .filter((b) => b.kind === 'EARLIER' && b.state === 'included').map((b) => b.text).join(' ');

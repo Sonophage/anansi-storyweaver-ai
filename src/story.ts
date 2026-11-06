@@ -1,6 +1,6 @@
 // Story service. Maps database rows to the engine's plain-object Input and back.
 // The engine never sees a row; the routes never see SQL.
-import { buildContext, stateInForce, wornAt, retiredAt, resolveBody, REWEAVE, pocketReach } from './context.ts';
+import { buildContext, stateInForce, wornAt, retiredAt, resolveBody, REWEAVE, MODE_WORDING, pocketReach } from './context.ts';
 import type { Input, Entry } from './context.ts';
 import { render, entryText, SYSTEM } from './render.ts';
 import { SLOTS } from './slots.ts';
@@ -400,25 +400,11 @@ export const MAX_TARGET_WORDS = 2000;
  *  This one keeps the passage's own instruction and names no passage it does not send. */
 export const EDITABLE_PROMPTS = ['continue', 'speak', 'act', 'direct', 'narrate', 'reweave'];
 
-/** The shipped wording of every editable box, rendered with its placeholders left in.
- *
- *  Built by asking the engine itself rather than by keeping a second copy: a copy is a thing that
- *  goes stale, and the editor's whole job is to show the writer what they are replacing. */
+/** The shipped wording of every editable box, with its placeholders left in: the templates the
+ *  engine fills (`MODE_WORDING` and `REWEAVE` in context.ts), not a copy of them, so the editor shows
+ *  the writer exactly what they are replacing. */
 export function defaultModePrompts(): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const mode of EDITABLE_PROMPTS) {
-    // The note frame, placeholder in: the same string the engine fills (`REWEAVE` in context.ts),
-    // so the box shows exactly what an unedited reweave sends around the note.
-    if (mode === 'reweave') { out.reweave = REWEAVE; continue; }
-    const m = buildContext({
-      story: { title: '', genre: '', premise: '', setting: '', pov: '', writingStyle: '', spice: 2 },
-      chapters: [], passages: [{ id: 'p', ordinal: 1, body: 'x.' }], entries: [],
-      mode: mode as any, directive: '{{directive}}', speaker: '{{speaker}}',
-      currentChapter: { id: 'c', index: 1 }, budget: 4000,
-    } as any, estimate).blocks.find((b) => b.kind === 'MODE');
-    if (m) out[mode] = m.text;
-  }
-  return out;
+  return Object.fromEntries(EDITABLE_PROMPTS.map((m) => [m, m === 'reweave' ? REWEAVE : MODE_WORDING[m]!]));
 }
 
 /** Assemble the prompt. Pure from here down — no I/O below this line. */

@@ -124,18 +124,18 @@ const direct = await modeBlock('direct', null, 'He drops the key.');
 // Matched on the directive and the colon that introduces it, not on the line's opening verb: Seth
 // reworded that to "Re write what happens based on this:" on 2026-09-01, and what this asserts is
 // that the typed text REACHES the template that carries a directive.
-ok("Direct passes your text as an instruction", /fits the narrative: He drops the key\./.test(direct));
+ok("Direct passes your text as an instruction", /The synopsis: He drops the key\./.test(direct));
 
 const speak = await modeBlock('speak', 'Aldis Fen');
 ok(`Speak names who spoke (${JSON.stringify(speak.slice(0, 62))})`, /spoken as Aldis Fen/.test(speak));
 ok("  and forbids answering in their voice", /Do not put further words in Aldis Fen/.test(speak));
 
 const act = await modeBlock('act', 'Marek');
-ok("Act names who acted", /what Marek has just done/.test(act));
+ok("Act names who acted", /Marek has just taken an action/.test(act));
 ok("  and forbids deciding their next move", /Do not decide what Marek does next/.test(act));
 
 const narr = await modeBlock('narrate');
-ok("Narrate tells the model the prose above is the author's", /written by the author, not by you/.test(narr));
+ok("Narrate tells the model the prose above is the author's", /It is the story itself, not an instruction/.test(narr));
 ok("  and not to rewrite it", /Do not rewrite it/.test(narr));
 
 // A stale tab still sends the retired names. A 500 from an undefined lookup is a worse answer

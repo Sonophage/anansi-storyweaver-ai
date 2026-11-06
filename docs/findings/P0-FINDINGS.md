@@ -3658,3 +3658,38 @@ Speak's failure is Ornith's, and a sentence does not fix it.
 
 **Open.** Other wordings (naming who should answer instead), a code floor that cuts the writer's
 character's lines out of an answer, or Speak on another model. None measured.
+
+## F75 — "reacts to" in place of "answers" makes the scene react to the writer's Act: 60/80 → 77/80 (2026-11-06)
+
+**The question.** In the #149 read Seth marked 4 of 10 Act takes on ENCORE's scene 10 point Would fix:
+the scene did not react to his action ("there was no question being asked of her. There was a statement
+and then an action"). Three of the four open on Halsey not answering "the question". His saved Act
+wording said the other character "answers it with an action of their own ... their answer is something
+they do". Does "reacts to it ... their reaction" change that?
+
+**The detector.** `bench/act-react.ts`: the take's first sentence of narration (quoted spans removed)
+shares a word with the act, the actor's name and little words left out, light stemming, and a word of
+four letters or more that ends another counts ("card" for "keycard"). Against Seth's 19 marked #149 Act
+takes it agrees 17 times; both misses are takes he marked Fine that name the act's "pie" as "the plate",
+so it errs strict. The first version had no part-word rule and on round one's own takes read "his hand
+leave the card" as no reaction; it was fixed after round one, which is why there is a round two.
+
+**The run.** Two arms at once, Ornith-1.0-RPNTH-35B, each a scratch server on its own copy cut back to
+the scene 10 point, differing only in that one sentence of Seth's saved Act wording, each server's
+prompt checked to carry its arm's sentence and the act before a take. 40 takes per arm per round, one
+at a time per arm. 160 calls, 0 failed.
+
+| | A ("answers") | B ("reacts to") | p |
+|---|---|---|---|
+| round 1 (detector fixed after) | 30/40 | 39/40 | 0.007 |
+| round 2 (detector frozen) | 30/40 | 38/40 | 0.025 |
+| both | 60/80 | 77/80 | 0.0002 |
+| first sentence names "the question" | 6/80 | 0/80 | 0.03 |
+
+A's misses read as Seth's flagged takes did: "Halsey lets the question hang, then walks to the window",
+"Halsey doesn't answer the question", "Halsey watches his hands". B's three open on his hands settling
+on his knees, a reaction to his sitting.
+
+**What this settles.** Shipped: Seth's saved Act wording says "reacts to" (2026-11-06), and the same day
+his five mode wordings became the shipped defaults with it. One point in one tale; the scene 4 point had
+no misses to fix. Unlike F20, F37, F71 and F74, a one-word change here moved the number.

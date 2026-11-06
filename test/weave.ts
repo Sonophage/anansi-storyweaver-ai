@@ -159,7 +159,9 @@ const ok = (m: string, fn?: unknown) => {
   for (let i = 1; i <= 30; i++)
     db.addPassage({ ...long, storyId: long.id,
       body: `Passage ${i}. ` + 'The lower tiers pulse under the rain, and the Murmur keeps her counsel. '.repeat(4) });
-  const SLOT = 9000;
+  // 9,300 since 2026-11-06: the shipped mode wording grew by about 150 tokens (Seth's became the
+  // default) and 9,000 overflowed. Still small enough that the 5,000 decides what stays (asserted below).
+  const SLOT = 9300;
   const preview = async () => ((await routes['POST /api/manifest'](ctx({ storyId: long.id, mode: 'continue' },
     SLOT))) as any).prompt as string;
   const off = await preview();
@@ -392,7 +394,9 @@ const invent = async (id: string, perSlot?: number, extra: any = {}) => {
     db.addPassage({ ...big, storyId: big.id,
       body: `Passage ${i}. ` + 'The lower tiers pulse under the rain, and the Murmur keeps her counsel. '.repeat(4) });
   await routes['POST /api/story'](ctx({ id: big.id, story: { weaving: true } }));
-  const SLOT = 9000;
+  // 9,300 since 2026-11-06: the shipped mode wording grew by about 150 tokens (Seth's became the
+  // default) and 9,000 overflowed. Still small enough that the 5,000 decides what stays (asserted below).
+  const SLOT = 9300;
   const ask = async (extra: any = {}) => {
     calls = [];
     return routes['POST /api/generate'](ctx({ storyId: big.id, mode: 'continue', ...extra }, SLOT)) as any;

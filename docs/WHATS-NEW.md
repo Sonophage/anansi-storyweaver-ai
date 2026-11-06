@@ -16,6 +16,18 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-11-06 · Act answers what you did
+
+### Act makes the scene react to what you did
+When you Act, the others in the scene now react to your action. Before, they sometimes went on as if
+someone had asked them a question, and walked off to the window instead. On a test scene the new
+wording reacted to the action 77 times in 80, against 60 before.
+
+### Seth's wording is now everyone's starting wording for the five buttons
+Continue, Speak, Act, Direct and Narrate now start from the wording Seth writes with, unless you have
+your own under Account → Writing. Each one ends by quoting the passage it works on, sends that passage
+once, and follows your length slider. Your own wording, if you have one, is untouched.
+
 ## 2026-11-05 · Hemming leaves your character to you
 
 ### Speak stops where your character would speak again

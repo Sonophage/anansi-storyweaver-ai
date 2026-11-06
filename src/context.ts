@@ -205,10 +205,6 @@ const SPICE: Record<number, string> = {
    + 'the voice. Adult characters only.',
 };
 
-/** Five modes, and the distinction that matters runs through all of them: in `direct` the
- *  writer's text is an INSTRUCTION and never reaches the page; in `speak`, `act` and `narrate`
- *  the writer's text is already the last passage and the model's job is to answer it. Getting
- *  that backwards is what made typed dialogue vanish into the prompt. */
 /** THE FIRST PASSAGE OF A SCENE THAT HAS AN OPENING, in Continue's place (see where MODE is sent). */
 const OPENING = 'Write the first beat of a new scene, and stop.\n'
   + 'The scene above has ended. Open where and when "How this chapter opens" says, even if that is\n'
@@ -217,6 +213,78 @@ const OPENING = 'Write the first beat of a new scene, and stop.\n'
 /** The same, as one line after another mode's own words. */
 const OPENING_LINE = 'This passage begins a new scene. Open it as "How this chapter opens" above says, not where the prose above ends.';
 
+/** THE FIVE WRITING MODES' SHIPPED WORDING, as templates, filled exactly as a writer's own wording is
+ *  ({{speaker}}, {{directive}}, {{words}} the slider, {{last}} the newest passage, quoted at the end and
+ *  taken out of the prose so it is sent once). A writer's own wording for a mode replaces it whole.
+ *
+ *  SETH'S WORDING IS THE DEFAULT (2026-11-06: "make the new ones on mine the default"), as he had it
+ *  that day, Act's "reacts to" included (F75). It replaced the 2026-10-31 shipped set, which was his
+ *  earlier wording: that Act said "Rewrite it so that it fits the narrative", against his standard for
+ *  Act. NOT MEASURED against the wording before it, except Act's one change.
+ *  ONE PHRASE HELD BACK, as on 2026-10-31: his Continue ends "even if that is three sentences", and F18
+ *  measured that a length named in the prompt is a length the model fills. The shipped line keeps the
+ *  permission to be short without the number; his saved wording keeps his.
+ *  In `direct` the writer's text is an INSTRUCTION and never reaches the page; in `speak`, `act` and
+ *  `narrate` it is already the newest passage and the model answers it. Getting that backwards is what
+ *  made typed dialogue vanish into the prompt. */
+export const MODE_WORDING: Record<string, string> = {
+  continue: "Write what happens next in the scene, from everything in the story so far: the prose, the threads, and where each one stands.\n"
+    + "Carry the scene forward by one full beat, and stop.\n"
+    + "Start where the last thing that happened ends. Do not repeat, rephrase or summarise anything already written.\n"
+    + "Do not skip time. Do not introduce a new character, location, or revelation unless the story so far set it up.\n"
+    + "Something must change by the end of the beat: what someone wants, knows, or holds over another.\n"
+    + "Keep each character true to their thread: their voice, their wants, their limits.\n"
+    + "Choose the particular over the general: a detail only this place and these people would have, never a stock phrase.\n"
+    + "Let what matters stay under the surface: people say less than they mean.\n"
+    + "Stop when the beat lands, however short that is.\n"
+    + "Write no more than {{words}} words. Stop sooner if the beat is done.\n"
+    + "\n"
+    + "The last thing that happened: {{last}}",
+  speak: "{{speaker}} has just spoken a line of dialogue, given at the end.\n"
+    + "Write how another character in the scene answers it: what they say back, a reaction, or a silence that says something. One answer is a whole answer.\n"
+    + "Do not put further words in {{speaker}}'s mouth, and do not decide what {{speaker}} does next. Do not repeat, quote or paraphrase the line.\n"
+    + "Something must change by the end of the beat: what someone wants, knows, or holds over another.\n"
+    + "Keep each character true to their thread: their voice, their wants, their limits.\n"
+    + "Choose the particular over the general: a detail only this place and these people would have, never a stock phrase.\n"
+    + "Let what matters stay under the surface: people say less than they mean.\n"
+    + "Write no more than {{words}} words. Stop sooner if the beat is done.\n"
+    + "\n"
+    + "What {{speaker}} just said: {{last}}",
+  act: "{{speaker}} has just taken an action, given at the end. It has already happened: do not write it again or describe it a second time.\n"
+    + "Write how another character in the scene reacts to it with an action of their own. They may speak as they do it, but their reaction is something they do.\n"
+    + "Do not decide what {{speaker}} does or says next.\n"
+    + "Something must change by the end of the beat: what someone wants, knows, or holds over another.\n"
+    + "Keep each character true to their thread: their voice, their wants, their limits.\n"
+    + "Choose the particular over the general: a detail only this place and these people would have, never a stock phrase.\n"
+    + "Let what matters stay under the surface: people say less than they mean.\n"
+    + "Answer with a deed, not a glance: begin with what they do.\n"
+    + "Write no more than {{words}} words. Stop sooner if the beat is done.\n"
+    + "\n"
+    + "What {{speaker}} just did: {{last}}",
+  direct: "The writer has written a short synopsis of what should happen next. Rewrite it as one full beat of the story: prose, in the voice of the scene, played out in the moment rather than summarised.\n"
+    + "Everything the synopsis says happens must happen. Add no event it does not ask for, and do not go past where it ends.\n"
+    + "Start where the story so far ends. Do not repeat or rebuild what is already written.\n"
+    + "Something must change by the end of the beat: what someone wants, knows, or holds over another.\n"
+    + "Keep each character true to their thread: their voice, their wants, their limits.\n"
+    + "Choose the particular over the general: a detail only this place and these people would have, never a stock phrase.\n"
+    + "Let what matters stay under the surface: people say less than they mean.\n"
+    + "Write no more than {{words}} words. Stop sooner if the beat is done.\n"
+    + "\n"
+    + "The synopsis: {{directive}}",
+  narrate: "The writer has just written what happens, given at the end. It is the story itself, not an instruction.\n"
+    + "Continue from where it stops. Pick up mid-thought if its last line is unfinished.\n"
+    + "Do not rewrite it, repeat it, summarise it, or comment on it. Match its voice.\n"
+    + "Carry on what the writer started and raise its pressure: by the end something has changed, in what someone wants, knows, or holds over another.\n"
+    + "Keep each character true to their thread: their voice, their wants, their limits.\n"
+    + "Choose the particular over the general: a detail only this place and these people would have, never a stock phrase.\n"
+    + "Let what matters stay under the surface: people say less than they mean.\n"
+    + "Stop at a natural beat, however few sentences that takes.\n"
+    + "Write no more than {{words}} words. Stop sooner if the beat is done.\n"
+    + "\n"
+    + "What the writer just wrote: {{last}}",
+};
+
+/** Talk's frame. Not a writing mode, so it has no template and no writer's wording. */
 const MODE: Record<string, (d?: string, who?: string) => string> = {
   /* THERE IS NO `regenerate` HERE, AND THAT IS THE POINT. One lived here from 2026-09-01 to
    * 2026-09-18 — "Write this passage again. Same moment, same canon, a different take on it." —
@@ -230,57 +298,6 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
    * A re-roll re-runs the instruction the passage was written with instead — see `inherit` in
    * routes.ts. The prompt is then identical to the one that produced the passage, which is the
    * only thing "again" can honestly mean when the passage itself is not in the prompt. */
-  // The Continue button. No directive, because there is nowhere to type one — a steer with no
-  // input is a parameter nobody can set.
-  // NO PARAGRAPH COUNT. It said "the next 1-2 paragraphs" and F18 is what a named length does: the
-  // model fills it. The scope words were already carrying the instruction — one beat, no time
-  // skipped, nothing new unless the page set it up — and the last line replaces the number with
-  // the permission the number was denying, which is to be short.
-  // SETH'S WORDING IS THE DEFAULT (2026-10-31: "make my prompts for the action buttons the apps
-  // defaults"), for this and the five below: his saved prompt for each, as he had it. NOT MEASURED
-  // against the wording before it. ONE PHRASE HELD BACK: his Continue ends "even if that is three
-  // sentences", and F18 measured that a length named in the prompt is a length the model fills. The
-  // shipped line keeps the permission to be short without the number; his saved prompt keeps his.
-  continue: () => 'Carry the scene forward by one full beat, and stop.\n'
-    + 'Start where the last line above ends. Do not repeat, rephrase or summarise anything already written.\n'
-    + 'Do not skip time. Do not introduce a new character, location, or revelation unless the prose above set it up.\n'
-    + 'Stop when the beat lands, however short that is.',
-
-  // The writer's line is ALREADY the last passage. The one instruction that earns its tokens is
-  // not to keep talking in that character's voice.
-  //
-  // NO LIST. It said "speech, action, the room" and a checklist gets filled: reply, gesture,
-  // weather, in that order, every time (COUNCIL-04). Three slots is a shape, and a shape the model
-  // can see is a shape it will complete. What replaces it says the answer may be ONE thing.
-  speak: (_d, who) => `The last passage is dialogue the writer has just spoken as ${who || 'the point-of-view character'}.\n`
-    + 'Write what it lands on: another character\'s answer, a reaction in the room, or a silence. Any one of those is a whole answer.\n'
-    + `Do not put further words in ${who || 'that character'}'s mouth. Do not repeat, quote or paraphrase the line back.\n`
-    + 'People say less than they mean: keep the subtext under the answer.',
-
-  // Same defect, and COUNCIL-04 did not name this one: "the consequence, the reaction, the world
-  // answering" is the same three slots wearing different words.
-  act: (_d, who) => `The last passage is what ${who || 'the point-of-view character'} has just done.\n`
-    + 'Rewrite it so that it fits the narrative and then write the one thing that follows from it: how the others and the room answer it, what it costs, or what it gets.\n'
-    + `Do not decide what ${who || 'that character'} does next. Do not restate or describe the action again.`,
-
-  /* "Write what happens next, based on this:" since 2026-10-29. From 2026-09-01 it opened "Re write
-   * what happens based on this:", on the argument that this one string is also every re-roll of a
-   * directed passage (`inherit` in routes.ts). That argument stopped holding on 2026-09-18: a re-roll
-   * of passage N is assembled from the passages before N, so "Re write" pointed at N-1, the last
-   * passage the model could see. On a first press it pointed at the same passage. Remote models
-   * read it literally: Mythos-27B on Featherless gave back passage 31 nearly word for word with the
-   * directive spliced in (80% of its 8-word runs). "based on this:" was kept until 2026-10-31; the
-   * tests now match the directive after "fits the narrative:", Seth's line below.
-   *
-   * The lines below it are what F29 cut this prompt down to. */
-  // "The length follows the instruction: a small one is a small passage" ended this until
-  // 2026-10-29. The word limit appended below is the one length rule; two can disagree.
-  // Seth's wording since 2026-10-31: it says "Rewrite this", and says first that the passage above is
-  // not to be rebuilt, which is the failure the "Re write" opening had. NOT MEASURED on a remote model.
-  direct: (d) => 'This is a new passage that follows the last one. Start where it ends. Do not repeat, rephrase or rebuild the passage above.\n'
-    + 'Cover the directive and nothing beyond it. Do not narrate past the instruction, and do not resolve it faster than the scene wants.\n\n'
-    + `Rewrite this so that it fits the narrative: ${d}`,
-
   // Not a writing mode. Anansi answers the writer rather than continuing the book, so this block
   // says what the material above IS — otherwise a model handed canon and prose does the thing it
   // has been doing all along and writes the next passage.
@@ -289,15 +306,15 @@ const MODE: Record<string, (d?: string, who?: string) => string> = {
   talk: (d) => `The writer is talking to you, not asking for prose.\n`
     + `Everything above is what you know about their story. Do not continue the story.\n\n`
     + `They say: ${d ?? ''}`,
-
-  // The one mode where the text above is the author's own prose rather than a request. Saying so
-  // is the whole job: without it the model treats a paragraph of narration as an instruction and
-  // writes about it instead of from it.
-  narrate: () => 'The passage above was written by the author, not by you. It is the story itself, not an instruction.\n'
-    + 'Continue from where it stops. Pick up mid-thought if the last line is unfinished.\n'
-    + 'Do not rewrite it, repeat it, summarise it, or comment on it. Match its voice.\n'
-    + 'Stop at a natural beat, however few sentences that takes.',
 };
+
+/** The wording a mode is sent with: the writer's own for it, else the shipped template. A request with
+ *  a mode that is not one (a stale tab's old name) gets Continue's, as it always has; Talk has none. */
+function wordingOf(mode: string, mine?: Record<string, string>) {
+  if (mode === 'talk') return undefined;
+  const key = MODE_WORDING[mode] ? mode : 'continue';
+  return (MODE_WORDING[mode] ? mine?.[key]?.trim() : '') || MODE_WORDING[key];
+}
 
 /* WHEN YOU REWEAVE: the frame around the writer's What didn't work note, sent after the passage's
  * own instruction on a reweave that has a note, and never when it has none (docs/adr/0012). It is
@@ -1577,9 +1594,12 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
   // quotes the newest passage at its end ({{last}}, filled in MODE below), that passage leaves the
   // story's prose and is said to have moved. Not when an empty scene opens on Continue: the opening's
   // own words replace the writer's there, and {{last}} is not sent. NOT MEASURED.
-  const ownHere = MODE[input.mode] ? input.modePrompts?.[input.mode]?.trim() : undefined;
+  // NOR A SCENE BREAK: it has no words of its own, so taken out of the prose it left the scene ending on
+  // nothing and {{last}} quoting an empty line. It stays in the prose, and {{last}} says it the same way.
+  const ownHere = wordingOf(input.mode, input.modePrompts);
   const quoted = !!ownHere && /\{\{\s*last\s*\}\}/.test(ownHere)
     && !(input.mode === 'continue' && !started && !!currentChapter.opensWith?.trim())
+    && !scene.at(-1)?.isBreak
     ? scene.at(-1)?.id : undefined;
   for (const p of tail) {
     if (p.id === quoted) {
@@ -1618,7 +1638,8 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // ONLY A REAL MODE'S NAME finds an override. The map holds keys that are not modes (`voice`,
     // `anansi`, `reweave`, the library), and a request naming one as its mode must not send that
     // text as the whole instruction.
-    const own = MODE[key] ? input.modePrompts?.[key]?.trim() : undefined;
+    const own = MODE_WORDING[key] ? input.modePrompts?.[key]?.trim() || undefined : undefined;
+    const wording = wordingOf(key, input.modePrompts);
     // AN EMPTY SCENE OPENS AS ITS OPENING SAYS, and the mode says so last (Seth, 2026-10-30: "the opening
     // has nothing to do with what we said"). DIRECTIVE carries the opening, but the mode sits nearest
     // the generation point, and Continue's own words, the shipped ones and his, say "start where the
@@ -1628,16 +1649,16 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     // carries the writer's direction) and gets the line. Not for Talk, and only while the scene has
     // no prose and has an opening, the condition DIRECTIVE's own line uses. NOT MEASURED.
     const opening = !started && input.mode !== 'talk' && !!currentChapter.opensWith?.trim();
-    // {{words}} IS THE SLIDER (Seth, 2026-11-02), in the writer's own wording only: the shipped ones
-    // name no length (F18, guarded in test/engine.ts). Where it is written the writer has said the
-    // length in their own words, so the line under THE LENGTH TARGET below is not added. With the
-    // slider off, the line holding it is dropped, so no "about  words" reaches the model.
+    // {{words}} IS THE SLIDER (Seth, 2026-11-02), in the shipped wording (since 2026-11-06) and in any
+    // writer's that writes it. With the slider off the line holding it is dropped, so no wording names a
+    // length unasked (F18, guarded in test/engine.ts). Where it is written, the line under THE LENGTH
+    // TARGET below is not added; a writer's wording without it still gets that line.
     const target = Number(input.targetWords) || 0;
     const WORDS = /\{\{\s*words\s*\}\}/;
-    const ownWords = !!own && WORDS.test(own);
+    const ownWords = !!wording && WORDS.test(wording);
     const said = opening && key === 'continue' ? OPENING
-      : own
-      ? (target > 0 ? own : own.split('\n').filter((l) => !WORDS.test(l)).join('\n'))
+      : wording
+      ? (target > 0 ? wording : wording.split('\n').filter((l) => !WORDS.test(l)).join('\n'))
            .replace(new RegExp(WORDS.source, 'g'), String(target))
            .replace(/\{\{\s*directive\s*\}\}/g, input.directive ?? '')
            .replace(/\{\{\s*speaker\s*\}\}/g, input.speaker || 'the point-of-view character')
@@ -1645,8 +1666,10 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
            // for all of them should be at the end"), so a wording can give the instruction first and
            // what it works on last, rather than pointing "above". Last, and by a function, so the
            // passage goes in as written: a `$&` or a `{{directive}}` in the prose is not filled.
-           .replace(/\{\{\s*last\s*\}\}/g, () => scene.at(-1)?.body ?? '')
-      : (MODE[key] ?? MODE.continue)(input.directive, input.speaker);
+           // MARKED AS IN THE PROSE (`mark`): the writer's own under a lockout (F53), a break as a break.
+           // Taken out of the prose it lost that mark, and the lockout its example of whose line it is.
+           .replace(/\{\{\s*last\s*\}\}/g, () => { const p = scene.at(-1); return p ? mark(p) : ''; })
+      : MODE.talk!(input.directive, input.speaker);
     /* WHAT DID NOT WORK, after the instruction, in the When you reweave wording: the writer's from
      * Account → Writing, or the shipped one (docs/adr/0012). THE TAKE BEING REPLACED IS NOT SENT,
      * in any form. For one day (2026-10-29) it was, framed as the version being replaced, and GLM-4-32B
@@ -1663,10 +1686,9 @@ export function buildContext(input: Input, count: (s: string) => number): Manife
     const text = [others, said, frame, opening && key !== 'continue' ? OPENING_LINE : ''].filter(Boolean).join('\n');
     // THE LENGTH TARGET, and everything about where it sits is deliberate.
     //
-    // Appended here rather than written into the MODE map, because those five strings are what
-    // `test/engine.ts:414` guards against ever naming a length again — F18/F29, a named length is
-    // a length the model fills. Keeping them clean keeps that tripwire green AND still guarding,
-    // since `defaultModePrompts` builds them with no target. It rides in an existing block rather
+    // For a writer's wording with no {{words}} in it; the shipped wording holds the same line itself.
+    // Never with the slider off: F18/F29, a named length is a length the model fills, and
+    // `test/engine.ts` guards both directions. It rides in an existing block rather
     // than a new one for the reason `story.ts` already gave for SYSTEM and `context.ts:548` for
     // DIRECTIVE: a block needs a place in ORDER, a colour, a BLOCK_ORIGIN name and a panel row.
     //
