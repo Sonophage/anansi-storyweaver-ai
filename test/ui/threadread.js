@@ -141,6 +141,24 @@ for (const [w, h, where] of [[390, 844, 'the iPhone'], [360, 360, 'the Titan']])
       && !(back.pins ?? []).some((p) => p.entryId === marek.id && p.chapterId === back.currentChapter.id));
   }
 
+  // ---- A CHARACTER'S PRONOUN (2026-11-05), in the kind's tag so the row stays one line: "character · she".
+  // The tag opens the kinds and, under them, He · She · They · Not set, each saving at once. Speak's cut
+  // reads it to know whose a "he says" is.
+  const pron = () => page.eval(`document.querySelector('#sideBody .readtags [data-readedit="kind"]')?.textContent.replace(/\\s+/g, ' ').trim() ?? ''`);
+  await page.click('#sideBody .readtags [data-readedit="kind"]');
+  await wait(400);
+  ok("a character's kind tag opens its pronoun too: He, She, They, Not set", await page.eval(
+    "[...document.querySelectorAll('#sideBody [data-pronoun]')].map((b) => b.dataset.pronoun).join(',')") === 'he,she,they,none');
+  await page.click('#sideBody [data-pronoun="she"]');
+  await wait(800);
+  ok(`  a chip saves at once, and the tag says so (${await pron()})`,
+     (await story(sid)).entries.find((e) => e.id === marek.id).pronoun === 'she' && await pron() === 'character · she');
+  await page.click('#sideBody .readtags [data-readedit="kind"]');
+  await wait(400);
+  await page.click('#sideBody [data-pronoun="none"]');
+  await wait(800);
+  ok("  and Not set clears it", (await story(sid)).entries.find((e) => e.id === marek.id).pronoun === null && await pron() === 'character');
+
   // ---- More holds every action ⋯ held (#136), and each one goes somewhere
   await page.click('#sideBody [data-cardtab="more"]');
   await wait(500);

@@ -18,6 +18,16 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-05 · Hemming leaves your character to you
 
+### Speak stops where your character would speak again
+When you speak a line and Anansi answers, the answer now ends before it gives your own character
+another line. Some models, Ornith most of all, kept answering for you; now what you get back is the
+other person's answer and nothing past it.
+
+### A character can have he, she or they
+Tap a character's kind under its name in Read to set he, she or they. Speak uses it to tell whose
+line a "he says" is. Most characters were filled in from their own text; a few, where it was not
+clear, are left for you to set. A character with none set is never mistaken for anyone.
+
 ### New threads come in when the scene names them
 A new person, place or thing now wakes on its name instead of being on in every scene. That goes
 for threads a hem offers, Talk makes, Invent writes, a new tale's cast, and your own +. Your own

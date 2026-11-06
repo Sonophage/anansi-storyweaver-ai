@@ -97,8 +97,9 @@ if (process.argv[2] === 'real') {
 // ---- run: Ornith and Qwen3.6 answer the same Speak lines AT ONCE, each on a scratch server on its own copy
 // of the library, prompts as they are on this checkout. Two lines: ENCORE's last, where the writer spoke as
 // Halsey ("And if I don't?"), and a small two-person scene where he speaks as Aldis and Sabel answers.
-// Each take after the first is the app's own reroll of the first, kept (not rejected), so every take
-// answers the writer's line and nothing but the model differs. No seed: only these arms compare (F55).
+// The route saves an answer only while a page watches it stream; these calls do not stream, so nothing
+// is saved and every take answers the writer's line fresh (the reroll fields sent after the first take
+// name no passage and change nothing). No seed: only these arms compare (F55).
 //   node --experimental-strip-types bench/speak.ts run [takes per line, default 20]
 //   node --experimental-strip-types bench/speak.ts report
 const ARMS = { ornith: { port: 5301, model: 'Ornith-1.0-RPNTH-35B' }, qwen: { port: 5302, model: 'Qwen3.6-WNTH-35B-A3B-NN' } } as const;

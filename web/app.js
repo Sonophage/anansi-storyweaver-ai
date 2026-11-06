@@ -570,7 +570,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'summarize', 'extract', 'decide', 'branch', 'delbranch', 'newthread', 'entry',
   'carryon',
   'spark', 'blank', 'backup', 'putback', 'hit', 'expand', 'delentry', 'backentry',
-  'kind', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
+  'kind', 'pronoun', 'fork', 'restore', 'lkind', 'ctxview', 'goblock', 'invent',
   // #36. A followed card, per card. `unlink` was taken by the entry-LINKS feature years of commits
   // ago, so these say what they do to a followed thread instead of reusing that word.
   'takeover', 'dropfollow', 'handback', 'sendup', 'bringback', 'savefollowed',
@@ -8557,8 +8557,11 @@ function cardFace(e, slots) {
       >${esc(e.title || 'Untitled')}</button></h2>`}
     <!-- THE JUMP CHIPS ARE ONE TAG NOW. The pockets tag opens the Pockets tab at the first of them. -->
     <div class="readtags">
-      <button class="tag" data-readedit="kind" aria-expanded="${open('kind')}" aria-label="Kind: ${esc(e.entryType)}. Change it"
-        >${esc(e.entryType)}</button>
+      ${/* A CHARACTER'S PRONOUN RIDES IN THE KIND'S TAG (2026-11-05), "character · she", so the row stays
+          one line on a phone; Speak's cut reads it to know whose a "he says" is. */ ''}
+      <button class="tag" data-readedit="kind" aria-expanded="${open('kind')}"
+        aria-label="Kind: ${esc(e.entryType)}${e.entryType === 'character' ? `, pronoun ${esc(e.pronoun ?? 'not set')}` : ''}. Change it"
+        >${esc(e.entryType)}${e.entryType === 'character' && e.pronoun ? ` · ${esc(e.pronoun)}` : ''}</button>
       <button class="tag readreach" data-flipact="${esc(e.id)}" data-look="${m.look}" data-reach="${m.state}"
         data-lit="${lit ? 1 : 0}" aria-label="${m.label}" title="${m.label}"
         >${mark(m.look, 15)}<span>${m.word}</span></button>
@@ -8568,6 +8571,10 @@ function cardFace(e, slots) {
     ${/* THE KIND, OPENED: one chip per kind, which saves at once (`data-kind`) and shuts the row. */
       open('kind') ? `<div class="row-6 wraps below-8" role="group" aria-label="Kind">${KINDS.map((k) => `<button data-kind="${k}"
       class="tag" aria-pressed="${k === e.entryType}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>` : ''}
+    ${/* AND A CHARACTER'S PRONOUN, under the kinds: He · She · They · Not set, each saving at once. */
+      e.entryType === 'character' && open('kind') ? `<div class="row-6 wraps below-8" role="group" aria-label="Pronoun">${
+      [['he', 'He'], ['she', 'She'], ['they', 'They'], ['none', 'Not set']].map(([k, label]) => `<button data-pronoun="${k}"
+      class="tag" aria-pressed="${(e.pronoun ?? 'none') === k}">${label}</button>`).join('')}</div>` : ''}
     <!-- #22 §8. A MARKER HERE, THE CONTROLS UNDER MORE. Seth: "once you click on a card the
          marked as finished should only show in the edit version." Retire and Bring it back are
          rows of the More tab, next to Delete. -->
@@ -13799,6 +13806,16 @@ document.addEventListener('click', async (e) => {
       paint();
       refreshManifest();
     });
+    return;
+  }
+  if (d.pronoun) {
+    // A CHARACTER'S PRONOUN, opened on Read with its kind (2026-11-05): a chip saves at once and shuts
+    // the row. `allowNoKeys`, as the kind's chip, so the save changes nothing else.
+    const e = V.entries.find((x) => x.id === S.entryId); if (!e) return;
+    const r = await api.saveEntry(S.storyId, { ...e, id: e.id, keys: e.keys ?? [], allowNoKeys: true, pronoun: d.pronoun === 'none' ? '' : d.pronoun });
+    if (r.error) return toast(r.error);
+    if (S.readOpen?.id === e.id) S.readOpen.fields.delete('kind');
+    V = await api.story(S.storyId); paint(); refreshManifest();
     return;
   }
   if (d.kind) {
