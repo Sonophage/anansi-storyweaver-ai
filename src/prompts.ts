@@ -468,14 +468,13 @@ mood, no voice.
   kept     one sentence saying what disagreed and which you kept, and why: "Kept 34 from Always
            true over 30s in where it stands: it is the more specific." "" when nothing did.
 
-After the thread come the tale it is in and the names of that tale's threads. A fact that names a
-person, a place or an event this tale does not have, and that the tale's own text does not set up,
-came from another tale: leave it out of the three parts, or reword it so it fits this tale. A name
-among the tale's threads, and anything the tale itself says, is never from another tale.
+A line after the thread may list names from another tale of the writer's, which this tale does not
+have. Leave out the facts that rest on those names, or reword them so they no longer do. Change
+nothing else for that reason.
 
   foreign  each fact you left out or reworded for that reason: the fact as the thread had it, the
            part it was in (always, stands, or the pocket's name), and why, in a few words. An empty
-           list when there is none.
+           list when there is no such line.
 
 Rewrite EVERY pocket it already has as a plain description, even when it was written as an
 instruction: "Write <how they talk>. Never <what to avoid>." becomes "<how they talk>; never <what

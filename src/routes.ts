@@ -22,6 +22,7 @@ import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
 import { cutSpeaker } from './speak.ts';
 import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, offerWords, draftCard, startAsked, startNow, draftAsked, DRAFT_STRINGS, aimOf, askWhich, fingerprint, talesOwn, shortModel } from './changes.ts';
+import { foreignNames, holdsName } from './mention.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
 import { innerCut, placeholders } from './outside.ts';
@@ -6040,16 +6041,21 @@ export const routes: Record<string, Handler> = {
     // an off voice beside the on one, and the answer put the off one's text in the voice in use.
     const seen = (e.addons ?? []).filter((a: any) => a.slot !== 'facts' && !(lock && a.slot === 'voice')
       && (a.slot === 'outfit' ? wornAt(e, at) === a.id : a.active));
+    // #167 · WHAT THIS TALE HAS: its threads, its premise, where it stands and its prose. A name any of
+    // these holds is the tale's own, whatever another tale also calls it.
+    const away = foreignNames([alwaysTrue(e), resolveBody(e, at), ...seen.map((a: any) => a.body)].join('\n'),
+      v.entries.filter((x: any) => x.id !== e.id).map((x: any) => ({ title: x.title, entryType: x.entryType, keys: x.keys ?? [] })),
+      db.threadsElsewhere(c.owner, v.id),
+      [v.story?.premise ?? '', (v as any).taleThread ? resolveBody((v as any).taleThread, at) : '',
+        ...db.passagesOf(v.id).map((p: any) => p.body ?? '')].join('\n'));
     const ask = [`${e.title} (${e.entryType})`, `Always true: ${alwaysTrue(e) || '(empty)'}`,
       `Where it stands now: ${resolveBody(e, at).trim() || '(nothing yet)'}`,
       `Pockets: ${seen.map((a: any) => `${a.slot} "${a.name}": ${a.body}`).join(' | ') || 'none'}`,
       `Pockets its kind can have: ${slotsFor(e.entryType).map((sl) => sl.name)
         .filter((n) => n !== 'facts' && !(lock && n === 'voice')).join(', ')}`,
-      // #167 · THE TALE IT IS IN, so a fact from another tale can be told apart: where the tale stands
-      // at this scene (its thread's Over time entry in force, the premise before a hem: ADR 0010), and
-      // the names of its other threads.
-      `The tale it is in: ${((v as any).taleThread ? resolveBody((v as any).taleThread, at) : '').trim() || v.story?.premise?.trim() || '(nothing yet)'}`,
-      `The tale's threads: ${v.entries.filter((x: any) => x.id !== e.id).map((x: any) => x.title).join(', ') || 'none'}`].join('\n');
+      // #167 · NAMES FROM ANOTHER OF THE WRITER'S TALES, found by code (`foreignNames`), and only when
+      // there are some: told the tale and left to judge, the model missed them and cut true lore (F78).
+      ...(away.length ? [`Names from another of your tales, not in this one: ${away.map((n) => `${n.title} (${n.tale})`).join(', ')}`] : [])].join('\n');
     const t0 = Date.now(), using = backgroundModel(c, v);
     const r = await structuredRetry(TIDY, ask, TIDY_SCHEMA, { model: using, max_tokens: MEMORY_TOKENS });
     // ITS RAW ANSWER IS KEPT, as Talk's is (2026-11-03): Tidy logged no row, so the tidy that sorted
@@ -6065,9 +6071,12 @@ export const routes: Record<string, Handler> = {
     // #167 · WHAT IT TOOK OUT AS ANOTHER TALE'S, per part (Seth, 2026-11-06: one yes or no per part, the
     // card naming the facts): each card carries its own part's, and one naming no part it changed rides
     // on every card, so none is lost.
+    // A FLOOR UNDER IT: a fact named as another tale's must hold one of the names code found, so with
+    // none found nothing is, whatever the answer says.
+    const holds = (fact: string) => away.some((n) => holdsName(fact, n.words));
     const foreign = (Array.isArray(r.data.foreign) ? r.data.foreign : [])
       .map((f: any) => ({ fact: String(f?.fact ?? '').trim(), part: String(f?.part ?? '').trim().toLowerCase(), why: String(f?.why ?? '').trim() }))
-      .filter((f: any) => f.fact);
+      .filter((f: any) => f.fact && holds(f.fact));
     const partOf = (field: string | null | undefined, pocket?: string | null) =>
       field === 'facts' ? 'always' : pocket ? pocket.trim().toLowerCase() : 'stands';
     const parts = new Set(['always', 'stands', ...(r.data.pockets ?? []).map((p: any) => String(p?.name ?? '').trim().toLowerCase())]);

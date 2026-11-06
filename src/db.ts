@@ -1767,6 +1767,13 @@ const LIVE = (a = '') => `((${a}sync IS NULL OR ${a}sync != 'dropped') AND ${a}e
 export const entriesOf = (id: string) => q(
   `SELECT * FROM entries WHERE story_id = ? AND ${LIVE()} ORDER BY rowid`).all(id) as any[];
 
+/** #167 · THE THREADS OF THE WRITER'S OTHER TALES: what Tidy checks a thread's names against
+ *  (`mention.foreignNames`). Only tales this writer writes (`MINE()`), and only cards (`LIVE`). */
+export const threadsElsewhere = (o: string, storyId: string) => (q(
+  `SELECT e.title, e.entry_type AS entryType, e.keys, s.title AS tale FROM entries e JOIN stories s ON s.id = e.story_id
+    WHERE s.id != ? AND ${MINE()} AND ${LIVE('e.')}`).all(storyId, o, o) as any[])
+  .map((r) => ({ title: r.title as string, entryType: r.entryType as string, keys: keysOf(r.keys), tale: r.tale as string }));
+
 /** #125 · ADR 0010. THE TALE'S THREAD: one per tale, of its own kind, `tale`. Made the way New tale
  *  makes a thread (#117): its Always true is what the tale is (the setting), its own text is where
  *  the tale stands as it opens (the premise), and every later entry is an ordinary Over time entry

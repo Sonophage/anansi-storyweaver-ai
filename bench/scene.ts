@@ -43,8 +43,10 @@ export function copyAt(source: string, file: string, at: Point, model: string,
 
 /** Start a server on the copy, wait for it, and confirm it serves the tale on `model` at the point.
  *  `j(path)` is a GET, `j(path, body)` a POST; a failed fetch comes back as `{ error }`. */
-export async function serveAt(file: string, port: number, model: string, at: Point, storyId: string, log: string) {
-  const kid = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], { cwd: new URL('..', import.meta.url).pathname,
+export async function serveAt(file: string, port: number, model: string, at: Point, storyId: string, log: string,
+                             cwd = new URL('..', import.meta.url).pathname) {
+  // `cwd` is the checkout whose code serves: another worktree is how an arm runs code from before a change.
+  const kid = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], { cwd,
     stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, ANANSI_PORT: String(port), ANANSI_DB: file, ANANSI_MODEL: model,
       ANANSI_FEATHERLESS_KEY_FILE: '/nonexistent/featherless.key', ANANSI_ALLOW: '' } });
   kid.stderr!.on('data', (b) => appendFileSync(log, b));

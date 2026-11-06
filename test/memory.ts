@@ -987,33 +987,56 @@ ok('the house style is written from the genre and the premise, and never from th
   ok('Tidy this thread chalks one card that sorts it into its three parts, replacing old pockets');
 }
 
-// #167 · TIDY READS THE TALE, and names what it took out because it belongs to another tale. Per
-// part (Seth, 2026-11-06): each part's card carries the facts it left out and why; one yes or no each.
+// #167 · TIDY KNOWS WHAT IS ANOTHER TALE'S, BY NAME. The model could not judge it (F78: it missed
+// "killed by Margit" and stripped true lore from a tale's own threads), so code finds the names: a thread
+// of another tale the writer writes, that this tale has no thread for and its prose never names. Tidy is
+// told only those, and a fact it takes out must hold one of them. Per part (Seth, 2026-11-06).
 {
+  const other = db.createStory(me, { title: 'Encore Two', premise: 'A pop star and a bookseller.' }) as any;
+  db.upsertEntry(other.id, me, { title: 'Halsey', entryType: 'character', body: 'A pop star on tour.' });
+  db.upsertEntry(other.id, me, { title: 'Margit', entryType: 'character', body: 'An old guard.' });
+  db.upsertEntry(other.id, me, { title: 'Melina', entryType: 'character', body: 'Another tale\'s Melina.' });
+  db.upsertEntry(other.id, me, { title: 'Ranni', entryType: 'character', body: 'Another tale\'s Ranni.' });
+  const other2 = db.owner('someone-else');
+  const stranger = db.createStory(other2, { title: 'Not Mine', premise: 'p' }) as any;
+  db.upsertEntry(stranger.id, other2, { title: 'Ghostling', entryType: 'character', body: 'Someone else\'s.' });
   const t = db.createStory(me, { title: 'Lands', premise: 'A Tarnished crosses Limgrave toward the Erdtree.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'Margit waits on the bridge; Melina watches.' });
   const talia = db.upsertEntry(t.id, me, { title: 'Talia', entryType: 'character', body: 'Crossing the bridge at Stormveil.' });
   db.upsertEntry(t.id, me, { title: 'Melina', entryType: 'character', body: 'Her maiden.' });
-  db.upsertAddon(t.id, talia, { slot: 'facts', name: 'facts', body: 'a Tarnished knight of Limgrave; Halsey\'s bodyguard; scar on her chin' });
-  tidied = { always: 'a Tarnished knight of Limgrave; scar on her chin', stands: 'Crossing the bridge at Stormveil, toward Margit.', kept: '', pockets: [],
-    foreign: [{ fact: 'Halsey\'s bodyguard', part: 'always', why: 'Halsey is not in this tale' },
-              { fact: 'a gig in Chicago', part: 'nowhere', why: 'Chicago is not in this tale' }] };
+  db.upsertEntry(t.id, me, { title: 'Ranni', entryType: 'character', body: 'A witch, not yet met.' });
+  db.upsertAddon(t.id, talia, { slot: 'facts', name: 'facts', body: 'a Tarnished knight; Halsey\'s bodyguard; met Margit and Melina; owes Ranni; Ghostling\'s rival; scar on her chin' });
+  tidied = { always: 'a Tarnished knight; met Margit and Melina; scar on her chin', stands: 'Crossing the bridge at Stormveil, toward Margit.', kept: '', pockets: [],
+    foreign: [{ fact: 'Halsey\'s bodyguard', part: 'always', why: 'Halsey is in another tale' },
+              { fact: 'scar on her chin', part: 'always', why: 'not set up' },
+              { fact: 'a gig with Halsey', part: 'nowhere', why: 'another tale' }] };
   const r: any = await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: talia }));
   tidied = {};
   assert.ok(!r.error, r.error);
-  const ask = askOf(prompts.TIDY)!;
-  assert.match(ask.user, /The tale it is in: A Tarnished crosses Limgrave/, 'TIDY-TALE: the ask carries where the tale stands (the premise before a hem)');
-  assert.match(ask.user, /The tale's threads: [^\n]*Melina/, 'TIDY-NAMES: and the names of the tale\'s threads');
-  assert.doesNotMatch(ask.user.match(/The tale's threads: [^\n]*/)?.[0] ?? '', /Talia/, 'TIDY-NAMES-SELF: not the thread being tidied');
+  const line = askOf(prompts.TIDY)!.user.match(/Names from another of your tales[^\n]*/)?.[0] ?? '';
+  assert.match(line, /Halsey \(Encore Two\)/, 'TIDY-NAMES: the ask names a thread of another of the writer\'s tales that the thread mentions');
+  assert.doesNotMatch(line, /Margit/, 'TIDY-NAMES-PROSE: not one this tale\'s prose names');
+  assert.doesNotMatch(line, /Ranni/, 'TIDY-NAMES-HERE: not one this tale has a thread for, though its prose never names it');
+  assert.doesNotMatch(line, /Ghostling/, 'TIDY-NAMES-MINE: not a thread of a tale the writer does not write');
   const mine = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === talia);
   const always = mine.find((p) => p.field === 'facts'), stands = mine.find((p) => p.field !== 'facts');
-  assert.match(always?.line ?? '', /From another tale, taken out: “Halsey's bodyguard”: Halsey is not in this tale/,
+  assert.match(always?.line ?? '', /From another tale, taken out: “Halsey's bodyguard”: Halsey is in another tale/,
     'TIDY-FOREIGN: the Always true card names the fact it took out, and why');
+  assert.doesNotMatch(always?.line ?? '', /scar on her chin/, 'TIDY-FOREIGN-FLOOR: a fact holding none of the names is never named as another tale\'s');
   assert.doesNotMatch(stands?.line ?? '', /Halsey's bodyguard/, 'TIDY-FOREIGN-PART: a card names only its own part\'s facts');
-  assert.match(stands?.line ?? '', /a gig in Chicago/, 'TIDY-FOREIGN-LOOSE: a fact naming no part rides on every card, so it is not lost');
-  assert.strictEqual(r.foreign, 2, 'TIDY-FOREIGN-COUNT: the answer says how many facts it found from another tale');
-  assert.match(prompts.TIDY, /another tale/i, 'TIDY-FOREIGN-RULE: the wording asks for facts from another tale');
+  assert.match(stands?.line ?? '', /a gig with Halsey/, 'TIDY-FOREIGN-LOOSE: a fact naming no part rides on every card, so it is not lost');
+  assert.strictEqual(r.foreign, 2, 'TIDY-FOREIGN-COUNT: the answer says how many facts it took out as another tale\'s');
   assert.ok(!('foreign' in prompts.MERGE_SCHEMA.properties), 'MERGE-SCHEMA: merging two threads is not asked for them');
-  ok('Tidy reads the tale and names, per part, what it took out as belonging to another tale');
+  // NOTHING NAMED, NOTHING TAKEN: a thread with no such name sends no line, and whatever the model calls
+  // another tale's is not named on a card.
+  const melina = (db.entriesOf(t.id) as any[]).find((e) => e.title === 'Melina').id;
+  tidied = { always: 'her maiden', stands: 'Watching.', kept: '', pockets: [], foreign: [{ fact: 'Her maiden.', part: 'always', why: 'not set up' }] };
+  const r2: any = await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: melina }));
+  tidied = {};
+  assert.doesNotMatch(askOf(prompts.TIDY)!.user, /Names from another of your tales/, 'TIDY-NAMES-NONE: no name, no line');
+  assert.strictEqual(r2.foreign, 0, 'TIDY-FOREIGN-NONE: and nothing is named as another tale\'s');
+  ok('Tidy is told the names from another of the writer\'s tales, and names per part only facts that hold one');
 }
 
 // #114 · NO PROMPT THAT WRITES WHERE A THREAD STANDS ASKS FOR A BRACKET. TIDY asked for "one bracket"

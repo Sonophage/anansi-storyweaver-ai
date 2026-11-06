@@ -39,6 +39,30 @@ const candidates = (e: Thread, others: string[]) => {
   return words.length === 1 ? words.filter(fit) : whole;
 };
 
+/** #167 · NAMES FROM ANOTHER OF THE WRITER'S TALES in a thread's text: a thread of another tale (`elsewhere`)
+ *  whose name (`candidates`, the words a scene would wake it on) the text holds, that this tale has no
+ *  thread for (by title, name or key) and whose name its prose never writes. Tidy is told only these
+ *  (F78: asked to judge "another tale" on its own, the model missed Margit and stripped true lore).
+ *  ponytail: names only. Ceiling: an event of another tale that names nobody ("after the siege") is
+ *  not found. Trigger: Kia pasting a card that keeps such an event; then add the source tale's scene
+ *  summaries to the check. */
+export function foreignNames(text: string, here: { title: string; entryType: string; keys: string[] }[],
+                             elsewhere: { title: string; entryType: string; keys: string[]; tale: string }[], prose: string) {
+  const norm = (w: string) => w.trim().toLowerCase();
+  const ours = new Set(here.flatMap((t) => [t.title, ...t.keys, ...candidates(t as Thread, [])]).map(norm));
+  const found = new Map<string, { title: string; tale: string; words: string[] }>();
+  for (const t of elsewhere) {
+    const words = candidates(t as Thread, []);
+    if (ours.has(norm(t.title)) || words.some((w) => ours.has(norm(w)))) continue;
+    if (holdsName(text, words) && !holdsName(prose, words)) found.set(norm(t.title), { title: t.title, tale: t.tale, words });
+  }
+  return [...found.values()];
+}
+
+/** Does `text` write one of these words, as the tale's keyword matcher reads a scene (`fires`)? */
+export const holdsName = (text: string, words: string[]) =>
+  !!text.trim() && words.some((w) => fires({ keys: [w] } as any, text).length > 0);
+
 /** WHO IS IN EVERY SCENE, so is never put on a word: the writer's own character, and the Hands off one
  *  while the switch is on (unsaved counts as on, as the prompt reads it). One rule for a new thread's
  *  save (`upsertEntry`) and for the flip below, so the two cannot disagree. Names compare as written,
