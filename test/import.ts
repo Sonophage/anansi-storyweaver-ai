@@ -34,16 +34,18 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   // ALWAYS ON COMES BACK ALWAYS ON (2026-11-05): a restore keeps each thread's setting; only a new
   // thread made in the app lands on a word.
   db.upsertEntry(s.id, owner, { title: 'The Rain', body: 'It has not stopped.', entryType: 'lore', activation: 'always_on', keys: ['rain'] }, { keepOn: true });
+  db.upsertEntry(s.id, owner, { title: 'Aldis Fen', body: 'A sergeant.', entryType: 'character', activation: 'triggered', keys: ['Aldis'], pronoun: 'he' });
   db.addPassage({ ...s, storyId: s.id, body: 'He turned the key.' });
   db.upsertString(s.id, { title: 'The letter he has not opened', body: 'Sent by his brother',
     fromChapter: 6, owedBy: 20, summoned: true, kind: 'question' });
   const { file } = db.exportStory(s.id, owner, '/tmp/anansi-import-out');
   const back = imp.absorb(owner, imp.fromExport(file));
   assert.notStrictEqual(back.storyId, s.id, 'an import must be a new story, not the same id');
-  assert.strictEqual(back.entries, 2); assert.strictEqual(back.passages, 1);
+  assert.strictEqual(back.entries, 3); assert.strictEqual(back.passages, 1);
+  assert.strictEqual(db.entriesOf(back.storyId).find((x: any) => x.title === 'Aldis Fen')?.pronoun, 'he', 'RESTORE-PRONOUN: a character\'s pronoun comes back');
   assert.strictEqual(db.entriesOf(back.storyId).find((x: any) => x.title === 'The Rain')?.activation, 'always_on',
     'RESTORE-KEEPS-ON: an always-on thread comes back always on');
-  const e = db.entriesOf(back.storyId).filter((x: any) => x.title !== 'The Rain');
+  const e = db.entriesOf(back.storyId).filter((x: any) => x.title !== 'The Rain' && x.title !== 'Aldis Fen');
   assert.strictEqual(e[0].title, 'The Key');
   assert.strictEqual(e[0].activation, 'triggered', 'activation must survive the trip');
   assert.deepStrictEqual(JSON.parse(e[0].keys), ['key'], 'keywords must survive the trip');

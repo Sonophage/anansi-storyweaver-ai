@@ -163,6 +163,8 @@ export function fromExport(file: string): Incoming {
       entries: cap(entries, MAX_ENTRIES, 'canon entries', notes).map((e) => ({ title: e.title, body: clip(e.body),
         notes: clip(e.notes, 2000), entryType: e.entry_type, activation: e.activation,
         keys: keysOf(e.keys && JSON.parse(e.keys)),
+        // A character's pronoun (2026-11-05); an older file has none, and the thread comes in blank.
+        ...(['he', 'she', 'they'].includes(e.pronoun) ? { pronoun: e.pronoun } : {}),
         outfits: outfits.filter((o) => o.entry_id === e.id).slice(0, 20)
           .map((o) => ({ name: clip(o.name, 80), body: clip(o.body, 1000), active: !!o.active })),
         pockets: pockets.filter((a) => a.entry_id === e.id).slice(0, MAX_POCKETS).map((a) => ({ slot: a.slot,

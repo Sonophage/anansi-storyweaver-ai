@@ -24,6 +24,7 @@ import { factsLost } from './context.ts';
 import { isRemote } from './llama.ts';
 import { placeholders, notTwice } from './outside.ts';
 import { mentionPlan, staysOn } from './mention.ts';
+import { guessPronoun } from './speak.ts';
 
 // ponytail: SQLite, not Postgres. PLAN-02 §3 locked Postgres for pgvector (unscheduled) and RLS
 // (needs a second tenant); neither is live, and Docker was not running. The schema is the target
@@ -506,6 +507,18 @@ function migrate() {
    * a single card needs none of those and cannot be out of step.
    */
   add('entries', 'origin_id', 'TEXT');
+  // A CHARACTER'S PRONOUN (2026-11-05), filled ONCE, when the column arrives, from each character's own
+  // text where it is clear (`guessPronoun`); the rest stay blank for the writer. Never again after:
+  // a pronoun set by hand is the writer's.
+  const hadPronoun = has('entries', 'pronoun');
+  add('entries', 'pronoun', 'TEXT');
+  if (!hadPronoun && has('entries', 'pronoun')) {
+    for (const e of db.prepare("SELECT id, body FROM entries WHERE entry_type = 'character'").all() as any[]) {
+      const text = [e.body, ...(db.prepare('SELECT body FROM addons WHERE entry_id = ?').all(e.id) as any[]).map((a) => a.body)].join(' ');
+      const g = guessPronoun(text);
+      if (g) db.prepare('UPDATE entries SET pronoun = ? WHERE id = ?').run(g, e.id);
+    }
+  }
   add('entries', 'sync', 'TEXT');
   // A spice LEVEL picks one of five fixed lines. This replaces the line outright when a
   // story needs something the five do not say.
@@ -918,6 +931,8 @@ CREATE TABLE IF NOT EXISTS entries (
   -- comment claimed all three were dead until 2026-08-27; two of them had not been for weeks.
   keys TEXT DEFAULT '[]', sticky_for INTEGER DEFAULT 3,
   proper_nouns INTEGER DEFAULT 1, last_editor TEXT DEFAULT 'human',
+  -- A character's pronoun: he, she, they, or NULL (2026-11-05). Speak's cut reads it (src/speak.ts).
+  pronoun TEXT,
   -- Who last wrote each field, as {field: 'human'|'model'}. last_editor alone is entry-level,
   -- and an entry-level freeze rots backwards: by chapter 30 the stale entries are exactly the
   -- protagonists you cared enough to touch. The freeze has to be per field to avoid that.
@@ -2876,6 +2891,12 @@ export function upsertEntry(storyId: string, o: string, e: any, how: WriteHow = 
   // answer is null, as for any other thread not written. Here because every write of a thread
   // crosses this function.
   if (e.entryType === 'rule') { ruleFrom(storyId, e); return null; }
+  // A PRONOUN IS HE, SHE OR THEY, or blank (null); left out, the thread keeps the one it has.
+  if (e.pronoun !== undefined) {
+    const pr = String(e.pronoun ?? '').trim().toLowerCase();
+    if (pr && !['he', 'she', 'they'].includes(pr)) return null;
+    e = { ...e, pronoun: pr || null };
+  }
   const t = now();
   // Defaults once, before either branch. The update path previously had none, so a partial
   // edit bound undefined and threw at the driver instead of failing usefully.
@@ -2994,9 +3015,9 @@ export function upsertEntry(storyId: string, o: string, e: any, how: WriteHow = 
         .run(uid('er-'), e.id, col, was[col], t, e.lastEditor);
     }
     q(`UPDATE entries SET title=?,body=?,notes=?,entry_type=?,activation=?,keys=?,last_editor=?,
-       field_editors=?,updated_at=? WHERE id=? AND story_id=?`)
+       field_editors=?,pronoun=?,updated_at=? WHERE id=? AND story_id=?`)
       .run(e.title, e.body, e.notes ?? cur.notes ?? null, e.entryType, e.activation,
-        JSON.stringify(e.keys), e.lastEditor, JSON.stringify(editors), t, e.id, storyId);
+        JSON.stringify(e.keys), e.lastEditor, JSON.stringify(editors), e.pronoun === undefined ? cur.pronoun ?? null : e.pronoun, t, e.id, storyId);
     // A story names its persona and its locked character BY TITLE, so a rename used to leave both
     // pointing at nobody: the byline read "You · " and the lockout stopped locking anyone. Carried
     // here because upsertEntry is the one place an entry's title can change.
@@ -3027,9 +3048,9 @@ export function upsertEntry(storyId: string, o: string, e: any, how: WriteHow = 
   const id = (e.id && !taken) ? e.id : uid('e-');
   const born = JSON.stringify({ title: e.lastEditor, body: e.lastEditor, keys: e.lastEditor });
   q(`INSERT INTO entries (id,story_id,owner_id,title,body,notes,entry_type,activation,keys,
-      last_editor,field_editors,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      last_editor,field_editors,pronoun,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(id, storyId, o, e.title, e.body, e.notes ?? null, e.entryType, e.activation,
-      JSON.stringify(e.keys), e.lastEditor, born, t, t);
+      JSON.stringify(e.keys), e.lastEditor, born, e.pronoun ?? null, t, t);
   touch(storyId); return id;
 }
 /** Mark a take as one the writer regenerated away from. Regenerating already keeps the old take;
@@ -3340,7 +3361,7 @@ export function copyEntry(fromStoryId: string, toStoryId: string, o: string, ent
   // The same thread in another tale, so it keeps its setting (`keepOn`: not a new thread's word).
   const made = upsertEntry(toStoryId, o, {
     title: e.title, body: e.body, notes: e.notes, entryType: e.entry_type,
-    activation: e.activation, keys: JSON.parse(e.keys || '[]'), lastEditor: 'human',
+    activation: e.activation, keys: JSON.parse(e.keys || '[]'), lastEditor: 'human', pronoun: e.pronoun ?? null,
   }, { keepOn: true });
   if (!made) return null;
   // The rooms, the wardrobe among them — `outfit` is a slot like any other since the tables were
@@ -3535,7 +3556,7 @@ export function copyLedger(fromStoryId: string, toStoryId: string, o: string) {
       ? String(e.origin_id) : null;
     if (home) {
       upsertEntry(toStoryId, o, { id: home, title: e.title, body: e.body, notes: e.notes,
-        entryType: e.entry_type, activation: e.activation, keys: JSON.parse(e.keys || '[]'),
+        entryType: e.entry_type, activation: e.activation, keys: JSON.parse(e.keys || '[]'), pronoun: e.pronoun ?? null,
         lastEditor: 'human', allowNoKeys: true }, { keepOn: true });
       map.set(e.id, home);
       continue;

@@ -78,3 +78,12 @@ export function cutSpeaker(answer: string, speaker: string, people: Person[], li
   if (!r.at.length) return { text: answer, cut: false, unknown: r.unknown.length };
   return { text: answer.slice(0, Math.min(...r.at)).trimEnd(), cut: true, unknown: r.unknown.length };
 }
+
+/** A CHARACTER'S PRONOUN FROM ITS OWN TEXT, only where it is clear: one kind at least twice and at least
+ *  twice the other, else null. Fills the pronoun once on an older library; the writer sets the rest.
+ *  Seth's own thread is mixed (it is full of Halsey), so it stays blank for him to set. */
+export function guessPronoun(text: string): 'he' | 'she' | null {
+  const t = String(text ?? '').toLowerCase();
+  const m = (t.match(/\b(he|him|his|himself)\b/g) ?? []).length, f = (t.match(/\b(she|her|hers|herself)\b/g) ?? []).length;
+  return m >= 2 && m >= f * 2 ? 'he' : f >= 2 && f >= m * 2 ? 'she' : null;
+}

@@ -2110,10 +2110,11 @@ ok('a new thread lands on a word from its name, not always on', () => {
   assert.strictEqual((db.entriesOf(world.id) as any[]).find((x) => x.id === queen)?.activation, 'always_on', 'MENTION-WORLD: a followed card saved from a tale keeps its setting');
   db.delStory(follower.id); db.delStory(world.id);
   // A COPY TO ANOTHER TALE IS THE SAME THREAD, and keeps its setting.
-  const onHere = db.upsertEntry(st.id, me, { title: 'Tessa Vale', body: 'b', entryType: 'character', activation: 'always_on', keys: ['Tessa'] }, { keepOn: true })!;
+  const onHere = db.upsertEntry(st.id, me, { title: 'Tessa Vale', body: 'b', entryType: 'character', activation: 'always_on', keys: ['Tessa'], pronoun: 'she' }, { keepOn: true })!;
   const elsewhere = db.createStory(me, { title: 'A tale to copy into' }) as any;
   const copied = db.copyEntry(st.id, elsewhere.id, me, onHere)!;
   assert.strictEqual((db.entriesOf(elsewhere.id) as any[]).find((x) => x.id === copied)?.activation, 'always_on', 'MENTION-COPY: a copied thread keeps its setting');
+  assert.strictEqual((db.entriesOf(elsewhere.id) as any[]).find((x) => x.id === copied)?.pronoun, 'she', 'PRONOUN-COPY: and its pronoun');
   db.delStory(elsewhere.id);
   // HANDS OFF ONLY WHILE ITS SWITCH IS ON: with it off, that character is anyone.
   const st2 = db.createStory(me, { title: 'A book with the switch off', lockedCharacter: 'Ash', lockoutOn: false });
@@ -5131,6 +5132,57 @@ ok('a rule or a pocket left On a word with no words is On or Off, and sent that 
   db.setAddonActivation(st.id, debt, 'triggered');
   assert.deepStrictEqual([row(debt).activation, row(debt).active], ['off', 0], 'WORDLESS-POCKET-SET: a pocket set On a word with no words is Off, its old switch off');
   db.delStory(st.id);
+});
+
+// A CHARACTER'S PRONOUN (Seth, 2026-11-05): he, she or they, or blank. Speak's cut reads it to know whose
+// line a "he says" is (src/speak.ts); blank names nobody.
+ok('a character thread keeps a pronoun, and only he, she or they', () => {
+  const me = db.owner('pronoun-owner');
+  const st = db.createStory(me, { title: 'A book of pronouns' });
+  const id = db.upsertEntry(st.id, me, { title: 'Halsey', body: 'b', entryType: 'character', activation: 'always_on', keys: ['Halsey'], pronoun: 'she' }, { keepOn: true })!;
+  const row = () => (db.entriesOf(st.id) as any[]).find((x) => x.id === id);
+  assert.strictEqual(row().pronoun, 'she', 'PRONOUN-SAVED: the pronoun is kept');
+  db.upsertEntry(st.id, me, { id, title: 'Halsey', body: 'an edit', entryType: 'character' });
+  assert.strictEqual(row().pronoun, 'she', 'PRONOUN-KEPT: an edit that does not name it keeps it');
+  assert.strictEqual(db.upsertEntry(st.id, me, { id, title: 'Halsey', body: 'b', entryType: 'character', pronoun: 'xe' }), null, 'PRONOUN-REFUSED: anything else is refused');
+  db.upsertEntry(st.id, me, { id, title: 'Halsey', body: 'b', entryType: 'character', pronoun: '' });
+  assert.strictEqual(row().pronoun, null, 'PRONOUN-BLANK: blank clears it');
+  db.delStory(st.id);
+});
+
+/* AN OLDER LIBRARY gets each character's pronoun from the thread's own text, once, where it is clear:
+ * one kind of pronoun at least twice, and at least twice the other. A later boot leaves a hand-set one alone. */
+ok('a library from before pronouns gets each character\'s from its own text, once', () => {
+  const dir = mkdtempSync('/tmp/anansi-pronoun-');
+  const file = join(dir, 'library.db');
+  try {
+    const boot = () => {
+      const r = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
+        `await import(${JSON.stringify(new URL('../src/db.ts', import.meta.url).href)});`],
+        { env: { ...process.env, ANANSI_DB: file }, encoding: 'utf8' });
+      assert.strictEqual(r.status, 0, `the boot failed: ${r.stderr}`);
+    };
+    boot();
+    const old = new RawDb(file);
+    old.exec(`ALTER TABLE entries DROP COLUMN pronoun;
+      INSERT INTO users (id, login, created_at) VALUES ('o-old', 'o-old', 0);
+      INSERT INTO stories (id, owner_id, title, created_at, updated_at) VALUES ('s-old', 'o-old', 'Old', 0, 0);`);
+    const put = (id: string, type: string, body: string) => old.prepare(`INSERT INTO entries (id, story_id, owner_id, title, body, entry_type, activation, keys, created_at, updated_at)
+      VALUES (?, 's-old', 'o-old', ?, ?, ?, 'always_on', '[]', 0, 0)`).run(id, id, body, type);
+    put('e-he', 'character', 'He keeps the books. His hands shake when he counts.');
+    put('e-she', 'character', 'She sings. Her voice carries; she never misses a cue.');
+    put('e-mixed', 'character', 'He loves her; she knows it, and he knows she knows.');
+    put('e-place', 'place', 'He built it. His name is on the door.');
+    old.close();
+    boot();
+    const read = () => { const c = new RawDb(file, { readOnly: true });
+      const m = Object.fromEntries((c.prepare('SELECT id, pronoun FROM entries').all() as any[]).map((r) => [r.id, r.pronoun])); c.close(); return m; };
+    assert.deepStrictEqual(read(), { 'e-he': 'he', 'e-she': 'she', 'e-mixed': null, 'e-place': null },
+      'PRONOUN-MIG: a clear character gets its pronoun; a mixed one and a non-person stay blank');
+    const later = new RawDb(file); later.prepare("UPDATE entries SET pronoun = 'they' WHERE id = 'e-he'").run(); later.close();
+    boot();
+    assert.strictEqual(read()['e-he'], 'they', 'PRONOUN-MIG-ONCE: a later boot leaves a pronoun set by hand alone');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 /* A LIBRARY FROM BEFORE THE RULE'S EYE had its rules read as pockets: on was On, whatever its words.
