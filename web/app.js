@@ -14682,8 +14682,10 @@ document.addEventListener('click', async (e) => {
     S.tidying = null;
     if (r.error) { drawSide(); return toast(r.error); }
     V = r; paint();
-    return toast(r.added ? `${r.added} chalked for this thread. Nothing changes until you sew it in, on the Workbench.`
-      : 'Nothing to tidy: it is in its three parts already.');
+    // #167 · AND WHETHER IT FOUND ANYTHING FROM ANOTHER TALE, said either way, so the writer knows it looked.
+    const from = r.foreign ? ` ${r.foreign} from another tale, named on the cards.` : ' Nothing from another tale.';
+    return toast(r.added ? `${r.added} chalked for this thread.${from} Nothing changes until you sew it in, on the Workbench.`
+      : `Nothing to tidy: it is in its three parts already.${from}`);
   }
   if (d.scanstory) {
     if (S.scanning) return;

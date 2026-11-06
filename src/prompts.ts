@@ -458,15 +458,24 @@ pockets. Sort what it says into the three parts a thread has, and change nothing
            one person, two about how they talk), MERGE them into one pocket that keeps what each
            says, and name both in replaces. Its name follows the card rules below.
 
-Keep every fact it already holds, in one of the three; drop nothing and add nothing. Where two
-parts disagree (an age, a job, a name), keep only the one the card rules below say is true, never
-both. Check Always true and where it stands against each other above all: "34"
+Keep every fact it already holds, in one of the three; drop nothing and add nothing, except a
+fact from another tale (below). Where two parts disagree (an age, a job, a name), keep only the one
+the card rules below say is true, never both. Check Always true and where it stands against each other above all: "34"
 in one and "in his 30s" in the other disagree, and "34" is the more specific. Change the part that
 loses, even when that is Always true. Always true holds identity only: no clothes, no events, no
 mood, no voice.
 
   kept     one sentence saying what disagreed and which you kept, and why: "Kept 34 from Always
            true over 30s in where it stands: it is the more specific." "" when nothing did.
+
+After the thread come the tale it is in and the names of that tale's threads. A fact that names a
+person, a place or an event this tale does not have, and that the tale's own text does not set up,
+came from another tale: leave it out of the three parts, or reword it so it fits this tale. A name
+among the tale's threads, and anything the tale itself says, is never from another tale.
+
+  foreign  each fact you left out or reworded for that reason: the fact as the thread had it, the
+           part it was in (always, stands, or the pocket's name), and why, in a few words. An empty
+           list when there is none.
 
 Rewrite EVERY pocket it already has as a plain description, even when it was written as an
 instruction: "Write <how they talk>. Never <what to avoid>." becomes "<how they talk>; never <what
@@ -480,23 +489,32 @@ ${LEDGER_REGISTER}
 
 ${CARD_CONTRACT}`;
 
+/** The answer TIDY and MERGE share, so `tidyPockets` reads both. */
+const SORTED = {
+  always: { type: 'string' },
+  stands: { type: 'string' },
+  // #114 · What disagreed and which was kept, for the writer: the card shows it.
+  kept: { type: 'string' },
+  pockets: { type: 'array', items: { type: 'object', properties: {
+    slot: { type: 'string', enum: ['appearance', 'atmosphere', 'interiority',
+            'outfit', 'relationships', 'voice', 'what_it_does', 'who_is_here'] },
+    name: { type: 'string' },
+    body: { type: 'string' },
+    // #114 · A LIST, so a merged pocket can name every pocket it replaces.
+    replaces: { type: 'array', items: { type: 'string' } },
+  }, required: ['slot', 'name', 'body', 'replaces'] } },
+} as const;
+
 export const TIDY_SCHEMA = {
   type: 'object',
   properties: {
-    always: { type: 'string' },
-    stands: { type: 'string' },
-    // #114 · What disagreed and which was kept, for the writer: the card shows it.
-    kept: { type: 'string' },
-    pockets: { type: 'array', items: { type: 'object', properties: {
-      slot: { type: 'string', enum: ['appearance', 'atmosphere', 'interiority',
-              'outfit', 'relationships', 'voice', 'what_it_does', 'who_is_here'] },
-      name: { type: 'string' },
-      body: { type: 'string' },
-      // #114 · A LIST, so a merged pocket can name every pocket it replaces.
-      replaces: { type: 'array', items: { type: 'string' } },
-    }, required: ['slot', 'name', 'body', 'replaces'] } },
+    ...SORTED,
+    // #167 · What it left out or reworded as belonging to another tale, by part, for the cards.
+    foreign: { type: 'array', items: { type: 'object', properties: {
+      fact: { type: 'string' }, part: { type: 'string' }, why: { type: 'string' },
+    }, required: ['fact', 'part', 'why'] } },
   },
-  required: ['always', 'stands', 'kept', 'pockets'],
+  required: ['always', 'stands', 'kept', 'pockets', 'foreign'],
 } as const;
 
 /** MERGE TWO THREADS (Seth, 2026-10-29: "Halsey's publicist and Lisa are the same person"). One
@@ -534,8 +552,8 @@ ${LEDGER_REGISTER}
 
 ${CARD_CONTRACT}`;
 
-/** The same answer as TIDY's, so the one function reads both (`tidyPockets`). */
-export const MERGE_SCHEMA = TIDY_SCHEMA;
+/** TIDY's answer without `foreign`: two threads of one tale are merged, so nothing is from another. */
+export const MERGE_SCHEMA = { type: 'object', properties: SORTED, required: ['always', 'stands', 'kept', 'pockets'] } as const;
 
 /** #74 · ANANSI EDITS ONE SECTION of a Workbench card, on the writer's steer or none. It keeps the
  *  section's own form: a whole "where it stands", a pocket as a plain description, or Always true.

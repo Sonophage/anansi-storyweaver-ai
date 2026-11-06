@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-06 · Act answers what you did
 
+### Tidy knows which tale a thread is in
+Tidy now reads the tale a thread is in. When a thread carries something from another tale (a person,
+a place or an event this tale does not have), Tidy leaves it out or rewords it to fit, and each card
+names what it took out and why. Nothing changes until you say yes.
+
 ### A hem looks at up to ten people
 When you hem a scene, Anansi now reviews up to ten of the people and things it names, up from six. The
 rest are still named on the hem's card, one press away.

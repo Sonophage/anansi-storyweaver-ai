@@ -6044,7 +6044,12 @@ export const routes: Record<string, Handler> = {
       `Where it stands now: ${resolveBody(e, at).trim() || '(nothing yet)'}`,
       `Pockets: ${seen.map((a: any) => `${a.slot} "${a.name}": ${a.body}`).join(' | ') || 'none'}`,
       `Pockets its kind can have: ${slotsFor(e.entryType).map((sl) => sl.name)
-        .filter((n) => n !== 'facts' && !(lock && n === 'voice')).join(', ')}`].join('\n');
+        .filter((n) => n !== 'facts' && !(lock && n === 'voice')).join(', ')}`,
+      // #167 · THE TALE IT IS IN, so a fact from another tale can be told apart: where the tale stands
+      // at this scene (its thread's Over time entry in force, the premise before a hem: ADR 0010), and
+      // the names of its other threads.
+      `The tale it is in: ${((v as any).taleThread ? resolveBody((v as any).taleThread, at) : '').trim() || v.story?.premise?.trim() || '(nothing yet)'}`,
+      `The tale's threads: ${v.entries.filter((x: any) => x.id !== e.id).map((x: any) => x.title).join(', ') || 'none'}`].join('\n');
     const t0 = Date.now(), using = backgroundModel(c, v);
     const r = await structuredRetry(TIDY, ask, TIDY_SCHEMA, { model: using, max_tokens: MEMORY_TOKENS });
     // ITS RAW ANSWER IS KEPT, as Talk's is (2026-11-03): Tidy logged no row, so the tidy that sorted
@@ -6054,29 +6059,44 @@ export const routes: Record<string, Handler> = {
       latencyMs: Date.now() - t0, error: r.error ?? null });
     if (!r.data) return { error: r.error ?? 'the tidy returned nothing usable' };
     const grp = `tidy:${e.id}:${Date.now()}`, chapterId = v.currentChapter?.id ?? null;
-    // #114 · WHICH SIDE OF A CONTRADICTION IT KEPT rides on every row of the card, which shows it.
+    // #114 · WHICH SIDE OF A CONTRADICTION IT KEPT rides on every row of the card, which shows it
+    // (`lineFor`, with the facts from another tale).
     const kept = String(r.data.kept ?? '').trim().slice(0, 300) || null;
+    // #167 · WHAT IT TOOK OUT AS ANOTHER TALE'S, per part (Seth, 2026-11-06: one yes or no per part, the
+    // card naming the facts): each card carries its own part's, and one naming no part it changed rides
+    // on every card, so none is lost.
+    const foreign = (Array.isArray(r.data.foreign) ? r.data.foreign : [])
+      .map((f: any) => ({ fact: String(f?.fact ?? '').trim(), part: String(f?.part ?? '').trim().toLowerCase(), why: String(f?.why ?? '').trim() }))
+      .filter((f: any) => f.fact);
+    const partOf = (field: string | null | undefined, pocket?: string | null) =>
+      field === 'facts' ? 'always' : pocket ? pocket.trim().toLowerCase() : 'stands';
+    const parts = new Set(['always', 'stands', ...(r.data.pockets ?? []).map((p: any) => String(p?.name ?? '').trim().toLowerCase())]);
+    const lineFor = (part: string) => {
+      const mine = foreign.filter((f: any) => f.part === part || !parts.has(f.part));
+      const note = mine.length ? `From another tale, taken out: ${mine.map((f: any) => `“${f.fact}”${f.why ? `: ${f.why}` : ''}`).join('; ')}.` : '';
+      return [kept, note].filter(Boolean).join(' ').slice(0, 600) || null;
+    };
     const base = { kind: 'tidy', entry_id: e.id, chapterId, title: e.title, entryType: e.entryType, keys: [], grp,
-      delta: 'tidied', line: kept };
+      delta: 'tidied' };
     let added = 0;
     // #114 · COMPARED AS THEY WOULD BE STORED, so an answer that only wraps the same text is no change,
     // and one that changes it is chalked even when it is Always true.
     const always = plain(r.data.always, wrapperNames('facts', e.title));
     if (always && always !== plain(alwaysTrue(e), wrapperNames('facts', e.title))
-      && db.addProposal(v.id, { ...base, body: always, field: 'facts' })) added++;
+      && db.addProposal(v.id, { ...base, line: lineFor('always'), body: always, field: 'facts' })) added++;
     // #114 · WITH AN OVER TIME ENTRY IN FORCE, the change is to that entry: chalked as a state at its
     // scene, which `upsertState` rewrites in place. The thread's own text is scene 1's, which the
     // entry hides, so writing it there never reached the scene being written.
     const stands = db.plainStands(r.data.stands, [e.title]), inForce = stateInForce(e, at);
     if (stands && stands !== db.plainStands(inForce?.body ?? e.body, [e.title]) && db.addProposal(v.id, inForce
-      ? { ...base, body: stands, entryType: 'state', keys: [String(inForce.fromChapter)], delta: inForce.label || 'tidied' }
-      : { ...base, body: stands })) added++;
+      ? { ...base, line: lineFor('stands'), body: stands, entryType: 'state', keys: [String(inForce.fromChapter)], delta: inForce.label || 'tidied' }
+      : { ...base, line: lineFor('stands'), body: stands })) added++;
     // #114 · THE ANSWER'S POCKETS ARE THE THREAD'S WHOLE SET, kind by kind: see `tidyPockets`. The
     // first is rewritten, the rest go when it is sewn in, into the thread's history.
     for (const p of tidyPockets(seen, r.data.pockets, slotsFor(e.entryType).map((sl) => sl.name), lock))
-      if (db.addProposal(v.id, { ...base, body: p.body, field: p.slot, target: p.target, merges: p.merges,
-        pocket: p.name })) added++;
-    return { added, ...viewOf(c, v.id) };
+      if (db.addProposal(v.id, { ...base, line: lineFor(partOf(p.slot, p.name)), body: p.body, field: p.slot, target: p.target,
+        merges: p.merges, pocket: p.name })) added++;
+    return { added, foreign: foreign.length, ...viewOf(c, v.id) };
   },
   /** MERGE TWO THREADS, THE DRAFT (Seth, 2026-10-29). Anansi writes the one thread the two make, in
    *  one call, and NOTHING IS WRITTEN: the writer reviews each part against the kept thread's text and

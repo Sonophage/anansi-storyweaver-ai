@@ -987,6 +987,35 @@ ok('the house style is written from the genre and the premise, and never from th
   ok('Tidy this thread chalks one card that sorts it into its three parts, replacing old pockets');
 }
 
+// #167 · TIDY READS THE TALE, and names what it took out because it belongs to another tale. Per
+// part (Seth, 2026-11-06): each part's card carries the facts it left out and why; one yes or no each.
+{
+  const t = db.createStory(me, { title: 'Lands', premise: 'A Tarnished crosses Limgrave toward the Erdtree.' }) as any;
+  const talia = db.upsertEntry(t.id, me, { title: 'Talia', entryType: 'character', body: 'Crossing the bridge at Stormveil.' });
+  db.upsertEntry(t.id, me, { title: 'Melina', entryType: 'character', body: 'Her maiden.' });
+  db.upsertAddon(t.id, talia, { slot: 'facts', name: 'facts', body: 'a Tarnished knight of Limgrave; Halsey\'s bodyguard; scar on her chin' });
+  tidied = { always: 'a Tarnished knight of Limgrave; scar on her chin', stands: 'Crossing the bridge at Stormveil, toward Margit.', kept: '', pockets: [],
+    foreign: [{ fact: 'Halsey\'s bodyguard', part: 'always', why: 'Halsey is not in this tale' },
+              { fact: 'a gig in Chicago', part: 'nowhere', why: 'Chicago is not in this tale' }] };
+  const r: any = await routes['POST /api/tidy'](ctx({ storyId: t.id, entryId: talia }));
+  tidied = {};
+  assert.ok(!r.error, r.error);
+  const ask = askOf(prompts.TIDY)!;
+  assert.match(ask.user, /The tale it is in: A Tarnished crosses Limgrave/, 'TIDY-TALE: the ask carries where the tale stands (the premise before a hem)');
+  assert.match(ask.user, /The tale's threads: [^\n]*Melina/, 'TIDY-NAMES: and the names of the tale\'s threads');
+  assert.doesNotMatch(ask.user.match(/The tale's threads: [^\n]*/)?.[0] ?? '', /Talia/, 'TIDY-NAMES-SELF: not the thread being tidied');
+  const mine = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === talia);
+  const always = mine.find((p) => p.field === 'facts'), stands = mine.find((p) => p.field !== 'facts');
+  assert.match(always?.line ?? '', /From another tale, taken out: “Halsey's bodyguard”: Halsey is not in this tale/,
+    'TIDY-FOREIGN: the Always true card names the fact it took out, and why');
+  assert.doesNotMatch(stands?.line ?? '', /Halsey's bodyguard/, 'TIDY-FOREIGN-PART: a card names only its own part\'s facts');
+  assert.match(stands?.line ?? '', /a gig in Chicago/, 'TIDY-FOREIGN-LOOSE: a fact naming no part rides on every card, so it is not lost');
+  assert.strictEqual(r.foreign, 2, 'TIDY-FOREIGN-COUNT: the answer says how many facts it found from another tale');
+  assert.match(prompts.TIDY, /another tale/i, 'TIDY-FOREIGN-RULE: the wording asks for facts from another tale');
+  assert.ok(!('foreign' in prompts.MERGE_SCHEMA.properties), 'MERGE-SCHEMA: merging two threads is not asked for them');
+  ok('Tidy reads the tale and names, per part, what it took out as belonging to another tale');
+}
+
 // #114 · NO PROMPT THAT WRITES WHERE A THREAD STANDS ASKS FOR A BRACKET. TIDY asked for "one bracket"
 // and the trial tidy kept `[Seth: 30s; …]`; the code frames it for the model now (context.ts).
 {
