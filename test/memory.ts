@@ -271,6 +271,19 @@ let proposal: any;
   ok('accepting a state writes a state and leaves the entry alone');
 }
 
+// ---- 3b. A NEW PERSON THE HEM OFFERS, ACCEPTED, WAKES ON THEIR NAME (Seth, 2026-11-05: "all cards
+// mention only by default"). Until then a character always landed always on. ----
+{
+  const ch = (db.chapters(story.id)[0] as any).id;
+  db.addProposal(story.id, { kind: 'new', chapterId: ch, title: 'Orrin Vale', body: 'A ferryman, sixty.', entryType: 'character', keys: [], activation: 'always_on' });
+  const card: any = db.proposalsOf(story.id).find((p: any) => p.title === 'Orrin Vale');
+  await routes['POST /api/proposal'](ctx({ storyId: story.id, id: card.id, accept: true }));
+  const orrin: any = (db.entriesOf(story.id) as any[]).find((e) => e.title === 'Orrin Vale');
+  assert.deepStrictEqual([orrin?.activation, JSON.parse(orrin?.keys ?? '[]')], ['triggered', ['Orrin']],
+    'ACCEPT-NEW-WORD: an accepted new character wakes on their name');
+  ok('a new person the hem offers, accepted, wakes on their name');
+}
+
 // ---- 4. and the timeline holds: chapter 1 still sees the woman chapter 1 had ----
 {
   const e: any = { body: BEFORE, states: [{ fromChapter: 2, body: AFTER, beforeMode: 'hide' }] };

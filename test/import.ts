@@ -31,14 +31,19 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
     spiceNote: 'Register: written by hand, and it must survive.', maxContext: 24_000,
     model: 'write-nt-qwen36-h', lockedCharacter: 'Aldis Fen' });
   db.upsertEntry(s.id, owner, { title: 'The Key', body: '[brass, not silver]', activation: 'triggered', keys: ['key'] });
+  // ALWAYS ON COMES BACK ALWAYS ON (2026-11-05): a restore keeps each thread's setting; only a new
+  // thread made in the app lands on a word.
+  db.upsertEntry(s.id, owner, { title: 'The Rain', body: 'It has not stopped.', entryType: 'lore', activation: 'always_on', keys: ['rain'] }, { keepOn: true });
   db.addPassage({ ...s, storyId: s.id, body: 'He turned the key.' });
   db.upsertString(s.id, { title: 'The letter he has not opened', body: 'Sent by his brother',
     fromChapter: 6, owedBy: 20, summoned: true, kind: 'question' });
   const { file } = db.exportStory(s.id, owner, '/tmp/anansi-import-out');
   const back = imp.absorb(owner, imp.fromExport(file));
   assert.notStrictEqual(back.storyId, s.id, 'an import must be a new story, not the same id');
-  assert.strictEqual(back.entries, 1); assert.strictEqual(back.passages, 1);
-  const e = db.entriesOf(back.storyId);
+  assert.strictEqual(back.entries, 2); assert.strictEqual(back.passages, 1);
+  assert.strictEqual(db.entriesOf(back.storyId).find((x: any) => x.title === 'The Rain')?.activation, 'always_on',
+    'RESTORE-KEEPS-ON: an always-on thread comes back always on');
+  const e = db.entriesOf(back.storyId).filter((x: any) => x.title !== 'The Rain');
   assert.strictEqual(e[0].title, 'The Key');
   assert.strictEqual(e[0].activation, 'triggered', 'activation must survive the trip');
   assert.deepStrictEqual(JSON.parse(e[0].keys), ['key'], 'keywords must survive the trip');
@@ -195,6 +200,15 @@ const owner = db.owner('seth'), other = db.owner('someone-else');
   assert.strictEqual(inc.entries.find((e) => /never to pick a lock/.test(e.body))!.activation,
     'always_on', 'a constant lorebook entry is always-on canon');
   assert.ok(!inc.entries.some((e) => /disabled fact/.test(e.body)), 'a disabled entry must not import');
+  // AND IT STAYS SO ONCE IT IS IN A TALE: the import keeps what the lorebook says (2026-11-05).
+  const imported = imp.absorb(owner, inc);
+  assert.strictEqual((db.entriesOf(imported.storyId) as any[]).find((e) => /never to pick a lock/.test(e.body))?.activation,
+    'always_on', 'IMPORT-CONSTANT: a constant lorebook entry is always on in the tale');
+  // INTO A TALE THAT IS ALREADY THERE, the same.
+  const into = db.createStory(owner, { title: 'A tale to import into' }) as any;
+  imp.merge(owner, into.id, inc);
+  assert.strictEqual((db.entriesOf(into.id) as any[]).find((e) => /never to pick a lock/.test(e.body))?.activation,
+    'always_on', 'IMPORT-MERGE-CONSTANT: imported into a tale, a constant entry is always on');
 
   // SPEC §7.1's 2-32 bound moved onto the write path with the key parser (PLAN-06 §2f), and it
   // runs here too, because an import writes through `upsertEntry` like everything else. A

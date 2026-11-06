@@ -349,7 +349,8 @@ export function fromCard(j: any): Incoming {
   const entries: Record<string, any>[] = [];
 
   // The character itself: description and personality are FACTS about who this is, which is
-  // what canon holds. always_on, because a story about someone should always know them.
+  // what canon holds. always_on, because a story about someone should always know them; the import
+  // keeps it so (`keepOn` in `absorb`), where a thread made in the app starts on a word.
   const persona = [clip(d.description ?? d.char_persona), clip(d.personality)]
     .filter(Boolean).join('\n');
   if (persona) entries.push({ title: name, body: persona, entryType: 'character', activation: 'always_on', keys: [] });
@@ -489,7 +490,9 @@ export function absorb(owner: string, inc: Incoming) {
     if (!clip(e.body)) continue;
     // A rule thread from an older file: `upsertEntry` makes it a rule of the tale and returns no thread.
     if (e.entryType === 'rule') { db.upsertEntry(story.id, owner, { ...e, body: clip(e.body) }); continue; }
-    const id = db.upsertEntry(story.id, owner, { ...e, body: clip(e.body), lastEditor: 'human' });
+    // AS THE FILE SAYS (`keepOn`): a restore, a lorebook's constant entry, a card's own character. Only a
+    // thread made in the app starts on a word (2026-11-05).
+    const id = db.upsertEntry(story.id, owner, { ...e, body: clip(e.body), lastEditor: 'human' }, { keepOn: true });
     // Refused by the floor in `upsertEntry` (an activation that is not one of its two words), and
     // said in the import's own notes rather than counted as written.
     if (!id) { inc.notes.push(`"${e.title}" was not imported: its activation is not always on or on a word.`); continue; }
@@ -529,7 +532,7 @@ export function merge(owner: string, storyId: string, inc: Incoming) {
     if (!clip(e.body)) continue;
     if (e.entryType === 'rule') { db.upsertEntry(storyId, owner, { ...e, body: clip(e.body) }); continue; }
     const hit = byTitle.get(String(e.title ?? '').toLowerCase());
-    const id = db.upsertEntry(storyId, owner, { ...e, id: hit ?? '', body: clip(e.body), lastEditor: 'human' });
+    const id = db.upsertEntry(storyId, owner, { ...e, id: hit ?? '', body: clip(e.body), lastEditor: 'human' }, { keepOn: true });
     if (!id) { inc.notes.push(`"${e.title}" was not imported: its activation is not always on or on a word.`); continue; }
     plant(storyId, id, e.outfits);
     pocketsIn(storyId, id, e.pockets);

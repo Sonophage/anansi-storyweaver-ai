@@ -2102,6 +2102,19 @@ ok('a new thread lands on a word from its name, not always on', () => {
   // THE WRITER TURNS ONE ON: an existing thread keeps what it is given.
   db.upsertEntry(st.id, me, { id: marek.id, title: marek.title, body: 'b', entryType: 'character', activation: 'always_on', keys: ['Marek'] });
   assert.strictEqual((db.entriesOf(st.id) as any[]).find((x) => x.id === marek.id)?.activation, 'always_on', 'MENTION-WRITER-ON: turned on, it stays on');
+  // A WORLD'S CARD SAVED FROM A TALE THAT FOLLOWS IT IS NOT NEW: it is written where it lives, as it was.
+  const world = db.createStory(me, { title: 'A World of names' }) as any;
+  const queen = db.upsertEntry(world.id, me, { title: 'Rennala', body: 'b', entryType: 'character', activation: 'always_on', keys: ['Rennala'] }, { keepOn: true })!;
+  const follower = db.storyFollowing(me, world.id, 'A tale that follows') as any;
+  db.upsertEntry(follower.id, me, { id: queen, title: 'Rennala', body: 'queen of the moon', entryType: 'character', activation: 'always_on', keys: ['Rennala'] });
+  assert.strictEqual((db.entriesOf(world.id) as any[]).find((x) => x.id === queen)?.activation, 'always_on', 'MENTION-WORLD: a followed card saved from a tale keeps its setting');
+  db.delStory(follower.id); db.delStory(world.id);
+  // A COPY TO ANOTHER TALE IS THE SAME THREAD, and keeps its setting.
+  const onHere = db.upsertEntry(st.id, me, { title: 'Tessa Vale', body: 'b', entryType: 'character', activation: 'always_on', keys: ['Tessa'] }, { keepOn: true })!;
+  const elsewhere = db.createStory(me, { title: 'A tale to copy into' }) as any;
+  const copied = db.copyEntry(st.id, elsewhere.id, me, onHere)!;
+  assert.strictEqual((db.entriesOf(elsewhere.id) as any[]).find((x) => x.id === copied)?.activation, 'always_on', 'MENTION-COPY: a copied thread keeps its setting');
+  db.delStory(elsewhere.id);
   // HANDS OFF ONLY WHILE ITS SWITCH IS ON: with it off, that character is anyone.
   const st2 = db.createStory(me, { title: 'A book with the switch off', lockedCharacter: 'Ash', lockoutOn: false });
   const ash = db.upsertEntry(st2.id, me, { title: 'Ash', body: 'b', entryType: 'character', activation: 'always_on', keys: [] });

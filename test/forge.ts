@@ -227,6 +227,12 @@ const paste = (text: string, o = me) => routes['POST /api/thread/paste'](ctx({ s
     { storyId: hers.id, text: JSON.stringify({ kind: 'character', title: 'Someone' }) }, her, false)) as any;
   assert.ok(!r.error, 'the second writer may paste into her own book');
   assert.ok(db.entriesOf(hers.id).some((x: any) => x.title === 'Someone'), 'and it lands');
+  // A PASTED CARD THAT SAYS ALWAYS ON IS ALWAYS ON; one that says nothing lands on a word (2026-11-05).
+  routes['POST /api/thread/paste'](ctx({ storyId: hers.id, text: JSON.stringify({ kind: 'lore', title: 'The Iron Law', activation: 'always_on', keys: ['law'] }) }, her, false));
+  routes['POST /api/thread/paste'](ctx({ storyId: hers.id, text: JSON.stringify({ kind: 'lore', title: 'The Salt Road', keys: ['road'] }) }, her, false));
+  const pasted = (t: string) => (db.entriesOf(hers.id) as any[]).find((x) => x.title === t)?.activation;
+  assert.deepStrictEqual([pasted('The Iron Law'), pasted('The Salt Road')], ['always_on', 'triggered'],
+    'PASTE-SAYS-ON: a card that says always on keeps it; one that says nothing wakes on a word');
   ok('pasting is not a privilege — the format is open, the workbench is not');
 }
 

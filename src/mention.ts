@@ -18,7 +18,7 @@ import { fires } from './context.ts';
 import { commonWord, keysTakenBy } from './slots.ts';
 
 export type Thread = { id: string; title: string; entryType: string; activation: string; keys: string[]; properNouns?: boolean };
-export type Flip = { id: string; title: string; keys: string[]; added: string | null; named: boolean };
+export type Flip = { id: string; title: string; keys: string[]; named: boolean };
 export type Kept = { id: string; title: string; why: string };
 
 /** The words worth trying, best first. A person by their name: the given name (the first word that can be one) and the
@@ -39,18 +39,29 @@ const candidates = (e: Thread, others: string[]) => {
   return words.length === 1 ? words.filter(fit) : whole;
 };
 
+/** WHO IS IN EVERY SCENE, so is never put on a word: the writer's own character, and the Hands off one
+ *  while the switch is on (unsaved counts as on, as the prompt reads it). One rule for a new thread's
+ *  save (`upsertEntry`) and for the flip below, so the two cannot disagree. Names compare as written,
+ *  case and spacing aside. */
+export function staysOn(title: string, story: { persona?: string | null; lockedCharacter?: string | null; lockoutOn?: boolean | null }) {
+  const low = (x: unknown) => String(x ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const t = low(title);
+  if (!t) return null;
+  if (t === low(story.persona)) return 'your character';
+  if (story.lockoutOn !== false && t === low(story.lockedCharacter)) return 'the Hands off character';
+  return null;
+}
+
 export function mentionPlan(threads: Thread[], prose: string,
     story: { persona?: string | null; lockedCharacter?: string | null; lockoutOn?: boolean | null }) {
   const flip: Flip[] = [], kept: Kept[] = [];
-  const low = (s: unknown) => String(s ?? '').trim().toLowerCase();
-  const own = low(story.persona), off = story.lockoutOn === false ? '' : low(story.lockedCharacter);
   for (const e of threads) {
     if (e.activation !== 'always_on') continue;
     if (e.entryType === 'tale') { kept.push({ id: e.id, title: e.title, why: 'the tale itself' }); continue; }
-    if (own && low(e.title) === own) { kept.push({ id: e.id, title: e.title, why: 'your character' }); continue; }
-    if (off && low(e.title) === off) { kept.push({ id: e.id, title: e.title, why: 'the Hands off character' }); continue; }
+    const who = staysOn(e.title, story);
+    if (who) { kept.push({ id: e.id, title: e.title, why: who }); continue; }
     const wakes = (keys: string[]) => !!prose.trim() && fires({ ...e, keys } as any, prose).length > 0;
-    if (e.keys.length && wakes(e.keys)) { flip.push({ id: e.id, title: e.title, keys: e.keys, added: null, named: true }); continue; }
+    if (e.keys.length && wakes(e.keys)) { flip.push({ id: e.id, title: e.title, keys: e.keys, named: true }); continue; }
     // NOT NAMED YET IS STILL ON ITS NAME (Seth, 2026-11-05, "flip them too"): it comes in the first time a
     // scene names it. Its own words stay; its name is added unless they already hold it.
     const rest = threads.filter((x) => x.id !== e.id && x.entryType !== 'tale');
@@ -59,7 +70,7 @@ export function mentionPlan(threads: Thread[], prose: string,
     const written = names.find((w) => wakes([w]));
     const word = written ?? (names.some((w) => has.has(w.toLowerCase())) ? undefined : names[0]);
     const keys = word ? [...e.keys, word] : e.keys;
-    if (keys.length) flip.push({ id: e.id, title: e.title, keys, added: keys.length > e.keys.length ? word! : null, named: !!written });
+    if (keys.length) flip.push({ id: e.id, title: e.title, keys, named: !!written });
     else kept.push({ id: e.id, title: e.title, why: 'no word to wake on: name it a keyword, or leave it on' });
   }
   return { flip, kept };

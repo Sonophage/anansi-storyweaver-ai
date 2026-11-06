@@ -3071,8 +3071,8 @@ function draftThreadText(e: any): string {
  *  only (`writeRooms` writes them as the tale is made).
  *
  *  #117 · `stands`, where it stands as the tale opens, plain, which `writeCast` makes its first Over
- *  time entry. And ONLY A PERSON STARTS ALWAYS ON: a place, lore, an item or a rule wakes on its own
- *  name. Every spark thread was Always on, so a scene-1 detail of a laundromat or forty dollars on a
+ *  time entry. And EVERY ONE WAKES ON ITS NAME (2026-11-05; until then only a person started always
+ *  on): every spark thread was Always on, so a scene-1 detail of a laundromat or forty dollars on a
  *  table rode in every scene's canon (setup prompt audit, 2026-10-28, problem F). */
 function sparkThread(rawName: string, kind: string, rawBody: string, pockets: unknown, rawStands: unknown = '') {
   // #142 · NEVER TEMPLATE TEXT: a part the model wrote as a fill-in form ("<what they are>; <age>") is
@@ -5721,7 +5721,8 @@ export const routes: Record<string, Handler> = {
         entryType: kind,
         activation: raw.activation === 'triggered' ? 'triggered' : 'always_on',
         keys: Array.isArray(raw.keys) ? raw.keys : [],
-      });
+        // A CARD THAT SAYS ALWAYS ON KEEPS IT; one that says nothing is a new thread, on a word (2026-11-05).
+      }, { keepOn: raw.activation === 'always_on' });
       if (!id) { notes.push(`Could not write "${title}"${where}.`); continue; }
 
       const w = writeRooms(v.id, id, kind, raw.rooms, title);
@@ -6266,15 +6267,11 @@ export const routes: Record<string, Handler> = {
           body: c.body.body ?? p.body, entryType: was.entry_type, activation: was.activation,
           keys: db.keysOf(was.keys), lastEditor: 'human' } : { id: p.entry_id || undefined, title: p.title,
           body: asAlways ? '' : (c.body.body ?? p.body), entryType: p.entry_type,
-          // PLAN-08 Phase 2. The proposal can carry an activation now, and this honours it for
-          // everything except a character. A character never lands `triggered` from a MODEL's
-          // answer: `bench/ledger-audit.ts` found 1 in 12 entries would go dark on a flip and 2
-          // more were "safe on the record, dark on the next call", and a character that stops
-          // reaching the model does not degrade, it vanishes. The writer can still switch one by
-          // hand, on a screen where the trigger words are now visible and editable — which is the
-          // order this whole phase exists to make possible. What this DOES buy: a world-rule that
-          // must apply in every scene can finally say so, where before the type decided for it.
-          activation: p.entry_type === 'character' ? 'always_on' : (p.activation ?? 'triggered'),
+          // A NEW THREAD FROM A CARD WAKES ON ITS NAME, a person too (Seth, 2026-11-05: "all cards mention
+          // only by default"); until then a character always landed always on. `upsertEntry` would put
+          // an always-on one on a word anyway, so this says what is made. A rule (a pocket of the tale,
+          // ADR 0005) keeps the activation its card carries, as it always has.
+          activation: p.entry_type === 'rule' ? (p.activation ?? 'triggered') : 'triggered',
           keys: JSON.parse(p.keys || '[]'), lastEditor: 'human' });
         /* AND THE ROOMS IT ARRIVED WITH, in the same press. Only a pulled card has any — see
          * `proposals.rooms` — and they are written HERE because a room needs an entry to belong to

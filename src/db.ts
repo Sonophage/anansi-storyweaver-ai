@@ -23,7 +23,7 @@ import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, STRING_SLOTS, TO_OVER_TIME, foldLin
 import { factsLost } from './context.ts';
 import { isRemote } from './llama.ts';
 import { placeholders, notTwice } from './outside.ts';
-import { mentionPlan } from './mention.ts';
+import { mentionPlan, staysOn } from './mention.ts';
 
 // ponytail: SQLite, not Postgres. PLAN-02 §3 locked Postgres for pgvector (unscheduled) and RLS
 // (needs a second tenant); neither is live, and Docker was not running. The schema is the target
@@ -1011,12 +1011,6 @@ CREATE TABLE IF NOT EXISTS generations (
 -- generations is the fastest-growing table and recentGenerations sorts it by time.
 CREATE INDEX IF NOT EXISTS generations_story ON generations(story_id, created_at);
 
--- #139. The words a reroll had shown when the writer stopped it, and the take it was rerolling.
--- Seth stops a reroll when it writes the take he just rejected, and those takes left no text, so
--- bench/reroll-echo.ts could not count the repeats he stops for. Read by that bench only.
--- ponytail: kept for measurement, not shown anywhere. To remove: delete this table, keepStopped()
--- below logGeneration, its one call in 'POST /api/generate', and STOPPED-* in test/remote.ts; an old
--- library keeps the table harmlessly until DROP TABLE stopped_takes. Revisit when #139/#140 close.
 -- 2026-11-05. What each thread was before mentionApply put it on a word, so mentionUndo can put it
 -- back. One row per thread, written once. ponytail: kept until the writers have lived with the flip.
 -- To remove: delete this table, mentionApply/mentionUndo, and FLIP-* in test/db.ts; an old library
@@ -1024,8 +1018,14 @@ CREATE INDEX IF NOT EXISTS generations_story ON generations(story_id, created_at
 CREATE TABLE IF NOT EXISTS mention_flips (
   entry_id TEXT PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
   story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
-  was_activation TEXT NOT NULL, was_keys TEXT NOT NULL, keys TEXT NOT NULL, at INTEGER NOT NULL);
+  was_activation TEXT NOT NULL, was_keys TEXT NOT NULL, keys TEXT NOT NULL);
 
+-- #139. The words a reroll had shown when the writer stopped it, and the take it was rerolling.
+-- Seth stops a reroll when it writes the take he just rejected, and those takes left no text, so
+-- bench/reroll-echo.ts could not count the repeats he stops for. Read by that bench only.
+-- ponytail: kept for measurement, not shown anywhere. To remove: delete this table, keepStopped()
+-- below logGeneration, its one call in 'POST /api/generate', and STOPPED-* in test/remote.ts; an old
+-- library keeps the table harmlessly until DROP TABLE stopped_takes. Revisit when #139/#140 close.
 CREATE TABLE IF NOT EXISTS stopped_takes (
   generation_id TEXT PRIMARY KEY,
   story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
@@ -2893,23 +2893,9 @@ export function upsertEntry(storyId: string, o: string, e: any, how: WriteHow = 
   const cur = e.id ? q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(e.id, storyId) as any : null;
   // NEW THREADS START ON A WORD (Seth, 2026-11-02), and a save that does not name the setting keeps
   // the one the thread has. This defaulted to always on for updates as well as new rows, so a partial
-  // save turned a thread on. A new one with no wake word still lands always on, by the floor below.
+  // save turned a thread on. One asked for always on lands on a word too (2026-11-05, below); one left
+  // with no word at all still lands always on, by the floor below that.
   e = { ...e, activation: e.activation ?? cur?.activation ?? 'triggered' };
-  // A NEW THREAD COMES IN WHEN THE SCENE NAMES IT (Seth, 2026-11-05: "all cards mention only by
-  // default"). Every door that makes a thread asked for always on (the hem's new card, Talk, Invent,
-  // the paste, the writer's +, the cast), and a tale of 75 threads sent every one of them and the hem
-  // took them all as in the scene. So a NEW row asked for always on lands on a word, the words it came
-  // with or one from its name (`oneKeyword`). Not the tale's thread, not the writer's own character or
-  // the Hands off one while the switch is on (they are in every scene), and not a thread the caller
-  // says is meant to be on (`keepOn`: a pasted card or a lorebook entry that says so). An existing
-  // thread keeps what it is given: the writer turning one on is the writer's to make.
-  if (!cur && e.activation === 'always_on' && e.entryType !== 'tale' && !how.keepOn) {
-    const st = q('SELECT persona, locked_character, lockout_on FROM stories WHERE id = ?').get(storyId) as any;
-    const own = [st?.persona, st?.lockout_on ? st?.locked_character : null]
-      .map((x) => String(x ?? '').trim().toLowerCase()).filter(Boolean);
-    if (!own.includes(String(e.title).trim().toLowerCase()))
-      e = { ...e, activation: 'triggered', keys: e.keys.length ? e.keys : oneKeyword(e.title, [], keyTaken(storyId), e.entryType) };
-  }
   // #114 · WHERE IT STANDS IS A PLAIN DESCRIPTION (ADR 0008), by the rule a pocket's floor uses.
   e = { ...e, body: plainStands(e.body, [e.title, cur?.title]) };
 
@@ -2940,6 +2926,21 @@ export function upsertEntry(storyId: string, o: string, e: any, how: WriteHow = 
     // through a door the writer closed.
     if (there && src?.owner_id === st.owner_id && !claimedOrigins(storyId).has(String(e.id)))
       return upsertEntry(from, o, e, how);
+  }
+
+  // A NEW THREAD COMES IN WHEN THE SCENE NAMES IT (Seth, 2026-11-05: "all cards mention only by
+  // default"). Every door that makes a thread asked for always on (the hem's new card, Talk, Invent,
+  // the writer's +, the cast), and a tale of 75 threads sent every one of them and the hem took them
+  // all as in the scene. So a NEW row asked for always on lands on a word, the words it came with or
+  // one from its name (`oneKeyword`). Not the tale's thread, nor who is in every scene (`staysOn`), nor
+  // a thread the caller says keeps its setting (`keepOn`: a copy to another tale, an import or restore,
+  // a pasted card). An existing thread keeps what it is given: the writer turning one on is hers.
+  // HERE, AFTER THE REDIRECT ABOVE: a followed World card is not new, and is written where it lives.
+  if (!cur && e.activation === 'always_on' && e.entryType !== 'tale' && !how.keepOn) {
+    const st = getStory(storyId) as any;
+    if (!staysOn(e.title, { persona: st?.persona, lockedCharacter: st?.locked_character,
+        lockoutOn: st?.lockout_on == null ? null : !!st.lockout_on }))
+      e = { ...e, activation: 'triggered', keys: e.keys.length ? e.keys : oneKeyword(e.title, [], keyTaken(storyId), e.entryType) };
   }
 
   // PLAN-06 2e, the half the evidence supports. A `triggered` entry with no keys never reaches the
@@ -3336,10 +3337,11 @@ export function copyEntry(fromStoryId: string, toStoryId: string, o: string, ent
   if (!ownsStory(fromStoryId, o) || !ownsStory(toStoryId, o)) return null;
   const e = q('SELECT * FROM entries WHERE id = ? AND story_id = ?').get(entryId, fromStoryId) as any;
   if (!e) return null;
+  // The same thread in another tale, so it keeps its setting (`keepOn`: not a new thread's word).
   const made = upsertEntry(toStoryId, o, {
     title: e.title, body: e.body, notes: e.notes, entryType: e.entry_type,
     activation: e.activation, keys: JSON.parse(e.keys || '[]'), lastEditor: 'human',
-  });
+  }, { keepOn: true });
   if (!made) return null;
   // The rooms, the wardrobe among them — `outfit` is a slot like any other since the tables were
   // merged, so the coat travels for free rather than needing its own clause.
@@ -3534,7 +3536,7 @@ export function copyLedger(fromStoryId: string, toStoryId: string, o: string) {
     if (home) {
       upsertEntry(toStoryId, o, { id: home, title: e.title, body: e.body, notes: e.notes,
         entryType: e.entry_type, activation: e.activation, keys: JSON.parse(e.keys || '[]'),
-        lastEditor: 'human', allowNoKeys: true });
+        lastEditor: 'human', allowNoKeys: true }, { keepOn: true });
       map.set(e.id, home);
       continue;
     }
@@ -5043,14 +5045,16 @@ export function mentionApply(storyId: string) {
   try {
     for (const f of plan.flip) {
       const w = was.get(f.id)!;
-      q('INSERT OR IGNORE INTO mention_flips (entry_id, story_id, was_activation, was_keys, keys, at) VALUES (?,?,?,?,?,?)')
-        .run(f.id, storyId, w.activation, JSON.stringify(w.keys), JSON.stringify(f.keys), now());
+      q('INSERT OR IGNORE INTO mention_flips (entry_id, story_id, was_activation, was_keys, keys) VALUES (?,?,?,?,?)')
+        .run(f.id, storyId, w.activation, JSON.stringify(w.keys), JSON.stringify(f.keys));
       q("UPDATE entries SET activation = 'triggered', keys = ? WHERE id = ? AND story_id = ?").run(JSON.stringify(f.keys), f.id, storyId);
     }
     db.exec('COMMIT');
   } catch (err) { db.exec('ROLLBACK'); throw err; }
   return { flipped: plan.flip.length, kept: plan.kept.length, plan };
 }
+/** Every tale's id, for a script that runs over the whole library (bench/mention-flip.ts). */
+export const allStoryIds = () => (q('SELECT id FROM stories ORDER BY created_at').all() as any[]).map((r) => String(r.id));
 /** PUT A TALE'S THREADS BACK as `mentionApply` found them, every one the writer has not changed since
  *  (still on a word, with the words it was given). A thread she changed is hers and stays as she left it. */
 export function mentionUndo(storyId: string) {
