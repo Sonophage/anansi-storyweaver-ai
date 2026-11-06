@@ -3633,3 +3633,28 @@ does it in one take in five, three in ten on ENCORE. Seth's real takes, across t
 prompt versions, flag 20 of 102.
 
 **Open.** Whether a prompt change moves Ornith (the #147 A/B). Two lines; one reader of the flags.
+
+## F74 — neither a flat "says nothing more" rule nor that rule placed last stops Ornith giving the writer's character a line in Speak: A 23/40, B 18/40, C 23/40 (2026-11-05)
+
+**The question.** F73 put Speak's failure mostly on the model. Does a prompt change move Ornith anyway?
+
+**The run.** `bench/speak.ts ab 20`: three arms, all Ornith-1.0-RPNTH-35B, at once, each a scratch server on
+its own copy, differing only in Seth's saved Speak wording, each server's prompt checked to carry its
+change before a take. A as saved ("Do not put further words in X's mouth, and do not decide what X does
+next"); B that sentence made a flat rule ("X says nothing more in this passage: no line of dialogue in
+it is theirs"); C the same rule moved to the very end, after the writer's line. F73's two lines, 20
+takes each per arm. 120 calls, 0 failed, 0 lines unknown. Flags read by hand in B: real.
+
+| | A (as saved) | B (flat rule) | C (rule last) |
+|---|---|---|---|
+| ENCORE (as Halsey) | 15/20 | 9/20 | 13/20 |
+| small scene (as Aldis) | 8/20 | 9/20 | 10/20 |
+| both | 23/40 | 18/40 | 23/40 |
+
+**What this settles.** Flat: B against A p = 0.37, C against A p = 1.0. Neither is shipped; Seth's
+wording stays as it is, as CANON-REPEAT (F20), the SYSTEM register clause (F37) and F71's two rules were
+left. Arm A repeats F73's Ornith arm (23/40 against 25/40) in a separate run. With F73: on these lines,
+Speak's failure is Ornith's, and a sentence does not fix it.
+
+**Open.** Other wordings (naming who should answer instead), a code floor that cuts the writer's
+character's lines out of an answer, or Speak on another model. None measured.
