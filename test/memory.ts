@@ -997,6 +997,7 @@ ok('the house style is written from the genre and the premise, and never from th
   db.upsertEntry(other.id, me, { title: 'Margit', entryType: 'character', body: 'An old guard.' });
   db.upsertEntry(other.id, me, { title: 'Melina', entryType: 'character', body: 'Another tale\'s Melina.' });
   db.upsertEntry(other.id, me, { title: 'Ranni', entryType: 'character', body: 'Another tale\'s Ranni.' });
+  db.upsertEntry(other.id, me, { title: 'Talia', entryType: 'character', body: 'Another tale\'s Talia.' });
   const other2 = db.owner('someone-else');
   const stranger = db.createStory(other2, { title: 'Not Mine', premise: 'p' }) as any;
   db.upsertEntry(stranger.id, other2, { title: 'Ghostling', entryType: 'character', body: 'Someone else\'s.' });
@@ -1006,7 +1007,7 @@ ok('the house style is written from the genre and the premise, and never from th
   const talia = db.upsertEntry(t.id, me, { title: 'Talia', entryType: 'character', body: 'Crossing the bridge at Stormveil.' });
   db.upsertEntry(t.id, me, { title: 'Melina', entryType: 'character', body: 'Her maiden.' });
   db.upsertEntry(t.id, me, { title: 'Ranni', entryType: 'character', body: 'A witch, not yet met.' });
-  db.upsertAddon(t.id, talia, { slot: 'facts', name: 'facts', body: 'a Tarnished knight; Halsey\'s bodyguard; met Margit and Melina; owes Ranni; Ghostling\'s rival; scar on her chin' });
+  db.upsertAddon(t.id, talia, { slot: 'facts', name: 'facts', body: 'a Tarnished knight; Halsey\'s bodyguard; Talia of Limgrave; met Margit and Melina; owes Ranni; Ghostling\'s rival; scar on her chin' });
   tidied = { always: 'a Tarnished knight; met Margit and Melina; scar on her chin', stands: 'Crossing the bridge at Stormveil, toward Margit.', kept: '', pockets: [],
     foreign: [{ fact: 'Halsey\'s bodyguard', part: 'always', why: 'Halsey is in another tale' },
               { fact: 'scar on her chin', part: 'always', why: 'not set up' },
@@ -1018,6 +1019,7 @@ ok('the house style is written from the genre and the premise, and never from th
   assert.match(line, /Halsey \(Encore Two\)/, 'TIDY-NAMES: the ask names a thread of another of the writer\'s tales that the thread mentions');
   assert.doesNotMatch(line, /Margit/, 'TIDY-NAMES-PROSE: not one this tale\'s prose names');
   assert.doesNotMatch(line, /Ranni/, 'TIDY-NAMES-HERE: not one this tale has a thread for, though its prose never names it');
+  assert.doesNotMatch(line, /Talia/, 'TIDY-NAMES-SELF: never the thread\'s own name');
   assert.doesNotMatch(line, /Ghostling/, 'TIDY-NAMES-MINE: not a thread of a tale the writer does not write');
   const mine = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === talia);
   const always = mine.find((p) => p.field === 'facts'), stands = mine.find((p) => p.field !== 'facts');

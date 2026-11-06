@@ -6044,7 +6044,8 @@ export const routes: Record<string, Handler> = {
     // #167 · WHAT THIS TALE HAS: its threads, its premise, where it stands and its prose. A name any of
     // these holds is the tale's own, whatever another tale also calls it.
     const away = foreignNames([alwaysTrue(e), resolveBody(e, at), ...seen.map((a: any) => a.body)].join('\n'),
-      v.entries.filter((x: any) => x.id !== e.id).map((x: any) => ({ title: x.title, entryType: x.entryType, keys: x.keys ?? [] })),
+      // The thread itself among them: its own name is never another tale's.
+      v.entries.map((x: any) => ({ title: x.title, entryType: x.entryType, keys: x.keys ?? [] })),
       db.threadsElsewhere(c.owner, v.id),
       [v.story?.premise ?? '', (v as any).taleThread ? resolveBody((v as any).taleThread, at) : '',
         ...db.passagesOf(v.id).map((p: any) => p.body ?? '')].join('\n'));
