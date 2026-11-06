@@ -1957,11 +1957,11 @@ ok('a hem chalks six new threads at most, and the rest wait by name until asked 
   assert.match(prompts.MEMORY, /mention is not a\s+change/i, '  and that a mention is not a change');
   assert.doesNotMatch(prompts.MEMORY, /FLESH IT OUT/, 'CHALK-NO-FLESH: the prompt no longer asks for pockets where nothing changed');
   assert.match(prompts.MEMORY, /never an\s+outcome/i, 'CHALK-POCKET-FORM: pockets are instructions, never outcomes');
-  assert.match(prompts.MEMORY, /six/i, 'CHALK-CAP: the prompt carries the cap of six');
+  assert.match(prompts.MEMORY, /\bten\b/i, 'CHALK-CAP: the prompt carries the cap of ten');
   assert.match(asked.user, /OUTSIDE ONLY: Seth, Halloran/, 'CHALK-OUTSIDE-NAMED: the ask names the played and Hands off characters');
   assert.match(prompts.MEMORY, /OUTSIDE ONLY/, '  and the prompt says what that means');
   assert.ok(asked.user.includes('Where it stands now: on the quay'), 'CHALK-IN-FORCE: each thread arrives with the entry in force, stored plain (#114)');
-  ok('the hem prompt carries the acting rule, the in-force entries, the outside-only rule and the cap of six');
+  ok('the hem prompt carries the acting rule, the in-force entries, the outside-only rule and the cap of ten');
 }
 // WHERE A THREAD STANDS HAS ONE SHAPE (Seth, 2026-10-31: "where they are physically and how they interact
 // in the story and when they were last seen in the story for any thread"), asked in both prompts that
@@ -2068,26 +2068,26 @@ ok('a hem chalks six new threads at most, and the rest wait by name until asked 
 }
 
 
-// SIX AT MOST. The model returns seven changed threads and names an eighth as overflow: the first
-// six are chalked, and the hem record keeps the seventh and eighth names for the card.
+// TEN AT MOST (Seth, 2026-11-06: raised from six). The model returns eleven changed threads and names
+// a twelfth as overflow: the first ten are chalked, and the hem record keeps the other two names.
 {
-  const t = db.createStory(me, { title: 'Six at most', premise: 'p' }) as any;
+  const t = db.createStory(me, { title: 'Ten at most', premise: 'p' }) as any;
   const ch0 = (db.chapters(t.id)[0] as any);
-  const names = ['Ada', 'Bram', 'Cora', 'Dov', 'Esk', 'Fen', 'Gil', 'Hob'];
+  const names = ['Ada', 'Bram', 'Cora', 'Dov', 'Esk', 'Fen', 'Gil', 'Hob', 'Ivo', 'Jun', 'Kai', 'Lio'];
   const ids = names.map((title) => db.upsertEntry(t.id, me, { title, body: `[${title}: on the quay]`, entryType: 'character', keys: [title] }));
   db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: `${names.join(', ')} were all pushed off the quay.` });
-  answer = names.slice(0, 7).map((name) => ({ name, stands: `[${name}: soaked, and out of the water]`, label: 'pushed in',
+  answer = names.slice(0, 11).map((name) => ({ name, stands: `[${name}: soaked, and out of the water]`, label: 'pushed in',
     line: 'pushed off the quay', always: '', pockets: [] }));
-  tidied = { overflow: ['Hob', 'Nobody Here'] };
+  tidied = { overflow: ['Lio', 'Nobody Here'] };
   await routes['POST /api/chapter/end'](ctx({ storyId: t.id, summarise: false, extract: false, retire: false }));
   await hemSettled(t.id);
   answer = []; tidied = {};
   const chalked = new Set((db.proposalsOf(t.id) as any[]).filter((p) => p.entry_type === 'state').map((p) => p.entry_id));
-  assert.deepStrictEqual([...chalked].sort(), ids.slice(0, 6).sort(), `CHALK-SIX: six threads are chalked (${chalked.size})`);
+  assert.deepStrictEqual([...chalked].sort(), ids.slice(0, 10).sort(), `CHALK-TEN: ten threads are chalked (${chalked.size})`);
   const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
-  assert.deepStrictEqual(hem?.overflow, ['Gil', 'Hob'],
-    `CHALK-OVERFLOW: the seventh and the model's overflow name are kept on the hem, and a name the scene has not is not (${hem?.overflow})`);
-  ok('a hem chalks six threads at most and keeps the rest as overflow names');
+  assert.deepStrictEqual(hem?.overflow, ['Kai', 'Lio'],
+    `CHALK-OVERFLOW: the eleventh and the model's overflow name are kept on the hem, and a name the scene has not is not (${hem?.overflow})`);
+  ok('a hem chalks ten threads at most and keeps the rest as overflow names');
 }
 
 // ASKED FOR BY NAME (#91's route), the threads the writer chose are all reviewed, past six or not,

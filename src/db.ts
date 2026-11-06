@@ -732,7 +732,7 @@ function migrate() {
   // #61. Whether the model's chat template takes the weaving switch. NULL on rows added before the
   // probe asked, which were all added with the switch sent and answered, so NULL reads as yes.
   add('shortlist', 'takes_switch', 'INTEGER');
-  // #90. The names of threads a hem's thread-change pass found changed past its cap of six.
+  // #90. The names of threads a hem's thread-change pass found changed past its cap (ten since 2026-11-06).
   add('hems', 'overflow', 'TEXT');
   // The run that owns the row: a hem again or a try again takes the next number (see finishHem).
   add('hems', 'run', 'INTEGER DEFAULT 0');
@@ -1003,7 +1003,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS proposals_dedupe ON proposals(story_id, conten
 -- uses), which pass did not run and why (#32, JSON), whether the writer's own summary was kept,
 -- and the next-scene suggestion (JSON: title, note, opens). Running is finished_at NULL. Out of date
 -- is derived on read and never stored. A hem again replaces the row. overflow (#90, JSON) holds
--- the names of threads that changed past the thread-change pass's cap of six. run counts the runs
+-- the names of threads that changed past the thread-change pass's cap (ten since 2026-11-06). run counts the runs
 -- begun on the row, so only the latest one marks it finished.
 CREATE TABLE IF NOT EXISTS hems (
   chapter_id TEXT PRIMARY KEY REFERENCES chapters(id) ON DELETE CASCADE,
@@ -2201,7 +2201,7 @@ export function stopUnfinishedHems(order: readonly string[]): number {
   return rows.length;
 }
 
-/** #90. The threads the thread-change pass found changed past its cap of six, by name, for the card.
+/** #90. The threads the thread-change pass found changed past its cap (ten since 2026-11-06), by name, for the card.
  *  Written by that pass when a hem runs it; a hem again starts the row with none. */
 /** The pass a hem's run has reached, and when; a stale run never overwrites a newer one's. */
 /** Which pass a hem is on, and since when. ANY RUN WRITES IT (2026-10-30). Asking for the next scene

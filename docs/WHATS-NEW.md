@@ -18,6 +18,10 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-06 · Act answers what you did
 
+### A hem looks at up to ten people
+When you hem a scene, Anansi now reviews up to ten of the people and things it names, up from six. The
+rest are still named on the hem's card, one press away.
+
 ### Act makes the scene react to what you did
 When you Act, the others in the scene now react to your action. Before, they sometimes went on as if
 someone had asked them a question, and walked off to the window instead. On a test scene the new

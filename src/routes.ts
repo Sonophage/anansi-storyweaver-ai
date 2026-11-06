@@ -1858,8 +1858,10 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
   }
 }
 
-/** #90. The most threads one hem chalks changes for. The rest are named on the hem's card. */
-const HEM_THREADS = 6;
+/** #90. The most threads one hem chalks changes for. The rest are named on the hem's card. Six until
+ *  2026-11-06, when Seth raised it to ten: a hem now reviews only the threads its scene names, and a busy
+ *  scene (The Lands Between) left ten unreviewed. */
+const HEM_THREADS = 10;
 /** #93 · The most of one pocket's text the thread-change ask shows. Over the live library's longest
  *  but one percent on 2026-10-29 (1,237 pockets: half under 144 characters, 99% under 440, the
  *  longest 834), so it cuts only an outlier, and a thread's eight pockets stay a few thousand

@@ -271,7 +271,7 @@ export const YOURS_VOICE = (name: string) =>
  *  restatements. Four rules now: a thread counts only when the narration shows it acting or acted
  *  on; only what differs from the entry in force; pockets only from the kind's list, as
  *  plain descriptions; the played and Hands off characters (named in the ask as OUTSIDE ONLY) from the
- *  outside. And six threads at most, largest change first, the rest as names. Code enforces each
+ *  outside. And ten threads at most (six until 2026-11-06), largest change first, the rest as names. Code enforces each
  *  rule it can check (`remember` in routes.ts); the prompt is the half code cannot check.
  *  NOT MEASURED: none of this wording has been run against the real model. It is owed a control
  *  run before anyone says it chalks less, or says which rule did it.
@@ -333,11 +333,11 @@ Rules:
   is missing.
 - A thread listed under OUTSIDE ONLY is written from the outside: what it did, what was done to it,
   what others can see. Never its thoughts or feelings, and never an interiority pocket for it.
-- At most SIX threads, the largest change first. Put the name of every other thread that changed
+- At most TEN threads, the largest change first. Put the name of every other thread that changed
   in overflow, and nothing else there.
 - Present tense, third person. No summary of the scene's plot.
 
-Return the threads that changed, six at most, and the names of the rest in overflow.`;
+Return the threads that changed, ten at most, and the names of the rest in overflow.`;
 
 export const MEMORY_SCHEMA = {
   type: 'object',
@@ -364,7 +364,7 @@ export const MEMORY_SCHEMA = {
         required: ['name', 'stands', 'label', 'line', 'always', 'pockets'],
       },
     },
-    // #90. The names of the threads that changed past the cap of six, for the hem's card.
+    // #90. The names of the threads that changed past the cap of ten, for the hem's card.
     overflow: { type: 'array', items: { type: 'string' } },
   },
   required: ['threads', 'overflow'],
