@@ -14,52 +14,7 @@
 // ("the big man answers") or a scene of two people sharing a pronoun is unknown, never counted. Trigger:
 // unknown above a tenth of the lines; then give the scene's people their own words for the tag.
 
-/** The verbs of a dialogue tag. ponytail: a fixed English list; a tag verb it lacks falls back to the beat
- *  before the line. Trigger: a real take whose speaker the beat gets wrong. */
-const SPEECH = /^(say|said|ask|whisper|murmur|repeat|mutter|repl|answer|add|continu|press|breath|snap|growl|purr|teas|admit|offer|tell|told|call|laugh|sigh|stammer|protest|insist|counter|correct|echo|demand|hiss|manag|begin|began|start|finish|plead|beg|warn|grumbl|whimper|croak|rasp|drawl|interrupt|agree|conced|confess|explain|declar|announc|shout|yell|cr[iy]|scoff|chuckl|smil|grin|sneer|spat|spit|bark|blurt|counter|challeng|prompt|tri|venture|offer|quip|retort|reason|remind|conclud|whisper)/i;
-export type Who = Record<string, string[]>;   // a pronoun → the people in the scene who go by it
-
-/** The quoted lines of `take` that `speaker` says, apart from the writer's own line said again, and the
- *  quoted lines whose speaker it cannot tell. */
-export function speakerTalks(take: string, speaker: string, who: Who, writerLine = '') {
-  const hits: string[] = [], unknown: string[] = [];
-  const flat = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ').trim();
-  const line = flat(writerLine);
-  const own = new Set([speaker.toLowerCase(), speaker.split(/\s+/)[0].toLowerCase()]);
-  // WHO A SUBJECT IS: 'me' (the speaker), 'other', or 'unknown' (a pronoun two people share).
-  const whoIs = (word: string) => {
-    const w = word.toLowerCase().replace(/['’]s$/, '');
-    if (own.has(w)) return 'me';
-    const by = who[w];
-    // Shared, it is unknown only when the speaker is among those who share it: else it is not them.
-    const me = by?.some((n) => n.toLowerCase() === speaker.toLowerCase());
-    if (by) return !me ? 'other' : by.length === 1 ? 'me' : 'unknown';
-    return 'other';
-  };
-  // The first word of a sentence that names who acts: past a leading "But", "Then" and the like.
-  const subject = (sentence: string) => (sentence.trim().replace(/^(but|and|then|so|still|now|finally)\s+/i, '')
-    .match(/^([A-Z][\p{L}'’-]*|he|she|they|i)\b/iu) ?? [])[1];
-  for (const para of take.split(/\n\s*\n/)) {
-    const quotes = [...para.matchAll(/["“]([^"”]*)["”]/g)];
-    quotes.forEach((q, i) => {
-      const said = q[1].trim(), end = q.index! + q[0].length;
-      const after = para.slice(end, quotes[i + 1]?.index ?? para.length);
-      const before = para.slice(i ? quotes[i - 1].index! + quotes[i - 1][0].length : 0, q.index);
-      // A TAG: the line ends open (`,` `?` `!` a dash), and a name or pronoun and a verb follow it.
-      // A speech verb only: "Aldis swallowed" after a question is his reaction to someone else's line.
-      const tagged = /[,?!—–-]$/.test(said) ? after.match(/^\s*,?\s*([A-Z][\p{L}'’-]*|he|she|they|i)\s+(?:\w+ly\s+)?([a-z]+)/iu) : null;
-      const tag = tagged && SPEECH.test(tagged[2]) ? tagged[1] : undefined;
-      // Else THE BEAT BEFORE IT: the last sentence of the narration just before the line.
-      const beat = tag ? undefined : subject(before.split(/(?<=[.!?…])\s+/).filter((x) => x.trim()).at(-1) ?? '');
-      const by = tag ?? beat;
-      if (!by || !said) return;
-      const is = whoIs(by);
-      if (is === 'unknown') unknown.push(said);
-      else if (is === 'me' && !(line && flat(said).length >= 3 && line.includes(flat(said)))) hits.push(said);
-    });
-  }
-  return { hits, unknown };
-}
+import { speakerTalks, type Who } from '../src/speak.ts';
 
 const CASES: { take: string; speaker: string; who: Who; line?: string; hits: number; unknown?: number; why: string }[] = [
   // FROM SETH'S TAKES: he spoke as Seth, and the answer gave Seth the reply.
