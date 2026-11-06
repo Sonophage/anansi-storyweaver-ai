@@ -129,3 +129,104 @@ if (process.argv[2] === 'real') {
   console.log(`\n${hit} of ${kept} takes put words in the speaker's mouth; ${unk} of ${lines} quoted lines could not be told.`);
   process.exit(0);
 }
+
+// ---- run: Ornith and Qwen3.6 answer the same Speak lines AT ONCE, each on a scratch server on its own copy
+// of the library, prompts as they are on this checkout. Two lines: ENCORE's last, where the writer spoke as
+// Halsey ("And if I don't?"), and a small two-person scene where he speaks as Aldis and Sabel answers.
+// Each take after the first is the app's own reroll of the first, kept (not rejected), so every take
+// answers the writer's line and nothing but the model differs. No seed: only these arms compare (F55).
+//   node --experimental-strip-types bench/speak.ts run [takes per line, default 20]
+//   node --experimental-strip-types bench/speak.ts report
+const ARMS = { ornith: { port: 5301, model: 'Ornith-1.0-RPNTH-35B' }, qwen: { port: 5302, model: 'Qwen3.6-WNTH-35B-A3B-NN' } } as const;
+const OUT = process.env.BENCH_OUT ?? '/tmp/anansi-speak';
+const FIX = { title: 'SPEAK fixture', persona: 'Aldis Fen',
+  line: 'You have until the bells. That is all I can give you.',
+  who: { he: ['Aldis Fen'], she: ['Sabel'] } as Who };
+const ENC = { speaker: 'Halsey', who: { he: ['Seth'], she: ['Halsey'] } as Who };
+
+if (process.argv[2] === 'run') {
+  const n = Number(process.argv[3] ?? 20);
+  const { DatabaseSync } = await import('node:sqlite');
+  const { spawn } = await import('node:child_process');
+  const { mkdirSync, rmSync, appendFileSync, writeFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  mkdirSync(OUT, { recursive: true }); rmSync(join(OUT, 'takes.jsonl'), { force: true });
+  const SOURCE = process.env.ANANSI_DB ?? new URL('../../anansi/anansi.db', import.meta.url).pathname;
+  const kids: any[] = []; process.on('exit', () => kids.forEach((k) => k.kill()));
+  const arms = Object.entries(ARMS) as [keyof typeof ARMS, (typeof ARMS)[keyof typeof ARMS]][];
+  const ids: Record<string, { encore: string; fixture: string }> = {};
+  for (const [arm, a] of arms) {
+    const file = join(OUT, `${arm}.db`);
+    for (const x of ['', '-wal', '-shm']) rmSync(file + x, { force: true });
+    const src = new DatabaseSync(SOURCE, { readOnly: true }); src.exec(`VACUUM INTO '${file}'`); src.close();
+    const d = new DatabaseSync(file);
+    const seth = (d.prepare("SELECT id FROM users WHERE login = 'sonophage'").get() as any).id;
+    const enc = (d.prepare("SELECT id FROM stories WHERE title = 'ENCORE' AND owner_id = ?").get(seth) as any).id;
+    d.prepare('UPDATE stories SET model = ? WHERE id = ?').run(a.model, enc);
+    d.close();
+    const kid = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], { cwd: new URL('..', import.meta.url).pathname,
+      stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, ANANSI_PORT: String(a.port), ANANSI_DB: file, ANANSI_MODEL: a.model,
+        ANANSI_FEATHERLESS_KEY_FILE: '/nonexistent/featherless.key', ANANSI_ALLOW: '' } });
+    kid.stderr.on('data', (b: Buffer) => appendFileSync(join(OUT, `serve-${arm}.log`), b));
+    kids.push(kid);
+    ids[arm] = { encore: enc, fixture: '' };
+  }
+  const j = (arm: keyof typeof ARMS, u: string, b?: unknown, m = 'POST') => fetch(`http://127.0.0.1:${ARMS[arm].port}${u}`, b
+    ? { method: m, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) } : {}).then((r) => r.json() as any, (e) => ({ error: String(e) }));
+  for (const [arm] of arms) {
+    let up = false;
+    for (let i = 0; i < 90 && !up; i++) { up = await fetch(`http://127.0.0.1:${ARMS[arm].port}/`).then((r) => r.ok, () => false); if (!up) await new Promise((r) => setTimeout(r, 1000)); }
+    if (!up) { console.error(`${arm} never came up; see ${OUT}/serve-${arm}.log`); process.exit(1); }
+    // THE SMALL SCENE, built the way a writer would: a tale, its two people, the narration, then her line.
+    const made = await j(arm, '/api/stories', { title: FIX.title, genre: 'fantasy noir', premise: 'A broke ex-sergeant owes a moneylender more than he can pay.',
+      setting: 'Vantic, a canal city, in the third week of rain', pov: 'third limited, past tense', persona: FIX.persona, model: ARMS[arm].model });
+    const put = (title: string, body: string) => j(arm, '/api/entry', { storyId: made.id, entry: { title, body, entryType: 'character', activation: 'always_on', keys: [title.split(' ')[0]] } });
+    await put('Aldis Fen', 'He is 34, an ex-Watch sergeant, and owes Marek eleven crowns.');
+    await put('Sabel', "She is Marek's collector: broad, unhurried, a woman who says little.");
+    await j(arm, '/api/write', { storyId: made.id, body: 'The rain had not stopped for three days. Sabel found him under the fishmonger\'s awning and waited for him to speak.' });
+    await j(arm, '/api/write', { storyId: made.id, body: FIX.line, speaker: FIX.persona });
+    ids[arm].fixture = made.id;
+    for (const id of Object.values(ids[arm])) {
+      const v = await j(arm, `/api/story?story=${id}`, undefined, 'GET');
+      if (v.story?.model !== ARMS[arm].model) { console.error(`${arm} ${id} is on ${v.story?.model ?? v.error}`); process.exit(1); }
+    }
+  }
+  console.log(`  two servers up; each tale pinned to its arm's model; ${n} takes per line per arm`);
+  const t0 = Date.now();
+  for (const line of ['encore', 'fixture'] as const) {
+    const speaker = line === 'encore' ? ENC.speaker : FIX.persona;
+    const first: Record<string, string> = {};
+    for (let i = 0; i < n; i++) {
+      // BOTH ARMS AT ONCE, take by take.
+      await Promise.all(arms.map(async ([arm]) => {
+        const body: any = { storyId: ids[arm][line], mode: 'speak', speaker };
+        if (first[arm]) Object.assign(body, { regenerateOf: first[arm], rejected: false });
+        const r = await j(arm, '/api/generate', body);
+        if (!first[arm] && r.passageId) first[arm] = r.passageId;
+        appendFileSync(join(OUT, 'takes.jsonl'), JSON.stringify({ arm, model: ARMS[arm].model, line, i, prose: r.prose ?? null, error: r.error ?? null }) + '\n');
+      }));
+    }
+    console.log(`  ${line}: ${n} takes per arm (${Math.round((Date.now() - t0) / 1000)}s so far)`);
+  }
+  writeFileSync(join(OUT, 'run.json'), JSON.stringify({ ids, n, seconds: Math.round((Date.now() - t0) / 1000) }));
+  process.exit(0);
+}
+
+if (process.argv[2] === 'report') {
+  const { readFileSync } = await import('node:fs');
+  const rows = readFileSync(`${OUT}/takes.jsonl`, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  for (const arm of Object.keys(ARMS)) {
+    let hits = 0, takes = 0, errors = 0, unknown = 0, lines = 0; const per: string[] = [];
+    for (const line of ['encore', 'fixture']) {
+      const rs = rows.filter((r) => r.arm === arm && r.line === line);
+      const ok = rs.filter((r) => r.prose);
+      const h = ok.filter((r) => speakerTalks(r.prose, line === 'encore' ? ENC.speaker : FIX.persona, line === 'encore' ? ENC.who : FIX.who,
+        line === 'encore' ? 'And if I don\'t?' : FIX.line).hits.length).length;
+      for (const r of ok) { const s = speakerTalks(r.prose, line === 'encore' ? ENC.speaker : FIX.persona, line === 'encore' ? ENC.who : FIX.who); unknown += s.unknown.length; lines += (r.prose.match(/["“][^"”]*["”]/g) ?? []).length; }
+      hits += h; takes += ok.length; errors += rs.length - ok.length;
+      per.push(`${line} ${h}/${ok.length}`);
+    }
+    console.log(`  ${ARMS[arm as keyof typeof ARMS].model}: ${hits} of ${takes} takes give the speaker new words (${takes ? Math.round(hits / takes * 100) : 0}%) · ${per.join(' · ')} · ${errors} failed calls · ${unknown} of ${lines} lines unknown`);
+  }
+  process.exit(0);
+}
