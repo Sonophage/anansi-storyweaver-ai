@@ -14,6 +14,9 @@
 // ("the big man answers") or a scene of two people sharing a pronoun is unknown, never counted. Trigger:
 // unknown above a tenth of the lines; then give the scene's people their own words for the tag.
 
+/** The verbs of a dialogue tag. ponytail: a fixed English list; a tag verb it lacks falls back to the beat
+ *  before the line. Trigger: a real take whose speaker the beat gets wrong. */
+const SPEECH = /^(say|said|ask|whisper|murmur|repeat|mutter|repl|answer|add|continu|press|breath|snap|growl|purr|teas|admit|offer|tell|told|call|laugh|sigh|stammer|protest|insist|counter|correct|echo|demand|hiss|manag|begin|began|start|finish|plead|beg|warn|grumbl|whimper|croak|rasp|drawl|interrupt|agree|conced|confess|explain|declar|announc|shout|yell|cr[iy]|scoff|chuckl|smil|grin|sneer|spat|spit|bark|blurt|counter|challeng|prompt|tri|venture|offer|quip|retort|reason|remind|conclud|whisper)/i;
 export type Who = Record<string, string[]>;   // a pronoun → the people in the scene who go by it
 
 /** The quoted lines of `take` that `speaker` says, apart from the writer's own line said again, and the
@@ -43,7 +46,9 @@ export function speakerTalks(take: string, speaker: string, who: Who, writerLine
       const after = para.slice(end, quotes[i + 1]?.index ?? para.length);
       const before = para.slice(i ? quotes[i - 1].index! + quotes[i - 1][0].length : 0, q.index);
       // A TAG: the line ends open (`,` `?` `!` a dash), and a name or pronoun and a verb follow it.
-      const tag = /[,?!—–-]$/.test(said) ? after.match(/^\s*,?\s*([A-Z][\p{L}'’-]*|he|she|they|i)\s+[a-z]+/iu)?.[1] : undefined;
+      // A speech verb only: "Aldis swallowed" after a question is his reaction to someone else's line.
+      const tagged = /[,?!—–-]$/.test(said) ? after.match(/^\s*,?\s*([A-Z][\p{L}'’-]*|he|she|they|i)\s+(?:\w+ly\s+)?([a-z]+)/iu) : null;
+      const tag = tagged && SPEECH.test(tagged[2]) ? tagged[1] : undefined;
       // Else THE BEAT BEFORE IT: the last sentence of the narration just before the line.
       const beat = tag ? undefined : subject(before.split(/(?<=[.!?…])\s+/).filter((x) => x.trim()).at(-1) ?? '');
       const by = tag ?? beat;
@@ -86,6 +91,10 @@ const CASES: { take: string; speaker: string; who: Who; line?: string; hits: num
   // with Halsey and Lisa both named, when the writer spoke as Seth).
   { take: '"Of course," she says, her voice tight.', speaker: 'Seth', who: { he: ['Seth'], she: ['Halsey', 'Lisa'] }, hits: 0, unknown: 0,
     why: 'two women, and he spoke as Seth' },
+  // A REACTION AFTER THE LINE IS NOT ITS TAG (the Ornith run: Sabel asks, and Aldis swallows).
+  { take: 'Sabel watched him. "What do you want?" Aldis swallowed.', speaker: 'Aldis Fen', who: { he: ['Aldis Fen'], she: ['Sabel'] }, hits: 0,
+    why: 'a verb that is not speech, after the line' },
+  { take: '"Then go," Aldis growled.', speaker: 'Aldis Fen', who: { he: ['Aldis Fen'], she: ['Sabel'] }, hits: 1, why: 'a speech verb after the line' },
   // A NAME INSIDE THE LINE IS NOT ITS TAG.
   { take: '"Seth, wait," she says.', speaker: 'Seth', who: { he: ['Seth'], she: ['Halsey'] }, hits: 0, why: 'his name said to him' },
   { take: 'Seth\'s voice is low. "Not tonight."', speaker: 'Seth', who: { he: ['Seth'], she: ['Halsey'] }, hits: 1, why: 'a possessive beat' },

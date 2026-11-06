@@ -3600,3 +3600,36 @@ was ("that she must make the choice herself") and was not kept in that scene.
 
 **Harness.** `bench/hem-ab.ts run <A-checkout> <B-checkout> <C-checkout>`, then `sheet`; the key is
 written beside the sheet, not in it. Its `check` mode (in test/all.ts) tests the card filter.
+
+## F73 — Speak puts words in the writer's character's mouth mostly because of the model: Ornith 25 of 40 takes, Qwen3.6 8 of 40, same prompt, same lines, at once (p = 0.0002); the prompt does not stop either (2026-11-05)
+
+**The question.** #147: Speak sometimes gets confused about who is speaking. Seth's ENCORE takes show the
+answer giving the character he just spoke as a new line ("Merch, huh?" he repeats, after he spoke as
+Seth). Is that the model or the prompt? Seth counted that one failure; his own line said again is not it.
+
+**The detector.** `bench/speak.ts` `speakerTalks`: a quoted line is the speaker's when a speech-verb tag
+after it, or the beat before it in the same paragraph, names them by name or by a pronoun only they go
+by. 18 cases, both directions, each rule falsified. On ENCORE's 102 real Speak takes (not written for):
+20 flagged; 9 read in full, all real; 12 of 78 quotes near the speaker's name in unflagged takes read,
+no miss; 52 of 600 lines unknown (8.7%). The Ornith run found one false shape (a reaction verb after a
+question, "Aldis swallowed"), now a case; the counts below did not move with it.
+
+**The run.** `bench/speak.ts run 20`: two scratch servers on copies of the library, one per model, each
+tale pinned and checked before generating; both arms take by take at the same moment. Two lines:
+ENCORE's last (Seth as Halsey, "And if I don't?", Seth answering is right) and a small scene (the writer
+as Aldis, Sabel answering). Every take after the first is the app's reroll of it, kept, so each answers
+the writer's line. Prompts as on main 38f5a2f. 80 calls, 0 failed, 0 lines unknown.
+
+| | Ornith-1.0-RPNTH-35B | Qwen3.6-WNTH-35B-A3B-NN | Fisher p |
+|---|---|---|---|
+| ENCORE (as Halsey) | 12/20 | 6/20 | 0.11 |
+| small scene (as Aldis) | 13/20 | 2/20 | 0.0008 |
+| both | 25/40 (63%) | 8/40 (20%) | 0.0002 |
+
+**What this settles, for these two lines and no more.** The model is the larger cause: the same prompt
+and the same lines, and Ornith gives the speaker a new line three times as often. The prompt does not
+hold either model: Speak's instruction says "Do not put further words in X's mouth", and Qwen3.6 still
+does it in one take in five, three in ten on ENCORE. Seth's real takes, across ten models and several
+prompt versions, flag 20 of 102.
+
+**Open.** Whether a prompt change moves Ornith (the #147 A/B). Two lines; one reader of the flags.
