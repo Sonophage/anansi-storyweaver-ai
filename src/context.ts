@@ -221,6 +221,9 @@ const OPENING_LINE = 'This passage begins a new scene. Open it as "How this chap
  *  that day, Act's "reacts to" included (F75). It replaced the 2026-10-31 shipped set, which was his
  *  earlier wording: that Act said "Rewrite it so that it fits the narrative", against his standard for
  *  Act. NOT MEASURED against the wording before it, except Act's one change.
+ *  NARRATE DOES NOT QUOTE THE NARRATION (F76, the same day, Seth's saved wording too): quoted at the end,
+ *  it left the story's prose, the prose stopped before it, and Ornith played it again (29 of 30 takes
+ *  against 1 of 30 with it left as the last passage). Speak, Act and Continue still quote theirs.
  *  ONE PHRASE HELD BACK, as on 2026-10-31: his Continue ends "even if that is three sentences", and F18
  *  measured that a length named in the prompt is a length the model fills. The shipped line keeps the
  *  permission to be short without the number; his saved wording keeps his.
@@ -271,7 +274,7 @@ export const MODE_WORDING: Record<string, string> = {
     + "Write no more than {{words}} words. Stop sooner if the beat is done.\n"
     + "\n"
     + "The synopsis: {{directive}}",
-  narrate: "The writer has just written what happens, given at the end. It is the story itself, not an instruction.\n"
+  narrate: "The writer has just written what happens: the last passage above. It is the story itself, not an instruction.\n"
     + "Continue from where it stops. Pick up mid-thought if its last line is unfinished.\n"
     + "Do not rewrite it, repeat it, summarise it, or comment on it. Match its voice.\n"
     + "Carry on what the writer started and raise its pressure: by the end something has changed, in what someone wants, knows, or holds over another.\n"
@@ -279,9 +282,7 @@ export const MODE_WORDING: Record<string, string> = {
     + "Choose the particular over the general: a detail only this place and these people would have, never a stock phrase.\n"
     + "Let what matters stay under the surface: people say less than they mean.\n"
     + "Stop at a natural beat, however few sentences that takes.\n"
-    + "Write no more than {{words}} words. Stop sooner if the beat is done.\n"
-    + "\n"
-    + "What the writer just wrote: {{last}}",
+    + "Write no more than {{words}} words. Stop sooner if the beat is done.",
 };
 
 /** Talk's frame. Not a writing mode, so it has no template and no writer's wording. */

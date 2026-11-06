@@ -23,10 +23,15 @@ When you Act, the others in the scene now react to your action. Before, they som
 someone had asked them a question, and walked off to the window instead. On a test scene the new
 wording reacted to the action 77 times in 80, against 60 before.
 
+### Narrate goes on from your narration instead of telling it again
+When you Narrate, Anansi now picks up after what you wrote. Before, it often wrote your narration out
+again in its own words first, sometimes word for word. On a test scene that happened 29 times in 30;
+now it is 1 in 30.
+
 ### Seth's wording is now everyone's starting wording for the five buttons
 Continue, Speak, Act, Direct and Narrate now start from the wording Seth writes with, unless you have
-your own under Account → Writing. Each one ends by quoting the passage it works on, sends that passage
-once, and follows your length slider. Your own wording, if you have one, is untouched.
+your own under Account → Writing. Speak, Act and Continue end by quoting the passage they work on and
+send it once; all five follow your length slider. Your own wording, if you have one, is untouched.
 
 ## 2026-11-05 · Hemming leaves your character to you
 

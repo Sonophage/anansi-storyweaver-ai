@@ -3693,3 +3693,37 @@ on his knees, a reaction to his sitting.
 **What this settles.** Shipped: Seth's saved Act wording says "reacts to" (2026-11-06), and the same day
 his five mode wordings became the shipped defaults with it. One point in one tale; the scene 4 point had
 no misses to fix. Unlike F20, F37, F71 and F74, a one-word change here moved the number.
+
+## F76 — Narrate quoting the narration at the end of the instruction makes Ornith play it again: 29/30 against 1/30 with it left in the prose (2026-11-06)
+
+**The question.** In the #149 read all ten Narrate takes on ENCORE's scene 4 point opened by doing the
+narration's action again ("He doesn't blink ... He just slides the plate"), two word for word; none of
+ten on the scene 10 point did. Since 2026-11-02 Seth's Narrate wording quoted the narration at the end
+of the instruction ({{last}}), which takes it out of the story's prose, so the prose stops before it.
+At scene 4 the prose then ends on Halsey's confession, whose next beat is Seth's reaction, which is
+what the narration says. Does leaving the narration in the prose stop the replay?
+
+**The detector.** `bench/narrate-replay.ts`: a sentence of the take's first paragraph of narration with
+the narration's verb and object (written per point: slide/push/nudge, plate/pie/slice) and no one
+watching, staring or looking in it. On the 60 #149 takes: 10/10 scene 4 Narrate, 0/10 scene 10 Narrate
+(all marked Fine by Seth: Halsey watching him sit), 0/20 Act, 9/10 scene 10 Direct (playing the
+synopsis's action, which is Direct's job).
+
+**The run.** Two arms at once, Ornith-1.0-RPNTH-35B, each a scratch server on its own copy cut back to
+the scene 4 point with the narration written as the writer's passage. A: Seth's saved wording, the
+narration quoted at the end ("given at the end ... What the writer just wrote: {{last}}"). B: "the last
+passage above", no quote, so the narration is the last passage of the prose. Each server's prompt
+checked to carry the narration once, inside the instruction for A and before it for B. 30 takes per
+arm, one at a time per arm, 0 failed.
+
+| | A (quoted at the end) | B (left in the prose) |
+|---|---|---|
+| replays the narration | 29/30 | 1/30 |
+| copies its opening word for word | 2/30 | 0/30 |
+
+Fisher p < 0.0001. B's takes open "Halsey stares at the plate" and go on from there.
+
+**What this settles.** Shipped: Seth's Narrate wording and the shipped default leave the narration in
+the prose (2026-11-06). One point in one tale, the one where it failed. Speak, Act and Continue still
+quote their passage; Act's quote measured well in F75. Continue quoting the model's own last passage is
+not measured.

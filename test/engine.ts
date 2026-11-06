@@ -687,7 +687,7 @@ ok('each mode says the one thing that distinguishes it', () => {
       `${m} must carry the target, whole, on its own line`);
     // The shipped wording holds the line itself ({{words}}, since 2026-11-06), so it is IN the text,
     // not after it: take it out and what is left is the wording with the slider off.
-    assert.strictEqual(on.replace(/^Write no more than 400 words\. Stop sooner if the beat is done\.\n/m, ''), off,
+    assert.strictEqual(on.split('\n').filter((l) => l !== 'Write no more than 400 words. Stop sooner if the beat is done.').join('\n'), off,
       `${m} must keep its own wording and only gain a line`);
   }
   // Talk is Anansi answering the writer, not a passage, and has its own bound.
@@ -723,6 +723,14 @@ ok('each mode says the one thing that distinguishes it', () => {
   // Narrate is the only mode that tells the model the text above is the author's own prose.
   // Without that it treats a paragraph of narration as a request and writes ABOUT it.
   assert.match(modeText({ mode: 'narrate' as any }), /It is the story itself, not an instruction/);
+
+  // NARRATE LEAVES THE WRITER'S NARRATION IN THE PROSE (F76): quoted at the end of the instruction, the
+  // story stopped before it and Ornith played it again, 29 takes of 30 against 1.
+  const nb = buildContext({ ...base(), mode: 'narrate' as any } as any, count);
+  const newest = base().passages.at(-1)!.body;
+  assert.ok(nb.blocks.some((b) => b.kind === 'TAIL' && b.state === 'included' && b.text.includes(newest)),
+    'NARRATE-IN-PROSE: the narration stays the last passage of the prose');
+  assert.ok(!nb.blocks.find((b) => b.kind === 'MODE')!.text.includes(newest), '  and is not quoted in the instruction');
 
   // A stale tab sending a retired name degrades to the neutral mode instead of a 500.
   assert.ok(/one full beat/.test(modeText({ mode: 'cowrite' as any })),
