@@ -196,6 +196,9 @@ const KEY_COMMON = new Set(('the and of a an in on at to for with from by his he
   'setting about between into over under before after during against without within him she he they them who what ' +
   'when where why how first second third last new old one two three part chapter scene story tale book sir lady lord ' +
   'master mistress king queen prince princess saint father mother brother sister captain dame mister miss mrs').split(' '));
+/** A word fit to be a keyword on its own: not a common word or an honorific (`KEY_COMMON`), by the rule
+ *  `oneKeyword` picks with, so src/mention.ts and a new thread agree. */
+export const commonWord = (w: string) => KEY_COMMON.has(String(w).toLowerCase());
 export function oneKeyword(title: string, keys: unknown, others: string[] = [], kind = 'character',
     written?: (phrase: string) => boolean): string[] {
   // THE TITLE, WHEN IT IS THE NAME THE PROSE WRITES (Seth, 2026-11-01: "The title can always be used
