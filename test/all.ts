@@ -39,7 +39,7 @@ const suites = ['engine.ts', 'cards.ts', 'mention.ts', 'speak.ts', 'speakcut.ts'
                     'council06', 'lockout-book', 'weave-json', 'repetition', 'lockout-cheap', 'words', 'preview',
                     // Both green and both run by nobody until 2026-10-29. `stats.ts` runs its
                     // self-check when invoked directly, so it takes no subcommand.
-                    'stale', 'reroll-echo', 'reroll-away', 'talk-replay', 'hem-audit', 'hem-ab', 'mention-flip', 'speak', 'modes-read', 'act-react', 'narrate-replay', 'direct-echo'].map((b) => `../bench/${b}.ts check`), '../bench/stats.ts'];
+                    'stale', 'reroll-echo', 'reroll-away', 'talk-replay', 'hem-audit', 'hem-ab', 'mention-flip', 'speak', 'modes-read', 'act-react', 'narrate-replay', 'direct-echo', 'scene'].map((b) => `../bench/${b}.ts check`), '../bench/stats.ts'];
 const started = Date.now();
 
 /* EVERY BENCH ENTRY GETS ITS OWN DATABASE, and this is not tidiness.

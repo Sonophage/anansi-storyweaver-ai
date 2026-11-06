@@ -10,16 +10,16 @@
 //   node --experimental-strip-types bench/modes-read.ts sheet
 //   node --experimental-strip-types bench/modes-read.ts check     # the sheet's order, no model
 //
-// NEVER THE LIVE LIBRARY: each scene-and-mode pair gets its own copy (VACUUM INTO), because Act and
-// Narrate write the writer's line into the tale before asking, and those lines must not meet. The scene 4
-// copy is cut back to that point: later scenes and passages deleted, so scene 4 is the current one.
+// NEVER THE LIVE LIBRARY: each scene-and-mode pair gets its own copy cut back to its point (bench/scene.ts),
+// because Act and Narrate write the writer's line into the tale before asking, and those lines must not
+// meet.
 // ponytail: threads made after scene 4 stay in its copy. Ceiling: a later character can reach the scene 4
 // prompt by keyword. Trigger: a take naming someone the tale had not met by scene 4.
 // The calls do not stream, so the route saves nothing and each take answers the same point fresh.
 import { DatabaseSync } from 'node:sqlite';
-import { spawn } from 'node:child_process';
 import { mkdirSync, rmSync, appendFileSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { copyAt, serveAt } from './scene.ts';
 
 const MODEL = 'Ornith-1.0-RPNTH-35B';
 const OUT = process.env.BENCH_OUT ?? '/tmp/anansi-modes-read';
@@ -73,38 +73,15 @@ if (mode === 'run') {
   if (!only) rmSync(join(OUT, 'takes.jsonl'), { force: true });
   for (const sc of SCENES.filter((x) => !only || x.key === only)) for (const m of MODES) {
     const file = join(OUT, `${sc.key}-${m}.db`);
-    for (const x of ['', '-wal', '-shm']) rmSync(file + x, { force: true });
-    const src = new DatabaseSync(SOURCE, { readOnly: true }); src.exec(`VACUUM INTO '${file}'`); src.close();
-    const d = new DatabaseSync(file);
-    d.exec('PRAGMA foreign_keys = ON');
-    const st = d.prepare("SELECT s.id FROM stories s JOIN users u ON u.id = s.owner_id WHERE s.title = 'ENCORE' AND u.login = 'sonophage'").get() as any;
-    d.prepare('UPDATE stories SET model = ? WHERE id = ?').run(MODEL, st.id);
-    // THE POINT: later scenes go, and this scene's passages after the cut.
-    const ch = d.prepare('SELECT id FROM chapters WHERE story_id = ? AND idx = ?').get(st.id, sc.chapter) as any;
-    d.prepare('DELETE FROM passages WHERE story_id = ? AND (chapter_id IN (SELECT id FROM chapters WHERE story_id = ? AND idx > ?) OR (chapter_id = ? AND ordinal > ?))')
-      .run(st.id, st.id, sc.chapter, ch.id, sc.after);
-    d.prepare('DELETE FROM chapters WHERE story_id = ? AND idx > ?').run(st.id, sc.chapter);
-    // AND OPEN AGAIN: a hemmed scene is closed, and the app opens a fresh one after a closed last scene.
-    d.prepare("UPDATE chapters SET status = 'open' WHERE id = ?").run(ch.id);
-    d.close();
-    const kid = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], { cwd: new URL('..', import.meta.url).pathname,
-      stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, ANANSI_PORT: String(PORT), ANANSI_DB: file, ANANSI_MODEL: MODEL,
-        ANANSI_FEATHERLESS_KEY_FILE: '/nonexistent/featherless.key', ANANSI_ALLOW: '' } });
-    kid.stderr!.on('data', (b) => appendFileSync(join(OUT, 'serve.log'), b));
-    const j = (u: string, b?: unknown, method = 'POST') => fetch(`http://127.0.0.1:${PORT}${u}`, b
-      ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) } : {}).then((r) => r.json() as any, (e) => ({ error: String(e) }));
-    let up = false;
-    for (let i = 0; i < 90 && !up; i++) { up = await fetch(`http://127.0.0.1:${PORT}/`).then((r) => r.ok, () => false); if (!up) await new Promise((r) => setTimeout(r, 1000)); }
-    if (!up) { console.error(`no server for ${sc.key} ${m}; see ${OUT}/serve.log`); kid.kill(); process.exit(1); }
-    const v = await j(`/api/story?story=${st.id}`, undefined, 'GET');
-    if (v.story?.model !== MODEL || v.currentChapter?.index !== sc.chapter) { console.error(`${sc.key} ${m}: on ${v.story?.model}, scene ${v.currentChapter?.index}`); kid.kill(); process.exit(1); }
+    const { storyId } = copyAt(SOURCE, file, sc, MODEL);
+    const { j, kill } = await serveAt(file, PORT, MODEL, sc, storyId, join(OUT, 'serve.log'));
     // THE WRITER'S MOVE: Act and Narrate write it into the tale, as the page does; Direct sends it.
-    if (m === 'act') await j('/api/write', { storyId: st.id, body: sc.act, speaker: 'Seth', mode: 'act' });
-    if (m === 'narrate') await j('/api/write', { storyId: st.id, body: sc.narrate, mode: 'narrate' });
-    const body = { storyId: st.id, mode: m, ...(m === 'act' ? { speaker: 'Seth' } : {}), ...(m === 'direct' ? { directive: sc.direct } : {}) };
+    if (m === 'act') await j('/api/write', { storyId, body: sc.act, speaker: 'Seth', mode: 'act' });
+    if (m === 'narrate') await j('/api/write', { storyId, body: sc.narrate, mode: 'narrate' });
+    const body = { storyId, mode: m, ...(m === 'act' ? { speaker: 'Seth' } : {}), ...(m === 'direct' ? { directive: sc.direct } : {}) };
     const man = await j('/api/manifest', body);
     const said = m === 'direct' ? sc.direct : m === 'act' ? sc.act : sc.narrate;
-    if (!String(man.prompt ?? '').includes(said)) { console.error(`${sc.key} ${m}: the writer's move is not in the prompt`); kid.kill(); process.exit(1); }
+    if (!String(man.prompt ?? '').includes(said)) { console.error(`${sc.key} ${m}: the writer's move is not in the prompt`); kill(); process.exit(1); }
     // TWO AT A TIME: nothing is saved, so the takes do not see each other.
     for (let i = 0; i < n; i += 2) {
       await Promise.all([i, i + 1].filter((k) => k < n).map(async (k) => {
@@ -112,7 +89,7 @@ if (mode === 'run') {
         appendFileSync(join(OUT, 'takes.jsonl'), JSON.stringify({ scene: sc.key, mode: m, i: k, prose: r.prose ?? null, error: r.error ?? null }) + '\n');
       }));
     }
-    kid.kill();
+    kill();
     await new Promise((r) => setTimeout(r, 1500));
     console.log(`  ${sc.key} ${m}: ${n} takes`);
   }

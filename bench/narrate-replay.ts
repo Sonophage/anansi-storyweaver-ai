@@ -23,13 +23,12 @@
 // ponytail: the verb and object words are written per point, by hand. Ceiling: one point measured, and
 // a replay in other words ("hands her the dish") is missed. Trigger: measuring a second point.
 //
-// NEVER THE LIVE LIBRARY, the same way bench/act-react.ts does it: each arm a copy cut back to the
-// point, its wording written into the copy, both arms at once on one router, each arm's prompt checked.
-import { DatabaseSync } from 'node:sqlite';
-import { spawn } from 'node:child_process';
+// NEVER THE LIVE LIBRARY: each arm a copy cut back to the point (bench/scene.ts), its wording written into
+// the copy, both arms at once on one router, each arm's prompt checked.
 import { mkdirSync, rmSync, appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fisher } from './stats.ts';
+import { copyAt, serveAt } from './scene.ts';
 
 const SEE = /\b(watch\w*|star(e|es|ed|ing)|look\w*|see|sees|seeing|saw|notic\w*|eyes)\b/i;
 
@@ -90,46 +89,26 @@ if (mode === 'run') {
   rmSync(join(OUT, 'takes.jsonl'), { force: true });
   await Promise.all(ARMS.map(async (arm) => {
     const file = join(OUT, `arm-${arm.key}.db`);
-    for (const x of ['', '-wal', '-shm']) rmSync(file + x, { force: true });
-    const src = new DatabaseSync(SOURCE, { readOnly: true }); src.exec(`VACUUM INTO '${file}'`); src.close();
-    const d = new DatabaseSync(file);
-    d.exec('PRAGMA foreign_keys = ON');
-    const st = d.prepare("SELECT s.id, s.owner_id FROM stories s JOIN users u ON u.id = s.owner_id WHERE s.title = 'ENCORE' AND u.login = 'sonophage'").get() as any;
-    d.prepare('UPDATE stories SET model = ? WHERE id = ?').run(MODEL, st.id);
-    const ch = d.prepare('SELECT id FROM chapters WHERE story_id = ? AND idx = ?').get(st.id, POINT.chapter) as any;
-    d.prepare('DELETE FROM passages WHERE story_id = ? AND (chapter_id IN (SELECT id FROM chapters WHERE story_id = ? AND idx > ?) OR (chapter_id = ? AND ordinal > ?))')
-      .run(st.id, st.id, POINT.chapter, ch.id, POINT.after);
-    d.prepare('DELETE FROM chapters WHERE story_id = ? AND idx > ?').run(st.id, POINT.chapter);
-    d.prepare("UPDATE chapters SET status = 'open' WHERE id = ?").run(ch.id);
-    const saved = d.prepare("SELECT text FROM prompt_overrides WHERE owner_id = ? AND key = 'narrate'").get(st.owner_id) as any;
-    if (!saved?.text?.includes(FIRST_A) || !saved.text.endsWith(LAST_A)) { console.error(`arm ${arm.key}: Seth's saved Narrate wording no longer has the lines this bench changes`); process.exit(1); }
-    const wording = arm.key === 'A' ? saved.text : saved.text.replace(FIRST_A, FIRST_B).slice(0, -LAST_A.length);
-    d.prepare("UPDATE prompt_overrides SET text = ? WHERE owner_id = ? AND key = 'narrate'").run(wording, st.owner_id);
-    d.close();
-    const kid = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], { cwd: new URL('..', import.meta.url).pathname,
-      stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, ANANSI_PORT: String(arm.port), ANANSI_DB: file, ANANSI_MODEL: MODEL,
-        ANANSI_FEATHERLESS_KEY_FILE: '/nonexistent/featherless.key', ANANSI_ALLOW: '' } });
-    kid.stderr!.on('data', (b) => appendFileSync(join(OUT, `serve-${arm.key}.log`), b));
-    const j = (u: string, b?: unknown) => fetch(`http://127.0.0.1:${arm.port}${u}`, b
-      ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) } : {}).then((r) => r.json() as any, (e) => ({ error: String(e) }));
-    let up = false;
-    for (let i = 0; i < 90 && !up; i++) { up = await fetch(`http://127.0.0.1:${arm.port}/`).then((r) => r.ok, () => false); if (!up) await new Promise((r) => setTimeout(r, 1000)); }
-    if (!up) { console.error(`arm ${arm.key}: no server; see ${OUT}/serve-${arm.key}.log`); kid.kill(); process.exit(1); }
-    const v = await j(`/api/story?story=${st.id}`);
-    if (v.story?.model !== MODEL || v.currentChapter?.index !== POINT.chapter) { console.error(`arm ${arm.key}: on ${v.story?.model}, scene ${v.currentChapter?.index}`); kid.kill(); process.exit(1); }
-    await j('/api/write', { storyId: st.id, body: POINT.narration, mode: 'narrate' });
-    const body = { storyId: st.id, mode: 'narrate' };
+    const { storyId } = copyAt(SOURCE, file, POINT, MODEL, (d, st) => {
+      const saved = d.prepare("SELECT text FROM prompt_overrides WHERE owner_id = ? AND key = 'narrate'").get(st.owner_id) as any;
+      if (!saved?.text?.includes(FIRST_A) || !saved.text.endsWith(LAST_A)) { console.error(`arm ${arm.key}: Seth's saved Narrate wording no longer has the lines this bench changes`); process.exit(1); }
+      const wording = arm.key === 'A' ? saved.text : saved.text.replace(FIRST_A, FIRST_B).slice(0, -LAST_A.length);
+      d.prepare("UPDATE prompt_overrides SET text = ? WHERE owner_id = ? AND key = 'narrate'").run(wording, st.owner_id);
+    });
+    const { j, kill } = await serveAt(file, arm.port, MODEL, POINT, storyId, join(OUT, `serve-${arm.key}.log`));
+    await j('/api/write', { storyId, body: POINT.narration, mode: 'narrate' });
+    const body = { storyId, mode: 'narrate' };
     const prompt = String((await j('/api/manifest', body)).prompt ?? '');
     // A: the narration once, inside the instruction. B: once, before the instruction opens.
     const at = prompt.indexOf(POINT.narration), fence = prompt.lastIndexOf('<mode>');
     const where = prompt.split(POINT.narration).length === 2 && (arm.key === 'A' ? at > fence : at < fence);
-    if (!where || !prompt.includes(arm.key === 'A' ? FIRST_A : FIRST_B)) { console.error(`arm ${arm.key}: the narration is not where this arm puts it`); kid.kill(); process.exit(1); }
+    if (!where || !prompt.includes(arm.key === 'A' ? FIRST_A : FIRST_B)) { console.error(`arm ${arm.key}: the narration is not where this arm puts it`); kill(); process.exit(1); }
     // ONE AT A TIME PER ARM: two on the router, so the other slots stay free for the live library.
     for (let k = 0; k < n; k++) {
       const r = await j('/api/generate', body);
       appendFileSync(join(OUT, 'takes.jsonl'), JSON.stringify({ arm: arm.key, i: k, prose: r.prose ?? null, error: r.error ?? null }) + '\n');
     }
-    kid.kill();
+    kill();
     console.log(`  arm ${arm.key}: ${n} takes`);
   }));
   process.exit(0);
