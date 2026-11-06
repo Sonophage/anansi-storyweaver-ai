@@ -2110,6 +2110,40 @@ ok('a new thread lands on a word from its name, not always on', () => {
   db.delStory(st.id);
 });
 
+// EVERY TALE'S ALWAYS-ON THREADS, ON A WORD (Seth, 2026-11-05, "all", "flip them too"). `mentionApply` writes
+// what `mentionPlan` plans and keeps what each thread was; `mentionUndo` puts back every thread the writer
+// has not changed since. Run once over the live library, after a backup.
+ok('a tale\'s always-on threads go on a word, and can be put back', () => {
+  const me = db.owner('flip-owner');
+  const st = db.createStory(me, { title: 'A book to flip', persona: 'Talia' });
+  const ch = (db.chapters(st.id)[0] as any).id;
+  db.addPassage({ storyId: st.id, branchId: (st as any).branchId, chapterId: ch, body: 'Morgott knelt. Talia lit the lamp.' });
+  const on = (title: string, keys: string[]) => db.upsertEntry(st.id, me, { title, body: 'b', entryType: 'character', activation: 'always_on', keys }, { keepOn: true })!;
+  const morgott = on('Morgott the Grace-Given', ['Grace']), rennala = on('Rennala', ['Rennala']), talia = on('Talia', ['Talia']);
+  const row = (id: string) => { const e: any = (db.entriesOf(st.id) as any[]).find((x) => x.id === id); return [e.activation, db.keysOf(e.keys)]; };
+
+  const r = db.mentionApply(st.id);
+  assert.deepStrictEqual(row(morgott), ['triggered', ['Grace', 'Morgott']], 'FLIP-APPLY: on a word, with the name the prose writes');
+  assert.deepStrictEqual(row(rennala), ['triggered', ['Rennala']], 'FLIP-APPLY-UNNAMED: not named yet, on its name');
+  assert.deepStrictEqual(row(talia), ['always_on', ['Talia']], 'FLIP-PERSONA: the writer\'s character stays on');
+  assert.deepStrictEqual([r.flipped, r.kept], [2, 1], 'FLIP-COUNT: it says how many');
+  assert.deepStrictEqual(db.mentionApply(st.id).flipped, 0, 'FLIP-ONCE: a second run flips nothing');
+  // THE WRITER TURNS ONE BACK ON: a later run leaves it on. Once flipped, a thread is hers.
+  db.upsertEntry(st.id, me, { id: morgott, title: 'Morgott the Grace-Given', body: 'b', entryType: 'character', activation: 'always_on', keys: ['Grace', 'Morgott'] });
+  db.mentionApply(st.id);
+  assert.deepStrictEqual(row(morgott), ['always_on', ['Grace', 'Morgott']], 'FLIP-WRITER-ON: a thread the writer turned back on stays on');
+  db.upsertEntry(st.id, me, { id: morgott, title: 'Morgott the Grace-Given', body: 'b', entryType: 'character', activation: 'triggered', keys: ['Grace', 'Morgott'] });
+
+  // THE WRITER CHANGES ONE AFTERWARDS: hers is kept, the rest is put back.
+  db.upsertEntry(st.id, me, { id: rennala, title: 'Rennala', body: 'b', entryType: 'character', activation: 'triggered', keys: ['Queen'] });
+  const u = db.mentionUndo(st.id);
+  assert.deepStrictEqual(row(morgott), ['always_on', ['Grace']], 'FLIP-UNDO: put back as it was');
+  assert.deepStrictEqual(row(rennala), ['triggered', ['Queen']], 'FLIP-UNDO-WRITER: a thread the writer changed since is hers');
+  assert.deepStrictEqual([u.restored, u.left], [1, 1], 'FLIP-UNDO-COUNT: it says how many');
+  assert.deepStrictEqual(db.mentionUndo(st.id), { restored: 0, left: 0 }, 'FLIP-UNDO-ONCE: a second undo finds nothing to put back');
+  db.delStory(st.id);
+});
+
 // The look: three layers, and the one that matters is that a book's look never becomes yours by
 // being opened. That was the shape of the bug the split exists to prevent — the surface cached
 // whatever was on screen, so reading a book with a green theme made green your default.

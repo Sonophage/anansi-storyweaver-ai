@@ -23,6 +23,7 @@ import { ALL_SLOTS, EXCLUSIVE_SLOTS, FOLDED, STRING_SLOTS, TO_OVER_TIME, foldLin
 import { factsLost } from './context.ts';
 import { isRemote } from './llama.ts';
 import { placeholders, notTwice } from './outside.ts';
+import { mentionPlan } from './mention.ts';
 
 // ponytail: SQLite, not Postgres. PLAN-02 §3 locked Postgres for pgvector (unscheduled) and RLS
 // (needs a second tenant); neither is live, and Docker was not running. The schema is the target
@@ -1016,6 +1017,15 @@ CREATE INDEX IF NOT EXISTS generations_story ON generations(story_id, created_at
 -- ponytail: kept for measurement, not shown anywhere. To remove: delete this table, keepStopped()
 -- below logGeneration, its one call in 'POST /api/generate', and STOPPED-* in test/remote.ts; an old
 -- library keeps the table harmlessly until DROP TABLE stopped_takes. Revisit when #139/#140 close.
+-- 2026-11-05. What each thread was before mentionApply put it on a word, so mentionUndo can put it
+-- back. One row per thread, written once. ponytail: kept until the writers have lived with the flip.
+-- To remove: delete this table, mentionApply/mentionUndo, and FLIP-* in test/db.ts; an old library
+-- keeps it harmlessly until DROP TABLE mention_flips. Revisit when nobody has asked for an undo by 2026-12.
+CREATE TABLE IF NOT EXISTS mention_flips (
+  entry_id TEXT PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  was_activation TEXT NOT NULL, was_keys TEXT NOT NULL, keys TEXT NOT NULL, at INTEGER NOT NULL);
+
 CREATE TABLE IF NOT EXISTS stopped_takes (
   generation_id TEXT PRIMARY KEY,
   story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
@@ -5010,3 +5020,53 @@ export { ftsQuery } from './search.ts';
 // declared, and not in `migrate()`. See `stringsToPockets`.
 try { stringsToPockets(); } catch (e: any) { console.log(`  the strings were NOT moved: ${e?.message}`); }
 try { rulesToPockets(); } catch (e: any) { console.log(`  the rules were NOT moved: ${e?.message}`); }
+
+/** EVERY ALWAYS-ON THREAD OF A TALE, ON A WORD (Seth, 2026-11-05: "all cards mention only by default,
+ *  including current stories", "flip them too"). Writes what `mentionPlan` (src/mention.ts) plans, from
+ *  the tale's chosen prose, and keeps what each thread was in `mention_flips`, once: a second run flips
+ *  nothing and never overwrites what was kept. Not a writer's edit, so no revision and no updated_at. */
+export function mentionApply(storyId: string) {
+  const st = getStory(storyId) as any;
+  if (!st) return { flipped: 0, kept: 0, plan: null };
+  // ONCE A THREAD IS FLIPPED IT IS THE WRITER'S: one she turned back on is never flipped again.
+  const done = new Set((q('SELECT entry_id FROM mention_flips WHERE story_id = ?').all(storyId) as any[]).map((r) => r.entry_id));
+  // Still in the plan's list, so their names stay theirs; only its activation keeps it from flipping.
+  const threads = (q('SELECT id, title, entry_type, activation, keys, proper_nouns FROM entries WHERE story_id = ?').all(storyId) as any[])
+    .map((e) => ({ id: e.id, title: e.title, entryType: e.entry_type, activation: done.has(e.id) ? 'flipped once' : e.activation, keys: keysOf(e.keys),
+      properNouns: e.proper_nouns == null ? undefined : !!e.proper_nouns }));
+  const prose = (q('SELECT body FROM passages WHERE story_id = ? AND selected = 1 AND (rejected IS NULL OR rejected = 0)')
+    .all(storyId) as any[]).map((p) => p.body).join('\n');
+  const plan = mentionPlan(threads, prose, { persona: st.persona, lockedCharacter: st.locked_character,
+    lockoutOn: st.lockout_on == null ? null : !!st.lockout_on });
+  const was = new Map(threads.map((t) => [t.id, t]));
+  db.exec('BEGIN');
+  try {
+    for (const f of plan.flip) {
+      const w = was.get(f.id)!;
+      q('INSERT OR IGNORE INTO mention_flips (entry_id, story_id, was_activation, was_keys, keys, at) VALUES (?,?,?,?,?,?)')
+        .run(f.id, storyId, w.activation, JSON.stringify(w.keys), JSON.stringify(f.keys), now());
+      q("UPDATE entries SET activation = 'triggered', keys = ? WHERE id = ? AND story_id = ?").run(JSON.stringify(f.keys), f.id, storyId);
+    }
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  return { flipped: plan.flip.length, kept: plan.kept.length, plan };
+}
+/** PUT A TALE'S THREADS BACK as `mentionApply` found them, every one the writer has not changed since
+ *  (still on a word, with the words it was given). A thread she changed is hers and stays as she left it. */
+export function mentionUndo(storyId: string) {
+  const rows = q('SELECT * FROM mention_flips WHERE story_id = ?').all(storyId) as any[];
+  let restored = 0;
+  db.exec('BEGIN');
+  try {
+    for (const r of rows) {
+      const cur = q('SELECT activation, keys FROM entries WHERE id = ? AND story_id = ?').get(r.entry_id, storyId) as any;
+      if (cur && cur.activation === 'triggered' && JSON.stringify(keysOf(cur.keys)) === r.keys) {
+        q('UPDATE entries SET activation = ?, keys = ? WHERE id = ? AND story_id = ?').run(r.was_activation, r.was_keys, r.entry_id, storyId);
+        restored++;
+      }
+    }
+    q('DELETE FROM mention_flips WHERE story_id = ?').run(storyId);
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  return { restored, left: rows.length - restored };
+}
