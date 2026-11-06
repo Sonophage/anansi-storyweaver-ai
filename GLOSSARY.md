@@ -228,6 +228,12 @@ and may advise on them, and never offers either. (ADR 0014.)
 _Avoid_: chat, Anansi chat, ask Anansi
 _In code_: `/api/talk`; a kept talk is a row of `talk_sessions`
 
+**Tidy**:
+Sort one thread into its Always true, where it stands and its pockets, and flag what does not belong
+to the tale it is in, each change shown for a yes or no. A thread that came from another tale shows
+Tidy lit until it has been tidied once.
+_Avoid_: clean up, Tidy for this tale
+
 **Workbench**:
 Where everything that wants the writer collects: chalked things, unkept strings, out-of-date
 summaries.
@@ -299,6 +305,11 @@ _Avoid_: prompts to take elsewhere, pattern book, the web, the forge
 _In code_: forge
 
 ## Starting and keeping tales
+
+**Recently deleted**:
+Versions of a passage the writer deleted, kept for seven days in Account across every tale, where
+anyone who writes the tale can read them and put one back behind its passage.
+_Avoid_: bin, trash, deleted versions
 
 **New tale**:
 Start a tale, by spark (from an idea), blank, or import.
