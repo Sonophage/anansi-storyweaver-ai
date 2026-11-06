@@ -3618,7 +3618,7 @@ question, "Aldis swallowed"), now a case; the counts below did not move with it.
 tale pinned and checked before generating; both arms take by take at the same moment. Two lines:
 ENCORE's last (Seth as Halsey, "And if I don't?", Seth answering is right) and a small scene (the writer
 as Aldis, Sabel answering). Every take after the first is the app's reroll of it, kept, so each answers
-the writer's line. Prompts as on main 38f5a2f. 80 calls, 0 failed, 0 lines unknown.
+the writer's line. The prompt is Seth's own Speak wording (saved 2026-11-03), checked in a run's manifest as the instruction sent. 80 calls, 0 failed, 0 lines unknown.
 
 | | Ornith-1.0-RPNTH-35B | Qwen3.6-WNTH-35B-A3B-NN | Fisher p |
 |---|---|---|---|

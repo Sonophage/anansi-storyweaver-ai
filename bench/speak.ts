@@ -153,8 +153,8 @@ const FIX = { title: 'SPEAK fixture', persona: 'Aldis Fen',
   who: { he: ['Aldis Fen'], she: ['Sabel'] } as Who };
 const ENC = { speaker: 'Halsey', who: { he: ['Seth'], she: ['Halsey'] } as Who };
 
-if (process.argv[2] === 'run') {
-  const n = Number(process.argv[3] ?? 20);
+type Arm = { port: number; model: string; speak?: (text: string) => string; must?: string };
+async function runArms(arms: [string, Arm][], n: number) {
   const { DatabaseSync } = await import('node:sqlite');
   const { spawn } = await import('node:child_process');
   const { mkdirSync, rmSync, appendFileSync, writeFileSync } = await import('node:fs');
@@ -162,7 +162,6 @@ if (process.argv[2] === 'run') {
   mkdirSync(OUT, { recursive: true }); rmSync(join(OUT, 'takes.jsonl'), { force: true });
   const SOURCE = process.env.ANANSI_DB ?? new URL('../../anansi/anansi.db', import.meta.url).pathname;
   const kids: any[] = []; process.on('exit', () => kids.forEach((k) => k.kill()));
-  const arms = Object.entries(ARMS) as [keyof typeof ARMS, (typeof ARMS)[keyof typeof ARMS]][];
   const ids: Record<string, { encore: string; fixture: string }> = {};
   for (const [arm, a] of arms) {
     const file = join(OUT, `${arm}.db`);
@@ -172,6 +171,14 @@ if (process.argv[2] === 'run') {
     const seth = (d.prepare("SELECT id FROM users WHERE login = 'sonophage'").get() as any).id;
     const enc = (d.prepare("SELECT id FROM stories WHERE title = 'ENCORE' AND owner_id = ?").get(seth) as any).id;
     d.prepare('UPDATE stories SET model = ? WHERE id = ?').run(a.model, enc);
+    // THE ARM'S ONE CHANGE: the writer's own Speak wording, rewritten in this copy only.
+    if (a.speak) {
+      const row = d.prepare("SELECT text FROM prompt_overrides WHERE owner_id = ? AND key = 'speak'").get(seth) as any;
+      if (!row) { console.error('no saved Speak wording to change'); process.exit(1); }
+      const next = a.speak(row.text);
+      if (next === row.text) { console.error(`${arm}: the change did not apply`); process.exit(1); }
+      d.prepare("UPDATE prompt_overrides SET text = ? WHERE owner_id = ? AND key = 'speak'").run(next, seth);
+    }
     d.close();
     const kid = spawn(process.execPath, ['--experimental-strip-types', 'serve.ts'], { cwd: new URL('..', import.meta.url).pathname,
       stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, ANANSI_PORT: String(a.port), ANANSI_DB: file, ANANSI_MODEL: a.model,
@@ -180,15 +187,16 @@ if (process.argv[2] === 'run') {
     kids.push(kid);
     ids[arm] = { encore: enc, fixture: '' };
   }
-  const j = (arm: keyof typeof ARMS, u: string, b?: unknown, m = 'POST') => fetch(`http://127.0.0.1:${ARMS[arm].port}${u}`, b
+  const port = Object.fromEntries(arms.map(([k, a]) => [k, a.port]));
+  const j = (arm: string, u: string, b?: unknown, m = 'POST') => fetch(`http://127.0.0.1:${port[arm]}${u}`, b
     ? { method: m, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) } : {}).then((r) => r.json() as any, (e) => ({ error: String(e) }));
   for (const [arm] of arms) {
     let up = false;
-    for (let i = 0; i < 90 && !up; i++) { up = await fetch(`http://127.0.0.1:${ARMS[arm].port}/`).then((r) => r.ok, () => false); if (!up) await new Promise((r) => setTimeout(r, 1000)); }
+    for (let i = 0; i < 90 && !up; i++) { up = await fetch(`http://127.0.0.1:${port[arm]}/`).then((r) => r.ok, () => false); if (!up) await new Promise((r) => setTimeout(r, 1000)); }
     if (!up) { console.error(`${arm} never came up; see ${OUT}/serve-${arm}.log`); process.exit(1); }
     // THE SMALL SCENE, built the way a writer would: a tale, its two people, the narration, then her line.
     const made = await j(arm, '/api/stories', { title: FIX.title, genre: 'fantasy noir', premise: 'A broke ex-sergeant owes a moneylender more than he can pay.',
-      setting: 'Vantic, a canal city, in the third week of rain', pov: 'third limited, past tense', persona: FIX.persona, model: ARMS[arm].model });
+      setting: 'Vantic, a canal city, in the third week of rain', pov: 'third limited, past tense', persona: FIX.persona, model: arms.find(([k]) => k === arm)![1].model });
     const put = (title: string, body: string) => j(arm, '/api/entry', { storyId: made.id, entry: { title, body, entryType: 'character', activation: 'always_on', keys: [title.split(' ')[0]] } });
     await put('Aldis Fen', 'He is 34, an ex-Watch sergeant, and owes Marek eleven crowns.');
     await put('Sabel', "She is Marek's collector: broad, unhurried, a woman who says little.");
@@ -197,7 +205,14 @@ if (process.argv[2] === 'run') {
     ids[arm].fixture = made.id;
     for (const id of Object.values(ids[arm])) {
       const v = await j(arm, `/api/story?story=${id}`, undefined, 'GET');
-      if (v.story?.model !== ARMS[arm].model) { console.error(`${arm} ${id} is on ${v.story?.model ?? v.error}`); process.exit(1); }
+      const want = arms.find(([k]) => k === arm)![1];
+      if (v.story?.model !== want.model) { console.error(`${arm} ${id} is on ${v.story?.model ?? v.error}`); process.exit(1); }
+      // AND ITS PROMPT, AS SENT: the arm's sentence is in the instruction this server will send.
+      if (want.must) {
+        const m = await j(arm, '/api/manifest', { storyId: id, mode: 'speak', speaker: id === ids[arm].encore ? ENC.speaker : FIX.persona });
+        if (!String(m.prompt ?? '').includes(want.must.replace('{{speaker}}', id === ids[arm].encore ? ENC.speaker : FIX.persona))) {
+          console.error(`${arm}: its prompt does not carry its change`); process.exit(1); }
+      }
     }
   }
   console.log(`  two servers up; each tale pinned to its arm's model; ${n} takes per line per arm`);
@@ -212,19 +227,34 @@ if (process.argv[2] === 'run') {
         if (first[arm]) Object.assign(body, { regenerateOf: first[arm], rejected: false });
         const r = await j(arm, '/api/generate', body);
         if (!first[arm] && r.passageId) first[arm] = r.passageId;
-        appendFileSync(join(OUT, 'takes.jsonl'), JSON.stringify({ arm, model: ARMS[arm].model, line, i, prose: r.prose ?? null, error: r.error ?? null }) + '\n');
+        appendFileSync(join(OUT, 'takes.jsonl'), JSON.stringify({ arm, model: arms.find(([k]) => k === arm)![1].model, line, i, prose: r.prose ?? null, error: r.error ?? null }) + '\n');
       }));
     }
     console.log(`  ${line}: ${n} takes per arm (${Math.round((Date.now() - t0) / 1000)}s so far)`);
   }
-  writeFileSync(join(OUT, 'run.json'), JSON.stringify({ ids, n, seconds: Math.round((Date.now() - t0) / 1000) }));
-  process.exit(0);
+  writeFileSync(join(OUT, 'run.json'), JSON.stringify({ ids, n, arms: arms.map(([k]) => k), seconds: Math.round((Date.now() - t0) / 1000) }));
 }
+
+// THE PROMPT A/B (#147, after F73): three arms, all Ornith, differing only in the writer's Speak wording.
+//   B  "Do not put further words in X's mouth" made a flat rule: X says nothing more in this passage
+//   C  that rule moved to the very end, after the writer's line, nearest where the model starts writing
+const OLD = "Do not put further words in {{speaker}}'s mouth, and do not decide what {{speaker}} does next.";
+const RULE = "{{speaker}} says nothing more in this passage: no line of dialogue in it is theirs.";
+const ORNITH = 'Ornith-1.0-RPNTH-35B';
+const AB: [string, Arm][] = [
+  ['A', { port: 5301, model: ORNITH }],
+  ['B', { port: 5302, model: ORNITH, must: RULE, speak: (t) => t.replace(OLD, `${RULE} Do not decide what {{speaker}} does next.`) }],
+  ['C', { port: 5303, model: ORNITH, must: RULE, speak: (t) => `${t.replace(OLD, 'Do not decide what {{speaker}} does next.')}\n\n${RULE}` }],
+];
+
+if (process.argv[2] === 'run') { await runArms(Object.entries(ARMS) as [string, Arm][], Number(process.argv[3] ?? 20)); process.exit(0); }
+if (process.argv[2] === 'ab') { await runArms(AB, Number(process.argv[3] ?? 20)); process.exit(0); }
+
 
 if (process.argv[2] === 'report') {
   const { readFileSync } = await import('node:fs');
   const rows = readFileSync(`${OUT}/takes.jsonl`, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-  for (const arm of Object.keys(ARMS)) {
+  for (const arm of [...new Set(rows.map((r) => r.arm as string))]) {
     let hits = 0, takes = 0, errors = 0, unknown = 0, lines = 0; const per: string[] = [];
     for (const line of ['encore', 'fixture']) {
       const rs = rows.filter((r) => r.arm === arm && r.line === line);
@@ -235,7 +265,7 @@ if (process.argv[2] === 'report') {
       hits += h; takes += ok.length; errors += rs.length - ok.length;
       per.push(`${line} ${h}/${ok.length}`);
     }
-    console.log(`  ${ARMS[arm as keyof typeof ARMS].model}: ${hits} of ${takes} takes give the speaker new words (${takes ? Math.round(hits / takes * 100) : 0}%) · ${per.join(' · ')} · ${errors} failed calls · ${unknown} of ${lines} lines unknown`);
+    console.log(`  ${arm} (${rows.find((r) => r.arm === arm).model}): ${hits} of ${takes} takes give the speaker new words (${takes ? Math.round(hits / takes * 100) : 0}%) · ${per.join(' · ')} · ${errors} failed calls · ${unknown} of ${lines} lines unknown`);
   }
   process.exit(0);
 }
