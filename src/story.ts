@@ -20,6 +20,8 @@ const toEntry = (r: any, states: any[] = []): Entry => ({
   stickyFor: r.sticky_for ?? undefined,
   properNouns: r.proper_nouns == null ? undefined : !!r.proper_nouns,
   retiredAtChapter: r.retired_at_chapter ?? undefined,
+  // A character's he, she or they, or null (2026-11-05): Speak's cut reads it (src/speak.ts).
+  pronoun: r.pronoun ?? null,
 });
 const toStory = (r: any) => ({
   title: r.title, genre: r.genre, premise: r.premise, setting: r.setting, pov: r.pov,

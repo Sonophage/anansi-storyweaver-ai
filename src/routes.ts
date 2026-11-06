@@ -20,6 +20,7 @@ import { resolveBody, stateInForce, wornAt, cardText, alwaysTrue, retiredAt, nar
 import type { Manifest } from './context.ts';
 import type { Block } from './blocks.ts';
 import { presets } from './presets.ts';
+import { cutSpeaker } from './speak.ts';
 import { checkAsked, expandAsked, entriesAsked, askedOf, mentioning, passageAt, asksForChange, checkUndo, undoFor, wordsFor, textsOf, cardOf, type Card, checkDraft, draftWords, offerWords, draftCard, startAsked, startNow, draftAsked, DRAFT_STRINGS, aimOf, askWhich, fingerprint, talesOwn, shortModel } from './changes.ts';
 import type { Change } from './changes.ts';
 import { codeContradictions, modelContradictions } from './contradictions.ts';
@@ -1770,13 +1771,36 @@ async function generate(c: Ctx, mode0: string, directive0: string | undefined, r
         cut = true;
       }
     }
+    /* #147 · SPEAK ENDS BEFORE THE WRITER'S CHARACTER SPEAKS AGAIN (Seth, 2026-11-05). F73: Ornith gives
+     * the character the writer just spoke as a new line in about half of Speak answers (Qwen3.6 one in
+     * five); F74: no prompt sentence moved it. So the answer is ended just before that line, here, before
+     * it is saved, recorded and handed to the page (src/speak.ts `cutSpeaker`). In the scene: the
+     * characters the last passages or the answer name, and the speaker, each with their pronoun; a
+     * pronoun two of them share names nobody, and those lines are counted (`unknown`), never cut. */
+    let speakCut: { cut: boolean; unknown: number } | undefined;
+    const who = String(speaker || v.story.persona || '').trim();
+    if (mode === 'speak' && who && prose.trim()) {
+      const scene = (v.passages as any[]).filter((p) => p.chapterId === v.currentChapter.id && (upTo == null || p.ordinal < upTo));
+      const line = [...scene].reverse().find((p) => p.author === 'human')?.body ?? '';
+      const window = [...scene.slice(-8).map((p) => p.body), prose].join('\n');
+      const named = (title: string) => {
+        const first = String(title).trim().split(/[\s,]+/)[0];
+        return first.length > 1 && new RegExp(`\\b${first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(window);
+      };
+      const people = (v.entries as any[]).filter((e) => e.entryType === 'character' && (e.title === who || named(e.title)))
+        .map((e) => ({ name: e.title, pronoun: e.pronoun }));
+      const r = cutSpeaker(prose, who, people, line);
+      speakCut = { cut: r.cut && !!r.text.trim(), unknown: r.unknown };
+      if (speakCut.cut) prose = r.text;
+    }
     const ms = Date.now() - t0;
     const genId = db.logGeneration({ storyId: v.id, chapterId: v.currentChapter.id, model: using, role,
       // A weaving call says so, with the cap it was really sent and the plan's LENGTH — what the
       // 5,000 is tuned from. The plan itself is never stored: it is never shown, and the row is.
       // A landed one says where it stopped and how long the ending ran; the usage is the passage's.
       params: { ...c.gen, seed, ms: appMs,
-                ...wove(reply, r), ...(landing ? { landed: landing } : {}), ...(away ? { away } : {}) },
+                ...wove(reply, r), ...(landing ? { landed: landing } : {}), ...(away ? { away } : {}),
+                ...(speakCut ? { speakCut } : {}) },
       manifest, promptTokens: r.usage?.prompt_tokens,
       completionTokens: r.usage?.completion_tokens, timings: r.timings, latencyMs: ms });
     /* PERSISTED HERE, UNCLAIMED, WHEN SOMEBODY IS WATCHING — bugs.md #9.
