@@ -2445,7 +2445,7 @@ export const hemSettled = (storyId: string): Promise<void> => hemQueue.get(story
 
 /** The passes a hem reports on, by the names its report uses, in the order they run. `serve.ts` hands
  *  it to `db.stopUnfinishedHems` at boot. */
-export const HEM_PASSES = ['summary', 'tale', 'memory', 'facts', 'finished', 'next'] as const;
+export const HEM_PASSES = ['summary', 'facts', 'finished', 'tale', 'memory', 'next'] as const;
 type HemWant = Record<typeof HEM_PASSES[number], boolean>;
 /** #91. The one queue every hem job goes through, so a try-again or a hem again never runs beside
  *  another hem on the same tale. */
@@ -2514,18 +2514,10 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   });
   const keptSummary = summed?.kept === true;
   if (keptSummary) passes.summary = null;
-  // #125 · Where the tale stands, after the summary and before the threads: one entry on the tale's
-  // own thread, chalked on this scene's card. #127 · And where each string in play stands, beside it.
-  // The character memory, on the same terms: a chapter must be able to close with the model down.
-  // IN A ROW, NOT AT ONCE (Seth, 2026-11-01). The speed pass (2026-10-30) ran these two together;
-  // Featherless refused the second on one writer's plan ("Featherless is busy") on his own hem and in
-  // every walk that day, which was this line's own trigger. About 25 seconds slower, and they land.
-  await pass('tale', want.tale, async () => {
-    const tale = await taleStands(c, storyId, closing, scene);
-    const strings = await stringsStand(c, storyId, closing, scene);
-    return { error: tale?.error ?? strings?.error ?? null };
-  });
-  await pass('memory', want.memory, () => remember(c, storyId, closing, scene, names, briefThreads(storyId, brief)));
+  // IN THE ORDER THE HEM DRAWER RUNS THEM (Seth, 2026-11-06: "organize the status list that way"):
+  // the drawer holds where the tale stands, the people and the next scene for the writer's brief, so
+  // the summary, the new threads and the retirements always ran first there. Hem again runs the same
+  // order, and the steps are drawn in it (`PASSES` in web/app.js).
   // And read it for facts. The comment above summarise applies to this word for word: the ledger
   // is the only tier that survives compaction — prose falls out of the chapter window, summaries
   // roll into arcs, and entries are re-sent on every call forever — so leaving the tier that
@@ -2538,12 +2530,24 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   // The end-chapter ritual used to make this call itself as its own step 3. It must not again:
   // the scene would be read twice, and the surface would report on a pass that did not land.
   await pass('facts', want.facts, () => extract(c, storyId, closing, scene));
-  // And ask which of them the chapter FINISHED. After the three that add, deliberately: it is the
+  // And ask which of them the chapter FINISHED. After the new threads, deliberately: it is the
   // only step that takes something away, and a writer reading the queue should meet what the
   // chapter added before what it ended. Nothing is written here either — a retirement is a proposal, and
   // accepting one is the only decision in the app that changes what the model is told for the
   // rest of the book.
   await pass('finished', want.finished, () => retire(c, storyId, closing, scene));
+  // #125 · Where the tale stands, after the summary and the threads: one entry on the tale's
+  // own thread, chalked on this scene's card. #127 · And where each string in play stands, beside it.
+  // The character memory, on the same terms: a chapter must be able to close with the model down.
+  // IN A ROW, NOT AT ONCE (Seth, 2026-11-01). The speed pass (2026-10-30) ran these two together;
+  // Featherless refused the second on one writer's plan ("Featherless is busy") on his own hem and in
+  // every walk that day, which was this line's own trigger. About 25 seconds slower, and they land.
+  await pass('tale', want.tale, async () => {
+    const tale = await taleStands(c, storyId, closing, scene);
+    const strings = await stringsStand(c, storyId, closing, scene);
+    return { error: tale?.error ?? strings?.error ?? null };
+  });
+  await pass('memory', want.memory, () => remember(c, storyId, closing, scene, names, briefThreads(storyId, brief)));
   // The next scene's suggestion, last: it reads the summary the first pass just wrote. With the
   // writer's opening when the hem asked for one (2026-10-30), and INTO THE SCENE: the writing
   // prompt reads the scene's own name, opening and heading, never the hem's suggestion, so a

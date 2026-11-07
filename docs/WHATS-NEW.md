@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-06 · Act answers what you did
 
+### The hem's steps are listed in the order they run
+The hem screen now lists its steps in the order Anansi does them: the summary, new threads, threads it
+is done with, where the tale stands, changes to the people in it, then the next scene and who is in it.
+"Hem it again" runs them in that same order.
+
 ### A hem looks at up to ten people
 When you hem a scene, Anansi now reviews up to ten of the people and things it names, up from six. The
 rest are still named on the hem's card, one press away.

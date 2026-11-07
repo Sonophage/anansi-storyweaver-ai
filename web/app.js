@@ -4525,11 +4525,10 @@ function hemStepStates(ch, closed) {
     state: !ready || owed ? 'wait' : !next || started ? 'done' : 'you',
     line: !ready || owed ? '' : !next || started ? 'Under way' : 'Ready when you are' };
   // ONE GOLD STEP, the next one: a later step that also waits on the writer waits its turn.
-  // IN THE ORDER IT HAPPENS (Seth, 2026-10-30): the next scene and who is in it first, then the
-  // summary, then the rest of Anansi's passes, then the writer's. Only the drawing order.
-  const at = (k) => passes.filter((x) => x.k === k);
-  const all = [...at('next'), ...who, ...at('summary'), ...passes.filter((x) => x.k !== 'next' && x.k !== 'summary'),
-    decide, setup], first = all.find((x) => x.state === 'you');
+  // IN THE ORDER THEY RUN (Seth, 2026-11-06: "see the order that it was run and organize the status
+  // list that way"): Anansi's passes as `PASSES` has them, who is in the next scene after the next
+  // scene, then the writer's two. Until then the next scene and who is in it were drawn first.
+  const all = [...passes, ...who, decide, setup], first = all.find((x) => x.state === 'you');
   for (const x of all) if (x.state === 'you' && x !== first) x.state = 'wait';
   return all;
 }
@@ -7837,8 +7836,9 @@ const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The brief'], ['more
 // ONE NAME PER PASS, the same on the hem drawer's steps, its failure box and the Workbench card
 // (walkthrough, 2026-10-30: the same pass was "the character memory", "Changes to the people in it"
 // and "Changes" on three screens).
-const PASSES = [['summary', 'Summary'], ['tale', 'Where the tale stands'], ['memory', 'Changes to the people in it'],
-                ['facts', 'New threads'], ['finished', 'Threads it is done with'], ['next', 'The next scene']];
+// IN THE ORDER THEY RUN (`HEM_PASSES` in src/routes.ts; Seth, 2026-11-06).
+const PASSES = [['summary', 'Summary'], ['facts', 'New threads'], ['finished', 'Threads it is done with'],
+                ['tale', 'Where the tale stands'], ['memory', 'Changes to the people in it'], ['next', 'The next scene']];
 
 /** Which of them did not run on this scene's hem, in the order they run in. Empty when everything
  *  ran, which is the normal case — so every caller can treat length as "is there anything to say". */

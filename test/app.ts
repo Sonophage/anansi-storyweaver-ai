@@ -8187,8 +8187,8 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // below the steps change"). Anansi's six passes, then the writer's two, each in one state.
   {
     const states = (side: string) => [...side.matchAll(/data-hemstep="([a-z]+)" data-done="[01]"\s*data-state="([a-z]+)"/g)].map((m) => `${m[1]}:${m[2]}`);
-    // IN THE ORDER IT HAPPENS (Seth, 2026-10-30): the next scene first, then the summary and the rest.
-    const order = ['next', 'summary', 'tale', 'memory', 'facts', 'finished', 'decide', 'setup'];
+    // IN THE ORDER THEY RUN (Seth, 2026-11-06).
+    const order = ['summary', 'facts', 'finished', 'tale', 'memory', 'next', 'decide', 'setup'];
     const below = (side: string) => side.match(/<div class="hemact">([\s\S]*?)<\/div>\s*<details class="hemmore/)?.[1] ?? 'NO HEMACT';
     click({ open: 's-1' }); await sleep(40);
     click({ ritual: '1' }); await sleep(30);
@@ -8200,8 +8200,8 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     assert.doesNotMatch(side, /data-panel="waiting"|passes did not run/, 'HEM-QUIET: no Decide button and no report box');
     side = await reportOn({ ...ran, tale: null, facts: 'the model did not answer' });
     assert.deepStrictEqual(states(side).map((x) => x.split(':')[0]),
-      ['next', 'who', 'summary', 'tale', 'memory', 'facts', 'finished', 'decide', 'setup'],
-      'HEM-ORDER: after a hem, the next scene and who is in it come first, then the summary, then the rest');
+      ['summary', 'facts', 'finished', 'tale', 'memory', 'next', 'who', 'decide', 'setup'],
+      'HEM-ORDER: after a hem, the passes in the order they run, who is in the next scene after the next scene, then the writer\'s two');
     assert.deepStrictEqual(states(side).filter((x) => !/^(who|decide|setup):/.test(x)).sort(),
       ['facts:fail', 'finished:done', 'memory:done', 'next:done', 'summary:done', 'tale:done'],
       'HEM-STATES: after a hem, the passes that ran are done and the one that did not failed');
