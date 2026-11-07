@@ -110,7 +110,21 @@ const DOCUMENTED = new Set(['model', 'messages', 'text', 'temperature', 'top_p',
  *  var exists only so the test suite can shrink the wait. */
 const BACKOFF = (process.env.ANANSI_FEATHERLESS_BACKOFF_MS ?? '2000,6000,12000')
   .split(',').map(Number).filter((n) => n >= 0);
-const FEATHERLESS_BUSY = 'Featherless is busy, try again';
+/** WHICH BUSY (Seth, 2026-11-06: "Featherless keeps telling me it's busy, what's up"). One sentence
+ *  used to cover three refusals, and only one of them is about the writer's own calls. Measured that
+ *  night: his plan stood at 0 of 4 units (`GET /account/concurrency`) while six models answered 503
+ *  `capacity_exhausted`, which is Featherless's own machines being full. All three are waited out on
+ *  the same schedule; past it, the LAST refusal decides the words.
+ *    plan   — a 429: this writer's plan is in use (their own calls, or a guest's in a shared book).
+ *    model  — a 503 `capacity_exhausted`, or "at capacity" inside a stream: that model is full.
+ *    switch — a 429 `model_switching_limit_exceeded`: too many different models in a short time.
+ *  The model's name is its last path part, as the picker shows it. */
+type Busy = 'plan' | 'model' | 'switch';
+const featherlessBusy = (why: Busy, model: string) => why === 'model'
+  ? `${model.split('/').pop()} is full on Featherless right now. Try another model, or try again in a few minutes.`
+  : why === 'switch'
+    ? 'Featherless refused: too many model changes in a short time. Wait a minute, then try again.'
+    : 'Your Featherless plan is in use by another call. Try again when it finishes.';
 /** #64 · AT CAPACITY, SAID INSIDE A STREAM. Featherless can answer 200, open the stream, and then
  *  send an `error` object whose message is "<model> is temporarily at capacity. Please try again
  *  shortly." (Kia, 2026-10-22 20:23 and 20:24). Only the message was seen, so the message is what
@@ -177,12 +191,13 @@ async function featherless(path: string, body: Record<string, any>, signal?: Abo
     // AT CAPACITY IS BUSY TOO. Featherless says a model is full with a 503 whose body carries
     // `capacity_exhausted` (seen live 2026-10-22 on two models). It passes in moments, as a 429
     // does, so it waits on the same schedule and ends in the same words. Any other 503 is not it.
+    // A 429's body is read for its code alone (which busy it is); its message is never shown.
     let error: any = null;
-    if (res.status === 429) await res.body?.cancel().catch(() => {});
-    else try { error = JSON.parse(await res.text())?.error; } catch { /* unreadable, or not JSON */ }
+    try { error = JSON.parse(await res.text())?.error; } catch { /* unreadable, or not JSON */ }
     if (res.status === 429 || (res.status === 503 && error?.code === 'capacity_exhausted')) {
       if (attempt < BACKOFF.length) { await pause(BACKOFF[attempt], signal); continue; }
-      throw new Error(FEATHERLESS_BUSY);
+      throw new Error(featherlessBusy(res.status === 503 ? 'model'
+        : error?.code === 'model_switching_limit_exceeded' ? 'switch' : 'plan', payload.model));
     }
     // ITS MESSAGE, NOT ITS BODY. The status and what Featherless says went wrong, redacted and
     // bounded; the raw body is never echoed to a writer.
@@ -513,7 +528,7 @@ export async function chat(system: string, body: string, opts: Record<string, un
         if (!remote || e?.name === 'AbortError' || stop?.aborted) throw e;
         if (!wrote && atCapacity(e)) {
           if (tries < BACKOFF.length) { await pause(BACKOFF[tries], signal); continue; }
-          throw new Error(FEATHERLESS_BUSY);
+          throw new Error(featherlessBusy('model', remoteName(on)));
         }
         // A remote stream that fails after the 200 is still Featherless talking: its words are
         // redacted like any other answer of its, and the take fails rather than landing half-written.

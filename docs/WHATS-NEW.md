@@ -18,6 +18,17 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-06 · Act answers what you did
 
+### "Featherless is busy" now says which kind of busy
+When Featherless turns a passage away, Anansi still waits and tries again for about twenty seconds.
+If it still can't write, it now says why:
+- **The model is full on Featherless.** Featherless's own machines for that model are taken by other
+  people. It names the model, and you can try another or wait a few minutes.
+- **Your plan is in use.** Another call of yours is still running. Try again when it ends.
+- **Too many model changes.** You tried several models in a short time. Wait a minute.
+
+Before, all three said "Featherless is busy, try again", which made it look like something of yours was
+in the way when usually it was not.
+
 ### New threads and Anyone new are one step
 A hem now looks for new people, places and things once, at the end: in the scene you just wrote and
 in what you said the next scene is. What it finds shows under Anyone new when you set up the next

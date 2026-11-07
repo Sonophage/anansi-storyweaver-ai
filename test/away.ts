@@ -333,7 +333,7 @@ const kept = (id: string) => {
 
   flScript = [SAME, '429', '429', '429', '429', OTHER];
   const out = await remote();
-  assert.strictEqual(out.last.error, 'Featherless is busy, try again', `REMOTE-BUSY-OUT: past the backoff the reroll ends as a busy one does (${out.last.error})`);
+  assert.strictEqual(out.last.error, 'Your Featherless plan is in use by another call. Try again when it finishes.', `REMOTE-BUSY-OUT: past the backoff the reroll ends as a busy one does (${out.last.error})`);
   assert.strictEqual(out.page, '', 'REMOTE-BUSY-OUT: and the page never saw the copied opening');
   ok('on Featherless a restart is one more stream; a 429 on it is waited out, and past the backoff it fails as busy');
 }

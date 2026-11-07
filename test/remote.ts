@@ -116,6 +116,10 @@ const flSrv = createServer((req, res) => {
     // machine is offline or Featherless is down.
     if (how === 'down') return req.socket.destroy();
     if (how === '429') return json(429, { error: { message: `concurrency limit, key ${KEY}` } });
+    // TOO MANY MODEL CHANGES, as the real one said it (2026-11-06, eight models probed in a minute):
+    // a 429 too, told apart only by its code.
+    if (how === 'switching') return json(429, { error: { message: `model switching limit, key ${KEY}`,
+      type: 'rate_limit_error', code: 'model_switching_limit_exceeded' } });
     // AT CAPACITY, AS THE REAL ONE SAYS IT (seen live 2026-10-22 on two models): a 503 whose body
     // names the model and carries the code. Any other 503 has no such code.
     if (how === 'capacity') return json(503, { error: { message: `${body.model} is temporarily at `
@@ -505,12 +509,26 @@ const mark = () => ({ fl: fl.length, local: local.length });
   m = mark();
   script.push('429', '429', '429', '429');
   const busy = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
-  assert.strictEqual(busy.error, 'Featherless is busy, try again', 'the composer is told plainly');
+  assert.strictEqual(busy.error, 'Your Featherless plan is in use by another call. Try again when it finishes.', 'PLAN-BUSY: a 429 says the plan is in use, plainly');
   const tried = since(m);
   assert.strictEqual(tried.fl.length, 4, 'one call and three retries, no more');
   assert.ok(tried.fl.every((x) => x.body.model === REMOTE), 'every attempt was the chosen model');
   assert.strictEqual(tried.local.length, 0, 'NO FALLBACK: nothing went to the local router instead');
   assert.ok(!leaked(r, busy), 'the key appears in no response, log line or generation row');
+
+  // WHICH BUSY. A 429 for too many model changes is waited out the same way, and says so.
+  m = mark();
+  script.push('switching', 'switching', 'switching', 'switching');
+  const switched = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.strictEqual(switched.error, 'Featherless refused: too many model changes in a short time. Wait a minute, then try again.',
+    'SWITCH-BUSY: a model-switching 429 says so, not that the plan is in use');
+  assert.strictEqual(since(m).fl.length, 4, 'SWITCH-BUSY: on the same schedule');
+  // The LAST refusal names it: plan full three times, then the model, is the model.
+  m = mark();
+  script.push('429', '429', '429', 'capacity');
+  const last = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
+  assert.match(String(last.error), /is full on Featherless/, 'LAST-NAMES: the last refusal decides the words');
+  assert.ok(!leaked(switched, last), 'the key appears in neither');
   ok('a 429 is retried three times, then reported, and never falls back');
 }
 
@@ -560,7 +578,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   m = mark();
   script.push('capacity', 'capacity', 'capacity', 'capacity');
   const busy = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
-  assert.strictEqual(busy.error, 'Featherless is busy, try again', 'CAPACITY-BUSY: reported as busy, plainly');
+  assert.strictEqual(busy.error, 'Qwen3.6-35B-A3B-uncensored-heretic is full on Featherless right now. Try another model, or try again in a few minutes.', 'CAPACITY-BUSY: says the model is full, by name, and what to do');
   const tried = since(m);
   assert.strictEqual(tried.fl.length, 4, 'one call and three retries, no more');
   assert.ok(tried.fl.every((x) => x.body.model === REMOTE), 'every attempt was the chosen model');
@@ -606,7 +624,7 @@ const mark = () => ({ fl: fl.length, local: local.length });
   m = mark();
   script.push('streamcap', 'streamcap', 'streamcap', 'streamcap');
   const busy = await streamed({ storyId: story.id, mode: 'continue' });
-  assert.strictEqual(busy.last.error, 'Featherless is busy, try again', 'STREAMCAP-BUSY: reported as busy, plainly');
+  assert.strictEqual(busy.last.error, 'Qwen3.6-35B-A3B-uncensored-heretic is full on Featherless right now. Try another model, or try again in a few minutes.', 'STREAMCAP-BUSY: says the model is full, as the 503 does');
   assert.strictEqual(since(m).fl.length, 4, 'one call and three retries, no more');
   assert.strictEqual(since(m).local.length, 0, 'NO FALLBACK: nothing went to the local router instead');
 
@@ -614,8 +632,8 @@ const mark = () => ({ fl: fl.length, local: local.length });
   m = mark();
   script.push('capacity', 'streamcap', 'capacity', 'streamcap');
   const mixed = await streamed({ storyId: story.id, mode: 'continue' });
-  assert.strictEqual(mixed.last.error, 'Featherless is busy, try again',
-    'SHARED-SCHEDULE: two 503s and two in-stream errors are four tries, then busy');
+  assert.strictEqual(mixed.last.error, 'Qwen3.6-35B-A3B-uncensored-heretic is full on Featherless right now. Try another model, or try again in a few minutes.',
+    'SHARED-SCHEDULE: two 503s and two in-stream errors are four tries, then the model is full');
   assert.strictEqual(since(m).fl.length, 4, 'SHARED-SCHEDULE: and no fifth call');
 
   // After content it is a failure, as any mid-stream failure is: no silent restart of a half passage.

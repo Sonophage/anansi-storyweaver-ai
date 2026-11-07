@@ -60,7 +60,7 @@ const MIN_CONTEXT = 16_384;
  *  2026-10-25, opening them to Kia). Until then only the admin could, and every other writer was
  *  held to half the plan so the other could always write. While a 3- or 4-unit model runs, the
  *  other writer's call is refused with a 429: it waits through the retries in `llama.ts` and is
- *  then told Featherless is busy. That wait is the price, and it was chosen.
+ *  then told their plan is in use. That wait is the price, and it was chosen.
  *
  *  Why `row` cannot go on a shortlist, or null when it can. ONE PREDICATE for the search and the
  *  add, so the search never offers what the add would refuse. */

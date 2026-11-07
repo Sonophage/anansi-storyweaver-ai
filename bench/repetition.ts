@@ -20,7 +20,7 @@
 // RUN THE REAL ONE ONLY WHEN NOBODY IS WRITING. Every call goes to the real Featherless, one at a
 // time, on the BOOK OWNER'S key (`featherless-<login>.key`, the payer the app itself would use).
 // Anubis-70B costs all four of the plan's units, so a writer on a remote model during the run gets
-// "Featherless is busy", and the run gets the same 429s back.
+// told their Featherless plan is in use, and the run gets the same 429s back.
 // Models × three arms × `runs` calls: 18 at the default with two models, about 5,000 prompt tokens each.
 //
 // THE REAL PROMPT, AND NEVER THE LIVE LIBRARY. The book is `BOOK` below, read from a SCRATCH COPY
