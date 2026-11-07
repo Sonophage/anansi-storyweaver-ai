@@ -567,20 +567,21 @@ const mark = () => ({ fl: fl.length, local: local.length });
   ok('the ceiling firing during the back-off says Featherless did not answer in time');
 }
 
-// ---- 4c. at capacity is retried like a 429, then reported as busy; it never falls back ----
+// ---- 4c. at capacity is retried ONCE, then reported as the model being full; it never falls back ----
 {
   let m = mark();
-  script.push('capacity', 'capacity', 'capacity');
+  script.push('capacity');
   const r = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
-  assert.ok(!r.error, `CAPACITY-RETRY: three at-capacity answers, then the passage (${r.error})`);
-  assert.strictEqual(since(m).fl.length, 4, 'CAPACITY-RETRY: retried on the 429 schedule');
+  assert.ok(!r.error, `CAPACITY-RETRY: one at-capacity answer, then the passage (${r.error})`);
+  assert.strictEqual(since(m).fl.length, 2, 'CAPACITY-RETRY: retried once');
 
   m = mark();
-  script.push('capacity', 'capacity', 'capacity', 'capacity');
+  script.push('capacity', 'capacity');
   const busy = await routes['POST /api/generate'](ctx(me, { storyId: story.id, mode: 'continue' }));
   assert.strictEqual(busy.error, 'Qwen3.6-35B-A3B-uncensored-heretic is full on Featherless right now. Try another model, or try again in a few minutes.', 'CAPACITY-BUSY: says the model is full, by name, and what to do');
   const tried = since(m);
-  assert.strictEqual(tried.fl.length, 4, 'one call and three retries, no more');
+  assert.strictEqual(tried.fl.length, 2, 'FULL-ONCE: one call and one retry, no more (each costs Featherless 12-16 s)');
+  assert.strictEqual(script.length, 0, 'FULL-ONCE: no answer left unasked for');
   assert.ok(tried.fl.every((x) => x.body.model === REMOTE), 'every attempt was the chosen model');
   assert.strictEqual(tried.local.length, 0, 'NO FALLBACK: nothing went to the local router instead');
 
@@ -609,32 +610,32 @@ const mark = () => ({ fl: fl.length, local: local.length });
   assert.ok(took < 2000, `STOP-CAPACITY: Stop ends the at-capacity wait at once (took ${took} ms)`);
   assert.strictEqual(e?.name, 'AbortError', 'STOP-CAPACITY: it ends as a stop');
   assert.strictEqual(since(m).fl.length, 1, 'and no retry is sent after Stop');
-  ok('at capacity is retried like a 429, reported as busy, stoppable, and never falls back');
+  ok('at capacity is retried once, reported as the model being full, stoppable, and never falls back');
 }
 
 // ---- 4d. at capacity INSIDE the stream, before any content, is retried like the 503 (#64) ----
 {
   let m = mark();
-  script.push('streamcap', 'streamcap', 'streamcap');
+  script.push('streamcap');
   const r = await streamed({ storyId: story.id, mode: 'continue' });
-  assert.ok(!r.last.error, `STREAMCAP-RETRY: three in-stream capacity errors, then the passage (${r.last.error})`);
-  assert.strictEqual(since(m).fl.length, 4, 'STREAMCAP-RETRY: retried on the 429 schedule');
+  assert.ok(!r.last.error, `STREAMCAP-RETRY: one in-stream capacity error, then the passage (${r.last.error})`);
+  assert.strictEqual(since(m).fl.length, 2, 'STREAMCAP-RETRY: retried once, as the 503 is');
   assert.deepStrictEqual(r.deltas, ['The remote ', 'streamed this.'], 'and the passage arrives once, whole');
 
   m = mark();
-  script.push('streamcap', 'streamcap', 'streamcap', 'streamcap');
+  script.push('streamcap', 'streamcap');
   const busy = await streamed({ storyId: story.id, mode: 'continue' });
   assert.strictEqual(busy.last.error, 'Qwen3.6-35B-A3B-uncensored-heretic is full on Featherless right now. Try another model, or try again in a few minutes.', 'STREAMCAP-BUSY: says the model is full, as the 503 does');
-  assert.strictEqual(since(m).fl.length, 4, 'one call and three retries, no more');
+  assert.strictEqual(since(m).fl.length, 2, 'STREAMCAP-ONCE: one call and one retry, no more');
   assert.strictEqual(since(m).local.length, 0, 'NO FALLBACK: nothing went to the local router instead');
 
   // ONE SCHEDULE, whichever way Featherless says it: a 503 and an in-stream error share the tries.
   m = mark();
-  script.push('capacity', 'streamcap', 'capacity', 'streamcap');
+  script.push('capacity', 'streamcap');
   const mixed = await streamed({ storyId: story.id, mode: 'continue' });
   assert.strictEqual(mixed.last.error, 'Qwen3.6-35B-A3B-uncensored-heretic is full on Featherless right now. Try another model, or try again in a few minutes.',
-    'SHARED-SCHEDULE: two 503s and two in-stream errors are four tries, then the model is full');
-  assert.strictEqual(since(m).fl.length, 4, 'SHARED-SCHEDULE: and no fifth call');
+    'SHARED-SCHEDULE: a 503 and an in-stream error are the two tries, then the model is full');
+  assert.strictEqual(since(m).fl.length, 2, 'SHARED-SCHEDULE: and no third call');
 
   // After content it is a failure, as any mid-stream failure is: no silent restart of a half passage.
   m = mark();

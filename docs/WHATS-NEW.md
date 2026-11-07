@@ -19,10 +19,11 @@ Everything below this line was written by that model call, before it was removed
 ## 2026-11-06 · Act answers what you did
 
 ### "Featherless is busy" now says which kind of busy
-When Featherless turns a passage away, Anansi still waits and tries again for about twenty seconds.
-If it still can't write, it now says why:
+When Featherless turns a passage away, Anansi waits and tries again. If it still can't write, it now
+says why:
 - **The model is full on Featherless.** Featherless's own machines for that model are taken by other
-  people. It names the model, and you can try another or wait a few minutes.
+  people. It names the model, and you can try another or wait a few minutes. Anansi tries a full model
+  only twice now, so you hear this in about half a minute instead of over a minute.
 - **Your plan is in use.** Another call of yours is still running. Try again when it ends.
 - **Too many model changes.** You tried several models in a short time. Wait a minute.
 

@@ -120,6 +120,12 @@ const BACKOFF = (process.env.ANANSI_FEATHERLESS_BACKOFF_MS ?? '2000,6000,12000')
  *    switch — a 429 `model_switching_limit_exceeded`: too many different models in a short time.
  *  The model's name is its last path part, as the picker shows it. */
 type Busy = 'plan' | 'model' | 'switch';
+/** A FULL MODEL IS TRIED TWICE, NOT FOUR TIMES (Seth, 2026-11-06: "cut the retries on a full
+ *  model"). Each `capacity_exhausted` took Featherless 12-16 s to send that night, so the full
+ *  schedule kept a writer about 70 s before saying anything, and four of his five calls were stopped
+ *  by hand inside that wait. One retry still rides out a blip (#64's passed in moments). It counts
+ *  the call's tries so far, whichever refusal spent them: a full model after three 429s fails at once. */
+const FULL_RETRIES = 1;
 const featherlessBusy = (why: Busy, model: string) => why === 'model'
   ? `${model.split('/').pop()} is full on Featherless right now. Try another model, or try again in a few minutes.`
   : why === 'switch'
@@ -189,13 +195,14 @@ async function featherless(path: string, body: Record<string, any>, signal?: Abo
     }
     if (res.ok) return Object.assign(res, { attempt });
     // AT CAPACITY IS BUSY TOO. Featherless says a model is full with a 503 whose body carries
-    // `capacity_exhausted` (seen live 2026-10-22 on two models). It passes in moments, as a 429
-    // does, so it waits on the same schedule and ends in the same words. Any other 503 is not it.
+    // `capacity_exhausted` (seen live 2026-10-22 on two models). It waits on the 429's schedule but
+    // stops after `FULL_RETRIES`, and says the model is full. Any other 503 is not it.
     // A 429's body is read for its code alone (which busy it is); its message is never shown.
     let error: any = null;
     try { error = JSON.parse(await res.text())?.error; } catch { /* unreadable, or not JSON */ }
     if (res.status === 429 || (res.status === 503 && error?.code === 'capacity_exhausted')) {
-      if (attempt < BACKOFF.length) { await pause(BACKOFF[attempt], signal); continue; }
+      const tries = res.status === 503 ? Math.min(FULL_RETRIES, BACKOFF.length) : BACKOFF.length;
+      if (attempt < tries) { await pause(BACKOFF[attempt], signal); continue; }
       throw new Error(featherlessBusy(res.status === 503 ? 'model'
         : error?.code === 'model_switching_limit_exceeded' ? 'switch' : 'plan', payload.model));
     }
@@ -506,7 +513,7 @@ export async function chat(system: string, body: string, opts: Record<string, un
     const remote = isRemote(payload.model);
     const on = String(payload.model);
     // #64 · AT CAPACITY BEFORE THE FIRST WORD IS TRIED AGAIN, on the schedule the 503 uses and
-    // sharing its tries, so a mix of the two still ends in the same words after the same four calls.
+    // sharing its tries, so a mix of the two ends in the same words after the same two calls.
     // After a word has reached the page it is a failure like any other mid-stream one: a passage
     // is never silently restarted under the writer's eyes. Only a remote call loops.
     for (let tries = 0; ; tries++) {
@@ -527,7 +534,7 @@ export async function chat(system: string, body: string, opts: Record<string, un
       } catch (e: any) {
         if (!remote || e?.name === 'AbortError' || stop?.aborted) throw e;
         if (!wrote && atCapacity(e)) {
-          if (tries < BACKOFF.length) { await pause(BACKOFF[tries], signal); continue; }
+          if (tries < Math.min(FULL_RETRIES, BACKOFF.length)) { await pause(BACKOFF[tries], signal); continue; }
           throw new Error(featherlessBusy('model', remoteName(on)));
         }
         // A remote stream that fails after the 200 is still Featherless talking: its words are
