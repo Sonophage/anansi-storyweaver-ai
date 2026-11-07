@@ -9,7 +9,7 @@
 // Seth's labelled read decides; the report gives the counts behind it.
 //
 //   node --experimental-strip-types bench/tidy-foreign.ts check          # the sheet's grouping, no model
-//   node --experimental-strip-types bench/tidy-foreign.ts run <base-checkout>
+//   [BENCH_CASE=encore] node --experimental-strip-types bench/tidy-foreign.ts run <base-checkout>
 //   node --experimental-strip-types bench/tidy-foreign.ts report
 //
 // NEVER THE LIVE LIBRARY: a copy (bench/scene.ts), where both tales are handed to the desk writer,
@@ -23,9 +23,20 @@ import { copyAt, serveAt } from './scene.ts';
 const MODEL = 'Ornith-1.0-RPNTH-35B';
 const OUT = process.env.BENCH_OUT ?? '/tmp/anansi-tidy-foreign';
 const SOURCE = process.env.ANANSI_DB ?? new URL('../../anansi/anansi.db', import.meta.url).pathname;
-export const ELSEWHERE = ['Talia', 'Morgott', 'Melina', 'Ranni', 'Godrick', 'Master Hewg', 'Sir Gideon Ofnir', 'Fia'];
-export const OWN = ['Leda', 'Messmer the Impaler', 'Tanith', 'Miquella', 'Malenia', 'Mohg'];
-const FROM = 'The Lands Between', INTO = 'The Shadow Lands';
+// TWO CASES. `er` is Kia's two Elden Ring tales, one cast in both, so almost nothing in them is another
+// tale's (run two found one name, Margit, who is Morgott in disguise). `encore` is Seth's ENCORE copied
+// into his The Murmur in the Marrow, where every ENCORE name is another tale's (Seth, 2026-11-06).
+const CASES: Record<string, { from: string; into: string; login: string; elsewhere: string[]; own: string[] }> = {
+  er: { from: 'The Lands Between', into: 'The Shadow Lands', login: 'kia',
+    elsewhere: ['Talia', 'Morgott', 'Melina', 'Ranni', 'Godrick', 'Master Hewg', 'Sir Gideon Ofnir', 'Fia'],
+    own: ['Leda', 'Messmer the Impaler', 'Tanith', 'Miquella', 'Malenia', 'Mohg'] },
+  encore: { from: 'ENCORE', into: 'The Murmur in the Marrow', login: 'sonophage',
+    elsewhere: ['Halsey', 'Marcus', 'Lisa', 'Tessa', 'John Night Concierge', 'Ramon'], own: ['The Stranger', 'Vel', 'Seraphine'] },
+};
+const CASE = CASES[process.env.BENCH_CASE ?? 'er'];
+if (!CASE) { console.error(`no case ${process.env.BENCH_CASE}; one of ${Object.keys(CASES).join(', ')}`); process.exit(2); }
+export const ELSEWHERE = CASE.elsewhere, OWN = CASE.own;
+const FROM = CASE.from, INTO = CASE.into;
 
 /** The takes in the order the sheet reads them: from elsewhere first, then its own, each thread's A then B. */
 export function sheetOrder<T extends { title: string; arm: string }>(rows: T[]) {
@@ -68,14 +79,14 @@ if (mode === 'run') {
   mkdirSync(OUT, { recursive: true });
   rmSync(join(OUT, 'takes.jsonl'), { force: true });
   const chapters = (() => { const d = new DatabaseSync(SOURCE, { readOnly: true });
-    const n = (d.prepare("SELECT max(c.idx) n FROM chapters c JOIN stories s ON s.id = c.story_id JOIN users u ON u.id = s.owner_id WHERE s.title = ? AND u.login = 'kia'").get(INTO) as any).n;
+    const n = (d.prepare('SELECT max(c.idx) n FROM chapters c JOIN stories s ON s.id = c.story_id JOIN users u ON u.id = s.owner_id WHERE s.title = ? AND u.login = ?').get(INTO, CASE.login) as any).n;
     d.close(); return n; })();
   const point = { chapter: chapters, after: 1e9, title: INTO };
   // THE PREPARED COPY: both tales handed to the desk writer, then the swap through the app.
   const prep = join(OUT, 'prep.db');
-  copyAt(SOURCE, prep, { ...point, login: 'kia' }, MODEL, (d) => {
+  copyAt(SOURCE, prep, { ...point, login: CASE.login }, MODEL, (d) => {
     const me = (d.prepare("SELECT id FROM users WHERE login = 'sonophage'").get() as any).id;
-    d.prepare("UPDATE stories SET owner_id = ? WHERE title IN (?, ?) AND owner_id = (SELECT id FROM users WHERE login = 'kia')").run(me, FROM, INTO);
+    d.prepare('UPDATE stories SET owner_id = ? WHERE title IN (?, ?) AND owner_id = (SELECT id FROM users WHERE login = ?)').run(me, FROM, INTO, CASE.login);
   });
   const sw = spawnSync(process.execPath, ['--experimental-strip-types', new URL(import.meta.url).pathname, 'swap'],
     { env: { ...process.env, ANANSI_DB: prep }, encoding: 'utf8' });
@@ -124,7 +135,7 @@ if (mode === 'report') {
   for (const r of sheetOrder(rows)) byTitle.set(r.title, [...(byTitle.get(r.title) ?? []), r]);
   const blocks = [...byTitle.entries()].map(([title, rs], k) => {
     const w = rs[0].was, id = `t-${k + 1}`;
-    return `<article class="take" id="${id}"><h3>${esc(title)} · ${rs[0].set === 'elsewhere' ? 'from The Lands Between' : 'The Shadow Lands\' own'}</h3>
+    return `<article class="take" id="${id}"><h3>${esc(title)} · ${rs[0].set === 'elsewhere' ? `from ${esc(FROM)}` : `${esc(INTO)}'s own`}</h3>
 <details><summary>The thread as it was</summary><p>${esc(w.stands)}</p>${w.pockets.map((p: any) => `<p><b>${esc(p.slot)} ${esc(p.name)}:</b> ${esc(p.body)}</p>`).join('')}</details>
 ${rs.map((r) => `<div class="arm"><div class="label">${r.arm === 'A' ? 'Tidy today' : 'Tidy that reads the tale'}</div>${r.error ? `<p>${esc(r.error)}</p>` : r.cards.map(card).join('') || '<p class="dim">No cards.</p>'}</div>`).join('')}
 <div class="pick" role="group" aria-label="${esc(title)}"><label><input type="radio" name="${id}" value="B better"> New is better</label><label><input type="radio" name="${id}" value="same"> Same</label><label><input type="radio" name="${id}" value="B worse"> New is worse</label></div>
@@ -157,7 +168,7 @@ button{font:600 16px var(--sans);padding:12px 18px;margin:28px 0 10px;border-rad
 pre{white-space:pre-wrap;background:var(--card);padding:10px;border:1px solid var(--line);font:14px/1.5 var(--sans)}
 </style>
 <h1>Tidy reads the tale</h1>
-<p class="lede">Kia's The Shadow Lands, on a copy. The first eight threads are The Lands Between's versions, copied in: they carry events this tale has not had. The last six are The Shadow Lands' own and should lose nothing. Each shows Tidy today, then the new Tidy that reads the tale; the new one's cards name what they took out as another tale's. Mark each, then press Copy my read.</p>
+<p class="lede">${esc(INTO)}, on a copy. The first ${ELSEWHERE.length} threads are copied in from ${esc(FROM)}. The last ${OWN.length} are ${esc(INTO)}'s own and should lose nothing. Each shows Tidy today, then the new Tidy that reads the tale; the new one's cards name what they took out as another tale's. Mark each, then press Copy my read.</p>
 ${blocks}
 <button id="copy" type="button">Copy my read</button>
 <pre id="out" aria-live="polite"></pre>

@@ -3754,3 +3754,28 @@ checked to carry its line and the synopsis. 30 takes per arm, one at a time per 
 **What this settles.** Flat on every count (p = 1.0). Not shipped; Seth's wording stays as it is, as
 F20, F37, F71 and F74 were left. Every take in both arms opens "Seth doesn't argue.": a synopsis whose
 first sentence is already a line of prose is used as one, whatever the instruction calls it.
+
+## F78 — Tidy cannot be asked to judge "another tale's" facts on Ornith; told the names, it barely acts (2026-11-06)
+
+**The question.** #167: Tidy should take out of a thread what belongs to another tale (a card pasted or
+copied in), each part's card naming what it took out. Does Ornith do it, and only that?
+
+**The bench.** `bench/tidy-foreign.ts`: the Tidy before #167 (arm A, a checkout of 207988a) and after
+(arm B), at once, on Ornith, each a scratch server on its own copy; the treatment checked on every answer
+(only B's says how many facts it found). Two cases: `er`, eight of Kia's The Lands Between threads copied
+into her The Shadow Lands (one cast in both) and six of The Shadow Lands' own; `encore`, six of Seth's
+ENCORE characters copied into his The Murmur in the Marrow and three of its own.
+
+| run | what B was told | own threads: facts named as another tale's | copied threads: facts named |
+|---|---|---|---|
+| 1 (`er`) | the tale (where it stands) and its threads' names; judge yourself | 33 (Miquella 25, Malenia 8: true lore, "not set up by the tale") | 0 (kept Talia's "killed by Margit") |
+| 2 (`er`) | only names code found: threads of the writer's other tales, not here, never in the prose | 0 | 0 (the one name, Margit, is Morgott in disguise) |
+| 3 (`encore`) | same as 2 | 0 | 5, on 3 of 6 threads |
+
+Run 3, ENCORE names left in the copied threads' cards: A 32, B 29 (from 30 before Tidy). Halsey's card kept
+Seth and Lisa in both arms: a character's card is mostly the people of its own tale.
+
+**What this settles.** Asked to judge on its own, Ornith misses the clear case and strips true lore (run
+1): never ship that. Told the names by code, with a floor that a named fact must hold one, it does no harm
+(runs 2 and 3: 0 on a tale's own threads) and very little good (3 fewer names in 6 threads). Not shipped
+on these numbers unless Seth chooses it; see #167.
