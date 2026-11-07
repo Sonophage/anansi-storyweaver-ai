@@ -1431,6 +1431,44 @@ const NEXT = { title: 'The Ferry at Dusk', note: 'Oren crosses back with the bel
 }
 
 
+// ---- THE BASIC HEM (Seth, 2026-11-06: "Just summary and thread updates ... turned on for kia") ----
+// A writer who hems the basic way gets the summary, where the tale stands and the people: never asked
+// for the next scene, no new threads, no retirements, no next scene, and Hem again is the same three.
+{
+  const t = db.createStory(me, { title: 'Basic hem', premise: 'A ferry town.' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  db.upsertEntry(t.id, me, { title: 'Oren', body: '[Oren: the ferryman]', entryType: 'character', keys: ['Oren'] });
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Oren cut the bell down from the ferry post and carried it home.' });
+  answer = [{ name: 'Oren', stands: '[Oren: the ferryman, who has taken the ferry bell home]', label: 'took the bell',
+    line: 'Oren cut the bell down from the ferry post', always: '', pockets: [] }];
+  const foundWas = found;
+  found = [{ title: 'The Ferry Bell', body: 'Bronze, green with river damp.', type: 'item', keys: ['bell'] }];
+  finished = [{ card: 'Oren', quote: 'Oren cut the bell down from the ferry post' }]; tidied = { ...NEXT };
+  const was: any = routes['POST /api/me'](ctx({ hemBasic: true }));
+  assert.strictEqual(was.hemBasic, true, 'HEM-BASIC-SET: the account says the writer hems the basic way');
+  assert.ok(was.name, '  and setting it alone leaves the name');
+  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false, ask: true }));
+  assert.strictEqual(r.hemBasic, true, '  and the view says so');
+  assert.deepStrictEqual(db.hemOf(t.id, ch0.id)?.held ?? [], [], 'HEM-BASIC-NO-ASK: nothing is held for the next scene');
+  await hemSettled(t.id);
+  let hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.deepStrictEqual(Object.keys(hem.passes).sort(), ['memory', 'summary', 'tale'],
+    `HEM-BASIC: only the summary, the tale and the people ran (${Object.keys(hem.passes)})`);
+  assert.strictEqual(hem.suggestion ?? null, null, '  and no next scene was written');
+  const kinds = (db.proposalsOf(t.id) as any[]).map((p) => `${p.entry_type}:${p.title}`);
+  assert.ok(kinds.some((k) => k.startsWith('state:')), `  a thread change was chalked (${kinds})`);
+  assert.ok(!kinds.some((k) => k === 'item:The Ferry Bell' || k.startsWith('retire:')), `  and no new thread or retirement (${kinds})`);
+  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  await hemSettled(t.id);
+  hem = sceneOf(await viewNow(t.id), ch0.id).hem;
+  assert.deepStrictEqual(Object.keys(hem.passes).sort(), ['memory', 'summary', 'tale'], 'HEM-BASIC-AGAIN: Hem again runs the same three');
+  routes['POST /api/me'](ctx({ hemBasic: false }));
+  assert.strictEqual(db.hemBasic(me), false, 'HEM-BASIC-OFF: and it switches back off');
+  tidied = {}; finished = []; found = foundWas;
+  ok('a writer who hems the basic way gets the summary, where the tale stands and the people, and nothing else');
+}
+
 // ---- THE NEXT SCENE, STEERED AND ASKED AGAIN AWAY FROM THE LAST (2026-10-27) ----
 // Seth: "I'd need a way to enter direction for the ai and a way to re roll away from what it's
 // suggesting". The writer's direction goes in last; the last suggestion goes in as one not to repeat.

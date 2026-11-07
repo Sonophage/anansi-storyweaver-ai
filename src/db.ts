@@ -684,6 +684,10 @@ function migrate() {
   // server restart put the length slider back to "let him decide" (Seth, 2026-10-28: "the slider
   // that decides how long a response the ai writes isn't saving"). JSON of the cleaned keys.
   add('users', 'gen', 'TEXT');
+  // THE BASIC HEM (Seth, 2026-11-06: "the most basic hemming I.e. Just summary and thread updates ...
+  // turned on for kia"). 'basic' or NULL, a writer's own: their hems run the summary, where the tale
+  // stands and the changes to the people in it, and nothing else (`BASIC_HEM` in routes.ts).
+  add('users', 'hem', 'TEXT');
   // A WORLD BOOK IS A STORY YOU NEVER WRITE PROSE IN. Everything it needs already existed —
   // entries are story-scoped, `lore_from` already lets one book read another's cards, and
   // `entriesFor` already merges them with the follower winning a title collision. The only thing
@@ -1458,7 +1462,14 @@ export const coverAt = (id: string): number | null =>
 export const accountOf = (ownerId: string) => {
   const u = q('SELECT login, name FROM users WHERE id = ?').get(ownerId) as any;
   const pic = q('SELECT set_at FROM user_images WHERE owner_id = ?').get(ownerId) as any;
-  return { login: u?.login ?? null, name: u?.name || u?.login || null, avatar: pic?.set_at ?? null };
+  return { login: u?.login ?? null, name: u?.name || u?.login || null, avatar: pic?.set_at ?? null,
+    hemBasic: hemBasic(ownerId) };
+};
+/** Whether this writer hems the basic way (`users.hem`). */
+export const hemBasic = (ownerId: string): boolean =>
+  (q('SELECT hem FROM users WHERE id = ?').get(ownerId) as any)?.hem === 'basic';
+export const setHemBasic = (ownerId: string, on: boolean) => {
+  q('UPDATE users SET hem = ? WHERE id = ?').run(on ? 'basic' : null, ownerId);
 };
 export const setName = (ownerId: string, name: string) => {
   q('UPDATE users SET name = ? WHERE id = ?').run(name, ownerId);

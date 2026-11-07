@@ -654,7 +654,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #75. The tale's own thread: add to it, and open where it stands now.
   'taleadd', 'talestand',
   // The Account page: its tabs, your name and your picture.
-  'accttab', 'delavatar',
+  'accttab', 'delavatar', 'hembasic',
   // #131. Storyteller's four tabs.
   'tellertab',
   // A card out as JSON and back in again: copy, save to a file, read one.
@@ -4443,7 +4443,13 @@ function hemSummary(ch) {
  *  (`S.hemWho`, kept on this device: `saveHemWho`).
  *  ponytail: kept per device, not on the hem's row. Ceiling: another device asks again. Trigger: Seth
  *  and Kia hemming one tale from two devices; then keep it on the hem's row. */
-const hemWhoOpen = (ch) => !!hemNext(ch) && !hemAsking(ch) && !S.hemWho?.has(ch.id);
+const hemWhoOpen = (ch) => !!hemNext(ch) && !hemAsking(ch) && !hemBasicOf(ch) && !S.hemWho?.has(ch.id);
+/** THE BASIC HEM (Seth, 2026-11-06, `BASIC_HEM` in src/routes.ts): a writer who hems the basic way
+ *  gets three passes and no next-scene steps. A hem that ran or holds any other pass (one from before
+ *  the switch) is drawn whole. */
+const HEM_BASIC = ['summary', 'tale', 'memory'];
+const hemBasicOf = (ch) => !!V?.hemBasic && !(ch?.hem?.held ?? []).length
+  && !Object.keys(ch?.hem?.passes ?? {}).some((k) => !HEM_BASIC.includes(k));
 function hemWho(ch) {
   const next = hemNext(ch);
   if (!next || !hemWhoOpen(ch)) return '';
@@ -4487,7 +4493,8 @@ function hemStepStates(ch, closed) {
     next: h?.suggestion?.title ? `Suggested: ${h.suggestion.title}` : 'Done',
   };
   const mins = h?.current?.since ? Math.max(0, Math.floor((Date.now() - h.current.since) / 60000)) : 0;
-  const passes = PASSES.map(([k, name]) => {
+  const basic = hemBasicOf(ch);
+  const passes = PASSES.filter(([k]) => !basic || HEM_BASIC.includes(k)).map(([k, name]) => {
     const done = closed && (h ? report[k] === null : true);
     const bad = closed && !!h && typeof report[k] === 'string' && !!report[k];
     // One pass at a time since 2026-11-01 (`hemPasses`), so the one running is the one the hem names.
@@ -4514,7 +4521,7 @@ function hemStepStates(ch, closed) {
   // WHO IS IN THE NEXT SCENE, the writer's while the scans run (`hemWho`), and nothing after it
   // shows until it is done.
   const whoOpen = closed && hemWhoOpen(ch);
-  const who = next ? [{ k: 'who', name: 'Who is in the next scene', done: !whoOpen && !hemAsking(ch),
+  const who = next && !basic ? [{ k: 'who', name: 'Who is in the next scene', done: !whoOpen && !hemAsking(ch),
     state: hemAsking(ch) ? 'wait' : whoOpen ? 'you' : 'done',
     line: whoOpen ? 'Add or take out threads, then Done' : hemAsking(ch) ? '' : 'Done' }] : [];
   const ready = passesOver && !whoOpen && !hemAsking(ch);
@@ -9945,7 +9952,14 @@ const WPAGES = {
             ${me.avatar ? '<button class="btn ghost" data-delavatar="1">Take it off</button>' : ''}</div></div>
         <label class="lbl push-14" for="f-me-name">Your name</label>
         <input class="field" id="f-me-name" value="${esc(me.name ?? '')}" autocomplete="name">
-        <div class="hint">Signed in as <code>${esc(me.login ?? '')}</code>.</div>`;
+        <div class="hint">Signed in as <code>${esc(me.login ?? '')}</code>.</div>
+        <div class="lbl wide push-18">How you hem</div>
+        <div class="row-6 wraps">
+          <button class="chip" data-hembasic="0" aria-pressed="${!me.hemBasic}">Full</button>
+          <button class="chip" data-hembasic="1" aria-pressed="${!!me.hemBasic}">Basic</button></div>
+        <div class="hint flush">${me.hemBasic
+          ? 'Basic: the summary, where the tale stands, and the changes to the people in it. No new threads and no next scene.'
+          : 'Full: everything, with new threads, the threads it is done with, and the next scene.'}</div>`;
     return `<div class="stack" style="max-width:640px">${tabs}${body}</div>`;
   },
 
@@ -13444,6 +13458,12 @@ document.addEventListener('click', async (e) => {
   // #131. Storyteller's tabs. Redrawn, as Account's tabs were: a mode's box keeps its typing in
   // state (`S.promptEdit`) and writes it after the pause whether or not it is on screen.
   if (d.tellertab) { S.tellerTab = d.tellertab; drawSide(); return; }
+  // HOW YOU HEM (2026-11-06): the full hem or the basic one, on your account.
+  if (d.hembasic) {
+    const r = await api.setHemBasic(d.hembasic === '1');
+    if (r.error) return toast(r.error);
+    S.me = r; if (V) V.hemBasic = r.hemBasic; paint(); return;
+  }
   if (d.delavatar) {
     const r = await api.delAvatar();
     if (r.error) return toast(r.error);

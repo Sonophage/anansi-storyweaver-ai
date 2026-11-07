@@ -18,6 +18,11 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-06 · Act answers what you did
 
+### A basic hem, if you want a quicker one
+Account → You now has How you hem: Full or Basic. A basic hem writes the summary, where the tale
+stands, and the changes to the people in it, and nothing else. It does not ask about the next scene,
+look for new threads, or write the next scene's opening.
+
 ### The hem's steps are listed in the order they run
 The hem screen now lists its steps in the order Anansi does them: the summary, new threads, threads it
 is done with, where the tale stands, changes to the people in it, then the next scene and who is in it.

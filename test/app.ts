@@ -6338,6 +6338,12 @@ ok('every menu row has its own picture, and the phone menu has a cross to close 
   (listeners.change ?? []).forEach((f: Function) => f({ target: { id: 'f-me-name', value: 'Seth H', dataset: {} } }));
   await sleep(30);
   assert.strictEqual(POSTED.find((p: any) => p.url === '/api/me')?.body.name, 'Seth H', 'NAME-SAVES: leaving the box saves your name');
+  // HOW YOU HEM (2026-11-06): Full or Basic, on You.
+  assert.match(html('page'), /data-hembasic="0" aria-pressed="true">Full[\s\S]*data-hembasic="1" aria-pressed="false">Basic/,
+    'HEM-BASIC-CHIP: You says how you hem, Full by default');
+  POSTED.length = 0;
+  click({ hembasic: '1' }); await sleep(30);
+  assert.deepStrictEqual(POSTED.find((p: any) => p.url === '/api/me')?.body, { hemBasic: true }, '  and Basic sends only that');
   assert.doesNotMatch(html('rail'), /data-nav="(import|prefs|forge)"/, 'Import, Export and What you have written are off the menu');
   assert.match(html('rail'), /data-nav="account"/, 'and Account is on it');
   click({ accttab: 'model' });
@@ -8205,6 +8211,16 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     assert.deepStrictEqual(states(side).filter((x) => !/^(who|decide|setup):/.test(x)).sort(),
       ['facts:fail', 'finished:done', 'memory:done', 'next:done', 'summary:done', 'tale:done'],
       'HEM-STATES: after a hem, the passes that ran are done and the one that did not failed');
+    // THE BASIC HEM (Seth, 2026-11-06): three passes, no next-scene steps; a hem with any other pass is drawn whole.
+    (STORY as any).hemBasic = true;
+    const basicSide = await reportOn({ summary: null, tale: null, memory: null });
+    assert.deepStrictEqual(states(basicSide).map((x) => x.split(':')[0]), ['summary', 'tale', 'memory', 'decide', 'setup'],
+      'HEM-BASIC-STEPS: a basic hem draws its three passes and the writer\'s two, and no who is in the next scene');
+    assert.match(basicSide, /class="card arccard hemsum/, '  and the summary shows at once, with nothing to answer first');
+    assert.deepStrictEqual(states(await reportOn({ ...ran, tale: null })).map((x) => x.split(':')[0]),
+      ['summary', 'facts', 'finished', 'tale', 'memory', 'next', 'who', 'decide', 'setup'], '  and a full hem from before the switch is drawn whole');
+    delete (STORY as any).hemBasic;
+    side = await reportOn({ ...ran, tale: null, facts: 'the model did not answer' });
     const step = (k: string) => side.match(new RegExp(`data-hemstep="${k}"[\\s\\S]*?</li>`))?.[0] ?? '';
     assert.match(step('facts'), /Did not run/, 'HEM-FAILED-STEP: the step that failed says it did not run');
     assert.doesNotMatch(step('facts'), /No new threads/, '  and not that it found nothing');

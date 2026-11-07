@@ -296,7 +296,7 @@ const viewOf = (c: Ctx, id: string, chapter?: string) => {
     // The pin as a model row when it is a remote model on the owner's shortlist, so a guest's
     // picker can show the model that writes this book rather than calling it gone.
     pin: remotePin(c, v.story.model, v.owner),
-    weaves: bookWeaves(c, v), weaveNote: weaveNote(c, v),
+    weaves: bookWeaves(c, v), weaveNote: weaveNote(c, v), hemBasic: db.hemBasic(c.owner),
     budget: budgetFor(v.story, slotFor(c, v, model), replyFor(c, v, 'prose', proseCap(c)).maxTokens) };
 };
 
@@ -487,10 +487,12 @@ function endScene(c: Ctx, storyId: string, body: any) {
   // (`/api/chapter/hem` with `asked`). The summary, new threads and retirements run now.
   // What is held is kept on the hem's row (`held`): the drawer asks while it is, and the scene's card
   // shows it paused if the writer never answers.
-  const ask = body.ask === true;
+  // A WRITER WHO HEMS THE BASIC WAY (`users.hem`) is never asked: nothing waits on the next scene.
+  const basic = db.hemBasic(c.owner);
+  const ask = body.ask === true && !basic;
   const remember = body.remember !== false;
-  const want: HemWant = { summary: body.summarise !== false, tale: !ask, memory: remember && !ask,
-    facts: body.extract !== false, finished: body.retire !== false, next: body.next !== false && !ask };
+  const want: HemWant = basicOnly(basic, { summary: body.summarise !== false, tale: !ask, memory: remember && !ask,
+    facts: body.extract !== false, finished: body.retire !== false, next: body.next !== false && !ask });
   const run = db.beginHem(v.id, closing, ask ? ['tale', ...(remember ? ['memory'] : []), 'next'] : []);
   queueHem(v.id, () => hemPasses(c, v.id, closing, r.opened, want, run));
   return { ...r, ...viewOf(c, v.id) };
@@ -2447,6 +2449,13 @@ export const hemSettled = (storyId: string): Promise<void> => hemQueue.get(story
  *  it to `db.stopUnfinishedHems` at boot. */
 export const HEM_PASSES = ['summary', 'facts', 'finished', 'tale', 'memory', 'next'] as const;
 type HemWant = Record<typeof HEM_PASSES[number], boolean>;
+/** THE BASIC HEM (Seth, 2026-11-06: "Just summary and thread updates"; on for Kia): the summary,
+ *  where the tale stands and the changes to the people in it. Where the tale stands is in it because
+ *  the model reads the Timeline in place of the premise from the first hem on, and without it the
+ *  Timeline stops. No new threads, no retirements, no next scene, so no Anyone new either. */
+const BASIC_HEM: readonly string[] = ['summary', 'tale', 'memory'];
+const basicOnly = (basic: boolean, want: HemWant): HemWant => basic
+  ? Object.fromEntries(HEM_PASSES.map((k) => [k, want[k] && BASIC_HEM.includes(k)])) as HemWant : want;
 /** #91. The one queue every hem job goes through, so a try-again or a hem again never runs beside
  *  another hem on the same tale. */
 function queueHem(storyId: string, job: () => Promise<void>) {
@@ -4531,6 +4540,8 @@ export const routes: Record<string, Handler> = {
     const want = Object.fromEntries(HEM_PASSES.map((k) => [k, pass === null || k === pass
       || held.includes(k)])) as HemWant;
     if (pass === null) {
+      // Hem again is every pass of the writer's own hem: the basic one's three for a basic writer.
+      Object.assign(want, basicOnly(db.hemBasic(c.owner), want));
       const run = db.beginHem(storyId, chapterId);
       // Dropped inside the queue, not here: a hem still running on the tale may yet chalk into it.
       queueHem(storyId, async () => {
@@ -5949,6 +5960,11 @@ export const routes: Record<string, Handler> = {
    *  `remoteReady` answers for this writer's file alone. The file's path is shown, never its text. */
   'GET /api/me': (c: Ctx) => meOf(c.owner),
   'POST /api/me': (c: Ctx) => {
+    // HOW YOU HEM (2026-11-06): `hemBasic` alone sets it and leaves the name as it is.
+    if (typeof c.body.hemBasic === 'boolean') {
+      db.setHemBasic(c.owner, c.body.hemBasic);
+      if (c.body.name === undefined) return meOf(c.owner);
+    }
     const name = String(c.body.name ?? '').trim().slice(0, 80);
     if (!name) throw Object.assign(new Error('a name cannot be empty'), { code: 400 });
     db.setName(c.owner, name);

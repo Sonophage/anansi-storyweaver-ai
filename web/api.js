@@ -291,6 +291,7 @@ export const api = {
   // THE ACCOUNT (2026-10-27): your name, your picture, and whether your Featherless key file is in.
   me:           ()               => j('/api/me'),
   setName:      (name)           => j('/api/me', 'POST', { name }),
+  setHemBasic:  (on)             => j('/api/me', 'POST', { hemBasic: on }),
   setAvatar:    (dataUrl)        => j('/api/me/avatar', 'POST', { dataUrl }),
   delAvatar:    ()               => j('/api/me/avatar', 'DELETE', {}),
   avatarUrl:    (v)              => `/api/me/avatar?v=${v}`,
