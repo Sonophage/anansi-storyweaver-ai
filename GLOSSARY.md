@@ -229,10 +229,9 @@ _Avoid_: chat, Anansi chat, ask Anansi
 _In code_: `/api/talk`; a kept talk is a row of `talk_sessions`
 
 **Tidy**:
-Sort one thread into its Always true, where it stands and its pockets, and flag what does not belong
-to the tale it is in, each change shown for a yes or no. A thread that came from another tale shows
-Tidy lit until it has been tidied once.
-_Avoid_: clean up, Tidy for this tale
+Sort one thread into its Always true, where it stands and its pockets, each change shown for a yes or
+no.
+_Avoid_: clean up
 
 **Workbench**:
 Where everything that wants the writer collects: chalked things, unkept strings, out-of-date
