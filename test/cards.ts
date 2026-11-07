@@ -15,7 +15,7 @@ const p = P as any;
 
 // Every prompt that writes or proposes a thread or a pocket, as each door calls it.
 const CARD_PROMPTS: Record<string, string> = {
-  MEMORY: p.MEMORY, EXTRACT: p.EXTRACT, NEEDS: p.NEEDS, RESTAND: p.RESTAND, TIDY: p.TIDY, MERGE: p.MERGE,
+  MEMORY: p.MEMORY, EXTRACT: p.EXTRACT, RESTAND: p.RESTAND, TIDY: p.TIDY, MERGE: p.MERGE,
   REDO: p.REDO, MEMO: p.MEMO, CAST: p.CAST, REVIEW: p.REVIEW, TALK_CONTRACT: p.TALK_CONTRACT,
   TALK_SETUP: p.TALK_SETUP,
   'INVENT card': p.INVENT('a character', '', false, false),

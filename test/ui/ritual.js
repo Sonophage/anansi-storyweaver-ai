@@ -107,7 +107,7 @@ if (facts.length) {
      new RegExp(facts.length + " threads? chalked").test(again));
 } else {
   ok("  and a chapter that proposed nothing says so, rather than showing a bare heading",
-     /No new threads came out of this scene/.test(again));
+     /No one new/.test(again));
 }
 // The finished-thread step, in the guard-proof form: assert the invariant that holds at ZERO and
 // branch with an else, or the check stops running and still reports green.

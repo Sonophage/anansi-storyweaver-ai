@@ -18,6 +18,12 @@ Everything below this line was written by that model call, before it was removed
 
 ## 2026-11-06 · Act answers what you did
 
+### New threads and Anyone new are one step
+A hem now looks for new people, places and things once, at the end: in the scene you just wrote and
+in what you said the next scene is. What it finds shows under Anyone new when you set up the next
+scene. The step that drafts the next scene is now called "Drafting the next scene's opening", which is
+what it does. A basic hem's list shows only its three steps.
+
 ### A basic hem, if you want a quicker one
 Account → You now has How you hem: Full or Basic. A basic hem writes the summary, where the tale
 stands, and the changes to the people in it, and nothing else. It does not ask about the next scene,

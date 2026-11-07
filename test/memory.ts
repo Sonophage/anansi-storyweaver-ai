@@ -58,8 +58,6 @@ let restated = '';
 /** And what the scene-name ask returns (2026-10-30): a blob-shaped answer until a block sets it, which
  *  the hem must refuse as a name. */
 let sceneNamed = '{"title":"not a name"}';
-/** And what the next scene's needs ask returns (NEEDS, 2026-10-30): nothing, until a block sets it. */
-let needsFound: any[] = [];
 
 /** #89. A fake that HOLDS its answer while `gate` is pending: how a test proves the hem answers
  *  before its passes do, and that a second hem waits for the first. `inflight` counts asks being
@@ -92,8 +90,6 @@ const srv = createServer((req, res) => {
     // And where the strings stand, one line each (2026-10-30).
     if (asked.system.startsWith('Below is where a story stands, the strings it carries')) return send({ choices: [{ message: {
       content: stringsSay.map((x: any) => `${x.n}: ${x.now}`).join('\n') } }], usage: { prompt_tokens: 200, completion_tokens: 60 } });
-    if (asked.system.startsWith('Below are the threads a tale already has')) return send({ choices: [{ message: {
-      content: JSON.stringify({ entries: needsFound }) } }], usage: { prompt_tokens: 200, completion_tokens: 60 } });
     if (asked.system.startsWith('Below is a scene of a story that has just been written')) return send({ choices: [{ message: {
       content: sceneNamed } }], usage: { prompt_tokens: 200, completion_tokens: 6 } });
     if (asked.system.startsWith('Below is one thread from a story: who or what it is')) return send({ choices: [{ message: {
@@ -1567,35 +1563,38 @@ ok('a hem asks for the next scene rather than guessing it, and the answer goes i
 ok('with the scene after a hem deleted, its next-scene ask still reads the hemmed scene');
 
 // ---- #93 · THE SCENE AFTER A HEMMED ONE IS DELETED WHILE THE HEM RUNS. The hem names that scene when
-// it starts. Deleted during the next-scene ask, the needs ask still went to the model and chalked
-// against a scene that is gone; deleted during the needs ask, its answer was still chalked there.
-for (const during of ['next', 'needs'] as const) {
+// it starts. Deleted during the next-scene ask, Anyone new reads no plan for a scene that is gone;
+// deleted during Anyone new, nothing is chalked against it (its finds are the hemmed scene's).
+for (const during of ['next', 'facts'] as const) {
   const t = db.createStory(me, { title: `Gone during ${during}`, premise: 'A ferry town.' }) as any;
   const ch0 = (db.chapters(t.id)[0] as any);
   db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The bell sank off the end of the jetty.' });
   tidied = { ...NEXT };
   const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false }));
   await hemSettled(t.id);
-  needsFound = [{ title: 'The Jetty', type: 'place', body: 'Old planks over deep water.', keys: ['jetty'],
+  const foundWas = found;
+  found = [{ title: 'The Jetty', type: 'place', body: 'Old planks over deep water.', keys: ['jetty'],
     activation: 'triggered', field: 'none', pockets: [], stands: '' }];
   asks.length = 0;
-  const ask = during === 'next' ? prompts.CHAPTER : prompts.NEEDS;
+  const ask = during === 'next' ? prompts.CHAPTER : prompts.EXTRACT;
   failIf = (system) => {
     if (system.startsWith(ask.slice(0, 80)) && (db.chapters(t.id) as any[]).some((c) => c.id === r.opened))
       assert.ok(!db.delChapter(t.id, r.opened).error, 'the scene after it is deleted');
     return false;
   };
-  const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next' }));
+  // Hem again: every pass, the next scene's and then Anyone new.
+  const v: any = routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id }));
   assert.ok(!v.error, v.error);
   await hemSettled(t.id);
-  failIf = null; tidied = {}; needsFound = [];
+  failIf = null; tidied = {}; found = foundWas;
   assert.ok(!(db.chapters(t.id) as any[]).some((c) => c.id === r.opened), `(${during}) the deletion happened`);
-  if (during === 'next') assert.ok(!askOf(prompts.NEEDS), 'HEM-GONE-NO-NEEDS: no needs ask for a scene deleted mid-hem');
+  if (during === 'next') assert.doesNotMatch(String(askOf(prompts.EXTRACT)?.user ?? ''), /THE NEXT SCENE, NOT WRITTEN YET/,
+    'HEM-GONE-NO-PLAN: Anyone new reads no plan for a scene deleted mid-hem');
   const orphans = (db.proposalsOf(t.id) as any[]).filter((p) => p.chapter_id === r.opened);
   assert.deepStrictEqual(orphans.map((p) => p.title), [],
     `HEM-GONE-NO-CHALK-${during.toUpperCase()}: nothing is chalked against the deleted scene`);
 }
-ok('a scene deleted while the hem before it runs gets no needs ask and nothing chalked');
+ok('a scene deleted while the hem before it runs: no plan for it, and nothing chalked against it');
 
 // ---- THE BRIEF FOR THE NEXT SCENE (Seth, 2026-11-01: "The first prompt I fill should be what the goal
 // of the next scene is, who's in it where etc"). The hem's question sends the writer's brief: it is the
@@ -1612,8 +1611,8 @@ ok('a scene deleted while the hem before it runs gets no needs ask and nothing c
   const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false, ask: true }));
   await hemSettled(t.id);
   const held = sceneOf(await viewNow(t.id), ch0.id).hem;
-  assert.deepStrictEqual(Object.keys(held.passes).sort(), ['facts', 'finished', 'summary'],
-    `HEM-HOLDS: the close runs the summary, new threads and retirements, and holds the rest (${Object.keys(held.passes)})`);
+  assert.deepStrictEqual(Object.keys(held.passes).sort(), ['finished', 'summary'],
+    `HEM-HOLDS: the close runs the summary and retirements, and holds the rest (${Object.keys(held.passes)})`);
   assert.ok(!askOf(prompts.MEMORY) && !askOf(TALE_HEAD), '  so nothing about where things stand is asked yet');
   const brief = 'Two days later Oren takes two strangers across at night; he wants their money and nothing else.';
   // Held at the fake, so two in flight at once would be seen (`mostInflight`).
@@ -1640,11 +1639,11 @@ ok('a scene deleted while the hem before it runs gets no needs ask and nothing c
   assert.match(mem, /IN THE NEXT SCENE: Oren/, 'BRIEF-NAMES: the people pass is told who is in the next scene, by name');
   assert.doesNotMatch(mem, /strangers|their money/, 'BRIEF-NAMES-ONLY: and nothing else of the brief');
   assert.doesNotMatch(String(askOf(TALE_HEAD)?.user ?? ''), /strangers|their money/, '  nor is where the tale stands');
-  assert.match(String(askOf(prompts.NEEDS)?.user ?? ''), /THE WRITER'S BRIEF FOR IT:\n.*takes two strangers across/,
-    'BRIEF-NEEDS: what the next scene needs is asked with the brief');
+  assert.match(String(askOf(prompts.EXTRACT)?.user ?? ''), /THE WRITER'S BRIEF FOR IT:\n.*takes two strangers across/,
+    'BRIEF-NEEDS: Anyone new is asked with the brief');
   const done = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.deepStrictEqual(Object.keys(done.passes).sort(), ['facts', 'finished', 'memory', 'next', 'summary', 'tale'],
-    'HEM-ASKED-RUNS: the answer runs where the tale stands, the people and the next scene');
+    'HEM-ASKED-RUNS: the answer runs where the tale stands, the people, the next scene and Anyone new');
   // ONE AT A TIME (Seth, 2026-11-01): the speed pass (2026-10-30) ran the tale's and the people's
   // together, and Featherless refused the second on one writer's plan in every walk that day.
   assert.strictEqual(Math.max(paired, mostInflight), 1, `HEM-ONE-AT-A-TIME: the hem asks one thing at a time (${mostInflight} in flight at most)`);
@@ -1701,89 +1700,9 @@ ok('the hem keeps the answer an old page sends as the brief');
   assert.deepStrictEqual([pins[seth], pins[ashley]], [undefined, undefined], '  but never the hands-off character or the persona');
   assert.strictEqual(pins[lisa], undefined, 'CAST-OWN-NAME: a wake word naming someone else does not bring a thread in');
   await hemSettled(t.id);
-  tidied = {}; needsFound = [];
+  tidied = {};
 }
 ok('the brief names who starts the scene; every other always-on thread is mention only there');
-
-// ---- WHAT THE NEXT SCENE NEEDS, POCKETS TOO (Seth, 2026-11-01: "we're looking for new threads like a
-// new location or new outfits interiority etc"; "I meant pockets but yes chalk em"). The needs ask
-// gets who is in the scene at its start, and may chalk a pocket for one of them (an outfit, what they
-// are thinking) beside the new threads. Never for a thread that is not in it at the start, and never
-// its Always true.
-{
-  const t = db.createStory(me, { title: 'Needs', premise: 'A tour ends.' }) as any;
-  const ch0 = (db.chapters(t.id)[0] as any);
-  const up = (title: string, activation: string) =>
-    db.upsertEntry(t.id, me, { title, body: `[${title}: a person]`, entryType: 'character', keys: [title], activation })!;
-  const halsey = up('Halsey', 'always_on'), tessa = up('Tessa', 'always_on');
-  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The last song ended.' });
-  tidied = { ...NEXT };
-  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false, ask: true }));
-  await hemSettled(t.id);
-  const pocket = (title: string, field: string, body: string) =>
-    ({ title, type: 'character', body, keys: [], activation: 'triggered', field, pockets: [], stands: '' });
-  // THE SHAPE THE REAL MODEL ANSWERS IN (Kimi-K2.5 on ENCORE, 2026-11-01): the thread as if new, its
-  // Always true as the body, and the pockets under it. The pockets are what is chalked.
-  // Seen both ways: once with the body empty, once with it filled, one entry per pocket or many.
-  needsFound = [{ title: 'Halsey', type: 'character', body: '', keys: [],
-    activation: 'triggered', field: 'outfit', stands: '', pockets: [
-      { slot: 'outfit', name: 'After the show', body: 'the black dress from the show; barefoot' },
-      { slot: 'facts', name: 'Who', body: 'twenty-six' }] },
-    { title: 'Halsey', type: 'character', body: '26; a musician; from New Jersey', keys: [],
-    activation: 'triggered', field: 'interiority', stands: '', pockets: [
-      { slot: 'interiority', name: 'The ask', body: 'wants him on the bus and will not say it' }] },
-    pocket('Tessa', 'outfit', 'a headset and heels'),
-    { title: 'The Rooftop', type: 'place', body: 'the hotel roof; wind and HVAC units', keys: ['rooftop'],
-      activation: 'triggered', field: 'none', pockets: [], stands: '' }];
-  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', asked: true,
-    brief: 'Later on the rooftop, just Halsey. She waits for him.' }));
-  await hemSettled(t.id);
-  const user = String(askOf(prompts.NEEDS)?.user ?? '');
-  assert.match(user, /IN THE SCENE AT ITS START: Halsey\b/, 'NEEDS-WHO: the needs ask is told who is in the scene at its start');
-  assert.doesNotMatch(user.match(/IN THE SCENE AT ITS START:[^\n]*/)?.[0] ?? '', /Tessa/, '  and not who is mention only');
-  const here = (db.proposalsOf(t.id) as any[]).filter((p) => p.chapter_id === r.opened);
-  const of = (id: string, field: string) => here.find((p) => p.entry_id === id && p.field === field);
-  assert.ok(of(halsey, 'outfit') && of(halsey, 'interiority'),
-    `NEEDS-POCKETS: a pocket for someone in the scene at its start is chalked (${here.map((p) => `${p.title}/${p.field}`)})`);
-  assert.ok(!of(halsey, 'facts'), 'NEEDS-NO-FACTS: never their Always true');
-  assert.deepStrictEqual([of(halsey, 'outfit')?.body, of(halsey, 'interiority')?.body],
-    ['the black dress from the show; barefoot', 'wants him on the bus and will not say it'],
-    'NEEDS-POCKET-BODY: each pocket is chalked with its own words, not the thread\'s Always true');
-  assert.ok(!of(tessa, 'outfit'), 'NEEDS-ONLY-IN: never a pocket for someone not in it at the start');
-  assert.ok(here.some((p) => p.title === 'The Rooftop' && p.kind === 'new'), '  and a new place still is');
-  // ITS RAW ANSWER IS KEPT (2026-11-01): a walk on the real model chalked nothing, and nothing said
-  // what the model had answered.
-  const logged = (new (await import('node:sqlite')).DatabaseSync(DB, { readOnly: true }) as any)
-    .prepare("SELECT manifest FROM generations WHERE story_id = ? AND role = 'hem-new' ORDER BY created_at DESC, rowid DESC LIMIT 1").get(t.id);
-  assert.match(JSON.parse(logged?.manifest ?? '{}').raw ?? '', /black dress from the show/, 'NEEDS-RAW: the needs ask logs what the model answered');
-  tidied = {}; needsFound = [];
-}
-ok('what the next scene needs: new threads, and pockets for who is in it at the start');
-
-// #143 · AND OUTSIDE ONLY THERE TOO: the played character at the start of the next scene gets no
-// interiority pocket from it, and the inside is cut from any other pocket.
-{
-  const t = db.createStory(me, { title: 'Needs, played', premise: 'A tour ends.', persona: 'Halsey' }) as any;
-  const ch0 = (db.chapters(t.id)[0] as any);
-  const halsey = db.upsertEntry(t.id, me, { title: 'Halsey', body: '[Halsey: a person]', entryType: 'character', keys: ['Halsey'], activation: 'always_on' })!;
-  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id, body: 'The last song ended.' });
-  tidied = { ...NEXT };
-  const r: any = await routes['POST /api/chapter/end'](ctx({ storyId: t.id, next: false, ask: true }));
-  await hemSettled(t.id);
-  needsFound = [{ title: 'Halsey', type: 'character', body: '', keys: [], activation: 'triggered', field: 'outfit', stands: '', pockets: [
-    { slot: 'outfit', name: 'After the show', body: 'the black dress from the show; barefoot' },
-    { slot: 'interiority', name: 'The ask', body: 'wants him on the bus and will not say it' },
-    { slot: 'relationships', name: 'Him', body: 'Rides beside him on the bus; she hopes he stays.' }] }];
-  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'next', asked: true, brief: 'Later on the rooftop, just Halsey.' }));
-  await hemSettled(t.id);
-  const here = (db.proposalsOf(t.id) as any[]).filter((p) => p.chapter_id === r.opened && p.entry_id === halsey);
-  const of = (field: string) => here.find((p) => p.field === field)?.body ?? null;
-  assert.match(String(of('outfit')), /black dress/, `NEEDS-OUTSIDE: her outfit still lands (${here.map((p) => p.field)})`);
-  assert.strictEqual(of('interiority'), null, 'NEEDS-OUTSIDE-INNER: no interiority pocket for the played character');
-  assert.strictEqual(of('relationships'), 'Rides beside him on the bus.', `NEEDS-OUTSIDE-CUT: the inside is cut from her other pockets (${of('relationships')})`);
-  tidied = {}; needsFound = [];
-}
-ok('the next scene\'s pockets keep the played character outside');
 
 // ---- PAUSED UNTIL THE WRITER SAYS HOW THE NEXT SCENE STARTS (Seth, 2026-10-30) ----
 // A close that asks holds where the tale stands, the people and the next scene. What is held is kept
@@ -1800,7 +1719,7 @@ ok('the next scene\'s pockets keep the played character outside');
   await hemSettled(t.id);
   let hem = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.strictEqual(hem.state, 'done', '  the passes that run at the close are done');
-  assert.deepStrictEqual(hem.held, ['tale', 'memory', 'next'],
+  assert.deepStrictEqual(hem.held, ['tale', 'memory', 'next', 'facts'],
     `HEM-HELD-STORED: what waits on the writer is on the hem's row (${JSON.stringify(hem.held)})`);
   // The writer moves on and types the opening on the setup, never answering on the hem.
   const later = 'At dawn, on the far bank, Oren wakes in the reeds.';
@@ -1864,11 +1783,11 @@ ok('a hem chalks six new threads at most, and the rest wait by name until asked 
     line: 'Oren cut the bell down from the ferry post', always: '', pockets: [] }];
   found = [{ title: 'The Ferry Bell', body: 'Bronze, green with river damp.', type: 'item', keys: ['bell'],
     pockets: [{ slot: 'appearance', name: 'Green bronze', body: 'Green with river damp.' }] }];
-  tidied = { ...NEXT }; needsFound = found;
+  tidied = { ...NEXT };
   failIf = (system) => system.startsWith(prompts.EXTRACT.slice(0, 80));
   await routes['POST /api/chapter/end'](ctx({ storyId: t.id }));
   await hemSettled(t.id);
-  failIf = null; tidied = {}; needsFound = [];
+  failIf = null;
   const hem = sceneOf(await viewNow(t.id), ch0.id).hem;
   assert.strictEqual(hem?.state, 'done', 'the hem still finishes');
   assert.ok(typeof hem.passes.facts === 'string' && hem.passes.facts.length > 0,
@@ -1879,18 +1798,20 @@ ok('a hem chalks six new threads at most, and the rest wait by name until asked 
   assert.ok((db.proposalsOf(t.id) as any[]).some((p) => p.entry_type === 'state'), '  and the thread change was chalked');
   assert.ok(!(db.proposalsOf(t.id) as any[]).some((p) => p.title === 'The Ferry Bell' && p.chapter_id === ch0.id),
     '  and the failed pass chalked nothing');
-  // ANYONE NEW, ASKED BEFORE THE WRITER GETS THERE (2026-10-30): the next-scene pass asks what that
-  // scene needs (NEEDS, which the fake answers with `found`), chalked as new against that scene.
-  const opened = (db.chapters(t.id) as any[])[1].id;
-  const need = (db.proposalsOf(t.id) as any[]).find((p) => p.title === 'The Ferry Bell' && p.chapter_id === opened);
-  assert.ok(need && need.kind === 'new', 'NEEDS-CHALKED: what the next scene needs is chalked as new, against that scene');
-  // AFTER THE HEM IS DONE (the speed pass, 2026-10-30), so the summary and the cards do not wait on it.
-  const hemDone = sceneOf(await viewNow(t.id), ch0.id).hem.finishedAt;
-  const asked = (new (await import('node:sqlite')).DatabaseSync(DB, { readOnly: true }) as any)
-    .prepare("SELECT created_at FROM generations WHERE story_id = ? AND role = 'hem-new' ORDER BY created_at DESC LIMIT 1").get(t.id);
-  assert.ok(asked && hemDone && asked.created_at >= hemDone, `NEEDS-AFTER: asked after the hem is marked done (${asked?.created_at} vs ${hemDone})`);
-  assert.match(String(askOf(prompts.NEEDS)?.user ?? ''), /THE NEXT SCENE: The Ferry at Dusk[\s\S]*HOW IT OPENS:\nThe river was low\.[\s\S]*WHERE IT HEADS/,
-    '  asked from the next scene\'s name, opening and where it heads');
+  // ANYONE NEW (Seth, 2026-11-06: New threads merged into it): one read of the scene, with the next
+  // scene's name, opening and where it heads after the prose, its finds on the hemmed scene's card.
+  routes['POST /api/chapter/hem'](ctx({ storyId: t.id, chapterId: ch0.id, pass: 'facts' }));
+  await hemSettled(t.id);
+  tidied = {};
+  const need = (db.proposalsOf(t.id) as any[]).find((p) => p.title === 'The Ferry Bell' && p.grp === `scene:${ch0.id}`);
+  assert.ok(need && need.kind === 'new', 'NEEDS-CHALKED: Anyone new chalks a new thread on the hemmed scene\'s card');
+  const extracted = askOf(prompts.EXTRACT);
+  assert.ok(extracted?.system.includes(prompts.EXTRACT_AHEAD), 'NEEDS-ASKED: with the clause that asks for what the next scene needs');
+  assert.match(String(extracted?.user ?? ''), /cut the bell down[\s\S]*THE NEXT SCENE, NOT WRITTEN YET: The Ferry at Dusk[\s\S]*HOW IT OPENS:\nThe river was low\.[\s\S]*WHERE IT HEADS/,
+    '  from the prose, then the next scene\'s name, opening and where it heads');
+  assert.strictEqual((new (await import('node:sqlite')).DatabaseSync(DB, { readOnly: true }) as any)
+    .prepare("SELECT COUNT(*) n FROM generations WHERE story_id = ? AND role = 'hem-new'").get(t.id).n, 0,
+    'NEEDS-ONE-CALL: and there is no second ask for it');
   assert.ok(JSON.parse(need.rooms || '{}').appearance, '  with the pockets it came with');
   // ONE POCKET OUT, NOT THE THREAD (Seth, 2026-10-30).
   const dropped: any = routes['POST /api/proposal/droppocket'](ctx({ storyId: t.id, id: need.id, slot: 'appearance' }));

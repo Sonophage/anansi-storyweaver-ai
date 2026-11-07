@@ -4466,8 +4466,8 @@ function hemWho(ch) {
 const hemOwed = (ch) => (V.proposals ?? []).filter((p) => p.grp === `scene:${ch.id}` || p.chapterId === ch.id);
 /** WHAT ANANSI IS DOING ON EACH PASS, in the words the running step shows. */
 const HEM_DOING = { summary: 'Summarising the scene', tale: 'Writing where the tale stands',
-  memory: 'Reading what changed for the people in it', facts: 'Reading the scene for new threads',
-  finished: 'Checking which threads it is done with', next: 'Writing the next scene from what you said' };
+  memory: 'Reading what changed for the people in it', facts: 'Looking for anyone new, in this scene and the next',
+  finished: 'Checking which threads it is done with', next: "Drafting the next scene's opening" };
 
 /** THE HEM AS STEPS, ALWAYS, COLOUR CODED (Seth, 2026-10-30: "it should always show the steps and
  *  what the ai is doing, color coded. If there's an actionable only then does the screen below the
@@ -4487,7 +4487,7 @@ function hemStepStates(ch, closed) {
       : ch.summaryAuthor === 'human' ? 'Your summary,' : 'Summarised in'} ${plural(words, 'word', 'words')}` : 'Not summarised',
     tale: 'Written',
     memory: of('state').length ? `${plural(of('state').length, 'change', 'changes')} chalked` : 'Nothing changed anybody',
-    facts: facts.length ? `${plural(facts.length, 'thread', 'threads')} chalked` : 'No new threads came out of this scene',
+    facts: facts.length ? `${plural(facts.length, 'thread', 'threads')} chalked` : 'No one new',
     finished: of('retire').length ? `${plural(of('retire').length, 'thread', 'threads')} chalked to be retired`
       : 'No thread was chalked to be retired',
     next: h?.suggestion?.title ? `Suggested: ${h.suggestion.title}` : 'Done',
@@ -4542,7 +4542,10 @@ function hemStepStates(ch, closed) {
 function hemSteps(ch, closed) {
   const MARK = { wait: '&#9675;', run: '&#9679;', done: '&#10003;', fail: '&#10005;', you: '&rarr;' };
   const SAID = { wait: 'not yet', run: 'running now', done: 'done', fail: 'did not run', you: 'waiting on you' };
-  return `<ol class="hemsteps">${hemStepStates(ch, closed).map((x) => `<li data-hemstep="${x.k}" data-done="${x.done ? 1 : 0}"
+  // THE BASIC HEM'S LIST IS ITS THREE PASSES (Seth, 2026-11-06: "minimize the status line for the minimal
+  // version"). Only the drawing: the writer's two steps still decide what shows below it.
+  const steps = hemStepStates(ch, closed).filter((x) => !hemBasicOf(ch) || HEM_BASIC.includes(x.k));
+  return `<ol class="hemsteps">${steps.map((x) => `<li data-hemstep="${x.k}" data-done="${x.done ? 1 : 0}"
       data-state="${x.state}"><span class="hemmark" aria-hidden="true">${MARK[x.state]}</span>
       <span class="hembody"><span class="hemname">${x.name}<span class="vh">, ${SAID[x.state]}</span></span>
         ${x.line ? `<span class="hint flush hemline">${esc(x.line)}</span>` : ''}</span></li>`).join('')}</ol>`;
@@ -7843,9 +7846,11 @@ const SETUP_STEPS = [['cards', 'What it left'], ['premise', 'The brief'], ['more
 // ONE NAME PER PASS, the same on the hem drawer's steps, its failure box and the Workbench card
 // (walkthrough, 2026-10-30: the same pass was "the character memory", "Changes to the people in it"
 // and "Changes" on three screens).
-// IN THE ORDER THEY RUN (`HEM_PASSES` in src/routes.ts; Seth, 2026-11-06).
-const PASSES = [['summary', 'Summary'], ['facts', 'New threads'], ['finished', 'Threads it is done with'],
-                ['tale', 'Where the tale stands'], ['memory', 'Changes to the people in it'], ['next', 'The next scene']];
+// IN THE ORDER THEY RUN (`HEM_PASSES` in src/routes.ts; Seth, 2026-11-06). `facts` is Anyone new since
+// New threads merged into it (2026-11-06): one read of the scene and the next scene's plan. Not named
+// Anyone new itself, the setup step that shows what it finds: one name, one step.
+const PASSES = [['summary', 'Summary'], ['finished', 'Threads it is done with'], ['tale', 'Where the tale stands'],
+                ['memory', 'Changes to the people in it'], ['next', 'The next scene'], ['facts', 'Finding anyone new']];
 
 /** Which of them did not run on this scene's hem, in the order they run in. Empty when everything
  *  ran, which is the normal case — so every caller can treat length as "is there anything to say". */
@@ -7947,7 +7952,8 @@ function setupPanel() {
     && !queue.includes(p) && !sceneNew.includes(p)) : [];
   const fresh = [...queue.filter((p) => p.kind === 'new'), ...sceneNew, ...askedHere];
   // AND THE POCKETS IT NEEDS for the threads in it at its start (Seth, 2026-11-01: "new outfits
-  // interiority etc"), chalked by the hem against this scene (`needsFor`). With no scene just closed,
+  // interiority etc"), chalked by the hem against this scene until 2026-11-06, when its ask merged into
+  // the hem's Anyone new and the people pass took the pockets; still drawn for those. With no scene just closed,
   // `queue` is everything and What it left holds them already.
   const needsHere = justClosed ? (V.proposals ?? []).filter((p) => p.chapterId === ch.id && p.entryId && p.field
     && p.entryType !== 'string' && p.status !== 'rejected' && !queue.includes(p)) : [];

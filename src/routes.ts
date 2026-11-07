@@ -7,7 +7,7 @@ import { SYSTEM } from './render.ts';
 import { FORGE } from './forge.ts';
 // The hem's structured asks: plain lines on a remote model, read back into the schema's object.
 import { shaped } from './shaped.ts';
-import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, RESTAND, NEEDS, SCENE_NAME, TALE_STANDS, STRINGS_STAND, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, MEMO_SCHEMA, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
+import { SUMMARY, ARC, EXTRACT, EXTRACT_SCHEMA, SCAN_HEAD, STYLE_NOTE, STYLE_SCHEMA, SPARK, SPARK_SCHEMA, SPARK_FIELD, SPARK_FIELD_SCHEMA, CAST, castSchema, REVIEW, REVIEW_SCHEMA, INVENT, inventSchema, TALK_CONTRACT, TALK_VOICE, TALK_SCHEMA, TALK_QUERIES, TALK_QUERIES_SCHEMA, TALK_SETUP, TALK_SETUP_SCHEMA, IDEA, IDEA_SCHEMA, IDEA_MODES, MEMORY, MEMORY_SCHEMA, RESTAND, EXTRACT_AHEAD, SCENE_NAME, TALE_STANDS, STRINGS_STAND, TIDY, TIDY_SCHEMA, MERGE, MERGE_SCHEMA, REDO, REDO_SCHEMA, CHAPTER, CHAPTER_SCHEMA, FROM_WEB, fromWebSchema, WORLD_CAST, worldCastSchema, MEMO, MEMO_SCHEMA, RETIRE, retireSchema, DEFAULT_VOICE, YOURS_VOICE } from './prompts.ts';
 import { ALL_SLOTS, STRING_SLOTS, slotsFor, SLOTS, KINDS, FOLDED, TO_OVER_TIME, foldLine, keysTakenBy, oneKeyword, plain, wrapperNames } from './slots.ts';
 import * as db from './db.ts';
 import * as imp from './import.ts';
@@ -484,7 +484,8 @@ function endScene(c: Ctx, storyId: string, body: any) {
   // through `/api/chapter/hem` with `pass: 'next'` and `brief` (2026-11-01).
   // `ask` (the hem drawer, 2026-10-30): where things stand waits for that answer, so the
   // tale's and the people's passes are held with the next scene's, and run when the writer answers
-  // (`/api/chapter/hem` with `asked`). The summary, new threads and retirements run now.
+  // (`/api/chapter/hem` with `asked`), and Anyone new with them, which reads the next scene's
+  // plan. The summary and retirements run now.
   // What is held is kept on the hem's row (`held`): the drawer asks while it is, and the scene's card
   // shows it paused if the writer never answers.
   // A WRITER WHO HEMS THE BASIC WAY (`users.hem`) is never asked: nothing waits on the next scene.
@@ -492,8 +493,9 @@ function endScene(c: Ctx, storyId: string, body: any) {
   const ask = body.ask === true && !basic;
   const remember = body.remember !== false;
   const want: HemWant = basicOnly(basic, { summary: body.summarise !== false, tale: !ask, memory: remember && !ask,
-    facts: body.extract !== false, finished: body.retire !== false, next: body.next !== false && !ask });
-  const run = db.beginHem(v.id, closing, ask ? ['tale', ...(remember ? ['memory'] : []), 'next'] : []);
+    facts: body.extract !== false && !ask, finished: body.retire !== false, next: body.next !== false && !ask });
+  const run = db.beginHem(v.id, closing, ask ? ['tale', ...(remember ? ['memory'] : []), 'next',
+    ...(body.extract !== false ? ['facts'] : [])] : []);
   queueHem(v.id, () => hemPasses(c, v.id, closing, r.opened, want, run));
   return { ...r, ...viewOf(c, v.id) };
 }
@@ -2447,7 +2449,7 @@ export const hemSettled = (storyId: string): Promise<void> => hemQueue.get(story
 
 /** The passes a hem reports on, by the names its report uses, in the order they run. `serve.ts` hands
  *  it to `db.stopUnfinishedHems` at boot. */
-export const HEM_PASSES = ['summary', 'facts', 'finished', 'tale', 'memory', 'next'] as const;
+export const HEM_PASSES = ['summary', 'finished', 'tale', 'memory', 'next', 'facts'] as const;
 type HemWant = Record<typeof HEM_PASSES[number], boolean>;
 /** THE BASIC HEM (Seth, 2026-11-06: "Just summary and thread updates"; on for Kia): the summary,
  *  where the tale stands and the changes to the people in it. Where the tale stands is in it because
@@ -2523,29 +2525,14 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   });
   const keptSummary = summed?.kept === true;
   if (keptSummary) passes.summary = null;
-  // IN THE ORDER THE HEM DRAWER RUNS THEM (Seth, 2026-11-06: "organize the status list that way"):
-  // the drawer holds where the tale stands, the people and the next scene for the writer's brief, so
-  // the summary, the new threads and the retirements always ran first there. Hem again runs the same
-  // order, and the steps are drawn in it (`PASSES` in web/app.js).
-  // And read it for facts. The comment above summarise applies to this word for word: the ledger
-  // is the only tier that survives compaction — prose falls out of the chapter window, summaries
-  // roll into arcs, and entries are re-sent on every call forever — so leaving the tier that
-  // outlives everything on a button nobody remembers leaves the memory optional.
-  //
-  // Measured on 2026-08-27: twelve entries in the whole database, every one of them always_on,
-  // eleven with `keys` that are just the entry's own title. That is what a manual button
-  // produced over a book. PROPOSALS, so nothing becomes canon without being accepted.
-  //
-  // The end-chapter ritual used to make this call itself as its own step 3. It must not again:
-  // the scene would be read twice, and the surface would report on a pass that did not land.
-  await pass('facts', want.facts, () => extract(c, storyId, closing, scene));
-  // And ask which of them the chapter FINISHED. After the new threads, deliberately: it is the
-  // only step that takes something away, and a writer reading the queue should meet what the
-  // chapter added before what it ended. Nothing is written here either — a retirement is a proposal, and
+  // IN THE ORDER THE HEM DRAWER RUNS THEM (Seth, 2026-11-06: "organize the status list that way"),
+  // and Hem again the same: the summary and the retirements, then, once the writer has said what the
+  // next scene is, where the tale stands, the people, the next scene and Anyone new.
+  // And ask which of them the chapter FINISHED. Nothing is written here — a retirement is a proposal, and
   // accepting one is the only decision in the app that changes what the model is told for the
   // rest of the book.
   await pass('finished', want.finished, () => retire(c, storyId, closing, scene));
-  // #125 · Where the tale stands, after the summary and the threads: one entry on the tale's
+  // #125 · Where the tale stands, after the summary: one entry on the tale's
   // own thread, chalked on this scene's card. #127 · And where each string in play stands, beside it.
   // The character memory, on the same terms: a chapter must be able to close with the model down.
   // IN A ROW, NOT AT ONCE (Seth, 2026-11-01). The speed pass (2026-10-30) ran these two together;
@@ -2564,14 +2551,23 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
   const before = opened ? db.hemOf(storyId, closing)?.suggestion ?? null : null;
   const next = await pass('next', want.next, () => suggestScene(c, storyId, opened, undefined, undefined, undefined, closing, brief));
   if (opened && next?.title) db.offerScene(storyId, opened, before, { title: next.title, note: next.note, opens: next.opens });
+  // ANYONE NEW, LAST (Seth, 2026-11-06: "merge new threads into anyone new"): one read of the scene's
+  // prose for the threads it brought in, with the next scene's plan beside it, so it also proposes who
+  // and what the next scene needs. Until then two calls: New threads on the prose, and after the hem a
+  // second ask (`needsFor`) on the summary and the plan, which also chalked pockets for the people in
+  // the next scene at its start; the people pass chalks those. Its finds are this scene's card, which
+  // the next scene's setup shows under Anyone new. The pass keeps its old report name, `facts`, so a
+  // hem from before still reads and tries again. NOT MEASURED against the two calls it replaces.
+  const ahead = opened ? (db.chapters(storyId) as any[]).find((x) => x.id === opened) : null;
+  // ponytail: the scene's own new threads and the next scene's share one cap of six. Ceiling: the
+  // next scene's crowding the scene's own past the cap. Trigger: a writer finding the scene's own
+  // threads held behind "Chalk these too"; then cap the two apart.
+  await pass('facts', want.facts, () => extract(c, storyId, closing, scene, ahead ? {
+    title: String(ahead.title ?? ''), brief: String(ahead.brief ?? ''), opens: String(ahead.opens_with ?? ''),
+    note: String(ahead.authors_note ?? '') } : undefined));
   // A pass that did not run this time leaves its line, the kept flag and the suggestion as stored (#91).
   db.finishHem(storyId, closing, run, { passes, kept: want.summary ? keptSummary : undefined,
     suggestion: !want.next ? undefined : next?.title ? { title: next.title, note: next.note, opens: next.opens } : null });
-  // And who or what the next scene needs that the tale has not got, from the summary, the opening and
-  // where it heads, so Anyone new has suggestions waiting (`needsFor`). AFTER the hem is marked done
-  // (the speed pass, 2026-10-30: it held the summary and the cards back by half a minute); still in the
-  // tale's queue, so a second hem waits for it. Never a failure of the hem.
-  if (opened && next?.title) await needsFor(c, storyId, closing, opened, { ...next, brief }).catch(() => {});
 }
 
 /** Read a chapter for facts and put them in the queue as PROPOSALS.
@@ -2587,98 +2583,8 @@ async function hemPasses(c: Ctx, storyId: string, closing: string, opened: strin
  *  handed it the lie. `remember`'s is the tested pattern, so `remember`'s is the one that stays.
  *  It matters more now that this fires on its own: a mistake behind a button is made when you press
  *  it, and a mistake on chapter close is made every chapter. */
-/** ANYONE NEW, ASKED BEFORE THE WRITER GETS THERE (Seth, 2026-10-30: "should look at what's filled
- *  between the summary, the prompt and where the next scene is heading and should already have
- *  suggestions by the time I land"). The people, places and things the next scene needs that the
- *  tale does not have, chalked as new threads against that scene, where Anyone new shows them; and
- *  since 2026-11-01 the pockets it needs for the threads in it at its start (`NEEDS_POCKETS`), chalked
- *  as changes to them. Four new threads and six pockets at most. Logged as `hem-new`. NOT MEASURED. */
-const NEEDS_CAP = 4, NEEDS_POCKET_CAP = 6;
-/** The pockets a scene's start can change: what they wear, think, look like, how two stand, what a
- *  place is like and who is in it. Not Always true and not a voice: those are who they are. */
-const NEEDS_POCKETS = ['outfit', 'interiority', 'appearance', 'relationships', 'atmosphere', 'who_is_here'];
-async function needsFor(c: Ctx, storyId: string, closing: string, opened: string,
-    s: { title: string; note: string; opens: string; brief?: string }) {
-  // #93 · THE SCENE CAN BE DELETED WHILE THE HEM RUNS: the hem named it when it started. Gone before
-  // the ask, the model is not asked; gone while it answers, nothing is chalked against it.
-  const here = () => (db.chapters(storyId) as any[]).some((x) => x.id === opened);
-  if (!here()) return { added: 0, pockets: 0 };
-  const v = bookOf(storyId);
-  const ch = v.chapters.find((x: any) => x.id === closing);
-  const sum = ch && summaryReaches(ch) ? String(ch.summary ?? '').trim() : '';
-  const existing = db.entriesOf(v.id);
-  // WHO IS IN IT AT ITS START (Seth, 2026-11-01: "new outfits interiority etc", "I meant pockets but
-  // yes chalk em"): the threads sent for the scene before a word of it is written, as its pins and
-  // settings say (`castScene`), each with what its changing pockets hold now. A pocket is chalked for
-  // one of these and nobody else.
-  const pin = new Map((db.pinsOf(v.id) as any[]).filter((p: any) => p.chapter_id === opened).map((p: any) => [p.entry_id, p.mode]));
-  const atStart = (v.entries as any[]).filter((e) => e.entryType !== 'tale' && e.retiredAtChapter == null
-    && e.activation !== 'off' && pin.get(e.id) !== 'force_out' && (pin.get(e.id) === 'force_in' || (e.activation === 'always_on' && pin.get(e.id) !== 'mention')));
-  const now = (e: any) => (e.addons ?? []).filter((a: any) => a.active && NEEDS_POCKETS.includes(a.slot) && String(a.body ?? '').trim())
-    .map((a: any) => `  ${a.slot}: ${String(a.body).trim().slice(0, 300)}`).join('\n');
-  const t0 = Date.now(), using = backgroundModel(c, v);
-  const r = await shaped(NEEDS, [
-    `THE TALE'S THREADS: ${(existing as any[]).map((e) => e.title).join(', ') || '(none)'}`,
-    atStart.length ? `IN THE SCENE AT ITS START: ${atStart.map((e) => e.title).join(', ')}\n${
-      atStart.map((e) => { const p = now(e); return p ? `${e.title}, as they are now:\n${p}` : ''; }).filter(Boolean).join('\n')}`.trim() : '',
-    sum ? `THE SCENE JUST WRITTEN, IN SUMMARY:\n${sum}` : '',
-    `THE NEXT SCENE: ${s.title}`,
-    s.brief?.trim() ? `THE WRITER'S BRIEF FOR IT:\n${s.brief.trim()}` : '',
-    s.opens?.trim() ? `HOW IT OPENS:\n${s.opens.trim()}` : '',
-    s.note?.trim() ? `WHERE IT HEADS:\n${s.note.trim()}` : ''].filter(Boolean).join('\n\n'),
-    EXTRACT_SCHEMA, { model: using, max_tokens: EXTRACT_TOKENS });
-  // ITS RAW ANSWER IS KEPT, in the manifest (the newest 200 keep theirs): a walk on the real model
-  // chalked nothing, and nothing could say what the model had answered.
-  db.logGeneration({ storyId, chapterId: opened, model: using, role: 'hem-new', params: { max_tokens: EXTRACT_TOKENS },
-    manifest: { raw: String((r as any).raw ?? '').slice(0, 12000) }, latencyMs: Date.now() - t0, error: r.error ?? null });
-  if (!here()) return { added: 0, pockets: 0 };
-  let added = 0, pockets = 0;
-  const inIt = new Set(atStart.map((e) => e.id));
-  for (const e of (r.data?.entries ?? []) as any[]) {
-    if (!e?.title?.trim()) continue;
-    // A pocket's answer may carry no body at all (Kimi-K2.5, 2026-11-01): the thread is found by its
-    // title, and `classify` reads an empty body as nothing to say, so it is handed the pocket's words.
-    const words = (Array.isArray(e.pockets) ? e.pockets : []).map((pk: any) => String(pk?.body ?? '').trim()).find(Boolean) ?? '';
-    const cls = classify(existing, { ...e, body: String(e.body ?? '').trim() || words });
-    if (!cls) continue;
-    // A POCKET FOR SOMEONE IN IT AT THE START, chalked as a change to that thread's pocket, as the
-    // hem's own pass chalks one. Never Always true: that is who they are, not this scene.
-    // THE REAL MODEL ANSWERS IN A NEW THREAD'S SHAPE (Kimi-K2.5 on ENCORE, 2026-11-01): the thread's
-    // Always true as the body and the pockets under it. Each pocket is one chalk; a field and a body
-    // with no pockets is one.
-    if (cls.entry_id) {
-      if (!inIt.has(cls.entry_id)) continue;
-      const asks = Array.isArray(e.pockets) && e.pockets.length
-        ? e.pockets.map((pk: any) => ({ field: String(pk?.slot ?? ''), body: String(pk?.body ?? '').trim() }))
-        : [{ field: String(e.field ?? ''), body: String(e.body ?? '').trim() }];
-      for (const a of asks) {
-        if (pockets >= NEEDS_POCKET_CAP) break;
-        if (!a.body || !NEEDS_POCKETS.includes(a.field)) continue;
-        const { field, target, said } = roomAsked(v.entries as any[], cls, { ...e, field: a.field, body: a.body });
-        if (said || !field) continue;
-        const body = hemOutside(v.story, String(v.entries.find((x: any) => x.id === cls.entry_id)?.title ?? e.title), field, a.body);
-        if (!body) continue;
-        if (db.addProposal(v.id, { ...cls, chapterId: opened, title: e.title.trim(), body,
-          entryType: e.type, keys: e.keys ?? [], activation: e.activation, field, target })) pockets++;
-      }
-      continue;
-    }
-    if (added >= NEEDS_CAP || !String(e.body ?? '').trim()) continue;
-    const kinds = slotsFor(e.type).map((sl) => sl.name);
-    const rooms: Record<string, any> = {};
-    for (const pk of (Array.isArray(e.pockets) ? e.pockets : []) as any[]) {
-      const slot = String(pk?.slot ?? ''), body = String(pk?.body ?? '').trim();
-      if (slot !== 'facts' && kinds.includes(slot) && body && !rooms[slot])
-        rooms[slot] = { name: String(pk?.name ?? '').trim() || slot, body };
-    }
-    if (db.addProposal(v.id, { ...cls, chapterId: opened, title: e.title.trim(), body: e.body.trim(),
-      entryType: e.type, keys: e.keys ?? [], activation: e.activation, field: 'facts',
-      rooms: Object.keys(rooms).length ? rooms : undefined })) added++;
-  }
-  return { added, pockets };
-}
-
-async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string) {
+async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string,
+    ahead?: { title: string; brief: string; opens: string; note: string }) {
   const v = bookOf(storyId);
   const ch = v.chapters.find((x) => x.id === chapterId) ?? v.currentChapter;
   const ps = db.passagesOfChapter(ch.id).filter((p: any) => !p.is_break && p.body.trim());
@@ -2689,7 +2595,14 @@ async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string
   // MEASURED, NOT GUESSED (the speed pass, 2026-10-30): the slowest pass, and the remote model reports
   // no token counts, so how much went in and came out is logged as `hem-facts`, in characters.
   const t0 = Date.now(), using = backgroundModel(c, v);
-  const r: any = await shaped(EXTRACT, `${thisScene(ch)}\n\n${text}`, EXTRACT_SCHEMA, { model: using, max_tokens: EXTRACT_TOKENS });
+  // THE NEXT SCENE'S PLAN, from the hem (Anyone new): its name, the writer's brief, how it opens and
+  // where it heads, after the prose, with the clause that asks for what it needs (`EXTRACT_AHEAD`).
+  const plan = ahead ? [`THE NEXT SCENE, NOT WRITTEN YET: ${ahead.title.trim() || '(unnamed)'}`,
+    ahead.brief.trim() ? `THE WRITER'S BRIEF FOR IT:\n${ahead.brief.trim()}` : '',
+    ahead.opens.trim() ? `HOW IT OPENS:\n${ahead.opens.trim()}` : '',
+    ahead.note.trim() ? `WHERE IT HEADS:\n${ahead.note.trim()}` : ''].filter(Boolean).join('\n\n') : '';
+  const r: any = await shaped(plan ? `${EXTRACT}\n\n${EXTRACT_AHEAD}` : EXTRACT,
+    `${thisScene(ch)}\n\n${text}${plan ? `\n\n${plan}` : ''}`, EXTRACT_SCHEMA, { model: using, max_tokens: EXTRACT_TOKENS });
   db.logGeneration({ storyId, chapterId: ch.id, model: using, role: 'hem-facts',
     params: { max_tokens: EXTRACT_TOKENS, in_chars: EXTRACT.length + text.length, out_chars: String(r.raw ?? '').length,
       entries: r.data?.entries?.length ?? 0 }, latencyMs: Date.now() - t0, error: r.error ?? null });

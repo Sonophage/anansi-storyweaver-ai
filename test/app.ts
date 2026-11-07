@@ -8150,7 +8150,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   // classified — "the model did not answer" and "nothing to read in this chapter" send a writer
   // to two different places.
   side = await reportOn({ ...ran, facts: 'the model did not answer' });
-  assert.match(side, /New threads<\/span> did not run/, 'a failed pass is reported, named as the writer knows it (#77: not facts)');
+  assert.match(side, /Finding anyone new<\/span> did not run/, 'a failed pass is reported, named as the writer knows it (#77: not facts)');
   assert.match(side, /the model did not answer/, 'with the reason, verbatim');
   // NOT AS A LOST SCENE. The prose is committed before any pass runs, and a writer who reads this
   // box has to know that before they go looking for their words.
@@ -8162,7 +8162,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
 
   side = await reportOn({ summary: 'llama-server is not running', facts: 'llama-server is not running' });
   assert.match(side, /Summary<\/span> did not run/, 'two failures are both named');
-  assert.match(side, /New threads<\/span> did not run/, 'both are named');
+  assert.match(side, /Finding anyone new<\/span> did not run/, 'both are named');
 
   // #46. A HEM THAT KEPT YOURS SAYS SO, and not as a pass that did not run. The hem reports it as
   // `keptSummary`; the summary line reads the author off the chapter, so a summary Anansi has since
@@ -8194,7 +8194,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
   {
     const states = (side: string) => [...side.matchAll(/data-hemstep="([a-z]+)" data-done="[01]"\s*data-state="([a-z]+)"/g)].map((m) => `${m[1]}:${m[2]}`);
     // IN THE ORDER THEY RUN (Seth, 2026-11-06).
-    const order = ['summary', 'facts', 'finished', 'tale', 'memory', 'next', 'decide', 'setup'];
+    const order = ['summary', 'finished', 'tale', 'memory', 'next', 'facts', 'decide', 'setup'];
     const below = (side: string) => side.match(/<div class="hemact">([\s\S]*?)<\/div>\s*<details class="hemmore/)?.[1] ?? 'NO HEMACT';
     click({ open: 's-1' }); await sleep(40);
     click({ ritual: '1' }); await sleep(30);
@@ -8206,7 +8206,7 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     assert.doesNotMatch(side, /data-panel="waiting"|passes did not run/, 'HEM-QUIET: no Decide button and no report box');
     side = await reportOn({ ...ran, tale: null, facts: 'the model did not answer' });
     assert.deepStrictEqual(states(side).map((x) => x.split(':')[0]),
-      ['summary', 'facts', 'finished', 'tale', 'memory', 'next', 'who', 'decide', 'setup'],
+      ['summary', 'finished', 'tale', 'memory', 'next', 'facts', 'who', 'decide', 'setup'],
       'HEM-ORDER: after a hem, the passes in the order they run, who is in the next scene after the next scene, then the writer\'s two');
     assert.deepStrictEqual(states(side).filter((x) => !/^(who|decide|setup):/.test(x)).sort(),
       ['facts:fail', 'finished:done', 'memory:done', 'next:done', 'summary:done', 'tale:done'],
@@ -8214,16 +8214,16 @@ ok('a first run is the idea box, and says the model is asleep only when it is');
     // THE BASIC HEM (Seth, 2026-11-06): three passes, no next-scene steps; a hem with any other pass is drawn whole.
     (STORY as any).hemBasic = true;
     const basicSide = await reportOn({ summary: null, tale: null, memory: null });
-    assert.deepStrictEqual(states(basicSide).map((x) => x.split(':')[0]), ['summary', 'tale', 'memory', 'decide', 'setup'],
-      'HEM-BASIC-STEPS: a basic hem draws its three passes and the writer\'s two, and no who is in the next scene');
+    assert.deepStrictEqual(states(basicSide).map((x) => x.split(':')[0]), ['summary', 'tale', 'memory'],
+      'HEM-BASIC-STEPS: a basic hem draws its three passes and nothing else (Seth, 2026-11-06: "minimize the status line")');
     assert.match(basicSide, /class="card arccard hemsum/, '  and the summary shows at once, with nothing to answer first');
     assert.deepStrictEqual(states(await reportOn({ ...ran, tale: null })).map((x) => x.split(':')[0]),
-      ['summary', 'facts', 'finished', 'tale', 'memory', 'next', 'who', 'decide', 'setup'], '  and a full hem from before the switch is drawn whole');
+      ['summary', 'finished', 'tale', 'memory', 'next', 'facts', 'who', 'decide', 'setup'], '  and a full hem from before the switch is drawn whole');
     delete (STORY as any).hemBasic;
     side = await reportOn({ ...ran, tale: null, facts: 'the model did not answer' });
     const step = (k: string) => side.match(new RegExp(`data-hemstep="${k}"[\\s\\S]*?</li>`))?.[0] ?? '';
     assert.match(step('facts'), /Did not run/, 'HEM-FAILED-STEP: the step that failed says it did not run');
-    assert.doesNotMatch(step('facts'), /No new threads/, '  and not that it found nothing');
+    assert.doesNotMatch(step('facts'), /No one new/, '  and not that it found nothing');
     assert.match(below(side), /data-hemagain="c-2" data-pass="facts"/, 'HEM-ACT-FAIL: its Try again is below the steps');
     assert.doesNotMatch(side, /Run a pass again/, 'HEM-ONE-RERUN: no block of re-run presses');
     assert.match(side, /<details class="hemmore[\s\S]*data-hemagain="c-2"(?! data-pass)[^>]*>Hem it again/, '  and the whole hem runs again from More');
@@ -9311,7 +9311,7 @@ const hemCardOf = (side: string) => {
   card = await show({ ...HEM_DONE, passes: { ...HEM_DONE.passes, memory: 'the model did not answer' } }, HEM_ROWS);
   assert.match(card, /Changes to the people in it<\/span> did not run &mdash; the model did not answer/,
     'a pass that did not run is named on the card, with the reason');
-  assert.doesNotMatch(card, /New threads<\/span> did not run/, '  and a pass that ran is not');
+  assert.doesNotMatch(card, /Finding anyone new<\/span> did not run/, '  and a pass that ran is not');
   let before = asked().length;
   click({ hemagain: 'c-1', pass: 'memory' }); await settle();
   assert.strictEqual(asked().length, before + 1, 'Try again asks once');
