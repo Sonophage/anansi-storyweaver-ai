@@ -4694,8 +4694,12 @@ function foundRow(m, act) {
   const facts = [!units ? '' : m.cost == null ? 'cost not known' : `${m.cost} ${m.cost === 1 ? 'unit' : 'units'}`,
     m.context ? `${Number(m.context).toLocaleString()} tokens` : '', spinWord(m.weaving ?? '')].filter(Boolean);
   const tags = S.hub.tags[m.id];
+  // THE WHERE-IT-RUNS MARK, on the left (Seth, 2026-11-09: "shortlist should have the same icons"):
+  // the circle and the feather or the chip, as on the tale's model list, so a row says where it runs
+  // before it says what it is. The row's name is the button beside it.
   return `<div style="display:flex; flex-direction:column; gap:8px; padding:8px 4px; border-bottom:1px solid var(--line)">
     <div class="line">
+    ${runsMark(m.id)}
     <button data-findmore="${esc(m.id)}" aria-expanded="${open}"
       style="min-width:0; flex:1; display:flex; flex-direction:column; gap:3px; text-align:left">
       <span style="font-size:12.5px; color:var(--ink); overflow:hidden; text-overflow:ellipsis"

@@ -16,14 +16,18 @@ const post = (url, body) => page.eval(`(async () => JSON.stringify(await (await 
   { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify(body))} })).json()))()`)
   .then(JSON.parse);
 
-// ---- the book: forty passages under a 9,000-token cap, weaving on. At that cap the normal reserve
+// ---- the book: forty passages under a 10,500-token cap, weaving on. At that cap the normal reserve
 // holds every passage, and the weaving one cannot.
+// The cap was 9,000 until 2026-11-09. By then the fixed part of the prompt had grown enough that a
+// weaving prompt did not fit at 9,000 at all: the refusal became the overflow one, which has no Write
+// anyway, and this scenario died on the press. Measured that day: 10,000 and 11,000 both give the
+// case below, and 12,000 weaves without a refusal. 10,500 is the middle of that range.
 await page.goto(B + "/");
 const made = await post("/api/stories", { title: "The Long Weave", premise: "A city on a dead god." });
 const sid = made.id;
 for (let i = 1; i <= 40; i++)
   await post("/api/write", { storyId: sid, body: `Passage ${i}. ` + "The lower tiers pulse under the rain, and the Murmur keeps her counsel. ".repeat(4) });
-await post("/api/story", { id: sid, story: { maxContext: 9000, weaving: true } });
+await post("/api/story", { id: sid, story: { maxContext: 10500, weaving: true } });
 const book = () => page.eval(`(async () => { const v = await (await fetch('/api/story?story=${sid}')).json();
   return JSON.stringify({ weaves: v.weaves, human: v.passages.filter((p) => p.author === 'human').length,
     model: v.passages.filter((p) => p.author === 'model').length }); })()`).then(JSON.parse);

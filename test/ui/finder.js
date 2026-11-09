@@ -14,7 +14,11 @@ const until = async (expr, n = 40) => {
   return false;
 };
 const QWEN = "featherless:llmfan46/Qwen3.6-35B-A3B-uncensored-heretic";
-const hits = () => page.eval("[...document.querySelectorAll('#findhits [title]')].map(e => e.title)");
+// The name's title, inside the row's button: the where-it-runs mark beside it has a title too.
+const hits = () => page.eval("[...document.querySelectorAll('#findhits [data-findmore] [title]')].map(e => e.title)");
+/** Every row in `list` has its where-it-runs mark, and it is the first thing on the left. */
+const marksLeft = (list) => page.eval(`(() => { const r = [...document.querySelectorAll('#${list} [data-findmore]')];
+  return r.length > 0 && r.every((b) => b.parentElement.firstElementChild.matches('[data-runs]')); })()`);
 const mine = () => page.eval("(async () => (await (await fetch('/api/shortlist')).json()).models)()");
 /** Set the search box the way typing does: the value, then the input event the app listens for. */
 const search = async (q) => {
@@ -44,7 +48,8 @@ ok("the ones that never weave come first", ids[0].includes("Mistral-Small"));
 await search("gpt");
 ids = await hits();
 ok(`free text narrows it (${ids.length})`, ids.length === 1 && ids[0].includes("gpt-oss"));
-const row = await page.eval("document.querySelector('#findhits [title]')?.parentElement?.textContent ?? ''");
+const row = await page.eval("document.querySelector('#findhits [data-findmore] [title]')?.parentElement?.textContent ?? ''");
+ok("each result carries its where-it-runs mark, on the left", await marksLeft('findhits'));
 ok("a row says its unit cost, its size and whether it spins",
   /1 unit/.test(row) && /32,768 tokens/.test(row) && /always plans/.test(row));
 ok("and never says thinking", !/think/i.test(await page.eval("document.getElementById('sideBody').textContent")));
@@ -53,7 +58,7 @@ await page.click('[data-finduncensored]');
 await wait(700);
 ok("turning uncensored-only off shows a stock model", (await hits()).some((i) => i.includes("Gemma-4-26B-it")));
 ids = await hits();
-const untried = await page.eval("document.querySelector('#findhits [title$=\"Step-3.5-Flash\"]')?.parentElement?.textContent ?? ''");
+const untried = await page.eval("document.querySelector('#findhits [data-findmore] [title$=\"Step-3.5-Flash\"]')?.parentElement?.textContent ?? ''");
 ok(`a family Anansi has not met says not tried yet, last (${JSON.stringify(untried.trim().slice(-40))})`,
   /not tried yet/.test(untried) && !/never plans/.test(untried) && ids.at(-1).includes("Step-3.5-Flash"));
 ok("and the weaving filter offers it", await page.eval(`[...document.querySelectorAll('[data-findweave] option')]
@@ -144,6 +149,7 @@ await page.click('[data-tellerlist="tale"]');
 // ---- 4b. the Shortlist row describes a remote model with the same block
 await page.click('[data-tellertab="shortlist"]');
 await until(`!!document.querySelector('#findmine [data-findmore="${QWEN}"]')`);
+ok("each shortlist row carries the same mark, on the left", await marksLeft('findmine'));
 await page.click(`#findmine [data-findmore="${QWEN}"]`);
 ok("the shortlist row for a remote model opens its card",
   await until(`/abliterated finetune/.test(document.querySelector('#findmine .remoteabout')?.innerText ?? '')`));

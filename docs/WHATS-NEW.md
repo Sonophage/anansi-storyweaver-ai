@@ -31,6 +31,7 @@ call that "busy", and it does not try again.
 A NanoGPT model shows a blue circle and a small chip beside its name, so you can tell it apart from
 a model on this machine (the spider) and a Featherless one (the feather). In a tale's model list the
 mark now sits on the left of each name, the same as on the row for the model that writes the tale.
+Your Shortlist and the Add a model results show the same marks, on the left too.
 
 ### Narrow the model list by where a model runs
 When a tale's model list holds models from more than one place, buttons above it read **Local**,
