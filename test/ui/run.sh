@@ -118,6 +118,7 @@ fresh() {
   node --experimental-strip-types test/ui/seed.ts "$WORK/db" >/dev/null
   ANANSI_PORT=$PORT ANANSI_DB="$WORK/db" \
     ANANSI_FEATHERLESS_URL="$fl_url" ANANSI_FEATHERLESS_KEY_FILE="$fl_key" ANANSI_HF_URL="$hf_url" \
+    ANANSI_NANOGPT_KEY_FILE=/nonexistent/nanogpt.key ANANSI_NANOGPT_URL=http://127.0.0.1:9/v1 \
     ANANSI_LLAMA="$llama" \
     nohup node --experimental-strip-types serve.ts >"$WORK/serve.log" 2>&1 &
   local n=0

@@ -622,7 +622,7 @@ const PURPOSE = { RP: 'Roleplay', W: 'Write', A: 'Agentic' };
  *  is there. Keeping it selectable is deliberate: it is what the story is actually set to, and a
  *  control must show the state it edits before it can be trusted to change it. */
 export const modelOptions = (models, pinned) => {
-  // `ready` is false only on a remote model when the server has no Featherless key: it is listed,
+  // `ready` is false only on a remote model when the server has no key for its provider: it is listed,
   // so the pin is visible, and cannot be chosen.
   const list = (models ?? []).map((m) => ({ value: m.id, status: m.status, gone: false,
     ready: m.ready !== false }));
@@ -693,10 +693,11 @@ export const modelName = (id) => {
       return { id, name: parts.slice(0, at).join(' '), detail, bits, size };
     }
   }
-  // A remote id is a Featherless repo path behind REMOTE_PREFIX, which says where the model runs
-  // and is not part of its name. Split on the colon as it stands and every remote model would be
-  // called "featherless".
-  const [repo, quant] = (whereRuns(id).remote ? id.slice(REMOTE_PREFIX.length) : id).split(':');
+  // A remote id is the provider's own id behind its prefix, which says where the model runs and is
+  // not part of its name. Split on the colon as it stands and every remote model would be called
+  // "featherless".
+  const w = whereRuns(id);
+  const [repo, quant] = (w.remote ? id.slice(PROVIDERS[w.source].prefix.length) : id).split(':');
   const org = repo.includes('/') ? repo.split('/')[0].toLowerCase() : '';
   // The org name is often repeated inside the repo name as well, and once is enough.
   const name = (repo.split('/').pop() ?? repo).replace(/[-_]?GGUF$/i, '')
@@ -704,19 +705,30 @@ export const modelName = (id) => {
   return { id, name, detail: quant ?? '', bits: quant ? [quant] : [], size: '' };
 };
 
-/** THE PREFIX ON EVERY REMOTE MODEL'S ID: the server's `REMOTE_PREFIX`, which test/app.ts holds
- *  this equal to. The browser decides remote-ness through `whereRuns` and nowhere else. */
-export const REMOTE_PREFIX = 'featherless:';
+/** THE REMOTE PROVIDERS AND THE PREFIX ON EACH ONE'S IDS: the server's `PROVIDERS`, which
+ *  test/nanogpt.ts holds this equal to (ADR 0015). The browser decides where a model runs through
+ *  `whereRuns` and nowhere else. */
+// The keys are quoted so that the prefix (`featherless:`) is spelled once in this file: test/app.ts
+// counts it.
+export const PROVIDERS = { 'featherless': { prefix: 'featherless:', label: 'Featherless' },
+  'nanogpt': { prefix: 'nanogpt:', label: 'NanoGPT' } };
+/** Featherless's prefix, the one the older code and its tests were written against. */
+export const REMOTE_PREFIX = PROVIDERS.featherless.prefix;
+/** Where a model runs, in the writer's words: Local, or the provider's name. The list's filter. */
+export const SOURCES = [['local', 'Local'], ...Object.entries(PROVIDERS).map(([k, v]) => [k, v.label])];
 
 /** WHERE A MODEL RUNS, AND WHETHER IT IS AWAKE (#53). The prefix decides the source, here as on
  *  the server. A local model is awake only when the router says `loaded`: one still loading, or
  *  one the router cannot describe, is not yet writing at speed. A remote model is always shown
- *  awake, because Featherless shows no sleeping state a writer could act on. */
+ *  awake, because no provider shows a sleeping state a writer could act on. `source` is `local`
+ *  or the provider; `label` its name. */
 export const whereRuns = (id, status) => {
-  const remote = String(id ?? '').startsWith(REMOTE_PREFIX);
+  const source = Object.keys(PROVIDERS).find((p) => String(id ?? '').startsWith(PROVIDERS[p].prefix)) ?? 'local';
+  const remote = source !== 'local';
   const awake = remote || status === 'loaded';
-  return { remote, awake, glyph: remote ? 'feather' : 'spider',
-    words: remote ? 'remote, on Featherless' : `local, ${awake ? 'awake' : 'asleep'}` };
+  const label = remote ? PROVIDERS[source].label : 'this machine';
+  return { remote, source, label, awake, glyph: remote ? 'feather' : 'spider',
+    words: remote ? `remote, on ${label}` : `local, ${awake ? 'awake' : 'asleep'}` };
 };
 
 /** WHAT A MODEL IS GOOD AT, which is the one thing #25 asks for that nothing can derive.

@@ -1,4 +1,4 @@
-/* THE FEATHERLESS CATALOGUE — what remote models exist, and what each one can hold.
+/* THE CATALOGUES — what remote models each provider offers, and what each one can hold.
  *
  * A slice in the sense `src/search.ts` sets out: it owns the KNOWLEDGE about the catalogue and
  * never opens the database or defines the ownership gate. The shortlist that records a writer's
@@ -9,45 +9,61 @@
  * sent, so the key is never on a request that does not need it — and it lists more than 22,000
  * models, so it is asked once a day and not once per add. The browser never talks to Featherless.
  *
+ * NANOGPT'S IS ITS SUBSCRIPTION LIST (ADR 0015), `GET <subscription>/v1/models?detailed=true`, also
+ * public: only the models the subscription covers, a few hundred, with their context and NanoGPT's
+ * own description. Each provider has its own cache.
+ *
  * ponytail: the cache is per process and the whole list is held. Ceiling: a restart refetches,
  * and a catalogue many times larger would want a disk cache. Upgrade path is writing the list to
  * a file beside the key with its fetch time.
  */
-import { FEATHERLESS, FEATHERLESS_AGENT } from './llama.ts';
+import { FEATHERLESS_AGENT, PROVIDERS, type Remote } from './llama.ts';
 
-/** `cost` is Featherless's `concurrency_cost`: how many of the plan's units one call takes. */
+/** `cost` is Featherless's `concurrency_cost`: how many of the plan's units one call takes. NanoGPT
+ *  has no units, so its rows have none. `about` is NanoGPT's own description; Featherless gives
+ *  none, and its models are described from their Hugging Face card instead. */
 type CatalogueRow = { id: string; modelClass: string | null; context: number | null;
-  cost: number | null };
+  cost: number | null; about?: string | null };
 
 export const CATALOGUE_TTL_MS = 24 * 60 * 60_000;
-let cached: { at: number; rows: CatalogueRow[] } | null = null;
+const cached = new Map<Remote, { at: number; rows: CatalogueRow[] }>();
 
-/** The whole catalogue, from the cache while it is younger than a day. `now` is a parameter only
- *  so a test can age the cache without waiting a day. */
-export async function catalogue(now = Date.now()): Promise<CatalogueRow[]> {
-  if (cached && now - cached.at < CATALOGUE_TTL_MS) return cached.rows;
-  let r: Response;
-  try {
-    r = await fetch(`${FEATHERLESS}/models`,
-      { headers: FEATHERLESS_AGENT, signal: AbortSignal.timeout(30_000) });
-  } catch { throw new Error('cannot reach Featherless to read its catalogue'); }
-  if (!r.ok) throw new Error(`the Featherless catalogue answered ${r.status}`);
-  const d = await r.json() as any;
-  // A field Featherless leaves out, or sends as something other than a positive number, is unknown.
-  const pos = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
-  const rows = (d.data ?? []).map((m: any) => ({
+/** Each provider's list, as its own fields say it. */
+const LIST: Record<Remote, { path: string; row: (m: any) => CatalogueRow }> = {
+  featherless: { path: '/models', row: (m) => ({
     id: String(m.id),
     modelClass: m.model_class ? String(m.model_class) : null,
     context: pos(m.context_length),
     cost: pos(m.concurrency_cost),
-  }));
-  cached = { at: now, rows };
+  }) },
+  nanogpt: { path: '/models?detailed=true', row: (m) => ({
+    id: String(m.id), modelClass: null, context: pos(m.context_length), cost: null,
+    about: typeof m.description === 'string' && m.description.trim() ? m.description.trim() : null,
+  }) },
+};
+// A field the provider leaves out, or sends as something other than a positive number, is unknown.
+const pos = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
+
+/** A provider's whole catalogue, from the cache while it is younger than a day. `now` is a
+ *  parameter only so a test can age the cache without waiting a day. */
+export async function catalogue(now = Date.now(), p: Remote = 'featherless'): Promise<CatalogueRow[]> {
+  const hit = cached.get(p);
+  if (hit && now - hit.at < CATALOGUE_TTL_MS) return hit.rows;
+  const { label, url } = PROVIDERS[p];
+  let r: Response;
+  try {
+    r = await fetch(url + LIST[p].path, { headers: FEATHERLESS_AGENT, signal: AbortSignal.timeout(30_000) });
+  } catch { throw new Error(`cannot reach ${label} to read its catalogue`); }
+  if (!r.ok) throw new Error(`the ${label} catalogue answered ${r.status}`);
+  const d = await r.json() as any;
+  const rows = (d.data ?? []).map(LIST[p].row);
+  cached.set(p, { at: now, rows });
   return rows;
 }
 
-/** One model by its Featherless id (no prefix), or null when the catalogue does not list it. */
-export const catalogueEntry = async (featherlessId: string) =>
-  (await catalogue()).find((m) => m.id === featherlessId) ?? null;
+/** One model by its provider's own id (no prefix), or null when the catalogue does not list it. */
+export const catalogueEntry = async (id: string, p: Remote = 'featherless') =>
+  (await catalogue(Date.now(), p)).find((m) => m.id === id) ?? null;
 
 /* ---------- what a writer may see, and in what order ---------- */
 

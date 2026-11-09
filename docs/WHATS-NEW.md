@@ -16,6 +16,21 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-11-09 · NanoGPT models beside Featherless
+
+### Write with NanoGPT models
+If you have a NanoGPT subscription, its models can write your tales, the same way Featherless models
+do. Open Storyteller, go to **Add a model**, and pick **Search NanoGPT** in the box at the top. Only
+the models your subscription covers are listed, so nothing you add can spend money. Add one, and it
+joins your shortlist and your model list. Account → Model says whether your NanoGPT key is in.
+
+If NanoGPT turns a model away because your subscription doesn't cover it, Anansi says so. It does not
+call that "busy", and it does not try again.
+
+### Narrow the model list by where a model runs
+When a tale's model list holds models from more than one place, buttons above it read **Local**,
+**Featherless** and **NanoGPT**. Press one to see only those models. Press it again to see them all.
+
 ## 2026-11-06 · Act answers what you did
 
 ### "Featherless is busy" now says which kind of busy

@@ -38,22 +38,43 @@ export const modelFor = (story?: { model?: string | null } | null, dflt?: string
     : (dflt && fits(dflt, false) ? dflt : MODEL);
 };
 
-/* ---- REMOTE MODELS: one adapter, Featherless only (docs/adr/0001) ----
+/* ---- REMOTE MODELS: one adapter, two providers (docs/adr/0001, docs/adr/0015) ----
  *
- * A remote id is the Featherless id behind a fixed prefix that no local preset uses, and it is
+ * A remote id is the provider's own id behind a fixed prefix that no local preset uses, and it is
  * stored that way everywhere — writer default, book pin, generation row — so the prefix alone
  * decides where a call goes. Local ids go to the router exactly as before.
  *
  * NEVER A FALLBACK. A remote call that fails reports why; nothing here retries it on another
  * model, because a passage written by a model the writer did not choose is the one failure a
  * writer cannot see. */
-export const REMOTE_PREFIX = 'featherless:';
-export const isRemote = (id?: string | null): boolean => !!id && id.startsWith(REMOTE_PREFIX);
-const remoteName = (id: string) => id.slice(REMOTE_PREFIX.length);
+export type Remote = 'featherless' | 'nanogpt';
+/** THE PROVIDERS, the one table of them. `url` is the base, `/v1` included, from an env var so a
+ *  suite can point it at a fake. `key` names the key file (`<key>-<login>.key`) and the env var that
+ *  overrides it for every writer. NanoGPT is reached on its SUBSCRIPTION path, for the catalogue and
+ *  for every call, so only models the subscription covers are listed (ADR 0015). The browser holds
+ *  the same prefixes in `web/model.js`; test/nanogpt.ts holds the two equal. */
+export const PROVIDERS: Record<Remote, { prefix: string; label: string; url: string; keyEnv: string }> = {
+  featherless: { prefix: 'featherless:', label: 'Featherless', keyEnv: 'ANANSI_FEATHERLESS_KEY_FILE',
+    url: (process.env.ANANSI_FEATHERLESS_URL ?? 'https://api.featherless.ai/v1').replace(/\/+$/, '') },
+  nanogpt: { prefix: 'nanogpt:', label: 'NanoGPT', keyEnv: 'ANANSI_NANOGPT_KEY_FILE',
+    url: (process.env.ANANSI_NANOGPT_URL ?? 'https://api.nano-gpt.com/api/subscription/v1').replace(/\/+$/, '') },
+};
+/** Featherless's prefix. The one most of the code and its tests were written against. */
+export const REMOTE_PREFIX = PROVIDERS.featherless.prefix;
+/** WHERE A MODEL RUNS: the one parser of an id's prefix on the server. Anything without a known
+ *  prefix is local. */
+export const sourceOf = (id?: string | null): 'local' | Remote =>
+  (Object.keys(PROVIDERS) as Remote[]).find((p) => String(id ?? '').startsWith(PROVIDERS[p].prefix)) ?? 'local';
+export const isRemote = (id?: string | null): boolean => sourceOf(id) !== 'local';
+/** The provider's own id: only the prefix is cut, since a NanoGPT id can hold a colon of its own. */
+export const remoteName = (id: string) => {
+  const p = sourceOf(id);
+  return p === 'local' ? id : id.slice(PROVIDERS[p].prefix.length);
+};
+/** The provider of a remote id. Only called where the id is already known to be remote. */
+const providerOf = (id: string): Remote => sourceOf(id) as Remote;
 
-/** The base URL, `/v1` included. An env var so the test suite can point it at a fake. */
-export const FEATHERLESS = (process.env.ANANSI_FEATHERLESS_URL ?? 'https://api.featherless.ai/v1')
-  .replace(/\/+$/, '');
+export const FEATHERLESS = PROVIDERS.featherless.url;
 /** EVERY FEATHERLESS REQUEST NAMES ITSELF. Measured 2026-10-22 against the live API: the catalogue
  *  answers Node's default `fetch` User-Agent ("node") with a 404 and anything that names itself
  *  with a 200. Every fake passed without it, because no fake looked at the header. */
@@ -71,28 +92,35 @@ export const FEATHERLESS_AGENT = { 'User-Agent': 'Anansi' };
  *
  *  ANANSI_FEATHERLESS_KEY_FILE, when set, is one file for every writer: the suites and the benches
  *  set it, to a fake or to nothing, and that is what keeps them off the real plans. */
+// The one directory every provider's key files live in. Its env var is named for Featherless because
+// it came first; NanoGPT's files sit beside them (`nanogpt-<login>.key`).
 const KEY_DIR = () => process.env.ANANSI_FEATHERLESS_KEY_DIR ?? `${process.env.HOME ?? ''}/.config/anansi`;
 const payer = new AsyncLocalStorage<string>();
-/** Run `fn` with `login`'s key as the one every Featherless call inside it uses, across awaits. */
+/** Run `fn` with `login`'s keys as the ones every remote call inside it uses, across awaits. */
 export const asPayer = <T>(login: string | null, fn: () => T): T => payer.run(login ?? '', fn);
 /** The same, for the rest of the current request: serve.ts sets it once per request, after the
  *  ownership gate, and everything that request awaits or starts (a stream, detached work after it)
  *  keeps it. Each request is its own async chain, so one writer's payer never reaches another's. */
 export const payFor = (login: string | null) => payer.enterWith(login ?? '');
-/** The key file for a login, or null for one that is not a plain name (it becomes part of a path). */
-export const keyPathFor = (login: string): string | null =>
-  /^[\w.@+-]+$/.test(login) && !login.includes('..') ? `${KEY_DIR()}/featherless-${login}.key` : null;
-const featherlessKey = (): string | null => {
-  const file = process.env.ANANSI_FEATHERLESS_KEY_FILE || keyPathFor(payer.getStore() ?? '');   // '' is unset
+/** The key file for a login and provider, or null for a login that is not a plain name (it becomes
+ *  part of a path). */
+export const keyPathFor = (login: string, p: Remote = 'featherless'): string | null =>
+  /^[\w.@+-]+$/.test(login) && !login.includes('..') ? `${KEY_DIR()}/${p}-${login}.key` : null;
+/** `trim` takes a pasted key's CR and newline off too. A key saved from a paste on 2026-11-09 carried
+ *  two CRs, and NanoGPT answered 401 when curl sent it raw. */
+const remoteKey = (p: Remote): string | null => {
+  const file = process.env[PROVIDERS[p].keyEnv] || keyPathFor(payer.getStore() ?? '', p);   // '' is unset
   if (!file) return null;
   try { return readFileSync(file, 'utf8').trim() || null; } catch { return null; }
 };
-export const remoteReady = () => !!featherlessKey();
-/** Whatever Featherless says goes through this before it can reach a toast, a log line or a
+/** Whether this writer has a key for `p`, or with no `p`, for any provider. */
+export const remoteReady = (p?: Remote) =>
+  p ? !!remoteKey(p) : (Object.keys(PROVIDERS) as Remote[]).some((q) => !!remoteKey(q));
+/** Whatever a provider says goes through this before it can reach a toast, a log line or a
  *  generation row. Its own error text has no reason to carry the key; this is the floor for the
  *  day it does. */
-const redact = (s: string) => {
-  const k = featherlessKey();
+const redact = (s: string, p: Remote) => {
+  const k = remoteKey(p);
   return k ? s.split(k).join('[key]') : s;
 };
 
@@ -120,30 +148,37 @@ const BACKOFF = (process.env.ANANSI_FEATHERLESS_BACKOFF_MS ?? '2000,6000,12000')
  *    switch — a 429 `model_switching_limit_exceeded`: too many different models in a short time.
  *  The model's name is its last path part, as the picker shows it. */
 type Busy = 'plan' | 'model' | 'switch';
+/** NanoGPT's 429 is a rate limit with no plan behind it, so its words say only that. */
 /** A FULL MODEL IS TRIED TWICE, NOT FOUR TIMES (Seth, 2026-11-06: "cut the retries on a full
  *  model"). Each `capacity_exhausted` took Featherless 12-16 s to send that night, so the full
  *  schedule kept a writer about 70 s before saying anything, and four of his five calls were stopped
  *  by hand inside that wait. One retry still rides out a blip (#64's passed in moments). It counts
  *  the call's tries so far, whichever refusal spent them: a full model after three 429s fails at once. */
 const FULL_RETRIES = 1;
-const featherlessBusy = (why: Busy, model: string) => why === 'model'
-  ? `${model.split('/').pop()} is full on Featherless right now. Try another model, or try again in a few minutes.`
+const busyWords = (why: Busy, model: string, p: Remote) => why === 'model'
+  ? `${model.split('/').pop()} is full on ${PROVIDERS[p].label} right now. Try another model, or try again in a few minutes.`
+  : p === 'nanogpt'
+    ? 'NanoGPT is limiting your calls right now. Wait a minute, then try again.'
   : why === 'switch'
     ? 'Featherless refused: too many model changes in a short time. Wait a minute, then try again.'
     : 'Your Featherless plan is in use by another call. Try again when it finishes.';
+/** OUTSIDE THE SUBSCRIPTION (ADR 0015). A subscription-only NanoGPT key asked for a model its
+ *  subscription does not cover answers 429 `api_key_usd_limit` (measured 2026-11-09) and spends
+ *  nothing. It is not busy and waiting will not change it, so it is never retried. */
+const outsidePlan = (e: any) => e?.code === 'api_key_usd_limit' || e?.billing_restriction === 'subscription_only';
 /** #64 · AT CAPACITY, SAID INSIDE A STREAM. Featherless can answer 200, open the stream, and then
  *  send an `error` object whose message is "<model> is temporarily at capacity. Please try again
  *  shortly." (Kia, 2026-10-22 20:23 and 20:24). Only the message was seen, so the message is what
  *  is matched; the up-front 503's code is taken too, in case the stream ever carries it. */
 const atCapacity = (e: any) => e?.code === 'capacity_exhausted' || /\bat capacity\b/i.test(String(e?.message ?? ''));
-const FEATHERLESS_LATE = 'Featherless did not answer in time. A model it is loading can take a '
+const late = (p: Remote) => `${PROVIDERS[p].label} did not answer in time. A model it is loading can take a `
   + 'minute — try again.';
 
 /** The wait between tries, cut short by the writer pressing Stop. Stopped, it rejects with an
  *  AbortError, and a caller checks only that name. The call's ceiling can end the same wait, and
- *  that is not a stop: it says Featherless ran out of time, as a ceiling during the request does. */
-const pause = (ms: number, signal?: AbortSignal) => sleep(ms, undefined, { signal }).catch((e) => {
-  if (signal?.reason?.name === 'TimeoutError') throw new Error(FEATHERLESS_LATE);
+ *  that is not a stop: it says the provider ran out of time, as a ceiling during the request does. */
+const pause = (ms: number, p: Remote, signal?: AbortSignal) => sleep(ms, undefined, { signal }).catch((e) => {
+  if (signal?.reason?.name === 'TimeoutError') throw new Error(late(p));
   throw e;
 });
 
@@ -157,22 +192,26 @@ const pause = (ms: number, signal?: AbortSignal) => sleep(ms, undefined, { signa
 let takesSwitch: (id: string) => boolean = () => true;
 export const askSwitchWith = (fn: (id: string) => boolean) => { takesSwitch = fn; };
 
-/** One POST to Featherless, with the key, retried on 429 and at capacity, and on nothing else.
+/** One POST to the model's provider, with the writer's key for it, retried on 429 and at capacity,
+ *  and on nothing else.
  *
  *  THE FIELD IS LEFT OFF HERE, for every call to a model whose template refuses it: a passage,
  *  Talk, an invention and every other call that follows the book's model, whichever of them set it
  *  and whichever left it to `chat`'s default. Decided from the stored fact, never by sending it and
  *  seeing. `weaveSwitch` (never sent) overrides the fact for the probe, which is how it learns it. */
-async function featherless(path: string, body: Record<string, any>, signal?: AbortSignal,
-                           first = 0): Promise<Response & { attempt: number }> {
-  const key = featherlessKey();
-  if (!key) throw new Error("Featherless isn't set up for this writer — there is no key file");
+async function remote(path: string, body: Record<string, any>, signal?: AbortSignal,
+                       first = 0): Promise<Response & { attempt: number }> {
+  const p = providerOf(String(body.model));
+  const { label, url } = PROVIDERS[p];
+  const key = remoteKey(p);
+  if (!key) throw new Error(`${label} isn't set up for this writer — there is no key file`);
   const payload = Object.fromEntries(Object.entries(body).filter(([k]) => DOCUMENTED.has(k)));
   payload.model = remoteName(String(body.model));
   // NO TOKEN CAP TO A REMOTE MODEL (Seth, 2026-10-27: "We can remove token counts for remote ai. The
   // only thing that should influence the response is the slider"). A cap there cost whole passes: a
   // remote answer past it is a cut answer (#64), so a wordy model failed a hem's thread changes twice.
-  // Featherless bills by concurrency, not tokens. What stops a runaway instead: the passage's word
+  // Featherless bills by concurrency, not tokens, and a subscription-only NanoGPT key is refused
+  // rather than billed (ADR 0015). What stops a runaway instead: the passage's word
   // guard (`runawayWords`, in `chat`) and a five-minute ceiling on every other call (`post`).
   // Since 2026-10-29 a JSON answer is the other exception: `structured` caps it at twice its local cap
   // (a hem pass ran on for six and a half minutes without one). Prose stays uncapped.
@@ -186,12 +225,12 @@ async function featherless(path: string, body: Record<string, any>, signal?: Abo
   for (let attempt = first; ; attempt++) {
     let res: Response;
     try {
-      res = await fetch(FEATHERLESS + path, { method: 'POST', signal, body: JSON.stringify(payload),
+      res = await fetch(url + path, { method: 'POST', signal, body: JSON.stringify(payload),
         headers: { ...FEATHERLESS_AGENT, 'Content-Type': 'application/json', Authorization: `Bearer ${key}` } });
     } catch (e: any) {
-      if (e?.name === 'TimeoutError') throw new Error(FEATHERLESS_LATE);
+      if (e?.name === 'TimeoutError') throw new Error(late(p));
       if (e?.name === 'AbortError') throw new Error('the call was cancelled');
-      throw new Error('cannot reach Featherless. This machine may be offline.');
+      throw new Error(`cannot reach ${label}. This machine may be offline.`);
     }
     if (res.ok) return Object.assign(res, { attempt });
     // AT CAPACITY IS BUSY TOO. Featherless says a model is full with a 503 whose body carries
@@ -200,17 +239,20 @@ async function featherless(path: string, body: Record<string, any>, signal?: Abo
     // A 429's body is read for its code alone (which busy it is); its message is never shown.
     let error: any = null;
     try { error = JSON.parse(await res.text())?.error; } catch { /* unreadable, or not JSON */ }
+    if (res.status === 429 && outsidePlan(error))
+      throw Object.assign(new Error(`${String(payload.model).split('/').pop()} is not in your ${label} `
+        + 'subscription. Pick a model from Add a model, which lists only the ones it covers.'), { status: 429 });
     if (res.status === 429 || (res.status === 503 && error?.code === 'capacity_exhausted')) {
       const tries = res.status === 503 ? Math.min(FULL_RETRIES, BACKOFF.length) : BACKOFF.length;
-      if (attempt < tries) { await pause(BACKOFF[attempt], signal); continue; }
-      throw new Error(featherlessBusy(res.status === 503 ? 'model'
-        : error?.code === 'model_switching_limit_exceeded' ? 'switch' : 'plan', payload.model));
+      if (attempt < tries) { await pause(BACKOFF[attempt], p, signal); continue; }
+      throw new Error(busyWords(res.status === 503 ? 'model'
+        : error?.code === 'model_switching_limit_exceeded' ? 'switch' : 'plan', payload.model, p));
     }
-    // ITS MESSAGE, NOT ITS BODY. The status and what Featherless says went wrong, redacted and
+    // ITS MESSAGE, NOT ITS BODY. The status and what the provider says went wrong, redacted and
     // bounded; the raw body is never echoed to a writer.
     const said = String(error?.message ?? '');
     // The status rides on the error, so the probe on add can tell a refusal from a failure.
-    throw Object.assign(new Error(`Featherless answered ${res.status}${said ? `: ${redact(said).slice(0, 200)}` : ''}`),
+    throw Object.assign(new Error(`${label} answered ${res.status}${said ? `: ${redact(said, p).slice(0, 200)}` : ''}`),
       { status: res.status });
   }
 }
@@ -264,9 +306,9 @@ function keepWords(r: any, target: number | null) {
 }
 
 async function post(path: string, body: any, ms = 900_000): Promise<any> {
-  // A remote model's call goes to Featherless, whose paths are the router's without the `/v1`.
+  // A remote model's call goes to its provider, whose paths are the router's without the `/v1`.
   if (isRemote(body?.model))
-    return keepWords(await (await featherless(path.replace(/^\/v1/, ''), body,
+    return keepWords(await (await remote(path.replace(/^\/v1/, ''), body,
       AbortSignal.timeout(Math.min(ms, REMOTE_CEILING_MS)))).json(),
       body.target_words === undefined ? null : Number(body.target_words) || 0);
   const res = await reach(HOST + path, {
@@ -285,10 +327,18 @@ export async function tokenize(content: string, model = MODEL): Promise<number[]
 
 /** The exact count, from whichever server will run the prompt. Featherless takes `{model, text}`
  *  and answers `{count}` rather than the router's token list (probed 2026-10-21), so the number
- *  means the same either way and the budget guard in `generate` runs before a remote call too. */
+ *  means the same either way and the budget guard in `generate` runs before a remote call too.
+ *
+ *  NANOGPT HAS NO TOKENIZE (404, 2026-11-09), so its count is an estimate made here: a token for
+ *  every three characters, where English prose runs nearer four. It errs high, so the budget guard
+ *  refuses early rather than sending a prompt the model cannot hold.
+ *  ponytail: an estimate. Ceiling: a prompt that would fit is refused up to a quarter early. Trigger:
+ *  a NanoGPT book refused for room it had. Upgrade path is the `usage.prompt_tokens` of its last
+ *  call, scaled. */
 export async function count(content: string, model = MODEL): Promise<number> {
+  if (sourceOf(model) === 'nanogpt') return Math.ceil(content.length / 3);
   if (isRemote(model))
-    return Number((await (await featherless('/tokenize', { model, text: content },
+    return Number((await (await remote('/tokenize', { model, text: content },
       AbortSignal.timeout(120_000))).json()).count);
   return (await tokenize(content, model)).length;
 }
@@ -510,36 +560,37 @@ export async function chat(system: string, body: string, opts: Record<string, un
     // caller passes it but the check in test/stream.ts.
     const signal = stop ? AbortSignal.any([AbortSignal.timeout(ceilingMs), stop])
                         : AbortSignal.timeout(ceilingMs);
-    const remote = isRemote(payload.model);
+    const away = isRemote(payload.model);
     const on = String(payload.model);
     // #64 · AT CAPACITY BEFORE THE FIRST WORD IS TRIED AGAIN, on the schedule the 503 uses and
     // sharing its tries, so a mix of the two ends in the same words after the same two calls.
     // After a word has reached the page it is a failure like any other mid-stream one: a passage
     // is never silently restarted under the writer's eyes. Only a remote call loops.
     for (let tries = 0; ; tries++) {
-      const res = remote ? await featherless('/chat/completions', payload, signal, tries)
+      const res = away ? await remote('/chat/completions', payload, signal, tries)
         : await reach(HOST + '/v1/chat/completions', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload), signal });
       if (!res.ok) throw new Error(`/v1/chat/completions ${res.status}: ${(await res.text()).slice(0, 300)}`);
-      if (remote) tries = (res as any).attempt;
+      if (away) tries = (res as any).attempt;
       let wrote = false;
       enter(on);
       // The runaway guard is Anansi's to keep only on a remote call, which carries no cap: the local
       // router keeps its own `max_tokens`, so a local stream is read to its end, unless it lands.
       try {
         return await readSSE(res, (d) => { wrote = true; onDelta(d); },
-          land > 0 ? land : capW > 0 ? capW : remote ? runawayWords(Number(payload.target_words) || 0) : Infinity,
+          land > 0 ? land : capW > 0 ? capW : away ? runawayWords(Number(payload.target_words) || 0) : Infinity,
           land > 0 ? 'land' : 'length', slack);
       } catch (e: any) {
-        if (!remote || e?.name === 'AbortError' || stop?.aborted) throw e;
+        if (!away || e?.name === 'AbortError' || stop?.aborted) throw e;
+        const p = providerOf(on);
         if (!wrote && atCapacity(e)) {
-          if (tries < Math.min(FULL_RETRIES, BACKOFF.length)) { await pause(BACKOFF[tries], signal); continue; }
-          throw new Error(featherlessBusy('model', remoteName(on)));
+          if (tries < Math.min(FULL_RETRIES, BACKOFF.length)) { await pause(BACKOFF[tries], p, signal); continue; }
+          throw new Error(busyWords('model', remoteName(on), p));
         }
-        // A remote stream that fails after the 200 is still Featherless talking: its words are
+        // A remote stream that fails after the 200 is still the provider talking: its words are
         // redacted like any other answer of its, and the take fails rather than landing half-written.
-        throw new Error(`Featherless stopped mid-passage: ${redact(String(e?.message ?? e)).slice(0, 200)}`);
+        throw new Error(`${PROVIDERS[p].label} stopped mid-passage: ${redact(String(e?.message ?? e), p).slice(0, 200)}`);
       } finally { leave(on); }
     }
   }

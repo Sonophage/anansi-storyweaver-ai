@@ -1,6 +1,7 @@
 // Route table. One entry per endpoint; the HTTP shell in serve.ts does the plumbing.
 import { count, chat, SENTENCE_END, structured, structuredRetry, model, models, checkModel, allowList, allowed, modelFor, webSearch, searchConfigured,
-         releasable, unload, busyOn, isRemote, remoteReady, keyPathFor, REMOTE_PREFIX, askSwitchWith } from './llama.ts';
+         releasable, unload, busyOn, isRemote, remoteReady, keyPathFor, askSwitchWith,
+         sourceOf, remoteName, PROVIDERS, type Remote } from './llama.ts';
 import { catalogue, catalogueEntry, refusal, search as searchCatalogue, weavingFound, RESULT_CAP,
   hubTagsFor, hubCard, isRepo, ALWAYS_WEAVES, tagsKnown, indexTags } from './catalogue.ts';
 import { SYSTEM } from './render.ts';
@@ -116,10 +117,12 @@ const jpegOf = (dataUrl: unknown, what: string): Buffer => {
     throw Object.assign(new Error('that is not a JPEG'), { code: 400 });
   return buf;
 };
-/** The Account page's answer. The key file's path for a login that names one; never the key. */
+/** The Account page's answer: for each provider, whether this writer's key file is in and where it
+ *  goes. The key file's path for a login that names one; never the key. */
 const meOf = (owner: string) => {
   const a = db.accountOf(owner);
-  return { ...a, featherless: { ready: remoteReady(), file: a.login ? keyPathFor(a.login) : null } };
+  const key = (p: Remote) => ({ ready: remoteReady(p), file: a.login ? keyPathFor(a.login, p) : null });
+  return { ...a, featherless: key('featherless'), nanogpt: key('nanogpt') };
 };
 
 const need = <T,>(v: T, msg: string): NonNullable<T> => {
@@ -390,7 +393,7 @@ export function storyIdOf(body: any, query: URLSearchParams): string | null {
  *  and so does most background work, through `backgroundModel` below (docs/adr/0002). */
 const writerModel = (c: Ctx, v: { story: any; owner?: string }) =>
   modelFor(v.story, c.defaultModel, (id, pinned) =>
-    remoteReady() && db.shortlisted(pinned ? (v.owner ?? c.owner) : c.owner, id) != null);
+    remoteReady(sourceOf(id) as Remote) && db.shortlisted(pinned ? (v.owner ?? c.owner) : c.owner, id) != null);
 
 /** The model for the background work that follows the writer (docs/adr/0002): chapter summaries
  *  and roll-ups, the book-creation sparks, and the card passes (extraction, the one-card scan,
@@ -401,26 +404,28 @@ const writerModel = (c: Ctx, v: { story: any; owner?: string }) =>
 const backgroundModel = (c: Ctx, v: { story: any; owner?: string }) =>
   alwaysWeaves(c, v) ? model() : writerModel(c, v);
 
-/** A catalogue read, or the `{ error }` a route answers with when Featherless cannot be read. */
+/** A catalogue read, or the `{ error }` a route answers with when the provider cannot be read. */
 const fromCatalogue = async <T>(read: () => Promise<T>): Promise<T | { error: string }> => {
   try { return await read(); }
-  catch (e: any) { return { error: e?.message ?? 'could not read the Featherless catalogue' }; }
+  catch (e: any) { return { error: e?.message ?? 'could not read the catalogue' }; }
 };
 
-/** Which of `ids` this writer may have described: remote ids the catalogue lists and the search
+/** Which of `ids` this writer may have described: Featherless ids the catalogue lists and the search
  *  would show them, as `{id, repo}`. The repo path is the catalogue's, so nothing the request says
- *  reaches the hub unless the catalogue has it too. */
+ *  reaches the hub unless the catalogue has it too. A NanoGPT model is described by NanoGPT's own
+ *  catalogue, not the hub: its ids are mostly not Hugging Face repos (ADR 0015). */
 const describable = async (c: Ctx, ids: unknown[]) => {
   const rows = await fromCatalogue(catalogue);
   if ('error' in rows) return rows;
   const byId = new Map(rows.map((r) => [r.id, r]));
-  return ids.map(String).filter(isRemote).map((id) => ({ id, row: byId.get(id.slice(REMOTE_PREFIX.length)) }))
+  return ids.map(String).filter((id) => sourceOf(id) === 'featherless')
+    .map((id) => ({ id, row: byId.get(remoteName(id)) }))
     .filter((x) => x.row && !refusal(x.row) && isRepo(x.row.id))
     .map((x) => ({ id: x.id, repo: x.row!.id }));
 };
 
 /** What the shortlist routes answer when the id they are handed is not a remote one. */
-const NOT_REMOTE = `a remote model id starts with "${REMOTE_PREFIX}"`;
+const NOT_REMOTE = `a remote model id starts with ${Object.values(PROVIDERS).map((p) => `"${p.prefix}"`).join(' or ')}`;
 
 /** A TALE'S OWN SAVE, the tale panel's and the Model tab's (`POST /api/story`), and since #156 Talk's
  *  model switch, so a model picked in either place is pinned, checked and made the writer's default
@@ -503,8 +508,9 @@ function endScene(c: Ctx, storyId: string, body: any) {
 /** A remote id a writer may name as a default or a pin: on `owner`'s shortlist, with a key set.
  *  Returns the id so callers read as an assignment, the way `checkModel` does for local ones. */
 const shortlistedOrRefuse = (owner: string, id: string): string => {
-  if (!remoteReady())
-    throw Object.assign(new Error("Featherless isn't set up on this server"), { code: 400 });
+  const p = sourceOf(id) as Remote;
+  if (!remoteReady(p))
+    throw Object.assign(new Error(`${PROVIDERS[p].label} isn't set up on this server`), { code: 400 });
   if (db.shortlisted(owner, id) == null)
     throw Object.assign(new Error(`"${id}" is not on the shortlist of the writer who owns this choice`),
       { code: 400 });
@@ -536,10 +542,11 @@ const heldFor = (c: Ctx, v: { owner?: string }, using: string) => {
 };
 
 /** A REMOTE MODEL AS A MODEL ROW: the one shape the model menu, the Storyteller picker and the
- *  shelf read. `ready` is false when the server has no key — listed, and not pickable. */
+ *  shelf read. `ready` is false when the server has no key for its provider — listed, and not
+ *  pickable. `provider` is where it runs, the list's filter (ADR 0015). */
 const remoteRow = (c: Ctx, id: string, context: number, speed?: { tps?: number; runs?: number },
                    cost?: number | null) =>
-  ({ id, status: 'remote', source: 'remote', ready: remoteReady(), ctxSize: context,
+  ({ id, status: 'remote', source: 'remote', provider: sourceOf(id), ready: remoteReady(sourceOf(id) as Remote), ctxSize: context,
      perSlot: context, tps: speed?.tps, runs: speed?.runs, cost: cost ?? null });
 
 /** A BOOK'S REMOTE PIN, as a model row, or null. Checked against the OWNER's shortlist, the way
@@ -945,7 +952,7 @@ async function actOn(c: Ctx, storyId: string, ch: Change):
 function modelsOf(c: Ctx, v: any) {
   const owner = db.getStory(v.id)?.owner_id ?? c.owner;
   const local = presets().map((p: any) => String(p.id)).filter(allowed);
-  const listed = remoteReady() ? db.shortlistOf(owner) : [];
+  const listed = db.shortlistOf(owner).filter((m) => remoteReady(sourceOf(m.id) as Remote));
   return { using: writerModel(c, v), pin: (v.story.model as string | null) ?? null, usual: c.defaultModel ?? model(),
     ids: [...new Set([...local, ...listed.map((m) => m.id)])], listed };
 }
@@ -957,7 +964,7 @@ function modelsLine(m: ReturnType<typeof modelsOf>): string {
   const meta = Object.fromEntries(presets().map((p: any) => [p.id, p]));
   const fact = (id: string) => {
     const row = m.listed.find((x) => x.id === id);
-    return [row ? 'on Featherless' : 'on this box',
+    return [row ? `on ${PROVIDERS[sourceOf(id) as Remote].label}` : 'on this box',
       (row?.context ?? meta[id]?.perSlot) && `reads ${Math.round((row?.context ?? meta[id].perSlot) / 1000)}k tokens`,
       row?.cost != null && `cost ${row.cost}`, row?.weaving && `plans first: ${row.weaving}`,
       speed[id]?.tps && `${Math.round(speed[id].tps!)} tokens a second here`].filter(Boolean).join(', ');
@@ -3507,14 +3514,16 @@ export const routes: Record<string, Handler> = {
     // "not set up" rather than as a wiped list; `remote` says the same once for the whole menu. A
     // yes or a no, never the key or where it is kept.
     const ready = remoteReady();
+    // Which providers this writer has a key for: Add a model offers those, and only those.
+    const remotes = Object.fromEntries((Object.keys(PROVIDERS) as Remote[]).map((p) => [p, remoteReady(p)]));
     const mine = db.shortlistOf(c.owner).map((m) => remoteRow(c, m.id, m.context, speed[m.id], m.cost));
-    const local = (ms: any[]) => ms.map((m) => ({ ...dress(m), source: 'local' }));
+    const local = (ms: any[]) => ms.map((m) => ({ ...dress(m), source: 'local', provider: 'local' }));
     // `active` is the model that WRITES for this writer, resolved, not the stored default: with no
     // key, or a default since removed, the strip must name the local one that is really writing.
     const active = writerModel(c, { story: null });
-    try { return { models: [...local(await models()), ...mine], active, remote: ready,
+    try { return { models: [...local(await models()), ...mine], active, remote: ready, remotes,
                    allow: allowList() }; }
-    catch (e: any) { return { models: mine, active, remote: ready, allow: allowList(),
+    catch (e: any) { return { models: mine, active, remote: ready, remotes, allow: allowList(),
       error: e?.message ?? 'the router did not answer' }; }
   },
   /* THE SHORTLIST: list, add, remove. Each names no story, so all three are on OPEN_ROUTES and each
@@ -3522,12 +3531,13 @@ export const routes: Record<string, Handler> = {
   'GET /api/shortlist': (c: Ctx) => ({ models: db.shortlistOf(c.owner), ready: remoteReady() }),
   'POST /api/shortlist': async (c: Ctx) => {
     const id = String(c.body.model ?? '');
-    if (!isRemote(id) || id.length <= REMOTE_PREFIX.length)
-      return { error: NOT_REMOTE };
-    if (!remoteReady()) return { error: "Featherless isn't set up on this server" };
-    const found = await fromCatalogue(() => catalogueEntry(id.slice(REMOTE_PREFIX.length)));
+    const p = sourceOf(id);
+    if (p === 'local' || !remoteName(id)) return { error: NOT_REMOTE };
+    const { label } = PROVIDERS[p];
+    if (!remoteReady(p)) return { error: `${label} isn't set up on this server` };
+    const found = await fromCatalogue(() => catalogueEntry(remoteName(id), p));
     if (found && 'error' in found) return found;
-    if (!found) return { error: `Featherless does not list "${id.slice(REMOTE_PREFIX.length)}"` };
+    if (!found) return { error: `${label} does not list "${remoteName(id)}"` };
     // The floor (a model whose entry gives no context is under it): the same
     // predicate the search uses, so what the search hides is what this refuses — and refused
     // BEFORE the probe, so a refusal spends none of the plan.
@@ -3548,10 +3558,10 @@ export const routes: Record<string, Handler> = {
     try { answer = await probe(true); }
     catch (e: any) {
       const without = e?.status === 400 ? await probe(false).catch(() => null) : null;
-      if (!without) return { error: e?.message ?? 'Featherless did not answer' };
+      if (!without) return { error: e?.message ?? `${label} did not answer` };
       try { answer = await probe(true); }
       catch (again: any) {
-        if (again?.status !== 400) return { error: again?.message ?? 'Featherless did not answer' };
+        if (again?.status !== 400) return { error: again?.message ?? `${label} did not answer` };
         answer = without; takes = false;
       }
     }
@@ -3560,14 +3570,16 @@ export const routes: Record<string, Handler> = {
   },
   /** SEARCH THE CATALOGUE. The knowledge — filters, the floor, the sort — is in
    *  src/catalogue.ts; this only reads the query. `uncensored=0` is the one way to turn the
-   *  default filter off. */
+   *  default filter off. `source` is the provider searched, Featherless unless it names NanoGPT. */
   'GET /api/catalogue': async (c: Ctx) => {
-    const rows = await fromCatalogue(catalogue);
-    if ('error' in rows) return rows;
     const q = c.query;
+    const p: Remote = q.get('source') === 'nanogpt' ? 'nanogpt' : 'featherless';
+    const rows = await fromCatalogue(() => catalogue(Date.now(), p));
+    if ('error' in rows) return rows;
     const { unread, ...found } = searchCatalogue(rows, { text: q.get('q') ?? '', size: q.get('size') ?? '',
       weaving: q.get('weaving') ?? '', uncensored: q.get('uncensored') !== '0',
-      cost: q.get('cost') ?? '', tag: q.get('tag') ?? '' }, REMOTE_PREFIX, tagsKnown);
+      // Tags are Hugging Face's, read for Featherless repos only; a NanoGPT search takes none.
+      cost: q.get('cost') ?? '', tag: p === 'featherless' ? q.get('tag') ?? '' : '' }, PROVIDERS[p].prefix, tagsKnown);
     // The tags a tag search could not answer for yet are read in the background; the page asks again.
     if (unread?.length) indexTags(unread);
     return found;
@@ -3588,6 +3600,13 @@ export const routes: Record<string, Handler> = {
    *  the model info panel. Same gate as the tags. */
   'GET /api/catalogue/card': async (c: Ctx) => {
     const id = String(c.query.get('model') ?? '');
+    // NanoGPT describes its own models, in its catalogue; there are no tags or base model to read.
+    if (sourceOf(id) === 'nanogpt') {
+      const row = await fromCatalogue(() => catalogueEntry(remoteName(id), 'nanogpt'));
+      if (row && 'error' in row) return row;
+      if (!row || refusal(row)) return { error: 'NanoGPT does not list that model for you' };
+      return { id, tags: [], base: [], about: row.about ?? null };
+    }
     const one = await describable(c, [id]);
     if ('error' in one) return one;
     if (!one.length) return { error: 'Featherless does not list that model for you' };

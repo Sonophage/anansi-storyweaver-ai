@@ -345,8 +345,9 @@ A model run on this machine. Anansi's default. Background work follows the write
 _Avoid_: router model, home model
 
 **Remote model**:
-A model run by Featherless and chosen on purpose by a writer. The tale's text goes to Featherless
-for every passage it writes.
+A model run by Featherless or NanoGPT (its provider) and chosen on purpose by a writer. The tale's
+text goes to that provider for every passage it writes. Its id carries the provider as a prefix
+(ADR 0015).
 _Avoid_: cloud model, API model, online model
 
 **This tale's model / Your model**:
@@ -355,6 +356,6 @@ _Avoid_: pin, pinned, default model
 _In code_: `stories.model`, `default_model`
 
 **Shortlist**:
-One writer's own list of remote models, added from the Featherless catalogue on Storyteller's
+One writer's own list of remote models, added from a provider's catalogue on Storyteller's
 Add a model tab, and listed (and removed) on its Shortlist tab. It appears in that writer's model list beside the local models, and on no one else's.
 _Avoid_: favourites, my models, library

@@ -85,8 +85,8 @@ const menu = async () => {
 };
 const searchBox = async () => {
   await page.click('[data-tellertab="addmodel"]');
-  await until("!!document.querySelector('#findq') || /needs a Featherless key/.test(document.querySelector('#sideBody')?.textContent ?? '')");
-  return page.eval("({ box: !!document.querySelector('#findq'), says: /needs a Featherless key/.test(document.querySelector('#sideBody')?.textContent ?? '') })");
+  await until("!!document.querySelector('#findq') || /needs a key for Featherless or NanoGPT/.test(document.querySelector('#sideBody')?.textContent ?? '')");
+  return page.eval("({ box: !!document.querySelector('#findq'), says: /needs a key for Featherless or NanoGPT/.test(document.querySelector('#sideBody')?.textContent ?? '') })");
 };
 await menu();
 const withKey = await searchBox();

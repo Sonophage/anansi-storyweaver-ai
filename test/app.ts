@@ -554,7 +554,8 @@ let worldDown = 0;
           kinds: [{ k: 'character', n: 9 }, { k: 'lore', n: 6 }, { k: 'item', n: 2 }],
           days: [{ d: day(9), n: 4, w: 1200 }, { d: day(1), n: 6, w: 2400 }] };
       })()
-    : url.startsWith('/api/models') ? { active: 'write-nt-qwen36-h', allow: [], remote: modelsRemote, models: [
+    : url.startsWith('/api/models') ? { active: 'write-nt-qwen36-h', allow: [], remote: modelsRemote,
+      remotes: { featherless: modelsRemote, nanogpt: false }, models: [
         { id: 'Qwen3.6-WNTH-35B-A3B-NN', status: 'loaded',
           ctxSize: 100096, parallel: 2, perSlot: 50048, tps: 58.4, runs: 58 },
         { id: 'Wayfarer-2-RPNT-12B', status: 'unloaded',
@@ -4707,8 +4708,14 @@ ok('the model panel in a book names what writes it, reads a lent pin\'s limit an
   // Code only: a line comment may name the prefix, and saying it is not deciding with it.
   const code = ['model.js', 'app.js', 'api.js'].map((f) => readFileSync(new URL(`../web/${f}`, import.meta.url), 'utf8')
     .split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n')).join('\n');
-  assert.strictEqual((code.match(/featherless:/g) ?? []).length, 1,
-    'PREFIX: the browser writes the prefix once, in the constant, and decides remote-ness from it');
+  // Every provider's prefix (ADR 0015), each held equal to the server's and written once.
+  const { PROVIDERS: webP } = await import('../web/model.js');
+  const { PROVIDERS: srvP } = await import('../src/llama.ts');
+  assert.deepStrictEqual(Object.fromEntries(Object.entries(webP).map(([k, v]: any) => [k, v.prefix])),
+    Object.fromEntries(Object.entries(srvP).map(([k, v]: any) => [k, v.prefix])), "PREFIX: the browser's providers are the server's");
+  for (const { prefix } of Object.values(srvP) as { prefix: string }[])
+    assert.strictEqual((code.match(new RegExp(prefix, 'g')) ?? []).length, 1,
+      `PREFIX: the browser writes ${prefix} once, in the constant, and decides remote-ness from it`);
   ok("the browser's remote prefix is the server's, and is written once");
 }
 
@@ -6476,9 +6483,9 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   assert.doesNotMatch(html('sideBody'), /data-acctgo=/, 'TELLER-VOICE: and no door to Account any more');
   click({ tellertab: 'shortlist' });
   assert.match(html('sideBody'), /id="findmine"/, 'TELLER-SHORTLIST: the shortlist');
-  assert.doesNotMatch(html('sideBody'), /id="findq"|needs a Featherless key/, 'TELLER-SHORTLIST: and no search on it');
+  assert.doesNotMatch(html('sideBody'), /id="findq"|needs a key for Featherless or NanoGPT/, 'TELLER-SHORTLIST: and no search on it');
   click({ tellertab: 'addmodel' });
-  assert.match(html('sideBody'), /needs a Featherless key/, 'TELLER-NOKEY: with no key, Add a model says it needs one');
+  assert.match(html('sideBody'), /needs a key for Featherless or NanoGPT/, 'TELLER-NOKEY: with no key, Add a model says it needs one');
   assert.doesNotMatch(html('sideBody'), /id="findq"/, 'TELLER-NOKEY: and offers no box that cannot search');
   assert.doesNotMatch(html('sideBody'), /id="findmine"/, 'TELLER-ADD: the shortlist is its own tab');
   modelsRemote = true;

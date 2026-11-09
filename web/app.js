@@ -4,7 +4,7 @@
 // so a repaint does not rewrite every element's inline style.
 import { api } from './api.js';
 import { HELP } from './help.js';
-import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, still, decodeMs, loenIn, loenGate, LOEN_WORD_MS, sphereIn, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES, pressOf, pressKey } from './model.js';
+import { inkParagraphs, inkAccent, accent, MODES, KINDS, KIND_PLURAL, SPICE, STORY_FIELDS, POV_EXAMPLE, isSpeech, ago, esc, BLOCK_COLOR, BLOCK_ORIGIN, KIND_COLOR, sentOf, modelName, spinWord, numbered, sceneName, modelFacts, modelOptions, whereRuns, SOURCES, PROVIDERS, pinIsDead, roomBelow, withPin, BLURB, coverPrompt, still, decodeMs, loenIn, loenGate, LOEN_WORD_MS, sphereIn, THEMES, themeVars, themeNow, mark, MARK, epigraphOf, shelfOrder, bookParagraphs, touchedAgo, leftOffLine, waiting, keysFrom, voiceClash, withoutClash, diffHTML, historyPairs, benchParts, benchUnseen, promptText, pocketReach, minorRank, roman, FACES, pressOf, pressKey } from './model.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -303,12 +303,15 @@ const S = {
   newsBusy: false, newsError: null,   // What changed, while Anansi is writing it
   tellerTab: 'model',   // #131. Which of Storyteller's tabs is showing: model, shortlist, addmodel, voice, stats
   tellerList: null,     // Whether the model row on Model has its list open: 'tale', or none (2026-11-03)
-  // #51. Find a model: the search over the Featherless catalogue, and this writer's shortlist.
+  // #51. Find a model: the search over one provider's catalogue, and this writer's shortlist.
   // `hits` is null until the first answer lands; `seq` drops an answer a later search overtook.
-  find: { q: '', size: '', weaving: '', cost: '', tag: '', uncensored: true, hits: null, total: 0, sizes: [], costs: [], weavings: [],
+  // `source` is the provider searched (ADR 0015); empty means the first one with a key.
+  find: { source: '', q: '', size: '', weaving: '', cost: '', tag: '', uncensored: true, hits: null, total: 0, sizes: [], costs: [], weavings: [],
           error: null, seq: 0, open: null },
   shortlist: null,
-  remote: false,        // #54. Whether the server has a Featherless key, from /api/models
+  remote: false,        // #54. Whether the server has a key for any provider, from /api/models
+  remotes: {},          // ADR 0015. Which providers have a key: { featherless, nanogpt }
+  modelSource: null,    // ADR 0015. The tale's model list narrowed to one source: local, or a provider
   // #52. What Hugging Face says about remote models, by prefixed id, read through the server.
   // `tags` for the rows, `cards` for an expanded row and the model info panel; `reading` keeps a
   // read from being asked twice while it is in flight. `find.open` is the one expanded row.
@@ -584,7 +587,7 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   // #71. The quill that opens the box, the ⌄ that folds it, the bulb, an idea picked, and the way
   // out of Talk.
   'dockopen', 'dockfold', 'idea', 'ideapick', 'dockwrite', 'newlore', 'lorekind', 'loreread',
-  'dropblank', 'makeblank', 'wear', 'talemodel', 'tellerlist', 'lbook',
+  'dropblank', 'makeblank', 'wear', 'talemodel', 'tellerlist', 'modelsource', 'lbook',
   'ask', 'usedraft', 'copydraft', 'clearchat', 'talkundo', 'talkadd', 'copyentry', 'delcover', 'drawcover', 'usecover',
   // The talks kept (2026-10-30): the list, one opened, one deleted; and an answer's prompt copied.
   'talkpast', 'talkopen', 'talkdel', 'copyprompt',
@@ -981,7 +984,7 @@ function modelHead() {
              those are already in the id. One decode, every surface: here, and the list and the picker
              on Storyteller's Model tab. The size is left out of the badges on purpose; this strip is nowrap. -->
         ${modelName(writing).bits.length ? `<span class="gold-line">${esc(modelName(writing).bits.join(' \u00b7 '))}</span>` : ''}
-        <span class="quiet">${whereRuns(writing).remote ? 'on Featherless'
+        <span class="quiet">${whereRuns(writing).remote ? `on ${whereRuns(writing).label}`
           : S.modelsDown ? 'on this machine, not answering'
           : localStatus === 'loaded' ? 'on this machine' : 'on this machine, asleep'}</span>
       </span></button>`;
@@ -1458,7 +1461,7 @@ function emptyModels() {
     // AND A WAY ON, where there is one. The list empty was a dead end (second usability check).
     return `<div class="hint flush">The model on this machine is not answering. It has to
       be restarted on the machine Anansi runs on.</div>${S.remote ? `<button class="btn ghost push-8"
-      data-findmodel="1">Find a model on Featherless</button>` : ''}`;
+      data-findmodel="1">Find a remote model</button>` : ''}`;
   }
   return `<div class="hint flush warned">The router answered, and your
     allowlist matched none of it. <code>ANANSI_MODELS</code> is
@@ -4655,7 +4658,7 @@ function remoteAbout(card) {
     ${card.about ? `<div style="font-size:13px; line-height:1.55; color:var(--mute)">${esc(card.about)}</div>` : ''}
     ${tags.length ? hubTagChips(tags) : ''}
     ${!card.about && !base.length && !tags.length
-      ? '<span class="hint flush">Its Hugging Face page says nothing about it.</span>' : ''}</div>`;
+      ? '<span class="hint flush">Nothing is written about it where it is listed.</span>' : ''}</div>`;
 }
 
 /** Read one model's card through the server, once, and redraw whatever shows it. */
@@ -4686,7 +4689,9 @@ async function loadTags(ids) {
 function foundRow(m, act) {
   const d = modelName(m.id);
   const open = S.find.open === m.id;
-  const facts = [m.cost == null ? 'cost not known' : `${m.cost} ${m.cost === 1 ? 'unit' : 'units'}`,
+  // Plan units are Featherless's alone; a NanoGPT row has none to state (ADR 0015).
+  const units = whereRuns(m.id).source === 'featherless';
+  const facts = [!units ? '' : m.cost == null ? 'cost not known' : `${m.cost} ${m.cost === 1 ? 'unit' : 'units'}`,
     m.context ? `${Number(m.context).toLocaleString()} tokens` : '', spinWord(m.weaving ?? '')].filter(Boolean);
   const tags = S.hub.tags[m.id];
   return `<div style="display:flex; flex-direction:column; gap:8px; padding:8px 4px; border-bottom:1px solid var(--line)">
@@ -4783,12 +4788,17 @@ function findHits() {
         ${f.total} shown. Type more of a name to narrow it.</div>` : '');
 }
 
+/** The provider Add a model searches: the one picked, while it still has a key, else the first
+ *  one that does. */
+const findSource = () => (S.remotes[S.find.source] ? S.find.source
+  : Object.keys(PROVIDERS).find((p) => S.remotes[p]) ?? 'featherless');
+
 /** Ask the server's search, and draw the answer. A later search can overtake an earlier one while
  *  someone types, so only the newest answer is drawn. `whole` redraws the panel, for the first
  *  answer, which brings the size choices with it. */
 async function findSearch(whole = false) {
   const f = S.find, seq = ++f.seq;
-  const r = await api.catalogue({ q: f.q, size: f.size, weaving: f.weaving, cost: f.cost, tag: f.tag.trim(),
+  const r = await api.catalogue({ source: findSource(), q: f.q, size: f.size, weaving: f.weaving, cost: f.cost, tag: f.tag.trim(),
     uncensored: f.uncensored ? '1' : '0' });
   if (seq !== f.seq) return;
   f.tagIndex = r.tagIndex ?? null;
@@ -4860,7 +4870,7 @@ function modelInfo(id) {
   // description block is the expanded Find a model row's, from the same renderer. The panel can
   // be drawn without a press (a reload on it, the model now writing), so the read is asked for
   // from here; loadCard reads each model once.
-  const remote = whereRuns(id).remote;
+  const w = whereRuns(id), remote = w.remote;
   if (remote) queueMicrotask(() => loadCard(id));
 
   // A fact and WHERE IT CAME FROM. The absent case says which source is silent rather than
@@ -4877,7 +4887,7 @@ function modelInfo(id) {
     <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
       <span class="serif" style="font-size:19px; color:var(--ink-bright)">${esc(d.name)}</span>
       ${writing ? '<span class="tag tag-lit">writing now</span>'
-        : remote ? '<span class="tag">on Featherless</span>'
+        : remote ? `<span class="tag">on ${esc(w.label)}</span>`
         : m.status === 'unloaded' ? '<span class="tag">asleep</span>'
         : m.status === 'loaded' ? '<span class="tag goodink">loaded</span>' : ''}</div>
     <!-- The id is what the router answers to and what ANANSI_MODEL takes, so it is on the panel
@@ -4910,13 +4920,13 @@ function modelInfo(id) {
       const words = (n) => `about ${(Math.round(n * 0.75 / 1000) * 1000).toLocaleString()} words`;
       return fact('How much he reads at once (context)',
         room ? `${words(room)}${SRV.admin ? ` \u00b7 ${room.toLocaleString()} tokens` : ''}` : '',
-        remote ? "this model's whole limit on Featherless, and all of it is yours"
+        remote ? `this model's whole limit on ${w.label}, and all of it is yours`
         : !SRV.admin ? 'half of what this machine holds, because both writers share it'
         : live ? `half of what this machine holds (${live.global.toLocaleString()} tokens), because both writers share it`
         : m.perSlot && m.ctxSize && m.parallel ? `${m.ctxSize.toLocaleString()} shared ${m.parallel} ${m.parallel === 1 ? 'way' : 'ways'} in the router's preset file`
         : "the router's preset file does not mention this one");
     })()}
-    ${remote ? fact('Cost', m.cost ? `${m.cost} ${m.cost === 1 ? 'unit' : 'units'} of your Featherless plan` : '',
+    ${w.source === 'featherless' ? fact('Cost', m.cost ? `${m.cost} ${m.cost === 1 ? 'unit' : 'units'} of your Featherless plan` : '',
       m.cost ? 'your own plan, counted while he writes' : 'Featherless did not say what this model costs') : ''}
     ${fact('How fast he writes',
       m.tps ? `about ${Math.max(1, Math.round(m.tps * 0.75))} words a second${SRV.admin ? ` \u00b7 ${m.tps} tokens a second` : ''}` : '',
@@ -4930,8 +4940,8 @@ function modelInfo(id) {
         ? `<div class="hint flush">This is the one writing.${remote ? '' : ` Switching to another
             releases it.`}</div>`
         // A remote model with no key on the server cannot be picked, so nothing offers it.
-        : remote && !S.remote
-        ? `<div class="hint flush">Featherless isn't set up on this server.</div>`
+        : remote && !S.remotes[w.source]
+        ? `<div class="hint flush">${esc(w.label)} isn't set up on this server.</div>`
         : remote && !mine
         ? `<div class="hint flush">This tale's owner chose it, and it is
             not on your shortlist, so it cannot be your model. Shortlist can add it.</div>`
@@ -4953,7 +4963,7 @@ function shortlistTab() {
     </div>`;
 }
 
-/** #51 · ADD A MODEL, Storyteller's Add a model tab: the Featherless search.
+/** #51 · ADD A MODEL, Storyteller's Add a model tab: the search, one provider at a time (ADR 0015).
  *
  *  The search is the SERVER's: the browser never talks to Featherless, and the filters and the
  *  context floor are decided there. This draws what comes back. Typing redraws only the results, so
@@ -4967,11 +4977,16 @@ function addModel() {
   if (S.shortlist === null && !SHORTLISTING) loadShortlist();
   if (S.remote && f.hits === null && !f.seq) findSearch(true);
   const opt =(v, l, on) => `<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(l)}</option>`;
-  if (!S.remote) return `<div class="hint flush">The search needs a Featherless key, and there is none
-      yet. Account &rarr; Model says where it goes.</div>`;
+  if (!S.remote) return `<div class="hint flush">The search needs a key for Featherless or NanoGPT, and
+      there is none yet. Account &rarr; Model says where it goes.</div>`;
+  // ONLY THE PROVIDERS WITH A KEY are offered, and the choice shows only when there are two.
+  const ready = Object.keys(PROVIDERS).filter((p) => S.remotes[p]);
+  const src = findSource();
   return `<div style="display:flex; flex-direction:column; gap:14px">
     <div style="display:flex; flex-direction:column; gap:8px">
-      <span class="kind">Search Featherless</span>
+      ${ready.length > 1 ? `<select class="field fill autow" data-findsource="1" aria-label="Where to search">${
+        ready.map((p) => opt(p, `Search ${PROVIDERS[p].label}`, p === src)).join('')}</select>`
+        : `<span class="kind">Search ${esc(PROVIDERS[src].label)}</span>`}
       <input class="field full" id="findq" type="search" aria-label="Search by name" value="${esc(f.q)}" placeholder="Part of a name" autocomplete="off"
        >
       <div class="row-6 wraps">
@@ -4979,13 +4994,14 @@ function addModel() {
           f.sizes.map((z) => opt(z, z.toUpperCase(), z === f.size)).join('')}</select>
         <select class="field fill autow" data-findweave="1" aria-label="Plans first">${opt('', 'Plans first: any', !f.weaving)}${
           f.weavings.map((w) => opt(w, spinWord(w), w === f.weaving)).join('')}</select>
-        <!-- Seth, 2026-10-25: "a filter for how many units it takes". -->
-        <select class="field fill autow" data-findcost="1" aria-label="Units of the plan">${opt('', 'Any units', !f.cost)}${
-          f.costs.map((c) => opt(String(c), `${c} ${c === 1 ? 'unit' : 'units'}`, String(c) === f.cost)).join('')}</select>
+        <!-- Seth, 2026-10-25: "a filter for how many units it takes". Featherless's alone. -->
+        ${src === 'featherless' ? `<select class="field fill autow" data-findcost="1" aria-label="Units of the plan">${opt('', 'Any units', !f.cost)}${
+          f.costs.map((c) => opt(String(c), `${c} ${c === 1 ? 'unit' : 'units'}`, String(c) === f.cost)).join('')}</select>` : ''}
       </div>
-      <!-- And by tag: typed here, or a press on any tag in the list below. -->
-      <input class="field full" id="findtag" type="search" aria-label="Tag" value="${esc(f.tag)}"
-        placeholder="A tag, such as roleplay" autocomplete="off">
+      <!-- And by tag: typed here, or a press on any tag in the list below. Featherless's alone: the
+           tags are Hugging Face's, and NanoGPT's models are mostly not repos there. -->
+      ${src === 'featherless' ? `<input class="field full" id="findtag" type="search" aria-label="Tag" value="${esc(f.tag)}"
+        placeholder="A tag, such as roleplay" autocomplete="off">` : ''}
       <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--mute)">
         <input type="checkbox" data-finduncensored="1"${f.uncensored ? ' checked' : ''}>
         Uncensored only</label>
@@ -5027,9 +5043,10 @@ const PICK_ROW = 'display:flex; align-items:center; gap:9px; padding:8px 10px; b
 function pickRow(value, m) {
   const id = m?.id ?? value;
   const d = modelName(id);
-  const where = m?.ready === false ? "Featherless isn't set up" : whereRuns(id, m?.status).words;
+  const w = whereRuns(id, m?.status);
+  const where = m?.ready === false ? `${w.label} isn't set up` : w.words;
   const text = [d.name, d.detail].filter(Boolean).join(' — ');
-  if (m?.ready === false) return `<div data-unready="${esc(id)}" aria-disabled="true" title="Featherless isn't set up"
+  if (m?.ready === false) return `<div data-unready="${esc(id)}" aria-disabled="true" title="${esc(w.label)} isn't set up"
       style="display:flex; align-items:center; gap:9px; padding:8px 10px; opacity:.55"
       ><span class="txt" style="font-size:12.5px; color:var(--dim)">${esc(text)} · ${esc(where)}</span>${runsMark(id, m.status)}</div>`;
   const body = `<span class="txt" style="font-size:12.5px; color:var(--mute)">${esc(text)} · ${esc(where)}</span>${runsMark(id, m?.status)}`;
@@ -5091,12 +5108,20 @@ function tellerModel() {
   // and says so; it is not offered again.
   const pin = V.story.model ?? null;
   const gone = pin && !(listed ?? []).some((m) => m.id === pin);
+  // WHERE IT RUNS, AS A FILTER (ADR 0015): Local, Featherless, NanoGPT, offered only for the sources
+  // this list holds, and only when it holds more than one. A press on the lit one shows them all.
+  const offered = (listed ?? []).filter((m) => m.id !== usual && m.id !== pin);
+  const held = SOURCES.filter(([k]) => offered.some((m) => whereRuns(m.id).source === k));
+  const only = held.some(([k]) => k === S.modelSource) ? S.modelSource : null;
+  const sourceChips = held.length < 2 ? '' : `<div class="row-6 wraps" role="group" aria-label="Where it runs"
+      style="padding:4px 10px 6px">${held.map(([k, label]) => `<button class="tag${only === k ? ' tag-lit' : ''}"
+        data-modelsource="${only === k ? '' : k}" aria-pressed="${only === k}">${esc(label)}</button>`).join('')}</div>`;
   const taleList = S.tellerList !== 'tale' ? ''
     : listed === null ? '<div class="hint flush">Asking the router&hellip;</div>'
     : listed.length === 0 ? emptyModels()
-    : `<div class="stack-2" id="talemodels">${pin ? `<button data-talemodel="" style="${PICK_ROW}"><span class="txt"
+    : `${sourceChips}<div class="stack-2" id="talemodels">${pin ? `<button data-talemodel="" style="${PICK_ROW}"><span class="txt"
           style="font-size:12.5px; color:var(--mute)">Your model &mdash; ${esc(modelName(usual).name)}</span></button>` : ''}${
-        listed.filter((m) => m.id !== usual && m.id !== pin).map((m) => pickRow(m.id, m)).join('')}</div>`;
+        offered.filter((m) => !only || whereRuns(m.id).source === only).map((m) => pickRow(m.id, m)).join('')}</div>`;
   // The row names the tale's own model when it has one, which is the setting it edits, and says
   // when that one cannot write. `V.model` is what the server ALREADY resolved for this story
   // (modelFor in routes.ts), and it is what the hint under the row names. NOT `SRV.model`: that one
@@ -9946,6 +9971,11 @@ const WPAGES = {
           ? '<div class="hint flush">In place. Remote models write on your own plan, and in a tale you share, on the owner&rsquo;s.</div>'
           : `<div class="hint flush">No key yet, so you write on the local model. Your key goes in a file
               on the server, never in this page: <code>${esc(me.featherless?.file ?? '')}</code></div>`}
+        <div class="lbl wide push-18">Your NanoGPT key</div>
+        ${me.nanogpt?.ready
+          ? '<div class="hint flush">In place. NanoGPT models write on your own subscription, and only the models it covers are offered.</div>'
+          : `<div class="hint flush">No key. A NanoGPT key goes in a file on the server, never in this
+              page: <code>${esc(me.nanogpt?.file ?? '')}</code></div>`}
         <div class="lbl wide push-18">Your model</div>
         <div class="hint flush">A new tale starts with the model you last picked for a tale. To pick one, open a
           tale and press the model named at the top of its menu: that opens Storyteller.</div>`
@@ -10884,8 +10914,9 @@ async function loadModels() {
   // The router did not answer at all, which the rail says in words rather than as "asleep".
   S.modelsDown = !!r.error;
   S.allow = r.allow ?? [];
-  // Whether the server holds a Featherless key: a yes or a no, never the key itself.
+  // Whether the server holds a key for any provider, and which: yes or no, never the key itself.
   S.remote = r.remote === true;
+  S.remotes = r.remotes ?? {};
   if (r.active) SRV.model = r.active;
   // #18 §5. The shelf reads this list too now — a book pinned to a model the router no longer
   // serves is marked on its own card, and the mark cannot be drawn before the answer lands.
@@ -12808,6 +12839,11 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', (e) => {
   const d = e.target?.dataset;
   if (!d) return;
+  // A new provider is a new catalogue: its sizes, units and rows are drawn afresh.
+  if (d.findsource !== undefined) {
+    Object.assign(S.find, { source: e.target.value, size: '', cost: '', tag: '', hits: null, sizes: [], costs: [] });
+    findSearch(true); return;
+  }
   if (d.findsize !== undefined) S.find.size = e.target.value;
   else if (d.findweave !== undefined) S.find.weaving = e.target.value;
   else if (d.findcost !== undefined) S.find.cost = e.target.value;
@@ -14234,6 +14270,7 @@ document.addEventListener('click', async (e) => {
   // What it is: opens the model's info below the chooser, and a second press (an empty id) shuts it.
   if (d.modelinfo !== undefined) { S.modelPick = d.modelinfo || null; S.tellerList = null; return void openTeller('model'); }
   // Seth, 2026-11-03: a model row on the Model tab opens its list on a press, and shuts it on another.
+  if (d.modelsource !== undefined) { S.modelSource = d.modelsource || null; drawSide(); return; }
   if (d.tellerlist) { S.tellerList = S.tellerList === d.tellerlist ? null : d.tellerlist; S.modelPick = null; drawSide(); return; }
   // A pick in the tale's list names this tale's model, or '' for your model, and shuts the list.
   if (d.talemodel !== undefined) { S.tellerList = null; saveTaleModel(d.talemodel || null); return; }

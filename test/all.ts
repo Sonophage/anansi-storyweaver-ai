@@ -33,7 +33,7 @@ serialise();
  * ignored: its purpose was to keep unknown reds from landing on the next person, and running them
  * first is a stronger version of the same care.
  */
-const suites = ['engine.ts', 'cards.ts', 'mention.ts', 'speak.ts', 'speakcut.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'memory.ts', 'report.ts', 'talk.ts', 'changes.ts', 'diff.ts', 'forge.ts', 'web.ts', 'app.ts', 'remote.ts', 'keys.ts', 'account.ts', 'weave.ts', 'status.ts', 'shaped.ts', 'away.ts',
+const suites = ['engine.ts', 'cards.ts', 'mention.ts', 'speak.ts', 'speakcut.ts', 'db.ts', 'scope.ts', 'import.ts', 'stream.ts', 'memory.ts', 'report.ts', 'talk.ts', 'changes.ts', 'diff.ts', 'forge.ts', 'web.ts', 'app.ts', 'remote.ts', 'keys.ts', 'account.ts', 'weave.ts', 'status.ts', 'shaped.ts', 'away.ts', 'nanogpt.ts',
                 ...['order', 'contractions', 'lockout', 'quote', 'ledger-audit', 'modes', 'drift',
                     'fires', 'retire', 'cast', 'voice', 'utilisation', 'weight',
                     'council06', 'lockout-book', 'weave-json', 'repetition', 'lockout-cheap', 'words', 'preview',
@@ -66,7 +66,9 @@ const runs = suites.map((s) => new Promise<{ s: string; out: string; ok: boolean
    * file and a port that refuses at once are the floor; test/remote.ts sets its own fake over it.
    * Hugging Face, which describes catalogue models, gets the same refusing port. */
   const offline = { ANANSI_FEATHERLESS_KEY_FILE: '/nonexistent/featherless.key',
-                    ANANSI_FEATHERLESS_URL: 'http://127.0.0.1:9/v1', ANANSI_HF_URL: 'http://127.0.0.1:9' };
+                    ANANSI_FEATHERLESS_URL: 'http://127.0.0.1:9/v1', ANANSI_HF_URL: 'http://127.0.0.1:9',
+                    // NanoGPT the same (ADR 0015): Seth's key sits at the default path too.
+                    ANANSI_NANOGPT_KEY_FILE: '/nonexistent/nanogpt.key', ANANSI_NANOGPT_URL: 'http://127.0.0.1:9/v1' };
   const env = bench
     ? { ...process.env, ...offline, ANANSI_DB: `/tmp/anansi-bench-${s.split('/')[2].split('.')[0]}.db` }
     : { ...process.env, ...offline };
