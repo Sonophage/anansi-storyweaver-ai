@@ -27,6 +27,11 @@ joins your shortlist and your model list. Account → Model says whether your Na
 If NanoGPT turns a model away because your subscription doesn't cover it, Anansi says so. It does not
 call that "busy", and it does not try again.
 
+### NanoGPT models have their own mark
+A NanoGPT model shows a blue circle and a small chip beside its name, so you can tell it apart from
+a model on this machine (the spider) and a Featherless one (the feather). In a tale's model list the
+mark now sits on the left of each name, the same as on the row for the model that writes the tale.
+
 ### Narrow the model list by where a model runs
 When a tale's model list holds models from more than one place, buttons above it read **Local**,
 **Featherless** and **NanoGPT**. Press one to see only those models. Press it again to see them all.

@@ -146,6 +146,12 @@ const ctx = (owner: string, body: any = {}, query = '') => {
     assert.strictEqual(web.whereRuns(`${v.prefix}x/y`).source, p, `WEB-SOURCE: the browser reads ${p} as ${p}`);
   assert.strictEqual(web.whereRuns('Qwen3.6-WNTH-35B-A3B-NN').source, 'local');
   assert.match(web.whereRuns(`nanogpt:${WRITER}`).words, /NanoGPT/, 'WEB-WORDS: the row says NanoGPT');
+  // Its own mark and colour (Seth, 2026-11-09: "for nano use blue and something techy").
+  assert.deepStrictEqual([web.whereRuns(`nanogpt:${WRITER}`).glyph, web.whereRuns(`nanogpt:${WRITER}`).tone],
+    ['chip', 'nanogpt'], 'WEB-CHIP: NanoGPT is the chip, in its own colour');
+  assert.deepStrictEqual([web.whereRuns(`featherless:${WRITER}`).glyph, web.whereRuns(`featherless:${WRITER}`).tone],
+    ['feather', 'remote'], 'and Featherless keeps the feather and the remote colour');
+  assert.ok(web.MARK.chip, 'the chip is drawn');
   assert.strictEqual(web.modelName(`nanogpt:${THINKS}`).name.includes('nanogpt'), false, 'the prefix is not in the name');
   ok('one parser for where a model runs, on the server and in the browser, and they agree');
 }

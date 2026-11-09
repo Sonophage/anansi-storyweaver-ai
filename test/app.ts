@@ -2815,7 +2815,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     '--narr', '--label', '--mute', '--dim', '--faint', '--ink-ghost', '--rule', '--line', '--edge',
     '--edge-lit', '--chip', '--field', '--gold', '--gold-dim', '--gold-lit', '--on-gold', '--bad',
     '--good', '--warn', '--you-rule', '--speak-rule', '--chrome', '--m-coop', '--m-woven', '--m-woven-ink',
-    '--chrome-ink', '--chrome-dim', '--chrome-line', '--src-local', '--src-remote'];
+    '--chrome-ink', '--chrome-dim', '--chrome-line', '--src-local', '--src-remote', '--src-nanogpt'];
   // --head, --dock and --panel-line came out of this list AND out of themeVars on 2026-09-05,
   // together, because no rule in app.html or web/ ever named one of them. Taking a name out of
   // here alone would be the bad half of the change: this list is what makes nine themes agree, so
@@ -2905,7 +2905,7 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
   };
   for (const [name, spec] of Object.entries(THEMES)) {
     const v: any = themeVars(name);
-    for (const k of ['--src-local', '--src-remote'])
+    for (const k of ['--src-local', '--src-remote', '--src-nanogpt'])
       for (const ground of ['rail', 'sheet']) {
         const r = ratio(v[k], (spec as any)[ground]);
         assert.ok(r >= 3, `${name}: ${k} is ${r.toFixed(2)}:1 on the ${ground}, under the 3:1 a circle needs`);
@@ -2913,8 +2913,18 @@ ok('a chapter names itself when it opens, and a placeholder title is not a name'
     const gap = Math.abs(hue(v['--src-local']) - hue(v['--src-remote']));
     assert.ok(Math.min(gap, 360 - gap) >= 90,
       `${name}: local and remote are ${Math.min(gap, 360 - gap).toFixed(0)} degrees apart in hue, too close to tell apart`);
+    // NANOGPT'S BLUE (2026-11-09). Blue is asked for by name, so it cannot be put at the far side of
+    // the wheel from a teal `good` the way the remote colour is: emerald's sits 41 degrees away. The
+    // chip glyph beside it carries the difference there; this floor keeps the colour from sliding
+    // into the local one altogether.
+    const blue = hue(v['--src-nanogpt']);
+    assert.ok(blue >= 200 && blue <= 250, `${name}: NanoGPT's circle is ${blue.toFixed(0)} degrees, not blue`);
+    for (const k of ['--src-local', '--src-remote']) {
+      const g = Math.abs(hue(v[k]) - blue);
+      assert.ok(Math.min(g, 360 - g) >= 30, `${name}: NanoGPT's blue is ${Math.min(g, 360 - g).toFixed(0)} degrees from ${k}`);
+    }
   }
-  ok('the local and remote circles read on the rail and the panel, and differ in hue, in every theme');
+  ok('the local, remote and NanoGPT circles read on the rail and the panel, and differ in hue, in every theme');
 }
 }
 
@@ -3747,7 +3757,7 @@ ok('picking a model in a tale reads the tale again, so the menu names the new on
   // one decode rather than a second list that drifts away from it. Here the tale follows the
   // writer's usual model, so that one is the row in force and the others are its list.
   click({ tellerlist: 'tale' });
-  assert.match(visible(html('sideBody')), /data-talemodel="Wayfarer-2-RPNT-12B"[^>]*><span[^>]*>Wayfarer 2 — Roleplay · trained open · 12B · local/,
+  assert.match(visible(html('sideBody')), /data-talemodel="Wayfarer-2-RPNT-12B"[^>]*>[\s\S]*?<span class="txt"[^>]*>Wayfarer 2 — Roleplay · trained open · 12B · local/,
     'and the tale\'s list carries the same decode, size included');
   click({ tellerlist: 'tale' });
 
@@ -4577,7 +4587,8 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
   // Open, whatever an earlier check left it at: a press toggles it.
   if (!/data-tellerlist="tale" aria-expanded="true"/.test(teller)) click({ tellerlist: 'tale' });
   const list = visible(html('sideBody'));
-  const option = (id: string) => list.match(new RegExp(`data-talemodel="${id}"[^>]*><span[^>]*>([^<]*)</span>`))?.[1] ?? '';
+  // The row's words are its `txt` span; the mark sits before it, on the left (2026-11-09).
+  const option = (id: string) => list.match(new RegExp(`data-talemodel="${id}"[^>]*>[\\s\\S]*?<span class="txt"[^>]*>([^<]*)</span>`))?.[1] ?? '';
   // #131. The list is on Storyteller's Model tab, under the tale's model, open on a press (2026-11-03).
   const row = (id: string) => {
     const at = list.indexOf(`<button data-talemodel="${id}"`);
@@ -4598,6 +4609,10 @@ ok('a second press on a weaving invention does not reset the first press\'s coun
     'a remote model: always filled, in the remote colour, with the feather');
   assert.match(row('featherless:Grey/Kestrel-Heretic-24B'), /Kestrel Heretic 24B/,
     'and the row still names it by its decoded name');
+  // THE MARK ON THE LEFT (Seth, 2026-11-09), as on the row for the model in force.
+  for (const id of ['Qwen3.6-WNTH-35B-A3B-NN', 'featherless:Grey/Kestrel-Heretic-24B'])
+    assert.ok(row(id).indexOf('data-runs=') < row(id).indexOf('class="txt"'),
+      `MARK-LEFT: ${id}'s mark comes before its name`);
 
   assert.match(option('Qwen3\\.6-WNTH-35B-A3B-NN'), / · local, awake$/, 'a loaded local option says so');
   assert.match(option('Wayfarer-2-RPNT-12B'), / · local, asleep$/, 'an unloaded one says so');

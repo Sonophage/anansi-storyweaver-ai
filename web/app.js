@@ -901,8 +901,8 @@ function benchNew() {
  *  for the menu rows, the strip and the Storyteller, so the three cannot disagree. The words go in
  *  the title and the label, for a reader who cannot tell the two colours apart. */
 const runsMark = (id, status) => {
-  const w = whereRuns(id, status), tone = `var(--src-${w.remote ? 'remote' : 'local'})`;
-  return `<span data-runs="${w.remote ? 'remote' : 'local'}" data-awake="${w.awake ? 1 : 0}" role="img"
+  const w = whereRuns(id, status), tone = `var(--src-${w.tone})`;
+  return `<span data-runs="${w.remote ? 'remote' : 'local'}" data-awake="${w.awake ? 1 : 0}" data-source="${w.source}" role="img"
     title="${w.words}" aria-label="${w.words}" style="display:inline-flex; align-items:center; gap:4px;
     flex:0 0 auto; color:${tone}"><span style="width:8px; height:8px; box-sizing:border-box;
     border-radius:50%; border:1.5px solid ${tone}; background:${w.awake ? tone : 'transparent'}"></span>${
@@ -5046,10 +5046,12 @@ function pickRow(value, m) {
   const w = whereRuns(id, m?.status);
   const where = m?.ready === false ? `${w.label} isn't set up` : w.words;
   const text = [d.name, d.detail].filter(Boolean).join(' — ');
+  // THE MARK ON THE LEFT (Seth, 2026-11-09: "put the icon on the left hand side"), where the row
+  // for the model in force already has it, so the two line up.
   if (m?.ready === false) return `<div data-unready="${esc(id)}" aria-disabled="true" title="${esc(w.label)} isn't set up"
       style="display:flex; align-items:center; gap:9px; padding:8px 10px; opacity:.55"
-      ><span class="txt" style="font-size:12.5px; color:var(--dim)">${esc(text)} · ${esc(where)}</span>${runsMark(id, m.status)}</div>`;
-  const body = `<span class="txt" style="font-size:12.5px; color:var(--mute)">${esc(text)} · ${esc(where)}</span>${runsMark(id, m?.status)}`;
+      >${runsMark(id, m.status)}<span class="txt" style="font-size:12.5px; color:var(--dim)">${esc(text)} · ${esc(where)}</span></div>`;
+  const body = `${runsMark(id, m?.status)}<span class="txt" style="font-size:12.5px; color:var(--mute)">${esc(text)} · ${esc(where)}</span>`;
   return `<button data-talemodel="${esc(value)}" style="${PICK_ROW}">${body}</button>`;
 }
 

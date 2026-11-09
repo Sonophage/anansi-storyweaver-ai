@@ -727,7 +727,10 @@ export const whereRuns = (id, status) => {
   const remote = source !== 'local';
   const awake = remote || status === 'loaded';
   const label = remote ? PROVIDERS[source].label : 'this machine';
-  return { remote, source, label, awake, glyph: remote ? 'feather' : 'spider',
+  return { remote, source, label, awake,
+    glyph: source === 'nanogpt' ? 'chip' : remote ? 'feather' : 'spider',
+    // The circle's colour, a theme token: `--src-<tone>`.
+    tone: source === 'nanogpt' ? 'nanogpt' : remote ? 'remote' : 'local',
     words: remote ? `remote, on ${label}` : `local, ${awake ? 'awake' : 'asleep'}` };
 };
 
@@ -1135,12 +1138,15 @@ const opaque = (c) => {
 
 /** THE SAME COLOUR ON THE FAR SIDE OF THE WHEEL: its hue turned 180 degrees, its saturation and
  *  lightness kept. Reads `#rrggbb`, like `mix`, which is what every theme's `good` is. */
-const opposite = (hex) => {
+const opposite = (hex) => turned(hex, (h) => (h + 180) % 360);
+/** `hex` at the hue `to` gives for its own, at the same lightness, and at least `minS` saturated.
+ *  `opposite` turns it half way round; NanoGPT's blue sets it outright. */
+const turned = (hex, to, minS = 0) => {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
   const hi = Math.max(r, g, b), lo = Math.min(r, g, b), l = (hi + lo) / 2, d = hi - lo;
-  const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+  const s = Math.max(minS, d ? d / (1 - Math.abs(2 * l - 1)) : 0);
   const h0 = !d ? 0 : hi === r ? ((g - b) / d) % 6 : hi === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  const h = ((h0 * 60 + 360) % 360 + 180) % 360;
+  const h = to((h0 * 60 + 360) % 360);
   const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
   const [R, G, B] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
     : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
@@ -1182,11 +1188,11 @@ const apart = (avoid, paper, dark) => {
 };
 /** A COLOUR THAT READS AS SMALL TEXT: `c` leaned toward `ink` in 5% steps until it clears 4.5:1 on
  *  every one of `grounds`. The colour itself when it already does; the ink if nothing short of it does. */
-const legible = (c, ink, grounds) => {
+const legible = (c, ink, grounds, min = 4.5) => {
   const a = rgbOf(c), b = rgbOf(ink), ys = grounds.map((g) => lum(rgbOf(g)));
   for (let i = 0; i <= 20; i++) {
     const m = a.map((v, j) => Math.round(v + (b[j] - v) * i / 20)), y = lum(m);
-    if (ys.every((g) => (Math.max(y, g) + 0.05) / (Math.min(y, g) + 0.05) >= 4.5)) return `rgb(${m.join(',')})`;
+    if (ys.every((g) => (Math.max(y, g) + 0.05) / (Math.min(y, g) + 0.05) >= min)) return `rgb(${m.join(',')})`;
   }
   return ink;
 };
@@ -1289,6 +1295,12 @@ export function themeVars(key) {
      * rail as the local one does. No theme's existing colours could serve: in five of the nine,
      * two of the accent, the speech colour and `good` share a hue. */
     '--src-local': S.good, '--src-remote': opposite(S.good),
+    /* NANOGPT IS BLUE (Seth, 2026-11-09: "for nano use blue"). Hue 225 at `good`'s lightness, so it
+     * reads on the rail as the other two do, and saturated enough to read as blue in the themes
+     * whose `good` is near grey. Leaned toward the ink until it holds the 3:1 a circle needs on the
+     * rail and the sheet: grimdark's dark `good` made a blue of 2.89:1. 225, not 215, to stand
+     * further from the teal `good` of emerald and scifi. */
+    '--src-nanogpt': legible(turned(S.good, () => 225, 0.55), S.ink, [S.rail, S.sheet], 3),
     // (--speak-tint / --act-tint lived here. Removed 2026-08-27: only one of the pair was
     // visible, so the row read as broken rather than as distinguishing the two modes.)
     // (--head, --dock and --panel-line lived here. Removed 2026-09-05: no rule anywhere named any
@@ -1409,6 +1421,12 @@ export const MARK = {
   feather:  'M4 16.8C7.6 13 11.4 8.8 16.2 3.4'
           + 'M16.2 3.4C11.6 4.2 7.8 7.6 7.2 13.4M16.2 3.4C16.2 8.2 13 11.8 7.2 13.4'
           + 'M12.2 7.6 14.8 8.2',
+  // NANOGPT IS THE CHIP (Seth, 2026-11-09: "something techy"): a square die and two pins a side,
+  // drawn for 15px like the two above. Its own mark beside the blue, so NanoGPT never rests on
+  // colour alone either.
+  chip:     'M6.6 6.6H13.4V13.4H6.6Z'
+          + 'M8.6 6.6V3.8M11.4 6.6V3.8M8.6 13.4V16.2M11.4 13.4V16.2'
+          + 'M6.6 8.6H3.8M6.6 11.4H3.8M13.4 8.6H16.2M13.4 11.4H16.2',
   // THE QUILL, the middle of the bar at the foot of the writing screen (#71, round two): the button
   // that opens the box to write in. A feather like the one above, cut as a pen: a longer vane with
   // two barbs, and a split nib where the shaft ends. Its own mark and not `feather`, because
