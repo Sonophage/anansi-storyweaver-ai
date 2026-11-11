@@ -20,9 +20,6 @@
 // narration replayed. On the 60 #149 takes it fires on 10 of 10 scene 4 Narrate takes, 0 of 10 scene 10
 // Narrate takes, 0 of 20 Act takes, and on 9 of 10 scene 10 Direct takes, which play the synopsis's
 // action because that is Direct's job.
-// ponytail: the verb and object words are written per point, by hand. Ceiling: one point measured, and
-// a replay in other words ("hands her the dish") is missed. Trigger: measuring a second point.
-//
 // NEVER THE LIVE LIBRARY: each arm a copy cut back to the point (bench/scene.ts), its wording written into
 // the copy, both arms at once on one router, each arm's prompt checked.
 import { mkdirSync, rmSync, appendFileSync, readFileSync } from 'node:fs';

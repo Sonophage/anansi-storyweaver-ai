@@ -16,6 +16,24 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-11-11 · Clearer instructions for the writer, and threads that keep who they are
+
+### The writer reads its rules right before it writes
+How the passage should be told (point of view, who belongs to you, how explicit it can be) used to
+come before the story's prose. Now it comes right after it, next to what to write next, so it's the
+last thing the writer reads.
+
+### Fewer rules saying the same thing twice
+A paragraph that told the writer to interpret and judge on quiet passages is gone. It argued with
+your voice's rule never to name a feeling. Three lines in each way of writing (Continue, Speak, Act,
+Narrate, Direct) repeated what your voice already says, and those are gone too. Your voice still
+says them.
+
+### Closing a scene no longer rewrites who someone is
+When a scene closed, Anansi could offer a new account of a character whose Always true you had
+already written. Accepting it put two ages side by side for that character. It doesn't offer that any
+more, and it no longer offers a change that is only the character's name.
+
 ## 2026-11-09 · NanoGPT models beside Featherless
 
 ### Write with NanoGPT models

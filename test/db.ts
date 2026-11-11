@@ -604,11 +604,11 @@ ok('the reserve scales with the budget and with the reply length', () => {
 ok('the slot the router reports is worth seven times the floor assumed without it', () => {
   const floor = { global: 0, slots: 1, perSlot: 8192 };
   const real = { global: 100096, slots: 2, perSlot: 50048 };
-  // 6,246 and 45,591 since 2026-10-29: three SYSTEM lines were reworded and it came out a token
-  // shorter. The 33-hour refusal happened at 6,245.
-  assert.strictEqual(story.budgetFor({ maxContext: null }, floor, 900), 6246,
+  // 6,422 and 45,767 since 2026-11-11: the Voice Modulation paragraph left SYSTEM (176 tokens back).
+  // 6,246 and 45,591 from 2026-10-29. The 33-hour refusal happened at 6,245.
+  assert.strictEqual(story.budgetFor({ maxContext: null }, floor, 900), 6422,
     'the assumed floor leaves about 6,245 tokens — the number that refused a healthy book for 33 hours');
-  assert.strictEqual(story.budgetFor({ maxContext: null }, real, 900), 45591,
+  assert.strictEqual(story.budgetFor({ maxContext: null }, real, 900), 45767,
     "and the router's own answer leaves 45,591");
 });
 

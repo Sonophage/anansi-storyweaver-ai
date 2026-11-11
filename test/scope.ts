@@ -2504,6 +2504,17 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
   assert.strictEqual(st8.length, 1, 'LOCK-OVER-TIME: it is an Over time entry instead');
   assert.match(st8[0].body, /Raised on Medusa[\s\S]*left-handed/,
     '  carrying forward where the thread stood, with the change after it');
+  // A SECOND LOCK INTO THE SAME SCENE KEEPS THAT ENTRY'S LABEL (The Door Between Us, 2026-11-10): a
+  // conflict's delta is the card's warning, and it replaced "Agreed to wait, took the job" with
+  // "Would overwrite a body you wrote: …" as the label of where Seth stood.
+  db.addProposal(st.id, { chapterId: chapter, kind: 'conflict', entryType: 'character', entry_id: card.id,
+    title: 'Ferrus Manus', body: '[scarred palms]', field: 'facts', keys: [], delta: 'Would overwrite a body you wrote: "Primarch…"' });
+  const lock2: any = db.proposalsOf(st.id).find((x: any) => x.field === 'facts' && x.status === 'open');
+  await routes['POST /api/proposal'](ctxI(alice, { storyId: st.id, id: lock2.id, accept: true }));
+  const st9: any[] = db.statesForStory(st.id).get(card.id) ?? [];
+  assert.strictEqual(st9.length, 1, 'LOCK-SAME-SCENE: still one Over time entry for the scene');
+  assert.strictEqual(st9[0].label, 'left-handed', `LOCK-LABEL-KEPT: the entry keeps its label (${st9[0].label})`);
+  assert.match(st9[0].body, /left-handed[\s\S]*scarred palms/, '  and gains the change');
   assert.strictEqual(st8[0].label, 'left-handed', '  labelled with what changed');
   // AND THE SAME LOCK FOR A PULLED CARD that lands on a thread that exists: Look it up online can
   // match a thread already in the tale, and its rooms come from the model. Its Always true is the

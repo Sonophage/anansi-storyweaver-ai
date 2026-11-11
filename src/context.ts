@@ -230,16 +230,19 @@ const OPENING_LINE = 'This passage begins a new scene. Open it as "How this chap
  *  permission to be short without the number; his saved wording keeps his.
  *  In `direct` the writer's text is an INSTRUCTION and never reaches the page; in `speak`, `act` and
  *  `narrate` it is already the newest passage and the model answers it. Getting that backwards is what
- *  made typed dialogue vanish into the prompt. */
+ *  made typed dialogue vanish into the prompt.
+ *  THREE LINES DROPPED FROM EVERY MODE (Seth, 2026-11-11): "Choose the particular over the general…",
+ *  "Let what matters stay under the surface…" and Continue's and Direct's "Do not repeat…" each said again
+ *  what the voice already says (one exact detail, what they mean sits under what they say, never reuse
+ *  a phrase). A rule said twice is one a writer cannot delete from the voice. Speak keeps "Do not
+ *  repeat, quote or paraphrase the line": that is about the line it answers. NOT MEASURED. */
 export const MODE_WORDING: Record<string, string> = {
   continue: "Write what happens next in the scene, from everything in the story so far: the prose, the threads, and where each one stands.\n"
     + "Carry the scene forward by one full beat, and stop.\n"
-    + "Start where the last passage above ends. Do not repeat, rephrase or summarise anything already written.\n"
+    + "Start where the last passage above ends.\n"
     + "Do not skip time. Do not introduce a new character, location, or revelation unless the story so far set it up.\n"
     + "Something must change by the end of the beat: what someone wants, knows, or holds over another.\n"
     + "Keep each character true to their thread: their voice, their wants, their limits.\n"
-    + "Choose the particular over the general: a detail only this place and these people would have, never a stock phrase.\n"
-    + "Let what matters stay under the surface: people say less than they mean.\n"
     + "Stop when the beat lands, however short that is.\n"
     + "Write no more than {{words}} words. Stop sooner if the beat is done.",
   speak: "{{speaker}} has just spoken a line of dialogue, given at the end.\n"
@@ -247,8 +250,6 @@ export const MODE_WORDING: Record<string, string> = {
     + "Do not put further words in {{speaker}}'s mouth, and do not decide what {{speaker}} does next. Do not repeat, quote or paraphrase the line.\n"
     + "Something must change by the end of the beat: what someone wants, knows, or holds over another.\n"
     + "Keep each character true to their thread: their voice, their wants, their limits.\n"
-    + "Choose the particular over the general: a detail only this place and these people would have, never a stock phrase.\n"
-    + "Let what matters stay under the surface: people say less than they mean.\n"
     + "Write no more than {{words}} words. Stop sooner if the beat is done.\n"
     + "\n"
     + "What {{speaker}} just said: {{last}}",
@@ -257,19 +258,15 @@ export const MODE_WORDING: Record<string, string> = {
     + "Do not decide what {{speaker}} does or says next.\n"
     + "Something must change by the end of the beat: what someone wants, knows, or holds over another.\n"
     + "Keep each character true to their thread: their voice, their wants, their limits.\n"
-    + "Choose the particular over the general: a detail only this place and these people would have, never a stock phrase.\n"
-    + "Let what matters stay under the surface: people say less than they mean.\n"
     + "Answer with a deed, not a glance: begin with what they do.\n"
     + "Write no more than {{words}} words. Stop sooner if the beat is done.\n"
     + "\n"
     + "What {{speaker}} just did: {{last}}",
   direct: "The writer has written a short synopsis of what should happen next. Rewrite it as one full beat of the story: prose, in the voice of the scene, played out in the moment rather than summarised.\n"
     + "Everything the synopsis says happens must happen. Add no event it does not ask for, and do not go past where it ends.\n"
-    + "Start where the story so far ends. Do not repeat or rebuild what is already written.\n"
+    + "Start where the story so far ends.\n"
     + "Something must change by the end of the beat: what someone wants, knows, or holds over another.\n"
     + "Keep each character true to their thread: their voice, their wants, their limits.\n"
-    + "Choose the particular over the general: a detail only this place and these people would have, never a stock phrase.\n"
-    + "Let what matters stay under the surface: people say less than they mean.\n"
     + "Write no more than {{words}} words. Stop sooner if the beat is done.\n"
     + "\n"
     + "The synopsis: {{directive}}",
@@ -278,8 +275,6 @@ export const MODE_WORDING: Record<string, string> = {
     + "Do not rewrite it, repeat it, summarise it, or comment on it. Match its voice.\n"
     + "Carry on what the writer started and raise its pressure: by the end something has changed, in what someone wants, knows, or holds over another.\n"
     + "Keep each character true to their thread: their voice, their wants, their limits.\n"
-    + "Choose the particular over the general: a detail only this place and these people would have, never a stock phrase.\n"
-    + "Let what matters stay under the surface: people say less than they mean.\n"
     + "Stop at a natural beat, however few sentences that takes.\n"
     + "Write no more than {{words}} words. Stop sooner if the beat is done.",
 };
@@ -508,8 +503,11 @@ const rooms = (e: Entry, at: number, window: string, locked = '', tells = false)
       // what he thinks" beside narration that is his thought was a second rule against the first.
       if (a.slot === 'voice' && locked && who.toLowerCase() === locked.toLowerCase())
         return tells ? '' : `[${body.replace(/[.\s]+$/, '')}]`;
+      // ONCE: a pocket that already ends with the frame's sentence (a writer copied it from the
+      // prompt) has it taken off before the frame adds it. VOICE-ONCE in test/engine.ts.
       if (a.slot === 'voice') return `[When ${who || 'they'} speaks, write the dialogue this way: ${
-        body.replace(/[.\s]+$/, '')}. The narration never names how they sound.]`;
+        body.replace(/\s*The narration never names how they sound[.\s]*$/i, '').replace(/[.\s]+$/, '')
+      }. The narration never names how they sound.]`;
 
       // INTERIORITY IS THE THIRD ROOM WHOSE NAME IS NOT WHAT THE MODEL NEEDS TO BE TOLD, and its
       // own definition in `src/forge.ts` is why: "What they will not say out loud, AND WHAT THEY DO

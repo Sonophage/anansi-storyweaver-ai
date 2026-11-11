@@ -40,9 +40,17 @@ export type Kind =
 //
 // It reads the same words in a different sequence, so nothing about the token count changes. What
 // it MIGHT change is the prose, which is why bench/ab.ts runs on it.
+//
+// DIRECTIVE MOVED AGAIN, BEHIND TAIL, 2026-11-11 (Seth: "yes do the order"). Ahead of the prose it
+// was the furthest standing rule from the end of the prompt, and MODE, the nearest, says "Something
+// must change by the end of the beat": in The Door Between Us, with Seth alone in the room and held
+// by the lockout, the model wrote Seth (F59's leak). Behind TAIL, point of view, the lockout and the
+// register sit beside the task. The 2026-09-02 reason still holds: nothing lands between the prose
+// and TAIL, so an append is still an append. The cost is DIRECTIVE reprocessed on every call
+// (126 tokens on that book). NOT MEASURED: `bench/lockout-book.ts` is the A/B for it.
 export const ORDER: Kind[] = [
   'SPINE', 'VOICE', 'STYLE', 'CANON-ALWAYS', 'CANON-TRIGGERED', 'STRING',
-  'EARLIER', 'DIRECTIVE', 'PROSE', 'TAIL', 'MODE',
+  'EARLIER', 'PROSE', 'TAIL', 'DIRECTIVE', 'MODE',
 ];
 // CANON-REPEAT lived here between DIRECTIVE and TAIL from F15 until F20 measured it at 850
 // generations per arm and found nothing: -0.02 points on contradictions, +0.24 on the silver

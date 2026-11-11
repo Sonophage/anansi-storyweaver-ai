@@ -1105,11 +1105,8 @@ async function pullThread(using: string, subject: string, kind: string, world: s
    * something else or say too little. Reporting it as itself beats writing a card nobody can
    * trust — this is the one route where "I could not" is the useful outcome.
    *
-   * ponytail: MEASURED AND IT DOES NOT HOLD. Asked for "purple teacup monday regulations" on
-   * 2026-09-02, the model wrote a card rather than an empty title — a faithful one, describing a
-   * blog party it had actually found, so the grounding held and only the refusal failed. Qwen3.6
-   * would rather describe than decline. The ceiling is therefore: this route can propose a card
-   * about the WRONG SUBJECT, never an invented one.
+   * The model would rather describe than decline, so this route can propose a card about the WRONG
+   * SUBJECT, never an invented one.
    *
    * LEFT AS IT IS ON PURPOSE. Everything here lands in the proposals queue, so the cost of that
    * miss is one Ignore and nothing reaches canon; the fix would be a second call asking "do these
@@ -1478,8 +1475,6 @@ const wove = (reply: { weaves: boolean; maxTokens: number },
  *  of 6 with one, too few to tell from chance, and shorter passages on every penalty arm. F64: the
  *  echo Seth saw (a phrase copied from one passage into the next) did not occur in the control arm,
  *  0 of 18 takes ran away, and the length cost did not repeat.
- *  ponytail: stays null until a run shows a benefit. The trigger to re-run is a remote book whose
- *  last passage carries an echoed phrase, fixed for the run, so the control arm has echo to lose.
  *  The echo in the library (2026-10-29) sat with a low top_p (0.41, 0.55) and Direct's old "Re write"
  *  line, not with the absent penalty: remote Direct takes at top_p 0.95 echoed 0.3% of 8-word runs,
  *  at under 0.9 18%. F64's arms ran at 0.95 in Continue, which is why its control echoed nothing. */
@@ -1499,8 +1494,7 @@ const LANDING = (words: number) => `Stop here: this passage has nearly reached i
  *  first build landed AT the slider and the ending went on top: Kimi-K2.5 ran 336 to 354 at 300 live.
  *  Now landing starts at LAND_FROM of the slider, the sentence may run on while it leaves LAND_MIN words,
  *  and the ending gets what is left, held to it by a hard word stop and trimmed to its last sentence.
- *  So a landed passage never ends past the slider. ponytail: 80% is a guess; Kimi's endings ran 22 to
- *  43 words, so at a short slider the ending's share may need to be a count, not a fraction. */
+ *  So a landed passage never ends past the slider. */
 const LAND_FROM = 0.8;
 const LAND_MIN = 15;
 /** The ending's token cap, which the router and Featherless both hold (`remoteCap`): room for its
@@ -2638,7 +2632,10 @@ async function extract(c: Ctx, storyId: string, chapterId?: string, grp?: string
     // a thread is changes through Always true, written once while empty (#73), and where it stands.
     let body = String(e.body).trim();
     if (cls.entry_id) {
-      const was = existing.find((x: any) => x.id === cls.entry_id);
+      // FROM THE BOOK, NOT `existing` (2026-11-11): `db.entriesOf` rows carry no addons, so
+      // `alwaysTrue` read "" on every thread and the facts guard below never fired. The Door Between
+      // Us took "Seth; thirty-four" beside his written "twenty-eight". NEW-ALWAYS-WRITTEN holds it.
+      const was = (v.entries as any[]).find((x: any) => x.id === cls.entry_id);
       if (!field || (field === 'facts' && alwaysTrue(was))) continue;
       body = hemOutside(v.story, String(was?.title ?? e.title), field, body);
       if (!body) continue;
@@ -2899,9 +2896,12 @@ export function classify(existing: any[], p: any) {
   const kind = bodyEditor === 'human' ? 'conflict' : 'changed';
   return { kind, entry_id: hit.id,
     delta: kind === 'conflict'
-      ? `Would overwrite a body you wrote: "${hit.body.slice(0, 70)}…"`
-      : `Was: "${hit.body.slice(0, 70)}…"` };
+      ? `${CLASSIFY_SAYS[0]}"${hit.body.slice(0, 70)}…"`
+      : `${CLASSIFY_SAYS[1]}"${hit.body.slice(0, 70)}…"` };
 }
+/** What `classify` puts in a delta: a note for the card, quoting the old body, never what changed.
+ *  `lockToOverTime` reads these so a note never becomes the label of where a thread stands. */
+const CLASSIFY_SAYS = ['Would overwrite a body you wrote: ', 'Was: '] as const;
 
 /** THE ROOMS OF A FORGED CARD, WRITTEN. One definition, two callers — `POST /api/thread/paste` and
  *  the cast that rides `POST /api/stories` when a whole book is pasted at once. Two copies of this
@@ -2923,9 +2923,14 @@ function lockToOverTime(p: any, text: string) {
   if (!e || !text.trim()) return;
   const ch = v.chapters.find((x: any) => x.id === p.chapter_id);
   const from = ch ? ch.index + (ch.status === 'closed' ? 1 : 0) : (v.currentChapter?.index ?? 1);
+  // A DELTA FROM `classify` IS A NOTE FOR THE CARD ("Would overwrite a body you wrote: …"), not what
+  // changed, so it is never the label: the entry already in that scene keeps its own, as the memory
+  // branch of the accept route does. LOCK-LABEL-KEPT in test/scope.ts.
+  const note = CLASSIFY_SAYS.some((s) => String(p.delta ?? '').startsWith(s));
+  const was = ((db.statesForStory(p.story_id).get(e.id) ?? []) as any[]).find((s) => s.from_chapter === from);
   db.upsertState(p.story_id, e.id, { fromChapter: from,
     body: [resolveBody(e, from).trim(), text.trim()].filter(Boolean).join('\n'),
-    label: p.delta || null, beforeMode: 'hide' });
+    label: (note ? null : p.delta) || was?.label || null, beforeMode: was?.before_mode ?? 'hide' });
 }
 
 /** #84 · WHO THE WRITER PLAYS, read off the skeleton the wizard sends: the persona, and the

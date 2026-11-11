@@ -13,16 +13,18 @@ import type { Kind } from './blocks.ts';
 // the same visual register, an order — novel, novel, novel, "Carry the scene forward by one small
 // beat." Every other block in the stack already says where it stops.
 //
-// The other three stay bare on purpose. TAIL is the prose being continued from and PROSE is the
+// The other two stay bare on purpose. TAIL is the prose being continued from and PROSE is the
 // document; a fence around either puts the continuation surface inside a marked-up region, which
-// is a change to what the model is imitating, not a boundary. DIRECTIVE sits between them and its
-// parts already arrive in [square brackets], which is its own marking.
+// is a change to what the model is imitating, not a boundary.
+// DIRECTIVE IS FENCED SINCE IT MOVED BEHIND TAIL (2026-11-11, src/blocks.ts): bare there, its
+// bracketed lines would follow the sentence being continued in the same register, which is the
+// boundary this note exists to mark.
 //
 // NOTHING IS CLAIMED FOR THIS. F29 has the mode checklist at 10/10 — there is no headroom to
 // demonstrate and no measurement is owed.
 const TAG: Partial<Record<Kind, string>> = {
   SPINE: 'story', VOICE: 'voice', STYLE: 'style', 'CANON-ALWAYS': 'canon', 'CANON-TRIGGERED': 'canon',
-  STRING: 'unpaid', EARLIER: 'earlier', MODE: 'mode',
+  STRING: 'unpaid', EARLIER: 'earlier', DIRECTIVE: 'rules', MODE: 'mode',
 };
 
 /** THE SYSTEM MESSAGE, and it really is one. #18 §4: this used to say `/completion` has no system
@@ -78,7 +80,7 @@ const TAG: Partial<Record<Kind, string>> = {
  *  NOTHING HERE IS MEASURED. The honest claim is that the prompt says what the writer wanted it to
  *  say and that he can now change it — not that the prose reads better.
  *
- *  REWRITTEN 2026-09-01, Seth's text, and three things about it are worth writing down rather than
+ *  REWRITTEN 2026-09-01, Seth's text, and two things about it are worth writing down rather than
  *  discovering later:
  *
  *  1. IT OPENS AS A CONTINUATION, not as an engine. "You are the continuation of this manuscript"
@@ -86,36 +88,20 @@ const TAG: Partial<Record<Kind, string>> = {
  *     of the provided text rather than from what came before. Both are the same instruction aimed
  *     more precisely.
  *
- *  2. VOICE MODULATION IS CRAFT, IN SYSTEM, AND THAT CROSSES THE LINE THIS FILE DRAWS. The check in
- *     `test/db.ts` is called "SYSTEM keeps the contract and the house voice keeps the craft", and
- *     its argument is that a craft rule here cannot be deleted by a writer, because a book with its
- *     own voice replaces DEFAULT_VOICE and never this. `.claude/CLAUDE.md` is blunter: "Do not add
- *     register rules to SYSTEM; a clause there measured 98.0 against 98.0 and was deleted."
- *     This is a register instruction and it is here on Seth's explicit call. It is also not the
- *     clause that measured flat — that one was a diction rule competing with the voice field, and
- *     this one is about narrative DISTANCE, which nothing has measured either way. Recorded as an
- *     override rather than as agreement: if the prose gets worse, this paragraph is the first
- *     suspect, and `bench/ab.ts` with the old text as arm A is how to find out.
- *
- *  3. IT COSTS 556 ESTIMATED TOKENS AGAINST 300, on every call, in every book. That is a fixed
- *     cost and it comes off the canon and prose budgets — `test/db.ts` computes the 60% floor from
- *     SYSTEM's actual length for exactly this reason, so nothing went red, but a 4,000-token story
- *     now keeps 256 fewer tokens of its own. */
+ *  2. A VOICE MODULATION PARAGRAPH stood between the first line and the rules from 2026-09-01 to
+ *     2026-11-11, on Seth's call and recorded then as an override of the contract/craft line. It
+ *     told the model to "deepen into narrator authority. Interpret, linger, judge" on interior
+ *     passages, which pulled against the voice's "Narration never names an emotion" and the
+ *     lockout's "never state what they feel". The Door Between Us showed it: a passage of Seth alone
+ *     ending on "It is easier than thinking about…" and "a thickness in the air". Seth removed it
+ *     (2026-11-11). NOT MEASURED; `bench/ab.ts` with the old text as arm A is how to find out.
+ *     It cost 176 tokens of budget on every call, which go back to canon and prose. */
 // 2026-10-29, two lines changed, from the prompt audit: "the final word of the provided text" is
 // "where the story's prose stops" (the last text in the prompt is an instruction, not prose), and "a
 // ledger body" is "a canon entry" (the prompt says <canon>, never ledger). NOT MEASURED. The litotes
 // line still quotes its three forms on purpose: test/db.ts guards them, on F37's evidence that a rule
 // naming its forms holds where the same rule as an adjective does not.
 export const SYSTEM = `You are the continuation of this manuscript. Write the next passage and nothing else.
-
-Voice Modulation: Read the provided text and match its current register. When the passage is
-interior, atmospheric, emotionally loaded, or narratively reflective—when it is about something
-beneath the surface—deepen into narrator authority. Interpret, linger, judge, let subtext breathe.
-When the passage is external, action-driven, dialogue-heavy, or mechanically advancing the scene—when
-it is showing the surface—flatten into seamless continuation. Mimic rhythm, advance the beat,
-disappear into the prose. If the provided text contains more dialogue or physical action than
-interior reflection, default to continuation until the scene demands otherwise. Do not announce the
-shift. Let the provided text tell you which gear to be in.
 
 Rules:
 - Output prose only. No preamble, no commentary, no headings, no meta-text.

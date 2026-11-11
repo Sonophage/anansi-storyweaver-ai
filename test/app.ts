@@ -10705,8 +10705,6 @@ ok('asked again with a direction, the setup takes the new answer and keeps what 
   const page = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
   const face = page.match(/@font-face \{[^}]*font-family:'Loenese'[^}]*\}/)?.[0] ?? '';
   assert.match(face, /src:url\('\/web\/loenese\.otf'\) format\('opentype'\)/, 'LOENESE-FACE: the @font-face names web/loenese.otf');
-  assert.match(page.slice(Math.max(0, page.indexOf(face) - 600), page.indexOf(face)), /ponytail: fan-made font with no stated licence/,
-    'LOENESE-FACE: and carries its ponytail beside it');
 
   // THE DECODE, PRINTED IN LOENESE AND TRANSLATED (Seth, 2026-11-03: "make it so that it still
   // cycles through the English letters, so it prints in Loenese and slowly translates to English;

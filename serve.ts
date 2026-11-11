@@ -209,12 +209,7 @@ const send = (res: any, code: number, body: unknown) => {
  * it is, so an edit is still live without a restart and a phone still cannot serve a stale bundle.
  *
  * NO BROTLI. It compresses better and costs several times the CPU at these sizes, and nothing here
- * is cached, so every request would pay the difference to save a tenth of the bytes once.
- *
- * ponytail: gzipped per request rather than cached on mtime. It runs on libuv's threadpool so it
- * never blocks the loop, and at two writers that is free. Ceiling: the CPU of one compress per
- * static file per cold load. Upgrade path is a Map keyed on path + mtimeMs — about six lines —
- * and it is worth writing the day this serves more than a handful of people. */
+ * is cached, so every request would pay the difference to save a tenth of the bytes once. */
 const gzip = promisify(gzipCB);
 const sendText = async (req: any, res: any, type: string, body: string) => {
   const head: Record<string, string> = { 'Content-Type': type, 'Cache-Control': 'no-cache' };

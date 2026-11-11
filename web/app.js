@@ -2348,8 +2348,7 @@ const lastPassage = () => (V?.passages ?? [])
  *  never again once a hold has worked. A long press is the hardest gesture there is to discover, so
  *  the button says it has one. Counted on the first draw of the bar in a load, not at boot, so a
  *  load that never opens a tale does not use one up. Per device, in localStorage, because it is
- *  about this writer's hands learning this button.
- *  ponytail: five loads, a guess. Revisit if Seth says the hint goes too soon or stays too long. */
+ *  about this writer's hands learning this button. */
 const HOLD_HINT_KEY = 'anansi.holdhint';
 const HOLD_HINT_LOADS = 5;
 let HOLD_HINT = null;
@@ -12323,13 +12322,6 @@ function openTray(blk) {
  *  measured how little finger movement it takes to lose a tap on this surface, so nothing here
  *  gets to depend on the delegated `click` firing. `dblclick` is its own native event and arrives
  *  on its own account.
- *
- *  ponytail: measured on emulated touch only — `page.mobile()` plus real touch pairs, where the
- *  browser does synthesise dblclick from two taps. A real Android that still has double-tap-to-zoom
- *  may swallow the second tap as a zoom gesture instead, and nothing here can tell. Ceiling: the
- *  one-tap door is the guaranteed way in on touch, and this is the shortcut. If it turns out not to fire on a
- *  real device the upgrade is a tap-count recogniser on pointerup — which is F34's fix and wants
- *  agreeing first, because the guard that swallows the native click is what makes Delete run twice.
  *
  *  No preventDefault. The passages are contenteditable and a double click there selects a word;
  *  the selection stays under the sheet and is still there when it closes, which is what someone

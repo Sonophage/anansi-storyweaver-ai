@@ -752,14 +752,7 @@ function migrate() {
   backfillActPrints();
   /* #134 · A POCKET IS OFF, ON A WORD, OR ON (`ACTIVATIONS`, a thread's three), in its own column. Until
    * now it had only `active`, and an off pocket with wake words was sent when a word fired, which the
-   * switch did not say. `backfillPocketActivation` gives each row the one it already behaved as.
-   *
-   * ponytail: `active` is kept in step for one release, by the two triggers below, so the code before
-   * this column reads a database written after it correctly if it is put back. On is `active = 1`,
-   * and every older writer of `active` (the exclusive slots' sibling clear, a string's mark, a worn
-   * outfit) moves `activation` with it, by the migration's own rule. Trigger to remove: the release
-   * after 2026-11-03 has shipped with no rollback; then move the readers of `active` that are left
-   * (outfits, strings, the tale's rules, `addons_one_active`) onto `activation` and drop both. */
+   * switch did not say. `backfillPocketActivation` gives each row the one it already behaved as. */
   add('addons', 'activation', 'TEXT');
   // Dropped and made again on every boot, so an edit to either reaches a library that has the old
   // one: `IF NOT EXISTS` would keep the first body a library got, and nothing would say so.
@@ -1042,9 +1035,6 @@ CREATE TABLE IF NOT EXISTS mention_flips (
 -- #139. The words a reroll had shown when the writer stopped it, and the take it was rerolling.
 -- Seth stops a reroll when it writes the take he just rejected, and those takes left no text, so
 -- bench/reroll-echo.ts could not count the repeats he stops for. Read by that bench only.
--- ponytail: kept for measurement, not shown anywhere. To remove: delete this table, keepStopped()
--- below logGeneration, its one call in 'POST /api/generate', and STOPPED-* in test/remote.ts; an old
--- library keeps the table harmlessly until DROP TABLE stopped_takes. Revisit when #139/#140 close.
 CREATE TABLE IF NOT EXISTS stopped_takes (
   generation_id TEXT PRIMARY KEY,
   story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
@@ -4792,6 +4782,11 @@ export function addProposal(storyId: string, p: any) {
   // was filling a form there, not reading the scene, so the whole card is refused, not unbracketed.
   const rooms = Object.values(p.rooms ?? {}).map((r: any) => String(r?.body ?? r ?? ''));
   if ([p.title, p.body, ...rooms].some((t) => placeholders(String(t ?? '')).length)) return false;
+  // A ROOM OF A THREAD THAT SAYS ONLY ITS NAME says nothing (The Door Between Us, 2026-11-10: a hem
+  // chalked "Seth" into four of Seth's rooms, and "[What Seth looks like: Seth]" reached every
+  // prompt). Only on a room of a thread that exists: a World person's new card may carry its title.
+  const bare = (t: string) => String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  if (p.entry_id && p.field && bare(p.body) === bare(p.title)) return false;
   // #143 · A NEW CARD SAYS EACH THING ONCE (`notTwice`): the pocket keeps it, whoever chalked it. Not a
   // body the writer wrote (`writersBody`: a World person's tale card copies the World's Always true).
   if (p.kind === 'new' && p.rooms && typeof p.rooms === 'object' && !p.writersBody) {

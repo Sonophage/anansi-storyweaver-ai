@@ -2168,6 +2168,32 @@ ok('outside only holds in where he stands, relationships and voice: the inside i
 }
 ok('the new-threads pass keeps who a thread is, keeps the played character outside, matches whole words, and refuses template text');
 
+// THE DOOR BETWEEN US, 2026-11-10. The guard above only ever saw a thread with NO Always true. With
+// one written (Seth: "twenty-eight"), the pass still chalked "Seth; thirty-four" as his facts, the
+// accept sewed it into where he stands, and the prompt said both ages. Its other rooms came back as
+// the bare word "Seth", and one was accepted as his looks.
+{
+  const t = db.createStory(me, { title: 'Two ages', premise: 'p' }) as any;
+  const ch0 = (db.chapters(t.id)[0] as any);
+  const seth = db.upsertEntry(t.id, me, { title: 'Seth', body: 'at the kitchen table', entryType: 'character', keys: ['Seth'] })!;
+  db.setAddonActive(t.id, db.upsertAddon(t.id, seth, { slot: 'facts', name: 'facts', body: 'A twenty-eight-year-old designer.' })!, true);
+  db.addPassage({ storyId: t.id, branchId: t.branchId, chapterId: ch0.id,
+    body: 'Seth turned the phone over on the table and waited for the kettle.' });
+  found = [
+    { title: 'Seth', body: 'Seth; thirty-four; ink-stained fingers', type: 'character', keys: ['Seth'], field: 'facts' },
+    { title: 'Seth', body: 'Seth', type: 'character', keys: ['Seth'], field: 'appearance' },
+    { title: 'Seth', body: 'Seth.', type: 'character', keys: ['Seth'], field: 'outfit' },
+  ];
+  await routes['POST /api/extract'](ctx({ storyId: t.id, chapterId: ch0.id }));
+  found = [];
+  const onSeth = (db.proposalsOf(t.id) as any[]).filter((p) => p.entry_id === seth);
+  assert.ok(!onSeth.some((p) => p.field === 'facts'),
+    `NEW-ALWAYS-WRITTEN: a thread whose Always true is written gets no facts from the pass (${JSON.stringify(onSeth.map((p) => [p.field, p.body]))})`);
+  assert.ok(!onSeth.some((p) => /^seth\.?$/i.test(String(p.body).trim())),
+    `NEW-NAME-ONLY: a room that says only the thread's name is not chalked (${JSON.stringify(onSeth.map((p) => [p.field, p.body]))})`);
+}
+ok('the new-threads pass leaves a written Always true alone, and chalks no room that is only a name');
+
 
 // A WORLD PERSON IN THE TALE. A person the tale follows from its World is considered too, and its
 // change is chalked as a new thread of the same name in the tale, never against the World's thread.

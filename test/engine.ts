@@ -3,7 +3,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { buildContext, resolveBody, fires, retirable, narrationOnly, quotedSpans, factsIn, factsLost,
-         weaveFit } from '../src/context.ts';
+         weaveFit, MODE_WORDING } from '../src/context.ts';
 import type { Input, Entry } from '../src/context.ts';
 import { render, SYSTEM } from '../src/render.ts';
 import { ORDER } from '../src/blocks.ts';
@@ -1587,6 +1587,12 @@ ok('a voice room reaches the prompt as an instruction about dialogue, not as a n
   // narration repeating a voice pocket. Owed a control run (the #73 voice A/B) before it is a fix.
   assert.match(b.text, /clipped, never swears\. The narration never names how they sound\.\]/,
     'VOICE-NARRATION: the voice frame keeps the narration out of the accent');
+  // ONCE, when the pocket already says it (The Door Between Us, 2026-11-11): a writer copied the
+  // frame's sentence into Kisa's voice pocket, and the prompt said it twice in a row.
+  const twice = withAddons([room({ slot: 'voice', name: 'How she sounds',
+    body: 'clipped, never swears. The narration never names how they sound.', active: true })], { title: 'Aldis Fen' } as any);
+  assert.strictEqual((twice.text.match(/never names how they sound/g) ?? []).length, 1,
+    `VOICE-ONCE: the frame's sentence is said once when the pocket already holds it (${twice.text})`);
   // AND ONLY OUT OF HOW THEY SOUND (2026-10-27). It said "Show it only in what they say; the
   // narration never names or describes it", and a voice pocket that also holds who someone IS (Kia's
   // Talia: cynical, irreverent, protective) then forbade the narration to describe the viewpoint
@@ -2338,5 +2344,23 @@ ok('the weaving fit check refuses exactly when the weaving reserve drops a block
   forgetSlot();
   n++; console.log('  ok  the slot size is asked again until the router answers, then never again');
 }
+
+// THE PROMPT AUDIT OF 2026-11-11 (The Door Between Us). Three changes Seth approved, each held here.
+ok('the standing rules sit beside the task, SYSTEM has no Voice Modulation, and no mode repeats the voice', () => {
+  // DIRECTIVE behind TAIL and fenced: point of view, the lockout and the register next to MODE.
+  assert.ok(ORDER.indexOf('DIRECTIVE') === ORDER.indexOf('TAIL') + 1 && ORDER.indexOf('MODE') === ORDER.indexOf('DIRECTIVE') + 1,
+    `ORDER-RULES-LAST: DIRECTIVE sits between TAIL and MODE (${ORDER.join(', ')})`);
+  const out = render({ blocks: [
+    { kind: 'TAIL', id: 't', text: 'She turned the key.', tokens: 5, state: 'included', reason: '' },
+    { kind: 'DIRECTIVE', id: 'directive', text: '[Writing: third limited, present tense]', tokens: 9, state: 'included', reason: '' },
+    { kind: 'MODE', id: 'mode', text: 'Write the next beat.', tokens: 5, state: 'included', reason: '' },
+  ] } as any);
+  assert.match(out, /She turned the key\.\n<rules>\n\[Writing: third limited, present tense\]\n<\/rules>\n<mode>/,
+    `ORDER-RULES-FENCED: the rules are fenced off from the prose they follow (${out.slice(-160)})`);
+  assert.doesNotMatch(SYSTEM, /Voice Modulation|narrator authority/, 'SYSTEM-NO-MODULATION: the paragraph is gone');
+  for (const [mode, text] of Object.entries(MODE_WORDING as Record<string, string>))
+    assert.doesNotMatch(text, /Choose the particular|stay under the surface|Do not repeat, rephrase|Do not repeat or rebuild/,
+      `MODE-NO-VOICE-REPEAT: ${mode} does not repeat the voice`);
+});
 
 console.log(`\n${n} checks passed`);
