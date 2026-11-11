@@ -3781,3 +3781,40 @@ Seth and Lisa in both arms: a character's card is mostly the people of its own t
 (Seth, 2026-11-06: dropped; #166, #167 and #168 closed). The code tested is on the
 `archive/tidy-tale-167` branch (ebc788a): `mention.foreignNames`, `db.threadsElsewhere`, the Tidy ask's names
 line and its floor. Arm B of the bench needs that checkout; on main the treatment check refuses it.
+
+## F79 — Neither the rules' new place nor dropping Voice Modulation moves anything where Seth is alone in Narrate: he is acted for in 60/60 takes in every arm (2026-11-11)
+
+**The question.** 018c1f0 shipped two prompt changes unmeasured: DIRECTIVE (point of view, the lockout,
+the register) moved from ahead of the prose to after TAIL in a `<rules>` fence, and SYSTEM's Voice
+Modulation paragraph ("deepen into narrator authority. Interpret, linger, judge") was removed. Does
+either change how often the model writes the locked character, states his interior, or names a feeling?
+
+**The point.** The Door Between Us, scene 4, after Seth's own passage (ordinal 70: he puts the phone down
+and opens his laptop "while he waits for her response"), Narrate, as the writer used it. The take that
+followed it live acted for Seth throughout. Seth is the only man in the scene, so "He" in narration is him.
+
+**The detector.** `bench/prompt-audit.ts`: a narration sentence (quotes and italic texts removed) whose
+subject is "He" or "Seth" followed by a verb from `bench/lockout-book.ts`'s list plus this scene's own
+(minimize, scroll, sip, glance…); his interior by verb (thinks, imagines, knows…); a named feeling from a
+word list; the voice's stock reactions. Sixteen cases both ways, three lifted from the failing take, which
+it scores 7 acts and an interior. Floors: a verb outside the list is missed.
+
+**The run.** Three arms at once on Ornith-1.0-RPNTH-35B, each a scratch server on its own copy cut back
+to the point, each prompt checked for its one change before any take: B the shipped code, O B with the
+old order, M B with Voice Modulation back. 60 takes per arm, 0 failed.
+
+| | O (old order) | B (shipped) | M (Voice Modulation back) |
+|---|---|---|---|
+| acts for Seth | 60/60 | 60/60 | 60/60 |
+| his acts per 1,000 words | 31.03 | 27.76 | 27.19 |
+| states his interior | 18/60 | 14/60 | 16/60 |
+| names a feeling | 1/60 | 3/60 | 2/60 |
+| a stock reaction | 3/60 | 3/60 | 6/60 |
+
+**What this settles.** Nothing reaches p < 0.05 (density O against B p = 0.10; every other p ≥ 0.49).
+It does NOT say the order is useless: at a 100% base rate this point has no room to show a cut in how
+often he is acted for, only in how much (the density, which leans the shipped way and is not
+significant). It does say where the failure is: with the writer's last passage being Seth alone, and
+Narrate saying "Carry on what the writer started", every take carries Seth on, whatever the lockout says
+and wherever it sits. F59's 20% book (`bench/lockout-book.ts`, Into the Blue) is the point with headroom
+for the order. Voice Modulation stays out: flat on every count, and its 176 tokens go back to the book.
