@@ -9939,13 +9939,38 @@ function writingDefaults() {
       })()}`;
 }
 
-// #131. Writing left for Storyteller's Your voice tab.
-const ACCT_TABS = [['profile', 'You'], ['model', 'Model'], ['look', 'Look'], ['books', 'Your books']];
+// #131. Writing left for Storyteller's Your voice tab. #169 added Recently deleted.
+const ACCT_TABS = [['profile', 'You'], ['model', 'Model'], ['look', 'Look'], ['books', 'Your books'],
+  ['deleted', 'Recently deleted']];
+
+/** RECENTLY DELETED (#169): the versions of a passage the writer deleted while the passage kept
+ *  another, from every tale they write, newest first, each kept seven days. Read when the tab is
+ *  pressed and after a version is deleted (`S.deleted` back to undefined), never on a timer. Listing
+ *  only: putting one back is #170. A version whose scene has since gone shows its tale alone. */
+const deletedTab = () => {
+  if (S.deleted === undefined) {
+    S.deleted = null;
+    api.deleted().then((r) => { S.deleted = r.error ? { error: r.error } : r.versions; paint(); });
+  }
+  const d = S.deleted;
+  if (!d) return '<div class="hint flush">Reading&hellip;</div>';
+  if (d.error) return `<div class="hint flush">${esc(d.error)}</div>`;
+  if (!d.length) return `<div class="hint flush" data-deletedempty="1">Nothing is waiting here. When you
+    delete one version of a passage that has another, the version you deleted waits here for seven days.</div>`;
+  return `<div class="hint flush">Versions you deleted in the last seven days, newest first. Each one
+      goes for good seven days after you deleted it.</div>
+    <div class="stack-7 push-10">${d.map((v) => `<div class="card" data-deletedrow="${esc(v.id)}">
+      <div style="white-space:pre-wrap; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical;
+        overflow:hidden">${esc(v.body)}</div>
+      <div class="hint flush">${esc(v.taleTitle ?? '')}${v.sceneIndex != null
+        ? ` &middot; ${esc(sceneName({ title: v.sceneTitle, index: v.sceneIndex }))}` : ''} &middot; deleted ${ago(v.deletedAt)}</div>
+    </div>`).join('')}</div>`;
+};
 const WPAGES = {
-  /** THE ACCOUNT, four pages of it (Seth, 2026-10-27: "not all on one page"). Each tab draws what
+  /** THE ACCOUNT, five pages of it (Seth, 2026-10-27: "not all on one page"). Each tab draws what
    *  already exists where it can: Look opens the same sheet the header's Aa does, and Your books is
    *  the doors to Import, Export and What you have written. Writing was a fifth until #131 moved it
-   *  to Storyteller's Your voice tab. */
+   *  to Storyteller's Your voice tab; Recently deleted (#169) is the fifth now. */
   account() {
     if (S.me === undefined) { S.me = null; api.me().then((r) => { S.me = r.error ? { error: r.error } : r; paint(); }); }
     const tab = ACCT_TABS.some(([k]) => k === S.acctTab) ? S.acctTab : 'profile';
@@ -9954,7 +9979,8 @@ const WPAGES = {
     const me = S.me;
     // WRITTEN OUT, not mapped: test/web.ts reads this file for each page's door, and cannot see
     // one through an interpolated attribute.
-    const body = tab === 'books' ? `<div class="stack-7">
+    const body = tab === 'deleted' ? deletedTab()
+      : tab === 'books' ? `<div class="stack-7">
         <button class="card plate full-left" data-nav="import"><span class="platename">Import</span>
           <span class="hint flush">A character card, an Anansi export, AI Dungeon</span></button>
         <button class="card plate full-left" data-nav="forge"><span class="platename">Export</span>
@@ -13493,7 +13519,8 @@ document.addEventListener('click', async (e) => {
     toast(`${x.added ?? 0} chalked as threads — nothing sewn in yet.`);
     return;
   }
-  if (d.accttab) { S.acctTab = d.accttab; paint(); return; }
+  // Recently deleted is read again on every press of its tab, so it is never a stale list.
+  if (d.accttab) { S.acctTab = d.accttab; if (d.accttab === 'deleted') S.deleted = undefined; paint(); return; }
   // #131. Account → Writing is Storyteller's Your voice tab; an old door to it lands there.
   // #131. Storyteller's tabs. Redrawn, as Account's tabs were: a mode's box keeps its typing in
   // state (`S.promptEdit`) and writes it after the pause whether or not it is on screen.
@@ -13691,6 +13718,7 @@ document.addEventListener('click', async (e) => {
       every ? 'Press again to remove every take of this passage.'
             : 'Press Delete again to remove it.')) return;
     const r = await api.delPassage(S.storyId, id, every); if (r.error) return toast(r.error);
+    S.deleted = undefined;   // Recently deleted may hold it now (#169)
     // The panel may be showing the very passage that just went.
     if (S.historyOf?.id === id) { S.historyOf = null; S.panel = 'context'; }
     V = await api.story(S.storyId); paint(); refreshHistory();
