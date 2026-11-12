@@ -230,9 +230,6 @@ else ok("the beat says it is not set yet", /Not set/.test(body));
 // Typed with real keystrokes, not by assigning .value: the panel keeps the form in state via the
 // input event, and a programmatic assignment fires no event — which is the test's problem, not the
 // app's, but it looked identical to the bug for one run.
-await page.eval("(() => { for (const k of ['title','note']) document.querySelector(`[data-setup=\"${k}\"]`).value = ''; return 1; })()");
-await page.type('[data-setup="title"]', 'The Stair');
-await page.type('[data-setup="note"]', 'It has to end with Aldis handing the key over.');
 
 // Who is in it, on Anyone new (Seth, 2026-10-29): each thread a block with how it comes in. One
 // control, two mechanisms for ✕ — and which one depends on how the entry already reaches the
@@ -242,9 +239,19 @@ await page.type('[data-setup="note"]', 'It has to end with Aldis handing the key
 // only triggered entries, the fixture's characters are all always-on, so the selector matched
 // nothing and two assertions never ran. The list shows always-on entries, which is what surfaced it.
 await page.click('[data-setupstep="more"]');
+// A SCENE A HEM OPENED IS ASKED "WHO IS IN IT" ON THE HEM SCREEN, NOT HERE (635e976, Seth 2026-11-01):
+// Anyone new says who is in it and offers one press back to that list. This scene came from a hem,
+// so assert the sentence and the button, then press back to the editable list. Before this the file
+// waited for `[data-howout]` on this step, never saw it, and the ✕/eye block below was skipped
+// while the run reported only two reds.
+for (let i = 0; i < 20 && !(await page.visible('[data-hemwhoagain]')); i++) await wait(250);
+ok("Anyone new says who is in a scene a hem opened, with a press back to the list",
+   (await page.visible('[data-whosaid]')) && (await page.visible('[data-hemwhoagain]'))
+   && !(await page.visible('[data-howout]')));
+await page.click('[data-hemwhoagain]');
 for (let i = 0; i < 20 && !(await page.visible('[data-howout]')); i++) await wait(250);
 const castBtn = await page.eval("document.querySelector('[data-howout]')?.dataset.howout");
-ok("the setup page lists at least one thread in the scene", !!castBtn);
+ok("the hem screen's list shows at least one thread in the scene", !!castBtn);
 // ONE LINE A THREAD (2026-10-29, option A): a row no taller than a line and its kind, and THE EYE
 // (2026-11-01, the Threads list's mark): a tap moves it on, and three taps bring it back round.
 {
@@ -289,13 +296,30 @@ if (castBtn) {
   ok("  and bringing it back in pins it into the scene",
      (v2.pins ?? []).some((p) => p.entryId === castBtn && p.chapterId === v2.currentChapter.id && p.mode === 'force_in'));
   // Leave it as the fixture had it, so later assertions read a story nobody has quietly changed.
-  // Brought in by search it is on a word and pinned in (woken); the eye takes it off here, then on.
-  if (always) for (let k = 0; k < 2; k++) { await page.click('.whoeye[data-flipact="' + castBtn + '"]'); await wait(900); }
+  // Brought in by search it is on a word and pinned in (woken).
+  // The eye's cycle (Seth, 2026-11-02) is off -> on a word -> on -> off, and woken counts as on a word,
+  // so from a thread brought in by search ("woken") ONE tap lands on "on", the fixture's state, and a
+  // second goes on to off, which is off in EVERY scene. The count used to be written as two taps, from
+  // the 10-29 cycle. Tap until it reads "on", bounded, so the next change to the cycle shows as a red
+  // instead of a quiet overshoot.
+  const rch = () => page.eval(`document.querySelector('.whoeye[data-flipact="${castBtn}"]')?.dataset.reach ?? ''`);
+  if (always) for (let k = 0; k < 4 && (await rch()) !== 'on'; k++) { await page.click('.whoeye[data-flipact="' + castBtn + '"]'); await wait(900); }
   const v3 = await story();
   ok("  and choosing how it was puts it back",
      v3.entries.find((e) => e.id === castBtn)?.activation === ent?.activation
      && (always ? !(v3.pins ?? []).some((p) => p.entryId === castBtn && p.chapterId === v3.currentChapter.id) : true));
 }
+
+// Done on the hem screen's list, then back to the setup page the form lives on.
+await page.click('[data-hemwhodone]');
+await wait(600);
+await page.goto(B + "/#" + sid + "/setup");
+for (let i = 0; i < 20 && !(await page.visible('[data-setupstep="premise"]')); i++) await wait(250);
+await page.eval("(() => { document.querySelector('[data-setupstep=\"premise\"]')?.click(); return 1; })()");
+for (let i = 0; i < 20 && !(await page.visible('[data-setup="note"]')); i++) await wait(250);
+await page.eval("(() => { for (const k of ['title','note']) document.querySelector(`[data-setup=\"${k}\"]`).value = ''; return 1; })()");
+await page.type('[data-setup="title"]', 'The Stair');
+await page.type('[data-setup="note"]', 'It has to end with Aldis handing the key over.');
 
 // ---- saving writes the beat where the engine already reads it
 // The form must survive a repaint. Ticking a character used to rebuild the panel and empty it; and

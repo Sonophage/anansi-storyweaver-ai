@@ -32,3 +32,10 @@ bugs.md
 # copies of the tree, so every repo-wide grep that honours this file returned each hit ~20 times.
 exports/
 .claude/worktrees/
+.mcp.json
+.agentsroom/handoff-transcript-*.txt
+.agentsroom/handoff-summary-*.md
+.agentsroom/fork-context-*.txt
+.agentsroom/transfer-context-*.txt
+.agentsroom/handoff-context-*.txt
+.agentsroom/
