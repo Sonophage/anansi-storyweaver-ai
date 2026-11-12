@@ -1898,6 +1898,38 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
   }
   ok("in a shared book each writer's Talk sessions are their own, and leave with them");
 
+  // RECENTLY DELETED WITH TWO OWNERS (#169). The route names no tale, so the gate never runs for it
+  // and MINE() in the SQL is its whole protection. A co-writer sees what the other writer deleted
+  // in the tale they share; a writer outside it sees nothing of it, whatever tale they name.
+  {
+    assert.ok(OPEN_ROUTES.has('GET /api/deleted'), 'GET /api/deleted names no tale, so it is open and scopes itself');
+    const both = db.createStory(alice, { title: 'Deleted together' });
+    const hersAlone = db.createStory(alice, { title: 'Hers alone' });
+    db.addWriter(both.id, bob);
+    const twice = (s: any, body: string) => {
+      const p = db.addPassage({ ...s, storyId: s.id, body: `${body}, first.` });
+      db.addVariant(s.id, p, `${body}, second.`);
+      return p;
+    };
+    const shared = twice(both, 'Shared'), alone = twice(hersAlone, 'Alone');
+    await routes['DELETE /api/passage'](ctx(alice, { storyId: both.id, id: shared }));
+    await routes['DELETE /api/passage'](ctx(alice, { storyId: hersAlone.id, id: alone }));
+    const seen = async (owner: string, query = '') => ((await routes['GET /api/deleted']({ ...ctx(owner),
+      query: new URLSearchParams(query) })) as any).versions.map((v: any) => v.id).sort();
+    assert.deepStrictEqual(await seen(alice), [alone, shared].sort(), 'DELETED-OWNER: alice sees both of hers');
+    assert.deepStrictEqual(await seen(bob), [shared],
+      'DELETED-COWRITER: bob sees what alice deleted in the tale they share, and nothing of her own tale');
+    assert.deepStrictEqual(await seen(bob, `story=${hersAlone.id}`), [shared],
+      "DELETED-NAMED: naming alice's own tale does not open it to bob");
+    const carol = db.owner('carol-169');
+    assert.deepStrictEqual(await seen(carol), [], 'DELETED-STRANGER: a writer of neither tale sees nothing');
+    db.dropWriter(both.id, bob);
+    assert.deepStrictEqual(await seen(bob), [], 'DELETED-OUT: taken out of the tale, bob sees none of it');
+    db.delStory(both.id, alice); db.delStory(hersAlone.id, alice);
+    assert.deepStrictEqual(await seen(alice), [], 'and a deleted tale takes its deleted versions with it');
+  }
+  ok('Recently deleted shows a co-writer the shared tale\'s deleted versions, and a stranger nothing');
+
   // THE CATALOGUE SEARCH. It holds nothing of anyone's, so the two-owner question is whether the
   // admin and a writer who is not are shown the same models. They are since 2026-10-25, when Seth
   // opened the models that take the whole plan to every writer; only the context floor refuses.

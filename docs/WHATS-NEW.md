@@ -16,6 +16,16 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-11-12 · A deleted version waits seven days
+
+### Recently deleted, in Account
+When you delete one version of a passage and the passage still has another, the version you
+deleted is not gone at once. It waits for seven days in Account, under a new tab, Recently deleted,
+with its text, its tale, its scene and when you deleted it. The list covers every tale you write,
+including tales you share: a version your co-writer deleted there shows for you too. After seven
+days each one goes for good. Deleting a passage's last version, all of its versions, everything
+after a passage, a scene or a branch does not put anything here.
+
 ## 2026-11-11 · Clearer instructions for the writer, and threads that keep who they are
 
 ### The writer reads its rules right before it writes

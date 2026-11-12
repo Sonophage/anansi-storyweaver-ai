@@ -6346,12 +6346,12 @@ ok('every menu row has its own picture, and the phone menu has a cross to close 
 
 // ---- THE ACCOUNT, FOUR PAGES (Seth, 2026-10-27): you, your key and model, the look, your books;
 // Import, Export and What you have written left the menu for it. Your writing was a fifth until #131
-// moved it to Storyteller → Your voice.
+// moved it to Storyteller → Your voice. Recently deleted (#169) is the fifth now.
 {
   click({ railview: 'workspace' }); click({ nav: 'account' });
   for (let i = 0; i < 40 && !/f-me-name/.test(html('page')); i++) await sleep(25);
   const tabsOf = (h: string) => [...h.matchAll(/data-accttab="([a-z]+)"/g)].map((m) => m[1]);
-  assert.deepStrictEqual(tabsOf(html('page')), ['profile', 'model', 'look', 'books'], 'four pages, not one');
+  assert.deepStrictEqual(tabsOf(html('page')), ['profile', 'model', 'look', 'books', 'deleted'], 'five pages, not one');
   assert.match(html('page'), /id="f-me-name" value="Seth"/, 'You: your name');
   assert.match(html('page'), /data-avatar="1"/, 'and a picture to choose');
   // YOUR NAME SAVES WHEN YOU LEAVE THE BOX (ADR 0004, pass three): no Save beside it.
@@ -6569,7 +6569,7 @@ ok('Account is four pages, and Your books holds Import, Export and What you have
   click({ railview: 'workspace' }); click({ nav: 'account' });
   for (let i = 0; i < 40 && !/data-accttab/.test(html('page')); i++) await sleep(25);
   assert.deepStrictEqual([...html('page').matchAll(/data-accttab="([a-z]+)"/g)].map((m) => m[1]),
-    ['profile', 'model', 'look', 'books'], 'ACCT-NOWRITING: Account has no Writing tab');
+    ['profile', 'model', 'look', 'books', 'deleted'], 'ACCT-NOWRITING: Account has no Writing tab');
   click({ accttab: 'model' });
   assert.match(html('page'), /No key yet/, 'ACCT-MODEL: the Model tab keeps the Featherless key');
   assert.match(html('page'), /Storyteller/, 'ACCT-MODEL: and names Storyteller as where the model is changed');

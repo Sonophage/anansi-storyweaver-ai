@@ -919,6 +919,27 @@ CREATE TABLE IF NOT EXISTS passage_revisions (
   body TEXT NOT NULL, replaced_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS passage_rev_p ON passage_revisions(passage_id, replaced_at);
 
+-- RECENTLY DELETED (#169). A version of a passage the writer deleted while the passage kept
+-- another, kept seven days so it can be put back (#170). The whole passage row as it was, column
+-- for column (BINNED_COLS names them and test/deleted.ts fails the day passages has one this
+-- does not), plus who deleted it and when. NO foreign key to chapters, on purpose: a version whose
+-- scene was deleted afterwards stays listed until its seven days are up. The tale's key cascades,
+-- so a deleted tale takes its deleted versions with it and an export carries only its own. No
+-- search trigger reads this table: a deleted version is not found by searching.
+CREATE TABLE IF NOT EXISTS deleted_versions (
+  id TEXT PRIMARY KEY, chapter_id TEXT NOT NULL,
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE, branch_id TEXT NOT NULL,
+  slot_key REAL NOT NULL, ordinal INTEGER NOT NULL,
+  variant_index INTEGER DEFAULT 0, selected INTEGER DEFAULT 1,
+  author TEXT NOT NULL, speaker TEXT, body TEXT NOT NULL, is_break INTEGER DEFAULT 0,
+  mode TEXT, directive TEXT, created_at INTEGER NOT NULL,
+  rejected INTEGER DEFAULT 0, claimed INTEGER DEFAULT 1,
+  deleted_by TEXT,                     -- the writer who pressed delete; null only from a caller
+                                       -- that names nobody (a test, a script)
+  deleted_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS deleted_versions_at ON deleted_versions(deleted_at);
+CREATE INDEX IF NOT EXISTS deleted_versions_story ON deleted_versions(story_id, deleted_at);
+
 CREATE TABLE IF NOT EXISTS entries (
   id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
   owner_id TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, notes TEXT,
@@ -2603,12 +2624,35 @@ export function yoursClearedBy(storyId: string, passageId: string): { id: string
              ORDER BY idx`).all(storyId, ...cut.chapters) as any[];
 }
 
-export function delPassage(storyId: string, id: string) {
+/** THE COLUMNS OF A PASSAGE THAT RECENTLY DELETED KEEPS: every one, so #170 can rebuild the version
+ *  exactly. Named rather than read off `PRAGMA table_info` at delete time, so a column added to
+ *  passages and not to `deleted_versions` fails test/deleted.ts instead of failing a writer's delete. */
+export const BINNED_COLS = ['id', 'chapter_id', 'story_id', 'branch_id', 'slot_key', 'ordinal',
+  'variant_index', 'selected', 'author', 'speaker', 'body', 'is_break', 'mode', 'directive',
+  'created_at', 'rejected', 'claimed'] as const;
+
+/** One version of a passage, gone. `by` is the writer who pressed delete (the route passes the
+ *  session's owner); it is kept on the Recently deleted row.
+ *
+ *  RECENTLY DELETED KEEPS IT ONLY WHEN THE PASSAGE KEEPS ANOTHER VERSION (#169). Deleting the last
+ *  version deletes the passage, and that, all versions at once, Delete after, a scene and a branch
+ *  keep nothing (Seth, 2026-11-06). The copy is the first write of the same transaction, so a
+ *  version is never gone without being kept, nor kept without being gone. */
+export function delPassage(storyId: string, id: string, by: string | null = null) {
   const cur = q('SELECT chapter_id, slot_key, selected FROM passages WHERE id = ? AND story_id = ?')
     .get(id, storyId) as any;
   if (!cur) return;
   db.exec('BEGIN');
   try {
+    const others = (q('SELECT COUNT(*) AS n FROM passages WHERE chapter_id = ? AND slot_key = ? AND id != ?')
+      .get(cur.chapter_id, cur.slot_key, id) as any).n;
+    if (others > 0) {
+      const cols = BINNED_COLS.join(',');
+      // REPLACE: a version put back (#170) keeps its id, and deleting it again must not fail the
+      // delete on the old row's key. The newer deletion is the one that counts.
+      q(`INSERT OR REPLACE INTO deleted_versions (${cols}, deleted_by, deleted_at)
+         SELECT ${cols}, ?, ? FROM passages WHERE id = ? AND story_id = ?`).run(by, now(), id, storyId);
+    }
     q('DELETE FROM passages WHERE id = ? AND story_id = ?').run(id, storyId);
     // Deleting the SELECTED take left the slot with no selected row at all, and every read of the
     // book — passagesOfChapter, view(), the context window — filters on selected = 1. So the other
@@ -2645,6 +2689,51 @@ export function delSlot(storyId: string, id: string) {
     touch(storyId);
     return ids.length;
   } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
+/** How long Recently deleted keeps a version: seven days from the delete. */
+export const DELETED_KEEP_MS = 7 * 864e5;
+
+/** Drop every deleted version older than seven days, and say how many went. The ONE prune: the list
+ *  read calls it first, and so does the half-hourly upkeep below, so an idle library prunes too. */
+export const pruneDeleted = (at = now()): number =>
+  Number(q('DELETE FROM deleted_versions WHERE deleted_at < ?').run(at - DELETED_KEEP_MS).changes ?? 0);
+
+/** RECENTLY DELETED, for one writer: every deleted version in every tale they write (`MINE()`, so a
+ *  co-writer sees a version the other writer deleted), newest first. Prunes first, so nothing past
+ *  seven days is ever shown.
+ *
+ *  LEFT JOIN on the scene: a version whose scene was deleted after it stays listed, with no scene
+ *  index or title, until its seven days are up. `passageGone` says whether its passage still has a
+ *  version in the book, which #170 reads; this list does not draw it.
+ *  ponytail: read whole, no paging. Seven days of single-version deletes is small. Trigger: the list
+ *  slow to open, or a writer with hundreds waiting; then page it. */
+export function deletedVersions(ownerId: string) {
+  pruneDeleted();
+  return q(`SELECT d.id, d.story_id AS storyId, s.title AS taleTitle, c.idx AS sceneIndex, c.title AS sceneTitle,
+                   d.body, d.mode, d.directive, d.speaker, d.author, d.deleted_by AS deletedBy,
+                   d.deleted_at AS deletedAt,
+                   NOT EXISTS (SELECT 1 FROM passages p WHERE p.chapter_id = d.chapter_id
+                               AND p.slot_key = d.slot_key) AS passageGone
+              FROM deleted_versions d JOIN stories s ON s.id = d.story_id
+              LEFT JOIN chapters c ON c.id = d.chapter_id
+             WHERE ${MINE()}
+             ORDER BY d.deleted_at DESC, d.rowid DESC`).all(ownerId, ownerId) as any[];
+}
+
+/** THE HALF-HOURLY UPKEEP: prune Recently deleted, then `snapshot` (serve.ts passes its backup).
+ *  Once now and every thirty minutes, as the boot snapshot always ran. Here and not in serve.ts so a
+ *  test can drive the real timer on the virtual clock; not inside `backup()`, which also runs for the
+ *  off-disk copy and `POST /api/backup`. Returns the stop. */
+export function halfHourly(snapshot: () => void): () => void {
+  const run = () => {
+    try { pruneDeleted(); } catch (e: any) { console.error('  prune of Recently deleted failed:', e?.message); }
+    snapshot();
+  };
+  run();
+  const t = setInterval(run, 30 * 60_000);
+  (t as any).unref?.();
+  return () => clearInterval(t);
 }
 
 /** WHAT THIS PASSAGE WAS ASKED FOR: the press, the voice and the instruction behind it. These are

@@ -567,11 +567,12 @@ if (stopped) console.log(`  hems          ${stopped} cut off by the restart, sto
   console.log(`  library       ${n} ${n === 1 ? 'story' : 'stories'}`
     + (shelves.length > 1 ? ` · ${shelves.map((w) => `${w.login} ${w.n}`).join(', ')}` : ''));
   // A snapshot on boot and every 30 minutes. The database is the only copy of the book,
-  // and PLAN-02 deleted Neon without booking anything to replace its durability.
+  // and PLAN-02 deleted Neon without booking anything to replace its durability. The same timer
+  // prunes Recently deleted (#169), so an idle library still lets go after seven days.
   const snapshot = () => { try { const b = db.backup();
     console.log(`  backup        ${(b.bytes / 1024).toFixed(0)} KB, keeping 12`);
   } catch (e: any) { console.error('  backup failed:', e?.message); } };
-  snapshot(); setInterval(snapshot, 30 * 60_000).unref();
+  db.halfHourly(snapshot);
 
   // ONLY THE REAL LIBRARY MANAGES THE SHARED DIRECTORIES.
   //

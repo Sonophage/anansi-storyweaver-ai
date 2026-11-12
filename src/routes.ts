@@ -345,6 +345,9 @@ export const OPEN_ROUTES = new Set([
   // A writer's own shortlist of remote models. Names no story; every read and write takes c.owner,
   // so another writer's list cannot be named. test/scope.ts proves it with two owners.
   'GET /api/shortlist', 'POST /api/shortlist', 'POST /api/shortlist/remove',
+  // #169. Recently deleted: across every tale the writer writes, so it names none. The SQL scopes it
+  // by c.owner through MINE(); test/scope.ts proves it with two owners.
+  'GET /api/deleted',
   // The Featherless catalogue. Names no story and holds nothing of anyone's, and every writer is
   // shown the same models.
   'GET /api/catalogue',
@@ -4715,9 +4718,12 @@ export const routes: Record<string, Handler> = {
   'DELETE /api/passage': (c) => {
     // One take, or the whole slot. Two intents behind one press, so the caller says which.
     const gone = c.body.allTakes ? db.delSlot(c.body.storyId, c.body.id)
-                                 : (db.delPassage(c.body.storyId, c.body.id), 1);
+                                 : (db.delPassage(c.body.storyId, c.body.id, c.owner), 1);
     return { ...viewOf(c, c.body.storyId), deleted: gone };
   },
+  /** RECENTLY DELETED (#169): the versions this writer, or a writer they share a tale with, deleted
+   *  in the last seven days, newest first. Any `story` named is ignored: the list is the writer's. */
+  'GET /api/deleted': (c) => ({ versions: db.deletedVersions(c.owner) }),
   /** Delete-after's FIRST press (#46): which chapters' summaries of yours the delete would clear,
    *  read off the same cut the delete makes, so the ask and the delete cannot disagree. */
   'GET /api/after': (c) => ({ yours: db.yoursClearedBy(c.query.get('story') ?? '', c.query.get('id') ?? '') }),
