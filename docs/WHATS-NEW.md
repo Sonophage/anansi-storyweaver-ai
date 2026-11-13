@@ -16,6 +16,18 @@ Everything below this line was written by that model call, before it was removed
 
 
 
+## 2026-11-13 · Put a deleted version back
+
+### Put back, in Recently deleted
+Each version in Account's Recently deleted now has a Put back button. Press it and the version
+returns to its passage, as the last page behind the passage's ‹ › arrows, with its own words,
+its press, its direction and its voice. The version you are reading stays the one shown. Anyone
+who writes the tale can put a version back.
+
+If the passage itself has gone since (you deleted everything after it, or its scene), the version
+cannot go back. It says so, and it has a Copy button so you can keep its words. A long version
+now has Show all, so you can read every line of it before you decide.
+
 ## 2026-11-12 · A deleted version waits seven days
 
 ### Recently deleted, in Account

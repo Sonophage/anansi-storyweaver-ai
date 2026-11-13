@@ -2705,20 +2705,63 @@ export const pruneDeleted = (at = now()): number =>
  *
  *  LEFT JOIN on the scene: a version whose scene was deleted after it stays listed, with no scene
  *  index or title, until its seven days are up. `passageGone` says whether its passage still has a
- *  version in the book, which #170 reads; this list does not draw it.
+ *  version in the book: the screen offers Copy in place of Put back. Who wrote it and who deleted it
+ *  are not read out (#170): no screen shows them, and Put back reads the row itself.
  *  ponytail: read whole, no paging. Seven days of single-version deletes is small. Trigger: the list
  *  slow to open, or a writer with hundreds waiting; then page it. */
 export function deletedVersions(ownerId: string) {
   pruneDeleted();
   return q(`SELECT d.id, d.story_id AS storyId, s.title AS taleTitle, c.idx AS sceneIndex, c.title AS sceneTitle,
-                   d.body, d.mode, d.directive, d.speaker, d.author, d.deleted_by AS deletedBy,
-                   d.deleted_at AS deletedAt,
+                   d.body, d.mode, d.directive, d.speaker, d.deleted_at AS deletedAt,
                    NOT EXISTS (SELECT 1 FROM passages p WHERE p.chapter_id = d.chapter_id
                                AND p.slot_key = d.slot_key) AS passageGone
               FROM deleted_versions d JOIN stories s ON s.id = d.story_id
               LEFT JOIN chapters c ON c.id = d.chapter_id
              WHERE ${MINE()}
              ORDER BY d.deleted_at DESC, d.rowid DESC`).all(ownerId, ownerId) as any[];
+}
+
+/** PUT BACK (#170): one version from Recently deleted, back behind its passage's ‹ › pager.
+ *
+ *  THE OWNERSHIP FLOOR IS HERE. The gate checks the tale the request names, and the bin's key is
+ *  `id` alone, so the row is read by `id` AND that tale: a version of another tale is "not found"
+ *  whatever tale was named. One transaction, so a version is never back without leaving the list.
+ *
+ *  What goes back is the row as it was, with three exceptions. `selected` is 0: the version the
+ *  writer is reading stays the one shown, and `passages_sel` (unique on selected rows) is never
+ *  touched. `variant_index` is after every version of the slot, so it is the last page. `ordinal`
+ *  and `branch_id` come from a live version of the slot: a passage written above shifts ordinals,
+ *  and the one the bin stored can be stale. `rejected` and `claimed` go back as kept; neither hides
+ *  a version from the pager, which reads every row of the slot.
+ *
+ *  Refused, writing nothing: a row that is not there (put back already, or past its seven days), a
+ *  passage with no version left (Delete after, or its scene, took it), and an id that is a live
+ *  passage again, which is never overwritten. */
+export function putBack(storyId: string, id: string):
+    { ok: true } | { error: string; why: 'notfound' | 'passagegone' | 'clash' } {
+  db.exec('BEGIN');
+  try {
+    const out = (() => {
+      const d = q('SELECT * FROM deleted_versions WHERE id = ? AND story_id = ?').get(id, storyId) as any;
+      if (!d) return { error: 'This version was already put back, or is gone.', why: 'notfound' as const };
+      const slot = q(`SELECT branch_id, ordinal, MAX(variant_index) AS top FROM passages
+                       WHERE story_id = ? AND chapter_id = ? AND slot_key = ?`)
+        .get(storyId, d.chapter_id, d.slot_key) as any;
+      if (slot?.top == null) return { error: 'Its passage is gone from the tale, so this version cannot go back. '
+        + 'You can still copy its words.', why: 'passagegone' as const };
+      if (q('SELECT 1 FROM passages WHERE id = ?').get(id))
+        return { error: 'This version is in a tale already.', why: 'clash' as const };
+      const cols = BINNED_COLS.join(',');
+      const vals = BINNED_COLS.map((c) => c === 'selected' ? 0 : c === 'variant_index' ? slot.top + 1
+        : c === 'ordinal' ? slot.ordinal : c === 'branch_id' ? slot.branch_id : d[c]);
+      q(`INSERT INTO passages (${cols}) VALUES (${BINNED_COLS.map(() => '?').join(',')})`).run(...vals);
+      q('DELETE FROM deleted_versions WHERE id = ? AND story_id = ?').run(id, storyId);
+      return { ok: true as const };
+    })();
+    db.exec('COMMIT');
+    if ('ok' in out) touch(storyId);
+    return out;
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 
 /** THE HALF-HOURLY UPKEEP: prune Recently deleted, then `snapshot` (serve.ts passes its backup).

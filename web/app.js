@@ -658,6 +658,8 @@ const ACTIONS = ['nav', 'rail', 'railview', 'leave', 'open', 'chapter', 'panel',
   'taleadd', 'talestand',
   // The Account page: its tabs, your name and your picture.
   'accttab', 'delavatar', 'hembasic',
+  // #170. Recently deleted's Put back, Copy and Show all.
+  'deletedback', 'copydeleted', 'deletedmore',
   // #131. Storyteller's four tabs.
   'tellertab',
   // A card out as JSON and back in again: copy, save to a file, read one.
@@ -9945,8 +9947,15 @@ const ACCT_TABS = [['profile', 'You'], ['model', 'Model'], ['look', 'Look'], ['b
 
 /** RECENTLY DELETED (#169): the versions of a passage the writer deleted while the passage kept
  *  another, from every tale they write, newest first, each kept seven days. Read when the tab is
- *  pressed and after a version is deleted (`S.deleted` back to undefined), never on a timer. Listing
- *  only: putting one back is #170. A version whose scene has since gone shows its tale alone. */
+ *  pressed and after a version is deleted (`S.deleted` back to undefined), never on a timer. A
+ *  version whose scene has since gone shows its tale alone.
+ *
+ *  PUT BACK (#170) returns one behind its passage's ‹ › pager, not selected. A version whose
+ *  passage is gone cannot go back: it says so and offers Copy in its place, so the words are not
+ *  lost with it. The list's `passageGone` can be stale by the press; the route decides, and a
+ *  refusal for that reason turns the row into the same Copy row (`S.deletedGone`). Its data name is
+ *  `deletedback`: `putback` was already the voice fill's undo.
+ *  A long version opens whole on Show all (`S.deletedOpen`); four lines is the closed height. */
 const deletedTab = () => {
   if (S.deleted === undefined) {
     S.deleted = null;
@@ -9959,12 +9968,23 @@ const deletedTab = () => {
     delete one version of a passage that has another, the version you deleted waits here for seven days.</div>`;
   return `<div class="hint flush">Versions you deleted in the last seven days, newest first. Each one
       goes for good seven days after you deleted it.</div>
-    <div class="stack-7 push-10">${d.map((v) => `<div class="card" data-deletedrow="${esc(v.id)}">
-      <div style="white-space:pre-wrap; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical;
-        overflow:hidden">${esc(v.body)}</div>
+    <div class="stack-7 push-10">${d.map((v) => {
+      const open = S.deletedOpen?.has(v.id), gone = v.passageGone || S.deletedGone?.has(v.id);
+      // Long by its lines or its length: past either, four lines would hide some of it.
+      const long = v.body.split('\n').length > 4 || v.body.length > 280;
+      return `<div class="card" data-deletedrow="${esc(v.id)}">
+      <div data-deletedbody style="white-space:pre-wrap${open ? '' : `; display:-webkit-box; -webkit-line-clamp:4;
+        -webkit-box-orient:vertical; overflow:hidden`}">${esc(v.body)}</div>
+      ${long ? `<button class="btn ghost small-btn below-10" data-deletedmore="${esc(v.id)}"
+        aria-expanded="${!!open}">${open ? 'Show less' : 'Show all'}</button>` : ''}
       <div class="hint flush">${esc(v.taleTitle ?? '')}${v.sceneIndex != null
         ? ` &middot; ${esc(sceneName({ title: v.sceneTitle, index: v.sceneIndex }))}` : ''} &middot; deleted ${ago(v.deletedAt)}</div>
-    </div>`).join('')}</div>`;
+      ${gone ? `<div class="hint flush" data-deletedgone>Its passage is gone from the tale, so this version
+        cannot go back. Copy keeps its words.</div>
+        <button class="btn ghost small-btn" data-copydeleted="${esc(v.id)}">Copy</button>`
+      : `<button class="btn small-btn" data-deletedback="${esc(v.id)}" data-deletedbackstory="${esc(v.storyId)}"
+        aria-label="Put back in ${esc(v.taleTitle ?? 'its tale')}">Put back</button>`}
+    </div>`; }).join('')}</div>`;
 };
 const WPAGES = {
   /** THE ACCOUNT, five pages of it (Seth, 2026-10-27: "not all on one page"). Each tab draws what
@@ -14167,6 +14187,31 @@ document.addEventListener('click', async (e) => {
       input.dispatchEvent(new Event('input', { bubbles: true })); }
     toast('In the composer, unsent. Read it before you send it.');
     return;
+  }
+  // RECENTLY DELETED (#170): Put back, Copy, and Show all. See deletedTab.
+  if (d.deletedback) {
+    const r = await api.putBack(d.deletedbackstory, d.deletedback);
+    if (r.error) {
+      if (r.why === 'passagegone') (S.deletedGone ??= new Set()).add(d.deletedback);
+      else S.deleted = undefined;   // put back already, or past its seven days: read the list again
+      paint(); return toast(r.error);
+    }
+    S.deleted = Array.isArray(S.deleted) ? S.deleted.filter((v) => v.id !== d.deletedback) : undefined;
+    if (S.storyId === d.deletedbackstory) { V = await api.story(S.storyId); refreshHistory(); }
+    paint(); toast('Put back. It is the last version behind its passage\u2019s \u2039 \u203a.');
+    return;
+  }
+  if (d.copydeleted) {
+    const v = (Array.isArray(S.deleted) ? S.deleted : []).find((x) => x.id === d.copydeleted);
+    if (!v) return;
+    try { await navigator.clipboard.writeText(v.body); toast('Copied.'); }
+    catch { toast('Could not reach the clipboard — select it and copy by hand.'); }
+    return;
+  }
+  if (d.deletedmore) {
+    const o = (S.deletedOpen ??= new Set());
+    if (o.has(d.deletedmore)) o.delete(d.deletedmore); else o.add(d.deletedmore);
+    paint(); return;
   }
   if (d.copydraft) {
     const draft = S.talk.turns[Number(d.copydraft)]?.directive;

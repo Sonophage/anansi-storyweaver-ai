@@ -2,6 +2,11 @@
 // version of a passage with two is deleted from the passage's own actions, it lists that version
 // with its text, its tale, its scene and when.
 //
+// Put back (#170): the row's Put back returns the version behind its passage's ‹ › pager (two
+// versions again, the restored text one press of › away). A version whose passage has gone shows
+// the reason and Copy, and no Put back. A long version opens whole on Show all. The clipboard is not
+// read back: the harness may not grant it, so Copy is checked as present and wired.
+//
 //   test/ui/run.sh deleted
 const B = "http://127.0.0.1:5179";
 let red = 0;
@@ -71,5 +76,58 @@ ok(`  its scene (${JSON.stringify(where[1])}; scene ${listed.sceneIndex}, ${JSON
   listed.sceneIndex != null && [listed.sceneTitle?.trim(), `Scene ${listed.sceneIndex}`].includes(where[1]));
 ok("  and when", /deleted today/.test(row));
 ok("  and no empty state beside it", !(await page.eval("!!document.querySelector('[data-deletedempty]')")));
+
+// ---- Put back (#170)
+const putBack = `[data-deletedback="${gone}"]`;
+ok("the row has a Put back button", await page.eval(`!!document.querySelector('${putBack}')`));
+ok("  whose label names the tale",
+  /The Silver Key/.test(await page.eval(`document.querySelector('${putBack}')?.getAttribute('aria-label') ?? ''`)));
+await press(putBack);
+ok("pressed, the row leaves the list",
+  await until(`!document.querySelector('[data-deletedrow="${gone}"]')`));
+ok("  and the server no longer lists it", !((await call("/api/deleted")).versions ?? []).some((v) => v.id === gone));
+const again = (await call(`/api/story?story=${sid}`)).passages.at(-1);
+ok(`the passage has two versions again (${(again.variants ?? []).length})`, (again.variants ?? []).length === 2);
+ok("  and the one shown is the one that stayed", again.id === after.id);
+await page.goto(B + "/#" + sid);
+await until("!!document.querySelector('#col .block.newest')");
+await page.click("#col .block.newest .narr, #col .block.newest .said");
+await until(`!!document.querySelector('[data-vn="${after.id}"]')`);
+const pagerText = await page.eval(`document.querySelector('[data-vn="${after.id}"]')?.parentElement.textContent.replace(/\\s+/g, '') ?? ''`);
+ok(`the pager counts two (${JSON.stringify(pagerText)})`, /1\/2/.test(pagerText));
+// A real click after a short wait. A scripted click straight after the tray opened did not move the
+// pager on 2026-11-13 (the selection stayed); the cause was not pinned down.
+await wait(400); await page.click(`[data-vn="${after.id}"]`);
+const reached = await until(`(document.querySelector('#col .block.newest')?.textContent ?? '').includes(${JSON.stringify(WORDS)})`);
+ok("  and \u203a reaches the version put back", reached);
+
+// ---- a long version whose passage is gone: the reason, Copy, Show all, and no Put back
+const LONG = Array.from({ length: 9 }, (_, i) => `Line ${i + 1} of a long version whose passage goes.`).join("\n");
+await call("/api/accept", { storyId: sid, body: "A passage that will go, first version.", mode: "continue" });
+const fresh = (await call(`/api/story?story=${sid}`)).passages.at(-1);
+await call("/api/accept", { storyId: sid, variantOf: fresh.id, body: LONG, mode: "continue" });
+const longId = ((await call(`/api/story?story=${sid}`)).passages.at(-1).variants ?? []).find((v) => v.selected)?.id;
+const del = (id, allTakes) => page.eval(`(async () => (await (await fetch('/api/passage', { method: 'DELETE',
+  headers: { 'Content-Type': 'application/json' }, body: ${JSON.stringify(JSON.stringify({ storyId: sid, id, allTakes }))} })).json()))()`);
+await del(longId, false);
+await del(fresh.id, true);
+await openTab();
+const goneRow = `[data-deletedrow="${longId}"]`;
+ok("the version whose passage went is listed", await page.eval(`!!document.querySelector('${goneRow}')`));
+const reason = await page.eval(`document.querySelector('${goneRow} [data-deletedgone]')?.textContent.replace(/\\s+/g, ' ').trim() ?? ''`);
+ok(`  it says why it cannot go back (${JSON.stringify(reason)})`, /passage is gone/.test(reason) && /cannot go back/.test(reason));
+ok("  it has Copy", await page.eval(`!!document.querySelector('${goneRow} [data-copydeleted="${longId}"]')`));
+await press(`${goneRow} [data-copydeleted="${longId}"]`);
+const said = await until("/Copied\\.|Could not reach the clipboard/.test(document.getElementById('toast')?.textContent ?? '') && !document.getElementById('toast').hidden")
+  ? await page.eval("document.getElementById('toast').textContent") : null;
+ok(`  pressed, Copy answers (${JSON.stringify(said)})`, !!said);
+ok("  and no Put back", !(await page.eval(`!!document.querySelector('${goneRow} [data-deletedback]')`)));
+const hidden = `(() => { const b = document.querySelector('${goneRow} [data-deletedbody]'); return b ? b.scrollHeight - b.clientHeight : -1; })()`;
+ok(`  closed, the long text is cut to four lines (${await page.eval(hidden)}px hidden)`, (await page.eval(hidden)) > 4);
+await press(`${goneRow} [data-deletedmore]`);
+await until(`document.querySelector('${goneRow} [data-deletedmore]')?.getAttribute('aria-expanded') === 'true'`);
+ok(`  Show all shows every line (${await page.eval(hidden)}px hidden)`, (await page.eval(hidden)) <= 1);
+ok("  and the last line is in it",
+  (await page.eval(`document.querySelector('${goneRow} [data-deletedbody]')?.innerText ?? ''`)).includes("Line 9 of"));
 
 console.log(red ? `\n  ${red} RED` : "\n  all green");

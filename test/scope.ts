@@ -1557,6 +1557,23 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
     assert.strictEqual(weave.status, 404, "the weaving switch on another writer's book is refused");
     assert.strictEqual((db.getStory(aStory.id) as any).weaving, weaveBefore, 'and her book weaves as it did');
 
+    // PUT BACK (#170), on alice's tale as bob: the gate refuses before the route reads the row.
+    {
+      const p = db.addPassage({ ...aStory, storyId: aStory.id, body: 'Hers, to put back.' });
+      db.addVariant(aStory.id, p, 'Hers, kept.');
+      db.delPassage(aStory.id, p, alice);
+      const viaHers = await post('/api/deleted/putback', { storyId: aStory.id, id: p });
+      assert.strictEqual(viaHers.status, 404, "PUTBACK-STRANGER-VICTIM: Put back naming another writer's tale is refused");
+      const viaHis = await post('/api/deleted/putback', { storyId: bStory.id, id: p });
+      assert.strictEqual((await viaHis.json()).why, 'notfound', 'PUTBACK-STRANGER-OWN: naming his own tale, the route says it is not there');
+      assert.ok(db.deletedVersions(alice).some((v: any) => v.id === p), '  and her version is still in Recently deleted');
+      assert.ok(!(db.passagesOf(aStory.id) as any[]).some((x: any) => x.id === p) && !(db.passagesOf(bStory.id) as any[]).some((x: any) => x.id === p),
+        '  and was written into neither tale');
+      // Leave her tale and Recently deleted as they were: back, then the whole slot, which keeps nothing.
+      assert.ok('ok' in db.putBack(aStory.id, p), '  and alice herself can put it back');
+      db.delSlot(aStory.id, p);
+    }
+
     // Delete-after's first press (#46), asking about alice's passage as bob.
     const peek = await fetch(url + `/api/after?story=${aStory.id}&id=${aPassage}`);
     assert.strictEqual(peek.status, 404, "delete-after's first press must refuse another writer's story id");
@@ -1929,6 +1946,43 @@ db.hemAt(bStory.id, strandedScene, db.beginHem(bStory.id, strandedScene), 'facts
     assert.deepStrictEqual(await seen(alice), [], 'and a deleted tale takes its deleted versions with it');
   }
   ok('Recently deleted shows a co-writer the shared tale\'s deleted versions, and a stranger nothing');
+
+  // PUT BACK WITH TWO OWNERS (#170). The route names its tale, so the gate checks that tale; the bin
+  // is keyed on the version's id alone, so `db.putBack` reads the row by the named tale too. A
+  // stranger naming their OWN tale passes the gate, and that floor is what refuses them.
+  {
+    assert.ok(!OPEN_ROUTES.has('POST /api/deleted/putback'), 'PUTBACK-GATED: Put back names a tale and is gated');
+    const both = db.createStory(alice, { title: 'Put back together' });
+    db.addWriter(both.id, bob);
+    const p = db.addPassage({ ...both, storyId: both.id, body: 'Together, first.' });
+    db.addVariant(both.id, p, 'Together, second.');
+    const q2 = db.addPassage({ ...both, storyId: both.id, body: 'Together again, first.' });
+    db.addVariant(both.id, q2, 'Together again, second.');
+    await routes['DELETE /api/passage'](ctx(alice, { storyId: both.id, id: p }));
+    await routes['DELETE /api/passage'](ctx(alice, { storyId: both.id, id: q2 }));
+    const back = (owner: string, storyId: string, id: string) =>
+      routes['POST /api/deleted/putback'](ctx(owner, { storyId, id })) as any;
+    // Every version of the shared tale, and whether the version is still binned.
+    const live = (id: string) => JSON.stringify([[...db.variantsBySlot(both.id).values()].flat(),
+      db.deletedVersions(alice).some((v: any) => v.id === id)]);
+    const r = await back(bob, both.id, p);
+    assert.ok(!r.error, `PUTBACK-COWRITER: bob puts back what alice deleted in the tale they share (${r.error})`);
+    assert.ok([...db.variantsBySlot(both.id).values()].some((t) => t.some((v) => v.id === p)),
+      '  and it is behind its passage\'s pager again');
+    const carol = db.owner('carol-170');
+    const hers = db.createStory(carol, { title: 'Carol\'s own' });
+    const was = live(q2), carolWas = (db.passagesOf(hers.id) as any[]).length;
+    const own = await back(carol, hers.id, q2);
+    assert.strictEqual(own.why, 'notfound',
+      `PUTBACK-STRANGER-OWN: a stranger naming her own tale is told the version is not there, not why it cannot go back (${own.why})`);
+    assert.strictEqual(live(q2), was, '  and the version stays in Recently deleted, nothing written in the shared tale');
+    assert.strictEqual((db.passagesOf(hers.id) as any[]).length, carolWas, '  nor in her own');
+    assert.ok(!db.ownsStory(both.id, carol), 'PUTBACK-STRANGER-VICTIM: naming the shared tale, the gate refuses her (serve.ts, 404)');
+    db.delStory(hers.id, carol);
+    db.dropWriter(both.id, bob);
+    db.delStory(both.id, alice);
+  }
+  ok('Put back lets a co-writer return what the other deleted, and refuses a stranger whatever tale she names');
 
   // THE CATALOGUE SEARCH. It holds nothing of anyone's, so the two-owner question is whether the
   // admin and a writer who is not are shown the same models. They are since 2026-10-25, when Seth

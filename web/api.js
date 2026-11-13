@@ -297,6 +297,8 @@ export const api = {
   avatarUrl:    (v)              => `/api/me/avatar?v=${v}`,
   // #169. Recently deleted: versions of a passage this writer deleted, kept seven days, every tale.
   deleted:      ()               => j('/api/deleted'),
+  // #170. Put one back behind its passage's pager; a refusal comes back as `error`, with `why`.
+  putBack:      (storyId, id)    => j('/api/deleted/putback', 'POST', { storyId, id }),
   setCover:     (storyId, dataUrl) => j('/api/cover', 'POST', { storyId, dataUrl }),
   delCover:     (storyId)        => j('/api/cover', 'DELETE', { storyId }),
   // `v` is the set_at the shelf was told about, and the route answers immutable for it, so a

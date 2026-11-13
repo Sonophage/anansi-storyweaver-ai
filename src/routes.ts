@@ -4724,6 +4724,14 @@ export const routes: Record<string, Handler> = {
   /** RECENTLY DELETED (#169): the versions this writer, or a writer they share a tale with, deleted
    *  in the last seven days, newest first. Any `story` named is ignored: the list is the writer's. */
   'GET /api/deleted': (c) => ({ versions: db.deletedVersions(c.owner) }),
+  /** PUT BACK (#170): one version from Recently deleted, behind its passage's pager, not selected.
+   *  Names its tale, so the gate checks the writer may write it; `db.putBack` reads the row by that
+   *  tale as well, which is what keeps a version of another tale out of reach. A refusal is an
+   *  `error` with the plain reason, not a failure: the second press of the same row is one. */
+  'POST /api/deleted/putback': (c) => {
+    const r = db.putBack(String(c.body.storyId ?? ''), String(c.body.id ?? ''));
+    return 'ok' in r ? { putBack: c.body.id } : r;
+  },
   /** Delete-after's FIRST press (#46): which chapters' summaries of yours the delete would clear,
    *  read off the same cut the delete makes, so the ask and the delete cannot disagree. */
   'GET /api/after': (c) => ({ yours: db.yoursClearedBy(c.query.get('story') ?? '', c.query.get('id') ?? '') }),
