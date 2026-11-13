@@ -1,7 +1,7 @@
 // RECENTLY DELETED (#169). A version of a passage the writer deleted while the passage kept
 // another version waits seven days, listed in Account across every tale the writer writes.
 // Every other delete — the last version, all versions, Delete after, a scene, a branch — keeps
-// nothing, by Seth's call of 2026-11-06. Listing only here; putting one back is #170.
+// nothing, by Seth's call of 2026-11-06. Put back (#170) returns one behind its passage's pager.
 //
 // On the virtual clock, because the seven days and the half-hourly upkeep are both time.
 // Ownership with two writers is in test/scope.ts, beside every other route's.
@@ -193,6 +193,145 @@ ok('the half-hourly upkeep removes what was deleted more than seven days ago, an
   assert.ok(!ids.includes(gone.id), 'NOT-SEARCHED: a deleted version is not a search result');
 }
 ok('a deleted version is not found by searching');
+
+// ---- PUT BACK (#170) ----------------------------------------------------------------------------
+const back = (storyId: string, id: string, owner = alice) =>
+  routes['POST /api/deleted/putback'](ctx(owner, { storyId, id })) as any;
+const row = (id: string) => raw.prepare('SELECT * FROM passages WHERE id = ?').get(id) as any;
+const slotRows = (chapterId: string, slotKey: number) =>
+  raw.prepare('SELECT * FROM passages WHERE chapter_id = ? AND slot_key = ? ORDER BY variant_index')
+    .all(chapterId, slotKey) as any[];
+const pager = (storyId: string, chapterId: string, slotKey: number) =>
+  db.variantsBySlot(storyId).get(`${chapterId}:${slotKey}`)?.length ?? 0;
+const counts = () => [(raw.prepare('SELECT COUNT(*) c FROM passages').get() as any).c, binned()];
+raw.exec('DELETE FROM deleted_versions');
+
+assert.ok(!OPEN_ROUTES.has('POST /api/deleted/putback'), 'PUTBACK-GATED: Put back names its tale and is not open');
+ok('Put back names its tale, so the gate checks it');
+
+// 1, 2. A VERSION PUT BACK IS BEHIND THE PAGER, NOT SELECTED, AS IT WAS.
+{
+  const { s, first, second } = twoTakes('Returned');
+  const was = row(first);
+  const third = db.addVariant(s.id, second, 'Returned: the third version.') as string;
+  await del(s.id, first);
+  const before = pager(s.id, was.chapter_id, was.slot_key);
+  const r = await back(s.id, first);
+  assert.ok(!r.error, `PUTBACK-RESTORE: Put back succeeds (${r.error})`);
+  const now = row(first);
+  assert.ok(now, 'PUTBACK-RESTORE: the deleted id is a passage again');
+  assert.deepStrictEqual([now.chapter_id, now.slot_key], [was.chapter_id, was.slot_key],
+    'PUTBACK-RESTORE: in the same slot');
+  assert.strictEqual(now.selected, 0, 'PUTBACK-RESTORE: not selected');
+  const others = slotRows(was.chapter_id, was.slot_key).filter((p) => p.id !== first);
+  assert.ok(others.every((p) => now.variant_index > p.variant_index),
+    'PUTBACK-RESTORE: its version number is after every other version of the slot');
+  for (const c of ['body', 'mode', 'directive', 'speaker', 'author', 'created_at'])
+    assert.deepStrictEqual(now[c], was[c], `PUTBACK-RESTORE: its ${c} is the deleted row's`);
+  const sel = slotRows(was.chapter_id, was.slot_key).filter((p) => p.selected);
+  assert.deepStrictEqual(sel.map((p) => p.id), [third],
+    'PUTBACK-RESTORE: the version selected before is still the one selected one');
+  assert.ok(!(await list()).some((v) => v.id === first), 'PUTBACK-RESTORE: Recently deleted no longer lists it');
+  assert.strictEqual(pager(s.id, was.chapter_id, was.slot_key), before + 1,
+    'PUTBACK-PAGER: the passage\'s pager counts one more version');
+  const view: any = await routes['GET /api/story'](ctx(alice, {}, `story=${s.id}`));
+  const shown = view.passages.find((p: any) => p.chapterId === was.chapter_id && p.id === third);
+  assert.strictEqual((shown?.variants ?? []).length, 3, 'PUTBACK-PAGER: and the story view shows three versions');
+  // Search reads the version on the page, so the trigger path is proved by picking it in the pager.
+  assert.ok(!(db.search(alice, 'first', s.id) as any[]).some((h) => h.id === first),
+    'the detector: not selected, it is not a search hit');
+  db.selectVariant(s.id, first);
+  assert.ok((db.search(alice, 'first', s.id) as any[]).some((h) => h.id === first),
+    'PUTBACK-SEARCH: picked in the pager, a version put back is found by searching again');
+  db.selectVariant(s.id, third);
+}
+ok('Put back returns the version behind its passage\'s pager, not selected, with its own record');
+
+// 3. THE ORDINAL STORED IN THE BIN CAN BE STALE: take the slot's.
+{
+  const s = db.createStory(alice, { title: 'Shifted' });
+  db.addPassage({ ...s, storyId: s.id, body: 'Scene one, first passage.' });
+  db.endChapter(s.id, s.branchId);
+  const two = db.chapters(s.id).at(-1) as any;
+  const p = db.addPassage({ ...s, chapterId: two.id, storyId: s.id, body: 'Shifted: version one.' });
+  db.addVariant(s.id, p, 'Shifted: version two.');
+  await del(s.id, p);
+  const old = (raw.prepare('SELECT ordinal FROM deleted_versions WHERE id = ?').get(p) as any).ordinal;
+  db.addPassage({ ...s, storyId: s.id, chapterId: s.chapterId, body: 'Scene one, written in above.' });
+  const live = slotRows(two.id, row(db.passagesOfChapter(two.id)[0].id).slot_key)[0];
+  assert.strictEqual(live.ordinal, old + 1, 'the detector: the passage above moved the slot down one');
+  const r = await back(s.id, p);
+  assert.ok(!r.error, `Put back succeeds (${r.error})`);
+  assert.deepStrictEqual([row(p).ordinal, row(p).branch_id], [live.ordinal, live.branch_id],
+    'PUTBACK-ORDINAL: the version put back takes the slot\'s ordinal and branch now, not the stored ones');
+}
+ok('a version put back after a passage was written above it takes the slot\'s place now');
+
+// 4. A SECOND PRESS DOES NOTHING.
+{
+  const { s, first } = twoTakes('Twice');
+  await del(s.id, first);
+  await back(s.id, first);
+  const was = counts(), slot = JSON.stringify(slotRows(row(first).chapter_id, row(first).slot_key));
+  const r = await back(s.id, first);
+  assert.ok(r && typeof r.error === 'string' && /already put back|gone/i.test(r.error),
+    `PUTBACK-TWICE: the second press says it was already put back or is gone (${r?.error})`);
+  assert.deepStrictEqual(counts(), was, 'PUTBACK-TWICE: and writes no row anywhere');
+  assert.strictEqual(JSON.stringify(slotRows(row(first).chapter_id, row(first).slot_key)), slot,
+    'PUTBACK-TWICE: the slot is as it was');
+}
+ok('a second Put back of the same version changes nothing and says why');
+
+// 5. THE PASSAGE IS GONE: by Delete after, and by deleting its scene.
+{
+  const a = db.createStory(alice, { title: 'Gone after' });
+  const top = db.addPassage({ ...a, storyId: a.id, body: 'Stays.' });
+  const below = db.addPassage({ ...a, storyId: a.id, body: 'Gone after: version one.' });
+  db.addVariant(a.id, below, 'Gone after: version two.');
+  await del(a.id, below);
+  await routes['DELETE /api/after'](ctx(alice, { storyId: a.id, id: top }));
+  const inScene = twoTakes('Gone scene');
+  await del(inScene.s.id, inScene.first);
+  db.endChapter(inScene.s.id, inScene.s.branchId);
+  await routes['DELETE /api/chapter'](ctx(alice, { storyId: inScene.s.id, id: inScene.s.chapterId }));
+  for (const [sid, id, how] of [[a.id, below, 'Delete after'], [inScene.s.id, inScene.first, 'its scene deleted']]) {
+    const v = (await list()).find((x) => x.id === id);
+    assert.strictEqual(!!v?.passageGone, true, `PUTBACK-GONE: listed as gone after ${how}`);
+    const was = counts();
+    const r = await back(sid, id);
+    assert.ok(typeof r.error === 'string' && /passage is gone/i.test(r.error),
+      `PUTBACK-GONE: Put back says the passage is gone after ${how} (${r.error})`);
+    assert.deepStrictEqual(counts(), was, `PUTBACK-GONE: nothing is written after ${how}`);
+    assert.ok((await list()).some((x) => x.id === id), `PUTBACK-GONE: it stays in Recently deleted after ${how}`);
+  }
+}
+ok('a version whose passage is gone is refused with the reason, and stays listed');
+
+// 7. AN ID THAT IS LIVE IN PASSAGES IS NEVER OVERWRITTEN.
+{
+  const { s, first } = twoTakes('Clash');
+  await del(s.id, first);
+  // Only a hand-made row can do this: the copy the bin holds, and a live passage with its id.
+  raw.prepare(`INSERT INTO passages (id,chapter_id,story_id,branch_id,slot_key,ordinal,variant_index,selected,
+      author,body,created_at) SELECT id,chapter_id,story_id,branch_id,slot_key + 100,ordinal + 100,0,1,author,
+      'Clash: the live row.',created_at FROM deleted_versions WHERE id = ?`).run(first);
+  const live = JSON.stringify(row(first)), was = counts();
+  const r = await back(s.id, first);
+  assert.ok(typeof r.error === 'string', `PUTBACK-CLASH: refused (${r.error})`);
+  assert.strictEqual(JSON.stringify(row(first)), live, 'PUTBACK-CLASH: the live row is unchanged');
+  assert.deepStrictEqual(counts(), was, 'PUTBACK-CLASH: and nothing is written');
+}
+ok('Put back refuses an id that is already a passage and leaves that passage alone');
+
+// 8. THE LIST CARRIES NOTHING THE SCREEN DOES NOT READ.
+{
+  const { s, first } = twoTakes('Shape');
+  await del(s.id, first);
+  const v = (await list()).find((x) => x.id === first);
+  assert.ok(v, 'the detector: the version is listed');
+  assert.ok(!('author' in v) && !('deletedBy' in v), `LIST-SHAPE: a row carries no author or deletedBy (${Object.keys(v)})`);
+}
+ok('the list no longer carries who wrote or who deleted a version');
 
 raw.close();
 mock.timers.reset();
