@@ -269,6 +269,18 @@ one card decided 2026-10-27, built in #89 to #92; cards chalked before then stay
 _Avoid_: end this chapter, close the chapter, ritual
 _In code_: `/api/chapter/end`
 
+**Full hem / Basic hem**:
+How a writer hems, picked in Account under How you hem. Full runs every pass. Basic runs the
+summary, where the tale stands, and the changes to the people in it: no new threads, no next scene,
+and it never asks. (Decided 2026-11-06, ADR 0016.)
+_In code_: `users.hem = 'basic'`, `db.hemBasic`, `BASIC_HEM`
+
+**Anyone new**:
+The step that names the threads a scene brings in that the tale does not have yet. On the setup it
+is the last step; on a hem it is the last pass, and its finds go on the closing scene's card.
+_Avoid_: new threads (as a step name)
+_In code_: the `facts` pass, `extract`
+
 **Plans first**:
 The model planning, unseen, before it writes a passage, a Talk reply or an invention. A tale's
 switch (off unless the writer turns it on), and what a model can do: it "never plans", "can plan"
